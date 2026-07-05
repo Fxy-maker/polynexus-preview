@@ -276,6 +276,49 @@ def _xc_pct_for(row: JointBatchRow, technique: str) -> float:
     return value * 100.0 if not math.isnan(value) else math.nan
 
 
+def _run_analysis_evidence(run: JointRunRecord | None) -> dict[str, Any]:
+    if run is None:
+        return {}
+    evidence = run.analysis_evidence if isinstance(run.analysis_evidence, dict) else {}
+    if evidence:
+        return evidence
+    embedded = run.values.get("analysis_evidence")
+    return embedded if isinstance(embedded, dict) else {}
+
+
+def _run_evidence_context(run: JointRunRecord | None) -> dict[str, Any]:
+    evidence = _run_analysis_evidence(run)
+    if not evidence:
+        return {"status": "unknown", "weight": 0.5, "reasons": ["evidence_missing"]}
+
+    summary = evidence.get("constraint_summary", {}) if isinstance(evidence.get("constraint_summary"), dict) else {}
+    structure = evidence.get("structure_evidence", {}) if isinstance(evidence.get("structure_evidence"), dict) else {}
+    status = str(summary.get("status") or "ok").strip().lower()
+    weight = 1.0
+    reasons: list[str] = []
+    if status == "hard_fail":
+        weight = 0.0
+        reasons.append("hard_fail")
+    elif status == "soft_warn":
+        weight = 0.45
+        reasons.append("soft_warn")
+
+    if str(structure.get("Xc_assignment_status") or "").strip() == "assignment_limited":
+        weight = min(weight, 0.25)
+        reasons.append("assignment-limited")
+    if str(structure.get("lc_reliability_status") or "").strip() == "diagnostic_only":
+        weight = min(weight, 0.25)
+        reasons.append("diagnostic-only-lc")
+    if str(structure.get("Xc_reliability_status") or "").strip() == "diagnostic_only":
+        weight = min(weight, 0.25)
+        reasons.append("diagnostic-only-xc")
+    elif str(structure.get("Xc_reliability_status") or "").strip() == "low_confidence":
+        weight = min(weight, 0.45)
+        reasons.append("low-confidence-xc")
+
+    return {"status": status or "ok", "weight": weight, "reasons": reasons}
+
+
 def detect_joint_opportunities(row: JointBatchRow) -> list[str]:
     """Return user-facing analysis opportunities for one row."""
     opportunities = []
@@ -318,12 +361,17 @@ def validate_joint_row(row: JointBatchRow) -> list[dict[str, Any]]:
     lc = saxs.get_first_number(("lc_nm", "crystalline_thickness_nm")) if saxs else math.nan
     l_bragg = saxs.get_first_number(("L_bragg_nm", "L_bragg", "L_nm")) if saxs else math.nan
     l_corr = saxs.get_first_number(("L_corr_nm", "L_corr", "L_corr_best_nm")) if saxs else math.nan
+    phi_c_weights = {
+        tech: _run_evidence_context(row.run(tech))["weight"]
+        for tech in ("dsc", "waxs", "saxs")
+    }
 
     results = run_all_cross_validations(
         sample_id=f"{row.sample_name}/{row.batch_label}",
         phi_c_dsc=_normalise_xc(dsc.get_first_number(XC_KEYS)) if dsc else math.nan,
         phi_c_waxs=_normalise_xc(waxs.get_first_number(XC_KEYS)) if waxs else math.nan,
         phi_c_saxs=_saxs_xc(row),
+        phi_c_weights=phi_c_weights,
         tm_dsc=tm,
         L_saxs=long_period,
         lc_saxs=lc,
@@ -375,17 +423,6 @@ def _compact_joint_issue(item: dict[str, Any]) -> str:
     if message:
         parts.append(message)
     return " | ".join(parts)
-
-
-def _run_analysis_evidence(run: JointRunRecord | None) -> dict[str, Any]:
-    if not run:
-        return {}
-    if isinstance(run.analysis_evidence, dict) and run.analysis_evidence:
-        return run.analysis_evidence
-    for payload in (run.results_summary, run.parameters):
-        if isinstance(payload, dict) and isinstance(payload.get("analysis_evidence"), dict):
-            return payload["analysis_evidence"]
-    return {}
 
 
 def _technique_confidence(run: JointRunRecord | None) -> dict[str, Any]:

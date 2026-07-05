@@ -148,6 +148,31 @@ def test_joint_context_downgrades_assignment_limited_nmr_xc(tmp_path):
     assert "nmr" in report["ai_context"]["recommended_review_targets"]
 
 
+def test_joint_low_confidence_saxs_xc_conflict_is_warn_not_error(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "melt-window", condition_values={"temperature_C": 225})
+    db.create_analysis_run(batch_id, "dsc", results_summary={"Xc_pct": 44.0})
+    db.create_analysis_run(
+        batch_id,
+        "saxs",
+        results_summary={"L_nm": 12.0, "lc_nm": 1.2},
+        analysis_evidence={
+            "constraint_summary": {"status": "soft_warn"},
+            "structure_evidence": {"lc_reliability_status": "diagnostic_only"},
+        },
+    )
+
+    report = build_joint_hub_report(collect_joint_dataset(db))
+
+    assert report["ai_context"]["error_count"] == 0
+    assert report["ai_context"]["warning_count"] >= 1
+    assert any(
+        item["severity"] == "WARN" and "phi_c" in item["check"]
+        for item in report["validations"]
+    )
+
+
 def test_joint_hub_consumes_persisted_analysis_evidence(tmp_path):
     db = SampleDB(tmp_path / "samples.db")
     sample_id = db.create_sample("PA6")

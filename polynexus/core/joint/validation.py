@@ -22,8 +22,9 @@ _DHM0 = {"PE":293,"HDPE":293,"LDPE":293,"iPP":207,"PP":207,"sPP":196,"PET":140,"
 _TM_INF = {"PE":146,"iPP":186,"PET":280,"PA6":260,"PA66":300,"PVDF":210,"PEEK":395,"PTFE":345,"PLA":220,"PBT":245,"POM":198,"PPS":315}
 
 
-def validate_triple_phi_c(phi_dsc, phi_waxs, phi_saxs, tolerance=0.05, sample_id=""):
+def validate_triple_phi_c(phi_dsc, phi_waxs, phi_saxs, tolerance=0.05, sample_id="", weights=None):
     results = []
+    weights = weights or {}
     pairs = [("DSC",phi_dsc),("WAXS",phi_waxs),("SAXS",phi_saxs)]
     available = [(n,v) for n,v in pairs if v is not None and not np.isnan(v)]
     if len(available) < 2:
@@ -39,11 +40,15 @@ def validate_triple_phi_c(phi_dsc, phi_waxs, phi_saxs, tolerance=0.05, sample_id
             diff=abs(vi-vj); avg=(vi+vj)/2
             rel=diff/avg if avg>0.001 else 0
             passed=rel<=tolerance
+            pair_weight = min(
+                float(weights.get(ni.lower(), 1.0) or 0.0),
+                float(weights.get(nj.lower(), 1.0) or 0.0),
+            )
             results.append(CrossValidationResult(
                 check_name=f"{sample_id}/phi_c_{ni}_vs_{nj}" if sample_id else f"phi_c_{ni}_vs_{nj}",
-                passed=passed, severity="OK" if passed else "ERROR",
+                passed=passed, severity="OK" if passed else ("WARN" if pair_weight < 0.5 else "ERROR"),
                 message=f"phi_c({ni})={vi:.3f} vs phi_c({nj})={vj:.3f} diff={diff:.3f} ({rel*100:.1f}%)",
-                details={f"phi_c_{ni}":vi,f"phi_c_{nj}":vj,"abs_diff":diff,"rel_diff_pct":rel*100}))
+                details={f"phi_c_{ni}":vi,f"phi_c_{nj}":vj,"abs_diff":diff,"rel_diff_pct":rel*100,"evidence_weight":pair_weight}))
     return results
 
 
@@ -84,9 +89,9 @@ def validate_L_consistency(L_bragg, L_corr, tolerance=0.03, sample_id=""):
     return CrossValidationResult(check_name=f"{pfx}L_consistency",passed=passed,severity="OK" if passed else "WARN",message=f"L(Bragg)={L_bragg:.2f} vs L(corr)={L_corr:.2f} nm diff={diff:.2f} ({rel*100:.1f}%)",details={"L_bragg_nm":L_bragg,"L_corr_nm":L_corr,"diff_nm":diff,"rel_diff_pct":rel*100})
 
 
-def run_all_cross_validations(sample_id="",phi_c_dsc=None,phi_c_waxs=None,phi_c_saxs=None,tm_dsc=None,L_saxs=None,lc_saxs=None,L_bragg=None,L_corr=None,polymer_family="",**kw):
+def run_all_cross_validations(sample_id="",phi_c_dsc=None,phi_c_waxs=None,phi_c_saxs=None,phi_c_weights=None,tm_dsc=None,L_saxs=None,lc_saxs=None,L_bragg=None,L_corr=None,polymer_family="",**kw):
     results={"phi_c":[],"tm":[],"L":[],"all":[]}
-    pr=validate_triple_phi_c(phi_c_dsc,phi_c_waxs,phi_c_saxs,sample_id=sample_id)
+    pr=validate_triple_phi_c(phi_c_dsc,phi_c_waxs,phi_c_saxs,sample_id=sample_id,weights=phi_c_weights)
     results["phi_c"]=pr; results["all"].extend(pr)
     tr=validate_tm_bidirectional(tm_dsc,L_saxs,lc_saxs,polymer_family=polymer_family,sample_id=sample_id,**kw)
     results["tm"]=tr; results["all"].extend(tr)
