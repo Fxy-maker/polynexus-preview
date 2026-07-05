@@ -105,6 +105,7 @@ class JointRunRecord:
     output_dir: str = ""
     parameters: dict[str, Any] = field(default_factory=dict)
     results_summary: dict[str, Any] = field(default_factory=dict)
+    analysis_evidence: dict[str, Any] = field(default_factory=dict)
 
     @property
     def values(self) -> dict[str, Any]:
@@ -222,6 +223,7 @@ def collect_joint_dataset(
                     output_dir=run.get("output_dir", "") or "",
                     parameters=run.get("parameters", {}) or {},
                     results_summary=run.get("results_summary", {}) or {},
+                    analysis_evidence=run.get("analysis_evidence", {}) or {},
                 )
 
             if latest_by_technique:
@@ -378,6 +380,8 @@ def _compact_joint_issue(item: dict[str, Any]) -> str:
 def _run_analysis_evidence(run: JointRunRecord | None) -> dict[str, Any]:
     if not run:
         return {}
+    if isinstance(run.analysis_evidence, dict) and run.analysis_evidence:
+        return run.analysis_evidence
     for payload in (run.results_summary, run.parameters):
         if isinstance(payload, dict) and isinstance(payload.get("analysis_evidence"), dict):
             return payload["analysis_evidence"]

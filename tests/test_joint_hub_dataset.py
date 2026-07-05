@@ -146,3 +146,26 @@ def test_joint_context_downgrades_assignment_limited_nmr_xc(tmp_path):
     assert report["ai_context"]["weak_xc_sources"]["nmr"] == "assignment_limited"
     assert "NMR assignment limited" in report["ai_context"]["issue_families"]
     assert "nmr" in report["ai_context"]["recommended_review_targets"]
+
+
+def test_joint_hub_consumes_persisted_analysis_evidence(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "batch-a")
+    db.create_analysis_run(batch_id, "dsc", results_summary={"Xc_pct": 42.0})
+    db.create_analysis_run(
+        batch_id,
+        "nmr",
+        results_summary={"Xc_pct": 45.0, "Xc_method": "requires_crystalline_amorphous_assignment"},
+        analysis_evidence={
+            "constraint_summary": {"status": "soft_warn"},
+            "structure_evidence": {"Xc_assignment_status": "assignment_limited"},
+        },
+    )
+
+    report = build_joint_hub_report(collect_joint_dataset(db))
+    context = report["ai_context"]
+
+    assert context["issue_count"] >= 1
+    assert "NMR assignment limited" in context["issue_families"]
+    assert context["weak_xc_sources"]["nmr"] == "assignment_limited"
