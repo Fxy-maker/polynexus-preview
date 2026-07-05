@@ -44,7 +44,7 @@ def read_image(filepath: str) -> Tuple[np.ndarray, dict]:
         pass
     except Exception:
         # fabio failed, try fallbacks
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("SAXS image read via fabio failed; trying fallback readers.", exc_info=True)
 
     # Fallback readers
     if ext in ('.tif', '.tiff'):
@@ -95,7 +95,7 @@ def read_1d_profile(filepath: str) -> Tuple[np.ndarray, np.ndarray, dict]:
         if data.ndim == 2 and data.shape[1] >= 2:
             return data[:, 0].astype(np.float64), data[:, 1].astype(np.float64), {}
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("SAXS 1D profile text load failed; trying line-by-line parser.", exc_info=True)
 
     # Fallback: line-by-line
     x_list, y_list = [], []
@@ -465,7 +465,6 @@ def _parse_condition(entry: Path, cfg: "SAXSConfig") -> float:
             except Exception:
                 _log.debug("Validator eval error for pattern %r", p.name)
                 continue
-                logger.warning("异常已处理", exc_info=True)
 
         _log.debug("Condition extracted: %s=%s %s (pattern %r)",
                     cfg.condition_label, value, cfg.condition_unit, p.name)

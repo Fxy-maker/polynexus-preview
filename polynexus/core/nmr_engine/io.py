@@ -193,8 +193,8 @@ def _load_csv(filepath: str, sample_state: Optional[str] = None,
     try:
         data = load_table(filepath)[1]
     except Exception:
+        logger.warning("NMR CSV table load failed.", exc_info=True)
         return NMRSpectrum(label=label, nucleus=nuc, metadata={"error": "table_load_failed"})
-        logger.warning("异常已处理", exc_info=True)
 
     if data.ndim == 1:
         data = data.reshape(-1, 1)
@@ -268,12 +268,12 @@ def _load_bruker_pdata(dirpath: str, sample_state: Optional[str] = None,
             },
         )
     except Exception as exc:
+        logger.warning("NMR Bruker processed spectrum load failed.", exc_info=True)
         return NMRSpectrum(
             label=label,
             nucleus=nuc,
             metadata={"error": "bruker_load_failed", "detail": str(exc)},
         )
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _next_power_of_two(n: int) -> int:
@@ -384,12 +384,12 @@ def _load_raw_fid(filepath: str, sample_state: Optional[str] = None,
             },
         )
     except Exception as exc:
+        logger.warning("NMR raw FID load failed.", exc_info=True)
         return NMRSpectrum(
             label=label,
             nucleus=nuc,
             metadata={"error": "raw_fid_load_failed", "detail": str(exc)},
         )
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _safe_float_jeol(value: Any) -> Optional[float]:
@@ -435,8 +435,8 @@ def _read_jeol_record_value(blob: bytes, label: str) -> Optional[Any]:
             text = val_bytes.rstrip(b"\x00 ").decode("ascii", errors="ignore")
             return text or None
         except Exception:
+            logger.warning("NMR JEOL record value read failed.", exc_info=True)
             return None
-            logger.warning("异常已处理", exc_info=True)
 
     return None
 
@@ -710,7 +710,7 @@ def load_relaxation(directory: str, relaxation_type: str = "T1") -> NMRRelaxatio
                 rel.delay_values = np.append(rel.delay_values, delay)
                 rel.intensities[delay] = spec.intensity
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("NMR relaxation spectrum load failed; skipping file.", exc_info=True)
 
     return rel
 
@@ -790,5 +790,5 @@ def load_computed_shifts(filepath: str,
                 ))
             return shifts
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("NMR computed shift file load failed; trying next file.", exc_info=True)
     return []

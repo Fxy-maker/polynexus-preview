@@ -154,7 +154,7 @@ def detect_strain_phase(
                 alpha = -p[0]
             except Exception:
                 alpha = 0
-                logger.warning("异常已处理", exc_info=True)
+                logger.warning("SAXS strain phase low-q power-law fit failed.", exc_info=True)
         else:
             alpha = 0
     else:
@@ -323,7 +323,7 @@ def detect_voids(
                 Rg2 = -3 * p[0]
                 result['void_Rg'] = np.sqrt(Rg2) if Rg2 > 0 else np.nan
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("SAXS void Guinier fit failed.", exc_info=True)
 
     # 3. Estimate void volume fraction from invariant ratio
     Q_total = trapezoid(I * q**2, q)
@@ -427,7 +427,7 @@ def analyze_strain_series(
             sp.phi_c = struct.phi_c
         except Exception as e:
             sp.warnings.append(f"Core analysis: {e}")
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("SAXS strain frame core analysis failed.", exc_info=True)
 
         # ---- Invariant ----
         Q_star = scattering_invariant(q, I, cfg=cfg)

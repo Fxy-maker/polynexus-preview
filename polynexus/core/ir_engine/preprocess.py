@@ -130,7 +130,7 @@ def baseline_rubberband(wavenumber: np.ndarray, absorbance: np.ndarray,
         baseline = baseline_fit[::-1] if reverse else baseline_fit
         return y - baseline, baseline
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("IR rubberband convex-hull baseline failed; trying subsampled fallback.", exc_info=True)
 
     # Use every Nth point for the convex hull to speed up
     n = max(3, len(x) // 50)
@@ -144,8 +144,8 @@ def baseline_rubberband(wavenumber: np.ndarray, absorbance: np.ndarray,
     try:
         hull = ConvexHull(points)
     except Exception:
+        logger.warning("IR rubberband baseline fallback failed; returning zero baseline.", exc_info=True)
         return y, np.zeros_like(y)
-        logger.warning("异常已处理", exc_info=True)
 
     # Extract lower envelope
     hull_vertices = hull.vertices
@@ -263,7 +263,7 @@ def baseline_als(y: np.ndarray, lam: float = 1e6, p: float = 0.001,
                                       lam=lam, p=p, max_iter=n_iter)
         return baseline
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("IR ALS sparse baseline solve failed; using iterative fallback.", exc_info=True)
 
     L = len(y)
     D = sparse.diags([1, -2, 1], [0, -1, -2], shape=(L, L - 2))

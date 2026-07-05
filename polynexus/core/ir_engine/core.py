@@ -221,7 +221,7 @@ def fit_peaks(wavenumber: np.ndarray, absorbance: np.ndarray,
             )
         except Exception:
             popt = np.array(p0, dtype=float)
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("IR peak fit failed; using initial parameters.", exc_info=True)
 
         amp, mu, width, c0, c1 = popt
         width = abs(width)

@@ -306,7 +306,7 @@ def analyze_strain_series(
         except Exception as e:
             print(f"[strain] analyze_scan failed for {label}_e{eps:.1f}: {e}", file=sys.stderr)
             r = WAXSResult(label=f"{label}_e{eps:.1f}")
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("WAXS strain frame analysis failed.", exc_info=True)
         if r is None:
             r = WAXSResult(label=f"{label}_e{eps:.1f}")
 
@@ -357,7 +357,7 @@ def analyze_strain_series(
                 if f_values:
                     sp.f_Herman_avg = float(np.mean(f_values))
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("WAXS strain Herman factor aggregation failed.", exc_info=True)
 
         # -- Lattice strain (position-matched peaks) --
         if i > 0 and ref_d_spacings and r.peaks:
@@ -511,8 +511,8 @@ def _estimate_xc_from_2d_sum(scan, config):
             baseline='none',
         )
     except Exception:
+        logger.warning("WAXS 2D-sum crystallinity estimate failed.", exc_info=True)
         return np.nan
-        logger.warning("异常已处理", exc_info=True)
 
     components = fit_result.get('components', [])
     crystals = [c for c in components if c.get('is_crystal', True)]

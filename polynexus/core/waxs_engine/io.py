@@ -110,7 +110,7 @@ def _load_edf(filepath: str, wavelength_A: float) -> WAXSScan:
         if scan.sample_detector_mm < 30:
             scan.sample_detector_mm = 100.0
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("WAXS EDF geometry extraction failed; using defaults.", exc_info=True)
 
     # Auto-detect beam center only when header lacks valid values
     if scan.center_x <= 0 or scan.center_y <= 0:
@@ -135,7 +135,7 @@ def _auto_beam_center(scan: WAXSScan, img: np.ndarray) -> None:
     except Exception:
         scan.center_x = img.shape[1] / 2
         scan.center_y = img.shape[0] / 2
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("WAXS beam-center auto-detection failed; using image center.", exc_info=True)
 
 
 def _load_1d(filepath: str) -> WAXSScan:
@@ -277,7 +277,7 @@ def _load_directory(dirpath: str, wavelength_A: float) -> WAXSDataset:
                 if "condition" in entry:
                     ds.conditions.append(entry["condition"])
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("WAXS directory metadata load failed.", exc_info=True)
 
     return ds
 

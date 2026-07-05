@@ -63,7 +63,7 @@ def build_integrator(cfg: SAXSConfig):
             import pyFAI
             return pyFAI.load(cfg.poni_file)
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS pyFAI PONI load failed; trying manual geometry.", exc_info=True)
 
     if cfg.use_pyfai_integration:
         try:
@@ -83,7 +83,7 @@ def build_integrator(cfg: SAXSConfig):
             if test_q is not None and np.max(test_q) > 0:
                 return ai
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS pyFAI manual integrator setup failed; using numpy integration.", exc_info=True)
 
     # Fallback: no pyFAI, use manual numpy integration
     return None
@@ -234,7 +234,7 @@ def _integrate_pyfai_shadow(img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarra
                 I = I / I_max
             return q, I
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("SAXS pyFAI sector integration failed.", exc_info=True)
     return np.array([]), np.array([])
 
 
@@ -259,7 +259,7 @@ def integrate_full(ai, img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np
             if np.sum(valid) > 10 and q[valid][-1] > q[valid][0]:
                 return q[valid], I[valid]
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS pyFAI full integration failed; using manual integration.", exc_info=True)
 
     # Manual numpy fallback
     return _manual_integrate(img, cfg)
@@ -677,7 +677,7 @@ def detect_beamstop_edge(
             diag['power_law_alpha'] = round(alpha, 2)
         except Exception:
             alpha = np.nan
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("SAXS beamstop power-law fit failed.", exc_info=True)
 
     # Find the first q where I(q) drops below threshold * I_ref
     threshold_ratio = max(5.0, cfg.beamstop_pollution_threshold * 0.1)

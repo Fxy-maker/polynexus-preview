@@ -1437,7 +1437,7 @@ def generate_all_figures(results, output_dir, config=None):
                                        is_low_conf=is_low)
             figures[f"{frame_label}/01_scattering"] = p
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS scattering profile figure generation failed.", exc_info=True)
 
         # ----------------------------------------------------------------
         # Fig-U2: Correlation function
@@ -1454,7 +1454,7 @@ def generate_all_figures(results, output_dir, config=None):
                                              is_low_conf=is_low)
                 figures[f"{frame_label}/02_correlation"] = p
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS correlation figure generation failed.", exc_info=True)
 
         # ----------------------------------------------------------------
         # Fig-U3: IDF
@@ -1471,7 +1471,7 @@ def generate_all_figures(results, output_dir, config=None):
                             is_low_conf=is_low)
                 figures[f"{frame_label}/03_IDF"] = p
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS IDF figure generation failed.", exc_info=True)
 
         # ----------------------------------------------------------------
         # Fig-U4: Porod
@@ -1488,7 +1488,7 @@ def generate_all_figures(results, output_dir, config=None):
                               is_low_conf=is_low)
                 figures[f"{frame_label}/04_porod"] = p
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS Porod figure generation failed.", exc_info=True)
 
         # ----------------------------------------------------------------
         # Guinier
@@ -1499,7 +1499,7 @@ def generate_all_figures(results, output_dir, config=None):
             fig_guinier(q, I, Rg=Rg, output_path=p)
             figures[f"{frame_label}/05_guinier"] = p
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS Guinier figure generation failed.", exc_info=True)
 
         # ----------------------------------------------------------------
         # Kratky
@@ -1509,7 +1509,7 @@ def generate_all_figures(results, output_dir, config=None):
             fig_kratky(q, I, L=L_best, output_path=p)
             figures[f"{frame_label}/06_kratky"] = p
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS Kratky figure generation failed.", exc_info=True)
 
         # ----------------------------------------------------------------
         # 1D profile export
@@ -1523,7 +1523,7 @@ def generate_all_figures(results, output_dir, config=None):
             if p:
                 figures[f"{frame_label}/1d_profile"] = p
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS 1D profile CSV export failed.", exc_info=True)
 
         # Accumulate parameters for batch CSV
         all_params.append(_result_to_params_dict(result))
@@ -1539,7 +1539,7 @@ def generate_all_figures(results, output_dir, config=None):
             df.to_csv(csv_path, index=False)
             figures["parameters_csv"] = csv_path
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("SAXS parameters CSV export failed.", exc_info=True)
 
     # ----------------------------------------------------------------
     # Temperature series figures (multi-frame with valid condition values)
@@ -1563,7 +1563,7 @@ def generate_all_figures(results, output_dir, config=None):
                     fig_v1_temperature_waterfall(temps, q_list, I_list, output_path=p)
                     figures["Fig_2_waterfall"] = p
                 except Exception:
-                    logger.warning("静默异常", exc_info=True)
+                    logger.warning("SAXS temperature waterfall figure generation failed.", exc_info=True)
 
                 # V2: Structure parameters vs temperature
                 try:
@@ -1573,7 +1573,7 @@ def generate_all_figures(results, output_dir, config=None):
                     fig_v2_temperature_parameters(temps, L_arr, lc_arr, Q_star_array=Q_arr, Xc_array=Xc_arr, output_path=p)
                     figures["Fig_3_structure_params"] = p
                 except Exception:
-                    logger.warning("静默异常", exc_info=True)
+                    logger.warning("SAXS temperature structure-parameters figure generation failed.", exc_info=True)
 
                 # V3: Scattering heatmap
                 try:
@@ -1597,9 +1597,9 @@ def generate_all_figures(results, output_dir, config=None):
                                                output_path=p, beamstop_q_min=bsq_min)
                     figures["Fig_4_heatmap"] = p
                 except Exception:
-                    logger.warning("静默异常", exc_info=True)
+                    logger.warning("SAXS temperature heatmap figure generation failed.", exc_info=True)
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("SAXS temperature-series figure generation failed.", exc_info=True)
 
     # ----------------------------------------------------------------
     # Tensile series figures (multi-frame)
@@ -1625,7 +1625,7 @@ def generate_all_figures(results, output_dir, config=None):
                     fig_t2_scattering_waterfall(strains, q_list_s, I_list_s, output_path=p)
                     figures["Fig_2_waterfall"] = p
                 except Exception:
-                    logger.warning("静默异常", exc_info=True)
+                    logger.warning("SAXS strain waterfall figure generation failed.", exc_info=True)
 
                 # T3: Structure evolution
                 try:
@@ -1636,7 +1636,7 @@ def generate_all_figures(results, output_dir, config=None):
                                                 output_path=p)
                     figures["Fig_3_structure_params"] = p
                 except Exception:
-                    logger.warning("静默异常", exc_info=True)
+                    logger.warning("SAXS strain structure-parameters figure generation failed.", exc_info=True)
 
                 # T4: Invariant conservation
                 try:
@@ -1644,9 +1644,9 @@ def generate_all_figures(results, output_dir, config=None):
                     fig_t4_invariant_conservation(strains, Q_arr, output_path=p)
                     figures["Fig_S1_invariant"] = p
                 except Exception:
-                    logger.warning("静默异常", exc_info=True)
+                    logger.warning("SAXS strain invariant figure generation failed.", exc_info=True)
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("SAXS strain-series figure generation failed.", exc_info=True)
 
     # ── Overview composite figures ──
     if len(results) > 1:
@@ -1687,6 +1687,6 @@ def generate_all_figures(results, output_dir, config=None):
                         output_path=p)
                 figures["Fig_1_overview"] = p
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("SAXS static overview figure generation failed.", exc_info=True)
 
     return figures

@@ -437,7 +437,7 @@ def analyze_anisotropy(
         _, q_star, _ = bragg_long_period(q_1d, I_1d)
     except Exception:
         q_star = q_1d[np.argmax(I_1d * q_1d**2)]
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("SAXS anisotropy Bragg period estimate failed; using maximum Iq2.", exc_info=True)
 
     if np.isfinite(q_star) and q_star > 0:
         chi_prof, I_prof = extract_azimuthal_profile(I_2d, q, chi, q_star)

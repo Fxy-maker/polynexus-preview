@@ -1085,7 +1085,7 @@ def analyze_temperature_series(scans, temperatures, config,
         except Exception as e:
             print(f"[temp] analyze_scan failed for {frame_label}: {e}", file=sys.stderr)
             r = WAXSResult(label=frame_label)
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("WAXS temperature frame analysis failed.", exc_info=True)
         if r is None:
             r = WAXSResult(label=frame_label)
         result.results.append(r)

@@ -508,7 +508,7 @@ def gibbs_thomson_analysis(
         if np.isfinite(result['sigma_e_over_dHf']):
             result['sigma_e_Jm2'] = result['sigma_e_over_dHf'] * delta_Hf_typical
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("SAXS Gibbs-Thomson analysis failed.", exc_info=True)
 
     return result
 
@@ -601,7 +601,7 @@ def avrami_kinetics(
         result['valid'] = r2 > 0.9 and 1.0 <= n <= 4.0
         result['fit_range'] = (float(np.min(t_fit)), float(np.max(t_fit)))
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("SAXS Avrami kinetics fit failed.", exc_info=True)
 
     return result
 
@@ -770,7 +770,7 @@ def analyze_temperature_series(
                 cfg_corrected = apply_thermal_correction(cfg, T)
             except Exception:
                 cfg_corrected = cfg
-                logger.warning("异常已处理", exc_info=True)
+                logger.warning("SAXS thermal expansion correction failed; using original config.", exc_info=True)
         else:
             cfg_corrected = cfg
 
@@ -800,7 +800,7 @@ def analyze_temperature_series(
                 I_peak_tracking[i] = I[idx] if idx < len(I) else np.nan
         except Exception as e:
             tp.warnings.append(f"Core analysis: {e}")
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("SAXS temperature frame core analysis failed.", exc_info=True)
 
         # ---- Invariant ----
         Q_star = scattering_invariant(q, I, cfg=cfg_corrected)

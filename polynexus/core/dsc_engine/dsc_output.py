@@ -788,8 +788,8 @@ def generate_all_figures(results: List[DSCResult],
         except Exception as exc:
             import sys as _sys
             _sys.stderr.write(f"DSC figure {fn.__name__} failed: {exc}\n")
+            logger.warning("DSC figure generation failed.", exc_info=True)
             return ""
-            logger.warning("异常已处理", exc_info=True)
 
     # ── Per-scan figures → SI/ ──────────────────────────────────────────
     for result in results:
@@ -847,13 +847,13 @@ def generate_all_figures(results: List[DSCResult],
     except Exception as exc:
         import sys as _sys
         _sys.stderr.write(f"CSV export failed: {exc}\n")
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("DSC parameters CSV export failed.", exc_info=True)
     try:
         export_detailed_peaks_csv(results, output_dir)
     except Exception as exc:
         import sys as _sys
         _sys.stderr.write(f"Peaks CSV export failed: {exc}\n")
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("DSC detailed peaks CSV export failed.", exc_info=True)
     # Cross-sample summary table (batch mode)
     if len(results) > 1:
         try:
@@ -861,7 +861,7 @@ def generate_all_figures(results: List[DSCResult],
         except Exception as exc:
             import sys as _sys
             _sys.stderr.write(f"Summary CSV export failed: {exc}\n")
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("DSC summary CSV export failed.", exc_info=True)
 
     # ── Generate analysis report ─────────────────────────────────────────
     try:
@@ -880,6 +880,6 @@ def generate_all_figures(results: List[DSCResult],
     except Exception as exc:
         import sys as _sys
         _sys.stderr.write(f"Report generation failed: {exc}\n")
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("DSC analysis report generation failed.", exc_info=True)
 
     return figures

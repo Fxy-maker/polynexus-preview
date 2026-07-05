@@ -78,8 +78,8 @@ def phase_correct(ppm, intensity, zero_order_deg=0.0, first_order_deg=0.0):
         rotated = analytic * np.exp(1j * phase_rad)
         return rotated.real
     except Exception:
+        logger.warning("NMR phase correction failed; returning original intensity.", exc_info=True)
         return intensity
-        logger.warning("异常已处理", exc_info=True)
 
 
 def auto_phase(intensity, max_iterations=20):

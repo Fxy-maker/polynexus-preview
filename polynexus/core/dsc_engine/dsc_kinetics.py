@@ -146,8 +146,8 @@ def _smooth_signal(y: np.ndarray, max_window: int = 41) -> np.ndarray:
     try:
         return signal.savgol_filter(y, window, min(3, window - 2), mode='interp')
     except Exception:
+        logger.warning("DSC kinetics smoothing failed; returning raw signal.", exc_info=True)
         return y
-        logger.warning("异常已处理", exc_info=True)
 
 
 def detect_isothermal_segments(scan: DSCScan,
@@ -390,7 +390,7 @@ def avrami_fit(time_min: np.ndarray, Xt: np.ndarray,
         if np.isfinite(t_half_data):
             t_half = t_half_data
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("DSC Avrami half-time estimation failed.", exc_info=True)
 
     result.n = n
     result.log_k = log_k

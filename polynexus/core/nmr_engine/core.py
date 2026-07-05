@@ -129,8 +129,8 @@ def _safe_float(value: Any, default: float = np.nan) -> float:
         val = float(value)
         return val if np.isfinite(val) else default
     except Exception:
+        logger.warning("NMR safe-float conversion failed; returning default.", exc_info=True)
         return default
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _robust_noise(intensity: np.ndarray) -> float:
@@ -432,7 +432,7 @@ def detect_peaks(ppm, intensity, height_frac=0.03, distance_ppm=1.0,
         widths = np.full(len(peak_idx), np.nan)
         left_ips = np.asarray(peak_idx, dtype=float)
         right_ips = np.asarray(peak_idx, dtype=float)
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("NMR peak width estimation failed; using peak centers.", exc_info=True)
 
     fwhm_candidates = np.array([
         float(widths[i] * dx) if np.isfinite(widths[i]) else np.nan
@@ -557,7 +557,7 @@ def _fit_region_peaks(ppm, intensity, peaks, method='mixed',
                                    max_nfev=10000)
     except Exception:
         fit_result = None
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("NMR regional peak fit failed.", exc_info=True)
 
     if fit_result is None:
         # fallback: use detected peaks as-is
@@ -603,7 +603,7 @@ def _fit_region_peaks(ppm, intensity, peaks, method='mixed',
                 area = float(a * s * np.sqrt(np.pi))
             except Exception:
                 area = a * s * 1.77
-                logger.warning("异常已处理", exc_info=True)
+                logger.warning("NMR fitted peak area extraction failed; using width approximation.", exc_info=True)
 
         fitted.append({
             'index': i, 'ppm': c, 'height': a,
@@ -722,8 +722,8 @@ def fit_t1_recovery(delays, intensities):
         r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 1.0
         return {'T1_s': float(abs(popt[1])), 'I0': float(popt[0]), 'r_squared': float(r2)}
     except Exception:
+        logger.warning("NMR T1 recovery fit failed.", exc_info=True)
         return {'T1_s': np.nan, 'I0': np.nan, 'r_squared': np.nan}
-        logger.warning("异常已处理", exc_info=True)
 
 
 def fit_t2_decay(delays, intensities):
@@ -746,8 +746,8 @@ def fit_t2_decay(delays, intensities):
         r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 1.0
         return {'T2_s': float(abs(popt[1])), 'I0': float(popt[0]), 'r_squared': float(r2)}
     except Exception:
+        logger.warning("NMR T2 decay fit failed.", exc_info=True)
         return {'T2_s': np.nan, 'I0': np.nan, 'r_squared': np.nan}
-        logger.warning("异常已处理", exc_info=True)
 
 
 # ---------------------------------------------------------------------------

@@ -272,8 +272,8 @@ def baseline_tangential(T: np.ndarray, HF: np.ndarray,
         return sigmoid(T, *popt)
     except Exception:
         # Fallback to linear
+        logger.warning("DSC tangential baseline failed; falling back to linear baseline.", exc_info=True)
         return baseline_linear(T, HF, peak_limits)
-        logger.warning("异常已处理", exc_info=True)
 
 
 def correct_baseline(T: np.ndarray, HF: np.ndarray,
@@ -317,7 +317,7 @@ def correct_baseline(T: np.ndarray, HF: np.ndarray,
             bl = baseline_tangential(T, HF, limits)
         except Exception:
             bl = baseline_linear(T, HF, limits)
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("DSC baseline correction failed; falling back to linear baseline.", exc_info=True)
     else:
         bl = np.zeros(n)
 

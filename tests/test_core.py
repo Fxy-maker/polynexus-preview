@@ -89,12 +89,12 @@ def test_core_logger_warning_messages_do_not_contain_mojibake():
     assert checked > 0
 
 
-def test_top_level_core_logger_warning_messages_are_contextual():
+def test_core_logger_warning_messages_are_contextual():
     root = Path(__file__).resolve().parents[1] / "polynexus" / "core"
     generic_messages = {"异常已处理", "静默异常", "Unexpected error"}
     checked = 0
 
-    for path in root.glob("*.py"):
+    for path in root.rglob("*.py"):
         if path.name == "plot_edits.py":
             continue
         tree = ast.parse(path.read_text(encoding="utf-8-sig"))

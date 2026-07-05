@@ -259,7 +259,7 @@ def _detect_format(filepath: str) -> str:
             if first.startswith('Title') or first.startswith('^'):
                 return 'ta'
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("DSC TA-format detection failed; falling back to CSV.", exc_info=True)
         return 'csv'
     return 'csv'  # fallback
 
@@ -570,7 +570,7 @@ def _read_sequence(dirpath: str) -> List[DSCScan]:
             for segment in load_project(fp):
                 scans.append(segment)
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("DSC sequence segment read failed; skipping segment.", exc_info=True)
     return scans
 
 

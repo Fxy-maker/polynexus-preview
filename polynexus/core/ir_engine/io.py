@@ -61,7 +61,7 @@ def _decode_null_terminated(raw: bytes, start: int, end: int) -> str:
         try:
             return chunk.decode(enc, errors="ignore").strip()
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("IR null-terminated string decode failed.", exc_info=True)
     return ""
 
 
@@ -146,8 +146,8 @@ def _load_csv(filepath: str,
     try:
         cols, data = load_table(filepath)
     except Exception:
+        logger.warning("IR CSV load failed; returning empty spectrum.", exc_info=True)
         return IRSpectrum(label=label)
-        logger.warning("异常已处理", exc_info=True)
 
     if data.shape[1] < 2:
         return IRSpectrum(label=label)
@@ -224,7 +224,7 @@ def _load_spa(filepath: str,
             return IRSpectrum(label=label, wavenumber=wn, absorbance=y,
                               metadata=meta | {'y_unit': 'absorbance'})
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("IR SPA primary parse failed; trying binary fallback.", exc_info=True)
 
     # Fallback: attempt binary parse
     try:
@@ -251,8 +251,8 @@ def _load_spa(filepath: str,
             metadata={'format': 'spa_binary_fallback'},
         )
     except Exception:
+        logger.warning("IR SPA binary fallback failed.", exc_info=True)
         return IRSpectrum(label=label, metadata={'error': 'spa_load_failed'})
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _parse_thermo_spa_binary(raw: bytes
@@ -488,7 +488,7 @@ def load_computed_modes(filepath: str,
                 ))
             return modes
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("IR computed mode file load failed; trying next file.", exc_info=True)
 
     return []
 

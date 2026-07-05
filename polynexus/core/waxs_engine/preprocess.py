@@ -273,7 +273,7 @@ def subtract_background(two_theta: np.ndarray, I: np.ndarray,
             bg = spl(x)
         except Exception:
             bg = np.polyval(np.polyfit(x, y, 1), x)
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("WAXS spline background fit failed; using linear background.", exc_info=True)
 
     elif method == 'chebyshev':
         from numpy.polynomial import Chebyshev

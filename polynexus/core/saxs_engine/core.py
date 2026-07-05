@@ -493,8 +493,8 @@ def _lorentz_fallback(
             'q_corr_max': q_corr_max,
         }
     except Exception:
+        logger.warning("SAXS Lorentz fallback fit failed.", exc_info=True)
         return np.nan, 0.0, {}
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _saxs_peak_region_fit_quality(
@@ -590,7 +590,7 @@ def _fit_bragg_region(q: np.ndarray, I: np.ndarray, q_min: float, q_max: float) 
         y_pred = np.polyval(coeff, x)
         center = x_mid
         sigma = np.nan
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("SAXS Bragg-region fit failed; using polynomial fallback.", exc_info=True)
 
     stats = _standardized_region_stats(y, y_pred)
     if stats is None:
@@ -622,8 +622,8 @@ def _fit_guinier_region(q_guinier: np.ndarray | None, lnI_guinier: np.ndarray | 
         coeff = np.polyfit(x**2, y, 1)
         y_pred = np.polyval(coeff, x**2)
     except Exception:
+        logger.warning("SAXS Guinier-region fit failed.", exc_info=True)
         return None
-        logger.warning("异常已处理", exc_info=True)
     stats = _standardized_region_stats(y, y_pred)
     if stats is None:
         return None
@@ -717,7 +717,6 @@ def correlation_function(
             Ib = Ib_raw
     except Exception as e:
         logger.warning("SAXS 积分背景校正失败: %s", e, exc_info=True)
-        logger.warning("异常已处理", exc_info=True)
     if Ib > 1e-12:
         I_sel = np.maximum(I_sel - Ib, 1e-30)
 
@@ -790,7 +789,7 @@ def correlation_function(
             L_est = np.nan
     except Exception:
         L_est = np.nan
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("SAXS correlation-function long-period estimate failed.", exc_info=True)
     if np.isfinite(L_est):
         r_min_peak = max(1.5, L_est * 0.30)
         r_max_peak = min(L_est * 2.0, r[-1])
@@ -1397,8 +1396,8 @@ def _tangent_lc(corr_result: Dict, L: float, cfg: SAXSConfig) -> float:
             # Fallback: unweighted fit
             a, b = np.polyfit(r_fit, gamma_fit, 1)
     except Exception:
+        logger.warning("SAXS tangent lc fit failed.", exc_info=True)
         return np.nan
-        logger.warning("异常已处理", exc_info=True)
 
     # ── Step 4: baseline from asymptotic tail ──
     # Use the last 30 % of gamma(r) (after oscillations decay)
@@ -1548,7 +1547,7 @@ def porod_analysis(
             slope = float(np.polyfit(np.log(q_sel[pos]), np.log(I_sel[pos]), 1)[0])
         except Exception:
             slope = np.nan
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("SAXS Porod slope fit failed.", exc_info=True)
 
     return {
         'Kp': Kp,
@@ -1594,8 +1593,8 @@ def _porod_constant(q_ext, I_ext, q_raw=None, I_raw=None) -> float:
             return np.nan
         return Kp
     except Exception:
+        logger.warning("SAXS Porod constant fit failed.", exc_info=True)
         return np.nan
-        logger.warning("异常已处理", exc_info=True)
 
 
 # ======================================================================
@@ -1698,8 +1697,8 @@ def sasmodels_fit(
         dm = DirectModel(data, model)
     except Exception as e:
         result['error'] = f'sasmodels setup failed: {e}'
+        logger.warning("SAXS sasmodels setup failed.", exc_info=True)
         return result
-        logger.warning("异常已处理", exc_info=True)
 
     # ---- Initial guess from Bragg ----
     if L_bragg_guess is not None and np.isfinite(L_bragg_guess) and L_bragg_guess > 0:
@@ -1755,7 +1754,7 @@ def sasmodels_fit(
         })
     except Exception as e:
         result['error'] = f'Fit failed: {e}'
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("SAXS sasmodels fit failed.", exc_info=True)
 
     return result
 
@@ -2082,8 +2081,8 @@ def _extrapolate_guinier(
         p = np.polyfit(q_fit[pos], Iq2_fit[pos], 1)
         slope, intercept = float(p[0]), float(p[1])
     except Exception:
+        logger.warning("SAXS Guinier extrapolation fit failed; returning original data.", exc_info=True)
         return q, I
-        logger.warning("异常已处理", exc_info=True)
 
     # If intercept is far from 0, the linear model is poor — fallback to
     # purely linear-through-origin fit
@@ -2147,7 +2146,7 @@ def _extrapolate_porod(
     except Exception:
         Kp = np.median(I_p * q_p ** 4)
         slope = 0.0
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("SAXS Porod extrapolation fit failed; using median fallback.", exc_info=True)
 
     # Boundary-matched I*q^4: use the actual value at q_max from the
     # last 3 experimental points (median to suppress noise spikes)
