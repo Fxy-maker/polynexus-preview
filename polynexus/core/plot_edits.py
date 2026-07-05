@@ -8,8 +8,9 @@ logger = logging.getLogger(__name__)
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
+from ..gui.figure_annotations import load_annotations_from_entry, save_annotations_to_entry
 from ..utils.config import get_user_config_dir
 
 
@@ -178,21 +179,63 @@ def load_figure_edit(figure_path: str) -> Dict[str, Any]:
     return style if isinstance(style, dict) else {}
 
 
-def save_figure_edit(figure_path: str, style: Dict[str, Any]) -> Tuple[Path, str]:
-    data = load_plot_edits(figure_path)
+def _figure_entry(data: Dict[str, Any], figure_path: str) -> tuple[dict, str]:
     key = figure_state_key(figure_path)
     files = data.setdefault("files", {})
-    files[key] = {
-        "relative_path": key,
-        "source_path": str(Path(figure_path).resolve()),
-        "updated_at": datetime.now().isoformat(timespec="seconds"),
-        "style": style,
-    }
+    entry = files.get(key)
+    if not isinstance(entry, dict):
+        entry = {}
+    entry.setdefault("relative_path", key)
+    entry.setdefault("source_path", str(Path(figure_path).resolve()))
+    entry["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    files[key] = entry
+    data["version"] = max(int(data.get("version", 1) or 1), 2)
+    return entry, key
+
+
+def _write_plot_edits(figure_path: str, data: Dict[str, Any]) -> Tuple[Path, str]:
+    key = figure_state_key(figure_path)
     state_path = figure_state_path(figure_path)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     with state_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     return state_path, key
+
+
+def save_figure_edit(figure_path: str, style: Dict[str, Any]) -> Tuple[Path, str]:
+    data = load_plot_edits(figure_path)
+    entry, _key = _figure_entry(data, figure_path)
+    entry["style"] = style
+    return _write_plot_edits(figure_path, data)
+
+
+def load_figure_annotations(figure_path: str) -> List[dict]:
+    data = load_plot_edits(figure_path)
+    entry = data.get("files", {}).get(figure_state_key(figure_path), {})
+    return load_annotations_from_entry(entry if isinstance(entry, dict) else {})
+
+
+def save_figure_annotations(figure_path: str, annotations: List[dict]) -> Tuple[Path, str]:
+    data = load_plot_edits(figure_path)
+    entry, key = _figure_entry(data, figure_path)
+    data["files"][key] = save_annotations_to_entry(entry, annotations)
+    return _write_plot_edits(figure_path, data)
+
+
+def load_figure_asset_spec(figure_path: str) -> Dict[str, Any]:
+    data = load_plot_edits(figure_path)
+    entry = data.get("files", {}).get(figure_state_key(figure_path), {})
+    if not isinstance(entry, dict):
+        return {}
+    asset_spec = entry.get("asset_spec", {})
+    return asset_spec if isinstance(asset_spec, dict) else {}
+
+
+def save_figure_asset_spec(figure_path: str, asset_spec: Dict[str, Any]) -> Tuple[Path, str]:
+    data = load_plot_edits(figure_path)
+    entry, _key = _figure_entry(data, figure_path)
+    entry["asset_spec"] = dict(asset_spec) if isinstance(asset_spec, dict) else {}
+    return _write_plot_edits(figure_path, data)
 
 
 def apply_figure_edit(fig, figure_path: str):

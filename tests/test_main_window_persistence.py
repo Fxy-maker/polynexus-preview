@@ -7,10 +7,12 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox, QVBoxLayout
 
 from polynexus.gui.main_window import AITuneWorker, AnalysisWorker, MainWindow, JointHubWorker, SideTuningReportDialog, _data_file_dialog_filter
 from polynexus.gui.i18n import get_language, set_language, tr
+from polynexus.gui.widgets.chart_editor import ChartEditor
 from polynexus.data.sample_db import SampleDB
 from rag.prompt_builder import PromptBuilder
 
@@ -144,6 +146,76 @@ def test_populate_plots_prefers_refreshed_non_low_variant_for_same_figure(tmp_pa
     assert window._current_figure_path == str(refreshed)
     assert window._chart_gallery.current_file() == str(refreshed)
 
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_static_chart_editor_save_does_not_trigger_replot(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    figure_path = tmp_path / "figures" / "source.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+
+    window = MainWindow()
+    window._current_technique = "saxs"
+    window._current_filepath = str(tmp_path / "input.csv")
+    window._output_dir = str(tmp_path / "output")
+    window._engine_cache["saxs"] = object()
+    window._current_figure_path = str(figure_path)
+    window._chart_gallery.load_files([str(figure_path)])
+    window._chart_gallery.select_figure(str(figure_path), emit=False)
+
+    replot_calls = []
+    window._replot = lambda: replot_calls.append(True)
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    editor.figure_saved.connect(window._on_chart_editor_saved)
+    editor.figure_saved.emit(str(figure_path))
+
+    assert replot_calls == []
+    assert window._current_figure_path == str(figure_path)
+    assert window._chart_gallery.current_file() == str(figure_path)
+
+    editor.deleteLater()
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_save_as_adds_new_figure_to_gallery(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    figure_dir = tmp_path / "figures"
+    figure_dir.mkdir()
+    source_path = figure_dir / "source.png"
+    copy_path = figure_dir / "source_edited.png"
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(source_path))
+    pixmap.fill(QColor("yellow"))
+    assert pixmap.save(str(copy_path))
+
+    window = MainWindow()
+    window._current_technique = "saxs"
+    window._current_filepath = str(tmp_path / "input.csv")
+    window._output_dir = str(tmp_path / "output")
+    window._current_figure_path = str(source_path)
+    window._chart_gallery.load_files([str(source_path)])
+    window._chart_gallery.select_figure(str(source_path), emit=False)
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(source_path))
+    editor.figure_saved.connect(window._on_chart_editor_saved)
+    editor.figure_saved.emit(str(copy_path))
+
+    assert str(copy_path) in window._chart_gallery.figure_paths()
+    assert window._chart_gallery.current_file() == str(copy_path)
+    assert window._current_figure_path == str(copy_path)
+
+    editor.deleteLater()
     window.deleteLater()
     app.processEvents()
 

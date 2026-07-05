@@ -12,8 +12,12 @@ from polynexus.core.plot_edits import (
     delete_style_preset,
     figure_output_root,
     figure_state_key,
+    load_figure_annotations,
+    load_figure_asset_spec,
     list_style_presets,
     load_style_preset,
+    save_figure_annotations,
+    save_figure_asset_spec,
     save_figure_edit,
     savefig_with_edits,
     save_style_preset,
@@ -90,3 +94,30 @@ def test_style_preset_round_trip_in_user_scope(tmp_path, monkeypatch):
     assert delete_style_preset("Paper Light") is True
     assert list_style_presets() == []
     assert delete_style_preset("Missing") is False
+
+
+def test_plot_edits_persist_annotations_and_asset_spec(tmp_path):
+    path = tmp_path / "figures" / "edited.png"
+    path.parent.mkdir()
+    annotation = {
+        "id": "ann-001",
+        "type": "text",
+        "x": 0.25,
+        "y": 0.5,
+        "text": "alpha peak",
+    }
+    asset_spec = {
+        "figure_id": "edited",
+        "sidecar_key": "figures/edited.png",
+        "master_path": str((tmp_path / "figures" / "edited.svg").resolve()),
+        "preview_path": str(path.resolve()),
+        "available_formats": ["png", "svg"],
+    }
+
+    save_figure_annotations(str(path), [annotation])
+    save_figure_asset_spec(str(path), asset_spec)
+    save_figure_edit(str(path), {"font": "Small"})
+
+    assert load_figure_annotations(str(path)) == [annotation]
+    assert load_figure_asset_spec(str(path)) == asset_spec
+    assert (tmp_path / "plot_edits.json").exists()

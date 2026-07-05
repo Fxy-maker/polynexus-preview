@@ -12403,9 +12403,7 @@ class MainWindow(QMainWindow):
 
         self._current_figure_path = filepath
 
-        if hasattr(self, '_chart_gallery'):
-
-            self._chart_gallery.refresh_figure(filepath)
+        self._refresh_saved_figure_in_gallery(filepath)
 
         if hasattr(self, '_figure_preview') and self._figure_preview.isVisible():
 
@@ -12413,32 +12411,33 @@ class MainWindow(QMainWindow):
 
         if static_file_mode:
 
-            worker_running = bool(
-                getattr(self, "_worker", None)
-                and hasattr(self._worker, "isRunning")
-                and self._worker.isRunning()
-            )
-
-            cached_engine = self._engine_cache.get(self._current_technique)
-
-            if (
-                cached_engine is not None
-                and self._current_filepath
-                and self._output_dir
-                and not worker_running
-            ):
-
-                self.log(tr("LOG_CHART_REPLOTTING", filepath))
-
-                self._replot()
-
-            else:
-
-                self.log(tr("FIGURE_SETTINGS_REPLOT_HINT"))
-
+            self.log(tr("LOG_CHART_SAVED", filepath))
             return
 
         self.log(tr("LOG_CHART_SAVED", filepath))
+
+    def _refresh_saved_figure_in_gallery(self, filepath):
+
+        if not filepath or not hasattr(self, '_chart_gallery'):
+
+            return
+
+        existing_paths = self._chart_gallery.figure_paths()
+        target = os.path.normcase(os.path.abspath(filepath))
+        exists_in_gallery = any(
+            os.path.normcase(os.path.abspath(path)) == target
+            for path in existing_paths
+        )
+
+        if exists_in_gallery:
+
+            self._chart_gallery.refresh_figure(filepath)
+
+        else:
+
+            self._chart_gallery.load_files(existing_paths + [filepath])
+
+        self._chart_gallery.select_figure(filepath, emit=False)
 
     def log(self, msg):
 
