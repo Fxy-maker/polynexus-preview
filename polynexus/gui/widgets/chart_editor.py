@@ -360,7 +360,7 @@ class ChartEditor(QWidget):
             import sys as _sys
 
             _sys.stderr.write(f"ChartEditor render failed: {exc}\n")
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("Chart editor render failed.", exc_info=True)
 
         # Recolour lines (user palette overrides SCI baseline)
         for i, line in enumerate(ax.lines):
@@ -375,14 +375,14 @@ class ChartEditor(QWidget):
                 try:
                     coll.set_edgecolor(self._current_colours[i % len(self._current_colours)])
                 except Exception:
-                    logger.warning("静默异常", exc_info=True)
+                    logger.warning("Chart editor collection recolor failed.", exc_info=True)
 
         # Recolour patches (bar charts, rectangles)
         for i, patch in enumerate(ax.patches):
             try:
                 patch.set_facecolor(self._current_colours[i % len(self._current_colours)])
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("Chart editor patch recolor failed.", exc_info=True)
 
         # Recolour error bars (containers)
         for container in ax.containers:
@@ -391,14 +391,14 @@ class ChartEditor(QWidget):
                     child.set_color(self._current_colours[0])
                     child.set_linewidth(self._line_width)
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("Chart editor errorbar recolor failed.", exc_info=True)
 
         # Resize text annotations to match current font size
         for txt in ax.texts:
             try:
                 txt.set_fontsize(max(6, self._label_size - 2))
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("Chart editor text resize failed.", exc_info=True)
 
         # Resize legend if present
         legend = ax.get_legend()
@@ -407,7 +407,7 @@ class ChartEditor(QWidget):
                 for leg_text in legend.get_texts():
                     leg_text.set_fontsize(self._tick_size)
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("Chart editor legend resize failed.", exc_info=True)
 
         title = self._title_edit.text()
         if title:
@@ -475,12 +475,12 @@ class ChartEditor(QWidget):
             )
         except Exception:
             # Fallback: direct save if edit apply fails
+            logger.warning("Chart editor save-with-edits failed; using direct save.", exc_info=True)
             self._figure.savefig(
                 str(path), format=ext,
                 dpi=300 if ext in {"png", "jpeg", "jpg", "tiff"} else self._dpi,
                 bbox_inches="tight", facecolor=self._bg_color,
             )
-            logger.warning("异常已处理", exc_info=True)
 
         self._status_label.setText(tr("EDITOR_SAVE_DONE", state_path.name))
         self.figure_saved.emit(str(path))
@@ -558,7 +558,7 @@ class ChartEditor(QWidget):
             try:
                 self._dpi = int(style["dpi"])
             except Exception:
-                logger.warning("闈欓粯寮傚父", exc_info=True)
+                logger.warning("Chart editor DPI restore failed; keeping current DPI.", exc_info=True)
         self._render()
 
     def _current_style_preset_name(self):

@@ -162,8 +162,8 @@ def load_plot_edits(figure_path: str) -> Dict[str, Any]:
         with state_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
+        logger.warning("Plot edit state load failed; using empty state.", exc_info=True)
         return {"version": 1, "files": {}}
-        logger.warning("异常已处理", exc_info=True)
     if not isinstance(data, dict):
         return {"version": 1, "files": {}}
     data.setdefault("version", 1)
