@@ -78,6 +78,8 @@ class WAXSConfig:
 
     # --- Crystallite size ---
     scherrer_K: float = 0.9
+    instrument_fwhm_deg: float = 0.0
+    size_uncertainty_mode: str = "peak_spread"
 
     # --- Calibration ---
     two_theta_offset: float = 0.0  # instrumental 2θ zero offset

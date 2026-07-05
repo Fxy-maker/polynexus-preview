@@ -41,6 +41,8 @@ class WAXSResult:
 
     # Crystallite size
     D_Scherrer_nm: float = np.nan
+    D_uncertainty_nm: float = np.nan
+    instrument_broadening_applied: bool = False
     D_WH_nm: float = np.nan        # Williamson-Hall size
     epsilon_WH_pct: float = np.nan  # Williamson-Hall strain (%)
 
@@ -67,6 +69,8 @@ class WAXSResult:
             'Xc_pct': self.Xc_pct, 'Xc_method': self.Xc_method,
             'n_peaks': self.n_peaks,
             'D_Scherrer_nm': self.D_Scherrer_nm,
+            'D_uncertainty_nm': self.D_uncertainty_nm,
+            'instrument_broadening_applied': self.instrument_broadening_applied,
             'D_WH_nm': self.D_WH_nm,
             'epsilon_WH_pct': self.epsilon_WH_pct,
             'crystal_system': self.crystal_system,
@@ -580,6 +584,7 @@ def compute_crystallinity_peak_area(I_total: np.ndarray,
 def scherrer_size(fwhm_deg: float, two_theta_deg: float,
                   wavelength_A: float = 1.5406,
                   K: float = 0.9,
+                  instrument_fwhm_deg: float = 0.0,
                   ) -> float:
     """Scherrer equation for crystallite size.
 
@@ -600,7 +605,11 @@ def scherrer_size(fwhm_deg: float, two_theta_deg: float,
     -------
     D in nm.
     """
-    beta_rad = np.radians(fwhm_deg)
+    beta_sample_deg = np.sqrt(max(float(fwhm_deg) ** 2 - float(instrument_fwhm_deg) ** 2, 0.0))
+    if beta_sample_deg <= 1e-9:
+        return np.nan
+
+    beta_rad = np.radians(beta_sample_deg)
     theta_rad = np.radians(two_theta_deg / 2.0)
     cos_theta = np.cos(theta_rad)
 
@@ -611,19 +620,30 @@ def scherrer_size(fwhm_deg: float, two_theta_deg: float,
     return D_A / 10.0  # Å → nm
 
 
-def scherrer_from_peaks(peaks: List[Dict[str, Any]],
+def scherrer_peak_sizes(peaks: List[Dict[str, Any]],
                         wavelength_A: float = 1.5406,
                         K: float = 0.9,
-                        ) -> float:
-    """Average Scherrer size from all peaks."""
+                        instrument_fwhm_deg: float = 0.0,
+                        ) -> List[float]:
+    """Scherrer sizes for valid peaks."""
     sizes = []
     for pk in peaks:
         fwhm = pk.get('fwhm_deg', np.nan)
         tth = pk.get('two_theta', np.nan)
         if not np.isnan(fwhm) and not np.isnan(tth) and fwhm > 0:
-            D = scherrer_size(fwhm, tth, wavelength_A, K)
+            D = scherrer_size(fwhm, tth, wavelength_A, K, instrument_fwhm_deg)
             if not np.isnan(D):
                 sizes.append(D)
+    return sizes
+
+
+def scherrer_from_peaks(peaks: List[Dict[str, Any]],
+                        wavelength_A: float = 1.5406,
+                        K: float = 0.9,
+                        instrument_fwhm_deg: float = 0.0,
+                        ) -> float:
+    """Average Scherrer size from all peaks."""
+    sizes = scherrer_peak_sizes(peaks, wavelength_A, K, instrument_fwhm_deg)
     return float(np.mean(sizes)) if sizes else np.nan
 
 
@@ -975,8 +995,16 @@ def analyze_scan(scan: WAXSScan, config: WAXSConfig,
         result.Xc_pct = 95.0
 
     # === Step 5: Scherrer, Williamson-Hall, Crystal system ===
-    result.D_Scherrer_nm = scherrer_from_peaks(
-        result.peaks, config.wavelength_A, config.scherrer_K)
+    scherrer_sizes = scherrer_peak_sizes(
+        result.peaks,
+        config.wavelength_A,
+        config.scherrer_K,
+        instrument_fwhm_deg=getattr(config, "instrument_fwhm_deg", 0.0),
+    )
+    result.D_Scherrer_nm = float(np.mean(scherrer_sizes)) if scherrer_sizes else np.nan
+    if scherrer_sizes:
+        result.D_uncertainty_nm = float(np.std(scherrer_sizes)) if len(scherrer_sizes) > 1 else 0.0
+    result.instrument_broadening_applied = bool(getattr(config, "instrument_fwhm_deg", 0.0) > 0)
 
     D_wh, eps_wh, _ = williamson_hall(result.peaks, config.wavelength_A)
     result.D_WH_nm = D_wh if not np.isnan(D_wh) else np.nan

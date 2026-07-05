@@ -3,8 +3,55 @@ from __future__ import annotations
 import numpy as np
 
 from polynexus.core.analysis_evidence import build_analysis_evidence
-from polynexus.core.waxs_engine.core import WAXSResult
+from polynexus.core.waxs_engine.config import WAXSConfig
+from polynexus.core.waxs_engine.core import WAXSResult, scherrer_from_peaks, scherrer_size
 from polynexus.core.waxs_engine.waxs_temperature import WAXSTempResult
+
+
+def test_scherrer_size_subtracts_instrument_broadening() -> None:
+    raw = scherrer_size(0.40, 20.0, wavelength_A=1.5406, K=0.9)
+    corrected = scherrer_size(
+        0.40,
+        20.0,
+        wavelength_A=1.5406,
+        K=0.9,
+        instrument_fwhm_deg=0.10,
+    )
+
+    assert corrected > raw
+
+
+def test_scherrer_from_peaks_accepts_configured_instrument_broadening() -> None:
+    peaks = [
+        {"two_theta": 20.0, "fwhm_deg": 0.40},
+        {"two_theta": 24.0, "fwhm_deg": 0.45},
+    ]
+    cfg = WAXSConfig(instrument_fwhm_deg=0.10, size_uncertainty_mode="peak_spread")
+
+    raw = scherrer_from_peaks(peaks, cfg.wavelength_A, cfg.scherrer_K)
+    corrected = scherrer_from_peaks(
+        peaks,
+        cfg.wavelength_A,
+        cfg.scherrer_K,
+        instrument_fwhm_deg=cfg.instrument_fwhm_deg,
+    )
+
+    assert cfg.to_dict()["instrument_fwhm_deg"] == 0.10
+    assert cfg.to_dict()["size_uncertainty_mode"] == "peak_spread"
+    assert corrected > raw
+
+
+def test_waxs_result_parameters_include_scherrer_uncertainty_fields() -> None:
+    result = WAXSResult(
+        D_Scherrer_nm=9.4,
+        D_uncertainty_nm=0.6,
+        instrument_broadening_applied=True,
+    )
+
+    params = result.parameters
+
+    assert params["D_uncertainty_nm"] == 0.6
+    assert params["instrument_broadening_applied"] is True
 
 
 def test_waxs_temperature_result_parameters_include_axis_metadata() -> None:
