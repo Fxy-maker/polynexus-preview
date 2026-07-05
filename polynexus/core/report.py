@@ -274,7 +274,7 @@ def _build_figures_section(output_dir):
                         f'<div>{svg_match.group(0)}'
                         f'<div class="caption">{fn}</div></div>')
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("Report SVG figure embedding failed.", exc_info=True)
         else:
             import base64
             try:
@@ -285,7 +285,7 @@ def _build_figures_section(output_dir):
                     f'<div><img src="data:image/{ext};base64,{b64}" />'
                     f'<div class="caption">{fn}</div></div>')
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("Report raster figure embedding failed.", exc_info=True)
 
     if not items:
         return ""

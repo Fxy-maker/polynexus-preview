@@ -125,9 +125,8 @@ def fit_multi_peak(
         fit_result = composite.fit(y_fit, params, x=x_fit,
                                    method="leastsq", max_nfev=5000)
     except Exception as e:
-        logger.warning("lmfit 峰拟合失败，返回初始猜测值: %s", e, exc_info=True)
+        logger.warning("lmfit peak fitting failed; returning initial estimates: %s", e, exc_info=True)
         return result
-        logger.warning("异常已处理", exc_info=True)
 
     result["r_squared"] = (1.0 - fit_result.residual.var() / y_fit.var()
                            if y_fit.var() > 0 else np.nan)
@@ -190,10 +189,10 @@ def fit_linear(x: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
                           if y.var() > 0 else np.nan),
         }
     except Exception:
+        logger.warning("lmfit linear regression failed.", exc_info=True)
         return dict(slope=np.nan, intercept=np.nan,
                     slope_stderr=0.0, intercept_stderr=0.0,
                     r_squared=np.nan)
-        logger.warning("异常已处理", exc_info=True)
 
 
 def fit_avrami(t: np.ndarray, Xc: np.ndarray) -> Dict[str, Any]:
@@ -437,8 +436,8 @@ def fit_waxs_profile(
             fit_result = composite.fit(y, params, x=x,
                                         method="nelder", max_nfev=8000)
         except Exception:
+            logger.warning("lmfit multi-peak fallback failed.", exc_info=True)
             return result
-        logger.warning("异常已处理", exc_info=True)
 
     # ---- Extract results ----
     y_fit = fit_result.best_fit
@@ -451,7 +450,7 @@ def fit_waxs_profile(
             result["baseline_y"] = fit_result.eval_components(x=x).get("b_", np.zeros_like(x))
         except Exception:
             result["baseline_y"] = np.zeros_like(x)
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("lmfit baseline extraction failed.", exc_info=True)
 
     # Per-peak extraction
     for i in range(n_crystal):

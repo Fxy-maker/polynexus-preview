@@ -356,7 +356,7 @@ class SAXSEngine(BaseEngine):
                     total_loaded += 1
                 except Exception as e:
                     self.log(f"Warning: failed to load {os.path.basename(str(filepath))}: {e}")
-                    logger.warning("Unexpected error", exc_info=True)
+                    logger.warning("SAXS batch file load failed.", exc_info=True)
             if total_loaded >= 48:
                 break
 
@@ -405,7 +405,7 @@ class SAXSEngine(BaseEngine):
                         self._condition_confidences.append(0.0)
                     except Exception as e:
                         self.log(f"Warning: failed to load {os.path.basename(edf)}: {e}")
-                        logger.warning("Unexpected error", exc_info=True)
+                        logger.warning("SAXS EDF fallback load failed.", exc_info=True)
                 if not self._condition_type:
                     self._condition_type = "static"
 
@@ -1275,7 +1275,7 @@ class SAXSEngine(BaseEngine):
                 self.log(f"Frame {i} failed: {e}")
                 self._batch_results.append(None)
                 L_values.append(np.nan)
-                logger.warning("Unexpected error", exc_info=True)
+                logger.warning("SAXS temperature frame analysis failed.", exc_info=True)
 
         temps = np.array(self._conditions, dtype=float)
         L_arr = np.array(L_values, dtype=float)
@@ -1588,7 +1588,7 @@ class SAXSEngine(BaseEngine):
                 })
             except Exception as e:
                 self.log(f"Frame {i} failed: {e}")
-                logger.warning("Unexpected error", exc_info=True)
+                logger.warning("SAXS tensile frame parameter extraction failed.", exc_info=True)
 
         self._apply_batch_params_to_results()
         self.log(f"Strain: {len(self._batch_params)} frames done")
@@ -1626,7 +1626,7 @@ class SAXSEngine(BaseEngine):
                 round(float(r2), 4) if np.isfinite(r2) else np.nan,
             )
         except Exception:
-            logger.warning("Unexpected error", exc_info=True)
+            logger.warning("SAXS sasmodels lamellar fit failed; using raw parameters.", exc_info=True)
         return (
             round(float(sp.lc), 2) if sp and np.isfinite(sp.lc) else None,
             round(float(sp.la), 2) if sp and np.isfinite(sp.la) else None,
@@ -1659,7 +1659,7 @@ class SAXSEngine(BaseEngine):
                     self.log(f"Frame {i} failed: {e}")
                     self._batch_results.append(None)
                     Q_values.append(np.nan)
-                    logger.warning("Unexpected error", exc_info=True)
+                    logger.warning("SAXS static frame analysis failed.", exc_info=True)
 
             ref_idx = None
             for i, fpath in enumerate(self._file_list):
@@ -2024,5 +2024,5 @@ class SAXSEngine(BaseEngine):
             return True
         except Exception as e:
             self.log(f"Export failed: {e}")
-            logger.warning("Unexpected error", exc_info=True)
+            logger.warning("SAXS export failed.", exc_info=True)
             return False

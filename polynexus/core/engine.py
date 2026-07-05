@@ -408,7 +408,7 @@ class BaseEngine(ABC):
             self.log(f"ERROR: {e}")
             import traceback
             self.log(traceback.format_exc())
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("%s pipeline failed.", self.name, exc_info=True)
 
         # ── v4.0: post-analysis validation ──
         try:
@@ -423,7 +423,7 @@ class BaseEngine(ABC):
         except Exception as e:
             self.log(f"⚠️  VALIDATION: internal error — {e}")
             self.result.validation_passed = False
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("%s validation failed.", self.name, exc_info=True)
 
         return self.result
 

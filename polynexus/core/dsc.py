@@ -142,7 +142,7 @@ class DSCEngine(BaseEngine):
             return True
         except Exception as e:
             self.log(f"Failed to load data: {e}")
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("DSC load failed.", exc_info=True)
             return False
 
     def preprocess(self) -> bool:
@@ -165,7 +165,7 @@ class DSCEngine(BaseEngine):
                 )
             except Exception as e:
                 self.log(f"  [{scan.label}] preprocessing failed: {e}")
-                logger.warning("异常已处理", exc_info=True)
+                logger.warning("DSC preprocessing failed.", exc_info=True)
                 return False
 
         self.log(f"Preprocessed {len(self._scans)} scan(s)")

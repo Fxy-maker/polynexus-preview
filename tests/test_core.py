@@ -1,5 +1,6 @@
 """Tests for PolyNexus core engine."""
 
+import ast
 import pytest
 from pathlib import Path
 from polynexus.core.engine import BaseEngine, register_technique, get_engine, list_techniques
@@ -56,3 +57,63 @@ def test_public_engine_labels_do_not_contain_mojibake():
             for key in ("name", "label", "description", "icon")
         )
         assert not any(token in public_text for token in bad_tokens)
+
+
+def test_core_logger_warning_messages_do_not_contain_mojibake():
+    root = Path(__file__).resolve().parents[1] / "polynexus" / "core"
+    bad_tokens = ("寮傚父", "闈欓粯", "鈥", "�")
+    checked = 0
+
+    for path in root.rglob("*.py"):
+        if path.name == "plot_edits.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (
+                isinstance(func, ast.Attribute)
+                and func.attr == "warning"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "logger"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                continue
+            checked += 1
+            message = node.args[0].value
+            assert not any(token in message for token in bad_tokens), f"{path}: {message}"
+
+    assert checked > 0
+
+
+def test_top_level_core_logger_warning_messages_are_contextual():
+    root = Path(__file__).resolve().parents[1] / "polynexus" / "core"
+    generic_messages = {"异常已处理", "静默异常", "Unexpected error"}
+    checked = 0
+
+    for path in root.glob("*.py"):
+        if path.name == "plot_edits.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (
+                isinstance(func, ast.Attribute)
+                and func.attr == "warning"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "logger"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                continue
+            checked += 1
+            message = node.args[0].value
+            assert message not in generic_messages, f"{path}: {message}"
+
+    assert checked > 0
