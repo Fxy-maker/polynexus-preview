@@ -1,5 +1,5 @@
 """
-saxs.io �?Module 1: Data input.
+saxs.io - Module 1: Data input.
 
 Uses fabio for multi-format 2D detector image reading,
 xarray for multi-dimensional in-situ data management.
@@ -44,7 +44,7 @@ def read_image(filepath: str) -> Tuple[np.ndarray, dict]:
         pass
     except Exception:
         # fabio failed, try fallbacks
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("EDF reader fabio image load failed; trying fallback readers.", exc_info=True)
 
     # Fallback readers
     if ext in ('.tif', '.tiff'):
@@ -77,7 +77,7 @@ def read_1d_profile(filepath: str) -> Tuple[np.ndarray, np.ndarray, dict]:
         if data.ndim == 2 and data.shape[1] >= 2:
             return data[:, 0].astype(np.float64), data[:, 1].astype(np.float64), {}
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("EDF reader generic text profile load failed; trying line-by-line parser.", exc_info=True)
 
     # Fallback: line-by-line
     x_list, y_list = [], []

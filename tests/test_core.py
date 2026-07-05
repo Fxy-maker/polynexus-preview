@@ -127,11 +127,7 @@ def test_clean_non_core_logger_warning_messages_are_contextual():
         repo_root / "polynexus" / "gui" / "convergence_viewer.py",
         repo_root / "polynexus" / "orchestrator.py",
         repo_root / "polynexus" / "plotting" / "sci_style.py",
-        *[
-            path
-            for path in sorted((repo_root / "polynexus" / "readers").glob("*.py"))
-            if path.name != "edf_reader.py"
-        ],
+        *sorted((repo_root / "polynexus" / "readers").glob("*.py")),
     ]
     checked = 0
 
