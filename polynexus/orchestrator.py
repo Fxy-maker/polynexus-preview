@@ -4823,7 +4823,6 @@ class ParameterOrchestrator:
             return bool(value != value)
         except Exception:
             return False
-            logger.warning("异常已处理", exc_info=True)
 
     def _safe_float(self, value: Any) -> float:
         try:

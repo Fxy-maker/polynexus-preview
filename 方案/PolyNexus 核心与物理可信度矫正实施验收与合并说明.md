@@ -3,7 +3,9 @@
 ## 当前状态
 
 - 集成分支：`integrate-phys-confidence`
-- 集成提交：`36e5444 fix: finish physical confidence integration`
+- 集成提交：
+  - `36e5444 fix: finish physical confidence integration`
+  - `ba8c1a5 docs: record physical confidence integration status`
 - 工作区路径：`C:\Users\Fan Xuyi\.config\superpowers\worktrees\PolyNexus\integrate-phys-confidence`
 - 基线提交：`99dbd2c chore: keep core warning logs reachable`
 - 主工作区：`D:\PolyNexus` 仍有未提交改动，暂不直接合并，避免覆盖用户正在做的图表后处理工作台相关变更。
@@ -41,6 +43,15 @@
 - `tests/test_phase3.py`
   - 更新 Advisor action-aware 输出 schema 断言。
 
+后续继续补充：
+
+- `ba8c1a5`
+  - 新增本实施验收与合并说明。
+- 继续清理项
+  - 修复 `polynexus/readers/edf_reader.py` 非 UTF-8 源码字节，恢复项目级 `compileall`。
+  - 扩展 `tests/test_core.py` 的不可达 logger / mojibake 扫描范围到整个 `polynexus` 包。
+  - 删除 `polynexus/orchestrator.py` 和 `polynexus/data/fetch_pubchem.py` 中残留的 `return` 后不可达 logger。
+
 ## 验证记录
 
 已在隔离 worktree 中完成：
@@ -57,11 +68,12 @@ git diff --check
 
 pytest -q --basetemp .pytest_tmp_full_integration_final
 # 600 passed, 2 warnings
+
+python -m compileall polynexus tests -q
+# passed
 ```
 
 剩余 warning 为 `tests/test_nmr_engine.py` 导出图片时 Arial 缺少中文 glyph，属于既有字体渲染 warning，不影响本轮核心/物理可信度逻辑。
-
-全量 `python -m compileall polynexus tests -q` 暂不能作为项目级验收命令，因为既有文件 `polynexus/readers/edf_reader.py` 当前包含非 UTF-8 字节，Python 默认 UTF-8 解码会报错。本轮改动涉及文件已用 `py_compile` 验证通过。
 
 ## 为什么暂不直接并回 D:\PolyNexus
 

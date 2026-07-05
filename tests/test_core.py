@@ -40,7 +40,7 @@ def test_no_unreachable_logger_after_return():
     root = Path(__file__).resolve().parents[1] / "polynexus"
     pattern = re.compile(r"return[^\n]*\n\s*logger\.(?:warning|error)\(", re.MULTILINE)
     offenders = []
-    for path in list((root / "core").rglob("*.py")) + list((root / "gui").rglob("*.py")):
+    for path in root.rglob("*.py"):
         text = path.read_text(encoding="utf-8", errors="ignore")
         if pattern.search(text):
             offenders.append(str(path.relative_to(root.parent)))
@@ -49,7 +49,15 @@ def test_no_unreachable_logger_after_return():
 
 
 def test_public_text_and_logs_do_not_contain_mojibake():
-    bad_tokens = ("闈欓粯", "寮傚父", "鈥", "馃", "閳", "棣")
+    bad_tokens = (
+        "\u95c8\u6b13\u7cbf",
+        "\u5bee\u50a4\u7236",
+        "\u9225",
+        "\u9983",
+        "\u95b3",
+        "\u68e3",
+        "\ufffd",
+    )
 
     offenders = []
     for item in list_techniques():
@@ -64,7 +72,7 @@ def test_public_text_and_logs_do_not_contain_mojibake():
 
     root = Path(__file__).resolve().parents[1] / "polynexus"
     logger_pattern = re.compile(r"logger\.(?:warning|error)\((?P<message>[^)\n]+)")
-    for path in list((root / "core").rglob("*.py")) + list((root / "gui").rglob("*.py")):
+    for path in root.rglob("*.py"):
         text = path.read_text(encoding="utf-8", errors="ignore")
         for match in logger_pattern.finditer(text):
             if any(token in match.group("message") for token in bad_tokens):
