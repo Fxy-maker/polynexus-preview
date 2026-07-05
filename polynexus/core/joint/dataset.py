@@ -375,6 +375,57 @@ def _compact_joint_issue(item: dict[str, Any]) -> str:
     return " | ".join(parts)
 
 
+def _run_analysis_evidence(run: JointRunRecord | None) -> dict[str, Any]:
+    if not run:
+        return {}
+    for payload in (run.results_summary, run.parameters):
+        if isinstance(payload, dict) and isinstance(payload.get("analysis_evidence"), dict):
+            return payload["analysis_evidence"]
+    return {}
+
+
+def _technique_confidence(run: JointRunRecord | None) -> dict[str, Any]:
+    evidence = _run_analysis_evidence(run)
+    summary = evidence.get("constraint_summary", {}) if isinstance(evidence.get("constraint_summary"), dict) else {}
+    structure = evidence.get("structure_evidence", {}) if isinstance(evidence.get("structure_evidence"), dict) else {}
+    status = str(summary.get("status") or "unknown").strip() or "unknown"
+    risk_flags = evidence.get("risk_flags", []) if isinstance(evidence.get("risk_flags"), list) else []
+    paper_ready = bool(structure.get("paper_conclusion_ready", status == "ok"))
+    xc_assignment_status = str(structure.get("Xc_assignment_status") or "").strip()
+    if run and run.technique == "nmr" and xc_assignment_status and xc_assignment_status != "supported":
+        paper_ready = False
+    return {
+        "status": status,
+        "risk_flags": risk_flags,
+        "paper_conclusion_ready": paper_ready,
+        "Xc_assignment_status": xc_assignment_status,
+    }
+
+
+def _joint_technique_issue_rows(summary_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    for row in summary_rows:
+        technique_confidence = row.get("technique_confidence", {})
+        if not isinstance(technique_confidence, dict):
+            continue
+        nmr_confidence = technique_confidence.get("nmr", {})
+        if not isinstance(nmr_confidence, dict):
+            continue
+        assignment_status = str(nmr_confidence.get("Xc_assignment_status") or "").strip()
+        if assignment_status and assignment_status != "supported":
+            issues.append(
+                {
+                    "family": "NMR assignment limited",
+                    "severity": "WARN",
+                    "sample": row.get("sample"),
+                    "batch": row.get("batch"),
+                    "check": "nmr_assignment_limited",
+                    "message": "NMR Xc is assignment-limited; review crystalline/amorphous peak support before using it as a joint conclusion source.",
+                }
+            )
+    return issues
+
+
 def _build_joint_ai_context(
     summary_rows: list[dict[str, Any]],
     validation_rows: list[dict[str, Any]],
@@ -383,6 +434,7 @@ def _build_joint_ai_context(
         item for item in validation_rows
         if str(item.get("severity") or "").strip().upper() in {"WARN", "ERROR"}
     ]
+    technique_issue_rows = _joint_technique_issue_rows(summary_rows)
     sample_names: list[str] = []
     batch_labels: list[str] = []
     for row in summary_rows:
@@ -399,7 +451,7 @@ def _build_joint_ai_context(
     elif sample_names:
         scope = " / ".join(sample_names[:2])
 
-    if not issue_rows:
+    if not issue_rows and not technique_issue_rows:
         return {
             "summary": f"Cross-tech checks passed for {scope}.",
             "scope": scope,
@@ -421,6 +473,25 @@ def _build_joint_ai_context(
     for item in issue_rows:
         severity = str(item.get("severity") or "").strip().upper()
         family = _joint_issue_family(item.get("check", ""))
+        stats = family_stats.setdefault(
+            family,
+            {
+                "count": 0,
+                "warning_count": 0,
+                "error_count": 0,
+                "first": item,
+            },
+        )
+        stats["count"] += 1
+        if severity == "ERROR":
+            stats["error_count"] += 1
+            error_count += 1
+        else:
+            stats["warning_count"] += 1
+            warning_count += 1
+    for item in technique_issue_rows:
+        severity = str(item.get("severity") or "").strip().upper()
+        family = str(item.get("family") or "").strip() or "technique confidence issue"
         stats = family_stats.setdefault(
             family,
             {
@@ -462,7 +533,7 @@ def _build_joint_ai_context(
         "scope": scope,
         "sample_count": len(sample_names) or len(summary_rows),
         "batch_count": len(batch_labels),
-        "issue_count": len(issue_rows),
+        "issue_count": len(issue_rows) + len(technique_issue_rows),
         "warning_count": warning_count,
         "error_count": error_count,
         "issue_families": issue_families,
@@ -482,6 +553,15 @@ def build_joint_hub_report(rows: list[JointBatchRow]) -> dict[str, Any]:
         validations = validate_joint_row(row)
         validation_rows.extend(validations)
         alert_count = sum(v["severity"] in {"WARN", "ERROR"} for v in validations)
+        technique_confidence = {
+            technique: _technique_confidence(row.run(technique))
+            for technique in TECHNIQUES
+            if row.run(technique)
+        }
+        paper_ready_by_technique = {
+            technique: bool(confidence.get("paper_conclusion_ready"))
+            for technique, confidence in technique_confidence.items()
+        }
         summary_rows.append(
             {
                 "sample": row.sample_name,
@@ -500,6 +580,8 @@ def build_joint_hub_report(rows: list[JointBatchRow]) -> dict[str, Any]:
                 "D_Scherrer_nm": row.run("waxs").get_first_number(("D_Scherrer_nm", "D_nm", "crystallite_size_nm")) if row.run("waxs") else math.nan,
                 "opportunities": "; ".join(detect_joint_opportunities(row)),
                 "alerts": alert_count,
+                "technique_confidence": technique_confidence,
+                "paper_conclusion_ready_by_technique": paper_ready_by_technique,
             }
         )
 

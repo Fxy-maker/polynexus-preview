@@ -89,3 +89,35 @@ def test_joint_hub_report_builds_cross_tech_ai_context(tmp_path):
     assert context["scope"]
     assert context["highlights"]
     assert any("phi_c" in item or "L_consistency" in item or "Tm" in item for item in context["highlights"])
+
+
+def test_joint_hub_report_surfaces_technique_evidence_status(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "annealed")
+    db.create_analysis_run(
+        batch_id,
+        "dsc",
+        results_summary={"Xc_pct": 42.0, "analysis_evidence": {"constraint_summary": {"status": "ok"}}},
+    )
+    db.create_analysis_run(
+        batch_id,
+        "nmr",
+        results_summary={
+            "Xc_pct": 45.0,
+            "Xc_method": "requires_crystalline_amorphous_assignment",
+            "analysis_evidence": {
+                "constraint_summary": {"status": "soft_warn"},
+                "structure_evidence": {"Xc_assignment_status": "assignment_limited"},
+                "risk_flags": ["nmr_xc_assignment_missing"],
+            },
+        },
+    )
+
+    report = build_joint_hub_report(collect_joint_dataset(db))
+
+    row = report["rows"][0]
+    context = report["ai_context"]
+    assert row["technique_confidence"]["nmr"]["status"] == "soft_warn"
+    assert row["paper_conclusion_ready_by_technique"]["nmr"] is False
+    assert "NMR assignment limited" in context["issue_families"]
