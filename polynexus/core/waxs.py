@@ -101,8 +101,8 @@ class WAXSEngine(BaseEngine):
             return True
         except Exception as e:
             self.log(f"Failed to load data: {e}")
-            return False
             logger.warning("异常已处理", exc_info=True)
+            return False
 
     def preprocess(self) -> bool:
         if not self._dataset or not self._dataset.scans:
@@ -117,8 +117,8 @@ class WAXSEngine(BaseEngine):
                 self.log(f"  [{scan.label}] bg={cfg.background_method}, smooth={cfg.smooth_method}")
             except Exception as e:
                 self.log(f"  [{scan.label}] preprocessing failed: {e}")
-                return False
                 logger.warning("异常已处理", exc_info=True)
+                return False
         self.log(f"Preprocessed {len(self._dataset.scans)} scan(s)")
         return True
 
@@ -295,5 +295,5 @@ class WAXSEngine(BaseEngine):
             return True
         except Exception as e:
             self.log(f"Export failed: {e}")
-            return False
             logger.warning("异常已处理", exc_info=True)
+            return False

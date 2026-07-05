@@ -130,8 +130,8 @@ class IREngine(BaseEngine):
             return True
         except Exception as e:
             self.log(f"Failed to load: {e}")
-            return False
             logger.warning("异常已处理", exc_info=True)
+            return False
 
     def load_computed(self, filepath: str) -> bool:
         try:
@@ -141,8 +141,8 @@ class IREngine(BaseEngine):
             return len(self._computed_modes) > 0
         except Exception as e:
             self.log(f"Failed to load computed modes: {e}")
-            return False
             logger.warning("异常已处理", exc_info=True)
+            return False
 
     def preprocess(self) -> bool:
         if not self._spectra:
@@ -154,8 +154,8 @@ class IREngine(BaseEngine):
                 self.log(f"  [{spec.label}] baseline={cfg.baseline_method}")
             except Exception as e:
                 self.log(f"  [{spec.label}] preprocessing failed: {e}")
-                return False
                 logger.warning("异常已处理", exc_info=True)
+                return False
         return True
 
     def analyze(self) -> bool:

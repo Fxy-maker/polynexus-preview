@@ -328,8 +328,8 @@ class NMREngine(BaseEngine):
             return True
         except Exception as exc:
             self.log(f"Load failed: {exc}")
-            return False
             logger.warning("异常已处理", exc_info=True)
+            return False
 
     def load_computed(self, filepath):
         try:
@@ -338,8 +338,8 @@ class NMREngine(BaseEngine):
             return len(self._computed) > 0
         except Exception as exc:
             self.log(f"Comp load failed: {exc}")
-            return False
             logger.warning("异常已处理", exc_info=True)
+            return False
 
     def load_relaxation(self, dirpath, rtype="T1"):
         try:
@@ -348,8 +348,8 @@ class NMREngine(BaseEngine):
             return True
         except Exception as exc:
             self.log(f"Relax load failed: {exc}")
-            return False
             logger.warning("异常已处理", exc_info=True)
+            return False
 
     def preprocess(self):
         if not self._spectra:
@@ -361,8 +361,8 @@ class NMREngine(BaseEngine):
                 self.log(f"  [{spec.label}] baseline={self._cfg.baseline_method}")
             except Exception as exc:
                 self.log(f"  [{spec.label}] prep failed: {exc}")
-                return False
                 logger.warning("异常已处理", exc_info=True)
+                return False
         return True
 
     def analyze(self):
