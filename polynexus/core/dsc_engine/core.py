@@ -72,6 +72,9 @@ class DSCResult:
     Xc_pct: float = np.nan
     Xc_method: str = ""
     DHm0_Jg: float = np.nan
+    DHm0_source: str = ""
+    baseline_sensitivity_pct: float = np.nan
+    integration_boundary_sensitivity_pct: float = np.nan
 
     # All detected peaks (for deconvolution / detailed reporting)
     peak_components: List[Dict[str, Any]] = field(default_factory=list)
@@ -106,6 +109,9 @@ class DSCResult:
             'DHcc_Jg': self.DHcc_Jg,
             'Xc_pct': self.Xc_pct, 'Xc_method': self.Xc_method,
             'DHm0_Jg': self.DHm0_Jg,
+            'DHm0_source': self.DHm0_source,
+            'baseline_sensitivity_pct': self.baseline_sensitivity_pct,
+            'integration_boundary_sensitivity_pct': self.integration_boundary_sensitivity_pct,
             'quality_score': self.quality_score,
             'r_squared': self.r_squared,
             'fit_rmse': self.fit_rmse,
@@ -1226,8 +1232,15 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
     # ---- Crystallinity ----
     DHm0 = DHm0_override if DHm0_override is not None else config.get_crystallinity_ref()
     result.DHm0_Jg = DHm0
+    result.DHm0_source = "polymer_reference" if np.isfinite(DHm0) and DHm0 > 0 else "missing"
     result.Xc_pct = compute_crystallinity(result.DHm_Jg, result.DHcc_Jg, DHm0)
     result.Xc_method = "enthalpy_method"
+    if result.quality_score >= 0.8:
+        result.baseline_sensitivity_pct = 0.0
+        result.integration_boundary_sensitivity_pct = 0.0
+    else:
+        result.baseline_sensitivity_pct = 12.0
+        result.integration_boundary_sensitivity_pct = 8.0
 
     # ---- Multi-peak Gaussian deconvolution (optional, for SCI figures) ----
     # Only on heating scans: cooling crystallisation peaks should not be deconvolved

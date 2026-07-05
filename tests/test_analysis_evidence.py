@@ -548,6 +548,39 @@ def test_dsc_analysis_evidence_surfaces_temperature_peaks_and_quality_gate() -> 
     assert evidence["feature_evidence"]["Xc_pct"] == 11.9
 
 
+def test_dsc_xc_with_unstable_baseline_is_low_confidence() -> None:
+    evidence = build_analysis_evidence(
+        "DSC",
+        output_parameters={
+            "quality_score": 0.9,
+            "scan_mode": "heating",
+            "Tm_peak_C": 221.0,
+            "DHm_Jg": 78.0,
+            "DHcc_Jg": 18.0,
+            "Xc_pct": 38.0,
+            "Xc_method": "enthalpy",
+            "DHm0_Jg": 230.0,
+            "DHm0_source": "polymer_reference",
+            "baseline_sensitivity_pct": 14.0,
+            "integration_boundary_sensitivity_pct": 9.0,
+            "peak_components": [
+                {"type": "melting", "peak_C": 221.0, "onset_C": 205.0, "end_C": 235.0, "enthalpy_Jg": 78.0},
+                {"type": "cold_crystallization", "peak_C": 125.0, "onset_C": 110.0, "end_C": 140.0, "enthalpy_Jg": 18.0},
+            ],
+        },
+        residual_pattern={"residual_type": "random", "summary": "baseline is visually calm but sensitivity is high"},
+        validation_context={"config_snapshot": {"min_event_enthalpy_Jg": 0.05}},
+    ).to_dict()
+
+    structure = evidence["feature_evidence"]["structure_evidence"]
+    crystallinity = evidence["feature_evidence"]["crystallinity_evidence"]
+
+    assert crystallinity["baseline_sensitivity_pct"] == 14.0
+    assert crystallinity["integration_boundary_sensitivity_pct"] == 9.0
+    assert structure["Xc_reliability_status"] == "low_confidence"
+    assert "dsc_baseline_sensitive_xc" in evidence["constraint_summary"]["triggered_names"]["soft_warn"]
+
+
 def test_dsc_analysis_evidence_flags_physical_conflicts_and_window_issues() -> None:
     evidence = build_analysis_evidence(
         "DSC",

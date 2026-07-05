@@ -397,6 +397,15 @@ def physical_constraint_inventory(technique: str) -> list[EvidenceConstraint]:
                 rationale="Xc should not outrun the melt / cold-crystallisation evidence chain.",
             ),
             EvidenceConstraint(
+                name="dsc_baseline_sensitive_xc",
+                kind="soft_warn",
+                source="DSC",
+                severity="WARN",
+                description="DSC crystallinity is sensitive to baseline or integration boundaries.",
+                field="baseline_sensitivity_pct",
+                rationale="Xc should be downgraded when small baseline changes materially alter enthalpy.",
+            ),
+            EvidenceConstraint(
                 name="quality_score_without_event_support",
                 kind="soft_warn",
                 source="DSC",
@@ -3513,6 +3522,7 @@ def evaluate_physical_constraints(
             "peak_width_nonphysical",
             "multi_scan_inconsistent",
             "crystallinity_without_event_support",
+            "dsc_baseline_sensitive_xc",
             "quality_score_without_event_support",
         }:
             peak_rows = _dsc_peak_component_rows(output.get("peak_components"))
@@ -3537,6 +3547,8 @@ def evaluate_physical_constraints(
             dhm = _clean_float(output.get("DHm_Jg"))
             dhcc = _clean_float(output.get("DHcc_Jg"))
             xc_pct = _clean_float(output.get("Xc_pct"))
+            baseline_sensitive = _clean_float(output.get("baseline_sensitivity_pct"))
+            boundary_sensitive = _clean_float(output.get("integration_boundary_sensitivity_pct"))
             quality = _clean_float(output.get("quality_score"))
             min_event_enthalpy = _clean_float(output.get("min_event_enthalpy_Jg", config_snapshot.get("min_event_enthalpy_Jg")))
             max_melt_width = _clean_float(
@@ -3761,6 +3773,16 @@ def evaluate_physical_constraints(
                     or dhm <= 0
                     or not melt_rows
                     or len(supported_melting_components) < 1
+                )
+            elif item.name == "dsc_baseline_sensitive_xc":
+                observed = {
+                    "Xc_pct": xc_pct,
+                    "baseline_sensitivity_pct": baseline_sensitive,
+                    "integration_boundary_sensitivity_pct": boundary_sensitive,
+                }
+                triggered = xc_pct is not None and (
+                    (baseline_sensitive is not None and baseline_sensitive >= 10.0)
+                    or (boundary_sensitive is not None and boundary_sensitive >= 8.0)
                 )
             elif item.name == "quality_score_without_event_support":
                 event_count = len(supported_components)
@@ -4967,6 +4989,16 @@ def build_analysis_evidence(
         min_event_enthalpy = _clean_float(output.get("min_event_enthalpy_Jg", config_snapshot.get("min_event_enthalpy_Jg")))
         max_melting_peak_width = _clean_float(output.get("max_melting_peak_width_C", config_snapshot.get("max_melting_peak_width_C")))
         dhm0 = _clean_float(output.get("DHm0_Jg", config_snapshot.get("user_DHm0", config_snapshot.get("crystallinity_std"))))
+        dhm0_source = str(output.get("DHm0_source") or config_snapshot.get("DHm0_source") or "").strip() or None
+        baseline_sensitivity = _clean_float(output.get("baseline_sensitivity_pct"))
+        boundary_sensitivity = _clean_float(output.get("integration_boundary_sensitivity_pct"))
+        xc_reliability_status = "usable"
+        if (baseline_sensitivity is not None and baseline_sensitivity >= 10.0) or (
+            boundary_sensitivity is not None and boundary_sensitivity >= 8.0
+        ):
+            xc_reliability_status = "low_confidence"
+        if dhm0 is None or dhm0_source == "missing":
+            xc_reliability_status = "diagnostic_only"
         supported_components = [
             row for row in peak_components
             if _clean_float(row.get("peak_C")) is not None
@@ -5030,6 +5062,8 @@ def build_analysis_evidence(
                 ("residual_summary", residual_summary or None),
                 ("peak_prominence_ratio", peak_prominence_ratio),
                 ("min_event_enthalpy_Jg", min_event_enthalpy),
+                ("baseline_sensitivity_pct", baseline_sensitivity),
+                ("integration_boundary_sensitivity_pct", boundary_sensitivity),
             ]
         )
         crystallinity_evidence = _non_empty_mapping(
@@ -5037,8 +5071,12 @@ def build_analysis_evidence(
                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
                 ("Xc_method", str(output.get("Xc_method", "") or "").strip() or None),
                 ("DHm0_Jg", dhm0),
+                ("DHm0_source", dhm0_source),
                 ("DHm_Jg", _clean_float(output.get("DHm_Jg"))),
                 ("DHcc_Jg", _clean_float(output.get("DHcc_Jg"))),
+                ("baseline_sensitivity_pct", baseline_sensitivity),
+                ("integration_boundary_sensitivity_pct", boundary_sensitivity),
+                ("Xc_reliability_status", xc_reliability_status),
             ]
         )
         peak_evidence = _non_empty_mapping(
@@ -5710,6 +5748,8 @@ def build_analysis_evidence(
             actionable_symptoms.append("event_polarity_conflict -> verify exo_up and signed enthalpy before writing conclusions")
         if "multi_scan_inconsistent" in soft_warn_names:
             actionable_symptoms.append("multi_scan_inconsistent -> stabilize the scan-to-scan evidence before accepting the file-level result")
+        if "dsc_baseline_sensitive_xc" in soft_warn_names:
+            actionable_symptoms.append("dsc_baseline_sensitive_xc -> keep Xc low-confidence until baseline and integration sensitivity settle")
         structure_evidence = _non_empty_mapping(
             [
                 ("scan_mode", scan_mode or None),
@@ -5720,6 +5760,10 @@ def build_analysis_evidence(
                 ("DHm_Jg", _clean_float(output.get("DHm_Jg"))),
                 ("DHcc_Jg", _clean_float(output.get("DHcc_Jg"))),
                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
+                ("Xc_reliability_status", xc_reliability_status),
+                ("baseline_sensitivity_pct", baseline_sensitivity),
+                ("integration_boundary_sensitivity_pct", boundary_sensitivity),
+                ("DHm0_source", dhm0_source),
                 ("supported_event_count", len(supported_components)),
                 ("supported_melting_event_count", len(supported_melting_components)),
                 ("supported_crystallization_event_count", len(supported_crystallization_components)),
