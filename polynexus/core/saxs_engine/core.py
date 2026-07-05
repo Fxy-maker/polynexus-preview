@@ -97,6 +97,43 @@ class SAXSResult:
     sasmodels_model_used: str = ""       # which sasmodels model produced the fit
 
 
+def _finite_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
+
+
+def classify_single_frame_lc_reliability(params: Dict[str, Any]) -> tuple[str, str]:
+    """Classify lc reliability when no series-level status is available."""
+    reasons: list[str] = []
+    lc_conf = _finite_float(params.get("lc_confidence", params.get("lc_confidence_calibrated")))
+    if lc_conf is None:
+        reasons.append("missing_lc_confidence")
+    elif lc_conf < 0.2:
+        reasons.append("low_lc_confidence")
+    elif lc_conf < 0.5:
+        reasons.append("limited_lc_confidence")
+
+    method = str(params.get("lc_method") or "").strip().lower()
+    if method in {"", "tangent", "idf", "gamma_min"}:
+        reasons.append("single_method_fragile")
+
+    q_star = _finite_float(params.get("Q_star", params.get("Q_star_abs")))
+    if params.get("Q_star_valid") is False:
+        reasons.append("q_invariant_invalid")
+    elif q_star is not None and (q_star > 50.0 or 0 < q_star < 0.5):
+        reasons.append("q_invariant_anomaly")
+
+    reason = "|".join(dict.fromkeys(reasons)) if reasons else "stable_structure_support"
+    if "low_lc_confidence" in reasons or "q_invariant_invalid" in reasons:
+        return "diagnostic_only", reason
+    if reasons:
+        return "low_confidence", reason
+    return "usable", reason
+
+
 # ======================================================================
 #  Long period: Bragg method
 # ======================================================================

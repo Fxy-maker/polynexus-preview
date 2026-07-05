@@ -23,6 +23,7 @@ from .saxs_engine import (
     extract_geometry_from_header,
     scan_experiment_dir,
     assemble_dataset,
+    classify_single_frame_lc_reliability,
     recover_condition_axis,
     preprocess_pipeline,
     _integrate_pyfai_shadow,
@@ -994,6 +995,12 @@ class SAXSEngine(BaseEngine):
             raw_snapshot = row.get("raw_snapshot")
             if isinstance(raw_snapshot, dict) and raw_snapshot:
                 raw_snapshot_rows += 1
+
+            if not str(row.get("lc_reliability_status") or "").strip():
+                status, reason = classify_single_frame_lc_reliability(row)
+                row["lc_reliability_status"] = status
+                if not str(row.get("lc_reliability_reason") or "").strip():
+                    row["lc_reliability_reason"] = reason
 
             method_key = str(row.get("lc_method") or "").strip().lower()
             fallback_active = bool(row.get("calibrated_fallback_active")) or method_key in {"calibrated", "qstar_calibrated"}

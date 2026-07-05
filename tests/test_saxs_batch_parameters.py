@@ -289,6 +289,45 @@ def test_saxs_batch_payload_reports_lc_status_summary() -> None:
     assert params["lc_reliability_status"] in {"usable", "diagnostic_only"}
 
 
+def test_static_saxs_batch_infers_lc_reliability_for_fragile_single_frame_rows() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    engine._batch_params = [  # type: ignore[attr-defined]
+        {
+            "file": "frame_001.edf",
+            "condition_label": "Condition",
+            "condition_value": 1.0,
+            "L_nm": 12.0,
+            "lc_nm": 1.1,
+            "lc_confidence": 0.18,
+            "lc_method": "tangent",
+            "Q_star": 0.2,
+        },
+        {
+            "file": "frame_002.edf",
+            "condition_label": "Condition",
+            "condition_value": 2.0,
+            "L_nm": 11.8,
+            "lc_nm": 3.4,
+            "lc_confidence": 0.72,
+            "lc_method": "calibrated",
+            "Q_star": 12.0,
+        },
+    ]
+
+    params = engine.get_parameters()
+
+    first = params["_batch_data"][0]
+    summary = params["batch_structure_summary"]
+
+    assert first["lc_reliability_status"] == "diagnostic_only"
+    assert "low_lc_confidence" in first["lc_reliability_reason"]
+    assert "single_method_fragile" in first["lc_reliability_reason"]
+    assert summary["diagnostic_only_rows"] == 1
+    assert summary["usable_rows"] == 1
+
+
 def test_saxs_apply_batch_params_keeps_failed_frame_alignment() -> None:
     engine = get_engine("saxs", config=SAXSConfig(experiment_type="temperature"))
     assert engine is not None

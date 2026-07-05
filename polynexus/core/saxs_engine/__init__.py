@@ -31,6 +31,7 @@ from .core import (
     correlation_function, idf_analysis, ensemble_long_period,
     compute_structure_params, guinier_analysis, porod_analysis,
     kratky_analysis, sasmodels_fit, sasmodels_fit_with_fallback,
+    classify_single_frame_lc_reliability,
     analyze_single, validate_saxs_results,
 )
 from .saxs_strain import (
