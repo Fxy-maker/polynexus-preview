@@ -1064,6 +1064,46 @@ def test_nmr_constraint_summary_marks_fit_quality_soft_warn() -> None:
     assert "constraint_status=soft_warn" in evidence["summary"]
 
 
+def test_nmr_analysis_evidence_surfaces_signal_peak_assignment_sections() -> None:
+    evidence = build_analysis_evidence(
+        "NMR",
+        output_parameters={
+            "nucleus": "13C",
+            "sample_state": "solid",
+            "n_peaks": 4,
+            "median_snr": 9.5,
+            "mean_fwhm_ppm": 1.8,
+            "r_squared": 0.91,
+            "dominant_peak_ppm": 172.4,
+            "peak_area_total": 120.0,
+            "quality_noise_mad": 0.012,
+            "quality_fit_quality": 2.0,
+            "peak_0_assignment": "C=O (c)",
+            "peak_0_phase": "c",
+            "peak_0_delta_ppm": 0.4,
+            "peak_0_snr": 12.0,
+            "peak_1_assignment": "C=O (a)",
+            "peak_1_phase": "a",
+            "peak_1_delta_ppm": 0.8,
+            "peak_1_snr": 10.0,
+            "Xc_pct": 47.0,
+            "Xc_method": "solid_13c_peak_area",
+            "n_matches": 2,
+        },
+        residual_pattern={"residual_type": "noise", "summary": "noise remains"},
+    ).to_dict()
+
+    assert evidence["technique"] == "NMR"
+    assert evidence["signal_evidence"]["median_snr"] == 9.5
+    assert evidence["peak_evidence"]["peak_count"] == 4
+    assert evidence["assignment_evidence"]["phase_assignment_count"] == 2
+    assert evidence["assignment_evidence"]["assigned_peak_fraction"] > 0
+    assert evidence["phase_evidence"]["crystalline_peak_count"] == 1
+    assert evidence["phase_evidence"]["amorphous_peak_count"] == 1
+    assert evidence["structure_evidence"]["Xc_assignment_status"] == "supported"
+    assert "nmr_xc=supported" in evidence["summary"]
+
+
 def test_advisor_normalizes_evidence_contract_fields() -> None:
     advisor = Advisor(retriever=_StaticRetriever(), llm_client=_StaticLLM())
     advice = advisor.advise(

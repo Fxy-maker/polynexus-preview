@@ -771,6 +771,32 @@ def _non_empty_mapping(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def _nmr_peak_rows(output: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for idx in range(10):
+        ppm = _clean_float(output.get(f"peak_{idx}_ppm"))
+        assignment = str(output.get(f"peak_{idx}_assignment") or "").strip()
+        phase = str(output.get(f"peak_{idx}_phase") or "").strip().lower()
+        if ppm is None and not assignment and not phase:
+            continue
+        rows.append(
+            _non_empty_mapping(
+                [
+                    ("index", idx),
+                    ("ppm", ppm),
+                    ("assignment", assignment or None),
+                    ("phase", phase or None),
+                    ("snr", _clean_float(output.get(f"peak_{idx}_snr"))),
+                    ("fwhm_ppm", _clean_float(output.get(f"peak_{idx}_fwhm_ppm"))),
+                    ("area", _clean_float(output.get(f"peak_{idx}_area"))),
+                    ("delta_ppm", _clean_float(output.get(f"peak_{idx}_delta_ppm"))),
+                    ("possible_solvent", str(output.get(f"peak_{idx}_possible_solvent") or "").strip() or None),
+                ]
+            )
+        )
+    return rows
+
+
 def _dsc_scan_rows(scan_r_squared: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if isinstance(scan_r_squared, dict):
@@ -5342,6 +5368,68 @@ def build_analysis_evidence(
         for key in ("n_peaks", "Xc_pct", "Xc_method", "dominant_peak_ppm", "mean_fwhm_ppm", "median_snr", "quality_metrics"):
             if key in output:
                 feature_evidence[key] = output.get(key)
+        peak_rows = _nmr_peak_rows(output)
+        peak_count = _clean_float(output.get("n_peaks"))
+        assigned_count = sum(1 for row in peak_rows if row.get("assignment"))
+        phase_assigned_count = sum(1 for row in peak_rows if row.get("phase"))
+        crystalline_count = sum(1 for row in peak_rows if str(row.get("phase", "")).lower() in {"c", "crystalline"})
+        amorphous_count = sum(1 for row in peak_rows if str(row.get("phase", "")).lower() in {"a", "amorphous"})
+        assignment_denominator = peak_count if peak_count and peak_count > 0 else len(peak_rows)
+        assigned_fraction = assigned_count / assignment_denominator if assignment_denominator else None
+        xc_assignment_status = "unsupported"
+        if output.get("Xc_pct") is not None:
+            if crystalline_count > 0 and amorphous_count > 0:
+                xc_assignment_status = "supported"
+            elif assigned_count > 0 or phase_assigned_count > 0 or output.get("n_matches") is not None:
+                xc_assignment_status = "assignment_limited"
+            else:
+                xc_assignment_status = "missing_assignment"
+        signal_evidence = _non_empty_mapping(
+            [
+                ("nucleus", str(output.get("nucleus") or "").strip() or None),
+                ("sample_state", str(output.get("sample_state") or "").strip() or None),
+                ("median_snr", _clean_float(output.get("median_snr"))),
+                ("mean_fwhm_ppm", _clean_float(output.get("mean_fwhm_ppm"))),
+                ("noise_mad", _clean_float(output.get("quality_noise_mad"))),
+                ("fit_quality", _clean_float(output.get("quality_fit_quality"))),
+            ]
+        )
+        peak_evidence = _non_empty_mapping(
+            [
+                ("peak_count", int(peak_count) if peak_count is not None and float(peak_count).is_integer() else peak_count),
+                ("dominant_peak_ppm", _clean_float(output.get("dominant_peak_ppm"))),
+                ("peak_area_total", _clean_float(output.get("peak_area_total"))),
+                ("peaks", peak_rows),
+            ]
+        )
+        assignment_evidence = _non_empty_mapping(
+            [
+                ("assigned_peak_count", assigned_count),
+                ("phase_assignment_count", phase_assigned_count),
+                ("assigned_peak_fraction", assigned_fraction),
+                ("n_matches", _clean_float(output.get("n_matches"))),
+            ]
+        )
+        phase_evidence = _non_empty_mapping(
+            [
+                ("crystalline_peak_count", crystalline_count),
+                ("amorphous_peak_count", amorphous_count),
+                ("phase_assignment_count", phase_assigned_count),
+            ]
+        )
+        structure_evidence = _non_empty_mapping(
+            [
+                ("Xc_pct", _clean_float(output.get("Xc_pct"))),
+                ("Xc_method", str(output.get("Xc_method") or "").strip() or None),
+                ("Xc_assignment_status", xc_assignment_status),
+                ("paper_conclusion_ready", xc_assignment_status == "supported"),
+            ]
+        )
+        feature_evidence["signal_evidence"] = signal_evidence
+        feature_evidence["peak_evidence"] = peak_evidence
+        feature_evidence["assignment_evidence"] = assignment_evidence
+        feature_evidence["phase_evidence"] = phase_evidence
+        feature_evidence["structure_evidence"] = structure_evidence
         if output.get("median_snr") is not None:
             confidence_signals.append({"name": "median_snr", "value": _clean_float(output.get("median_snr")), "source": "NMR"})
 
@@ -5889,6 +5977,14 @@ def build_analysis_evidence(
         summary_bits.append(f"constraint_status={constraint_summary.get('status')}")
     if constraint_summary.get("triggered_total"):
         summary_bits.append(f"triggered_constraints={constraint_summary.get('triggered_total')}")
+
+    if technique_key == "NMR":
+        if signal_evidence.get("median_snr") is not None:
+            summary_bits.append(f"nmr_snr={signal_evidence.get('median_snr')}")
+        if peak_evidence.get("peak_count") is not None:
+            summary_bits.append(f"nmr_peaks={peak_evidence.get('peak_count')}")
+        if structure_evidence.get("Xc_assignment_status"):
+            summary_bits.append(f"nmr_xc={structure_evidence.get('Xc_assignment_status')}")
 
     if technique_key == "SAXS":
         if batch_evidence:
