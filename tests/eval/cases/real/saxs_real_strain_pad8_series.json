@@ -1,0 +1,34 @@
+{
+  "case_id": "saxs_real_strain_pad8_series",
+  "technique": "saxs",
+  "submodule": "strain",
+  "data_file": "saxs/PAD8原位拉伸",
+  "polymer_name": "PAD8",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "source_file": "D:\\PolyNexus\\测试数据\\saxs\\PAD8原位拉伸",
+    "file_format": "directory",
+    "experiment_type": "strain",
+    "condition_label": "Strain",
+    "condition_unit": "%",
+    "extracted_features": {
+      "label": "PAD8原位拉伸",
+      "submodule": "strain",
+      "extension": ".edf",
+      "data_kind": "edf_sequence",
+      "n_files": 5,
+      "condition": {
+        "type": "strain",
+        "value_range": [
+          0.0,
+          400.0
+        ],
+        "unit": "%"
+      }
+    }
+  },
+  "ground_truth": {},
+  "source": "expert_review",
+  "notes": "Converted from real SAXS tensile-series data. Ground truth is empty until human review."
+}

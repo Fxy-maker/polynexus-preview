@@ -1,0 +1,47 @@
+{
+  "case_id": "waxs_synth_ipp_alpha",
+  "technique": "waxs",
+  "submodule": "static",
+  "data_file": "synth:waxs_synth_ipp_alpha",
+  "polymer_name": "iPP",
+  "polymer_phase": "alpha",
+  "config_overrides": {
+    "rng_seed": 42,
+    "polymer_type": "iPP_alpha"
+  },
+  "ground_truth": {
+    "Xc_pct": [
+      47.0,
+      53.0
+    ],
+    "peak_centers": [
+      [
+        13.95,
+        14.25
+      ],
+      [
+        16.75,
+        17.05
+      ],
+      [
+        18.45,
+        18.75
+      ],
+      [
+        21.05,
+        21.35
+      ],
+      [
+        21.75,
+        22.05
+      ]
+    ],
+    "D_Scherrer_nm": [
+      9.0,
+      20.0
+    ],
+    "crystal_form": "alpha"
+  },
+  "source": "synthetic",
+  "notes": "Synthetic isotactic polypropylene alpha WAXS."
+}

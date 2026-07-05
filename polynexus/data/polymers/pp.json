@@ -1,0 +1,46 @@
+{
+  "name": "PP",
+  "aliases": ["Polypropylene", "iPP", "isotactic PP"],
+  "waxs": {
+    "characteristic_peaks": [
+      {"two_theta": 14.1, "hkl": "110", "crystal_phase": "alpha"},
+      {"two_theta": 16.9, "hkl": "040", "crystal_phase": "alpha"},
+      {"two_theta": 18.6, "hkl": "130", "crystal_phase": "alpha"},
+      {"two_theta": 21.8, "hkl": "111/131", "crystal_phase": "alpha"}
+    ],
+    "xc_range": [40, 65],
+    "xc_typical": 55,
+    "scherrer_D_range": [5.0, 20.0],
+    "notes": "Isotactic PP alpha phase commonly shows peaks near 14.1, 16.9, 18.6 and 21.8 deg"
+  },
+  "ir": {
+    "characteristic_bands": [
+      {"wavenumber": 2950, "assignment": "vas(CH3)", "strength": "s", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 2918, "assignment": "vas(CH2)", "strength": "s", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 2868, "assignment": "vs(CH3)", "strength": "s", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 2840, "assignment": "vs(CH2)", "strength": "s", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 1458, "assignment": "deltaas(CH3)", "strength": "m", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 1377, "assignment": "deltas(CH3)", "strength": "m", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 1167, "assignment": "nu(C-C) + rho(CH3)", "strength": "m", "role": "key", "phase": "alpha"},
+      {"wavenumber": 998, "assignment": "rho(CH3) + nu(C-CH3)", "strength": "m", "role": "key", "phase": "alpha"},
+      {"wavenumber": 973, "assignment": "rho(CH3) + nu(C-C)", "strength": "m", "role": "key", "phase": "alpha"},
+      {"wavenumber": 841, "assignment": "rho(CH2) + nu(C-CH3)", "strength": "m", "role": "key", "phase": "alpha"}
+    ],
+    "key_bands": [1167, 998, 973, 841],
+    "secondary_bands": [2950, 2918, 2868, 2840, 1458, 1377],
+    "overlap_risks": [
+      "998 cm^-1 与 973 cm^-1 间距很近，分辨率不足时容易连成一团。",
+      "1458 / 1377 cm^-1 更像辅助带，不宜单独作为强归属证据。"
+    ],
+    "assignment_notes": [
+      "PP / iPP 最稳妥的是 1167 / 998 / 973 / 841 cm^-1 这条 alpha 线索。",
+      "如果只看到侧带而核心四带不齐，结论应保持候选态。"
+    ]
+  },
+  "dsc": {
+    "tm": 165,
+    "tc": 115,
+    "delta_hm_100": 207,
+    "xc_range": [40, 65]
+  }
+}

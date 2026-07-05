@@ -1,0 +1,34 @@
+{
+  "case_id": "waxs_real_strain_8_200_w_0_00000",
+  "technique": "waxs",
+  "submodule": "strain",
+  "data_file": "waxs/原位拉伸广角/8-200-W_0_00000.edf",
+  "polymer_name": "unknown",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "source_file": "D:\\PolyNexus\\测试数据\\waxs\\原位拉伸广角\\8-200-W_0_00000.edf",
+    "file_format": "edf",
+    "extracted_features": {
+      "label": "8-200-W_0_00000",
+      "submodule": "strain",
+      "extension": ".edf",
+      "data_kind": "2d_image",
+      "image_shape": [
+        1028,
+        512
+      ],
+      "intensity_min": 0.0,
+      "intensity_max": 65535.0,
+      "intensity_mean": 32221.173379742217,
+      "condition": {
+        "type": "strain",
+        "value": 8.0,
+        "unit": "%"
+      }
+    }
+  },
+  "ground_truth": {},
+  "source": "expert_review",
+  "notes": "Converted from real WAXS data. Ground truth is empty until human review."
+}

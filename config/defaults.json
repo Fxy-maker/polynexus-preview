@@ -1,0 +1,304 @@
+{
+  "global": {
+    "save_figures": true,
+    "figure_format": "pdf",
+    "figure_dpi": 300
+  },
+  "dsc": {
+    "standard_enthalpy": 293.0,
+    "smooth_span": 5
+  },
+  "ir": {
+    "baseline_method": "als",
+    "wavenumber_min": 400,
+    "wavenumber_max": 4000
+  },
+  "waxs": {
+    "wavelength_nm": 0.154056
+  },
+  "saxs": {
+    "q_min": 0.02,
+    "q_max": 2.5,
+    "n_pt": 1000,
+    "use_pyfai": false
+  },
+  "nmr": {
+    "lb_hz": 5.0,
+    "baseline_method": "simple_polynomial",
+    "baseline_order": 5,
+    "fig_format": "svg",
+    "fig_dpi": 300
+  },
+  "polymers": {
+    "PA6": {
+      "dsc": {
+        "standard_enthalpy": 230.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "PA66": {
+      "dsc": {
+        "standard_enthalpy": 255.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "PE": {
+      "dsc": {
+        "standard_enthalpy": 293.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "PP": {
+      "dsc": {
+        "standard_enthalpy": 207.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "PET": {
+      "dsc": {
+        "standard_enthalpy": 140.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "PEK": {
+      "dsc": {
+        "standard_enthalpy": 130.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "PEEK": {
+      "dsc": {
+        "standard_enthalpy": 130.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "PLA": {
+      "dsc": {
+        "standard_enthalpy": 93.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "PVDF": {
+      "dsc": {
+        "standard_enthalpy": 105.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    },
+    "unknown": {
+      "dsc": {
+        "standard_enthalpy": 230.0,
+        "smooth_span": 5
+      },
+      "ir": {
+        "baseline_method": "als",
+        "wavenumber_min": 400,
+        "wavenumber_max": 4000
+      },
+      "waxs": {
+        "wavelength_nm": 0.154056
+      },
+      "saxs": {
+        "q_min": 0.02,
+        "q_max": 2.5,
+        "n_pt": 1000,
+        "use_pyfai": false
+      },
+      "nmr": {
+        "lb_hz": 5.0,
+        "baseline_method": "simple_polynomial",
+        "baseline_order": 5,
+        "fig_format": "svg",
+        "fig_dpi": 300
+      }
+    }
+  }
+}

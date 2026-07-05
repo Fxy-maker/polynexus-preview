@@ -1,0 +1,479 @@
+{
+  "TPU": {
+    "name": "Thermoplastic Polyurethane",
+    "family": "elastomer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {},
+    "common": {
+      "Tg_C": -40,
+      "density": 1.2,
+      "dHm0_Jg": 50.0,
+      "Tm_C": 160
+    }
+  },
+  "SBS": {
+    "name": "Poly(styrene-butadiene-styrene) Triblock Copolymer",
+    "family": "elastomer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            3060,
+            "nu(C-H) aromatic PS",
+            "w"
+          ],
+          [
+            3025,
+            "nu(=C-H) vinyl PB",
+            "w"
+          ],
+          [
+            2918,
+            "vas(CH2)",
+            "s"
+          ],
+          [
+            2848,
+            "vs(CH2)",
+            "s"
+          ],
+          [
+            1602,
+            "nu(C=C) ring PS",
+            "w"
+          ],
+          [
+            1493,
+            "nu(C=C) ring PS",
+            "m"
+          ],
+          [
+            1452,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            966,
+            "delta(=C-H) trans PB",
+            "m"
+          ],
+          [
+            910,
+            "delta(=C-H) vinyl PB",
+            "w"
+          ],
+          [
+            758,
+            "gamma(C-H) ring PS",
+            "w"
+          ],
+          [
+            700,
+            "gamma(C-H) ring PS",
+            "m"
+          ]
+        ],
+        "dHm0_Jg": 0.0
+      }
+    },
+    "common": {
+      "Tg_C": -80,
+      "density": 0.94,
+      "dHm0_Jg": 0.0,
+      "Tm_C": null
+    }
+  },
+  "SEBS": {
+    "name": "Poly(styrene-ethylene/butylene-styrene)",
+    "family": "elastomer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            3060,
+            "nu(C-H) aromatic PS",
+            "w"
+          ],
+          [
+            2920,
+            "vas(CH2)",
+            "vs"
+          ],
+          [
+            2850,
+            "vs(CH2)",
+            "s"
+          ],
+          [
+            1602,
+            "nu(C=C) ring PS",
+            "w"
+          ],
+          [
+            1493,
+            "nu(C=C) ring PS",
+            "m"
+          ],
+          [
+            1460,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            1378,
+            "delta(CH3)",
+            "w"
+          ],
+          [
+            758,
+            "gamma(C-H) ring PS",
+            "w"
+          ],
+          [
+            700,
+            "gamma(C-H) ring PS",
+            "m"
+          ]
+        ],
+        "dHm0_Jg": 15.0
+      }
+    },
+    "common": {
+      "Tg_C": -55,
+      "density": 0.91,
+      "dHm0_Jg": 15.0
+    }
+  },
+  "EPDM": {
+    "name": "Ethylene-Propylene-Diene Monomer Rubber",
+    "family": "elastomer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            2920,
+            "vas(CH2)",
+            "vs"
+          ],
+          [
+            2850,
+            "vs(CH2)",
+            "s"
+          ],
+          [
+            1465,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            1378,
+            "delta(CH3) PP units",
+            "m"
+          ],
+          [
+            1155,
+            "nu(C-C) skeletal PP",
+            "w"
+          ],
+          [
+            970,
+            "delta(=C-H) ENB diene",
+            "w"
+          ],
+          [
+            720,
+            "rho(CH2) PE sequences",
+            "m"
+          ]
+        ],
+        "dHm0_Jg": 10.0
+      }
+    },
+    "common": {
+      "Tg_C": -55,
+      "density": 0.86,
+      "dHm0_Jg": 10.0,
+      "Tm_C": 45
+    }
+  },
+  "NR": {
+    "name": "Natural Rubber (cis-1,4-polyisoprene)",
+    "family": "elastomer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            2960,
+            "vas(CH3)",
+            "s"
+          ],
+          [
+            2920,
+            "vas(CH2)",
+            "s"
+          ],
+          [
+            2850,
+            "vs(CH2)",
+            "s"
+          ],
+          [
+            1665,
+            "nu(C=C) stretch",
+            "m"
+          ],
+          [
+            1448,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            1376,
+            "delta(CH3)",
+            "m"
+          ],
+          [
+            836,
+            "gamma(=C-H) cis",
+            "s"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            135.2,
+            "=C(CH3) quaternary",
+            "c"
+          ],
+          [
+            125.0,
+            "=CH- methine",
+            "c"
+          ],
+          [
+            32.2,
+            "CH2 backbone",
+            "c"
+          ],
+          [
+            26.4,
+            "CH2 backbone",
+            "c"
+          ],
+          [
+            23.3,
+            "CH3 methyl",
+            "c"
+          ]
+        ],
+        "dHm0_Jg": 0.0
+      }
+    },
+    "common": {
+      "Tg_C": -70,
+      "density": 0.92,
+      "dHm0_Jg": 0.0,
+      "Tm_C": 30
+    }
+  },
+  "Silicone": {
+    "name": "Poly(dimethylsiloxane) (PDMS / Silicone Rubber)",
+    "family": "elastomer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            2963,
+            "vas(CH3)",
+            "m"
+          ],
+          [
+            2905,
+            "vs(CH3)",
+            "w"
+          ],
+          [
+            1412,
+            "deltaas(CH3)",
+            "w"
+          ],
+          [
+            1261,
+            "delta(Si-CH3)",
+            "vs"
+          ],
+          [
+            1090,
+            "nuas(Si-O-Si)",
+            "vs"
+          ],
+          [
+            1020,
+            "nus(Si-O-Si)",
+            "vs"
+          ],
+          [
+            864,
+            "rho(CH3) + nu(Si-C)",
+            "m"
+          ],
+          [
+            800,
+            "nu(Si-C) + rho(CH3)",
+            "s"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            1.0,
+            "CH3-Si methyl",
+            "c"
+          ]
+        ],
+        "dHm0_Jg": 0.0
+      }
+    },
+    "common": {
+      "Tg_C": -125,
+      "density": 0.97,
+      "dHm0_Jg": 0.0,
+      "Tm_C": -40
+    }
+  },
+  "BR": {
+    "name": "Polybutadiene Rubber (BR)",
+    "family": "elastomer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            3075,
+            "nu(=C-H) vinyl",
+            "w"
+          ],
+          [
+            3005,
+            "nu(=C-H) cis/trans",
+            "w"
+          ],
+          [
+            2918,
+            "vas(CH2)",
+            "s"
+          ],
+          [
+            2845,
+            "vs(CH2)",
+            "s"
+          ],
+          [
+            1650,
+            "nu(C=C)",
+            "w"
+          ],
+          [
+            1438,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            966,
+            "delta(=C-H) trans-1,4",
+            "m"
+          ],
+          [
+            911,
+            "delta(=C-H) 1,2-vinyl",
+            "m"
+          ],
+          [
+            730,
+            "delta(=C-H) cis-1,4",
+            "m"
+          ]
+        ],
+        "dHm0_Jg": 0.0
+      }
+    },
+    "common": {
+      "Tg_C": -100,
+      "density": 0.9,
+      "dHm0_Jg": 0.0,
+      "Tm_C": null
+    }
+  },
+  "NBR": {
+    "name": "Nitrile Butadiene Rubber (NBR)",
+    "family": "elastomer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            2920,
+            "vas(CH2)",
+            "s"
+          ],
+          [
+            2850,
+            "vs(CH2)",
+            "s"
+          ],
+          [
+            2237,
+            "nu(C≡N) nitrile",
+            "m"
+          ],
+          [
+            1640,
+            "nu(C=C) butadiene",
+            "w"
+          ],
+          [
+            1446,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            967,
+            "delta(=C-H) trans BR",
+            "m"
+          ],
+          [
+            920,
+            "delta(=C-H) vinyl",
+            "w"
+          ]
+        ],
+        "dHm0_Jg": 0.0
+      }
+    },
+    "common": {
+      "Tg_C": -30,
+      "density": 0.98,
+      "dHm0_Jg": 0.0,
+      "Tm_C": null
+    }
+  }
+}

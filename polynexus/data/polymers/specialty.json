@@ -1,0 +1,167 @@
+{
+  "PS": {
+    "name": "Polystyrene (atactic)",
+    "family": "specialty",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            3082,
+            "nu(C-H) aromatic",
+            "w"
+          ],
+          [
+            3060,
+            "nu(C-H) aromatic",
+            "w"
+          ],
+          [
+            3026,
+            "nu(C-H) aromatic",
+            "w"
+          ],
+          [
+            2924,
+            "vas(CH2)",
+            "m"
+          ],
+          [
+            2850,
+            "vs(CH2)",
+            "w"
+          ],
+          [
+            1602,
+            "nu(C=C) ring",
+            "w"
+          ],
+          [
+            1493,
+            "nu(C=C) ring",
+            "m"
+          ],
+          [
+            1452,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            1028,
+            "delta(C-H) in-plane ring",
+            "w"
+          ],
+          [
+            758,
+            "gamma(C-H) monosubstituted ring",
+            "s"
+          ],
+          [
+            700,
+            "gamma(C-H) monosubstituted ring",
+            "vs"
+          ]
+        ],
+        "dHm0_Jg": 0.0
+      }
+    },
+    "common": {
+      "Tg_C": 100,
+      "density": 1.05,
+      "dHm0_Jg": 0.0,
+      "Tm_C": null
+    }
+  },
+  "PMMA": {
+    "name": "Poly(methyl methacrylate)",
+    "family": "specialty",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            2995,
+            "vas(CH3)",
+            "w"
+          ],
+          [
+            2950,
+            "vas(CH3) ester",
+            "m"
+          ],
+          [
+            2845,
+            "vs(O-CH3)",
+            "w"
+          ],
+          [
+            1730,
+            "nu(C=O) ester",
+            "vs"
+          ],
+          [
+            1484,
+            "delta(CH2) + deltaas(CH3)",
+            "m"
+          ],
+          [
+            1448,
+            "deltaas(CH3)",
+            "m"
+          ],
+          [
+            1388,
+            "deltaas(alpha-CH3)",
+            "w"
+          ],
+          [
+            1270,
+            "nu(C-O) + delta(C-H)",
+            "m"
+          ],
+          [
+            1242,
+            "nu(C-O) ester",
+            "s"
+          ],
+          [
+            1192,
+            "nu(C-O-C)",
+            "vs"
+          ],
+          [
+            1148,
+            "nu(C-O) + nu(C-C)",
+            "s"
+          ],
+          [
+            987,
+            "rho(O-CH3)",
+            "m"
+          ],
+          [
+            842,
+            "rho(CH2)",
+            "w"
+          ],
+          [
+            750,
+            "rho(CH2)",
+            "w"
+          ]
+        ],
+        "dHm0_Jg": 61.0
+      }
+    },
+    "common": {
+      "Tg_C": 105,
+      "density": 1.18,
+      "dHm0_Jg": 61.0,
+      "Tm_C": null
+    }
+  }
+}

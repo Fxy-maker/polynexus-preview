@@ -1,0 +1,78 @@
+{
+  "PVDF": {
+    "name": "Poly(vinylidene fluoride)",
+    "family": "fluoropolymer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {},
+    "common": {
+      "Tg_C": -35,
+      "density": 1.78,
+      "dHm0_Jg": 104.7,
+      "Tm_C": 168
+    }
+  },
+  "PTFE": {
+    "name": "Polytetrafluoroethylene",
+    "family": "fluoropolymer",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            18.1,
+            "100",
+            100
+          ],
+          [
+            31.6,
+            "110",
+            10
+          ],
+          [
+            36.7,
+            "200",
+            5
+          ]
+        ],
+        "ir_peaks": [
+          [
+            1201,
+            "nuas(CF2)",
+            "vs"
+          ],
+          [
+            1149,
+            "nus(CF2)",
+            "vs"
+          ],
+          [
+            638,
+            "omega(CF2)",
+            "m"
+          ],
+          [
+            553,
+            "delta(CF2)",
+            "m"
+          ],
+          [
+            516,
+            "delta(CF2)",
+            "w"
+          ]
+        ],
+        "dHm0_Jg": 82.0
+      }
+    },
+    "common": {
+      "Tg_C": 127,
+      "density": 2.2,
+      "dHm0_Jg": 82.0,
+      "Tm_C": 327
+    }
+  }
+}

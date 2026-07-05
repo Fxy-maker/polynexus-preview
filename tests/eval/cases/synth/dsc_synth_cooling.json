@@ -1,0 +1,28 @@
+{
+  "case_id": "dsc_synth_cooling",
+  "technique": "dsc",
+  "submodule": "cooling",
+  "data_file": "synth:dsc_synth_cooling",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "scan_direction": "cooling"
+  },
+  "ground_truth": {
+    "Tc_peak_C": [
+      166.0,
+      174.0
+    ],
+    "DHm_Jg": [
+      35.0,
+      60.0
+    ],
+    "Xc_pct": [
+      24.0,
+      38.0
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic cooling DSC with crystallization near 170 C."
+}

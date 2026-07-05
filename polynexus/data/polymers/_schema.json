@@ -1,0 +1,23 @@
+{
+  "_version": "2.0",
+  "_description": "PolyNexus multi-family polymer database validation schema",
+  "validation_rules": {
+    "cross_family_duplicate_key": "warn",
+    "unique_key_scope": "global",
+    "required_fields": [
+      "family",
+      "tags",
+      "phases"
+    ],
+    "dHm0_Jg_must_be_numeric": true
+  },
+  "families": [
+    "elastomer",
+    "engineering_plastic",
+    "fluoropolymer",
+    "polyamide",
+    "polyester",
+    "polyolefin",
+    "specialty"
+  ]
+}

@@ -1,0 +1,190 @@
+{
+  "PE": {
+    "name": "Polyethylene",
+    "family": "polyolefin",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            21.5,
+            "110",
+            100
+          ],
+          [
+            24.0,
+            "200",
+            40
+          ],
+          [
+            30.1,
+            "210",
+            5
+          ],
+          [
+            36.3,
+            "020",
+            15
+          ]
+        ],
+        "ir_peaks": [
+          [
+            2918,
+            "vas(CH2)",
+            "vs"
+          ],
+          [
+            2850,
+            "vs(CH2)",
+            "vs"
+          ],
+          [
+            1472,
+            "delta(CH2) scissoring",
+            "s"
+          ],
+          [
+            1463,
+            "delta(CH2) crystalline",
+            "m"
+          ],
+          [
+            730,
+            "rho(CH2) crystalline",
+            "m"
+          ],
+          [
+            720,
+            "rho(CH2) amorphous",
+            "m"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            32.9,
+            "CH2 crystalline (orthorhombic)",
+            "c"
+          ],
+          [
+            34.0,
+            "CH2 crystalline (monoclinic)",
+            "c"
+          ],
+          [
+            30.6,
+            "CH2 amorphous",
+            "a"
+          ]
+        ],
+        "dHm0_Jg": 293.0
+      }
+    },
+    "common": {
+      "Tg_C": -120,
+      "density": 0.95,
+      "dHm0_Jg": 293.0,
+      "Tm_C": 137
+    }
+  },
+  "iPP": {
+    "name": "Isotactic Polypropylene",
+    "family": "polyolefin",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "alpha": {
+        "waxs_peaks": [
+          [
+            14.1,
+            "110",
+            100
+          ],
+          [
+            16.9,
+            "040",
+            60
+          ],
+          [
+            18.6,
+            "130",
+            40
+          ],
+          [
+            21.2,
+            "111",
+            30
+          ],
+          [
+            21.9,
+            "131/041",
+            20
+          ]
+        ],
+        "ir_peaks": [
+          [
+            1167,
+            "nu(C-C) + rho(CH3)",
+            "m"
+          ],
+          [
+            998,
+            "rho(CH3) + nu(C-CH3)",
+            "m"
+          ],
+          [
+            973,
+            "rho(CH3) + nu(C-C)",
+            "m"
+          ],
+          [
+            841,
+            "rho(CH2) + nu(C-CH3)",
+            "m"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            44.0,
+            "CH2 backbone",
+            "c"
+          ],
+          [
+            26.5,
+            "CH backbone",
+            "c"
+          ],
+          [
+            21.8,
+            "CH3 methyl",
+            "c"
+          ]
+        ],
+        "label": "alpha-form"
+      },
+      "beta": {
+        "waxs_peaks": [
+          [
+            16.0,
+            "300",
+            100
+          ],
+          [
+            21.2,
+            "301",
+            50
+          ]
+        ],
+        "label": "beta-form"
+      }
+    },
+    "common": {
+      "Tg_C": -10,
+      "density": 0.9,
+      "dHm0_Jg": 207.0,
+      "Tm_C": 165
+    }
+  }
+}

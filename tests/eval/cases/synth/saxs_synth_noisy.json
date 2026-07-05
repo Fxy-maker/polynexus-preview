@@ -1,0 +1,33 @@
+{
+  "case_id": "saxs_synth_noisy",
+  "technique": "saxs",
+  "submodule": "static",
+  "data_file": "synth:saxs_synth_noisy",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "L_method": "bragg",
+    "smooth_window": 11
+  },
+  "ground_truth": {
+    "L_nm": [
+      12.8,
+      14.2
+    ],
+    "lc_nm": [
+      4.5,
+      7.0
+    ],
+    "phi_c": [
+      0.3,
+      0.5
+    ],
+    "Rg_nm": [
+      4.2,
+      5.8
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic noisy SAXS case with a weak lamellar peak."
+}

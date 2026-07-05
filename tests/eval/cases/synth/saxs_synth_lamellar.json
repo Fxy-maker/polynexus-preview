@@ -1,0 +1,32 @@
+{
+  "case_id": "saxs_synth_lamellar",
+  "technique": "saxs",
+  "submodule": "static",
+  "data_file": "synth:saxs_synth_lamellar",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "L_method": "bragg"
+  },
+  "ground_truth": {
+    "L_nm": [
+      11.5,
+      12.5
+    ],
+    "lc_nm": [
+      5.0,
+      7.0
+    ],
+    "phi_c": [
+      0.4,
+      0.55
+    ],
+    "Rg_nm": [
+      4.2,
+      5.4
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic SAXS with a clear lamellar Bragg peak at L about 12 nm."
+}

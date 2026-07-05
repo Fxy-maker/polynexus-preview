@@ -1,0 +1,51 @@
+# Local secrets and machine-specific config
+.env
+.env.*
+!.env.example
+
+# Python caches and build output
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local bundled runtimes and generated indexes
+Python/
+rag/chroma_db/
+.codegraph/
+.deepseek/
+.reasonix/
+
+# Test and run scratch directories
+.pytest_tmp*/
+.tmp_pytest*/
+test_output/
+results/
+tests/eval/reports/
+
+# Logs and generated reports
+*.log
+polynexus.log
+ai_tune_*.json
+.tmp_*.txt
+
+# Local backup/runtime files
+*.bak
+*.bak*
+*.db
+*.db-shm
+*.db-wal
+
+# Large local sample datasets
+测试数据/
+
+# Root-level scratch scripts used during manual diagnostics
+/_*.py

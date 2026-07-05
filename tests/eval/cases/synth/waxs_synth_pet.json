@@ -1,0 +1,46 @@
+{
+  "case_id": "waxs_synth_pet",
+  "technique": "waxs",
+  "submodule": "static",
+  "data_file": "synth:waxs_synth_pet",
+  "polymer_name": "PET",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "polymer_type": "PET"
+  },
+  "ground_truth": {
+    "Xc_pct": [
+      27.0,
+      33.0
+    ],
+    "peak_centers": [
+      [
+        16.15,
+        16.45
+      ],
+      [
+        17.35,
+        17.65
+      ],
+      [
+        22.35,
+        22.65
+      ],
+      [
+        25.45,
+        25.75
+      ],
+      [
+        32.0,
+        32.4
+      ]
+    ],
+    "D_Scherrer_nm": [
+      7.0,
+      16.0
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic PET WAXS with five literature-like crystal peaks."
+}

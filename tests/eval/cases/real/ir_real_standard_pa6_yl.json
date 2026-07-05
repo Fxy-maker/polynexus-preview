@@ -1,0 +1,34 @@
+{
+  "case_id": "ir_real_standard_pa6_yl",
+  "technique": "ir",
+  "submodule": "standard",
+  "data_file": "ir/普通红外/YL.SPA",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "source_file": "D:\\PolyNexus\\测试数据\\IR\\普通红外\\YL.SPA",
+    "file_format": "spa",
+    "peak_height_min": 0.03,
+    "peak_prominence_min": 0.02,
+    "peak_distance": 18.0,
+    "baseline_method": "rubberband",
+    "smooth_window": 7,
+    "normalization_method": "minmax",
+    "lineshape": "lorentzian"
+  },
+  "ground_truth": {
+    "peak_wavenumbers": [
+      [
+        3289.0,
+        3291.0
+      ],
+      [
+        2915.0,
+        2918.5
+      ]
+    ]
+  },
+  "source": "expert_review",
+  "notes": "Real PA6 FTIR baseline case used for E-T9 regression."
+}

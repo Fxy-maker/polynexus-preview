@@ -1,0 +1,35 @@
+{
+  "case_id": "nmr_synth_pa6_proton",
+  "technique": "nmr",
+  "submodule": "liquid_h",
+  "data_file": "synth:nmr_synth_pa6_proton",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "nucleus": "1H",
+    "deconvolution_method": "mixed"
+  },
+  "ground_truth": {
+    "peak_shifts": [
+      [
+        3.15,
+        3.35
+      ],
+      [
+        2.15,
+        2.35
+      ],
+      [
+        1.52,
+        1.72
+      ],
+      [
+        1.25,
+        1.45
+      ]
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic PA6 1H NMR spectrum."
+}

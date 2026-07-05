@@ -1,0 +1,429 @@
+{
+  "PA6": {
+    "name": "Polyamide 6 (Nylon 6)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "alpha": {
+        "waxs_peaks": [
+          [
+            20.0,
+            "200",
+            100
+          ],
+          [
+            24.0,
+            "002/202",
+            80
+          ]
+        ],
+        "ir_peaks": [
+          [
+            3298,
+            "nu(N-H)",
+            "m"
+          ],
+          [
+            1637,
+            "amide I nu(C=O)",
+            "vs"
+          ],
+          [
+            1541,
+            "amide II delta(N-H)+nu(C-N)",
+            "s"
+          ],
+          [
+            1263,
+            "amide III nu(C-N)+delta(N-H)",
+            "m"
+          ],
+          [
+            1200,
+            "amide III + omega(CH2) crystalline",
+            "m"
+          ],
+          [
+            929,
+            "amide V gamma(N-H) crystalline",
+            "w"
+          ],
+          [
+            685,
+            "amide V gamma(N-H)",
+            "m"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            173.5,
+            "C=O amide carbonyl",
+            "c"
+          ],
+          [
+            43.0,
+            "Calpha (CH2 adjacent to NH)",
+            "c"
+          ],
+          [
+            36.5,
+            "Cdelta (CH2 adjacent to CO)",
+            "c"
+          ],
+          [
+            30.0,
+            "Cbeta (middle CH2)",
+            "c"
+          ],
+          [
+            26.5,
+            "Cgamma (middle CH2)",
+            "c"
+          ]
+        ],
+        "label": "alpha-form"
+      },
+      "gamma": {
+        "waxs_peaks": [
+          [
+            21.5,
+            "001",
+            100
+          ],
+          [
+            11.0,
+            "020",
+            3
+          ]
+        ],
+        "label": "gamma-form"
+      }
+    },
+    "common": {
+      "Tg_C": 50,
+      "density": 1.14,
+      "dHm0_Jg": 230.0,
+      "Tm_C": 220
+    }
+  },
+  "PA66": {
+    "name": "Polyamide 66 (Nylon 66)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            20.3,
+            "100",
+            100
+          ],
+          [
+            24.0,
+            "010/110",
+            80
+          ]
+        ],
+        "ir_peaks": [
+          [
+            3300,
+            "nu(N-H) hydrogen bonded",
+            "m"
+          ],
+          [
+            2935,
+            "vas(CH2)",
+            "s"
+          ],
+          [
+            2860,
+            "vs(CH2)",
+            "s"
+          ],
+          [
+            1635,
+            "amide I nu(C=O)",
+            "vs"
+          ],
+          [
+            1540,
+            "amide II delta(N-H)+nu(C-N)",
+            "s"
+          ],
+          [
+            1470,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            1418,
+            "delta(CH2) adjacent to NH",
+            "w"
+          ],
+          [
+            1275,
+            "amide III nu(C-N)+delta(N-H)",
+            "m"
+          ],
+          [
+            1202,
+            "amide III + omega(CH2) crystalline",
+            "m"
+          ],
+          [
+            1145,
+            "nu(C-C) skeletal",
+            "w"
+          ],
+          [
+            935,
+            "amide V gamma(N-H) crystalline",
+            "w"
+          ],
+          [
+            690,
+            "amide V gamma(N-H)",
+            "m"
+          ],
+          [
+            580,
+            "amide VI delta(C=O)",
+            "w"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            173.0,
+            "C=O amide carbonyl",
+            "c"
+          ],
+          [
+            42.8,
+            "Calpha (CH2 adjacent to NH)",
+            "c"
+          ],
+          [
+            36.5,
+            "Cdelta (CH2 adjacent to CO)",
+            "c"
+          ],
+          [
+            30.0,
+            "Cbeta+Cgamma (middle CH2)",
+            "c"
+          ],
+          [
+            26.5,
+            "Cgamma (middle CH2)",
+            "c"
+          ]
+        ],
+        "dHm0_Jg": 255.0
+      }
+    },
+    "common": {
+      "Tg_C": 50,
+      "density": 1.14,
+      "dHm0_Jg": 255.0,
+      "Tm_C": 260
+    }
+  },
+  "PA11": {
+    "name": "Polyamide 11 (Nylon 11)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            20.0,
+            "100",
+            100
+          ],
+          [
+            23.0,
+            "010/110",
+            40
+          ]
+        ],
+        "ir_peaks": [
+          [
+            3300,
+            "nu(N-H)",
+            "m"
+          ],
+          [
+            2920,
+            "vas(CH2)",
+            "vs"
+          ],
+          [
+            2850,
+            "vs(CH2)",
+            "vs"
+          ],
+          [
+            1638,
+            "amide I nu(C=O)",
+            "vs"
+          ],
+          [
+            1545,
+            "amide II delta(N-H)+nu(C-N)",
+            "s"
+          ],
+          [
+            1470,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            1270,
+            "amide III",
+            "m"
+          ],
+          [
+            720,
+            "rho(CH2) long chain",
+            "w"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            173.0,
+            "C=O amide carbonyl",
+            "c"
+          ],
+          [
+            42.5,
+            "Calpha",
+            "c"
+          ],
+          [
+            36.8,
+            "Cepsilon (CH2-CO)",
+            "c"
+          ],
+          [
+            -4,
+            "middle CH2 envelope",
+            "c"
+          ],
+          [
+            26.0,
+            "Comega",
+            "c"
+          ]
+        ],
+        "dHm0_Jg": 226.0
+      }
+    },
+    "common": {
+      "Tg_C": 45,
+      "density": 1.04,
+      "dHm0_Jg": 226.0,
+      "Tm_C": 185
+    }
+  },
+  "PA12": {
+    "name": "Polyamide 12 (Nylon 12)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "gamma": {
+        "waxs_peaks": [
+          [
+            21.5,
+            "001",
+            100
+          ]
+        ],
+        "label": "gamma-form"
+      }
+    },
+    "common": {
+      "Tg_C": 40,
+      "density": 1.01,
+      "dHm0_Jg": 209.0,
+      "Tm_C": 178
+    }
+  },
+  "PA610": {
+    "name": "Polyamide 610 (Nylon 610)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {},
+    "common": {
+      "Tg_C": 48,
+      "density": 1.08,
+      "dHm0_Jg": 220.0,
+      "Tm_C": 220
+    }
+  },
+  "PA612": {
+    "name": "Polyamide 612 (Nylon 612)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {},
+    "common": {
+      "Tg_C": 45,
+      "density": 1.06,
+      "dHm0_Jg": 210.0,
+      "Tm_C": 215
+    }
+  },
+  "PA1010": {
+    "name": "Polyamide 1010 (Nylon 1010)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {},
+    "common": {
+      "Tg_C": 42,
+      "density": 1.04,
+      "dHm0_Jg": 215.0,
+      "Tm_C": 200
+    }
+  },
+  "PA46": {
+    "name": "Polyamide 46 (Nylon 46, Stanyl)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {},
+    "common": {
+      "Tg_C": 70,
+      "density": 1.18,
+      "dHm0_Jg": 270.0,
+      "Tm_C": 290
+    }
+  },
+  "MXD6": {
+    "name": "Poly(m-xylylene adipamide) (MXD6)",
+    "family": "polyamide",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {},
+    "common": {
+      "Tg_C": 85,
+      "density": 1.22,
+      "dHm0_Jg": 175.0,
+      "Tm_C": 240
+    }
+  }
+}

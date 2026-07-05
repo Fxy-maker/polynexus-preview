@@ -1,0 +1,45 @@
+{
+  "name": "PEEK",
+  "aliases": ["Polyether ether ketone"],
+  "waxs": {
+    "characteristic_peaks": [
+      {"two_theta": 18.8, "hkl": "110", "crystal_phase": "orthorhombic"},
+      {"two_theta": 20.5, "hkl": "111", "crystal_phase": "orthorhombic"},
+      {"two_theta": 28.8, "hkl": "211", "crystal_phase": "orthorhombic"}
+    ],
+    "xc_range": [20, 40],
+    "xc_typical": 30,
+    "scherrer_D_range": [3.0, 12.0],
+    "notes": "PEEK has moderate crystallinity; 18.8, 20.5 and 28.8 deg are common WAXS references"
+  },
+  "ir": {
+    "characteristic_bands": [
+      {"wavenumber": 1652, "assignment": "nu(C=O) diaryl ketone", "strength": "vs", "role": "key"},
+      {"wavenumber": 1595, "assignment": "nu(C=C) aromatic ring", "strength": "s", "role": "key"},
+      {"wavenumber": 1490, "assignment": "nu(C=C) aromatic ring", "strength": "vs", "role": "key"},
+      {"wavenumber": 1310, "assignment": "nu(C-O) diaryl ether", "strength": "m", "role": "secondary"},
+      {"wavenumber": 1225, "assignment": "nuas(C-O-C) diphenyl ether", "strength": "vs", "role": "key"},
+      {"wavenumber": 1188, "assignment": "delta(C-H) in-plane", "strength": "m", "role": "secondary"},
+      {"wavenumber": 1165, "assignment": "nuas(C-O-C)", "strength": "s", "role": "secondary"},
+      {"wavenumber": 929, "assignment": "nu(C-O) + delta(ring)", "strength": "w", "role": "secondary"},
+      {"wavenumber": 841, "assignment": "gamma(C-H) 1,4-disubstituted", "strength": "s", "role": "key"},
+      {"wavenumber": 766, "assignment": "gamma(C-H)", "strength": "m", "role": "key"}
+    ],
+    "key_bands": [1652, 1595, 1490, 1225, 841, 766],
+    "secondary_bands": [1310, 1188, 1165, 929],
+    "overlap_risks": [
+      "1595 cm^-1 与 1490 cm^-1 都属于芳香环振动，峰宽大时容易融合。",
+      "1225 cm^-1 与 1165 cm^-1 常成对出现，单独一条带不够稳。"
+    ],
+    "assignment_notes": [
+      "PEEK 最稳妥的骨架证据是 1652 / 1595 / 1490 / 1225 cm^-1，再看 841 / 766 cm^-1。",
+      "如果芳香环带很弱，不要直接把结果抬成 paper-ready。"
+    ]
+  },
+  "dsc": {
+    "tm": 343,
+    "tc": 300,
+    "delta_hm_100": 130,
+    "xc_range": [20, 40]
+  }
+}

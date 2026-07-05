@@ -1,0 +1,43 @@
+{
+  "name": "POM",
+  "aliases": ["Polyoxymethylene", "Acetal"],
+  "waxs": {
+    "characteristic_peaks": [
+      {"two_theta": 22.9, "hkl": "100", "crystal_phase": "hexagonal"},
+      {"two_theta": 34.0, "hkl": "105", "crystal_phase": "hexagonal"}
+    ],
+    "xc_range": [60, 80],
+    "xc_typical": 70,
+    "scherrer_D_range": [5.0, 25.0],
+    "notes": "Highly crystalline POM commonly shows strong WAXS peaks near 22.9 and 34.0 deg"
+  },
+  "ir": {
+    "characteristic_bands": [
+      {"wavenumber": 2975, "assignment": "vas(CH2)", "strength": "m", "role": "secondary"},
+      {"wavenumber": 2910, "assignment": "vs(CH2)", "strength": "m", "role": "secondary"},
+      {"wavenumber": 1470, "assignment": "delta(CH2)", "strength": "m", "role": "secondary"},
+      {"wavenumber": 1435, "assignment": "delta(CH2)", "strength": "m", "role": "secondary"},
+      {"wavenumber": 1238, "assignment": "nu(C-O-C) + omega(CH2)", "strength": "s", "role": "key"},
+      {"wavenumber": 1095, "assignment": "nuas(C-O-C)", "strength": "vs", "role": "key"},
+      {"wavenumber": 935, "assignment": "nus(C-O-C) + rho(CH2)", "strength": "vs", "role": "key"},
+      {"wavenumber": 895, "assignment": "nu(C-O-C) + rho(CH2)", "strength": "m", "role": "key"},
+      {"wavenumber": 630, "assignment": "delta(O-C-O)", "strength": "m", "role": "secondary"}
+    ],
+    "key_bands": [1238, 1095, 935, 895],
+    "secondary_bands": [2975, 2910, 1470, 1435, 630],
+    "overlap_risks": [
+      "935 cm^-1 与 895 cm^-1 非常接近，分辨率不够时容易粘连成一团。",
+      "1238 cm^-1 与 1095 cm^-1 都很强，更适合和低波数带组合判断。"
+    ],
+    "assignment_notes": [
+      "POM 归属最好同时看 1095 / 935 / 895 cm^-1，再核对 1238 cm^-1。",
+      "如果只剩一条 C-O-C 强峰，建议保持候选态。"
+    ]
+  },
+  "dsc": {
+    "tm": 175,
+    "tc": 145,
+    "delta_hm_100": 326,
+    "xc_range": [60, 80]
+  }
+}

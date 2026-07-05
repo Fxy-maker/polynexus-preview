@@ -1,0 +1,2207 @@
+{
+  "_description": "PolyNexus unified polymer database",
+  "_version": "1.0",
+  "_sources": {
+    "crystallinity_enthalpy": "ATHAS database (Wunderlich), Polymer Handbook 4th ed.",
+    "ir_peaks": "SDBS, NIST Chemistry WebBook, literature",
+    "nmr_13c_shifts": "NMRShiftDB, BMRB, polymer NMR literature",
+    "waxs_peaks": "ICDD PDF, COD, CSD, literature",
+    "dsc_transitions": "ATHAS, Polymer Handbook, literature"
+  },
+  "polymers": {
+    "PE": {
+      "name": "Polyethylene",
+      "density": 0.95,
+      "dHm0_Jg": 293.0,
+      "Tg_C": -120,
+      "Tm_C_range": [
+        105,
+        140
+      ],
+      "ir_peaks": [
+        [
+          2918,
+          "vas(CH2)",
+          "vs"
+        ],
+        [
+          2850,
+          "vs(CH2)",
+          "vs"
+        ],
+        [
+          1472,
+          "delta(CH2) scissoring",
+          "s"
+        ],
+        [
+          1463,
+          "delta(CH2) crystalline",
+          "m"
+        ],
+        [
+          730,
+          "rho(CH2) crystalline",
+          "m"
+        ],
+        [
+          720,
+          "rho(CH2) amorphous",
+          "m"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          32.9,
+          "CH2 crystalline (orthorhombic)",
+          "c"
+        ],
+        [
+          34.0,
+          "CH2 crystalline (monoclinic)",
+          "c"
+        ],
+        [
+          30.6,
+          "CH2 amorphous",
+          "a"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          21.5,
+          "110",
+          100
+        ],
+        [
+          24.0,
+          "200",
+          40
+        ],
+        [
+          30.1,
+          "210",
+          5
+        ],
+        [
+          36.3,
+          "020",
+          15
+        ]
+      ],
+      "dsc_transitions": {
+        "Tg_C": -120,
+        "Tm_C": 137,
+        "dHm_Jg": 293
+      }
+    },
+    "iPP": {
+      "name": "Isotactic Polypropylene",
+      "density": 0.9,
+      "dHm0_Jg": 207.0,
+      "Tg_C": -10,
+      "Tm_C_range": [
+        160,
+        170
+      ],
+      "alpha_form": {
+        "ir_peaks": [
+          [
+            1167,
+            "nu(C-C) + rho(CH3)",
+            "m"
+          ],
+          [
+            998,
+            "rho(CH3) + nu(C-CH3)",
+            "m"
+          ],
+          [
+            973,
+            "rho(CH3) + nu(C-C)",
+            "m"
+          ],
+          [
+            841,
+            "rho(CH2) + nu(C-CH3)",
+            "m"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            44.0,
+            "CH2 backbone",
+            "c"
+          ],
+          [
+            26.5,
+            "CH backbone",
+            "c"
+          ],
+          [
+            21.8,
+            "CH3 methyl",
+            "c"
+          ]
+        ],
+        "waxs_peaks": [
+          [
+            14.1,
+            "110",
+            100
+          ],
+          [
+            16.9,
+            "040",
+            60
+          ],
+          [
+            18.6,
+            "130",
+            40
+          ],
+          [
+            21.2,
+            "111",
+            30
+          ],
+          [
+            21.9,
+            "131/041",
+            20
+          ]
+        ]
+      },
+      "beta_form": {
+        "waxs_peaks": [
+          [
+            16.0,
+            "300",
+            100
+          ],
+          [
+            21.2,
+            "301",
+            50
+          ]
+        ]
+      },
+      "dsc_transitions": {
+        "Tg_C": -10,
+        "Tm_C": 165,
+        "dHm_Jg": 207
+      }
+    },
+    "PET": {
+      "name": "Poly(ethylene terephthalate)",
+      "density": 1.38,
+      "dHm0_Jg": 140.0,
+      "Tg_C": 75,
+      "Tm_C_range": [
+        245,
+        265
+      ],
+      "ir_peaks": [
+        [
+          1715,
+          "nu(C=O)",
+          "vs"
+        ],
+        [
+          1410,
+          "delta(CH2) + nu(C-C) ring",
+          "m"
+        ],
+        [
+          1340,
+          "omega(CH2) trans (crystalline)",
+          "m"
+        ],
+        [
+          1243,
+          "nu(C-O) + delta(O-H)",
+          "vs"
+        ],
+        [
+          1120,
+          "nu(C-O)",
+          "s"
+        ],
+        [
+          1098,
+          "nu(C-O)",
+          "s"
+        ],
+        [
+          972,
+          "omega(CH2) gauche (amorphous)",
+          "w"
+        ],
+        [
+          896,
+          "gamma(C-H) ring",
+          "w"
+        ],
+        [
+          872,
+          "gamma(C-H) ring crystalline",
+          "m"
+        ],
+        [
+          793,
+          "gamma(C-H) ring",
+          "w"
+        ],
+        [
+          725,
+          "gamma(C=O) + delta(ring)",
+          "s"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          164.5,
+          "C=O ester carbonyl",
+          "c"
+        ],
+        [
+          133.5,
+          "C1 aromatic quaternary",
+          "c"
+        ],
+        [
+          129.8,
+          "C2 aromatic CH",
+          "c"
+        ],
+        [
+          62.8,
+          "CH2 glycol",
+          "c"
+        ],
+        [
+          164.0,
+          "C=O amorphous",
+          "a"
+        ],
+        [
+          62.0,
+          "CH2 amorphous glycol",
+          "a"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          16.3,
+          "011",
+          20
+        ],
+        [
+          17.6,
+          "010",
+          25
+        ],
+        [
+          22.6,
+          "110",
+          20
+        ],
+        [
+          25.7,
+          "100",
+          100
+        ],
+        [
+          27.8,
+          "111",
+          8
+        ],
+        [
+          32.2,
+          "101",
+          6
+        ]
+      ],
+      "dsc_transitions": {
+        "Tg_C": 75,
+        "Tm_C": 255,
+        "dHm_Jg": 140,
+        "Tcc_C_range": [
+          110,
+          140
+        ]
+      }
+    },
+    "PA6": {
+      "name": "Polyamide 6 (Nylon 6)",
+      "density": 1.14,
+      "dHm0_Jg": 230.0,
+      "Tg_C": 50,
+      "Tm_C_range": [
+        215,
+        225
+      ],
+      "alpha_form": {
+        "ir_peaks": [
+          [
+            3298,
+            "nu(N-H)",
+            "m"
+          ],
+          [
+            1637,
+            "amide I nu(C=O)",
+            "vs"
+          ],
+          [
+            1541,
+            "amide II delta(N-H)+nu(C-N)",
+            "s"
+          ],
+          [
+            1263,
+            "amide III nu(C-N)+delta(N-H)",
+            "m"
+          ],
+          [
+            1200,
+            "amide III + omega(CH2) crystalline",
+            "m"
+          ],
+          [
+            929,
+            "amide V gamma(N-H) crystalline",
+            "w"
+          ],
+          [
+            685,
+            "amide V gamma(N-H)",
+            "m"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            173.5,
+            "C=O amide carbonyl",
+            "c"
+          ],
+          [
+            43.0,
+            "Calpha (CH2 adjacent to NH)",
+            "c"
+          ],
+          [
+            36.5,
+            "Cdelta (CH2 adjacent to CO)",
+            "c"
+          ],
+          [
+            30.0,
+            "Cbeta (middle CH2)",
+            "c"
+          ],
+          [
+            26.5,
+            "Cgamma (middle CH2)",
+            "c"
+          ]
+        ],
+        "waxs_peaks": [
+          [
+            20.0,
+            "200",
+            100
+          ],
+          [
+            24.0,
+            "002/202",
+            80
+          ]
+        ]
+      },
+      "gamma_form": {
+        "waxs_peaks": [
+          [
+            21.5,
+            "001",
+            100
+          ],
+          [
+            11.0,
+            "020",
+            3
+          ]
+        ]
+      },
+      "dsc_transitions": {
+        "Tg_C": 50,
+        "Tm_C": 220,
+        "dHm_Jg": 230
+      }
+    },
+    "PCL": {
+      "name": "Poly(epsilon-caprolactone)",
+      "density": 1.14,
+      "dHm0_Jg": 139.0,
+      "Tg_C": -60,
+      "Tm_C_range": [
+        55,
+        65
+      ],
+      "ir_peaks": [
+        [
+          1724,
+          "nu(C=O) ester",
+          "vs"
+        ],
+        [
+          1294,
+          "nu(C-O)+nu(C-C) crystalline",
+          "m"
+        ],
+        [
+          1240,
+          "nuas(C-O-C)",
+          "s"
+        ],
+        [
+          1165,
+          "nu(C-O)",
+          "s"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          173.5,
+          "C=O ester carbonyl",
+          "c"
+        ],
+        [
+          64.0,
+          "Ca (CH2-O)",
+          "c"
+        ],
+        [
+          34.0,
+          "Ce (CH2-CO)",
+          "c"
+        ],
+        [
+          28.3,
+          "Cb (middle CH2)",
+          "c"
+        ],
+        [
+          25.5,
+          "Cc (middle CH2)",
+          "c"
+        ],
+        [
+          24.5,
+          "Cd (middle CH2)",
+          "c"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          21.4,
+          "110",
+          100
+        ],
+        [
+          22.0,
+          "111",
+          30
+        ],
+        [
+          23.8,
+          "200",
+          60
+        ]
+      ],
+      "dsc_transitions": {
+        "Tg_C": -60,
+        "Tm_C": 60,
+        "dHm_Jg": 139
+      }
+    },
+    "PVDF": {
+      "name": "Poly(vinylidene fluoride)",
+      "density": 1.78,
+      "dHm0_Jg": 104.7,
+      "Tg_C": -35,
+      "Tm_C_range": [
+        160,
+        175
+      ],
+      "alpha_phase": {
+        "ir_peaks": [
+          [
+            976,
+            "omega(CH2) alpha",
+            "w"
+          ],
+          [
+            796,
+            "rho(CH2) alpha",
+            "m"
+          ],
+          [
+            614,
+            "delta(CF2) + delta(CCC) alpha",
+            "m"
+          ],
+          [
+            532,
+            "delta(CF2) alpha",
+            "w"
+          ]
+        ],
+        "waxs_peaks": [
+          [
+            17.7,
+            "100",
+            30
+          ],
+          [
+            18.4,
+            "020",
+            45
+          ],
+          [
+            20.0,
+            "110",
+            100
+          ],
+          [
+            26.6,
+            "021",
+            40
+          ]
+        ]
+      },
+      "beta_phase": {
+        "ir_peaks": [
+          [
+            1275,
+            "nu(C-F) + delta(CCC) beta",
+            "m"
+          ],
+          [
+            840,
+            "rho(CH2) + nuas(CF2) beta",
+            "s"
+          ]
+        ],
+        "waxs_peaks": [
+          [
+            20.6,
+            "110/200",
+            100
+          ]
+        ],
+        "nmr_13c": [
+          [
+            42.0,
+            "CH2 beta phase",
+            "c"
+          ],
+          [
+            121.0,
+            "CF2 beta phase",
+            "c"
+          ]
+        ]
+      },
+      "alpha_nmr_13c": [
+        [
+          43.0,
+          "CH2 alpha phase",
+          "c"
+        ],
+        [
+          120.0,
+          "CF2 alpha phase",
+          "c"
+        ]
+      ],
+      "dsc_transitions": {
+        "Tg_C": -35,
+        "Tm_C": 168,
+        "dHm_Jg": 104.7
+      }
+    },
+    "PLLA": {
+      "name": "Poly(L-lactic acid)",
+      "density": 1.25,
+      "dHm0_Jg": 93.0,
+      "Tg_C": 58,
+      "Tm_C_range": [
+        165,
+        180
+      ],
+      "ir_peaks": [
+        [
+          1757,
+          "nu(C=O) ester",
+          "vs"
+        ],
+        [
+          1268,
+          "nu(C-O) + delta(CH) crystalline",
+          "m"
+        ],
+        [
+          1212,
+          "nuas(C-O-C) + ras(CH3) crystalline",
+          "s"
+        ],
+        [
+          956,
+          "nu(C-C) + rho(CH3) crystalline",
+          "w"
+        ],
+        [
+          921,
+          "nu(C-C) + rho(CH3) crystalline",
+          "w"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          169.5,
+          "C=O ester carbonyl",
+          "c"
+        ],
+        [
+          68.5,
+          "CH backbone",
+          "c"
+        ],
+        [
+          16.5,
+          "CH3 methyl",
+          "c"
+        ],
+        [
+          169.0,
+          "C=O amorphous",
+          "a"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          14.8,
+          "010",
+          30
+        ],
+        [
+          16.7,
+          "110/200",
+          100
+        ],
+        [
+          19.1,
+          "203",
+          20
+        ],
+        [
+          22.4,
+          "015",
+          15
+        ]
+      ],
+      "dsc_transitions": {
+        "Tg_C": 58,
+        "Tm_C": 172,
+        "dHm_Jg": 93,
+        "Tcc_C_range": [
+          90,
+          120
+        ]
+      }
+    },
+    "PA66": {
+      "name": "Polyamide 66 (Nylon 66)",
+      "density": 1.14,
+      "dHm0_Jg": 255.0,
+      "Tg_C": 50,
+      "Tm_C_range": [
+        255,
+        265
+      ],
+      "monomer_smiles": "",
+      "wikidata_qid": null,
+      "dsc_transitions": {
+        "Tg_C": 50,
+        "Tm_C": 260,
+        "dHm_Jg": 255
+      },
+      "ir_peaks": [
+        [
+          3300,
+          "nu(N-H) hydrogen bonded",
+          "m"
+        ],
+        [
+          2935,
+          "vas(CH2)",
+          "s"
+        ],
+        [
+          2860,
+          "vs(CH2)",
+          "s"
+        ],
+        [
+          1635,
+          "amide I nu(C=O)",
+          "vs"
+        ],
+        [
+          1540,
+          "amide II delta(N-H)+nu(C-N)",
+          "s"
+        ],
+        [
+          1470,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          1418,
+          "delta(CH2) adjacent to NH",
+          "w"
+        ],
+        [
+          1275,
+          "amide III nu(C-N)+delta(N-H)",
+          "m"
+        ],
+        [
+          1202,
+          "amide III + omega(CH2) crystalline",
+          "m"
+        ],
+        [
+          1145,
+          "nu(C-C) skeletal",
+          "w"
+        ],
+        [
+          935,
+          "amide V gamma(N-H) crystalline",
+          "w"
+        ],
+        [
+          690,
+          "amide V gamma(N-H)",
+          "m"
+        ],
+        [
+          580,
+          "amide VI delta(C=O)",
+          "w"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          173.0,
+          "C=O amide carbonyl",
+          "c"
+        ],
+        [
+          42.8,
+          "Calpha (CH2 adjacent to NH)",
+          "c"
+        ],
+        [
+          36.5,
+          "Cdelta (CH2 adjacent to CO)",
+          "c"
+        ],
+        [
+          30.0,
+          "Cbeta+Cgamma (middle CH2)",
+          "c"
+        ],
+        [
+          26.5,
+          "Cgamma (middle CH2)",
+          "c"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          20.3,
+          "100",
+          100
+        ],
+        [
+          24.0,
+          "010/110",
+          80
+        ]
+      ],
+      "monomer_formula": "C6H16N2",
+      "monomer_mw": "116.20"
+    },
+    "PA11": {
+      "name": "Polyamide 11 (Nylon 11)",
+      "density": 1.04,
+      "dHm0_Jg": 226.0,
+      "Tg_C": 45,
+      "Tm_C_range": [
+        180,
+        190
+      ],
+      "dsc_transitions": {
+        "Tg_C": 45,
+        "Tm_C": 185,
+        "dHm_Jg": 226
+      },
+      "ir_peaks": [
+        [
+          3300,
+          "nu(N-H)",
+          "m"
+        ],
+        [
+          2920,
+          "vas(CH2)",
+          "vs"
+        ],
+        [
+          2850,
+          "vs(CH2)",
+          "vs"
+        ],
+        [
+          1638,
+          "amide I nu(C=O)",
+          "vs"
+        ],
+        [
+          1545,
+          "amide II delta(N-H)+nu(C-N)",
+          "s"
+        ],
+        [
+          1470,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          1270,
+          "amide III",
+          "m"
+        ],
+        [
+          720,
+          "rho(CH2) long chain",
+          "w"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          173.0,
+          "C=O amide carbonyl",
+          "c"
+        ],
+        [
+          42.5,
+          "Calpha",
+          "c"
+        ],
+        [
+          36.8,
+          "Cepsilon (CH2-CO)",
+          "c"
+        ],
+        [
+          -4,
+          "middle CH2 envelope",
+          "c"
+        ],
+        [
+          26.0,
+          "Comega",
+          "c"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          20.0,
+          "100",
+          100
+        ],
+        [
+          23.0,
+          "010/110",
+          40
+        ]
+      ]
+    },
+    "PA12": {
+      "name": "Polyamide 12 (Nylon 12)",
+      "density": 1.01,
+      "dHm0_Jg": 209.0,
+      "Tg_C": 40,
+      "Tm_C_range": [
+        175,
+        180
+      ],
+      "dsc_transitions": {
+        "Tg_C": 40,
+        "Tm_C": 178,
+        "dHm_Jg": 209
+      },
+      "ir_peaks": [
+        [
+          3300,
+          "nu(N-H)",
+          "m"
+        ],
+        [
+          2920,
+          "vas(CH2)",
+          "vs"
+        ],
+        [
+          2850,
+          "vs(CH2)",
+          "vs"
+        ],
+        [
+          1638,
+          "amide I nu(C=O)",
+          "vs"
+        ],
+        [
+          1545,
+          "amide II",
+          "s"
+        ],
+        [
+          1470,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          720,
+          "rho(CH2) long chain",
+          "w"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          173.0,
+          "C=O amide carbonyl",
+          "c"
+        ],
+        [
+          42.5,
+          "Calpha",
+          "c"
+        ],
+        [
+          37.0,
+          "Czeta (CH2-CO)",
+          "c"
+        ],
+        [
+          -4,
+          "middle CH2 envelope",
+          "c"
+        ],
+        [
+          26.0,
+          "Comega2",
+          "c"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          20.0,
+          "100",
+          100
+        ],
+        [
+          22.5,
+          "010/110",
+          35
+        ]
+      ],
+      "gamma_form": {
+        "waxs_peaks": [
+          [
+            21.5,
+            "001",
+            100
+          ]
+        ]
+      }
+    },
+    "PA610": {
+      "name": "Polyamide 610 (Nylon 610)",
+      "density": 1.08,
+      "dHm0_Jg": 220.0,
+      "Tg_C": 48,
+      "Tm_C_range": [
+        215,
+        225
+      ],
+      "dsc_transitions": {
+        "Tg_C": 48,
+        "Tm_C": 220,
+        "dHm_Jg": 220
+      },
+      "monomer_formula": "C6H16N2",
+      "monomer_mw": "116.20",
+      "monomer_smiles": ""
+    },
+    "PA612": {
+      "name": "Polyamide 612 (Nylon 612)",
+      "density": 1.06,
+      "dHm0_Jg": 210.0,
+      "Tg_C": 45,
+      "Tm_C_range": [
+        210,
+        220
+      ],
+      "dsc_transitions": {
+        "Tg_C": 45,
+        "Tm_C": 215,
+        "dHm_Jg": 210
+      }
+    },
+    "PA1010": {
+      "name": "Polyamide 1010 (Nylon 1010)",
+      "density": 1.04,
+      "dHm0_Jg": 215.0,
+      "Tg_C": 42,
+      "Tm_C_range": [
+        195,
+        205
+      ],
+      "dsc_transitions": {
+        "Tg_C": 42,
+        "Tm_C": 200,
+        "dHm_Jg": 215
+      },
+      "monomer_formula": "C10H24N2",
+      "monomer_mw": "172.31",
+      "monomer_smiles": ""
+    },
+    "PA46": {
+      "name": "Polyamide 46 (Nylon 46, Stanyl)",
+      "density": 1.18,
+      "dHm0_Jg": 270.0,
+      "Tg_C": 70,
+      "Tm_C_range": [
+        285,
+        295
+      ],
+      "dsc_transitions": {
+        "Tg_C": 70,
+        "Tm_C": 290,
+        "dHm_Jg": 270
+      }
+    },
+    "MXD6": {
+      "name": "Poly(m-xylylene adipamide) (MXD6)",
+      "density": 1.22,
+      "dHm0_Jg": 175.0,
+      "Tg_C": 85,
+      "Tm_C_range": [
+        235,
+        245
+      ],
+      "dsc_transitions": {
+        "Tg_C": 85,
+        "Tm_C": 240,
+        "dHm_Jg": 175
+      }
+    },
+    "TPU": {
+      "name": "Thermoplastic Polyurethane",
+      "density": 1.2,
+      "dHm0_Jg": 50.0,
+      "Tg_C": -40,
+      "Tm_C_range": [
+        50,
+        200
+      ],
+      "dsc_transitions": {
+        "Tg_C": -40,
+        "Tm_C": 160,
+        "dHm_Jg": 50
+      },
+      "hard_segment": {
+        "ir_peaks": [
+          [
+            3320,
+            "nu(N-H) H-bonded",
+            "m"
+          ],
+          [
+            1705,
+            "nu(C=O) H-bonded urethane",
+            "s"
+          ],
+          [
+            1530,
+            "amide II delta(N-H)+nu(C-N)",
+            "m"
+          ],
+          [
+            1225,
+            "nu(C-O-C) urethane",
+            "s"
+          ],
+          [
+            1078,
+            "nu(C-O-C) ether",
+            "m"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            154.0,
+            "C=O urethane",
+            "c"
+          ],
+          [
+            64.0,
+            "CH2-O",
+            "c"
+          ],
+          [
+            40.0,
+            "CH2-N",
+            "c"
+          ]
+        ]
+      },
+      "soft_segment": {
+        "ir_peaks": [
+          [
+            2940,
+            "vas(CH2)",
+            "s"
+          ],
+          [
+            2860,
+            "vs(CH2)",
+            "s"
+          ],
+          [
+            1105,
+            "nu(C-O-C) polyether",
+            "vs"
+          ],
+          [
+            1730,
+            "nu(C=O) free ester",
+            "m"
+          ]
+        ]
+      }
+    },
+    "SBS": {
+      "name": "Poly(styrene-butadiene-styrene) Triblock Copolymer",
+      "density": 0.94,
+      "dHm0_Jg": 0.0,
+      "Tg_C": -80,
+      "dsc_transitions": {
+        "Tg_PS_C": 95,
+        "Tg_PB_C": -80,
+        "Tm_C": null
+      },
+      "ir_peaks": [
+        [
+          3060,
+          "nu(C-H) aromatic PS",
+          "w"
+        ],
+        [
+          3025,
+          "nu(=C-H) vinyl PB",
+          "w"
+        ],
+        [
+          2918,
+          "vas(CH2)",
+          "s"
+        ],
+        [
+          2848,
+          "vs(CH2)",
+          "s"
+        ],
+        [
+          1602,
+          "nu(C=C) ring PS",
+          "w"
+        ],
+        [
+          1493,
+          "nu(C=C) ring PS",
+          "m"
+        ],
+        [
+          1452,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          966,
+          "delta(=C-H) trans PB",
+          "m"
+        ],
+        [
+          910,
+          "delta(=C-H) vinyl PB",
+          "w"
+        ],
+        [
+          758,
+          "gamma(C-H) ring PS",
+          "w"
+        ],
+        [
+          700,
+          "gamma(C-H) ring PS",
+          "m"
+        ]
+      ]
+    },
+    "SEBS": {
+      "name": "Poly(styrene-ethylene/butylene-styrene)",
+      "density": 0.91,
+      "dHm0_Jg": 15.0,
+      "Tg_C": -55,
+      "dsc_transitions": {
+        "Tg_PS_C": 95,
+        "Tg_EB_C": -55,
+        "Tm_EB_C": 40
+      },
+      "ir_peaks": [
+        [
+          3060,
+          "nu(C-H) aromatic PS",
+          "w"
+        ],
+        [
+          2920,
+          "vas(CH2)",
+          "vs"
+        ],
+        [
+          2850,
+          "vs(CH2)",
+          "s"
+        ],
+        [
+          1602,
+          "nu(C=C) ring PS",
+          "w"
+        ],
+        [
+          1493,
+          "nu(C=C) ring PS",
+          "m"
+        ],
+        [
+          1460,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          1378,
+          "delta(CH3)",
+          "w"
+        ],
+        [
+          758,
+          "gamma(C-H) ring PS",
+          "w"
+        ],
+        [
+          700,
+          "gamma(C-H) ring PS",
+          "m"
+        ]
+      ]
+    },
+    "EPDM": {
+      "name": "Ethylene-Propylene-Diene Monomer Rubber",
+      "density": 0.86,
+      "dHm0_Jg": 10.0,
+      "Tg_C": -55,
+      "dsc_transitions": {
+        "Tg_C": -55,
+        "Tm_C": 45,
+        "dHm_Jg": 10
+      },
+      "ir_peaks": [
+        [
+          2920,
+          "vas(CH2)",
+          "vs"
+        ],
+        [
+          2850,
+          "vs(CH2)",
+          "s"
+        ],
+        [
+          1465,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          1378,
+          "delta(CH3) PP units",
+          "m"
+        ],
+        [
+          1155,
+          "nu(C-C) skeletal PP",
+          "w"
+        ],
+        [
+          970,
+          "delta(=C-H) ENB diene",
+          "w"
+        ],
+        [
+          720,
+          "rho(CH2) PE sequences",
+          "m"
+        ]
+      ]
+    },
+    "NR": {
+      "name": "Natural Rubber (cis-1,4-polyisoprene)",
+      "density": 0.92,
+      "dHm0_Jg": 0.0,
+      "Tg_C": -70,
+      "dsc_transitions": {
+        "Tg_C": -70,
+        "Tm_C": 30,
+        "dHm_Jg": 64
+      },
+      "ir_peaks": [
+        [
+          2960,
+          "vas(CH3)",
+          "s"
+        ],
+        [
+          2920,
+          "vas(CH2)",
+          "s"
+        ],
+        [
+          2850,
+          "vs(CH2)",
+          "s"
+        ],
+        [
+          1665,
+          "nu(C=C) stretch",
+          "m"
+        ],
+        [
+          1448,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          1376,
+          "delta(CH3)",
+          "m"
+        ],
+        [
+          836,
+          "gamma(=C-H) cis",
+          "s"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          135.2,
+          "=C(CH3) quaternary",
+          "c"
+        ],
+        [
+          125.0,
+          "=CH- methine",
+          "c"
+        ],
+        [
+          32.2,
+          "CH2 backbone",
+          "c"
+        ],
+        [
+          26.4,
+          "CH2 backbone",
+          "c"
+        ],
+        [
+          23.3,
+          "CH3 methyl",
+          "c"
+        ]
+      ]
+    },
+    "Silicone": {
+      "name": "Poly(dimethylsiloxane) (PDMS / Silicone Rubber)",
+      "density": 0.97,
+      "dHm0_Jg": 0.0,
+      "Tg_C": -125,
+      "dsc_transitions": {
+        "Tg_C": -125,
+        "Tm_C": -40,
+        "dHm_Jg": 2
+      },
+      "ir_peaks": [
+        [
+          2963,
+          "vas(CH3)",
+          "m"
+        ],
+        [
+          2905,
+          "vs(CH3)",
+          "w"
+        ],
+        [
+          1412,
+          "deltaas(CH3)",
+          "w"
+        ],
+        [
+          1261,
+          "delta(Si-CH3)",
+          "vs"
+        ],
+        [
+          1090,
+          "nuas(Si-O-Si)",
+          "vs"
+        ],
+        [
+          1020,
+          "nus(Si-O-Si)",
+          "vs"
+        ],
+        [
+          864,
+          "rho(CH3) + nu(Si-C)",
+          "m"
+        ],
+        [
+          800,
+          "nu(Si-C) + rho(CH3)",
+          "s"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          1.0,
+          "CH3-Si methyl",
+          "c"
+        ]
+      ],
+      "nmr_29Si": [
+        [
+          -22.0,
+          "O-Si(CH3)2-O backbone",
+          "c"
+        ]
+      ]
+    },
+    "BR": {
+      "name": "Polybutadiene Rubber (BR)",
+      "density": 0.9,
+      "dHm0_Jg": 0.0,
+      "Tg_C": -100,
+      "dsc_transitions": {
+        "Tg_C": -100,
+        "Tm_C": null
+      },
+      "ir_peaks": [
+        [
+          3075,
+          "nu(=C-H) vinyl",
+          "w"
+        ],
+        [
+          3005,
+          "nu(=C-H) cis/trans",
+          "w"
+        ],
+        [
+          2918,
+          "vas(CH2)",
+          "s"
+        ],
+        [
+          2845,
+          "vs(CH2)",
+          "s"
+        ],
+        [
+          1650,
+          "nu(C=C)",
+          "w"
+        ],
+        [
+          1438,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          966,
+          "delta(=C-H) trans-1,4",
+          "m"
+        ],
+        [
+          911,
+          "delta(=C-H) 1,2-vinyl",
+          "m"
+        ],
+        [
+          730,
+          "delta(=C-H) cis-1,4",
+          "m"
+        ]
+      ]
+    },
+    "NBR": {
+      "name": "Nitrile Butadiene Rubber (NBR)",
+      "density": 0.98,
+      "dHm0_Jg": 0.0,
+      "Tg_C": -30,
+      "dsc_transitions": {
+        "Tg_C": -30,
+        "Tm_C": null
+      },
+      "ir_peaks": [
+        [
+          2920,
+          "vas(CH2)",
+          "s"
+        ],
+        [
+          2850,
+          "vs(CH2)",
+          "s"
+        ],
+        [
+          2237,
+          "nu(C≡N) nitrile",
+          "m"
+        ],
+        [
+          1640,
+          "nu(C=C) butadiene",
+          "w"
+        ],
+        [
+          1446,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          967,
+          "delta(=C-H) trans BR",
+          "m"
+        ],
+        [
+          920,
+          "delta(=C-H) vinyl",
+          "w"
+        ]
+      ]
+    },
+    "POM": {
+      "name": "Polyoxymethylene (POM / Acetal)",
+      "density": 1.41,
+      "dHm0_Jg": 326.0,
+      "Tg_C": -60,
+      "Tm_C_range": [
+        165,
+        180
+      ],
+      "dsc_transitions": {
+        "Tg_C": -60,
+        "Tm_C": 172,
+        "dHm_Jg": 326
+      },
+      "ir_peaks": [
+        [
+          2975,
+          "vas(CH2)",
+          "m"
+        ],
+        [
+          2910,
+          "vs(CH2)",
+          "m"
+        ],
+        [
+          1470,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          1435,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          1238,
+          "nu(C-O-C) + omega(CH2)",
+          "s"
+        ],
+        [
+          1095,
+          "nuas(C-O-C)",
+          "vs"
+        ],
+        [
+          935,
+          "nus(C-O-C) + rho(CH2)",
+          "vs"
+        ],
+        [
+          895,
+          "nu(C-O-C) + rho(CH2)",
+          "m"
+        ],
+        [
+          630,
+          "delta(O-C-O)",
+          "m"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          88.5,
+          "O-CH2-O crystalline",
+          "c"
+        ],
+        [
+          86.5,
+          "O-CH2-O amorphous",
+          "a"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          23.0,
+          "100",
+          100
+        ],
+        [
+          34.6,
+          "105",
+          15
+        ],
+        [
+          48.6,
+          "115",
+          8
+        ]
+      ]
+    },
+    "PEEK": {
+      "name": "Poly(ether ether ketone)",
+      "density": 1.3,
+      "dHm0_Jg": 130.0,
+      "Tg_C": 143,
+      "Tm_C_range": [
+        335,
+        345
+      ],
+      "dsc_transitions": {
+        "Tg_C": 143,
+        "Tm_C": 340,
+        "dHm_Jg": 130
+      },
+      "ir_peaks": [
+        [
+          1652,
+          "nu(C=O) diaryl ketone",
+          "vs"
+        ],
+        [
+          1595,
+          "nu(C=C) aromatic ring",
+          "s"
+        ],
+        [
+          1490,
+          "nu(C=C) aromatic ring",
+          "vs"
+        ],
+        [
+          1310,
+          "nu(C-O) diaryl ether",
+          "m"
+        ],
+        [
+          1225,
+          "nuas(C-O-C) diphenyl ether",
+          "vs"
+        ],
+        [
+          1188,
+          "delta(C-H) in-plane",
+          "m"
+        ],
+        [
+          1165,
+          "nuas(C-O-C)",
+          "s"
+        ],
+        [
+          929,
+          "nu(C-O) + delta(ring)",
+          "w"
+        ],
+        [
+          841,
+          "gamma(C-H) 1,4-disubstituted",
+          "s"
+        ],
+        [
+          766,
+          "gamma(C-H)",
+          "m"
+        ]
+      ],
+      "nmr_13c": [
+        [
+          194.0,
+          "C=O ketone carbonyl",
+          "c"
+        ],
+        [
+          160.0,
+          "C-O aromatic ether",
+          "c"
+        ],
+        [
+          -18,
+          "aromatic CH and quaternary",
+          "c"
+        ],
+        [
+          119.0,
+          "aromatic CH",
+          "c"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          18.7,
+          "110",
+          100
+        ],
+        [
+          20.6,
+          "111",
+          50
+        ],
+        [
+          22.8,
+          "200",
+          40
+        ],
+        [
+          28.8,
+          "211",
+          25
+        ]
+      ]
+    },
+    "PPS": {
+      "name": "Poly(phenylene sulfide)",
+      "density": 1.35,
+      "dHm0_Jg": 80.0,
+      "Tg_C": 88,
+      "Tm_C_range": [
+        275,
+        285
+      ],
+      "dsc_transitions": {
+        "Tg_C": 88,
+        "Tm_C": 280,
+        "dHm_Jg": 80
+      },
+      "ir_peaks": [
+        [
+          3065,
+          "nu(C-H) aromatic",
+          "w"
+        ],
+        [
+          1573,
+          "nu(C=C) ring",
+          "m"
+        ],
+        [
+          1470,
+          "nu(C=C) ring",
+          "s"
+        ],
+        [
+          1387,
+          "nu(C=C) ring",
+          "m"
+        ],
+        [
+          1180,
+          "delta(C-H) in-plane",
+          "m"
+        ],
+        [
+          1091,
+          "nu(C-S) + delta(C-H)",
+          "s"
+        ],
+        [
+          1072,
+          "nu(C-S)",
+          "m"
+        ],
+        [
+          1009,
+          "delta(C-H) in-plane",
+          "m"
+        ],
+        [
+          810,
+          "gamma(C-H) 1,4-substituted",
+          "s"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          18.8,
+          "110",
+          100
+        ],
+        [
+          20.5,
+          "200",
+          65
+        ],
+        [
+          25.4,
+          "112",
+          40
+        ],
+        [
+          27.3,
+          "211",
+          35
+        ]
+      ]
+    },
+    "PTFE": {
+      "name": "Polytetrafluoroethylene",
+      "density": 2.2,
+      "dHm0_Jg": 82.0,
+      "Tg_C": 127,
+      "Tm_C_range": [
+        325,
+        335
+      ],
+      "dsc_transitions": {
+        "Tg_C": 127,
+        "Tm_C": 327,
+        "dHm_Jg": 82
+      },
+      "ir_peaks": [
+        [
+          1201,
+          "nuas(CF2)",
+          "vs"
+        ],
+        [
+          1149,
+          "nus(CF2)",
+          "vs"
+        ],
+        [
+          638,
+          "omega(CF2)",
+          "m"
+        ],
+        [
+          553,
+          "delta(CF2)",
+          "m"
+        ],
+        [
+          516,
+          "delta(CF2)",
+          "w"
+        ]
+      ],
+      "nmr_19F": [
+        [
+          -122.0,
+          "CF2 main chain",
+          "c"
+        ]
+      ],
+      "waxs_peaks": [
+        [
+          18.1,
+          "100",
+          100
+        ],
+        [
+          31.6,
+          "110",
+          10
+        ],
+        [
+          36.7,
+          "200",
+          5
+        ]
+      ]
+    },
+    "PS": {
+      "name": "Polystyrene (atactic)",
+      "density": 1.05,
+      "dHm0_Jg": 0.0,
+      "Tg_C": 100,
+      "dsc_transitions": {
+        "Tg_C": 100,
+        "Tm_C": null
+      },
+      "ir_peaks": [
+        [
+          3082,
+          "nu(C-H) aromatic",
+          "w"
+        ],
+        [
+          3060,
+          "nu(C-H) aromatic",
+          "w"
+        ],
+        [
+          3026,
+          "nu(C-H) aromatic",
+          "w"
+        ],
+        [
+          2924,
+          "vas(CH2)",
+          "m"
+        ],
+        [
+          2850,
+          "vs(CH2)",
+          "w"
+        ],
+        [
+          1602,
+          "nu(C=C) ring",
+          "w"
+        ],
+        [
+          1493,
+          "nu(C=C) ring",
+          "m"
+        ],
+        [
+          1452,
+          "delta(CH2)",
+          "m"
+        ],
+        [
+          1028,
+          "delta(C-H) in-plane ring",
+          "w"
+        ],
+        [
+          758,
+          "gamma(C-H) monosubstituted ring",
+          "s"
+        ],
+        [
+          700,
+          "gamma(C-H) monosubstituted ring",
+          "vs"
+        ]
+      ]
+    },
+    "PMMA": {
+      "name": "Poly(methyl methacrylate)",
+      "density": 1.18,
+      "dHm0_Jg": 61.0,
+      "Tg_C": 105,
+      "dsc_transitions": {
+        "Tg_C": 105,
+        "Tm_C": null
+      },
+      "ir_peaks": [
+        [
+          2995,
+          "vas(CH3)",
+          "w"
+        ],
+        [
+          2950,
+          "vas(CH3) ester",
+          "m"
+        ],
+        [
+          2845,
+          "vs(O-CH3)",
+          "w"
+        ],
+        [
+          1730,
+          "nu(C=O) ester",
+          "vs"
+        ],
+        [
+          1484,
+          "delta(CH2) + deltaas(CH3)",
+          "m"
+        ],
+        [
+          1448,
+          "deltaas(CH3)",
+          "m"
+        ],
+        [
+          1388,
+          "deltaas(alpha-CH3)",
+          "w"
+        ],
+        [
+          1270,
+          "nu(C-O) + delta(C-H)",
+          "m"
+        ],
+        [
+          1242,
+          "nu(C-O) ester",
+          "s"
+        ],
+        [
+          1192,
+          "nu(C-O-C)",
+          "vs"
+        ],
+        [
+          1148,
+          "nu(C-O) + nu(C-C)",
+          "s"
+        ],
+        [
+          987,
+          "rho(O-CH3)",
+          "m"
+        ],
+        [
+          842,
+          "rho(CH2)",
+          "w"
+        ],
+        [
+          750,
+          "rho(CH2)",
+          "w"
+        ]
+      ]
+    },
+    "PC": {
+      "name": "Polycarbonate (Bisphenol A PC)",
+      "density": 1.2,
+      "dHm0_Jg": 134.0,
+      "Tg_C": 147,
+      "dsc_transitions": {
+        "Tg_C": 147,
+        "Tm_C": null
+      },
+      "ir_peaks": [
+        [
+          2968,
+          "vas(CH3)",
+          "w"
+        ],
+        [
+          1775,
+          "nu(C=O) carbonate",
+          "vs"
+        ],
+        [
+          1602,
+          "nu(C=C) aromatic ring",
+          "w"
+        ],
+        [
+          1505,
+          "nu(C=C) aromatic ring",
+          "m"
+        ],
+        [
+          1464,
+          "delta(CH3)",
+          "w"
+        ],
+        [
+          1364,
+          "delta(CH3) gem-dimethyl",
+          "w"
+        ],
+        [
+          1229,
+          "nuas(C-O-C) carbonate",
+          "vs"
+        ],
+        [
+          1194,
+          "nuas(C-O-C)",
+          "s"
+        ],
+        [
+          1163,
+          "nu(C-O) + delta(C-H)",
+          "s"
+        ],
+        [
+          1080,
+          "nu(C-O) + nu(C-C)",
+          "m"
+        ],
+        [
+          1015,
+          "delta(C-H) in-plane ring",
+          "m"
+        ],
+        [
+          830,
+          "gamma(C-H) 1,4-disubstituted ring",
+          "m"
+        ]
+      ]
+    }
+  },
+  "_updated": "2026-05-15",
+  "_count": 30
+}

@@ -1,0 +1,35 @@
+{
+  "case_id": "ir_synth_noisy",
+  "technique": "ir",
+  "submodule": "static",
+  "data_file": "synth:ir_synth_noisy",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "lineshape": "lorentzian",
+    "smooth_window": 11
+  },
+  "ground_truth": {
+    "peak_wavenumbers": [
+      [
+        3288,
+        3302
+      ],
+      [
+        2923,
+        2937
+      ],
+      [
+        1628,
+        1642
+      ],
+      [
+        1528,
+        1542
+      ]
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic noisy PA6 FTIR spectrum."
+}

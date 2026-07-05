@@ -1,0 +1,24 @@
+{
+  "case_id": "saxs_synth_guinier_only",
+  "technique": "saxs",
+  "submodule": "static",
+  "data_file": "synth:saxs_synth_guinier_only",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "L_method": "auto"
+  },
+  "ground_truth": {
+    "Rg_nm": [
+      4.8,
+      6.2
+    ],
+    "phi_c": [
+      0.2,
+      0.4
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic SAXS without a Bragg peak, emphasizing Guinier and Porod regions."
+}

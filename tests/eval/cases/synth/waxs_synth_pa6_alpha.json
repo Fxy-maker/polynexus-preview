@@ -1,0 +1,36 @@
+{
+  "case_id": "waxs_synth_pa6_alpha",
+  "technique": "waxs",
+  "submodule": "static",
+  "data_file": "synth:waxs_synth_pa6_alpha",
+  "polymer_name": "PA6",
+  "polymer_phase": "alpha",
+  "config_overrides": {
+    "rng_seed": 42,
+    "polymer_type": "PA6_alpha",
+    "amorphous_n_peaks": 1
+  },
+  "ground_truth": {
+    "Xc_pct": [
+      42.0,
+      48.0
+    ],
+    "peak_centers": [
+      [
+        19.85,
+        20.15
+      ],
+      [
+        23.85,
+        24.15
+      ]
+    ],
+    "D_Scherrer_nm": [
+      8.0,
+      15.0
+    ],
+    "crystal_form": "alpha"
+  },
+  "source": "synthetic",
+  "notes": "Synthetic PA6 alpha WAXS with two crystal peaks and one amorphous halo."
+}

@@ -1,0 +1,34 @@
+{
+  "case_id": "saxs_real_temperature_check_20260618",
+  "technique": "saxs",
+  "submodule": "temperature",
+  "data_file": "saxs/无定形单个样品变温",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "source_file": "D:\\PolyNexus\\测试数据\\saxs\\无定形单个样品变温",
+    "file_format": "directory",
+    "experiment_type": "temperature",
+    "condition_label": "Temperature",
+    "condition_unit": "C",
+    "extracted_features": {
+      "label": "Check-20260618",
+      "submodule": "temperature",
+      "extension": ".edf",
+      "data_kind": "edf_sequence",
+      "n_files": 17,
+      "condition": {
+        "type": "temperature",
+        "value_range": [
+          -20.0,
+          150.0
+        ],
+        "unit": "C"
+      }
+    }
+  },
+  "ground_truth": {},
+  "source": "expert_review",
+  "notes": "Converted from real SAXS temperature-series data. Ground truth is empty until human review."
+}

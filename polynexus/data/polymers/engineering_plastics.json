@@ -1,0 +1,377 @@
+{
+  "POM": {
+    "name": "Polyoxymethylene (POM / Acetal)",
+    "family": "engineering_plastic",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            23.0,
+            "100",
+            100
+          ],
+          [
+            34.6,
+            "105",
+            15
+          ],
+          [
+            48.6,
+            "115",
+            8
+          ]
+        ],
+        "ir_peaks": [
+          [
+            2975,
+            "vas(CH2)",
+            "m"
+          ],
+          [
+            2910,
+            "vs(CH2)",
+            "m"
+          ],
+          [
+            1470,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            1435,
+            "delta(CH2)",
+            "m"
+          ],
+          [
+            1238,
+            "nu(C-O-C) + omega(CH2)",
+            "s"
+          ],
+          [
+            1095,
+            "nuas(C-O-C)",
+            "vs"
+          ],
+          [
+            935,
+            "nus(C-O-C) + rho(CH2)",
+            "vs"
+          ],
+          [
+            895,
+            "nu(C-O-C) + rho(CH2)",
+            "m"
+          ],
+          [
+            630,
+            "delta(O-C-O)",
+            "m"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            88.5,
+            "O-CH2-O crystalline",
+            "c"
+          ],
+          [
+            86.5,
+            "O-CH2-O amorphous",
+            "a"
+          ]
+        ],
+        "dHm0_Jg": 326.0
+      }
+    },
+    "common": {
+      "Tg_C": -60,
+      "density": 1.41,
+      "dHm0_Jg": 326.0,
+      "Tm_C": 172
+    }
+  },
+  "PEEK": {
+    "name": "Poly(ether ether ketone)",
+    "family": "engineering_plastic",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            18.7,
+            "110",
+            100
+          ],
+          [
+            20.6,
+            "111",
+            50
+          ],
+          [
+            22.8,
+            "200",
+            40
+          ],
+          [
+            28.8,
+            "211",
+            25
+          ]
+        ],
+        "ir_peaks": [
+          [
+            1652,
+            "nu(C=O) diaryl ketone",
+            "vs"
+          ],
+          [
+            1595,
+            "nu(C=C) aromatic ring",
+            "s"
+          ],
+          [
+            1490,
+            "nu(C=C) aromatic ring",
+            "vs"
+          ],
+          [
+            1310,
+            "nu(C-O) diaryl ether",
+            "m"
+          ],
+          [
+            1225,
+            "nuas(C-O-C) diphenyl ether",
+            "vs"
+          ],
+          [
+            1188,
+            "delta(C-H) in-plane",
+            "m"
+          ],
+          [
+            1165,
+            "nuas(C-O-C)",
+            "s"
+          ],
+          [
+            929,
+            "nu(C-O) + delta(ring)",
+            "w"
+          ],
+          [
+            841,
+            "gamma(C-H) 1,4-disubstituted",
+            "s"
+          ],
+          [
+            766,
+            "gamma(C-H)",
+            "m"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            194.0,
+            "C=O ketone carbonyl",
+            "c"
+          ],
+          [
+            160.0,
+            "C-O aromatic ether",
+            "c"
+          ],
+          [
+            -18,
+            "aromatic CH and quaternary",
+            "c"
+          ],
+          [
+            119.0,
+            "aromatic CH",
+            "c"
+          ]
+        ],
+        "dHm0_Jg": 130.0
+      }
+    },
+    "common": {
+      "Tg_C": 143,
+      "density": 1.3,
+      "dHm0_Jg": 130.0,
+      "Tm_C": 340
+    }
+  },
+  "PPS": {
+    "name": "Poly(phenylene sulfide)",
+    "family": "engineering_plastic",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            18.8,
+            "110",
+            100
+          ],
+          [
+            20.5,
+            "200",
+            65
+          ],
+          [
+            25.4,
+            "112",
+            40
+          ],
+          [
+            27.3,
+            "211",
+            35
+          ]
+        ],
+        "ir_peaks": [
+          [
+            3065,
+            "nu(C-H) aromatic",
+            "w"
+          ],
+          [
+            1573,
+            "nu(C=C) ring",
+            "m"
+          ],
+          [
+            1470,
+            "nu(C=C) ring",
+            "s"
+          ],
+          [
+            1387,
+            "nu(C=C) ring",
+            "m"
+          ],
+          [
+            1180,
+            "delta(C-H) in-plane",
+            "m"
+          ],
+          [
+            1091,
+            "nu(C-S) + delta(C-H)",
+            "s"
+          ],
+          [
+            1072,
+            "nu(C-S)",
+            "m"
+          ],
+          [
+            1009,
+            "delta(C-H) in-plane",
+            "m"
+          ],
+          [
+            810,
+            "gamma(C-H) 1,4-substituted",
+            "s"
+          ]
+        ],
+        "dHm0_Jg": 80.0
+      }
+    },
+    "common": {
+      "Tg_C": 88,
+      "density": 1.35,
+      "dHm0_Jg": 80.0,
+      "Tm_C": 280
+    }
+  },
+  "PC": {
+    "name": "Polycarbonate (Bisphenol A PC)",
+    "family": "engineering_plastic",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "ir_peaks": [
+          [
+            2968,
+            "vas(CH3)",
+            "w"
+          ],
+          [
+            1775,
+            "nu(C=O) carbonate",
+            "vs"
+          ],
+          [
+            1602,
+            "nu(C=C) aromatic ring",
+            "w"
+          ],
+          [
+            1505,
+            "nu(C=C) aromatic ring",
+            "m"
+          ],
+          [
+            1464,
+            "delta(CH3)",
+            "w"
+          ],
+          [
+            1364,
+            "delta(CH3) gem-dimethyl",
+            "w"
+          ],
+          [
+            1229,
+            "nuas(C-O-C) carbonate",
+            "vs"
+          ],
+          [
+            1194,
+            "nuas(C-O-C)",
+            "s"
+          ],
+          [
+            1163,
+            "nu(C-O) + delta(C-H)",
+            "s"
+          ],
+          [
+            1080,
+            "nu(C-O) + nu(C-C)",
+            "m"
+          ],
+          [
+            1015,
+            "delta(C-H) in-plane ring",
+            "m"
+          ],
+          [
+            830,
+            "gamma(C-H) 1,4-disubstituted ring",
+            "m"
+          ]
+        ],
+        "dHm0_Jg": 134.0
+      }
+    },
+    "common": {
+      "Tg_C": 147,
+      "density": 1.2,
+      "dHm0_Jg": 134.0,
+      "Tm_C": null
+    }
+  }
+}

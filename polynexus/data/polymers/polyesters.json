@@ -1,0 +1,319 @@
+{
+  "PET": {
+    "name": "Poly(ethylene terephthalate)",
+    "family": "polyester",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            16.3,
+            "011",
+            20
+          ],
+          [
+            17.6,
+            "010",
+            25
+          ],
+          [
+            22.6,
+            "110",
+            20
+          ],
+          [
+            25.7,
+            "100",
+            100
+          ],
+          [
+            27.8,
+            "111",
+            8
+          ],
+          [
+            32.2,
+            "101",
+            6
+          ]
+        ],
+        "ir_peaks": [
+          [
+            1715,
+            "nu(C=O)",
+            "vs"
+          ],
+          [
+            1410,
+            "delta(CH2) + nu(C-C) ring",
+            "m"
+          ],
+          [
+            1340,
+            "omega(CH2) trans (crystalline)",
+            "m"
+          ],
+          [
+            1243,
+            "nu(C-O) + delta(O-H)",
+            "vs"
+          ],
+          [
+            1120,
+            "nu(C-O)",
+            "s"
+          ],
+          [
+            1098,
+            "nu(C-O)",
+            "s"
+          ],
+          [
+            972,
+            "omega(CH2) gauche (amorphous)",
+            "w"
+          ],
+          [
+            896,
+            "gamma(C-H) ring",
+            "w"
+          ],
+          [
+            872,
+            "gamma(C-H) ring crystalline",
+            "m"
+          ],
+          [
+            793,
+            "gamma(C-H) ring",
+            "w"
+          ],
+          [
+            725,
+            "gamma(C=O) + delta(ring)",
+            "s"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            164.5,
+            "C=O ester carbonyl",
+            "c"
+          ],
+          [
+            133.5,
+            "C1 aromatic quaternary",
+            "c"
+          ],
+          [
+            129.8,
+            "C2 aromatic CH",
+            "c"
+          ],
+          [
+            62.8,
+            "CH2 glycol",
+            "c"
+          ],
+          [
+            164.0,
+            "C=O amorphous",
+            "a"
+          ],
+          [
+            62.0,
+            "CH2 amorphous glycol",
+            "a"
+          ]
+        ],
+        "dHm0_Jg": 140.0
+      }
+    },
+    "common": {
+      "Tg_C": 75,
+      "density": 1.38,
+      "dHm0_Jg": 140.0,
+      "Tm_C": 255
+    }
+  },
+  "PCL": {
+    "name": "Poly(epsilon-caprolactone)",
+    "family": "polyester",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            21.4,
+            "110",
+            100
+          ],
+          [
+            22.0,
+            "111",
+            30
+          ],
+          [
+            23.8,
+            "200",
+            60
+          ]
+        ],
+        "ir_peaks": [
+          [
+            1724,
+            "nu(C=O) ester",
+            "vs"
+          ],
+          [
+            1294,
+            "nu(C-O)+nu(C-C) crystalline",
+            "m"
+          ],
+          [
+            1240,
+            "nuas(C-O-C)",
+            "s"
+          ],
+          [
+            1165,
+            "nu(C-O)",
+            "s"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            173.5,
+            "C=O ester carbonyl",
+            "c"
+          ],
+          [
+            64.0,
+            "Ca (CH2-O)",
+            "c"
+          ],
+          [
+            34.0,
+            "Ce (CH2-CO)",
+            "c"
+          ],
+          [
+            28.3,
+            "Cb (middle CH2)",
+            "c"
+          ],
+          [
+            25.5,
+            "Cc (middle CH2)",
+            "c"
+          ],
+          [
+            24.5,
+            "Cd (middle CH2)",
+            "c"
+          ]
+        ],
+        "dHm0_Jg": 139.0
+      }
+    },
+    "common": {
+      "Tg_C": -60,
+      "density": 1.14,
+      "dHm0_Jg": 139.0,
+      "Tm_C": 60
+    }
+  },
+  "PLLA": {
+    "name": "Poly(L-lactic acid)",
+    "family": "polyester",
+    "tags": [
+      "semicrystalline"
+    ],
+    "phases": {
+      "default": {
+        "waxs_peaks": [
+          [
+            14.8,
+            "010",
+            30
+          ],
+          [
+            16.7,
+            "110/200",
+            100
+          ],
+          [
+            19.1,
+            "203",
+            20
+          ],
+          [
+            22.4,
+            "015",
+            15
+          ]
+        ],
+        "ir_peaks": [
+          [
+            1757,
+            "nu(C=O) ester",
+            "vs"
+          ],
+          [
+            1268,
+            "nu(C-O) + delta(CH) crystalline",
+            "m"
+          ],
+          [
+            1212,
+            "nuas(C-O-C) + ras(CH3) crystalline",
+            "s"
+          ],
+          [
+            956,
+            "nu(C-C) + rho(CH3) crystalline",
+            "w"
+          ],
+          [
+            921,
+            "nu(C-C) + rho(CH3) crystalline",
+            "w"
+          ]
+        ],
+        "nmr_13c": [
+          [
+            169.5,
+            "C=O ester carbonyl",
+            "c"
+          ],
+          [
+            68.5,
+            "CH backbone",
+            "c"
+          ],
+          [
+            16.5,
+            "CH3 methyl",
+            "c"
+          ],
+          [
+            169.0,
+            "C=O amorphous",
+            "a"
+          ]
+        ],
+        "dHm0_Jg": 93.0
+      }
+    },
+    "common": {
+      "Tg_C": 58,
+      "density": 1.25,
+      "dHm0_Jg": 93.0,
+      "Tm_C": 172
+    }
+  }
+}

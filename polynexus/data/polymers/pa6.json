@@ -1,0 +1,48 @@
+{
+  "name": "PA6",
+  "aliases": ["Nylon-6", "nylon6", "polyamide-6"],
+  "waxs": {
+    "characteristic_peaks": [
+      {"two_theta": 20.2, "hkl": "200/001", "crystal_phase": "alpha"},
+      {"two_theta": 23.7, "hkl": "002/202", "crystal_phase": "alpha"},
+      {"two_theta": 21.4, "hkl": "001", "crystal_phase": "gamma"}
+    ],
+    "xc_range": [35, 55],
+    "xc_typical": 45,
+    "scherrer_D_range": [3.0, 8.0],
+    "notes": "gamma phase shows a single peak near 21.4 deg; alpha phase shows a 20.2/23.7 deg doublet"
+  },
+  "ir": {
+    "characteristic_bands": [
+      {"wavenumber": 3298, "assignment": "N-H stretch", "strength": "m", "role": "key", "phase": "alpha"},
+      {"wavenumber": 2931, "assignment": "vas(CH2)", "strength": "s", "role": "secondary"},
+      {"wavenumber": 2860, "assignment": "vs(CH2)", "strength": "s", "role": "secondary"},
+      {"wavenumber": 1637, "assignment": "amide I nu(C=O)", "strength": "vs", "role": "key"},
+      {"wavenumber": 1541, "assignment": "amide II delta(N-H)+nu(C-N)", "strength": "s", "role": "key"},
+      {"wavenumber": 1463, "assignment": "delta(CH2)", "strength": "m", "role": "secondary"},
+      {"wavenumber": 1418, "assignment": "delta(CH2) adjacent to NH", "strength": "w", "role": "secondary"},
+      {"wavenumber": 1263, "assignment": "amide III nu(C-N)+delta(N-H)", "strength": "m", "role": "key"},
+      {"wavenumber": 1200, "assignment": "amide III + omega(CH2) crystalline", "strength": "m", "role": "secondary"},
+      {"wavenumber": 1120, "assignment": "nu(C-C) skeletal", "strength": "w", "role": "secondary"},
+      {"wavenumber": 1027, "assignment": "amide IV", "strength": "w", "role": "secondary"},
+      {"wavenumber": 929, "assignment": "amide V gamma(N-H)", "strength": "w", "role": "key"},
+      {"wavenumber": 685, "assignment": "amide V gamma(N-H)", "strength": "m", "role": "key"}
+    ],
+    "key_bands": [3298, 1637, 1541, 1263, 929, 685],
+    "secondary_bands": [2931, 2860, 1463, 1418, 1200, 1120, 1027],
+    "overlap_risks": [
+      "1200 cm^-1 附近容易与 amide III 和 CH2 twisting 相关峰重叠。",
+      "929 cm^-1 是弱特征带，平滑过强或基线压坏时很容易消失。"
+    ],
+    "assignment_notes": [
+      "PA6 最稳妥的归属链是 1637 / 1541 / 1263 cm^-1，再结合 3298 cm^-1 N-H stretch。",
+      "如果只看到单一弱峰，不要直接把结论抬成 paper-ready。"
+    ]
+  },
+  "dsc": {
+    "tm": 220,
+    "tc": 185,
+    "delta_hm_100": 230,
+    "xc_range": [25, 50]
+  }
+}

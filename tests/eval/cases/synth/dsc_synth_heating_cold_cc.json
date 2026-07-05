@@ -1,0 +1,36 @@
+{
+  "case_id": "dsc_synth_heating_cold_cc",
+  "technique": "dsc",
+  "submodule": "heating",
+  "data_file": "synth:dsc_synth_heating_cold_cc",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "scan_direction": "heating"
+  },
+  "ground_truth": {
+    "Tg_C": [
+      47.0,
+      53.0
+    ],
+    "Tc_peak_C": [
+      76.0,
+      84.0
+    ],
+    "Tm_peak_C": [
+      216.0,
+      224.0
+    ],
+    "DHm_Jg": [
+      38.0,
+      58.0
+    ],
+    "Xc_pct": [
+      24.0,
+      36.0
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic heating DSC with a cold-crystallization peak close to Tg."
+}

@@ -1,0 +1,28 @@
+{
+  "case_id": "ir_temperature_2d_real_pa6",
+  "technique": "ir",
+  "submodule": "temperature_2d",
+  "data_file": "IR/原位变温红外",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "source_file": "D:\\PolyNexus\\测试数据\\IR\\原位变温红外",
+    "file_format": "directory",
+    "peak_height_min": 0.03,
+    "peak_prominence_min": 0.02,
+    "peak_distance": 18.0,
+    "baseline_method": "mute_zone",
+    "smooth_window": 7,
+    "normalization_method": "none",
+    "sequence_axis_mode": "filename"
+  },
+  "ground_truth": {
+    "temperature_range_C": [
+      30,
+      250
+    ]
+  },
+  "source": "expert_review",
+  "notes": "Real temperature 2D IR regression case for stage G."
+}

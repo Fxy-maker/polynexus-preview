@@ -1,0 +1,34 @@
+{
+  "case_id": "waxs_real_static_50",
+  "technique": "waxs",
+  "submodule": "static",
+  "data_file": "waxs/普通广角/50.raw",
+  "polymer_name": "unknown",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "source_file": "D:\\PolyNexus\\测试数据\\waxs\\普通广角\\50.raw",
+    "file_format": "raw",
+    "extracted_features": {
+      "label": "50",
+      "submodule": "static",
+      "extension": ".raw",
+      "data_kind": "1d_profile",
+      "n_points": 3758,
+      "two_theta_min": 2.0625061988830566,
+      "two_theta_max": 80.00000000000072,
+      "intensity_min": 0.0,
+      "intensity_max": 3411.865478515625,
+      "estimated_peak_centers": [
+        17.7454,
+        17.8284,
+        17.8699,
+        18.0566,
+        18.1396
+      ]
+    }
+  },
+  "ground_truth": {},
+  "source": "expert_review",
+  "notes": "Converted from real WAXS data. Ground truth is empty until human review."
+}

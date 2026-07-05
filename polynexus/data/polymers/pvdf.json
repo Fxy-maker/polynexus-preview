@@ -1,0 +1,49 @@
+{
+  "name": "PVDF",
+  "aliases": ["Polyvinylidene fluoride"],
+  "waxs": {
+    "characteristic_peaks": [
+      {"two_theta": 18.3, "hkl": "020", "crystal_phase": "alpha"},
+      {"two_theta": 20.0, "hkl": "110/200", "crystal_phase": "beta"}
+    ],
+    "xc_range": [40, 60],
+    "xc_typical": 50,
+    "scherrer_D_range": [4.0, 15.0],
+    "notes": "PVDF alpha phase is visible near 18.3 deg; beta phase commonly has a strong peak near 20.0 deg"
+  },
+  "ir": {
+    "characteristic_bands": [
+      {"wavenumber": 3025, "assignment": "vas(CH2)", "strength": "w", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 2985, "assignment": "vs(CH2)", "strength": "w", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 1402, "assignment": "delta(CH2) + omega(CH2)", "strength": "m", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 1275, "assignment": "nu(C-F) + delta(CCC)", "strength": "m", "role": "key", "phase": "beta"},
+      {"wavenumber": 1234, "assignment": "nu(C-F) + delta(CCC)", "strength": "m", "role": "secondary", "phase": "gamma"},
+      {"wavenumber": 1182, "assignment": "nuas(CF2)", "strength": "vs", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 1073, "assignment": "nu(C-C) skeletal", "strength": "m", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 976, "assignment": "omega(CH2)", "strength": "w", "role": "key", "phase": "alpha"},
+      {"wavenumber": 879, "assignment": "nus(CF2) + nu(C-C)", "strength": "m", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 840, "assignment": "rho(CH2) + nuas(CF2)", "strength": "s", "role": "key", "phase": "beta"},
+      {"wavenumber": 796, "assignment": "rho(CH2)", "strength": "m", "role": "key", "phase": "alpha"},
+      {"wavenumber": 763, "assignment": "delta(CF2) + omega(CH2)", "strength": "w", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 614, "assignment": "delta(CF2) + delta(CCC)", "strength": "m", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 532, "assignment": "delta(CF2)", "strength": "w", "role": "secondary", "phase": "alpha"},
+      {"wavenumber": 489, "assignment": "omega(CF2)", "strength": "w", "role": "secondary", "phase": "alpha"}
+    ],
+    "key_bands": [1275, 840, 976, 796],
+    "secondary_bands": [3025, 2985, 1402, 1234, 1182, 1073, 879, 763, 614, 532, 489],
+    "overlap_risks": [
+      "1275 cm^-1 与 1234 cm^-1 分别偏向 beta / gamma 线索，单峰不应被硬定性。",
+      "840 cm^-1 与 796 cm^-1 分别支持 beta / alpha，若同时存在更适合保留混相解释。"
+    ],
+    "assignment_notes": [
+      "PVDF 优先看 1275 + 840 cm^-1 的 beta 线索，或 976 + 796 cm^-1 的 alpha 线索。",
+      "如果 beta 与 alpha 线索同时出现，结论应保留混相解释，而不是硬选一个。"
+    ]
+  },
+  "dsc": {
+    "tm": 172,
+    "tc": 140,
+    "delta_hm_100": 104.7,
+    "xc_range": [40, 60]
+  }
+}

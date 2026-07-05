@@ -1,0 +1,40 @@
+{
+  "case_id": "waxs_synth_pa6_alpha_gamma",
+  "technique": "waxs",
+  "submodule": "static",
+  "data_file": "synth:waxs_synth_pa6_alpha_gamma",
+  "polymer_name": "PA6",
+  "polymer_phase": "alpha_gamma",
+  "config_overrides": {
+    "rng_seed": 42,
+    "polymer_type": "PA6_alpha_gamma",
+    "amorphous_n_peaks": 2
+  },
+  "ground_truth": {
+    "Xc_pct": [
+      32.0,
+      38.0
+    ],
+    "peak_centers": [
+      [
+        19.85,
+        20.15
+      ],
+      [
+        21.35,
+        21.65
+      ],
+      [
+        23.85,
+        24.15
+      ]
+    ],
+    "D_Scherrer_nm": [
+      6.0,
+      14.0
+    ],
+    "crystal_form": "alpha_gamma"
+  },
+  "source": "synthetic",
+  "notes": "Synthetic PA6 mixed alpha/gamma WAXS with three crystal peaks."
+}

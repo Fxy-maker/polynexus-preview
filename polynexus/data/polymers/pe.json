@@ -1,0 +1,40 @@
+{
+  "name": "PE",
+  "aliases": ["Polyethylene", "HDPE", "LDPE", "LLDPE"],
+  "waxs": {
+    "characteristic_peaks": [
+      {"two_theta": 21.5, "hkl": "110", "crystal_phase": "orthorhombic"},
+      {"two_theta": 23.9, "hkl": "200", "crystal_phase": "orthorhombic"}
+    ],
+    "xc_range": [60, 80],
+    "xc_typical": 70,
+    "scherrer_D_range": [5.0, 30.0],
+    "notes": "Orthorhombic PE usually shows strong WAXS peaks near 21.5 and 23.9 deg"
+  },
+  "ir": {
+    "characteristic_bands": [
+      {"wavenumber": 2918, "assignment": "vas(CH2)", "strength": "vs", "role": "key"},
+      {"wavenumber": 2850, "assignment": "vs(CH2)", "strength": "vs", "role": "key"},
+      {"wavenumber": 1472, "assignment": "delta(CH2) scissoring", "strength": "s", "role": "secondary"},
+      {"wavenumber": 1463, "assignment": "delta(CH2) crystalline", "strength": "m", "role": "key"},
+      {"wavenumber": 730, "assignment": "rho(CH2) crystalline", "strength": "m", "role": "key"},
+      {"wavenumber": 720, "assignment": "rho(CH2) amorphous", "strength": "m", "role": "secondary"}
+    ],
+    "key_bands": [2918, 2850, 1463, 730],
+    "secondary_bands": [1472, 720],
+    "overlap_risks": [
+      "1463 cm^-1 和 1472 cm^-1 非常接近，不能只凭单峰判断结晶态。",
+      "730 / 720 cm^-1 是低波数双带，最好结合整体 CH2 轮廓一起看。"
+    ],
+    "assignment_notes": [
+      "PE 最稳妥的是先看 2918 / 2850 cm^-1，再配合 1463 和 730 cm^-1。",
+      "如果只剩 1472 cm^-1 的单点 scissoring，不要直接抬高结论。"
+    ]
+  },
+  "dsc": {
+    "tm": 135,
+    "tc": 115,
+    "delta_hm_100": 293,
+    "xc_range": [60, 80]
+  }
+}

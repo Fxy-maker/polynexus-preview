@@ -1,0 +1,39 @@
+{
+  "case_id": "nmr_synth_pa6_carbon",
+  "technique": "nmr",
+  "submodule": "liquid_c",
+  "data_file": "synth:nmr_synth_pa6_carbon",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "nucleus": "13C",
+    "deconvolution_method": "mixed"
+  },
+  "ground_truth": {
+    "peak_shifts": [
+      [
+        172.5,
+        173.5
+      ],
+      [
+        41.5,
+        42.5
+      ],
+      [
+        35.5,
+        36.5
+      ],
+      [
+        28.5,
+        29.5
+      ],
+      [
+        24.5,
+        25.5
+      ]
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic PA6 13C NMR spectrum."
+}

@@ -1,0 +1,34 @@
+{
+  "case_id": "dsc_real_standard_pa6",
+  "technique": "dsc",
+  "submodule": "standard",
+  "data_file": "DSC/标准DSC数据格式一/FXY-PA6.txt",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "source_file": "D:\\PolyNexus\\测试数据\\DSC\\标准DSC数据格式一\\FXY-PA6.txt",
+    "file_format": "txt",
+    "scan_direction": "auto",
+    "baseline_corr": "auto",
+    "smooth_window": 11,
+    "Tg_method": "half_height",
+    "user_DHm0": 230.0
+  },
+  "ground_truth": {
+    "Tm_peak_C": [
+      217.0,
+      226.5
+    ],
+    "Tcc_peak_C": [
+      165.0,
+      190.0
+    ],
+    "Xc_pct": [
+      8.0,
+      20.0
+    ]
+  },
+  "source": "expert_review",
+  "notes": "Real PA6 standard DSC baseline case frozen for stage F regression."
+}

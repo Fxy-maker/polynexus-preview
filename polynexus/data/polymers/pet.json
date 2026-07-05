@@ -1,0 +1,48 @@
+{
+  "name": "PET",
+  "aliases": ["Polyethylene terephthalate"],
+  "waxs": {
+    "characteristic_peaks": [
+      {"two_theta": 17.5, "hkl": "010", "crystal_phase": "triclinic"},
+      {"two_theta": 22.5, "hkl": "110", "crystal_phase": "triclinic"},
+      {"two_theta": 25.6, "hkl": "100", "crystal_phase": "triclinic"}
+    ],
+    "xc_range": [20, 50],
+    "xc_typical": 35,
+    "scherrer_D_range": [3.0, 12.0],
+    "notes": "Semi-crystalline PET commonly shows WAXS peaks near 17.5, 22.5 and 25.6 deg"
+  },
+  "ir": {
+    "characteristic_bands": [
+      {"wavenumber": 1715, "assignment": "nu(C=O)", "strength": "vs", "role": "key"},
+      {"wavenumber": 1505, "assignment": "nu(C=C) aromatic ring", "strength": "w", "role": "secondary"},
+      {"wavenumber": 1471, "assignment": "delta(CH2)", "strength": "w", "role": "secondary"},
+      {"wavenumber": 1410, "assignment": "delta(CH2) + nu(C-C) ring", "strength": "m", "role": "secondary"},
+      {"wavenumber": 1340, "assignment": "omega(CH2) trans", "strength": "m", "role": "key"},
+      {"wavenumber": 1243, "assignment": "nu(C-O) + delta(O-H)", "strength": "vs", "role": "key"},
+      {"wavenumber": 1120, "assignment": "nu(C-O)", "strength": "s", "role": "secondary"},
+      {"wavenumber": 1098, "assignment": "nu(C-O)", "strength": "s", "role": "secondary"},
+      {"wavenumber": 972, "assignment": "omega(CH2) gauche", "strength": "w", "role": "secondary"},
+      {"wavenumber": 896, "assignment": "gamma(C-H) ring", "strength": "w", "role": "secondary"},
+      {"wavenumber": 872, "assignment": "gamma(C-H) ring crystalline", "strength": "m", "role": "key"},
+      {"wavenumber": 793, "assignment": "gamma(C-H) ring", "strength": "w", "role": "secondary"},
+      {"wavenumber": 725, "assignment": "gamma(C=O) + delta(ring)", "strength": "s", "role": "key"}
+    ],
+    "key_bands": [1715, 1340, 1243, 872, 725],
+    "secondary_bands": [1505, 1471, 1410, 1120, 1098, 972, 896, 793],
+    "overlap_risks": [
+      "1243 cm^-1 与 1120 / 1098 cm^-1 处于相近的 C-O 区域，基线和归一化会明显影响判断。",
+      "872 / 793 cm^-1 更适合作为辅助确认，不宜孤立使用。"
+    ],
+    "assignment_notes": [
+      "PET 最稳妥的主链证据是 1715 cm^-1，再结合 872 和 725 cm^-1。",
+      "只看到单一 C-O 带时，不要把结晶度或相态抬得过满。"
+    ]
+  },
+  "dsc": {
+    "tm": 255,
+    "tc": 190,
+    "delta_hm_100": 140,
+    "xc_range": [20, 50]
+  }
+}

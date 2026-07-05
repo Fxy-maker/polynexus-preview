@@ -1,0 +1,34 @@
+{
+  "case_id": "waxs_real_temperature_pa6_250_205_w_0_00000",
+  "technique": "waxs",
+  "submodule": "temperature",
+  "data_file": "waxs/原位变温广角/PA6-250-205-W_0_00000.edf",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "source_file": "D:\\PolyNexus\\测试数据\\waxs\\原位变温广角\\PA6-250-205-W_0_00000.edf",
+    "file_format": "edf",
+    "extracted_features": {
+      "label": "PA6-250-205-W_0_00000",
+      "submodule": "temperature",
+      "extension": ".edf",
+      "data_kind": "2d_image",
+      "image_shape": [
+        1028,
+        512
+      ],
+      "intensity_min": 0.0,
+      "intensity_max": 65535.0,
+      "intensity_mean": 24687.336325085118,
+      "condition": {
+        "type": "temperature",
+        "value": 205.0,
+        "unit": "C"
+      }
+    }
+  },
+  "ground_truth": {},
+  "source": "expert_review",
+  "notes": "Converted from real WAXS data. Ground truth is empty until human review."
+}

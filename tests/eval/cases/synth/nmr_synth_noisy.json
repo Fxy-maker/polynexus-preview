@@ -1,0 +1,36 @@
+{
+  "case_id": "nmr_synth_noisy",
+  "technique": "nmr",
+  "submodule": "liquid_c",
+  "data_file": "synth:nmr_synth_noisy",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "nucleus": "13C",
+    "deconvolution_method": "mixed",
+    "lb_Hz": 8.0
+  },
+  "ground_truth": {
+    "peak_shifts": [
+      [
+        172.3,
+        173.7
+      ],
+      [
+        41.3,
+        42.7
+      ],
+      [
+        35.3,
+        36.7
+      ],
+      [
+        28.3,
+        29.7
+      ]
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic noisy PA6 13C NMR spectrum."
+}

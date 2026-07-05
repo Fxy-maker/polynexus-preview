@@ -1,0 +1,36 @@
+{
+  "case_id": "waxs_synth_low_xc",
+  "technique": "waxs",
+  "submodule": "static",
+  "data_file": "synth:waxs_synth_low_xc",
+  "polymer_name": "PA6",
+  "polymer_phase": "alpha",
+  "config_overrides": {
+    "rng_seed": 42,
+    "polymer_type": "PA6_alpha",
+    "amorphous_n_peaks": 2
+  },
+  "ground_truth": {
+    "Xc_pct": [
+      12.0,
+      18.0
+    ],
+    "peak_centers": [
+      [
+        19.8,
+        20.2
+      ],
+      [
+        23.8,
+        24.2
+      ]
+    ],
+    "D_Scherrer_nm": [
+      5.0,
+      12.0
+    ],
+    "crystal_form": "alpha"
+  },
+  "source": "synthetic",
+  "notes": "Synthetic low-crystallinity PA6 WAXS with high noise."
+}

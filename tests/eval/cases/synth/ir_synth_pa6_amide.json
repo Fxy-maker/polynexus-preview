@@ -1,0 +1,38 @@
+{
+  "case_id": "ir_synth_pa6_amide",
+  "technique": "ir",
+  "submodule": "static",
+  "data_file": "synth:ir_synth_pa6_amide",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "rng_seed": 42,
+    "lineshape": "lorentzian"
+  },
+  "ground_truth": {
+    "peak_wavenumbers": [
+      [
+        3290,
+        3300
+      ],
+      [
+        1630,
+        1640
+      ],
+      [
+        1530,
+        1540
+      ],
+      [
+        1460,
+        1470
+      ],
+      [
+        1255,
+        1265
+      ]
+    ]
+  },
+  "source": "synthetic",
+  "notes": "Synthetic PA6 FTIR with emphasized amide I and II bands."
+}

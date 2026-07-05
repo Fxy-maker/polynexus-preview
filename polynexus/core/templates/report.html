@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PolyNexus Report — {{ project_name }}</title>
+<style>
+  /* ============================================================
+     PolyNexus v2.1 Report Template — Dual Theme
+     ============================================================ */
+
+  /* ── Dark Theme (default) ── */
+  :root, [data-theme="dark"] {
+    --bg-root: #0f1117;
+    --bg-card: #161b22;
+    --bg-surface: #1c2128;
+    --border: #30363d;
+    --border-light: #21262d;
+    --text: #c9d1d9;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent: #58a6ff;
+    --accent-saxs: #00c8d4;
+    --accent-waxs: #4f8ef7;
+    --accent-dsc: #e69f00;
+    --accent-ir: #00b87c;
+    --accent-nmr: #9b72cf;
+    --accent-joint: #f0a060;
+    --green: #3fb950;
+    --orange: #d2991d;
+    --red: #f85149;
+    --code-bg: #1c2128;
+    --shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+
+  /* ── Light Theme ── */
+  [data-theme="light"] {
+    --bg-root: #ffffff;
+    --bg-card: #f6f8fa;
+    --bg-surface: #f0f1f5;
+    --border: #d0d7de;
+    --border-light: #e8ecf0;
+    --text: #1e2130;
+    --text-secondary: #555b6e;
+    --text-muted: #8b90a0;
+    --accent: #3366cc;
+    --accent-saxs: #089eae;
+    --accent-waxs: #3366cc;
+    --accent-dsc: #d48800;
+    --accent-ir: #00875a;
+    --accent-nmr: #7b52b8;
+    --accent-joint: #d47836;
+    --green: #007a47;
+    --orange: #b86200;
+    --red: #c22a20;
+    --code-bg: #f0f1f5;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  /* ── Reset ── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ── Base ── */
+  body {
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', 'Noto Sans SC',
+                 'Microsoft YaHei UI', -apple-system, BlinkMacSystemFont,
+                 'PingFang SC', sans-serif;
+    background: var(--bg-root);
+    color: var(--text);
+    line-height: 1.65;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 40px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 24px 20px 48px; }
+  }
+
+  /* ── Typography ── */
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 32px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.2px;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 20px 0 10px;
+  }
+
+  .meta {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 28px;
+    letter-spacing: 0.2px;
+  }
+
+  .meta strong {
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  /* ── Tags ── */
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  .tag-saxs { background: var(--accent-saxs)22; color: var(--accent-saxs); }
+  .tag-waxs { background: var(--accent-waxs)22; color: var(--accent-waxs); }
+  .tag-dsc  { background: var(--accent-dsc)22;  color: var(--accent-dsc); }
+  .tag-ir   { background: var(--accent-ir)22;   color: var(--accent-ir); }
+  .tag-nmr  { background: var(--accent-nmr)22;  color: var(--accent-nmr); }
+  .tag-joint{ background: var(--accent-joint)22;color: var(--accent-joint); }
+
+  /* ── Summary Card ── */
+  .summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+
+  .summary-card h3 {
+    margin-top: 0;
+    margin-bottom: 14px;
+    font-size: 15px;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 18px;
+    font-size: 13px;
+  }
+
+  th, td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  th {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--bg-surface);
+  }
+
+  tr:hover td {
+    background: var(--accent)08;
+  }
+
+  .param-val {
+    font-family: 'Cascadia Code', 'Cascadia Mono', 'Consolas', 'SF Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  /* ── Figure container ── */
+  .figure-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+
+  .figure-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+  }
+
+  .figure-caption {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* ── Bar / Progress indicators ── */
+  .bar-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .bar {
+    display: inline-block;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 4px;
+    min-width: 4px;
+  }
+
+  /* ── Status indicators ── */
+  .status-ok  { color: var(--green); }
+  .status-warn{ color: var(--orange); }
+  .status-err { color: var(--red); }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 11px;
+    text-align: center;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── Print styles ── */
+  @media print {
+    body {
+      background: white;
+      color: #1e2130;
+      max-width: none;
+      padding: 20px 30px;
+      font-size: 11px;
+    }
+    .summary-card, .figure-container {
+      box-shadow: none;
+      border: 1px solid #d0d7de;
+      break-inside: avoid;
+    }
+    h2 { page-break-before: auto; }
+    .footer { margin-top: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>PolyNexus Analysis Report</h1>
+<p class="meta">
+  <strong>{{ project_name }}</strong>
+  &middot; Generated {{ date }}
+  &middot; PolyNexus v2.1
+</p>
+
+{% if summary %}
+<div class="summary-card">
+  <h3>Summary</h3>
+  <table>
+    <tr>
+      {% for col in summary.cols %}
+      <th>{{ col }}</th>
+      {% endfor %}
+    </tr>
+    {% for row in summary.rows %}
+    <tr>
+      {% for cell in row %}
+      <td><span class="param-val">{{ cell }}</span></td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% for section in sections %}
+<h2>
+  <span class="tag tag-{{ section.technique }}">{{ section.technique.upper() }}</span>
+  &ensp;{{ section.title }}
+</h2>
+
+{% if section.rows %}
+<table>
+  <tr>
+    {% for col in section.cols %}
+    <th>{{ col }}</th>
+    {% endfor %}
+  </tr>
+  {% for row in section.rows %}
+  <tr>
+    {% for cell in row %}
+    <td><span class="param-val">{{ cell }}</span></td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p style="color:var(--text-muted);font-style:italic;padding: 8px 0;">
+  No results for this technique.
+</p>
+{% endif %}
+
+{% if section.figure %}
+<div class="figure-container">
+  <img src="{{ section.figure }}" alt="{{ section.technique }} analysis figure">
+  <div class="figure-caption">{{ section.figure_caption or section.title }}</div>
+</div>
+{% endif %}
+{% endfor %}
+
+<div class="footer">
+  PolyNexus v2.1 &mdash; Multi-Technique Polymer Characterization Platform
+</div>
+
+</body>
+</html>
