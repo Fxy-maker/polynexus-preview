@@ -80,6 +80,46 @@ def test_persist_analysis_run_reuses_existing_sample_and_batch(tmp_path):
     assert len(batches) == 1
 
 
+def test_persist_analysis_run_stores_analysis_evidence(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    data_file = tmp_path / "pa6_run.csv"
+    data_file.write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+
+    window = MainWindow()
+    window._sample_db = SampleDB(tmp_path / "samples.db")
+    window._current_filepath = str(data_file)
+    window._current_technique = "saxs"
+    window._current_submodule_id = "saxs.static"
+    window._output_dir = str(tmp_path / "output")
+    window._project_label.setText("PA6")
+    evidence = {
+        "technique": "SAXS",
+        "constraint_summary": {"status": "soft_warn"},
+        "structure_evidence": {"lc_reliability_status": "diagnostic_only"},
+    }
+
+    result = {
+        "technique": "saxs",
+        "metadata": {"polymer_name": "PA6"},
+        "parameters": {"L_nm": 12.0},
+        "analysis_evidence": evidence,
+    }
+
+    window._persist_analysis_run(result)
+
+    db = window._ensure_sample_db()
+    sample_id = db.list_samples(limit=10)[0]["id"]
+    batch_id = db.get_batches(sample_id)[0]["id"]
+    run = db.get_analysis_runs(batch_id)[0]
+
+    assert run["analysis_evidence"] == evidence
+
+    db.close()
+    window.deleteLater()
+    app.processEvents()
+
+
 def test_populate_plots_prefers_refreshed_non_low_variant_for_same_figure(tmp_path):
     app = QApplication.instance() or QApplication([])
 

@@ -51,7 +51,7 @@ class SampleDB:
                 id TEXT PRIMARY KEY,
                 batch_id TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
                 technique TEXT NOT NULL, submodule TEXT,
-                parameters TEXT, results_summary TEXT, plot_edits TEXT,
+                parameters TEXT, results_summary TEXT, analysis_evidence TEXT, plot_edits TEXT,
                 output_dir TEXT, status TEXT DEFAULT 'pending',
                 ai_tuned INTEGER DEFAULT 0,
                 confirmed INTEGER DEFAULT 0,
@@ -61,6 +61,7 @@ class SampleDB:
         )
         self._ensure_column("analysis_runs", "ai_tuned", "INTEGER DEFAULT 0")
         self._ensure_column("analysis_runs", "confirmed", "INTEGER DEFAULT 0")
+        self._ensure_column("analysis_runs", "analysis_evidence", "TEXT")
         self._conn.commit()
 
     def _ensure_column(self, table, column, definition):
@@ -357,20 +358,22 @@ class SampleDB:
         submodule="",
         parameters=None,
         results_summary=None,
+        analysis_evidence=None,
         output_dir="",
         ai_tuned=False,
         confirmed=False,
     ):
         rid = self._uid()
         self._conn.execute(
-            "INSERT INTO analysis_runs (id,batch_id,technique,submodule,parameters,results_summary,output_dir,status,ai_tuned,confirmed) VALUES (?,?,?,?,?,?,?,'completed',?,?)",
+            "INSERT INTO analysis_runs (id,batch_id,technique,submodule,parameters,results_summary,analysis_evidence,output_dir,status,ai_tuned,confirmed) VALUES (?,?,?,?,?,?,?,?,'completed',?,?)",
             (
                 rid,
                 batch_id,
                 technique,
                 submodule,
-                json.dumps(parameters or {}),
-                json.dumps(results_summary or {}),
+                json.dumps(parameters or {}, ensure_ascii=False),
+                json.dumps(results_summary or {}, ensure_ascii=False),
+                json.dumps(analysis_evidence or {}, ensure_ascii=False),
                 output_dir,
                 1 if ai_tuned else 0,
                 1 if confirmed else 0,
@@ -387,7 +390,7 @@ class SampleDB:
         results = []
         for row in rows:
             data = dict(row)
-            for col in ("parameters", "results_summary", "plot_edits"):
+            for col in ("parameters", "results_summary", "analysis_evidence", "plot_edits"):
                 try:
                     data[col] = json.loads(data[col]) if data[col] else {}
                 except Exception:
@@ -404,7 +407,7 @@ class SampleDB:
         if not row:
             return None
         data = dict(row)
-        for col in ("parameters", "results_summary", "plot_edits"):
+        for col in ("parameters", "results_summary", "analysis_evidence", "plot_edits"):
             try:
                 data[col] = json.loads(data[col]) if data[col] else {}
             except Exception:

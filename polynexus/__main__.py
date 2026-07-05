@@ -227,6 +227,7 @@ def _persist_ai_tune_run(args, report: dict, output_path: Path) -> str:
                 "convergence_reason": report.get("convergence_reason"),
                 "rounds": report.get("rounds"),
             },
+            analysis_evidence=_analysis_evidence_from_ai_report(report),
             output_dir=str(output_path.resolve().parent),
             ai_tuned=True,
         )
@@ -254,6 +255,24 @@ def _extract_result_r2(result) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _analysis_evidence_from_result(result) -> dict:
+    if result is None:
+        return {}
+    if isinstance(result, dict):
+        evidence = result.get("analysis_evidence")
+    else:
+        evidence = getattr(result, "analysis_evidence", {})
+    return dict(evidence) if isinstance(evidence, dict) else {}
+
+
+def _analysis_evidence_from_ai_report(report: dict) -> dict:
+    best_record = report.get("best_record", {}) if isinstance(report, dict) else {}
+    if isinstance(best_record, dict) and isinstance(best_record.get("analysis_evidence"), dict):
+        return dict(best_record["analysis_evidence"])
+    evidence = report.get("analysis_evidence", {}) if isinstance(report, dict) else {}
+    return dict(evidence) if isinstance(evidence, dict) else {}
 
 
 def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -> None:
@@ -311,6 +330,7 @@ def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -
                     "elapsed_s": round(elapsed, 3),
                     "r_squared": _extract_result_r2(result),
                 },
+                analysis_evidence=_analysis_evidence_from_result(result),
                 output_dir=str(data_file.parent.resolve()),
                 ai_tuned=False,
             )

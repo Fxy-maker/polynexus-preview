@@ -13591,6 +13591,11 @@ class MainWindow(QMainWindow):
                 payload = self._result_to_jsonable(result.to_dict())
             else:
                 payload = self._result_to_jsonable(getattr(result, "__dict__", {}))
+            analysis_evidence = (
+                payload.get("analysis_evidence")
+                if isinstance(payload.get("analysis_evidence"), dict)
+                else {}
+            )
 
             technique = str(
                 payload.get("technique")
@@ -13711,6 +13716,7 @@ class MainWindow(QMainWindow):
                 submodule=submodule,
                 parameters=self._result_to_jsonable(parameters),
                 results_summary=self._result_to_jsonable(summary),
+                analysis_evidence=self._result_to_jsonable(analysis_evidence),
                 output_dir=self._output_dir,
                 ai_tuned=bool(getattr(self, "_last_ai_tuned_run", False)),
                 confirmed=bool(getattr(self, "_current_result_confirmed_flag", False)),

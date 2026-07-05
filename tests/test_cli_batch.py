@@ -3,6 +3,22 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 
 
+def test_cli_persistence_extracts_analysis_evidence():
+    import polynexus.__main__ as main_mod
+
+    evidence = {
+        "technique": "SAXS",
+        "constraint_summary": {"status": "soft_warn"},
+    }
+
+    class FakeResult:
+        analysis_evidence = evidence
+
+    assert main_mod._analysis_evidence_from_result(FakeResult()) == evidence
+    assert main_mod._analysis_evidence_from_result({"analysis_evidence": evidence}) == evidence
+    assert main_mod._analysis_evidence_from_ai_report({"best_record": {"analysis_evidence": evidence}}) == evidence
+
+
 def test_batch_invalid_dir(tmp_path):
     from polynexus.__main__ import run_batch
 
