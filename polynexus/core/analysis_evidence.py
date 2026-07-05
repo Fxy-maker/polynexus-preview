@@ -718,6 +718,15 @@ def physical_constraint_inventory(technique: str) -> list[EvidenceConstraint]:
                 rationale="IR crystallinity should stay tentative until the band support chain is stable.",
             ),
             EvidenceConstraint(
+                name="ir_xc_uncalibrated",
+                kind="soft_warn",
+                source="IR",
+                severity="WARN",
+                description="IR crystallinity is an uncalibrated band index.",
+                field="Xc_calibration_status",
+                rationale="Uncalibrated IR ratios should stay diagnostic and not be compared as calibrated crystallinity.",
+            ),
+            EvidenceConstraint(
                 name="peak_structure",
                 kind="evidence_only",
                 source="IR",
@@ -1744,6 +1753,19 @@ def _ir_peak_records(output: dict[str, Any]) -> list[dict[str, Any]]:
     return peaks
 
 
+def _ir_xc_calibration_status(output: dict[str, Any]) -> str | None:
+    status = str(output.get("Xc_calibration_status") or "").strip()
+    if status:
+        return status
+
+    method = str(output.get("Xc_method") or "").strip().lower()
+    if method.endswith("_uncalibrated") or method == "band_ratio":
+        return "uncalibrated_index"
+    if output.get("Xc_pct") is None and not method:
+        return "unavailable"
+    return None
+
+
 def _ir_band_support_metrics(output: dict[str, Any], validation: dict[str, Any] | None = None) -> dict[str, Any]:
     validation = dict(validation or {})
     config_snapshot = validation.get("config_snapshot", {})
@@ -1839,6 +1861,8 @@ def _ir_band_support_metrics(output: dict[str, Any], validation: dict[str, Any] 
     assignment_confidence = _clean_float(output.get("assignment_confidence", output.get("polymer_score")))
     polymer_score = _clean_float(output.get("polymer_score"))
     x_pct = _clean_float(output.get("Xc_pct"))
+    x_method = str(output.get("Xc_method") or "").strip()
+    x_calibration_status = _ir_xc_calibration_status(output)
 
     return {
         "peak_count": len(raw_peaks),
@@ -1851,6 +1875,8 @@ def _ir_band_support_metrics(output: dict[str, Any], validation: dict[str, Any] 
         "assignment_confidence": assignment_confidence,
         "polymer_score": polymer_score,
         "Xc_pct": x_pct,
+        "Xc_method": x_method,
+        "Xc_calibration_status": x_calibration_status,
         "reference_band_count": len(reference_band_records),
         "reference_band_hit_count": band_hit_count,
         "reference_band_missing_count": band_missing_count,
@@ -1907,6 +1933,8 @@ def _ir_symptom_bridge_lines(symptom: dict[str, Any] | None, output: dict[str, A
         lead = "noise_dominant -> stabilize preprocessing and smoothing before another attempt"
     elif name == "crystallinity_index_without_band_support":
         lead = "crystallinity_index_without_band_support -> keep Xc tentative until band support is stable"
+    elif name == "ir_xc_uncalibrated":
+        lead = "ir_xc_uncalibrated -> treat IR Xc as a diagnostic band index until a calibration curve is available"
     else:
         summary = str(symptom.get("summary", "") or "").strip()
         if target_text:
@@ -2092,6 +2120,25 @@ def _ir_symptoms_from_constraints(
                 "expected_evidence_change": [
                     "reference_band_missing_count should drop to zero",
                     "Xc should only be promoted when the band support chain is stable",
+                ],
+            }
+        )
+    if "ir_xc_uncalibrated" in triggered:
+        add(
+            {
+                "name": "ir_xc_uncalibrated",
+                "severity": "warning",
+                "source": "IR",
+                "summary": "IR crystallinity is an uncalibrated band index and should remain diagnostic.",
+                "target_params": ["crystallinity_band", "crystallinity_ref_band"],
+                "observed": {
+                    "Xc_pct": _clean_float(support.get("Xc_pct")),
+                    "Xc_method": support.get("Xc_method"),
+                    "Xc_calibration_status": support.get("Xc_calibration_status"),
+                },
+                "expected_evidence_change": [
+                    "Xc_calibration_status should become calibrated before entering paper-ready conclusions",
+                    "calibrated reference bands or an external calibration curve should be recorded",
                 ],
             }
         )
@@ -3292,6 +3339,7 @@ def evaluate_physical_constraints(
             "overcrowded_band_separation_unstable",
             "polymer_score_without_assignment_support",
             "crystallinity_index_without_band_support",
+            "ir_xc_uncalibrated",
         }:
             peak_count = _clean_float(ir_support.get("peak_count"))
             assigned_peak_count = _clean_float(ir_support.get("assigned_peak_count"))
@@ -3306,6 +3354,8 @@ def evaluate_physical_constraints(
             reference_band_hit_count = int(ir_support.get("reference_band_hit_count") or 0)
             reference_band_missing_count = int(ir_support.get("reference_band_missing_count") or 0)
             x_pct = _clean_float(ir_support.get("Xc_pct"))
+            x_method = str(ir_support.get("Xc_method") or "").strip()
+            x_calibration_status = str(ir_support.get("Xc_calibration_status") or "").strip()
 
             if item.name == "key_band_support_insufficient":
                 observed = {
@@ -3441,6 +3491,16 @@ def evaluate_physical_constraints(
                 }
                 triggered = x_pct is not None and x_pct > 0 and (
                     reference_band_hit_count < 2 or reference_band_missing_count > 0
+                )
+            elif item.name == "ir_xc_uncalibrated":
+                observed = {
+                    "Xc_pct": x_pct,
+                    "Xc_method": x_method or None,
+                    "Xc_calibration_status": x_calibration_status or None,
+                }
+                triggered = (
+                    x_calibration_status == "uncalibrated_index"
+                    or x_method.lower().endswith("_uncalibrated")
                 )
         elif technique_key == "DSC" and item.name in {
             "baseline_sensitive_result",
@@ -5228,6 +5288,7 @@ def build_analysis_evidence(
             "assignment_confidence",
             "Xc_pct",
             "Xc_method",
+            "Xc_calibration_status",
             "n_peaks",
             "r_squared",
         ):
@@ -5384,6 +5445,7 @@ def build_analysis_evidence(
         wn_span = None
         if wn_min is not None and wn_max is not None:
             wn_span = abs(wn_max - wn_min)
+        x_calibration_status = _ir_xc_calibration_status(output)
 
         if peak_positions:
             peak_prominence_distribution = _numeric_distribution(peak_prominences, source="prominence")
@@ -5481,6 +5543,7 @@ def build_analysis_evidence(
             [
                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
                 ("Xc_method", str(output.get("Xc_method", "") or "").strip() or None),
+                ("Xc_calibration_status", x_calibration_status),
             ]
         )
         if phase_evidence:
@@ -5505,6 +5568,9 @@ def build_analysis_evidence(
                 ("key_reference_bands_hit", key_band_hits if key_band_hits else None),
                 ("key_reference_bands_missing", key_band_missing if key_band_missing else None),
                 ("characteristic_band_support_ok", bool(len(key_band_hits) >= 3 and len(key_band_missing) == 0)),
+                ("Xc_pct", _clean_float(output.get("Xc_pct"))),
+                ("Xc_method", str(output.get("Xc_method", "") or "").strip() or None),
+                ("Xc_calibration_status", x_calibration_status),
                 ("paper_conclusion_candidate", paper_conclusion_candidate),
                 ("paper_conclusion_ready", paper_conclusion_candidate),
             ]
@@ -5815,6 +5881,7 @@ def build_analysis_evidence(
                 "overcrowded_band_separation_unstable",
                 "polymer_score_without_assignment_support",
                 "crystallinity_index_without_band_support",
+                "ir_xc_uncalibrated",
             }
             structure_evidence["paper_conclusion_ready"] = bool(
                 paper_candidate

@@ -990,6 +990,58 @@ def test_ir_paper_ready_requires_assignment_support_not_just_band_hits() -> None
     assert high_structure["ir_support_score"] >= 0.78
 
 
+def test_ir_uncalibrated_band_index_is_not_paper_ready_xc() -> None:
+    peaks = [
+        {"wavenumber": 3298, "height": 1.0, "prominence": 0.9, "fwhm_cm1": 18.0, "assignment": "N-H stretch"},
+        {"wavenumber": 1637, "height": 1.0, "prominence": 0.9, "fwhm_cm1": 18.0, "assignment": "amide I"},
+        {"wavenumber": 1541, "height": 1.0, "prominence": 0.9, "fwhm_cm1": 18.0, "assignment": "amide II"},
+        {"wavenumber": 1263, "height": 1.0, "prominence": 0.9, "fwhm_cm1": 18.0, "assignment": "amide III"},
+        {"wavenumber": 929, "height": 1.0, "prominence": 0.9, "fwhm_cm1": 18.0, "assignment": "amide V"},
+        {"wavenumber": 685, "height": 1.0, "prominence": 0.9, "fwhm_cm1": 18.0, "assignment": "amide V"},
+    ]
+    reference_bands = [
+        {"wavenumber": item["wavenumber"], "assignment": item["assignment"], "crystallinity_sensitive": False}
+        for item in peaks
+    ]
+
+    evidence = build_analysis_evidence(
+        "IR",
+        output_parameters={
+            "n_peaks": len(peaks),
+            "polymer_name": "PA6",
+            "polymer_score": 0.96,
+            "assignment_confidence": 0.96,
+            "r_squared": 0.98,
+            "Xc_pct": 62.0,
+            "Xc_method": "PA6_A1200_A1637_uncalibrated",
+            "Xc_calibration_status": "uncalibrated_index",
+            "peaks": peaks,
+        },
+        residual_pattern={"residual_type": "random", "summary": "baseline is calm"},
+        validation_context={
+            "config_snapshot": {
+                "baseline_method": "rubberband",
+                "normalization_method": "minmax",
+                "smooth_window": 7,
+                "peak_distance": 18.0,
+                "peak_fit_window_cm1": 35.0,
+            },
+            "ir_reference_bands": {
+                "polymer_name": "PA6",
+                "band_count": len(reference_bands),
+                "bands": reference_bands,
+            },
+        },
+    ).to_dict()
+
+    structure = evidence["feature_evidence"]["structure_evidence"]
+    summary = evidence["constraint_summary"]
+
+    assert structure["Xc_calibration_status"] == "uncalibrated_index"
+    assert structure["paper_conclusion_ready"] is False
+    assert "ir_xc_uncalibrated" in summary["triggered_names"]["soft_warn"]
+
+
 def test_ir_temperature_2d_analysis_evidence_surfaces_sequence_matrix_and_cos_contracts() -> None:
     from polynexus.core.ir_engine import IRConfig, analyze_temperature_2d_series, load_project, preprocess_pipeline
 

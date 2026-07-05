@@ -39,6 +39,7 @@ class IRResult:
     # Crystallinity
     Xc_pct: float = np.nan
     Xc_method: str = ""
+    Xc_calibration_status: str = "unavailable"
     Xc_band: str = ""
     Xc_ref_band: str = ""
     band_indices: Dict[str, float] = field(default_factory=dict)
@@ -68,6 +69,7 @@ class IRResult:
             'polymer': self.polymer_name,
             'polymer_score': self.polymer_score,
             'Xc_pct': self.Xc_pct, 'Xc_method': self.Xc_method,
+            'Xc_calibration_status': self.Xc_calibration_status,
             'Xc_band': self.Xc_band, 'Xc_ref_band': self.Xc_ref_band,
             'n_matches': len(self.matches),
             'r_squared': self.r_squared,
@@ -622,6 +624,7 @@ def analyze_spectrum(spectrum: IRSpectrum, config: IRConfig,
                 spectrum, cryst_band, ref_band)
             result.Xc_pct = ratio * 100.0  # raw ratio × 100
             result.Xc_method = 'band_ratio'
+            result.Xc_calibration_status = 'uncalibrated_index'
             result.Xc_band = config.crystallinity_band
             result.Xc_ref_band = config.crystallinity_ref_band
         except ValueError:
@@ -634,6 +637,7 @@ def analyze_spectrum(spectrum: IRSpectrum, config: IRConfig,
             first_key = next(iter(result.band_indices))
             result.Xc_pct = result.band_indices[first_key]
             result.Xc_method = f'{first_key}_uncalibrated'
+            result.Xc_calibration_status = 'uncalibrated_index'
             result.Xc_band = first_key
 
     # 5. Computational comparison

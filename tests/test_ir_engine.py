@@ -47,6 +47,7 @@ def test_common_ir_analysis_identifies_pa6_bands():
     assert result.polymer_name == "PA6"
     assert result.n_peaks >= 8
     assert np.isfinite(result.Xc_pct)
+    assert result.Xc_calibration_status == "uncalibrated_index"
     assert any(abs(p["wavenumber"] - 1637.0) < 12.0 for p in result.peaks)
     assert any(abs(p["wavenumber"] - 1541.0) < 12.0 for p in result.peaks)
     assert any("amide I" in p.get("assignment", "") for p in result.peaks)
