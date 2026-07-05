@@ -1,13 +1,13 @@
 """Tests for PolyNexus core engine."""
 
-import pytest
+import re
 from pathlib import Path
-from polynexus.core.engine import BaseEngine, register_technique, get_engine, list_techniques
+
+from polynexus.core.engine import BaseEngine, get_engine, list_techniques, register_technique
 
 
-# Register a test engine
 @register_technique("test_tech")
-class TestEngine(BaseEngine):
+class DummyEngine(BaseEngine):
     name = "test_tech"
     label = "Test"
 
@@ -26,8 +26,8 @@ def test_register_and_get():
 
 def test_list_techniques():
     techs = list_techniques()
-    names = [t['name'] for t in techs]
-    assert 'test_tech' in names
+    names = [t["name"] for t in techs]
+    assert "test_tech" in names
 
 
 def test_run_pipeline():
@@ -36,23 +36,38 @@ def test_run_pipeline():
     assert result.parameters == {"test": 42}
 
 
-def test_core_engine_wrappers_do_not_hide_logger_after_return():
-    root = Path(__file__).resolve().parents[1]
-    targets = [
-        root / "polynexus" / "core" / name
-        for name in ("dsc.py", "ir.py", "nmr.py", "waxs.py")
-    ]
+def test_no_unreachable_logger_after_return():
+    root = Path(__file__).resolve().parents[1] / "polynexus"
+    pattern = re.compile(r"return[^\n]*\n\s*logger\.(?:warning|error)\(", re.MULTILINE)
+    offenders = []
+    for path in list((root / "core").rglob("*.py")) + list((root / "gui").rglob("*.py")):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if pattern.search(text):
+            offenders.append(str(path.relative_to(root.parent)))
 
-    for path in targets:
-        text = path.read_text(encoding="utf-8")
-        assert "return False\n            logger.warning" not in text
+    assert offenders == []
 
 
-def test_public_engine_labels_do_not_contain_mojibake():
-    bad_tokens = ("閳", "棣", "鈥", "�")
+def test_public_text_and_logs_do_not_contain_mojibake():
+    bad_tokens = ("闈欓粯", "寮傚父", "鈥", "馃", "閳", "棣")
+
+    offenders = []
     for item in list_techniques():
+        name = item["name"]
+        engine_cls = get_engine(name)
         public_text = " ".join(
-            str(item.get(key, ""))
-            for key in ("name", "label", "description", "icon")
+            str(getattr(engine_cls, attr, ""))
+            for attr in ("label", "description", "icon")
         )
-        assert not any(token in public_text for token in bad_tokens)
+        if any(token in public_text for token in bad_tokens):
+            offenders.append(f"engine:{name}")
+
+    root = Path(__file__).resolve().parents[1] / "polynexus"
+    logger_pattern = re.compile(r"logger\.(?:warning|error)\((?P<message>[^)\n]+)")
+    for path in list((root / "core").rglob("*.py")) + list((root / "gui").rglob("*.py")):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for match in logger_pattern.finditer(text):
+            if any(token in match.group("message") for token in bad_tokens):
+                offenders.append(str(path.relative_to(root.parent)))
+
+    assert offenders == []

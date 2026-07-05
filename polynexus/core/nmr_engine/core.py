@@ -130,7 +130,6 @@ def _safe_float(value: Any, default: float = np.nan) -> float:
         return val if np.isfinite(val) else default
     except Exception:
         return default
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _robust_noise(intensity: np.ndarray) -> float:
@@ -432,7 +431,6 @@ def detect_peaks(ppm, intensity, height_frac=0.03, distance_ppm=1.0,
         widths = np.full(len(peak_idx), np.nan)
         left_ips = np.asarray(peak_idx, dtype=float)
         right_ips = np.asarray(peak_idx, dtype=float)
-        logger.warning("异常已处理", exc_info=True)
 
     fwhm_candidates = np.array([
         float(widths[i] * dx) if np.isfinite(widths[i]) else np.nan
@@ -557,7 +555,6 @@ def _fit_region_peaks(ppm, intensity, peaks, method='mixed',
                                    max_nfev=10000)
     except Exception:
         fit_result = None
-        logger.warning("异常已处理", exc_info=True)
 
     if fit_result is None:
         # fallback: use detected peaks as-is
@@ -723,7 +720,6 @@ def fit_t1_recovery(delays, intensities):
         return {'T1_s': float(abs(popt[1])), 'I0': float(popt[0]), 'r_squared': float(r2)}
     except Exception:
         return {'T1_s': np.nan, 'I0': np.nan, 'r_squared': np.nan}
-        logger.warning("异常已处理", exc_info=True)
 
 
 def fit_t2_decay(delays, intensities):
@@ -747,7 +743,6 @@ def fit_t2_decay(delays, intensities):
         return {'T2_s': float(abs(popt[1])), 'I0': float(popt[0]), 'r_squared': float(r2)}
     except Exception:
         return {'T2_s': np.nan, 'I0': np.nan, 'r_squared': np.nan}
-        logger.warning("异常已处理", exc_info=True)
 
 
 # ---------------------------------------------------------------------------

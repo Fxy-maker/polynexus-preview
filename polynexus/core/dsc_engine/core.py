@@ -432,7 +432,6 @@ def _find_thermal_events_physical(T: np.ndarray, HF: np.ndarray,
             )
         except Exception:
             return []
-            logger.warning("异常已处理", exc_info=True)
 
         out: List[Dict[str, Any]] = []
         try:

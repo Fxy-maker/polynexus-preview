@@ -273,7 +273,6 @@ def baseline_tangential(T: np.ndarray, HF: np.ndarray,
     except Exception:
         # Fallback to linear
         return baseline_linear(T, HF, peak_limits)
-        logger.warning("异常已处理", exc_info=True)
 
 
 def correct_baseline(T: np.ndarray, HF: np.ndarray,

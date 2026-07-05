@@ -4597,7 +4597,7 @@ class ParameterOrchestrator:
                     "name": name,
                     "config_field": rule.field_name,
                     "current_value": config.get(rule.field_name),
-                    "constraint": list(rule.constraint),
+                    "constraint": list(rule.constraint) if rule.constraint is not None else [],
                     "type": rule.value_type.__name__,
                     "goal_priority": goal_priority,
                     "goal_priority_reason": " | ".join(goal.get("reasons", [])),

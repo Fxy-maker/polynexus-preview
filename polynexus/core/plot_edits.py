@@ -163,7 +163,6 @@ def load_plot_edits(figure_path: str) -> Dict[str, Any]:
             data = json.load(f)
     except Exception:
         return {"version": 1, "files": {}}
-        logger.warning("异常已处理", exc_info=True)
     if not isinstance(data, dict):
         return {"version": 1, "files": {}}
     data.setdefault("version", 1)

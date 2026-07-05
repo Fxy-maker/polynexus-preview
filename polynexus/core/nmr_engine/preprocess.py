@@ -79,7 +79,6 @@ def phase_correct(ppm, intensity, zero_order_deg=0.0, first_order_deg=0.0):
         return rotated.real
     except Exception:
         return intensity
-        logger.warning("异常已处理", exc_info=True)
 
 
 def auto_phase(intensity, max_iterations=20):

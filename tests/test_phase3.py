@@ -135,10 +135,17 @@ def test_07_advisor_output_matches_expected_schema() -> None:
         advice = advisor.advise({"technique": "IR", "polymer_name": "PA6", "params": {"peak_wavenumbers": [1635]}})
         assert set(advice) == {
             "assessment",
+            "diagnosis",
             "confidence",
             "reasoning",
+            "hypothesis",
+            "target_symptom",
+            "recommended_actions",
             "changes",
+            "allowed_changes",
             "expected_improvement",
+            "expected_evidence_change",
+            "rollback_condition",
             "risk",
             "suggestions",
             "reference_cases",
@@ -147,7 +154,10 @@ def test_07_advisor_output_matches_expected_schema() -> None:
         }
         assert isinstance(advice["confidence"], float)
         assert isinstance(advice["changes"], dict)
+        assert isinstance(advice["allowed_changes"], dict)
         assert isinstance(advice["expected_improvement"], dict)
+        assert isinstance(advice["expected_evidence_change"], dict)
+        assert isinstance(advice["recommended_actions"], list)
         assert isinstance(advice["suggestions"], list)
         assert isinstance(advice["reference_cases"], list)
     finally:

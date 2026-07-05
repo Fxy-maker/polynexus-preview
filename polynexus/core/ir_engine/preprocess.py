@@ -145,7 +145,6 @@ def baseline_rubberband(wavenumber: np.ndarray, absorbance: np.ndarray,
         hull = ConvexHull(points)
     except Exception:
         return y, np.zeros_like(y)
-        logger.warning("异常已处理", exc_info=True)
 
     # Extract lower envelope
     hull_vertices = hull.vertices

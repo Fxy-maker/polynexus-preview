@@ -558,7 +558,7 @@ class ChartEditor(QWidget):
             try:
                 self._dpi = int(style["dpi"])
             except Exception:
-                logger.warning("闈欓粯寮傚父", exc_info=True)
+                logger.warning("Invalid chart style DPI value.", exc_info=True)
         self._render()
 
     def _current_style_preset_name(self):

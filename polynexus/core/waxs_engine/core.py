@@ -255,7 +255,6 @@ def fit_peaks(two_theta: np.ndarray, I: np.ndarray,
         popt = res.x
     except Exception:
         popt = p0
-        logger.warning("异常已处理", exc_info=True)
 
     # Extract fitted peaks
     fitted_peaks = []
@@ -1238,7 +1237,6 @@ def _refit_low_r2_v2(tth, I_corrected, result, config):
         return new_result
     except Exception:
         return None
-        logger.warning("异常已处理", exc_info=True)
 
 
 # Backwards-compatible alias

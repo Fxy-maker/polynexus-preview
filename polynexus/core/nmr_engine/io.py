@@ -194,7 +194,6 @@ def _load_csv(filepath: str, sample_state: Optional[str] = None,
         data = load_table(filepath)[1]
     except Exception:
         return NMRSpectrum(label=label, nucleus=nuc, metadata={"error": "table_load_failed"})
-        logger.warning("异常已处理", exc_info=True)
 
     if data.ndim == 1:
         data = data.reshape(-1, 1)
@@ -436,7 +435,6 @@ def _read_jeol_record_value(blob: bytes, label: str) -> Optional[Any]:
             return text or None
         except Exception:
             return None
-            logger.warning("异常已处理", exc_info=True)
 
     return None
 

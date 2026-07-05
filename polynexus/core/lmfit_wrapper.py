@@ -127,7 +127,6 @@ def fit_multi_peak(
     except Exception as e:
         logger.warning("lmfit 峰拟合失败，返回初始猜测值: %s", e, exc_info=True)
         return result
-        logger.warning("异常已处理", exc_info=True)
 
     result["r_squared"] = (1.0 - fit_result.residual.var() / y_fit.var()
                            if y_fit.var() > 0 else np.nan)
@@ -193,7 +192,6 @@ def fit_linear(x: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
         return dict(slope=np.nan, intercept=np.nan,
                     slope_stderr=0.0, intercept_stderr=0.0,
                     r_squared=np.nan)
-        logger.warning("异常已处理", exc_info=True)
 
 
 def fit_avrami(t: np.ndarray, Xc: np.ndarray) -> Dict[str, Any]:
@@ -438,7 +436,6 @@ def fit_waxs_profile(
                                         method="nelder", max_nfev=8000)
         except Exception:
             return result
-        logger.warning("异常已处理", exc_info=True)
 
     # ---- Extract results ----
     y_fit = fit_result.best_fit

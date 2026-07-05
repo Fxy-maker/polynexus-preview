@@ -789,7 +789,6 @@ def generate_all_figures(results: List[DSCResult],
             import sys as _sys
             _sys.stderr.write(f"DSC figure {fn.__name__} failed: {exc}\n")
             return ""
-            logger.warning("异常已处理", exc_info=True)
 
     # ── Per-scan figures → SI/ ──────────────────────────────────────────
     for result in results:

@@ -147,7 +147,6 @@ def _load_csv(filepath: str,
         cols, data = load_table(filepath)
     except Exception:
         return IRSpectrum(label=label)
-        logger.warning("异常已处理", exc_info=True)
 
     if data.shape[1] < 2:
         return IRSpectrum(label=label)
@@ -252,7 +251,6 @@ def _load_spa(filepath: str,
         )
     except Exception:
         return IRSpectrum(label=label, metadata={'error': 'spa_load_failed'})
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _parse_thermo_spa_binary(raw: bytes

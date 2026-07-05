@@ -6800,12 +6800,16 @@ class MainWindow(QMainWindow):
                 return tr("RESULTS_SUMMARY_RISK_DSC_LIMITED")
 
         if isinstance(params, dict):
+            condition_source = ""
+            condition_confidence = None
+            condition_missing_frames = None
+            condition_continuity_score = None
+            batch_frames = 0
             if technique == "saxs":
                 condition_source = str(params.get("condition_source") or "").strip()
                 condition_confidence = self._coerce_summary_float(params.get("condition_confidence"))
                 condition_missing_frames = params.get("condition_missing_frames")
                 condition_continuity_score = self._coerce_summary_float(params.get("condition_continuity_score"))
-                batch_frames = 0
                 try:
                     batch_frames = int(params.get("batch_frames", 0) or 0)
                 except Exception:
@@ -13027,40 +13031,47 @@ class MainWindow(QMainWindow):
             for key, value in self._flatten_params(record_params):
                 if key not in candidate:
                     candidate[key] = value
+        excluded_summary_keys = {
+            "result",
+            "data_file",
+            "project_label",
+            "status",
+            "polymer_type",
+            "technique",
+            "submodule",
+            "confirmed",
+            "validation_passed",
+            "validation_summary",
+            "validation_warnings",
+            "quality_flags",
+            "result_origin",
+            "ai_tuned",
+            "history_context",
+            "review_summary",
+            "work_memory_summary",
+            "comparison_summary",
+            "benchmark_summary",
+            "benchmark_text",
+            "tuning_context",
+            "tuning_goal",
+            "tuning_goal_label",
+            "stop_reason",
+            "remaining_risks",
+            "next_goal",
+            "joint_ai_context",
+            "joint_summary",
+        }
+        for key, value in summary.items():
+            if key in excluded_summary_keys or key in candidate:
+                continue
+            if isinstance(value, (dict, list, tuple, set)):
+                continue
+            candidate[key] = value
         if not candidate:
             candidate = {
                 key: value
                 for key, value in summary.items()
-                if key not in {
-                    "result",
-                    "data_file",
-                    "project_label",
-                    "status",
-                    "polymer_type",
-                    "technique",
-                    "submodule",
-                    "confirmed",
-                    "validation_passed",
-                    "validation_summary",
-                    "validation_warnings",
-                    "quality_flags",
-                    "result_origin",
-                    "ai_tuned",
-                    "history_context",
-                    "review_summary",
-                    "work_memory_summary",
-                    "comparison_summary",
-                    "benchmark_summary",
-                    "benchmark_text",
-                    "tuning_context",
-                    "tuning_goal",
-                    "tuning_goal_label",
-                    "stop_reason",
-                    "remaining_risks",
-                    "next_goal",
-                    "joint_ai_context",
-                    "joint_summary",
-                }
+                if key not in excluded_summary_keys
             }
         if isinstance(evidence, dict) and evidence and str(record.get("technique") or "").strip().lower() == "waxs":
             for key in (
@@ -13798,7 +13809,6 @@ class MainWindow(QMainWindow):
 
         if not loaded_any:
             return
-
 
 
 

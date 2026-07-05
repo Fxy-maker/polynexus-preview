@@ -216,7 +216,6 @@ def _json_loads(value: Any, default: Any) -> Any:
         return json.loads(str(value))
     except Exception:
         return default
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _safe_float(value: Any) -> float | None:
@@ -263,7 +262,6 @@ def _load_report(path: str) -> dict[str, Any]:
         return json.loads(report_path.read_text(encoding="utf-8"))
     except Exception:
         return {}
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _extract_residuals(report: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
@@ -426,7 +424,6 @@ def _fmt(value: Any) -> str:
         return f"{float(value):.4f}"
     except Exception:
         return str(value)
-        logger.warning("异常已处理", exc_info=True)
 
 
 class ConvergenceViewer(QMainWindow):

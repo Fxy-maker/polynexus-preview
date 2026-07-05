@@ -147,7 +147,6 @@ def _smooth_signal(y: np.ndarray, max_window: int = 41) -> np.ndarray:
         return signal.savgol_filter(y, window, min(3, window - 2), mode='interp')
     except Exception:
         return y
-        logger.warning("异常已处理", exc_info=True)
 
 
 def detect_isothermal_segments(scan: DSCScan,

@@ -512,7 +512,6 @@ def _estimate_xc_from_2d_sum(scan, config):
         )
     except Exception:
         return np.nan
-        logger.warning("异常已处理", exc_info=True)
 
     components = fit_result.get('components', [])
     crystals = [c for c in components if c.get('is_crystal', True)]
