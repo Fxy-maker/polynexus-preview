@@ -53,6 +53,37 @@ def test_nmr_submodule_registry_has_liquid_and_solid_h_c_partitions():
     assert ids == ["nmr.liquid_h", "nmr.liquid_c", "nmr.solid_h", "nmr.solid_c"]
 
 
+def test_nmr_result_parameters_include_phase_and_match_evidence() -> None:
+    from polynexus.core.nmr_engine.core import NMRResult
+
+    result = NMRResult(nucleus="13C", sample_state="solid")
+    result.peaks = [
+        {
+            "ppm": 172.0,
+            "assignment": "C=O (c)",
+            "phase": "c",
+            "delta_ppm": 0.4,
+            "snr": 12.0,
+            "possible_solvent": "",
+        },
+        {
+            "ppm": 170.5,
+            "assignment": "C=O (a)",
+            "phase": "a",
+            "delta_ppm": 0.7,
+            "snr": 9.0,
+            "possible_solvent": "",
+        },
+    ]
+    result.n_peaks = 2
+
+    params = result.parameters
+
+    assert params["peak_0_phase"] == "c"
+    assert params["peak_1_phase"] == "a"
+    assert params["peak_0_delta_ppm"] == 0.4
+
+
 def test_liquid_h_pipeline_detects_peaks_from_real_fid():
     cfg = NMRConfig(
         sample_state="liquid",

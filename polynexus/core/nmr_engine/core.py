@@ -81,6 +81,8 @@ class NMRResult:
         for i, pk in enumerate(self.peaks[:10]):
             p[f'peak_{i}_ppm'] = pk.get('ppm', np.nan)
             p[f'peak_{i}_assignment'] = pk.get('assignment', '')
+            p[f'peak_{i}_phase'] = pk.get('phase', '')
+            p[f'peak_{i}_delta_ppm'] = pk.get('delta_ppm', np.nan)
             p[f'peak_{i}_fwhm_ppm'] = pk.get('fwhm_ppm', np.nan)
             p[f'peak_{i}_area'] = pk.get('area', np.nan)
             p[f'peak_{i}_integral_norm'] = pk.get('integral_norm', np.nan)
