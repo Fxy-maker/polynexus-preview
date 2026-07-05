@@ -426,6 +426,24 @@ def _joint_technique_issue_rows(summary_rows: list[dict[str, Any]]) -> list[dict
     return issues
 
 
+def _joint_weak_xc_sources(summary_rows: list[dict[str, Any]]) -> tuple[dict[str, str], list[str]]:
+    weak_xc_sources: dict[str, str] = {}
+    recommended_review_targets: list[str] = []
+    for row in summary_rows:
+        technique_confidence = row.get("technique_confidence", {})
+        if not isinstance(technique_confidence, dict):
+            continue
+        nmr_confidence = technique_confidence.get("nmr", {})
+        if not isinstance(nmr_confidence, dict):
+            continue
+        assignment_status = str(nmr_confidence.get("Xc_assignment_status") or "").strip()
+        if assignment_status and assignment_status != "supported":
+            weak_xc_sources["nmr"] = assignment_status
+            if "nmr" not in recommended_review_targets:
+                recommended_review_targets.append("nmr")
+    return weak_xc_sources, recommended_review_targets
+
+
 def _build_joint_ai_context(
     summary_rows: list[dict[str, Any]],
     validation_rows: list[dict[str, Any]],
@@ -435,6 +453,7 @@ def _build_joint_ai_context(
         if str(item.get("severity") or "").strip().upper() in {"WARN", "ERROR"}
     ]
     technique_issue_rows = _joint_technique_issue_rows(summary_rows)
+    weak_xc_sources, recommended_review_targets = _joint_weak_xc_sources(summary_rows)
     sample_names: list[str] = []
     batch_labels: list[str] = []
     for row in summary_rows:
@@ -462,6 +481,8 @@ def _build_joint_ai_context(
             "error_count": 0,
             "issue_families": [],
             "highlights": [],
+            "weak_xc_sources": weak_xc_sources,
+            "recommended_review_targets": recommended_review_targets,
             "samples": sample_names[:3],
             "batches": batch_labels[:3],
             "row_count": len(summary_rows),
@@ -538,6 +559,8 @@ def _build_joint_ai_context(
         "error_count": error_count,
         "issue_families": issue_families,
         "highlights": highlights,
+        "weak_xc_sources": weak_xc_sources,
+        "recommended_review_targets": recommended_review_targets,
         "samples": sample_names[:3],
         "batches": batch_labels[:3],
         "row_count": len(summary_rows),

@@ -121,3 +121,28 @@ def test_joint_hub_report_surfaces_technique_evidence_status(tmp_path):
     assert row["technique_confidence"]["nmr"]["status"] == "soft_warn"
     assert row["paper_conclusion_ready_by_technique"]["nmr"] is False
     assert "NMR assignment limited" in context["issue_families"]
+
+
+def test_joint_context_downgrades_assignment_limited_nmr_xc(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "annealed")
+    db.create_analysis_run(batch_id, "dsc", results_summary={"Xc_pct": 42.0})
+    db.create_analysis_run(
+        batch_id,
+        "nmr",
+        results_summary={
+            "Xc_pct": 80.0,
+            "Xc_method": "requires_crystalline_amorphous_assignment",
+            "analysis_evidence": {
+                "constraint_summary": {"status": "soft_warn"},
+                "structure_evidence": {"Xc_assignment_status": "assignment_limited"},
+            },
+        },
+    )
+
+    report = build_joint_hub_report(collect_joint_dataset(db))
+
+    assert report["ai_context"]["weak_xc_sources"]["nmr"] == "assignment_limited"
+    assert "NMR assignment limited" in report["ai_context"]["issue_families"]
+    assert "nmr" in report["ai_context"]["recommended_review_targets"]
