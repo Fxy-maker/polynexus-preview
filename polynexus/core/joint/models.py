@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import numpy as np
+from scipy.optimize import least_squares
 
 
 @dataclass
@@ -97,7 +98,47 @@ class JointModel:
                 message="No parameters defined",
             )
 
-        params = self._clip_to_bounds(self._initial_vector())
+        names = list(self._parameters.keys())
+        x0 = np.asarray([self._parameters[name][0] for name in names], dtype=float)
+        lower: list[float] = []
+        upper: list[float] = []
+        for name in names:
+            _, bounds = self._parameters[name]
+            lo, hi = bounds if bounds else (None, None)
+            lower.append(-np.inf if lo is None else float(lo))
+            upper.append(np.inf if hi is None else float(hi))
+
+        def residual_vector(x: np.ndarray) -> np.ndarray:
+            params = self._clip_to_bounds({name: float(value) for name, value in zip(names, x)})
+            values: list[float] = []
+            for obs_name, (obs_value, sigma) in self._observations.items():
+                if obs_name in params:
+                    values.append((params[obs_name] - obs_value) / max(float(sigma), 1e-9))
+            for fn, weight, hard in self._constraints:
+                try:
+                    penalty = float(fn(params))
+                except Exception:
+                    penalty = np.inf
+                scale = 1000.0 if hard and penalty > 0 else max(float(weight), 1e-9) ** 0.5
+                values.append(scale * penalty)
+            return np.asarray(values, dtype=float)
+
+        try:
+            opt = least_squares(
+                residual_vector,
+                x0,
+                bounds=(np.asarray(lower, dtype=float), np.asarray(upper, dtype=float)),
+            )
+            params = self._clip_to_bounds({name: float(value) for name, value in zip(names, opt.x)})
+            details = {"nfev": int(opt.nfev), "cost": float(opt.cost)}
+            success = bool(opt.success)
+            message = str(opt.message)
+        except Exception as exc:
+            params = self._clip_to_bounds(self._initial_vector())
+            details = {"error": str(exc)}
+            success = False
+            message = f"Optimization failed: {exc}"
+
         objective, residuals = self._objective(params)
         if not np.isfinite(objective):
             return JointSolveResult(
@@ -112,14 +153,15 @@ class JointModel:
             )
 
         return JointSolveResult(
-            success=True,
+            success=success,
             method=method,
             parameters=params,
             residuals=residuals,
             objective=float(objective),
             n_observations=len(self._observations),
             n_constraints=len(self._constraints),
-            message="Solved with initial parameter vector",
+            message=message,
+            details=details,
         )
 
 

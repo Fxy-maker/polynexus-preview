@@ -1,3 +1,5 @@
+import pytest
+
 from polynexus.core.joint.coordinator import JointCoordinator
 from polynexus.core.joint.matchers import MultiTechniqueTimeline
 from polynexus.data.sample_db import SampleDB
@@ -31,8 +33,26 @@ def test_joint_coordinator_joint_fit_returns_minimal_result():
     assert result["name"] == "joint_fit"
     assert result["model"] == "lamellar"
     assert result["success"] is True
-    assert result["parameters"]["Tm_DSC_C"] == 220.0
+    assert result["parameters"]["Tm_DSC_C"] == pytest.approx(221.0)
+    assert result["parameters"]["L_nm"] == pytest.approx(12.4)
+    assert result["parameters"]["Xc_pct"] == pytest.approx(41.5)
     assert result["n_observations"] == 3
+
+
+def test_joint_model_moves_parameters_toward_observations():
+    from polynexus.core.joint.models import LamellarJointModel
+
+    model = LamellarJointModel()
+    model.add_observation("Tm_DSC_C", 240.0, 1.0)
+    model.add_observation("L_nm", 18.0, 0.5)
+    model.add_observation("Xc_pct", 35.0, 2.0)
+    result = model.solve()
+
+    assert result.success is True
+    assert abs(result.parameters["Tm_DSC_C"] - 240.0) < 0.5
+    assert abs(result.parameters["L_nm"] - 18.0) < 0.5
+    assert abs(result.parameters["Xc_pct"] - 35.0) < 1.0
+    assert result.message != "Solved with initial parameter vector"
 
 
 def test_joint_coordinator_timeline_collects_rows(tmp_path):
