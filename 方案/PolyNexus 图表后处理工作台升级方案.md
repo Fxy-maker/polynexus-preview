@@ -271,7 +271,7 @@ Expected:
 FAILED tests/test_figure_assets.py::test_figure_asset_spec_prefers_svg_master_and_png_preview
 ```
 
-- [ ] **Step 2: 实现最小规格模块**
+- [x] **Step 2: 实现最小规格模块**
 
 实现建议：
 - 定义 `FigureAssetSpec` dataclass。
@@ -280,7 +280,7 @@ FAILED tests/test_figure_assets.py::test_figure_asset_spec_prefers_svg_master_an
 - 定义 `sidecar_key_for_path(path: str, output_root: str | None = None) -> str`。
 - 定义格式优先级：master 为 `svg > pdf > png > jpg`，preview 为 `png > jpg > svg > pdf`，publication 为 `pdf > svg > png`。
 
-- [ ] **Step 3: 运行测试确认通过**
+- [x] **Step 3: 运行测试确认通过**
 
 Run:
 
@@ -300,7 +300,7 @@ all tests passed
 - Create: `polynexus/gui/figure_annotations.py`
 - Create: `tests/test_figure_annotations.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 测试内容：
 - `FigureAnnotationState` 能 round-trip。
@@ -319,7 +319,7 @@ Expected:
 FAILED tests/test_figure_annotations.py::test_annotation_state_round_trip
 ```
 
-- [ ] **Step 2: 实现最小数据模型**
+- [x] **Step 2: 实现最小数据模型**
 
 实现建议：
 - 用 dataclass 表达 `AnnotationState`。
@@ -328,7 +328,7 @@ FAILED tests/test_figure_annotations.py::test_annotation_state_round_trip
 - 提供 `load_annotations_from_entry(entry: dict) -> list[dict]`。
 - 提供 `save_annotations_to_entry(entry: dict, annotations: list[dict]) -> dict`。
 
-- [ ] **Step 3: 运行测试确认通过**
+- [x] **Step 3: 运行测试确认通过**
 
 Run:
 
@@ -348,7 +348,7 @@ Expected:
 - Modify: `polynexus/core/plot_edits.py`
 - Test: `tests/test_plot_edits.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 测试内容：
 - `save_figure_edit()` 可以保存 style + annotations。
@@ -368,7 +368,7 @@ Expected:
 FAILED tests/test_plot_edits.py::test_plot_edits_persist_annotations
 ```
 
-- [ ] **Step 2: 增加 API**
+- [x] **Step 2: 增加 API**
 
 新增函数：
 
@@ -391,7 +391,7 @@ def save_figure_asset_spec(figure_path: str, asset_spec: dict) -> tuple[Path, st
 - 保留已有 asset spec，不因保存 style 被清空。
 - 写入 `version=2`。
 
-- [ ] **Step 3: 回归旧测试**
+- [x] **Step 3: 回归旧测试**
 
 Run:
 
@@ -411,7 +411,7 @@ all tests passed
 - Create: `polynexus/gui/widgets/annotation_canvas.py`
 - Create: `tests/test_annotation_canvas.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 测试内容：
 - 加载 80x40 PNG 后画布有底图。
@@ -431,7 +431,7 @@ Expected:
 FAILED tests/test_annotation_canvas.py::test_annotation_canvas_renders_text_overlay
 ```
 
-- [ ] **Step 2: 实现最小画布**
+- [x] **Step 2: 实现最小画布**
 
 实现范围：
 - `AnnotationCanvas(QWidget)` 内部使用 `QGraphicsView` + `QGraphicsScene`。
@@ -442,7 +442,7 @@ FAILED tests/test_annotation_canvas.py::test_annotation_canvas_renders_text_over
 
 暂不实现完整工具栏，只保证 API 可用。
 
-- [ ] **Step 3: 运行测试确认通过**
+- [x] **Step 3: 运行测试确认通过**
 
 Run:
 
@@ -463,7 +463,7 @@ Expected:
 - Modify: `polynexus/core/figure_assets.py`
 - Test: `tests/test_chart_editor.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 测试内容：
 - `set_source_figure()` 后静态模式使用 annotation canvas。
@@ -483,7 +483,7 @@ Expected:
 FAILED tests/test_chart_editor.py::test_chart_editor_static_annotation_save_updates_file_and_sidecar
 ```
 
-- [ ] **Step 2: 接入画布**
+- [x] **Step 2: 接入画布**
 
 实现要求：
 - 静态模式隐藏 Matplotlib toolbar。
@@ -493,14 +493,14 @@ FAILED tests/test_chart_editor.py::test_chart_editor_static_annotation_save_upda
 - 新增内部方法 `_save_static_canvas_to_path(path: Path) -> bool`。
 - 保存成功后 emit `figure_saved`。
 
-- [ ] **Step 3: 保留旧行为兼容**
+- [x] **Step 3: 保留旧行为兼容**
 
 兼容要求：
 - 有 `_fig_generator` 时仍走现有 Matplotlib 保存。
 - 静态文件加载失败时仍回退到当前 `_show_placeholder_style_preview()`。
 - SVG/PDF 首屏预览继续通过现有 `FigureFilePreview._load_pixmap()` 渲染。
 
-- [ ] **Step 4: 运行相关测试**
+- [x] **Step 4: 运行相关测试**
 
 Run:
 
@@ -522,7 +522,7 @@ all tests passed
 - Modify: `polynexus/gui/i18n.py`
 - Test: `tests/test_annotation_canvas.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 测试内容：
 - 添加矩形 annotation 后可序列化。
@@ -541,7 +541,7 @@ Expected:
 FAILED tests/test_annotation_canvas.py::test_annotation_canvas_undo_redo_annotation_changes
 ```
 
-- [ ] **Step 2: 增加工具状态**
+- [x] **Step 2: 增加工具状态**
 
 工具集合：
 - Select
@@ -557,7 +557,7 @@ UI 要求：
 - 删除可用 `Delete` 快捷键。
 - 撤销 `Ctrl+Z`，重做 `Ctrl+Y`。
 
-- [ ] **Step 3: 增加对象属性**
+- [x] **Step 3: 增加对象属性**
 
 每个对象至少支持：
 - 位置
@@ -567,7 +567,7 @@ UI 要求：
 
 第一版不做复杂右侧属性面板，选中对象后可以通过默认属性创建，后续再补属性编辑。
 
-- [ ] **Step 4: 运行 UI 相关回归**
+- [x] **Step 4: 运行 UI 相关回归**
 
 Run:
 
@@ -587,7 +587,7 @@ all tests passed
 - Modify: `polynexus/gui/widgets/chart_editor.py`
 - Test: `tests/test_chart_editor.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 测试内容：
 - 另存为新路径时原文件字节不变。
@@ -637,7 +637,7 @@ all tests passed
 - Modify: `polynexus/gui/widgets/chart_editor.py`
 - Test: `tests/test_chart_editor.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 测试内容：
 - `retranslate()` 会更新新增工具按钮文本。
@@ -655,7 +655,7 @@ Expected:
 FAILED tests/test_chart_editor.py::test_chart_editor_retranslate_updates_annotation_tools
 ```
 
-- [ ] **Step 2: 调整文案**
+- [x] **Step 2: 调整文案**
 
 中文建议：
 - “选择”
@@ -683,7 +683,7 @@ FAILED tests/test_chart_editor.py::test_chart_editor_retranslate_updates_annotat
 - “Save As”
 - “Saved to current figure and wrote edit state.”
 
-- [ ] **Step 3: 回归 i18n 测试**
+- [x] **Step 3: 回归 i18n 测试**
 
 Run:
 

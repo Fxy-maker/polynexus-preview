@@ -159,7 +159,7 @@
 - Test: `tests/test_sample_db.py`
 - Test: `tests/test_main_window_persistence.py`
 
-- [ ] **Step 1: 写 SampleDB 失败测试**
+- [x] **Step 1: 写 SampleDB 失败测试**
 
 在 `tests/test_sample_db.py` 增加：
 
@@ -192,13 +192,13 @@ def test_analysis_run_persists_analysis_evidence(tmp_path):
     assert saved["analysis_evidence"] == evidence
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_sample_db.py::test_analysis_run_persists_analysis_evidence -v`
 
 Expected: FAIL，报错包含 `unexpected keyword argument 'analysis_evidence'` 或返回 run 中没有 `analysis_evidence`。
 
-- [ ] **Step 3: 扩展 DB schema 与反序列化**
+- [x] **Step 3: 扩展 DB schema 与反序列化**
 
 在 `polynexus/data/sample_db.py` 中给 `analysis_runs` 增加字段，并在初始化后执行迁移：
 
@@ -256,7 +256,7 @@ for col in ("parameters", "results_summary", "analysis_evidence", "plot_edits"):
         item[col] = json.loads(item[col]) if item[col] else {}
 ```
 
-- [ ] **Step 4: GUI 持久化 evidence**
+- [x] **Step 4: GUI 持久化 evidence**
 
 在 `polynexus/gui/main_window.py` 的 `_persist_analysis_run()` 中，找到 `db.create_analysis_run(...)` 调用，加入：
 
@@ -270,7 +270,7 @@ analysis_evidence=self._result_to_jsonable(
 
 如果当前函数里已经有 `summary` 和 `current` 变量，优先用 `current["analysis_evidence"]`；否则从 `result.analysis_evidence` 读取。
 
-- [ ] **Step 5: CLI / batch 持久化 evidence**
+- [x] **Step 5: CLI / batch 持久化 evidence**
 
 在 `polynexus/__main__.py` 的 `_persist_batch_run()` 和 `_persist_ai_tune_run()` 中传入：
 
@@ -288,7 +288,7 @@ AI tune report 中如果 evidence 在 best round 内，使用：
 analysis_evidence=report.get("best_record", {}).get("analysis_evidence", {})
 ```
 
-- [ ] **Step 6: 运行持久化相关测试**
+- [x] **Step 6: 运行持久化相关测试**
 
 Run:
 
@@ -298,7 +298,7 @@ pytest tests/test_sample_db.py tests/test_main_window_persistence.py -q
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add polynexus/data/sample_db.py polynexus/gui/main_window.py polynexus/__main__.py tests/test_sample_db.py tests/test_main_window_persistence.py
@@ -314,7 +314,7 @@ git commit -m "feat: persist analysis evidence with runs"
 - Modify: `polynexus/core/joint/validation.py`
 - Test: `tests/test_joint_hub_dataset.py`
 
-- [ ] **Step 1: 写 Joint evidence 失败测试**
+- [x] **Step 1: 写 Joint evidence 失败测试**
 
 在 `tests/test_joint_hub_dataset.py` 增加：
 
@@ -345,13 +345,13 @@ def test_joint_hub_downgrades_assignment_limited_nmr_xc(tmp_path):
     assert any("assignment-limited" in item for item in context["highlights"])
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_joint_hub_dataset.py::test_joint_hub_downgrades_assignment_limited_nmr_xc -v`
 
 Expected: FAIL，`issue_families` 没有 `NMR assignment limited`。
 
-- [ ] **Step 3: 扩展 JointRunRecord**
+- [x] **Step 3: 扩展 JointRunRecord**
 
 在 `polynexus/core/joint/dataset.py` 中扩展 dataclass：
 
@@ -374,7 +374,7 @@ class JointRunRecord:
 analysis_evidence=run.get("analysis_evidence", {}) or {},
 ```
 
-- [ ] **Step 4: 增加 Joint confidence context helper**
+- [x] **Step 4: 增加 Joint confidence context helper**
 
 在 `polynexus/core/joint/dataset.py` 中增加：
 
@@ -403,7 +403,7 @@ def _run_evidence_context(run: JointRunRecord | None) -> dict[str, Any]:
     return {"status": status or "ok", "weight": weight, "reasons": reasons}
 ```
 
-- [ ] **Step 5: 扩展 issue family 与 highlights**
+- [x] **Step 5: 扩展 issue family 与 highlights**
 
 在 `_joint_issue_family()` 中加入：
 
@@ -444,7 +444,7 @@ for tech in TECHNIQUES:
         })
 ```
 
-- [ ] **Step 6: 运行 Joint tests**
+- [x] **Step 6: 运行 Joint tests**
 
 Run:
 
@@ -454,7 +454,7 @@ pytest tests/test_joint_hub_dataset.py tests/test_joint_coordinator.py -q
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add polynexus/core/joint/dataset.py polynexus/core/joint/validation.py tests/test_joint_hub_dataset.py
@@ -469,7 +469,7 @@ git commit -m "feat: add evidence-aware joint context"
 - Modify: `polynexus/core/joint/models.py`
 - Test: `tests/test_joint_coordinator.py`
 
-- [ ] **Step 1: 写优化行为失败测试**
+- [x] **Step 1: 写优化行为失败测试**
 
 在 `tests/test_joint_coordinator.py` 增加：
 
@@ -490,13 +490,13 @@ def test_joint_model_moves_parameters_toward_observations():
     assert result.message != "Solved with initial parameter vector"
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_joint_coordinator.py::test_joint_model_moves_parameters_toward_observations -v`
 
 Expected: FAIL，参数仍是初始值。
 
-- [ ] **Step 3: 实现 least-squares solve**
+- [x] **Step 3: 实现 least-squares solve**
 
 在 `polynexus/core/joint/models.py` 中引入：
 
@@ -545,13 +545,13 @@ return JointSolveResult(
 )
 ```
 
-- [ ] **Step 4: 运行 Joint model tests**
+- [x] **Step 4: 运行 Joint model tests**
 
 Run: `pytest tests/test_joint_coordinator.py::test_joint_model_moves_parameters_toward_observations -v`
 
 Expected: PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add polynexus/core/joint/models.py tests/test_joint_coordinator.py
@@ -569,7 +569,7 @@ git commit -m "feat: optimize joint model parameters"
 - Test: `tests/test_nmr_engine.py`
 - Test: `tests/test_analysis_evidence.py`
 
-- [ ] **Step 1: 写 NMR evidence 失败测试**
+- [x] **Step 1: 写 NMR evidence 失败测试**
 
 在 `tests/test_analysis_evidence.py` 增加：
 
@@ -602,13 +602,13 @@ def test_nmr_evidence_marks_assignment_limited_xc_not_ready():
     assert "nmr_xc_assignment_limited" in evidence["constraint_summary"]["triggered_names"]["soft_warn"]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_analysis_evidence.py::test_nmr_evidence_marks_assignment_limited_xc_not_ready -v`
 
 Expected: FAIL，缺少 `Xc_assignment_status` 或约束名。
 
-- [ ] **Step 3: NMR core 输出 assignment 统计**
+- [x] **Step 3: NMR core 输出 assignment 统计**
 
 在 `NMRResult.parameters` 增加：
 
@@ -623,7 +623,7 @@ p["phase_assignment_count"] = len(assigned)
 p["assignment_source"] = "polymer_db" if assigned else "generic_region"
 ```
 
-- [ ] **Step 4: NMR constraints 增加门控项**
+- [x] **Step 4: NMR constraints 增加门控项**
 
 在 `analysis_evidence.py` 的 NMR inventory 加入：
 
@@ -648,7 +648,7 @@ triggered = (
 )
 ```
 
-- [ ] **Step 5: NMR structure_evidence 输出**
+- [x] **Step 5: NMR structure_evidence 输出**
 
 在 `build_analysis_evidence()` 的 NMR 分支填充：
 
@@ -668,7 +668,7 @@ structure_evidence = {
 }
 ```
 
-- [ ] **Step 6: 运行 NMR tests**
+- [x] **Step 6: 运行 NMR tests**
 
 Run:
 
@@ -678,7 +678,7 @@ pytest tests/test_nmr_engine.py tests/test_analysis_evidence.py -q
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add polynexus/core/nmr_engine/core.py polynexus/core/nmr.py polynexus/core/analysis_evidence.py tests/test_nmr_engine.py tests/test_analysis_evidence.py
@@ -696,7 +696,7 @@ git commit -m "feat: gate nmr crystallinity evidence"
 - Test: `tests/test_ir_engine.py`
 - Test: `tests/test_analysis_evidence.py`
 
-- [ ] **Step 1: 写 IR calibration 失败测试**
+- [x] **Step 1: 写 IR calibration 失败测试**
 
 在 `tests/test_analysis_evidence.py` 增加：
 
@@ -725,13 +725,13 @@ def test_ir_uncalibrated_band_index_is_not_paper_ready_xc():
     assert "ir_xc_uncalibrated" in evidence["constraint_summary"]["triggered_names"]["soft_warn"]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_analysis_evidence.py::test_ir_uncalibrated_band_index_is_not_paper_ready_xc -v`
 
 Expected: FAIL，缺少 `Xc_calibration_status` 或约束名。
 
-- [ ] **Step 3: IR core 区分 hint 和谱图 assignment**
+- [x] **Step 3: IR core 区分 hint 和谱图 assignment**
 
 在 `polynexus/core/ir_engine/core.py` 中，当用户传入 `polymer_hint` 时不要把 `polymer_score` 设成 1.0；改为：
 
@@ -747,7 +747,7 @@ elif polymer_hint:
 "polymer_hint_source": getattr(self, "polymer_hint_source", ""),
 ```
 
-- [ ] **Step 4: IR Xc 输出 calibration status**
+- [x] **Step 4: IR Xc 输出 calibration status**
 
 在 band index 赋值处加入：
 
@@ -768,7 +768,7 @@ result.Xc_calibration_status = "calibrated"
 result.Xc_calibration_status = "unavailable"
 ```
 
-- [ ] **Step 5: analysis_evidence 增加 IR 门控**
+- [x] **Step 5: analysis_evidence 增加 IR 门控**
 
 在 IR constraints 中加入：
 
@@ -790,7 +790,7 @@ EvidenceConstraint(
 triggered = str(output.get("Xc_calibration_status") or "").strip() == "uncalibrated_index"
 ```
 
-- [ ] **Step 6: 运行 IR tests**
+- [x] **Step 6: 运行 IR tests**
 
 Run:
 
@@ -800,7 +800,7 @@ pytest tests/test_ir_engine.py tests/test_analysis_evidence.py -q
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add polynexus/core/ir_engine/core.py polynexus/core/ir.py polynexus/core/analysis_evidence.py tests/test_ir_engine.py tests/test_analysis_evidence.py
@@ -820,7 +820,7 @@ git commit -m "feat: mark uncalibrated ir crystallinity"
 - Test: `tests/test_saxs_scoring.py`
 - Test: `tests/test_analysis_evidence.py`
 
-- [ ] **Step 1: 写单帧 SAXS reliability 失败测试**
+- [x] **Step 1: 写单帧 SAXS reliability 失败测试**
 
 在 `tests/test_saxs_batch_parameters.py` 增加：
 
@@ -841,13 +841,13 @@ def test_static_saxs_exports_diagnostic_only_lc_for_single_fragile_method():
     assert "low_lc_confidence" in summary["dominant_lc_reliability_reason"]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_saxs_batch_parameters.py::test_static_saxs_exports_diagnostic_only_lc_for_single_fragile_method -v`
 
 Expected: FAIL，summary 没有单帧 reliability status。
 
-- [ ] **Step 3: 抽出共用 reliability helper**
+- [x] **Step 3: 抽出共用 reliability helper**
 
 在 `polynexus/core/saxs_engine/core.py` 中增加：
 
@@ -876,7 +876,7 @@ def classify_single_frame_lc_reliability(params: dict[str, Any]) -> tuple[str, s
     return "usable", "stable_structure_support"
 ```
 
-- [ ] **Step 4: SAXS result summary 写入 status**
+- [x] **Step 4: SAXS result summary 写入 status**
 
 在 `polynexus/core/saxs.py` 汇总 row 时，如果没有温变序列 status，则调用 `classify_single_frame_lc_reliability(row)` 并写入：
 
@@ -885,7 +885,7 @@ row["lc_reliability_status"] = status
 row["lc_reliability_reason"] = reason
 ```
 
-- [ ] **Step 5: 运行 SAXS tests**
+- [x] **Step 5: 运行 SAXS tests**
 
 Run:
 
@@ -895,7 +895,7 @@ pytest tests/test_saxs_batch_parameters.py tests/test_saxs_scoring.py tests/test
 
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add polynexus/core/saxs_engine/core.py polynexus/core/saxs_engine/saxs_strain.py polynexus/core/saxs.py polynexus/core/analysis_evidence.py tests/test_saxs_batch_parameters.py tests/test_saxs_scoring.py tests/test_analysis_evidence.py
@@ -913,7 +913,7 @@ git commit -m "feat: unify saxs lc reliability status"
 - Test: `tests/test_waxs_temperature.py`
 - Test: `tests/test_analysis_evidence.py`
 
-- [ ] **Step 1: 写 Scherrer 仪器展宽测试**
+- [x] **Step 1: 写 Scherrer 仪器展宽测试**
 
 在 `tests/test_waxs_temperature.py` 增加：
 
@@ -927,13 +927,13 @@ def test_scherrer_subtracts_instrument_broadening():
     assert corrected > raw
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_waxs_temperature.py::test_scherrer_subtracts_instrument_broadening -v`
 
 Expected: FAIL，`scherrer_size()` 不接受 `instrument_fwhm_deg`。
 
-- [ ] **Step 3: 扩展 config**
+- [x] **Step 3: 扩展 config**
 
 在 `WAXSConfig` 增加：
 
@@ -942,7 +942,7 @@ instrument_fwhm_deg: float = 0.0
 size_uncertainty_mode: str = "peak_spread"
 ```
 
-- [ ] **Step 4: 扣除仪器展宽**
+- [x] **Step 4: 扣除仪器展宽**
 
 修改 `scherrer_size()` 签名：
 
@@ -965,7 +965,7 @@ if beta_sample_deg <= 1e-9:
 beta_rad = np.radians(beta_sample_deg)
 ```
 
-- [ ] **Step 5: 输出 uncertainty**
+- [x] **Step 5: 输出 uncertainty**
 
 在 `analyze_scan()` 完成 peaks 后，增加：
 
@@ -980,7 +980,7 @@ if sizes:
     result.parameters["instrument_broadening_applied"] = bool(config.instrument_fwhm_deg > 0)
 ```
 
-- [ ] **Step 6: 运行 WAXS tests**
+- [x] **Step 6: 运行 WAXS tests**
 
 Run:
 
@@ -990,7 +990,7 @@ pytest tests/test_waxs_temperature.py tests/test_analysis_evidence.py -q
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add polynexus/core/waxs_engine/config.py polynexus/core/waxs_engine/core.py polynexus/core/analysis_evidence.py tests/test_waxs_temperature.py tests/test_analysis_evidence.py
@@ -1008,7 +1008,7 @@ git commit -m "feat: account for waxs instrument broadening"
 - Test: `tests/test_dsc_engine.py`
 - Test: `tests/test_analysis_evidence.py`
 
-- [ ] **Step 1: 写 DSC evidence 失败测试**
+- [x] **Step 1: 写 DSC evidence 失败测试**
 
 在 `tests/test_analysis_evidence.py` 增加：
 
@@ -1035,13 +1035,13 @@ def test_dsc_xc_with_unstable_baseline_is_low_confidence():
     assert "dsc_baseline_sensitive_xc" in evidence["constraint_summary"]["triggered_names"]["soft_warn"]
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_analysis_evidence.py::test_dsc_xc_with_unstable_baseline_is_low_confidence -v`
 
 Expected: FAIL，缺少 DSC Xc reliability status。
 
-- [ ] **Step 3: DSC core 输出敏感性字段**
+- [x] **Step 3: DSC core 输出敏感性字段**
 
 在 DSC peak integration 完成后写入参数：
 
@@ -1058,7 +1058,7 @@ result.baseline_sensitivity_pct = 0.0 if result.quality_score >= 0.8 else 12.0
 result.integration_boundary_sensitivity_pct = 0.0 if result.quality_score >= 0.8 else 8.0
 ```
 
-- [ ] **Step 4: analysis_evidence 增加 DSC 门控**
+- [x] **Step 4: analysis_evidence 增加 DSC 门控**
 
 在 DSC constraints 加入：
 
@@ -1082,7 +1082,7 @@ boundary_sensitive = _clean_float(output.get("integration_boundary_sensitivity_p
 triggered = baseline_sensitive >= 10.0 or boundary_sensitive >= 8.0
 ```
 
-- [ ] **Step 5: DSC structure evidence 输出 reliability**
+- [x] **Step 5: DSC structure evidence 输出 reliability**
 
 ```python
 status = "usable"
@@ -1093,7 +1093,7 @@ if str(output.get("DHm0_source") or "") == "missing":
 structure_evidence["Xc_reliability_status"] = status
 ```
 
-- [ ] **Step 6: 运行 DSC tests**
+- [x] **Step 6: 运行 DSC tests**
 
 Run:
 
@@ -1103,7 +1103,7 @@ pytest tests/test_dsc_engine.py tests/test_analysis_evidence.py -q
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add polynexus/core/dsc_engine/core.py polynexus/core/dsc.py polynexus/core/analysis_evidence.py tests/test_dsc_engine.py tests/test_analysis_evidence.py
@@ -1119,7 +1119,7 @@ git commit -m "feat: grade dsc crystallinity reliability"
 - Modify: `polynexus/core/joint/dataset.py`
 - Test: `tests/test_joint_hub_dataset.py`
 
-- [ ] **Step 1: 写低可信 SAXS 不触发硬 ERROR 测试**
+- [x] **Step 1: 写低可信 SAXS 不触发硬 ERROR 测试**
 
 在 `tests/test_joint_hub_dataset.py` 增加：
 
@@ -1148,13 +1148,13 @@ def test_joint_low_confidence_saxs_xc_conflict_is_warn_not_error(tmp_path):
     assert report["ai_context"]["warning_count"] >= 1
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `pytest tests/test_joint_hub_dataset.py::test_joint_low_confidence_saxs_xc_conflict_is_warn_not_error -v`
 
 Expected: FAIL，当前 phi_c conflict 可能直接 ERROR。
 
-- [ ] **Step 3: validation 接收 confidence weights**
+- [x] **Step 3: validation 接收 confidence weights**
 
 修改 `run_all_cross_validations()` 签名：
 
@@ -1188,7 +1188,7 @@ pair_weight = min(weights.get(ni.lower(), 1.0), weights.get(nj.lower(), 1.0))
 severity = "OK" if passed else ("WARN" if pair_weight < 0.5 else "ERROR")
 ```
 
-- [ ] **Step 4: dataset 传入 weights**
+- [x] **Step 4: dataset 传入 weights**
 
 在 `validate_joint_row()` 中构造：
 
@@ -1205,7 +1205,7 @@ weights = {
 phi_c_weights=weights,
 ```
 
-- [ ] **Step 5: 运行 Joint regression**
+- [x] **Step 5: 运行 Joint regression**
 
 Run:
 
@@ -1215,7 +1215,7 @@ pytest tests/test_joint_hub_dataset.py tests/test_joint_coordinator.py -q
 
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add polynexus/core/joint/validation.py polynexus/core/joint/dataset.py tests/test_joint_hub_dataset.py
@@ -1234,7 +1234,7 @@ git commit -m "feat: weight joint checks by evidence"
 - Test: `tests/test_core.py`
 - Test: `tests/test_main_window_persistence.py`
 
-- [ ] **Step 1: 定位 mojibake 与 unreachable logger**
+- [x] **Step 1: 定位 mojibake 与 unreachable logger**
 
 Run:
 
@@ -1244,7 +1244,7 @@ rg -n "鈥|鈭|馃|logger\.warning.*$|return False\s*$|return .*logger" polynexu
 
 Expected: 输出需要人工确认的用户可见字符串和 unreachable logger 周边行。
 
-- [ ] **Step 2: 写核心文本测试**
+- [x] **Step 2: 写核心文本测试**
 
 在 `tests/test_core.py` 增加：
 
@@ -1262,7 +1262,7 @@ def test_public_engine_labels_do_not_contain_mojibake():
         assert not any(token in public_text for token in bad_tokens)
 ```
 
-- [ ] **Step 3: 修复用户可见字符串**
+- [x] **Step 3: 修复用户可见字符串**
 
 把 engine `label/description/icon` 和 `SubModuleSpec` 中明显 mojibake 的文本改为 UTF-8 中文或 ASCII 英文。例如：
 
@@ -1274,7 +1274,7 @@ icon="WAXS"
 
 如果图标在当前字体不稳定，统一使用 ASCII 技术缩写。
 
-- [ ] **Step 4: 删除 unreachable logger**
+- [x] **Step 4: 删除 unreachable logger**
 
 把这种结构：
 
@@ -1294,7 +1294,7 @@ except Exception as e:
     return False
 ```
 
-- [ ] **Step 5: 运行核心与 GUI persistence 测试**
+- [x] **Step 5: 运行核心与 GUI persistence 测试**
 
 Run:
 
@@ -1304,7 +1304,7 @@ pytest tests/test_core.py tests/test_main_window_persistence.py -q
 
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add polynexus tests
