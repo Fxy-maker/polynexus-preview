@@ -1104,6 +1104,29 @@ def test_nmr_analysis_evidence_surfaces_signal_peak_assignment_sections() -> Non
     assert "nmr_xc=supported" in evidence["summary"]
 
 
+def test_nmr_low_confidence_symptoms_are_actionable() -> None:
+    evidence = build_analysis_evidence(
+        "NMR",
+        output_parameters={
+            "nucleus": "13C",
+            "sample_state": "solid",
+            "n_peaks": 1,
+            "median_snr": 2.1,
+            "mean_fwhm_ppm": 45.0,
+            "quality_fit_quality": 0.0,
+            "Xc_method": "requires_crystalline_amorphous_assignment",
+        },
+        residual_pattern={"residual_type": "structured", "summary": "structured residual"},
+    ).to_dict()
+
+    names = {item["name"] for item in evidence["symptoms"]}
+    assert "nmr_low_snr" in names
+    assert "nmr_broad_linewidth" in names
+    assert "nmr_xc_assignment_missing" in names
+    assert any("baseline" in item or "peak" in item for item in evidence["actionable_symptoms"])
+    assert evidence["constraint_summary"]["status"] in {"soft_warn", "hard_fail"}
+
+
 def test_advisor_normalizes_evidence_contract_fields() -> None:
     advisor = Advisor(retriever=_StaticRetriever(), llm_client=_StaticLLM())
     advice = advisor.advise(

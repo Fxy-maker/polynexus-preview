@@ -747,6 +747,60 @@ def physical_constraint_inventory(technique: str) -> list[EvidenceConstraint]:
                 field="median_snr",
                 rationale="Use it to contextualize line-shape and assignment reliability.",
             ),
+            EvidenceConstraint(
+                name="nmr_low_peak_count",
+                kind="soft_warn",
+                source="NMR",
+                severity="WARN",
+                description="Too few resolved NMR peaks to support strong assignment confidence.",
+                field="n_peaks",
+                rationale="Assignments and Xc estimates need enough resolved peak support.",
+            ),
+            EvidenceConstraint(
+                name="nmr_low_snr",
+                kind="soft_warn",
+                source="NMR",
+                severity="WARN",
+                description="Median NMR SNR is too low for strong assignment confidence.",
+                field="median_snr",
+                rationale="Low SNR makes peak detection, deconvolution, and assignment fragile.",
+            ),
+            EvidenceConstraint(
+                name="nmr_broad_linewidth",
+                kind="soft_warn",
+                source="NMR",
+                severity="WARN",
+                description="NMR linewidth is broad enough to weaken peak separation and phase assignment.",
+                field="mean_fwhm_ppm",
+                rationale="Broad peaks make crystalline/amorphous peak partitioning less reliable.",
+            ),
+            EvidenceConstraint(
+                name="nmr_weak_assignment",
+                kind="soft_warn",
+                source="NMR",
+                severity="WARN",
+                description="Detected NMR peaks are not backed by enough assignments or database matches.",
+                field="n_matches",
+                rationale="Peak-derived conclusions should stay provisional when assignments are sparse.",
+            ),
+            EvidenceConstraint(
+                name="nmr_solvent_risk",
+                kind="soft_warn",
+                source="NMR",
+                severity="WARN",
+                description="One or more NMR peaks overlap likely solvent regions.",
+                field="peak_possible_solvent",
+                rationale="Solvent-like peaks can inflate or mislead assignment evidence.",
+            ),
+            EvidenceConstraint(
+                name="nmr_xc_assignment_missing",
+                kind="soft_warn",
+                source="NMR",
+                severity="WARN",
+                description="NMR crystallinity requires crystalline/amorphous peak assignment support.",
+                field="Xc_method",
+                rationale="Solid-state NMR Xc should not be promoted before phase assignments are explicit.",
+            ),
         )
     return []
 
@@ -795,6 +849,49 @@ def _nmr_peak_rows(output: dict[str, Any]) -> list[dict[str, Any]]:
             )
         )
     return rows
+
+
+def _nmr_symptoms_from_constraints(constraints: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    names = {
+        "nmr_low_peak_count",
+        "nmr_low_snr",
+        "nmr_broad_linewidth",
+        "nmr_weak_assignment",
+        "nmr_solvent_risk",
+        "nmr_xc_assignment_missing",
+    }
+    symptoms: list[dict[str, Any]] = []
+    for item in constraints:
+        name = str(item.get("name", "") or "").strip()
+        if name not in names or not item.get("triggered"):
+            continue
+        symptoms.append(
+            _non_empty_mapping(
+                [
+                    ("name", name),
+                    ("severity", item.get("severity") or "WARN"),
+                    ("summary", item.get("description")),
+                    ("target", item.get("field") or name),
+                    ("observed", item.get("observed")),
+                ]
+            )
+        )
+    return symptoms
+
+
+def _nmr_symptom_bridge_lines(symptom: dict[str, Any] | None) -> list[str]:
+    if not isinstance(symptom, dict):
+        return []
+    name = str(symptom.get("name", "") or "").strip()
+    mapping = {
+        "nmr_low_peak_count": "nmr_low_peak_count -> review peak threshold and deconvolution settings before trusting assignments",
+        "nmr_low_snr": "nmr_low_snr -> review baseline correction and peak threshold before trusting assignments",
+        "nmr_broad_linewidth": "nmr_broad_linewidth -> review baseline, apodization, and peak fitting before trusting phase assignment",
+        "nmr_weak_assignment": "nmr_weak_assignment -> add or verify peak assignments before promoting structural conclusions",
+        "nmr_solvent_risk": "nmr_solvent_risk -> exclude likely solvent peaks before using assignment evidence",
+        "nmr_xc_assignment_missing": "nmr_xc_assignment_missing -> assign crystalline and amorphous peaks before trusting NMR Xc",
+    }
+    return [mapping[name]] if name in mapping else []
 
 
 def _dsc_scan_rows(scan_r_squared: Any) -> list[dict[str, Any]]:
@@ -3101,12 +3198,54 @@ def evaluate_physical_constraints(
             fit_quality = None
             if isinstance(output.get("quality_metrics"), dict):
                 fit_quality = _clean_float(output["quality_metrics"].get("fit_quality"))
+            if fit_quality is None:
+                fit_quality = _clean_float(output.get("quality_fit_quality"))
             triggered = fit_quality is not None and fit_quality < 1.0
             observed = fit_quality
         elif item.name == "peak_snr":
             snr = _clean_float(observed)
             triggered = snr is not None and snr < 5.0
             observed = snr
+        elif item.name == "nmr_low_peak_count":
+            n_peaks = _clean_float(observed)
+            triggered = n_peaks is not None and n_peaks < 2
+            observed = n_peaks
+        elif item.name == "nmr_low_snr":
+            snr = _clean_float(observed)
+            triggered = snr is not None and snr < 5.0
+            observed = snr
+        elif item.name == "nmr_broad_linewidth":
+            linewidth = _clean_float(observed)
+            triggered = linewidth is not None and linewidth > 20.0
+            observed = linewidth
+        elif item.name == "nmr_weak_assignment":
+            peak_rows = _nmr_peak_rows(output)
+            assigned_count = sum(1 for row in peak_rows if row.get("assignment"))
+            match_count = _clean_float(output.get("n_matches"))
+            n_peaks = _clean_float(output.get("n_peaks"))
+            observed = {"assigned_peak_count": assigned_count, "n_matches": match_count, "n_peaks": n_peaks}
+            triggered = bool(
+                (peak_rows and n_peaks is not None and n_peaks > 0 and assigned_count == 0)
+                or (match_count is not None and match_count <= 0)
+            )
+        elif item.name == "nmr_solvent_risk":
+            peak_rows = _nmr_peak_rows(output)
+            solvent_peaks = [
+                {"index": row.get("index"), "possible_solvent": row.get("possible_solvent")}
+                for row in peak_rows
+                if row.get("possible_solvent")
+            ]
+            observed = solvent_peaks
+            triggered = bool(solvent_peaks)
+        elif item.name == "nmr_xc_assignment_missing":
+            peak_rows = _nmr_peak_rows(output)
+            phases = {str(row.get("phase", "") or "").lower() for row in peak_rows if row.get("phase")}
+            xc_method = str(output.get("Xc_method") or "").strip()
+            needs_assignment = xc_method == "requires_crystalline_amorphous_assignment" or output.get("Xc_pct") is not None
+            has_crystalline = bool(phases & {"c", "crystalline"})
+            has_amorphous = bool(phases & {"a", "amorphous"})
+            observed = {"Xc_method": xc_method or None, "phases": sorted(phases)}
+            triggered = bool(needs_assignment and not (has_crystalline and has_amorphous))
         elif technique_key == "IR" and not is_ir_temperature_2d and item.name in {
             "key_band_support_insufficient",
             "assignment_without_characteristic_bands",
@@ -5376,11 +5515,17 @@ def build_analysis_evidence(
         amorphous_count = sum(1 for row in peak_rows if str(row.get("phase", "")).lower() in {"a", "amorphous"})
         assignment_denominator = peak_count if peak_count and peak_count > 0 else len(peak_rows)
         assigned_fraction = assigned_count / assignment_denominator if assignment_denominator else None
-        xc_assignment_status = "unsupported"
-        if output.get("Xc_pct") is not None:
+        xc_method = str(output.get("Xc_method") or "").strip()
+        xc_assignment_status = ""
+        if output.get("Xc_pct") is not None or xc_method:
             if crystalline_count > 0 and amorphous_count > 0:
                 xc_assignment_status = "supported"
-            elif assigned_count > 0 or phase_assigned_count > 0 or output.get("n_matches") is not None:
+            elif (
+                assigned_count > 0
+                or phase_assigned_count > 0
+                or output.get("n_matches") is not None
+                or xc_method == "requires_crystalline_amorphous_assignment"
+            ):
                 xc_assignment_status = "assignment_limited"
             else:
                 xc_assignment_status = "missing_assignment"
@@ -5420,8 +5565,8 @@ def build_analysis_evidence(
         structure_evidence = _non_empty_mapping(
             [
                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
-                ("Xc_method", str(output.get("Xc_method") or "").strip() or None),
-                ("Xc_assignment_status", xc_assignment_status),
+                ("Xc_method", xc_method or None),
+                ("Xc_assignment_status", xc_assignment_status or None),
                 ("paper_conclusion_ready", xc_assignment_status == "supported"),
             ]
         )
@@ -5438,6 +5583,11 @@ def build_analysis_evidence(
     for item in constraints:
         if item.get("triggered") and item.get("kind") in {"hard_fail", "soft_warn"}:
             risk_flags.append(str(item.get("name", "")).strip())
+
+    if technique_key == "NMR":
+        symptoms = _nmr_symptoms_from_constraints(constraints)
+        for symptom in symptoms:
+            actionable_symptoms.extend(_nmr_symptom_bridge_lines(symptom))
 
     if technique_key == "DSC":
         triggered_names = constraint_summary.get("triggered_names", {}) if isinstance(constraint_summary, dict) else {}
