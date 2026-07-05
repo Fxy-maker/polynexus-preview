@@ -1,0 +1,704 @@
+From 36e5444939b6f6bb9c5eeb6547e104150a809182 Mon Sep 17 00:00:00 2001
+From: Fxy-maker <fanxuyi786@gmail.com>
+Date: Mon, 6 Jul 2026 03:40:21 +0800
+Subject: [PATCH 1/3] fix: finish physical confidence integration
+
+---
+ polynexus/core/dsc_engine/core.py         |  1 -
+ polynexus/core/dsc_engine/dsc_kinetics.py |  1 -
+ polynexus/core/dsc_engine/dsc_output.py   |  1 -
+ polynexus/core/dsc_engine/preprocess.py   |  1 -
+ polynexus/core/ir_engine/io.py            |  2 -
+ polynexus/core/ir_engine/preprocess.py    |  1 -
+ polynexus/core/lmfit_wrapper.py           |  3 -
+ polynexus/core/nmr_engine/core.py         |  5 --
+ polynexus/core/nmr_engine/io.py           |  2 -
+ polynexus/core/nmr_engine/preprocess.py   |  1 -
+ polynexus/core/plot_edits.py              |  1 -
+ polynexus/core/saxs_engine/core.py        |  9 ---
+ polynexus/core/waxs_engine/core.py        |  2 -
+ polynexus/core/waxs_engine/waxs_strain.py |  1 -
+ polynexus/gui/convergence_viewer.py       |  3 -
+ polynexus/gui/main_window.py              | 74 +++++++++++++----------
+ polynexus/gui/widgets/chart_editor.py     |  2 +-
+ polynexus/orchestrator.py                 |  2 +-
+ tests/test_core.py                        | 55 +++++++++++------
+ tests/test_main_window_persistence.py     | 34 ++++++++---
+ tests/test_phase3.py                      | 10 +++
+ 21 files changed, 116 insertions(+), 95 deletions(-)
+
+diff --git a/polynexus/core/dsc_engine/core.py b/polynexus/core/dsc_engine/core.py
+index 86e5449..deb51e1 100644
+--- a/polynexus/core/dsc_engine/core.py
++++ b/polynexus/core/dsc_engine/core.py
+@@ -432,7 +432,6 @@ def _find_thermal_events_physical(T: np.ndarray, HF: np.ndarray,
+             )
+         except Exception:
+             return []
+-            logger.warning("异常已处理", exc_info=True)
+ 
+         out: List[Dict[str, Any]] = []
+         try:
+diff --git a/polynexus/core/dsc_engine/dsc_kinetics.py b/polynexus/core/dsc_engine/dsc_kinetics.py
+index bfd3428..c41ef15 100644
+--- a/polynexus/core/dsc_engine/dsc_kinetics.py
++++ b/polynexus/core/dsc_engine/dsc_kinetics.py
+@@ -147,7 +147,6 @@ def _smooth_signal(y: np.ndarray, max_window: int = 41) -> np.ndarray:
+         return signal.savgol_filter(y, window, min(3, window - 2), mode='interp')
+     except Exception:
+         return y
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def detect_isothermal_segments(scan: DSCScan,
+diff --git a/polynexus/core/dsc_engine/dsc_output.py b/polynexus/core/dsc_engine/dsc_output.py
+index 3a788fb..a329cd8 100644
+--- a/polynexus/core/dsc_engine/dsc_output.py
++++ b/polynexus/core/dsc_engine/dsc_output.py
+@@ -789,7 +789,6 @@ def generate_all_figures(results: List[DSCResult],
+             import sys as _sys
+             _sys.stderr.write(f"DSC figure {fn.__name__} failed: {exc}\n")
+             return ""
+-            logger.warning("异常已处理", exc_info=True)
+ 
+     # ── Per-scan figures → SI/ ──────────────────────────────────────────
+     for result in results:
+diff --git a/polynexus/core/dsc_engine/preprocess.py b/polynexus/core/dsc_engine/preprocess.py
+index 4ac0301..1ffc66d 100644
+--- a/polynexus/core/dsc_engine/preprocess.py
++++ b/polynexus/core/dsc_engine/preprocess.py
+@@ -273,7 +273,6 @@ def baseline_tangential(T: np.ndarray, HF: np.ndarray,
+     except Exception:
+         # Fallback to linear
+         return baseline_linear(T, HF, peak_limits)
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def correct_baseline(T: np.ndarray, HF: np.ndarray,
+diff --git a/polynexus/core/ir_engine/io.py b/polynexus/core/ir_engine/io.py
+index d05583b..ab920a2 100644
+--- a/polynexus/core/ir_engine/io.py
++++ b/polynexus/core/ir_engine/io.py
+@@ -147,7 +147,6 @@ def _load_csv(filepath: str,
+         cols, data = load_table(filepath)
+     except Exception:
+         return IRSpectrum(label=label)
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     if data.shape[1] < 2:
+         return IRSpectrum(label=label)
+@@ -252,7 +251,6 @@ def _load_spa(filepath: str,
+         )
+     except Exception:
+         return IRSpectrum(label=label, metadata={'error': 'spa_load_failed'})
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def _parse_thermo_spa_binary(raw: bytes
+diff --git a/polynexus/core/ir_engine/preprocess.py b/polynexus/core/ir_engine/preprocess.py
+index 2979dc3..408ae26 100644
+--- a/polynexus/core/ir_engine/preprocess.py
++++ b/polynexus/core/ir_engine/preprocess.py
+@@ -145,7 +145,6 @@ def baseline_rubberband(wavenumber: np.ndarray, absorbance: np.ndarray,
+         hull = ConvexHull(points)
+     except Exception:
+         return y, np.zeros_like(y)
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     # Extract lower envelope
+     hull_vertices = hull.vertices
+diff --git a/polynexus/core/lmfit_wrapper.py b/polynexus/core/lmfit_wrapper.py
+index 71abb22..3019da6 100644
+--- a/polynexus/core/lmfit_wrapper.py
++++ b/polynexus/core/lmfit_wrapper.py
+@@ -127,7 +127,6 @@ def fit_multi_peak(
+     except Exception as e:
+         logger.warning("lmfit 峰拟合失败，返回初始猜测值: %s", e, exc_info=True)
+         return result
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     result["r_squared"] = (1.0 - fit_result.residual.var() / y_fit.var()
+                            if y_fit.var() > 0 else np.nan)
+@@ -193,7 +192,6 @@ def fit_linear(x: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
+         return dict(slope=np.nan, intercept=np.nan,
+                     slope_stderr=0.0, intercept_stderr=0.0,
+                     r_squared=np.nan)
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def fit_avrami(t: np.ndarray, Xc: np.ndarray) -> Dict[str, Any]:
+@@ -438,7 +436,6 @@ def fit_waxs_profile(
+                                         method="nelder", max_nfev=8000)
+         except Exception:
+             return result
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     # ---- Extract results ----
+     y_fit = fit_result.best_fit
+diff --git a/polynexus/core/nmr_engine/core.py b/polynexus/core/nmr_engine/core.py
+index 2f26c80..d193d73 100644
+--- a/polynexus/core/nmr_engine/core.py
++++ b/polynexus/core/nmr_engine/core.py
+@@ -130,7 +130,6 @@ def _safe_float(value: Any, default: float = np.nan) -> float:
+         return val if np.isfinite(val) else default
+     except Exception:
+         return default
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def _robust_noise(intensity: np.ndarray) -> float:
+@@ -432,7 +431,6 @@ def detect_peaks(ppm, intensity, height_frac=0.03, distance_ppm=1.0,
+         widths = np.full(len(peak_idx), np.nan)
+         left_ips = np.asarray(peak_idx, dtype=float)
+         right_ips = np.asarray(peak_idx, dtype=float)
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     fwhm_candidates = np.array([
+         float(widths[i] * dx) if np.isfinite(widths[i]) else np.nan
+@@ -557,7 +555,6 @@ def _fit_region_peaks(ppm, intensity, peaks, method='mixed',
+                                    max_nfev=10000)
+     except Exception:
+         fit_result = None
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     if fit_result is None:
+         # fallback: use detected peaks as-is
+@@ -723,7 +720,6 @@ def fit_t1_recovery(delays, intensities):
+         return {'T1_s': float(abs(popt[1])), 'I0': float(popt[0]), 'r_squared': float(r2)}
+     except Exception:
+         return {'T1_s': np.nan, 'I0': np.nan, 'r_squared': np.nan}
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def fit_t2_decay(delays, intensities):
+@@ -747,7 +743,6 @@ def fit_t2_decay(delays, intensities):
+         return {'T2_s': float(abs(popt[1])), 'I0': float(popt[0]), 'r_squared': float(r2)}
+     except Exception:
+         return {'T2_s': np.nan, 'I0': np.nan, 'r_squared': np.nan}
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ # ---------------------------------------------------------------------------
+diff --git a/polynexus/core/nmr_engine/io.py b/polynexus/core/nmr_engine/io.py
+index 44ccae9..35e805a 100644
+--- a/polynexus/core/nmr_engine/io.py
++++ b/polynexus/core/nmr_engine/io.py
+@@ -194,7 +194,6 @@ def _load_csv(filepath: str, sample_state: Optional[str] = None,
+         data = load_table(filepath)[1]
+     except Exception:
+         return NMRSpectrum(label=label, nucleus=nuc, metadata={"error": "table_load_failed"})
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     if data.ndim == 1:
+         data = data.reshape(-1, 1)
+@@ -436,7 +435,6 @@ def _read_jeol_record_value(blob: bytes, label: str) -> Optional[Any]:
+             return text or None
+         except Exception:
+             return None
+-            logger.warning("异常已处理", exc_info=True)
+ 
+     return None
+ 
+diff --git a/polynexus/core/nmr_engine/preprocess.py b/polynexus/core/nmr_engine/preprocess.py
+index 5c3a4b8..138730f 100644
+--- a/polynexus/core/nmr_engine/preprocess.py
++++ b/polynexus/core/nmr_engine/preprocess.py
+@@ -79,7 +79,6 @@ def phase_correct(ppm, intensity, zero_order_deg=0.0, first_order_deg=0.0):
+         return rotated.real
+     except Exception:
+         return intensity
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def auto_phase(intensity, max_iterations=20):
+diff --git a/polynexus/core/plot_edits.py b/polynexus/core/plot_edits.py
+index 5e2fdca..af25381 100644
+--- a/polynexus/core/plot_edits.py
++++ b/polynexus/core/plot_edits.py
+@@ -163,7 +163,6 @@ def load_plot_edits(figure_path: str) -> Dict[str, Any]:
+             data = json.load(f)
+     except Exception:
+         return {"version": 1, "files": {}}
+-        logger.warning("异常已处理", exc_info=True)
+     if not isinstance(data, dict):
+         return {"version": 1, "files": {}}
+     data.setdefault("version", 1)
+diff --git a/polynexus/core/saxs_engine/core.py b/polynexus/core/saxs_engine/core.py
+index 181f4e7..9a20225 100644
+--- a/polynexus/core/saxs_engine/core.py
++++ b/polynexus/core/saxs_engine/core.py
+@@ -494,7 +494,6 @@ def _lorentz_fallback(
+         }
+     except Exception:
+         return np.nan, 0.0, {}
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def _saxs_peak_region_fit_quality(
+@@ -590,7 +589,6 @@ def _fit_bragg_region(q: np.ndarray, I: np.ndarray, q_min: float, q_max: float)
+         y_pred = np.polyval(coeff, x)
+         center = x_mid
+         sigma = np.nan
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     stats = _standardized_region_stats(y, y_pred)
+     if stats is None:
+@@ -623,7 +621,6 @@ def _fit_guinier_region(q_guinier: np.ndarray | None, lnI_guinier: np.ndarray |
+         y_pred = np.polyval(coeff, x**2)
+     except Exception:
+         return None
+-        logger.warning("异常已处理", exc_info=True)
+     stats = _standardized_region_stats(y, y_pred)
+     if stats is None:
+         return None
+@@ -717,7 +714,6 @@ def correlation_function(
+             Ib = Ib_raw
+     except Exception as e:
+         logger.warning("SAXS 积分背景校正失败: %s", e, exc_info=True)
+-        logger.warning("异常已处理", exc_info=True)
+     if Ib > 1e-12:
+         I_sel = np.maximum(I_sel - Ib, 1e-30)
+ 
+@@ -790,7 +786,6 @@ def correlation_function(
+             L_est = np.nan
+     except Exception:
+         L_est = np.nan
+-        logger.warning("异常已处理", exc_info=True)
+     if np.isfinite(L_est):
+         r_min_peak = max(1.5, L_est * 0.30)
+         r_max_peak = min(L_est * 2.0, r[-1])
+@@ -1398,7 +1393,6 @@ def _tangent_lc(corr_result: Dict, L: float, cfg: SAXSConfig) -> float:
+             a, b = np.polyfit(r_fit, gamma_fit, 1)
+     except Exception:
+         return np.nan
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     # ── Step 4: baseline from asymptotic tail ──
+     # Use the last 30 % of gamma(r) (after oscillations decay)
+@@ -1595,7 +1589,6 @@ def _porod_constant(q_ext, I_ext, q_raw=None, I_raw=None) -> float:
+         return Kp
+     except Exception:
+         return np.nan
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ # ======================================================================
+@@ -1699,7 +1692,6 @@ def sasmodels_fit(
+     except Exception as e:
+         result['error'] = f'sasmodels setup failed: {e}'
+         return result
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     # ---- Initial guess from Bragg ----
+     if L_bragg_guess is not None and np.isfinite(L_bragg_guess) and L_bragg_guess > 0:
+@@ -2083,7 +2075,6 @@ def _extrapolate_guinier(
+         slope, intercept = float(p[0]), float(p[1])
+     except Exception:
+         return q, I
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     # If intercept is far from 0, the linear model is poor — fallback to
+     # purely linear-through-origin fit
+diff --git a/polynexus/core/waxs_engine/core.py b/polynexus/core/waxs_engine/core.py
+index a1f4f7a..024e807 100644
+--- a/polynexus/core/waxs_engine/core.py
++++ b/polynexus/core/waxs_engine/core.py
+@@ -255,7 +255,6 @@ def fit_peaks(two_theta: np.ndarray, I: np.ndarray,
+         popt = res.x
+     except Exception:
+         popt = p0
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     # Extract fitted peaks
+     fitted_peaks = []
+@@ -1238,7 +1237,6 @@ def _refit_low_r2_v2(tth, I_corrected, result, config):
+         return new_result
+     except Exception:
+         return None
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ # Backwards-compatible alias
+diff --git a/polynexus/core/waxs_engine/waxs_strain.py b/polynexus/core/waxs_engine/waxs_strain.py
+index ba3b4f5..f03582b 100644
+--- a/polynexus/core/waxs_engine/waxs_strain.py
++++ b/polynexus/core/waxs_engine/waxs_strain.py
+@@ -512,7 +512,6 @@ def _estimate_xc_from_2d_sum(scan, config):
+         )
+     except Exception:
+         return np.nan
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     components = fit_result.get('components', [])
+     crystals = [c for c in components if c.get('is_crystal', True)]
+diff --git a/polynexus/gui/convergence_viewer.py b/polynexus/gui/convergence_viewer.py
+index dc070a6..0d828ef 100644
+--- a/polynexus/gui/convergence_viewer.py
++++ b/polynexus/gui/convergence_viewer.py
+@@ -216,7 +216,6 @@ def _json_loads(value: Any, default: Any) -> Any:
+         return json.loads(str(value))
+     except Exception:
+         return default
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def _safe_float(value: Any) -> float | None:
+@@ -263,7 +262,6 @@ def _load_report(path: str) -> dict[str, Any]:
+         return json.loads(report_path.read_text(encoding="utf-8"))
+     except Exception:
+         return {}
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ def _extract_residuals(report: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
+@@ -426,7 +424,6 @@ def _fmt(value: Any) -> str:
+         return f"{float(value):.4f}"
+     except Exception:
+         return str(value)
+-        logger.warning("异常已处理", exc_info=True)
+ 
+ 
+ class ConvergenceViewer(QMainWindow):
+diff --git a/polynexus/gui/main_window.py b/polynexus/gui/main_window.py
+index 5b72032..7e1b56c 100644
+--- a/polynexus/gui/main_window.py
++++ b/polynexus/gui/main_window.py
+@@ -6800,12 +6800,16 @@ class MainWindow(QMainWindow):
+                 return tr("RESULTS_SUMMARY_RISK_DSC_LIMITED")
+ 
+         if isinstance(params, dict):
++            condition_source = ""
++            condition_confidence = None
++            condition_missing_frames = None
++            condition_continuity_score = None
++            batch_frames = 0
+             if technique == "saxs":
+                 condition_source = str(params.get("condition_source") or "").strip()
+                 condition_confidence = self._coerce_summary_float(params.get("condition_confidence"))
+                 condition_missing_frames = params.get("condition_missing_frames")
+                 condition_continuity_score = self._coerce_summary_float(params.get("condition_continuity_score"))
+-                batch_frames = 0
+                 try:
+                     batch_frames = int(params.get("batch_frames", 0) or 0)
+                 except Exception:
+@@ -13027,40 +13031,47 @@ class MainWindow(QMainWindow):
+             for key, value in self._flatten_params(record_params):
+                 if key not in candidate:
+                     candidate[key] = value
++        excluded_summary_keys = {
++            "result",
++            "data_file",
++            "project_label",
++            "status",
++            "polymer_type",
++            "technique",
++            "submodule",
++            "confirmed",
++            "validation_passed",
++            "validation_summary",
++            "validation_warnings",
++            "quality_flags",
++            "result_origin",
++            "ai_tuned",
++            "history_context",
++            "review_summary",
++            "work_memory_summary",
++            "comparison_summary",
++            "benchmark_summary",
++            "benchmark_text",
++            "tuning_context",
++            "tuning_goal",
++            "tuning_goal_label",
++            "stop_reason",
++            "remaining_risks",
++            "next_goal",
++            "joint_ai_context",
++            "joint_summary",
++        }
++        for key, value in summary.items():
++            if key in excluded_summary_keys or key in candidate:
++                continue
++            if isinstance(value, (dict, list, tuple, set)):
++                continue
++            candidate[key] = value
+         if not candidate:
+             candidate = {
+                 key: value
+                 for key, value in summary.items()
+-                if key not in {
+-                    "result",
+-                    "data_file",
+-                    "project_label",
+-                    "status",
+-                    "polymer_type",
+-                    "technique",
+-                    "submodule",
+-                    "confirmed",
+-                    "validation_passed",
+-                    "validation_summary",
+-                    "validation_warnings",
+-                    "quality_flags",
+-                    "result_origin",
+-                    "ai_tuned",
+-                    "history_context",
+-                    "review_summary",
+-                    "work_memory_summary",
+-                    "comparison_summary",
+-                    "benchmark_summary",
+-                    "benchmark_text",
+-                    "tuning_context",
+-                    "tuning_goal",
+-                    "tuning_goal_label",
+-                    "stop_reason",
+-                    "remaining_risks",
+-                    "next_goal",
+-                    "joint_ai_context",
+-                    "joint_summary",
+-                }
++                if key not in excluded_summary_keys
+             }
+         if isinstance(evidence, dict) and evidence and str(record.get("technique") or "").strip().lower() == "waxs":
+             for key in (
+@@ -13801,4 +13812,3 @@ class MainWindow(QMainWindow):
+ 
+ 
+ 
+-
+diff --git a/polynexus/gui/widgets/chart_editor.py b/polynexus/gui/widgets/chart_editor.py
+index 9f764e5..f18b0e1 100644
+--- a/polynexus/gui/widgets/chart_editor.py
++++ b/polynexus/gui/widgets/chart_editor.py
+@@ -558,7 +558,7 @@ class ChartEditor(QWidget):
+             try:
+                 self._dpi = int(style["dpi"])
+             except Exception:
+-                logger.warning("闈欓粯寮傚父", exc_info=True)
++                logger.warning("Invalid chart style DPI value.", exc_info=True)
+         self._render()
+ 
+     def _current_style_preset_name(self):
+diff --git a/polynexus/orchestrator.py b/polynexus/orchestrator.py
+index b7e8f59..459661a 100644
+--- a/polynexus/orchestrator.py
++++ b/polynexus/orchestrator.py
+@@ -4597,7 +4597,7 @@ class ParameterOrchestrator:
+                     "name": name,
+                     "config_field": rule.field_name,
+                     "current_value": config.get(rule.field_name),
+-                    "constraint": list(rule.constraint),
++                    "constraint": list(rule.constraint) if rule.constraint is not None else [],
+                     "type": rule.value_type.__name__,
+                     "goal_priority": goal_priority,
+                     "goal_priority_reason": " | ".join(goal.get("reasons", [])),
+diff --git a/tests/test_core.py b/tests/test_core.py
+index 39c7902..9bdb351 100644
+--- a/tests/test_core.py
++++ b/tests/test_core.py
+@@ -1,13 +1,13 @@
+ """Tests for PolyNexus core engine."""
+ 
+-import pytest
++import re
+ from pathlib import Path
+-from polynexus.core.engine import BaseEngine, register_technique, get_engine, list_techniques
++
++from polynexus.core.engine import BaseEngine, get_engine, list_techniques, register_technique
+ 
+ 
+-# Register a test engine
+ @register_technique("test_tech")
+-class TestEngine(BaseEngine):
++class DummyEngine(BaseEngine):
+     name = "test_tech"
+     label = "Test"
+ 
+@@ -26,8 +26,8 @@ def test_register_and_get():
+ 
+ def test_list_techniques():
+     techs = list_techniques()
+-    names = [t['name'] for t in techs]
+-    assert 'test_tech' in names
++    names = [t["name"] for t in techs]
++    assert "test_tech" in names
+ 
+ 
+ def test_run_pipeline():
+@@ -36,23 +36,38 @@ def test_run_pipeline():
+     assert result.parameters == {"test": 42}
+ 
+ 
+-def test_core_engine_wrappers_do_not_hide_logger_after_return():
+-    root = Path(__file__).resolve().parents[1]
+-    targets = [
+-        root / "polynexus" / "core" / name
+-        for name in ("dsc.py", "ir.py", "nmr.py", "waxs.py")
+-    ]
++def test_no_unreachable_logger_after_return():
++    root = Path(__file__).resolve().parents[1] / "polynexus"
++    pattern = re.compile(r"return[^\n]*\n\s*logger\.(?:warning|error)\(", re.MULTILINE)
++    offenders = []
++    for path in list((root / "core").rglob("*.py")) + list((root / "gui").rglob("*.py")):
++        text = path.read_text(encoding="utf-8", errors="ignore")
++        if pattern.search(text):
++            offenders.append(str(path.relative_to(root.parent)))
++
++    assert offenders == []
+ 
+-    for path in targets:
+-        text = path.read_text(encoding="utf-8")
+-        assert "return False\n            logger.warning" not in text
+ 
++def test_public_text_and_logs_do_not_contain_mojibake():
++    bad_tokens = ("闈欓粯", "寮傚父", "鈥", "馃", "閳", "棣")
+ 
+-def test_public_engine_labels_do_not_contain_mojibake():
+-    bad_tokens = ("閳", "棣", "鈥", "�")
++    offenders = []
+     for item in list_techniques():
++        name = item["name"]
++        engine_cls = get_engine(name)
+         public_text = " ".join(
+-            str(item.get(key, ""))
+-            for key in ("name", "label", "description", "icon")
++            str(getattr(engine_cls, attr, ""))
++            for attr in ("label", "description", "icon")
+         )
+-        assert not any(token in public_text for token in bad_tokens)
++        if any(token in public_text for token in bad_tokens):
++            offenders.append(f"engine:{name}")
++
++    root = Path(__file__).resolve().parents[1] / "polynexus"
++    logger_pattern = re.compile(r"logger\.(?:warning|error)\((?P<message>[^)\n]+)")
++    for path in list((root / "core").rglob("*.py")) + list((root / "gui").rglob("*.py")):
++        text = path.read_text(encoding="utf-8", errors="ignore")
++        for match in logger_pattern.finditer(text):
++            if any(token in match.group("message") for token in bad_tokens):
++                offenders.append(str(path.relative_to(root.parent)))
++
++    assert offenders == []
+diff --git a/tests/test_main_window_persistence.py b/tests/test_main_window_persistence.py
+index a896019..d5550af 100644
+--- a/tests/test_main_window_persistence.py
++++ b/tests/test_main_window_persistence.py
+@@ -4,9 +4,11 @@ import os
+ from pathlib import Path
+ from unittest.mock import patch
+ 
++import pytest
++
+ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+ 
+-from PySide6.QtCore import QSettings, Qt
++from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
+ from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox, QVBoxLayout
+ 
+ from polynexus.gui.main_window import AITuneWorker, AnalysisWorker, MainWindow, JointHubWorker, SideTuningReportDialog, _data_file_dialog_filter
+@@ -15,6 +17,19 @@ from polynexus.data.sample_db import SampleDB
+ from rag.prompt_builder import PromptBuilder
+ 
+ 
++@pytest.fixture(autouse=True)
++def _cleanup_qt_widgets_between_tests():
++    yield
++    app = QApplication.instance()
++    if app is None:
++        return
++    for widget in QApplication.topLevelWidgets():
++        widget.close()
++        widget.deleteLater()
++    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
++    app.processEvents()
++
++
+ def _config_widget(window, key):
+     for row in range(window._config_form.rowCount()):
+         item = window._config_form.itemAt(row, QFormLayout.FieldRole)
+@@ -1719,9 +1734,14 @@ def test_ai_tuning_report_score_table_copy_shortcut_copies_selected_row():
+ 
+         text = QApplication.clipboard().text()
+         assert text.splitlines()[0] == (
+-            f"{tr('AI_TUNING_COL_ROUND')}\t{tr('AI_TUNING_COL_R2')}\t{tr('AI_TUNING_COL_EVAL')}"
++            f"{tr('AI_TUNING_COL_ROUND')}\t{tr('AI_TUNING_COL_CORE')}\t"
++            f"{tr('AI_TUNING_COL_SUPPORT')}\t{tr('AI_TUNING_COL_R2')}\t"
++            f"{tr('AI_TUNING_COL_EVAL')}"
++        )
++        assert text.splitlines()[1] == (
++            f"{tr('AI_TUNING_ROUND_ACCEPTED', 3)}\t{tr('AI_TUNING_EMPTY_VALUE')}\t"
++            f"{tr('AI_TUNING_EMPTY_VALUE')}\t0.912\tgood"
+         )
+-        assert text.splitlines()[1] == f"{tr('AI_TUNING_ROUND_ACCEPTED', 3)}\t0.912\tgood"
+         assert len(text.splitlines()) == 2
+ 
+         dialog.deleteLater()
+@@ -5801,7 +5821,7 @@ def test_context_suggestions_prioritize_ai_tuned_follow_up(tmp_path):
+ 
+         config_panel = window._context_suggestion_panels["config"]
+         assert "recommended-parameter rerun result" in config_panel["detail"].text()
+-        assert config_panel["buttons"][0].text() == "Review AI result"
++        assert config_panel["buttons"][0].text() == "Review result"
+         assert config_panel["buttons"][1].text() == "Run controlled optimization again"
+ 
+         window.deleteLater()
+@@ -6197,7 +6217,7 @@ def test_history_table_shows_metric_summary_in_tooltips(tmp_path):
+ 
+     tooltip_time = window._history_table.item(0, 0).toolTip()
+     tooltip_r2 = window._history_table.item(0, 3).toolTip()
+-    assert tooltip_time == "L_nm=12.0 | lc_nm=5.8 | Xc_pct=0.35 | extra_tag=A"
++    assert tooltip_time == "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A"
+     assert tooltip_r2 == tooltip_time
+ 
+     db.close()
+@@ -6260,7 +6280,7 @@ def test_history_table_metric_summary_ignores_validation_fields(tmp_path):
+     window._refresh_history()
+ 
+     tooltip_time = window._history_table.item(0, 0).toolTip()
+-    assert tooltip_time == "L_nm=12.0 | lc_nm=5.8 | Xc_pct=0.35 | extra_tag=A"
++    assert tooltip_time == "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A"
+     assert "validation_summary" not in tooltip_time.lower()
+ 
+     db.close()
+@@ -6805,7 +6825,7 @@ def test_history_copy_summary_copies_selected_record_summary(tmp_path):
+         assert "Static SAXS" in text
+         assert "Recommended-parameter rerun" in text
+         assert "Run trace" in text or "运行轨迹" in text
+-        assert "L_nm=12.0 | lc_nm=5.8 | Xc_pct=0.35 | extra_tag=A" in text
++        assert "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A" in text
+         assert "Boundary" in text
+         assert "Copied history summary: Static SAXS" in window._log_panel.toPlainText()
+ 
+diff --git a/tests/test_phase3.py b/tests/test_phase3.py
+index 6c232ba..f196b04 100644
+--- a/tests/test_phase3.py
++++ b/tests/test_phase3.py
+@@ -135,10 +135,17 @@ def test_07_advisor_output_matches_expected_schema() -> None:
+         advice = advisor.advise({"technique": "IR", "polymer_name": "PA6", "params": {"peak_wavenumbers": [1635]}})
+         assert set(advice) == {
+             "assessment",
++            "diagnosis",
+             "confidence",
+             "reasoning",
++            "hypothesis",
++            "target_symptom",
++            "recommended_actions",
+             "changes",
++            "allowed_changes",
+             "expected_improvement",
++            "expected_evidence_change",
++            "rollback_condition",
+             "risk",
+             "suggestions",
+             "reference_cases",
+@@ -147,7 +154,10 @@ def test_07_advisor_output_matches_expected_schema() -> None:
+         }
+         assert isinstance(advice["confidence"], float)
+         assert isinstance(advice["changes"], dict)
++        assert isinstance(advice["allowed_changes"], dict)
+         assert isinstance(advice["expected_improvement"], dict)
++        assert isinstance(advice["expected_evidence_change"], dict)
++        assert isinstance(advice["recommended_actions"], list)
+         assert isinstance(advice["suggestions"], list)
+         assert isinstance(advice["reference_cases"], list)
+     finally:
+-- 
+2.54.0.windows.1
+
