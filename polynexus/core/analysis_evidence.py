@@ -801,6 +801,15 @@ def physical_constraint_inventory(technique: str) -> list[EvidenceConstraint]:
                 field="Xc_method",
                 rationale="Solid-state NMR Xc should not be promoted before phase assignments are explicit.",
             ),
+            EvidenceConstraint(
+                name="nmr_xc_assignment_limited",
+                kind="soft_warn",
+                source="NMR",
+                severity="WARN",
+                description="NMR Xc is present without crystalline/amorphous phase assignment support.",
+                field="Xc_method",
+                rationale="Assignment-limited Xc should not enter Joint as strong crystallinity evidence.",
+            ),
         )
     return []
 
@@ -859,6 +868,7 @@ def _nmr_symptoms_from_constraints(constraints: list[dict[str, Any]]) -> list[di
         "nmr_weak_assignment",
         "nmr_solvent_risk",
         "nmr_xc_assignment_missing",
+        "nmr_xc_assignment_limited",
     }
     symptoms: list[dict[str, Any]] = []
     for item in constraints:
@@ -890,6 +900,7 @@ def _nmr_symptom_bridge_lines(symptom: dict[str, Any] | None) -> list[str]:
         "nmr_weak_assignment": "nmr_weak_assignment -> add or verify peak assignments before promoting structural conclusions",
         "nmr_solvent_risk": "nmr_solvent_risk -> exclude likely solvent peaks before using assignment evidence",
         "nmr_xc_assignment_missing": "nmr_xc_assignment_missing -> assign crystalline and amorphous peaks before trusting NMR Xc",
+        "nmr_xc_assignment_limited": "nmr_xc_assignment_limited -> keep NMR Xc diagnostic until crystalline and amorphous peaks are assigned",
     }
     return [mapping[name]] if name in mapping else []
 
@@ -3241,11 +3252,31 @@ def evaluate_physical_constraints(
             peak_rows = _nmr_peak_rows(output)
             phases = {str(row.get("phase", "") or "").lower() for row in peak_rows if row.get("phase")}
             xc_method = str(output.get("Xc_method") or "").strip()
-            needs_assignment = xc_method == "requires_crystalline_amorphous_assignment" or output.get("Xc_pct") is not None
+            needs_assignment = xc_method == "requires_crystalline_amorphous_assignment" and output.get("Xc_pct") is None
             has_crystalline = bool(phases & {"c", "crystalline"})
             has_amorphous = bool(phases & {"a", "amorphous"})
             observed = {"Xc_method": xc_method or None, "phases": sorted(phases)}
             triggered = bool(needs_assignment and not (has_crystalline and has_amorphous))
+        elif item.name == "nmr_xc_assignment_limited":
+            peak_rows = _nmr_peak_rows(output)
+            phases = {str(row.get("phase", "") or "").lower() for row in peak_rows if row.get("phase")}
+            xc_method = str(output.get("Xc_method") or "").strip()
+            phase_count = _clean_float(output.get("phase_assignment_count"))
+            if phase_count is not None and phase_count <= 0:
+                phases = set()
+            has_crystalline = bool(phases & {"c", "crystalline"})
+            has_amorphous = bool(phases & {"a", "amorphous"})
+            observed = {
+                "Xc_method": xc_method or None,
+                "Xc_pct": _clean_float(output.get("Xc_pct")),
+                "phase_assignment_count": phase_count,
+                "phases": sorted(phases),
+            }
+            triggered = bool(
+                output.get("Xc_pct") is not None
+                and xc_method == "requires_crystalline_amorphous_assignment"
+                and not (has_crystalline and has_amorphous)
+            )
         elif technique_key == "IR" and not is_ir_temperature_2d and item.name in {
             "key_band_support_insufficient",
             "assignment_without_characteristic_bands",

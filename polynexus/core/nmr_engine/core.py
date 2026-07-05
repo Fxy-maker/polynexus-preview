@@ -78,6 +78,22 @@ class NMRResult:
             p[f'region_{_slug_key(key)}_pct'] = val
         for key, val in self.quality_metrics.items():
             p[f'quality_{_slug_key(key)}'] = val
+        peak_total = max(len(self.peaks), 1)
+        phase_assigned = [
+            pk for pk in self.peaks
+            if str(pk.get('phase', '') or '').strip().lower() not in {'', 'unknown', 'none'}
+        ]
+        generic_assigned = [
+            pk for pk in self.peaks
+            if str(pk.get('assignment', '') or '').strip().endswith(('C', 'H'))
+            or 'region' in str(pk.get('assignment', '') or '').strip().lower()
+        ]
+        solvent_peaks = [pk for pk in self.peaks if pk.get('possible_solvent')]
+        p['assigned_peak_fraction'] = len(phase_assigned) / peak_total
+        p['generic_assignment_fraction'] = len(generic_assigned) / peak_total
+        p['solvent_peak_count'] = len(solvent_peaks)
+        p['phase_assignment_count'] = len(phase_assigned)
+        p['assignment_source'] = 'polymer_db' if phase_assigned else ('generic_region' if self.peaks else '')
         for i, pk in enumerate(self.peaks[:10]):
             p[f'peak_{i}_ppm'] = pk.get('ppm', np.nan)
             p[f'peak_{i}_assignment'] = pk.get('assignment', '')

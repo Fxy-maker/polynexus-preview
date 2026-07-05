@@ -84,6 +84,24 @@ def test_nmr_result_parameters_include_phase_and_match_evidence() -> None:
     assert params["peak_0_delta_ppm"] == 0.4
 
 
+def test_nmr_result_parameters_include_assignment_source_statistics() -> None:
+    from polynexus.core.nmr_engine.core import NMRResult
+
+    result = NMRResult(nucleus="13C", sample_state="solid")
+    result.peaks = [
+        {"assignment": "carbonyl_C", "phase": "unknown", "possible_solvent": ""},
+        {"assignment": "aliphatic_C", "phase": "unknown", "possible_solvent": "DMSO"},
+    ]
+    result.n_peaks = 2
+
+    params = result.parameters
+
+    assert params["assignment_source"] == "generic_region"
+    assert params["generic_assignment_fraction"] == 1.0
+    assert params["phase_assignment_count"] == 0
+    assert params["solvent_peak_count"] == 1
+
+
 def test_liquid_h_pipeline_detects_peaks_from_real_fid():
     cfg = NMRConfig(
         sample_state="liquid",

@@ -1127,6 +1127,32 @@ def test_nmr_low_confidence_symptoms_are_actionable() -> None:
     assert evidence["constraint_summary"]["status"] in {"soft_warn", "hard_fail"}
 
 
+def test_nmr_evidence_marks_assignment_limited_xc_not_ready() -> None:
+    evidence = build_analysis_evidence(
+        "NMR",
+        {
+            "nucleus": "13C",
+            "sample_state": "solid",
+            "n_peaks": 4,
+            "median_snr": 12.0,
+            "mean_fwhm_ppm": 3.5,
+            "r_squared": 0.91,
+            "Xc_pct": 55.0,
+            "Xc_method": "requires_crystalline_amorphous_assignment",
+            "assignment_source": "generic_region",
+            "generic_assignment_fraction": 1.0,
+            "phase_assignment_count": 0,
+            "solvent_peak_count": 0,
+        },
+        {},
+        {},
+    ).to_dict()
+
+    assert evidence["structure_evidence"]["Xc_assignment_status"] == "assignment_limited"
+    assert evidence["structure_evidence"]["paper_conclusion_ready"] is False
+    assert "nmr_xc_assignment_limited" in evidence["constraint_summary"]["triggered_names"]["soft_warn"]
+
+
 def test_advisor_normalizes_evidence_contract_fields() -> None:
     advisor = Advisor(retriever=_StaticRetriever(), llm_client=_StaticLLM())
     advice = advisor.advise(
