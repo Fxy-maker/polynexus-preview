@@ -215,8 +215,8 @@ def _json_loads(value: Any, default: Any) -> Any:
     try:
         return json.loads(str(value))
     except Exception:
+        logger.warning("Convergence viewer JSON field parse failed; returning default.", exc_info=True)
         return default
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _safe_float(value: Any) -> float | None:
@@ -262,8 +262,8 @@ def _load_report(path: str) -> dict[str, Any]:
     try:
         return json.loads(report_path.read_text(encoding="utf-8"))
     except Exception:
+        logger.warning("Convergence viewer report load failed; returning empty report.", exc_info=True)
         return {}
-        logger.warning("异常已处理", exc_info=True)
 
 
 def _extract_residuals(report: dict[str, Any], summary: dict[str, Any]) -> dict[str, Any]:
@@ -425,8 +425,8 @@ def _fmt(value: Any) -> str:
     try:
         return f"{float(value):.4f}"
     except Exception:
+        logger.warning("Convergence viewer numeric formatting failed; using string fallback.", exc_info=True)
         return str(value)
-        logger.warning("异常已处理", exc_info=True)
 
 
 class ConvergenceViewer(QMainWindow):

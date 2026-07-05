@@ -56,8 +56,8 @@ def fetch_pubchem(compound_name):
     except urllib.error.HTTPError as e:
         return {"name": compound_name, "error": f"HTTP {e.code}"}
     except Exception as e:
+        logger.warning("PubChem fetch failed.", exc_info=True)
         return {"name": compound_name, "error": str(e)}
-        logger.warning("异常已处理", exc_info=True)
 
 
 def main():

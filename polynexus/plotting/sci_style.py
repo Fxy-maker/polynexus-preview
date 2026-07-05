@@ -395,7 +395,7 @@ def make_composite_figure(
             try:
                 ax.add_collection(coll)
             except Exception:
-                logger.warning("静默异常", exc_info=True)
+                logger.warning("Scientific plot style collection copy failed.", exc_info=True)
 
         # Copy axis properties
         ax.set_xlim(orig_ax.get_xlim())

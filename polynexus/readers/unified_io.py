@@ -55,7 +55,7 @@ def detect_format(filepath: str) -> str:
             if tabs > commas and tabs > 3:
                 return "csv"
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("Unified reader delimiter sniff failed; keeping detected format.", exc_info=True)
     return fmt
 
 
@@ -84,7 +84,7 @@ def load_table(
             if not df.empty:
                 return list(df.columns.astype(str)), df.values.astype(np.float64)
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("Unified reader pandas table load failed; trying numpy loader.", exc_info=True)
 
     try:
         data = np.genfromtxt(
@@ -100,7 +100,7 @@ def load_table(
             cols = [f"col_{i}" for i in range(data.shape[1])]
             return cols, data.astype(np.float64)
     except Exception:
-        logger.warning("静默异常", exc_info=True)
+        logger.warning("Unified reader numpy table load failed; trying line-by-line parser.", exc_info=True)
 
     return _line_by_line(filepath, skip_rows)
 

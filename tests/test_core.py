@@ -117,3 +117,42 @@ def test_core_logger_warning_messages_are_contextual():
             assert message not in generic_messages, f"{path}: {message}"
 
     assert checked > 0
+
+
+def test_clean_non_core_logger_warning_messages_are_contextual():
+    repo_root = Path(__file__).resolve().parents[1]
+    generic_messages = {"异常已处理", "静默异常", "Unexpected error"}
+    paths = [
+        repo_root / "polynexus" / "data" / "fetch_pubchem.py",
+        repo_root / "polynexus" / "gui" / "convergence_viewer.py",
+        repo_root / "polynexus" / "orchestrator.py",
+        repo_root / "polynexus" / "plotting" / "sci_style.py",
+        *[
+            path
+            for path in sorted((repo_root / "polynexus" / "readers").glob("*.py"))
+            if path.name != "edf_reader.py"
+        ],
+    ]
+    checked = 0
+
+    for path in paths:
+        tree = ast.parse(path.read_text(encoding="utf-8-sig", errors="ignore"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (
+                isinstance(func, ast.Attribute)
+                and func.attr == "warning"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "logger"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                continue
+            checked += 1
+            message = node.args[0].value
+            assert message not in generic_messages, f"{path}: {message}"
+
+    assert checked > 0

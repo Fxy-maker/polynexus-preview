@@ -91,7 +91,7 @@ def _extract_scan_params(data: bytes, n_points: int) -> Tuple[float, float]:
             if 1.0 < abs(v) < 130.0:
                 candidates.append(v)
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("RAW reader metadata candidate parse failed.", exc_info=True)
 
     starts = [v for v in candidates if 2.0 <= v <= 15.0]
     ends = [v for v in candidates if 50.0 <= v <= 120.0]
@@ -122,5 +122,5 @@ def _generic_scan(data: bytes, meta: Dict) -> Tuple[np.ndarray, np.ndarray, Dict
                 mask = (I_arr > 0) & np.isfinite(I_arr)
                 return tth[mask], I_arr[mask], meta
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("RAW reader numeric payload parse attempt failed.", exc_info=True)
     raise ValueError("Cannot parse .raw file")

@@ -4822,8 +4822,8 @@ class ParameterOrchestrator:
         try:
             return bool(value != value)
         except Exception:
+            logger.warning("Orchestrator NaN check failed.", exc_info=True)
             return False
-            logger.warning("异常已处理", exc_info=True)
 
     def _safe_float(self, value: Any) -> float:
         try:
