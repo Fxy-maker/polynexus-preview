@@ -292,6 +292,11 @@ class ChartEditor(QWidget):
         )
         annotation_actions_layout.addWidget(self._btn_annotation_add_highlight)
 
+        self._btn_annotation_crop = QPushButton(tr("EDITOR_ANNOTATION_CROP"))
+        self._btn_annotation_crop.setCheckable(True)
+        self._btn_annotation_crop.clicked.connect(self._on_crop_annotation_canvas)
+        annotation_actions_layout.addWidget(self._btn_annotation_crop)
+
         self._btn_annotation_delete = QPushButton(tr("EDITOR_ANNOTATION_DELETE"))
         self._btn_annotation_delete.clicked.connect(self._on_annotation_delete)
         annotation_actions_layout.addWidget(self._btn_annotation_delete)
@@ -422,6 +427,7 @@ class ChartEditor(QWidget):
         self._btn_annotation_add_highlight.setText(
             tr("EDITOR_ANNOTATION_ADD_HIGHLIGHT")
         )
+        self._btn_annotation_crop.setText(tr("EDITOR_ANNOTATION_CROP"))
         self._btn_annotation_delete.setText(tr("EDITOR_ANNOTATION_DELETE"))
         self._btn_annotation_copy.setText(tr("EDITOR_ANNOTATION_COPY"))
         self._btn_annotation_paste.setText(tr("EDITOR_ANNOTATION_PASTE"))
@@ -645,16 +651,16 @@ class ChartEditor(QWidget):
                 state_path, _ = save_figure_edit(str(path), self._collect_style_state())
                 annotations = self._annotation_state()
                 save_figure_annotations(str(path), annotations)
-                save_figure_asset_spec(
-                    str(path),
-                    discover_figure_asset(str(path)).to_dict(),
-                )
-                if annotations and self._save_static_canvas_to_path(path):
+                if self._should_save_static_canvas(path, annotations) and self._save_static_canvas_to_path(path):
                     pass
                 elif not self._save_static_rendered_figure(path):
                     source = Path(self._source_path)
                     if source.exists() and source.resolve() != path.resolve():
                         shutil.copy2(source, path)
+                save_figure_asset_spec(
+                    str(path),
+                    discover_figure_asset(str(path)).to_dict(),
+                )
                 self._status_label.setText(tr("EDITOR_SAVE_STATE_DONE", state_path.name))
                 self.figure_saved.emit(str(path))
                 return
@@ -722,6 +728,19 @@ class ChartEditor(QWidget):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return []
         return self._annotation_canvas.annotation_state()
+
+    def _should_save_static_canvas(self, path, annotations):
+        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
+            return False
+        if annotations:
+            return True
+        if self._asset_spec is None:
+            return False
+        canvas_width, canvas_height = self._annotation_canvas.image_size()
+        return (
+            int(getattr(self._asset_spec, "width_px", 0) or 0) != canvas_width
+            or int(getattr(self._asset_spec, "height_px", 0) or 0) != canvas_height
+        )
 
     def _collect_style_preset_state(self):
         return {
@@ -1007,6 +1026,11 @@ class ChartEditor(QWidget):
             return
         self._annotation_canvas.set_tool("highlight")
 
+    def _on_crop_annotation_canvas(self):
+        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
+            return
+        self._annotation_canvas.set_tool("crop")
+
     def _on_annotation_undo(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
@@ -1054,6 +1078,7 @@ class ChartEditor(QWidget):
             "arrow": self._btn_annotation_add_arrow,
             "rectangle": self._btn_annotation_add_rect,
             "highlight": self._btn_annotation_add_highlight,
+            "crop": self._btn_annotation_crop,
         }
         for name, button in mapping.items():
             button.blockSignals(True)

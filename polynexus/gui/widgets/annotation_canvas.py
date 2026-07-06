@@ -28,8 +28,8 @@ class AnnotationCanvas(QWidget):
         self._image_width = 0
         self._image_height = 0
         self._annotations: list[dict] = []
-        self._undo_stack: list[list[dict]] = []
-        self._redo_stack: list[list[dict]] = []
+        self._undo_stack: list[dict] = []
+        self._redo_stack: list[dict] = []
         self._selected_annotation_id = ""
         self._zoom_level = 1.0
         self._zoom_mode = "fit"
@@ -128,7 +128,7 @@ class AnnotationCanvas(QWidget):
         return annotation_id
 
     def set_tool(self, tool: str) -> bool:
-        if tool not in {"select", "text", "line", "arrow", "rectangle", "highlight"}:
+        if tool not in {"select", "text", "line", "arrow", "rectangle", "highlight", "crop"}:
             return False
         if self._current_tool == tool:
             return True
@@ -139,6 +139,9 @@ class AnnotationCanvas(QWidget):
 
     def current_tool(self) -> str:
         return self._current_tool
+
+    def image_size(self) -> tuple[int, int]:
+        return self._image_width, self._image_height
 
     def remove_annotation(self, annotation_id: str) -> bool:
         next_annotations = [
@@ -262,22 +265,52 @@ class AnnotationCanvas(QWidget):
     def send_selected_to_back(self) -> bool:
         return self._move_selected_layer(to_front=False)
 
+    def crop_to_rect(self, x: float, y: float, width: float, height: float) -> bool:
+        if self._pixmap_item is None or self._image_width <= 0 or self._image_height <= 0:
+            return False
+        left = max(0.0, min(float(x), float(self._image_width)))
+        top = max(0.0, min(float(y), float(self._image_height)))
+        right = max(left, min(left + float(width), float(self._image_width)))
+        bottom = max(top, min(top + float(height), float(self._image_height)))
+        crop_width = int(round(right - left))
+        crop_height = int(round(bottom - top))
+        if crop_width < 1 or crop_height < 1:
+            return False
+
+        self.sync_scene_items_to_state()
+        source_pixmap = self._pixmap_item.pixmap()
+        cropped = source_pixmap.copy(int(round(left)), int(round(top)), crop_width, crop_height)
+        if cropped.isNull():
+            return False
+
+        self._push_undo()
+        self._annotations = self._annotations_after_crop(left, top, float(crop_width), float(crop_height))
+        self._image_width = crop_width
+        self._image_height = crop_height
+        self._selected_annotation_id = ""
+        self._scene.clear()
+        self._pixmap_item = self._scene.addPixmap(cropped)
+        self._pixmap_item.setPos(0, 0)
+        self._scene.setSceneRect(QRectF(0, 0, self._image_width, self._image_height))
+        for annotation in self._annotations:
+            self._draw_annotation(annotation)
+        self.fit_to_window()
+        return True
+
     def undo(self) -> bool:
         if not self._undo_stack:
             return False
-        self._redo_stack.append(deepcopy(self._annotations))
-        self._annotations = self._undo_stack.pop()
+        self._redo_stack.append(self._snapshot_state())
+        self._restore_state(self._undo_stack.pop())
         self._selected_annotation_id = ""
-        self._rebuild_scene()
         return True
 
     def redo(self) -> bool:
         if not self._redo_stack:
             return False
-        self._undo_stack.append(deepcopy(self._annotations))
-        self._annotations = self._redo_stack.pop()
+        self._undo_stack.append(self._snapshot_state())
+        self._restore_state(self._redo_stack.pop())
         self._selected_annotation_id = ""
-        self._rebuild_scene()
         return True
 
     def zoom_level(self) -> float:
@@ -482,8 +515,33 @@ class AnnotationCanvas(QWidget):
         return float(value) * float(self._image_height)
 
     def _push_undo(self) -> None:
-        self._undo_stack.append(deepcopy(self._annotations))
+        self._undo_stack.append(self._snapshot_state())
         self._redo_stack = []
+
+    def _snapshot_state(self) -> dict:
+        pixmap = QPixmap()
+        if self._pixmap_item is not None:
+            pixmap = QPixmap(self._pixmap_item.pixmap())
+        return {
+            "annotations": deepcopy(self._annotations),
+            "image_width": self._image_width,
+            "image_height": self._image_height,
+            "pixmap": pixmap,
+        }
+
+    def _restore_state(self, state: dict) -> None:
+        self._annotations = deepcopy(state.get("annotations", []))
+        self._image_width = int(state.get("image_width", 0) or 0)
+        self._image_height = int(state.get("image_height", 0) or 0)
+        pixmap = state.get("pixmap")
+        self._scene.clear()
+        self._pixmap_item = None
+        if isinstance(pixmap, QPixmap) and not pixmap.isNull():
+            self._pixmap_item = self._scene.addPixmap(QPixmap(pixmap))
+            self._pixmap_item.setPos(0, 0)
+        for annotation in self._annotations:
+            self._draw_annotation(annotation)
+        self._scene.setSceneRect(QRectF(0, 0, self._image_width, self._image_height))
 
     def _set_zoom_level(self, level: float) -> bool:
         if self._image_width <= 0 or self._image_height <= 0:
@@ -520,6 +578,14 @@ class AnnotationCanvas(QWidget):
             if tool == "rectangle":
                 return self.add_rectangle_annotation(x, y, width, height)
             return self.add_highlight_annotation(x, y, width, height)
+        if tool == "crop":
+            x = min(start.x(), end.x())
+            y = min(start.y(), end.y())
+            width = abs(end.x() - start.x())
+            height = abs(end.y() - start.y())
+            if width < 1.0 or height < 1.0:
+                return ""
+            return "crop" if self.crop_to_rect(x, y, width, height) else ""
         if tool == "line":
             return self.add_line_annotation(start.x(), start.y(), end.x(), end.y())
         if tool == "arrow":
@@ -626,6 +692,75 @@ class AnnotationCanvas(QWidget):
         self._rebuild_scene()
         self.select_annotation(annotation_id)
         return True
+
+    def _annotations_after_crop(
+        self,
+        left: float,
+        top: float,
+        width: float,
+        height: float,
+    ) -> list[dict]:
+        cropped = []
+        for annotation in self._annotations:
+            updated = self._crop_annotation(annotation, left, top, width, height)
+            if updated is not None:
+                cropped.append(updated)
+        return cropped
+
+    def _crop_annotation(
+        self,
+        annotation: dict,
+        left: float,
+        top: float,
+        width: float,
+        height: float,
+    ) -> dict | None:
+        kind = annotation.get("type")
+        updated = deepcopy(annotation)
+        if kind == "text":
+            x = self._denormalize_x(float(annotation.get("x", 0.0)))
+            y = self._denormalize_y(float(annotation.get("y", 0.0)))
+            if not (left <= x <= left + width and top <= y <= top + height):
+                return None
+            updated["x"] = round((x - left) / width, 6)
+            updated["y"] = round((y - top) / height, 6)
+            return updated
+
+        if kind in {"rectangle", "highlight"}:
+            x = self._denormalize_x(float(annotation.get("x", 0.0)))
+            y = self._denormalize_y(float(annotation.get("y", 0.0)))
+            rect_width = self._denormalize_x(float(annotation.get("width", 0.0)))
+            rect_height = self._denormalize_y(float(annotation.get("height", 0.0)))
+            ix1 = max(x, left)
+            iy1 = max(y, top)
+            ix2 = min(x + rect_width, left + width)
+            iy2 = min(y + rect_height, top + height)
+            if ix2 <= ix1 or iy2 <= iy1:
+                return None
+            updated["x"] = round((ix1 - left) / width, 6)
+            updated["y"] = round((iy1 - top) / height, 6)
+            updated["width"] = round((ix2 - ix1) / width, 6)
+            updated["height"] = round((iy2 - iy1) / height, 6)
+            return updated
+
+        if kind in {"line", "arrow"}:
+            x1 = self._denormalize_x(float(annotation.get("x1", 0.0)))
+            y1 = self._denormalize_y(float(annotation.get("y1", 0.0)))
+            x2 = self._denormalize_x(float(annotation.get("x2", 0.0)))
+            y2 = self._denormalize_y(float(annotation.get("y2", 0.0)))
+            min_x = min(x1, x2)
+            max_x = max(x1, x2)
+            min_y = min(y1, y2)
+            max_y = max(y1, y2)
+            if max_x < left or min_x > left + width or max_y < top or min_y > top + height:
+                return None
+            updated["x1"] = round(min(1.0, max(0.0, (x1 - left) / width)), 6)
+            updated["y1"] = round(min(1.0, max(0.0, (y1 - top) / height)), 6)
+            updated["x2"] = round(min(1.0, max(0.0, (x2 - left) / width)), 6)
+            updated["y2"] = round(min(1.0, max(0.0, (y2 - top) / height)), 6)
+            return updated
+
+        return updated
 
     def _rebuild_scene(self) -> None:
         pixmap = self._pixmap_item.pixmap() if self._pixmap_item is not None else QPixmap()

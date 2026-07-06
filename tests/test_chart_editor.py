@@ -363,6 +363,114 @@ def test_chart_editor_annotation_buttons_choose_shape_tools_for_mouse_drawing(tm
     app.processEvents()
 
 
+def test_chart_editor_crop_button_crops_static_canvas(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+
+    figure_path = tmp_path / "figures" / "source.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    editor._annotation_canvas.set_zoom_100()
+    text_id = editor._annotation_canvas.add_text_annotation("Inside", 30, 15)
+
+    editor._btn_annotation_crop.click()
+    assert editor._annotation_canvas.current_tool() == "crop"
+    assert editor._btn_annotation_crop.isChecked()
+
+    _send_canvas_drag(editor._annotation_canvas, 20, 10, 60, 30)
+    rendered = editor._annotation_canvas.render_to_image()
+    annotations = {item["id"]: item for item in editor._annotation_canvas.annotation_state()}
+
+    assert not editor._btn_annotation_crop.isChecked()
+    assert rendered.width() == 40
+    assert rendered.height() == 20
+    assert annotations[text_id]["x"] == 0.25
+    assert annotations[text_id]["y"] == 0.25
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_static_crop_save_updates_file_and_asset_spec(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+
+    figure_path = tmp_path / "figures" / "source.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    assert editor._annotation_canvas.crop_to_rect(20, 10, 40, 20) is True
+    editor.save_to_target()
+
+    saved = QPixmap(str(figure_path))
+    asset_spec = load_figure_asset_spec(str(figure_path))
+
+    assert saved.width() == 40
+    assert saved.height() == 20
+    assert asset_spec["width_px"] == 40
+    assert asset_spec["height_px"] == 20
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_static_edit_manual_acceptance_flow(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+
+    figure_path = tmp_path / "figures" / "source.png"
+    copy_path = tmp_path / "figures" / "source_review.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    original_bytes = figure_path.read_bytes()
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    editor._annotation_canvas.set_zoom_100()
+    editor._annotation_canvas.add_text_annotation("Manual flow", 30, 15)
+    editor._annotation_canvas.add_arrow_annotation(20, 10, 60, 25)
+    editor._annotation_canvas.add_rectangle_annotation(20, 10, 30, 15)
+    assert editor._annotation_canvas.crop_to_rect(10, 5, 80, 40) is True
+    editor.save_to_target()
+
+    assert figure_path.read_bytes() != original_bytes
+    assert figure_path.with_name(f"{figure_path.name}.bak").read_bytes() == original_bytes
+
+    reopened = ChartEditor()
+    reopened.set_source_figure(str(figure_path))
+    annotations = reopened._annotation_canvas.annotation_state()
+
+    assert [item["type"] for item in annotations] == ["text", "arrow", "rectangle"]
+    assert annotations[0]["text"] == "Manual flow"
+    assert reopened._annotation_canvas.image_size() == (80, 40)
+
+    before_save_as = figure_path.read_bytes()
+    reopened._save_to_path(str(copy_path))
+
+    copy_spec = load_figure_asset_spec(str(copy_path))
+    assert figure_path.read_bytes() == before_save_as
+    assert copy_path.exists()
+    assert copy_path.read_bytes() != original_bytes
+    assert copy_spec["figure_id"] == "source_review"
+    assert copy_spec["width_px"] == 80
+    assert copy_spec["height_px"] == 40
+
+    editor.deleteLater()
+    reopened.deleteLater()
+    app.processEvents()
+
+
 def test_chart_editor_annotation_zoom_buttons_control_canvas_view(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))

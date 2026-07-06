@@ -697,3 +697,102 @@ def test_annotation_canvas_reorders_selected_annotation_layers(tmp_path):
 
     canvas.deleteLater()
     app.processEvents()
+
+
+def test_annotation_canvas_crop_reframes_image_and_annotations(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+
+    text_id = canvas.add_text_annotation("Inside", 30, 15)
+    rect_id = canvas.add_rectangle_annotation(20, 10, 20, 10)
+    outside_id = canvas.add_text_annotation("Outside", 90, 45)
+
+    assert canvas.crop_to_rect(20, 10, 40, 20) is True
+
+    rendered = canvas.render_to_image()
+    annotations = {item["id"]: item for item in canvas.annotation_state()}
+
+    assert rendered.width() == 40
+    assert rendered.height() == 20
+    assert text_id in annotations
+    assert rect_id in annotations
+    assert outside_id not in annotations
+    assert annotations[text_id]["x"] == 0.25
+    assert annotations[text_id]["y"] == 0.25
+    assert annotations[rect_id]["x"] == 0.0
+    assert annotations[rect_id]["y"] == 0.0
+    assert annotations[rect_id]["width"] == 0.5
+    assert annotations[rect_id]["height"] == 0.5
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_undo_redo_crop_restores_image_size(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    text_id = canvas.add_text_annotation("Inside", 30, 15)
+
+    assert canvas.crop_to_rect(20, 10, 40, 20) is True
+    assert canvas.render_to_image().size().width() == 40
+
+    assert canvas.undo() is True
+    undo_image = canvas.render_to_image()
+    undo_annotation = canvas.annotation_state()[0]
+    assert undo_image.width() == 100
+    assert undo_image.height() == 50
+    assert undo_annotation["id"] == text_id
+    assert undo_annotation["x"] == 0.3
+    assert undo_annotation["y"] == 0.3
+
+    assert canvas.redo() is True
+    redo_image = canvas.render_to_image()
+    redo_annotation = canvas.annotation_state()[0]
+    assert redo_image.width() == 40
+    assert redo_image.height() == 20
+    assert redo_annotation["x"] == 0.25
+    assert redo_annotation["y"] == 0.25
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_crop_undo_redo_restores_image_size(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    text_id = canvas.add_text_annotation("Inside", 30, 15)
+
+    assert canvas.crop_to_rect(20, 10, 40, 20) is True
+    assert canvas.image_size() == (40, 20)
+
+    assert canvas.undo() is True
+    assert canvas.image_size() == (100, 50)
+    assert canvas.render_to_image().size().width() == 100
+    restored = {item["id"]: item for item in canvas.annotation_state()}
+    assert restored[text_id]["x"] == 0.3
+    assert restored[text_id]["y"] == 0.3
+
+    assert canvas.redo() is True
+    assert canvas.image_size() == (40, 20)
+    assert canvas.render_to_image().size().width() == 40
+
+    canvas.deleteLater()
+    app.processEvents()
