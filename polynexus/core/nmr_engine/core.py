@@ -619,7 +619,7 @@ def _fit_region_peaks(ppm, intensity, peaks, method='mixed',
                 area = float(a * s * np.sqrt(np.pi))
             except Exception:
                 area = a * s * 1.77
-                logger.warning("异常已处理", exc_info=True)
+                logger.warning("NMR pseudo-Voigt area estimate failed; using fallback area factor.", exc_info=True)
 
         fitted.append({
             'index': i, 'ppm': c, 'height': a,

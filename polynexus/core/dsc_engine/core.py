@@ -306,7 +306,6 @@ def compute_Tg(T: np.ndarray, HF: np.ndarray,
             result['DTg_C'] = width
     except Exception as e:
         logger.warning("DSC Tg 检测失败: %s", e, exc_info=True)
-        logger.warning("异常已处理", exc_info=True)
 
     return result
 
@@ -523,7 +522,7 @@ def _find_thermal_events_physical(T: np.ndarray, HF: np.ndarray,
         except Exception:
             left_bases = props.get('left_bases', np.maximum(0, peaks - distance))
             right_bases = props.get('right_bases', np.minimum(len(T_work) - 1, peaks + distance))
-            logger.warning("异常已处理", exc_info=True)
+            logger.warning("DSC peak width fallback used for event boundaries.", exc_info=True)
         prominences = props.get('prominences', np.full(len(peaks), np.nan))
         for i, peak_idx in enumerate(peaks):
             if peak_idx < 2 or peak_idx > len(T_work) - 3:
@@ -723,7 +722,7 @@ def deconvolve_peaks(T: np.ndarray, HF: np.ndarray,
     except Exception:
         # Fallback: use initial guesses as-is
         popt = p0
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("DSC peak deconvolution fit failed; using initial guesses.", exc_info=True)
 
     # Extract components
     n_base = 0 if baseline == 'none' else (1 if baseline == 'constant' else 2)
@@ -975,7 +974,7 @@ def compute_peak_fit_quality(
         )
     except Exception:
         popt = np.asarray(p0, dtype=float)
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("DSC local peak fit failed; using initial parameter guesses.", exc_info=True)
 
     y_fit = model(x, *popt)
     fit_full[mask] = y_fit
@@ -1405,7 +1404,7 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
                     'fraction': frac,
                 })
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("DSC deconvolved melting component extraction failed.", exc_info=True)
 
     # ---- Local peak fit score (AI tuning objective) ----
     fit_quality = compute_peak_fit_quality(T, HF, result, config, score_HF=fit_observed_HF)

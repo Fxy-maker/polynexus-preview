@@ -405,7 +405,7 @@ def _fit_peaks_with_halo(x, y, peaks, halo_indices=None, peak_type='pseudo_voigt
                     sigma = max(pk['two_theta'] * 0.03, 0.1)
             except Exception:
                 sigma = max(pk['two_theta'] * 0.03, 0.1)
-                logger.warning("异常已处理", exc_info=True)
+                logger.warning("WAXS peak-width estimate failed; using position-scaled sigma.", exc_info=True)
         p0.append(amp)
         p0.append(tth_c)
         p0.append(sigma)
@@ -436,7 +436,7 @@ def _fit_peaks_with_halo(x, y, peaks, halo_indices=None, peak_type='pseudo_voigt
         popt = res.x
     except Exception:
         popt = np.array(p0)
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("WAXS multi-peak fit failed; using initial peak guesses.", exc_info=True)
 
     # Extract fitted peaks
     fitted = []
@@ -992,7 +992,7 @@ def analyze_scan(scan: WAXSScan, config: WAXSConfig,
     except Exception as e:
         print(f"[WAXS] {label}: arPLS failed ({e}), falling back to raw data", file=sys.stderr)
         I_corrected = I.copy()
-        logger.warning("异常已处理", exc_info=True)
+        logger.warning("WAXS arPLS baseline correction failed; raw intensity used.", exc_info=True)
 
     # === Step 2: Detect crystalline peaks in the main WAXS window ===
     is_2d = scan.image is not None
@@ -1158,7 +1158,7 @@ def analyze_scan(scan: WAXSScan, config: WAXSConfig,
                         })
                 result.n_peaks = len(result.peaks)
         except Exception:
-            logger.warning("静默异常", exc_info=True)
+            logger.warning("WAXS joint-fit component conversion failed.", exc_info=True)
 
     # Post-check: if no truly sharp peak (FWHM < 5.0 deg) exists,
     # the sample is likely fully amorphous → zero out crystallinity.

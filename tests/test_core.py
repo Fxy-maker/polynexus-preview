@@ -79,3 +79,20 @@ def test_public_text_and_logs_do_not_contain_mojibake():
                 offenders.append(str(path.relative_to(root.parent)))
 
     assert offenders == []
+
+
+def test_core_physics_logs_are_contextual_not_generic():
+    root = Path(__file__).resolve().parents[1]
+    paths = [
+        root / "polynexus" / "core" / "dsc_engine" / "core.py",
+        root / "polynexus" / "core" / "waxs_engine" / "core.py",
+        root / "polynexus" / "core" / "nmr_engine" / "core.py",
+    ]
+    generic_tokens = ("异常已处理", "静默异常", "Unexpected error")
+    offenders = []
+    for path in paths:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if any(token in text for token in generic_tokens):
+            offenders.append(str(path.relative_to(root)))
+
+    assert offenders == []
