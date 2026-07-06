@@ -75,6 +75,15 @@ class DSCResult:
     DHm0_source: str = ""
     baseline_sensitivity_pct: float = np.nan
     integration_boundary_sensitivity_pct: float = np.nan
+    DHm_Jg_mean: float = np.nan
+    DHm_Jg_std: float = np.nan
+    DHcc_Jg_mean: float = np.nan
+    DHcc_Jg_std: float = np.nan
+    Xc_pct_mean: float = np.nan
+    Xc_pct_std: float = np.nan
+    Xc_pct_ci95: float = np.nan
+    baseline_variant_count: int = 0
+    integration_variant_count: int = 0
 
     # All detected peaks (for deconvolution / detailed reporting)
     peak_components: List[Dict[str, Any]] = field(default_factory=list)
@@ -112,6 +121,15 @@ class DSCResult:
             'DHm0_source': self.DHm0_source,
             'baseline_sensitivity_pct': self.baseline_sensitivity_pct,
             'integration_boundary_sensitivity_pct': self.integration_boundary_sensitivity_pct,
+            'DHm_Jg_mean': self.DHm_Jg_mean,
+            'DHm_Jg_std': self.DHm_Jg_std,
+            'DHcc_Jg_mean': self.DHcc_Jg_mean,
+            'DHcc_Jg_std': self.DHcc_Jg_std,
+            'Xc_pct_mean': self.Xc_pct_mean,
+            'Xc_pct_std': self.Xc_pct_std,
+            'Xc_pct_ci95': self.Xc_pct_ci95,
+            'baseline_variant_count': self.baseline_variant_count,
+            'integration_variant_count': self.integration_variant_count,
             'quality_score': self.quality_score,
             'r_squared': self.r_squared,
             'fit_rmse': self.fit_rmse,
@@ -318,6 +336,70 @@ def _local_linear_baseline(T: np.ndarray, HF: np.ndarray,
         return np.full(right - left + 1, HF[left], dtype=float)
     x = T[left:right + 1]
     return HF[left] + (HF[right] - HF[left]) * (x - T[left]) / denom
+
+
+def _reintegrate_event_variants(
+    T: np.ndarray,
+    HF: np.ndarray,
+    event: Optional[Dict[str, Any]],
+    is_endotherm: bool,
+) -> Dict[str, Any]:
+    """Reintegrate one event with simple baseline and boundary variants."""
+    if not isinstance(event, dict) or "index_range" not in event:
+        return {"enthalpies": [], "baseline_variant_count": 0, "integration_variant_count": 0}
+
+    T_arr = np.asarray(T, dtype=float)
+    HF_arr = np.asarray(HF, dtype=float)
+    if len(T_arr) < 5 or len(T_arr) != len(HF_arr):
+        return {"enthalpies": [], "baseline_variant_count": 0, "integration_variant_count": 0}
+
+    try:
+        base_left, base_right = event["index_range"]
+        base_left = int(base_left)
+        base_right = int(base_right)
+    except Exception:
+        return {"enthalpies": [], "baseline_variant_count": 0, "integration_variant_count": 0}
+
+    signed = -1.0 if is_endotherm else 1.0
+    boundary_shifts = (-1, 0, 1)
+    enthalpies: list[float] = []
+    baseline_names = {"endpoint_linear", "constant_endpoint_mean", "edge_mean_linear"}
+
+    for left_shift in boundary_shifts:
+        for right_shift in boundary_shifts:
+            left = int(np.clip(base_left + left_shift, 0, len(T_arr) - 2))
+            right = int(np.clip(base_right + right_shift, left + 2, len(T_arr) - 1))
+            if right - left < 3:
+                continue
+
+            x = T_arr[left:right + 1]
+            y = HF_arr[left:right + 1]
+            if len(x) < 3 or not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)):
+                continue
+
+            endpoint_linear = _local_linear_baseline(T_arr, HF_arr, left, right)
+            constant_endpoint_mean = np.full_like(y, float((HF_arr[left] + HF_arr[right]) / 2.0), dtype=float)
+
+            edge_width = max(1, min(5, len(y) // 5))
+            left_mean = float(np.nanmean(y[:edge_width]))
+            right_mean = float(np.nanmean(y[-edge_width:]))
+            denom = x[-1] - x[0]
+            if abs(float(denom)) < 1e-12:
+                edge_mean_linear = np.full_like(y, left_mean, dtype=float)
+            else:
+                edge_mean_linear = left_mean + (right_mean - left_mean) * (x - x[0]) / denom
+
+            for baseline in (endpoint_linear, constant_endpoint_mean, edge_mean_linear):
+                signal_pos = np.clip(signed * (y - baseline), 0.0, None)
+                enthalpy = _integrate_abs_temperature(x, signal_pos)
+                if np.isfinite(enthalpy):
+                    enthalpies.append(float(enthalpy))
+
+    return {
+        "enthalpies": enthalpies,
+        "baseline_variant_count": len(baseline_names),
+        "integration_variant_count": len(enthalpies),
+    }
 
 
 def _find_thermal_events_physical(T: np.ndarray, HF: np.ndarray,
@@ -1044,6 +1126,8 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
 
     melt_events = events['melting']
     cryst_events = events['crystallisation']
+    primary_melt_event: Optional[Dict[str, Any]] = None
+    primary_cold_cryst_event: Optional[Dict[str, Any]] = None
 
     if is_heating:
         # ---- Auto-fix convention: if strongest high-T peak is positive,
@@ -1082,6 +1166,7 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
             sorted_melt = sorted(melt_events, key=lambda e: e['enthalpy_Jg'], reverse=True)
             # Primary peak
             main = sorted_melt[0]
+            primary_melt_event = main
             result.Tm_onset_C = main['onset_C']
             result.Tm_peak_C  = main['peak_C']
             result.Tm_end_C   = main['end_C']
@@ -1136,6 +1221,7 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
             )
             if sorted_cryst:
                 main_cryst = sorted_cryst[0]
+                primary_cold_cryst_event = main_cryst
                 result.Tcc_onset_C = main_cryst['onset_C']
                 result.Tcc_peak_C  = main_cryst['peak_C']
                 result.DHcc_Jg     = main_cryst['enthalpy_Jg']
@@ -1234,7 +1320,52 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
     result.DHm0_source = "polymer_reference" if np.isfinite(DHm0) and DHm0 > 0 else "missing"
     result.Xc_pct = compute_crystallinity(result.DHm_Jg, result.DHcc_Jg, DHm0)
     result.Xc_method = "enthalpy_method"
-    if result.quality_score >= 0.8:
+    melt_variants = _reintegrate_event_variants(T, HF, primary_melt_event, is_endotherm=True)
+    cold_variants = _reintegrate_event_variants(T, HF, primary_cold_cryst_event, is_endotherm=False)
+    melt_enthalpies = np.asarray(melt_variants.get("enthalpies", []), dtype=float)
+    cold_enthalpies = np.asarray(cold_variants.get("enthalpies", []), dtype=float)
+    melt_enthalpies = melt_enthalpies[np.isfinite(melt_enthalpies)]
+    cold_enthalpies = cold_enthalpies[np.isfinite(cold_enthalpies)]
+
+    if melt_enthalpies.size:
+        result.DHm_Jg_mean = float(np.mean(melt_enthalpies))
+        result.DHm_Jg_std = float(np.std(melt_enthalpies))
+    if cold_enthalpies.size:
+        result.DHcc_Jg_mean = float(np.mean(cold_enthalpies))
+        result.DHcc_Jg_std = float(np.std(cold_enthalpies))
+    elif melt_enthalpies.size:
+        result.DHcc_Jg_mean = 0.0
+        result.DHcc_Jg_std = 0.0
+
+    result.baseline_variant_count = int(max(
+        melt_variants.get("baseline_variant_count", 0) or 0,
+        cold_variants.get("baseline_variant_count", 0) or 0,
+    ))
+    result.integration_variant_count = int(
+        (melt_variants.get("integration_variant_count", 0) or 0)
+        + (cold_variants.get("integration_variant_count", 0) or 0)
+    )
+
+    if melt_enthalpies.size and np.isfinite(DHm0) and DHm0 > 0:
+        if cold_enthalpies.size:
+            count = min(melt_enthalpies.size, cold_enthalpies.size)
+            xc_values = (melt_enthalpies[:count] - cold_enthalpies[:count]) / DHm0 * 100.0
+        else:
+            xc_values = melt_enthalpies / DHm0 * 100.0
+        xc_values = xc_values[np.isfinite(xc_values)]
+        if xc_values.size:
+            result.Xc_pct_mean = float(np.mean(xc_values))
+            result.Xc_pct_std = float(np.std(xc_values))
+            result.Xc_pct_ci95 = float(1.96 * result.Xc_pct_std)
+
+    if np.isfinite(result.Xc_pct_mean) and abs(float(result.Xc_pct_mean)) > 1e-9:
+        result.baseline_sensitivity_pct = float(
+            np.clip(abs(result.Xc_pct_ci95) / max(abs(result.Xc_pct_mean), 1e-9) * 100.0, 0.0, 100.0)
+        )
+        result.integration_boundary_sensitivity_pct = float(
+            np.clip(result.Xc_pct_std / max(abs(result.Xc_pct_mean), 1e-9) * 100.0, 0.0, 100.0)
+        )
+    elif result.quality_score >= 0.8:
         result.baseline_sensitivity_pct = 0.0
         result.integration_boundary_sensitivity_pct = 0.0
     else:

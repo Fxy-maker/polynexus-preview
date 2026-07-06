@@ -4992,10 +4992,23 @@ def build_analysis_evidence(
         dhm0_source = str(output.get("DHm0_source") or config_snapshot.get("DHm0_source") or "").strip() or None
         baseline_sensitivity = _clean_float(output.get("baseline_sensitivity_pct"))
         boundary_sensitivity = _clean_float(output.get("integration_boundary_sensitivity_pct"))
+        dhm_mean = _clean_float(output.get("DHm_Jg_mean"))
+        dhm_std = _clean_float(output.get("DHm_Jg_std"))
+        dhcc_mean = _clean_float(output.get("DHcc_Jg_mean"))
+        dhcc_std = _clean_float(output.get("DHcc_Jg_std"))
+        xc_mean = _clean_float(output.get("Xc_pct_mean"))
+        xc_std = _clean_float(output.get("Xc_pct_std"))
+        xc_ci95 = _clean_float(output.get("Xc_pct_ci95"))
+        baseline_variant_count = _safe_int(output.get("baseline_variant_count"), default=0)
+        integration_variant_count = _safe_int(output.get("integration_variant_count"), default=0)
         xc_reliability_status = "usable"
         if (baseline_sensitivity is not None and baseline_sensitivity >= 10.0) or (
             boundary_sensitivity is not None and boundary_sensitivity >= 8.0
+        ) or (
+            xc_ci95 is not None and xc_ci95 >= 8.0
         ):
+            xc_reliability_status = "low_confidence"
+        if baseline_variant_count == 1 or integration_variant_count == 1:
             xc_reliability_status = "low_confidence"
         if dhm0 is None or dhm0_source == "missing":
             xc_reliability_status = "diagnostic_only"
@@ -5073,9 +5086,18 @@ def build_analysis_evidence(
                 ("DHm0_Jg", dhm0),
                 ("DHm0_source", dhm0_source),
                 ("DHm_Jg", _clean_float(output.get("DHm_Jg"))),
+                ("DHm_Jg_mean", dhm_mean),
+                ("DHm_Jg_std", dhm_std),
                 ("DHcc_Jg", _clean_float(output.get("DHcc_Jg"))),
+                ("DHcc_Jg_mean", dhcc_mean),
+                ("DHcc_Jg_std", dhcc_std),
+                ("Xc_pct_mean", xc_mean),
+                ("Xc_pct_std", xc_std),
+                ("Xc_pct_ci95", xc_ci95),
                 ("baseline_sensitivity_pct", baseline_sensitivity),
                 ("integration_boundary_sensitivity_pct", boundary_sensitivity),
+                ("baseline_variant_count", baseline_variant_count if baseline_variant_count > 0 else None),
+                ("integration_variant_count", integration_variant_count if integration_variant_count > 0 else None),
                 ("Xc_reliability_status", xc_reliability_status),
             ]
         )
@@ -5758,11 +5780,20 @@ def build_analysis_evidence(
                 ("Tm_peak_C", _clean_float(output.get("Tm_peak_C"))),
                 ("Tcc_peak_C", _clean_float(output.get("Tcc_peak_C"))),
                 ("DHm_Jg", _clean_float(output.get("DHm_Jg"))),
+                ("DHm_Jg_mean", dhm_mean),
+                ("DHm_Jg_std", dhm_std),
                 ("DHcc_Jg", _clean_float(output.get("DHcc_Jg"))),
+                ("DHcc_Jg_mean", dhcc_mean),
+                ("DHcc_Jg_std", dhcc_std),
                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
+                ("Xc_pct_mean", xc_mean),
+                ("Xc_pct_std", xc_std),
+                ("Xc_pct_ci95", xc_ci95),
                 ("Xc_reliability_status", xc_reliability_status),
                 ("baseline_sensitivity_pct", baseline_sensitivity),
                 ("integration_boundary_sensitivity_pct", boundary_sensitivity),
+                ("baseline_variant_count", baseline_variant_count if baseline_variant_count > 0 else None),
+                ("integration_variant_count", integration_variant_count if integration_variant_count > 0 else None),
                 ("DHm0_source", dhm0_source),
                 ("supported_event_count", len(supported_components)),
                 ("supported_melting_event_count", len(supported_melting_components)),
