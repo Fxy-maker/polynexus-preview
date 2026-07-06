@@ -40,6 +40,8 @@ class NMRResult:
     # Crystallinity
     Xc_pct: float = np.nan
     Xc_method: str = ""
+    Xc_assignment_status: str = ""
+    assignment_metrics: Dict[str, Any] = field(default_factory=dict)
 
     # Physical peak/region metrics
     peak_area_total: float = np.nan
@@ -69,6 +71,7 @@ class NMRResult:
         p = {'nucleus': self.nucleus, 'sample_state': self.sample_state,
              'n_peaks': self.n_peaks, 'Xc_pct': self.Xc_pct,
              'Xc_method': self.Xc_method,
+             'Xc_assignment_status': self.Xc_assignment_status,
              'peak_area_total': self.peak_area_total,
              'dominant_peak_ppm': self.dominant_peak_ppm,
              'mean_fwhm_ppm': self.mean_fwhm_ppm,
@@ -94,6 +97,8 @@ class NMRResult:
         p['solvent_peak_count'] = len(solvent_peaks)
         p['phase_assignment_count'] = len(phase_assigned)
         p['assignment_source'] = 'polymer_db' if phase_assigned else ('generic_region' if self.peaks else '')
+        for key, val in self.assignment_metrics.items():
+            p[key] = val
         for i, pk in enumerate(self.peaks[:10]):
             p[f'peak_{i}_ppm'] = pk.get('ppm', np.nan)
             p[f'peak_{i}_assignment'] = pk.get('assignment', '')
@@ -110,6 +115,20 @@ class NMRResult:
             p[f'{key}_r2'] = val.get('r_squared', np.nan)
         return {k: v for k, v in p.items()
                 if not (isinstance(v, float) and np.isnan(v))}
+
+    def apply_assignment_gate(self) -> None:
+        method = str(self.Xc_method or "").strip()
+        if method != "requires_crystalline_amorphous_assignment":
+            if np.isfinite(self.Xc_pct):
+                self.Xc_assignment_status = "supported"
+            return
+        phase_pair = bool(self.assignment_metrics.get("phase_pair_support"))
+        confidence = _safe_float(self.assignment_metrics.get("assignment_confidence"), 0.0)
+        solvent_penalty = _safe_float(self.assignment_metrics.get("solvent_overlap_penalty"), 1.0)
+        if phase_pair and confidence >= 0.7 and solvent_penalty <= 0.25:
+            self.Xc_assignment_status = "supported"
+        else:
+            self.Xc_assignment_status = "assignment_limited"
 
 
 # ---------------------------------------------------------------------------
@@ -646,6 +665,122 @@ def _generic_region_assignment(ppm: float, nucleus: str) -> str:
     return "unassigned region"
 
 
+def _normalize_polymer_13c_db(config_or_db: Any, polymer_name: str = "") -> List[Dict[str, Any]]:
+    db = getattr(config_or_db, "polymer_13c_db", config_or_db)
+    if not isinstance(db, dict):
+        return []
+    polymers = [polymer_name] if polymer_name and polymer_name in db else list(db.keys())
+    records: List[Dict[str, Any]] = []
+    for polymer in polymers:
+        entries = db.get(polymer, {})
+        if not isinstance(entries, dict):
+            continue
+        for group, raw in entries.items():
+            try:
+                ppm, phase, notes = raw
+            except Exception:
+                continue
+            group_text = str(group)
+            base_group = group_text
+            for suffix in ("_am", "_cr", "_c", "_a", "_i"):
+                if base_group.endswith(suffix):
+                    base_group = base_group[: -len(suffix)]
+                    break
+            records.append({
+                "polymer": str(polymer),
+                "group": group_text,
+                "base_group": base_group,
+                "ppm": float(ppm),
+                "phase": str(phase or "unknown").strip().lower(),
+                "source": str(notes or "builtin_polymer_13c_db"),
+                "confidence": 1.0,
+            })
+    return records
+
+
+def _score_assignment_library(
+    peaks: List[Dict[str, Any]],
+    config: NMRConfig,
+    polymer_name: str = "",
+    nucleus: str = "13C",
+    tolerance_ppm: float = 2.0,
+) -> Dict[str, Any]:
+    """Score whether peak assignments are backed by the polymer 13C library."""
+    if (nucleus or "13C").upper() not in {"13C", "C"}:
+        return {
+            "library_match_fraction": 0.0,
+            "assignment_confidence": 0.0,
+            "phase_pair_support": False,
+            "solvent_overlap_penalty": 0.0,
+            "matched_library_count": 0,
+            "assignment_library_source": "",
+        }
+    polymer_scope = polymer_name or getattr(config, "polymer_name", "")
+    records = _normalize_polymer_13c_db(config, polymer_scope)
+    if not peaks or not records:
+        return {
+            "library_match_fraction": 0.0,
+            "assignment_confidence": 0.0,
+            "phase_pair_support": False,
+            "solvent_overlap_penalty": 0.0,
+            "matched_library_count": 0,
+            "assignment_library_source": polymer_scope or "",
+        }
+
+    matched_records: List[Dict[str, Any]] = []
+    closeness_scores: List[float] = []
+    matched_phases = set()
+    matched_base_by_phase: Dict[str, set[str]] = {}
+    solvent_count = 0
+    for pk in peaks:
+        if pk.get("possible_solvent"):
+            solvent_count += 1
+        ppm = _safe_float(pk.get("ppm"))
+        if not np.isfinite(ppm):
+            continue
+        best = None
+        best_delta = float(tolerance_ppm)
+        for record in records:
+            delta = abs(ppm - record["ppm"])
+            if delta <= best_delta:
+                best = record
+                best_delta = float(delta)
+        if best is None:
+            continue
+        matched_records.append(best)
+        phase = str(best.get("phase", "") or "").strip().lower()
+        matched_phases.add(phase)
+        matched_base_by_phase.setdefault(phase, set()).add(str(best.get("base_group", "")))
+        closeness_scores.append(max(0.0, 1.0 - best_delta / max(float(tolerance_ppm), 1e-9)))
+
+    peak_count = max(len(peaks), 1)
+    match_fraction = len(matched_records) / peak_count
+    solvent_penalty = solvent_count / peak_count
+    crystalline_labels = {str(label).lower() for label in getattr(config, "crystalline_phase_labels", ("c",))}
+    amorphous_labels = {str(label).lower() for label in getattr(config, "amorphous_phase_labels", ("a", "i"))}
+    has_crystalline = bool(matched_phases & crystalline_labels)
+    has_amorphous = bool(matched_phases & amorphous_labels)
+    crystalline_bases = set().union(*(matched_base_by_phase.get(label, set()) for label in crystalline_labels))
+    amorphous_bases = set().union(*(matched_base_by_phase.get(label, set()) for label in amorphous_labels))
+    same_group_pair = bool(crystalline_bases & amorphous_bases)
+    phase_pair_support = bool(has_crystalline and has_amorphous and (same_group_pair or len(matched_records) >= 2))
+    mean_closeness = float(np.mean(closeness_scores)) if closeness_scores else 0.0
+    confidence = (
+        0.55 * match_fraction
+        + 0.25 * (1.0 if phase_pair_support else 0.0)
+        + 0.20 * mean_closeness
+        - 0.35 * solvent_penalty
+    )
+    return {
+        "library_match_fraction": float(np.clip(match_fraction, 0.0, 1.0)),
+        "assignment_confidence": float(np.clip(confidence, 0.0, 1.0)),
+        "phase_pair_support": phase_pair_support,
+        "solvent_overlap_penalty": float(np.clip(solvent_penalty, 0.0, 1.0)),
+        "matched_library_count": int(len(matched_records)),
+        "assignment_library_source": polymer_scope if polymer_scope else "unscoped_polymer_13c_db",
+    }
+
+
 def assign_peaks(peaks, polymer_db, polymer_name="", tolerance_ppm=2.0,
                  nucleus="13C", use_polymer_db: bool = True):
     """Match peaks to polymer 13C database or generic NMR regions."""
@@ -817,6 +952,10 @@ def analyze_spectrum(spectrum, config, label="",
             use_polymer_db=scoped_polymer or allow_unscoped,
         )
         _finalise_peak_metrics(result)
+        if scoped_polymer or allow_unscoped:
+            result.assignment_metrics.update(
+                _score_assignment_library(result.peaks, config, polymer_name, nucleus=nucleus)
+            )
 
         # 4. Crystallinity
         if sample_state == "solid" and str(nucleus).upper() in {"13C", "C"}:
@@ -829,6 +968,7 @@ def analyze_spectrum(spectrum, config, label="",
                 result.Xc_method = 'solid_13c_peak_area'
             else:
                 result.Xc_method = 'requires_crystalline_amorphous_assignment'
+            result.apply_assignment_gate()
     else:
         result.region_integrals = _region_integral_percentages(
             result.ppm, result.intensity, result.nucleus, result.sample_state

@@ -1285,6 +1285,37 @@ def test_nmr_analysis_evidence_surfaces_signal_peak_assignment_sections() -> Non
     assert "nmr_xc=supported" in evidence["summary"]
 
 
+def test_nmr_assignment_library_score_supports_xc_evidence() -> None:
+    evidence = build_analysis_evidence(
+        "NMR",
+        output_parameters={
+            "nucleus": "13C",
+            "sample_state": "solid",
+            "n_peaks": 3,
+            "median_snr": 11.0,
+            "mean_fwhm_ppm": 2.2,
+            "Xc_method": "requires_crystalline_amorphous_assignment",
+            "library_match_fraction": 0.82,
+            "assignment_confidence": 0.78,
+            "phase_pair_support": True,
+            "solvent_overlap_penalty": 0.0,
+            "matched_library_count": 3,
+            "assignment_library_source": "PA6",
+        },
+        residual_pattern={"residual_type": "noise", "summary": "library assignments are paired"},
+    ).to_dict()
+
+    assignment = evidence["assignment_evidence"]
+    structure = evidence["structure_evidence"]
+
+    assert assignment["library_match_fraction"] == 0.82
+    assert assignment["assignment_confidence"] == 0.78
+    assert assignment["phase_pair_support"] is True
+    assert assignment["matched_library_count"] == 3
+    assert structure["Xc_assignment_status"] == "supported"
+    assert structure["paper_conclusion_ready"] is True
+
+
 def test_nmr_low_confidence_symptoms_are_actionable() -> None:
     evidence = build_analysis_evidence(
         "NMR",

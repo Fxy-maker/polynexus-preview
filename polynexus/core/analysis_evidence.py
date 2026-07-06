@@ -5693,8 +5693,23 @@ def build_analysis_evidence(
         assignment_denominator = peak_count if peak_count and peak_count > 0 else len(peak_rows)
         assigned_fraction = assigned_count / assignment_denominator if assignment_denominator else None
         xc_method = str(output.get("Xc_method") or "").strip()
+        explicit_xc_assignment_status = str(output.get("Xc_assignment_status") or "").strip()
+        assignment_confidence = _clean_float(output.get("assignment_confidence"))
+        library_match_fraction = _clean_float(output.get("library_match_fraction"))
+        solvent_overlap_penalty = _clean_float(output.get("solvent_overlap_penalty"))
+        phase_pair_support = bool(output.get("phase_pair_support")) if output.get("phase_pair_support") is not None else False
+        matched_library_count = _safe_int(output.get("matched_library_count"), 0)
         xc_assignment_status = ""
-        if output.get("Xc_pct") is not None or xc_method:
+        if explicit_xc_assignment_status:
+            xc_assignment_status = explicit_xc_assignment_status
+        elif (
+            phase_pair_support
+            and assignment_confidence is not None
+            and assignment_confidence >= 0.7
+            and (solvent_overlap_penalty is None or solvent_overlap_penalty <= 0.25)
+        ):
+            xc_assignment_status = "supported"
+        elif output.get("Xc_pct") is not None or xc_method:
             if crystalline_count > 0 and amorphous_count > 0:
                 xc_assignment_status = "supported"
             elif (
@@ -5730,6 +5745,12 @@ def build_analysis_evidence(
                 ("phase_assignment_count", phase_assigned_count),
                 ("assigned_peak_fraction", assigned_fraction),
                 ("n_matches", _clean_float(output.get("n_matches"))),
+                ("library_match_fraction", library_match_fraction),
+                ("assignment_confidence", assignment_confidence),
+                ("phase_pair_support", phase_pair_support if output.get("phase_pair_support") is not None else None),
+                ("solvent_overlap_penalty", solvent_overlap_penalty),
+                ("matched_library_count", matched_library_count if matched_library_count > 0 else None),
+                ("assignment_library_source", str(output.get("assignment_library_source", "") or "").strip() or None),
             ]
         )
         phase_evidence = _non_empty_mapping(
@@ -5744,6 +5765,10 @@ def build_analysis_evidence(
                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
                 ("Xc_method", xc_method or None),
                 ("Xc_assignment_status", xc_assignment_status or None),
+                ("assignment_confidence", assignment_confidence),
+                ("library_match_fraction", library_match_fraction),
+                ("phase_pair_support", phase_pair_support if output.get("phase_pair_support") is not None else None),
+                ("solvent_overlap_penalty", solvent_overlap_penalty),
                 ("paper_conclusion_ready", xc_assignment_status == "supported"),
             ]
         )
@@ -5754,6 +5779,8 @@ def build_analysis_evidence(
         feature_evidence["structure_evidence"] = structure_evidence
         if output.get("median_snr") is not None:
             confidence_signals.append({"name": "median_snr", "value": _clean_float(output.get("median_snr")), "source": "NMR"})
+        if assignment_confidence is not None:
+            confidence_signals.append({"name": "assignment_confidence", "value": assignment_confidence, "source": "NMR"})
 
     constraints = evaluate_physical_constraints(technique_key, output, residual, validation)
     constraint_summary = summarize_constraints(constraints)

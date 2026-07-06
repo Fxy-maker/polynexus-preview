@@ -103,6 +103,33 @@ def test_nmr_result_parameters_include_assignment_source_statistics() -> None:
     assert params["solvent_peak_count"] == 1
 
 
+def test_nmr_assignment_library_scores_phase_pair_support() -> None:
+    from polynexus.core.nmr_engine.core import NMRResult, _score_assignment_library
+
+    cfg = NMRConfig(sample_state="solid", nucleus="13C", polymer_name="PA6")
+    result = NMRResult(nucleus="13C", sample_state="solid")
+    result.peaks = [
+        {"ppm": 173.4, "area": 80.0, "assignment": "C=O (c)", "phase": "c", "possible_solvent": ""},
+        {"ppm": 42.1, "area": 25.0, "assignment": "Calpha_am (a)", "phase": "a", "possible_solvent": ""},
+        {"ppm": 36.4, "area": 52.0, "assignment": "Cdelta (c)", "phase": "c", "possible_solvent": ""},
+    ]
+    result.n_peaks = len(result.peaks)
+
+    score = _score_assignment_library(result.peaks, cfg, polymer_name="PA6", nucleus="13C")
+    result.assignment_metrics.update(score)
+    result.Xc_method = "requires_crystalline_amorphous_assignment"
+    result.apply_assignment_gate()
+
+    params = result.parameters
+
+    assert params["library_match_fraction"] >= 0.7
+    assert params["assignment_confidence"] >= 0.7
+    assert params["phase_pair_support"] is True
+    assert params["matched_library_count"] >= 2
+    assert params["solvent_overlap_penalty"] == 0.0
+    assert params["Xc_assignment_status"] == "supported"
+
+
 def test_liquid_h_pipeline_detects_peaks_from_real_fid():
     cfg = NMRConfig(
         sample_state="liquid",
