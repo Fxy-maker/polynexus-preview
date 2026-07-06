@@ -8,7 +8,7 @@ from polynexus.core.engine import BaseEngine, register_technique, get_engine, li
 
 # Register a test engine
 @register_technique("test_tech")
-class TestEngine(BaseEngine):
+class DummyEngine(BaseEngine):
     name = "test_tech"
     label = "Test"
 
