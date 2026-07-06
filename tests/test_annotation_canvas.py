@@ -3,7 +3,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QPointF, Qt
-from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPixmap
+from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from polynexus.gui.widgets.annotation_canvas import AnnotationCanvas
@@ -62,6 +62,33 @@ def test_annotation_canvas_renders_text_overlay(tmp_path):
     assert not rendered.isNull()
     assert rendered.width() >= 80
     assert rendered.height() >= 40
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_replace_image_preserves_annotations(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_text_annotation("Kept", 20, 10)
+
+    replacement = QImage(120, 60, QImage.Format_ARGB32)
+    replacement.fill(QColor("#eeeeee"))
+
+    assert canvas.replace_image(replacement) is True
+    assert canvas.image_size() == (120, 60)
+    assert canvas.selected_annotation_id() == annotation_id
+    annotations = canvas.annotation_state()
+    assert len(annotations) == 1
+    assert annotations[0]["text"] == "Kept"
+    assert annotations[0]["x"] == 0.25
+    assert annotations[0]["y"] == 0.25
 
     canvas.deleteLater()
     app.processEvents()

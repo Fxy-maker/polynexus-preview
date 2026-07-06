@@ -6814,7 +6814,7 @@ class MainWindow(QMainWindow):
                     batch_frames = int(params.get("batch_frames", 0) or 0)
                 except Exception:
                     batch_frames = 0
-            if (
+                if (
                     batch_frames > 1
                     and (
                         condition_source
@@ -13022,15 +13022,7 @@ class MainWindow(QMainWindow):
         if not isinstance(summary, dict):
             summary = {}
 
-        payload = summary.get("result") if isinstance(summary.get("result"), dict) else {}
-        candidate = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
-        evidence = self._history_record_analysis_evidence(record)
-        record_params = record.get("parameters") if isinstance(record, dict) and isinstance(record.get("parameters"), dict) else {}
-        if isinstance(record_params, dict) and record_params:
-            for key, value in self._flatten_params(record_params):
-                if key not in candidate:
-                    candidate[key] = value
-        excluded_summary_keys = {
+        summary_metric_keys_to_skip = {
             "result",
             "data_file",
             "project_label",
@@ -13060,8 +13052,17 @@ class MainWindow(QMainWindow):
             "joint_ai_context",
             "joint_summary",
         }
+
+        payload = summary.get("result") if isinstance(summary.get("result"), dict) else {}
+        candidate = dict(payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {})
+        evidence = self._history_record_analysis_evidence(record)
+        record_params = record.get("parameters") if isinstance(record, dict) and isinstance(record.get("parameters"), dict) else {}
+        if isinstance(record_params, dict) and record_params:
+            for key, value in self._flatten_params(record_params):
+                if key not in candidate:
+                    candidate[key] = value
         for key, value in summary.items():
-            if key in excluded_summary_keys or key in candidate:
+            if key in summary_metric_keys_to_skip or key in candidate:
                 continue
             if isinstance(value, (dict, list, tuple, set)):
                 continue
@@ -13070,7 +13071,7 @@ class MainWindow(QMainWindow):
             candidate = {
                 key: value
                 for key, value in summary.items()
-                if key not in excluded_summary_keys
+                if key not in summary_metric_keys_to_skip and not isinstance(value, (dict, list, tuple, set))
             }
         if isinstance(evidence, dict) and evidence and str(record.get("technique") or "").strip().lower() == "waxs":
             for key in (
@@ -13808,5 +13809,3 @@ class MainWindow(QMainWindow):
 
         if not loaded_any:
             return
-
-

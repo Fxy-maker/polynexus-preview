@@ -62,6 +62,32 @@ class AnnotationCanvas(QWidget):
         self.fit_to_window()
         return True
 
+    def replace_image(self, image: QImage | QPixmap) -> bool:
+        if isinstance(image, QImage):
+            pixmap = QPixmap.fromImage(image)
+        elif isinstance(image, QPixmap):
+            pixmap = QPixmap(image)
+        else:
+            return False
+        if pixmap.isNull():
+            return False
+
+        selected_id = self._selected_annotation_id
+        self._image_width = pixmap.width()
+        self._image_height = pixmap.height()
+        self._scene.clear()
+        self._pixmap_item = self._scene.addPixmap(pixmap)
+        self._pixmap_item.setPos(0, 0)
+        for annotation in self._annotations:
+            self._draw_annotation(annotation)
+        self._scene.setSceneRect(QRectF(0, 0, self._image_width, self._image_height))
+        if selected_id and any(item.get("id") == selected_id for item in self._annotations):
+            self.select_annotation(selected_id)
+        elif selected_id:
+            self._selected_annotation_id = ""
+            self.selection_changed.emit("")
+        return True
+
     def add_text_annotation(self, text: str, x: float, y: float) -> str:
         if self._image_width <= 0 or self._image_height <= 0:
             return ""

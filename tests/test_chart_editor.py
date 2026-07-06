@@ -3,7 +3,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QPointF, Qt
-from PySide6.QtGui import QColor, QMouseEvent, QPixmap
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from polynexus.gui.i18n import get_language, set_language, tr
@@ -39,6 +39,11 @@ def _send_canvas_drag(canvas, start_x, start_y, end_x, end_y):
     app.sendEvent(viewport, press)
     app.sendEvent(viewport, release)
     return press, release
+
+
+def _image_bytes(image):
+    image = image.convertToFormat(QImage.Format_RGBA8888)
+    return bytes(image.constBits())
 
 
 def test_chart_editor_style_preset_round_trip(tmp_path, monkeypatch):
@@ -180,6 +185,33 @@ def test_chart_editor_static_file_save_updates_current_image(tmp_path, monkeypat
 
     assert figure_path.read_bytes() != before
     assert figure_path.stat().st_size > 0
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_static_title_edit_updates_visible_annotation_canvas(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+
+    figure_path = tmp_path / "figures" / "source.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+
+    assert editor._annotation_canvas.isHidden() is False
+    assert editor._canvas.isHidden() is True
+    before = _image_bytes(editor._annotation_canvas.render_to_image())
+
+    editor._title_edit.setText("11111")
+    app.processEvents()
+
+    after = _image_bytes(editor._annotation_canvas.render_to_image())
+    assert after != before
 
     editor.deleteLater()
     app.processEvents()

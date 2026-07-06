@@ -5893,8 +5893,8 @@ def test_context_suggestions_prioritize_ai_tuned_follow_up(tmp_path):
 
         config_panel = window._context_suggestion_panels["config"]
         assert "recommended-parameter rerun result" in config_panel["detail"].text()
-        assert config_panel["buttons"][0].text() == "Review result"
-        assert config_panel["buttons"][1].text() == "Run controlled optimization again"
+        assert config_panel["buttons"][0].text() == tr("CONTEXT_HINT_ACTION_REVIEW_AI_RESULT")
+        assert config_panel["buttons"][1].text() == tr("CONTEXT_HINT_ACTION_RUN_CONTROLLED_OPTIMIZATION")
 
         window.deleteLater()
         app.processEvents()
@@ -6897,7 +6897,7 @@ def test_history_copy_summary_copies_selected_record_summary(tmp_path):
         assert "Static SAXS" in text
         assert "Recommended-parameter rerun" in text
         assert "Run trace" in text or "运行轨迹" in text
-        assert "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A" in text
+        assert "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A | baseline_method=subtract" in text
         assert "Boundary" in text
         assert "Copied history summary: Static SAXS" in window._log_panel.toPlainText()
 
@@ -7176,10 +7176,10 @@ def test_history_action_tooltips_without_selection(tmp_path):
     window._update_history_action_state()
 
     assert not window._history_copy_summary_btn.isEnabled()
-    assert "select" in window._history_copy_summary_btn.toolTip().lower()
-    assert "select" in window._history_restore_btn.toolTip().lower()
-    assert "select" in window._history_rerun_btn.toolTip().lower()
-    assert "select" in window._history_compare_btn.toolTip().lower()
+    assert window._history_copy_summary_btn.toolTip() == tr("HISTORY_TOOLTIP_SELECT")
+    assert window._history_restore_btn.toolTip() == tr("HISTORY_TOOLTIP_SELECT")
+    assert window._history_rerun_btn.toolTip() == tr("HISTORY_TOOLTIP_SELECT")
+    assert window._history_compare_btn.toolTip() == tr("HISTORY_TOOLTIP_SELECT")
 
     window.deleteLater()
     app.processEvents()
@@ -7283,10 +7283,10 @@ def test_history_restore_and_rerun_disable_when_source_file_missing(tmp_path):
 
     assert not window._history_restore_btn.isEnabled()
     assert not window._history_rerun_btn.isEnabled()
-    assert "missing" in window._history_table.item(0, 4).text().lower()
-    assert "missing" in window._history_table.item(0, 4).toolTip().lower()
-    assert "missing" in window._history_restore_btn.toolTip().lower()
-    assert "missing" in window._history_rerun_btn.toolTip().lower()
+    assert tr("HISTORY_STATUS_SOURCE_MISSING") in window._history_table.item(0, 4).text()
+    assert tr("HISTORY_STATUS_SOURCE_MISSING") in window._history_table.item(0, 4).toolTip()
+    assert window._history_restore_btn.toolTip() == tr("HISTORY_TOOLTIP_SOURCE_MISSING")
+    assert window._history_rerun_btn.toolTip() == tr("HISTORY_TOOLTIP_SOURCE_MISSING")
 
     db.close()
     window.deleteLater()
@@ -7332,7 +7332,7 @@ def test_history_compare_tooltip_explains_missing_baseline(tmp_path):
     window._update_history_action_state()
 
     assert not window._history_compare_btn.isEnabled()
-    assert "comparable" in window._history_compare_btn.toolTip().lower()
+    assert window._history_compare_btn.toolTip() == tr("HISTORY_TOOLTIP_COMPARE_UNAVAILABLE")
 
     db.close()
     window.deleteLater()
@@ -7813,9 +7813,9 @@ def test_history_tab_and_score_header_use_translated_labels(tmp_path):
     window = MainWindow()
     window._sample_db = SampleDB(tmp_path / "samples.db")
 
-    assert window._tabs.tabText(window._tabs.count() - 1) == "History"
+    assert window._tabs.tabText(window._tabs.count() - 1) == tr("TAB_HISTORY")
     assert window._history_table.horizontalHeaderItem(3).text() == "R2"
-    assert window._log_group.title() == "Log"
+    assert window._log_group.title() == tr("GROUP_LOG")
 
     window.deleteLater()
     app.processEvents()
@@ -7910,10 +7910,9 @@ def test_history_compare_summary_uses_formatted_timestamp(tmp_path):
 
     assert "2026-06-24 14:32" in captured["summary"]
     assert "2026-06-23 09:05" in captured["summary"]
-    assert "Static SAXS" in captured["summary"]
-    assert "WAXS" in captured["summary"]
-    assert "Changed 0" in captured["counts"]
-    assert "Same 0" in captured["counts"]
+    assert window._history_submodule_text("saxs.static") in captured["summary"]
+    assert window._history_technique_text("waxs") in captured["summary"]
+    assert captured["counts"] == tr("HISTORY_COMPARE_COUNTS", 0, 0, 0, 0)
 
     window.deleteLater()
     app.processEvents()

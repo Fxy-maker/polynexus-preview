@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 import matplotlib
 
 matplotlib.use("QtAgg")
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
@@ -546,7 +547,8 @@ class ChartEditor(QWidget):
     def _render(self, *_):
         if self._fig_generator is None:
             if self._static_file_mode:
-                self._show_style_preview_figure()
+                if not self._refresh_static_annotation_canvas_preview():
+                    self._show_style_preview_figure()
             return
 
         # Apply global SCI style baseline BEFORE creating axes
@@ -1137,9 +1139,17 @@ class ChartEditor(QWidget):
         self._show_placeholder_style_preview()
 
     def _show_source_image_figure(self):
+        fig = self._build_source_image_figure()
+        if fig is None:
+            return False
+
+        self._replace_canvas_figure(fig)
+        return True
+
+    def _build_source_image_figure(self):
         image = self._load_source_image_array()
         if image is None:
-            return False
+            return None
 
         fig = Figure(figsize=self._fig_size, dpi=self._dpi, facecolor=self._bg_color)
         ax = fig.add_subplot(111)
@@ -1162,8 +1172,28 @@ class ChartEditor(QWidget):
             ax.set_ylabel(ylabel, fontsize=self._label_size)
 
         fig.tight_layout()
-        self._replace_canvas_figure(fig)
-        return True
+        return fig
+
+    def _refresh_static_annotation_canvas_preview(self):
+        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
+            return False
+        fig = self._build_source_image_figure()
+        if fig is None:
+            return False
+        try:
+            image = self._figure_to_qimage(fig)
+        finally:
+            fig.clear()
+        if image.isNull():
+            return False
+        return self._annotation_canvas.replace_image(image)
+
+    def _figure_to_qimage(self, fig):
+        canvas = FigureCanvasAgg(fig)
+        canvas.draw()
+        buffer, (width, height) = canvas.print_to_buffer()
+        image = QImage(buffer, width, height, QImage.Format_RGBA8888)
+        return image.copy()
 
     def _load_source_image_array(self):
         if not self._source_path:
