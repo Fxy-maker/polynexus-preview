@@ -65,6 +65,25 @@ def test_analyze_heating_exports_xc_reliability_inputs():
     assert params["integration_boundary_sensitivity_pct"] >= 0.0
 
 
+def test_dsc_analyze_scan_reports_multibaseline_xc_distribution():
+    T = np.linspace(50.0, 260.0, 1600)
+    HF = (
+        _gaussian(T, 125.0, 5.0, 0.8)
+        - _gaussian(T, 221.0, 6.0, 2.4)
+    )
+
+    result = analyze_scan(T, HF, DSCConfig(), label="heating", DHm0_override=230.0)
+    params = result.parameters
+
+    assert params["baseline_variant_count"] > 1
+    assert params["integration_variant_count"] > 1
+    assert params["DHm_Jg_std"] >= 0.0
+    assert params["DHcc_Jg_std"] >= 0.0
+    assert params["Xc_pct_std"] >= 0.0
+    assert params["Xc_pct_ci95"] >= 0.0
+    assert abs(params["Xc_pct_mean"] - params["Xc_pct"]) < 3.0
+
+
 def test_analyze_cooling_reports_positive_crystallisation_enthalpy():
     T = np.linspace(260.0, 80.0, 1400)
     HF = _gaussian(T, 170.0, 7.0, 1.8)

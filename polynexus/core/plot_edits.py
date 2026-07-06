@@ -10,6 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+import matplotlib as mpl
+from matplotlib import font_manager
+
 from ..gui.figure_annotations import load_annotations_from_entry, save_annotations_to_entry
 from ..utils.config import get_user_config_dir
 
@@ -46,6 +49,36 @@ FIGURE_SIZES = {
 }
 
 _FIGURE_ROOT_DIRS = {"figures", "summary", "per_frame"}
+_CJK_FONT_CANDIDATES = (
+    "Microsoft YaHei",
+    "SimHei",
+    "Noto Sans CJK SC",
+    "Source Han Sans SC",
+    "Arial Unicode MS",
+    "DejaVu Sans",
+)
+
+
+def _available_cjk_font_family() -> list[str]:
+    available = {font.name for font in font_manager.fontManager.ttflist}
+    fonts = [name for name in _CJK_FONT_CANDIDATES if name in available]
+    return fonts or ["DejaVu Sans"]
+
+
+def _text_needs_cjk_font(text: str) -> bool:
+    return any(ord(ch) > 127 for ch in str(text or ""))
+
+
+def _apply_cjk_font_fallback(fig) -> None:
+    font_family = _available_cjk_font_family()
+    current_sans = list(mpl.rcParams.get("font.sans-serif", []))
+    mpl.rcParams["font.sans-serif"] = list(dict.fromkeys(font_family + current_sans))
+    if mpl.rcParams.get("font.family") == ["Arial"] or mpl.rcParams.get("font.family") == "Arial":
+        mpl.rcParams["font.family"] = font_family + ["Arial"]
+
+    for text in fig.findobj(match=mpl.text.Text):
+        if _text_needs_cjk_font(text.get_text()):
+            text.set_fontfamily(font_family)
 
 
 def style_presets_path() -> Path:
@@ -307,6 +340,7 @@ def savefig_with_edits(fig, path: str, **savefig_kwargs):
     """Apply sidecar edits, then save a matplotlib figure."""
     style = load_figure_edit(path)
     apply_figure_edit(fig, path)
+    _apply_cjk_font_fallback(fig)
     if style.get("bg_color") and "facecolor" in savefig_kwargs:
         savefig_kwargs["facecolor"] = style["bg_color"]
     fig.savefig(path, **savefig_kwargs)

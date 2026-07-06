@@ -368,4 +368,3 @@ def _read_edf_fallback(filepath: str) -> Tuple[np.ndarray, dict]:
     data = data[:dim1 * dim2].reshape(dim2, dim1).astype(np.float64)
 
     return data, header
-

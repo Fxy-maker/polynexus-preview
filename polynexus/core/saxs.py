@@ -1318,6 +1318,39 @@ class SAXSEngine(BaseEngine):
                 "lc_reliability_reason": str(getattr(tp, "lc_reliability_reason", "") or "temperature_series_status_unavailable"),
             }
 
+        def _temperature_effective_structure_payload(
+            *,
+            lc_raw: float | None,
+            la_raw: float | None,
+            Xc_raw: float | None,
+            status_payload: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            lc_status = str(status_payload.get("lc_reliability_status") or "").strip().lower()
+            lc_reason = str(status_payload.get("lc_reliability_reason") or "").strip()
+            if lc_status == "diagnostic_only":
+                return {
+                    "lc_nm": None,
+                    "la_nm": None,
+                    "Xc": None,
+                    "lc_nm_effective": None,
+                    "la_nm_effective": None,
+                    "Xc_effective": None,
+                    "lamellar_interpretation_mode": "diagnostic_only",
+                    "effective_param_reason": lc_reason or "lc_reliability_diagnostic_only",
+                }
+            mode = "raw_low_confidence" if lc_status == "low_confidence" else "raw_measurement"
+            reason = "lc_reliability_low_confidence" if lc_status == "low_confidence" else "raw_structure_measurement_retained"
+            return {
+                "lc_nm": lc_raw,
+                "la_nm": la_raw,
+                "Xc": Xc_raw,
+                "lc_nm_effective": lc_raw,
+                "la_nm_effective": la_raw,
+                "Xc_effective": Xc_raw,
+                "lamellar_interpretation_mode": mode,
+                "effective_param_reason": reason,
+            }
+
         self._batch_params = []
         if np.sum(valid) >= 2:
             ref_idx = int(np.argmin(temps[valid]))
@@ -1338,19 +1371,27 @@ class SAXSEngine(BaseEngine):
                 la_raw = round(float(sp.la), 2) if sp and np.isfinite(sp.la) else None
                 Xc_raw = round(float(sp.phi_c), 3) if sp and np.isfinite(sp.phi_c) else None
                 lcc_raw = round(float(sp.confidence_lc), 2) if sp and np.isfinite(sp.confidence_lc) else None
+                status_payload = _temperature_status_payload(i)
+                effective_payload = _temperature_effective_structure_payload(
+                    lc_raw=lc_raw,
+                    la_raw=la_raw,
+                    Xc_raw=Xc_raw,
+                    status_payload=status_payload,
+                )
                 row = {
                     "file": os.path.basename(str(fname)),
                     "condition_label": getattr(self.cfg, "condition_label", "Temperature"),
                     "temperature_C": T,
                     "L_nm": L,
-                    "lc_nm": lc_raw,
-                    "la_nm": la_raw,
-                    "Xc": Xc_raw,
+                    "lc_nm_raw": lc_raw,
+                    "la_nm_raw": la_raw,
+                    "Xc_raw": Xc_raw,
+                    **effective_payload,
                     "lc_confidence": lcc_raw,
                     "lc_method": "calibrated" if lc_cal is not None else "raw",
                     "Q_star_valid": True,
                     "porod_slope": round(float(analysis.porod.get("slope")), 4) if analysis and isinstance(getattr(analysis, "porod", None), dict) and np.isfinite(_float_or_none(analysis.porod.get("slope"))) else None,
-                    **_temperature_status_payload(i),
+                    **status_payload,
                     **self._condition_row_metadata(i),
                 }
                 if lc_cal is not None:
@@ -1375,17 +1416,25 @@ class SAXSEngine(BaseEngine):
                 pc = round(float(sp.phi_c), 3) if sp and np.isfinite(sp.phi_c) else None
                 fn = self._file_list[i] if i < len(self._file_list) else f"frame_{i}"
                 lcc = round(float(sp.confidence_lc), 2) if sp and np.isfinite(sp.confidence_lc) else None
+                status_payload = _temperature_status_payload(i)
+                effective_payload = _temperature_effective_structure_payload(
+                    lc_raw=lc,
+                    la_raw=la,
+                    Xc_raw=pc,
+                    status_payload=status_payload,
+                )
                 self._batch_params.append({
                     "file": os.path.basename(str(fn)),
                     "condition_label": getattr(self.cfg, "condition_label", "Temperature"),
                     "temperature_C": self._conditions[i] if i < len(self._conditions) else None,
                     "L_nm": L,
-                    "lc_nm": lc,
-                    "la_nm": la,
-                    "Xc": pc,
+                    "lc_nm_raw": lc,
+                    "la_nm_raw": la,
+                    "Xc_raw": pc,
+                    **effective_payload,
                     "lc_confidence": lcc,
                     "lc_method": "raw",
-                    **_temperature_status_payload(i),
+                    **status_payload,
                     **self._condition_row_metadata(i),
                 })
 

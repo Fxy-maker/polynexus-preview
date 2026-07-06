@@ -581,6 +581,55 @@ def test_dsc_xc_with_unstable_baseline_is_low_confidence() -> None:
     assert "dsc_baseline_sensitive_xc" in evidence["constraint_summary"]["triggered_names"]["soft_warn"]
 
 
+def test_dsc_xc_uncertainty_distribution_is_evidence() -> None:
+    evidence = build_analysis_evidence(
+        "DSC",
+        output_parameters={
+            "quality_score": 0.9,
+            "scan_mode": "heating",
+            "Tm_peak_C": 221.0,
+            "DHm_Jg": 78.0,
+            "DHm_Jg_mean": 77.6,
+            "DHm_Jg_std": 2.5,
+            "DHcc_Jg": 18.0,
+            "DHcc_Jg_mean": 18.4,
+            "DHcc_Jg_std": 1.0,
+            "Xc_pct": 38.0,
+            "Xc_pct_mean": 37.5,
+            "Xc_pct_std": 4.6,
+            "Xc_pct_ci95": 9.0,
+            "Xc_method": "enthalpy",
+            "DHm0_Jg": 230.0,
+            "DHm0_source": "polymer_reference",
+            "baseline_sensitivity_pct": 3.1,
+            "integration_boundary_sensitivity_pct": 4.2,
+            "baseline_variant_count": 3,
+            "integration_variant_count": 27,
+            "peak_components": [
+                {"type": "melting", "peak_C": 221.0, "onset_C": 205.0, "end_C": 235.0, "enthalpy_Jg": 78.0},
+                {"type": "cold_crystallization", "peak_C": 125.0, "onset_C": 110.0, "end_C": 140.0, "enthalpy_Jg": 18.0},
+            ],
+        },
+        residual_pattern={"residual_type": "random", "summary": "variant spread is the dominant uncertainty"},
+        validation_context={"config_snapshot": {"min_event_enthalpy_Jg": 0.05}},
+    ).to_dict()
+
+    structure = evidence["feature_evidence"]["structure_evidence"]
+    crystallinity = evidence["feature_evidence"]["crystallinity_evidence"]
+
+    assert crystallinity["Xc_pct_mean"] == 37.5
+    assert crystallinity["Xc_pct_std"] == 4.6
+    assert crystallinity["Xc_pct_ci95"] == 9.0
+    assert crystallinity["DHm_Jg_mean"] == 77.6
+    assert crystallinity["DHm_Jg_std"] == 2.5
+    assert crystallinity["DHcc_Jg_mean"] == 18.4
+    assert crystallinity["DHcc_Jg_std"] == 1.0
+    assert crystallinity["baseline_variant_count"] == 3
+    assert crystallinity["integration_variant_count"] == 27
+    assert structure["Xc_pct_ci95"] == 9.0
+    assert structure["Xc_reliability_status"] == "low_confidence"
+
+
 def test_dsc_analysis_evidence_flags_physical_conflicts_and_window_issues() -> None:
     evidence = build_analysis_evidence(
         "DSC",
@@ -770,6 +819,53 @@ def test_waxs_analysis_evidence_exposes_structure_contract_for_confidence_review
     assert "structure_support_score" in structure
     assert "paper_ready_candidate" in structure
     assert any(item["name"] == "structure_support_score" for item in evidence["confidence_signals"])
+
+
+def test_waxs_size_uncertainty_is_evidence() -> None:
+    evidence = build_analysis_evidence(
+        "WAXS",
+        output_parameters={
+            "r_squared": 0.94,
+            "quality_score": 0.9,
+            "n_peaks": 3,
+            "Xc_pct": 55.2,
+            "Xc_method": "peak_deconvolution",
+            "D_Scherrer_nm": 9.1,
+            "D_uncertainty_nm": 0.8,
+            "D_WH_nm": 10.4,
+            "D_WH_uncertainty_nm": 1.1,
+            "epsilon_WH_pct": 0.18,
+            "epsilon_WH_uncertainty_pct": 0.03,
+            "WH_fit_r_squared": 0.92,
+            "size_reliability_status": "usable",
+            "instrument_broadening_model": "caglioti",
+            "instrument_broadening_applied": True,
+            "scherrer_peak_records": [
+                {"two_theta": 18.0, "beta_sample_deg": 0.39, "D_nm": 9.8, "D_uncertainty_nm": 0.7},
+                {"two_theta": 21.5, "beta_sample_deg": 0.42, "D_nm": 9.0, "D_uncertainty_nm": 0.8},
+                {"two_theta": 24.0, "beta_sample_deg": 0.46, "D_nm": 8.6, "D_uncertainty_nm": 0.9},
+            ],
+            "peaks": [
+                {"two_theta": 18.0, "fwhm_deg": 0.40, "area": 120.0},
+                {"two_theta": 21.5, "fwhm_deg": 0.43, "area": 105.0},
+                {"two_theta": 24.0, "fwhm_deg": 0.47, "area": 90.0},
+            ],
+        },
+        residual_pattern={"residual_type": "random", "summary": "size uncertainty is explicitly modeled"},
+        validation_context={"config_snapshot": {"caglioti_U": 0.002, "caglioti_W": 0.0004}},
+    ).to_dict()
+
+    phase = evidence["feature_evidence"]["phase_evidence"]
+    structure = evidence["feature_evidence"]["structure_evidence"]
+
+    assert phase["D_uncertainty_nm"] == 0.8
+    assert phase["D_WH_uncertainty_nm"] == 1.1
+    assert phase["epsilon_WH_uncertainty_pct"] == 0.03
+    assert phase["WH_fit_r_squared"] == 0.92
+    assert phase["size_reliability_status"] == "usable"
+    assert structure["size_reliability_status"] == "usable"
+    assert structure["instrument_broadening_model"] == "caglioti"
+    assert structure["scherrer_peak_record_count"] == 3
 
 
 def test_ir_constraint_summary_marks_key_band_mismatch_as_soft_warn() -> None:
@@ -1187,6 +1283,37 @@ def test_nmr_analysis_evidence_surfaces_signal_peak_assignment_sections() -> Non
     assert evidence["phase_evidence"]["amorphous_peak_count"] == 1
     assert evidence["structure_evidence"]["Xc_assignment_status"] == "supported"
     assert "nmr_xc=supported" in evidence["summary"]
+
+
+def test_nmr_assignment_library_score_supports_xc_evidence() -> None:
+    evidence = build_analysis_evidence(
+        "NMR",
+        output_parameters={
+            "nucleus": "13C",
+            "sample_state": "solid",
+            "n_peaks": 3,
+            "median_snr": 11.0,
+            "mean_fwhm_ppm": 2.2,
+            "Xc_method": "requires_crystalline_amorphous_assignment",
+            "library_match_fraction": 0.82,
+            "assignment_confidence": 0.78,
+            "phase_pair_support": True,
+            "solvent_overlap_penalty": 0.0,
+            "matched_library_count": 3,
+            "assignment_library_source": "PA6",
+        },
+        residual_pattern={"residual_type": "noise", "summary": "library assignments are paired"},
+    ).to_dict()
+
+    assignment = evidence["assignment_evidence"]
+    structure = evidence["structure_evidence"]
+
+    assert assignment["library_match_fraction"] == 0.82
+    assert assignment["assignment_confidence"] == 0.78
+    assert assignment["phase_pair_support"] is True
+    assert assignment["matched_library_count"] == 3
+    assert structure["Xc_assignment_status"] == "supported"
+    assert structure["paper_conclusion_ready"] is True
 
 
 def test_nmr_low_confidence_symptoms_are_actionable() -> None:

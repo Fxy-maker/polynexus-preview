@@ -359,7 +359,14 @@ def test_temperature_pipeline_threads_status_fields_into_batch_rows(monkeypatch:
     batch_rows = engine.get_parameters()["_batch_data"]
     assert batch_rows[0]["melting_window_status"] == "outside_window"
     assert batch_rows[0]["lc_reliability_status"] == "usable"
+    assert batch_rows[0]["lc_nm"] == 3.4
+    assert batch_rows[0]["lc_nm_raw"] == 3.4
+    assert batch_rows[0]["lc_nm_effective"] == 3.4
     assert batch_rows[1]["melting_window_status"] == "near_onset"
     assert batch_rows[1]["lc_reliability_status"] == "diagnostic_only"
     assert batch_rows[1]["lc_reliability_reason"] == "low_lc_confidence|near_melting_onset"
+    assert batch_rows[1]["lc_nm"] is None
+    assert batch_rows[1]["lc_nm_raw"] == 1.2
+    assert batch_rows[1]["lc_nm_effective"] is None
+    assert batch_rows[1]["lamellar_interpretation_mode"] == "diagnostic_only"
     assert engine.get_parameters()["Tm_onset_C"] == 195.0

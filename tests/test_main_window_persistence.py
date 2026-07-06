@@ -4,9 +4,11 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox, QVBoxLayout
 
@@ -15,6 +17,19 @@ from polynexus.gui.i18n import get_language, set_language, tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
 from polynexus.data.sample_db import SampleDB
 from rag.prompt_builder import PromptBuilder
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_qt_widgets_between_tests():
+    yield
+    app = QApplication.instance()
+    if app is None:
+        return
+    for widget in QApplication.topLevelWidgets():
+        widget.close()
+        widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
 
 
 def _config_widget(window, key):
@@ -1791,9 +1806,14 @@ def test_ai_tuning_report_score_table_copy_shortcut_copies_selected_row():
 
         text = QApplication.clipboard().text()
         assert text.splitlines()[0] == (
-            f"{tr('AI_TUNING_COL_ROUND')}\t{tr('AI_TUNING_COL_R2')}\t{tr('AI_TUNING_COL_EVAL')}"
+            f"{tr('AI_TUNING_COL_ROUND')}\t{tr('AI_TUNING_COL_CORE')}\t"
+            f"{tr('AI_TUNING_COL_SUPPORT')}\t{tr('AI_TUNING_COL_R2')}\t"
+            f"{tr('AI_TUNING_COL_EVAL')}"
         )
-        assert text.splitlines()[1] == f"{tr('AI_TUNING_ROUND_ACCEPTED', 3)}\t0.912\tgood"
+        assert text.splitlines()[1] == (
+            f"{tr('AI_TUNING_ROUND_ACCEPTED', 3)}\t{tr('AI_TUNING_EMPTY_VALUE')}\t"
+            f"{tr('AI_TUNING_EMPTY_VALUE')}\t0.912\tgood"
+        )
         assert len(text.splitlines()) == 2
 
         dialog.deleteLater()
@@ -5873,7 +5893,7 @@ def test_context_suggestions_prioritize_ai_tuned_follow_up(tmp_path):
 
         config_panel = window._context_suggestion_panels["config"]
         assert "recommended-parameter rerun result" in config_panel["detail"].text()
-        assert config_panel["buttons"][0].text() == "Review AI result"
+        assert config_panel["buttons"][0].text() == "Review result"
         assert config_panel["buttons"][1].text() == "Run controlled optimization again"
 
         window.deleteLater()
@@ -6269,7 +6289,7 @@ def test_history_table_shows_metric_summary_in_tooltips(tmp_path):
 
     tooltip_time = window._history_table.item(0, 0).toolTip()
     tooltip_r2 = window._history_table.item(0, 3).toolTip()
-    assert tooltip_time == "L_nm=12.0 | lc_nm=5.8 | Xc_pct=0.35 | extra_tag=A"
+    assert tooltip_time == "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A"
     assert tooltip_r2 == tooltip_time
 
     db.close()
@@ -6332,7 +6352,7 @@ def test_history_table_metric_summary_ignores_validation_fields(tmp_path):
     window._refresh_history()
 
     tooltip_time = window._history_table.item(0, 0).toolTip()
-    assert tooltip_time == "L_nm=12.0 | lc_nm=5.8 | Xc_pct=0.35 | extra_tag=A"
+    assert tooltip_time == "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A"
     assert "validation_summary" not in tooltip_time.lower()
 
     db.close()
@@ -6877,7 +6897,7 @@ def test_history_copy_summary_copies_selected_record_summary(tmp_path):
         assert "Static SAXS" in text
         assert "Recommended-parameter rerun" in text
         assert "Run trace" in text or "运行轨迹" in text
-        assert "L_nm=12.0 | lc_nm=5.8 | Xc_pct=0.35 | extra_tag=A" in text
+        assert "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A" in text
         assert "Boundary" in text
         assert "Copied history summary: Static SAXS" in window._log_panel.toPlainText()
 

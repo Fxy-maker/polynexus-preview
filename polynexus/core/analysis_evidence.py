@@ -2299,6 +2299,17 @@ def _waxs_structure_metrics(
 
     x_pct = _clean_float(output.get("Xc_pct"))
     scherrer = _clean_float(output.get("D_Scherrer_nm"))
+    scherrer_uncertainty = _clean_float(output.get("D_uncertainty_nm"))
+    wh_size = _clean_float(output.get("D_WH_nm"))
+    wh_size_uncertainty = _clean_float(output.get("D_WH_uncertainty_nm"))
+    wh_strain = _clean_float(output.get("epsilon_WH_pct"))
+    wh_strain_uncertainty = _clean_float(output.get("epsilon_WH_uncertainty_pct"))
+    wh_fit_r_squared = _clean_float(output.get("WH_fit_r_squared"))
+    size_reliability_status = str(output.get("size_reliability_status", "") or "").strip() or None
+    instrument_broadening_model = str(output.get("instrument_broadening_model", "") or "").strip() or None
+    scherrer_peak_records = output.get("scherrer_peak_records")
+    if not isinstance(scherrer_peak_records, list):
+        scherrer_peak_records = []
     offset = _clean_float(output.get("two_theta_offset"))
     if offset is None:
         offset = _clean_float(config_snapshot.get("two_theta_offset"))
@@ -2350,6 +2361,15 @@ def _waxs_structure_metrics(
             ("crystal_system", crystal_system or None),
             ("unit_cell_params_present", unit_cell_present or None),
             ("scherrer_size_nm", scherrer),
+            ("scherrer_size_uncertainty_nm", scherrer_uncertainty),
+            ("williamson_hall_size_nm", wh_size),
+            ("williamson_hall_size_uncertainty_nm", wh_size_uncertainty),
+            ("williamson_hall_strain_pct", wh_strain),
+            ("williamson_hall_strain_uncertainty_pct", wh_strain_uncertainty),
+            ("WH_fit_r_squared", wh_fit_r_squared),
+            ("size_reliability_status", size_reliability_status),
+            ("instrument_broadening_model", instrument_broadening_model),
+            ("scherrer_peak_record_count", len(scherrer_peak_records) if scherrer_peak_records else None),
             ("two_theta_offset", offset),
             ("structure_support_score", round(structure_support_score, 3)),
             ("fit_only_pass", fit_only_pass),
@@ -4992,10 +5012,23 @@ def build_analysis_evidence(
         dhm0_source = str(output.get("DHm0_source") or config_snapshot.get("DHm0_source") or "").strip() or None
         baseline_sensitivity = _clean_float(output.get("baseline_sensitivity_pct"))
         boundary_sensitivity = _clean_float(output.get("integration_boundary_sensitivity_pct"))
+        dhm_mean = _clean_float(output.get("DHm_Jg_mean"))
+        dhm_std = _clean_float(output.get("DHm_Jg_std"))
+        dhcc_mean = _clean_float(output.get("DHcc_Jg_mean"))
+        dhcc_std = _clean_float(output.get("DHcc_Jg_std"))
+        xc_mean = _clean_float(output.get("Xc_pct_mean"))
+        xc_std = _clean_float(output.get("Xc_pct_std"))
+        xc_ci95 = _clean_float(output.get("Xc_pct_ci95"))
+        baseline_variant_count = _safe_int(output.get("baseline_variant_count"), default=0)
+        integration_variant_count = _safe_int(output.get("integration_variant_count"), default=0)
         xc_reliability_status = "usable"
         if (baseline_sensitivity is not None and baseline_sensitivity >= 10.0) or (
             boundary_sensitivity is not None and boundary_sensitivity >= 8.0
+        ) or (
+            xc_ci95 is not None and xc_ci95 >= 8.0
         ):
+            xc_reliability_status = "low_confidence"
+        if baseline_variant_count == 1 or integration_variant_count == 1:
             xc_reliability_status = "low_confidence"
         if dhm0 is None or dhm0_source == "missing":
             xc_reliability_status = "diagnostic_only"
@@ -5073,9 +5106,18 @@ def build_analysis_evidence(
                 ("DHm0_Jg", dhm0),
                 ("DHm0_source", dhm0_source),
                 ("DHm_Jg", _clean_float(output.get("DHm_Jg"))),
+                ("DHm_Jg_mean", dhm_mean),
+                ("DHm_Jg_std", dhm_std),
                 ("DHcc_Jg", _clean_float(output.get("DHcc_Jg"))),
+                ("DHcc_Jg_mean", dhcc_mean),
+                ("DHcc_Jg_std", dhcc_std),
+                ("Xc_pct_mean", xc_mean),
+                ("Xc_pct_std", xc_std),
+                ("Xc_pct_ci95", xc_ci95),
                 ("baseline_sensitivity_pct", baseline_sensitivity),
                 ("integration_boundary_sensitivity_pct", boundary_sensitivity),
+                ("baseline_variant_count", baseline_variant_count if baseline_variant_count > 0 else None),
+                ("integration_variant_count", integration_variant_count if integration_variant_count > 0 else None),
                 ("Xc_reliability_status", xc_reliability_status),
             ]
         )
@@ -5651,8 +5693,23 @@ def build_analysis_evidence(
         assignment_denominator = peak_count if peak_count and peak_count > 0 else len(peak_rows)
         assigned_fraction = assigned_count / assignment_denominator if assignment_denominator else None
         xc_method = str(output.get("Xc_method") or "").strip()
+        explicit_xc_assignment_status = str(output.get("Xc_assignment_status") or "").strip()
+        assignment_confidence = _clean_float(output.get("assignment_confidence"))
+        library_match_fraction = _clean_float(output.get("library_match_fraction"))
+        solvent_overlap_penalty = _clean_float(output.get("solvent_overlap_penalty"))
+        phase_pair_support = bool(output.get("phase_pair_support")) if output.get("phase_pair_support") is not None else False
+        matched_library_count = _safe_int(output.get("matched_library_count"), 0)
         xc_assignment_status = ""
-        if output.get("Xc_pct") is not None or xc_method:
+        if explicit_xc_assignment_status:
+            xc_assignment_status = explicit_xc_assignment_status
+        elif (
+            phase_pair_support
+            and assignment_confidence is not None
+            and assignment_confidence >= 0.7
+            and (solvent_overlap_penalty is None or solvent_overlap_penalty <= 0.25)
+        ):
+            xc_assignment_status = "supported"
+        elif output.get("Xc_pct") is not None or xc_method:
             if crystalline_count > 0 and amorphous_count > 0:
                 xc_assignment_status = "supported"
             elif (
@@ -5688,6 +5745,12 @@ def build_analysis_evidence(
                 ("phase_assignment_count", phase_assigned_count),
                 ("assigned_peak_fraction", assigned_fraction),
                 ("n_matches", _clean_float(output.get("n_matches"))),
+                ("library_match_fraction", library_match_fraction),
+                ("assignment_confidence", assignment_confidence),
+                ("phase_pair_support", phase_pair_support if output.get("phase_pair_support") is not None else None),
+                ("solvent_overlap_penalty", solvent_overlap_penalty),
+                ("matched_library_count", matched_library_count if matched_library_count > 0 else None),
+                ("assignment_library_source", str(output.get("assignment_library_source", "") or "").strip() or None),
             ]
         )
         phase_evidence = _non_empty_mapping(
@@ -5702,6 +5765,10 @@ def build_analysis_evidence(
                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
                 ("Xc_method", xc_method or None),
                 ("Xc_assignment_status", xc_assignment_status or None),
+                ("assignment_confidence", assignment_confidence),
+                ("library_match_fraction", library_match_fraction),
+                ("phase_pair_support", phase_pair_support if output.get("phase_pair_support") is not None else None),
+                ("solvent_overlap_penalty", solvent_overlap_penalty),
                 ("paper_conclusion_ready", xc_assignment_status == "supported"),
             ]
         )
@@ -5712,6 +5779,8 @@ def build_analysis_evidence(
         feature_evidence["structure_evidence"] = structure_evidence
         if output.get("median_snr") is not None:
             confidence_signals.append({"name": "median_snr", "value": _clean_float(output.get("median_snr")), "source": "NMR"})
+        if assignment_confidence is not None:
+            confidence_signals.append({"name": "assignment_confidence", "value": assignment_confidence, "source": "NMR"})
 
     constraints = evaluate_physical_constraints(technique_key, output, residual, validation)
     constraint_summary = summarize_constraints(constraints)
@@ -5758,11 +5827,20 @@ def build_analysis_evidence(
                 ("Tm_peak_C", _clean_float(output.get("Tm_peak_C"))),
                 ("Tcc_peak_C", _clean_float(output.get("Tcc_peak_C"))),
                 ("DHm_Jg", _clean_float(output.get("DHm_Jg"))),
+                ("DHm_Jg_mean", dhm_mean),
+                ("DHm_Jg_std", dhm_std),
                 ("DHcc_Jg", _clean_float(output.get("DHcc_Jg"))),
+                ("DHcc_Jg_mean", dhcc_mean),
+                ("DHcc_Jg_std", dhcc_std),
                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
+                ("Xc_pct_mean", xc_mean),
+                ("Xc_pct_std", xc_std),
+                ("Xc_pct_ci95", xc_ci95),
                 ("Xc_reliability_status", xc_reliability_status),
                 ("baseline_sensitivity_pct", baseline_sensitivity),
                 ("integration_boundary_sensitivity_pct", boundary_sensitivity),
+                ("baseline_variant_count", baseline_variant_count if baseline_variant_count > 0 else None),
+                ("integration_variant_count", integration_variant_count if integration_variant_count > 0 else None),
                 ("DHm0_source", dhm0_source),
                 ("supported_event_count", len(supported_components)),
                 ("supported_melting_event_count", len(supported_melting_components)),
@@ -6037,6 +6115,14 @@ def build_analysis_evidence(
                 ("crystal_system", str(output.get("crystal_system", "") or "").strip() or None),
                 ("unit_cell_params_present", bool(output.get("unit_cell_params", config_snapshot.get("unit_cell_params", {}))) or None),
                 ("D_Scherrer_nm", _clean_float(output.get("D_Scherrer_nm"))),
+                ("D_uncertainty_nm", _clean_float(output.get("D_uncertainty_nm"))),
+                ("D_WH_nm", _clean_float(output.get("D_WH_nm"))),
+                ("D_WH_uncertainty_nm", _clean_float(output.get("D_WH_uncertainty_nm"))),
+                ("epsilon_WH_pct", _clean_float(output.get("epsilon_WH_pct"))),
+                ("epsilon_WH_uncertainty_pct", _clean_float(output.get("epsilon_WH_uncertainty_pct"))),
+                ("WH_fit_r_squared", _clean_float(output.get("WH_fit_r_squared"))),
+                ("size_reliability_status", str(output.get("size_reliability_status", "") or "").strip() or None),
+                ("instrument_broadening_model", str(output.get("instrument_broadening_model", "") or "").strip() or None),
             ]
         )
         if phase_evidence:

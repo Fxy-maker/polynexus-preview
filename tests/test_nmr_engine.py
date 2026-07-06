@@ -1,4 +1,5 @@
 from pathlib import Path
+import warnings
 
 import numpy as np
 
@@ -102,6 +103,33 @@ def test_nmr_result_parameters_include_assignment_source_statistics() -> None:
     assert params["solvent_peak_count"] == 1
 
 
+def test_nmr_assignment_library_scores_phase_pair_support() -> None:
+    from polynexus.core.nmr_engine.core import NMRResult, _score_assignment_library
+
+    cfg = NMRConfig(sample_state="solid", nucleus="13C", polymer_name="PA6")
+    result = NMRResult(nucleus="13C", sample_state="solid")
+    result.peaks = [
+        {"ppm": 173.4, "area": 80.0, "assignment": "C=O (c)", "phase": "c", "possible_solvent": ""},
+        {"ppm": 42.1, "area": 25.0, "assignment": "Calpha_am (a)", "phase": "a", "possible_solvent": ""},
+        {"ppm": 36.4, "area": 52.0, "assignment": "Cdelta (c)", "phase": "c", "possible_solvent": ""},
+    ]
+    result.n_peaks = len(result.peaks)
+
+    score = _score_assignment_library(result.peaks, cfg, polymer_name="PA6", nucleus="13C")
+    result.assignment_metrics.update(score)
+    result.Xc_method = "requires_crystalline_amorphous_assignment"
+    result.apply_assignment_gate()
+
+    params = result.parameters
+
+    assert params["library_match_fraction"] >= 0.7
+    assert params["assignment_confidence"] >= 0.7
+    assert params["phase_pair_support"] is True
+    assert params["matched_library_count"] >= 2
+    assert params["solvent_overlap_penalty"] == 0.0
+    assert params["Xc_assignment_status"] == "supported"
+
+
 def test_liquid_h_pipeline_detects_peaks_from_real_fid():
     cfg = NMRConfig(
         sample_state="liquid",
@@ -196,6 +224,25 @@ def test_nmr_export_includes_physical_metrics_and_peak_table(tmp_path):
     assert "integral_norm" in peak_text
     assert "region" in peak_text
     assert any("region_integrals" in key for key in result.figures)
+
+
+def test_nmr_export_does_not_emit_arial_missing_glyph_warning(tmp_path):
+    engine = get_engine(
+        "nmr",
+        config={"max_peaks": 6, "fig_format": "png"},
+        submodule_id="nmr.liquid_h",
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = engine.run_pipeline(
+            str(_nmr_root() / "\u6db2\u4f53\u6838\u78c1" / "H\u8c31"),
+            str(tmp_path),
+        )
+
+    assert result.figures
+    warning_text = "\n".join(str(item.message) for item in caught)
+    assert "missing from font(s) Arial" not in warning_text
 
 
 # --- regression tests for the fixed algorithm ------------------------------

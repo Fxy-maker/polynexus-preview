@@ -45,6 +45,12 @@ class WAXSResult:
     instrument_broadening_applied: bool = False
     D_WH_nm: float = np.nan        # Williamson-Hall size
     epsilon_WH_pct: float = np.nan  # Williamson-Hall strain (%)
+    D_WH_uncertainty_nm: float = np.nan
+    epsilon_WH_uncertainty_pct: float = np.nan
+    WH_fit_r_squared: float = np.nan
+    size_reliability_status: str = ""
+    instrument_broadening_model: str = ""
+    scherrer_peak_records: List[Dict[str, Any]] = field(default_factory=list)
 
     # Crystal system
     crystal_system: str = ""
@@ -73,6 +79,12 @@ class WAXSResult:
             'instrument_broadening_applied': self.instrument_broadening_applied,
             'D_WH_nm': self.D_WH_nm,
             'epsilon_WH_pct': self.epsilon_WH_pct,
+            'D_WH_uncertainty_nm': self.D_WH_uncertainty_nm,
+            'epsilon_WH_uncertainty_pct': self.epsilon_WH_uncertainty_pct,
+            'WH_fit_r_squared': self.WH_fit_r_squared,
+            'size_reliability_status': self.size_reliability_status,
+            'instrument_broadening_model': self.instrument_broadening_model,
+            'scherrer_peak_records': self.scherrer_peak_records,
             'crystal_system': self.crystal_system,
             'r_squared': self.r_squared,
         }
@@ -620,6 +632,98 @@ def scherrer_size(fwhm_deg: float, two_theta_deg: float,
     return D_A / 10.0  # Å → nm
 
 
+def _waxs_config_value(config_or_value: Any, name: str, default: float = 0.0) -> float:
+    if isinstance(config_or_value, WAXSConfig):
+        value = getattr(config_or_value, name, default)
+    elif isinstance(config_or_value, dict):
+        value = config_or_value.get(name, default)
+    else:
+        value = default if config_or_value is None else config_or_value
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def instrument_fwhm_for_peak(
+    two_theta_deg: float,
+    instrument_fwhm_deg: float | WAXSConfig | Dict[str, Any] = 0.0,
+    caglioti_U: float = 0.0,
+    caglioti_V: float = 0.0,
+    caglioti_W: float = 0.0,
+) -> float:
+    """Return instrumental FWHM in degrees 2theta for a peak."""
+    if isinstance(instrument_fwhm_deg, (WAXSConfig, dict)):
+        cfg = instrument_fwhm_deg
+        constant_width = _waxs_config_value(cfg, "instrument_fwhm_deg", 0.0)
+        U = _waxs_config_value(cfg, "caglioti_U", 0.0)
+        V = _waxs_config_value(cfg, "caglioti_V", 0.0)
+        W = _waxs_config_value(cfg, "caglioti_W", 0.0)
+    else:
+        constant_width = _waxs_config_value(instrument_fwhm_deg, "instrument_fwhm_deg", 0.0)
+        U = float(caglioti_U or 0.0)
+        V = float(caglioti_V or 0.0)
+        W = float(caglioti_W or 0.0)
+
+    theta = np.radians(float(two_theta_deg) / 2.0)
+    tan_theta = np.tan(theta)
+    if any(abs(value) > 0.0 for value in (U, V, W)):
+        return float(np.sqrt(max(U * tan_theta ** 2 + V * tan_theta + W, 0.0)))
+    return max(0.0, float(constant_width))
+
+
+def scherrer_peak_size_records(
+    peaks: List[Dict[str, Any]],
+    config_or_wavelength: WAXSConfig | Dict[str, Any] | float = 1.5406,
+    K: float | None = None,
+    instrument_fwhm_deg: float | None = None,
+) -> List[Dict[str, Any]]:
+    """Return per-peak Scherrer size records with propagated width uncertainty."""
+    if isinstance(config_or_wavelength, (WAXSConfig, dict)):
+        wavelength_A = _waxs_config_value(config_or_wavelength, "wavelength_A", 1.5406)
+        scherrer_K = _waxs_config_value(config_or_wavelength, "scherrer_K", 0.9)
+        instrument_source = config_or_wavelength
+    else:
+        wavelength_A = float(config_or_wavelength)
+        scherrer_K = float(0.9 if K is None else K)
+        instrument_source = {
+            "instrument_fwhm_deg": 0.0 if instrument_fwhm_deg is None else instrument_fwhm_deg,
+            "caglioti_U": 0.0,
+            "caglioti_V": 0.0,
+            "caglioti_W": 0.0,
+        }
+
+    records: List[Dict[str, Any]] = []
+    for index, pk in enumerate(peaks):
+        fwhm = pk.get('fwhm_deg', np.nan)
+        tth = pk.get('two_theta', np.nan)
+        if np.isnan(fwhm) or np.isnan(tth) or fwhm <= 0:
+            continue
+        beta_inst = instrument_fwhm_for_peak(float(tth), instrument_source)
+        beta_sample = float(np.sqrt(max(float(fwhm) ** 2 - beta_inst ** 2, 0.0)))
+        if beta_sample <= 1e-9:
+            continue
+        D_nm = scherrer_size(float(fwhm), float(tth), wavelength_A, scherrer_K, beta_inst)
+        if np.isnan(D_nm):
+            continue
+        fwhm_unc = pk.get("fwhm_uncertainty_deg", pk.get("fwhm_std_deg", np.nan))
+        if np.isnan(fwhm_unc):
+            fwhm_unc = max(0.01, 0.05 * float(fwhm))
+        beta_unc = abs(float(fwhm) / beta_sample) * max(float(fwhm_unc), 0.0)
+        D_unc = abs(float(D_nm) * beta_unc / beta_sample) if beta_sample > 0 else np.nan
+        records.append({
+            "index": int(pk.get("index", index)),
+            "two_theta": float(tth),
+            "fwhm_deg": float(fwhm),
+            "instrument_fwhm_deg": float(beta_inst),
+            "beta_sample_deg": beta_sample,
+            "D_nm": float(D_nm),
+            "D_uncertainty_nm": float(D_unc) if np.isfinite(D_unc) else np.nan,
+            "hkl": pk.get("hkl", ""),
+        })
+    return records
+
+
 def scherrer_peak_sizes(peaks: List[Dict[str, Any]],
                         wavelength_A: float = 1.5406,
                         K: float = 0.9,
@@ -690,6 +794,85 @@ def williamson_hall(peaks: List[Dict[str, Any]],
     epsilon = slope * 100.0  # percent
 
     return float(D_nm) if not np.isnan(D_nm) else np.nan, float(epsilon), float(r ** 2)
+
+
+def williamson_hall_weighted(
+    peaks: List[Dict[str, Any]],
+    config_or_wavelength: WAXSConfig | Dict[str, Any] | float = 1.5406,
+) -> Dict[str, Any]:
+    """Weighted Williamson-Hall fit using propagated peak-width uncertainty."""
+    records = scherrer_peak_size_records(peaks, config_or_wavelength)
+    if isinstance(config_or_wavelength, (WAXSConfig, dict)):
+        wavelength_A = _waxs_config_value(config_or_wavelength, "wavelength_A", 1.5406)
+        scherrer_K = _waxs_config_value(config_or_wavelength, "scherrer_K", 0.9)
+    else:
+        wavelength_A = float(config_or_wavelength)
+        scherrer_K = 0.9
+
+    if len(records) < 2:
+        return {
+            "D_nm": np.nan,
+            "epsilon_pct": np.nan,
+            "D_uncertainty_nm": np.nan,
+            "epsilon_uncertainty_pct": np.nan,
+            "r_squared": np.nan,
+            "reliability_status": "diagnostic_only",
+            "support_peak_count": len(records),
+        }
+
+    x_vals, y_vals, y_unc_vals = [], [], []
+    for record in records:
+        theta = np.radians(record["two_theta"] / 2.0)
+        beta_rad = np.radians(record["beta_sample_deg"])
+        rel_beta_unc = record.get("D_uncertainty_nm", 0.0) / max(record["D_nm"], 1e-9)
+        beta_unc_rad = np.radians(max(rel_beta_unc, 0.0) * record["beta_sample_deg"])
+        x_vals.append(4.0 * np.sin(theta))
+        y_vals.append(beta_rad * np.cos(theta))
+        y_unc_vals.append(max(beta_unc_rad * np.cos(theta), 1e-9))
+
+    x_arr = np.asarray(x_vals, dtype=float)
+    y_arr = np.asarray(y_vals, dtype=float)
+    sigma = np.asarray(y_unc_vals, dtype=float)
+    if len(x_arr) < 2 or np.allclose(x_arr, x_arr[0]):
+        return {
+            "D_nm": np.nan,
+            "epsilon_pct": np.nan,
+            "D_uncertainty_nm": np.nan,
+            "epsilon_uncertainty_pct": np.nan,
+            "r_squared": np.nan,
+            "reliability_status": "diagnostic_only",
+            "support_peak_count": len(records),
+        }
+
+    try:
+        coeffs, cov = np.polyfit(x_arr, y_arr, 1, w=1.0 / sigma, cov=True)
+    except Exception:
+        coeffs = np.polyfit(x_arr, y_arr, 1, w=1.0 / sigma)
+        cov = np.full((2, 2), np.nan)
+    slope, intercept = float(coeffs[0]), float(coeffs[1])
+    fitted = slope * x_arr + intercept
+    ss_res = float(np.sum((y_arr - fitted) ** 2))
+    ss_tot = float(np.sum((y_arr - np.mean(y_arr)) ** 2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 1e-12 else np.nan
+    D_A = scherrer_K * wavelength_A / intercept if intercept > 0 else np.nan
+    D_nm = D_A / 10.0 if np.isfinite(D_A) else np.nan
+    intercept_unc = float(np.sqrt(cov[1, 1])) if np.isfinite(cov[1, 1]) else np.nan
+    slope_unc = float(np.sqrt(cov[0, 0])) if np.isfinite(cov[0, 0]) else np.nan
+    D_unc = abs(float(D_nm) * intercept_unc / intercept) if np.isfinite(D_nm) and intercept > 0 and np.isfinite(intercept_unc) else np.nan
+    epsilon_pct = slope * 100.0
+    epsilon_unc_pct = slope_unc * 100.0 if np.isfinite(slope_unc) else np.nan
+    reliability = "usable"
+    if len(records) < 3 or not np.isfinite(D_nm) or (np.isfinite(r_squared) and r_squared < 0.5):
+        reliability = "low_confidence"
+    return {
+        "D_nm": float(D_nm) if np.isfinite(D_nm) else np.nan,
+        "epsilon_pct": float(epsilon_pct),
+        "D_uncertainty_nm": float(D_unc) if np.isfinite(D_unc) else np.nan,
+        "epsilon_uncertainty_pct": float(epsilon_unc_pct) if np.isfinite(epsilon_unc_pct) else np.nan,
+        "r_squared": float(np.clip(r_squared, 0.0, 1.0)) if np.isfinite(r_squared) else np.nan,
+        "reliability_status": reliability,
+        "support_peak_count": len(records),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -995,20 +1178,30 @@ def analyze_scan(scan: WAXSScan, config: WAXSConfig,
         result.Xc_pct = 95.0
 
     # === Step 5: Scherrer, Williamson-Hall, Crystal system ===
-    scherrer_sizes = scherrer_peak_sizes(
-        result.peaks,
-        config.wavelength_A,
-        config.scherrer_K,
-        instrument_fwhm_deg=getattr(config, "instrument_fwhm_deg", 0.0),
-    )
+    scherrer_records = scherrer_peak_size_records(result.peaks, config)
+    scherrer_sizes = [row["D_nm"] for row in scherrer_records if np.isfinite(row.get("D_nm", np.nan))]
     result.D_Scherrer_nm = float(np.mean(scherrer_sizes)) if scherrer_sizes else np.nan
     if scherrer_sizes:
-        result.D_uncertainty_nm = float(np.std(scherrer_sizes)) if len(scherrer_sizes) > 1 else 0.0
-    result.instrument_broadening_applied = bool(getattr(config, "instrument_fwhm_deg", 0.0) > 0)
+        size_spread = float(np.std(scherrer_sizes)) if len(scherrer_sizes) > 1 else 0.0
+        record_uncertainties = [
+            row["D_uncertainty_nm"]
+            for row in scherrer_records
+            if np.isfinite(row.get("D_uncertainty_nm", np.nan))
+        ]
+        propagated_uncertainty = float(np.mean(record_uncertainties)) if record_uncertainties else 0.0
+        result.D_uncertainty_nm = float(np.sqrt(size_spread ** 2 + propagated_uncertainty ** 2))
+    caglioti_present = any(abs(float(getattr(config, name, 0.0) or 0.0)) > 0.0 for name in ("caglioti_U", "caglioti_V", "caglioti_W"))
+    result.instrument_broadening_applied = bool(caglioti_present or getattr(config, "instrument_fwhm_deg", 0.0) > 0)
+    result.instrument_broadening_model = "caglioti" if caglioti_present else ("constant" if getattr(config, "instrument_fwhm_deg", 0.0) > 0 else "none")
+    result.scherrer_peak_records = scherrer_records
 
-    D_wh, eps_wh, _ = williamson_hall(result.peaks, config.wavelength_A)
-    result.D_WH_nm = D_wh if not np.isnan(D_wh) else np.nan
-    result.epsilon_WH_pct = eps_wh if not np.isnan(eps_wh) else np.nan
+    wh = williamson_hall_weighted(result.peaks, config)
+    result.D_WH_nm = wh["D_nm"] if not np.isnan(wh["D_nm"]) else np.nan
+    result.epsilon_WH_pct = wh["epsilon_pct"] if not np.isnan(wh["epsilon_pct"]) else np.nan
+    result.D_WH_uncertainty_nm = wh["D_uncertainty_nm"] if not np.isnan(wh["D_uncertainty_nm"]) else np.nan
+    result.epsilon_WH_uncertainty_pct = wh["epsilon_uncertainty_pct"] if not np.isnan(wh["epsilon_uncertainty_pct"]) else np.nan
+    result.WH_fit_r_squared = wh["r_squared"] if not np.isnan(wh["r_squared"]) else np.nan
+    result.size_reliability_status = str(wh.get("reliability_status") or "")
 
     crystal = identify_crystal_system(result.peaks, config.wavelength_A)
     result.crystal_system = crystal['system']
