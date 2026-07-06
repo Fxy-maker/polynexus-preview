@@ -12219,7 +12219,7 @@ class MainWindow(QMainWindow):
     def _responsibility_boundary_summary(self) -> str:
 
         if get_language() == "zh":
-            return "边界 | core 负责证据，AI 只给有限建议，orchestrator 负责受控试验与回滚，用户负责最终判断"
+            return "Boundary | 边界 | core 负责证据，AI 只给有限建议，orchestrator 负责受控试验与回滚，用户负责最终判断"
         return "Boundary | core provides evidence, AI only suggests, orchestrator guards trials and rollback, user makes the final judgment"
 
     def _task_type_label(self, input_mode: str) -> str:
@@ -13809,6 +13809,5 @@ class MainWindow(QMainWindow):
 
         if not loaded_any:
             return
-
 
 
