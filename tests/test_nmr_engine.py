@@ -1,4 +1,5 @@
 from pathlib import Path
+import warnings
 
 import numpy as np
 
@@ -196,6 +197,25 @@ def test_nmr_export_includes_physical_metrics_and_peak_table(tmp_path):
     assert "integral_norm" in peak_text
     assert "region" in peak_text
     assert any("region_integrals" in key for key in result.figures)
+
+
+def test_nmr_export_does_not_emit_arial_missing_glyph_warning(tmp_path):
+    engine = get_engine(
+        "nmr",
+        config={"max_peaks": 6, "fig_format": "png"},
+        submodule_id="nmr.liquid_h",
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = engine.run_pipeline(
+            str(_nmr_root() / "\u6db2\u4f53\u6838\u78c1" / "H\u8c31"),
+            str(tmp_path),
+        )
+
+    assert result.figures
+    warning_text = "\n".join(str(item.message) for item in caught)
+    assert "missing from font(s) Arial" not in warning_text
 
 
 # --- regression tests for the fixed algorithm ------------------------------
