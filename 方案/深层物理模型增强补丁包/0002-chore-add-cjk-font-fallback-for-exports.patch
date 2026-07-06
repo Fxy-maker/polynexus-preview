@@ -1,0 +1,108 @@
+From 474182d91f4b77c6677e3ecd8746a54248be3918 Mon Sep 17 00:00:00 2001
+From: Fxy-maker <fanxuyi786@gmail.com>
+Date: Mon, 6 Jul 2026 09:12:36 +0800
+Subject: [PATCH 2/7] chore: add cjk font fallback for exports
+
+---
+ polynexus/core/plot_edits.py | 34 ++++++++++++++++++++++++++++++++++
+ tests/test_nmr_engine.py     | 20 ++++++++++++++++++++
+ 2 files changed, 54 insertions(+)
+
+diff --git a/polynexus/core/plot_edits.py b/polynexus/core/plot_edits.py
+index af25381..f04d57a 100644
+--- a/polynexus/core/plot_edits.py
++++ b/polynexus/core/plot_edits.py
+@@ -10,6 +10,9 @@ from datetime import datetime
+ from pathlib import Path
+ from typing import Any, Dict, Tuple
+ 
++import matplotlib as mpl
++from matplotlib import font_manager
++
+ from ..utils.config import get_user_config_dir
+ 
+ 
+@@ -45,6 +48,36 @@ FIGURE_SIZES = {
+ }
+ 
+ _FIGURE_ROOT_DIRS = {"figures", "summary", "per_frame"}
++_CJK_FONT_CANDIDATES = (
++    "Microsoft YaHei",
++    "SimHei",
++    "Noto Sans CJK SC",
++    "Source Han Sans SC",
++    "Arial Unicode MS",
++    "DejaVu Sans",
++)
++
++
++def _available_cjk_font_family() -> list[str]:
++    available = {font.name for font in font_manager.fontManager.ttflist}
++    fonts = [name for name in _CJK_FONT_CANDIDATES if name in available]
++    return fonts or ["DejaVu Sans"]
++
++
++def _text_needs_cjk_font(text: str) -> bool:
++    return any(ord(ch) > 127 for ch in str(text or ""))
++
++
++def _apply_cjk_font_fallback(fig) -> None:
++    font_family = _available_cjk_font_family()
++    current_sans = list(mpl.rcParams.get("font.sans-serif", []))
++    mpl.rcParams["font.sans-serif"] = list(dict.fromkeys(font_family + current_sans))
++    if mpl.rcParams.get("font.family") == ["Arial"] or mpl.rcParams.get("font.family") == "Arial":
++        mpl.rcParams["font.family"] = font_family + ["Arial"]
++
++    for text in fig.findobj(match=mpl.text.Text):
++        if _text_needs_cjk_font(text.get_text()):
++            text.set_fontfamily(font_family)
+ 
+ 
+ def style_presets_path() -> Path:
+@@ -263,6 +296,7 @@ def savefig_with_edits(fig, path: str, **savefig_kwargs):
+     """Apply sidecar edits, then save a matplotlib figure."""
+     style = load_figure_edit(path)
+     apply_figure_edit(fig, path)
++    _apply_cjk_font_fallback(fig)
+     if style.get("bg_color") and "facecolor" in savefig_kwargs:
+         savefig_kwargs["facecolor"] = style["bg_color"]
+     fig.savefig(path, **savefig_kwargs)
+diff --git a/tests/test_nmr_engine.py b/tests/test_nmr_engine.py
+index 8973173..cb670f8 100644
+--- a/tests/test_nmr_engine.py
++++ b/tests/test_nmr_engine.py
+@@ -1,4 +1,5 @@
+ from pathlib import Path
++import warnings
+ 
+ import numpy as np
+ 
+@@ -198,6 +199,25 @@ def test_nmr_export_includes_physical_metrics_and_peak_table(tmp_path):
+     assert any("region_integrals" in key for key in result.figures)
+ 
+ 
++def test_nmr_export_does_not_emit_arial_missing_glyph_warning(tmp_path):
++    engine = get_engine(
++        "nmr",
++        config={"max_peaks": 6, "fig_format": "png"},
++        submodule_id="nmr.liquid_h",
++    )
++
++    with warnings.catch_warnings(record=True) as caught:
++        warnings.simplefilter("always")
++        result = engine.run_pipeline(
++            str(_nmr_root() / "\u6db2\u4f53\u6838\u78c1" / "H\u8c31"),
++            str(tmp_path),
++        )
++
++    assert result.figures
++    warning_text = "\n".join(str(item.message) for item in caught)
++    assert "missing from font(s) Arial" not in warning_text
++
++
+ # --- regression tests for the fixed algorithm ------------------------------
+ 
+ 
+-- 
+2.54.0.windows.1
+

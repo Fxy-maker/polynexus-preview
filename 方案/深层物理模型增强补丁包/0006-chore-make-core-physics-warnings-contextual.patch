@@ -1,0 +1,141 @@
+From 9ea60ee41d4f1e5c8a3542190b9d2efcc82dbe6a Mon Sep 17 00:00:00 2001
+From: Fxy-maker <fanxuyi786@gmail.com>
+Date: Mon, 6 Jul 2026 10:03:07 +0800
+Subject: [PATCH 6/7] chore: make core physics warnings contextual
+
+---
+ polynexus/core/dsc_engine/core.py  |  9 ++++-----
+ polynexus/core/nmr_engine/core.py  |  2 +-
+ polynexus/core/waxs_engine/core.py |  8 ++++----
+ tests/test_core.py                 | 17 +++++++++++++++++
+ 4 files changed, 26 insertions(+), 10 deletions(-)
+
+diff --git a/polynexus/core/dsc_engine/core.py b/polynexus/core/dsc_engine/core.py
+index 52bc114..ad13e7a 100644
+--- a/polynexus/core/dsc_engine/core.py
++++ b/polynexus/core/dsc_engine/core.py
+@@ -306,7 +306,6 @@ def compute_Tg(T: np.ndarray, HF: np.ndarray,
+             result['DTg_C'] = width
+     except Exception as e:
+         logger.warning("DSC Tg 检测失败: %s", e, exc_info=True)
+-        logger.warning("异常已处理", exc_info=True)
+ 
+     return result
+ 
+@@ -523,7 +522,7 @@ def _find_thermal_events_physical(T: np.ndarray, HF: np.ndarray,
+         except Exception:
+             left_bases = props.get('left_bases', np.maximum(0, peaks - distance))
+             right_bases = props.get('right_bases', np.minimum(len(T_work) - 1, peaks + distance))
+-            logger.warning("异常已处理", exc_info=True)
++            logger.warning("DSC peak width fallback used for event boundaries.", exc_info=True)
+         prominences = props.get('prominences', np.full(len(peaks), np.nan))
+         for i, peak_idx in enumerate(peaks):
+             if peak_idx < 2 or peak_idx > len(T_work) - 3:
+@@ -723,7 +722,7 @@ def deconvolve_peaks(T: np.ndarray, HF: np.ndarray,
+     except Exception:
+         # Fallback: use initial guesses as-is
+         popt = p0
+-        logger.warning("异常已处理", exc_info=True)
++        logger.warning("DSC peak deconvolution fit failed; using initial guesses.", exc_info=True)
+ 
+     # Extract components
+     n_base = 0 if baseline == 'none' else (1 if baseline == 'constant' else 2)
+@@ -975,7 +974,7 @@ def compute_peak_fit_quality(
+         )
+     except Exception:
+         popt = np.asarray(p0, dtype=float)
+-        logger.warning("异常已处理", exc_info=True)
++        logger.warning("DSC local peak fit failed; using initial parameter guesses.", exc_info=True)
+ 
+     y_fit = model(x, *popt)
+     fit_full[mask] = y_fit
+@@ -1405,7 +1404,7 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
+                     'fraction': frac,
+                 })
+         except Exception:
+-            logger.warning("静默异常", exc_info=True)
++            logger.warning("DSC deconvolved melting component extraction failed.", exc_info=True)
+ 
+     # ---- Local peak fit score (AI tuning objective) ----
+     fit_quality = compute_peak_fit_quality(T, HF, result, config, score_HF=fit_observed_HF)
+diff --git a/polynexus/core/nmr_engine/core.py b/polynexus/core/nmr_engine/core.py
+index a27e75c..8546a07 100644
+--- a/polynexus/core/nmr_engine/core.py
++++ b/polynexus/core/nmr_engine/core.py
+@@ -619,7 +619,7 @@ def _fit_region_peaks(ppm, intensity, peaks, method='mixed',
+                 area = float(a * s * np.sqrt(np.pi))
+             except Exception:
+                 area = a * s * 1.77
+-                logger.warning("异常已处理", exc_info=True)
++                logger.warning("NMR pseudo-Voigt area estimate failed; using fallback area factor.", exc_info=True)
+ 
+         fitted.append({
+             'index': i, 'ppm': c, 'height': a,
+diff --git a/polynexus/core/waxs_engine/core.py b/polynexus/core/waxs_engine/core.py
+index a523829..f69c996 100644
+--- a/polynexus/core/waxs_engine/core.py
++++ b/polynexus/core/waxs_engine/core.py
+@@ -405,7 +405,7 @@ def _fit_peaks_with_halo(x, y, peaks, halo_indices=None, peak_type='pseudo_voigt
+                     sigma = max(pk['two_theta'] * 0.03, 0.1)
+             except Exception:
+                 sigma = max(pk['two_theta'] * 0.03, 0.1)
+-                logger.warning("异常已处理", exc_info=True)
++                logger.warning("WAXS peak-width estimate failed; using position-scaled sigma.", exc_info=True)
+         p0.append(amp)
+         p0.append(tth_c)
+         p0.append(sigma)
+@@ -436,7 +436,7 @@ def _fit_peaks_with_halo(x, y, peaks, halo_indices=None, peak_type='pseudo_voigt
+         popt = res.x
+     except Exception:
+         popt = np.array(p0)
+-        logger.warning("异常已处理", exc_info=True)
++        logger.warning("WAXS multi-peak fit failed; using initial peak guesses.", exc_info=True)
+ 
+     # Extract fitted peaks
+     fitted = []
+@@ -992,7 +992,7 @@ def analyze_scan(scan: WAXSScan, config: WAXSConfig,
+     except Exception as e:
+         print(f"[WAXS] {label}: arPLS failed ({e}), falling back to raw data", file=sys.stderr)
+         I_corrected = I.copy()
+-        logger.warning("异常已处理", exc_info=True)
++        logger.warning("WAXS arPLS baseline correction failed; raw intensity used.", exc_info=True)
+ 
+     # === Step 2: Detect crystalline peaks in the main WAXS window ===
+     is_2d = scan.image is not None
+@@ -1158,7 +1158,7 @@ def analyze_scan(scan: WAXSScan, config: WAXSConfig,
+                         })
+                 result.n_peaks = len(result.peaks)
+         except Exception:
+-            logger.warning("静默异常", exc_info=True)
++            logger.warning("WAXS joint-fit component conversion failed.", exc_info=True)
+ 
+     # Post-check: if no truly sharp peak (FWHM < 5.0 deg) exists,
+     # the sample is likely fully amorphous → zero out crystallinity.
+diff --git a/tests/test_core.py b/tests/test_core.py
+index 8530b51..2207383 100644
+--- a/tests/test_core.py
++++ b/tests/test_core.py
+@@ -79,3 +79,20 @@ def test_public_text_and_logs_do_not_contain_mojibake():
+                 offenders.append(str(path.relative_to(root.parent)))
+ 
+     assert offenders == []
++
++
++def test_core_physics_logs_are_contextual_not_generic():
++    root = Path(__file__).resolve().parents[1]
++    paths = [
++        root / "polynexus" / "core" / "dsc_engine" / "core.py",
++        root / "polynexus" / "core" / "waxs_engine" / "core.py",
++        root / "polynexus" / "core" / "nmr_engine" / "core.py",
++    ]
++    generic_tokens = ("异常已处理", "静默异常", "Unexpected error")
++    offenders = []
++    for path in paths:
++        text = path.read_text(encoding="utf-8", errors="ignore")
++        if any(token in text for token in generic_tokens):
++            offenders.append(str(path.relative_to(root)))
++
++    assert offenders == []
+-- 
+2.54.0.windows.1
+

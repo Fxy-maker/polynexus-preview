@@ -1,0 +1,360 @@
+From c153006c89ecd4375f33022eecede9656e186851 Mon Sep 17 00:00:00 2001
+From: Fxy-maker <fanxuyi786@gmail.com>
+Date: Mon, 6 Jul 2026 09:25:43 +0800
+Subject: [PATCH 3/7] feat: add dsc multibaseline crystallinity uncertainty
+
+---
+ polynexus/core/analysis_evidence.py |  31 +++++++
+ polynexus/core/dsc_engine/core.py   | 133 +++++++++++++++++++++++++++-
+ tests/test_analysis_evidence.py     |  49 ++++++++++
+ tests/test_dsc_engine.py            |  19 ++++
+ 4 files changed, 231 insertions(+), 1 deletion(-)
+
+diff --git a/polynexus/core/analysis_evidence.py b/polynexus/core/analysis_evidence.py
+index 8281c1c..7a214c1 100644
+--- a/polynexus/core/analysis_evidence.py
++++ b/polynexus/core/analysis_evidence.py
+@@ -4992,11 +4992,24 @@ def build_analysis_evidence(
+         dhm0_source = str(output.get("DHm0_source") or config_snapshot.get("DHm0_source") or "").strip() or None
+         baseline_sensitivity = _clean_float(output.get("baseline_sensitivity_pct"))
+         boundary_sensitivity = _clean_float(output.get("integration_boundary_sensitivity_pct"))
++        dhm_mean = _clean_float(output.get("DHm_Jg_mean"))
++        dhm_std = _clean_float(output.get("DHm_Jg_std"))
++        dhcc_mean = _clean_float(output.get("DHcc_Jg_mean"))
++        dhcc_std = _clean_float(output.get("DHcc_Jg_std"))
++        xc_mean = _clean_float(output.get("Xc_pct_mean"))
++        xc_std = _clean_float(output.get("Xc_pct_std"))
++        xc_ci95 = _clean_float(output.get("Xc_pct_ci95"))
++        baseline_variant_count = _safe_int(output.get("baseline_variant_count"), default=0)
++        integration_variant_count = _safe_int(output.get("integration_variant_count"), default=0)
+         xc_reliability_status = "usable"
+         if (baseline_sensitivity is not None and baseline_sensitivity >= 10.0) or (
+             boundary_sensitivity is not None and boundary_sensitivity >= 8.0
++        ) or (
++            xc_ci95 is not None and xc_ci95 >= 8.0
+         ):
+             xc_reliability_status = "low_confidence"
++        if baseline_variant_count == 1 or integration_variant_count == 1:
++            xc_reliability_status = "low_confidence"
+         if dhm0 is None or dhm0_source == "missing":
+             xc_reliability_status = "diagnostic_only"
+         supported_components = [
+@@ -5073,9 +5086,18 @@ def build_analysis_evidence(
+                 ("DHm0_Jg", dhm0),
+                 ("DHm0_source", dhm0_source),
+                 ("DHm_Jg", _clean_float(output.get("DHm_Jg"))),
++                ("DHm_Jg_mean", dhm_mean),
++                ("DHm_Jg_std", dhm_std),
+                 ("DHcc_Jg", _clean_float(output.get("DHcc_Jg"))),
++                ("DHcc_Jg_mean", dhcc_mean),
++                ("DHcc_Jg_std", dhcc_std),
++                ("Xc_pct_mean", xc_mean),
++                ("Xc_pct_std", xc_std),
++                ("Xc_pct_ci95", xc_ci95),
+                 ("baseline_sensitivity_pct", baseline_sensitivity),
+                 ("integration_boundary_sensitivity_pct", boundary_sensitivity),
++                ("baseline_variant_count", baseline_variant_count if baseline_variant_count > 0 else None),
++                ("integration_variant_count", integration_variant_count if integration_variant_count > 0 else None),
+                 ("Xc_reliability_status", xc_reliability_status),
+             ]
+         )
+@@ -5758,11 +5780,20 @@ def build_analysis_evidence(
+                 ("Tm_peak_C", _clean_float(output.get("Tm_peak_C"))),
+                 ("Tcc_peak_C", _clean_float(output.get("Tcc_peak_C"))),
+                 ("DHm_Jg", _clean_float(output.get("DHm_Jg"))),
++                ("DHm_Jg_mean", dhm_mean),
++                ("DHm_Jg_std", dhm_std),
+                 ("DHcc_Jg", _clean_float(output.get("DHcc_Jg"))),
++                ("DHcc_Jg_mean", dhcc_mean),
++                ("DHcc_Jg_std", dhcc_std),
+                 ("Xc_pct", _clean_float(output.get("Xc_pct"))),
++                ("Xc_pct_mean", xc_mean),
++                ("Xc_pct_std", xc_std),
++                ("Xc_pct_ci95", xc_ci95),
+                 ("Xc_reliability_status", xc_reliability_status),
+                 ("baseline_sensitivity_pct", baseline_sensitivity),
+                 ("integration_boundary_sensitivity_pct", boundary_sensitivity),
++                ("baseline_variant_count", baseline_variant_count if baseline_variant_count > 0 else None),
++                ("integration_variant_count", integration_variant_count if integration_variant_count > 0 else None),
+                 ("DHm0_source", dhm0_source),
+                 ("supported_event_count", len(supported_components)),
+                 ("supported_melting_event_count", len(supported_melting_components)),
+diff --git a/polynexus/core/dsc_engine/core.py b/polynexus/core/dsc_engine/core.py
+index deb51e1..52bc114 100644
+--- a/polynexus/core/dsc_engine/core.py
++++ b/polynexus/core/dsc_engine/core.py
+@@ -75,6 +75,15 @@ class DSCResult:
+     DHm0_source: str = ""
+     baseline_sensitivity_pct: float = np.nan
+     integration_boundary_sensitivity_pct: float = np.nan
++    DHm_Jg_mean: float = np.nan
++    DHm_Jg_std: float = np.nan
++    DHcc_Jg_mean: float = np.nan
++    DHcc_Jg_std: float = np.nan
++    Xc_pct_mean: float = np.nan
++    Xc_pct_std: float = np.nan
++    Xc_pct_ci95: float = np.nan
++    baseline_variant_count: int = 0
++    integration_variant_count: int = 0
+ 
+     # All detected peaks (for deconvolution / detailed reporting)
+     peak_components: List[Dict[str, Any]] = field(default_factory=list)
+@@ -112,6 +121,15 @@ class DSCResult:
+             'DHm0_source': self.DHm0_source,
+             'baseline_sensitivity_pct': self.baseline_sensitivity_pct,
+             'integration_boundary_sensitivity_pct': self.integration_boundary_sensitivity_pct,
++            'DHm_Jg_mean': self.DHm_Jg_mean,
++            'DHm_Jg_std': self.DHm_Jg_std,
++            'DHcc_Jg_mean': self.DHcc_Jg_mean,
++            'DHcc_Jg_std': self.DHcc_Jg_std,
++            'Xc_pct_mean': self.Xc_pct_mean,
++            'Xc_pct_std': self.Xc_pct_std,
++            'Xc_pct_ci95': self.Xc_pct_ci95,
++            'baseline_variant_count': self.baseline_variant_count,
++            'integration_variant_count': self.integration_variant_count,
+             'quality_score': self.quality_score,
+             'r_squared': self.r_squared,
+             'fit_rmse': self.fit_rmse,
+@@ -320,6 +338,70 @@ def _local_linear_baseline(T: np.ndarray, HF: np.ndarray,
+     return HF[left] + (HF[right] - HF[left]) * (x - T[left]) / denom
+ 
+ 
++def _reintegrate_event_variants(
++    T: np.ndarray,
++    HF: np.ndarray,
++    event: Optional[Dict[str, Any]],
++    is_endotherm: bool,
++) -> Dict[str, Any]:
++    """Reintegrate one event with simple baseline and boundary variants."""
++    if not isinstance(event, dict) or "index_range" not in event:
++        return {"enthalpies": [], "baseline_variant_count": 0, "integration_variant_count": 0}
++
++    T_arr = np.asarray(T, dtype=float)
++    HF_arr = np.asarray(HF, dtype=float)
++    if len(T_arr) < 5 or len(T_arr) != len(HF_arr):
++        return {"enthalpies": [], "baseline_variant_count": 0, "integration_variant_count": 0}
++
++    try:
++        base_left, base_right = event["index_range"]
++        base_left = int(base_left)
++        base_right = int(base_right)
++    except Exception:
++        return {"enthalpies": [], "baseline_variant_count": 0, "integration_variant_count": 0}
++
++    signed = -1.0 if is_endotherm else 1.0
++    boundary_shifts = (-1, 0, 1)
++    enthalpies: list[float] = []
++    baseline_names = {"endpoint_linear", "constant_endpoint_mean", "edge_mean_linear"}
++
++    for left_shift in boundary_shifts:
++        for right_shift in boundary_shifts:
++            left = int(np.clip(base_left + left_shift, 0, len(T_arr) - 2))
++            right = int(np.clip(base_right + right_shift, left + 2, len(T_arr) - 1))
++            if right - left < 3:
++                continue
++
++            x = T_arr[left:right + 1]
++            y = HF_arr[left:right + 1]
++            if len(x) < 3 or not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)):
++                continue
++
++            endpoint_linear = _local_linear_baseline(T_arr, HF_arr, left, right)
++            constant_endpoint_mean = np.full_like(y, float((HF_arr[left] + HF_arr[right]) / 2.0), dtype=float)
++
++            edge_width = max(1, min(5, len(y) // 5))
++            left_mean = float(np.nanmean(y[:edge_width]))
++            right_mean = float(np.nanmean(y[-edge_width:]))
++            denom = x[-1] - x[0]
++            if abs(float(denom)) < 1e-12:
++                edge_mean_linear = np.full_like(y, left_mean, dtype=float)
++            else:
++                edge_mean_linear = left_mean + (right_mean - left_mean) * (x - x[0]) / denom
++
++            for baseline in (endpoint_linear, constant_endpoint_mean, edge_mean_linear):
++                signal_pos = np.clip(signed * (y - baseline), 0.0, None)
++                enthalpy = _integrate_abs_temperature(x, signal_pos)
++                if np.isfinite(enthalpy):
++                    enthalpies.append(float(enthalpy))
++
++    return {
++        "enthalpies": enthalpies,
++        "baseline_variant_count": len(baseline_names),
++        "integration_variant_count": len(enthalpies),
++    }
++
++
+ def _find_thermal_events_physical(T: np.ndarray, HF: np.ndarray,
+                                   event_type: str = 'all',
+                                   prominence_ratio: float = 0.03,
+@@ -1044,6 +1126,8 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
+ 
+     melt_events = events['melting']
+     cryst_events = events['crystallisation']
++    primary_melt_event: Optional[Dict[str, Any]] = None
++    primary_cold_cryst_event: Optional[Dict[str, Any]] = None
+ 
+     if is_heating:
+         # ---- Auto-fix convention: if strongest high-T peak is positive,
+@@ -1082,6 +1166,7 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
+             sorted_melt = sorted(melt_events, key=lambda e: e['enthalpy_Jg'], reverse=True)
+             # Primary peak
+             main = sorted_melt[0]
++            primary_melt_event = main
+             result.Tm_onset_C = main['onset_C']
+             result.Tm_peak_C  = main['peak_C']
+             result.Tm_end_C   = main['end_C']
+@@ -1136,6 +1221,7 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
+             )
+             if sorted_cryst:
+                 main_cryst = sorted_cryst[0]
++                primary_cold_cryst_event = main_cryst
+                 result.Tcc_onset_C = main_cryst['onset_C']
+                 result.Tcc_peak_C  = main_cryst['peak_C']
+                 result.DHcc_Jg     = main_cryst['enthalpy_Jg']
+@@ -1234,7 +1320,52 @@ def analyze_scan(T: np.ndarray, HF: np.ndarray, config: DSCConfig,
+     result.DHm0_source = "polymer_reference" if np.isfinite(DHm0) and DHm0 > 0 else "missing"
+     result.Xc_pct = compute_crystallinity(result.DHm_Jg, result.DHcc_Jg, DHm0)
+     result.Xc_method = "enthalpy_method"
+-    if result.quality_score >= 0.8:
++    melt_variants = _reintegrate_event_variants(T, HF, primary_melt_event, is_endotherm=True)
++    cold_variants = _reintegrate_event_variants(T, HF, primary_cold_cryst_event, is_endotherm=False)
++    melt_enthalpies = np.asarray(melt_variants.get("enthalpies", []), dtype=float)
++    cold_enthalpies = np.asarray(cold_variants.get("enthalpies", []), dtype=float)
++    melt_enthalpies = melt_enthalpies[np.isfinite(melt_enthalpies)]
++    cold_enthalpies = cold_enthalpies[np.isfinite(cold_enthalpies)]
++
++    if melt_enthalpies.size:
++        result.DHm_Jg_mean = float(np.mean(melt_enthalpies))
++        result.DHm_Jg_std = float(np.std(melt_enthalpies))
++    if cold_enthalpies.size:
++        result.DHcc_Jg_mean = float(np.mean(cold_enthalpies))
++        result.DHcc_Jg_std = float(np.std(cold_enthalpies))
++    elif melt_enthalpies.size:
++        result.DHcc_Jg_mean = 0.0
++        result.DHcc_Jg_std = 0.0
++
++    result.baseline_variant_count = int(max(
++        melt_variants.get("baseline_variant_count", 0) or 0,
++        cold_variants.get("baseline_variant_count", 0) or 0,
++    ))
++    result.integration_variant_count = int(
++        (melt_variants.get("integration_variant_count", 0) or 0)
++        + (cold_variants.get("integration_variant_count", 0) or 0)
++    )
++
++    if melt_enthalpies.size and np.isfinite(DHm0) and DHm0 > 0:
++        if cold_enthalpies.size:
++            count = min(melt_enthalpies.size, cold_enthalpies.size)
++            xc_values = (melt_enthalpies[:count] - cold_enthalpies[:count]) / DHm0 * 100.0
++        else:
++            xc_values = melt_enthalpies / DHm0 * 100.0
++        xc_values = xc_values[np.isfinite(xc_values)]
++        if xc_values.size:
++            result.Xc_pct_mean = float(np.mean(xc_values))
++            result.Xc_pct_std = float(np.std(xc_values))
++            result.Xc_pct_ci95 = float(1.96 * result.Xc_pct_std)
++
++    if np.isfinite(result.Xc_pct_mean) and abs(float(result.Xc_pct_mean)) > 1e-9:
++        result.baseline_sensitivity_pct = float(
++            np.clip(abs(result.Xc_pct_ci95) / max(abs(result.Xc_pct_mean), 1e-9) * 100.0, 0.0, 100.0)
++        )
++        result.integration_boundary_sensitivity_pct = float(
++            np.clip(result.Xc_pct_std / max(abs(result.Xc_pct_mean), 1e-9) * 100.0, 0.0, 100.0)
++        )
++    elif result.quality_score >= 0.8:
+         result.baseline_sensitivity_pct = 0.0
+         result.integration_boundary_sensitivity_pct = 0.0
+     else:
+diff --git a/tests/test_analysis_evidence.py b/tests/test_analysis_evidence.py
+index 29d5dfe..2386e51 100644
+--- a/tests/test_analysis_evidence.py
++++ b/tests/test_analysis_evidence.py
+@@ -581,6 +581,55 @@ def test_dsc_xc_with_unstable_baseline_is_low_confidence() -> None:
+     assert "dsc_baseline_sensitive_xc" in evidence["constraint_summary"]["triggered_names"]["soft_warn"]
+ 
+ 
++def test_dsc_xc_uncertainty_distribution_is_evidence() -> None:
++    evidence = build_analysis_evidence(
++        "DSC",
++        output_parameters={
++            "quality_score": 0.9,
++            "scan_mode": "heating",
++            "Tm_peak_C": 221.0,
++            "DHm_Jg": 78.0,
++            "DHm_Jg_mean": 77.6,
++            "DHm_Jg_std": 2.5,
++            "DHcc_Jg": 18.0,
++            "DHcc_Jg_mean": 18.4,
++            "DHcc_Jg_std": 1.0,
++            "Xc_pct": 38.0,
++            "Xc_pct_mean": 37.5,
++            "Xc_pct_std": 4.6,
++            "Xc_pct_ci95": 9.0,
++            "Xc_method": "enthalpy",
++            "DHm0_Jg": 230.0,
++            "DHm0_source": "polymer_reference",
++            "baseline_sensitivity_pct": 3.1,
++            "integration_boundary_sensitivity_pct": 4.2,
++            "baseline_variant_count": 3,
++            "integration_variant_count": 27,
++            "peak_components": [
++                {"type": "melting", "peak_C": 221.0, "onset_C": 205.0, "end_C": 235.0, "enthalpy_Jg": 78.0},
++                {"type": "cold_crystallization", "peak_C": 125.0, "onset_C": 110.0, "end_C": 140.0, "enthalpy_Jg": 18.0},
++            ],
++        },
++        residual_pattern={"residual_type": "random", "summary": "variant spread is the dominant uncertainty"},
++        validation_context={"config_snapshot": {"min_event_enthalpy_Jg": 0.05}},
++    ).to_dict()
++
++    structure = evidence["feature_evidence"]["structure_evidence"]
++    crystallinity = evidence["feature_evidence"]["crystallinity_evidence"]
++
++    assert crystallinity["Xc_pct_mean"] == 37.5
++    assert crystallinity["Xc_pct_std"] == 4.6
++    assert crystallinity["Xc_pct_ci95"] == 9.0
++    assert crystallinity["DHm_Jg_mean"] == 77.6
++    assert crystallinity["DHm_Jg_std"] == 2.5
++    assert crystallinity["DHcc_Jg_mean"] == 18.4
++    assert crystallinity["DHcc_Jg_std"] == 1.0
++    assert crystallinity["baseline_variant_count"] == 3
++    assert crystallinity["integration_variant_count"] == 27
++    assert structure["Xc_pct_ci95"] == 9.0
++    assert structure["Xc_reliability_status"] == "low_confidence"
++
++
+ def test_dsc_analysis_evidence_flags_physical_conflicts_and_window_issues() -> None:
+     evidence = build_analysis_evidence(
+         "DSC",
+diff --git a/tests/test_dsc_engine.py b/tests/test_dsc_engine.py
+index 638a97d..6fd43d4 100644
+--- a/tests/test_dsc_engine.py
++++ b/tests/test_dsc_engine.py
+@@ -65,6 +65,25 @@ def test_analyze_heating_exports_xc_reliability_inputs():
+     assert params["integration_boundary_sensitivity_pct"] >= 0.0
+ 
+ 
++def test_dsc_analyze_scan_reports_multibaseline_xc_distribution():
++    T = np.linspace(50.0, 260.0, 1600)
++    HF = (
++        _gaussian(T, 125.0, 5.0, 0.8)
++        - _gaussian(T, 221.0, 6.0, 2.4)
++    )
++
++    result = analyze_scan(T, HF, DSCConfig(), label="heating", DHm0_override=230.0)
++    params = result.parameters
++
++    assert params["baseline_variant_count"] > 1
++    assert params["integration_variant_count"] > 1
++    assert params["DHm_Jg_std"] >= 0.0
++    assert params["DHcc_Jg_std"] >= 0.0
++    assert params["Xc_pct_std"] >= 0.0
++    assert params["Xc_pct_ci95"] >= 0.0
++    assert abs(params["Xc_pct_mean"] - params["Xc_pct"]) < 3.0
++
++
+ def test_analyze_cooling_reports_positive_crystallisation_enthalpy():
+     T = np.linspace(260.0, 80.0, 1400)
+     HF = _gaussian(T, 170.0, 7.0, 1.8)
+-- 
+2.54.0.windows.1
+
