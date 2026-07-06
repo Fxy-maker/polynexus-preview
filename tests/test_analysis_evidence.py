@@ -821,6 +821,53 @@ def test_waxs_analysis_evidence_exposes_structure_contract_for_confidence_review
     assert any(item["name"] == "structure_support_score" for item in evidence["confidence_signals"])
 
 
+def test_waxs_size_uncertainty_is_evidence() -> None:
+    evidence = build_analysis_evidence(
+        "WAXS",
+        output_parameters={
+            "r_squared": 0.94,
+            "quality_score": 0.9,
+            "n_peaks": 3,
+            "Xc_pct": 55.2,
+            "Xc_method": "peak_deconvolution",
+            "D_Scherrer_nm": 9.1,
+            "D_uncertainty_nm": 0.8,
+            "D_WH_nm": 10.4,
+            "D_WH_uncertainty_nm": 1.1,
+            "epsilon_WH_pct": 0.18,
+            "epsilon_WH_uncertainty_pct": 0.03,
+            "WH_fit_r_squared": 0.92,
+            "size_reliability_status": "usable",
+            "instrument_broadening_model": "caglioti",
+            "instrument_broadening_applied": True,
+            "scherrer_peak_records": [
+                {"two_theta": 18.0, "beta_sample_deg": 0.39, "D_nm": 9.8, "D_uncertainty_nm": 0.7},
+                {"two_theta": 21.5, "beta_sample_deg": 0.42, "D_nm": 9.0, "D_uncertainty_nm": 0.8},
+                {"two_theta": 24.0, "beta_sample_deg": 0.46, "D_nm": 8.6, "D_uncertainty_nm": 0.9},
+            ],
+            "peaks": [
+                {"two_theta": 18.0, "fwhm_deg": 0.40, "area": 120.0},
+                {"two_theta": 21.5, "fwhm_deg": 0.43, "area": 105.0},
+                {"two_theta": 24.0, "fwhm_deg": 0.47, "area": 90.0},
+            ],
+        },
+        residual_pattern={"residual_type": "random", "summary": "size uncertainty is explicitly modeled"},
+        validation_context={"config_snapshot": {"caglioti_U": 0.002, "caglioti_W": 0.0004}},
+    ).to_dict()
+
+    phase = evidence["feature_evidence"]["phase_evidence"]
+    structure = evidence["feature_evidence"]["structure_evidence"]
+
+    assert phase["D_uncertainty_nm"] == 0.8
+    assert phase["D_WH_uncertainty_nm"] == 1.1
+    assert phase["epsilon_WH_uncertainty_pct"] == 0.03
+    assert phase["WH_fit_r_squared"] == 0.92
+    assert phase["size_reliability_status"] == "usable"
+    assert structure["size_reliability_status"] == "usable"
+    assert structure["instrument_broadening_model"] == "caglioti"
+    assert structure["scherrer_peak_record_count"] == 3
+
+
 def test_ir_constraint_summary_marks_key_band_mismatch_as_soft_warn() -> None:
     evidence = build_analysis_evidence(
         "IR",

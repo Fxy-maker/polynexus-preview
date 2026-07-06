@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from polynexus.core.analysis_evidence import build_analysis_evidence
+from polynexus.core.waxs_engine import core as waxs_core
 from polynexus.core.waxs_engine.config import WAXSConfig
 from polynexus.core.waxs_engine.core import WAXSResult, scherrer_from_peaks, scherrer_size
 from polynexus.core.waxs_engine.waxs_temperature import WAXSTempResult
@@ -46,12 +47,52 @@ def test_waxs_result_parameters_include_scherrer_uncertainty_fields() -> None:
         D_Scherrer_nm=9.4,
         D_uncertainty_nm=0.6,
         instrument_broadening_applied=True,
+        D_WH_uncertainty_nm=1.2,
+        epsilon_WH_uncertainty_pct=0.04,
+        WH_fit_r_squared=0.91,
+        size_reliability_status="usable",
+        instrument_broadening_model="caglioti",
     )
 
     params = result.parameters
 
     assert params["D_uncertainty_nm"] == 0.6
     assert params["instrument_broadening_applied"] is True
+    assert params["D_WH_uncertainty_nm"] == 1.2
+    assert params["epsilon_WH_uncertainty_pct"] == 0.04
+    assert params["WH_fit_r_squared"] == 0.91
+    assert params["size_reliability_status"] == "usable"
+    assert params["instrument_broadening_model"] == "caglioti"
+
+
+def test_waxs_weighted_uncertainty_helpers() -> None:
+    cfg = WAXSConfig(
+        instrument_fwhm_deg=0.08,
+        caglioti_U=0.002,
+        caglioti_V=0.0,
+        caglioti_W=0.0004,
+    )
+    peaks = [
+        {"two_theta": 18.0, "fwhm_deg": 0.40, "fwhm_uncertainty_deg": 0.018},
+        {"two_theta": 21.5, "fwhm_deg": 0.43, "fwhm_uncertainty_deg": 0.020},
+        {"two_theta": 24.0, "fwhm_deg": 0.47, "fwhm_uncertainty_deg": 0.022},
+        {"two_theta": 28.2, "fwhm_deg": 0.52, "fwhm_uncertainty_deg": 0.026},
+    ]
+
+    instrument_width = waxs_core.instrument_fwhm_for_peak(20.0, cfg)
+    records = waxs_core.scherrer_peak_size_records(peaks, cfg)
+    wh = waxs_core.williamson_hall_weighted(peaks, cfg)
+
+    assert instrument_width > 0.0
+    assert len(records) == 4
+    assert all(record["beta_sample_deg"] > 0.0 for record in records)
+    assert all(record["D_nm"] > 0.0 for record in records)
+    assert all(record["D_uncertainty_nm"] >= 0.0 for record in records)
+    assert wh["D_nm"] > 0.0
+    assert wh["D_uncertainty_nm"] >= 0.0
+    assert wh["epsilon_uncertainty_pct"] >= 0.0
+    assert 0.0 <= wh["r_squared"] <= 1.0
+    assert wh["reliability_status"] in {"usable", "low_confidence"}
 
 
 def test_waxs_temperature_result_parameters_include_axis_metadata() -> None:

@@ -2299,6 +2299,17 @@ def _waxs_structure_metrics(
 
     x_pct = _clean_float(output.get("Xc_pct"))
     scherrer = _clean_float(output.get("D_Scherrer_nm"))
+    scherrer_uncertainty = _clean_float(output.get("D_uncertainty_nm"))
+    wh_size = _clean_float(output.get("D_WH_nm"))
+    wh_size_uncertainty = _clean_float(output.get("D_WH_uncertainty_nm"))
+    wh_strain = _clean_float(output.get("epsilon_WH_pct"))
+    wh_strain_uncertainty = _clean_float(output.get("epsilon_WH_uncertainty_pct"))
+    wh_fit_r_squared = _clean_float(output.get("WH_fit_r_squared"))
+    size_reliability_status = str(output.get("size_reliability_status", "") or "").strip() or None
+    instrument_broadening_model = str(output.get("instrument_broadening_model", "") or "").strip() or None
+    scherrer_peak_records = output.get("scherrer_peak_records")
+    if not isinstance(scherrer_peak_records, list):
+        scherrer_peak_records = []
     offset = _clean_float(output.get("two_theta_offset"))
     if offset is None:
         offset = _clean_float(config_snapshot.get("two_theta_offset"))
@@ -2350,6 +2361,15 @@ def _waxs_structure_metrics(
             ("crystal_system", crystal_system or None),
             ("unit_cell_params_present", unit_cell_present or None),
             ("scherrer_size_nm", scherrer),
+            ("scherrer_size_uncertainty_nm", scherrer_uncertainty),
+            ("williamson_hall_size_nm", wh_size),
+            ("williamson_hall_size_uncertainty_nm", wh_size_uncertainty),
+            ("williamson_hall_strain_pct", wh_strain),
+            ("williamson_hall_strain_uncertainty_pct", wh_strain_uncertainty),
+            ("WH_fit_r_squared", wh_fit_r_squared),
+            ("size_reliability_status", size_reliability_status),
+            ("instrument_broadening_model", instrument_broadening_model),
+            ("scherrer_peak_record_count", len(scherrer_peak_records) if scherrer_peak_records else None),
             ("two_theta_offset", offset),
             ("structure_support_score", round(structure_support_score, 3)),
             ("fit_only_pass", fit_only_pass),
@@ -6068,6 +6088,14 @@ def build_analysis_evidence(
                 ("crystal_system", str(output.get("crystal_system", "") or "").strip() or None),
                 ("unit_cell_params_present", bool(output.get("unit_cell_params", config_snapshot.get("unit_cell_params", {}))) or None),
                 ("D_Scherrer_nm", _clean_float(output.get("D_Scherrer_nm"))),
+                ("D_uncertainty_nm", _clean_float(output.get("D_uncertainty_nm"))),
+                ("D_WH_nm", _clean_float(output.get("D_WH_nm"))),
+                ("D_WH_uncertainty_nm", _clean_float(output.get("D_WH_uncertainty_nm"))),
+                ("epsilon_WH_pct", _clean_float(output.get("epsilon_WH_pct"))),
+                ("epsilon_WH_uncertainty_pct", _clean_float(output.get("epsilon_WH_uncertainty_pct"))),
+                ("WH_fit_r_squared", _clean_float(output.get("WH_fit_r_squared"))),
+                ("size_reliability_status", str(output.get("size_reliability_status", "") or "").strip() or None),
+                ("instrument_broadening_model", str(output.get("instrument_broadening_model", "") or "").strip() or None),
             ]
         )
         if phase_evidence:
