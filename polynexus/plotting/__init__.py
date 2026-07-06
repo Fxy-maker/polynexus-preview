@@ -24,6 +24,9 @@ from .sci_style import (
     QUALITY_FLAGS, TECHNIQUE_QUALITY_FLAGS, get_quality_label,
     OUTPUT_DIR_TEMPLATE, create_output_structure,
 )
+from .figure_audit import (
+    FigureAuditIssue, FigureAuditReport, audit_figure_sci,
+)
 
 
 COLORS = {

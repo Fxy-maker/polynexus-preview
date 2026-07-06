@@ -285,15 +285,17 @@ QUALITY_FLAGS = {
 
 投稿前对照检查每张图：
 
-- [ ] 图中无描述性大标题（标题只在 caption 中）
-- [ ] 图中无中文
-- [ ] 配色通过色盲测试（Wong palette 已确保）
-- [ ] 字号 ≥ 8 pt（审稿人需要能读清刻度）
-- [ ] 输出为 PDF（矢量） + TIFF/PNG（位图）
-- [ ] 面板标签 (a)(b) 统一左上角，加粗
-- [ ] 线宽 ≥ 0.8 pt
-- [ ] 所有轴有标签，使用 AXIS_LABELS 标准化名称
-- [ ] 图注位置不遮挡数据
+- [x] 图中无描述性大标题（`audit_figure_sci()` 检查 figure / axes title）
+- [x] 图中无中文（`audit_figure_sci()` 检查 CJK 文本）
+- [x] 配色通过色盲测试（`audit_figure_sci()` 限定 Wong / grayscale palette）
+- [x] 字号 ≥ 8 pt（`audit_figure_sci()` 检查可见文本字号）
+- [x] 输出为 PDF（矢量） + TIFF/PNG（位图）（`audit_figure_sci()` 检查导出格式组合）
+- [x] 面板标签 (a)(b) 统一左上角，加粗（`apply_panel_label()` + `audit_figure_sci()` 覆盖）
+- [x] 线宽 ≥ 0.8 pt（`audit_figure_sci()` 检查 line width）
+- [x] 所有轴有标签，使用 AXIS_LABELS 标准化名称（`audit_figure_sci()` 检查空标签和标准标签）
+- [x] 图注位置不遮挡数据（`audit_figure_sci()` 标记中央数据区自由注释风险；最终投稿前仍需人工视觉复核）
+
+自动审计入口：`polynexus.plotting.audit_figure_sci()`；覆盖测试：`tests/test_figure_audit.py`。
 
 ### 2.10 参考期刊绘图规范
 
