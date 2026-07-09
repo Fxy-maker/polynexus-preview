@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 """
-saxs_output.py — Module 7 + 9: SCI-grade visualization & data export.
+saxs_output.py 閳?Module 7 + 9: SCI-grade visualization & data export.
 
 Covers all figure types from the SAXS Design Document:
   Universal: Fig-U1 (1D curve), Fig-U2 (correlation), Fig-U3 (IDF), Fig-U4 (Porod)
@@ -17,6 +17,7 @@ All figures follow SCI publication standards: Arial 8pt, 300 DPI,
 single/double column layouts, consistent color schemes.
 """
 
+import csv
 import os
 import threading
 from pathlib import Path
@@ -30,6 +31,62 @@ from matplotlib.ticker import ScalarFormatter, LogFormatter
 from scipy.ndimage import gaussian_filter
 
 from .config import SAXSConfig
+from .saxs_output_runtime_helpers import (
+    _downsample_plot as _helper_downsample_plot,
+    _ensure_non_gui_backend as _helper_ensure_non_gui_backend,
+    _make_output_dirs as _helper_make_output_dirs,
+    _remove_stale_variant as _helper_remove_stale_variant,
+    _safe_legend as _helper_safe_legend,
+)
+from .saxs_output_helpers import (
+    _csv_number,
+    _finite_csv,
+    _json_number,
+    _result_to_params_dict as _helper_result_to_params_dict,
+    _result_effective_lc_value,
+    export_1d_profile as _helper_export_1d_profile,
+    export_parameters_csv as _helper_export_parameters_csv,
+    export_strain_series_csv as _helper_export_strain_series_csv,
+    export_temp_series_csv as _helper_export_temp_series_csv,
+)
+from .saxs_output_data_writers import (
+    _write_condition_overview_profile_data as _helper_write_condition_overview_profile_data,
+    _write_condition_overview_summary_data as _helper_write_condition_overview_summary_data,
+    _write_guinier_data as _helper_write_guinier_data,
+    _write_joint_crystallinity_data as _helper_write_joint_crystallinity_data,
+    _write_kratky_data as _helper_write_kratky_data,
+    _write_series_waterfall_data as _helper_write_series_waterfall_data,
+    _write_static_overview_profile_data as _helper_write_static_overview_profile_data,
+    _write_static_overview_summary_data as _helper_write_static_overview_summary_data,
+    _write_t3_structure_data as _helper_write_t3_structure_data,
+    _write_t4_invariant_data as _helper_write_t4_invariant_data,
+    _write_v2_temperature_parameters_data as _helper_write_v2_temperature_parameters_data,
+    _write_v3_heatmap_data as _helper_write_v3_heatmap_data,
+    _write_v3_qstar_data as _helper_write_v3_qstar_data,
+    _write_v4_avrami_data as _helper_write_v4_avrami_data,
+    _write_u1_scattering_data as _helper_write_u1_scattering_data,
+    _write_u2_correlation_data as _helper_write_u2_correlation_data,
+    _write_u3_idf_data as _helper_write_u3_idf_data,
+    _write_u4_porod_data as _helper_write_u4_porod_data,
+)
+from .saxs_output_documents import (
+    _save_condition_overview_document as _helper_save_condition_overview_document,
+    _save_guinier_document as _helper_save_guinier_document,
+    _save_joint_crystallinity_document as _helper_save_joint_crystallinity_document,
+    _save_kratky_document as _helper_save_kratky_document,
+    _save_series_waterfall_document as _helper_save_series_waterfall_document,
+    _save_static_overview_document as _helper_save_static_overview_document,
+    _save_t3_structure_document as _helper_save_t3_structure_document,
+    _save_t4_invariant_document as _helper_save_t4_invariant_document,
+    _save_u1_scattering_document as _helper_save_u1_scattering_document,
+    _save_u2_correlation_document as _helper_save_u2_correlation_document,
+    _save_u3_idf_document as _helper_save_u3_idf_document,
+    _save_u4_porod_document as _helper_save_u4_porod_document,
+    _save_v2_temperature_parameters_document as _helper_save_v2_temperature_parameters_document,
+    _save_v3_heatmap_document as _helper_save_v3_heatmap_document,
+    _save_v4_avrami_document as _helper_save_v4_avrami_document,
+)
+from ..figure_document import save_generated_figure_document
 from ..plot_edits import savefig_with_edits
 from ...plotting.sci_style import (
     set_sci_style as _set_sci_style,
@@ -39,10 +96,207 @@ from ...plotting.sci_style import (
     AXIS_LABELS,
     save_figure_sci,
 )
+try:
+    from ..generated_figure_document_builder import save_generated_figure_bundle
+except Exception:  # pragma: no cover - compatibility for branches without Phase 3 builder
+    save_generated_figure_bundle = None
+
+_downsample_plot = _helper_downsample_plot
+_remove_stale_variant = _helper_remove_stale_variant
+_ensure_non_gui_backend = _helper_ensure_non_gui_backend
+_safe_legend = _helper_safe_legend
+export_parameters_csv = _helper_export_parameters_csv
+export_1d_profile = _helper_export_1d_profile
+export_strain_series_csv = _helper_export_strain_series_csv
+export_temp_series_csv = _helper_export_temp_series_csv
+_result_to_params_dict = _helper_result_to_params_dict
+_write_u1_scattering_data = _helper_write_u1_scattering_data
+_write_u2_correlation_data = _helper_write_u2_correlation_data
+_write_u3_idf_data = _helper_write_u3_idf_data
+_write_u4_porod_data = _helper_write_u4_porod_data
+_write_guinier_data = _helper_write_guinier_data
+_write_kratky_data = _helper_write_kratky_data
+_write_joint_crystallinity_data = _helper_write_joint_crystallinity_data
+_write_series_waterfall_data = _helper_write_series_waterfall_data
+_write_t3_structure_data = _helper_write_t3_structure_data
+_write_t4_invariant_data = _helper_write_t4_invariant_data
+_write_v2_temperature_parameters_data = _helper_write_v2_temperature_parameters_data
+_write_v3_heatmap_data = _helper_write_v3_heatmap_data
+_write_v3_qstar_data = _helper_write_v3_qstar_data
+_write_v4_avrami_data = _helper_write_v4_avrami_data
+_write_static_overview_profile_data = _helper_write_static_overview_profile_data
+_write_static_overview_summary_data = _helper_write_static_overview_summary_data
+_write_condition_overview_profile_data = _helper_write_condition_overview_profile_data
+_write_condition_overview_summary_data = _helper_write_condition_overview_summary_data
+_save_u1_scattering_document = _helper_save_u1_scattering_document
+_save_u2_correlation_document = _helper_save_u2_correlation_document
+_save_u3_idf_document = _helper_save_u3_idf_document
+_save_u4_porod_document = _helper_save_u4_porod_document
+_save_guinier_document = _helper_save_guinier_document
+_save_kratky_document = _helper_save_kratky_document
+_save_joint_crystallinity_document = _helper_save_joint_crystallinity_document
+_save_series_waterfall_document = _helper_save_series_waterfall_document
+_save_t3_structure_document = _helper_save_t3_structure_document
+_save_t4_invariant_document = _helper_save_t4_invariant_document
+_save_v2_temperature_parameters_document = _helper_save_v2_temperature_parameters_document
+_save_v4_avrami_document = _helper_save_v4_avrami_document
+_save_v3_heatmap_document = _helper_save_v3_heatmap_document
+_save_static_overview_document = _helper_save_static_overview_document
+_save_condition_overview_document = _helper_save_condition_overview_document
+
+
+def _save_generated_figure_bundle_compat(path: str, **document_kwargs) -> None:
+    if callable(save_generated_figure_bundle):
+        try:
+            save_generated_figure_bundle(path, **document_kwargs)
+            return
+        except TypeError:
+            payload = {"figure_path": path, **document_kwargs}
+            save_generated_figure_bundle(**payload)
+            return
+    save_generated_figure_document(path, **document_kwargs)
+
+
+def _save_phase3_guinier_bundle(
+    path: str,
+    q: np.ndarray,
+    intensity: np.ndarray,
+    *,
+    Rg: Optional[float] = None,
+    q_min: float = 0.04,
+    q_max: float = 0.15,
+) -> None:
+    mask = (q >= q_min) & (q <= q_max)
+    q_sel = q[mask]
+    intensity_sel = intensity[mask]
+    positive = intensity_sel > 0
+    slope = intercept = None
+    if np.sum(positive) > 4:
+        slope, intercept = np.polyfit(q_sel[positive] ** 2, np.log(intensity_sel[positive]), 1)
+    data_path = _write_guinier_data(path, q_sel[positive], intensity_sel[positive], slope, intercept)
+    data_ref = "saxs-guinier-data"
+    objects = [
+        {
+            "id": "series-guinier-points",
+            "type": "plot_series",
+            "chart_kind": "scatter",
+            "name": "Guinier Points",
+            "data_ref": data_ref,
+            "x_column": "q2_nm_minus2",
+            "y_column": "ln_intensity",
+            "style": {"color": COLOR_SCHEMES["main"], "marker_size": 8, "alpha": 0.7},
+        },
+    ]
+    if slope is not None:
+        objects.append(
+            {
+                "id": "series-guinier-fit",
+                "type": "plot_series",
+                "name": "Guinier Fit",
+                "data_ref": data_ref,
+                "x_column": "q2_nm_minus2",
+                "y_column": "fit",
+                "style": {"color": COLOR_SCHEMES["secondary"], "line_width": 1.0},
+            }
+        )
+    _save_generated_figure_bundle_compat(
+        path,
+        technique="saxs",
+        figure_id=Path(path).stem,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": __name__,
+            "function": "fig_guinier",
+            "inputs": {},
+            "parameters": {
+                "Rg": _json_number(Rg),
+                "q_min": _json_number(q_min),
+                "q_max": _json_number(q_max),
+                "slope": _json_number(slope),
+                "intercept": _json_number(intercept),
+            },
+        },
+        style={
+            "xlabel": "q^2 (nm^-2)",
+            "ylabel": "ln I(q)",
+        },
+        objects=objects,
+    )
+
+
+def _save_phase3_kratky_bundle(
+    path: str,
+    q: np.ndarray,
+    intensity: np.ndarray,
+    *,
+    L: Optional[float] = None,
+) -> None:
+    data_path = _write_kratky_data(path, q, intensity)
+    data_ref = "saxs-kratky-data"
+    q_star = 2 * np.pi / L if L is not None and np.isfinite(L) and L > 0 else None
+    objects = [
+        {
+            "id": "series-kratky",
+            "type": "plot_series",
+            "name": "Kratky Plot",
+            "data_ref": data_ref,
+            "x_column": "q_nm_inv",
+            "y_column": "iq2",
+            "style": {"color": COLOR_SCHEMES["main"], "line_width": 1.0},
+        },
+    ]
+    if q_star is not None:
+        objects.extend(
+            [
+                {
+                    "id": "marker-q-star",
+                    "type": "line",
+                    "name": "Lamellar q*",
+                    "orientation": "vertical",
+                    "x": _json_number(q_star),
+                    "label": f"q*={q_star:.3f} nm^-1",
+                    "style": {"color": COLOR_SCHEMES["secondary"], "line_width": 0.8, "alpha": 0.7},
+                },
+            ]
+        )
+    _save_generated_figure_bundle_compat(
+        path,
+        technique="saxs",
+        figure_id=Path(path).stem,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": __name__,
+            "function": "fig_kratky",
+            "inputs": {},
+            "parameters": {
+                "L": _json_number(L),
+                "q_star": _json_number(q_star),
+            },
+        },
+        style={
+            "xlabel": "q (nm^-1)",
+            "ylabel": "I(q) * q^2 (a.u.)",
+        },
+        objects=objects,
+    )
 
 
 # ======================================================================
-#  Local SCI style — references central sci_style
+#  Local SCI style 閳?references central sci_style
 # ======================================================================
 
 # Use central figure sizes + add SAXS-specific waterfall size
@@ -65,91 +319,14 @@ COLOR_SCHEMES = {
 SCI_DPI = 300
 PREVIEW_DPI = 150
 
-_GUI_BACKEND_MARKERS = ("qt", "tk", "wx", "gtk", "macosx")
-
-
-def _downsample_plot(x, y, max_pts=800):
-    """Downsample data for plotting to keep SVG path sizes manageable."""
-    if len(x) <= max_pts:
-        return x, y
-    indices = np.linspace(0, len(x) - 1, max_pts, dtype=int)
-    return x[indices], y[indices]
-
-
-def _remove_stale_variant(path: Path) -> None:
-    """Remove the opposite LOW/non-LOW variant before writing a refreshed figure."""
-    stem = path.stem
-    suffix = path.suffix
-    if stem.endswith("_LOW"):
-        counterpart = path.with_name(f"{stem[:-4]}{suffix}")
-    else:
-        counterpart = path.with_name(f"{stem}_LOW{suffix}")
-    if counterpart == path:
-        return
-    try:
-        if counterpart.exists():
-            counterpart.unlink()
-    except Exception:
-        logger.warning("Failed to remove stale SAXS figure variant: %s", counterpart, exc_info=True)
-
-
-def _ensure_non_gui_backend() -> None:
-    """Force a non-GUI backend when plotting from a worker thread."""
-    try:
-        backend = str(matplotlib.get_backend() or "").lower()
-    except Exception:
-        backend = ""
-    if threading.current_thread() is threading.main_thread():
-        return
-    if backend == "agg":
-        return
-    if any(marker in backend for marker in _GUI_BACKEND_MARKERS):
-        try:
-            plt.switch_backend("Agg")
-        except Exception:
-            logger.warning("Failed to switch Matplotlib backend to Agg in SAXS worker thread.", exc_info=True)
-
-
-def _safe_legend(ax, *args, **kwargs):
-    """Only draw a legend when there is something meaningful to show."""
-    if args:
-        if len(args) >= 2 and hasattr(args[1], "__iter__"):
-            labels = [str(label).strip() for label in args[1] if str(label).strip()]
-            if not labels:
-                return None
-        return ax.legend(*args, **kwargs)
-    handles, labels = ax.get_legend_handles_labels()
-    visible = [
-        (handle, label)
-        for handle, label in zip(handles, labels)
-        if str(label).strip() and not str(label).startswith("_")
-    ]
-    if not visible:
-        return None
-    handles, labels = zip(*visible)
-    return ax.legend(handles, labels, **kwargs)
-
-
 def set_sci_style():
     """Apply SCI publication-grade matplotlib style via central module."""
-    _ensure_non_gui_backend()
+    _helper_ensure_non_gui_backend()
     _set_sci_style(font_size=8.0, dpi=PREVIEW_DPI)
 
 
 def _make_output_dirs(output_dir: str):
-    """Create SCI-standard output directory structure."""
-    root = Path(output_dir).resolve()
-    dirs = [
-        'summary',
-        'figures/SI',
-        'data/parameters',
-        'data/raw_1d',
-        'data/fit_results',
-        'report',
-    ]
-    for d in dirs:
-        (root / d).mkdir(parents=True, exist_ok=True)
-    return root
+    return _helper_make_output_dirs(output_dir)
 
 
 # ======================================================================
@@ -253,6 +430,16 @@ def fig_u1_scattering_profile(
     path = output_path if output_path else 'Fig_U1_scattering.pdf'
     savefig_with_edits(fig, path, dpi=SCI_DPI)
     plt.close(fig)
+    _save_u1_scattering_document(
+        path,
+        q,
+        I,
+        q_star=q_star,
+        L=L,
+        label=label,
+        log_scale=log_scale,
+        is_low_conf=is_low_conf,
+    )
     return path
 
 
@@ -311,6 +498,14 @@ def fig_u2_correlation_function(
     out = output_path or 'Fig_U2_correlation.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_u2_correlation_document(
+        out,
+        r,
+        gamma,
+        L=L,
+        lc=lc,
+        is_low_conf=is_low_conf,
+    )
     return out
 
 
@@ -350,6 +545,14 @@ def fig_u3_idf(
     out = output_path or 'Fig_U3_IDF.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_u3_idf_document(
+        out,
+        r_idf,
+        idf,
+        L_idf=L_idf,
+        lc_idf=lc_idf,
+        is_low_conf=is_low_conf,
+    )
     return out
 
 
@@ -387,6 +590,14 @@ def fig_u4_porod(
     out = output_path or 'Fig_U4_Porod.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_u4_porod_document(
+        out,
+        q_porod,
+        Iq4,
+        slope=slope,
+        Kp=Kp,
+        is_low_conf=is_low_conf,
+    )
     return out
 
 
@@ -411,10 +622,10 @@ def fig_t2_scattering_waterfall(
 
     total = len(strains)
     if total <= n_curves:
-        indices = range(total)
+        indices = list(range(total))
     else:
         step = total // n_curves
-        indices = range(0, total, max(1, step))
+        indices = list(range(0, total, max(1, step)))
 
     offset = 0
     colors = plt.cm.viridis(np.linspace(0.1, 0.9, len(indices)))
@@ -436,6 +647,15 @@ def fig_t2_scattering_waterfall(
     out = output_path or 'Fig_T2_waterfall.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_series_waterfall_document(
+        out,
+        strains,
+        q_list,
+        I_list,
+        indices=indices,
+        condition_axis="strain_pct",
+        function_name="fig_t2_scattering_waterfall",
+    )
     return out
 
 
@@ -560,6 +780,15 @@ def fig_t3_structure_evolution(
     out = output_path or 'Fig_T3_parameters.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_t3_structure_document(
+        out,
+        strains,
+        L_array,
+        lc_array,
+        phi_c_array=phi_c_array,
+        f_herman_array=f_herman_array,
+        Q_star_array=Q_star_array,
+    )
     return out
 
 
@@ -591,6 +820,13 @@ def fig_t4_invariant_conservation(
     out = output_path or 'Fig_T4_invariant.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_t4_invariant_document(
+        out,
+        strains,
+        Q_star_array,
+        Q_ref=Q_ref,
+        tolerance=tolerance,
+    )
     return out
 
 
@@ -612,7 +848,7 @@ def fig_v1_temperature_waterfall(
 
     total = len(temperatures)
     step = max(1, total // n_curves)
-    indices = range(0, total, step)
+    indices = list(range(0, total, step))
 
     # Blue-to-red colormap for cold-to-hot
     colors = plt.cm.coolwarm(np.linspace(0.1, 0.9, len(indices)))
@@ -635,6 +871,15 @@ def fig_v1_temperature_waterfall(
     out = output_path or 'Fig_V1_temperature_waterfall.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_series_waterfall_document(
+        out,
+        temperatures,
+        q_list,
+        I_list,
+        indices=indices,
+        condition_axis="temperature_C",
+        function_name="fig_v1_temperature_waterfall",
+    )
     return out
 
 
@@ -711,6 +956,15 @@ def fig_v2_temperature_parameters(
     out = output_path or 'Fig_V2_temperature_params.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_v2_temperature_parameters_document(
+        out,
+        temperatures,
+        L_array,
+        lc_array,
+        Q_star_array=Q_star_array,
+        Xc_array=Xc_array,
+        Tm_values=Tm_values,
+    )
     return out
 
 
@@ -771,6 +1025,14 @@ def fig_v3_scattering_heatmap(
     out = output_path or 'Fig_V3_heatmap.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_v3_heatmap_document(
+        out,
+        q,
+        temperatures,
+        I_matrix,
+        q_star_array=q_star_array,
+        beamstop_q_min=beamstop_q_min,
+    )
     return out
 
 
@@ -824,6 +1086,7 @@ def fig_v4_avrami(
     out = output_path or 'Fig_V4_avrami.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_v4_avrami_document(out, times, Xc_array, avrami_result=avrami_result)
     return out
 
 
@@ -859,6 +1122,7 @@ def fig_guinier(
     out = output_path or 'Fig_SI_Guinier.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_phase3_guinier_bundle(out, q, I, Rg=Rg, q_min=q_min, q_max=q_max)
     return out
 
 
@@ -886,104 +1150,8 @@ def fig_kratky(
     out = output_path or 'Fig_SI_Kratky.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_phase3_kratky_bundle(out, q, I, L=L)
     return out
-
-
-# ======================================================================
-#  Data export functions
-# ======================================================================
-
-def export_parameters_csv(
-    result_or_dict,
-    output_dir: str,
-    filename: str = "saxs_parameters.csv",
-) -> str:
-    """Export analysis parameters to CSV file.
-
-    Accepts either a SAXSResult (auto-extracts structure params) or a plain dict.
-    Prefer the batch CSV generated by generate_all_figures for multi-result output.
-    """
-    import pandas as pd
-    
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, filename)
-    
-    # Normalise to dict
-    if hasattr(result_or_dict, 'structure'):
-        sp = result_or_dict.structure
-        lp = result_or_dict.long_period
-        d = {
-            'label': result_or_dict.label,
-            'L_nm': round(sp.L, 2) if sp and np.isfinite(sp.L) else None,
-            'lc_nm': round(sp.lc, 2) if sp and np.isfinite(sp.lc) else None,
-            'la_nm': round(sp.la, 2) if sp and np.isfinite(sp.la) else None,
-            'phi_c': round(sp.phi_c, 3) if sp and np.isfinite(sp.phi_c) else None,
-            'phi_c_invariant': round(getattr(sp, 'phi_c_invariant', np.nan), 3) if sp and np.isfinite(getattr(sp, 'phi_c_invariant', np.nan)) else None,
-            'Q_invariant': f"{sp.Q_invariant:.4e}" if sp and np.isfinite(sp.Q_invariant) else None,
-            'Q_star_valid': bool(getattr(result_or_dict, 'Q_star_valid', True)),
-            'Sv_nm1': f"{sp.Sv:.4e}" if sp and np.isfinite(sp.Sv) else None,
-            'L_confidence': round(lp.L_confidence, 2) if lp and np.isfinite(lp.L_confidence) else None,
-            'lc_confidence': round(getattr(sp, 'confidence_lc', np.nan), 2) if sp and np.isfinite(getattr(sp, 'confidence_lc', np.nan)) else None,
-            'q_peak_snr': round(float(getattr(result_or_dict, 'q_peak_snr', np.nan)), 2) if np.isfinite(getattr(result_or_dict, 'q_peak_snr', np.nan)) else None,
-            'effective_q_min': round(float(getattr(result_or_dict, 'effective_q_min', np.nan)), 3) if np.isfinite(getattr(result_or_dict, 'effective_q_min', np.nan)) else None,
-            'quality_flag': getattr(result_or_dict, 'quality_flag', '') or '',
-            'validation_summary': getattr(result_or_dict, 'validation_summary', '') or '',
-        }
-    else:
-        d = result_or_dict
-    df = pd.DataFrame([{k: v for k, v in d.items() 
-                          if not k.startswith('_')}])
-    df.to_csv(path, index=False)
-    return str(path)
-
-
-def export_1d_profile(
-    q: np.ndarray, I: np.ndarray,
-    output_dir: str,
-    filename: str = "saxs_1d_profile.csv",
-    I_smooth: Optional[np.ndarray] = None,
-) -> str:
-    """Export 1D scattering curve data."""
-    import pandas as pd
-    
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, filename)
-    
-    data = {'q_nm1': q, 'I_au': I}
-    if I_smooth is not None and len(I_smooth) == len(I):
-        data['I_smooth_au'] = I_smooth
-    
-    df = pd.DataFrame(data)
-    df.to_csv(path, index=False)
-    return str(path)
-
-
-def export_strain_series_csv(
-    strain_result,  # StrainSeriesResult
-    output_dir: str,
-    filename: str = "strain_series_parameters.csv",
-) -> str:
-    """Export complete strain series data."""
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, filename)
-    
-    df = strain_result.to_dataframe()
-    df.to_csv(path, index=False)
-    return str(path)
-
-
-def export_temp_series_csv(
-    temp_result,  # TempSeriesResult
-    output_dir: str,
-    filename: str = "temperature_series_parameters.csv",
-) -> str:
-    """Export complete temperature series data."""
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, filename)
-    
-    df = temp_result.to_dataframe()
-    df.to_csv(path, index=False)
-    return str(path)
 
 
 # ======================================================================
@@ -1030,115 +1198,8 @@ def fig_joint_crystallinity(
     out = output_path or 'Fig_Joint_crystallinity.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_joint_crystallinity_document(out, techniques, values)
     return out
-
-
-def _result_to_params_dict(result) -> Dict:
-    """Extract a flat parameters dict from a SAXSResult for CSV export."""
-    sp = result.structure
-    lp = result.long_period
-    final = getattr(result, 'final_parameters', None)
-    status_fields = (
-        'lc_method',
-        'calibrated_fallback_active',
-        'calibrated_fallback_reason',
-        'calibration_skipped_reason',
-        'melting_window_status',
-        'melting_window_reason',
-        'lc_reliability_status',
-        'lc_reliability_reason',
-    )
-    if isinstance(final, dict) and final:
-        d = {k: v for k, v in final.items() if not str(k).startswith('_')}
-        d.setdefault('label', result.label)
-        for field in status_fields:
-            if field not in d:
-                value = getattr(result, field, None)
-                if value not in (None, ""):
-                    d[field] = value
-        if lp is not None:
-            d.setdefault('L_bragg', round(lp.L_bragg, 2) if np.isfinite(lp.L_bragg) else None)
-            d.setdefault('L_lorentz', round(lp.L_lorentz, 2) if np.isfinite(lp.L_lorentz) else None)
-            d.setdefault('L_confidence', round(lp.L_confidence, 2) if np.isfinite(lp.L_confidence) else None)
-            d.setdefault('L_method', lp.method_used)
-        if sp is not None:
-            d.setdefault(
-                'phi_c_invariant',
-                round(getattr(sp, 'phi_c_invariant', np.nan), 3)
-                if np.isfinite(getattr(sp, 'phi_c_invariant', np.nan)) else None,
-            )
-            d.setdefault(
-                'Sv_nm1',
-                f"{sp.Sv:.4e}" if np.isfinite(getattr(sp, 'Sv', np.nan)) else None,
-            )
-            d.setdefault(
-                'lc_tangent_nm',
-                round(getattr(sp, 'lc_tangent_nm', np.nan), 2)
-                if np.isfinite(getattr(sp, 'lc_tangent_nm', np.nan)) else None,
-            )
-            d.setdefault(
-                'lc_gamma_min_nm',
-                round(getattr(sp, 'lc_gamma_min_nm', np.nan), 2)
-                if np.isfinite(getattr(sp, 'lc_gamma_min_nm', np.nan)) else None,
-            )
-        d.setdefault(
-            'L_pyfai_nm',
-            round(float(getattr(result, 'L_bragg_pyfai', np.nan)), 2)
-            if np.isfinite(getattr(result, 'L_bragg_pyfai', np.nan)) else None,
-        )
-        d.setdefault(
-            'q_peak_diff_pct',
-            getattr(result, 'pyfai_q_peak_diff_pct', None)
-            if np.isfinite(getattr(result, 'pyfai_q_peak_diff_pct', np.nan)) else None,
-        )
-        d.setdefault('L_sas_nm', final.get('L_sas_nm'))
-        d.setdefault('lc_sas_nm', final.get('lc_sas_nm'))
-        d.setdefault('Xc_sas', final.get('Xc_sas'))
-        d.setdefault('sasmodels_R2', final.get('sasmodels_R2'))
-        d.setdefault('sasmodels_model_used', getattr(result, 'sasmodels_model_used', '') or '')
-        d.setdefault('q_peak_snr', round(float(getattr(result, 'q_peak_snr', np.nan)), 2) if np.isfinite(getattr(result, 'q_peak_snr', np.nan)) else None)
-        d.setdefault('effective_q_min', round(float(getattr(result, 'effective_q_min', np.nan)), 3) if np.isfinite(getattr(result, 'effective_q_min', np.nan)) else None)
-        d.setdefault('Q_star_valid', bool(getattr(result, 'Q_star_valid', True)))
-        d.setdefault('quality_flag', getattr(result, 'quality_flag', '') or '')
-        d.setdefault('validation_summary', getattr(result, 'validation_summary', '') or '')
-        for field in status_fields:
-            value = getattr(result, field, None)
-            if value not in (None, "") and field not in d:
-                d[field] = value
-        return d
-
-    d = {
-        'label': result.label,
-        'L_nm': round(sp.L, 2) if sp and np.isfinite(sp.L) else None,
-        'lc_nm': round(sp.lc, 2) if sp and np.isfinite(sp.lc) else None,
-        'la_nm': round(sp.la, 2) if sp and np.isfinite(sp.la) else None,
-        'phi_c': round(sp.phi_c, 3) if sp and np.isfinite(sp.phi_c) else None,
-        'phi_c_invariant': round(getattr(sp, 'phi_c_invariant', np.nan), 3) if sp and np.isfinite(getattr(sp, 'phi_c_invariant', np.nan)) else None,
-        'Q_invariant': f"{sp.Q_invariant:.4e}" if sp and np.isfinite(sp.Q_invariant) else None,
-        'Q_star_valid': bool(getattr(result, 'Q_star_valid', True)),
-        'Sv_nm1': f"{sp.Sv:.4e}" if sp and np.isfinite(sp.Sv) else None,
-        'L_bragg': round(lp.L_bragg, 2) if lp and np.isfinite(lp.L_bragg) else None,
-        'L_lorentz': round(lp.L_lorentz, 2) if lp and np.isfinite(lp.L_lorentz) else None,
-        'L_confidence': round(lp.L_confidence, 2) if lp and np.isfinite(lp.L_confidence) else None,
-        'lc_confidence': round(getattr(sp, 'confidence_lc', np.nan), 2) if sp and np.isfinite(getattr(sp, 'confidence_lc', np.nan)) else None,
-        'lc_tangent_nm': round(getattr(sp, 'lc_tangent_nm', np.nan), 2) if sp and np.isfinite(getattr(sp, 'lc_tangent_nm', np.nan)) else None,
-        'lc_gamma_min_nm': round(getattr(sp, 'lc_gamma_min_nm', np.nan), 2) if sp and np.isfinite(getattr(sp, 'lc_gamma_min_nm', np.nan)) else None,
-        'L_pyfai_nm': round(float(getattr(result, 'L_bragg_pyfai', np.nan)), 2) if np.isfinite(getattr(result, 'L_bragg_pyfai', np.nan)) else None,
-        'q_peak_diff_pct': getattr(result, 'pyfai_q_peak_diff_pct', None) if np.isfinite(getattr(result, 'pyfai_q_peak_diff_pct', np.nan)) else None,
-        'q_peak_snr': round(float(getattr(result, 'q_peak_snr', np.nan)), 2) if np.isfinite(getattr(result, 'q_peak_snr', np.nan)) else None,
-        'L_sas_nm': final.get('L_sas_nm') if isinstance(final, dict) else None,
-        'lc_sas_nm': final.get('lc_sas_nm') if isinstance(final, dict) else None,
-        'Xc_sas': final.get('Xc_sas') if isinstance(final, dict) else None,
-        'sasmodels_R2': final.get('sasmodels_R2') if isinstance(final, dict) else None,
-        'sasmodels_model_used': getattr(result, 'sasmodels_model_used', '') or '',
-        'quality_flag': getattr(result, 'quality_flag', '') or '',
-        'validation_summary': getattr(result, 'validation_summary', '') or '',
-    }
-    for field in status_fields:
-        value = getattr(result, field, None)
-        if value not in (None, "") and field not in d:
-            d[field] = value
-    return d
 
 
 # ============================================================================
@@ -1211,6 +1272,16 @@ def fig_static_overview(
     out = output_path or 'Fig_Static_Overview.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_static_overview_document(
+        out,
+        labels,
+        q_list,
+        I_list,
+        L_list,
+        lc_list,
+        Xc_list,
+        Q_rel_list=Q_rel_list,
+    )
     return out
 
 
@@ -1246,7 +1317,7 @@ def fig_temperature_overview(
     valid_lc = np.isfinite(lc_arr)
     ax.plot(temps[valid_L], L_arr[valid_L], 'o-', color='steelblue', linewidth=1.2, markersize=5, label='$L$')
     ax.plot(temps[valid_lc], lc_arr[valid_lc], 's--', color='firebrick', linewidth=1, markersize=5, label='$l_c$')
-    ax.set_xlabel('Temperature (°C)')
+    ax.set_xlabel('Temperature (鎺矯)')
     ax.set_ylabel('Thickness (nm)')
     ax.set_title('B: Long Period & Crystal Thickness')
     _safe_legend(ax, fontsize=7)
@@ -1256,7 +1327,7 @@ def fig_temperature_overview(
     valid_Xc = np.isfinite(Xc_arr)
     ax.plot(temps[valid_Xc], Xc_arr[valid_Xc], 'o-', color='darkgreen', linewidth=1.5, markersize=6)
     ax.fill_between(temps[valid_Xc], 0, Xc_arr[valid_Xc], alpha=0.15, color='darkgreen')
-    ax.set_xlabel('Temperature (°C)')
+    ax.set_xlabel('Temperature (鎺矯)')
     ax.set_ylabel(r'$X_c$ (SAXS)')
     ax.set_title('C: Crystallinity')
 
@@ -1277,13 +1348,25 @@ def fig_temperature_overview(
         plt.colorbar(im, ax=ax, label=r'$\log(1+I\cdot q^2)$')
         ax.set_xlim(0.2, 1.5)
         ax.set_xlabel(r'$q$ (nm$^{-1}$)')
-        ax.set_ylabel('T (°C)')
+        ax.set_ylabel('T (鎺矯)')
         ax.set_title('D: Scattering Heatmap')
 
     plt.tight_layout()
     out = output_path or 'Fig_Temperature_Overview.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_condition_overview_document(
+        out,
+        temps,
+        q_list,
+        I_list,
+        condition_axis="temperature_C",
+        function_name="fig_temperature_overview",
+        L_arr=L_arr,
+        lc_arr=lc_arr,
+        Xc_arr=Xc_arr,
+        Q_arr=Q_arr,
+    )
     return out
 
 
@@ -1359,6 +1442,20 @@ def fig_strain_overview(
     out = output_path or 'Fig_Strain_Overview.pdf'
     savefig_with_edits(fig, out, dpi=SCI_DPI)
     plt.close(fig)
+    _save_condition_overview_document(
+        out,
+        strains,
+        q_list,
+        I_list,
+        condition_axis="strain_pct",
+        function_name="fig_strain_overview",
+        L_arr=L_arr,
+        lc_arr=lc_arr,
+        Xc_arr=Xc_arr,
+        la_arr=la_arr,
+        Q_arr=Q_arr,
+        Q_rel_arr=Q_rel_arr,
+    )
     return out
 
 
@@ -1387,6 +1484,22 @@ def generate_all_figures(results, output_dir, config=None):
     all_params = []  # accumulate parameter dicts for batch CSV
 
     is_batch = len(results) > 1
+    series_kind = ""
+    if config is not None:
+        experiment_type = str(getattr(config, "experiment_type", "") or "").strip().lower()
+        condition_label = str(getattr(config, "condition_label", "") or "").strip().lower()
+        if experiment_type in {"temperature", "cooling", "isothermal"} or "temperature" in condition_label:
+            series_kind = "temperature"
+        elif experiment_type == "strain" or "strain" in condition_label:
+            series_kind = "strain"
+    if not series_kind and is_batch:
+        finite_conditions = np.array([r.condition_value for r in results if np.isfinite(r.condition_value)], dtype=float)
+        if finite_conditions.size >= 2:
+            condition_span = float(np.max(finite_conditions) - np.min(finite_conditions))
+            if condition_span >= 50:
+                series_kind = "temperature"
+            elif np.any(finite_conditions >= 100):
+                series_kind = "strain"
 
     for i, result in enumerate(results):
         if result.q is None or result.I is None:
@@ -1544,7 +1657,7 @@ def generate_all_figures(results, output_dir, config=None):
     # ----------------------------------------------------------------
     # Temperature series figures (multi-frame with valid condition values)
     # ----------------------------------------------------------------
-    if len(results) > 1:
+    if len(results) > 1 and series_kind == "temperature":
         sorted_results = sorted(
             [r for r in results if np.isfinite(r.condition_value)],
             key=lambda r: r.condition_value,
@@ -1553,7 +1666,7 @@ def generate_all_figures(results, output_dir, config=None):
             try:
                 temps = np.array([r.condition_value for r in sorted_results])
                 L_arr = np.array([r.structure.L if r.structure and np.isfinite(r.structure.L) else np.nan for r in sorted_results])
-                lc_arr = np.array([r.structure.lc if r.structure and np.isfinite(r.structure.lc) else np.nan for r in sorted_results])
+                lc_arr = np.array([_result_effective_lc_value(r) for r in sorted_results], dtype=float)
 
                 # V1: Waterfall
                 try:
@@ -1604,7 +1717,7 @@ def generate_all_figures(results, output_dir, config=None):
     # ----------------------------------------------------------------
     # Tensile series figures (multi-frame)
     # ----------------------------------------------------------------
-    if len(results) > 1:
+    if len(results) > 1 and series_kind == "strain":
         sorted_strain = sorted(
             [r for r in results if np.isfinite(r.condition_value)],
             key=lambda r: r.condition_value,
@@ -1648,7 +1761,7 @@ def generate_all_figures(results, output_dir, config=None):
             except Exception:
                 logger.warning("SAXS strain-series figure generation failed.", exc_info=True)
 
-    # ── Overview composite figures ──
+    # 閳光偓閳光偓 Overview composite figures 閳光偓閳光偓
     if len(results) > 1:
         sorted_all = sorted(
             [r for r in results if np.isfinite(r.condition_value)],
@@ -1659,7 +1772,7 @@ def generate_all_figures(results, output_dir, config=None):
             q_list = [r.q for r in sorted_all]
             I_list = [(r.I_smooth if r.I_smooth is not None else r.I) for r in sorted_all]
             L_list = [r.structure.L if r.structure and np.isfinite(r.structure.L) else None for r in sorted_all]
-            lc_list = [r.structure.lc if r.structure and np.isfinite(r.structure.lc) else None for r in sorted_all]
+            lc_list = [value if np.isfinite(value) else None for value in (_result_effective_lc_value(r) for r in sorted_all)]
             Xc_list = [r.structure.phi_c if r.structure and np.isfinite(r.structure.phi_c) else None for r in sorted_all]
             Q_list = [r.structure.Q_invariant if r.structure and np.isfinite(r.structure.Q_invariant) else None for r in sorted_all]
             la_list = [r.structure.la if r.structure and np.isfinite(r.structure.la) else None for r in sorted_all]
@@ -1669,13 +1782,11 @@ def generate_all_figures(results, output_dir, config=None):
 
             try:
                 p = str(figs_dir / "Fig_1_overview.pdf")
-                # Detect: temperature range > 50C → temp, strain range has PAD8-like values → strain, else static
-                cond_range = np.max(cond_vals) - np.min(cond_vals)
-                if cond_range > 50:
+                if series_kind == "temperature":
                     fig_temperature_overview(cond_vals, q_list, I_list,
                         np.array(L_list), np.array(lc_list), np.array(Xc_list),
                         Q_arr=Q_arr, output_path=p)
-                elif np.any(cond_vals >= 100):
+                elif series_kind == "strain":
                     fig_strain_overview(cond_vals, q_list, I_list,
                         np.array(L_list), np.array(lc_list), np.array(la_list),
                         np.array(Xc_list), Q_arr=Q_arr, Q_rel_arr=Q_rel,

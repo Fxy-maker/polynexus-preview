@@ -7,7 +7,9 @@ Uses matplotlib with consistent styling.
 import logging
 logger = logging.getLogger(__name__)
 
+import csv
 import os
+from pathlib import Path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -18,6 +20,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from .core import DSCResult
 from .dsc_kinetics import AvramiResult, NonIsothermalResult
 from .config import DSCConfig
+from ..figure_document import save_generated_figure_document
 from ..plot_edits import savefig_with_edits
 from ...plotting.sci_style import (
     set_sci_style as _global_set_sci_style,
@@ -82,6 +85,814 @@ def _save_figure(fig, name: str, fig_dir: str, fmt: str = 'svg', dpi: int = 300)
                        facecolor='white', edgecolor='none')
     plt.close(fig)
     return path
+
+
+def _save_d1_full_curve_document(path: str, result: DSCResult, figure_id: str) -> None:
+    figure_id = Path(path).stem
+    data_path = _write_d1_full_curve_data(path, result)
+    data_ref = "dsc-full-curve-data"
+    t_max = float(np.max(result.T)) if len(result.T) else 0.0
+    hf_max = float(np.max(result.HF)) if len(result.HF) else 0.0
+    objects = [
+        {
+            "id": "series-heat-flow",
+            "type": "plot_series",
+            "name": "Heat Flow",
+            "data_ref": data_ref,
+            "x_column": "temperature_C",
+            "y_column": "heat_flow_W_g",
+            "style": {"color": SCI_COLORS["blue"], "line_width": 1.2},
+        }
+    ]
+    event_specs = [
+        ("Tg", result.Tg_C, SCI_COLORS["red"], "--", 10, 10),
+        ("Tm", result.Tm_peak_C, SCI_COLORS["green"], "--", 10, -15),
+        ("Tm2", result.Tm2_peak_C, SCI_COLORS["cyan"], "-.", 10, -25),
+        ("Tc", result.Tc_peak_C, SCI_COLORS["green"], "--", 10, -15),
+        ("Tcc", result.Tcc_peak_C, SCI_COLORS["orange"], "--", 10, 10),
+    ]
+    for event_name, value, color, line_style, x_offset, y_offset in event_specs:
+        event_value = _json_number(value)
+        if event_value is None:
+            continue
+        y_value = float(np.interp(event_value, result.T, result.HF))
+        objects.append(
+            {
+                "id": f"line-{event_name}",
+                "type": "line",
+                "name": event_name,
+                "orientation": "vertical",
+                "x": event_value,
+                "label": f"{event_name} = {event_value:.1f} C",
+                "style": {"color": color, "line_width": 0.8, "line_style": line_style, "alpha": 0.7},
+            }
+        )
+        objects.append(
+            {
+                "id": f"text-{event_name}",
+                "type": "text",
+                "name": "Annotation",
+                "text": f"{event_name} = {event_value:.1f} C",
+                "x": float(event_value + (x_offset * 0.1)),
+                "y": float(y_value + (y_offset * 0.01 * (hf_max if hf_max else 1.0))),
+                "rotation": 0.0,
+                "anchor": "center",
+                "style": {"color": color, "font_size": 8 if event_name != "Tm2" else 7},
+            }
+        )
+    if np.isfinite(result.Xc_pct):
+        objects.append(
+            {
+                "id": "text-Xc",
+                "type": "text",
+                "name": "Annotation",
+                "text": f"Xc = {result.Xc_pct:.1f}%",
+                "x": float(t_max),
+                "y": float(hf_max),
+                "rotation": 0.0,
+                "anchor": "right",
+                "style": {"color": SCI_COLORS["dark"], "font_size": 9},
+            }
+        )
+    objects.extend(
+        [
+            {
+                "id": "axis-x",
+                "type": "axis",
+                "name": "Horizontal Axis",
+                "orientation": "horizontal",
+                "label": "Temperature (deg C)",
+                "reversed": False,
+                "scale": "linear",
+                "style": {"color": SCI_COLORS["dark"], "line_width": 0.8},
+            },
+            {
+                "id": "axis-y",
+                "type": "axis",
+                "name": "Vertical Axis",
+                "orientation": "vertical",
+                "label": "Heat Flow (W/g) exo up",
+                "reversed": False,
+                "scale": "linear",
+                "style": {"color": SCI_COLORS["dark"], "line_width": 0.8},
+            },
+        ]
+    )
+    save_generated_figure_document(
+        path,
+        technique="dsc",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": __name__,
+            "function": "fig_d1_full_curve",
+            "inputs": {"result_label": str(result.label or "")},
+            "parameters": {"fname": figure_id},
+        },
+        style={
+            "xlabel": "Temperature (deg C)",
+            "ylabel": "Heat Flow (W/g) exo up",
+        },
+        objects=objects,
+    )
+
+
+def _save_d2_tg_zoom_document(
+    path: str,
+    result: DSCResult,
+    figure_id: str,
+    T_zoom: np.ndarray,
+    HF_zoom: np.ndarray,
+) -> None:
+    data_path = _write_d2_tg_zoom_data(path, T_zoom, HF_zoom)
+    data_ref = "dsc-tg-zoom-data"
+    tg_value = _json_number(result.Tg_C)
+    objects = [
+        {
+            "id": "series-tg-zoom",
+            "type": "plot_series",
+            "name": "Tg Zoom",
+            "data_ref": data_ref,
+            "x_column": "temperature_C",
+            "y_column": "heat_flow_W_g",
+            "style": {"color": SCI_COLORS["blue"], "line_width": 1.5},
+        }
+    ]
+    if tg_value is not None:
+        objects.append(
+            {
+                "id": "marker-Tg",
+                "type": "line",
+                "name": "Glass Transition Tg",
+                "orientation": "vertical",
+                "x": tg_value,
+                "label": f"Tg = {tg_value:.1f} C",
+                "style": {"color": SCI_COLORS["red"], "line_width": 1.0, "alpha": 0.8},
+            }
+        )
+    save_generated_figure_document(
+        path,
+        technique="dsc",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.dsc_engine.dsc_output",
+            "function": "fig_d2_tg_zoom",
+            "inputs": {"result_label": str(result.label or "")},
+            "parameters": {
+                "fname": figure_id,
+                "Tg_C": tg_value,
+                "Tg_method": str(result.Tg_method or ""),
+                "DTg_C": _json_number(result.DTg_C),
+                "zoom_margin_C": 30.0,
+            },
+        },
+        style={
+            "xlabel": "Temperature (deg C)",
+            "ylabel": "Heat Flow (W/g) exo up",
+        },
+        objects=objects,
+    )
+
+
+def _save_d3_crystallinity_document(
+    path: str,
+    valid_results: List[tuple[DSCResult, float]],
+    labels: List[str],
+    figure_id: str,
+) -> None:
+    data_path = _write_d3_crystallinity_data(path, valid_results, labels)
+    data_ref = "dsc-crystallinity-data"
+    save_generated_figure_document(
+        path,
+        technique="dsc",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.dsc_engine.dsc_output",
+            "function": "fig_d3_crystallinity",
+            "inputs": {"result_labels": [str(result.label or "") for result, _ in valid_results]},
+            "parameters": {
+                "fname": figure_id,
+                "sample_count": len(valid_results),
+            },
+        },
+        style={
+            "xlabel": "Sample",
+            "ylabel": "Crystallinity Xc (%)",
+            "x_tick_rotation": 30,
+        },
+        objects=[
+            {
+                "id": "series-crystallinity",
+                "type": "plot_series",
+                "chart_kind": "bar",
+                "name": "Crystallinity",
+                "data_ref": data_ref,
+                "x_column": "label",
+                "y_column": "Xc_pct",
+                "style": {"palette": SCI_PALETTE, "line_width": 0.5, "stroke": "#FFFFFF"},
+            }
+        ],
+    )
+
+
+def _save_d4_avrami_document(
+    path: str,
+    avrami: AvramiResult,
+    *,
+    ln_t: np.ndarray,
+    avrami_y: np.ndarray,
+    fit_ln_t: np.ndarray,
+    avrami_fit: np.ndarray,
+) -> None:
+    data_path = _write_d4_avrami_data(path, avrami, ln_t, avrami_y, fit_ln_t, avrami_fit)
+    data_ref = "dsc-avrami-data"
+    objects = [
+        {
+            "id": "series-xt-data",
+            "type": "plot_series",
+            "name": "Experimental Xt",
+            "data_ref": data_ref,
+            "x_column": "time_min",
+            "y_column": "Xt_pct",
+            "style": {"color": SCI_COLORS["blue"], "marker": "o", "line_width": 0.0, "alpha": 0.6},
+        }
+    ]
+    if len(avrami.Xt_fit) > 0:
+        objects.append(
+            {
+                "id": "series-xt-fit",
+                "type": "plot_series",
+                "name": "Avrami Xt Fit",
+                "data_ref": data_ref,
+                "x_column": "time_min",
+                "y_column": "Xt_fit_pct",
+                "style": {"color": SCI_COLORS["red"], "line_width": 1.5},
+            }
+        )
+    objects.extend(
+        [
+            {
+                "id": "series-avrami-linear",
+                "type": "plot_series",
+                "name": "Avrami Linearized Data",
+                "data_ref": data_ref,
+                "x_column": "ln_t",
+                "y_column": "avrami_y",
+                "style": {"color": SCI_COLORS["blue"], "marker": "o", "line_width": 0.0, "alpha": 0.7},
+            },
+            {
+                "id": "series-avrami-linear-fit",
+                "type": "plot_series",
+                "name": "Avrami Linear Fit",
+                "data_ref": data_ref,
+                "x_column": "fit_ln_t",
+                "y_column": "avrami_fit",
+                "style": {"color": SCI_COLORS["red"], "line_width": 1.5},
+            },
+        ]
+    )
+    save_generated_figure_document(
+        path,
+        technique="dsc",
+        figure_id="Fig-D4_avrami",
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.dsc_engine.dsc_output",
+            "function": "fig_d4_avrami",
+            "inputs": {"label": str(avrami.label or "")},
+            "parameters": {
+                "n": _json_number(avrami.n),
+                "log_k": _json_number(avrami.log_k),
+                "k": _json_number(avrami.k),
+                "t_half_min": _json_number(avrami.t_half_min),
+                "r_squared": _json_number(avrami.r_squared),
+                "temperature_C": _json_number(avrami.temperature_C),
+            },
+        },
+        style={
+            "panels": ["Xt", "Avrami linear fit"],
+            "xt_xlabel": "Time (min)",
+            "xt_ylabel": "X(t) (%)",
+            "linear_xlabel": "ln(t / min)",
+            "linear_ylabel": "ln[-ln(1-X(t))]",
+        },
+        objects=objects,
+    )
+
+
+def _save_d5_kissinger_document(
+    path: str,
+    kissinger: NonIsothermalResult,
+    *,
+    Tp_C: np.ndarray,
+    rates: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    fit_x: np.ndarray,
+    fit_y: np.ndarray,
+    slope: float | None,
+    intercept: float | None,
+    r_squared: float | None,
+    Ea_kJmol: float | None,
+) -> None:
+    data_path = _write_d5_kissinger_data(path, Tp_C, rates, x, y, fit_x, fit_y)
+    data_ref = "dsc-kissinger-data"
+    objects = [
+        {
+            "id": "series-kissinger-points",
+            "type": "plot_series",
+            "name": "Kissinger Points",
+            "data_ref": data_ref,
+            "x_column": "inv_Tp_K_1000",
+            "y_column": "ln_beta_over_Tp2",
+            "style": {"color": SCI_COLORS["blue"], "marker": "o", "line_width": 0.0},
+        }
+    ]
+    if len(fit_x) > 0:
+        objects.append(
+            {
+                "id": "series-kissinger-fit",
+                "type": "plot_series",
+                "name": "Kissinger Fit",
+                "data_ref": data_ref,
+                "x_column": "fit_x",
+                "y_column": "fit",
+                "style": {"color": SCI_COLORS["red"], "line_width": 1.2},
+            }
+        )
+    save_generated_figure_document(
+        path,
+        technique="dsc",
+        figure_id="Fig-D5_kissinger",
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.dsc_engine.dsc_output",
+            "function": "fig_d5_kissinger",
+            "inputs": {"method": str(kissinger.method or "")},
+            "parameters": {
+                "point_count": len(Tp_C),
+                "slope": _json_number(slope),
+                "intercept": _json_number(intercept),
+                "r_squared": _json_number(r_squared),
+                "Ea_kJmol": _json_number(Ea_kJmol),
+                "reported_Ea_kJmol": _json_number(kissinger.kissinger_Ea_kJmol),
+            },
+        },
+        style={
+            "xlabel": "1000 / Tp (K^-1)",
+            "ylabel": "ln(beta / Tp^2)",
+        },
+        objects=objects,
+    )
+
+
+def _save_d6_deconvolution_document(
+    path: str,
+    result: DSCResult,
+    figure_id: str,
+    melt_peaks: List[dict],
+    component_curves: List[np.ndarray],
+) -> None:
+    data_path = _write_d6_deconvolution_data(path, result, component_curves)
+    data_ref = "dsc-deconvolution-data"
+    objects = [
+        {
+            "id": "series-experimental",
+            "type": "plot_series",
+            "name": "Experimental",
+            "data_ref": data_ref,
+            "x_column": "temperature_C",
+            "y_column": "heat_flow_W_g",
+            "style": {"color": SCI_COLORS["dark"], "line_width": 1.2},
+        }
+    ]
+    for index, peak in enumerate(melt_peaks):
+        mu = _peak_mu(peak)
+        objects.append(
+            {
+                "id": f"series-component-{index + 1}",
+                "type": "plot_series",
+                "name": f"Peak {index + 1}",
+                "data_ref": data_ref,
+                "x_column": "temperature_C",
+                "y_column": f"component_{index + 1}",
+                "peak_C": _json_number(mu),
+                "fraction": _json_number(peak.get("fraction")),
+                "style": {
+                    "color": SCI_PALETTE[index % len(SCI_PALETTE)],
+                    "line_width": 1.0,
+                    "alpha": 0.25,
+                    "fill": SCI_PALETTE[index % len(SCI_PALETTE)],
+                },
+            }
+        )
+    save_generated_figure_document(
+        path,
+        technique="dsc",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.dsc_engine.dsc_output",
+            "function": "fig_d6_deconvolution",
+            "inputs": {"result_label": str(result.label or "")},
+            "parameters": {
+                "fname": figure_id,
+                "component_count": len(melt_peaks),
+            },
+        },
+        style={
+            "xlabel": "Temperature (deg C)",
+            "ylabel": "Heat Flow (W/g) exo up",
+            "fill_components": True,
+        },
+        objects=objects,
+    )
+
+
+def _save_batch_overlay_document(
+    path: str,
+    results: List[DSCResult],
+    *,
+    figure_id: str,
+    function_name: str,
+    scan_type: str,
+) -> None:
+    data_path = _write_batch_overlay_data(path, results)
+    data_ref = f"dsc-{scan_type}-overlay-data"
+    objects = [
+        {
+            "id": f"series-{scan_type}-{index + 1}",
+            "type": "plot_series",
+            "name": _short_sample_name(result.label),
+            "data_ref": data_ref,
+            "x_column": "temperature_C",
+            "y_column": "heat_flow_offset",
+            "filter": {"scan_index": index},
+            "style": {"color": SCI_PALETTE[index % len(SCI_PALETTE)], "line_width": 1.2},
+        }
+        for index, result in enumerate(results)
+    ]
+    save_generated_figure_document(
+        path,
+        technique="dsc",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.dsc_engine.dsc_output",
+            "function": function_name,
+            "inputs": {"result_labels": [str(result.label or "") for result in results]},
+            "parameters": {
+                "sample_count": len(results),
+                "scan_type": scan_type,
+            },
+        },
+        style={
+            "xlabel": "Temperature (deg C)",
+            "ylabel": "Heat Flow (offset) exo up",
+            "offset_curves": True,
+        },
+        objects=objects,
+    )
+
+
+def _save_batch_crystallinity_document(
+    path: str,
+    valid_results: List[tuple[DSCResult, float]],
+    labels: List[str],
+    figure_id: str,
+) -> None:
+    data_path = _write_d3_crystallinity_data(path, valid_results, labels)
+    data_ref = "dsc-batch-crystallinity-data"
+    save_generated_figure_document(
+        path,
+        technique="dsc",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.dsc_engine.dsc_output",
+            "function": "fig_batch_crystallinity",
+            "inputs": {"result_labels": [str(result.label or "") for result, _ in valid_results]},
+            "parameters": {
+                "sample_count": len(valid_results),
+                "fname": figure_id,
+            },
+        },
+        style={
+            "xlabel": "Sample",
+            "ylabel": "Crystallinity Xc (%)",
+            "x_tick_rotation": 30,
+        },
+        objects=[
+            {
+                "id": "series-batch-crystallinity",
+                "type": "plot_series",
+                "chart_kind": "bar",
+                "name": "Batch Crystallinity",
+                "data_ref": data_ref,
+                "x_column": "label",
+                "y_column": "Xc_pct",
+                "style": {"palette": SCI_PALETTE, "line_width": 0.5, "stroke": "#FFFFFF"},
+            }
+        ],
+    )
+
+
+def _write_d1_full_curve_data(path: str, result: DSCResult) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["temperature_C", "heat_flow_W_g"],
+        )
+        writer.writeheader()
+        for index, temperature in enumerate(result.T):
+            writer.writerow(
+                {
+                    "temperature_C": _csv_number(temperature),
+                    "heat_flow_W_g": _csv_number(result.HF[index]),
+                }
+            )
+    return data_path
+
+
+def _write_d6_deconvolution_data(
+    path: str,
+    result: DSCResult,
+    component_curves: List[np.ndarray],
+) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    fieldnames = ["temperature_C", "heat_flow_W_g"]
+    fieldnames.extend(f"component_{index + 1}" for index in range(len(component_curves)))
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for index, temperature in enumerate(result.T):
+            row = {
+                "temperature_C": _csv_number(temperature),
+                "heat_flow_W_g": _csv_number(result.HF[index]),
+            }
+            for component_index, curve in enumerate(component_curves):
+                row[f"component_{component_index + 1}"] = _csv_number(curve[index])
+            writer.writerow(row)
+    return data_path
+
+
+def _write_d5_kissinger_data(
+    path: str,
+    Tp_C: np.ndarray,
+    rates: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    fit_x: np.ndarray,
+    fit_y: np.ndarray,
+) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    rows = max(len(Tp_C), len(fit_x))
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "Tp_C",
+                "rate_K_min",
+                "inv_Tp_K_1000",
+                "ln_beta_over_Tp2",
+                "fit_x",
+                "fit",
+            ],
+        )
+        writer.writeheader()
+        for index in range(rows):
+            writer.writerow(
+                {
+                    "Tp_C": _csv_number(Tp_C[index]) if index < len(Tp_C) else "",
+                    "rate_K_min": _csv_number(rates[index]) if index < len(rates) else "",
+                    "inv_Tp_K_1000": _csv_number(x[index]) if index < len(x) else "",
+                    "ln_beta_over_Tp2": _csv_number(y[index]) if index < len(y) else "",
+                    "fit_x": _csv_number(fit_x[index]) if index < len(fit_x) else "",
+                    "fit": _csv_number(fit_y[index]) if index < len(fit_y) else "",
+                }
+            )
+    return data_path
+
+
+def _write_d4_avrami_data(
+    path: str,
+    avrami: AvramiResult,
+    ln_t: np.ndarray,
+    avrami_y: np.ndarray,
+    fit_ln_t: np.ndarray,
+    avrami_fit: np.ndarray,
+) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    rows = max(len(avrami.t_data), len(ln_t), len(fit_ln_t))
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "time_min",
+                "Xt_pct",
+                "Xt_fit_pct",
+                "ln_t",
+                "avrami_y",
+                "fit_ln_t",
+                "avrami_fit",
+            ],
+        )
+        writer.writeheader()
+        for index in range(rows):
+            writer.writerow(
+                {
+                    "time_min": _csv_number(avrami.t_data[index])
+                    if index < len(avrami.t_data)
+                    else "",
+                    "Xt_pct": _csv_number(avrami.Xt_data[index] * 100.0)
+                    if index < len(avrami.Xt_data)
+                    else "",
+                    "Xt_fit_pct": _csv_number(avrami.Xt_fit[index] * 100.0)
+                    if index < len(avrami.Xt_fit)
+                    else "",
+                    "ln_t": _csv_number(ln_t[index]) if index < len(ln_t) else "",
+                    "avrami_y": _csv_number(avrami_y[index]) if index < len(avrami_y) else "",
+                    "fit_ln_t": _csv_number(fit_ln_t[index]) if index < len(fit_ln_t) else "",
+                    "avrami_fit": _csv_number(avrami_fit[index]) if index < len(avrami_fit) else "",
+                }
+            )
+    return data_path
+
+
+def _write_d3_crystallinity_data(
+    path: str,
+    valid_results: List[tuple[DSCResult, float]],
+    labels: List[str],
+) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["label", "result_label", "Xc_pct", "Xc_method"],
+        )
+        writer.writeheader()
+        for index, (result, xc_value) in enumerate(valid_results):
+            writer.writerow(
+                {
+                    "label": labels[index] if index < len(labels) else str(result.label or ""),
+                    "result_label": str(result.label or ""),
+                    "Xc_pct": _csv_number(xc_value),
+                    "Xc_method": str(result.Xc_method or ""),
+                }
+            )
+    return data_path
+
+
+def _write_d2_tg_zoom_data(path: str, T_zoom: np.ndarray, HF_zoom: np.ndarray) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["temperature_C", "heat_flow_W_g"])
+        writer.writeheader()
+        for index, temperature in enumerate(T_zoom):
+            writer.writerow(
+                {
+                    "temperature_C": _csv_number(temperature),
+                    "heat_flow_W_g": _csv_number(HF_zoom[index]),
+                }
+            )
+    return data_path
+
+
+def _write_batch_overlay_data(path: str, results: List[DSCResult]) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    hf_ranges = [float(np.ptp(result.HF)) for result in results if len(result.HF) > 0]
+    max_range = max(hf_ranges) if hf_ranges else 1.0
+    offset_step = max_range * 1.2
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "scan_index",
+                "label",
+                "temperature_C",
+                "heat_flow_W_g",
+                "heat_flow_offset",
+            ],
+        )
+        writer.writeheader()
+        for index, result in enumerate(results):
+            offset = (len(results) - 1 - index) * offset_step
+            for temperature, heat_flow in zip(result.T, result.HF):
+                writer.writerow(
+                    {
+                        "scan_index": index,
+                        "label": _short_sample_name(result.label),
+                        "temperature_C": _csv_number(temperature),
+                        "heat_flow_W_g": _csv_number(heat_flow),
+                        "heat_flow_offset": _csv_number(float(heat_flow) + offset),
+                    }
+                )
+    return data_path
+
+
+def _csv_number(value) -> float:
+    return round(float(value), 10)
+
+
+def _json_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(number):
+        return None
+    return number
+
+
+def _peak_mu(peak: dict) -> float:
+    return peak.get("mu_C", peak.get("peak_C", np.nan))
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +989,9 @@ def fig_d1_full_curve(result: DSCResult, output_dir: str,
                   ylabel='Heat Flow (W/g) exo ↑',
                   title='')
 
-    return _save_figure(fig, fname, fig_dir, fmt, dpi)
+    path = _save_figure(fig, fname, fig_dir, fmt, dpi)
+    _save_d1_full_curve_document(path, result, fname)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +1051,9 @@ def fig_d2_tg_zoom(result: DSCResult, output_dir: str,
                   ylabel='Heat Flow (W/g) exo ↑',
                   title='')
 
-    return _save_figure(fig, fname, fig_dir, fmt, dpi)
+    path = _save_figure(fig, fname, fig_dir, fmt, dpi)
+    _save_d2_tg_zoom_document(path, result, fname, T_zoom, HF_zoom)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +1114,9 @@ def fig_d3_crystallinity(results: List[DSCResult], output_dir: str,
                   ylabel='Crystallinity $X_c$ (%)',
                   title='')
 
-    return _save_figure(fig, fname, fig_dir, fmt, dpi)
+    path = _save_figure(fig, fname, fig_dir, fmt, dpi)
+    _save_d3_crystallinity_document(path, valid, labels, fname)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -368,8 +1185,16 @@ def fig_d4_avrami(avrami: AvramiResult, output_dir: str,
                   ylabel='ln[-ln(1-$X(t)$)]')
     _panel(ax2, '(b)')
 
-
-    return _save_figure(fig, 'Fig-D4_avrami', fig_dir, fmt, dpi)
+    path = _save_figure(fig, 'Fig-D4_avrami', fig_dir, fmt, dpi)
+    _save_d4_avrami_document(
+        path,
+        avrami,
+        ln_t=x[mask],
+        avrami_y=y[mask],
+        fit_ln_t=x_fit,
+        avrami_fit=y_fit,
+    )
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +1230,9 @@ def fig_d5_kissinger(kissinger: NonIsothermalResult,
     ax.plot(x, y, 'o', color=SCI_COLORS['blue'], markersize=8,
             markeredgewidth=1, markeredgecolor='white')
 
+    slope = intercept = r = Ea = None
+    x_fit = np.array([])
+    y_fit = np.array([])
     if len(x) >= 3:
         slope, intercept, _, _, _ = plt.matplotlib.mlab if False else (0, 0, 0, 0, 0)
         import scipy.stats
@@ -424,7 +1252,22 @@ def fig_d5_kissinger(kissinger: NonIsothermalResult,
                   ylabel='ln($\\beta$ / $T_p^2$)',
                   title='')
 
-    return _save_figure(fig, 'Fig-D5_kissinger', fig_dir, fmt, dpi)
+    path = _save_figure(fig, 'Fig-D5_kissinger', fig_dir, fmt, dpi)
+    _save_d5_kissinger_document(
+        path,
+        kissinger,
+        Tp_C=np.array(Tp_C_list),
+        rates=beta,
+        x=x,
+        y=y,
+        fit_x=x_fit,
+        fit_y=y_fit,
+        slope=slope,
+        intercept=intercept,
+        r_squared=r**2 if r is not None else None,
+        Ea_kJmol=Ea,
+    )
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -475,6 +1318,7 @@ def fig_d6_deconvolution(result: DSCResult, output_dir: str,
 
     # Individual components
     colors = SCI_PALETTE
+    component_curves = []
     for i, comp in enumerate(melt_peaks):
         color = colors[i % len(colors)]
 
@@ -492,6 +1336,7 @@ def fig_d6_deconvolution(result: DSCResult, output_dir: str,
             fraction = enthalpy / total_enthalpy if total_enthalpy > 0 else 1.0 / len(melt_peaks)
 
         gauss = amp * np.exp(-0.5 * ((T - mu) / sigma) ** 2)
+        component_curves.append(gauss)
         ax.fill_between(T, 0, gauss, alpha=0.25, color=color,
                         label=f"Peak {i + 1} ({mu:.1f} C, {fraction:.0%})")
 
@@ -502,7 +1347,9 @@ def fig_d6_deconvolution(result: DSCResult, output_dir: str,
                   ylabel='Heat Flow (W/g) exo ↑',
                   title=f'Multi-Peak Deconvolution — {result.label}')
 
-    return _save_figure(fig, fname, fig_dir, fmt, dpi)
+    path = _save_figure(fig, fname, fig_dir, fmt, dpi)
+    _save_d6_deconvolution_document(path, result, fname, melt_peaks, component_curves)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -664,7 +1511,15 @@ def fig_batch_heating_overlay(results: List[DSCResult], output_dir: str,
                   ylabel='Heat Flow (offset)  exo ↑',
                   title='')
 
-    return _save_figure(fig, fname, fig_dir, fmt, dpi)
+    path = _save_figure(fig, fname, fig_dir, fmt, dpi)
+    _save_batch_overlay_document(
+        path,
+        heating,
+        figure_id=Path(path).resolve().stem,
+        function_name="fig_batch_heating_overlay",
+        scan_type="heating",
+    )
+    return path
 
 
 def fig_batch_cooling_overlay(results: List[DSCResult], output_dir: str,
@@ -711,7 +1566,15 @@ def fig_batch_cooling_overlay(results: List[DSCResult], output_dir: str,
                   ylabel='Heat Flow (offset)  exo ↑',
                   title='')
 
-    return _save_figure(fig, fname, fig_dir, fmt, dpi)
+    path = _save_figure(fig, fname, fig_dir, fmt, dpi)
+    _save_batch_overlay_document(
+        path,
+        cooling,
+        figure_id=Path(path).resolve().stem,
+        function_name="fig_batch_cooling_overlay",
+        scan_type="cooling",
+    )
+    return path
 
 
 def fig_batch_crystallinity(results: List[DSCResult], output_dir: str,
@@ -755,7 +1618,9 @@ def fig_batch_crystallinity(results: List[DSCResult], output_dir: str,
                   ylabel='Crystallinity $X_c$ (%)',
                   title='')
 
-    return _save_figure(fig, fname, fig_dir, fmt, dpi)
+    path = _save_figure(fig, fname, fig_dir, fmt, dpi)
+    _save_batch_crystallinity_document(path, valid, labels, Path(path).resolve().stem)
+    return path
 
 
 # ---------------------------------------------------------------------------

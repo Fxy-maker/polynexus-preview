@@ -1,0 +1,85 @@
+from types import SimpleNamespace
+
+from polynexus.cli.run_ai_tune_service import run_ai_tune
+
+
+def test_run_ai_tune_writes_report_and_formats_progress(tmp_path, capsys):
+    class FakeOrchestrator:
+        init_kwargs = None
+
+        def __init__(self, **kwargs):
+            FakeOrchestrator.init_kwargs = kwargs
+
+        def run(self):
+            FakeOrchestrator.init_kwargs["progress_callback"](
+                {
+                    "round_num": 1,
+                    "max_rounds": 3,
+                    "before_r_squared": 0.1,
+                    "after_r_squared": 0.2,
+                    "changes": {"alpha": 1},
+                    "status": "converged",
+                }
+            )
+            return {
+                "best_r_squared": 0.9,
+                "baseline_r_squared": 0.8,
+                "converged": True,
+                "best_config": {"alpha": 1},
+                "analysis_evidence": {"note": "ok"},
+            }
+
+    def fake_persist(args, report, output_path):
+        assert args.polymer == "PA6"
+        assert output_path.exists()
+        assert report["best_r_squared"] == 0.9
+        return "run-42"
+
+    report_path = tmp_path / "ai_tune_report.json"
+    data_file = tmp_path / "sample.dat"
+    data_file.write_text("data", encoding="utf-8")
+    args = SimpleNamespace(
+        technique="waxs",
+        file=str(data_file),
+        polymer="PA6",
+        rounds=3,
+        submodule=None,
+        output=str(report_path),
+    )
+
+    assert (
+        run_ai_tune(
+            args,
+            parameter_orchestrator_cls=FakeOrchestrator,
+            persist_ai_tune_run_fn=fake_persist,
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    assert "[Round 1/3] r2 0.100 -> 0.200 changes: {alpha: 1} converged" in captured.out
+    assert "Analysis run: run-42" in captured.out
+    assert "Report:" in captured.out
+    assert report_path.exists()
+
+
+def test_run_ai_tune_reports_engine_errors(tmp_path, capsys):
+    class BoomOrchestrator:
+        def __init__(self, **kwargs):
+            pass
+
+        def run(self):
+            raise RuntimeError("boom")
+
+    args = SimpleNamespace(
+        technique="waxs",
+        file=str(tmp_path / "sample.dat"),
+        polymer="PA6",
+        rounds=3,
+        submodule=None,
+        output=str(tmp_path / "ai_tune_report.json"),
+    )
+
+    assert run_ai_tune(args, parameter_orchestrator_cls=BoomOrchestrator) == 1
+    captured = capsys.readouterr()
+    assert "AI tune engine error: boom" in captured.err
