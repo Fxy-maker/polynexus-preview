@@ -6,13 +6,13 @@ Subject: [PATCH 1/7] docs: plan deep physics model enhancements
 ---
  ...exus 工程质量与深层物理模型增强实施计划.md | 284 ++++++++++++++++++
  1 file changed, 284 insertions(+)
- create mode 100644 方案/PolyNexus 工程质量与深层物理模型增强实施计划.md
+ create mode 100644 docs/plans/PolyNexus 工程质量与深层物理模型增强实施计划.md
 
-diff --git a/方案/PolyNexus 工程质量与深层物理模型增强实施计划.md b/方案/PolyNexus 工程质量与深层物理模型增强实施计划.md
+diff --git a/docs/plans/PolyNexus 工程质量与深层物理模型增强实施计划.md b/docs/plans/PolyNexus 工程质量与深层物理模型增强实施计划.md
 new file mode 100644
 index 0000000..76616d6
 --- /dev/null
-+++ b/方案/PolyNexus 工程质量与深层物理模型增强实施计划.md	
++++ b/docs/plans/PolyNexus 工程质量与深层物理模型增强实施计划.md
 @@ -0,0 +1,284 @@
 +# PolyNexus 工程质量与深层物理模型增强实施计划
 +
@@ -261,8 +261,8 @@ index 0000000..76616d6
 +## Task 5: 全链路验收与交付包更新
 +
 +**Files:**
-+- Modify: `方案/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md`
-+- Modify/Create: `方案/深层物理模型增强补丁包/*`
++- Modify: `docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md`
++- Modify/Create: `docs/patch-bundles/深层物理模型增强补丁包/*`
 +
 +- [ ] **Step 1: 跑快速矩阵**
 +
@@ -285,7 +285,7 @@ index 0000000..76616d6
 +- [ ] **Step 4: 提交**
 +
 +```powershell
-+git add 方案
++git add docs
 +git commit -m "docs: add deep physics model enhancement handoff"
 +```
 +
@@ -298,6 +298,6 @@ index 0000000..76616d6
 +- WAXS 输出仪器展宽模型与 Scherrer/WH uncertainty。
 +- NMR 输出 library-derived assignment confidence 与 phase-pair gate。
 +- Joint/AI context 能继续从 `analysis_evidence` 消费这些增强字段。
--- 
+--
 2.54.0.windows.1
 

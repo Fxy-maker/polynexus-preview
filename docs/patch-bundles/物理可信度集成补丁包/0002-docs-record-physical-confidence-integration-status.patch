@@ -6,13 +6,13 @@ Subject: [PATCH 2/3] docs: record physical confidence integration status
 ---
  ... 核心与物理可信度矫正实施验收与合并说明.md | 100 ++++++++++++++++++
  1 file changed, 100 insertions(+)
- create mode 100644 方案/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md
+ create mode 100644 docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md
 
-diff --git a/方案/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md b/方案/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md
+diff --git a/docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md b/docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md
 new file mode 100644
 index 0000000..9f438db
 --- /dev/null
-+++ b/方案/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md	
++++ b/docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md
 @@ -0,0 +1,100 @@
 +# PolyNexus 核心与物理可信度矫正实施验收与合并说明
 +
@@ -114,6 +114,6 @@ index 0000000..9f438db
 +## 建议下一步
 +
 +如果要继续推进同一条主线，建议先处理主工作区的图表后处理工作台改动，把它们独立提交或迁到单独分支；然后再把 `integrate-phys-confidence` 合并回主线。这样核心/物理可信度和图表工作台两条线不会互相污染。
--- 
+--
 2.54.0.windows.1
 

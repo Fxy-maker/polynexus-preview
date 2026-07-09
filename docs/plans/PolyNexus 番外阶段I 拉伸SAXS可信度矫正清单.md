@@ -120,7 +120,7 @@
 - 已新增真实 case：`D:\PolyNexus\tests\eval\cases\real\saxs_real_strain_pad8_series.json`
 - `D:\PolyNexus\polynexus\core\saxs.py`
 - `D:\PolyNexus\polynexus\core\saxs_engine\saxs_strain.py`
-- 已补台账：`D:\PolyNexus\方案\PolyNexus 番外阶段I-T1 拉伸SAXS当前基线台账.md`
+- 已补台账：`D:\PolyNexus\docs\baselines\PolyNexus 番外阶段I-T1 拉伸SAXS当前基线台账.md`
 
 最小输出：
 
@@ -206,7 +206,7 @@
 主要落点：
 - [D:\PolyNexus\polynexus\core\saxs.py](D:\PolyNexus\polynexus\core\saxs.py)
 - [D:\PolyNexus\polynexus\core\analysis_evidence.py](D:\PolyNexus\polynexus\core\analysis_evidence.py)
-- [D:\PolyNexus\方案\PolyNexus 统一框架方案 v4.0.md](D:\PolyNexus\方案\PolyNexus%20统一框架方案%20v4.0.md)
+- [D:\PolyNexus\docs\plans\PolyNexus 统一框架方案 v4.0.md](D:/PolyNexus/docs/plans/PolyNexus%20统一框架方案%20v4.0.md)
 
 建议最小输出：
 

@@ -87,7 +87,7 @@
 - `polynexus/core/joint/dataset.py`
 - `polynexus/core/joint/validation.py`
 - `tests/test_joint_hub_dataset.py`
-- `方案/PolyNexus 番外阶段K-T1 Joint当前基线台账.md`
+- `docs/baselines/PolyNexus 番外阶段K-T1 Joint当前基线台账.md`
 
 最小输出：
 - 当前 Joint row 支持的技术。

@@ -84,7 +84,7 @@
 - `tests/test_nmr_engine.py`
 - `tests/eval/cases/synth/nmr_synth_pa6_carbon.json`
 - `tests/eval/cases/synth/nmr_synth_pa6_proton.json`
-- `方案/PolyNexus 番外阶段J-T1 ssNMR当前基线台账.md`
+- `docs/baselines/PolyNexus 番外阶段J-T1 ssNMR当前基线台账.md`
 
 最小输出：
 - 当前支持的 NMR 输入格式。

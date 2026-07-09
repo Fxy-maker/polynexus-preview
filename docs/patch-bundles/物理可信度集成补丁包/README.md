@@ -20,15 +20,15 @@
 
 ```powershell
 cd D:\PolyNexus
-git am "方案\物理可信度集成补丁包\0001-fix-finish-physical-confidence-integration.patch"
-git am "方案\物理可信度集成补丁包\0002-docs-record-physical-confidence-integration-status.patch"
-git am "方案\物理可信度集成补丁包\0003-chore-restore-utf8-source-compilation.patch"
+git am "docs\patch-bundles\物理可信度集成补丁包\0001-fix-finish-physical-confidence-integration.patch"
+git am "docs\patch-bundles\物理可信度集成补丁包\0002-docs-record-physical-confidence-integration-status.patch"
+git am "docs\patch-bundles\物理可信度集成补丁包\0003-chore-restore-utf8-source-compilation.patch"
 ```
 
 如果主工作区已经有重叠改动，也可以改用三方应用：
 
 ```powershell
-git am --3way "方案\物理可信度集成补丁包\*.patch"
+git am --3way "docs\patch-bundles\物理可信度集成补丁包\*.patch"
 ```
 
 ## 验证命令

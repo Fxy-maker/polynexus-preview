@@ -96,7 +96,7 @@
 先选 1 组真实 IR 样本，把当前状态冻结成专项基线，避免后面一边改一边失去对照。
 
 主要落点：
-- `D:\PolyNexus\方案\PolyNexus 番外阶段E-T1 IR当前基线台账.md`
+- `D:\PolyNexus\docs\baselines\PolyNexus 番外阶段E-T1 IR当前基线台账.md`
 - `D:\PolyNexus\polynexus\orchestrator.py`
 - `D:\PolyNexus\polynexus\core\analysis_evidence.py`
 

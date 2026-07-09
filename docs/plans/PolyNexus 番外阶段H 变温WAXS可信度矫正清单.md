@@ -128,7 +128,7 @@
 - `D:\PolyNexus\tests\eval\cases\real\waxs_real_temperature_pa6_250_170_w_0_00002.json`
 - `D:\PolyNexus\polynexus\core\waxs.py`
 - `D:\PolyNexus\polynexus\core\waxs_engine\waxs_temperature.py`
-- 建议新增：`D:\PolyNexus\方案\PolyNexus 番外阶段H-T1 变温WAXS当前基线台账.md`
+- 建议新增：`D:\PolyNexus\docs\baselines\PolyNexus 番外阶段H-T1 变温WAXS当前基线台账.md`
 
 最小输出：
 
@@ -174,7 +174,7 @@
 
 当前状态：
 
-- 基线台账已冻结，见 [PolyNexus 番外阶段 H-T1 变温WAXS当前基线台账.md](<D:/PolyNexus/方案/PolyNexus 番外阶段H-T1 变温WAXS当前基线台账.md>)
+- 基线台账已冻结，见 [PolyNexus 番外阶段 H-T1 变温WAXS当前基线台账.md](<D:/PolyNexus/docs/baselines/PolyNexus 番外阶段H-T1 变温WAXS当前基线台账.md>)
 - 这份基线显示当前温变 WAXS 仍以 `peak_count_underfit` 为主，`physical_support_pass=False`，因此后续修复应从峰族和背景证据链入手，而不是先追图面顺眼度
 
 

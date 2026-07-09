@@ -245,8 +245,8 @@ git commit -m "feat: score nmr assignments with polymer library"
 ## Task 5: 全链路验收与交付包更新
 
 **Files:**
-- Modify: `方案/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md`
-- Modify/Create: `方案/深层物理模型增强补丁包/*`
+- Modify: `docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md`
+- Modify/Create: `docs/patch-bundles/深层物理模型增强补丁包/*`
 
 - [ ] **Step 1: 跑快速矩阵**
 
@@ -269,7 +269,7 @@ pytest -q
 - [ ] **Step 4: 提交**
 
 ```powershell
-git add 方案
+git add docs
 git commit -m "docs: add deep physics model enhancement handoff"
 ```
 

@@ -78,7 +78,7 @@
 
 下一步建议直接进入：
 
-- [PolyNexus 阶段7任务清单](/D:/PolyNexus/方案/PolyNexus%20阶段7任务清单.md)
+- [PolyNexus 阶段7任务清单](/D:/PolyNexus/docs/plans/PolyNexus%20阶段7任务清单.md)
 
 阶段 7 更适合继续沿着这条线推进：
 

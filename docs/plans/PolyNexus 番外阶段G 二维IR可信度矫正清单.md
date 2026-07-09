@@ -85,7 +85,7 @@
 先把 `测试数据\IR\原位变温红外` 当前行为冻结下来，作为后续修复对照。
 
 主要落点：
-- `D:\PolyNexus\方案\PolyNexus 番外阶段G-T1 二维IR当前基线台账.md`
+- `D:\PolyNexus\docs\baselines\PolyNexus 番外阶段G-T1 二维IR当前基线台账.md`
 - `D:\PolyNexus\tests\test_ir_temperature.py`
 - `D:\PolyNexus\polynexus\core\ir_engine\ir_temperature.py`
 

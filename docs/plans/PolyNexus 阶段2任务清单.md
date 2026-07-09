@@ -10,7 +10,7 @@
 - [x] T6 第一小步已完成：已阻止同一样品下重复挂接同一原始文件，并补充明确提示
 
 阶段二完成后的下一步建议见：
-- [PolyNexus 阶段3起步清单](/D:/PolyNexus/方案/PolyNexus%20阶段3起步清单.md)
+- [PolyNexus 阶段3起步清单](/D:/PolyNexus/docs/plans/PolyNexus%20阶段3起步清单.md)
 
 ## 1. 阶段目标
 

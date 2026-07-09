@@ -79,7 +79,10 @@ llm/            LLM client integration
 rag/            Retrieval and advisory components
 scripts/        Utility and evaluation scripts
 tests/          Automated tests
+docs/           Planning, baselines, acceptance notes, and maintenance docs
 ```
+
+Documentation starts at `docs/README.md`. Current planning notes live under `docs/plans`, baseline ledgers under `docs/baselines`, acceptance and handoff notes under `docs/acceptance`, and patch bundles under `docs/patch-bundles`.
 
 ## Common Entry Points
 
