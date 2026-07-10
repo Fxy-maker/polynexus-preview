@@ -57,6 +57,8 @@ class PanelDefinition:
     column: int
     x_axis: AxisDefinition
     y_axis: AxisDefinition
+    title: str = ""
+    show_legend: bool = False
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -64,6 +66,8 @@ class PanelDefinition:
             "grid_position": {"row": self.row, "column": self.column},
             "x_axis": self.x_axis.to_payload(),
             "y_axis": self.y_axis.to_payload(),
+            "title": self.title,
+            "show_legend": self.show_legend,
         }
 
 

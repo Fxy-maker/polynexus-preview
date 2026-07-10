@@ -8,7 +8,7 @@ from .inspector import FigureArtifactInspection
 from .render_plan import FigureRenderPlan
 
 
-_OBJECT_EDITABLE_TYPES = frozenset({"plot_series", "line", "text"})
+_OBJECT_EDITABLE_TYPES = frozenset({"plot_series", "heatmap", "line", "text"})
 
 
 @dataclass(frozen=True)

@@ -74,7 +74,8 @@ def validate_figure_definition(definition: FigureDefinition) -> None:
         panel_id = str(figure_object.get("panel_id") or "")
         if panel_id not in panel_ids:
             errors.append(f"unknown panel_id: {panel_id}")
-        if figure_object.get("type") != "plot_series":
+        object_type = str(figure_object.get("type") or "")
+        if object_type not in {"plot_series", "heatmap"}:
             continue
         data_ref = str(figure_object.get("data_ref") or "")
         source = source_map.get(data_ref)
@@ -82,7 +83,14 @@ def validate_figure_definition(definition: FigureDefinition) -> None:
             errors.append(f"unknown data_ref: {data_ref}")
             continue
         column_names = {column.name for column in source.columns}
-        for key in ("x_column", "y_column"):
+        if object_type == "plot_series":
+            chart_kind = str(figure_object.get("chart_kind") or "line")
+            if chart_kind not in {"line", "scatter", "bar"}:
+                errors.append(f"invalid chart_kind: {chart_kind}")
+        column_keys = ["x_column", "y_column"]
+        if object_type == "heatmap":
+            column_keys.append("z_column")
+        for key in column_keys:
             column = str(figure_object.get(key) or "")
             if column not in column_names:
                 errors.append(f"unknown {key}: {column}")

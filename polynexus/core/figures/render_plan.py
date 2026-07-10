@@ -24,6 +24,8 @@ class RenderPanel:
     column: int
     x_axis: RenderAxis
     y_axis: RenderAxis
+    title: str = ""
+    show_legend: bool = False
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,8 @@ class FigureRenderPlanBuilder:
             column=int(position["column"]),
             x_axis=self._axis_from_payload(payload["x_axis"]),
             y_axis=self._axis_from_payload(payload["y_axis"]),
+            title=str(payload.get("title") or ""),
+            show_legend=bool(payload.get("show_legend", False)),
         )
 
     @staticmethod

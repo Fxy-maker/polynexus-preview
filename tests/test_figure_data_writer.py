@@ -25,6 +25,34 @@ def test_validator_rejects_unknown_panel(ir_definition):
         validate_figure_definition(broken)
 
 
+def test_validator_rejects_unknown_plot_chart_kind(ir_definition):
+    broken = ir_definition.with_objects(
+        ({**ir_definition.objects[0], "chart_kind": "pie"},)
+    )
+
+    with pytest.raises(FigureDefinitionValidationError, match="chart_kind"):
+        validate_figure_definition(broken)
+
+
+def test_validator_checks_heatmap_z_column(ir_definition):
+    broken = ir_definition.with_objects(
+        (
+            {
+                "id": "map",
+                "type": "heatmap",
+                "panel_id": "main",
+                "data_ref": "spectrum-data",
+                "x_column": "wavenumber_cm1",
+                "y_column": "absorbance",
+                "z_column": "missing",
+            },
+        )
+    )
+
+    with pytest.raises(FigureDefinitionValidationError, match="z_column"):
+        validate_figure_definition(broken)
+
+
 def test_data_writer_uses_run_relative_paths_and_schema(ir_definition, tmp_path):
     run_root = tmp_path / "runs" / "run-1"
     figure_dir = run_root / "figures" / ir_definition.figure_id

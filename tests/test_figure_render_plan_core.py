@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from matplotlib.figure import Figure
 import pytest
 
@@ -66,3 +68,62 @@ def test_renderer_uses_one_plan_for_series_lines_and_text(built_ir_document):
     assert axis.xaxis_inverted()
     assert len(axis.lines) == 2
     assert [text.get_text() for text in axis.texts] == ["1700"]
+
+
+def test_renderer_supports_bar_series_and_panel_legend(render_plan):
+    panel = replace(render_plan.panels[0], title="Metrics", show_legend=True)
+    plan = replace(
+        render_plan,
+        panels=(panel,),
+        objects=(
+            {
+                "id": "bars",
+                "type": "plot_series",
+                "panel_id": "main",
+                "data_ref": "spectrum-data",
+                "x_column": "wavenumber_cm1",
+                "y_column": "absorbance",
+                "name": "Absorbance",
+                "chart_kind": "bar",
+                "style": {"color": "#4477AA"},
+            },
+        ),
+    )
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+    axis = figure.axes[0]
+
+    assert axis.get_title() == "Metrics"
+    assert len(axis.patches) == 2
+    assert axis.get_legend() is not None
+
+
+def test_renderer_supports_regular_grid_heatmap(render_plan):
+    plan = replace(
+        render_plan,
+        objects=(
+            {
+                "id": "map",
+                "type": "heatmap",
+                "panel_id": "main",
+                "data_ref": "grid",
+                "x_column": "q_nm1",
+                "y_column": "temperature_C",
+                "z_column": "intensity",
+                "style": {"cmap": "viridis", "colorbar_label": "I(q)"},
+            },
+        ),
+        data_tables={
+            "grid": {
+                "q_nm1": [0.1, 0.2, 0.1, 0.2],
+                "temperature_C": [30.0, 30.0, 80.0, 80.0],
+                "intensity": [10.0, 5.0, 8.0, 4.0],
+            }
+        },
+    )
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+
+    assert len(figure.axes[0].collections) == 1
+    assert len(figure.axes) == 2
+    assert figure.axes[1].get_ylabel() == "I(q)"

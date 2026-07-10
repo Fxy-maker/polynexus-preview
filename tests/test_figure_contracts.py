@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from polynexus.core.figures.contracts import (
     AxisDefinition,
     DataColumnDefinition,
@@ -91,3 +93,16 @@ def test_figure_definition_serializes_stable_layout_and_data_contract():
     assert payload["figure_id"] == "ir.frame.spectrum.001"
     assert payload["layout"]["panels"][0]["x_axis"]["reversed"] is True
     assert payload["data_sources"][0]["columns"][0]["unit"] == "cm^-1"
+
+
+def test_panel_contract_preserves_title_and_legend(ir_definition):
+    panel = replace(
+        ir_definition.layout.panels[0],
+        title="Spectrum",
+        show_legend=True,
+    )
+
+    payload = panel.to_payload()
+
+    assert payload["title"] == "Spectrum"
+    assert payload["show_legend"] is True

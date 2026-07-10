@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 from matplotlib.figure import Figure
 
 from .render_plan import FigureRenderPlan, RenderAxis
@@ -28,6 +29,7 @@ class MatplotlibFigureRenderer:
             axis = figure.add_subplot(grid[panel.row, panel.column])
             axis.set_xlabel(self._axis_label(panel.x_axis))
             axis.set_ylabel(self._axis_label(panel.y_axis))
+            axis.set_title(panel.title)
             axis.set_xscale(panel.x_axis.scale)
             axis.set_yscale(panel.y_axis.scale)
             if panel.x_axis.reversed:
@@ -49,12 +51,22 @@ class MatplotlibFigureRenderer:
             object_type = str(figure_object.get("type") or "")
             if object_type == "plot_series":
                 self._render_plot_series(axis, plan, figure_object)
+            elif object_type == "heatmap":
+                self._render_heatmap(figure, axis, plan, figure_object)
             elif object_type == "line":
                 self._render_line(axis, figure_object)
             elif object_type == "text":
                 self._render_text(axis, figure_object)
             else:
                 raise ValueError(f"unsupported render object type: {object_type}")
+
+        for panel in plan.panels:
+            if not panel.show_legend:
+                continue
+            axis = axes[panel.panel_id]
+            handles, labels = axis.get_legend_handles_labels()
+            if handles and labels:
+                axis.legend()
 
         return figure
 
@@ -96,7 +108,74 @@ class MatplotlibFigureRenderer:
         name = str(figure_object.get("name") or "")
         if name:
             kwargs["label"] = name
-        axis.plot(table[x_column], table[y_column], **kwargs)
+        chart_kind = str(figure_object.get("chart_kind") or "line")
+        if chart_kind == "bar":
+            axis.bar(
+                table[x_column],
+                table[y_column],
+                color=style.get("color", "#4477AA"),
+                alpha=float(style.get("alpha", 1.0)),
+                label=name or None,
+            )
+        elif chart_kind == "scatter":
+            axis.scatter(
+                table[x_column],
+                table[y_column],
+                color=style.get("color", "#222222"),
+                s=float(style.get("marker_size", 12.0)),
+                alpha=float(style.get("alpha", 1.0)),
+                label=name or None,
+            )
+        elif chart_kind == "line":
+            axis.plot(table[x_column], table[y_column], **kwargs)
+        else:
+            raise ValueError(f"unsupported chart kind: {chart_kind}")
+
+    def _render_heatmap(
+        self,
+        figure: Figure,
+        axis,
+        plan: FigureRenderPlan,
+        figure_object: dict[str, Any],
+    ) -> None:
+        data_ref = str(figure_object.get("data_ref") or "")
+        try:
+            table = plan.data_tables[data_ref]
+        except KeyError as exc:
+            raise ValueError(f"unknown render data source: {data_ref}") from exc
+        x_values = np.asarray(
+            table[str(figure_object.get("x_column") or "")],
+            dtype=float,
+        )
+        y_values = np.asarray(
+            table[str(figure_object.get("y_column") or "")],
+            dtype=float,
+        )
+        z_values = np.asarray(
+            table[str(figure_object.get("z_column") or "")],
+            dtype=float,
+        )
+        unique_x = np.unique(x_values)
+        unique_y = np.unique(y_values)
+        if len(unique_x) == 0 or len(unique_y) == 0:
+            raise ValueError("heatmap data is empty")
+        matrix = np.full((len(unique_y), len(unique_x)), np.nan, dtype=float)
+        x_index = {value: index for index, value in enumerate(unique_x)}
+        y_index = {value: index for index, value in enumerate(unique_y)}
+        for x_value, y_value, z_value in zip(x_values, y_values, z_values):
+            matrix[y_index[y_value], x_index[x_value]] = z_value
+        if np.isnan(matrix).any():
+            raise ValueError("heatmap data does not form a complete regular grid")
+        style = self._style(figure_object)
+        image = axis.pcolormesh(
+            unique_x,
+            unique_y,
+            matrix,
+            shading="auto",
+            cmap=str(style.get("cmap") or "viridis"),
+        )
+        label = str(style.get("colorbar_label") or "")
+        figure.colorbar(image, ax=axis, label=label)
 
     def _render_line(self, axis, figure_object: dict[str, Any]) -> None:
         style = self._style(figure_object)
