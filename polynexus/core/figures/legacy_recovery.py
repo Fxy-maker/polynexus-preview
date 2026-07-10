@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
+
+from ..figure_document import create_static_figure_document
+from .contracts import FigureDefinition
+from .manifest import RunFigureManifest, RunFigureManifestRepository
+from .pipeline import FigurePipeline
 
 
 _RENDERED_EXTENSIONS = {".svg", ".png", ".pdf", ".jpg", ".jpeg", ".tif", ".tiff"}
@@ -97,6 +104,94 @@ class LegacyFigureRecoveryService:
                 )
             unique[candidate_id] = candidate
         return tuple(unique[key] for key in sorted(unique))
+
+    def import_static(
+        self,
+        candidate: LegacyFigureCandidate,
+        *,
+        output_root: str | Path,
+    ) -> Path:
+        if candidate.kind is not LegacyRecoveryKind.STATIC_ONLY:
+            raise ValueError("only static-only candidates can be imported as backgrounds")
+        source = _preferred_static_asset(candidate.assets)
+        if source is None or not source.is_file():
+            raise FileNotFoundError("static recovery candidate has no readable asset")
+        output_root = Path(output_root).resolve()
+        package_id = _safe_package_id(candidate.candidate_id)
+        package_root = output_root / "legacy_recovery" / package_id
+        if package_root.exists():
+            raise FileExistsError(f"legacy recovery package exists: {package_root}")
+        package_root.mkdir(parents=True)
+        try:
+            background_dir = package_root / "background"
+            background_dir.mkdir()
+            background_path = background_dir / source.name
+            shutil.copy2(source, background_path)
+            document = create_static_figure_document(str(background_path))
+            relative_background = Path("background", source.name).as_posix()
+            document["version"] = 2
+            document["figure_id"] = f"legacy.{package_id.lower()}"
+            document["technique"] = candidate.technique
+            document["category"] = "legacy"
+            document["title"] = candidate.title
+            document["vector_fidelity"] = (
+                "raster_embedded"
+                if source.suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+                else "rendered_vector"
+            )
+            background = document["objects"][0]
+            background["source_path"] = relative_background
+            background["path_kind"] = "package_relative"
+            document["export"] = {
+                "profile": "",
+                "published_revision": 0,
+                "assets": {"background": relative_background},
+            }
+            repository = RunFigureManifestRepository(output_root)
+            repository._atomic_write_json(package_root / "figure.pnfig.json", document)
+            repository._atomic_write_json(
+                package_root / "recovery_record.json",
+                {
+                    "schema_version": 1,
+                    "candidate_id": candidate.candidate_id,
+                    "classification": candidate.kind.value,
+                    "reason_code": candidate.reason_code,
+                    "source_root": str(candidate.root),
+                    "source_asset": str(source),
+                    "active_run_changed": False,
+                },
+            )
+        except BaseException:
+            shutil.rmtree(package_root, ignore_errors=True)
+            raise
+        return package_root.resolve()
+
+    def rebuild(
+        self,
+        candidate: LegacyFigureCandidate,
+        *,
+        output_root: str | Path,
+        run_id: str,
+        definition_factory: Callable[
+            [LegacyFigureCandidate], Iterable[FigureDefinition]
+        ]
+        | None = None,
+        profile_id: str = "paper_complete",
+    ) -> RunFigureManifest:
+        if candidate.kind is not LegacyRecoveryKind.REBUILDABLE:
+            raise ValueError("only rebuildable candidates can rerun scientific figures")
+        if definition_factory is None:
+            raise ValueError("rebuildable recovery requires a definition factory")
+        definitions = tuple(definition_factory(candidate))
+        if not definitions:
+            raise ValueError("definition factory returned no figures")
+        return FigurePipeline().run(
+            output_root=Path(output_root),
+            run_id=run_id,
+            technique=candidate.technique,
+            definitions=definitions,
+            profile_id=profile_id,
+        )
 
     def _candidate_files(self) -> Iterable[Path]:
         for path in self.legacy_root.rglob("*"):
@@ -306,10 +401,24 @@ def _asset_stem(assets: dict[str, Path]) -> str:
     return next((path.stem.lower() for path in assets.values()), "figure")
 
 
+def _preferred_static_asset(assets: dict[str, Path]) -> Path | None:
+    for role in ("png", "jpg", "tif", "tiff", "svg", "pdf", "preview"):
+        path = assets.get(role)
+        if path is not None:
+            return path
+    return next(iter(assets.values()), None)
+
+
+def _safe_package_id(value: str) -> str:
+    text = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "")).strip("-.")
+    if not text or "/" in text or "\\" in text:
+        raise ValueError(f"invalid recovery package ID: {value!r}")
+    return text
+
+
 def _is_relative_to(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
     except ValueError:
         return False
     return True
-

@@ -16,6 +16,7 @@ from .legacy_recovery import (
     LegacyFigureRecoveryService,
     LegacyRecoveryKind,
 )
+from .recovery_pipeline import FigureRecoveryPipeline
 
 __all__ = [
     "AxisDefinition",
@@ -30,6 +31,7 @@ __all__ = [
     "FigurePipeline",
     "FigureProjectService",
     "FigureProjectUpdate",
+    "FigureRecoveryPipeline",
     "PanelDefinition",
     "get_figure_output_profile",
 ]
