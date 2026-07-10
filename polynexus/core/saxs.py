@@ -45,7 +45,6 @@ from .saxs_engine import (
     TempSeriesResult,
     analyze_anisotropy,
     AnisotropyResult,
-    set_sci_style,
     export_parameters_csv,
     export_1d_profile,
     export_strain_series_csv,

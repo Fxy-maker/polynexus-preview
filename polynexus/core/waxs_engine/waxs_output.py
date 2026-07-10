@@ -1,4 +1,8 @@
-"""WAXS output module: SCI-quality figure generation."""
+"""Legacy WAXS figure helpers, disabled from formal production rendering.
+
+Import this module explicitly only for legacy recovery or tests. Production
+figures are published by the shared FigureDefinition pipeline.
+"""
 
 import csv
 import sys

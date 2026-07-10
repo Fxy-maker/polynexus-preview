@@ -886,23 +886,21 @@ class ChartGallery(QWidget):
         layout.addWidget(self._asset_group)
 
     def load_directory(self, fig_dir, recursive=False):
-        """Load figures from a directory as thumbnails."""
+        """Load one explicit directory without discovering historical files."""
         self.clear()
         if not os.path.isdir(fig_dir):
             return
+        if recursive:
+            raise ValueError(
+                "recursive figure discovery is available only through "
+                "historical recovery"
+            )
 
         exts = ('.svg', '.png', '.pdf', '.jpg', '.jpeg')
-        if recursive:
-            root = Path(fig_dir)
-            filepaths = sorted(
-                str(p) for p in root.rglob("*")
-                if p.is_file() and p.suffix.lower() in exts
-            )
-        else:
-            filepaths = sorted(
-                os.path.join(fig_dir, f) for f in os.listdir(fig_dir)
-                if f.lower().endswith(exts)
-            )
+        filepaths = sorted(
+            os.path.join(fig_dir, f) for f in os.listdir(fig_dir)
+            if f.lower().endswith(exts)
+        )
 
         self.load_files(filepaths)
 
@@ -1140,6 +1138,5 @@ def _gallery_secondary_label(state: str) -> str:
         FIGURE_STATE_STATIC: tr("CHART_BTN_VIEW_FILE"),
         FIGURE_STATE_UNLINKED_EXPORT: tr("CHART_BTN_OPEN_AS_STATIC"),
     }.get(state, tr("CHART_BTN_VIEW_FILE"))
-
 
 

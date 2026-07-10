@@ -6,9 +6,11 @@ from polynexus.core.ir_engine import (
     IRConfig,
     analyze_temperature_2d_series,
     detect_temperature_2d,
-    generate_temperature_2d_figures,
     load_project,
     preprocess_pipeline,
+)
+from polynexus.core.ir_engine.ir_temperature import (
+    generate_temperature_2d_figures,
 )
 
 

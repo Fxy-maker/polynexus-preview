@@ -1,7 +1,7 @@
-"""DSC output module: SCI-quality figure generation.
+"""Legacy DSC figure helpers, disabled from formal production rendering.
 
-Produces publication-ready figures following the SCI output specification.
-Uses matplotlib with consistent styling.
+Import this module explicitly only for legacy recovery or tests. Production
+figures are published by the shared FigureDefinition pipeline.
 """
 
 import logging

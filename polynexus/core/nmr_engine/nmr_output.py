@@ -1,4 +1,8 @@
-"""NMR output module: SCI-quality figures."""
+"""Legacy NMR figure helpers, disabled from formal production rendering.
+
+Import this module explicitly only for legacy recovery or tests. Production
+figures are published by the shared FigureDefinition pipeline.
+"""
 
 import csv
 import os

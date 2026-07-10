@@ -63,14 +63,6 @@ from .dsc_kinetics import (
     analyze_kinetics,
 )
 from .dsc_output import (
-    set_sci_style,
-    generate_all_figures,
-    fig_d1_full_curve,
-    fig_d2_tg_zoom,
-    fig_d3_crystallinity,
-    fig_d4_avrami,
-    fig_d5_kissinger,
-    fig_d6_deconvolution,
     export_parameters_csv,
 )
 
@@ -121,9 +113,5 @@ __all__ = [
     "friedman_analysis", "mo_analysis",
     "analyze_kinetics",
     # output
-    "set_sci_style", "generate_all_figures",
-    "fig_d1_full_curve", "fig_d2_tg_zoom",
-    "fig_d3_crystallinity", "fig_d4_avrami",
-    "fig_d5_kissinger", "fig_d6_deconvolution",
     "export_parameters_csv",
 ]
