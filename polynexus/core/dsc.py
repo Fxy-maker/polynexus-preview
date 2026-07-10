@@ -32,7 +32,6 @@ from .dsc_engine import (
     normalise_scan,
     preprocess_pipeline,
     analyze_scan,
-    generate_all_figures,
     analyze_kinetics,
     AvramiResult,
 )
@@ -223,18 +222,14 @@ class DSCEngine(BaseEngine):
 
         Returns dict of figure_name → filepath.
         """
-        if not self._results:
-            self.log("No analysis results to plot")
+        definitions = tuple(self.build_figure_definitions())
+        if not definitions:
+            self.log("No figure definitions available")
             return {}
 
         out = output_dir or self._dsc_config.output_dir or "dsc_output"
-        figures = generate_all_figures(
-            self._results, out,
-            config=self._dsc_config,
-            kinetics_data=self._kinetics_data if self._kinetics_data else None,
-        )
-
-        for name, path in figures.items():
+        figures = self.publish_figure_definitions(out, definitions)
+        for path in figures.values():
             self.log(f"  Figure saved: {path}")
 
         return figures

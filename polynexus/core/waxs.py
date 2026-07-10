@@ -13,11 +13,10 @@ from .engine import BaseEngine, EngineCategory, register_technique
 from .submodule_registry import SubModuleSpec, register_submodule
 from .waxs_engine import (
     WAXSConfig, WAXSDataset, WAXSResult,
-    load_project, preprocess_pipeline, analyze_scan, generate_all_figures,
-    WAXSStrainSeriesResult, analyze_strain_series, generate_strain_figures,
+    load_project, preprocess_pipeline, analyze_scan,
+    WAXSStrainSeriesResult, analyze_strain_series,
     export_strain_csv,
-    WAXSTempResult, analyze_temperature_series, fig_waxs_temperature,
-    generate_temperature_figures, export_temperature_csv,
+    WAXSTempResult, analyze_temperature_series,
 )
 
 @register_technique("waxs")
@@ -163,24 +162,13 @@ class WAXSEngine(BaseEngine):
         return build_waxs_figure_definitions(tuple(self._results))
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
-        if not self._results:
-            self.log("No analysis results to plot")
+        definitions = tuple(self.build_figure_definitions())
+        if not definitions:
+            self.log("No figure definitions available")
             return {}
         out = output_dir or self._waxs_config.output_dir or "waxs_output"
-        sub = getattr(self, 'active_submodule', '')
-        if sub == 'waxs.temperature' and self._temperature_result is not None:
-            figures = generate_temperature_figures(
-                self._temperature_result, self._dataset.scans if self._dataset else None,
-                out, config=self._waxs_config,
-            )
-        elif sub == 'waxs.strain' and self._strain_result is not None:
-            figures = generate_strain_figures(
-                self._strain_result, self._dataset.scans if self._dataset else None,
-                out, config=self._waxs_config,
-            )
-        else:
-            figures = generate_all_figures(self._results, out, config=self._waxs_config)
-        for name, path in figures.items():
+        figures = self.publish_figure_definitions(out, definitions)
+        for path in figures.values():
             self.log(f"  Figure saved: {path}")
         return figures
 
@@ -202,7 +190,7 @@ class WAXSEngine(BaseEngine):
         self._results = [p.waxs_result for p in result.point_results if p.waxs_result is not None]
         if output_dir:
             out = output_dir or cfg.output_dir or "waxs_strain_output"
-            generate_strain_figures(result, self._dataset.scans, out, config=cfg)
+            self.plot(out)
             export_strain_csv(result, out)
         return result
 
@@ -235,7 +223,7 @@ class WAXSEngine(BaseEngine):
             self.result.raw_data["Xc_vs_T"] = np.asarray(result.Xc_vs_T, dtype=float)
         if output_dir:
             out = output_dir or cfg.output_dir or "waxs_temp_output"
-            generate_temperature_figures(result, self._dataset.scans, out, config=cfg)
+            self.plot(out)
         return result
 
     def _sequence_values(self, kind: str, default_start: float, default_step: float) -> List[float]:

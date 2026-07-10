@@ -46,32 +46,12 @@ from .saxs_engine import (
     analyze_anisotropy,
     AnisotropyResult,
     set_sci_style,
-    fig_u1_scattering_profile,
-    fig_u2_correlation_function,
-    fig_u3_idf,
-    fig_u4_porod,
-    fig_t2_scattering_waterfall,
-    fig_t3_structure_evolution,
-    fig_t4_invariant_conservation,
-    fig_v1_temperature_waterfall,
-    fig_v2_temperature_parameters,
-    fig_v3_scattering_heatmap,
-    fig_v4_avrami,
-    fig_guinier,
-    fig_kratky,
-    fig_joint_crystallinity,
     export_parameters_csv,
     export_1d_profile,
     export_strain_series_csv,
     export_temp_series_csv,
-    generate_all_figures,
 )
 from . import saxs_batch_helpers as _saxs_batch_helpers
-from .saxs_engine.saxs_output import (
-    fig_static_overview,
-    fig_temperature_overview,
-    fig_strain_overview,
-)
 
 
 logger = logging.getLogger(__name__)
@@ -1531,73 +1511,20 @@ class SAXSEngine(BaseEngine):
     def build_figure_definitions(self):
         """Return scientific figure definitions without publishing assets."""
 
-        if self._temperature_result is None:
-            return ()
-        from .saxs_engine.figure_provider import build_saxs_temperature_definitions
+        from .saxs_engine.figure_provider import build_saxs_figure_definitions
 
-        return build_saxs_temperature_definitions(
-            self._temperature_result,
-            tuple(self._q_list),
-            tuple(self._I_list),
-        )
+        return build_saxs_figure_definitions(self)
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
-        if self._analysis is None and not self._batch_results and self._temperature_result is None and self._strain_result is None and self._q is None:
-            self.log("No analysis results to plot")
+        definitions = tuple(self.build_figure_definitions())
+        if not definitions:
+            self.log("No figure definitions available")
             return {}
         out = output_dir or self.cfg.output_dir or "saxs_output"
-        if self._temperature_result is not None:
-            def _sorted_seq():
-                rows = [
-                    (self._conditions[i], self._q_list[i], self._I_list[i])
-                    for i in range(min(len(self._conditions), len(self._q_list), len(self._I_list)))
-                    if np.isfinite(self._conditions[i])
-                ]
-                rows.sort(key=lambda item: item[0])
-                return rows
-
-            seq = _sorted_seq()
-            lc_effective = np.ravel(np.asarray(self._temperature_result.lc_effective_array, dtype=float))
-            lc_plot = lc_effective if np.any(np.isfinite(lc_effective)) else np.asarray(self._temperature_result.lc_array, dtype=float)
-            root = fig_temperature_overview(
-                np.asarray(self._temperature_result.temperatures, dtype=float),
-                [item[1] for item in seq],
-                [item[2] for item in seq],
-                np.asarray(self._temperature_result.L_array, dtype=float),
-                lc_plot,
-                np.asarray(self._temperature_result.Xc_array, dtype=float),
-                Q_arr=np.asarray(self._temperature_result.Q_star_array, dtype=float),
-                output_path=os.path.join(out, "temperature_overview.pdf"),
-            )
-            return {"temperature_overview": root}
-        if self._strain_result is not None:
-            def _sorted_strain_seq():
-                rows = [
-                    (self._conditions[i], self._q_list[i], self._I_list[i])
-                    for i in range(min(len(self._conditions), len(self._q_list), len(self._I_list)))
-                    if np.isfinite(self._conditions[i])
-                ]
-                rows.sort(key=lambda item: item[0])
-                return rows
-
-            seq = _sorted_strain_seq()
-            root = fig_strain_overview(
-                np.asarray(self._strain_result.strains, dtype=float),
-                [item[1] for item in seq],
-                [item[2] for item in seq],
-                np.asarray(self._strain_result.L_array, dtype=float),
-                np.asarray(self._strain_result.lc_array, dtype=float),
-                np.asarray(self._strain_result.la_array, dtype=float),
-                np.asarray(self._strain_result.f_herman_array, dtype=float),
-                Q_arr=np.asarray(self._strain_result.Q_star_array, dtype=float),
-                Q_rel_arr=np.asarray(self._strain_result.Q_star_rel_array, dtype=float),
-                output_path=os.path.join(out, "strain_overview.pdf"),
-            )
-            return {"strain_overview": root}
-        target = self._batch_results if self._batch_results else self._analysis
-        if target is None:
-            return {}
-        return generate_all_figures(target, out, config=self.cfg)
+        figures = self.publish_figure_definitions(out, definitions)
+        for path in figures.values():
+            self.log(f"  Figure saved: {path}")
+        return figures
 
     def get_parameters(self) -> Dict[str, Any]:
         if self._temperature_result is not None:

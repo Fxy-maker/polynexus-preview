@@ -33,11 +33,9 @@ from .ir_engine import (
     load_computed_modes,
     preprocess_pipeline,
     analyze_spectrum,
-    generate_all_figures,
     IRTemp2DResult,
     detect_temperature_2d,
     analyze_temperature_2d_series,
-    generate_temperature_2d_figures,
     simulate_spectrum,
 )
 
@@ -216,22 +214,19 @@ class IREngine(BaseEngine):
         return build_ir_figure_definitions(tuple(self._results))
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
-        if self.active_submodule == "ir.temperature_2d":
-            if not self._temperature_2d_result:
-                self.log("No temperature 2D IR result to plot"); return {}
-            out = output_dir or self._ir_config.output_dir or "ir_temperature_2d_output"
-            figures = generate_temperature_2d_figures(
-                self._temperature_2d_result, out, config=self._ir_config)
-            for name, path in figures.items():
-                self.log(f"  Figure: {path}")
-            return figures
-
-        if not self._results:
-            self.log("No results to plot"); return {}
-        out = output_dir or self._ir_config.output_dir or "ir_output"
-        figures = generate_all_figures(self._results, out, config=self._ir_config)
-        for name, path in figures.items():
-            self.log(f"  Figure: {path}")
+        definitions = tuple(self.build_figure_definitions())
+        if not definitions:
+            self.log("No figure definitions available")
+            return {}
+        default_output = (
+            "ir_temperature_2d_output"
+            if self.active_submodule == "ir.temperature_2d"
+            else "ir_output"
+        )
+        out = output_dir or self._ir_config.output_dir or default_output
+        figures = self.publish_figure_definitions(out, definitions)
+        for path in figures.values():
+            self.log(f"  Figure saved: {path}")
         return figures
 
     def get_parameters(self) -> Dict[str, Any]:

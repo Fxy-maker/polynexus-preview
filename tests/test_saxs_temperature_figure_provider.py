@@ -1,10 +1,12 @@
 import numpy as np
 import pytest
+from types import SimpleNamespace
 
 from polynexus.core.figures.validation import validate_figure_definition
 from polynexus.core.saxs import SAXSEngine
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.figure_provider import (
+    build_saxs_figure_definitions,
     build_saxs_temperature_definitions,
 )
 from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
@@ -105,6 +107,103 @@ def test_saxs_engine_exposes_temperature_figure_definitions(
 
     assert definitions
     assert all(item.technique == "saxs" for item in definitions)
-    assert "saxs.series.temperature.heatmap" in {
-        item.figure_id for item in definitions
+    assert "saxs.series.temperature.heatmap" in {item.figure_id for item in definitions}
+
+
+def _saxs_provider_state(**overrides):
+    state = {
+        "_analysis": None,
+        "_batch_results": [],
+        "_temperature_result": None,
+        "_strain_result": None,
+        "_q_list": [],
+        "_I_list": [],
+        "_conditions": [],
     }
+    state.update(overrides)
+    return SimpleNamespace(**state)
+
+
+def _analyzed_saxs_frame(label, q, intensity, smooth=None, condition=np.nan):
+    return SimpleNamespace(
+        label=label,
+        condition_value=condition,
+        q=np.asarray(q, dtype=float),
+        I=np.asarray(intensity, dtype=float),
+        I_smooth=np.asarray(smooth, dtype=float) if smooth is not None else None,
+    )
+
+
+def test_saxs_provider_emits_static_single_profile_from_analyzed_arrays():
+    result = _analyzed_saxs_frame(
+        "sample-a",
+        [0.1, 0.2, 0.3],
+        [100.0, 60.0, 20.0],
+        smooth=[95.0, 58.0, 19.0],
+    )
+
+    definitions = build_saxs_figure_definitions(
+        _saxs_provider_state(_analysis=result, _batch_results=[result])
+    )
+
+    assert [item.figure_id for item in definitions] == ["saxs.frame.static.scattering.001"]
+    profile = definitions[0]
+    assert profile.category == "per_frame"
+    assert profile.data_sources[0].values == {
+        "q_nm1": (0.1, 0.2, 0.3),
+        "intensity_au": (95.0, 58.0, 19.0),
+    }
+    assert profile.recipe["function"] == "build_saxs_figure_definitions"
+    validate_figure_definition(profile)
+
+
+def test_saxs_provider_emits_batch_profiles_and_static_waterfall():
+    results = [
+        _analyzed_saxs_frame("sample-a", [0.1, 0.2], [100.0, 50.0]),
+        _analyzed_saxs_frame("sample-b", [0.1, 0.2], [80.0, 40.0]),
+    ]
+
+    definitions = build_saxs_figure_definitions(_saxs_provider_state(_batch_results=results))
+
+    assert [item.figure_id for item in definitions] == [
+        "saxs.frame.static.scattering.001",
+        "saxs.frame.static.scattering.002",
+        "saxs.series.static.waterfall",
+    ]
+    waterfall = definitions[-1]
+    assert [obj["name"] for obj in waterfall.objects] == [
+        "sample-a",
+        "sample-b",
+    ]
+    assert len(waterfall.data_sources) == 2
+    for definition in definitions:
+        validate_figure_definition(definition)
+
+
+def test_saxs_provider_emits_strain_profiles_and_waterfall_from_loaded_frames():
+    strain_result = SimpleNamespace(strains=np.array([0.0, 25.0]))
+
+    definitions = build_saxs_figure_definitions(
+        _saxs_provider_state(
+            _strain_result=strain_result,
+            _q_list=[np.array([0.1, 0.2]), np.array([0.12, 0.22])],
+            _I_list=[np.array([100.0, 50.0]), np.array([70.0, 35.0])],
+            _conditions=[0.0, 25.0],
+        )
+    )
+
+    assert [item.figure_id for item in definitions] == [
+        "saxs.frame.strain.scattering.001",
+        "saxs.frame.strain.scattering.002",
+        "saxs.series.strain.waterfall",
+    ]
+    assert [obj["name"] for obj in definitions[-1].objects] == [
+        "0% strain",
+        "25% strain",
+    ]
+    assert all(
+        definition.recipe["function"] == "build_saxs_figure_definitions"
+        for definition in definitions
+    )
+    for definition in definitions:
+        validate_figure_definition(definition)
