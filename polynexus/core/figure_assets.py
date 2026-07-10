@@ -133,6 +133,12 @@ def _read_asset_dimensions(*paths: Path) -> Tuple[int, int, int, Tuple[float, fl
     return 0, 0, 0, (0.0, 0.0)
 
 
+def read_figure_asset_dimensions(path: str | Path) -> Tuple[int, int, int]:
+    """Return width, height, and DPI for one supported figure asset."""
+
+    return _read_dimensions_for_path(Path(path).resolve())
+
+
 def _read_dimensions_for_path(path: Path) -> Tuple[int, int, int]:
     suffix = path.suffix.lower().lstrip(".")
     try:
