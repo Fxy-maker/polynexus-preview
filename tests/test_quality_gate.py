@@ -4,6 +4,7 @@ from scripts.quality_gate import (
     GateCommand,
     default_commands,
     run_commands,
+    scan_figure_lifecycle_sources,
     scan_migrated_figure_provider,
 )
 
@@ -102,3 +103,18 @@ def test_real_ir_provider_passes_figure_provider_gate():
     )
 
     assert failures == []
+
+
+def test_lifecycle_gate_scans_all_migrated_figure_providers(tmp_path):
+    ir_provider = tmp_path / "polynexus/core/ir_engine/figure_provider.py"
+    saxs_provider = tmp_path / "polynexus/core/saxs_engine/figure_provider.py"
+    ir_provider.parent.mkdir(parents=True)
+    saxs_provider.parent.mkdir(parents=True)
+    ir_provider.write_text("DEFINITION = 1\n", encoding="utf-8")
+    saxs_provider.write_text("figure.savefig('bad.pdf')\n", encoding="utf-8")
+
+    failures = scan_figure_lifecycle_sources(tmp_path)
+
+    assert failures == [
+        "figure_provider.py: migrated figure providers must not call savefig"
+    ]

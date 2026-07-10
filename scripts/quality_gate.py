@@ -47,11 +47,11 @@ def scan_figure_lifecycle_sources(root: Path) -> list[str]:
 
     root = Path(root)
     failures: list[str] = []
-    provider = root / "polynexus" / "core" / "ir_engine" / "figure_provider.py"
-    if provider.is_file():
+    core_dir = root / "polynexus" / "core"
+    for provider in sorted(core_dir.glob("*_engine/figure_provider.py")):
         failures.extend(scan_migrated_figure_provider(provider))
 
-    figures_dir = root / "polynexus" / "core" / "figures"
+    figures_dir = core_dir / "figures"
     excluded = {"renderer.py", "export_service.py"}
     for path in sorted(figures_dir.glob("*.py")):
         if path.name in excluded:
