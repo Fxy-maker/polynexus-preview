@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import matplotlib
 import pytest
 
 from polynexus.core.figures.export_service import FigureArtifactExportService
@@ -42,3 +43,15 @@ def test_export_failure_does_not_commit_partial_assets(
         )
 
     assert not (figure_dir / "assets").exists()
+
+
+def test_export_service_ignores_process_global_tight_bbox(render_plan, tmp_path):
+    with matplotlib.rc_context({"savefig.bbox": "tight"}):
+        result = FigureArtifactExportService().export_initial(
+            plan=render_plan,
+            figure_dir=tmp_path / "figure",
+            profile=get_figure_output_profile("paper_complete"),
+        )
+
+    assert result.inspection.complete is True
+    assert result.inspection.dimensions["png"][0:2] == (1200, 600)

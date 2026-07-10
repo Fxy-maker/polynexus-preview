@@ -64,6 +64,7 @@ class FigureArtifactExportService:
                     "svg.fonttype": "none",
                     "pdf.fonttype": 42,
                     "ps.fonttype": 42,
+                    "savefig.bbox": None,
                 }
             ):
                 self._save_preview(plan, staged_assets["preview"], profile)
