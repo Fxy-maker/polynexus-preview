@@ -354,9 +354,11 @@ def apply_figure_edit(fig, figure_path: str):
 
 def savefig_with_edits(fig, path: str, **savefig_kwargs):
     """Apply sidecar edits, then save a matplotlib figure."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     style = load_figure_edit(path)
     apply_figure_edit(fig, path)
     _apply_cjk_font_fallback(fig)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     if style.get("bg_color") and "facecolor" in savefig_kwargs:
         savefig_kwargs["facecolor"] = style["bg_color"]
     fig.savefig(path, **savefig_kwargs)

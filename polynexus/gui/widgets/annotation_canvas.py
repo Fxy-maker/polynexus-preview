@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsText
 class AnnotationCanvas(QWidget):
     tool_changed = Signal(str)
     selection_changed = Signal(str)
+    annotations_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -105,6 +106,7 @@ class AnnotationCanvas(QWidget):
         self._annotations.append(annotation)
         self._draw_annotation(annotation)
         self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
         return annotation_id
 
     def add_rectangle_annotation(self, x: float, y: float, width: float, height: float) -> str:
@@ -125,6 +127,7 @@ class AnnotationCanvas(QWidget):
         self._annotations.append(annotation)
         self._draw_annotation(annotation)
         self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
         return annotation_id
 
     def add_line_annotation(self, x1: float, y1: float, x2: float, y2: float) -> str:
@@ -151,6 +154,7 @@ class AnnotationCanvas(QWidget):
         self._annotations.append(annotation)
         self._draw_annotation(annotation)
         self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
         return annotation_id
 
     def set_tool(self, tool: str) -> bool:
@@ -180,6 +184,7 @@ class AnnotationCanvas(QWidget):
         if self._selected_annotation_id == annotation_id:
             self._selected_annotation_id = ""
         self._rebuild_scene()
+        self.annotations_changed.emit()
         return True
 
     def select_annotation(self, annotation_id: str) -> bool:
@@ -193,6 +198,14 @@ class AnnotationCanvas(QWidget):
 
     def selected_annotation_id(self) -> str:
         return self._selected_annotation_id
+
+    def clear_selection(self) -> bool:
+        had_selection = bool(self._selected_annotation_id)
+        self._selected_annotation_id = ""
+        for item in self._scene.items():
+            item.setSelected(False)
+        self.selection_changed.emit("")
+        return had_selection
 
     def selected_annotation(self) -> dict:
         if not self._selected_annotation_id:
@@ -226,6 +239,7 @@ class AnnotationCanvas(QWidget):
             return False
         self._rebuild_scene()
         self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
         return True
 
     def update_selected_text(self, text: str) -> bool:
@@ -238,6 +252,7 @@ class AnnotationCanvas(QWidget):
         annotation["text"] = str(text)
         self._rebuild_scene()
         self.select_annotation(str(annotation.get("id", "")))
+        self.annotations_changed.emit()
         return True
 
     def update_selected_properties(
@@ -263,6 +278,55 @@ class AnnotationCanvas(QWidget):
         annotation_id = str(annotation.get("id", ""))
         self._rebuild_scene()
         self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
+        return True
+
+    def update_selected_geometry(
+        self,
+        *,
+        x: float | None = None,
+        y: float | None = None,
+        width: float | None = None,
+        height: float | None = None,
+        x1: float | None = None,
+        y1: float | None = None,
+        x2: float | None = None,
+        y2: float | None = None,
+    ) -> bool:
+        if not self._selected_annotation_id:
+            return False
+        annotation = self._annotation_by_id(self._selected_annotation_id)
+        if annotation is None:
+            return False
+
+        updates = {}
+        if x is not None and "x" in annotation:
+            updates["x"] = round(min(1.0, max(0.0, float(x))), 6)
+        if y is not None and "y" in annotation:
+            updates["y"] = round(min(1.0, max(0.0, float(y))), 6)
+        if width is not None and "width" in annotation:
+            updates["width"] = round(min(1.0, max(0.0, float(width))), 6)
+        if height is not None and "height" in annotation:
+            updates["height"] = round(min(1.0, max(0.0, float(height))), 6)
+        if x1 is not None and "x1" in annotation:
+            updates["x1"] = round(min(1.0, max(0.0, float(x1))), 6)
+        if y1 is not None and "y1" in annotation:
+            updates["y1"] = round(min(1.0, max(0.0, float(y1))), 6)
+        if x2 is not None and "x2" in annotation:
+            updates["x2"] = round(min(1.0, max(0.0, float(x2))), 6)
+        if y2 is not None and "y2" in annotation:
+            updates["y2"] = round(min(1.0, max(0.0, float(y2))), 6)
+        if not updates:
+            return False
+        if all(annotation.get(key) == value for key, value in updates.items()):
+            return False
+
+        self._push_undo()
+        annotation.update(updates)
+        annotation_id = str(annotation.get("id", ""))
+        self._rebuild_scene()
+        self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
         return True
 
     def copy_selected_annotation(self) -> bool:
@@ -283,6 +347,7 @@ class AnnotationCanvas(QWidget):
         self._draw_annotation(annotation)
         annotation_id = str(annotation.get("id", ""))
         self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
         return annotation_id
 
     def bring_selected_to_front(self) -> bool:
@@ -321,6 +386,7 @@ class AnnotationCanvas(QWidget):
         for annotation in self._annotations:
             self._draw_annotation(annotation)
         self.fit_to_window()
+        self.annotations_changed.emit()
         return True
 
     def undo(self) -> bool:
@@ -328,7 +394,7 @@ class AnnotationCanvas(QWidget):
             return False
         self._redo_stack.append(self._snapshot_state())
         self._restore_state(self._undo_stack.pop())
-        self._selected_annotation_id = ""
+        self.annotations_changed.emit()
         return True
 
     def redo(self) -> bool:
@@ -336,7 +402,7 @@ class AnnotationCanvas(QWidget):
             return False
         self._undo_stack.append(self._snapshot_state())
         self._restore_state(self._redo_stack.pop())
-        self._selected_annotation_id = ""
+        self.annotations_changed.emit()
         return True
 
     def zoom_level(self) -> float:
@@ -373,7 +439,7 @@ class AnnotationCanvas(QWidget):
         self.sync_scene_items_to_state()
         return deepcopy(self._annotations)
 
-    def sync_scene_items_to_state(self) -> bool:
+    def sync_scene_items_to_state(self, emit_changed=True) -> bool:
         if self._image_width <= 0 or self._image_height <= 0:
             return False
         updates: dict[str, dict] = {}
@@ -440,6 +506,8 @@ class AnnotationCanvas(QWidget):
             self._rebuild_scene()
             if selected_id:
                 self.select_annotation(selected_id)
+            if emit_changed:
+                self.annotations_changed.emit()
         return changed
 
     def load_annotation_state(self, annotations: list[dict]) -> None:
@@ -472,6 +540,10 @@ class AnnotationCanvas(QWidget):
         return image
 
     def eventFilter(self, watched, event):
+        if watched is self._view.viewport() and self._current_tool == "select":
+            if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                self.sync_scene_items_to_state()
+                return False
         if watched is self._view.viewport() and self._current_tool != "select":
             if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 self._draw_start = self._scene_point_from_event(event)
@@ -490,7 +562,7 @@ class AnnotationCanvas(QWidget):
     def keyPressEvent(self, event):
         if event.modifiers() & Qt.ControlModifier:
             if event.key() == Qt.Key_Z:
-                self.sync_scene_items_to_state()
+                self.sync_scene_items_to_state(emit_changed=False)
                 if self.undo():
                     event.accept()
                     return
@@ -518,6 +590,10 @@ class AnnotationCanvas(QWidget):
                 if self.set_zoom_100():
                     event.accept()
                     return
+        if event.key() == Qt.Key_Escape:
+            if self.clear_selection():
+                event.accept()
+                return
         if event.key() in {Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down}:
             if self._nudge_selected_annotation(event.key(), event.modifiers()):
                 event.accept()
@@ -553,12 +629,15 @@ class AnnotationCanvas(QWidget):
             "image_width": self._image_width,
             "image_height": self._image_height,
             "pixmap": pixmap,
+            "selected_annotation_id": self._selected_annotation_id,
         }
 
     def _restore_state(self, state: dict) -> None:
+        previous_selected_id = self._selected_annotation_id
         self._annotations = deepcopy(state.get("annotations", []))
         self._image_width = int(state.get("image_width", 0) or 0)
         self._image_height = int(state.get("image_height", 0) or 0)
+        selected_id = str(state.get("selected_annotation_id", "") or "")
         pixmap = state.get("pixmap")
         self._scene.clear()
         self._pixmap_item = None
@@ -568,6 +647,11 @@ class AnnotationCanvas(QWidget):
         for annotation in self._annotations:
             self._draw_annotation(annotation)
         self._scene.setSceneRect(QRectF(0, 0, self._image_width, self._image_height))
+        if selected_id and self.select_annotation(selected_id):
+            return
+        self._selected_annotation_id = ""
+        if previous_selected_id:
+            self.selection_changed.emit("")
 
     def _set_zoom_level(self, level: float) -> bool:
         if self._image_width <= 0 or self._image_height <= 0:
@@ -717,6 +801,7 @@ class AnnotationCanvas(QWidget):
         annotation_id = str(annotation.get("id", ""))
         self._rebuild_scene()
         self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
         return True
 
     def _annotations_after_crop(
@@ -886,6 +971,7 @@ class AnnotationCanvas(QWidget):
         self._annotations.append(annotation)
         self._draw_annotation(annotation)
         self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
         return annotation_id
 
     def _draw_arrow_head(self, x1: float, y1: float, x2: float, y2: float, pen: QPen):
