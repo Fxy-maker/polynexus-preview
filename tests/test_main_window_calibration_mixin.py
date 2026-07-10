@@ -1,0 +1,21 @@
+from __future__ import annotations
+
+from polynexus.gui.main_window import MainWindow
+from polynexus.gui.main_window_calibration_mixin import MainWindowCalibrationMixin
+
+
+def test_main_window_reuses_calibration_helpers_from_calibration_mixin() -> None:
+    assert MainWindow._current_mask_summary_text is MainWindowCalibrationMixin._current_mask_summary_text
+    assert MainWindow._refresh_mask_summary_label is MainWindowCalibrationMixin._refresh_mask_summary_label
+    assert MainWindow._current_calibration_scope is MainWindowCalibrationMixin._current_calibration_scope
+    assert MainWindow._calibration_settings_key is MainWindowCalibrationMixin._calibration_settings_key
+    assert MainWindow._current_calibration_scope_label is MainWindowCalibrationMixin._current_calibration_scope_label
+    assert MainWindow._collect_calibration_panel_values is MainWindowCalibrationMixin._collect_calibration_panel_values
+    assert MainWindow._compatible_recent_calibration_values is MainWindowCalibrationMixin._compatible_recent_calibration_values
+    assert MainWindow._refresh_recent_calibration_button is MainWindowCalibrationMixin._refresh_recent_calibration_button
+    assert MainWindow._save_recent_calibration is MainWindowCalibrationMixin._save_recent_calibration
+    assert MainWindow._load_recent_calibration is MainWindowCalibrationMixin._load_recent_calibration
+    assert MainWindow._validate_calibration_inputs is MainWindowCalibrationMixin._validate_calibration_inputs
+    assert MainWindow._validate_mask_inputs is MainWindowCalibrationMixin._validate_mask_inputs
+    assert MainWindow._on_apply_recent_calibration is MainWindowCalibrationMixin._on_apply_recent_calibration
+    assert MainWindow._on_save_recent_calibration is MainWindowCalibrationMixin._on_save_recent_calibration
