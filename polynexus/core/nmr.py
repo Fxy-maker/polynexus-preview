@@ -408,6 +408,13 @@ class NMREngine(BaseEngine):
                 self.result.metadata["median_snr"] = f"{first_result.median_snr:.6g}"
         return True
 
+    def build_figure_definitions(self):
+        """Return scientific figure definitions without publishing assets."""
+
+        from .nmr_engine.figure_provider import build_nmr_figure_definitions
+
+        return build_nmr_figure_definitions(tuple(self._results))
+
     def plot(self, output_dir=""):
         if not self._results:
             self.log("No results")
