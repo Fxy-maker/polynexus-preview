@@ -12,10 +12,12 @@ from .figure_window_service import (
     show_chart_preview,
 )
 from .i18n import tr
+from .legacy_figure_recovery_service import build_legacy_recovery_gallery_entries
 from .plot_gallery_service import (
     build_active_manifest_gallery_entries,
     select_plot_gallery_entry,
 )
+from .widgets.chart_viewer import ChartViewer
 
 
 class MainWindowFigureMixin:
@@ -87,6 +89,24 @@ class MainWindowFigureMixin:
             edit_requested_handler=self._open_selected_chart_editor,
             status_message_handler=self._on_chart_viewer_status,
         )
+
+    def _open_legacy_recovery_view(self):
+        """Open explicit historical discovery without replacing active gallery state."""
+        entries = build_legacy_recovery_gallery_entries(self._output_dir)
+        if not entries:
+            self.log(tr("LEGACY_RECOVERY_EMPTY"))
+            return None
+        viewer = ChartViewer()
+        viewer.setWindowTitle(tr("LEGACY_RECOVERY_WINDOW_TITLE"))
+        viewer.edit_requested.connect(self._open_selected_chart_editor)
+        viewer.status_message.connect(self._on_chart_viewer_status)
+        viewer.load_entries(entries)
+        viewer.resize(1180, 820)
+        viewer.show()
+        viewer.raise_()
+        viewer.activateWindow()
+        self._legacy_figure_viewer = viewer
+        return viewer
 
     def _on_chart_viewer_status(self, message, level="info"):
         line = chart_viewer_status_line(message, level=level)

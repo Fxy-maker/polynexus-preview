@@ -2534,6 +2534,14 @@ class MainWindow(
 
         toolbar.addWidget(self._btn_view_current_figure)
 
+        self._btn_legacy_recovery = QPushButton(tr("PLOTS_BTN_RECOVER_LEGACY"))
+
+        self._btn_legacy_recovery.setObjectName("secondary_btn")
+
+        self._btn_legacy_recovery.clicked.connect(self._open_legacy_recovery_view)
+
+        toolbar.addWidget(self._btn_legacy_recovery)
+
         toolbar.addStretch()
 
         layout.addLayout(toolbar)
