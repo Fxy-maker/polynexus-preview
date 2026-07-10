@@ -13,9 +13,12 @@ from polynexus.gui.figure_window_service import (
     open_chart_editor,
     open_chart_viewer,
     refresh_saved_figure_in_gallery,
+    resolve_chart_editor_entry,
     show_chart_preview,
 )
 from polynexus.core.figure_document import save_generated_figure_document
+from polynexus.core.figures.pipeline import FigurePipeline
+from polynexus.gui.plot_gallery_service import build_active_manifest_gallery_entries
 
 
 class _FakeSignal:
@@ -313,6 +316,24 @@ def test_open_chart_viewer_and_editor_ignore_blank_paths():
 
     assert open_chart_editor("", editor=editor) is editor
     assert editor.source_figure == ""
+
+
+def test_manifest_object_capability_does_not_downgrade_formal_layout(
+    ir_definition,
+    tmp_path,
+):
+    FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="run-1",
+        technique="ir",
+        definitions=(ir_definition,),
+    )
+    entry = build_active_manifest_gallery_entries(tmp_path)[0]
+
+    request = resolve_chart_editor_entry(entry.primary_path, entry=entry)
+
+    assert request.force_static is False
+    assert request.entry is entry
 
 
 def test_open_convergence_viewer_handles_success_warning_and_critical_paths():

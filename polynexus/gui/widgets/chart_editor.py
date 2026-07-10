@@ -1,28 +1,21 @@
 """Live chart editor and exported-figure settings panel."""
 
-import csv
 import logging
-logger = logging.getLogger(__name__)
-
-from copy import deepcopy
-import shutil
+import shutil  # noqa: F401 - runtime API consumed by save mixin
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QRect, QRectF, QSize, QSizeF, Qt, Signal
-from PySide6.QtGui import QImage, QPageSize, QPainter, QPdfWriter
-from PySide6.QtSvg import QSvgGenerator
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
-    QFileDialog,
+    QFileDialog,  # noqa: F401 - runtime API consumed by save mixin
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
-    QListWidgetItem,
-    QMessageBox,
+    QMessageBox,  # noqa: F401 - runtime API consumed by style-preset mixin
     QPushButton,
     QScrollArea,
     QDoubleSpinBox,
@@ -36,21 +29,11 @@ from PySide6.QtWidgets import (
 import matplotlib
 
 matplotlib.use("QtAgg")
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 
 from ..i18n import tr
-from ..chart_editor_generated_helpers import (
-    coerce_plot_value as _shared_coerce_plot_value,
-    format_generated_grid_label as _shared_format_generated_grid_label,
-    optional_float as _shared_optional_float,
-)
-from ..chart_editor_generated_object_helpers import (
-    generated_column_values as _shared_generated_column_values,
-    generated_object_xy as _shared_generated_object_xy,
-)
 from ..chart_editor_plot_helpers import (
     make_bar_plot as _shared_make_bar_plot,
     make_line_plot as _shared_make_line_plot,
@@ -95,9 +78,9 @@ from .chart_viewer import FigureFilePreview
 from ..figure_render_adapter import FigureRenderAdapter
 from ..figure_selection_model import FigureSelectionModel
 from ...core.figure_document import (
-    create_static_figure_document,
+    create_static_figure_document,  # noqa: F401 - runtime API for save mixin
     load_figure_document,
-    save_figure_document,
+    save_figure_document,  # noqa: F401 - runtime API consumed by save mixin
 )
 from ...core.figure_assets import discover_figure_asset
 from ...core.plot_edits import (
@@ -105,18 +88,20 @@ from ...core.plot_edits import (
     FIGURE_SIZES,
     FONT_SIZES,
     LINE_WIDTHS,
-    delete_style_preset,
+    delete_style_preset,  # noqa: F401 - runtime API for style-preset mixin
     load_figure_edit,
     load_figure_annotations,
-    load_style_preset,
-    list_style_presets,
-    save_figure_annotations,
-    save_figure_asset_spec,
-    save_figure_document_path,
-    save_figure_edit,
-    save_style_preset,
+    load_style_preset,  # noqa: F401 - runtime API for style-preset mixin
+    list_style_presets,  # noqa: F401 - runtime API for style-preset mixin
+    save_figure_annotations,  # noqa: F401 - runtime API for save mixin
+    save_figure_asset_spec,  # noqa: F401 - runtime API for save mixin
+    save_figure_document_path,  # noqa: F401 - runtime API for save mixin
+    save_figure_edit,  # noqa: F401 - runtime API for save mixin
+    save_style_preset,  # noqa: F401 - runtime API for style-preset mixin
 )
-from ...plotting.sci_style import set_sci_style as _apply_sci_style
+from ...plotting.sci_style import set_sci_style as _apply_sci_style  # noqa: F401
+
+logger = logging.getLogger(__name__)
 
 LINE_STYLE_OPTIONS = {
     "Solid": "-",
@@ -180,6 +165,7 @@ class ChartEditor(
         self._mode_summary_key = ""
         self._asset_spec = None
         self._figure_document = {}
+        self._shared_render_plan = None
         self._generated_document_mode = False
         self._static_file_mode = False
         self._current_colours = list(COLOUR_SCHEMES["Default Blue"])
@@ -828,6 +814,7 @@ class ChartEditor(
         self._force_static_source_mode = bool(force_static)
         self._asset_spec = None
         self._figure_document = {}
+        self._shared_render_plan = None
         self._selected_figure_object_id = ""
         self._hovered_figure_object_id = ""
         self._selection_status_text = ""
@@ -855,7 +842,12 @@ class ChartEditor(
         self._set_mode_header("")
 
         if self._source_path:
-            self._figure_document = load_figure_document(self._source_path)
+            document_path = str(
+                getattr(self._source_entry_context, "document_path", "") or ""
+            ).strip()
+            self._figure_document = load_figure_document(
+                document_path or self._source_path
+            )
             self._asset_spec = discover_figure_asset(self._source_path)
             self._source_preview.load_figure(self._source_path)
             self.set_output_target(self._source_path)
@@ -912,6 +904,7 @@ class ChartEditor(
         self._source_path = ""
         self._asset_spec = None
         self._figure_document = {}
+        self._shared_render_plan = None
         self._selected_figure_object_id = ""
         self._hovered_figure_object_id = ""
         self._selection_status_text = ""

@@ -187,8 +187,10 @@ def save_generated_figure_document(
 
 
 def load_figure_document(figure_path: str) -> dict:
-    path = figure_document_path(figure_path)
-    if not path.exists():
+    source_path = Path(figure_path).resolve()
+    is_document_path = source_path.name.lower().endswith(".pnfig.json")
+    path = source_path if is_document_path else figure_document_path(figure_path)
+    if not path.exists() and not is_document_path:
         try:
             from .plot_edits import load_figure_document_path
 

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 from polynexus.gui.widgets.chart_editor import ChartEditor
 
 
@@ -120,3 +123,54 @@ def test_chart_editor_reuses_generated_document_and_static_preview_helpers_from_
         ChartEditor._apply_sci_defaults
         is ChartEditorGeneratedDocumentMixin._apply_sci_defaults
     )
+
+
+def test_manifest_document_builds_figure_from_shared_render_plan(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    from polynexus.gui.widgets import chart_editor_generated_document_mixin as module
+
+    calls = {}
+    expected_plan = SimpleNamespace(figure_id="manifest-figure")
+    expected_figure = object()
+    document_path = tmp_path / "figure.pnfig.json"
+
+    class _Builder:
+        def __init__(self, run_root):
+            calls["run_root"] = run_root
+
+        def build(self, path, document):
+            calls["document_path"] = path
+            calls["document"] = document
+            return expected_plan
+
+    class _Renderer:
+        def render(self, plan, *, dpi):
+            calls["plan"] = plan
+            calls["dpi"] = dpi
+            return expected_figure
+
+    monkeypatch.setattr(module, "FigureRenderPlanBuilder", _Builder, raising=False)
+    monkeypatch.setattr(module, "MatplotlibFigureRenderer", _Renderer, raising=False)
+
+    editor = object.__new__(module.ChartEditorGeneratedDocumentMixin)
+    editor._figure_document = {"mode": "object", "figure_id": "manifest-figure"}
+    editor._source_entry_context = SimpleNamespace(
+        run_root=str(tmp_path),
+        document_path=str(document_path),
+    )
+    editor._dpi = 150
+    editor._shared_render_plan = None
+
+    figure = editor._build_generated_figure_document()
+
+    assert figure is expected_figure
+    assert calls == {
+        "run_root": Path(tmp_path),
+        "document_path": document_path,
+        "document": editor._figure_document,
+        "plan": expected_plan,
+        "dpi": 150,
+    }
+    assert editor._shared_render_plan is expected_plan

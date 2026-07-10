@@ -24,6 +24,8 @@ from ..chart_editor_generated_object_helpers import (
 )
 from ...plotting.sci_style import set_sci_style as _apply_sci_style
 from ...core.plot_edits import COLOUR_SCHEMES, FIGURE_SIZES, LINE_WIDTHS
+from ...core.figures.render_plan import FigureRenderPlanBuilder
+from ...core.figures.renderer import MatplotlibFigureRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,18 @@ class ChartEditorGeneratedDocumentMixin:
     def _build_generated_figure_document(self):
         if not self._is_generated_figure_document():
             return None
+        entry = getattr(self, "_source_entry_context", None)
+        run_root = str(getattr(entry, "run_root", "") or "").strip()
+        document_path = str(getattr(entry, "document_path", "") or "").strip()
+        if run_root and document_path:
+            plan = FigureRenderPlanBuilder(Path(run_root)).build(
+                Path(document_path),
+                self._figure_document,
+            )
+            self._shared_render_plan = plan
+            return MatplotlibFigureRenderer().render(plan, dpi=self._dpi)
+
+        self._shared_render_plan = None
         _apply_sci_style(font_size=8.0)
         data_sources = self._load_generated_document_data_sources()
         if self._has_generated_image_grid_object():

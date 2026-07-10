@@ -218,6 +218,27 @@ def resolve_chart_editor_entry(
     if not path:
         return FigureEditorOpenRequest("", entry, bool(force_static))
 
+    manifest_document_path = normalize_figure_path(
+        getattr(entry, "document_path", "")
+    )
+    capability_report = getattr(entry, "capability_report", None)
+    if manifest_document_path and capability_report is not None:
+        load_figure_document(manifest_document_path)
+        if isinstance(capability_report, dict):
+            editing_mode = str(capability_report.get("editing_mode") or "")
+            object_editing = bool(capability_report.get("object_editing"))
+        else:
+            editing_mode = str(getattr(capability_report, "editing_mode", "") or "")
+            object_editing = bool(
+                getattr(capability_report, "object_editing", False)
+            )
+        manifest_object_mode = editing_mode == "object" and object_editing
+        return FigureEditorOpenRequest(
+            path,
+            entry,
+            bool(force_static) or not manifest_object_mode,
+        )
+
     document = load_figure_document(path)
     entry_state = str(getattr(entry, "state", "") or "").strip().lower()
     entry_figure_id = str(getattr(entry, "figure_id", "") or "").strip()

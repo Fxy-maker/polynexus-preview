@@ -1,5 +1,7 @@
 """Tests for object-level figure document state."""
 
+import json
+
 from polynexus.core.figure_document import (
     annotation_to_figure_object,
     create_generated_figure_document,
@@ -14,6 +16,19 @@ from polynexus.core.plot_edits import (
     load_figure_document_path,
     save_figure_document_path,
 )
+
+
+def test_load_figure_document_accepts_direct_document_path(tmp_path):
+    document_path = tmp_path / "figure.pnfig.json"
+    document_path.write_text(
+        json.dumps({"version": 2, "figure_id": "direct", "mode": "object"}),
+        encoding="utf-8",
+    )
+
+    document = load_figure_document(str(document_path))
+
+    assert document["figure_id"] == "direct"
+    assert document["mode"] == "object"
 
 
 def test_normalize_document_preserves_explicit_run_relative_data_path():
