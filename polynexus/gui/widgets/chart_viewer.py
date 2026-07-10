@@ -15,9 +15,9 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QLabel, QScrollArea, QSizePolicy, QFileDialog,
+    QLabel, QScrollArea, QSizePolicy, QFileDialog, QComboBox,
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
-    QTabWidget, QTableWidget, QTableWidgetItem, QAbstractItemView,
+    QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QAbstractItemView,
 )
 from PySide6.QtCore import Qt, Signal, QSize, QEvent, QTimer
 from PySide6.QtGui import QPixmap, QPainter, QKeySequence, QShortcut
@@ -25,7 +25,19 @@ from PySide6.QtGui import QPixmap, QPainter, QKeySequence, QShortcut
 from ..styles import (
     C_TEXT_MUTED, C_ACCENT_WAXS,
 )
+from ..table_clipboard_service import copy_table_selection_to_clipboard
 from ..theme import ThemeEngine
+from ..plot_gallery_service import (
+    FIGURE_CATEGORY_ALL,
+    FIGURE_CATEGORY_OTHER_EXPORTS,
+    FIGURE_CATEGORY_PER_FRAME,
+    FIGURE_CATEGORY_SERIES_OVERVIEW,
+    FIGURE_STATE_OBJECT,
+    FIGURE_STATE_STATIC,
+    FIGURE_STATE_UNLINKED_EXPORT,
+    FigureGalleryEntry,
+    build_plot_gallery_entries,
+)
 from ..i18n import tr
 from ...core.engine import logger
 
@@ -33,19 +45,19 @@ class ChartThumbnail(QWidget):
     """Single chart preview thumbnail with click-to-zoom."""
     clicked = Signal(str)
     double_clicked = Signal(str)
-    edit_clicked = Signal(str)
+    edit_clicked = Signal(object)
     open_clicked = Signal(str)
     copy_clicked = Signal(str)
 
-    def __init__(self, filepath, parent=None):
+    def __init__(self, entry: FigureGalleryEntry, parent=None):
         super().__init__(parent)
-        self.filepath = filepath
+        self.entry = entry
+        self.filepath = entry.preview_path
         self._selected = False
         self._hovered = False
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip(
-            f"Click to preview\nDouble-click to open viewer\n"
-            f"{os.path.basename(filepath)}"
+            f"{entry.title}\n{_gallery_state_text(entry.state)}"
         )
         self.setMinimumWidth(320)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -62,9 +74,11 @@ class ChartThumbnail(QWidget):
         self._thumb.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(self._thumb)
 
-        # Filename
-        name = os.path.basename(filepath).replace('_', ' ')
-        self._label = QLabel(name)
+        self._state_badge = QLabel(_gallery_state_text(entry.state))
+        self._state_badge.setObjectName("chart_state_badge")
+        layout.addWidget(self._state_badge, 0, Qt.AlignLeft)
+
+        self._label = QLabel(entry.title)
         self._label.setAlignment(Qt.AlignCenter)
         self._label.setObjectName("thumb_label")
         self._label.setWordWrap(True)
@@ -73,15 +87,12 @@ class ChartThumbnail(QWidget):
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)
         actions.setSpacing(6)
-        self._btn_view = QPushButton(tr("CHART_BTN_VIEW"))
-        self._btn_view.clicked.connect(lambda: self.clicked.emit(self.filepath))
-        actions.addWidget(self._btn_view)
-        self._btn_edit = QPushButton(tr("CHART_BTN_EDIT"))
-        self._btn_edit.clicked.connect(lambda: self.edit_clicked.emit(self.filepath))
-        actions.addWidget(self._btn_edit)
-        self._btn_open = QPushButton(tr("CHART_BTN_FILE"))
-        self._btn_open.clicked.connect(lambda: self.open_clicked.emit(self.filepath))
-        actions.addWidget(self._btn_open)
+        self._btn_primary = QPushButton(_gallery_primary_label(entry.state))
+        self._btn_primary.clicked.connect(self._emit_primary_action)
+        actions.addWidget(self._btn_primary)
+        self._btn_secondary = QPushButton(_gallery_secondary_label(entry.state))
+        self._btn_secondary.clicked.connect(self._emit_secondary_action)
+        actions.addWidget(self._btn_secondary)
         self._btn_copy = QPushButton(tr("COMMON_COPY"))
         self._btn_copy.setToolTip(tr("IMPORT_SUGGESTION_COPY_PATH_TOOLTIP"))
         self._btn_copy.clicked.connect(lambda: self.copy_clicked.emit(self.filepath))
@@ -104,6 +115,11 @@ class ChartThumbnail(QWidget):
             f"color: {t.text_primary if self._selected else t.text_secondary}; "
             f"font-size: {t.font_size_sm2}px; font-weight: {600 if self._selected else 500}; "
             f"background: transparent; border: none;"
+        )
+        self._state_badge.setStyleSheet(
+            f"color: {t.text_primary}; background: {t.bg_surface}; "
+            f"border: 1px solid {border}; border-radius: {t.radius_sm}px; "
+            f"padding: 2px 8px; font-size: {t.font_size_sm}px; font-weight: 600;"
         )
 
     def _load_thumbnail(self):
@@ -140,8 +156,20 @@ class ChartThumbnail(QWidget):
         else:
             self._thumb.setText(tr("CHART_SVG_FALLBACK"))
 
+    def _emit_primary_action(self):
+        if self.entry.state in {FIGURE_STATE_OBJECT, FIGURE_STATE_STATIC} and self.entry.editable_path:
+            self.edit_clicked.emit(self.entry)
+            return
+        self.clicked.emit(self.entry.preview_path)
+
+    def _emit_secondary_action(self):
+        self.clicked.emit(self.entry.preview_path)
+
     def mousePressEvent(self, event):
-        self.clicked.emit(self.filepath)
+        if self.entry.state == FIGURE_STATE_OBJECT:
+            self._emit_primary_action()
+        else:
+            self.clicked.emit(self.entry.preview_path)
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
@@ -165,7 +193,7 @@ class ChartThumbnail(QWidget):
 class FigureFilePreview(QWidget):
     """Zoomable preview for exported figure files."""
 
-    edit_requested = Signal(str)
+    edit_requested = Signal(object)
     view_requested = Signal(str)
     close_requested = Signal()
 
@@ -180,6 +208,7 @@ class FigureFilePreview(QWidget):
         super().__init__(parent)
         self.setObjectName("figure_preview")
         self._filepath = ""
+        self._entry_context = None
         self._pixmap_item = None
         self._fit_mode = True
         self._zoom = 1.0
@@ -307,6 +336,21 @@ class FigureFilePreview(QWidget):
 
     def current_file(self):
         return self._filepath
+
+    def set_entry_context(self, entry) -> None:
+        self._entry_context = entry
+        state = str(getattr(entry, "state", "") or "")
+        if self._btn_edit is None:
+            return
+        if state == FIGURE_STATE_OBJECT:
+            self._edit_label = tr("CHART_BTN_CONTINUE_EDITING")
+        elif state == FIGURE_STATE_STATIC:
+            self._edit_label = tr("CHART_BTN_STATIC_ANNOTATE")
+        elif state == FIGURE_STATE_UNLINKED_EXPORT:
+            self._edit_label = tr("CHART_BTN_OPEN_AS_STATIC")
+        else:
+            self._edit_label = tr("CHART_BTN_EDIT_CURRENT")
+        self._btn_edit.setText(self._edit_label)
 
     def load_figure(self, filepath):
         self._filepath = filepath or ""
@@ -465,10 +509,13 @@ class FigureFilePreview(QWidget):
         finally:
             try:
                 doc.close()
-            except Exception:
+            except RuntimeError:
                 logger.warning("Silent exception while closing PDF preview", exc_info=True)
 
     def _emit_edit_requested(self):
+        if self._entry_context is not None:
+            self.edit_requested.emit(self._entry_context)
+            return
         if self._filepath:
             self.edit_requested.emit(self._filepath)
 
@@ -492,7 +539,7 @@ class FigureFilePreview(QWidget):
 class ChartViewer(QWidget):
     """Full-size chart viewer dialog (embedded)."""
 
-    edit_requested = Signal(str)
+    edit_requested = Signal(object)
     status_message = Signal(str, str)
 
     def __init__(self, parent=None):
@@ -593,7 +640,7 @@ class ChartViewer(QWidget):
             self._data_stats.setText(
                 tr("CHART_DATA_SUMMARY", len(rows), len(headers), suffix)
             )
-        except Exception as exc:
+        except (TypeError, ValueError) as exc:
             logger.warning("ChartViewer data table population failed: %s", exc, exc_info=True)
             self._full_data_headers = []
             self._full_data_rows = []
@@ -632,38 +679,13 @@ class ChartViewer(QWidget):
                 writer.writerows(self._full_data_rows)
 
             self.status_message.emit(tr("CHART_EXPORT_CSV_SUCCESS", save_path), "success")
-        except Exception as exc:
+        except OSError as exc:
             logger.warning("ChartViewer CSV export failed: %s", exc, exc_info=True)
             self.status_message.emit(tr("CHART_EXPORT_CSV_FAILED", exc), "error")
             logger.warning("Exception handled", exc_info=True)
 
     def _copy_data_table_to_clipboard(self) -> None:
-        table = self._data_table
-        cols = table.columnCount()
-        rows = table.rowCount()
-        if cols <= 0 or rows <= 0:
-            return
-
-        headers = []
-        for col in range(cols):
-            header_item = table.horizontalHeaderItem(col)
-            headers.append(header_item.text() if header_item is not None else "")
-
-        selection = table.selectionModel()
-        selected_rows = []
-        if selection is not None:
-            selected_rows = sorted(index.row() for index in selection.selectedRows())
-        row_indexes = selected_rows if selected_rows else list(range(rows))
-
-        lines = ["\t".join(headers)]
-        for row in row_indexes:
-            values = []
-            for col in range(cols):
-                item = table.item(row, col)
-                values.append(item.text() if item is not None else "")
-            lines.append("\t".join(values))
-
-        QApplication.clipboard().setText("\n".join(lines))
+        copy_table_selection_to_clipboard(self._data_table)
 
     def _normalize_data_to_table(self, data):
         if data is None:
@@ -781,7 +803,7 @@ class ChartViewer(QWidget):
         if hasattr(value, "item"):
             try:
                 return value.item()
-            except Exception:
+            except (TypeError, ValueError):
                 logger.warning("Silent exception while normalizing data", exc_info=True)
         return value
 
@@ -798,14 +820,18 @@ class ChartViewer(QWidget):
 class ChartGallery(QWidget):
     """Scrollable gallery of chart thumbnails."""
     figure_selected = Signal(str)
-    edit_requested = Signal(str)
+    edit_requested = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._viewer = None
+        self._all_entries = []
+        self._entries = []
+        self._entry_by_figure_id = {}
         self._thumbnails = []
         self._figure_paths = []
         self._selected_path = ""
+        self._selected_figure_id = ""
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -813,6 +839,24 @@ class ChartGallery(QWidget):
 
         # Toolbar
         toolbar = QHBoxLayout()
+        self._category_label = QLabel(tr("CHART_CATEGORY_LABEL"))
+        toolbar.addWidget(self._category_label)
+        self._category_combo = QComboBox()
+        self._category_combo.addItem(tr("CHART_CATEGORY_ALL"), FIGURE_CATEGORY_ALL)
+        self._category_combo.addItem(
+            tr("CHART_CATEGORY_SERIES_OVERVIEW"),
+            FIGURE_CATEGORY_SERIES_OVERVIEW,
+        )
+        self._category_combo.addItem(
+            tr("CHART_CATEGORY_PER_FRAME"),
+            FIGURE_CATEGORY_PER_FRAME,
+        )
+        self._category_combo.addItem(
+            tr("CHART_CATEGORY_OTHER_EXPORTS"),
+            FIGURE_CATEGORY_OTHER_EXPORTS,
+        )
+        self._category_combo.currentIndexChanged.connect(self._reload_visible_entries)
+        toolbar.addWidget(self._category_combo)
         toolbar.addStretch()
         btn_export = QPushButton(tr("CHART_BTN_EXPORT_ALL"))
         btn_export.clicked.connect(self._export_all)
@@ -833,6 +877,13 @@ class ChartGallery(QWidget):
         self._grid_layout.addStretch()
         self._scroll.setWidget(self._grid)
         layout.addWidget(self._scroll)
+
+        self._asset_group = QGroupBox(tr("CHART_ASSET_PANEL_TITLE"))
+        self._asset_group.setVisible(False)
+        self._asset_layout = QVBoxLayout(self._asset_group)
+        self._asset_layout.setContentsMargins(8, 8, 8, 8)
+        self._asset_layout.setSpacing(6)
+        layout.addWidget(self._asset_group)
 
     def load_directory(self, fig_dir, recursive=False):
         """Load figures from a directory as thumbnails."""
@@ -857,23 +908,55 @@ class ChartGallery(QWidget):
 
     def load_files(self, filepaths):
         """Load explicit figure paths as thumbnails."""
+        self.load_entries(build_plot_gallery_entries(filepaths))
+
+    def load_entries(self, entries):
         self.clear()
-        if not filepaths:
+        self._all_entries = list(entries)
+        self._figure_paths = [
+            path for entry in self._all_entries for path in entry.asset_paths
+        ]
+        preferred_category = FIGURE_CATEGORY_ALL
+        if any(entry.category == FIGURE_CATEGORY_SERIES_OVERVIEW for entry in self._all_entries):
+            preferred_category = FIGURE_CATEGORY_SERIES_OVERVIEW
+        index = self._category_combo.findData(preferred_category)
+        if index >= 0 and self._category_combo.currentIndex() != index:
+            self._category_combo.blockSignals(True)
+            self._category_combo.setCurrentIndex(index)
+            self._category_combo.blockSignals(False)
+        self._reload_visible_entries()
+
+    def _reload_visible_entries(self):
+        previous_selected_figure_id = self._selected_figure_id
+        self._clear_thumbnail_widgets()
+        self._clear_asset_panel()
+        if self._category_combo.count() == 0:
+            return
+        category = str(self._category_combo.currentData() or FIGURE_CATEGORY_ALL)
+        self._entries = [
+            entry
+            for entry in self._all_entries
+            if category == FIGURE_CATEGORY_ALL or entry.category == category
+        ]
+        self._entry_by_figure_id = {
+            entry.figure_id: entry for entry in self._entries
+        }
+        self._selected_path = ""
+        self._selected_figure_id = ""
+        if not self._entries:
             return
 
         row_widget = None
         row_layout = None
         col = 0
 
-        for i, fp in enumerate(filepaths):
-            thumb = ChartThumbnail(fp)
+        for entry in self._entries:
+            thumb = ChartThumbnail(entry)
             thumb.clicked.connect(self.select_figure)
             thumb.double_clicked.connect(self._open_viewer)
             thumb.edit_clicked.connect(self.edit_requested.emit)
-            thumb.open_clicked.connect(self._open_external)
             thumb.copy_clicked.connect(self._copy_path_to_clipboard)
             self._thumbnails.append(thumb)
-            self._figure_paths.append(fp)
 
             if col == 0:
                 row_widget = QWidget()
@@ -887,25 +970,62 @@ class ChartGallery(QWidget):
 
         if row_layout is not None and col:
             row_layout.addStretch(3 - col)
+        if previous_selected_figure_id in self._entry_by_figure_id:
+            self.select_figure(previous_selected_figure_id, emit=False)
 
     def current_file(self):
         return self._selected_path
+
+    def current_entry(self):
+        return self._entry_by_figure_id.get(self._selected_figure_id)
 
     def figure_paths(self):
         return list(self._figure_paths)
 
     def select_figure(self, filepath, emit=True):
-        self._selected_path = filepath
+        lookup = str(filepath or "")
+        entry = self._entry_by_figure_id.get(lookup)
+        if entry is None:
+            entry = next(
+                (
+                    item
+                    for item in self._entries
+                    if lookup == item.preview_path
+                    or lookup == item.editable_path
+                    or lookup in item.asset_paths
+                ),
+                None,
+            )
+        if entry is None:
+            entry = next(
+                (
+                    item
+                    for item in self._all_entries
+                    if lookup == item.figure_id
+                    or lookup == item.preview_path
+                    or lookup == item.editable_path
+                    or lookup in item.asset_paths
+                ),
+                None,
+            )
+            if entry is not None and entry.figure_id not in self._entry_by_figure_id:
+                self._set_active_category(entry.category)
+                entry = self._entry_by_figure_id.get(entry.figure_id, entry)
+        if entry is None:
+            return
+
+        self._selected_figure_id = entry.figure_id
+        self._selected_path = entry.preview_path
         for thumb in self._thumbnails:
-            thumb.set_selected(thumb.filepath == filepath)
+            thumb.set_selected(thumb.entry.figure_id == entry.figure_id)
+        self._rebuild_asset_panel(entry)
         if emit:
-            self.figure_selected.emit(filepath)
+            self.figure_selected.emit(entry.preview_path)
 
     def refresh_figure(self, filepath):
-        for thumb in self._thumbnails:
-            if os.path.normcase(thumb.filepath) == os.path.normcase(filepath):
-                thumb._load_thumbnail()
-                break
+        merged_paths = list(dict.fromkeys(self._figure_paths + [str(Path(filepath).resolve())]))
+        self.load_files(merged_paths)
+        self.select_figure(filepath, emit=False)
 
     def _open_viewer(self, filepath):
         if self._viewer is None:
@@ -936,15 +1056,90 @@ class ChartGallery(QWidget):
                 shutil.copy2(filepath, dst)
 
     def clear(self):
+        self._clear_thumbnail_widgets()
+        self._clear_asset_panel()
+        self._all_entries = []
+        self._entries = []
+        self._entry_by_figure_id = {}
+        self._figure_paths = []
+        self._selected_path = ""
+        self._selected_figure_id = ""
+
+    def _clear_thumbnail_widgets(self):
         for thumb in self._thumbnails:
             thumb.deleteLater()
         self._thumbnails = []
-        self._figure_paths = []
-        self._selected_path = ""
         while self._grid_layout.count() > 1:
             item = self._grid_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+
+    def _clear_asset_panel(self):
+        while self._asset_layout.count():
+            item = self._asset_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._asset_group.setVisible(False)
+
+    def _set_active_category(self, category: str) -> None:
+        target = str(category or FIGURE_CATEGORY_ALL)
+        index = self._category_combo.findData(target)
+        if index < 0 or self._category_combo.currentIndex() == index:
+            return
+        self._category_combo.blockSignals(True)
+        self._category_combo.setCurrentIndex(index)
+        self._category_combo.blockSignals(False)
+        self._reload_visible_entries()
+
+    def _rebuild_asset_panel(self, entry: FigureGalleryEntry) -> None:
+        while self._asset_layout.count():
+            item = self._asset_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for asset in entry.assets:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(6)
+            label = QLabel(asset.label)
+            row_layout.addWidget(label, 1)
+            btn_open = QPushButton(tr("CHART_BTN_VIEW"))
+            btn_open.clicked.connect(
+                lambda _checked=False, path=asset.path: self.figure_selected.emit(path)
+            )
+            row_layout.addWidget(btn_open)
+            btn_copy = QPushButton(tr("COMMON_COPY"))
+            btn_copy.clicked.connect(
+                lambda _checked=False, path=asset.path: self._copy_path_to_clipboard(path)
+            )
+            row_layout.addWidget(btn_copy)
+            self._asset_layout.addWidget(row)
+        self._asset_group.setTitle(tr("CHART_ASSET_PANEL_TITLE"))
+        self._asset_group.setVisible(bool(entry.assets))
+
+
+def _gallery_state_text(state: str) -> str:
+    return {
+        FIGURE_STATE_OBJECT: tr("CHART_STATE_OBJECT"),
+        FIGURE_STATE_STATIC: tr("CHART_STATE_STATIC"),
+        FIGURE_STATE_UNLINKED_EXPORT: tr("CHART_STATE_UNLINKED"),
+    }.get(state, tr("CHART_STATE_UNLINKED"))
+
+
+def _gallery_primary_label(state: str) -> str:
+    return {
+        FIGURE_STATE_OBJECT: tr("CHART_BTN_CONTINUE_EDITING"),
+        FIGURE_STATE_STATIC: tr("CHART_BTN_STATIC_ANNOTATE"),
+        FIGURE_STATE_UNLINKED_EXPORT: tr("CHART_BTN_VIEW"),
+    }.get(state, tr("CHART_BTN_VIEW"))
+
+
+def _gallery_secondary_label(state: str) -> str:
+    return {
+        FIGURE_STATE_OBJECT: tr("CHART_BTN_VIEW_EXPORTS"),
+        FIGURE_STATE_STATIC: tr("CHART_BTN_VIEW_FILE"),
+        FIGURE_STATE_UNLINKED_EXPORT: tr("CHART_BTN_OPEN_AS_STATIC"),
+    }.get(state, tr("CHART_BTN_VIEW_FILE"))
 
 
 

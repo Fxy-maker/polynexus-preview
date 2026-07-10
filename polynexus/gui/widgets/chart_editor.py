@@ -1,12 +1,14 @@
 """Live chart editor and exported-figure settings panel."""
 
+import csv
 import logging
 logger = logging.getLogger(__name__)
 
+from copy import deepcopy
 import shutil
 from pathlib import Path
 
-from PySide6.QtCore import QRect, QRectF, QSize, QSizeF, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QRectF, QSize, QSizeF, Qt, Signal
 from PySide6.QtGui import QImage, QPageSize, QPainter, QPdfWriter
 from PySide6.QtSvg import QSvgGenerator
 from PySide6.QtWidgets import (
@@ -18,6 +20,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -38,8 +42,63 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 
 from ..i18n import tr
+from ..chart_editor_generated_helpers import (
+    coerce_plot_value as _shared_coerce_plot_value,
+    format_generated_grid_label as _shared_format_generated_grid_label,
+    optional_float as _shared_optional_float,
+)
+from ..chart_editor_generated_object_helpers import (
+    generated_column_values as _shared_generated_column_values,
+    generated_object_xy as _shared_generated_object_xy,
+)
+from ..chart_editor_plot_helpers import (
+    make_bar_plot as _shared_make_bar_plot,
+    make_line_plot as _shared_make_line_plot,
+)
 from .annotation_canvas import AnnotationCanvas
+from .chart_editor_annotation_controls_mixin import (
+    ChartEditorAnnotationControlsMixin,
+)
+from .chart_editor_generated_drag_mixin import ChartEditorGeneratedDragMixin
+from .chart_editor_generated_drag_execution_mixin import (
+    ChartEditorGeneratedDragExecutionMixin,
+)
+from .chart_editor_generated_document_mixin import (
+    ChartEditorGeneratedDocumentMixin,
+)
+from .chart_editor_generated_hover_mixin import ChartEditorGeneratedHoverMixin
+from .chart_editor_generated_hit_testing_mixin import (
+    ChartEditorGeneratedHitTestingMixin,
+)
+from .chart_editor_generated_interaction_mixin import (
+    ChartEditorGeneratedInteractionMixin,
+)
+from .chart_editor_generated_geometry_mixin import (
+    ChartEditorGeneratedGeometryMixin,
+)
+from .chart_editor_generated_pointer_feedback_mixin import (
+    ChartEditorGeneratedPointerFeedbackMixin,
+)
+from .chart_editor_generated_pick_mixin import ChartEditorGeneratedPickMixin
+from .chart_editor_generated_press_target_mixin import (
+    ChartEditorGeneratedPressTargetMixin,
+)
+from .chart_editor_render_mixin import ChartEditorRenderMixin
+from .chart_editor_generated_selection_mixin import (
+    ChartEditorGeneratedSelectionMixin,
+)
+from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
+from .chart_editor_object_list_mixin import ChartEditorObjectListMixin
+from .chart_editor_save_mixin import ChartEditorSaveMixin
+from .chart_editor_style_preset_mixin import ChartEditorStylePresetMixin
 from .chart_viewer import FigureFilePreview
+from ..figure_render_adapter import FigureRenderAdapter
+from ..figure_selection_model import FigureSelectionModel
+from ...core.figure_document import (
+    create_static_figure_document,
+    load_figure_document,
+    save_figure_document,
+)
 from ...core.figure_assets import discover_figure_asset
 from ...core.plot_edits import (
     COLOUR_SCHEMES,
@@ -53,13 +112,57 @@ from ...core.plot_edits import (
     list_style_presets,
     save_figure_annotations,
     save_figure_asset_spec,
+    save_figure_document_path,
     save_figure_edit,
     save_style_preset,
 )
 from ...plotting.sci_style import set_sci_style as _apply_sci_style
 
+LINE_STYLE_OPTIONS = {
+    "Solid": "-",
+    "Dashed": "--",
+    "Dotted": ":",
+    "Dash Dot": "-.",
+}
 
-class ChartEditor(QWidget):
+MARKER_OPTIONS = {
+    "None": "",
+    "Circle": "o",
+    "Square": "s",
+    "Triangle": "^",
+    "Diamond": "D",
+    "Plus": "+",
+    "Cross": "x",
+}
+
+GENERATED_DRAG_START_THRESHOLD_PX = 3.0
+GENERATED_LINE_BODY_HIT_RADIUS_PX = 10.0
+GENERATED_LINE_ENDPOINT_HIT_RADIUS_PX = 14.0
+GENERATED_SCATTER_POINT_HIT_RADIUS_PX = 14.0
+GENERATED_LINE_SERIES_BODY_HIT_RADIUS_PX = 10.0
+GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
+
+
+class ChartEditor(
+    ChartEditorAnnotationControlsMixin,
+    ChartEditorSaveMixin,
+    ChartEditorStylePresetMixin,
+    ChartEditorObjectListMixin,
+    ChartEditorGeneratedDragMixin,
+    ChartEditorGeneratedDragExecutionMixin,
+    ChartEditorGeneratedDocumentMixin,
+    ChartEditorGeneratedGeometryMixin,
+    ChartEditorGeneratedHoverMixin,
+    ChartEditorGeneratedHitTestingMixin,
+    ChartEditorGeneratedInteractionMixin,
+    ChartEditorGeneratedPointerFeedbackMixin,
+    ChartEditorGeneratedPickMixin,
+    ChartEditorGeneratedPressTargetMixin,
+    ChartEditorRenderMixin,
+    ChartEditorGeneratedSelectionMixin,
+    ChartEditorGeneratedStatusMixin,
+    QWidget,
+):
     figure_changed = Signal()
     figure_saved = Signal(str)
 
@@ -70,7 +173,14 @@ class ChartEditor(QWidget):
         self._fig_kwargs = {}
         self._target_path = ""
         self._source_path = ""
+        self._source_entry_context = None
+        self._force_static_source_mode = False
+        self._mode_title_text = ""
+        self._mode_banner_key = ""
+        self._mode_summary_key = ""
         self._asset_spec = None
+        self._figure_document = {}
+        self._generated_document_mode = False
         self._static_file_mode = False
         self._current_colours = list(COLOUR_SCHEMES["Default Blue"])
         self._title_size = 14
@@ -82,7 +192,39 @@ class ChartEditor(QWidget):
         self._fig_size = FIGURE_SIZES["Medium (6in)"]
         self._bg_color = "#FFFFFF"
         self._dpi = 150
+        self._syncing_object_list = False
+        self._syncing_geometry_controls = False
+        self._selected_figure_object_id = ""
+        self._hovered_figure_object_id = ""
+        self._selection_status_text = ""
+        self._selection_cycle_hint_active = False
+        self._hover_status_text = ""
+        self._drag_status_text = ""
+        self._last_deleted_figure_object_id = ""
+        self._last_generated_pick_signature = None
+        self._last_generated_pick_candidates = []
+        self._last_generated_pick_gui_event_id = None
+        self._last_generated_pointer_state = None
+        self._last_generated_pointer_drag_target = None
+        self._suppress_generated_hover_until_pointer_move = False
+        self._selected_generated_line_object_id = ""
+        self._selected_generated_line_handle_index = None
+        self._selected_generated_plot_series_object_id = ""
+        self._selected_generated_plot_series_handle_index = None
+        self._generated_last_line_handle_indices = {}
+        self._generated_last_plot_series_handle_indices = {}
+        self._hover_preview_figure_object_id = ""
+        self._hover_preview_handle_index = None
+        self._generated_handle_drag_state = None
+        self._connected_canvas_figure = None
+        self._figure_selection_model = FigureSelectionModel(self)
+        self._figure_selection_model.selection_changed.connect(
+            self._on_generated_selection_changed
+        )
+        self._figure_render_adapter = FigureRenderAdapter()
         self._build_ui()
+        self._set_mode_header("")
+        self._connect_canvas_interaction_events()
 
     def _build_ui(self):
         split = QSplitter(Qt.Horizontal)
@@ -95,6 +237,8 @@ class ChartEditor(QWidget):
             figsize=self._fig_size, dpi=self._dpi, facecolor=self._bg_color
         )
         self._canvas = FigureCanvas(self._figure)
+        self._canvas.setFocusPolicy(Qt.StrongFocus)
+        self._canvas.installEventFilter(self)
         self._toolbar = NavToolbar(self._canvas, self)
         self._source_preview = FigureFilePreview(show_edit_button=False)
         self._source_preview.setVisible(False)
@@ -102,6 +246,7 @@ class ChartEditor(QWidget):
         self._annotation_canvas.setVisible(False)
         self._annotation_canvas.tool_changed.connect(self._sync_annotation_tool_buttons)
         self._annotation_canvas.selection_changed.connect(self._sync_annotation_property_controls)
+        self._annotation_canvas.annotations_changed.connect(self._on_annotation_canvas_changed)
         figure_layout.addWidget(self._toolbar)
         figure_layout.addWidget(self._canvas, 1)
         figure_layout.addWidget(self._source_preview, 1)
@@ -117,6 +262,84 @@ class ChartEditor(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(split)
 
+    def _connect_canvas_interaction_events(self):
+        if self._canvas is None:
+            return
+        figure = getattr(self._canvas, "figure", None)
+        if figure is None or figure is self._connected_canvas_figure:
+            return
+        self._connected_canvas_figure = figure
+        self._canvas.mpl_connect("pick_event", self._on_generated_pick_event)
+        self._canvas.mpl_connect("button_press_event", self._on_generated_button_press)
+        self._canvas.mpl_connect("motion_notify_event", self._on_generated_mouse_move)
+        self._canvas.mpl_connect("button_release_event", self._on_generated_button_release)
+        self._canvas.mpl_connect("figure_leave_event", self._on_generated_figure_leave)
+
+    def eventFilter(self, watched, event):
+        if watched is getattr(self, "_canvas", None):
+            if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
+                if self._generated_handle_drag_state and self._cancel_generated_drag():
+                    event.accept()
+                    return True
+                if self._generated_document_mode and self._selected_figure_object_id:
+                    self._select_generated_object("", "escape")
+                    self._clear_generated_hover_highlight(redraw=False)
+                    if not self._refresh_generated_feedback_from_last_pointer():
+                        self._reset_generated_canvas_cursor()
+                    event.accept()
+                    return True
+        if watched is getattr(self, "_object_list", None):
+            if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
+                if self._generated_handle_drag_state and self._cancel_generated_drag():
+                    event.accept()
+                    return True
+                if self._generated_document_mode and self._selected_figure_object_id:
+                    self._select_generated_object("", "escape")
+                    self._clear_generated_hover_highlight(redraw=False)
+                    if not self._refresh_generated_feedback_from_last_pointer():
+                        self._reset_generated_canvas_cursor()
+                    event.accept()
+                    return True
+                if (
+                    self._annotation_canvas is not None
+                    and not self._annotation_canvas.isHidden()
+                    and self._annotation_canvas.selected_annotation_id()
+                ):
+                    self._annotation_canvas.clear_selection()
+                    event.accept()
+                    return True
+            if event.type() == QEvent.KeyPress and event.modifiers() & Qt.ControlModifier:
+                item = self._object_list.currentItem()
+                object_id = item.data(Qt.UserRole) if item is not None else ""
+                object_role = item.data(Qt.UserRole + 1) if item is not None else ""
+                if event.key() == Qt.Key_C:
+                    if object_role == "annotation" and self._annotation_canvas is not None:
+                        self._annotation_canvas.select_annotation(str(object_id))
+                        if self._annotation_canvas.copy_selected_annotation():
+                            event.accept()
+                            return True
+                if event.key() == Qt.Key_V and self._annotation_canvas is not None:
+                    if self._annotation_canvas.paste_annotation():
+                        self._refresh_object_list(self._annotation_canvas.selected_annotation_id())
+                        event.accept()
+                        return True
+            if event.type() == QEvent.KeyPress and event.key() in {Qt.Key_Delete, Qt.Key_Backspace}:
+                item = self._object_list.currentItem()
+                object_id = item.data(Qt.UserRole) if item is not None else ""
+                object_role = item.data(Qt.UserRole + 1) if item is not None else ""
+                if object_role == "figure_object":
+                    self._selected_figure_object_id = str(object_id or "")
+                    self._soft_delete_selected_generated_object()
+                    event.accept()
+                    return True
+                if object_role == "annotation" and self._annotation_canvas is not None:
+                    self._annotation_canvas.select_annotation(str(object_id))
+                    if self._annotation_canvas.delete_selected_annotation():
+                        self._refresh_object_list()
+                        event.accept()
+                        return True
+        return super().eventFilter(watched, event)
+
     def _build_panel(self):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -129,6 +352,76 @@ class ChartEditor(QWidget):
         self._target_label = QLabel(tr("EDITOR_TARGET_NONE"))
         self._target_label.setWordWrap(True)
         form.addRow(tr("EDITOR_TARGET_LABEL"), self._target_label)
+
+        self._mode_title_label = QLabel("")
+        self._mode_title_label.setWordWrap(True)
+        self._mode_title_label.setObjectName("editor_mode_title")
+        form.addRow(self._mode_title_label)
+
+        self._mode_banner_label = QLabel("")
+        self._mode_banner_label.setWordWrap(True)
+        self._mode_banner_label.setObjectName("editor_mode_banner")
+        form.addRow(self._mode_banner_label)
+
+        self._mode_summary_label = QLabel("")
+        self._mode_summary_label.setWordWrap(True)
+        self._mode_summary_label.setObjectName("editor_mode_summary")
+        form.addRow(self._mode_summary_label)
+
+        self._object_list = QListWidget()
+        self._object_list.setMinimumHeight(96)
+        self._object_list.installEventFilter(self)
+        self._object_list.currentItemChanged.connect(
+            self._on_object_list_selection_changed
+        )
+        self._object_list.itemChanged.connect(self._on_object_list_item_changed)
+        form.addRow(tr("EDITOR_OBJECT_LIST_LABEL"), self._object_list)
+
+        self._selected_object_label = QLabel(tr("EDITOR_OBJECT_BACKGROUND"))
+        form.addRow(tr("EDITOR_SELECTED_OBJECT_LABEL"), self._selected_object_label)
+
+        annotation_geometry = QWidget()
+        annotation_geometry_layout = QHBoxLayout(annotation_geometry)
+        annotation_geometry_layout.setContentsMargins(0, 0, 0, 0)
+        annotation_geometry_layout.setSpacing(6)
+
+        self._annotation_x_spin = QDoubleSpinBox()
+        self._annotation_x_spin.setRange(0.0, 1.0)
+        self._annotation_x_spin.setDecimals(4)
+        self._annotation_x_spin.setSingleStep(0.01)
+        self._annotation_x_spin.valueChanged.connect(self._on_annotation_geometry_changed)
+        self._annotation_x_label = QLabel("X")
+        annotation_geometry_layout.addWidget(self._annotation_x_label)
+        annotation_geometry_layout.addWidget(self._annotation_x_spin)
+
+        self._annotation_y_spin = QDoubleSpinBox()
+        self._annotation_y_spin.setRange(0.0, 1.0)
+        self._annotation_y_spin.setDecimals(4)
+        self._annotation_y_spin.setSingleStep(0.01)
+        self._annotation_y_spin.valueChanged.connect(self._on_annotation_geometry_changed)
+        self._annotation_y_label = QLabel("Y")
+        annotation_geometry_layout.addWidget(self._annotation_y_label)
+        annotation_geometry_layout.addWidget(self._annotation_y_spin)
+
+        self._annotation_w_spin = QDoubleSpinBox()
+        self._annotation_w_spin.setRange(0.0, 1.0)
+        self._annotation_w_spin.setDecimals(4)
+        self._annotation_w_spin.setSingleStep(0.01)
+        self._annotation_w_spin.valueChanged.connect(self._on_annotation_geometry_changed)
+        self._annotation_w_label = QLabel("W")
+        annotation_geometry_layout.addWidget(self._annotation_w_label)
+        annotation_geometry_layout.addWidget(self._annotation_w_spin)
+
+        self._annotation_h_spin = QDoubleSpinBox()
+        self._annotation_h_spin.setRange(0.0, 1.0)
+        self._annotation_h_spin.setDecimals(4)
+        self._annotation_h_spin.setSingleStep(0.01)
+        self._annotation_h_spin.valueChanged.connect(self._on_annotation_geometry_changed)
+        self._annotation_h_label = QLabel("H")
+        annotation_geometry_layout.addWidget(self._annotation_h_label)
+        annotation_geometry_layout.addWidget(self._annotation_h_spin)
+        form.addRow(tr("EDITOR_OBJECT_GEOMETRY_LABEL"), annotation_geometry)
+        self._set_geometry_controls_enabled(False)
 
         preset_row = QWidget()
         preset_layout = QHBoxLayout(preset_row)
@@ -226,6 +519,7 @@ class ChartEditor(QWidget):
         self._btn_annotation_update_text.clicked.connect(
             self._on_update_selected_text_annotation
         )
+        self._btn_annotation_update_text.setEnabled(False)
         annotation_text_layout.addWidget(self._btn_annotation_update_text)
         form.addRow(annotation_text_row)
 
@@ -257,11 +551,30 @@ class ChartEditor(QWidget):
         self._annotation_alpha_spin.setValue(0.35)
         annotation_style_layout.addWidget(self._annotation_alpha_spin)
 
+        self._annotation_line_style_combo = QComboBox()
+        self._annotation_line_style_combo.addItems(LINE_STYLE_OPTIONS.keys())
+        self._annotation_line_style_combo.setCurrentText("Solid")
+        annotation_style_layout.addWidget(self._annotation_line_style_combo)
+
+        self._annotation_marker_combo = QComboBox()
+        self._annotation_marker_combo.addItems(MARKER_OPTIONS.keys())
+        self._annotation_marker_combo.setCurrentText("None")
+        annotation_style_layout.addWidget(self._annotation_marker_combo)
+
+        self._annotation_marker_size_spin = QDoubleSpinBox()
+        self._annotation_marker_size_spin.setRange(1.0, 40.0)
+        self._annotation_marker_size_spin.setSingleStep(1.0)
+        self._annotation_marker_size_spin.setValue(6.0)
+        self._annotation_marker_size_spin.setSuffix(" pt")
+        annotation_style_layout.addWidget(self._annotation_marker_size_spin)
+        self._set_style_controls_enabled(False, False, False, color_enabled=False)
+
         self._btn_annotation_apply_style = QPushButton(
             tr("EDITOR_ANNOTATION_APPLY_STYLE")
         )
         self._btn_annotation_apply_style.clicked.connect(self._on_annotation_apply_style)
         annotation_style_layout.addWidget(self._btn_annotation_apply_style)
+        self._btn_annotation_apply_style.setEnabled(False)
         form.addRow(tr("EDITOR_ANNOTATION_STYLE_LABEL"), annotation_style)
 
         annotation_actions = QWidget()
@@ -317,6 +630,7 @@ class ChartEditor(QWidget):
         self._btn_annotation_back = QPushButton(tr("EDITOR_ANNOTATION_BACK"))
         self._btn_annotation_back.clicked.connect(self._on_annotation_back)
         annotation_actions_layout.addWidget(self._btn_annotation_back)
+        self._set_object_action_buttons_enabled(False)
 
         self._btn_annotation_undo = QPushButton(tr("EDITOR_ANNOTATION_UNDO"))
         self._btn_annotation_undo.clicked.connect(self._on_annotation_undo)
@@ -353,20 +667,20 @@ class ChartEditor(QWidget):
         self._btn_sci_defaults.clicked.connect(self._apply_sci_defaults)
         form.addRow(self._btn_sci_defaults)
 
-        self._btn_save_current = QPushButton(tr("EDITOR_SAVE_CURRENT"))
+        self._btn_save_current = QPushButton(tr("EDITOR_SAVE_EDITS"))
         self._btn_save_current.setObjectName("primary_btn")
         self._btn_save_current.clicked.connect(self.save_to_target)
         form.addRow(self._btn_save_current)
 
-        self._btn_save_as = QPushButton(tr("EDITOR_SAVE_AS"))
+        self._btn_save_as = QPushButton(tr("EDITOR_SAVE_AS_COPY"))
         self._btn_save_as.clicked.connect(self.save_as)
         form.addRow(self._btn_save_as)
 
-        self._btn_svg = QPushButton(tr("EDITOR_BTN_SAVE_SVG"))
+        self._btn_svg = QPushButton(tr("EDITOR_EXPORT_SVG"))
         self._btn_svg.clicked.connect(lambda: self.save_as("svg"))
         form.addRow(self._btn_svg)
 
-        self._btn_png = QPushButton(tr("EDITOR_BTN_SAVE_PNG"))
+        self._btn_png = QPushButton(tr("EDITOR_EXPORT_PNG"))
         self._btn_png.clicked.connect(lambda: self.save_as("png"))
         form.addRow(self._btn_png)
 
@@ -380,6 +694,36 @@ class ChartEditor(QWidget):
         self._refresh_style_preset_controls()
         return scroll
 
+    def _set_mode_header(self, title: str, *, mode_key: str = "", summary_key: str = "") -> None:
+        self._mode_title_text = str(title or "")
+        self._mode_banner_key = str(mode_key or "")
+        self._mode_summary_key = str(summary_key or "")
+        self._mode_title_label.setText(self._mode_title_text)
+        self._mode_banner_label.setText(
+            tr(self._mode_banner_key) if self._mode_banner_key else ""
+        )
+        self._mode_summary_label.setText(
+            tr(self._mode_summary_key) if self._mode_summary_key else ""
+        )
+        has_title = bool(self._mode_title_text)
+        self._mode_title_label.setVisible(has_title)
+        self._mode_banner_label.setVisible(bool(self._mode_banner_label.text()))
+        self._mode_summary_label.setVisible(bool(self._mode_summary_label.text()))
+
+    def _source_mode_title(self) -> str:
+        entry_title = str(
+            getattr(getattr(self, "_source_entry_context", None), "title", "") or ""
+        ).strip()
+        if entry_title:
+            return entry_title
+        if isinstance(self._figure_document, dict):
+            figure_id = str(self._figure_document.get("figure_id") or "").strip()
+            if figure_id:
+                return figure_id.replace("_", " ")
+        if self._source_path:
+            return Path(self._source_path).stem.replace("_", " ")
+        return ""
+
     def retranslate(self):
         if hasattr(self, "_target_label"):
             if self._target_path:
@@ -390,6 +734,9 @@ class ChartEditor(QWidget):
         if hasattr(self, "_form"):
             for widget, text in [
                 (self._target_label, tr("EDITOR_TARGET_LABEL")),
+                (self._object_list, tr("EDITOR_OBJECT_LIST_LABEL")),
+                (self._selected_object_label, tr("EDITOR_SELECTED_OBJECT_LABEL")),
+                (self._annotation_x_spin.parentWidget(), tr("EDITOR_OBJECT_GEOMETRY_LABEL")),
                 (self._style_preset_combo.parentWidget(), tr("EDITOR_STYLE_PRESET_LABEL")),
                 (self._title_edit, "Title:"),
                 (self._xlabel_edit, "X:"),
@@ -441,10 +788,15 @@ class ChartEditor(QWidget):
         self._btn_annotation_zoom_out.setText(tr("EDITOR_ANNOTATION_ZOOM_OUT"))
         self._btn_annotation_zoom_in.setText(tr("EDITOR_ANNOTATION_ZOOM_IN"))
         self._btn_sci_defaults.setText(tr("EDITOR_SCI_DEFAULTS"))
-        self._btn_save_as.setText(tr("EDITOR_SAVE_AS"))
-        self._btn_svg.setText(tr("EDITOR_BTN_SAVE_SVG"))
-        self._btn_png.setText(tr("EDITOR_BTN_SAVE_PNG"))
-        self._btn_save_current.setText(tr("EDITOR_SAVE_CURRENT"))
+        self._btn_save_as.setText(tr("EDITOR_SAVE_AS_COPY"))
+        self._btn_svg.setText(tr("EDITOR_EXPORT_SVG"))
+        self._btn_png.setText(tr("EDITOR_EXPORT_PNG"))
+        self._btn_save_current.setText(tr("EDITOR_SAVE_EDITS"))
+        self._set_mode_header(
+            self._mode_title_text,
+            mode_key=self._mode_banner_key,
+            summary_key=self._mode_summary_key,
+        )
         self._refresh_style_preset_controls()
 
     def set_output_target(self, filepath):
@@ -457,11 +809,39 @@ class ChartEditor(QWidget):
             self._target_label.setText(tr("EDITOR_TARGET_NONE"))
             self._btn_save_current.setEnabled(False)
 
-    def set_source_figure(self, filepath):
+    def set_source_figure_entry(self, entry, *, force_static: bool = False):
+        path = (
+            str(getattr(entry, "editable_path", "") or "")
+            or str(getattr(entry, "primary_path", "") or "")
+            or str(getattr(entry, "preview_path", "") or "")
+        )
+        self.set_source_figure(
+            path,
+            source_entry_context=entry,
+            force_static=force_static,
+        )
+
+    def set_source_figure(self, filepath, *, source_entry_context=None, force_static=False):
         """Edit persisted settings for an already-exported figure file."""
         self._source_path = filepath or ""
+        self._source_entry_context = source_entry_context
+        self._force_static_source_mode = bool(force_static)
         self._asset_spec = None
-        self._static_file_mode = bool(self._source_path)
+        self._figure_document = {}
+        self._selected_figure_object_id = ""
+        self._hovered_figure_object_id = ""
+        self._selection_status_text = ""
+        self._hover_status_text = ""
+        self._drag_status_text = ""
+        self._last_deleted_figure_object_id = ""
+        self._generated_handle_drag_state = None
+        self._clear_selected_generated_plot_series_handle_context()
+        self._reset_generated_handle_memory()
+        self._figure_render_adapter.clear_hover_highlight()
+        self._reset_generated_selection_model()
+        self._reset_generated_canvas_cursor()
+        self._generated_document_mode = False
+        self._static_file_mode = False
         self._fig_generator = None
         self._fig_args = ()
         self._fig_kwargs = {}
@@ -471,26 +851,54 @@ class ChartEditor(QWidget):
         self._source_preview.setVisible(False)
         self._annotation_canvas.setVisible(False)
         self._set_export_buttons_enabled(False)
-        self._btn_save_current.setText(tr("EDITOR_SAVE_CURRENT"))
+        self._btn_save_current.setText(tr("EDITOR_SAVE_EDITS"))
+        self._set_mode_header("")
 
         if self._source_path:
+            self._figure_document = load_figure_document(self._source_path)
             self._asset_spec = discover_figure_asset(self._source_path)
             self._source_preview.load_figure(self._source_path)
             self.set_output_target(self._source_path)
+            if self._is_generated_figure_document() and not self._force_static_source_mode:
+                self._apply_generated_document_style_controls()
+                if self._show_generated_figure_document():
+                    self._generated_document_mode = True
+                    self._set_mode_header(
+                        self._source_mode_title(),
+                        mode_key="EDITOR_MODE_OBJECT",
+                        summary_key="EDITOR_MODE_OBJECT_SUMMARY",
+                    )
+                    self._status_label.setText(tr("EDITOR_OBJECT_MODE_HINT"))
+                    self._toolbar.setVisible(True)
+                    self._canvas.setVisible(True)
+                    self._source_preview.setVisible(False)
+                    self._annotation_canvas.setVisible(False)
+                    self._refresh_object_list()
+                    return
+            self._static_file_mode = True
+            self._set_mode_header(
+                self._source_mode_title(),
+                mode_key="EDITOR_MODE_STATIC",
+                summary_key="EDITOR_MODE_STATIC_SUMMARY",
+            )
             self._status_label.setText(tr("EDITOR_STATIC_MODE_HINT"))
             if self._annotation_canvas.load_image(self._asset_spec.preview_path):
                 self._annotation_canvas.load_annotation_state(
                     load_figure_annotations(self._source_path)
                 )
                 self._annotation_canvas.setVisible(True)
+                self._refresh_object_list()
             else:
                 self._source_preview.setVisible(True)
                 self._canvas.setVisible(True)
                 self._show_style_preview_figure()
+                self._refresh_object_list()
         else:
             self._source_preview.clear()
             self._annotation_canvas.setVisible(False)
             self.set_output_target("")
+            self._set_mode_header("")
+            self._refresh_object_list()
 
     def set_initial_labels(self, title="", xlabel="", ylabel=""):
         self._set_line_edit(self._title_edit, title or "")
@@ -500,14 +908,34 @@ class ChartEditor(QWidget):
 
     def set_figure_generator(self, func, *args, **kwargs):
         self._static_file_mode = False
+        self._generated_document_mode = False
         self._source_path = ""
         self._asset_spec = None
+        self._figure_document = {}
+        self._selected_figure_object_id = ""
+        self._hovered_figure_object_id = ""
+        self._selection_status_text = ""
+        self._hover_status_text = ""
+        self._drag_status_text = ""
+        self._last_deleted_figure_object_id = ""
+        self._generated_handle_drag_state = None
+        self._clear_selected_generated_plot_series_handle_context()
+        self._reset_generated_handle_memory()
+        self._figure_render_adapter.clear_hover_highlight()
+        self._reset_generated_selection_model()
+        self._reset_generated_canvas_cursor()
         self._toolbar.setVisible(True)
         self._canvas.setVisible(True)
         self._source_preview.setVisible(False)
         self._annotation_canvas.setVisible(False)
+        self._refresh_object_list()
         self._set_export_buttons_enabled(True)
-        self._btn_save_current.setText(tr("EDITOR_SAVE_CURRENT"))
+        self._btn_save_current.setText(tr("EDITOR_SAVE_EDITS"))
+        self._set_mode_header(
+            "figure",
+            mode_key="EDITOR_MODE_OBJECT",
+            summary_key="EDITOR_MODE_OBJECT_SUMMARY",
+        )
         self._fig_generator = func
         self._fig_args = args
         self._fig_kwargs = kwargs
@@ -519,432 +947,6 @@ class ChartEditor(QWidget):
     def _set_export_buttons_enabled(self, enabled):
         for button in (self._btn_save_as, self._btn_svg, self._btn_png):
             button.setEnabled(enabled)
-
-    def save_to_target(self):
-        if not self._target_path:
-            self.save_as()
-            return
-        self._save_to_path(self._target_path)
-
-    def save_as(self, fmt=None):
-        selected_filter = ""
-        if fmt:
-            selected_filter = f"{fmt.upper()} (*.{fmt})"
-            filters = selected_filter
-            default_name = f"figure.{fmt}"
-        else:
-            filters = "SVG (*.svg);;PNG (*.png);;PDF (*.pdf);;JPG (*.jpg)"
-            default_name = Path(self._target_path).name if self._target_path else "figure.svg"
-        path, _ = QFileDialog.getSaveFileName(
-            self, tr("EDITOR_SAVE_DIALOG_TITLE"), default_name, filters
-        )
-        if path:
-            if fmt and not path.lower().endswith(f".{fmt}"):
-                path = f"{path}.{fmt}"
-            self._save_to_path(path)
-            self.set_output_target(path)
-
-    def _render(self, *_):
-        if self._fig_generator is None:
-            if self._static_file_mode:
-                if not self._refresh_static_annotation_canvas_preview():
-                    self._show_style_preview_figure()
-            return
-
-        # Apply global SCI style baseline BEFORE creating axes
-        _apply_sci_style(font_size=8.0)
-
-        fig = Figure(figsize=self._fig_size, dpi=self._dpi, facecolor=self._bg_color)
-        ax = fig.add_subplot(111)
-        try:
-            self._fig_generator(ax, *self._fig_args, **self._fig_kwargs)
-        except Exception as exc:
-            import sys as _sys
-
-            _sys.stderr.write(f"ChartEditor render failed: {exc}\n")
-            logger.warning("Chart editor render failed.", exc_info=True)
-
-        # Recolour lines (user palette overrides SCI baseline)
-        for i, line in enumerate(ax.lines):
-            line.set_color(self._current_colours[i % len(self._current_colours)])
-            line.set_linewidth(self._line_width)
-
-        # Recolour collections (fill_between, scatter, etc.)
-        for i, coll in enumerate(ax.collections):
-            try:
-                coll.set_color(self._current_colours[i % len(self._current_colours)])
-            except Exception:
-                try:
-                    coll.set_edgecolor(self._current_colours[i % len(self._current_colours)])
-                except Exception:
-                    logger.warning("Chart editor collection recolor failed.", exc_info=True)
-
-        # Recolour patches (bar charts, rectangles)
-        for i, patch in enumerate(ax.patches):
-            try:
-                patch.set_facecolor(self._current_colours[i % len(self._current_colours)])
-            except Exception:
-                logger.warning("Chart editor patch recolor failed.", exc_info=True)
-
-        # Recolour error bars (containers)
-        for container in ax.containers:
-            try:
-                for child in container.get_children():
-                    child.set_color(self._current_colours[0])
-                    child.set_linewidth(self._line_width)
-            except Exception:
-                logger.warning("Chart editor errorbar recolor failed.", exc_info=True)
-
-        # Resize text annotations to match current font size
-        for txt in ax.texts:
-            try:
-                txt.set_fontsize(max(6, self._label_size - 2))
-            except Exception:
-                logger.warning("Chart editor text resize failed.", exc_info=True)
-
-        # Resize legend if present
-        legend = ax.get_legend()
-        if legend is not None:
-            try:
-                for leg_text in legend.get_texts():
-                    leg_text.set_fontsize(self._tick_size)
-            except Exception:
-                logger.warning("Chart editor legend resize failed.", exc_info=True)
-
-        title = self._title_edit.text()
-        if title:
-            ax.set_title(title, fontsize=self._title_size, fontweight="bold")
-
-        xlabel = self._xlabel_edit.text()
-        if xlabel:
-            ax.set_xlabel(xlabel, fontsize=self._label_size)
-
-        ylabel = self._ylabel_edit.text()
-        if ylabel:
-            ax.set_ylabel(ylabel, fontsize=self._label_size)
-
-        ax.tick_params(labelsize=self._tick_size)
-        ax.grid(
-            self._grid_on,
-            alpha=self._grid_alpha,
-            linestyle="--",
-            linewidth=0.5,
-        )
-        for spine in ax.spines.values():
-            spine.set_linewidth(0.8)
-
-        import matplotlib.pyplot as plt
-
-        old = self._canvas.figure
-        self._canvas.figure = fig
-        self._figure = fig
-        self._canvas.draw()
-        if old:
-            plt.close(old)
-        self.figure_changed.emit()
-
-    def _save_to_path(self, filepath):
-        path = Path(filepath)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        if self._fig_generator is None:
-            if self._static_file_mode and self._source_path:
-                self._backup_current_static_source(path)
-                state_path, _ = save_figure_edit(str(path), self._collect_style_state())
-                annotations = self._annotation_state()
-                save_figure_annotations(str(path), annotations)
-                if self._should_save_static_canvas(path, annotations) and self._save_static_canvas_to_path(path):
-                    pass
-                elif not self._save_static_rendered_figure(path):
-                    source = Path(self._source_path)
-                    if source.exists() and source.resolve() != path.resolve():
-                        shutil.copy2(source, path)
-                save_figure_asset_spec(
-                    str(path),
-                    discover_figure_asset(str(path)).to_dict(),
-                )
-                self._status_label.setText(tr("EDITOR_SAVE_STATE_DONE", state_path.name))
-                self.figure_saved.emit(str(path))
-                return
-            self._status_label.setText(tr("EDITOR_NO_DATA"))
-            return
-
-        # Save edit state FIRST so savefig_with_edits can apply it
-        state_path, _ = save_figure_edit(str(path), self._collect_style_state())
-
-        ext = path.suffix.lower().lstrip(".") or "svg"
-        if ext == "jpg":
-            ext = "jpeg"
-
-        from ...core.plot_edits import savefig_with_edits
-        try:
-            savefig_with_edits(
-                self._figure, str(path),
-                format=ext,
-                dpi=300 if ext in {"png", "jpeg", "jpg", "tiff"} else self._dpi,
-                bbox_inches="tight",
-                facecolor=self._bg_color,
-            )
-        except Exception:
-            # Fallback: direct save if edit apply fails
-            logger.warning("Chart editor save-with-edits failed; using direct save.", exc_info=True)
-            self._figure.savefig(
-                str(path), format=ext,
-                dpi=300 if ext in {"png", "jpeg", "jpg", "tiff"} else self._dpi,
-                bbox_inches="tight", facecolor=self._bg_color,
-            )
-
-        self._status_label.setText(tr("EDITOR_SAVE_DONE", state_path.name))
-        self.figure_saved.emit(str(path))
-
-    def _backup_current_static_source(self, path):
-        if not self._source_path:
-            return None
-        source = Path(self._source_path)
-        if not source.exists():
-            return None
-        if source.resolve() != path.resolve():
-            return None
-        backup_path = path.with_name(f"{path.name}.bak")
-        if backup_path.exists():
-            return backup_path
-        shutil.copy2(path, backup_path)
-        return backup_path
-
-    def _collect_style_state(self):
-        return {
-            "title": self._title_edit.text(),
-            "xlabel": self._xlabel_edit.text(),
-            "ylabel": self._ylabel_edit.text(),
-            "colour_scheme": self._colour_cb.currentText(),
-            "font": self._font_cb.currentText(),
-            "line_width": self._lw_cb.currentText(),
-            "figure_size": self._figsize_cb.currentText(),
-            "grid_on": self._grid_on,
-            "grid_alpha": self._grid_alpha,
-            "bg_color": self._bg_color,
-            "dpi": self._dpi,
-        }
-
-    def _annotation_state(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return []
-        return self._annotation_canvas.annotation_state()
-
-    def _should_save_static_canvas(self, path, annotations):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return False
-        if annotations:
-            return True
-        if self._asset_spec is None:
-            return False
-        canvas_width, canvas_height = self._annotation_canvas.image_size()
-        return (
-            int(getattr(self._asset_spec, "width_px", 0) or 0) != canvas_width
-            or int(getattr(self._asset_spec, "height_px", 0) or 0) != canvas_height
-        )
-
-    def _collect_style_preset_state(self):
-        return {
-            "colour_scheme": self._colour_cb.currentText(),
-            "font": self._font_cb.currentText(),
-            "line_width": self._lw_cb.currentText(),
-            "figure_size": self._figsize_cb.currentText(),
-            "grid_on": self._grid_on,
-            "grid_alpha": self._grid_alpha,
-            "bg_color": self._bg_color,
-            "dpi": self._dpi,
-        }
-
-    def _apply_saved_style(self, style):
-        if not style:
-            return
-        self._set_line_edit(self._title_edit, style.get("title", self._title_edit.text()))
-        self._set_line_edit(self._xlabel_edit, style.get("xlabel", self._xlabel_edit.text()))
-        self._set_line_edit(self._ylabel_edit, style.get("ylabel", self._ylabel_edit.text()))
-        self._set_combo(self._colour_cb, style.get("colour_scheme"))
-        self._set_combo(self._font_cb, style.get("font"))
-        self._set_combo(self._lw_cb, style.get("line_width"))
-        self._set_combo(self._figsize_cb, style.get("figure_size"))
-        if "grid_on" in style:
-            self._grid_cb.blockSignals(True)
-            self._grid_cb.setChecked(bool(style["grid_on"]))
-            self._grid_cb.blockSignals(False)
-            self._grid_on = bool(style["grid_on"])
-        if "grid_alpha" in style:
-            self._grid_sl.blockSignals(True)
-            self._grid_sl.setValue(int(float(style["grid_alpha"]) * 10))
-            self._grid_sl.blockSignals(False)
-            self._grid_alpha = float(style["grid_alpha"])
-        self._bg_color = style.get("bg_color", self._bg_color)
-        self._render()
-
-    def _apply_style_preset(self, style):
-        if not style:
-            return
-        self._set_combo(self._colour_cb, style.get("colour_scheme"))
-        self._set_combo(self._font_cb, style.get("font"))
-        self._set_combo(self._lw_cb, style.get("line_width"))
-        self._set_combo(self._figsize_cb, style.get("figure_size"))
-        if "grid_on" in style:
-            self._grid_cb.blockSignals(True)
-            self._grid_cb.setChecked(bool(style["grid_on"]))
-            self._grid_cb.blockSignals(False)
-            self._grid_on = bool(style["grid_on"])
-        if "grid_alpha" in style:
-            self._grid_sl.blockSignals(True)
-            self._grid_sl.setValue(int(float(style["grid_alpha"]) * 10))
-            self._grid_sl.blockSignals(False)
-            self._grid_alpha = float(style["grid_alpha"])
-        if "bg_color" in style:
-            self._bg_color = style["bg_color"]
-        if "dpi" in style:
-            try:
-                self._dpi = int(style["dpi"])
-            except Exception:
-                logger.warning("Chart editor DPI restore failed; keeping current DPI.", exc_info=True)
-        self._render()
-
-    def _current_style_preset_name(self):
-        return str(self._style_preset_combo.currentText() or "").strip()
-
-    def _set_style_preset_placeholder(self, text):
-        line_edit = self._style_preset_combo.lineEdit()
-        if line_edit is not None:
-            line_edit.setPlaceholderText(text)
-
-    def _on_style_preset_name_changed(self, _text):
-        self._update_style_preset_action_state()
-
-    def _update_style_preset_action_state(self, names=None):
-        if names is None:
-            names = list_style_presets()
-        current_name = self._current_style_preset_name()
-        has_existing = bool(current_name) and current_name in names
-        self._btn_style_preset_save.setEnabled(True)
-        self._btn_style_preset_apply.setEnabled(has_existing)
-        self._btn_style_preset_delete.setEnabled(has_existing)
-
-    def _refresh_style_preset_controls(self):
-        names = list_style_presets()
-        current_text = self._current_style_preset_name()
-        self._style_preset_combo.blockSignals(True)
-        self._style_preset_combo.clear()
-        if names:
-            self._style_preset_combo.addItems(names)
-        if current_text:
-            self._style_preset_combo.setEditText(current_text)
-        elif names:
-            self._style_preset_combo.setCurrentIndex(0)
-        self._style_preset_combo.blockSignals(False)
-        self._set_style_preset_placeholder(tr("EDITOR_STYLE_PRESET_PLACEHOLDER"))
-        self._update_style_preset_action_state(names=names)
-
-    def _on_save_style_preset(self):
-        preset_name = self._current_style_preset_name()
-        if not preset_name:
-            QMessageBox.warning(
-                self,
-                tr("EDITOR_STYLE_PRESET_TITLE"),
-                tr("EDITOR_STYLE_PRESET_NAME_REQUIRED"),
-            )
-            return
-
-        existing = load_style_preset(preset_name)
-        if existing:
-            reply = QMessageBox.question(
-                self,
-                tr("EDITOR_STYLE_PRESET_TITLE"),
-                tr("EDITOR_STYLE_PRESET_OVERWRITE", preset_name),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            if reply != QMessageBox.Yes:
-                return
-
-        path, _ = save_style_preset(preset_name, self._collect_style_preset_state())
-        self._refresh_style_preset_controls()
-        self._style_preset_combo.setEditText(preset_name)
-        self._status_label.setText(tr("EDITOR_STYLE_PRESET_SAVED", preset_name, path.name))
-
-    def _on_apply_style_preset(self):
-        preset_name = self._current_style_preset_name()
-        if not preset_name:
-            QMessageBox.warning(
-                self,
-                tr("EDITOR_STYLE_PRESET_TITLE"),
-                tr("EDITOR_STYLE_PRESET_NAME_REQUIRED"),
-            )
-            return
-
-        style = load_style_preset(preset_name)
-        if not style:
-            QMessageBox.warning(
-                self,
-                tr("EDITOR_STYLE_PRESET_TITLE"),
-                tr("EDITOR_STYLE_PRESET_MISSING", preset_name),
-            )
-            self._refresh_style_preset_controls()
-            return
-
-        self._apply_style_preset(style)
-        self._status_label.setText(tr("EDITOR_STYLE_PRESET_APPLIED", preset_name))
-
-    def _on_delete_style_preset(self):
-        preset_name = self._current_style_preset_name()
-        if not preset_name:
-            QMessageBox.warning(
-                self,
-                tr("EDITOR_STYLE_PRESET_TITLE"),
-                tr("EDITOR_STYLE_PRESET_NAME_REQUIRED"),
-            )
-            return
-
-        if not load_style_preset(preset_name):
-            QMessageBox.warning(
-                self,
-                tr("EDITOR_STYLE_PRESET_TITLE"),
-                tr("EDITOR_STYLE_PRESET_MISSING", preset_name),
-            )
-            self._refresh_style_preset_controls()
-            return
-
-        reply = QMessageBox.question(
-            self,
-            tr("EDITOR_STYLE_PRESET_TITLE"),
-            tr("EDITOR_STYLE_PRESET_DELETE_CONFIRM", preset_name),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if reply != QMessageBox.Yes:
-            return
-
-        delete_style_preset(preset_name)
-        self._refresh_style_preset_controls()
-        self._style_preset_combo.setEditText("")
-        self._status_label.setText(tr("EDITOR_STYLE_PRESET_DELETED", preset_name))
-
-    def _set_line_edit(self, widget, value):
-        widget.blockSignals(True)
-        widget.setText(value)
-        widget.blockSignals(False)
-
-    def _set_combo(self, combo, value):
-        if not value:
-            return
-        idx = combo.findText(value)
-        if idx >= 0:
-            combo.blockSignals(True)
-            combo.setCurrentIndex(idx)
-            combo.blockSignals(False)
-            if combo is self._colour_cb:
-                self._current_colours = list(COLOUR_SCHEMES[value])
-            elif combo is self._font_cb:
-                self._set_font_size(value)
-            elif combo is self._lw_cb:
-                self._line_width = LINE_WIDTHS[value]
-            elif combo is self._figsize_cb:
-                self._fig_size = FIGURE_SIZES[value]
 
     def _on_colour_scheme_changed(self, name):
         self._current_colours = list(COLOUR_SCHEMES[name])
@@ -982,134 +984,12 @@ class ChartEditor(QWidget):
             self._bg_color = color.name()
             self._render()
 
-    def _on_add_text_annotation(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        text = self._annotation_text_edit.text().strip() or "Annotation"
-        self._annotation_canvas.add_text_annotation(text, 20, 20)
-        self.figure_changed.emit()
-
-    def _on_update_selected_text_annotation(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        text = self._annotation_text_edit.text().strip()
-        if text and self._annotation_canvas.update_selected_text(text):
-            self.figure_changed.emit()
-
-    def _on_annotation_apply_style(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        color = self._annotation_color_edit.text().strip() or None
-        if self._annotation_canvas.update_selected_properties(
-            color=color,
-            font_size=self._annotation_font_size_spin.value(),
-            line_width=self._annotation_line_width_spin.value(),
-            alpha=self._annotation_alpha_spin.value(),
-        ):
-            self.figure_changed.emit()
-
-    def _on_add_rectangle_annotation(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        self._annotation_canvas.set_tool("rectangle")
-
-    def _on_add_line_annotation(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        self._annotation_canvas.set_tool("line")
-
-    def _on_add_arrow_annotation(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        self._annotation_canvas.set_tool("arrow")
-
-    def _on_add_highlight_annotation(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        self._annotation_canvas.set_tool("highlight")
-
-    def _on_crop_annotation_canvas(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        self._annotation_canvas.set_tool("crop")
-
-    def _on_annotation_undo(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        if self._annotation_canvas.undo():
-            self.figure_changed.emit()
-
-    def _on_annotation_redo(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        if self._annotation_canvas.redo():
-            self.figure_changed.emit()
-
-    def _on_annotation_delete(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        if self._annotation_canvas.delete_selected_annotation():
-            self.figure_changed.emit()
-
-    def _on_annotation_copy(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        self._annotation_canvas.copy_selected_annotation()
-
-    def _on_annotation_paste(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        if self._annotation_canvas.paste_annotation():
-            self.figure_changed.emit()
-
-    def _on_annotation_front(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        if self._annotation_canvas.bring_selected_to_front():
-            self.figure_changed.emit()
-
-    def _on_annotation_back(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return
-        if self._annotation_canvas.send_selected_to_back():
-            self.figure_changed.emit()
-
-    def _sync_annotation_tool_buttons(self, tool):
-        mapping = {
-            "line": self._btn_annotation_add_line,
-            "arrow": self._btn_annotation_add_arrow,
-            "rectangle": self._btn_annotation_add_rect,
-            "highlight": self._btn_annotation_add_highlight,
-            "crop": self._btn_annotation_crop,
-        }
-        for name, button in mapping.items():
-            button.blockSignals(True)
-            button.setChecked(name == tool)
-            button.blockSignals(False)
-
-    def _sync_annotation_property_controls(self, _annotation_id=""):
-        if self._annotation_canvas is None:
-            return
-        annotation = self._annotation_canvas.selected_annotation()
-        if not annotation:
-            return
-        color = str(annotation.get("color", "") or "")
-        if color:
-            self._annotation_color_edit.blockSignals(True)
-            self._annotation_color_edit.setText(color)
-            self._annotation_color_edit.blockSignals(False)
-        if "font_size" in annotation:
-            self._annotation_font_size_spin.blockSignals(True)
-            self._annotation_font_size_spin.setValue(int(annotation.get("font_size", 12) or 12))
-            self._annotation_font_size_spin.blockSignals(False)
-        if "line_width" in annotation:
-            self._annotation_line_width_spin.blockSignals(True)
-            self._annotation_line_width_spin.setValue(float(annotation.get("line_width", 2.0) or 2.0))
-            self._annotation_line_width_spin.blockSignals(False)
-        if "alpha" in annotation:
-            self._annotation_alpha_spin.blockSignals(True)
-            self._annotation_alpha_spin.setValue(float(annotation.get("alpha", 0.35) or 0.35))
-            self._annotation_alpha_spin.blockSignals(False)
+    def _generated_line_handle_hit(self, event, object_id):
+        handle_index = self._generated_point_handle_hit(event, object_id)
+        if handle_index is not None:
+            return handle_index
+        figure_object = self._generated_figure_object_by_id(object_id)
+        return self._generated_line_endpoint_hit(event, figure_object)
 
     def _on_annotation_fit(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
@@ -1131,264 +1011,5 @@ class ChartEditor(QWidget):
             return
         self._annotation_canvas.zoom_in()
 
-    def _show_style_preview_figure(self):
-        """Create a live preview for static-file edits."""
-        if self._source_path and self._show_source_image_figure():
-            return
-
-        self._show_placeholder_style_preview()
-
-    def _show_source_image_figure(self):
-        fig = self._build_source_image_figure()
-        if fig is None:
-            return False
-
-        self._replace_canvas_figure(fig)
-        return True
-
-    def _build_source_image_figure(self):
-        image = self._load_source_image_array()
-        if image is None:
-            return None
-
-        fig = Figure(figsize=self._fig_size, dpi=self._dpi, facecolor=self._bg_color)
-        ax = fig.add_subplot(111)
-        ax.imshow(image)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-
-        title = self._title_edit.text()
-        if title:
-            ax.set_title(title, fontsize=self._title_size, fontweight="bold")
-
-        xlabel = self._xlabel_edit.text()
-        if xlabel:
-            ax.set_xlabel(xlabel, fontsize=self._label_size)
-
-        ylabel = self._ylabel_edit.text()
-        if ylabel:
-            ax.set_ylabel(ylabel, fontsize=self._label_size)
-
-        fig.tight_layout()
-        return fig
-
-    def _refresh_static_annotation_canvas_preview(self):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return False
-        fig = self._build_source_image_figure()
-        if fig is None:
-            return False
-        try:
-            image = self._figure_to_qimage(fig)
-        finally:
-            fig.clear()
-        if image.isNull():
-            return False
-        return self._annotation_canvas.replace_image(image)
-
-    def _figure_to_qimage(self, fig):
-        canvas = FigureCanvasAgg(fig)
-        canvas.draw()
-        buffer, (width, height) = canvas.print_to_buffer()
-        image = QImage(buffer, width, height, QImage.Format_RGBA8888)
-        return image.copy()
-
-    def _load_source_image_array(self):
-        if not self._source_path:
-            return None
-        try:
-            pixmap = self._source_preview._load_pixmap(self._source_path)
-            if pixmap is None or pixmap.isNull():
-                return None
-            image = pixmap.toImage().convertToFormat(QImage.Format_RGBA8888)
-            width = image.width()
-            height = image.height()
-            if width <= 0 or height <= 0:
-                return None
-            bytes_per_line = image.bytesPerLine()
-            buffer = bytes(image.constBits())
-            import numpy as np
-
-            array = np.frombuffer(buffer, dtype=np.uint8).reshape((height, bytes_per_line))
-            array = array[:, : width * 4].reshape((height, width, 4))
-            return array.copy()
-        except Exception:
-            logger.warning("Failed to render static source figure for editing.", exc_info=True)
-            return None
-
-    def _save_static_rendered_figure(self, path):
-        if not self._show_source_image_figure():
-            return False
-        ext = path.suffix.lower().lstrip(".") or "png"
-        if ext == "jpg":
-            ext = "jpeg"
-        try:
-            self._figure.savefig(
-                str(path),
-                format=ext,
-                dpi=300 if ext in {"png", "jpeg", "jpg", "tiff"} else self._dpi,
-                bbox_inches="tight",
-                facecolor=self._bg_color,
-            )
-            return True
-        except Exception:
-            logger.warning("Failed to save static rendered figure.", exc_info=True)
-            return False
-
-    def _save_static_canvas_to_path(self, path):
-        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
-            return False
-        ext = path.suffix.lower().lstrip(".") or "png"
-        if ext == "jpg":
-            ext = "jpeg"
-        if ext in {"pdf", "svg"}:
-            return self._save_static_canvas_vector(path, ext)
-        image = self._annotation_canvas.render_to_image(self._bg_color)
-        if image.isNull():
-            return False
-        if ext not in {"png", "jpeg", "jpg", "bmp", "tiff", "tif"}:
-            return False
-        return bool(image.save(str(path), ext.upper()))
-
-    def _save_static_canvas_vector(self, path, ext):
-        scene = self._annotation_canvas._scene
-        rect = scene.sceneRect()
-        if rect.isNull():
-            return False
-
-        width = max(1, int(rect.width()))
-        height = max(1, int(rect.height()))
-        if ext == "pdf":
-            device = QPdfWriter(str(path))
-            device.setResolution(72)
-            device.setPageSize(QPageSize(QSizeF(width, height), QPageSize.Point))
-        elif ext == "svg":
-            device = QSvgGenerator()
-            device.setFileName(str(path))
-            device.setSize(QSize(width, height))
-            device.setViewBox(QRect(0, 0, width, height))
-        else:
-            return False
-
-        painter = QPainter()
-        if not painter.begin(device):
-            return False
-        try:
-            target = QRectF(0, 0, width, height)
-            painter.fillRect(target, self._bg_color)
-            scene.render(painter, target, rect)
-        finally:
-            painter.end()
-        return path.exists() and path.stat().st_size > 0
-
-    def _replace_canvas_figure(self, fig):
-        import matplotlib.pyplot as plt
-
-        old = self._canvas.figure
-        self._canvas.figure = fig
-        self._figure = fig
-        self._canvas.draw()
-        if old:
-            plt.close(old)
-
-    def _show_placeholder_style_preview(self):
-        """Create a placeholder figure showing current style when the source cannot render."""
-        _apply_sci_style(font_size=8.0)
-
-        fig = Figure(figsize=self._fig_size, dpi=self._dpi, facecolor=self._bg_color)
-        ax = fig.add_subplot(111)
-
-        # Draw placeholder data so style changes are visible
-        import numpy as np
-        x = np.linspace(0, 10, 200)
-        for i, color in enumerate(self._current_colours[:3]):
-            ax.plot(x, np.sin(x + i * 1.5) + i * 2,
-                    color=color, linewidth=self._line_width,
-                    label=f"Curve {i + 1}")
-
-        # Apply current title/labels
-        title = self._title_edit.text()
-        if title:
-            ax.set_title(title, fontsize=self._title_size, fontweight="bold")
-
-        xlabel = self._xlabel_edit.text()
-        if xlabel:
-            ax.set_xlabel(xlabel, fontsize=self._label_size)
-
-        ylabel = self._ylabel_edit.text()
-        if ylabel:
-            ax.set_ylabel(ylabel, fontsize=self._label_size)
-
-        ax.tick_params(labelsize=self._tick_size)
-        ax.grid(self._grid_on, alpha=self._grid_alpha, linestyle="--", linewidth=0.5)
-        for spine in ax.spines.values():
-            spine.set_linewidth(0.8)
-
-        if self._current_colours:
-            ax.legend(fontsize=self._tick_size, frameon=False)
-        ax.text(0.02, 0.98, "Style Preview — data for illustration only",
-                transform=ax.transAxes, fontsize=7, color="#999999",
-                va="top", ha="left")
-
-        self._replace_canvas_figure(fig)
-
-    def _apply_sci_defaults(self):
-        """Reset all ChartEditor controls to SCI journal defaults."""
-        # SCI journal standard: 8pt base, white bg, Wong palette, no grid, ~single-col size
-        self._set_line_edit(self._title_edit, "")
-        self._bg_color = "#FFFFFF"
-
-        # Colour → Wong (SCI)
-        idx = self._colour_cb.findText("Wong (SCI)")
-        if idx >= 0:
-            self._colour_cb.setCurrentIndex(idx)
-        self._current_colours = list(COLOUR_SCHEMES["Wong (SCI)"])
-
-        # Font → Small (8pt base)
-        idx = self._font_cb.findText("Small")
-        if idx >= 0:
-            self._font_cb.setCurrentIndex(idx)
-        self._set_font_size("Small")
-
-        # Line → Normal (1.0pt)
-        idx = self._lw_cb.findText("Normal")
-        if idx >= 0:
-            self._lw_cb.setCurrentIndex(idx)
-        self._line_width = LINE_WIDTHS["Normal"]
-
-        # Figure size → Small (4in), closest to single-col (3.35in)
-        idx = self._figsize_cb.findText("Small (4in)")
-        if idx >= 0:
-            self._figsize_cb.setCurrentIndex(idx)
-        self._fig_size = FIGURE_SIZES["Small (4in)"]
-
-        # Grid → OFF
-        self._grid_cb.setChecked(False)
-        self._grid_on = False
-        self._grid_alpha = 0.0
-
-        self._render()
-        self._status_label.setText(tr("EDITOR_APPLY_SCI_DONE"))
-
-
-def make_line_plot(ax, x, y, title="", xlabel="X", ylabel="Y", label="Data", **kw):
-    ax.plot(x, y, label=label, **kw)
-    ax.legend()
-    return ax
-
-
-def make_bar_plot(ax, labels, values, title="", ylabel="Value", colors=None, **kw):
-    if colors is None:
-        colors = ["#2166AC", "#B2182B", "#1B7837", "#E69F00", "#762A83"]
-    ax.bar(
-        range(len(labels)),
-        values,
-        color=colors[: len(labels)],
-        edgecolor="white",
-        linewidth=0.5,
-    )
-    ax.set_xticks(range(len(labels)))
-    ax.set_xticklabels(labels, rotation=30, ha="right")
-    return ax
+make_line_plot = _shared_make_line_plot
+make_bar_plot = _shared_make_bar_plot
