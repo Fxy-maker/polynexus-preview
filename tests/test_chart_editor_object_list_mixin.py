@@ -1,0 +1,18 @@
+from __future__ import annotations
+
+from polynexus.gui.widgets.chart_editor import ChartEditor
+from polynexus.gui.widgets.chart_editor_object_list_mixin import ChartEditorObjectListMixin
+
+
+def test_chart_editor_reuses_object_list_helpers_from_object_list_mixin() -> None:
+    assert ChartEditor._object_list_label is ChartEditorObjectListMixin._object_list_label
+    assert ChartEditor._generated_figure_objects is ChartEditorObjectListMixin._generated_figure_objects
+    assert ChartEditor._figure_object_list_label is ChartEditorObjectListMixin._figure_object_list_label
+    assert ChartEditor._reorderable_generated_figure_objects is ChartEditorObjectListMixin._reorderable_generated_figure_objects
+    assert ChartEditor._refresh_object_list is ChartEditorObjectListMixin._refresh_object_list
+    assert ChartEditor._rename_selected_generated_object is ChartEditorObjectListMixin._rename_selected_generated_object
+    assert ChartEditor._soft_delete_selected_generated_object is ChartEditorObjectListMixin._soft_delete_selected_generated_object
+    assert ChartEditor._restore_last_deleted_generated_object is ChartEditorObjectListMixin._restore_last_deleted_generated_object
+    assert ChartEditor._move_selected_generated_object is ChartEditorObjectListMixin._move_selected_generated_object
+    assert ChartEditor._on_object_list_selection_changed is ChartEditorObjectListMixin._on_object_list_selection_changed
+    assert ChartEditor._on_object_list_item_changed is ChartEditorObjectListMixin._on_object_list_item_changed

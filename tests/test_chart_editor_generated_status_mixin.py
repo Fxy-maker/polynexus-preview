@@ -1,0 +1,21 @@
+from __future__ import annotations
+
+from polynexus.gui.widgets.chart_editor import ChartEditor
+from polynexus.gui.widgets.chart_editor_generated_status_mixin import (
+    ChartEditorGeneratedStatusMixin,
+)
+
+
+def test_chart_editor_reuses_generated_status_helpers_from_generated_status_mixin() -> None:
+    assert ChartEditor._generated_hover_cursor_shape is ChartEditorGeneratedStatusMixin._generated_hover_cursor_shape
+    assert ChartEditor._restore_generated_status_hint is ChartEditorGeneratedStatusMixin._restore_generated_status_hint
+    assert ChartEditor._set_generated_selection_status is ChartEditorGeneratedStatusMixin._set_generated_selection_status
+    assert ChartEditor._clear_generated_selection_status is ChartEditorGeneratedStatusMixin._clear_generated_selection_status
+    assert ChartEditor._clear_generated_hover_status is ChartEditorGeneratedStatusMixin._clear_generated_hover_status
+    assert ChartEditor._clear_generated_drag_status is ChartEditorGeneratedStatusMixin._clear_generated_drag_status
+    assert ChartEditor._can_show_generated_hover_status is ChartEditorGeneratedStatusMixin._can_show_generated_hover_status
+    assert ChartEditor._generated_hover_status_text is ChartEditorGeneratedStatusMixin._generated_hover_status_text
+    assert ChartEditor._set_generated_hover_status is ChartEditorGeneratedStatusMixin._set_generated_hover_status
+    assert ChartEditor._generated_drag_status_text is ChartEditorGeneratedStatusMixin._generated_drag_status_text
+    assert ChartEditor._set_generated_drag_status is ChartEditorGeneratedStatusMixin._set_generated_drag_status
+    assert ChartEditor._format_generated_status_number is ChartEditorGeneratedStatusMixin._format_generated_status_number

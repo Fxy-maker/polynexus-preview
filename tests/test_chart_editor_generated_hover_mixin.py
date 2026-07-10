@@ -1,0 +1,16 @@
+from __future__ import annotations
+
+from polynexus.gui.widgets.chart_editor import ChartEditor
+from polynexus.gui.widgets.chart_editor_generated_hover_mixin import (
+    ChartEditorGeneratedHoverMixin,
+)
+
+
+def test_chart_editor_reuses_generated_hover_helpers_from_generated_hover_mixin() -> None:
+    assert ChartEditor._set_generated_canvas_cursor is ChartEditorGeneratedHoverMixin._set_generated_canvas_cursor
+    assert ChartEditor._reset_generated_canvas_cursor is ChartEditorGeneratedHoverMixin._reset_generated_canvas_cursor
+    assert ChartEditor._clear_generated_hover_highlight is ChartEditorGeneratedHoverMixin._clear_generated_hover_highlight
+    assert ChartEditor._set_generated_hover_object is ChartEditorGeneratedHoverMixin._set_generated_hover_object
+    assert ChartEditor._clear_generated_hover_preview_handle is ChartEditorGeneratedHoverMixin._clear_generated_hover_preview_handle
+    assert ChartEditor._set_generated_hover_preview_handle is ChartEditorGeneratedHoverMixin._set_generated_hover_preview_handle
+    assert ChartEditor._update_generated_canvas_cursor is ChartEditorGeneratedHoverMixin._update_generated_canvas_cursor
