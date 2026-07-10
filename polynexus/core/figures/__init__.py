@@ -17,6 +17,11 @@ from .legacy_recovery import (
     LegacyRecoveryKind,
 )
 from .recovery_pipeline import FigureRecoveryPipeline
+from .production import (
+    FigureProductionPublisher,
+    FigureProductionResult,
+    new_immutable_run_id,
+)
 
 __all__ = [
     "AxisDefinition",
@@ -31,7 +36,10 @@ __all__ = [
     "FigurePipeline",
     "FigureProjectService",
     "FigureProjectUpdate",
+    "FigureProductionPublisher",
+    "FigureProductionResult",
     "FigureRecoveryPipeline",
     "PanelDefinition",
     "get_figure_output_profile",
+    "new_immutable_run_id",
 ]
