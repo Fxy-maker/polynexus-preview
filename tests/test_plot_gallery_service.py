@@ -8,11 +8,13 @@ from polynexus.gui.plot_gallery_service import (
     FIGURE_STATE_OBJECT,
     FIGURE_STATE_UNLINKED_EXPORT,
     build_plot_gallery_entries,
+    build_active_manifest_gallery_entries,
     collect_plot_figure_paths,
     result_figure_paths,
     select_plot_gallery_entry,
     select_plot_figure_path,
 )
+from polynexus.core.figures.pipeline import FigurePipeline
 
 
 def test_collect_plot_figure_paths_includes_figure_subdirs_and_root_files(tmp_path):
@@ -282,3 +284,38 @@ def test_select_plot_gallery_entry_prefers_entry_containing_current_asset(tmp_pa
     assert selection.selected_path == str(png_path.resolve())
     assert selection.matched_preferred is True
     assert selection.emit_preview is True
+
+
+def test_active_manifest_gallery_ignores_unrelated_historical_files(
+    ir_definition,
+    tmp_path,
+):
+    manifest = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="run-1",
+        technique="ir",
+        definitions=(ir_definition,),
+    )
+    historical = tmp_path / "old" / "stale.png"
+    historical.parent.mkdir()
+    historical.write_bytes(b"stale")
+
+    entries = build_active_manifest_gallery_entries(tmp_path)
+
+    assert [entry.figure_id for entry in entries] == [manifest.figures[0].figure_id]
+    entry = entries[0]
+    run_root = tmp_path / "runs" / "run-1"
+    assert entry.run_id == "run-1"
+    assert entry.run_root == str(run_root.resolve())
+    assert entry.document_path == str(
+        (run_root / manifest.figures[0].document).resolve()
+    )
+    assert entry.capability_report["editing_mode"] == "object"
+    assert entry.working_revision == 1
+    assert entry.published_revision == 1
+    assert {asset.role for asset in entry.assets} == {
+        "preview",
+        "svg",
+        "png",
+        "pdf",
+    }

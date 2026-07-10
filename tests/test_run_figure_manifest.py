@@ -51,6 +51,21 @@ def test_manifest_repository_rejects_absolute_ready_paths(tmp_path):
         )
 
 
+def test_manifest_repository_reads_manifest_and_active_run(tmp_path):
+    repository = RunFigureManifestRepository(tmp_path)
+    manifest = _ready_manifest()
+    run_root = tmp_path / "runs" / "run-1"
+    repository.write_manifest(run_root, manifest)
+    repository.activate("run-1")
+
+    loaded = repository.read_manifest(run_root)
+    active_root, active = repository.read_active_manifest()
+
+    assert loaded == manifest
+    assert active == manifest
+    assert active_root == run_root.resolve()
+
+
 def _ready_manifest(*, document="figures/ir.frame.spectrum.001/figure.pnfig.json"):
     return RunFigureManifest(
         schema_version=1,

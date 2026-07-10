@@ -24,6 +24,25 @@ class FigureManifestEntry:
     published_revision: int
     error: str
 
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> FigureManifestEntry:
+        return cls(
+            figure_id=str(payload.get("figure_id") or ""),
+            title=str(payload.get("title") or ""),
+            category=str(payload.get("category") or ""),
+            status=str(payload.get("status") or ""),
+            document=str(payload.get("document") or ""),
+            data_sources=tuple(str(path) for path in payload.get("data_sources", [])),
+            assets={
+                str(role): str(path)
+                for role, path in dict(payload.get("assets", {})).items()
+            },
+            capability_report=dict(payload.get("capability_report", {})),
+            working_revision=int(payload.get("working_revision", 0) or 0),
+            published_revision=int(payload.get("published_revision", 0) or 0),
+            error=str(payload.get("error") or ""),
+        )
+
     def to_payload(self) -> dict[str, Any]:
         return {
             "figure_id": self.figure_id,
@@ -47,6 +66,20 @@ class RunFigureManifest:
     technique: str
     output_profile: str
     figures: tuple[FigureManifestEntry, ...]
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> RunFigureManifest:
+        return cls(
+            schema_version=int(payload.get("schema_version", 1) or 1),
+            run_id=str(payload.get("run_id") or ""),
+            technique=str(payload.get("technique") or ""),
+            output_profile=str(payload.get("output_profile") or ""),
+            figures=tuple(
+                FigureManifestEntry.from_payload(item)
+                for item in payload.get("figures", [])
+                if isinstance(item, dict)
+            ),
+        )
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -81,6 +114,31 @@ class RunFigureManifestRepository:
         path = self.output_root / "active_run.json"
         self._atomic_write_json(path, {"run_id": run_id})
         return path
+
+    def read_manifest(self, run_root: Path) -> RunFigureManifest:
+        path = Path(run_root).resolve() / "figure_manifest.json"
+        payload = self._read_json(path)
+        manifest = RunFigureManifest.from_payload(payload)
+        self._validate_ready_paths(manifest)
+        return manifest
+
+    def read_active_manifest(self) -> tuple[Path, RunFigureManifest]:
+        pointer = self._read_json(self.output_root / "active_run.json")
+        run_id = str(pointer.get("run_id") or "")
+        if not run_id or "/" in run_id or "\\" in run_id:
+            raise ValueError(f"invalid active run ID: {run_id!r}")
+        run_root = (self.output_root / "runs" / run_id).resolve()
+        expected_runs_root = (self.output_root / "runs").resolve()
+        try:
+            run_root.relative_to(expected_runs_root)
+        except ValueError as exc:
+            raise ValueError(f"active run escapes output root: {run_id}") from exc
+        manifest = self.read_manifest(run_root)
+        if manifest.run_id != run_id:
+            raise ValueError(
+                f"active run pointer mismatch: {run_id} != {manifest.run_id}"
+            )
+        return run_root, manifest
 
     @classmethod
     def _validate_ready_paths(cls, manifest: RunFigureManifest) -> None:
@@ -135,3 +193,11 @@ class RunFigureManifestRepository:
         except BaseException:
             temporary_path.unlink(missing_ok=True)
             raise
+
+    @staticmethod
+    def _read_json(path: Path) -> dict[str, Any]:
+        with Path(path).open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if not isinstance(payload, dict):
+            raise ValueError(f"JSON object expected: {path}")
+        return payload

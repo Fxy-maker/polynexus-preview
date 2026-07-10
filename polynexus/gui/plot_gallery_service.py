@@ -10,6 +10,7 @@ from typing import Callable, Iterable
 
 from ..core.figure_assets import discover_figure_asset
 from ..core.figure_document import OBJECT_MODE, STATIC_BACKGROUND_MODE, load_figure_document
+from ..core.figures.manifest import RunFigureManifestRepository
 
 
 DEFAULT_FIGURE_EXTENSIONS: tuple[str, ...] = (".svg", ".png", ".pdf", ".jpg", ".jpeg")
@@ -43,6 +44,16 @@ class FigureGalleryEntry:
     document_mode: str
     asset_paths: tuple[str, ...]
     assets: tuple[FigureGalleryAsset, ...]
+    output_root: str = ""
+    run_root: str = ""
+    run_id: str = ""
+    document_path: str = ""
+    capability_report: dict = None
+    publication_status: str = ""
+    working_revision: int = 0
+    published_revision: int = 0
+    status: str = ""
+    error: str = ""
 
 
 @dataclass(frozen=True)
@@ -51,6 +62,96 @@ class PlotGallerySelection:
     selected_path: str = ""
     matched_preferred: bool = False
     emit_preview: bool = False
+
+
+def build_active_manifest_gallery_entries(
+    output_root: str | Path,
+) -> list[FigureGalleryEntry]:
+    root = Path(output_root).resolve()
+    repository = RunFigureManifestRepository(root)
+    try:
+        run_root, manifest = repository.read_active_manifest()
+    except (FileNotFoundError, OSError, ValueError):
+        return []
+
+    entries: list[FigureGalleryEntry] = []
+    for manifest_entry in manifest.figures:
+        assets = []
+        absolute_assets: dict[str, str] = {}
+        for role in ("preview", "svg", "png", "pdf"):
+            relative_path = manifest_entry.assets.get(role, "")
+            if not relative_path:
+                continue
+            path = _resolve_run_manifest_path(run_root, relative_path)
+            absolute_assets[role] = str(path)
+            assets.append(
+                FigureGalleryAsset(
+                    format=path.suffix.lower().lstrip("."),
+                    label=f"{role.upper()} {path.suffix.upper().lstrip('.')}".strip(),
+                    role=role,
+                    path=str(path),
+                )
+            )
+        preview_path = absolute_assets.get("preview", "")
+        primary_path = (
+            absolute_assets.get("svg")
+            or absolute_assets.get("png")
+            or absolute_assets.get("pdf")
+            or preview_path
+        )
+        capability = dict(manifest_entry.capability_report)
+        object_editing = (
+            str(capability.get("editing_mode") or "") == "object"
+            and bool(capability.get("object_editing"))
+        )
+        category = manifest_entry.category
+        if category == "per_frame":
+            category = FIGURE_CATEGORY_PER_FRAME
+        elif category not in {
+            FIGURE_CATEGORY_SERIES_OVERVIEW,
+            FIGURE_CATEGORY_PER_FRAME,
+        }:
+            category = FIGURE_CATEGORY_OTHER_EXPORTS
+        document_path = ""
+        if manifest_entry.document:
+            document_path = str(
+                _resolve_run_manifest_path(run_root, manifest_entry.document)
+            )
+        entries.append(
+            FigureGalleryEntry(
+                figure_id=manifest_entry.figure_id,
+                title=manifest_entry.title,
+                category=category,
+                state=FIGURE_STATE_OBJECT if object_editing else FIGURE_STATE_STATIC,
+                preview_path=preview_path,
+                primary_path=primary_path,
+                editable_path=primary_path if object_editing else preview_path,
+                document_mode=OBJECT_MODE if object_editing else STATIC_BACKGROUND_MODE,
+                asset_paths=tuple(asset.path for asset in assets),
+                assets=tuple(assets),
+                output_root=str(root),
+                run_root=str(run_root),
+                run_id=manifest.run_id,
+                document_path=document_path,
+                capability_report=capability,
+                publication_status=str(capability.get("publication_status") or ""),
+                working_revision=manifest_entry.working_revision,
+                published_revision=manifest_entry.published_revision,
+                status=manifest_entry.status,
+                error=manifest_entry.error,
+            )
+        )
+    entries.sort(key=_entry_sort_key)
+    return entries
+
+
+def _resolve_run_manifest_path(run_root: Path, relative_path: str) -> Path:
+    path = (Path(run_root).resolve() / Path(relative_path)).resolve()
+    try:
+        path.relative_to(Path(run_root).resolve())
+    except ValueError as exc:
+        raise ValueError(f"manifest path escapes run root: {relative_path}") from exc
+    return path
 
 
 def collect_plot_figure_paths(

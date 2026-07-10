@@ -13,9 +13,7 @@ from .figure_window_service import (
 )
 from .i18n import tr
 from .plot_gallery_service import (
-    build_plot_gallery_entries,
-    collect_plot_figure_paths,
-    result_figure_paths,
+    build_active_manifest_gallery_entries,
     select_plot_gallery_entry,
 )
 
@@ -23,12 +21,8 @@ from .plot_gallery_service import (
 class MainWindowFigureMixin:
     def _populate_plots(self):
         """Load analysis figures into the ChartGallery."""
-        current_result = self._results.get(str(getattr(self, "_current_technique", "") or "").strip().lower())
-        figure_paths = collect_plot_figure_paths(
-            self._output_dir,
-            preferred_paths=result_figure_paths(current_result),
-        )
-        if not figure_paths:
+        entries = build_active_manifest_gallery_entries(self._output_dir)
+        if not entries:
             self._plots_label.setVisible(True)
             self._chart_gallery.setVisible(False)
             self._chart_gallery.clear()
@@ -44,8 +38,6 @@ class MainWindowFigureMixin:
             return
 
         preview_was_visible = bool(hasattr(self, "_figure_preview") and self._figure_preview.isVisible())
-        entries = build_plot_gallery_entries(figure_paths, output_root=self._output_dir)
-
         self._plots_label.setVisible(False)
         self._chart_gallery.setVisible(True)
         self._chart_gallery.load_entries(entries)
