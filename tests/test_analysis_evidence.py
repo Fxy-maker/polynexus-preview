@@ -4,6 +4,8 @@ import importlib
 import json
 from pathlib import Path
 
+import pytest
+
 import polynexus.core.analysis_evidence_saxs as analysis_evidence_saxs
 import polynexus.core.analysis_evidence_dsc as analysis_evidence_dsc
 import polynexus.core.analysis_evidence_ir as analysis_evidence_ir
@@ -84,12 +86,15 @@ class _StaticLLM:
 
 
 def _temperature_ir_dir() -> Path:
-    return (
+    path = (
         Path(__file__).resolve().parents[1]
         / "测试数据"
         / "IR"
         / "原位变温红外"
     )
+    if not path.is_dir():
+        pytest.skip("external IR temperature-series fixture is unavailable")
+    return path
 
 
 def test_analysis_evidence_round_trip_and_prompt_contract() -> None:

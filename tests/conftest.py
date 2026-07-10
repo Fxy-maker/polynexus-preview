@@ -149,6 +149,7 @@ def complete_inspection():
 
 @pytest.fixture
 def three_format_paths(tmp_path):
+    import matplotlib as mpl
     from matplotlib.figure import Figure
 
     paths = {
@@ -156,10 +157,11 @@ def three_format_paths(tmp_path):
         "svg": tmp_path / "figure.svg",
         "pdf": tmp_path / "figure.pdf",
     }
-    for file_format, path in paths.items():
-        dpi = 600 if file_format == "png" else 72
-        figure = Figure(figsize=(2.0, 1.0), dpi=dpi)
-        axis = figure.add_subplot(111)
-        axis.plot([0.0, 1.0], [0.0, 1.0])
-        figure.savefig(path, format=file_format, dpi=dpi)
+    with mpl.rc_context({"savefig.bbox": None}):
+        for file_format, path in paths.items():
+            dpi = 600 if file_format == "png" else 72
+            figure = Figure(figsize=(2.0, 1.0), dpi=dpi)
+            axis = figure.add_subplot(111)
+            axis.plot([0.0, 1.0], [0.0, 1.0])
+            figure.savefig(path, format=file_format, dpi=dpi)
     return paths

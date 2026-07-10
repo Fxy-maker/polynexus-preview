@@ -140,7 +140,7 @@ def test_persist_analysis_run_stores_analysis_evidence(tmp_path):
     app.processEvents()
 
 
-def test_populate_plots_prefers_refreshed_non_low_variant_for_same_figure(tmp_path):
+def test_populate_plots_ignores_historical_variants_without_active_manifest(tmp_path):
     app = QApplication.instance() or QApplication([])
 
     frame_dir = tmp_path / "per_frame" / "frame_001"
@@ -161,14 +161,14 @@ def test_populate_plots_prefers_refreshed_non_low_variant_for_same_figure(tmp_pa
     window._populate_plots()
     app.processEvents()
 
-    assert window._current_figure_path == str(refreshed)
-    assert window._chart_gallery.current_file() == str(refreshed)
+    assert window._current_figure_path == ""
+    assert window._chart_gallery.current_file() == ""
 
     window.deleteLater()
     app.processEvents()
 
 
-def test_populate_plots_shows_preview_for_initial_figure_selection(tmp_path):
+def test_populate_plots_does_not_discover_initial_file_without_active_manifest(tmp_path):
     app = QApplication.instance() or QApplication([])
 
     figure_dir = tmp_path / "figures"
@@ -186,15 +186,15 @@ def test_populate_plots_shows_preview_for_initial_figure_selection(tmp_path):
     window._populate_plots()
     app.processEvents()
 
-    assert window._chart_gallery.current_file() == str(figure_path)
-    assert window._figure_preview.isHidden() is False
-    assert window._figure_preview.current_file() == str(figure_path)
+    assert window._chart_gallery.current_file() == ""
+    assert window._current_figure_path == ""
+    assert window._figure_preview.isHidden() is True
 
     window.deleteLater()
     app.processEvents()
 
 
-def test_populate_plots_groups_related_exports_into_one_gallery_card(tmp_path):
+def test_populate_plots_does_not_group_unmanifested_related_exports(tmp_path):
     app = QApplication.instance() or QApplication([])
 
     figure_dir = tmp_path / "figures"
@@ -218,9 +218,9 @@ def test_populate_plots_groups_related_exports_into_one_gallery_card(tmp_path):
     window._populate_plots()
     app.processEvents()
 
-    assert len(window._chart_gallery._thumbnails) == 1
-    assert window._chart_gallery.current_file() == str(png_path.resolve())
-    assert window._current_figure_path == str(png_path.resolve())
+    assert window._chart_gallery._thumbnails == []
+    assert window._chart_gallery.current_file() == ""
+    assert window._current_figure_path == ""
 
     window.deleteLater()
     app.processEvents()
@@ -338,7 +338,7 @@ def test_open_selected_chart_editor_routes_gallery_entry_context(tmp_path, monke
     app.processEvents()
 
 
-def test_populate_plots_keeps_discovered_categories_when_manifest_only_points_to_root_export(tmp_path):
+def test_populate_plots_ignores_result_paths_and_unmanifested_categories(tmp_path):
     app = QApplication.instance() or QApplication([])
 
     summary_dir = tmp_path / "summary"
@@ -368,19 +368,9 @@ def test_populate_plots_keeps_discovered_categories_when_manifest_only_points_to
     window._populate_plots()
     app.processEvents()
 
-    assert {
-        entry.category for entry in window._chart_gallery._all_entries
-    } == {"series_overview", "per_frame_results", "other_exports"}
-    assert window._chart_gallery._category_combo.currentData() == "series_overview"
-    assert [thumb.entry.figure_id for thumb in window._chart_gallery._thumbnails] == ["Fig_1_overview"]
-    assert any(
-        entry.figure_id == "temperature_overview" and entry.category == "other_exports"
-        for entry in window._chart_gallery._all_entries
-    )
-    assert any(
-        entry.figure_id == "01_scattering" and entry.category == "per_frame_results"
-        for entry in window._chart_gallery._all_entries
-    )
+    assert window._chart_gallery._all_entries == []
+    assert window._chart_gallery._thumbnails == []
+    assert window._current_figure_path == ""
 
     window.deleteLater()
     app.processEvents()
