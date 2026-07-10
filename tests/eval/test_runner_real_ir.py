@@ -127,11 +127,14 @@ class _FakeIREngine:
         return dict(self.result.parameters)
 
 
-def test_eval_runner_executes_real_ir_standard_case(monkeypatch) -> None:
+def test_eval_runner_executes_real_ir_standard_case(monkeypatch, tmp_path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     case_path = project_root / "tests" / "eval" / "cases" / "real" / "ir_real_standard_pa6_yl.json"
     runner = EvalRunner(project_root=project_root)
     case = runner.load_case(case_path)
+    source_file = tmp_path / "YL.SPA"
+    source_file.touch()
+    case.config_overrides["source_file"] = str(source_file)
 
     assert case.technique == "ir"
     assert runner._uses_real_engine(case) is True
@@ -151,7 +154,7 @@ def test_eval_runner_executes_real_ir_standard_case(monkeypatch) -> None:
 
     assert captured["name"] == "ir"
     assert captured["submodule_id"] == "ir.standard"
-    assert fake_engine.run_calls == [(str(Path(case.config_overrides["source_file"]).resolve()), "")]
+    assert fake_engine.run_calls == [(str(source_file.resolve()), "")]
     assert result.parameters_used["engine"] == "ir"
     assert result.parameters_used["submodule"] == "ir.standard"
     assert result.output_parameters["n_peaks"] == 2
@@ -164,11 +167,14 @@ def test_eval_runner_executes_real_ir_standard_case(monkeypatch) -> None:
     assert result.composite == 1.0
 
 
-def test_eval_runner_executes_real_ir_temperature_2d_case(monkeypatch) -> None:
+def test_eval_runner_executes_real_ir_temperature_2d_case(monkeypatch, tmp_path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     case_path = project_root / "tests" / "eval" / "cases" / "real" / "ir_temperature_2d_real_pa6.json"
     runner = EvalRunner(project_root=project_root)
     case = runner.load_case(case_path)
+    source_dir = tmp_path / "temperature_2d"
+    source_dir.mkdir()
+    case.config_overrides["source_file"] = str(source_dir)
 
     assert case.technique == "ir"
     assert case.submodule == "temperature_2d"
@@ -189,7 +195,7 @@ def test_eval_runner_executes_real_ir_temperature_2d_case(monkeypatch) -> None:
 
     assert captured["name"] == "ir"
     assert captured["submodule_id"] == "ir.temperature_2d"
-    assert fake_engine.run_calls == [(str(Path(case.config_overrides["source_file"]).resolve()), "")]
+    assert fake_engine.run_calls == [(str(source_dir.resolve()), "")]
     assert result.parameters_used["engine"] == "ir"
     assert result.parameters_used["submodule"] == "ir.temperature_2d"
     assert result.output_parameters["engine"] == "ir"

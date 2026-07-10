@@ -96,11 +96,14 @@ class _FakeDSCEngine:
         return dict(self.result.parameters)
 
 
-def test_eval_runner_executes_real_dsc_standard_case(monkeypatch) -> None:
+def test_eval_runner_executes_real_dsc_standard_case(monkeypatch, tmp_path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     case_path = project_root / "tests" / "eval" / "cases" / "real" / "dsc_real_standard_pa6.json"
     runner = EvalRunner(project_root=project_root)
     case = runner.load_case(case_path)
+    source_file = tmp_path / "FXY-PA6.txt"
+    source_file.touch()
+    case.config_overrides["source_file"] = str(source_file)
 
     assert case.technique == "dsc"
     assert case.submodule == "standard"
@@ -121,7 +124,7 @@ def test_eval_runner_executes_real_dsc_standard_case(monkeypatch) -> None:
 
     assert captured["name"] == "dsc"
     assert captured["submodule_id"] == "dsc.standard"
-    assert fake_engine.run_calls == [(str(Path(case.config_overrides["source_file"]).resolve()), "")]
+    assert fake_engine.run_calls == [(str(source_file.resolve()), "")]
     assert result.parameters_used["engine"] == "dsc"
     assert result.parameters_used["submodule"] == "dsc.standard"
     assert result.output_parameters["Tm_peak_C"] == 222.4

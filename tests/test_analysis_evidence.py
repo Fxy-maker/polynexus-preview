@@ -47,6 +47,12 @@ from polynexus.core.analysis_evidence_constraints import (
 from tests.eval.runner import EvalRunner
 
 
+def _require_external_real_data_file(source_file: str, *, technique: str) -> None:
+    path = Path(source_file).resolve()
+    if not path.is_file():
+        pytest.skip(f"external {technique} real-data fixture is unavailable: {path}")
+
+
 class _StaticRetriever:
     def retrieve(self, *args, **kwargs):
         return []
@@ -2488,6 +2494,7 @@ def test_dsc_analysis_evidence_keeps_real_pa6_conservative() -> None:
     case_path = project_root / "tests" / "eval" / "cases" / "real" / "dsc_real_standard_pa6.json"
     runner = EvalRunner(project_root=project_root)
     case = runner.load_case(case_path)
+    _require_external_real_data_file(str(case.config_overrides["source_file"]), technique="DSC")
     result = runner.run_case(case)
 
     evidence = build_analysis_evidence(
@@ -3272,6 +3279,7 @@ def test_ir_analysis_evidence_keeps_real_pa6_yl_conservative() -> None:
     from polynexus.core.ir_engine import IRConfig, analyze_spectrum, load_spectrum, preprocess_pipeline
 
     data_file = Path(payload["config_overrides"]["source_file"])
+    _require_external_real_data_file(str(data_file), technique="IR")
     cfg = IRConfig(
         peak_height_min=payload["config_overrides"]["peak_height_min"],
         peak_prominence_min=payload["config_overrides"]["peak_prominence_min"],

@@ -77,11 +77,14 @@ class _FakeSAXSEngine:
         return dict(self.result.parameters)
 
 
-def test_eval_runner_executes_real_saxs_temperature_case(monkeypatch) -> None:
+def test_eval_runner_executes_real_saxs_temperature_case(monkeypatch, tmp_path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     case_path = project_root / "tests" / "eval" / "cases" / "real" / "saxs_real_temperature_check_20260618.json"
     runner = EvalRunner(project_root=project_root)
     case = runner.load_case(case_path)
+    source_dir = tmp_path / "temperature_series"
+    source_dir.mkdir()
+    case.config_overrides["source_file"] = str(source_dir)
 
     assert case.technique == "saxs"
     assert runner._uses_real_engine(case) is True
@@ -101,7 +104,7 @@ def test_eval_runner_executes_real_saxs_temperature_case(monkeypatch) -> None:
 
     assert captured["name"] == "saxs"
     assert captured["submodule_id"] == "saxs.temperature"
-    assert fake_engine.run_calls == [(str(Path(case.config_overrides["source_file"]).resolve()), "")]
+    assert fake_engine.run_calls == [(str(source_dir.resolve()), "")]
     assert result.parameters_used["engine"] == "saxs"
     assert result.parameters_used["submodule"] == "saxs.temperature"
     assert result.parameters_used["experiment_type"] == "temperature"
@@ -119,11 +122,14 @@ def test_eval_runner_executes_real_saxs_temperature_case(monkeypatch) -> None:
     assert result.details["available_metrics"] == ["PHYS"]
 
 
-def test_eval_runner_executes_real_saxs_strain_case(monkeypatch) -> None:
+def test_eval_runner_executes_real_saxs_strain_case(monkeypatch, tmp_path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     case_path = project_root / "tests" / "eval" / "cases" / "real" / "saxs_real_strain_pad8_series.json"
     runner = EvalRunner(project_root=project_root)
     case = runner.load_case(case_path)
+    source_dir = tmp_path / "strain_series"
+    source_dir.mkdir()
+    case.config_overrides["source_file"] = str(source_dir)
 
     assert case.technique == "saxs"
     assert case.submodule == "strain"
@@ -159,7 +165,7 @@ def test_eval_runner_executes_real_saxs_strain_case(monkeypatch) -> None:
 
     assert captured["name"] == "saxs"
     assert captured["submodule_id"] == "saxs.strain"
-    assert fake_engine.run_calls == [(str(Path(case.config_overrides["source_file"]).resolve()), "")]
+    assert fake_engine.run_calls == [(str(source_dir.resolve()), "")]
     assert result.parameters_used["engine"] == "saxs"
     assert result.parameters_used["submodule"] == "saxs.strain"
     assert result.parameters_used["experiment_type"] == "strain"

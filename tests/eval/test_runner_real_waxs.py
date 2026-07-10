@@ -58,11 +58,14 @@ class _FakeWAXSEngine:
         )
 
 
-def test_eval_runner_executes_real_waxs_static_case(monkeypatch) -> None:
+def test_eval_runner_executes_real_waxs_static_case(monkeypatch, tmp_path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     case_path = project_root / "tests" / "eval" / "cases" / "real" / "waxs_real_static_pa6.json"
     runner = EvalRunner(project_root=project_root)
     case = runner.load_case(case_path)
+    source_file = tmp_path / "PA6.raw"
+    source_file.touch()
+    case.config_overrides["source_file"] = str(source_file)
 
     assert case.technique == "waxs"
     assert runner._uses_real_engine(case) is True
@@ -81,7 +84,7 @@ def test_eval_runner_executes_real_waxs_static_case(monkeypatch) -> None:
 
     assert captured["name"] == "waxs"
     assert captured["submodule_id"] == "waxs.static"
-    assert fake_engine.run_calls == [(str(Path(case.config_overrides["source_file"]).resolve()), "")]
+    assert fake_engine.run_calls == [(str(source_file.resolve()), "")]
     assert result.parameters_used["engine"] == "waxs"
     assert result.parameters_used["submodule"] == "waxs.static"
     assert result.output_parameters["n_peaks"] == 2

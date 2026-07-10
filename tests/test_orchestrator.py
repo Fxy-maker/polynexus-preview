@@ -5,8 +5,16 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from polynexus.core.analysis_evidence import build_analysis_evidence
 from polynexus.orchestrator import ParameterOrchestrator, RoundRecord
+
+
+def _require_external_real_data_file(source_file: str, *, technique: str) -> None:
+    path = Path(source_file).resolve()
+    if not path.is_file():
+        pytest.skip(f"external {technique} real-data fixture is unavailable: {path}")
 
 
 class FakeAdvisor:
@@ -1435,6 +1443,7 @@ def test_waxs_static_orchestrator_keeps_best_r_squared() -> None:
     case_path = Path("tests/eval/cases/real/waxs_real_static_pa6.json")
     payload = json.loads(case_path.read_text(encoding="utf-8"))
     data_file = payload["config_overrides"]["source_file"]
+    _require_external_real_data_file(str(data_file), technique="WAXS")
 
     report = ParameterOrchestrator(
         technique="waxs",
