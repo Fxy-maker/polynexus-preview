@@ -155,6 +155,13 @@ class WAXSEngine(BaseEngine):
                 self.result.raw_data["I"] = r0.I
         return True
 
+    def build_figure_definitions(self):
+        """Return scientific figure definitions without publishing assets."""
+
+        from .waxs_engine.figure_provider import build_waxs_figure_definitions
+
+        return build_waxs_figure_definitions(tuple(self._results))
+
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         if not self._results:
             self.log("No analysis results to plot")
