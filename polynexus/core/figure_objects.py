@@ -15,6 +15,7 @@ KNOWN_FIGURE_OBJECT_TYPES = {
     "highlight",
     "axis",
     "plot_series",
+    "heatmap",
     "legend",
     "panel_label",
 }
@@ -30,6 +31,7 @@ DEFAULT_OBJECT_NAMES = {
     "highlight": "Highlight",
     "axis": "Axis",
     "plot_series": "Plot Series",
+    "heatmap": "Heatmap",
     "legend": "Legend",
     "panel_label": "Panel Label",
 }
