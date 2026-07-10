@@ -4,6 +4,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
+from polynexus.core.figure_assets import read_figure_asset_dimensions
 from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.gui.plot_gallery_service import build_active_manifest_gallery_entries
 from polynexus.gui.widgets.chart_editor import ChartEditor
@@ -82,6 +83,19 @@ def test_manifest_editor_save_then_publish_refreshes_lifecycle_context(
     )
     assert editor._figure_document["export"]["published_revision"] == 2
     assert saved_paths == [working.preview_path, published.preview_path]
+
+    reloaded = build_active_manifest_gallery_entries(tmp_path)[0]
+    assert reloaded.working_revision == reloaded.published_revision == 2
+    assert reloaded.capability_report == published.capability_report
+    assert reloaded.state == published.state == "object_editing"
+    assert {asset.role for asset in reloaded.assets} == {
+        "preview",
+        "svg",
+        "png",
+        "pdf",
+    }
+    png_path = next(asset.path for asset in reloaded.assets if asset.role == "png")
+    assert read_figure_asset_dimensions(png_path)[2] == 600
 
     editor.deleteLater()
     app.processEvents()

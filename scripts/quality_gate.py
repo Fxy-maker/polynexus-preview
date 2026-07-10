@@ -65,7 +65,106 @@ def scan_figure_lifecycle_sources(root: Path) -> list[str]:
             failures.append(
                 f"{path.name}: only global profiles may choose output formats"
             )
+
+    gallery_mixin = root / "polynexus" / "gui" / "main_window_figure_mixin.py"
+    if gallery_mixin.is_file():
+        failures.extend(scan_normal_gallery_discovery(gallery_mixin))
+    editor_service = root / "polynexus" / "gui" / "figure_window_service.py"
+    if editor_service.is_file():
+        failures.extend(
+            scan_manifest_editor_capability_boundary(editor_service)
+        )
     return failures
+
+
+def scan_normal_gallery_discovery(path: Path) -> list[str]:
+    """Reject recursive filesystem discovery from the normal gallery surface."""
+
+    path = Path(path)
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = ""
+        if isinstance(node.func, ast.Name):
+            name = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            name = node.func.attr
+        recursive_glob = (
+            name == "glob"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+            and "**" in node.args[0].value
+        )
+        if name in {"rglob", "walk"} or recursive_glob:
+            return [
+                f"{path.name}: normal gallery must not recurse through figure "
+                "directories"
+            ]
+    return []
+
+
+def scan_manifest_editor_capability_boundary(path: Path) -> list[str]:
+    """Require manifest editor requests to trust the shared capability report."""
+
+    path = Path(path)
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    function = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "resolve_chart_editor_entry"
+        ),
+        None,
+    )
+    manifest_branch = None
+    if function is not None:
+        for node in ast.walk(function):
+            if not isinstance(node, ast.If):
+                continue
+            test_names = {
+                item.id
+                for item in ast.walk(node.test)
+                if isinstance(item, ast.Name)
+            }
+            if {"manifest_document_path", "capability_report"} <= test_names:
+                manifest_branch = node
+                break
+
+    forbidden_names = {
+        "document",
+        "document_mode",
+        "document_figure_id",
+        "entry_state",
+        "entry_figure_id",
+        "resolve_figure_capabilities",
+        "_document_requires_static_fallback",
+    }
+    branch_names = (
+        {
+            node.id
+            for statement in manifest_branch.body
+            for node in ast.walk(statement)
+            if isinstance(node, ast.Name)
+        }
+        if manifest_branch is not None
+        else forbidden_names
+    )
+    has_return = bool(
+        manifest_branch
+        and any(
+            isinstance(node, ast.Return)
+            for statement in manifest_branch.body
+            for node in ast.walk(statement)
+        )
+    )
+    if manifest_branch is None or forbidden_names & branch_names or not has_return:
+        return [
+            f"{path.name}: manifest entries must trust the shared capability report"
+        ]
+    return []
 
 
 def _tree_calls_savefig(tree: ast.AST) -> bool:

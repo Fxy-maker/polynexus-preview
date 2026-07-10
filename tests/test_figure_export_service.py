@@ -3,6 +3,7 @@ from pathlib import Path
 import matplotlib
 import pytest
 
+from polynexus.core.figure_assets import read_figure_asset_dimensions
 from polynexus.core.figures.export_service import FigureArtifactExportService
 from polynexus.core.figures.profiles import get_figure_output_profile
 
@@ -55,3 +56,20 @@ def test_export_service_ignores_process_global_tight_bbox(render_plan, tmp_path)
 
     assert result.inspection.complete is True
     assert result.inspection.dimensions["png"][0:2] == (1200, 600)
+
+
+def test_export_service_owns_working_preview_output(render_plan, tmp_path):
+    profile = get_figure_output_profile("paper_complete")
+    preview_path = tmp_path / "revisions" / "r0002" / profile.preview_filename
+
+    result = FigureArtifactExportService().export_preview(
+        plan=render_plan,
+        path=preview_path,
+        profile=profile,
+    )
+
+    assert result == preview_path.resolve()
+    assert read_figure_asset_dimensions(result) == (300, 150, 150)
+    assert [item.name for item in result.parent.iterdir()] == [
+        profile.preview_filename
+    ]

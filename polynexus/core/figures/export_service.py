@@ -34,6 +34,28 @@ class FigureArtifactExportService:
         self._renderer = renderer or MatplotlibFigureRenderer()
         self._inspector = inspector or FigureArtifactInspector()
 
+    def export_preview(
+        self,
+        *,
+        plan: FigureRenderPlan,
+        path: Path,
+        profile: FigureOutputProfile,
+    ) -> Path:
+        path = Path(path).resolve()
+        if path.exists():
+            raise FileExistsError(f"figure preview already exists: {path}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with matplotlib.rc_context(
+            {
+                "svg.fonttype": "none",
+                "pdf.fonttype": 42,
+                "ps.fonttype": 42,
+                "savefig.bbox": None,
+            }
+        ):
+            self._save_preview(plan, path, profile)
+        return path
+
     def export_initial(
         self,
         *,

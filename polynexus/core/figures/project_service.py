@@ -9,8 +9,6 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-import matplotlib
-
 from .capabilities import resolve_figure_capabilities
 from .export_service import FigureArtifactExportService
 from .inspector import FigureArtifactInspector
@@ -21,7 +19,6 @@ from .manifest import (
 )
 from .profiles import get_figure_output_profile
 from .render_plan import FigureRenderPlanBuilder
-from .renderer import MatplotlibFigureRenderer
 
 
 @dataclass(frozen=True)
@@ -42,7 +39,6 @@ class FigureProjectService:
         self.output_root = Path(output_root).resolve()
         self.repository = RunFigureManifestRepository(self.output_root)
         self.exporter = exporter or FigureArtifactExportService()
-        self.renderer = MatplotlibFigureRenderer()
         self.inspector = FigureArtifactInspector()
 
     def save_working(
@@ -82,23 +78,11 @@ class FigureProjectService:
             )
             profile = get_figure_output_profile(manifest.output_profile)
             preview_path = revision_dir / profile.preview_filename
-            with matplotlib.rc_context(
-                {
-                    "svg.fonttype": "none",
-                    "pdf.fonttype": 42,
-                    "savefig.bbox": None,
-                }
-            ):
-                figure = self.renderer.render(plan, dpi=profile.preview_dpi)
-                try:
-                    figure.savefig(
-                        preview_path,
-                        format="png",
-                        dpi=profile.preview_dpi,
-                        facecolor=profile.background,
-                    )
-                finally:
-                    figure.clear()
+            self.exporter.export_preview(
+                plan=plan,
+                path=preview_path,
+                profile=profile,
+            )
             assets = dict(entry.assets)
             assets["preview"] = self._relative(preview_path, run_root)
             inspection = self.inspector.inspect(

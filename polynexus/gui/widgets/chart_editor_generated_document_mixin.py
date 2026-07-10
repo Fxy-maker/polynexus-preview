@@ -5,6 +5,7 @@ import logging
 from copy import deepcopy
 from pathlib import Path
 
+import matplotlib
 from PySide6.QtCore import QRect, QRectF, QSize, QSizeF
 from PySide6.QtGui import QImage, QPageSize, QPainter, QPdfWriter
 from PySide6.QtSvg import QSvgGenerator
@@ -66,6 +67,10 @@ class ChartEditorGeneratedDocumentMixin:
             return MatplotlibFigureRenderer().render(plan, dpi=self._dpi)
 
         self._shared_render_plan = None
+        return self._build_legacy_generated_figure_document()
+
+    @matplotlib.rc_context()
+    def _build_legacy_generated_figure_document(self):
         _apply_sci_style(font_size=8.0)
         data_sources = self._load_generated_document_data_sources()
         if self._has_generated_image_grid_object():
@@ -750,6 +755,7 @@ class ChartEditorGeneratedDocumentMixin:
         if old:
             plt.close(old)
 
+    @matplotlib.rc_context()
     def _show_placeholder_style_preview(self):
         """Create a placeholder figure showing current style when the source cannot render."""
         _apply_sci_style(font_size=8.0)

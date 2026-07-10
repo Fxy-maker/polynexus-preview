@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from polynexus.plotting import (
@@ -11,6 +12,7 @@ from polynexus.plotting import (
 )
 
 
+@mpl.rc_context()
 def test_sci_figure_audit_accepts_publication_ready_figure(tmp_path) -> None:
     set_sci_style()
     fig, axes = plt.subplots(1, 2, figsize=(6.89, 2.56))
@@ -37,6 +39,7 @@ def test_sci_figure_audit_accepts_publication_ready_figure(tmp_path) -> None:
     plt.close(fig)
 
 
+@mpl.rc_context()
 def test_sci_figure_audit_reports_submission_checklist_violations(tmp_path) -> None:
     set_sci_style()
     fig, ax = plt.subplots(figsize=(3.35, 2.56))

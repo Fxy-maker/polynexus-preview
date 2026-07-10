@@ -5,6 +5,7 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
+import matplotlib as mpl
 from matplotlib.backend_bases import MouseEvent
 
 from PySide6.QtCore import QEvent, QPointF, Qt
@@ -601,6 +602,69 @@ def test_chart_editor_action_labels_distinguish_save_export_and_copy(tmp_path, m
     assert editor._btn_svg.text() == tr("EDITOR_EXPORT_SVG")
     assert editor._btn_png.text() == tr("EDITOR_EXPORT_PNG")
     assert editor._btn_publish.isEnabled() is False
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_generator_render_restores_matplotlib_rcparams(
+    tmp_path,
+    monkeypatch,
+):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+    editor = ChartEditor()
+
+    with mpl.rc_context({"savefig.bbox": None}):
+        editor.set_figure_generator(lambda axis: axis.plot([0, 1], [0, 1]))
+        assert mpl.rcParams["savefig.bbox"] is None
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_legacy_document_render_restores_matplotlib_rcparams(
+    tmp_path,
+    monkeypatch,
+):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+    figure_path = tmp_path / "figures" / "generated.png"
+    figure_path.parent.mkdir()
+    QImage(40, 20, QImage.Format_ARGB32).save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        figure_id="generated",
+        objects=[
+            {
+                "id": "series",
+                "type": "plot_series",
+                "name": "Series",
+                "data": {"x": [0.0, 1.0], "y": [0.0, 1.0]},
+            }
+        ],
+    )
+    editor = ChartEditor()
+
+    with mpl.rc_context({"savefig.bbox": None}):
+        editor.set_source_figure(str(figure_path))
+        assert mpl.rcParams["savefig.bbox"] is None
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_placeholder_render_restores_matplotlib_rcparams(
+    tmp_path,
+    monkeypatch,
+):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+    editor = ChartEditor()
+
+    with mpl.rc_context({"savefig.bbox": None}):
+        editor._show_placeholder_style_preview()
+        assert mpl.rcParams["savefig.bbox"] is None
 
     editor.deleteLater()
     app.processEvents()

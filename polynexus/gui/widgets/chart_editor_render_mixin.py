@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import matplotlib
+
 
 class ChartEditorRenderMixin:
     @staticmethod
@@ -13,7 +15,6 @@ class ChartEditorRenderMixin:
         return cls._chart_editor_module().logger
 
     def _render(self, *_):
-        chart_editor_module = self._chart_editor_module()
         if self._fig_generator is None:
             if self._generated_document_mode:
                 if self._show_generated_figure_document():
@@ -22,7 +23,11 @@ class ChartEditorRenderMixin:
                 if not self._refresh_static_annotation_canvas_preview():
                     self._show_style_preview_figure()
             return
+        self._render_generator_figure()
 
+    @matplotlib.rc_context()
+    def _render_generator_figure(self):
+        chart_editor_module = self._chart_editor_module()
         chart_editor_module._apply_sci_style(font_size=8.0)
 
         fig = chart_editor_module.Figure(

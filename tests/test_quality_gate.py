@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import scripts.quality_gate as quality_gate
 from scripts.quality_gate import (
     GateCommand,
     default_commands,
@@ -118,3 +119,51 @@ def test_lifecycle_gate_scans_all_migrated_figure_providers(tmp_path):
     assert failures == [
         "figure_provider.py: migrated figure providers must not call savefig"
     ]
+
+
+def test_normal_gallery_gate_rejects_recursive_file_discovery(tmp_path):
+    mixin = tmp_path / "main_window_figure_mixin.py"
+    mixin.write_text(
+        "def populate(root):\n    return list(root.rglob('*.png'))\n",
+        encoding="utf-8",
+    )
+
+    failures = quality_gate.scan_normal_gallery_discovery(mixin)
+
+    assert failures == [
+        "main_window_figure_mixin.py: normal gallery must not recurse through "
+        "figure directories"
+    ]
+
+
+def test_manifest_editor_gate_rejects_local_capability_recomputation(tmp_path):
+    service = tmp_path / "figure_window_service.py"
+    service.write_text(
+        """
+def resolve_chart_editor_entry(entry):
+    manifest_document_path = entry.document_path
+    capability_report = entry.capability_report
+    if manifest_document_path and capability_report is not None:
+        document = load_figure_document(manifest_document_path)
+        if _document_requires_static_fallback(document):
+            return True
+        return False
+""".strip(),
+        encoding="utf-8",
+    )
+
+    failures = quality_gate.scan_manifest_editor_capability_boundary(service)
+
+    assert failures == [
+        "figure_window_service.py: manifest entries must trust the shared "
+        "capability report"
+    ]
+
+
+def test_real_gallery_and_editor_pass_manifest_boundaries():
+    assert quality_gate.scan_normal_gallery_discovery(
+        Path("polynexus/gui/main_window_figure_mixin.py")
+    ) == []
+    assert quality_gate.scan_manifest_editor_capability_boundary(
+        Path("polynexus/gui/figure_window_service.py")
+    ) == []
