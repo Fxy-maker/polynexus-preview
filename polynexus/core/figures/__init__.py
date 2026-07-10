@@ -9,6 +9,7 @@ from .contracts import (
     PanelDefinition,
 )
 from .profiles import FigureOutputProfile, get_figure_output_profile
+from .pipeline import FigurePipeline
 
 __all__ = [
     "AxisDefinition",
@@ -17,6 +18,7 @@ __all__ = [
     "FigureDefinition",
     "FigureLayoutDefinition",
     "FigureOutputProfile",
+    "FigurePipeline",
     "PanelDefinition",
     "get_figure_output_profile",
 ]
