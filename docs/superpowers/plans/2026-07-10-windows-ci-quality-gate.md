@@ -64,8 +64,8 @@ def test_windows_ci_uses_the_supported_headless_python_environment():
     assert "QT_QPA_PLATFORM: offscreen" in workflow
     assert "MPLBACKEND: Agg" in workflow
     assert 'PYTHONUTF8: "1"' in workflow
-    assert "uses: actions/checkout@v4" in workflow
-    assert "uses: actions/setup-python@v5" in workflow
+    assert "uses: actions/checkout@v7" in workflow
+    assert "uses: actions/setup-python@v6" in workflow
     assert 'python-version: "3.11"' in workflow
     assert "cache: pip" in workflow
     assert "cache-dependency-path: pyproject.toml" in workflow
@@ -136,10 +136,10 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip

@@ -79,8 +79,8 @@ Create `.github/workflows/ci.yml` with these invariants:
   - `QT_QPA_PLATFORM=offscreen`
   - `MPLBACKEND=Agg`
   - `PYTHONUTF8=1`
-- checkout: `actions/checkout@v4`
-- Python: `actions/setup-python@v5` with Python `3.11` and pip caching keyed by `pyproject.toml`
+- checkout: `actions/checkout@v7`
+- Python: `actions/setup-python@v6` with Python `3.11` and pip caching keyed by `pyproject.toml`
 - installation:
   - `python -m pip install --upgrade pip`
   - `python -m pip install -e ".[dev]"`
