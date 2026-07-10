@@ -11,6 +11,7 @@ from typing import Callable, Iterable
 from ..core.figure_assets import discover_figure_asset
 from ..core.figure_document import OBJECT_MODE, STATIC_BACKGROUND_MODE, load_figure_document
 from ..core.figures.manifest import RunFigureManifestRepository
+from ..core.figures.legacy_recovery import discover_legacy_figure_paths
 
 
 DEFAULT_FIGURE_EXTENSIONS: tuple[str, ...] = (".svg", ".png", ".pdf", ".jpg", ".jpeg")
@@ -171,22 +172,15 @@ def collect_plot_figure_paths(
     allowed_extensions = {str(ext).lower() for ext in extensions}
     preferred = _existing_figure_paths(preferred_paths or (), allowed_extensions)
 
-    discovered = sorted(
-        str(path.resolve())
-        for path in root.rglob("*")
-        if path.is_file()
-        and path.suffix.lower() in allowed_extensions
-        and any(part.lower() in FIGURE_SUBDIR_HINTS for part in path.parts)
-    )
-    root_level = sorted(
-        str(path.resolve())
-        for path in root.iterdir()
-        if path.is_file() and path.suffix.lower() in allowed_extensions
+    discovered = discover_legacy_figure_paths(
+        root,
+        extensions=allowed_extensions,
+        subdir_hints=FIGURE_SUBDIR_HINTS,
     )
 
     merged: list[str] = []
     seen: set[str] = set()
-    for candidate in [*preferred, *discovered, *root_level]:
+    for candidate in [*preferred, *discovered]:
         norm = os.path.normcase(os.path.abspath(candidate))
         if norm in seen:
             continue

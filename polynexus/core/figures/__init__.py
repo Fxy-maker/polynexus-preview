@@ -11,6 +11,11 @@ from .contracts import (
 from .profiles import FigureOutputProfile, get_figure_output_profile
 from .pipeline import FigurePipeline
 from .project_service import FigureProjectService, FigureProjectUpdate
+from .legacy_recovery import (
+    LegacyFigureCandidate,
+    LegacyFigureRecoveryService,
+    LegacyRecoveryKind,
+)
 
 __all__ = [
     "AxisDefinition",
@@ -18,6 +23,9 @@ __all__ = [
     "FigureDataSourceDefinition",
     "FigureDefinition",
     "FigureLayoutDefinition",
+    "LegacyFigureCandidate",
+    "LegacyFigureRecoveryService",
+    "LegacyRecoveryKind",
     "FigureOutputProfile",
     "FigurePipeline",
     "FigureProjectService",

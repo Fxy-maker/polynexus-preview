@@ -121,6 +121,19 @@ def test_lifecycle_gate_scans_all_migrated_figure_providers(tmp_path):
     ]
 
 
+def test_lifecycle_gate_allows_legacy_recovery_to_recognize_existing_formats(
+    tmp_path,
+):
+    recovery = tmp_path / "polynexus/core/figures/legacy_recovery.py"
+    recovery.parent.mkdir(parents=True)
+    recovery.write_text(
+        "LEGACY_EXTENSIONS = {'.svg', '.png', '.pdf'}\n",
+        encoding="utf-8",
+    )
+
+    assert scan_figure_lifecycle_sources(tmp_path) == []
+
+
 def test_normal_gallery_gate_rejects_recursive_file_discovery(tmp_path):
     mixin = tmp_path / "main_window_figure_mixin.py"
     mixin.write_text(

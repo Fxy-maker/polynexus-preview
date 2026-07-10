@@ -61,7 +61,9 @@ def scan_figure_lifecycle_sources(root: Path) -> list[str]:
             failures.append(
                 f"{path.name}: only the shared renderer/export service may call savefig"
             )
-        if path.name != "profiles.py" and _tree_contains_publication_extension(tree):
+        if path.name not in {"profiles.py", "legacy_recovery.py"} and (
+            _tree_contains_publication_extension(tree)
+        ):
             failures.append(
                 f"{path.name}: only global profiles may choose output formats"
             )
