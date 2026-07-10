@@ -242,7 +242,10 @@ def _normalize_data_source(source: dict) -> dict:
     normalized.setdefault("kind", "")
     normalized.setdefault("role", "")
     path = str(normalized.get("path") or "").strip()
-    if path:
+    path_kind = str(normalized.get("path_kind") or "").strip().lower()
+    if path and path_kind == "run_relative":
+        normalized["path"] = Path(path).as_posix()
+    elif path:
         normalized["path"] = str(Path(path).resolve())
     return normalized
 

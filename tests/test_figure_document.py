@@ -6,6 +6,7 @@ from polynexus.core.figure_document import (
     create_static_figure_document,
     figure_document_path,
     load_figure_document,
+    normalize_figure_document,
     save_generated_figure_document,
     save_figure_document,
 )
@@ -13,6 +14,27 @@ from polynexus.core.plot_edits import (
     load_figure_document_path,
     save_figure_document_path,
 )
+
+
+def test_normalize_document_preserves_explicit_run_relative_data_path():
+    document = normalize_figure_document(
+        {
+            "figure_id": "ir.frame.spectrum.001",
+            "mode": "object",
+            "data_sources": [
+                {
+                    "id": "spectrum-data",
+                    "kind": "csv",
+                    "path": "figures/ir.frame.spectrum.001/data/spectrum-data.csv",
+                    "path_kind": "run_relative",
+                }
+            ],
+        }
+    )
+
+    assert document["data_sources"][0]["path"] == (
+        "figures/ir.frame.spectrum.001/data/spectrum-data.csv"
+    )
 
 
 def test_static_background_document_round_trips(tmp_path):
