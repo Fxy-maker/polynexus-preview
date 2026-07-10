@@ -208,6 +208,13 @@ class IREngine(BaseEngine):
         self.result.parameters = dict(self.get_parameters())
         return True
 
+    def build_figure_definitions(self):
+        """Return scientific figure definitions without publishing assets."""
+
+        from .ir_engine.figure_provider import build_ir_spectrum_definitions
+
+        return build_ir_spectrum_definitions(tuple(self._results))
+
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         if self.active_submodule == "ir.temperature_2d":
             if not self._temperature_2d_result:
