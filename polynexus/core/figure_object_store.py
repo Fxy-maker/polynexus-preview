@@ -108,10 +108,32 @@ class FigureObjectStore:
 
     def ensure_legend_object(self) -> bool:
         objects = self.objects()
-        if any(
-            isinstance(obj, dict) and str(obj.get("type", "") or "") == "legend"
-            for obj in objects
-        ):
+        layout = self._document.get("layout", {})
+        panels = layout.get("panels", []) if isinstance(layout, dict) else []
+        lifecycle_panel = None
+        if isinstance(panels, list) and panels:
+            if len(panels) == 1 and isinstance(panels[0], dict):
+                lifecycle_panel = panels[0]
+            if lifecycle_panel is None or not bool(
+                lifecycle_panel.get("show_legend", False)
+            ):
+                return False
+
+        existing_legend = next(
+            (
+                obj
+                for obj in objects
+                if isinstance(obj, dict)
+                and str(obj.get("type", "") or "") == "legend"
+            ),
+            None,
+        )
+        if existing_legend is not None:
+            if lifecycle_panel is not None:
+                existing_legend.setdefault(
+                    "panel_id",
+                    str(lifecycle_panel.get("panel_id") or ""),
+                )
             return False
         has_named_series = any(
             isinstance(obj, dict)
@@ -122,17 +144,18 @@ class FigureObjectStore:
         )
         if not has_named_series:
             return False
-        objects.append(
-            {
-                "id": "legend",
-                "type": "legend",
-                "name": "Legend",
-                "visible": True,
-                "locked": False,
-                "z_index": len(objects),
-                "style": {},
-            }
-        )
+        legend = {
+            "id": "legend",
+            "type": "legend",
+            "name": "Legend",
+            "visible": True,
+            "locked": False,
+            "z_index": len(objects),
+            "style": {},
+        }
+        if lifecycle_panel is not None:
+            legend["panel_id"] = str(lifecycle_panel.get("panel_id") or "")
+        objects.append(legend)
         return True
 
     def move(self, object_id: str, *, to_front: bool) -> bool:

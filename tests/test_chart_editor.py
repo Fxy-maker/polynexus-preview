@@ -596,9 +596,11 @@ def test_chart_editor_action_labels_distinguish_save_export_and_copy(tmp_path, m
     editor.retranslate()
 
     assert editor._btn_save_current.text() == tr("EDITOR_SAVE_EDITS")
+    assert editor._btn_publish.text() == tr("EDITOR_PUBLISH_COMPLETE")
     assert editor._btn_save_as.text() == tr("EDITOR_SAVE_AS_COPY")
     assert editor._btn_svg.text() == tr("EDITOR_EXPORT_SVG")
     assert editor._btn_png.text() == tr("EDITOR_EXPORT_PNG")
+    assert editor._btn_publish.isEnabled() is False
 
     editor.deleteLater()
     app.processEvents()

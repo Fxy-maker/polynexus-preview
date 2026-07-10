@@ -98,6 +98,46 @@ def test_renderer_supports_bar_series_and_panel_legend(render_plan):
     assert axis.get_legend() is not None
 
 
+def test_renderer_applies_explicit_lifecycle_legend_visibility_and_position(
+    render_plan,
+):
+    panel = replace(render_plan.panels[0], show_legend=True)
+    objects = (
+        {
+            "id": "series",
+            "type": "plot_series",
+            "panel_id": "main",
+            "data_ref": "spectrum-data",
+            "x_column": "wavenumber_cm1",
+            "y_column": "absorbance",
+            "name": "Absorbance",
+            "style": {},
+        },
+        {
+            "id": "legend",
+            "type": "legend",
+            "panel_id": "main",
+            "visible": True,
+            "style": {"loc": "upper left", "bbox_to_anchor": [0.2, 0.8]},
+        },
+    )
+    plan = replace(render_plan, panels=(panel,), objects=objects)
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+
+    legend = figure.axes[0].get_legend()
+    assert legend is not None
+    assert legend._loc == 2
+    assert legend.get_bbox_to_anchor() is not None
+
+    hidden_plan = replace(
+        plan,
+        objects=(objects[0], {**objects[1], "visible": False}),
+    )
+    hidden_figure = MatplotlibFigureRenderer().render(hidden_plan, dpi=100)
+    assert hidden_figure.axes[0].get_legend() is None
+
+
 def test_renderer_supports_regular_grid_heatmap(render_plan):
     plan = replace(
         render_plan,

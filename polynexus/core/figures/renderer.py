@@ -38,17 +38,21 @@ class MatplotlibFigureRenderer:
                 axis.invert_yaxis()
             axes[panel.panel_id] = axis
 
-        for figure_object in sorted(
+        ordered_objects = sorted(
             plan.objects,
             key=lambda item: int(item.get("z_index", 0) or 0),
-        ):
+        )
+        legend_objects = self._legend_objects(ordered_objects, axes)
+        for figure_object in ordered_objects:
+            object_type = str(figure_object.get("type") or "")
+            if object_type == "legend":
+                continue
             if figure_object.get("visible") is False:
                 continue
             panel_id = str(figure_object.get("panel_id") or "")
             if panel_id not in axes:
                 raise ValueError(f"unknown render panel: {panel_id}")
             axis = axes[panel_id]
-            object_type = str(figure_object.get("type") or "")
             if object_type == "plot_series":
                 self._render_plot_series(axis, plan, figure_object)
             elif object_type == "heatmap":
@@ -61,14 +65,51 @@ class MatplotlibFigureRenderer:
                 raise ValueError(f"unsupported render object type: {object_type}")
 
         for panel in plan.panels:
-            if not panel.show_legend:
+            legend_object = legend_objects.get(panel.panel_id)
+            if not panel.show_legend or (
+                legend_object is not None
+                and legend_object.get("visible") is False
+            ):
                 continue
             axis = axes[panel.panel_id]
             handles, labels = axis.get_legend_handles_labels()
             if handles and labels:
-                axis.legend()
+                axis.legend(**self._legend_kwargs(legend_object))
 
         return figure
+
+    @staticmethod
+    def _legend_objects(
+        objects: list[dict[str, Any]],
+        axes: dict[str, Any],
+    ) -> dict[str, dict[str, Any]]:
+        legends: dict[str, dict[str, Any]] = {}
+        for figure_object in objects:
+            if str(figure_object.get("type") or "") != "legend":
+                continue
+            panel_id = str(figure_object.get("panel_id") or "")
+            if not panel_id and len(axes) == 1:
+                panel_id = next(iter(axes))
+            if panel_id not in axes:
+                raise ValueError(f"unknown render panel: {panel_id}")
+            legends[panel_id] = figure_object
+        return legends
+
+    @staticmethod
+    def _legend_kwargs(figure_object: dict[str, Any] | None) -> dict[str, Any]:
+        if not isinstance(figure_object, dict):
+            return {}
+        style = figure_object.get("style", {})
+        if not isinstance(style, dict):
+            return {}
+        kwargs: dict[str, Any] = {}
+        loc = str(style.get("loc") or "").strip()
+        if loc:
+            kwargs["loc"] = loc
+        anchor = style.get("bbox_to_anchor")
+        if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
+            kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
+        return kwargs
 
     @staticmethod
     def _axis_label(axis: RenderAxis) -> str:

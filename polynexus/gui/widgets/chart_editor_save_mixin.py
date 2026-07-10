@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 
 from ..i18n import tr
+from ..plot_gallery_service import build_active_manifest_gallery_entries
+from ...core.figures.project_service import FigureProjectService
 
 
 class ChartEditorSaveMixin:
@@ -17,10 +20,84 @@ class ChartEditorSaveMixin:
         return cls._chart_editor_module().logger
 
     def save_to_target(self):
+        if self._has_manifest_project_context():
+            self._save_manifest_working()
+            return
         if not self._target_path:
             self.save_as()
             return
         self._save_to_path(self._target_path)
+
+    def publish_complete_assets(self):
+        context = self._manifest_project_context()
+        if context is None:
+            self._status_label.setText(tr("EDITOR_NO_DATA"))
+            return
+        output_root, run_id, figure_id = context
+        update = FigureProjectService(Path(output_root)).publish(
+            run_id=run_id,
+            figure_id=figure_id,
+        )
+        self._refresh_manifest_project_entry(update)
+        self._status_label.setText(
+            tr("EDITOR_PUBLISH_DONE", update.entry.published_revision)
+        )
+
+    def _save_manifest_working(self):
+        context = self._manifest_project_context()
+        if context is None:
+            return
+        output_root, run_id, figure_id = context
+        update = FigureProjectService(Path(output_root)).save_working(
+            run_id=run_id,
+            figure_id=figure_id,
+            document=self._generated_document_for_save(),
+        )
+        self._refresh_manifest_project_entry(update)
+        self._status_label.setText(
+            tr("EDITOR_WORKING_SAVE_DONE", update.entry.working_revision)
+        )
+
+    def _has_manifest_project_context(self):
+        return self._manifest_project_context() is not None
+
+    def _manifest_project_context(self):
+        entry = getattr(self, "_source_entry_context", None)
+        output_root = str(getattr(entry, "output_root", "") or "").strip()
+        run_id = str(getattr(entry, "run_id", "") or "").strip()
+        figure_id = str(getattr(entry, "figure_id", "") or "").strip()
+        document_path = str(getattr(entry, "document_path", "") or "").strip()
+        if not all((output_root, run_id, figure_id, document_path)):
+            return None
+        return output_root, run_id, figure_id
+
+    def _refresh_manifest_project_entry(self, update):
+        output_root = str(
+            getattr(self._source_entry_context, "output_root", "") or ""
+        ).strip()
+        entries = build_active_manifest_gallery_entries(output_root)
+        refreshed = next(
+            (
+                entry
+                for entry in entries
+                if entry.run_id == update.manifest.run_id
+                and entry.figure_id == update.entry.figure_id
+            ),
+            None,
+        )
+        if refreshed is None:
+            raise RuntimeError(
+                f"published figure is missing from active manifest: "
+                f"{update.entry.figure_id}"
+            )
+        preview_path = refreshed.preview_path or refreshed.primary_path
+        self.set_source_figure(
+            preview_path,
+            source_entry_context=refreshed,
+            force_static=False,
+        )
+        self.figure_saved.emit(preview_path)
+        return refreshed
 
     def save_as(self, fmt=None):
         chart_editor_module = self._chart_editor_module()

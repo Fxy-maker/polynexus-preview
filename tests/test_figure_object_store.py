@@ -165,6 +165,37 @@ def test_figure_object_store_ensures_legend_object_for_named_series():
     assert store.ensure_legend_object() is False
 
 
+def test_figure_object_store_uses_lifecycle_panel_legend_semantics():
+    document = {
+        "layout": {
+            "panels": [
+                {
+                    "panel_id": "main",
+                    "show_legend": False,
+                }
+            ]
+        },
+        "objects": [
+            {
+                "id": "series-a",
+                "type": "plot_series",
+                "name": "Observed",
+                "panel_id": "main",
+            }
+        ],
+    }
+    store = FigureObjectStore(document)
+
+    assert store.ensure_legend_object() is False
+    assert [item["id"] for item in document["objects"]] == ["series-a"]
+
+    document["layout"]["panels"][0]["show_legend"] = True
+
+    assert store.ensure_legend_object() is True
+    assert document["objects"][-1]["id"] == "legend"
+    assert document["objects"][-1]["panel_id"] == "main"
+
+
 def test_figure_object_store_moves_selected_object_without_crossing_legend():
     document = {
         "objects": [

@@ -658,6 +658,11 @@ class ChartEditor(
         self._btn_save_current.clicked.connect(self.save_to_target)
         form.addRow(self._btn_save_current)
 
+        self._btn_publish = QPushButton(tr("EDITOR_PUBLISH_COMPLETE"))
+        self._btn_publish.clicked.connect(self.publish_complete_assets)
+        self._btn_publish.setEnabled(False)
+        form.addRow(self._btn_publish)
+
         self._btn_save_as = QPushButton(tr("EDITOR_SAVE_AS_COPY"))
         self._btn_save_as.clicked.connect(self.save_as)
         form.addRow(self._btn_save_as)
@@ -778,6 +783,7 @@ class ChartEditor(
         self._btn_svg.setText(tr("EDITOR_EXPORT_SVG"))
         self._btn_png.setText(tr("EDITOR_EXPORT_PNG"))
         self._btn_save_current.setText(tr("EDITOR_SAVE_EDITS"))
+        self._btn_publish.setText(tr("EDITOR_PUBLISH_COMPLETE"))
         self._set_mode_header(
             self._mode_title_text,
             mode_key=self._mode_banner_key,
@@ -811,6 +817,7 @@ class ChartEditor(
         """Edit persisted settings for an already-exported figure file."""
         self._source_path = filepath or ""
         self._source_entry_context = source_entry_context
+        self._btn_publish.setEnabled(self._has_manifest_project_context())
         self._force_static_source_mode = bool(force_static)
         self._asset_spec = None
         self._figure_document = {}
@@ -902,6 +909,8 @@ class ChartEditor(
         self._static_file_mode = False
         self._generated_document_mode = False
         self._source_path = ""
+        self._source_entry_context = None
+        self._btn_publish.setEnabled(False)
         self._asset_spec = None
         self._figure_document = {}
         self._shared_render_plan = None
