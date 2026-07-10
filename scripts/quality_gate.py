@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import ast
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -17,6 +19,73 @@ class GateCommand:
 
 
 Runner = Callable[[GateCommand], int]
+
+_PUBLICATION_EXTENSION = re.compile(
+    r"\.(?:pdf|svg|png|jpe?g|tiff)(?:$|[^A-Za-z0-9])",
+    re.IGNORECASE,
+)
+
+
+def scan_migrated_figure_provider(path: Path) -> list[str]:
+    """Reject output behavior in a migrated scientific figure provider."""
+
+    path = Path(path)
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    if _tree_calls_savefig(tree):
+        return [
+            f"{path.name}: migrated figure providers must not call savefig"
+        ]
+    if _tree_contains_publication_extension(tree):
+        return [
+            f"{path.name}: migrated figure providers must not choose output formats"
+        ]
+    return []
+
+
+def scan_figure_lifecycle_sources(root: Path) -> list[str]:
+    """Apply figure ownership boundaries to all currently migrated sources."""
+
+    root = Path(root)
+    failures: list[str] = []
+    provider = root / "polynexus" / "core" / "ir_engine" / "figure_provider.py"
+    if provider.is_file():
+        failures.extend(scan_migrated_figure_provider(provider))
+
+    figures_dir = root / "polynexus" / "core" / "figures"
+    excluded = {"renderer.py", "export_service.py"}
+    for path in sorted(figures_dir.glob("*.py")):
+        if path.name in excluded:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        if _tree_calls_savefig(tree):
+            failures.append(
+                f"{path.name}: only the shared renderer/export service may call savefig"
+            )
+        if path.name != "profiles.py" and _tree_contains_publication_extension(tree):
+            failures.append(
+                f"{path.name}: only global profiles may choose output formats"
+            )
+    return failures
+
+
+def _tree_calls_savefig(tree: ast.AST) -> bool:
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Name) and node.func.id == "savefig":
+            return True
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "savefig":
+            return True
+    return False
+
+
+def _tree_contains_publication_extension(tree: ast.AST) -> bool:
+    return any(
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and _PUBLICATION_EXTENSION.search(node.value)
+        for node in ast.walk(tree)
+    )
 
 
 def default_commands(include_all_tests: bool = False) -> list[GateCommand]:
@@ -86,6 +155,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
+    boundary_failures = scan_figure_lifecycle_sources(root)
+    if boundary_failures:
+        for failure in boundary_failures:
+            print(f"[quality-gate] {failure}", file=sys.stderr)
+        return 1
     return run_commands(default_commands(include_all_tests=args.all_tests), subprocess_runner(root))
 
 

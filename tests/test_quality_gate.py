@@ -1,4 +1,11 @@
-from scripts.quality_gate import GateCommand, default_commands, run_commands
+from pathlib import Path
+
+from scripts.quality_gate import (
+    GateCommand,
+    default_commands,
+    run_commands,
+    scan_migrated_figure_provider,
+)
 
 
 def test_default_commands_include_fast_checks_only():
@@ -65,3 +72,33 @@ def test_run_commands_stops_on_first_failure():
 
     assert result == 1
     assert calls == ["compile", "focused-tests"]
+
+
+def test_figure_provider_gate_rejects_direct_savefig(tmp_path):
+    provider = tmp_path / "figure_provider.py"
+    provider.write_text("figure.savefig('figure.pdf')\n", encoding="utf-8")
+
+    failures = scan_migrated_figure_provider(provider)
+
+    assert failures == [
+        "figure_provider.py: migrated figure providers must not call savefig"
+    ]
+
+
+def test_figure_provider_gate_rejects_hard_coded_output_extensions(tmp_path):
+    provider = tmp_path / "figure_provider.py"
+    provider.write_text("path = 'result.svg'\n", encoding="utf-8")
+
+    failures = scan_migrated_figure_provider(provider)
+
+    assert failures == [
+        "figure_provider.py: migrated figure providers must not choose output formats"
+    ]
+
+
+def test_real_ir_provider_passes_figure_provider_gate():
+    failures = scan_migrated_figure_provider(
+        Path("polynexus/core/ir_engine/figure_provider.py")
+    )
+
+    assert failures == []
