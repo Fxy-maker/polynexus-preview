@@ -1624,6 +1624,35 @@ def test_sample_browser_new_batch_warning_uses_translated_detail(tmp_path):
         set_language(previous)
 
 
+def test_sample_browser_new_sample_propagates_unexpected_runtime_errors(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    db = SampleDB(tmp_path / "samples.db")
+    browser = SampleBrowser()
+    browser.set_db(db)
+
+    class AcceptedDialog:
+        def exec(self):
+            return 1
+
+        def sample_name(self):
+            return "PA6"
+
+        def aliases(self):
+            return []
+
+    try:
+        with patch("polynexus.gui.widgets.sample_browser.CreateSampleDialog", return_value=AcceptedDialog()):
+            with patch.object(browser._db, "create_sample", side_effect=RuntimeError("boom")):
+                with patch("polynexus.gui.widgets.sample_browser.QMessageBox.critical"):
+                    with pytest.raises(RuntimeError, match="boom"):
+                        browser._on_new_sample()
+    finally:
+        db.close()
+        browser.deleteLater()
+        app.processEvents()
+
+
 def test_sample_browser_hides_unfinished_export_entry():
     app = QApplication.instance() or QApplication([])
 
