@@ -2,6 +2,8 @@ import numpy as np
 import pytest
 
 from polynexus.core.figures.validation import validate_figure_definition
+from polynexus.core.saxs import SAXSEngine
+from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.figure_provider import (
     build_saxs_temperature_definitions,
 )
@@ -88,3 +90,21 @@ def test_saxs_temperature_provider_emits_multi_panel_and_heatmap(
 
     validate_figure_definition(parameters)
     validate_figure_definition(heatmap)
+
+
+def test_saxs_engine_exposes_temperature_figure_definitions(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    engine = SAXSEngine(config=SAXSConfig(experiment_type="temperature"))
+    engine._temperature_result = result
+    engine._q_list = list(q_values)
+    engine._I_list = list(intensities)
+
+    definitions = engine.build_figure_definitions()
+
+    assert definitions
+    assert all(item.technique == "saxs" for item in definitions)
+    assert "saxs.series.temperature.heatmap" in {
+        item.figure_id for item in definitions
+    }

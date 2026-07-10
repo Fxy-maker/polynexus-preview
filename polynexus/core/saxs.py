@@ -1528,6 +1528,19 @@ class SAXSEngine(BaseEngine):
             self.plot(output_dir)
         return result
 
+    def build_figure_definitions(self):
+        """Return scientific figure definitions without publishing assets."""
+
+        if self._temperature_result is None:
+            return ()
+        from .saxs_engine.figure_provider import build_saxs_temperature_definitions
+
+        return build_saxs_temperature_definitions(
+            self._temperature_result,
+            tuple(self._q_list),
+            tuple(self._I_list),
+        )
+
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         if self._analysis is None and not self._batch_results and self._temperature_result is None and self._strain_result is None and self._q is None:
             self.log("No analysis results to plot")
