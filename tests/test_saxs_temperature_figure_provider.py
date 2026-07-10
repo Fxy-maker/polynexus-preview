@@ -59,3 +59,32 @@ def test_saxs_temperature_provider_rejects_mismatched_frame_counts(
 
     with pytest.raises(ValueError, match="temperature frame counts differ"):
         build_saxs_temperature_definitions(result, q_values[:1], intensities)
+
+
+def test_saxs_temperature_provider_emits_multi_panel_and_heatmap(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+    by_id = {item.figure_id: item for item in definitions}
+
+    parameters = by_id["saxs.series.temperature.parameters"]
+    assert parameters.layout.rows == 2
+    assert parameters.layout.columns == 2
+    assert {obj["panel_id"] for obj in parameters.objects} == {
+        "long-period",
+        "thickness",
+        "invariant",
+        "crystallinity",
+    }
+    heatmap = by_id["saxs.series.temperature.heatmap"]
+    assert heatmap.objects[0]["type"] == "heatmap"
+    assert {column.name for column in heatmap.data_sources[0].columns} == {
+        "q_nm1",
+        "temperature_C",
+        "intensity",
+    }
+
+    validate_figure_definition(parameters)
+    validate_figure_definition(heatmap)

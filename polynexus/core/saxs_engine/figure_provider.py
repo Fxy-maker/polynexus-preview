@@ -60,6 +60,9 @@ def build_saxs_temperature_definitions(
         )
     if definitions:
         definitions.append(_build_temperature_waterfall(temperatures, cleaned_frames))
+        definitions.extend(
+            _build_temperature_summary_definitions(result, cleaned_frames)
+        )
     return tuple(definitions)
 
 
@@ -174,6 +177,315 @@ def _build_temperature_waterfall(
         },
         style_profile="sci_default",
     )
+
+
+def _build_temperature_summary_definitions(
+    result: TempSeriesResult,
+    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+) -> tuple[FigureDefinition, ...]:
+    return (
+        _build_temperature_parameters(result),
+        _build_temperature_heatmap(
+            np.asarray(result.temperatures, dtype=float),
+            frames,
+        ),
+    )
+
+
+def _build_temperature_parameters(result: TempSeriesResult) -> FigureDefinition:
+    temperatures = np.ravel(np.asarray(result.temperatures, dtype=float))
+    count = len(temperatures)
+    long_period = _series_values(result.L_array, count, "L_array")
+    raw_lc = _series_values(result.lc_array, count, "lc_array")
+    effective_lc = _series_values(
+        result.lc_effective_array,
+        count,
+        "lc_effective_array",
+        missing_ok=True,
+    )
+    lc_values = np.where(np.isfinite(effective_lc), effective_lc, raw_lc)
+    amorphous_values = long_period - lc_values
+    invariant = _series_values(result.Q_star_array, count, "Q_star_array")
+    crystallinity = _series_values(result.Xc_array, count, "Xc_array")
+    source_id = "temperature-parameters-data"
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.parameters",
+        technique="saxs",
+        scope="series",
+        category="series_overview",
+        title="SAXS Temperature Parameters",
+        layout=_temperature_parameters_layout(),
+        data_sources=(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("temperature_C", "C"),
+                    DataColumnDefinition("L_nm", "nm"),
+                    DataColumnDefinition("lc_nm", "nm"),
+                    DataColumnDefinition("la_nm", "nm"),
+                    DataColumnDefinition("Q_star", "a.u."),
+                    DataColumnDefinition("crystallinity_fraction", "1"),
+                ),
+                values={
+                    "temperature_C": _float_values(temperatures),
+                    "L_nm": _float_values(long_period),
+                    "lc_nm": _float_values(lc_values),
+                    "la_nm": _float_values(amorphous_values),
+                    "Q_star": _float_values(invariant),
+                    "crystallinity_fraction": _float_values(crystallinity),
+                },
+            ),
+        ),
+        objects=(
+            _parameter_series(
+                "series-long-period",
+                "long-period",
+                source_id,
+                "L_nm",
+                "Long period",
+                "#0072B2",
+            ),
+            _parameter_series(
+                "series-crystalline-thickness",
+                "thickness",
+                source_id,
+                "lc_nm",
+                "Crystalline",
+                "#009E73",
+            ),
+            _parameter_series(
+                "series-amorphous-thickness",
+                "thickness",
+                source_id,
+                "la_nm",
+                "Amorphous",
+                "#E69F00",
+            ),
+            _parameter_series(
+                "series-invariant",
+                "invariant",
+                source_id,
+                "Q_star",
+                "Invariant",
+                "#CC79A7",
+            ),
+            _parameter_series(
+                "series-crystallinity",
+                "crystallinity",
+                source_id,
+                "crystallinity_fraction",
+                "Crystallinity",
+                "#D55E00",
+            ),
+        ),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": count},
+            "parameters": {
+                "figure_kind": "parameters",
+                "lc_source": "effective_with_raw_fallback",
+            },
+        },
+        style_profile="sci_default",
+    )
+
+
+def _build_temperature_heatmap(
+    temperatures: np.ndarray,
+    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+) -> FigureDefinition:
+    q_min = max(float(np.nanmin(q)) for q, _intensity in frames)
+    q_max = min(float(np.nanmax(q)) for q, _intensity in frames)
+    if not q_min < q_max:
+        raise ValueError("temperature q ranges do not overlap")
+    point_count = max(2, min(512, max(len(q) for q, _intensity in frames)))
+    common_q = np.linspace(q_min, q_max, point_count)
+    q_column: list[float] = []
+    temperature_column: list[float] = []
+    intensity_column: list[float] = []
+    for temperature, (q, intensity) in zip(temperatures, frames):
+        interpolated = np.interp(common_q, q, intensity)
+        q_column.extend(float(value) for value in common_q)
+        temperature_column.extend(float(temperature) for _value in common_q)
+        intensity_column.extend(float(value) for value in interpolated)
+    source_id = "temperature-heatmap-data"
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.heatmap",
+        technique="saxs",
+        scope="series",
+        category="series_overview",
+        title="SAXS Temperature Heatmap",
+        layout=_temperature_heatmap_layout(),
+        data_sources=(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("q_nm1", "nm^-1"),
+                    DataColumnDefinition("temperature_C", "C"),
+                    DataColumnDefinition("intensity", "a.u."),
+                ),
+                values={
+                    "q_nm1": tuple(q_column),
+                    "temperature_C": tuple(temperature_column),
+                    "intensity": tuple(intensity_column),
+                },
+            ),
+        ),
+        objects=(
+            {
+                "id": "heatmap-intensity",
+                "type": "heatmap",
+                "panel_id": "main",
+                "data_ref": source_id,
+                "x_column": "q_nm1",
+                "y_column": "temperature_C",
+                "z_column": "intensity",
+                "style": {"cmap": "viridis", "colorbar_label": "I(q)"},
+            },
+        ),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": len(temperatures)},
+            "parameters": {
+                "figure_kind": "heatmap",
+                "common_q_point_count": point_count,
+                "common_q_range_nm1": [q_min, q_max],
+            },
+        },
+        style_profile="sci_default",
+    )
+
+
+def _parameter_series(
+    object_id: str,
+    panel_id: str,
+    source_id: str,
+    y_column: str,
+    name: str,
+    color: str,
+) -> dict[str, object]:
+    return {
+        "id": object_id,
+        "type": "plot_series",
+        "panel_id": panel_id,
+        "name": name,
+        "data_ref": source_id,
+        "x_column": "temperature_C",
+        "y_column": y_column,
+        "style": {"color": color, "line_width": 0.9, "marker": "o"},
+    }
+
+
+def _temperature_parameters_layout() -> FigureLayoutDefinition:
+    def x_axis(panel_id: str) -> AxisDefinition:
+        return AxisDefinition(
+            axis_id=f"x-{panel_id}",
+            label="Temperature",
+            unit="C",
+        )
+
+    return FigureLayoutDefinition(
+        width_in=8.0,
+        height_in=6.5,
+        rows=2,
+        columns=2,
+        panels=(
+            PanelDefinition(
+                panel_id="long-period",
+                row=0,
+                column=0,
+                x_axis=x_axis("long-period"),
+                y_axis=AxisDefinition(
+                    axis_id="y-long-period",
+                    label="Long period",
+                    unit="nm",
+                ),
+                title="Long Period",
+            ),
+            PanelDefinition(
+                panel_id="thickness",
+                row=0,
+                column=1,
+                x_axis=x_axis("thickness"),
+                y_axis=AxisDefinition(
+                    axis_id="y-thickness",
+                    label="Thickness",
+                    unit="nm",
+                ),
+                title="Phase Thickness",
+                show_legend=True,
+            ),
+            PanelDefinition(
+                panel_id="invariant",
+                row=1,
+                column=0,
+                x_axis=x_axis("invariant"),
+                y_axis=AxisDefinition(
+                    axis_id="y-invariant",
+                    label="Invariant",
+                    unit="a.u.",
+                ),
+                title="Scattering Invariant",
+            ),
+            PanelDefinition(
+                panel_id="crystallinity",
+                row=1,
+                column=1,
+                x_axis=x_axis("crystallinity"),
+                y_axis=AxisDefinition(
+                    axis_id="y-crystallinity",
+                    label="Relative crystallinity",
+                    unit="1",
+                ),
+                title="Relative Crystallinity",
+            ),
+        ),
+    )
+
+
+def _temperature_heatmap_layout() -> FigureLayoutDefinition:
+    return FigureLayoutDefinition(
+        width_in=7.5,
+        height_in=5.0,
+        rows=1,
+        columns=1,
+        panels=(
+            PanelDefinition(
+                panel_id="main",
+                row=0,
+                column=0,
+                x_axis=AxisDefinition(
+                    axis_id="x",
+                    label="q",
+                    unit="nm^-1",
+                ),
+                y_axis=AxisDefinition(
+                    axis_id="y",
+                    label="Temperature",
+                    unit="C",
+                ),
+            ),
+        ),
+    )
+
+
+def _series_values(
+    values,
+    count: int,
+    name: str,
+    *,
+    missing_ok: bool = False,
+) -> np.ndarray:
+    if values is None:
+        if missing_ok:
+            return np.full(count, np.nan, dtype=float)
+        raise ValueError(f"temperature result array is missing: {name}")
+    array = np.ravel(np.asarray(values, dtype=float))
+    if len(array) != count:
+        raise ValueError(f"temperature result array length differs: {name}")
+    return array
 
 
 def _scattering_layout(*, show_legend: bool) -> FigureLayoutDefinition:
