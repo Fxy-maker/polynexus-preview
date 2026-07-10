@@ -211,6 +211,13 @@ class DSCEngine(BaseEngine):
 
         return True
 
+    def build_figure_definitions(self):
+        """Return scientific figure definitions without publishing assets."""
+
+        from .dsc_engine.figure_provider import build_dsc_figure_definitions
+
+        return build_dsc_figure_definitions(tuple(self._results))
+
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         """Generate SCI-quality DSC figures.
 
