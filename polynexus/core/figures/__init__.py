@@ -10,6 +10,7 @@ from .contracts import (
 )
 from .profiles import FigureOutputProfile, get_figure_output_profile
 from .pipeline import FigurePipeline
+from .project_service import FigureProjectService, FigureProjectUpdate
 
 __all__ = [
     "AxisDefinition",
@@ -19,6 +20,8 @@ __all__ = [
     "FigureLayoutDefinition",
     "FigureOutputProfile",
     "FigurePipeline",
+    "FigureProjectService",
+    "FigureProjectUpdate",
     "PanelDefinition",
     "get_figure_output_profile",
 ]
