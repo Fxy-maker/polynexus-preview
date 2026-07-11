@@ -5,6 +5,7 @@ from pathlib import Path
 from polynexus.core.figure_assets import (
     discover_figure_asset,
     figure_id_from_path,
+    read_figure_asset_dimensions,
     sidecar_key_for_path,
 )
 
@@ -129,3 +130,18 @@ def test_figure_asset_spec_reads_jpeg_dimensions(tmp_path):
 
     assert spec.width_px == 80
     assert spec.height_px == 40
+
+
+def test_public_dimension_reader_reports_png_svg_and_pdf(three_format_paths):
+    assert read_figure_asset_dimensions(three_format_paths["png"])[0:2] == (
+        1200,
+        600,
+    )
+    assert read_figure_asset_dimensions(three_format_paths["svg"])[0:2] == (
+        192,
+        96,
+    )
+    assert read_figure_asset_dimensions(three_format_paths["pdf"])[0:2] == (
+        144,
+        72,
+    )

@@ -25,6 +25,11 @@ from .core import (
     analyze_single,
     LongPeriodResult, StructureParams,
 )
+from .lc_path_selection import (
+    LcCandidate,
+    apply_lc_path_decisions,
+    select_lc_sequence_path,
+)
 from .preprocess import apply_thermal_correction
 
 
@@ -67,6 +72,16 @@ class TemperaturePointResult:
     lc_tangent_nm: float = np.nan
     lc_idf_nm: float = np.nan
     lc_gamma_min_nm: float = np.nan
+    lc_candidates: List[LcCandidate] = field(default_factory=list)
+    lc_candidate_selected_nm: float = np.nan
+    lc_candidate_selected_source: str = ""
+    lc_candidate_selected_score: float = np.nan
+    lc_candidate_count: int = 0
+    lc_effective_nm: float = np.nan
+    lc_effective_source: str = ""
+    lc_effective_score: float = np.nan
+    lc_path_status: str = "diagnostic_only"
+    lc_path_reason: str = ""
     method: str = ""
     melting_window_status: str = "undetermined"
     melting_window_reason: str = ""
@@ -90,10 +105,15 @@ class TempSeriesResult:
     temperatures: np.ndarray = None
     L_array: np.ndarray = None
     lc_array: np.ndarray = None
+    lc_effective_array: np.ndarray = None
     Q_star_array: np.ndarray = None
     Xc_array: np.ndarray = None
     melting_window_status_array: List[str] = field(default_factory=list)
     lc_reliability_status_array: List[str] = field(default_factory=list)
+    lc_path_status_array: List[str] = field(default_factory=list)
+    lc_path_reason_array: List[str] = field(default_factory=list)
+    lc_candidate_selected_source_array: List[str] = field(default_factory=list)
+    lc_candidate_selected_score_array: np.ndarray = None
     
     # Phase transition temperatures
     Tm_onset: float = np.nan
@@ -119,6 +139,11 @@ class TempSeriesResult:
                 'Xc_rel': round(tp.Xc_relative, 3) if np.isfinite(tp.Xc_relative) else None,
                 'Confidence': round(tp.confidence, 2),
                 'lc_confidence': round(tp.lc_confidence, 2) if np.isfinite(tp.lc_confidence) else None,
+                'lc_effective(nm)': round(tp.lc_effective_nm, 2) if np.isfinite(tp.lc_effective_nm) else None,
+                'lc_path_status': tp.lc_path_status or None,
+                'lc_path_reason': tp.lc_path_reason or None,
+                'lc_candidate_source': tp.lc_candidate_selected_source or None,
+                'lc_candidate_score': round(tp.lc_candidate_selected_score, 3) if np.isfinite(tp.lc_candidate_selected_score) else None,
                 'melting_window_status': tp.melting_window_status or None,
                 'lc_reliability_status': tp.lc_reliability_status or None,
                 'lc_reliability_reason': tp.lc_reliability_reason or None,
@@ -833,11 +858,6 @@ def analyze_temperature_series(
 
     # ---- Post-analysis ----
 
-    # Gibbs-Thomson
-    result.gibbs_thomson = gibbs_thomson_analysis(
-        temps_arr, result.lc_array, Tm_inf
-    )
-
     # Melting detection
     melting = detect_melting_from_saxs(temps_arr, result.L_array, I_peak_tracking)
     result.Tm_onset = melting.get('Tm_onset_C', np.nan)
@@ -872,6 +892,30 @@ def analyze_temperature_series(
         tp.lc_reliability_reason = lc_reason
         result.lc_reliability_status_array[idx] = lc_status
         previous_point = tp
+
+    path_decisions = select_lc_sequence_path(result.temp_points)
+    apply_lc_path_decisions(result.temp_points, path_decisions)
+
+    result.lc_effective_array = np.asarray([tp.lc_effective_nm for tp in result.temp_points], dtype=float)
+    result.lc_path_status_array = [str(tp.lc_path_status or "") for tp in result.temp_points]
+    result.lc_path_reason_array = [str(tp.lc_path_reason or "") for tp in result.temp_points]
+    result.lc_candidate_selected_source_array = [str(tp.lc_candidate_selected_source or "") for tp in result.temp_points]
+    result.lc_candidate_selected_score_array = np.asarray(
+        [float(tp.lc_candidate_selected_score) if np.isfinite(tp.lc_candidate_selected_score) else np.nan for tp in result.temp_points],
+        dtype=float,
+    )
+
+    lc_for_gibbs_thomson = result.lc_effective_array
+    if not np.any(np.isfinite(lc_for_gibbs_thomson)):
+        lc_for_gibbs_thomson = result.lc_array
+
+    # Gibbs-Thomson prefers the sequence-selected path when available, but
+    # falls back to the raw core output if no effective path survives.
+    result.gibbs_thomson = gibbs_thomson_analysis(
+        temps_arr,
+        lc_for_gibbs_thomson,
+        Tm_inf,
+    )
 
     # Avrami kinetics (for cooling/isothermal)
     if exp_type in ("cooling", "isothermal") and len(times_arr) > 5:

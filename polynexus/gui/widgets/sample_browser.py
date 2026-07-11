@@ -2,6 +2,7 @@
 
 import csv
 import os
+import sqlite3
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QSettings, Qt, Signal
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from ..import_suggestions import suggest_import
 from ..i18n import tr
+from ..table_clipboard_service import copy_table_selection_to_clipboard
 
 TECHNIQUE_OPTIONS = ("saxs", "waxs", "dsc", "ir", "nmr")
 _WINDOWS_FILENAME_FORBIDDEN = '<>:"/\\|?*'
@@ -1081,32 +1083,7 @@ class SampleBrowser(QWidget):
         )
 
     def _copy_selected_samples_to_clipboard(self):
-        table = self._table
-        cols = table.columnCount()
-        rows = table.rowCount()
-        if cols <= 0 or rows <= 0:
-            return
-
-        headers = []
-        for col in range(cols):
-            header_item = table.horizontalHeaderItem(col)
-            headers.append(header_item.text() if header_item is not None else "")
-
-        selection = table.selectionModel()
-        selected_rows = []
-        if selection is not None:
-            selected_rows = sorted(index.row() for index in selection.selectedRows())
-        row_indexes = selected_rows if selected_rows else list(range(rows))
-
-        lines = ["\t".join(headers)]
-        for row in row_indexes:
-            values = []
-            for col in range(cols):
-                item = table.item(row, col)
-                values.append(item.text() if item is not None else "")
-            lines.append("\t".join(values))
-
-        QApplication.clipboard().setText("\n".join(lines))
+        copy_table_selection_to_clipboard(self._table)
 
     def retranslate(self):
         self._search_input.setPlaceholderText(tr("SAMPLE_SEARCH_PLACEHOLDER"))
@@ -1614,7 +1591,7 @@ class SampleBrowser(QWidget):
                 tr("SAMPLE_BATCH_EDIT_INVALID", str(exc)),
             )
             return
-        except Exception as exc:
+        except sqlite3.Error as exc:
             QMessageBox.critical(
                 self,
                 tr("SAMPLE_BATCH_EDIT_TITLE"),
@@ -1669,7 +1646,7 @@ class SampleBrowser(QWidget):
 
         try:
             sample_id = self._db.create_sample(name, aliases=dialog.aliases(), temp=False)
-        except Exception as exc:
+        except sqlite3.Error as exc:
             QMessageBox.critical(
                 self,
                 tr("SAMPLE_CREATE_TITLE"),
@@ -1734,7 +1711,7 @@ class SampleBrowser(QWidget):
                 tr("SAMPLE_EDIT_INVALID", str(exc)),
             )
             return
-        except Exception as exc:
+        except sqlite3.Error as exc:
             QMessageBox.critical(
                 self,
                 tr("SAMPLE_EDIT_TITLE"),
@@ -1791,7 +1768,7 @@ class SampleBrowser(QWidget):
                 tr("SAMPLE_BATCH_CREATE_INVALID", str(exc)),
             )
             return
-        except Exception as exc:
+        except sqlite3.Error as exc:
             QMessageBox.critical(
                 self,
                 tr("SAMPLE_BATCH_CREATE_TITLE"),

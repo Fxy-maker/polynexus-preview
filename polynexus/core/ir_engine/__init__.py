@@ -33,16 +33,12 @@ from .core import (
     analyze_spectrum,
 )
 from .ir_output import (
-    set_sci_style, generate_all_figures,
-    fig_ir1_spectrum, fig_ir2_peak_fit,
-    fig_ir3_comparison, fig_ir4_crystallinity,
     export_parameters_csv,
 )
 from .ir_temperature import (
     IRTempFrame, IRTemp2DResult,
     detect_temperature_2d, parse_temperature_condition,
     analyze_temperature_2d_series, compute_2d_correlation,
-    generate_temperature_2d_figures,
     export_temperature_2d_csv,
 )
 
@@ -85,13 +81,9 @@ __all__ = [
     "compute_crystallinity_ratio",
     "measure_band_height", "measure_band_area", "compute_polymer_band_indices",
     "analyze_spectrum",
-    "set_sci_style", "generate_all_figures",
-    "fig_ir1_spectrum", "fig_ir2_peak_fit",
-    "fig_ir3_comparison", "fig_ir4_crystallinity",
     "export_parameters_csv",
     "IRTempFrame", "IRTemp2DResult",
     "detect_temperature_2d", "parse_temperature_condition",
     "analyze_temperature_2d_series", "compute_2d_correlation",
-    "generate_temperature_2d_figures",
     "export_temperature_2d_csv",
 ]

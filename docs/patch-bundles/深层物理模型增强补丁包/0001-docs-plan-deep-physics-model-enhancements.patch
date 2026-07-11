@@ -1,0 +1,303 @@
+From f1db2679de0a264eb5d36431cef89d6f64a879b6 Mon Sep 17 00:00:00 2001
+From: Fxy-maker <fanxuyi786@gmail.com>
+Date: Mon, 6 Jul 2026 08:56:27 +0800
+Subject: [PATCH 1/7] docs: plan deep physics model enhancements
+
+---
+ ...exus 工程质量与深层物理模型增强实施计划.md | 284 ++++++++++++++++++
+ 1 file changed, 284 insertions(+)
+ create mode 100644 docs/plans/PolyNexus 工程质量与深层物理模型增强实施计划.md
+
+diff --git a/docs/plans/PolyNexus 工程质量与深层物理模型增强实施计划.md b/docs/plans/PolyNexus 工程质量与深层物理模型增强实施计划.md
+new file mode 100644
+index 0000000..76616d6
+--- /dev/null
++++ b/docs/plans/PolyNexus 工程质量与深层物理模型增强实施计划.md
+@@ -0,0 +1,284 @@
++# PolyNexus 工程质量与深层物理模型增强实施计划
++
++> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
++
++**Goal:** 把已落地的 evidence/status 体系继续推进到工程输出更干净、DSC/WAXS/NMR 关键物理量有真实重算与误差支撑的 v1 闭环。
++
++**Architecture:** 保持现有大模块边界，不做跨目录重构。新增小型 helper，优先把计算结果写入已有 `parameters` / `analysis_evidence` 结构，让 GUI、Joint、AI context 自动继承增强后的可信度信息。所有行为变化先写失败测试，再实现最小代码。
++
++**Tech Stack:** Python 3.10+，NumPy/SciPy，pytest，现有 `polynexus.core.*_engine`、`analysis_evidence.py`、PySide6 GUI 回归。
++
++---
++
++## Task 1: 工程质量收口
++
++**Files:**
++- Modify: `polynexus/core/plot_edits.py`
++- Modify: `tests/test_nmr_engine.py`
++- Modify: `tests/test_core.py`
++
++- [ ] **Step 1: 写字体 warning 回归测试**
++
++在 `tests/test_nmr_engine.py` 增加一个测试，使用 `warnings.catch_warnings(record=True)` 运行当前 NMR export 场景，断言不再出现 `Glyph ... missing from font(s) Arial`。
++
++- [ ] **Step 2: 验证失败**
++
++Run:
++
++```powershell
++pytest tests/test_nmr_engine.py::test_nmr_export_does_not_emit_arial_missing_glyph_warning -q
++```
++
++Expected: FAIL，当前导出会捕获 Arial 缺中文字形 warning。
++
++- [ ] **Step 3: 实现字体 fallback**
++
++在 `polynexus/core/plot_edits.py` 中集中设置 Matplotlib 字体 fallback，优先使用已存在字体族，不强制 Arial 独占。保存图前确保 `font.sans-serif` 包含 `Microsoft YaHei`、`SimHei`、`Noto Sans CJK SC`、`DejaVu Sans`，并保留原有科学图样式。
++
++- [ ] **Step 4: 扩展文本/日志扫描**
++
++在 `tests/test_core.py` 中保留全包 mojibake 与不可达 logger 扫描；新增扫描公开解释状态词，确保 `diagnostic_only`、`assignment_limited` 等不会出现多套中文/英文混乱映射。
++
++- [ ] **Step 5: 验证并提交**
++
++Run:
++
++```powershell
++pytest tests/test_core.py tests/test_nmr_engine.py -q
++```
++
++Commit:
++
++```powershell
++git add polynexus/core/plot_edits.py tests/test_core.py tests/test_nmr_engine.py
++git commit -m "chore: clean plotting warnings and evidence text guards"
++```
++
++## Task 2: DSC 多基线/边界重积分 v1
++
++**Files:**
++- Modify: `polynexus/core/dsc_engine/core.py`
++- Modify: `polynexus/core/analysis_evidence.py`
++- Test: `tests/test_dsc_engine.py`
++- Test: `tests/test_analysis_evidence.py`
++
++- [ ] **Step 1: 写多变体重积分测试**
++
++在 `tests/test_dsc_engine.py` 增加 `test_dsc_analyze_scan_reports_multibaseline_xc_distribution()`，构造一个 heating scan，断言 `result.to_dict()` 包含：
++
++```python
++"Xc_pct_mean"
++"Xc_pct_std"
++"Xc_pct_ci95"
++"DHm_Jg_std"
++"DHcc_Jg_std"
++"baseline_variant_count"
++"integration_variant_count"
++```
++
++并断言 variant count 大于 1，`Xc_pct_std >= 0`。
++
++- [ ] **Step 2: 验证失败**
++
++Run:
++
++```powershell
++pytest tests/test_dsc_engine.py::test_dsc_analyze_scan_reports_multibaseline_xc_distribution -q
++```
++
++Expected: FAIL，字段尚未输出。
++
++- [ ] **Step 3: 实现 helper**
++
++在 `polynexus/core/dsc_engine/core.py` 增加 `_reintegrate_event_variants(T, HF, event, is_endotherm)`，对同一 event 做：
++
++- endpoint-linear baseline
++- constant midpoint baseline
++- local edge mean baseline
++- onset/endset 各 +/- 一个温度步长扰动
++
++返回 enthalpy 分布与 variant count。
++
++- [ ] **Step 4: 写入 DSCResult**
++
++扩展 `DSCResult` 字段与 `to_dict()`，在 `analyze_scan()` 计算主 melting/cold crystallization 后写入 `DHm_Jg_mean/std`、`DHcc_Jg_mean/std`、`Xc_pct_mean/std/ci95`、variant counts。原 `Xc_pct` 保持向后兼容。
++
++- [ ] **Step 5: evidence 消费真实分布**
++
++在 `analysis_evidence.py` 的 DSC crystallinity evidence 中读取 `Xc_pct_std`、`Xc_pct_ci95`、variant counts。若 `Xc_pct_ci95 >= 8` 或 variant count 不足，降低 `Xc_reliability_status`。
++
++- [ ] **Step 6: 验证并提交**
++
++Run:
++
++```powershell
++pytest tests/test_dsc_engine.py tests/test_analysis_evidence.py -q
++```
++
++Commit:
++
++```powershell
++git add polynexus/core/dsc_engine/core.py polynexus/core/analysis_evidence.py tests/test_dsc_engine.py tests/test_analysis_evidence.py
++git commit -m "feat: add dsc multibaseline crystallinity uncertainty"
++```
++
++## Task 3: WAXS 展宽模型与加权 Williamson-Hall v1
++
++**Files:**
++- Modify: `polynexus/core/waxs_engine/config.py`
++- Modify: `polynexus/core/waxs_engine/core.py`
++- Modify: `polynexus/core/analysis_evidence.py`
++- Test: `tests/test_waxs_temperature.py`
++- Test: `tests/test_analysis_evidence.py`
++
++- [ ] **Step 1: 写 Caglioti 与 WH uncertainty 测试**
++
++新增测试断言：
++
++- `instrument_fwhm_for_peak(20.0, cfg)` 使用 Caglioti U/V/W 时大于 0。
++- `scherrer_peak_size_records()` 返回每峰 `beta_sample_deg`、`D_nm`、`D_uncertainty_nm`。
++- `williamson_hall_weighted()` 返回 `D_uncertainty_nm`、`epsilon_uncertainty_pct`、`r_squared`、`reliability_status`。
++
++- [ ] **Step 2: 验证失败**
++
++Run:
++
++```powershell
++pytest tests/test_waxs_temperature.py::test_waxs_weighted_uncertainty_helpers -q
++```
++
++Expected: FAIL，helper 尚不存在或字段缺失。
++
++- [ ] **Step 3: 实现仪器展宽 helper**
++
++在 `waxs_engine/core.py` 增加：
++
++```python
++def instrument_fwhm_for_peak(two_theta_deg, instrument_fwhm_deg=0.0, caglioti_U=0.0, caglioti_V=0.0, caglioti_W=0.0) -> float
++```
++
++Caglioti 使用 `sqrt(max(U*tan(theta)^2 + V*tan(theta) + W, 0))`；否则回退常数 `instrument_fwhm_deg`。
++
++- [ ] **Step 4: 实现 Scherrer records 与 weighted WH**
++
++保留原 `scherrer_size()` API；新增 records helper，不破坏旧测试。`williamson_hall_weighted()` 使用峰宽误差作为权重，峰数不足或 intercept 不可用时返回 `diagnostic_only`。
++
++- [ ] **Step 5: analyze_scan 写入字段**
++
++在 WAXSResult parameters 中加入 `D_WH_uncertainty_nm`、`epsilon_WH_uncertainty_pct`、`WH_fit_r_squared`、`size_reliability_status`、`instrument_broadening_model`。
++
++- [ ] **Step 6: 验证并提交**
++
++Run:
++
++```powershell
++pytest tests/test_waxs_temperature.py tests/test_analysis_evidence.py -q
++```
++
++Commit:
++
++```powershell
++git add polynexus/core/waxs_engine/config.py polynexus/core/waxs_engine/core.py polynexus/core/analysis_evidence.py tests/test_waxs_temperature.py tests/test_analysis_evidence.py
++git commit -m "feat: propagate waxs size uncertainty"
++```
++
++## Task 4: NMR assignment library 与 Xc 门控 v1
++
++**Files:**
++- Modify: `polynexus/core/nmr_engine/config.py`
++- Modify: `polynexus/core/nmr_engine/core.py`
++- Modify: `polynexus/core/analysis_evidence.py`
++- Test: `tests/test_nmr_engine.py`
++- Test: `tests/test_analysis_evidence.py`
++
++- [ ] **Step 1: 写 library scoring 测试**
++
++新增测试：
++
++- PA6 `13C` peaks 命中 crystalline/amorphous pair 时输出 `assignment_confidence >= 0.7`、`phase_pair_support=True`。
++- 只有 generic assignment 或 solvent overlap 时，`Xc_assignment_status` 保持 `assignment_limited`。
++
++- [ ] **Step 2: 验证失败**
++
++Run:
++
++```powershell
++pytest tests/test_nmr_engine.py::test_nmr_assignment_library_scores_phase_pair_support -q
++```
++
++Expected: FAIL，缺少 library score 字段。
++
++- [ ] **Step 3: 扩展内置 library 元数据**
++
++在 `NMRConfig.polymer_13c_db` 现有结构上保持兼容，同时新增 helper 将其归一化为 records：`polymer`、`group`、`ppm`、`phase`、`source`、`confidence`。
++
++- [ ] **Step 4: 实现 assignment scoring**
++
++在 `core.py` 中增加 `_score_assignment_library(peaks, config, polymer_name, nucleus)`，输出：
++
++- `library_match_fraction`
++- `assignment_confidence`
++- `phase_pair_support`
++- `solvent_overlap_penalty`
++- `matched_library_count`
++- `assignment_library_source`
++
++- [ ] **Step 5: Xc_NMR 强门控**
++
++当 `Xc_method == "requires_crystalline_amorphous_assignment"` 时，只有 `phase_pair_support` 且 solvent penalty 较低才允许 `Xc_assignment_status="supported"`；否则保持 `assignment_limited`。
++
++- [ ] **Step 6: 验证并提交**
++
++Run:
++
++```powershell
++pytest tests/test_nmr_engine.py tests/test_analysis_evidence.py -q
++```
++
++Commit:
++
++```powershell
++git add polynexus/core/nmr_engine/config.py polynexus/core/nmr_engine/core.py polynexus/core/analysis_evidence.py tests/test_nmr_engine.py tests/test_analysis_evidence.py
++git commit -m "feat: score nmr assignments with polymer library"
++```
++
++## Task 5: 全链路验收与交付包更新
++
++**Files:**
++- Modify: `docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md`
++- Modify/Create: `docs/patch-bundles/深层物理模型增强补丁包/*`
++
++- [ ] **Step 1: 跑快速矩阵**
++
++```powershell
++pytest tests/test_core.py tests/test_dsc_engine.py tests/test_waxs_temperature.py tests/test_nmr_engine.py tests/test_analysis_evidence.py -q
++```
++
++- [ ] **Step 2: 跑 GUI 与全量**
++
++```powershell
++python -m compileall polynexus tests -q
++pytest tests/test_main_window_persistence.py -q
++pytest -q
++```
++
++- [ ] **Step 3: 更新方案验收说明与 patch bundle**
++
++生成 `git format-patch`，并记录新提交、验证结果、剩余风险。
++
++- [ ] **Step 4: 提交**
++
++```powershell
++git add docs
++git commit -m "docs: add deep physics model enhancement handoff"
++```
++
++## 验收标准
++
++- 全量 `pytest -q` 通过。
++- `python -m compileall polynexus tests -q` 通过。
++- NMR 导出不再产生 Arial glyph warning。
++- DSC 输出真实 variant-derived Xc uncertainty。
++- WAXS 输出仪器展宽模型与 Scherrer/WH uncertainty。
++- NMR 输出 library-derived assignment confidence 与 phase-pair gate。
++- Joint/AI context 能继续从 `analysis_evidence` 消费这些增强字段。
+--
+2.54.0.windows.1
+

@@ -2,6 +2,7 @@ from pathlib import Path
 import warnings
 
 import numpy as np
+import pytest
 
 from polynexus.core.engine import get_engine
 from polynexus.core.submodule_registry import list_all_submodules
@@ -9,7 +10,10 @@ from polynexus.core.nmr_engine import NMRConfig, analyze_spectrum, load_project,
 
 
 def _nmr_root() -> Path:
-    return Path(__file__).resolve().parents[1] / "\u6d4b\u8bd5\u6570\u636e" / "NMR"
+    root = Path(__file__).resolve().parents[1] / "\u6d4b\u8bd5\u6570\u636e" / "NMR"
+    if not root.is_dir():
+        pytest.skip("external NMR instrument fixtures are unavailable")
+    return root
 
 
 def test_liquid_fid_readers_transform_h_and_c_spectra():

@@ -19,6 +19,12 @@ KNOWN_POLYMERS = ["PA66", "PEEK", "PVDF", "PEK", "PET", "PLA", "PA6", "PE", "PP"
 CONFIG_PRESETS_FILENAME = "config_presets.json"
 BATCH_PRESETS_FILENAME = "batch_presets.json"
 BATCH_LAST_RUN_FILENAME = "batch_last_run.json"
+IGNORED_LEGACY_FIGURE_OUTPUT_KEYS = {
+    "figure_format",
+    "figure_dpi",
+    "fig_format",
+    "fig_dpi",
+}
 
 
 def detect_polymer_type(sample_name: str) -> str:
@@ -314,8 +320,7 @@ class GlobalConfig:
     # Output
     output_dir: str = ""
     save_figures: bool = True
-    figure_format: str = "pdf"          # pdf | png | svg
-    figure_dpi: int = 300
+    figure_output_profile: str = "paper_complete"
 
     # Data
     data_dir: str = ""
@@ -430,6 +435,8 @@ class ProjectConfig:
             if section in data:
                 target = cfg.global_cfg if section == 'global' else getattr(cfg, section)
                 for k, v in data[section].items():
+                    if k in IGNORED_LEGACY_FIGURE_OUTPUT_KEYS:
+                        continue
                     if hasattr(target, k):
                         setattr(target, k, v)
         return cfg

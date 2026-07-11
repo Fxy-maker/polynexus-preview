@@ -1,0 +1,17 @@
+from __future__ import annotations
+
+from polynexus.gui.widgets.chart_editor import ChartEditor
+from polynexus.gui.widgets.chart_editor_style_preset_mixin import ChartEditorStylePresetMixin
+
+
+def test_chart_editor_reuses_style_preset_helpers_from_style_preset_mixin() -> None:
+    assert ChartEditor._collect_style_preset_state is ChartEditorStylePresetMixin._collect_style_preset_state
+    assert ChartEditor._apply_style_preset is ChartEditorStylePresetMixin._apply_style_preset
+    assert ChartEditor._current_style_preset_name is ChartEditorStylePresetMixin._current_style_preset_name
+    assert ChartEditor._set_style_preset_placeholder is ChartEditorStylePresetMixin._set_style_preset_placeholder
+    assert ChartEditor._on_style_preset_name_changed is ChartEditorStylePresetMixin._on_style_preset_name_changed
+    assert ChartEditor._update_style_preset_action_state is ChartEditorStylePresetMixin._update_style_preset_action_state
+    assert ChartEditor._refresh_style_preset_controls is ChartEditorStylePresetMixin._refresh_style_preset_controls
+    assert ChartEditor._on_save_style_preset is ChartEditorStylePresetMixin._on_save_style_preset
+    assert ChartEditor._on_apply_style_preset is ChartEditorStylePresetMixin._on_apply_style_preset
+    assert ChartEditor._on_delete_style_preset is ChartEditorStylePresetMixin._on_delete_style_preset

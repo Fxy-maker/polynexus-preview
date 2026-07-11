@@ -19,7 +19,6 @@ from .nmr_engine import (
     NMRSpectrum,
     ComputedShift,
     analyze_spectrum,
-    generate_all_figures,
     load_computed_shifts,
     load_project,
     load_relaxation,
@@ -408,15 +407,23 @@ class NMREngine(BaseEngine):
                 self.result.metadata["median_snr"] = f"{first_result.median_snr:.6g}"
         return True
 
+    def build_figure_definitions(self):
+        """Return scientific figure definitions without publishing assets."""
+
+        from .nmr_engine.figure_provider import build_nmr_figure_definitions
+
+        return build_nmr_figure_definitions(tuple(self._results))
+
     def plot(self, output_dir=""):
-        if not self._results:
-            self.log("No results")
+        definitions = tuple(self.build_figure_definitions())
+        if not definitions:
+            self.log("No figure definitions available")
             return {}
         out = output_dir or self._cfg.output_dir or "nmr_output"
-        figs = generate_all_figures(self._results, out, config=self._cfg)
-        for _, path in figs.items():
-            self.log(f"  Figure: {path}")
-        return figs
+        figures = self.publish_figure_definitions(out, definitions)
+        for path in figures.values():
+            self.log(f"  Figure saved: {path}")
+        return figures
 
     def get_parameters(self):
         if not self._results:

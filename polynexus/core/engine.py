@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Callable, List
+from typing import Dict, Any, Optional, Callable, Iterable, List
 import numpy as np
 import pandas as pd
 
@@ -344,6 +344,46 @@ class BaseEngine(ABC):
     def analyze(self) -> bool:
         """Core analysis. Return True on success."""
         ...
+
+    def build_figure_definitions(self) -> Iterable[Any]:
+        """Return scientific FigureDefinitions for shared publication."""
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement the FigureDefinition contract"
+        )
+
+    def publish_figure_definitions(
+        self,
+        output_dir: str | Path,
+        definitions: Iterable[Any] | None = None,
+        *,
+        profile_id: str = "paper_complete",
+        run_id: str | None = None,
+    ) -> Dict[str, str]:
+        """Publish one immutable run through the shared figure pipeline."""
+        from .figures.production import FigureProductionPublisher
+
+        selected_definitions = tuple(
+            self.build_figure_definitions()
+            if definitions is None
+            else definitions
+        )
+        publication = FigureProductionPublisher().publish(
+            output_root=Path(output_dir),
+            technique=self.name,
+            definitions=selected_definitions,
+            profile_id=profile_id,
+            run_id=run_id,
+        )
+        manifest_path = (
+            Path(output_dir).resolve()
+            / "runs"
+            / publication.run_id
+            / "figure_manifest.json"
+        )
+        self.result.metadata["figure_run_id"] = publication.run_id
+        self.result.metadata["figure_manifest"] = str(manifest_path)
+        self.result.figures = dict(publication.primary_assets)
+        return dict(publication.primary_assets)
 
     @abstractmethod
     def plot(self, output_dir: str = "") -> Dict[str, str]:

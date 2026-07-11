@@ -325,6 +325,7 @@ def test_temperature_pipeline_threads_status_fields_into_batch_rows(monkeypatch:
     temp_result = TempSeriesResult(
         temperatures=np.asarray([170.0, 195.0], dtype=float),
         lc_array=np.asarray([3.4, 1.2], dtype=float),
+        lc_effective_array=np.asarray([3.4, 3.2], dtype=float),
         L_array=np.asarray([10.0, 9.6], dtype=float),
         Q_star_array=np.asarray([20.0, 12.0], dtype=float),
         Xc_array=np.asarray([1.0, 0.6], dtype=float),
@@ -339,14 +340,32 @@ def test_temperature_pipeline_threads_status_fields_into_batch_rows(monkeypatch:
                 melting_window_reason="below_sequence_melting_onset",
                 lc_reliability_status="usable",
                 lc_reliability_reason="stable_structure_support",
+                lc_path_status="usable",
+                lc_path_reason="selected=primary|candidate_score=0.670",
+                lc_candidate_selected_nm=3.4,
+                lc_candidate_selected_source="primary",
+                lc_candidate_selected_score=0.67,
+                lc_candidate_count=3,
+                lc_effective_nm=3.4,
+                lc_effective_source="primary",
+                lc_effective_score=0.67,
             ),
             TemperaturePointResult(
                 source_index=1,
                 temperature_C=195.0,
                 melting_window_status="near_onset",
                 melting_window_reason="near_sequence_melting_onset",
-                lc_reliability_status="diagnostic_only",
-                lc_reliability_reason="low_lc_confidence|near_melting_onset",
+                lc_reliability_status="usable",
+                lc_reliability_reason="limited_lc_confidence",
+                lc_path_status="usable",
+                lc_path_reason="selected=primary|candidate_score=0.610|selection_margin=0.420",
+                lc_candidate_selected_nm=3.2,
+                lc_candidate_selected_source="primary",
+                lc_candidate_selected_score=0.61,
+                lc_candidate_count=1,
+                lc_effective_nm=3.2,
+                lc_effective_source="primary",
+                lc_effective_score=0.61,
             ),
         ],
     )
@@ -362,11 +381,20 @@ def test_temperature_pipeline_threads_status_fields_into_batch_rows(monkeypatch:
     assert batch_rows[0]["lc_nm"] == 3.4
     assert batch_rows[0]["lc_nm_raw"] == 3.4
     assert batch_rows[0]["lc_nm_effective"] == 3.4
+    assert batch_rows[0]["lc_path_status"] == "usable"
+    assert batch_rows[0]["lc_candidate_selected_source"] == "primary"
     assert batch_rows[1]["melting_window_status"] == "near_onset"
-    assert batch_rows[1]["lc_reliability_status"] == "diagnostic_only"
-    assert batch_rows[1]["lc_reliability_reason"] == "low_lc_confidence|near_melting_onset"
-    assert batch_rows[1]["lc_nm"] is None
+    assert batch_rows[1]["lc_reliability_status"] == "usable"
+    assert batch_rows[1]["lc_reliability_reason"] == "limited_lc_confidence"
+    assert batch_rows[1]["lc_path_status"] == "usable"
+    assert batch_rows[1]["lc_path_reason"].startswith("selected=primary")
+    assert batch_rows[1]["lc_candidate_selected_source"] == "primary"
+    assert batch_rows[1]["lc_candidate_selected_nm"] == 3.2
+    assert batch_rows[1]["lc_nm"] == 3.2
     assert batch_rows[1]["lc_nm_raw"] == 1.2
-    assert batch_rows[1]["lc_nm_effective"] is None
-    assert batch_rows[1]["lamellar_interpretation_mode"] == "diagnostic_only"
+    assert batch_rows[1]["lc_nm_effective"] == 3.2
+    assert batch_rows[1]["la_nm"] == 6.4
+    assert batch_rows[1]["Xc"] == 0.333
+    assert batch_rows[1]["lamellar_interpretation_mode"] == "sequence_path_usable"
     assert engine.get_parameters()["Tm_onset_C"] == 195.0
+    assert engine.get_parameters()["lc_range_nm"] == "3.20-3.40"

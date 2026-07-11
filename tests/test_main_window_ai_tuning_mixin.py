@@ -1,0 +1,33 @@
+from __future__ import annotations
+
+from polynexus.gui.main_window import MainWindow
+from polynexus.gui.main_window_ai_tuning_mixin import MainWindowAITuningMixin
+
+
+def test_main_window_reuses_ai_tuning_helpers_from_ai_tuning_mixin():
+    assert MainWindow.on_ai_tune_clicked is MainWindowAITuningMixin.on_ai_tune_clicked
+    assert MainWindow._current_ai_settings is MainWindowAITuningMixin._current_ai_settings
+    assert MainWindow._ai_tuning_workspace_context is MainWindowAITuningMixin._ai_tuning_workspace_context
+    assert MainWindow._current_tuning_goal is MainWindowAITuningMixin._current_tuning_goal
+    assert MainWindow._ai_tuning_goal_label is MainWindowAITuningMixin._ai_tuning_goal_label
+    assert MainWindow._ai_tuning_context_summary is MainWindowAITuningMixin._ai_tuning_context_summary
+    assert MainWindow._ai_tuning_previous_round_summary is MainWindowAITuningMixin._ai_tuning_previous_round_summary
+    assert MainWindow._benchmark_delta_text is MainWindowAITuningMixin._benchmark_delta_text
+    assert MainWindow._benchmark_rate_text is MainWindowAITuningMixin._benchmark_rate_text
+    assert MainWindow._benchmark_summary_text is MainWindowAITuningMixin._benchmark_summary_text
+    assert MainWindow._ai_tuning_report_context is MainWindowAITuningMixin._ai_tuning_report_context
+    assert MainWindow._ai_tuning_previous_round_label is MainWindowAITuningMixin._ai_tuning_previous_round_label
+    assert MainWindow._ai_tuning_previous_round_empty_text is MainWindowAITuningMixin._ai_tuning_previous_round_empty_text
+    assert MainWindow._ai_tuning_previous_round_stop_text is MainWindowAITuningMixin._ai_tuning_previous_round_stop_text
+    assert MainWindow._ai_tuning_previous_round_risks_text is MainWindowAITuningMixin._ai_tuning_previous_round_risks_text
+    assert MainWindow._ai_tuning_previous_round_goal_text is MainWindowAITuningMixin._ai_tuning_previous_round_goal_text
+    assert MainWindow._ai_tuning_previous_round_accepted_text is MainWindowAITuningMixin._ai_tuning_previous_round_accepted_text
+    assert MainWindow._ai_tuning_previous_round_goal_body is MainWindowAITuningMixin._ai_tuning_previous_round_goal_body
+    assert MainWindow._ai_tuning_chain_summary is MainWindowAITuningMixin._ai_tuning_chain_summary
+    assert MainWindow._ai_tuning_tunable_summary is MainWindowAITuningMixin._ai_tuning_tunable_summary
+    assert MainWindow._config_value_by_key is MainWindowAITuningMixin._config_value_by_key
+    assert MainWindow._on_ai_tune_progress is MainWindowAITuningMixin._on_ai_tune_progress
+    assert MainWindow._on_ai_tune_finished is MainWindowAITuningMixin._on_ai_tune_finished
+    assert MainWindow._on_ai_tune_error is MainWindowAITuningMixin._on_ai_tune_error
+    assert MainWindow._apply_best_config is MainWindowAITuningMixin._apply_best_config
+    assert MainWindow._ai_tuning_chain_snapshot is MainWindowAITuningMixin._ai_tuning_chain_snapshot

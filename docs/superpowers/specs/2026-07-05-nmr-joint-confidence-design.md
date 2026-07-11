@@ -44,10 +44,10 @@ No large GUI redesign is needed for the first pass. Existing Results, Joint Hub,
 
 Documentation deliverables:
 
-- `方案/PolyNexus 番外阶段J ssNMR可信度矫正清单.md`
-- `方案/PolyNexus 番外阶段J-T1 ssNMR当前基线台账.md`
-- `方案/PolyNexus 番外阶段K Joint可信度矫正清单.md`
-- `方案/PolyNexus 番外阶段K-T1 Joint当前基线台账.md`
+- `docs/plans/PolyNexus 番外阶段J ssNMR可信度矫正清单.md`
+- `docs/baselines/PolyNexus 番外阶段J-T1 ssNMR当前基线台账.md`
+- `docs/plans/PolyNexus 番外阶段K Joint可信度矫正清单.md`
+- `docs/baselines/PolyNexus 番外阶段K-T1 Joint当前基线台账.md`
 
 Implementation deliverables:
 

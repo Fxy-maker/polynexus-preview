@@ -1,0 +1,162 @@
+From dff59a4aa6652fae1696fa38f67c80bd3f7897a7 Mon Sep 17 00:00:00 2001
+From: Fxy-maker <fanxuyi786@gmail.com>
+Date: Mon, 6 Jul 2026 03:53:20 +0800
+Subject: [PATCH 3/3] chore: restore utf8 source compilation
+
+---
+ polynexus/data/fetch_pubchem.py                |  3 +--
+ polynexus/orchestrator.py                      |  1 -
+ polynexus/readers/edf_reader.py                |  6 +++---
+ tests/test_core.py                             | 14 +++++++++++---
+ ...s 核心与物理可信度矫正实施验收与合并说明.md | 18 +++++++++++++++---
+ 5 files changed, 30 insertions(+), 12 deletions(-)
+
+diff --git a/polynexus/data/fetch_pubchem.py b/polynexus/data/fetch_pubchem.py
+index 6b7804f..5c95f7a 100644
+--- a/polynexus/data/fetch_pubchem.py
++++ b/polynexus/data/fetch_pubchem.py
+@@ -57,7 +57,6 @@ def fetch_pubchem(compound_name):
+         return {"name": compound_name, "error": f"HTTP {e.code}"}
+     except Exception as e:
+         return {"name": compound_name, "error": str(e)}
+-        logger.warning("异常已处理", exc_info=True)
+
+
+ def main():
+@@ -96,4 +95,4 @@ def main():
+
+
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    main()
+diff --git a/polynexus/orchestrator.py b/polynexus/orchestrator.py
+index 459661a..ffaf086 100644
+--- a/polynexus/orchestrator.py
++++ b/polynexus/orchestrator.py
+@@ -4823,7 +4823,6 @@ class ParameterOrchestrator:
+             return bool(value != value)
+         except Exception:
+             return False
+-            logger.warning("异常已处理", exc_info=True)
+
+     def _safe_float(self, value: Any) -> float:
+         try:
+diff --git a/polynexus/readers/edf_reader.py b/polynexus/readers/edf_reader.py
+index 445ba22..f3a2e92 100644
+--- a/polynexus/readers/edf_reader.py
++++ b/polynexus/readers/edf_reader.py
+@@ -1,5 +1,5 @@
+ """
+-saxs.io �?Module 1: Data input.
++saxs.io - Module 1: Data input.
+
+ Uses fabio for multi-format 2D detector image reading,
+ xarray for multi-dimensional in-situ data management.
+@@ -44,7 +44,7 @@ def read_image(filepath: str) -> Tuple[np.ndarray, dict]:
+         pass
+     except Exception:
+         # fabio failed, try fallbacks
+-        logger.warning("静默异常", exc_info=True)
++        logger.warning("Image/profile reader fallback failed.", exc_info=True)
+
+     # Fallback readers
+     if ext in ('.tif', '.tiff'):
+@@ -77,7 +77,7 @@ def read_1d_profile(filepath: str) -> Tuple[np.ndarray, np.ndarray, dict]:
+         if data.ndim == 2 and data.shape[1] >= 2:
+             return data[:, 0].astype(np.float64), data[:, 1].astype(np.float64), {}
+     except Exception:
+-        logger.warning("静默异常", exc_info=True)
++        logger.warning("Image/profile reader fallback failed.", exc_info=True)
+
+     # Fallback: line-by-line
+     x_list, y_list = [], []
+diff --git a/tests/test_core.py b/tests/test_core.py
+index 9bdb351..8530b51 100644
+--- a/tests/test_core.py
++++ b/tests/test_core.py
+@@ -40,7 +40,7 @@ def test_no_unreachable_logger_after_return():
+     root = Path(__file__).resolve().parents[1] / "polynexus"
+     pattern = re.compile(r"return[^\n]*\n\s*logger\.(?:warning|error)\(", re.MULTILINE)
+     offenders = []
+-    for path in list((root / "core").rglob("*.py")) + list((root / "gui").rglob("*.py")):
++    for path in root.rglob("*.py"):
+         text = path.read_text(encoding="utf-8", errors="ignore")
+         if pattern.search(text):
+             offenders.append(str(path.relative_to(root.parent)))
+@@ -49,7 +49,15 @@ def test_no_unreachable_logger_after_return():
+
+
+ def test_public_text_and_logs_do_not_contain_mojibake():
+-    bad_tokens = ("闈欓粯", "寮傚父", "鈥", "馃", "閳", "棣")
++    bad_tokens = (
++        "\u95c8\u6b13\u7cbf",
++        "\u5bee\u50a4\u7236",
++        "\u9225",
++        "\u9983",
++        "\u95b3",
++        "\u68e3",
++        "\ufffd",
++    )
+
+     offenders = []
+     for item in list_techniques():
+@@ -64,7 +72,7 @@ def test_public_text_and_logs_do_not_contain_mojibake():
+
+     root = Path(__file__).resolve().parents[1] / "polynexus"
+     logger_pattern = re.compile(r"logger\.(?:warning|error)\((?P<message>[^)\n]+)")
+-    for path in list((root / "core").rglob("*.py")) + list((root / "gui").rglob("*.py")):
++    for path in root.rglob("*.py"):
+         text = path.read_text(encoding="utf-8", errors="ignore")
+         for match in logger_pattern.finditer(text):
+             if any(token in match.group("message") for token in bad_tokens):
+diff --git a/docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md b/docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md
+index 9f438db..5809c69 100644
+--- a/docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md
++++ b/docs/acceptance/PolyNexus 核心与物理可信度矫正实施验收与合并说明.md
+@@ -3,7 +3,9 @@
+ ## 当前状态
+
+ - 集成分支：`integrate-phys-confidence`
+-- 集成提交：`36e5444 fix: finish physical confidence integration`
++- 集成提交：
++  - `36e5444 fix: finish physical confidence integration`
++  - `ba8c1a5 docs: record physical confidence integration status`
+ - 工作区路径：`C:\Users\Fan Xuyi\.config\superpowers\worktrees\PolyNexus\integrate-phys-confidence`
+ - 基线提交：`99dbd2c chore: keep core warning logs reachable`
+ - 主工作区：`D:\PolyNexus` 仍有未提交改动，暂不直接合并，避免覆盖用户正在做的图表后处理工作台相关变更。
+@@ -41,6 +43,15 @@
+ - `tests/test_phase3.py`
+   - 更新 Advisor action-aware 输出 schema 断言。
+
++后续继续补充：
++
++- `ba8c1a5`
++  - 新增本实施验收与合并说明。
++- 继续清理项
++  - 修复 `polynexus/readers/edf_reader.py` 非 UTF-8 源码字节，恢复项目级 `compileall`。
++  - 扩展 `tests/test_core.py` 的不可达 logger / mojibake 扫描范围到整个 `polynexus` 包。
++  - 删除 `polynexus/orchestrator.py` 和 `polynexus/data/fetch_pubchem.py` 中残留的 `return` 后不可达 logger。
++
+ ## 验证记录
+
+ 已在隔离 worktree 中完成：
+@@ -57,12 +68,13 @@ git diff --check
+
+ pytest -q --basetemp .pytest_tmp_full_integration_final
+ # 600 passed, 2 warnings
++
++python -m compileall polynexus tests -q
++# passed
+ ```
+
+ 剩余 warning 为 `tests/test_nmr_engine.py` 导出图片时 Arial 缺少中文 glyph，属于既有字体渲染 warning，不影响本轮核心/物理可信度逻辑。
+
+-全量 `python -m compileall polynexus tests -q` 暂不能作为项目级验收命令，因为既有文件 `polynexus/readers/edf_reader.py` 当前包含非 UTF-8 字节，Python 默认 UTF-8 解码会报错。本轮改动涉及文件已用 `py_compile` 验证通过。
+-
+ ## 为什么暂不直接并回 D:\PolyNexus
+
+ `D:\PolyNexus` 当前 `main` 工作区存在多处未提交改动，并且与本轮集成提交有重叠文件，例如：
+--
+2.54.0.windows.1
+

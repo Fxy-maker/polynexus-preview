@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from polynexus.core.analysis_evidence import build_analysis_evidence
 from polynexus.orchestrator import ParameterOrchestrator, RoundRecord
+
+
+def _require_external_real_data_file(source_file: str, *, technique: str) -> None:
+    path = Path(source_file).resolve()
+    if not path.is_file():
+        pytest.skip(f"external {technique} real-data fixture is unavailable: {path}")
 
 
 class FakeAdvisor:
@@ -410,6 +419,707 @@ def test_ir_temperature_2d_submodule_surfaces_in_agent_state() -> None:
     assert orchestrator._submodule_name() == "temperature_2d"
 
 
+def test_orchestrator_reuses_submodule_helpers_from_submodules_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_submodules")
+    assert spec is not None
+
+    orchestrator_submodules = importlib.import_module("polynexus.orchestrator_submodules")
+
+    assert ParameterOrchestrator._submodule_id is orchestrator_submodules._submodule_id
+    assert ParameterOrchestrator._submodule_name is orchestrator_submodules._submodule_name
+    assert ParameterOrchestrator._public_submodule is orchestrator_submodules._public_submodule
+    assert (
+        ParameterOrchestrator._agent_state_submodule
+        is orchestrator_submodules._agent_state_submodule
+    )
+
+
+def test_orchestrator_reuses_action_helpers_from_actions_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_actions")
+    assert spec is not None
+
+    orchestrator_actions = importlib.import_module("polynexus.orchestrator_actions")
+
+    assert ParameterOrchestrator._allowed_actions is orchestrator_actions._allowed_actions
+    assert ParameterOrchestrator._allowed_changes is orchestrator_actions._allowed_changes
+
+
+def test_orchestrator_reuses_reporting_helpers_from_reporting_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_reporting")
+    assert spec is not None
+
+    orchestrator_reporting = importlib.import_module("polynexus.orchestrator_reporting")
+
+    assert ParameterOrchestrator._decision_summary is orchestrator_reporting._decision_summary
+    assert ParameterOrchestrator._benchmark_summary is orchestrator_reporting._benchmark_summary
+    assert ParameterOrchestrator._round_symptom_hit is orchestrator_reporting._round_symptom_hit
+    assert ParameterOrchestrator._symptom_target_params is orchestrator_reporting._symptom_target_params
+    assert ParameterOrchestrator._quality_guard is orchestrator_reporting._quality_guard
+    assert (
+        ParameterOrchestrator._objective_gain_threshold
+        is orchestrator_reporting._objective_gain_threshold
+    )
+    assert ParameterOrchestrator._r_squared_drop_tolerance is orchestrator_reporting._r_squared_drop_tolerance
+    assert ParameterOrchestrator._component_drop_tolerance is orchestrator_reporting._component_drop_tolerance
+
+
+def test_orchestrator_reuses_regression_helpers_from_regressions_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_regressions")
+    assert spec is not None
+
+    orchestrator_regressions = importlib.import_module("polynexus.orchestrator_regressions")
+
+    assert ParameterOrchestrator._regression_reason is orchestrator_regressions._regression_reason
+    assert ParameterOrchestrator._dsc_regression_reason is orchestrator_regressions._dsc_regression_reason
+    assert ParameterOrchestrator._waxs_regression_reason is orchestrator_regressions._waxs_regression_reason
+    assert (
+        ParameterOrchestrator._waxs_temperature_regression_reason
+        is orchestrator_regressions._waxs_temperature_regression_reason
+    )
+    assert ParameterOrchestrator._ir_regression_reason is orchestrator_regressions._ir_regression_reason
+    assert ParameterOrchestrator._stability_regression_reason is orchestrator_regressions._stability_regression_reason
+    assert ParameterOrchestrator._saxs_low_q_priority_reason is orchestrator_regressions._saxs_low_q_priority_reason
+    assert ParameterOrchestrator._residual_score is orchestrator_regressions._residual_score
+
+
+def test_orchestrator_reuses_decision_helpers_from_decisions_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_decisions")
+    assert spec is not None
+
+    orchestrator_decisions = importlib.import_module("polynexus.orchestrator_decisions")
+
+    assert ParameterOrchestrator._decision_metrics is orchestrator_decisions._decision_metrics
+    assert ParameterOrchestrator._evaluate_candidate is orchestrator_decisions._evaluate_candidate
+
+
+def test_orchestrator_reuses_scoring_helpers_from_scoring_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_scoring")
+    assert spec is not None
+
+    orchestrator_scoring = importlib.import_module("polynexus.orchestrator_scoring")
+
+    assert ParameterOrchestrator._score_snapshot is orchestrator_scoring._score_snapshot
+    assert ParameterOrchestrator._saxs_evidence_snapshot is orchestrator_scoring._saxs_evidence_snapshot
+    assert ParameterOrchestrator._ir_support_snapshot is orchestrator_scoring._ir_support_snapshot
+    assert ParameterOrchestrator._stability_snapshot is orchestrator_scoring._stability_snapshot
+    assert ParameterOrchestrator._dsc_support_snapshot is orchestrator_scoring._dsc_support_snapshot
+    assert ParameterOrchestrator._waxs_support_snapshot is orchestrator_scoring._waxs_support_snapshot
+    assert ParameterOrchestrator._joint_ai_context is orchestrator_scoring._joint_ai_context
+    assert ParameterOrchestrator._first_text is orchestrator_scoring._first_text
+    assert ParameterOrchestrator._mean_or_none is orchestrator_scoring._mean_or_none
+
+
+def test_orchestrator_reuses_output_helpers_from_outputs_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_outputs")
+    assert spec is not None
+
+    orchestrator_outputs = importlib.import_module("polynexus.orchestrator_outputs")
+
+    assert ParameterOrchestrator._output_parameters is orchestrator_outputs._output_parameters
+    assert ParameterOrchestrator._dsc_output_parameters is orchestrator_outputs._dsc_output_parameters
+    assert ParameterOrchestrator._nmr_output_parameters is orchestrator_outputs._nmr_output_parameters
+    assert ParameterOrchestrator._ir_output_parameters is orchestrator_outputs._ir_output_parameters
+    assert ParameterOrchestrator._saxs_output_parameters is orchestrator_outputs._saxs_output_parameters
+    assert ParameterOrchestrator._saxs_score is orchestrator_outputs._saxs_score
+    assert ParameterOrchestrator._residual_pattern is orchestrator_outputs._residual_pattern
+    assert ParameterOrchestrator._dsc_residual_pattern is orchestrator_outputs._dsc_residual_pattern
+    assert ParameterOrchestrator._saxs_residual_pattern is orchestrator_outputs._saxs_residual_pattern
+    assert ParameterOrchestrator._ir_residual_pattern is orchestrator_outputs._ir_residual_pattern
+    assert ParameterOrchestrator._nmr_residual_pattern is orchestrator_outputs._nmr_residual_pattern
+    assert (
+        ParameterOrchestrator._select_dsc_residual_result
+        is orchestrator_outputs._select_dsc_residual_result
+    )
+    assert ParameterOrchestrator._empty_residual_pattern is orchestrator_outputs._empty_residual_pattern
+
+
+def test_orchestrator_reuses_parameter_action_helpers_from_parameter_actions_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_parameter_actions")
+    assert spec is not None
+
+    orchestrator_parameter_actions = importlib.import_module(
+        "polynexus.orchestrator_parameter_actions"
+    )
+
+    assert (
+        ParameterOrchestrator._guard_technique_direct_changes
+        is orchestrator_parameter_actions._guard_technique_direct_changes
+    )
+    assert (
+        ParameterOrchestrator._guard_saxs_direct_changes
+        is orchestrator_parameter_actions._guard_saxs_direct_changes
+    )
+    assert (
+        ParameterOrchestrator._candidate_plans_for_action
+        is orchestrator_parameter_actions._candidate_plans_for_action
+    )
+    assert (
+        ParameterOrchestrator._saxs_recovery_context
+        is orchestrator_parameter_actions._saxs_recovery_context
+    )
+    assert (
+        ParameterOrchestrator._candidate_plans_for_ir_action
+        is orchestrator_parameter_actions._candidate_plans_for_ir_action
+    )
+    assert (
+        ParameterOrchestrator._candidate_plans_for_waxs_action
+        is orchestrator_parameter_actions._candidate_plans_for_waxs_action
+    )
+    assert (
+        ParameterOrchestrator._candidate_plans_for_dsc_action
+        is orchestrator_parameter_actions._candidate_plans_for_dsc_action
+    )
+    assert (
+        ParameterOrchestrator._candidate_plans_from_raw_candidates
+        is orchestrator_parameter_actions._candidate_plans_from_raw_candidates
+    )
+    assert (
+        ParameterOrchestrator._current_config_value
+        is orchestrator_parameter_actions._current_config_value
+    )
+    assert (
+        ParameterOrchestrator._dsc_action_candidates
+        is orchestrator_parameter_actions._dsc_action_candidates
+    )
+    assert (
+        ParameterOrchestrator._waxs_action_candidates
+        is orchestrator_parameter_actions._waxs_action_candidates
+    )
+    assert (
+        ParameterOrchestrator._waxs_temperature_action_candidates
+        is orchestrator_parameter_actions._waxs_temperature_action_candidates
+    )
+    assert (
+        ParameterOrchestrator._waxs_peak_position_candidates
+        is orchestrator_parameter_actions._waxs_peak_position_candidates
+    )
+    assert (
+        ParameterOrchestrator._waxs_peak_capacity_candidates
+        is orchestrator_parameter_actions._waxs_peak_capacity_candidates
+    )
+    assert (
+        ParameterOrchestrator._waxs_background_candidates
+        is orchestrator_parameter_actions._waxs_background_candidates
+    )
+    assert (
+        ParameterOrchestrator._waxs_peak_shape_candidates
+        is orchestrator_parameter_actions._waxs_peak_shape_candidates
+    )
+    assert (
+        ParameterOrchestrator._waxs_low_angle_candidates
+        is orchestrator_parameter_actions._waxs_low_angle_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_baseline_candidates
+        is orchestrator_parameter_actions._ir_baseline_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_noise_candidates
+        is orchestrator_parameter_actions._ir_noise_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_key_band_candidates
+        is orchestrator_parameter_actions._ir_key_band_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_crowded_band_candidates
+        is orchestrator_parameter_actions._ir_crowded_band_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_weak_support_candidates
+        is orchestrator_parameter_actions._ir_weak_support_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_band_window_candidates
+        is orchestrator_parameter_actions._ir_band_window_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_dynamic_signal_candidates
+        is orchestrator_parameter_actions._ir_dynamic_signal_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_2dcos_denoise_candidates
+        is orchestrator_parameter_actions._ir_2dcos_denoise_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_band_tracking_candidates
+        is orchestrator_parameter_actions._ir_band_tracking_candidates
+    )
+    assert (
+        ParameterOrchestrator._ir_cross_peak_assignment_candidates
+        is orchestrator_parameter_actions._ir_cross_peak_assignment_candidates
+    )
+    assert (
+        ParameterOrchestrator._saxs_range_action_candidates
+        is orchestrator_parameter_actions._saxs_range_action_candidates
+    )
+    assert (
+        ParameterOrchestrator._saxs_crop_action_candidates
+        is orchestrator_parameter_actions._saxs_crop_action_candidates
+    )
+    assert (
+        ParameterOrchestrator._saxs_idf_smoothing_candidates
+        is orchestrator_parameter_actions._saxs_idf_smoothing_candidates
+    )
+    assert (
+        ParameterOrchestrator._normalize_candidate_value
+        is orchestrator_parameter_actions._normalize_candidate_value
+    )
+    assert (
+        ParameterOrchestrator._normalize_saxs_candidate_value
+        is orchestrator_parameter_actions._normalize_saxs_candidate_value
+    )
+    assert (
+        ParameterOrchestrator._candidate_values_equal
+        is orchestrator_parameter_actions._candidate_values_equal
+    )
+
+
+def test_orchestrator_reuses_session_helpers_from_session_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_session")
+    assert spec is not None
+
+    orchestrator_session = importlib.import_module("polynexus.orchestrator_session")
+
+    assert ParameterOrchestrator._restore_best is orchestrator_session._restore_best
+    assert ParameterOrchestrator._record_round is orchestrator_session._record_round
+    assert (
+        ParameterOrchestrator._execute_candidate_trial
+        is orchestrator_session._execute_candidate_trial
+    )
+    assert (
+        ParameterOrchestrator._candidate_trial_summary
+        is orchestrator_session._candidate_trial_summary
+    )
+    assert ParameterOrchestrator._candidate_rank is orchestrator_session._candidate_rank
+    assert (
+        ParameterOrchestrator._restore_best_with_refresh
+        is orchestrator_session._restore_best_with_refresh
+    )
+    assert (
+        ParameterOrchestrator._run_saxs_candidate_round
+        is orchestrator_session._run_saxs_candidate_round
+    )
+    assert ParameterOrchestrator._final_report is orchestrator_session._final_report
+    assert (
+        ParameterOrchestrator._can_converge_on_small_delta
+        is orchestrator_session._can_converge_on_small_delta
+    )
+    assert (
+        ParameterOrchestrator._can_converge_after_rollback
+        is orchestrator_session._can_converge_after_rollback
+    )
+
+
+def test_orchestrator_reuses_state_helpers_from_state_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_state")
+    assert spec is not None
+
+    orchestrator_state = importlib.import_module("polynexus.orchestrator_state")
+
+    assert ParameterOrchestrator._build_agent_state is orchestrator_state._build_agent_state
+    assert ParameterOrchestrator._clean_advice is orchestrator_state._clean_advice
+    assert ParameterOrchestrator._analysis_evidence is orchestrator_state._analysis_evidence
+    assert (
+        ParameterOrchestrator._attach_analysis_evidence
+        is orchestrator_state._attach_analysis_evidence
+    )
+    assert ParameterOrchestrator._analysis_symptoms is orchestrator_state._analysis_symptoms
+    assert ParameterOrchestrator._symptom_names is orchestrator_state._symptom_names
+    assert ParameterOrchestrator._symptom_summary is orchestrator_state._symptom_summary
+    assert (
+        ParameterOrchestrator._advice_target_symptom
+        is orchestrator_state._advice_target_symptom
+    )
+    assert (
+        ParameterOrchestrator._advice_rollback_detail
+        is orchestrator_state._advice_rollback_detail
+    )
+    assert (
+        ParameterOrchestrator._expand_technique_candidates
+        is orchestrator_state._expand_technique_candidates
+    )
+    assert (
+        ParameterOrchestrator._expand_saxs_candidates
+        is orchestrator_state._expand_saxs_candidates
+    )
+
+
+def test_orchestrator_reuses_utility_helpers_from_utils_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_utils")
+    assert spec is not None
+
+    orchestrator_utils = importlib.import_module("polynexus.orchestrator_utils")
+
+    assert ParameterOrchestrator._resolve_data_file is orchestrator_utils._resolve_data_file
+    assert ParameterOrchestrator._config_snapshot is orchestrator_utils._config_snapshot
+    assert ParameterOrchestrator._config_to_dict is orchestrator_utils._config_to_dict
+    assert ParameterOrchestrator._ir_reference_bands is orchestrator_utils._ir_reference_bands
+    assert ParameterOrchestrator._tunable_params is orchestrator_utils._tunable_params
+    assert ParameterOrchestrator._goal_tuning_focus is orchestrator_utils._goal_tuning_focus
+    assert ParameterOrchestrator._joint_tuning_focus is orchestrator_utils._joint_tuning_focus
+    assert ParameterOrchestrator._engine_config is orchestrator_utils._engine_config
+    assert (
+        ParameterOrchestrator._canonical_submodule_id
+        is orchestrator_utils._canonical_submodule_id
+    )
+    assert ParameterOrchestrator._waxs_submodule_id is orchestrator_utils._waxs_submodule_id
+    assert ParameterOrchestrator._nmr_submodule_id is orchestrator_utils._nmr_submodule_id
+    assert (
+        ParameterOrchestrator._flatten_dsc_parameters
+        is orchestrator_utils._flatten_dsc_parameters
+    )
+    assert (
+        ParameterOrchestrator._flatten_ir_parameters
+        is orchestrator_utils._flatten_ir_parameters
+    )
+    assert (
+        ParameterOrchestrator._flatten_nmr_parameters
+        is orchestrator_utils._flatten_nmr_parameters
+    )
+    assert ParameterOrchestrator._is_nan is orchestrator_utils._is_nan
+    assert ParameterOrchestrator._safe_float is orchestrator_utils._safe_float
+    assert ParameterOrchestrator._to_plain_value is orchestrator_utils._to_plain_value
+    assert ParameterOrchestrator._stable_signature is orchestrator_utils._stable_signature
+
+
+def test_orchestrator_reuses_cross_validation_helpers_from_cross_validation_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_cross_validation")
+    assert spec is not None
+
+    orchestrator_cross_validation = importlib.import_module(
+        "polynexus.orchestrator_cross_validation"
+    )
+
+    assert (
+        ParameterOrchestrator._saxs_cross_validation
+        is orchestrator_cross_validation._saxs_cross_validation
+    )
+    assert (
+        ParameterOrchestrator._dsc_cross_validation
+        is orchestrator_cross_validation._dsc_cross_validation
+    )
+
+
+def test_orchestrator_reuses_run_helper_from_run_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_run")
+    assert spec is not None
+
+    orchestrator_run = importlib.import_module("polynexus.orchestrator_run")
+
+    assert ParameterOrchestrator.run is orchestrator_run.run
+
+
+def test_orchestrator_run_reuses_bootstrap_and_round_helpers_from_dedicated_modules() -> None:
+    bootstrap_spec = importlib.util.find_spec("polynexus.orchestrator_run_bootstrap")
+    round_spec = importlib.util.find_spec("polynexus.orchestrator_run_round")
+    assert bootstrap_spec is not None
+    assert round_spec is not None
+
+    orchestrator_run = importlib.import_module("polynexus.orchestrator_run")
+    orchestrator_run_bootstrap = importlib.import_module(
+        "polynexus.orchestrator_run_bootstrap"
+    )
+    orchestrator_run_round = importlib.import_module(
+        "polynexus.orchestrator_run_round"
+    )
+
+    assert (
+        orchestrator_run._initialize_run_session
+        is orchestrator_run_bootstrap._initialize_run_session
+    )
+    assert (
+        orchestrator_run._execute_round_iteration
+        is orchestrator_run_round._execute_round_iteration
+    )
+
+
+def test_orchestrator_run_round_reuses_branch_handlers_from_handlers_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_run_round_handlers")
+    assert spec is not None
+
+    orchestrator_run_round = importlib.import_module("polynexus.orchestrator_run_round")
+    orchestrator_run_round_handlers = importlib.import_module(
+        "polynexus.orchestrator_run_round_handlers"
+    )
+
+    assert (
+        orchestrator_run_round._handle_invalid_changes_round
+        is orchestrator_run_round_handlers._handle_invalid_changes_round
+    )
+    assert (
+        orchestrator_run_round._handle_noop_converged_round
+        is orchestrator_run_round_handlers._handle_noop_converged_round
+    )
+    assert (
+        orchestrator_run_round._handle_candidate_plan_round
+        is orchestrator_run_round_handlers._handle_candidate_plan_round
+    )
+    assert (
+        orchestrator_run_round._handle_direct_change_round
+        is orchestrator_run_round_handlers._handle_direct_change_round
+    )
+
+
+def test_orchestrator_run_round_handlers_reuse_candidate_and_direct_modules() -> None:
+    candidate_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_candidate_handler"
+    )
+    direct_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_direct_handler"
+    )
+    assert candidate_spec is not None
+    assert direct_spec is not None
+
+    orchestrator_run_round_handlers = importlib.import_module(
+        "polynexus.orchestrator_run_round_handlers"
+    )
+    orchestrator_run_round_candidate_handler = importlib.import_module(
+        "polynexus.orchestrator_run_round_candidate_handler"
+    )
+    orchestrator_run_round_direct_handler = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_handler"
+    )
+
+    assert (
+        orchestrator_run_round_handlers._handle_candidate_plan_round
+        is orchestrator_run_round_candidate_handler._handle_candidate_plan_round
+    )
+    assert (
+        orchestrator_run_round_handlers._handle_direct_change_round
+        is orchestrator_run_round_direct_handler._handle_direct_change_round
+    )
+
+
+def test_orchestrator_run_round_direct_handler_reuses_execution_and_finalize_helpers() -> None:
+    flow_spec = importlib.util.find_spec("polynexus.orchestrator_run_round_direct_flow")
+    assert flow_spec is not None
+
+    direct_handler = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_handler"
+    )
+    direct_flow = importlib.import_module("polynexus.orchestrator_run_round_direct_flow")
+
+    assert (
+        direct_handler._execute_direct_change_attempt
+        is direct_flow._execute_direct_change_attempt
+    )
+    assert (
+        direct_handler._finalize_direct_change_candidate
+        is direct_flow._finalize_direct_change_candidate
+    )
+
+
+def test_orchestrator_run_round_direct_flow_reuses_execution_and_finalize_modules() -> None:
+    execution_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_direct_execution"
+    )
+    finalize_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_direct_finalize"
+    )
+    assert execution_spec is not None
+    assert finalize_spec is not None
+
+    direct_flow = importlib.import_module("polynexus.orchestrator_run_round_direct_flow")
+    direct_execution = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_execution"
+    )
+    direct_finalize = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_finalize"
+    )
+
+    assert (
+        direct_flow._execute_direct_change_attempt
+        is direct_execution._execute_direct_change_attempt
+    )
+    assert (
+        direct_flow._finalize_direct_change_candidate
+        is direct_finalize._finalize_direct_change_candidate
+    )
+
+
+def test_orchestrator_run_round_direct_finalize_reuses_resolution_and_completion_helpers() -> None:
+    resolution_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_direct_resolution"
+    )
+    completion_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_direct_completion"
+    )
+    assert resolution_spec is not None
+    assert completion_spec is not None
+
+    direct_finalize = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_finalize"
+    )
+    direct_resolution = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_resolution"
+    )
+    direct_completion = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_completion"
+    )
+
+    assert (
+        direct_finalize._resolve_direct_change_candidate
+        is direct_resolution._resolve_direct_change_candidate
+    )
+    assert (
+        direct_finalize._complete_direct_change_candidate
+        is direct_completion._complete_direct_change_candidate
+    )
+
+
+def test_orchestrator_run_round_direct_resolution_reuses_acceptance_and_rejection_helpers() -> None:
+    helpers_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_direct_resolution_helpers"
+    )
+    assert helpers_spec is not None
+
+    direct_resolution = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_resolution"
+    )
+    direct_resolution_helpers = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_resolution_helpers"
+    )
+
+    assert (
+        direct_resolution._accept_direct_change_candidate
+        is direct_resolution_helpers._accept_direct_change_candidate
+    )
+    assert (
+        direct_resolution._reject_direct_change_candidate
+        is direct_resolution_helpers._reject_direct_change_candidate
+    )
+
+
+def test_orchestrator_run_round_direct_execution_reuses_failure_and_success_helpers() -> None:
+    failure_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_direct_failures"
+    )
+    success_spec = importlib.util.find_spec(
+        "polynexus.orchestrator_run_round_direct_success"
+    )
+    assert failure_spec is not None
+    assert success_spec is not None
+
+    direct_execution = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_execution"
+    )
+    direct_failures = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_failures"
+    )
+    direct_success = importlib.import_module(
+        "polynexus.orchestrator_run_round_direct_success"
+    )
+
+    assert (
+        direct_execution._reject_direct_change_attempt
+        is direct_failures._reject_direct_change_attempt
+    )
+    assert (
+        direct_execution._record_direct_change_candidate
+        is direct_success._record_direct_change_candidate
+    )
+
+
+def test_orchestrator_reuses_models_from_models_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_models")
+    assert spec is not None
+
+    orchestrator_models = importlib.import_module("polynexus.orchestrator_models")
+
+    assert RoundRecord is orchestrator_models.RoundRecord
+
+
+def test_orchestrator_reuses_lifecycle_helpers_from_lifecycle_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_lifecycle")
+    assert spec is not None
+
+    orchestrator_lifecycle = importlib.import_module("polynexus.orchestrator_lifecycle")
+
+    assert ParameterOrchestrator.__init__ is orchestrator_lifecycle.__init__
+    assert ParameterOrchestrator._emit_progress is orchestrator_lifecycle._emit_progress
+
+
+def test_orchestrator_reuses_priority_rules_from_priority_rules_module() -> None:
+    spec = importlib.util.find_spec("polynexus.orchestrator_priority_rules")
+    assert spec is not None
+
+    orchestrator_module = importlib.import_module("polynexus.orchestrator")
+    orchestrator_priority_rules = importlib.import_module(
+        "polynexus.orchestrator_priority_rules"
+    )
+
+    assert (
+        orchestrator_module.JOINT_TUNING_PRIORITY_RULES
+        is orchestrator_priority_rules.JOINT_TUNING_PRIORITY_RULES
+    )
+    assert (
+        orchestrator_module.GOAL_TUNING_PRIORITY_RULES
+        is orchestrator_priority_rules.GOAL_TUNING_PRIORITY_RULES
+    )
+
+
+def test_orchestrator_priority_rules_reuse_technique_modules() -> None:
+    waxs_spec = importlib.util.find_spec("polynexus.orchestrator_priority_rules_waxs")
+    saxs_spec = importlib.util.find_spec("polynexus.orchestrator_priority_rules_saxs")
+    dsc_spec = importlib.util.find_spec("polynexus.orchestrator_priority_rules_dsc")
+    ir_spec = importlib.util.find_spec("polynexus.orchestrator_priority_rules_ir")
+    nmr_spec = importlib.util.find_spec("polynexus.orchestrator_priority_rules_nmr")
+    assert waxs_spec is not None
+    assert saxs_spec is not None
+    assert dsc_spec is not None
+    assert ir_spec is not None
+    assert nmr_spec is not None
+
+    rules_module = importlib.import_module("polynexus.orchestrator_priority_rules")
+    waxs_module = importlib.import_module("polynexus.orchestrator_priority_rules_waxs")
+    saxs_module = importlib.import_module("polynexus.orchestrator_priority_rules_saxs")
+    dsc_module = importlib.import_module("polynexus.orchestrator_priority_rules_dsc")
+    ir_module = importlib.import_module("polynexus.orchestrator_priority_rules_ir")
+    nmr_module = importlib.import_module("polynexus.orchestrator_priority_rules_nmr")
+
+    assert (
+        rules_module.JOINT_TUNING_PRIORITY_RULES["WAXS"]
+        is waxs_module.JOINT_TUNING_PRIORITY_RULES_WAXS
+    )
+    assert (
+        rules_module.JOINT_TUNING_PRIORITY_RULES["SAXS"]
+        is saxs_module.JOINT_TUNING_PRIORITY_RULES_SAXS
+    )
+    assert (
+        rules_module.JOINT_TUNING_PRIORITY_RULES["DSC"]
+        is dsc_module.JOINT_TUNING_PRIORITY_RULES_DSC
+    )
+    assert (
+        rules_module.JOINT_TUNING_PRIORITY_RULES["IR"]
+        is ir_module.JOINT_TUNING_PRIORITY_RULES_IR
+    )
+    assert (
+        rules_module.JOINT_TUNING_PRIORITY_RULES["NMR"]
+        is nmr_module.JOINT_TUNING_PRIORITY_RULES_NMR
+    )
+    assert (
+        rules_module.GOAL_TUNING_PRIORITY_RULES["WAXS"]
+        is waxs_module.GOAL_TUNING_PRIORITY_RULES_WAXS
+    )
+    assert (
+        rules_module.GOAL_TUNING_PRIORITY_RULES["SAXS"]
+        is saxs_module.GOAL_TUNING_PRIORITY_RULES_SAXS
+    )
+    assert (
+        rules_module.GOAL_TUNING_PRIORITY_RULES["DSC"]
+        is dsc_module.GOAL_TUNING_PRIORITY_RULES_DSC
+    )
+    assert (
+        rules_module.GOAL_TUNING_PRIORITY_RULES["IR"]
+        is ir_module.GOAL_TUNING_PRIORITY_RULES_IR
+    )
+    assert (
+        rules_module.GOAL_TUNING_PRIORITY_RULES["NMR"]
+        is nmr_module.GOAL_TUNING_PRIORITY_RULES_NMR
+    )
+
+
 def test_ir_temperature_2d_symptoms_map_to_cross_peak_and_matrix_actions() -> None:
     orchestrator = ParameterOrchestrator(
         technique="ir",
@@ -733,6 +1443,7 @@ def test_waxs_static_orchestrator_keeps_best_r_squared() -> None:
     case_path = Path("tests/eval/cases/real/waxs_real_static_pa6.json")
     payload = json.loads(case_path.read_text(encoding="utf-8"))
     data_file = payload["config_overrides"]["source_file"]
+    _require_external_real_data_file(str(data_file), technique="WAXS")
 
     report = ParameterOrchestrator(
         technique="waxs",
@@ -1146,6 +1857,178 @@ def test_symptom_target_params_reads_structured_symptoms() -> None:
     assert "q_bragg_min" in targets
     assert "q_corr_min" in targets
     assert "savgol_window" in targets
+
+
+def test_saxs_evidence_snapshot_uses_batch_summary_gaps_and_frame_ratios() -> None:
+    orchestrator = ParameterOrchestrator(
+        technique="saxs",
+        data_file="dummy.dat",
+        polymer_name="PA6",
+        project_root=Path("."),
+    )
+
+    snapshot = orchestrator._saxs_evidence_snapshot(
+        {
+            "batch_frames": 4,
+            "guinier_lost_frame_count": 1,
+            "mask_truncated_frame_count": 2,
+            "low_conf_frame_count": 1,
+        },
+        {
+            "batch_evidence": {
+                "batch_calibration_summary": {
+                    "fallback_ratio": 0.5,
+                    "raw_snapshot_rows": 4,
+                    "lc_gap_mean": 0.2,
+                    "L_gap_mean": 0.1,
+                }
+            },
+            "stability_evidence": {"method_agreement_score": 0.4},
+            "symptoms": [{"name": "thickness_chain_unreliable"}],
+        },
+    )
+
+    assert snapshot["fallback_ratio"] == 0.5
+    assert snapshot["raw_snapshot_rows"] == 4.0
+    assert snapshot["raw_vs_calibrated_gap"] == 0.15000000000000002
+    assert snapshot["thickness_chain_risk"] == 0.7
+    assert snapshot["q_contamination_frame_ratio"] == 0.25
+    assert snapshot["mask_truncated_frame_ratio"] == 0.5
+    assert snapshot["low_conf_frame_ratio"] == 0.25
+
+
+def test_ir_support_snapshot_derives_support_scores_from_assignment_and_reference_data() -> None:
+    orchestrator = ParameterOrchestrator(
+        technique="ir",
+        data_file="dummy.dat",
+        polymer_name="PA6",
+        project_root=Path("."),
+    )
+
+    snapshot = orchestrator._ir_support_snapshot(
+        {
+            "n_peaks": 8,
+            "polymer_score": 0.6,
+        },
+        {
+            "feature_evidence": {
+                "peak_evidence": {"assigned_peak_count": 6},
+                "assignment_evidence": {
+                    "assigned_peak_count": 6,
+                    "key_band_hit_count": 3,
+                    "key_band_missing_count": 1,
+                    "assignment_confidence_score": 0.8,
+                },
+                "reference_evidence": {"band_count": 4},
+                "structure_evidence": {
+                    "baseline_stability_score": 0.5,
+                    "classification_basis": "peak_assignment",
+                },
+            },
+            "constraint_summary": {"triggered_total": 2},
+        },
+    )
+
+    assert snapshot["peak_count"] == 8.0
+    assert snapshot["assigned_peak_count"] == 6.0
+    assert snapshot["reference_band_hit_count"] == 3.0
+    assert snapshot["reference_band_missing_count"] == 1.0
+    assert snapshot["assignment_confidence_score"] == 0.8
+    assert snapshot["key_band_support_score"] == 0.75
+    assert snapshot["baseline_stability_score"] == 0.5
+    assert snapshot["peak_coverage_score"] == 0.75
+    assert snapshot["triggered_constraint_count"] == 2.0
+    assert snapshot["unassigned_key_band_count"] == 1.0
+    assert snapshot["classification_basis"] == "peak_assignment"
+    assert round(snapshot["ir_support_score"], 3) == 0.734
+
+
+def test_waxs_support_snapshot_surfaces_peak_background_phase_and_size_scores() -> None:
+    orchestrator = ParameterOrchestrator(
+        technique="waxs",
+        data_file="dummy.dat",
+        polymer_name="PA6",
+        project_root=Path("."),
+    )
+
+    snapshot = orchestrator._waxs_support_snapshot(
+        {
+            "n_peaks": 2,
+            "two_theta_offset": 0.02,
+            "background_method": "linear",
+            "amorphous_subtraction": "polynomial",
+            "amorphous_n_peaks": 2,
+            "Xc_pct": 69.6,
+            "Xc_method": "peak_deconvolution",
+            "D_Scherrer_nm": 8.3,
+            "peaks": [
+                {"two_theta": 17.9, "fwhm_deg": 0.5, "area": 1.0},
+                {"two_theta": 21.8, "fwhm_deg": 0.6, "area": 0.8},
+            ],
+        },
+        {"residual_type": "random"},
+        {
+            "peak_evidence": {"peak_count": 2, "peak_gap_spread": 0.1, "peak_width_spread": 0.08},
+            "background_evidence": {"two_theta_offset": 0.02, "background_method": "linear"},
+            "phase_evidence": {"Xc_pct": 69.6, "crystallinity_method": "peak_deconvolution", "D_Scherrer_nm": 8.3},
+            "constraint_summary": {"triggered_names": {}},
+            "residual_evidence": {"residual_type": "random"},
+        },
+    )
+
+    assert snapshot["peak_support_score"] > 0.5
+    assert snapshot["background_stability_score"] > 0.5
+    assert snapshot["phase_support_score"] > 0.5
+    assert snapshot["size_support_score"] > 0.5
+    assert snapshot["waxs_support_score"] > 0.5
+
+
+def test_dsc_support_snapshot_derives_support_scores_and_validation_counts() -> None:
+    orchestrator = ParameterOrchestrator(
+        technique="dsc",
+        data_file="dummy.dat",
+        polymer_name="PA6",
+        project_root=Path("."),
+    )
+
+    snapshot = orchestrator._dsc_support_snapshot(
+        {
+            "quality_score": 0.8,
+            "Xc_pct": 45.0,
+            "DHm_Jg": 12.0,
+        },
+        {
+            "feature_evidence": {
+                "event_support_evidence": {
+                    "event_support_score": 0.76,
+                    "baseline_stability_score": 0.74,
+                    "thermodynamic_consistency_score": 0.72,
+                    "supported_event_fraction": 0.67,
+                    "supported_component_count": 2,
+                    "scan_r_squared_median": 0.93,
+                    "scan_r_squared_spread": 0.04,
+                }
+            },
+            "constraint_summary": {"triggered_total": 1},
+            "cross_validation": {
+                "thermal": {"passed": True},
+                "baseline": {"passed": False},
+            },
+        },
+    )
+
+    assert snapshot["event_support_score"] == 0.76
+    assert snapshot["baseline_stability_score"] == 0.74
+    assert snapshot["thermodynamic_consistency_score"] == 0.72
+    assert snapshot["supported_event_fraction"] == 0.67
+    assert snapshot["supported_component_count"] == 2.0
+    assert snapshot["scan_r_squared_median"] == 0.93
+    assert snapshot["scan_r_squared_spread"] == 0.04
+    assert snapshot["triggered_constraint_count"] == 1.0
+    assert snapshot["validation_passed_count"] == 1.0
+    assert snapshot["validation_total_count"] == 2.0
+    assert snapshot["crystallinity_support_score"] > 0.0
+    assert snapshot["dsc_support_score"] > 0.0
 
 
 def test_build_agent_state_surfaces_symptoms_from_analysis_evidence(monkeypatch) -> None:

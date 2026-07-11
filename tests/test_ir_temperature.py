@@ -1,24 +1,30 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from polynexus.core.ir_engine import (
     IRConfig,
     analyze_temperature_2d_series,
     detect_temperature_2d,
-    generate_temperature_2d_figures,
     load_project,
     preprocess_pipeline,
+)
+from polynexus.core.ir_engine.ir_temperature import (
+    generate_temperature_2d_figures,
 )
 
 
 def _temperature_ir_dir() -> Path:
-    return (
+    path = (
         Path(__file__).resolve().parents[1]
         / "测试数据"
         / "IR"
         / "原位变温红外"
     )
+    if not path.is_dir():
+        pytest.skip("external IR temperature-series fixture is unavailable")
+    return path
 
 
 def test_temperature_2d_detector_recognizes_real_sequence():

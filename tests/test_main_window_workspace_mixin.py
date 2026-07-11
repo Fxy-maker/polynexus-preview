@@ -1,0 +1,17 @@
+from __future__ import annotations
+
+from polynexus.gui.main_window import MainWindow
+from polynexus.gui.main_window_workspace_mixin import MainWindowWorkspaceMixin
+
+
+def test_main_window_reuses_workspace_and_context_helpers_from_workspace_mixin():
+    assert MainWindow._update_workspace_context is MainWindowWorkspaceMixin._update_workspace_context
+    assert MainWindow._workspace_input_mode_text is MainWindowWorkspaceMixin._workspace_input_mode_text
+    assert MainWindow._workflow_task_tech_label is MainWindowWorkspaceMixin._workflow_task_tech_label
+    assert MainWindow._workflow_task_context is MainWindowWorkspaceMixin._workflow_task_context
+    assert MainWindow._update_workflow_task_card is MainWindowWorkspaceMixin._update_workflow_task_card
+    assert MainWindow._context_suggestion_payload is MainWindowWorkspaceMixin._context_suggestion_payload
+    assert MainWindow._materialize_context_suggestion_spec is MainWindowWorkspaceMixin._materialize_context_suggestion_spec
+    assert MainWindow._context_suggestion_callback is MainWindowWorkspaceMixin._context_suggestion_callback
+    assert MainWindow._update_context_suggestion_panel is MainWindowWorkspaceMixin._update_context_suggestion_panel
+    assert MainWindow._update_context_suggestions is MainWindowWorkspaceMixin._update_context_suggestions

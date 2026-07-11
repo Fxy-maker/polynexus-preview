@@ -1,0 +1,806 @@
+"""Scientific FigureDefinition providers for SAXS workflows."""
+
+from __future__ import annotations
+
+from typing import Sequence
+
+import numpy as np
+
+from polynexus.core.figures.contracts import (
+    AxisDefinition,
+    DataColumnDefinition,
+    FigureDataSourceDefinition,
+    FigureDefinition,
+    FigureLayoutDefinition,
+    PanelDefinition,
+)
+
+from .saxs_temperature import TempSeriesResult
+
+
+_SERIES_COLORS = (
+    "#0072B2",
+    "#56B4E9",
+    "#009E73",
+    "#F0E442",
+    "#E69F00",
+    "#D55E00",
+    "#CC79A7",
+    "#332288",
+    "#88CCEE",
+    "#AA4499",
+)
+
+
+def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
+    """Build portable SAXS definitions for the engine's active analysis state."""
+
+    temperature_result = getattr(engine_state, "_temperature_result", None)
+    if temperature_result is not None:
+        return build_saxs_temperature_definitions(
+            temperature_result,
+            tuple(getattr(engine_state, "_q_list", ())),
+            tuple(getattr(engine_state, "_I_list", ())),
+        )
+
+    series_kind = (
+        "strain" if getattr(engine_state, "_strain_result", None) is not None else "static"
+    )
+    frames = _non_temperature_frames(engine_state, series_kind)
+    definitions = [
+        _build_scattering_frame(
+            index=index,
+            series_kind=series_kind,
+            label=label,
+            q=q,
+            intensity=intensity,
+        )
+        for index, (q, intensity, label) in enumerate(frames, start=1)
+    ]
+    if len(frames) > 1:
+        definitions.append(_build_series_waterfall(series_kind, frames))
+    return tuple(definitions)
+
+
+def build_saxs_temperature_definitions(
+    result: TempSeriesResult,
+    q_values: Sequence[np.ndarray],
+    intensities: Sequence[np.ndarray],
+) -> tuple[FigureDefinition, ...]:
+    """Describe SAXS temperature figures without publishing artifacts."""
+
+    temperatures = np.asarray(result.temperatures, dtype=float)
+    if len(temperatures) != len(q_values) or len(q_values) != len(intensities):
+        raise ValueError("temperature frame counts differ")
+    definitions: list[FigureDefinition] = []
+    cleaned_frames: list[tuple[np.ndarray, np.ndarray]] = []
+    for index, (temperature, q, intensity) in enumerate(
+        zip(temperatures, q_values, intensities),
+        start=1,
+    ):
+        clean_q, clean_intensity = _clean_frame(q, intensity, index)
+        cleaned_frames.append((clean_q, clean_intensity))
+        definitions.append(
+            _build_temperature_frame(
+                index,
+                float(temperature),
+                clean_q,
+                clean_intensity,
+            )
+        )
+    if definitions:
+        definitions.append(_build_temperature_waterfall(temperatures, cleaned_frames))
+        definitions.extend(_build_temperature_summary_definitions(result, cleaned_frames))
+    return tuple(definitions)
+
+
+def _non_temperature_frames(
+    engine_state,
+    series_kind: str,
+) -> tuple[tuple[np.ndarray, np.ndarray, str], ...]:
+    if series_kind == "static":
+        analyzed = tuple(getattr(engine_state, "_batch_results", ()) or ())
+        if not analyzed:
+            single = getattr(engine_state, "_analysis", None)
+            analyzed = (single,) if single is not None else ()
+        frames = _frames_from_analyzed_results(analyzed)
+        if frames:
+            return frames
+
+    q_values = tuple(getattr(engine_state, "_q_list", ()) or ())
+    intensities = tuple(getattr(engine_state, "_I_list", ()) or ())
+    if len(q_values) != len(intensities):
+        raise ValueError("SAXS frame counts differ")
+    condition_values = _frame_condition_values(
+        engine_state,
+        series_kind,
+        len(q_values),
+    )
+    frames: list[tuple[np.ndarray, np.ndarray, str]] = []
+    for index, (q, intensity) in enumerate(zip(q_values, intensities), start=1):
+        clean_q, clean_intensity = _clean_frame(q, intensity, index)
+        frames.append(
+            (
+                clean_q,
+                clean_intensity,
+                _frame_label(series_kind, condition_values[index - 1], index),
+            )
+        )
+    return tuple(frames)
+
+
+def _frames_from_analyzed_results(
+    results: Sequence[object],
+) -> tuple[tuple[np.ndarray, np.ndarray, str], ...]:
+    frames: list[tuple[np.ndarray, np.ndarray, str]] = []
+    for index, result in enumerate(results, start=1):
+        q = getattr(result, "q", None)
+        intensity = getattr(result, "I_smooth", None)
+        if intensity is None or np.asarray(intensity).size != np.asarray(q).size:
+            intensity = getattr(result, "I", None)
+        if q is None or intensity is None:
+            continue
+        clean_q, clean_intensity = _clean_frame(q, intensity, index)
+        label = str(getattr(result, "label", "") or "").strip()
+        if not label:
+            label = _frame_label(
+                "static",
+                getattr(result, "condition_value", np.nan),
+                index,
+            )
+        frames.append((clean_q, clean_intensity, label))
+    return tuple(frames)
+
+
+def _frame_condition_values(
+    engine_state,
+    series_kind: str,
+    frame_count: int,
+) -> tuple[float, ...]:
+    values = None
+    if series_kind == "strain":
+        strain_result = getattr(engine_state, "_strain_result", None)
+        values = getattr(strain_result, "strains", None)
+    if values is None or np.asarray(values).size != frame_count:
+        values = getattr(engine_state, "_conditions", ())
+    array = np.ravel(np.asarray(values, dtype=float))
+    if len(array) != frame_count:
+        return tuple(float("nan") for _index in range(frame_count))
+    return tuple(float(value) for value in array)
+
+
+def _frame_label(series_kind: str, condition_value: float, index: int) -> str:
+    try:
+        value = float(condition_value)
+    except (TypeError, ValueError):
+        value = np.nan
+    if np.isfinite(value):
+        if series_kind == "strain":
+            return f"{value:g}% strain"
+        return f"Condition {value:g}"
+    return f"Frame {index}"
+
+
+def _build_scattering_frame(
+    *,
+    index: int,
+    series_kind: str,
+    label: str,
+    q: np.ndarray,
+    intensity: np.ndarray,
+) -> FigureDefinition:
+    source_id = "scattering-data"
+    return FigureDefinition(
+        figure_id=f"saxs.frame.{series_kind}.scattering.{index:03d}",
+        technique="saxs",
+        scope="frame",
+        category="per_frame",
+        title=f"SAXS Scattering - {label}",
+        layout=_scattering_layout(show_legend=False),
+        data_sources=(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("q_nm1", "nm^-1"),
+                    DataColumnDefinition("intensity_au", "a.u."),
+                ),
+                values={
+                    "q_nm1": _float_values(q),
+                    "intensity_au": _float_values(intensity),
+                },
+            ),
+        ),
+        objects=(
+            {
+                "id": "series-scattering",
+                "type": "plot_series",
+                "panel_id": "main",
+                "name": label,
+                "data_ref": source_id,
+                "x_column": "q_nm1",
+                "y_column": "intensity_au",
+                "style": {"color": "#222222", "line_width": 0.8},
+            },
+        ),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_figure_definitions",
+            "inputs": {"frame_label": label},
+            "parameters": {
+                "frame_index": index,
+                "series_kind": series_kind,
+                "figure_kind": "scattering",
+            },
+        },
+        style_profile="sci_default",
+    )
+
+
+def _build_series_waterfall(
+    series_kind: str,
+    frames: Sequence[tuple[np.ndarray, np.ndarray, str]],
+) -> FigureDefinition:
+    selected_indices = _waterfall_indices(len(frames))
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, object]] = []
+    for display_index, frame_index in enumerate(selected_indices):
+        q, intensity, label = frames[frame_index]
+        source_id = f"frame-{frame_index + 1:03d}-data"
+        offset = np.log10(np.clip(intensity, np.finfo(float).tiny, None)) + display_index * 1.2
+        sources.append(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("q_nm1", "nm^-1"),
+                    DataColumnDefinition("intensity_offset", "a.u."),
+                ),
+                values={
+                    "q_nm1": _float_values(q),
+                    "intensity_offset": _float_values(offset),
+                },
+            )
+        )
+        objects.append(
+            {
+                "id": f"series-frame-{frame_index + 1:03d}",
+                "type": "plot_series",
+                "panel_id": "main",
+                "name": label,
+                "data_ref": source_id,
+                "x_column": "q_nm1",
+                "y_column": "intensity_offset",
+                "style": {
+                    "color": _SERIES_COLORS[display_index % len(_SERIES_COLORS)],
+                    "line_width": 0.7,
+                },
+            }
+        )
+    return FigureDefinition(
+        figure_id=f"saxs.series.{series_kind}.waterfall",
+        technique="saxs",
+        scope="series",
+        category="series_overview",
+        title=f"SAXS {series_kind.title()} Waterfall",
+        layout=_waterfall_layout(),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_figure_definitions",
+            "inputs": {"frame_count": len(frames)},
+            "parameters": {
+                "series_kind": series_kind,
+                "figure_kind": "waterfall",
+                "intensity_transform": "log10_offset",
+                "selected_frame_indices": [index + 1 for index in selected_indices],
+            },
+        },
+        style_profile="sci_default",
+    )
+
+
+def _build_temperature_frame(
+    index: int,
+    temperature: float,
+    q: np.ndarray,
+    intensity: np.ndarray,
+) -> FigureDefinition:
+    source_id = "scattering-data"
+    return FigureDefinition(
+        figure_id=f"saxs.frame.temperature.scattering.{index:03d}",
+        technique="saxs",
+        scope="frame",
+        category="per_frame",
+        title=f"SAXS Scattering At {temperature:g} C",
+        layout=_scattering_layout(show_legend=False),
+        data_sources=(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("q_nm1", "nm^-1"),
+                    DataColumnDefinition("intensity_au", "a.u."),
+                ),
+                values={
+                    "q_nm1": _float_values(q),
+                    "intensity_au": _float_values(intensity),
+                },
+            ),
+        ),
+        objects=(
+            {
+                "id": "series-scattering",
+                "type": "plot_series",
+                "panel_id": "main",
+                "data_ref": source_id,
+                "x_column": "q_nm1",
+                "y_column": "intensity_au",
+                "style": {"color": "#222222", "line_width": 0.8},
+            },
+        ),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_C": temperature},
+            "parameters": {"frame_index": index, "figure_kind": "scattering"},
+        },
+        style_profile="sci_default",
+    )
+
+
+def _build_temperature_waterfall(
+    temperatures: np.ndarray,
+    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+) -> FigureDefinition:
+    selected_indices = _waterfall_indices(len(frames))
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, object]] = []
+    for display_index, frame_index in enumerate(selected_indices):
+        q, intensity = frames[frame_index]
+        source_id = f"frame-{frame_index + 1:03d}-data"
+        offset = np.log10(np.clip(intensity, np.finfo(float).tiny, None)) + display_index * 1.2
+        sources.append(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("q_nm1", "nm^-1"),
+                    DataColumnDefinition("intensity_offset", "a.u."),
+                ),
+                values={
+                    "q_nm1": _float_values(q),
+                    "intensity_offset": _float_values(offset),
+                },
+            )
+        )
+        temperature = float(temperatures[frame_index])
+        objects.append(
+            {
+                "id": f"series-frame-{frame_index + 1:03d}",
+                "type": "plot_series",
+                "panel_id": "main",
+                "name": f"{temperature:g} C",
+                "data_ref": source_id,
+                "x_column": "q_nm1",
+                "y_column": "intensity_offset",
+                "style": {
+                    "color": _SERIES_COLORS[display_index % len(_SERIES_COLORS)],
+                    "line_width": 0.7,
+                },
+            }
+        )
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.waterfall",
+        technique="saxs",
+        scope="series",
+        category="series_overview",
+        title="SAXS Temperature Waterfall",
+        layout=_waterfall_layout(),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": len(temperatures)},
+            "parameters": {
+                "figure_kind": "waterfall",
+                "intensity_transform": "log10_offset",
+                "selected_frame_indices": [index + 1 for index in selected_indices],
+            },
+        },
+        style_profile="sci_default",
+    )
+
+
+def _build_temperature_summary_definitions(
+    result: TempSeriesResult,
+    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+) -> tuple[FigureDefinition, ...]:
+    return (
+        _build_temperature_parameters(result),
+        _build_temperature_heatmap(
+            np.asarray(result.temperatures, dtype=float),
+            frames,
+        ),
+    )
+
+
+def _build_temperature_parameters(result: TempSeriesResult) -> FigureDefinition:
+    temperatures = np.ravel(np.asarray(result.temperatures, dtype=float))
+    count = len(temperatures)
+    long_period = _series_values(result.L_array, count, "L_array")
+    raw_lc = _series_values(result.lc_array, count, "lc_array")
+    effective_lc = _series_values(
+        result.lc_effective_array,
+        count,
+        "lc_effective_array",
+        missing_ok=True,
+    )
+    lc_values = np.where(np.isfinite(effective_lc), effective_lc, raw_lc)
+    amorphous_values = long_period - lc_values
+    invariant = _series_values(result.Q_star_array, count, "Q_star_array")
+    crystallinity = _series_values(result.Xc_array, count, "Xc_array")
+    source_id = "temperature-parameters-data"
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.parameters",
+        technique="saxs",
+        scope="series",
+        category="series_overview",
+        title="SAXS Temperature Parameters",
+        layout=_temperature_parameters_layout(),
+        data_sources=(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("temperature_C", "C"),
+                    DataColumnDefinition("L_nm", "nm"),
+                    DataColumnDefinition("lc_nm", "nm"),
+                    DataColumnDefinition("la_nm", "nm"),
+                    DataColumnDefinition("Q_star", "a.u."),
+                    DataColumnDefinition("crystallinity_fraction", "1"),
+                ),
+                values={
+                    "temperature_C": _float_values(temperatures),
+                    "L_nm": _float_values(long_period),
+                    "lc_nm": _float_values(lc_values),
+                    "la_nm": _float_values(amorphous_values),
+                    "Q_star": _float_values(invariant),
+                    "crystallinity_fraction": _float_values(crystallinity),
+                },
+            ),
+        ),
+        objects=(
+            _parameter_series(
+                "series-long-period",
+                "long-period",
+                source_id,
+                "L_nm",
+                "Long period",
+                "#0072B2",
+            ),
+            _parameter_series(
+                "series-crystalline-thickness",
+                "thickness",
+                source_id,
+                "lc_nm",
+                "Crystalline",
+                "#009E73",
+            ),
+            _parameter_series(
+                "series-amorphous-thickness",
+                "thickness",
+                source_id,
+                "la_nm",
+                "Amorphous",
+                "#E69F00",
+            ),
+            _parameter_series(
+                "series-invariant",
+                "invariant",
+                source_id,
+                "Q_star",
+                "Invariant",
+                "#CC79A7",
+            ),
+            _parameter_series(
+                "series-crystallinity",
+                "crystallinity",
+                source_id,
+                "crystallinity_fraction",
+                "Crystallinity",
+                "#D55E00",
+            ),
+        ),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": count},
+            "parameters": {
+                "figure_kind": "parameters",
+                "lc_source": "effective_with_raw_fallback",
+            },
+        },
+        style_profile="sci_default",
+    )
+
+
+def _build_temperature_heatmap(
+    temperatures: np.ndarray,
+    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+) -> FigureDefinition:
+    q_min = max(float(np.nanmin(q)) for q, _intensity in frames)
+    q_max = min(float(np.nanmax(q)) for q, _intensity in frames)
+    if not q_min < q_max:
+        raise ValueError("temperature q ranges do not overlap")
+    point_count = max(2, min(512, max(len(q) for q, _intensity in frames)))
+    common_q = np.linspace(q_min, q_max, point_count)
+    q_column: list[float] = []
+    temperature_column: list[float] = []
+    intensity_column: list[float] = []
+    for temperature, (q, intensity) in zip(temperatures, frames):
+        interpolated = np.interp(common_q, q, intensity)
+        q_column.extend(float(value) for value in common_q)
+        temperature_column.extend(float(temperature) for _value in common_q)
+        intensity_column.extend(float(value) for value in interpolated)
+    source_id = "temperature-heatmap-data"
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.heatmap",
+        technique="saxs",
+        scope="series",
+        category="series_overview",
+        title="SAXS Temperature Heatmap",
+        layout=_temperature_heatmap_layout(),
+        data_sources=(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("q_nm1", "nm^-1"),
+                    DataColumnDefinition("temperature_C", "C"),
+                    DataColumnDefinition("intensity", "a.u."),
+                ),
+                values={
+                    "q_nm1": tuple(q_column),
+                    "temperature_C": tuple(temperature_column),
+                    "intensity": tuple(intensity_column),
+                },
+            ),
+        ),
+        objects=(
+            {
+                "id": "heatmap-intensity",
+                "type": "heatmap",
+                "panel_id": "main",
+                "data_ref": source_id,
+                "x_column": "q_nm1",
+                "y_column": "temperature_C",
+                "z_column": "intensity",
+                "style": {"cmap": "viridis", "colorbar_label": "I(q)"},
+            },
+        ),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": len(temperatures)},
+            "parameters": {
+                "figure_kind": "heatmap",
+                "common_q_point_count": point_count,
+                "common_q_range_nm1": [q_min, q_max],
+            },
+        },
+        style_profile="sci_default",
+    )
+
+
+def _parameter_series(
+    object_id: str,
+    panel_id: str,
+    source_id: str,
+    y_column: str,
+    name: str,
+    color: str,
+) -> dict[str, object]:
+    return {
+        "id": object_id,
+        "type": "plot_series",
+        "panel_id": panel_id,
+        "name": name,
+        "data_ref": source_id,
+        "x_column": "temperature_C",
+        "y_column": y_column,
+        "style": {"color": color, "line_width": 0.9, "marker": "o"},
+    }
+
+
+def _temperature_parameters_layout() -> FigureLayoutDefinition:
+    def x_axis(panel_id: str) -> AxisDefinition:
+        return AxisDefinition(
+            axis_id=f"x-{panel_id}",
+            label="Temperature",
+            unit="C",
+        )
+
+    return FigureLayoutDefinition(
+        width_in=8.0,
+        height_in=6.5,
+        rows=2,
+        columns=2,
+        panels=(
+            PanelDefinition(
+                panel_id="long-period",
+                row=0,
+                column=0,
+                x_axis=x_axis("long-period"),
+                y_axis=AxisDefinition(
+                    axis_id="y-long-period",
+                    label="Long period",
+                    unit="nm",
+                ),
+                title="Long Period",
+            ),
+            PanelDefinition(
+                panel_id="thickness",
+                row=0,
+                column=1,
+                x_axis=x_axis("thickness"),
+                y_axis=AxisDefinition(
+                    axis_id="y-thickness",
+                    label="Thickness",
+                    unit="nm",
+                ),
+                title="Phase Thickness",
+                show_legend=True,
+            ),
+            PanelDefinition(
+                panel_id="invariant",
+                row=1,
+                column=0,
+                x_axis=x_axis("invariant"),
+                y_axis=AxisDefinition(
+                    axis_id="y-invariant",
+                    label="Invariant",
+                    unit="a.u.",
+                ),
+                title="Scattering Invariant",
+            ),
+            PanelDefinition(
+                panel_id="crystallinity",
+                row=1,
+                column=1,
+                x_axis=x_axis("crystallinity"),
+                y_axis=AxisDefinition(
+                    axis_id="y-crystallinity",
+                    label="Relative crystallinity",
+                    unit="1",
+                ),
+                title="Relative Crystallinity",
+            ),
+        ),
+    )
+
+
+def _temperature_heatmap_layout() -> FigureLayoutDefinition:
+    return FigureLayoutDefinition(
+        width_in=7.5,
+        height_in=5.0,
+        rows=1,
+        columns=1,
+        panels=(
+            PanelDefinition(
+                panel_id="main",
+                row=0,
+                column=0,
+                x_axis=AxisDefinition(
+                    axis_id="x",
+                    label="q",
+                    unit="nm^-1",
+                ),
+                y_axis=AxisDefinition(
+                    axis_id="y",
+                    label="Temperature",
+                    unit="C",
+                ),
+            ),
+        ),
+    )
+
+
+def _series_values(
+    values,
+    count: int,
+    name: str,
+    *,
+    missing_ok: bool = False,
+) -> np.ndarray:
+    if values is None:
+        if missing_ok:
+            return np.full(count, np.nan, dtype=float)
+        raise ValueError(f"temperature result array is missing: {name}")
+    array = np.ravel(np.asarray(values, dtype=float))
+    if len(array) != count:
+        raise ValueError(f"temperature result array length differs: {name}")
+    return array
+
+
+def _scattering_layout(*, show_legend: bool) -> FigureLayoutDefinition:
+    return FigureLayoutDefinition(
+        width_in=7.0,
+        height_in=4.2,
+        rows=1,
+        columns=1,
+        panels=(
+            PanelDefinition(
+                panel_id="main",
+                row=0,
+                column=0,
+                x_axis=AxisDefinition(
+                    axis_id="x",
+                    label="q",
+                    unit="nm^-1",
+                    scale="log",
+                ),
+                y_axis=AxisDefinition(
+                    axis_id="y",
+                    label="Intensity",
+                    unit="a.u.",
+                    scale="log",
+                ),
+                show_legend=show_legend,
+            ),
+        ),
+    )
+
+
+def _waterfall_layout() -> FigureLayoutDefinition:
+    return FigureLayoutDefinition(
+        width_in=7.5,
+        height_in=5.0,
+        rows=1,
+        columns=1,
+        panels=(
+            PanelDefinition(
+                panel_id="main",
+                row=0,
+                column=0,
+                x_axis=AxisDefinition(
+                    axis_id="x",
+                    label="q",
+                    unit="nm^-1",
+                    scale="log",
+                ),
+                y_axis=AxisDefinition(
+                    axis_id="y",
+                    label="log10 Intensity + offset",
+                    unit="a.u.",
+                ),
+                show_legend=True,
+            ),
+        ),
+    )
+
+
+def _clean_frame(
+    q_values: np.ndarray,
+    intensities: np.ndarray,
+    frame_index: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    q = np.ravel(np.asarray(q_values, dtype=float))
+    intensity = np.ravel(np.asarray(intensities, dtype=float))
+    if len(q) != len(intensity):
+        raise ValueError(f"temperature frame data lengths differ: {frame_index}")
+    mask = np.isfinite(q) & np.isfinite(intensity) & (q > 0) & (intensity > 0)
+    if not np.any(mask):
+        raise ValueError(f"temperature frame has no plottable data: {frame_index}")
+    q = q[mask]
+    intensity = intensity[mask]
+    order = np.argsort(q)
+    return q[order], intensity[order]
+
+
+def _waterfall_indices(frame_count: int) -> tuple[int, ...]:
+    if frame_count <= 10:
+        return tuple(range(frame_count))
+    return tuple(
+        int(index) for index in np.unique(np.linspace(0, frame_count - 1, num=10, dtype=int))
+    )
+
+
+def _float_values(values: np.ndarray) -> tuple[float, ...]:
+    return tuple(float(value) for value in values)

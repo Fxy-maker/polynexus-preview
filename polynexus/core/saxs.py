@@ -23,7 +23,6 @@ from .saxs_engine import (
     extract_geometry_from_header,
     scan_experiment_dir,
     assemble_dataset,
-    classify_single_frame_lc_reliability,
     recover_condition_axis,
     preprocess_pipeline,
     _integrate_pyfai_shadow,
@@ -46,32 +45,12 @@ from .saxs_engine import (
     TempSeriesResult,
     analyze_anisotropy,
     AnisotropyResult,
-    set_sci_style,
-    fig_u1_scattering_profile,
-    fig_u2_correlation_function,
-    fig_u3_idf,
-    fig_u4_porod,
-    fig_t2_scattering_waterfall,
-    fig_t3_structure_evolution,
-    fig_t4_invariant_conservation,
-    fig_v1_temperature_waterfall,
-    fig_v2_temperature_parameters,
-    fig_v3_scattering_heatmap,
-    fig_v4_avrami,
-    fig_guinier,
-    fig_kratky,
-    fig_joint_crystallinity,
     export_parameters_csv,
     export_1d_profile,
     export_strain_series_csv,
     export_temp_series_csv,
-    generate_all_figures,
 )
-from .saxs_engine.saxs_output import (
-    fig_static_overview,
-    fig_temperature_overview,
-    fig_strain_overview,
-)
+from . import saxs_batch_helpers as _saxs_batch_helpers
 
 
 logger = logging.getLogger(__name__)
@@ -883,373 +862,12 @@ class SAXSEngine(BaseEngine):
         )
 
     def _build_batch_parameters_payload(self, base_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Return a batch-aware parameters payload for the GUI and persistence.
+        return _saxs_batch_helpers._build_batch_parameters_payload(
+            getattr(self, "_batch_params", []),
+            base_params=base_params,
+            experiment_type=str(getattr(self.cfg, "experiment_type", "") or ""),
+        )
 
-        The GUI already knows how to render ``batch_frames`` + ``_batch_data`` as
-        a multi-row table. Keeping this logic here avoids forcing the UI to guess
-        whether the engine ran a single frame or a whole directory/series.
-        """
-
-        payload: Dict[str, Any] = dict(base_params or {})
-        batch_rows = [dict(row) for row in getattr(self, "_batch_params", []) if isinstance(row, dict)]
-        if not batch_rows:
-            return payload
-        if len(batch_rows) == 1:
-            return payload or batch_rows[0]
-
-        payload["batch_frames"] = len(batch_rows)
-        payload["_batch_data"] = batch_rows
-
-        condition_label = ""
-        for row in batch_rows:
-            label = str(row.get("condition_label") or "").strip()
-            if label:
-                condition_label = label
-                break
-        if condition_label:
-            payload.setdefault("condition_label", condition_label)
-
-        condition_values: List[float] = []
-        for key in ("condition_value", "temperature_C", "strain_pct"):
-            for row in batch_rows:
-                value = row.get(key)
-                try:
-                    value = float(value)
-                except (TypeError, ValueError):
-                    continue
-                if np.isfinite(value):
-                    condition_values.append(value)
-            if condition_values:
-                break
-        if condition_values:
-            payload["condition_range"] = f"{min(condition_values):.1f}-{max(condition_values):.1f}"
-
-        source_counts: Dict[str, int] = {}
-        source_key_counts: Dict[str, int] = {}
-        source_text_counts: Dict[str, int] = {}
-        confidences: List[float] = []
-        missing_frames = 0
-        continuity_values: List[float] = []
-        fallback_rows = 0
-        raw_snapshot_rows = 0
-        fallback_reason_counts: Dict[str, int] = {}
-        fallback_fields: set[str] = set()
-        calibration_skip_counts: Dict[str, int] = {}
-        melting_status_counts: Dict[str, int] = {}
-        melting_reason_counts: Dict[str, int] = {}
-        lc_reliability_counts: Dict[str, int] = {}
-        lc_reliability_reason_counts: Dict[str, int] = {}
-        raw_lc_values: List[float] = []
-        calibrated_lc_values: List[float] = []
-        raw_L_values: List[float] = []
-        calibrated_L_values: List[float] = []
-        raw_phi_values: List[float] = []
-        calibrated_phi_values: List[float] = []
-        lc_gap_values: List[float] = []
-        L_gap_values: List[float] = []
-        phi_gap_values: List[float] = []
-        q_star_rel_values: List[float] = []
-        porod_slope_values: List[float] = []
-        strain_reliability_counts: Dict[str, int] = {}
-        strain_reliability_reason_counts: Dict[str, int] = {}
-        phase_counts: Dict[str, int] = {}
-        phase_support_values: List[float] = []
-        frame_low_conf_count = 0
-        void_dominant_frame_count = 0
-        phase_ambiguous_frame_count = 0
-        effective_param_count = 0
-        paper_figure_candidate_count = 0
-        paper_conclusion_candidate_count = 0
-
-        def _float_or_none(value: Any) -> float | None:
-            try:
-                number = float(value)
-            except (TypeError, ValueError):
-                return None
-            return number if np.isfinite(number) else None
-
-        def _range_text(values: List[float], decimals: int = 2) -> str | None:
-            finite = [float(value) for value in values if value is not None and np.isfinite(value)]
-            if not finite:
-                return None
-            return f"{min(finite):.{decimals}f}-{max(finite):.{decimals}f}"
-
-        for row in batch_rows:
-            source = str(row.get("condition_source") or "").strip()
-            if source:
-                source_counts[source] = source_counts.get(source, 0) + 1
-            source_key = str(row.get("condition_source_key") or "").strip()
-            if source_key:
-                source_key_counts[source_key] = source_key_counts.get(source_key, 0) + 1
-            source_text = str(row.get("condition_source_text") or "").strip()
-            if source_text:
-                source_text_counts[source_text] = source_text_counts.get(source_text, 0) + 1
-            conf = row.get("condition_confidence")
-            try:
-                conf = float(conf)
-            except (TypeError, ValueError):
-                conf = np.nan
-            if np.isfinite(conf):
-                confidences.append(conf)
-
-            raw_snapshot = row.get("raw_snapshot")
-            if isinstance(raw_snapshot, dict) and raw_snapshot:
-                raw_snapshot_rows += 1
-
-            if not str(row.get("lc_reliability_status") or "").strip():
-                status, reason = classify_single_frame_lc_reliability(row)
-                row["lc_reliability_status"] = status
-                if not str(row.get("lc_reliability_reason") or "").strip():
-                    row["lc_reliability_reason"] = reason
-
-            method_key = str(row.get("lc_method") or "").strip().lower()
-            fallback_active = bool(row.get("calibrated_fallback_active")) or method_key in {"calibrated", "qstar_calibrated"}
-            if fallback_active:
-                fallback_rows += 1
-                reason = str(row.get("calibrated_fallback_reason") or "").strip()
-                if reason:
-                    fallback_reason_counts[reason] = fallback_reason_counts.get(reason, 0) + 1
-                applied_fields = row.get("fallback_applied_fields")
-                if isinstance(applied_fields, list):
-                    for field in applied_fields:
-                        field_name = str(field or "").strip()
-                        if field_name:
-                            fallback_fields.add(field_name)
-
-            skip_reason = str(row.get("calibration_skipped_reason") or "").strip()
-            if skip_reason:
-                calibration_skip_counts[skip_reason] = calibration_skip_counts.get(skip_reason, 0) + 1
-
-            melting_status = str(row.get("melting_window_status") or "").strip()
-            if melting_status:
-                melting_status_counts[melting_status] = melting_status_counts.get(melting_status, 0) + 1
-            melting_reason = str(row.get("melting_window_reason") or "").strip()
-            if melting_reason:
-                melting_reason_counts[melting_reason] = melting_reason_counts.get(melting_reason, 0) + 1
-
-            lc_status = str(row.get("lc_reliability_status") or "").strip()
-            if lc_status:
-                lc_reliability_counts[lc_status] = lc_reliability_counts.get(lc_status, 0) + 1
-            lc_reason = str(row.get("lc_reliability_reason") or "").strip()
-            if lc_reason:
-                lc_reliability_reason_counts[lc_reason] = lc_reliability_reason_counts.get(lc_reason, 0) + 1
-
-            strain_status = str(row.get("strain_reliability_status") or "").strip()
-            if strain_status:
-                strain_reliability_counts[strain_status] = strain_reliability_counts.get(strain_status, 0) + 1
-            strain_reason = str(row.get("strain_reliability_reason") or "").strip()
-            if strain_reason:
-                strain_reliability_reason_counts[strain_reason] = strain_reliability_reason_counts.get(strain_reason, 0) + 1
-            phase_name = str(row.get("phase_name") or row.get("strain_phase") or "").strip().lower()
-            if phase_name:
-                phase_counts[phase_name] = phase_counts.get(phase_name, 0) + 1
-            phase_score = _float_or_none(row.get("phase_support_score"))
-            if phase_score is not None:
-                phase_support_values.append(phase_score)
-            if strain_status and strain_status != "usable":
-                frame_low_conf_count += 1
-            if "low_q_void_dominant" in strain_reason or "strain_void_lamellar_conflict" in strain_reason:
-                void_dominant_frame_count += 1
-            if bool(row.get("phase_ambiguous")) or (phase_score is not None and phase_score < 0.55):
-                phase_ambiguous_frame_count += 1
-            if str(row.get("lc_method") or "").strip().lower() != "raw" or str(row.get("lamellar_interpretation_mode") or "").strip().lower() != "raw_measurement":
-                effective_param_count += 1
-            if bool(row.get("paper_figure_candidate")):
-                paper_figure_candidate_count += 1
-            if bool(row.get("paper_conclusion_candidate")):
-                paper_conclusion_candidate_count += 1
-
-            raw_lc = _float_or_none(row.get("lc_nm_raw"))
-            cal_lc = _float_or_none(row.get("lc_nm_calibrated"))
-            if raw_lc is not None:
-                raw_lc_values.append(raw_lc)
-            if cal_lc is not None:
-                calibrated_lc_values.append(cal_lc)
-            if raw_lc is not None and cal_lc is not None:
-                lc_gap_values.append(abs(cal_lc - raw_lc) / max(abs(cal_lc), abs(raw_lc), 1e-9))
-
-            raw_L = _float_or_none(row.get("L_nm_raw"))
-            cal_L = _float_or_none(row.get("L_nm"))
-            if raw_L is not None:
-                raw_L_values.append(raw_L)
-            if cal_L is not None:
-                calibrated_L_values.append(cal_L)
-            if raw_L is not None and cal_L is not None:
-                L_gap_values.append(abs(cal_L - raw_L) / max(abs(cal_L), abs(raw_L), 1e-9))
-
-            current_value = None
-            for key in ("condition_value", "temperature_C", "strain_pct"):
-                try:
-                    current_value = float(row.get(key))
-                except (TypeError, ValueError):
-                    continue
-                if np.isfinite(current_value):
-                    break
-                current_value = None
-            if current_value is None:
-                missing_frames += 1
-            else:
-                continuity_values.append(float(current_value))
-
-            raw_phi = _float_or_none(row.get("Xc_raw"))
-            cal_phi = _float_or_none(row.get("Xc_calibrated"))
-            if raw_phi is not None:
-                raw_phi_values.append(raw_phi)
-            if cal_phi is not None:
-                calibrated_phi_values.append(cal_phi)
-            if raw_phi is not None and cal_phi is not None:
-                phi_gap_values.append(abs(cal_phi - raw_phi) / max(abs(cal_phi), abs(raw_phi), 1e-9))
-
-            q_star_rel = _float_or_none(row.get("Q_star_rel"))
-            if q_star_rel is None:
-                q_star_rel = _float_or_none(row.get("Q_rel"))
-            if q_star_rel is not None:
-                q_star_rel_values.append(q_star_rel)
-
-            porod_slope = _float_or_none(row.get("porod_slope"))
-            if porod_slope is not None:
-                porod_slope_values.append(porod_slope)
-
-        if source_counts:
-            payload["condition_source"] = max(source_counts.items(), key=lambda item: item[1])[0]
-        if source_key_counts:
-            payload["condition_source_key"] = max(source_key_counts.items(), key=lambda item: item[1])[0]
-        if source_text_counts:
-            payload["condition_source_text"] = max(source_text_counts.items(), key=lambda item: item[1])[0]
-        if confidences:
-            payload["condition_confidence"] = round(float(np.mean(confidences)), 2)
-        if missing_frames:
-            payload["condition_missing_frames"] = missing_frames
-        if len(continuity_values) >= 2:
-            diffs = np.diff(np.asarray(continuity_values, dtype=float))
-            non_zero = np.abs(diffs) > 1e-9
-            score = 1.0 if np.all(non_zero) else max(0.0, 1.0 - (np.count_nonzero(~non_zero) / max(len(diffs), 1)))
-            payload["condition_continuity_score"] = round(float(score), 2)
-        elif continuity_values:
-            payload["condition_continuity_score"] = 1.0
-
-        fallback_ratio = round(float(fallback_rows / len(batch_rows)), 3) if batch_rows else 0.0
-        fallback_reason = ""
-        if fallback_reason_counts:
-            if len(fallback_reason_counts) == 1:
-                fallback_reason = next(iter(fallback_reason_counts.keys()))
-            else:
-                fallback_reason = "mixed"
-        calibration_skip_reason = ""
-        if calibration_skip_counts:
-            calibration_skip_reason = (
-                next(iter(calibration_skip_counts.keys()))
-                if len(calibration_skip_counts) == 1
-                else "mixed"
-            )
-
-        dominant_melting_status = ""
-        if melting_status_counts:
-            dominant_melting_status = max(melting_status_counts.items(), key=lambda item: item[1])[0]
-        dominant_melting_reason = ""
-        if melting_reason_counts:
-            dominant_melting_reason = max(melting_reason_counts.items(), key=lambda item: item[1])[0]
-        dominant_lc_reliability = ""
-        if lc_reliability_counts:
-            dominant_lc_reliability = max(lc_reliability_counts.items(), key=lambda item: item[1])[0]
-        dominant_lc_reason = ""
-        if lc_reliability_reason_counts:
-            dominant_lc_reason = max(lc_reliability_reason_counts.items(), key=lambda item: item[1])[0]
-
-        batch_calibration_summary = {
-            "batch_rows": len(batch_rows),
-            "fallback_rows": fallback_rows,
-            "calibration_skipped_rows": sum(calibration_skip_counts.values()),
-            "calibration_skipped_reason": calibration_skip_reason,
-            "raw_snapshot_rows": raw_snapshot_rows,
-            "fallback_ratio": fallback_ratio,
-            "raw_structure_available": raw_snapshot_rows > 0,
-            "calibrated_fallback_active": fallback_rows > 0,
-            "calibrated_fallback_reason": fallback_reason,
-            "fallback_applied_fields": sorted(fallback_fields),
-            "raw_lc_range_nm": _range_text(raw_lc_values, 2),
-            "calibrated_lc_range_nm": _range_text(calibrated_lc_values, 2),
-            "raw_L_range_nm": _range_text(raw_L_values, 2),
-            "calibrated_L_range_nm": _range_text(calibrated_L_values, 2),
-            "raw_Xc_range": _range_text(raw_phi_values, 3),
-            "calibrated_Xc_range": _range_text(calibrated_phi_values, 3),
-            "lc_gap_mean": round(float(np.mean(lc_gap_values)), 3) if lc_gap_values else None,
-            "L_gap_mean": round(float(np.mean(L_gap_values)), 3) if L_gap_values else None,
-            "Xc_gap_mean": round(float(np.mean(phi_gap_values)), 3) if phi_gap_values else None,
-        }
-        batch_structure_summary = {
-            "batch_rows": len(batch_rows),
-            "melting_window_status_counts": dict(sorted(melting_status_counts.items())),
-            "lc_reliability_status_counts": dict(sorted(lc_reliability_counts.items())),
-            "diagnostic_only_rows": int(lc_reliability_counts.get("diagnostic_only", 0)),
-            "low_confidence_rows": int(lc_reliability_counts.get("low_confidence", 0)),
-            "usable_rows": int(lc_reliability_counts.get("usable", 0)),
-            "within_window_rows": int(melting_status_counts.get("within_window", 0)),
-            "near_onset_rows": int(melting_status_counts.get("near_onset", 0)),
-            "post_end_rows": int(melting_status_counts.get("post_end", 0)),
-            "dominant_melting_window_status": dominant_melting_status or None,
-            "dominant_melting_window_reason": dominant_melting_reason or None,
-            "dominant_lc_reliability_status": dominant_lc_reliability or None,
-            "dominant_lc_reliability_reason": dominant_lc_reason or None,
-        }
-        q_star_rel_mean = round(float(np.mean(q_star_rel_values)), 4) if q_star_rel_values else None
-        q_star_rel_span = round(float(max(q_star_rel_values) - min(q_star_rel_values)), 4) if len(q_star_rel_values) >= 2 else None
-        porod_slope_mean = round(float(np.mean(porod_slope_values)), 4) if porod_slope_values else None
-        porod_slope_span = round(float(max(porod_slope_values) - min(porod_slope_values)), 4) if len(porod_slope_values) >= 2 else None
-        payload["batch_calibration_summary"] = {
-            key: value
-            for key, value in batch_calibration_summary.items()
-            if value not in (None, "", [], {})
-        }
-        payload["batch_structure_summary"] = {
-            key: value
-            for key, value in batch_structure_summary.items()
-            if value not in (None, "", [], {})
-        }
-        if batch_calibration_summary["raw_structure_available"]:
-            payload["raw_structure_available"] = True
-        if batch_calibration_summary["calibrated_fallback_active"]:
-            payload["calibrated_fallback_active"] = True
-            if batch_calibration_summary["calibrated_fallback_reason"]:
-                payload["calibrated_fallback_reason"] = batch_calibration_summary["calibrated_fallback_reason"]
-        if batch_calibration_summary["fallback_applied_fields"]:
-            payload["fallback_applied_fields"] = batch_calibration_summary["fallback_applied_fields"]
-        if dominant_melting_status:
-            payload["melting_window_status"] = dominant_melting_status
-        if dominant_melting_reason:
-            payload["melting_window_reason"] = dominant_melting_reason
-        if dominant_lc_reliability:
-            payload["lc_reliability_status"] = dominant_lc_reliability
-        if dominant_lc_reason:
-            payload["lc_reliability_reason"] = dominant_lc_reason
-        if q_star_rel_values:
-            payload["Q_star_rel_mean"] = q_star_rel_mean
-            payload["Q_star_rel_span"] = q_star_rel_span
-        if porod_slope_values:
-            payload["porod_slope_mean"] = porod_slope_mean
-            payload["porod_slope_span"] = porod_slope_span
-        if strain_reliability_counts:
-            payload["strain_reliability_status"] = max(strain_reliability_counts.items(), key=lambda item: item[1])[0]
-            payload["strain_reliability_status_counts"] = dict(sorted(strain_reliability_counts.items()))
-        if strain_reliability_reason_counts:
-            payload["strain_reliability_reason"] = max(strain_reliability_reason_counts.items(), key=lambda item: item[1])[0]
-            payload["strain_reliability_reason_counts"] = dict(sorted(strain_reliability_reason_counts.items()))
-        if phase_counts:
-            payload["phase_distribution"] = dict(sorted(phase_counts.items()))
-            payload["dominant_phase"] = max(phase_counts.items(), key=lambda item: item[1])[0]
-        if phase_support_values:
-            payload["phase_support_mean"] = round(float(np.mean(phase_support_values)), 3)
-            payload["phase_support_span"] = round(float(np.max(phase_support_values) - np.min(phase_support_values)), 3) if len(phase_support_values) >= 2 else 0.0
-        payload["frame_low_conf_count"] = frame_low_conf_count
-        payload["void_dominant_frame_count"] = void_dominant_frame_count
-        payload["phase_ambiguous_frame_count"] = phase_ambiguous_frame_count
-        payload["effective_param_ratio"] = round(float(effective_param_count / len(batch_rows)), 3) if batch_rows else 0.0
-        payload["paper_figure_candidate"] = bool(paper_figure_candidate_count and paper_figure_candidate_count >= max(1, len(batch_rows) // 2))
-        payload["paper_conclusion_candidate"] = bool(paper_conclusion_candidate_count and paper_conclusion_candidate_count >= max(1, len(batch_rows) // 2))
-        if payload["paper_conclusion_candidate"]:
-            payload["paper_conclusion_ready"] = True
-
-        return payload
 
     def _run_temperature_pipeline(self) -> bool:
         temps_valid = [float(v) for v in self._conditions if np.isfinite(v)]
@@ -1310,23 +928,76 @@ class SAXSEngine(BaseEngine):
                     "melting_window_reason": "temperature_series_status_unavailable",
                     "lc_reliability_status": "diagnostic_only",
                     "lc_reliability_reason": "temperature_series_status_unavailable",
+                    "lc_path_status": "diagnostic_only",
+                    "lc_path_reason": "temperature_series_status_unavailable",
+                    "lc_candidate_selected_nm": np.nan,
+                    "lc_candidate_selected_source": "",
+                    "lc_candidate_selected_score": np.nan,
+                    "lc_candidate_count": 0,
+                    "lc_effective_nm": np.nan,
+                    "lc_effective_source": "",
+                    "lc_effective_score": np.nan,
                 }
+            candidate_count = _float_or_none(getattr(tp, "lc_candidate_count", np.nan))
             return {
                 "melting_window_status": str(getattr(tp, "melting_window_status", "") or "undetermined"),
                 "melting_window_reason": str(getattr(tp, "melting_window_reason", "") or "temperature_series_status_unavailable"),
                 "lc_reliability_status": str(getattr(tp, "lc_reliability_status", "") or "diagnostic_only"),
                 "lc_reliability_reason": str(getattr(tp, "lc_reliability_reason", "") or "temperature_series_status_unavailable"),
+                "lc_path_status": str(getattr(tp, "lc_path_status", "") or ""),
+                "lc_path_reason": str(getattr(tp, "lc_path_reason", "") or ""),
+                "lc_candidate_selected_nm": _float_or_none(getattr(tp, "lc_candidate_selected_nm", np.nan)),
+                "lc_candidate_selected_source": str(getattr(tp, "lc_candidate_selected_source", "") or ""),
+                "lc_candidate_selected_score": _float_or_none(getattr(tp, "lc_candidate_selected_score", np.nan)),
+                "lc_candidate_count": int(candidate_count) if candidate_count is not None and np.isfinite(candidate_count) else 0,
+                "lc_effective_nm": _float_or_none(getattr(tp, "lc_effective_nm", np.nan)),
+                "lc_effective_source": str(getattr(tp, "lc_effective_source", "") or ""),
+                "lc_effective_score": _float_or_none(getattr(tp, "lc_effective_score", np.nan)),
             }
 
         def _temperature_effective_structure_payload(
             *,
+            L_nm: float | None,
             lc_raw: float | None,
             la_raw: float | None,
             Xc_raw: float | None,
             status_payload: Dict[str, Any],
         ) -> Dict[str, Any]:
+            path_status = str(status_payload.get("lc_path_status") or "").strip().lower()
+            path_reason = str(status_payload.get("lc_path_reason") or "").strip()
+            lc_effective = _float_or_none(status_payload.get("lc_effective_nm"))
             lc_status = str(status_payload.get("lc_reliability_status") or "").strip().lower()
             lc_reason = str(status_payload.get("lc_reliability_reason") or "").strip()
+            if path_status:
+                if path_status in {"diagnostic_only", "no_path"} or not np.isfinite(lc_effective):
+                    return {
+                        "lc_nm": None,
+                        "la_nm": None,
+                        "Xc": None,
+                        "lc_nm_effective": None,
+                        "la_nm_effective": None,
+                        "Xc_effective": None,
+                        "lamellar_interpretation_mode": "sequence_path_diagnostic_only" if path_status == "diagnostic_only" else "sequence_path_none",
+                        "effective_param_reason": path_reason or "lc_path_diagnostic_only",
+                    }
+                if np.isfinite(L_nm) and L_nm > 0:
+                    la_effective = round(float(L_nm) - float(lc_effective), 2)
+                    Xc_effective = round(float(lc_effective) / float(L_nm), 3)
+                else:
+                    la_effective = None
+                    Xc_effective = None
+                mode = "sequence_path_usable" if path_status == "usable" else "sequence_path_low_confidence" if path_status == "low_confidence" else "sequence_path_selected"
+                return {
+                    "lc_nm": lc_effective,
+                    "la_nm": la_effective,
+                    "Xc": Xc_effective,
+                    "lc_nm_effective": lc_effective,
+                    "la_nm_effective": la_effective,
+                    "Xc_effective": Xc_effective,
+                    "lamellar_interpretation_mode": mode,
+                    "effective_param_reason": path_reason or "sequence_path_selected",
+                }
+
             if lc_status == "diagnostic_only":
                 return {
                     "lc_nm": None,
@@ -1373,6 +1044,7 @@ class SAXSEngine(BaseEngine):
                 lcc_raw = round(float(sp.confidence_lc), 2) if sp and np.isfinite(sp.confidence_lc) else None
                 status_payload = _temperature_status_payload(i)
                 effective_payload = _temperature_effective_structure_payload(
+                    L_nm=L,
                     lc_raw=lc_raw,
                     la_raw=la_raw,
                     Xc_raw=Xc_raw,
@@ -1418,6 +1090,7 @@ class SAXSEngine(BaseEngine):
                 lcc = round(float(sp.confidence_lc), 2) if sp and np.isfinite(sp.confidence_lc) else None
                 status_payload = _temperature_status_payload(i)
                 effective_payload = _temperature_effective_structure_payload(
+                    L_nm=L,
                     lc_raw=lc,
                     la_raw=la,
                     Xc_raw=pc,
@@ -1834,72 +1507,40 @@ class SAXSEngine(BaseEngine):
             self.plot(output_dir)
         return result
 
+    def build_figure_definitions(self):
+        """Return scientific figure definitions without publishing assets."""
+
+        from .saxs_engine.figure_provider import build_saxs_figure_definitions
+
+        return build_saxs_figure_definitions(self)
+
     def plot(self, output_dir: str = "") -> Dict[str, str]:
-        if self._analysis is None and not self._batch_results and self._temperature_result is None and self._strain_result is None and self._q is None:
-            self.log("No analysis results to plot")
+        definitions = tuple(self.build_figure_definitions())
+        if not definitions:
+            self.log("No figure definitions available")
             return {}
         out = output_dir or self.cfg.output_dir or "saxs_output"
-        if self._temperature_result is not None:
-            def _sorted_seq():
-                rows = [
-                    (self._conditions[i], self._q_list[i], self._I_list[i])
-                    for i in range(min(len(self._conditions), len(self._q_list), len(self._I_list)))
-                    if np.isfinite(self._conditions[i])
-                ]
-                rows.sort(key=lambda item: item[0])
-                return rows
-
-            seq = _sorted_seq()
-            root = fig_temperature_overview(
-                np.asarray(self._temperature_result.temperatures, dtype=float),
-                [item[1] for item in seq],
-                [item[2] for item in seq],
-                np.asarray(self._temperature_result.L_array, dtype=float),
-                np.asarray(self._temperature_result.lc_array, dtype=float),
-                np.asarray(self._temperature_result.Xc_array, dtype=float),
-                Q_arr=np.asarray(self._temperature_result.Q_star_array, dtype=float),
-                output_path=os.path.join(out, "temperature_overview.pdf"),
-            )
-            return {"temperature_overview": root}
-        if self._strain_result is not None:
-            def _sorted_strain_seq():
-                rows = [
-                    (self._conditions[i], self._q_list[i], self._I_list[i])
-                    for i in range(min(len(self._conditions), len(self._q_list), len(self._I_list)))
-                    if np.isfinite(self._conditions[i])
-                ]
-                rows.sort(key=lambda item: item[0])
-                return rows
-
-            seq = _sorted_strain_seq()
-            root = fig_strain_overview(
-                np.asarray(self._strain_result.strains, dtype=float),
-                [item[1] for item in seq],
-                [item[2] for item in seq],
-                np.asarray(self._strain_result.L_array, dtype=float),
-                np.asarray(self._strain_result.lc_array, dtype=float),
-                np.asarray(self._strain_result.la_array, dtype=float),
-                np.asarray(self._strain_result.f_herman_array, dtype=float),
-                Q_arr=np.asarray(self._strain_result.Q_star_array, dtype=float),
-                Q_rel_arr=np.asarray(self._strain_result.Q_star_rel_array, dtype=float),
-                output_path=os.path.join(out, "strain_overview.pdf"),
-            )
-            return {"strain_overview": root}
-        target = self._batch_results if self._batch_results else self._analysis
-        if target is None:
-            return {}
-        return generate_all_figures(target, out, config=self.cfg)
+        figures = self.publish_figure_definitions(out, definitions)
+        for path in figures.values():
+            self.log(f"  Figure saved: {path}")
+        return figures
 
     def get_parameters(self) -> Dict[str, Any]:
         if self._temperature_result is not None:
             tr = self._temperature_result
             temps = [float(v) for v in np.asarray(tr.temperatures, dtype=float) if np.isfinite(v)]
-            lc_vals = [float(v) for v in np.asarray(tr.lc_array, dtype=float) if np.isfinite(v)]
+            lc_raw_vals = [float(v) for v in np.ravel(np.asarray(tr.lc_array, dtype=float)) if np.isfinite(v)]
+            lc_effective_vals = [float(v) for v in np.ravel(np.asarray(tr.lc_effective_array, dtype=float)) if np.isfinite(v)]
             params: Dict[str, Any] = {"n_temperatures": len(tr.temperatures)}
             if temps:
                 params["T_range_C"] = f"{min(temps):.0f}-{max(temps):.0f}"
-            if lc_vals:
-                params["lc_range_nm"] = f"{min(lc_vals):.2f}-{max(lc_vals):.2f}"
+            if lc_raw_vals:
+                params["lc_range_raw_nm"] = f"{min(lc_raw_vals):.2f}-{max(lc_raw_vals):.2f}"
+            if lc_effective_vals:
+                params["lc_range_effective_nm"] = f"{min(lc_effective_vals):.2f}-{max(lc_effective_vals):.2f}"
+                params["lc_range_nm"] = params["lc_range_effective_nm"]
+            elif lc_raw_vals:
+                params["lc_range_nm"] = f"{min(lc_raw_vals):.2f}-{max(lc_raw_vals):.2f}"
             if np.isfinite(tr.Tm_onset):
                 params["Tm_onset_C"] = round(float(tr.Tm_onset), 1)
             if np.isfinite(tr.Tm_peak):

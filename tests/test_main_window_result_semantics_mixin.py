@@ -1,0 +1,29 @@
+from __future__ import annotations
+
+from polynexus.gui.main_window import MainWindow
+from polynexus.gui.main_window_result_semantics_mixin import MainWindowResultSemanticsMixin
+
+
+def test_main_window_reuses_result_semantic_helpers_from_result_semantics_mixin():
+    assert MainWindow._format_score_value is MainWindowResultSemanticsMixin._format_score_value
+    assert MainWindow._stability_summary_text is MainWindowResultSemanticsMixin._stability_summary_text
+    assert MainWindow._constraint_summary_text is MainWindowResultSemanticsMixin._constraint_summary_text
+    assert MainWindow._waxs_support_snapshot is MainWindowResultSemanticsMixin._waxs_support_snapshot
+    assert MainWindow._waxs_structure_evidence is MainWindowResultSemanticsMixin._waxs_structure_evidence
+    assert MainWindow._waxs_temperature_trend_evidence is MainWindowResultSemanticsMixin._waxs_temperature_trend_evidence
+    assert MainWindow._waxs_temperature_trend_text is MainWindowResultSemanticsMixin._waxs_temperature_trend_text
+    assert MainWindow._waxs_result_semantic_lines is MainWindowResultSemanticsMixin._waxs_result_semantic_lines
+    assert MainWindow._result_source_summary_text is MainWindowResultSemanticsMixin._result_source_summary_text
+    assert MainWindow._evidence_symptom_names is MainWindowResultSemanticsMixin._evidence_symptom_names
+    assert MainWindow._batch_fallback_summary_text is MainWindowResultSemanticsMixin._batch_fallback_summary_text
+    assert MainWindow._saxs_lc_status_summary_text is MainWindowResultSemanticsMixin._saxs_lc_status_summary_text
+    assert MainWindow._saxs_lc_status_text is MainWindowResultSemanticsMixin._saxs_lc_status_text
+    assert MainWindow._saxs_calibration_method_text is MainWindowResultSemanticsMixin._saxs_calibration_method_text
+    assert MainWindow._saxs_strain_evidence_snapshot is MainWindowResultSemanticsMixin._saxs_strain_evidence_snapshot
+    assert MainWindow._saxs_strain_summary_text is MainWindowResultSemanticsMixin._saxs_strain_summary_text
+    assert MainWindow._saxs_strain_risk_summary_text is MainWindowResultSemanticsMixin._saxs_strain_risk_summary_text
+    assert MainWindow._saxs_strain_next_step_text is MainWindowResultSemanticsMixin._saxs_strain_next_step_text
+    assert MainWindow._measured_result_summary_text is MainWindowResultSemanticsMixin._measured_result_summary_text
+    assert MainWindow._fallback_evidence_summary_text is MainWindowResultSemanticsMixin._fallback_evidence_summary_text
+    assert MainWindow._has_condition_axis_risk is MainWindowResultSemanticsMixin._has_condition_axis_risk
+    assert MainWindow._has_fallback_conflict_risk is MainWindowResultSemanticsMixin._has_fallback_conflict_risk

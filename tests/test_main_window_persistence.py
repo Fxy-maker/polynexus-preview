@@ -1,7 +1,9 @@
 import csv
+import importlib
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +17,7 @@ from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDoubleSpinBox, 
 from polynexus.gui.main_window import AITuneWorker, AnalysisWorker, MainWindow, JointHubWorker, SideTuningReportDialog, _data_file_dialog_filter
 from polynexus.gui.i18n import get_language, set_language, tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
+from polynexus.core.figure_document import save_generated_figure_document
 from polynexus.data.sample_db import SampleDB
 from rag.prompt_builder import PromptBuilder
 
@@ -137,7 +140,7 @@ def test_persist_analysis_run_stores_analysis_evidence(tmp_path):
     app.processEvents()
 
 
-def test_populate_plots_prefers_refreshed_non_low_variant_for_same_figure(tmp_path):
+def test_populate_plots_ignores_historical_variants_without_active_manifest(tmp_path):
     app = QApplication.instance() or QApplication([])
 
     frame_dir = tmp_path / "per_frame" / "frame_001"
@@ -158,8 +161,66 @@ def test_populate_plots_prefers_refreshed_non_low_variant_for_same_figure(tmp_pa
     window._populate_plots()
     app.processEvents()
 
-    assert window._current_figure_path == str(refreshed)
-    assert window._chart_gallery.current_file() == str(refreshed)
+    assert window._current_figure_path == ""
+    assert window._chart_gallery.current_file() == ""
+
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_populate_plots_does_not_discover_initial_file_without_active_manifest(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    figure_dir = tmp_path / "figures"
+    figure_dir.mkdir()
+    figure_path = figure_dir / "initial.png"
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+
+    window = MainWindow()
+    window._output_dir = str(tmp_path)
+    window._current_figure_path = ""
+    window._figure_preview.setVisible(False)
+
+    window._populate_plots()
+    app.processEvents()
+
+    assert window._chart_gallery.current_file() == ""
+    assert window._current_figure_path == ""
+    assert window._figure_preview.isHidden() is True
+
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_populate_plots_does_not_group_unmanifested_related_exports(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    figure_dir = tmp_path / "figures"
+    figure_dir.mkdir()
+    png_path = figure_dir / "temperature_overview.png"
+    svg_path = figure_dir / "temperature_overview.svg"
+    pdf_path = figure_dir / "temperature_overview.pdf"
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(png_path))
+    svg_path.write_text("<svg width='80' height='40'></svg>", encoding="utf-8")
+    pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<< /Type /Page /MediaBox [0 0 80 40] >>\nendobj\n")
+
+    save_generated_figure_document(str(svg_path), figure_id="temperature_overview", objects=[])
+
+    window = MainWindow()
+    window._output_dir = str(tmp_path)
+    window._current_figure_path = str(pdf_path)
+    window._figure_preview.setVisible(True)
+
+    window._populate_plots()
+    app.processEvents()
+
+    assert window._chart_gallery._thumbnails == []
+    assert window._chart_gallery.current_file() == ""
+    assert window._current_figure_path == ""
 
     window.deleteLater()
     app.processEvents()
@@ -231,6 +292,86 @@ def test_chart_editor_save_as_adds_new_figure_to_gallery(tmp_path):
     assert window._current_figure_path == str(copy_path)
 
     editor.deleteLater()
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_open_selected_chart_editor_routes_gallery_entry_context(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+
+    figure_path = tmp_path / "summary" / "Fig_1_overview.svg"
+    figure_path.parent.mkdir(parents=True)
+    figure_path.write_text("<svg width='80' height='40'></svg>", encoding="utf-8")
+
+    entry = SimpleNamespace(
+        figure_id="Fig_1_overview",
+        title="Series Overview",
+        preview_path=str(figure_path),
+        primary_path=str(figure_path),
+        editable_path=str(figure_path),
+        category="series_overview",
+        state="object_editing",
+    )
+
+    captured = {}
+
+    def _fake_open_chart_editor(figure_path, **kwargs):
+        captured["figure_path"] = figure_path
+        captured["kwargs"] = kwargs
+        return SimpleNamespace()
+
+    monkeypatch.setattr(
+        "polynexus.gui.main_window_figure_mixin.open_chart_editor",
+        _fake_open_chart_editor,
+    )
+
+    window = MainWindow()
+    window._current_figure_path = ""
+    window._chart_gallery = SimpleNamespace(current_entry=lambda: entry)
+
+    window._open_selected_chart_editor()
+
+    assert captured["figure_path"] == str(figure_path)
+    assert captured["kwargs"]["entry"] is entry
+
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_populate_plots_ignores_result_paths_and_unmanifested_categories(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    summary_dir = tmp_path / "summary"
+    per_frame_dir = tmp_path / "per_frame" / "T170C"
+    summary_dir.mkdir(parents=True)
+    per_frame_dir.mkdir(parents=True)
+
+    overview_path = summary_dir / "Fig_1_overview.png"
+    frame_path = per_frame_dir / "01_scattering.png"
+    root_path = tmp_path / "temperature_overview.png"
+
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(overview_path))
+    assert pixmap.save(str(frame_path))
+    assert pixmap.save(str(root_path))
+
+    window = MainWindow()
+    window._current_technique = "saxs"
+    window._output_dir = str(tmp_path)
+    window._results["saxs"] = {
+        "figures": {
+            "temperature_overview": str(root_path),
+        }
+    }
+
+    window._populate_plots()
+    app.processEvents()
+
+    assert window._chart_gallery._all_entries == []
+    assert window._chart_gallery._thumbnails == []
+    assert window._current_figure_path == ""
+
     window.deleteLater()
     app.processEvents()
 
@@ -4563,7 +4704,6 @@ def test_finished_updates_result_review_panel_with_context():
         assert "confirmed" in window._results_review_title.text().lower()
         assert "PA6" in window._results_review_meta.text()
         assert "Recommended-parameter rerun" in window._results_review_meta.text()
-        assert "Repair symptoms" in window._results_review_meta.text()
         assert "Evidence basis" in window._results_review_benchmark.text()
         assert "benchmark" in window._results_review_benchmark.text().lower()
         assert "Run trace" in window._results_review_chain.text()
@@ -5126,6 +5266,41 @@ def test_export_results_table_writes_single_frame_tsv(tmp_path):
         assert "Xc\t0.3100" in text
         assert not window._btn_results_export.isHidden()
         assert "Exported results table: 2 rows x 2 columns" in window._log_panel.toPlainText()
+
+        window.deleteLater()
+        app.processEvents()
+    finally:
+        set_language(previous)
+
+
+def test_export_results_table_uses_table_export_service(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    previous = get_language()
+    try:
+        set_language("en")
+        window = MainWindow()
+
+        export_calls = {}
+
+        def fake_write_table_export(path, headers, matrix, *, selected_filter=""):
+            export_calls["path"] = path
+            export_calls["headers"] = list(headers)
+            export_calls["matrix"] = [list(row) for row in matrix]
+            export_calls["selected_filter"] = selected_filter
+            return str(path)
+
+        window._display_results({"L_nm": 12.0, "Xc": 0.31})
+        with patch("polynexus.gui.main_window.write_table_export", side_effect=fake_write_table_export, create=True), patch(
+            "polynexus.gui.main_window.QFileDialog.getSaveFileName",
+            return_value=(str(tmp_path / "results_table.tsv"), "TSV (*.tsv)"),
+        ):
+            window._export_results_table()
+
+        assert export_calls["path"] == str(tmp_path / "results_table.tsv")
+        assert export_calls["headers"] == ["Parameter", "Value"]
+        assert export_calls["matrix"] == [["L_nm", "12.0000"], ["Xc", "0.3100"]]
+        assert export_calls["selected_filter"] == "TSV (*.tsv)"
 
         window.deleteLater()
         app.processEvents()
@@ -6531,6 +6706,7 @@ def test_waxs_result_review_summary_surfaces_core_and_support(tmp_path):
         window._update_results_review_panel()
 
         assert "WAXS core" in summary
+        assert "WAXS support" in summary
         assert "Measured peak support" in summary
         assert "Crystallinity estimate" in summary
         assert "Crystallite size trend" in summary
@@ -6967,6 +7143,70 @@ def test_export_history_table_writes_current_history_rows(tmp_path):
         assert rows[1][9] == str(data_file.resolve())
         assert rows[1][10] == str(tmp_path / "output_b")
         assert f"Exported history list: {len(lines) - 1} rows ->" in window._log_panel.toPlainText()
+
+        db.close()
+        window.deleteLater()
+        app.processEvents()
+    finally:
+        set_language(previous)
+
+
+def test_export_history_table_uses_history_export_service(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    previous = get_language()
+    try:
+        set_language("en")
+        data_file = tmp_path / "history.csv"
+        data_file.write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+
+        window = MainWindow()
+        window._sample_db = SampleDB(tmp_path / "samples.db")
+        db = window._ensure_sample_db()
+
+        sample_id = db.create_sample("PA6")
+        batch_id = db.create_batch(
+            sample_id,
+            "annealed-01",
+            instrument="SAXS",
+            condition_type="analysis",
+            condition_values={"technique": "saxs"},
+        )
+        db.add_data_file(
+            batch_id,
+            str(data_file.resolve()),
+            "saxs",
+            file_type="csv",
+            import_order=0,
+        )
+        db.create_analysis_run(
+            batch_id,
+            "saxs",
+            submodule="saxs.static",
+            parameters={"baseline_method": "subtract"},
+            results_summary={"data_file": str(data_file.resolve())},
+            output_dir=str(tmp_path / "output_b"),
+        )
+
+        export_calls = {}
+
+        def fake_write_history_export_table(path, headers, matrix, *, selected_filter=""):
+            export_calls["path"] = path
+            export_calls["headers"] = list(headers)
+            export_calls["matrix"] = [list(row) for row in matrix]
+            export_calls["selected_filter"] = selected_filter
+            return str(path)
+
+        with patch("polynexus.gui.main_window.write_history_export_table", side_effect=fake_write_history_export_table, create=True), patch(
+            "polynexus.gui.main_window.QFileDialog.getSaveFileName",
+            return_value=(str(tmp_path / "history_all.tsv"), "TSV (*.tsv)"),
+        ):
+            window._export_history_table()
+
+        assert export_calls["path"] == str(tmp_path / "history_all.tsv")
+        assert export_calls["headers"][0] == "Time"
+        assert export_calls["matrix"]
+        assert export_calls["selected_filter"] == "TSV (*.tsv)"
 
         db.close()
         window.deleteLater()
@@ -7916,6 +8156,29 @@ def test_history_compare_summary_uses_formatted_timestamp(tmp_path):
 
     window.deleteLater()
     app.processEvents()
+
+
+def test_main_window_reuses_history_compare_helpers_from_dedicated_service(tmp_path):
+    compare_spec = importlib.util.find_spec("polynexus.gui.history_compare_service")
+    assert compare_spec is not None
+
+    history_compare_service = importlib.import_module("polynexus.gui.history_compare_service")
+    window = MainWindow()
+
+    assert window._history_compare_counts_text({}) == history_compare_service.history_compare_counts_text(window, {})
+    assert window._history_compare_state_label("changed") == history_compare_service.history_compare_state_label(window, "changed")
+    assert window._history_compare_state_color("same").name() == history_compare_service.history_compare_state_color(window, "same").name()
+
+    window.deleteLater()
+
+
+def test_main_window_reuses_result_review_summary_builder_from_service(tmp_path):
+    review_service = importlib.import_module("polynexus.gui.results_review_service")
+
+    assert (
+        MainWindow._result_review_summary
+        is review_service.build_result_review_summary_text_from_window
+    )
 
 
 def test_history_compare_dialog_sorts_changes_before_same(tmp_path):

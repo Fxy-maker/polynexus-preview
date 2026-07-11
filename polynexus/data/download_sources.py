@@ -83,9 +83,9 @@ SOURCES = {
 
 def print_all_sources():
     for name, info in SOURCES.items():
-        print(f"\n  [{info["type"]}] {name}")
-        print(f"  URL: {info["url"]}")
-        print(f"  Access: {info["access"]}")
-        print(f"  {info["description"]}")
+        print(f"\n  [{info['type']}] {name}")
+        print(f"  URL: {info['url']}")
+        print(f"  Access: {info['access']}")
+        print(f"  {info['description']}")
         if "howto" in info:
-            print(f"  How to: {info["howto"]}")
+            print(f"  How to: {info['howto']}")

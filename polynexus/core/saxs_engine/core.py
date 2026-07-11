@@ -22,6 +22,24 @@ from scipy.integrate import trapezoid
 
 from ..engine import logger
 from .config import SAXSConfig
+from . import saxs_quality_helpers as _saxs_quality_helpers
+from . import saxs_physical_helpers as _saxs_physical_helpers
+from . import saxs_extrapolation_helpers as _saxs_extrapolation_helpers
+from .saxs_quality_helpers import (
+    _finite_float,
+    _fit_bragg_region,
+    _fit_guinier_region,
+    _saxs_peak_region_fit_quality,
+    _standardized_region_stats,
+    classify_single_frame_lc_reliability,
+)
+from .saxs_physical_helpers import (
+    _crystallinity_invariant,
+    _porod_constant,
+    _tangent_lc,
+    guinier_analysis,
+    porod_analysis,
+)
 
 
 # ======================================================================
@@ -95,43 +113,6 @@ class SAXSResult:
     mask_truncated: bool = False         # effective q_min > 0.1 nm⁻¹
     Q_star_valid: bool = True            # False if beam-stop contaminates Q*
     sasmodels_model_used: str = ""       # which sasmodels model produced the fit
-
-
-def _finite_float(value: Any) -> float | None:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if np.isfinite(number) else None
-
-
-def classify_single_frame_lc_reliability(params: Dict[str, Any]) -> tuple[str, str]:
-    """Classify lc reliability when no series-level status is available."""
-    reasons: list[str] = []
-    lc_conf = _finite_float(params.get("lc_confidence", params.get("lc_confidence_calibrated")))
-    if lc_conf is None:
-        reasons.append("missing_lc_confidence")
-    elif lc_conf < 0.2:
-        reasons.append("low_lc_confidence")
-    elif lc_conf < 0.5:
-        reasons.append("limited_lc_confidence")
-
-    method = str(params.get("lc_method") or "").strip().lower()
-    if method in {"", "tangent", "idf", "gamma_min"}:
-        reasons.append("single_method_fragile")
-
-    q_star = _finite_float(params.get("Q_star", params.get("Q_star_abs")))
-    if params.get("Q_star_valid") is False:
-        reasons.append("q_invariant_invalid")
-    elif q_star is not None and (q_star > 50.0 or 0 < q_star < 0.5):
-        reasons.append("q_invariant_anomaly")
-
-    reason = "|".join(dict.fromkeys(reasons)) if reasons else "stable_structure_support"
-    if "low_lc_confidence" in reasons or "q_invariant_invalid" in reasons:
-        return "diagnostic_only", reason
-    if reasons:
-        return "low_confidence", reason
-    return "usable", reason
 
 
 # ======================================================================
@@ -1321,144 +1302,11 @@ def compute_structure_params(
 
 
 def _tangent_lc(corr_result: Dict, L: float, cfg: SAXSConfig) -> float:
-    """Extract crystalline thickness lc from correlation function via tangent method.
-
-    Draws a line through the linear-decay region of gamma(r).  The intersection
-    of this line with the asymptotic baseline gives lc.
-
-    For lamellar two-phase systems, the linear region in gamma(r) corresponds to
-    the sharp-interface approximation.
-
-    Improvements over the naive approach:
-      - Baseline is estimated from the tail of gamma(r), not forced to 0.
-      - Two fallback strategies when the ideal linear region is ambiguous.
-      - R² quality gate rejects poor fits.
-    """
-    r = corr_result.get('r', None)
-    gamma = corr_result.get('gamma', None)
-
-    if r is None or gamma is None or len(r) < 10:
-        return np.nan
-
-    # ── Step 1: find the first meaningful minimum in gamma(r) ──
-    #    Constrain search to r < L * 0.7 (physically, the lamellar
-    #    first minimum must occur before the long period).
-    r_ub = int(np.searchsorted(r, L * 0.7)) if np.isfinite(L) and L > 0 else len(gamma) - 1
-    r_ub = max(10, min(r_ub, len(gamma) - 2))
-    min_idx = None
-    for i in range(5, r_ub):
-        if gamma[i] < gamma[i - 1] and gamma[i] < gamma[i + 1]:
-            # Accept any local minimum; for noisy data try below zero-crossing first
-            if gamma[i] < 0.5:
-                min_idx = i
-                break
-
-    # Fallback A: first zero-crossing within bounds
-    if min_idx is None:
-        for i in range(5, r_ub):
-            if gamma[i] <= 0:
-                min_idx = i
-                break
-
-    # Fallback B: global minimum between r=2 and r=min(2*L, r_ub)
-    if min_idx is None and L > 0 and np.isfinite(L):
-        r_search_end = min(2.0 * L, r[r_ub])
-        r_mask = (r >= 2.0) & (r <= r_search_end)
-        if np.sum(r_mask) > 3:
-            min_idx = int(np.argmin(gamma[r_mask])) + int(np.argmax(r_mask))
-
-    if min_idx is None or min_idx < 5:
-        return np.nan
-
-    # ── Step 2: define linear-fit region ──
-    # Use the segment from 25 % of r_min to the minimum position.
-    r_start = max(r[5], r[min_idx] * 0.20)
-    start_idx = int(np.searchsorted(r, r_start))
-    end_idx = min_idx
-    if end_idx - start_idx < 3:
-        return np.nan
-
-    r_fit = r[start_idx:end_idx]
-    gamma_fit = gamma[start_idx:end_idx]
-
-    # ── Step 3: weighted linear fit ──
-    try:
-        # Weight by r to emphasise the early decay (higher S/N)
-        w = r_fit ** 0.5
-        p, cov = np.polyfit(r_fit, gamma_fit, 1, w=w, cov=True)
-        a, b = p
-        # R² quality gate
-        gamma_pred = a * r_fit + b
-        ss_res = np.sum((gamma_fit - gamma_pred) ** 2)
-        ss_tot = np.sum((gamma_fit - np.mean(gamma_fit)) ** 2)
-        r2 = 1 - ss_res / (ss_tot + 1e-12)
-        if r2 < 0.70:
-            # Fallback: unweighted fit
-            a, b = np.polyfit(r_fit, gamma_fit, 1)
-    except Exception:
-        logger.warning("SAXS tangent lc fit failed.", exc_info=True)
-        return np.nan
-
-    # ── Step 4: baseline from asymptotic tail ──
-    # Use the last 30 % of gamma(r) (after oscillations decay)
-    tail_start = int(len(r) * 0.70)
-    if tail_start < len(gamma):
-        baseline = float(np.median(gamma[tail_start:]))
-        # Clip to physically plausible range for two-phase systems
-        baseline = min(baseline, 0.0)
-        baseline = max(baseline, -0.05 * gamma[0])
-    else:
-        baseline = 0.0
-
-    # ── Step 5: lc = (baseline - b) / a ──
-    if abs(a) < 1e-12:
-        return np.nan
-    lc = (baseline - b) / a
-
-    if np.isfinite(lc) and 0 < lc < L * 0.7:
-        return float(lc)
-    return np.nan
+    return _saxs_physical_helpers._tangent_lc(corr_result, L, cfg)
 
 
 def _crystallinity_invariant(L: float, Q_invariant: float, Kp: float) -> float:
-    """Estimate linear crystallinity from the Porod invariant.
-
-    For a two-phase lamellar system with sharp interfaces:
-      Q* = 2·π²·(Δρ)²·φc·(1 - φc)
-      Kp = (Δρ)²·Sv / (2·π²)
-      Sv_lamellar = 2 / L
-
-    Eliminating (Δρ)² and Sv gives a quadratic in φc:
-      φc² - φc + (Q*·L) / (4·π⁴·Kp) = 0
-
-    The smaller root corresponds to the minority phase (thinner layer).
-    This method is independent of the tangent / IDF analysis and serves
-    as a cross-validation check.
-
-    Returns NaN when the discriminant is negative (non-physical).
-    """
-    if not (np.isfinite(L) and np.isfinite(Q_invariant) and np.isfinite(Kp)):
-        return np.nan
-    if L <= 0 or Q_invariant <= 0 or Kp <= 0:
-        return np.nan
-
-    denom = 4.0 * np.pi**4 * Kp
-    C = Q_invariant * L / denom
-
-    disc = 1.0 - 4.0 * C
-    if disc < 0:
-        return np.nan
-
-    # Minority-phase root: φc = (1 - sqrt(disc)) / 2
-    phi_c = (1.0 - np.sqrt(disc)) / 2.0
-    # Bounds check: must be in (0, 0.5] for minority phase
-    if 0.0 < phi_c <= 0.5:
-        return float(phi_c)
-    # If the minority root is outside range, try the majority root
-    phi_c = (1.0 + np.sqrt(disc)) / 2.0
-    if 0.5 < phi_c < 1.0:
-        return float(phi_c)
-    return np.nan
+    return _saxs_physical_helpers._crystallinity_invariant(L, Q_invariant, Kp)
 
 
 # ======================================================================
@@ -1557,45 +1405,6 @@ def porod_analysis(
         'Iq4': Iq4,
         'Sv': np.nan,  # needs Q* from elsewhere
     }
-
-
-def _porod_constant(q_ext, I_ext, q_raw=None, I_raw=None) -> float:
-    """Estimate Porod constant Kp via Porod-plot linear regression.
-
-    Uses the standard Porod analysis: I(q) -> const * q^(-4) + B (background).
-    On a plot of I*q^4 vs q^4, the intercept is Kp.
-
-    Prefers the raw (non-extrapolated) data when available, since the
-    extrapolated tail is itself seeded from a crude Kp guess.
-    """
-    # Prefer raw data over extrapolated (avoids circularity)
-    if q_raw is not None and I_raw is not None and len(q_raw) >= 20:
-        q_use, I_use = q_raw, I_raw
-    elif q_ext is not None and I_ext is not None and len(q_ext) >= 20:
-        q_use, I_use = q_ext, I_ext
-    else:
-        return np.nan
-
-    # Use the upper 30 % of the experimental q range as Porod region
-    n_total = len(q_use)
-    n_porod = max(10, n_total // 3)
-    q_p = q_use[-n_porod:]
-    I_p = I_use[-n_porod:]
-
-    Iq4 = I_p * q_p ** 4
-    q4 = q_p ** 4
-
-    # Robust linear fit: Iq4 = slope * q4 + Kp
-    try:
-        p = np.polyfit(q4, Iq4, 1)
-        Kp = float(p[1])
-        if Kp <= 0:
-            return np.nan
-        return Kp
-    except Exception:
-        logger.warning("SAXS Porod constant fit failed.", exc_info=True)
-        return np.nan
-
 
 # ======================================================================
 #  Kratky analysis
@@ -2052,119 +1861,28 @@ def analyze_single(
 def _extrapolate_guinier(
     q: np.ndarray, I: np.ndarray, dq: float, n_extra: int = 15,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Extrapolate I(q) to q=0 via linear I*q^2 interpolation.
-
-    Rather than fitting ln(I) vs q^2 (Guinier law — unreliable when the
-    low-q region shows aggregation/void upturn), this directly extrapolates
-    the integrand I*q^2 to q=0 using a linear fit of the first few data
-    points.  I*q^2 is guaranteed to be 0 at q=0, providing natural C0
-    continuity at the boundary.
-
-    Returns (q_full, I_full) with n_extra extrapolated points prepended.
-    """
-    if len(q) < 5:
-        return q, I
-
-    # Use first 6-10 experimental points where I*q^2 is roughly linear
-    n_fit = min(8, len(q))
-    q_fit = q[:n_fit]
-    Iq2_fit = I[:n_fit] * q_fit ** 2
-
-    # Linear fit: I*q^2 = m * q (forced through 0 by q spacing near 0)
-    # Convert to linear fit through origin: I*q^2 ≈ slope * q
-    pos = (q_fit > 0) & (Iq2_fit > 0)
-    if np.sum(pos) < 3:
-        return q, I
-
-    # Weighted linear fit: I*q^2 = m * q + c, then enforce c≈0
-    try:
-        p = np.polyfit(q_fit[pos], Iq2_fit[pos], 1)
-        slope, intercept = float(p[0]), float(p[1])
-    except Exception:
-        logger.warning("SAXS Guinier extrapolation fit failed; returning original data.", exc_info=True)
-        return q, I
-
-    # If intercept is far from 0, the linear model is poor — fallback to
-    # purely linear-through-origin fit
-    if abs(intercept) > max(1e-6, abs(slope * q_fit[0]) * 0.5):
-        slope = float(np.sum(q_fit[pos] * Iq2_fit[pos]) / max(np.sum(q_fit[pos] ** 2), 1e-15))
-
-    # Extrapolated q from 0 to q[0]-dq, matching the data spacing
-    q_new = np.linspace(0, q[0] - dq, n_extra)
-    # I*q^2 at extrapolated points: I*q^2 = slope * q  (linear, passes through 0)
-    Iq2_new = slope * q_new
-    Iq2_new = np.clip(Iq2_new, 0, None)
-
-    # Boundary-match: scale so Iq2 at q_new[-1] equals experimental Iq2 at q[0]
-    if q_new[-1] > 0 and Iq2_new[-1] > 0 and q[0] > 0 and I[0] > 0:
-        Iq2_target = I[0] * q[0] ** 2
-        bm_scale = Iq2_target / Iq2_new[-1]
-        bm_scale = max(0.01, min(bm_scale, 100.0))
-        Iq2_new = Iq2_new * bm_scale
-    # I at extrapolated points: I = Iq2 / q^2  (with guard at q=0)
-    I_new = np.zeros(n_extra)
-    pos_q = q_new > 1e-15
-    I_new[pos_q] = Iq2_new[pos_q] / (q_new[pos_q] ** 2)
-    # At q=0, use the Guinier I(0) from the linear fit (I(0) = slope/0 is undefined,
-    # use a moderate value since it contributes nothing to the integrand at q=0)
-    if not pos_q[0] and slope > 0:
-        I_new[0] = float(slope / (q_new[1] if len(q_new) > 1 else dq))
-
-    q_full = np.concatenate([q_new, q])
-    I_full = np.concatenate([I_new, I])
-    return q_full, I_full
+    return _saxs_extrapolation_helpers._extrapolate_guinier(q, I, dq, n_extra=n_extra)
 
 
 def _extrapolate_porod(
     q: np.ndarray, I: np.ndarray, dq: float, n_extra: int = 30,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Extrapolate I(q) to q->inf using Porod law.
+    return _saxs_extrapolation_helpers._extrapolate_porod(q, I, dq, n_extra=n_extra)
 
-    Kp is estimated from a Porod-plot linear fit (I*q^4 vs q^4)
-    on the upper 30 % of the q range, which is more robust than
-    a simple median of the last few points.
 
-    Boundary continuity (C0): the first extrapolated point matches
-    the experimental I*q^4 at q_max, not the fit intercept Kp.
-    This eliminates the amplitude jump that causes Gibbs oscillations
-    in the cosine transform (gamma(r)).
-    """
-    if len(q) < 10:
-        return q, I
-
-    n_porod = max(8, len(q) // 3)
-    q_p = q[-n_porod:]
-    I_p = I[-n_porod:]
-
-    try:
-        p = np.polyfit(q_p ** 4, I_p * q_p ** 4, 1)
-        Kp = float(p[1])
-        slope = float(p[0])
-        if Kp <= 0:
-            Kp = np.median(I_p * q_p ** 4)
-            slope = 0.0
-    except Exception:
-        Kp = np.median(I_p * q_p ** 4)
-        slope = 0.0
-        logger.warning("SAXS Porod extrapolation fit failed; using median fallback.", exc_info=True)
-
-    # Boundary-matched I*q^4: use the actual value at q_max from the
-    # last 3 experimental points (median to suppress noise spikes)
-    q_max = q[-1]
-    Iq4_boundary = float(np.median(I[-5:] * q[-5:] ** 4))
-
-    # Clamp to Porod-consistent range: must be positive and not wildly
-    # different from the fit line value at q_max
-    Iq4_fit_at_max = slope * q_max**4 + Kp
-    if Iq4_boundary <= 0:
-        Iq4_boundary = max(Iq4_fit_at_max, 1e-30)
-    else:
-        # Blend 70% boundary, 30% fit to avoid noise outlier drag
-        Iq4_boundary = 0.70 * Iq4_boundary + 0.30 * Iq4_fit_at_max
-
-    q_new = np.linspace(q_max + dq, q_max + n_extra * dq, n_extra)
-    I_new = Iq4_boundary / q_new ** 4
-
-    q_full = np.concatenate([q, q_new[1:]])
-    I_full = np.concatenate([I, I_new[1:]])
-    return q_full, I_full
+# Keep legacy core-level helper names bound to the dedicated quality-helper
+# module so existing imports continue to work while the implementation lives
+# in one place.
+_finite_float = _saxs_quality_helpers._finite_float
+classify_single_frame_lc_reliability = _saxs_quality_helpers.classify_single_frame_lc_reliability
+_standardized_region_stats = _saxs_quality_helpers._standardized_region_stats
+_fit_bragg_region = _saxs_quality_helpers._fit_bragg_region
+_fit_guinier_region = _saxs_quality_helpers._fit_guinier_region
+_saxs_peak_region_fit_quality = _saxs_quality_helpers._saxs_peak_region_fit_quality
+_tangent_lc = _saxs_physical_helpers._tangent_lc
+_crystallinity_invariant = _saxs_physical_helpers._crystallinity_invariant
+_porod_constant = _saxs_physical_helpers._porod_constant
+guinier_analysis = _saxs_physical_helpers.guinier_analysis
+porod_analysis = _saxs_physical_helpers.porod_analysis
+_extrapolate_guinier = _saxs_extrapolation_helpers._extrapolate_guinier
+_extrapolate_porod = _saxs_extrapolation_helpers._extrapolate_porod

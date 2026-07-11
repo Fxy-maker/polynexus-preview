@@ -1,0 +1,25 @@
+from __future__ import annotations
+
+from polynexus.gui.main_window import MainWindow
+from polynexus.gui.main_window_output_mixin import MainWindowOutputMixin
+
+
+def test_main_window_reuses_output_and_export_helpers_from_output_mixin():
+    assert MainWindow._set_results_summary is MainWindowOutputMixin._set_results_summary
+    assert MainWindow._set_results_default_order_control_visible is MainWindowOutputMixin._set_results_default_order_control_visible
+    assert MainWindow._set_results_copy_control_visible is MainWindowOutputMixin._set_results_copy_control_visible
+    assert MainWindow._set_results_export_control_visible is MainWindowOutputMixin._set_results_export_control_visible
+    assert MainWindow._store_results_table_default_order is MainWindowOutputMixin._store_results_table_default_order
+    assert MainWindow._clear_results_table_default_order is MainWindowOutputMixin._clear_results_table_default_order
+    assert MainWindow._restore_results_table_default_order is MainWindowOutputMixin._restore_results_table_default_order
+    assert MainWindow._copy_results_table_to_clipboard is MainWindowOutputMixin._copy_results_table_to_clipboard
+    assert MainWindow._results_table_text_matrix is MainWindowOutputMixin._results_table_text_matrix
+    assert MainWindow._export_results_table is MainWindowOutputMixin._export_results_table
+    assert MainWindow._display_table_rows is MainWindowOutputMixin._display_table_rows
+    assert MainWindow._set_results_item is MainWindowOutputMixin._set_results_item
+    assert MainWindow._apply_results_table_layout is MainWindowOutputMixin._apply_results_table_layout
+    assert MainWindow._display_joint_report is MainWindowOutputMixin._display_joint_report
+    assert MainWindow._show_batch_results is MainWindowOutputMixin._show_batch_results
+    assert MainWindow._display_results is MainWindowOutputMixin._display_results
+    assert MainWindow._export_context_payload is MainWindowOutputMixin._export_context_payload
+    assert MainWindow._export_results is MainWindowOutputMixin._export_results

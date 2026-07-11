@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from polynexus.core.ir_engine import (
     IRConfig,
@@ -12,13 +13,16 @@ from polynexus.core.ir_residual_analyzer import IRResidualAnalyzer
 
 
 def _ordinary_ir_file(name: str) -> Path:
-    return (
+    path = (
         Path(__file__).resolve().parents[1]
         / "测试数据"
         / "IR"
         / "普通红外"
         / name
     )
+    if not path.is_file():
+        pytest.skip("external IR instrument fixture is unavailable")
+    return path
 
 
 def test_thermo_spa_reader_uses_real_axis_and_data_block():
@@ -71,6 +75,8 @@ def test_real_ir_pa6_yl_sample_keeps_core_peak_and_residual_signals():
         / "普通红外"
         / "YL.SPA"
     )
+    if not source_file.is_file():
+        pytest.skip("external IR instrument fixture is unavailable")
 
     spec = load_spectrum(str(source_file))
     processed = preprocess_pipeline(spec, cfg)

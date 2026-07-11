@@ -42,20 +42,8 @@ from .core import (
     analyze_scan,
 )
 from .waxs_output import (
-    set_sci_style,
-    generate_all_figures,
-    fig_w1_profile,
-    fig_w2_amorphous,
-    fig_w3_williamson_hall,
-    fig_w4_crystallinity,
-    fig_w5_scherrer,
     export_parameters_csv,
-    generate_strain_figures,
     export_strain_csv,
-    fig_strain_waterfall,
-    fig_strain_parameters,
-    fig_strain_lattice,
-    fig_strain_2d_patterns_from_scans,
 )
 
 
@@ -66,8 +54,7 @@ from .waxs_orientation import (
     classify_waxs_texture,
 )
 from .waxs_temperature import (
-    WAXSTempResult, analyze_temperature_series, fig_waxs_temperature,
-    generate_temperature_figures, export_temperature_csv,
+    WAXSTempResult, analyze_temperature_series, export_temperature_csv,
 )
 from .waxs_strain import (
     WAXSStrainPhase, WAXSStrainPointResult, WAXSStrainSeriesResult,
@@ -76,7 +63,6 @@ from .waxs_strain import (
 )
 from .waxs_multiscale import (
     multiscale_correlation,
-    fig_multiscale,
 )
 __all__ = [
     "WAXSConfig",
@@ -100,20 +86,8 @@ __all__ = [
     "williamson_hall",
     "identify_crystal_system",
     "analyze_scan",
-    "set_sci_style",
-    "generate_all_figures",
-    "fig_w1_profile",
-    "fig_w2_amorphous",
-    "fig_w3_williamson_hall",
-    "fig_w4_crystallinity",
-    "fig_w5_scherrer",
     "export_parameters_csv",
-    "generate_strain_figures",
     "export_strain_csv",
-    "fig_strain_waterfall",
-    "fig_strain_parameters",
-    "fig_strain_lattice",
-    "fig_strain_2d_patterns_from_scans",
     "WAXSStrainPhase",
     "WAXSStrainPointResult",
     "WAXSStrainSeriesResult",
@@ -126,9 +100,6 @@ __all__ = [
     "classify_waxs_texture",
     "WAXSTempResult",
     "analyze_temperature_series",
-    "fig_waxs_temperature",
-    "generate_temperature_figures",
     "export_temperature_csv",
     "multiscale_correlation",
-    "fig_multiscale",
 ]

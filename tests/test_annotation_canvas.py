@@ -617,6 +617,74 @@ def test_annotation_canvas_updates_selected_annotation_properties(tmp_path):
     app.processEvents()
 
 
+def test_annotation_canvas_updates_selected_geometry(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_text_annotation("Move", 20, 10)
+    assert canvas.select_annotation(annotation_id) is True
+
+    assert canvas.update_selected_geometry(x=0.5, y=0.75) is True
+
+    annotation = canvas.annotation_state()[0]
+    assert annotation["x"] == 0.5
+    assert annotation["y"] == 0.75
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_updates_selected_size_geometry(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_rectangle_annotation(10, 5, 30, 15)
+    assert canvas.select_annotation(annotation_id) is True
+
+    assert canvas.update_selected_geometry(width=0.6, height=0.5) is True
+
+    annotation = canvas.annotation_state()[0]
+    assert annotation["width"] == 0.6
+    assert annotation["height"] == 0.5
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_updates_selected_segment_geometry(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_arrow_annotation(10, 5, 40, 20)
+    assert canvas.select_annotation(annotation_id) is True
+
+    assert canvas.update_selected_geometry(x1=0.2, y1=0.3, x2=0.8, y2=0.9) is True
+
+    annotation = canvas.annotation_state()[0]
+    assert annotation["x1"] == 0.2
+    assert annotation["y1"] == 0.3
+    assert annotation["x2"] == 0.8
+    assert annotation["y2"] == 0.9
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
 def test_annotation_canvas_copy_paste_selected_annotation(tmp_path):
     app = QApplication.instance() or QApplication([])
     image_path = tmp_path / "source.png"

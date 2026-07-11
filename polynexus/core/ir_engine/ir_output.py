@@ -1,6 +1,12 @@
-"""IR output module: SCI-quality figure generation."""
+"""Legacy IR figure helpers, disabled from formal production rendering.
 
+Import this module explicitly only for legacy recovery or tests. Production
+figures are published by the shared FigureDefinition pipeline.
+"""
+
+import csv
 import os
+from pathlib import Path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -9,6 +15,7 @@ from typing import Dict, List, Optional, Tuple, Any
 
 from .core import IRResult
 from .config import IRConfig
+from ..figure_document import save_generated_figure_document
 from ..plot_edits import savefig_with_edits
 from ...plotting.sci_style import (
     set_sci_style as _global_set_sci_style,
@@ -53,6 +60,495 @@ def _save(fig, name, fd, fmt='svg', dpi=300):
     savefig_with_edits(fig, p, dpi=dpi, bbox_inches='tight',
                        facecolor='white', edgecolor='none')
     plt.close(fig); return p
+
+
+def _axis_object(axis_id: str, *, orientation: str, label: str, reversed_axis: bool) -> dict:
+    return {
+        "id": axis_id,
+        "type": "axis",
+        "name": f"{orientation.title()} Axis",
+        "orientation": orientation,
+        "label": label,
+        "reversed": bool(reversed_axis),
+        "scale": "linear",
+        "style": {"color": SCI_COLORS["dark"], "line_width": 0.8},
+    }
+
+
+def _text_object(
+    text_id: str,
+    *,
+    text: str,
+    x: float,
+    y: float,
+    color: str,
+    rotation: float = 0.0,
+    font_size: int = 7,
+) -> dict:
+    return {
+        "id": text_id,
+        "type": "text",
+        "name": "Annotation",
+        "text": text,
+        "x": float(x),
+        "y": float(y),
+        "rotation": float(rotation),
+        "anchor": "center",
+        "style": {"color": color, "font_size": font_size},
+    }
+
+
+def _save_ir1_spectrum_document(path: str, result: IRResult, figure_id: str) -> None:
+    data_path = _write_ir1_spectrum_data(path, result)
+    data_ref = "ir-spectrum-data"
+    figure_id = Path(path).stem
+    objects = [
+        {
+            "id": "series-absorbance",
+            "type": "plot_series",
+            "name": "Absorbance",
+            "data_ref": data_ref,
+            "x_column": "wavenumber_cm1",
+            "y_column": "absorbance",
+            "style": {"color": SCI_COLORS["dark"], "line_width": 0.8},
+        }
+    ]
+    for index, peak in enumerate(_top_annotation_peaks(result.peaks)):
+        wavenumber = _json_number(peak.get("wavenumber"))
+        if wavenumber is None:
+            continue
+        assignment = str(peak.get("assignment") or "")
+        objects.append(
+            {
+                "id": f"line-peak-{index + 1}",
+                "type": "line",
+                "name": f"Peak {index + 1}",
+                "orientation": "vertical",
+                "x": wavenumber,
+                "assignment": assignment,
+                "style": {"color": SCI_PALETTE[index % len(SCI_PALETTE)], "line_width": 0.5, "alpha": 0.5},
+            }
+        )
+        label = f"{wavenumber:.0f}"
+        if assignment and assignment != "unknown":
+            label = f"{label}\n{assignment[:15]}"
+        objects.append(
+            _text_object(
+                f"text-peak-{index + 1}",
+                text=label,
+                x=wavenumber,
+                y=float(peak.get("height", 0.0) or 0.0),
+                color=SCI_PALETTE[index % len(SCI_PALETTE)],
+                rotation=90.0,
+                font_size=5,
+            )
+        )
+    objects.extend(
+        [
+            _axis_object(
+                "axis-x",
+                orientation="horizontal",
+                label="Wavenumber (cm^-1)",
+                reversed_axis=True,
+            ),
+            _axis_object(
+                "axis-y",
+                orientation="vertical",
+                label="Absorbance (a.u.)",
+                reversed_axis=False,
+            ),
+        ]
+    )
+    save_generated_figure_document(
+        path,
+        technique="ir",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": __name__,
+            "function": "fig_ir1_spectrum",
+            "inputs": {"result_label": str(result.label or "")},
+        },
+        style={
+            "xlabel": "Wavenumber (cm^-1)",
+            "ylabel": "Absorbance (a.u.)",
+            "x_axis": "reversed",
+        },
+        objects=objects,
+    )
+
+
+def _save_ir2_peak_fit_document(
+    path: str,
+    result: IRResult,
+    figure_id: str,
+    wavenumber_range: Optional[Tuple[float, float]],
+    wn_zoom: np.ndarray,
+    absorbance_zoom: np.ndarray,
+    fit_zoom: np.ndarray,
+) -> None:
+    data_path = _write_ir2_peak_fit_data(path, wn_zoom, absorbance_zoom, fit_zoom)
+    data_ref = "ir-peak-fit-data"
+    figure_id = Path(path).stem
+    objects = [
+        {
+            "id": "series-data",
+            "type": "plot_series",
+            "name": "Data",
+            "data_ref": data_ref,
+            "x_column": "wavenumber_cm1",
+            "y_column": "absorbance",
+            "style": {"color": SCI_COLORS["dark"], "line_width": 1.0},
+        },
+        {
+            "id": "series-fit",
+            "type": "plot_series",
+            "name": "Fit",
+            "data_ref": data_ref,
+            "x_column": "wavenumber_cm1",
+            "y_column": "fit",
+            "style": {"color": SCI_COLORS["red"], "line_width": 1.2},
+        },
+    ]
+    for index, peak in enumerate(_top_annotation_peaks(result.peaks)):
+        wavenumber = _json_number(peak.get("wavenumber"))
+        if wavenumber is None:
+            continue
+        if wavenumber_range and not (wavenumber_range[0] <= wavenumber <= wavenumber_range[1]):
+            continue
+        assignment = str(peak.get("assignment") or "")
+        objects.append(
+            {
+                "id": f"line-peak-{index + 1}",
+                "type": "line",
+                "name": f"Peak {index + 1}",
+                "orientation": "vertical",
+                "x": wavenumber,
+                "assignment": assignment,
+                "style": {"color": SCI_COLORS["blue"], "line_width": 0.5, "alpha": 0.4},
+            }
+        )
+        label = assignment if assignment and assignment != "unknown" else f"{wavenumber:.0f}"
+        objects.append(
+            _text_object(
+                f"text-peak-{index + 1}",
+                text=label,
+                x=wavenumber,
+                y=float(peak.get("height", np.interp(wavenumber, wn_zoom, absorbance_zoom)) or 0.0),
+                color=SCI_COLORS["blue"],
+                rotation=90.0,
+                font_size=6,
+            )
+        )
+    objects.extend(
+        [
+            _axis_object(
+                "axis-x",
+                orientation="horizontal",
+                label="Wavenumber (cm^-1)",
+                reversed_axis=True,
+            ),
+            _axis_object(
+                "axis-y",
+                orientation="vertical",
+                label="Absorbance (a.u.)",
+                reversed_axis=False,
+            ),
+        ]
+    )
+    save_generated_figure_document(
+        path,
+        technique="ir",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": __name__,
+            "function": "fig_ir2_peak_fit",
+            "inputs": {"result_label": str(result.label or "")},
+            "parameters": {
+                "wavenumber_range": list(wavenumber_range) if wavenumber_range else None,
+                "r_squared": _json_number(result.r_squared),
+            },
+        },
+        style={
+            "xlabel": "Wavenumber (cm^-1)",
+            "ylabel": "Absorbance (a.u.)",
+            "x_axis": "reversed",
+        },
+        objects=objects,
+    )
+
+
+def _save_ir3_comparison_document(path: str, result: IRResult, figure_id: str) -> None:
+    matches_with_exp = [
+        match
+        for match in result.matches
+        if not np.isnan(match.get("delta_cm1", np.nan))
+    ]
+    data_path = _write_ir3_comparison_data(path, result, matches_with_exp)
+    data_ref = "ir-comparison-data"
+    objects = [
+        {
+            "id": "series-experimental",
+            "type": "plot_series",
+            "name": "Experimental",
+            "data_ref": data_ref,
+            "x_column": "experimental_wavenumber_cm1",
+            "y_column": "experimental_absorbance",
+            "style": {"color": SCI_COLORS["dark"], "line_width": 1.0},
+        },
+        {
+            "id": "series-computed",
+            "type": "plot_series",
+            "name": "Computed",
+            "data_ref": data_ref,
+            "x_column": "computed_wavenumber_cm1",
+            "y_column": "computed_absorbance",
+            "style": {"color": SCI_COLORS["red"], "line_width": 1.0, "alpha": 0.7},
+        },
+    ]
+    for index, mode in enumerate(result.computed_modes):
+        if mode.ir_intensity_km_mol <= 2.0:
+            continue
+        objects.append(
+            {
+                "id": f"computed-mode-{index + 1}",
+                "type": "line",
+                "name": f"Computed Mode {index + 1}",
+                "orientation": "vertical",
+                "x": _json_number(mode.frequency_cm1),
+                "intensity_km_mol": _json_number(mode.ir_intensity_km_mol),
+                "style": {"color": SCI_COLORS["blue"], "line_width": 0.5, "alpha": 0.6},
+            }
+        )
+    if matches_with_exp:
+        objects.append(
+            {
+                "id": "series-delta",
+                "type": "plot_series",
+                "chart_kind": "bar",
+                "name": "Frequency Delta",
+                "data_ref": data_ref,
+                "x_column": "match_label",
+                "y_column": "delta_cm1",
+                "style": {"line_width": 0.5, "stroke": "#FFFFFF"},
+            }
+        )
+    save_generated_figure_document(
+        path,
+        technique="ir",
+        figure_id=figure_id,
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.ir_engine.ir_output",
+            "function": "fig_ir3_comparison",
+            "inputs": {"result_label": str(result.label or "")},
+            "parameters": {
+                "mode_count": len(result.computed_modes),
+                "match_count": len(matches_with_exp),
+            },
+        },
+        style={
+            "panels": ["overlay", "frequency delta"],
+            "xlabel": "Wavenumber (cm^-1)",
+            "ylabel": "Absorbance (a.u.)",
+            "delta_ylabel": "|Delta nu| (cm^-1)",
+            "x_axis": "reversed",
+        },
+        objects=objects,
+    )
+
+
+def _save_ir4_crystallinity_document(path: str, results: List[IRResult]) -> None:
+    data_path = _write_ir4_crystallinity_data(path, results)
+    data_ref = "ir-crystallinity-data"
+    save_generated_figure_document(
+        path,
+        technique="ir",
+        figure_id="Fig-IR4_crystallinity",
+        data_sources=[
+            {
+                "id": data_ref,
+                "kind": "csv",
+                "path": str(data_path),
+                "role": "plot_data",
+            }
+        ],
+        recipe={
+            "module": "polynexus.core.ir_engine.ir_output",
+            "function": "fig_ir4_crystallinity",
+            "inputs": {"result_labels": [str(result.label or "") for result in results]},
+            "parameters": {"sample_count": len(results)},
+        },
+        style={
+            "xlabel": "Sample",
+            "ylabel": "IR band index",
+            "x_tick_rotation": 30,
+        },
+        objects=[
+            {
+                "id": "series-crystallinity",
+                "type": "plot_series",
+                "chart_kind": "bar",
+                "name": "IR Crystallinity",
+                "data_ref": data_ref,
+                "x_column": "label",
+                "y_column": "Xc_pct",
+                "style": {"palette": SCI_PALETTE, "line_width": 0.5, "stroke": "#FFFFFF"},
+            }
+        ],
+    )
+
+
+def _write_ir1_spectrum_data(path: str, result: IRResult) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["wavenumber_cm1", "absorbance"])
+        writer.writeheader()
+        for index, wavenumber in enumerate(result.wavenumber):
+            writer.writerow(
+                {
+                    "wavenumber_cm1": _csv_number(wavenumber),
+                    "absorbance": _csv_number(result.absorbance[index]),
+                }
+            )
+    return data_path
+
+
+def _write_ir4_crystallinity_data(path: str, results: List[IRResult]) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["label", "Xc_pct", "Xc_method", "Xc_band", "Xc_ref_band"],
+        )
+        writer.writeheader()
+        for result in results:
+            writer.writerow(
+                {
+                    "label": str(result.label or ""),
+                    "Xc_pct": _csv_number(result.Xc_pct) if np.isfinite(result.Xc_pct) else "",
+                    "Xc_method": str(result.Xc_method or ""),
+                    "Xc_band": str(result.Xc_band or ""),
+                    "Xc_ref_band": str(result.Xc_ref_band or ""),
+                }
+            )
+    return data_path
+
+
+def _write_ir3_comparison_data(path: str, result: IRResult, matches: list[dict]) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    computed = result.simulated_spectrum
+    rows = max(len(result.wavenumber), len(computed.wavenumber), len(matches))
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "experimental_wavenumber_cm1",
+                "experimental_absorbance",
+                "computed_wavenumber_cm1",
+                "computed_absorbance",
+                "match_label",
+                "delta_cm1",
+            ],
+        )
+        writer.writeheader()
+        for index in range(rows):
+            match = matches[index] if index < len(matches) else {}
+            exp_cm1 = match.get("exp_cm1", "")
+            writer.writerow(
+                {
+                    "experimental_wavenumber_cm1": _csv_number(result.wavenumber[index])
+                    if index < len(result.wavenumber)
+                    else "",
+                    "experimental_absorbance": _csv_number(result.absorbance[index])
+                    if index < len(result.absorbance)
+                    else "",
+                    "computed_wavenumber_cm1": _csv_number(computed.wavenumber[index])
+                    if index < len(computed.wavenumber)
+                    else "",
+                    "computed_absorbance": _csv_number(computed.absorbance[index])
+                    if index < len(computed.absorbance)
+                    else "",
+                    "match_label": f"{float(exp_cm1):.0f}" if exp_cm1 != "" else "",
+                    "delta_cm1": _csv_number(match.get("delta_cm1"))
+                    if match
+                    else "",
+                }
+            )
+    return data_path
+
+
+def _write_ir2_peak_fit_data(
+    path: str,
+    wavenumber: np.ndarray,
+    absorbance: np.ndarray,
+    fit: np.ndarray,
+) -> Path:
+    figure_path = Path(path).resolve()
+    output_root = figure_path.parent.parent
+    data_dir = output_root / "data" / "figure_sources"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_path = data_dir / f"{figure_path.stem}_data.csv"
+    with data_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["wavenumber_cm1", "absorbance", "fit"])
+        writer.writeheader()
+        for index, value in enumerate(wavenumber):
+            writer.writerow(
+                {
+                    "wavenumber_cm1": _csv_number(value),
+                    "absorbance": _csv_number(absorbance[index]),
+                    "fit": _csv_number(fit[index]),
+                }
+            )
+    return data_path
+
+
+def _csv_number(value) -> float:
+    return round(float(value), 10)
+
+
+def _json_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(number):
+        return None
+    return number
 
 
 def _safe_label(label: str) -> str:
@@ -107,7 +603,10 @@ def fig_ir1_spectrum(result: IRResult, output_dir: str,
                   ylabel='Absorbance (a.u.)',
                   title=f'IR Spectrum - {result.label}')
 
-    return _save(fig, f'Fig-IR1_{_safe_label(result.label)}_spectrum', fig_dir, fmt, dpi)
+    figure_id = f'Fig-IR1_{_safe_label(result.label)}_spectrum'
+    path = _save(fig, figure_id, fig_dir, fmt, dpi)
+    _save_ir1_spectrum_document(path, result, figure_id)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +663,10 @@ def fig_ir2_peak_fit(result: IRResult, output_dir: str,
                   ylabel='Absorbance (a.u.)',
                   title=f'Peak Fitting - {result.label}')
 
-    return _save(fig, f'Fig-IR2_{_safe_label(result.label)}_peak_fit', fig_dir, fmt, dpi)
+    figure_id = f'Fig-IR2_{_safe_label(result.label)}_peak_fit'
+    path = _save(fig, figure_id, fig_dir, fmt, dpi)
+    _save_ir2_peak_fit_document(path, result, figure_id, wavenumber_range, wn_z, A_z, A_fit_z)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +730,10 @@ def fig_ir3_comparison(result: IRResult, output_dir: str,
     fig.suptitle(f'Exp vs Computed - {result.label}', fontsize=11,
                  fontweight='bold', y=1.01)
 
-    return _save(fig, f'Fig-IR3_{_safe_label(result.label)}_comparison', fig_dir, fmt, dpi)
+    figure_id = f'Fig-IR3_{_safe_label(result.label)}_comparison'
+    path = _save(fig, figure_id, fig_dir, fmt, dpi)
+    _save_ir3_comparison_document(path, result, figure_id)
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +767,9 @@ def fig_ir4_crystallinity(spectra_results: List[IRResult], output_dir: str,
     ax.set_ylabel('IR band index')
 
     set_sci_style(fig, ax)
-    return _save(fig, 'Fig-IR4_crystallinity', fig_dir, fmt, dpi)
+    path = _save(fig, 'Fig-IR4_crystallinity', fig_dir, fmt, dpi)
+    _save_ir4_crystallinity_document(path, spectra_results)
+    return path
 
 
 # ---------------------------------------------------------------------------

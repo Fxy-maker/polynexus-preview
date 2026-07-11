@@ -271,6 +271,22 @@ def save_figure_asset_spec(figure_path: str, asset_spec: Dict[str, Any]) -> Tupl
     return _write_plot_edits(figure_path, data)
 
 
+def load_figure_document_path(figure_path: str) -> str:
+    data = load_plot_edits(figure_path)
+    entry = data.get("files", {}).get(figure_state_key(figure_path), {})
+    if not isinstance(entry, dict):
+        return ""
+    document_path = entry.get("figure_document_path", "")
+    return str(document_path) if document_path else ""
+
+
+def save_figure_document_path(figure_path: str, document_path: str) -> Tuple[Path, str]:
+    data = load_plot_edits(figure_path)
+    entry, _key = _figure_entry(data, figure_path)
+    entry["figure_document_path"] = str(Path(document_path).resolve()) if document_path else ""
+    return _write_plot_edits(figure_path, data)
+
+
 def apply_figure_edit(fig, figure_path: str):
     """Apply saved edit style to a matplotlib Figure before export."""
     style = load_figure_edit(figure_path)
@@ -338,9 +354,11 @@ def apply_figure_edit(fig, figure_path: str):
 
 def savefig_with_edits(fig, path: str, **savefig_kwargs):
     """Apply sidecar edits, then save a matplotlib figure."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     style = load_figure_edit(path)
     apply_figure_edit(fig, path)
     _apply_cjk_font_fallback(fig)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     if style.get("bg_color") and "facecolor" in savefig_kwargs:
         savefig_kwargs["facecolor"] = style["bg_color"]
     fig.savefig(path, **savefig_kwargs)

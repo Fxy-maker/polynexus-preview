@@ -31,6 +31,7 @@ from ...core.joint.dataset import (
     detect_joint_opportunities,
 )
 from ..i18n import get_language
+from ..table_clipboard_service import copy_table_selection_to_clipboard
 
 
 def _text(zh: str, en: str) -> str:
@@ -267,33 +268,7 @@ class JointAnalysisHub(QWidget):
         self._set_checked(lambda row: False)
 
     def _copy_selected_rows_to_clipboard(self) -> None:
-        cols = self._table.columnCount()
-        rows = self._table.rowCount()
-        if cols <= 1 or rows <= 0:
-            return
-
-        headers = []
-        for col in range(1, cols):
-            header_item = self._table.horizontalHeaderItem(col)
-            headers.append(header_item.text() if header_item is not None else "")
-
-        selection = self._table.selectionModel()
-        selected_rows = []
-        if selection is not None:
-            selected_rows = sorted(index.row() for index in selection.selectedRows())
-        row_indexes = selected_rows if selected_rows else list(range(rows))
-
-        lines = ["\t".join(headers)]
-        for row in row_indexes:
-            values = []
-            for col in range(1, cols):
-                item = self._table.item(row, col)
-                values.append(item.text() if item is not None else "")
-            lines.append("\t".join(values))
-
-        from PySide6.QtWidgets import QApplication
-
-        QApplication.clipboard().setText("\n".join(lines))
+        copy_table_selection_to_clipboard(self._table, start_column=1)
 
     def _set_checked(self, predicate) -> None:
         self._populating = True

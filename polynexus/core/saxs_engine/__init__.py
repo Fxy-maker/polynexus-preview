@@ -53,15 +53,8 @@ from .saxs_anisotropy import (
     analyze_anisotropy,
 )
 from .saxs_output import (
-    generate_all_figures,
-    set_sci_style, FIG_SIZES, COLOR_SCHEMES,
-    fig_u1_scattering_profile, fig_u2_correlation_function,
-    fig_u3_idf, fig_u4_porod,
-    fig_t2_scattering_waterfall, fig_t3_structure_evolution,
-    fig_t4_invariant_conservation,
-    fig_v1_temperature_waterfall, fig_v2_temperature_parameters,
-    fig_v3_scattering_heatmap, fig_v4_avrami,
-    fig_guinier, fig_kratky, fig_joint_crystallinity,
-    export_parameters_csv, export_1d_profile,
-    export_strain_series_csv, export_temp_series_csv,
+    export_parameters_csv,
+    export_1d_profile,
+    export_strain_series_csv,
+    export_temp_series_csv,
 )
