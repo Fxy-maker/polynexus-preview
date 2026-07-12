@@ -223,6 +223,7 @@ def normalize_figure_document(payload: dict[str, Any]) -> dict:
     document.setdefault("style", {})
     document.setdefault("layers", [])
     document.setdefault("technique", "")
+    document.setdefault("publication_role", "si")
     document["recipe"] = _normalize_recipe(document.get("recipe", {}))
     document["objects"] = [
         normalize_figure_object(obj)

@@ -18,6 +18,7 @@ from .manifest import (
     RunFigureManifestRepository,
 )
 from .profiles import get_figure_output_profile
+from .publication_audit import FigurePublicationAuditResult
 from .render_plan import FigureRenderPlanBuilder
 
 
@@ -93,6 +94,7 @@ class FigureProjectService:
             capability = resolve_figure_capabilities(
                 plan=plan,
                 inspection=inspection,
+                audit=self._audit_from_capability(entry.capability_report),
                 working_revision=next_revision,
                 published_revision=entry.published_revision,
             )
@@ -160,6 +162,7 @@ class FigureProjectService:
             capability = resolve_figure_capabilities(
                 plan=plan,
                 inspection=export.inspection,
+                audit=export.audit,
                 working_revision=entry.working_revision,
                 published_revision=entry.working_revision,
             )
@@ -231,6 +234,25 @@ class FigureProjectService:
             role: self._absolute_path(run_root, path)
             for role, path in assets.items()
         }
+
+    @staticmethod
+    def _audit_from_capability(
+        capability_report: dict[str, object],
+    ) -> FigurePublicationAuditResult:
+        issues = capability_report.get("audit_issues", ())
+        if not isinstance(issues, (list, tuple)):
+            issues = ()
+        return FigurePublicationAuditResult(
+            passed=bool(capability_report.get("audit_passed", True)),
+            issues=tuple(
+                {
+                    str(key): str(value)
+                    for key, value in issue.items()
+                }
+                for issue in issues
+                if isinstance(issue, dict)
+            ),
+        )
 
     @staticmethod
     def _read_json(path: Path) -> dict:

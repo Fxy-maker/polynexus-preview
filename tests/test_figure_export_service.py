@@ -21,6 +21,8 @@ def test_export_service_creates_complete_paper_asset_group(render_plan, tmp_path
     assert all(Path(path).exists() for path in result.assets.values())
     assert result.inspection.complete is True
     assert result.inspection.png_dpi == 600
+    assert result.audit.passed is False
+    assert result.audit.issues
 
 
 def test_export_failure_does_not_commit_partial_assets(

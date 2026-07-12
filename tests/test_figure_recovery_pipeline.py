@@ -34,7 +34,9 @@ def test_recovery_pipeline_repairs_document_into_new_immutable_run(
     assert entry.status == "ready"
     assert entry.working_revision == entry.published_revision == 1
     assert entry.capability_report["editing_mode"] == "object"
-    assert entry.capability_report["publication_status"] == "complete"
+    assert entry.capability_report["publication_status"] == "quality_failed"
+    assert entry.capability_report["audit_passed"] is False
+    assert entry.capability_report["audit_issues"]
     assert set(entry.assets) == {"preview", "svg", "png", "pdf"}
     assert read_figure_asset_dimensions(run_root / entry.assets["png"])[2] == 600
     assert recovered_document["run_id"] == "recovered-run"

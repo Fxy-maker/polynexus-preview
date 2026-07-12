@@ -6,6 +6,22 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Mapping, Sequence
 
 
+PUBLICATION_ROLES = frozenset({"main", "si", "diagnostic"})
+
+
+@dataclass(frozen=True)
+class FigureEligibilityDecision:
+    """Publication role decision based on already-emitted evidence."""
+
+    highest_role: str
+    reasons: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.highest_role not in PUBLICATION_ROLES:
+            raise ValueError(f"unsupported publication role: {self.highest_role}")
+        object.__setattr__(self, "reasons", tuple(self.reasons))
+
+
 @dataclass(frozen=True)
 class DataColumnDefinition:
     name: str
@@ -110,6 +126,7 @@ class FigureDefinition:
     objects: tuple[dict[str, Any], ...]
     recipe: Mapping[str, Any]
     style_profile: str
+    publication_role: str = "si"
 
     def with_objects(
         self,
@@ -126,6 +143,7 @@ class FigureDefinition:
             "technique": self.technique,
             "scope": self.scope,
             "category": self.category,
+            "publication_role": self.publication_role,
             "title": self.title,
             "layout": self.layout.to_payload(),
             "data_sources": [source.to_payload() for source in self.data_sources],

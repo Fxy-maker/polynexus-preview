@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Sequence
 
 import numpy as np
@@ -10,12 +11,16 @@ from polynexus.core.figures.contracts import (
     AxisDefinition,
     DataColumnDefinition,
     FigureDataSourceDefinition,
+    FigureEligibilityDecision,
     FigureDefinition,
     FigureLayoutDefinition,
     PanelDefinition,
 )
 
 from .saxs_temperature import TempSeriesResult
+from .figure_common import SAXSFrameView, frame_views_from_engine
+from .figure_eligibility import classify_frame_eligibility
+from .figure_selection import resolve_saxs_figure_mode
 
 
 _SERIES_COLORS = (
@@ -35,17 +40,26 @@ _SERIES_COLORS = (
 def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
     """Build portable SAXS definitions for the engine's active analysis state."""
 
+    mode = resolve_saxs_figure_mode(engine_state)
+    if mode.mode in {"unsupported", "incomplete"}:
+        return ()
+
     temperature_result = getattr(engine_state, "_temperature_result", None)
-    if temperature_result is not None:
-        return build_saxs_temperature_definitions(
+    if mode.mode == "temperature" and temperature_result is not None:
+        evidence_frames = frame_views_from_engine(engine_state)
+        definitions = build_saxs_temperature_definitions(
             temperature_result,
             tuple(getattr(engine_state, "_q_list", ())),
             tuple(getattr(engine_state, "_I_list", ())),
+            evidence_frames=evidence_frames,
+        )
+        return _apply_publication_roles(
+            engine_state,
+            definitions,
+            evidence_frames=evidence_frames,
         )
 
-    series_kind = (
-        "strain" if getattr(engine_state, "_strain_result", None) is not None else "static"
-    )
+    series_kind = "strain" if mode.mode == "strain" else "static"
     frames = _non_temperature_frames(engine_state, series_kind)
     definitions = [
         _build_scattering_frame(
@@ -59,13 +73,122 @@ def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
     ]
     if len(frames) > 1:
         definitions.append(_build_series_waterfall(series_kind, frames))
-    return tuple(definitions)
+    return _apply_publication_roles(engine_state, tuple(definitions))
+
+
+def _apply_publication_roles(
+    engine_state,
+    definitions: Sequence[FigureDefinition],
+    *,
+    evidence_frames: Sequence[SAXSFrameView] | None = None,
+) -> tuple[FigureDefinition, ...]:
+    """Carry emitted frame evidence into definition metadata without reanalysis."""
+
+    views = tuple(
+        frame_views_from_engine(engine_state)
+        if evidence_frames is None
+        else evidence_frames
+    )
+    if not views:
+        return tuple(definitions)
+    decisions = {
+        view.index: classify_frame_eligibility(view)
+        for view in views
+    }
+    frame_roles = {
+        index: decision.highest_role
+        for index, decision in decisions.items()
+    }
+    aggregate_role = _aggregate_publication_role(frame_roles.values())
+    frame_reasons = {
+        index: "|".join(decision.reasons)
+        for index, decision in decisions.items()
+    }
+    annotated: list[FigureDefinition] = []
+    for definition in definitions:
+        role = (
+            definition.publication_role
+            if definition.scope != "frame" and definition.publication_role != "si"
+            else aggregate_role
+        )
+        evidence = dict(definition.recipe.get("evidence", {}))
+        if definition.scope == "frame":
+            suffix = definition.figure_id.rsplit(".", 1)[-1]
+            if suffix.isdigit():
+                frame_index = int(suffix) - 1
+                role = frame_roles.get(frame_index, aggregate_role)
+                evidence.update(
+                    {
+                        "frame_indices": [frame_index],
+                        "roles": {frame_index: role},
+                        "reasons": {
+                            frame_index: frame_reasons.get(
+                                frame_index, "evidence_missing"
+                            )
+                        },
+                    }
+                )
+        else:
+            evidence.setdefault("included_frame_indices", list(frame_roles))
+            evidence.setdefault("omitted_frame_indices", [])
+            evidence.update(
+                {
+                    "frame_indices": list(frame_roles),
+                    "roles": dict(frame_roles),
+                    "reasons": dict(frame_reasons),
+                }
+            )
+        recipe = dict(definition.recipe)
+        recipe["evidence"] = evidence
+        annotated.append(
+            replace(definition, publication_role=role, recipe=recipe)
+        )
+    return tuple(annotated)
+
+
+def _aggregate_publication_role(roles: Sequence[str]) -> str:
+    roles = tuple(roles)
+    if roles and all(role == "main" for role in roles):
+        return "main"
+    if "si" in roles or not roles:
+        return "si"
+    return "diagnostic"
+
+
+def _evidence_plan(
+    evidence_frames: Sequence[SAXSFrameView],
+    frame_count: int,
+) -> tuple[dict[int, FigureEligibilityDecision], tuple[int, ...], dict[int, str]]:
+    decisions = {
+        frame.index: classify_frame_eligibility(frame)
+        for frame in evidence_frames
+        if 0 <= frame.index < frame_count
+    }
+    main_indices = tuple(
+        index
+        for index in range(frame_count)
+        if decisions.get(index, FigureEligibilityDecision("si", ("evidence_missing",))).highest_role
+        == "main"
+    )
+    reasons = {
+        index: "|".join(
+            decisions[index].reasons
+            if index in decisions
+            else ("evidence_missing",)
+        )
+        for index in range(frame_count)
+        if decisions.get(index, FigureEligibilityDecision("si", ("evidence_missing",))).highest_role
+        != "main"
+    }
+    return decisions, main_indices, reasons
 
 
 def build_saxs_temperature_definitions(
     result: TempSeriesResult,
     q_values: Sequence[np.ndarray],
     intensities: Sequence[np.ndarray],
+    *,
+    evidence_frames: Sequence[SAXSFrameView] = (),
 ) -> tuple[FigureDefinition, ...]:
     """Describe SAXS temperature figures without publishing artifacts."""
 
@@ -89,8 +212,44 @@ def build_saxs_temperature_definitions(
             )
         )
     if definitions:
-        definitions.append(_build_temperature_waterfall(temperatures, cleaned_frames))
-        definitions.extend(_build_temperature_summary_definitions(result, cleaned_frames))
+        frame_count = len(cleaned_frames)
+        _decisions, main_indices, omission_reasons = _evidence_plan(
+            evidence_frames,
+            frame_count,
+        )
+        selected_indices = main_indices or tuple(range(frame_count))
+        evidence = {
+            "included_frame_indices": list(selected_indices),
+            "omitted_frame_indices": [
+                index for index in range(frame_count) if index not in selected_indices
+            ],
+            "omission_reasons": omission_reasons,
+        }
+        all_roles = tuple(
+            _decisions[index].highest_role
+            if index in _decisions
+            else "si"
+            for index in range(frame_count)
+        )
+        waterfall_role = _aggregate_publication_role(all_roles)
+        summary_role = "main" if main_indices else waterfall_role
+        definitions.append(
+            _build_temperature_waterfall(
+                temperatures,
+                cleaned_frames,
+                publication_role=waterfall_role,
+                evidence=evidence,
+            )
+        )
+        definitions.extend(
+            _build_temperature_summary_definitions(
+                result,
+                cleaned_frames,
+                included_indices=selected_indices,
+                publication_role=summary_role,
+                evidence=evidence,
+            )
+        )
     return tuple(definitions)
 
 
@@ -350,6 +509,9 @@ def _build_temperature_frame(
 def _build_temperature_waterfall(
     temperatures: np.ndarray,
     frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    *,
+    publication_role: str = "si",
+    evidence: dict[str, object] | None = None,
 ) -> FigureDefinition:
     selected_indices = _waterfall_indices(len(frames))
     sources: list[FigureDataSourceDefinition] = []
@@ -405,39 +567,61 @@ def _build_temperature_waterfall(
                 "intensity_transform": "log10_offset",
                 "selected_frame_indices": [index + 1 for index in selected_indices],
             },
+            **({"evidence": evidence} if evidence is not None else {}),
         },
         style_profile="sci_default",
+        publication_role=publication_role,
     )
 
 
 def _build_temperature_summary_definitions(
     result: TempSeriesResult,
     frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    *,
+    included_indices: Sequence[int],
+    publication_role: str,
+    evidence: dict[str, object],
 ) -> tuple[FigureDefinition, ...]:
     return (
-        _build_temperature_parameters(result),
+        _build_temperature_parameters(
+            result,
+            included_indices=included_indices,
+            publication_role=publication_role,
+            evidence=evidence,
+        ),
         _build_temperature_heatmap(
             np.asarray(result.temperatures, dtype=float),
             frames,
+            included_indices=included_indices,
+            publication_role=publication_role,
+            evidence=evidence,
         ),
     )
 
 
-def _build_temperature_parameters(result: TempSeriesResult) -> FigureDefinition:
-    temperatures = np.ravel(np.asarray(result.temperatures, dtype=float))
-    count = len(temperatures)
-    long_period = _series_values(result.L_array, count, "L_array")
-    raw_lc = _series_values(result.lc_array, count, "lc_array")
+def _build_temperature_parameters(
+    result: TempSeriesResult,
+    *,
+    included_indices: Sequence[int] | None = None,
+    publication_role: str = "si",
+    evidence: dict[str, object] | None = None,
+) -> FigureDefinition:
+    all_temperatures = np.ravel(np.asarray(result.temperatures, dtype=float))
+    count = len(all_temperatures)
+    indices = tuple(range(count)) if included_indices is None else tuple(included_indices)
+    temperatures = all_temperatures[list(indices)]
+    long_period = _series_values(result.L_array, count, "L_array")[list(indices)]
+    raw_lc = _series_values(result.lc_array, count, "lc_array")[list(indices)]
     effective_lc = _series_values(
         result.lc_effective_array,
         count,
         "lc_effective_array",
         missing_ok=True,
-    )
+    )[list(indices)]
     lc_values = np.where(np.isfinite(effective_lc), effective_lc, raw_lc)
     amorphous_values = long_period - lc_values
-    invariant = _series_values(result.Q_star_array, count, "Q_star_array")
-    crystallinity = _series_values(result.Xc_array, count, "Xc_array")
+    invariant = _series_values(result.Q_star_array, count, "Q_star_array")[list(indices)]
+    crystallinity = _series_values(result.Xc_array, count, "Xc_array")[list(indices)]
     source_id = "temperature-parameters-data"
     return FigureDefinition(
         figure_id="saxs.series.temperature.parameters",
@@ -512,30 +696,43 @@ def _build_temperature_parameters(result: TempSeriesResult) -> FigureDefinition:
         recipe={
             "module": "polynexus.core.saxs_engine.figure_provider",
             "function": "build_saxs_temperature_definitions",
-            "inputs": {"temperature_count": count},
+            "inputs": {"temperature_count": len(temperatures)},
             "parameters": {
                 "figure_kind": "parameters",
                 "lc_source": "effective_with_raw_fallback",
             },
+            **({"evidence": evidence} if evidence is not None else {}),
         },
         style_profile="sci_default",
+        publication_role=publication_role,
     )
 
 
 def _build_temperature_heatmap(
     temperatures: np.ndarray,
     frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    *,
+    included_indices: Sequence[int] | None = None,
+    publication_role: str = "si",
+    evidence: dict[str, object] | None = None,
 ) -> FigureDefinition:
-    q_min = max(float(np.nanmin(q)) for q, _intensity in frames)
-    q_max = min(float(np.nanmax(q)) for q, _intensity in frames)
+    indices = (
+        tuple(range(len(frames)))
+        if included_indices is None
+        else tuple(included_indices)
+    )
+    selected_temperatures = temperatures[list(indices)]
+    selected_frames = tuple(frames[index] for index in indices)
+    q_min = max(float(np.nanmin(q)) for q, _intensity in selected_frames)
+    q_max = min(float(np.nanmax(q)) for q, _intensity in selected_frames)
     if not q_min < q_max:
         raise ValueError("temperature q ranges do not overlap")
-    point_count = max(2, min(512, max(len(q) for q, _intensity in frames)))
+    point_count = max(2, min(512, max(len(q) for q, _intensity in selected_frames)))
     common_q = np.linspace(q_min, q_max, point_count)
     q_column: list[float] = []
     temperature_column: list[float] = []
     intensity_column: list[float] = []
-    for temperature, (q, intensity) in zip(temperatures, frames):
+    for temperature, (q, intensity) in zip(selected_temperatures, selected_frames):
         interpolated = np.interp(common_q, q, intensity)
         q_column.extend(float(value) for value in common_q)
         temperature_column.extend(float(temperature) for _value in common_q)
@@ -578,14 +775,16 @@ def _build_temperature_heatmap(
         recipe={
             "module": "polynexus.core.saxs_engine.figure_provider",
             "function": "build_saxs_temperature_definitions",
-            "inputs": {"temperature_count": len(temperatures)},
+            "inputs": {"temperature_count": len(selected_temperatures)},
             "parameters": {
                 "figure_kind": "heatmap",
                 "common_q_point_count": point_count,
                 "common_q_range_nm1": [q_min, q_max],
             },
+            **({"evidence": evidence} if evidence is not None else {}),
         },
         style_profile="sci_default",
+        publication_role=publication_role,
     )
 
 

@@ -160,6 +160,7 @@ class FigurePipeline:
             capability = resolve_figure_capabilities(
                 plan=plan,
                 inspection=export.inspection,
+                audit=export.audit,
                 working_revision=1,
                 published_revision=1,
             )

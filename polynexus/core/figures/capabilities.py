@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .inspector import FigureArtifactInspection
+from .publication_audit import FigurePublicationAuditResult
 from .render_plan import FigureRenderPlan
 
 
@@ -18,6 +19,8 @@ class FigureCapabilityReport:
     static_annotation: bool
     reason_code: str
     publication_status: str
+    audit_passed: bool = True
+    audit_issues: tuple[dict[str, str], ...] = ()
 
     def to_payload(self) -> dict[str, object]:
         return {
@@ -26,6 +29,8 @@ class FigureCapabilityReport:
             "static_annotation": self.static_annotation,
             "reason_code": self.reason_code,
             "publication_status": self.publication_status,
+            "audit_passed": self.audit_passed,
+            "audit_issues": [dict(issue) for issue in self.audit_issues],
         }
 
 
@@ -33,9 +38,11 @@ def resolve_figure_capabilities(
     *,
     plan: FigureRenderPlan,
     inspection: FigureArtifactInspection,
+    audit: FigurePublicationAuditResult | None = None,
     working_revision: int,
     published_revision: int,
 ) -> FigureCapabilityReport:
+    audit_result = audit or FigurePublicationAuditResult(passed=True, issues=())
     object_types = {
         str(figure_object.get("type") or "") for figure_object in plan.objects
     }
@@ -56,14 +63,18 @@ def resolve_figure_capabilities(
         reason_code=reason_code,
         publication_status=_publication_status(
             inspection,
+            audit_result,
             working_revision=working_revision,
             published_revision=published_revision,
         ),
+        audit_passed=audit_result.passed,
+        audit_issues=tuple(dict(issue) for issue in audit_result.issues),
     )
 
 
 def _publication_status(
     inspection: FigureArtifactInspection,
+    audit: FigurePublicationAuditResult,
     working_revision: int,
     published_revision: int,
 ) -> str:
@@ -71,6 +82,8 @@ def _publication_status(
         return "not_published"
     if not inspection.complete:
         return "needs_repair"
+    if not audit.passed:
+        return "quality_failed"
     if working_revision > published_revision:
         return "unpublished_changes"
     return "complete"

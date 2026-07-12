@@ -36,7 +36,11 @@ def test_save_working_advances_only_working_revision(ir_definition, tmp_path):
     entry = update.entry
     assert entry.working_revision == 2
     assert entry.published_revision == 1
-    assert entry.capability_report["publication_status"] == "unpublished_changes"
+    assert entry.capability_report["publication_status"] == "quality_failed"
+    assert entry.capability_report["audit_passed"] is False
+    assert entry.capability_report["audit_issues"] == initial_entry.capability_report[
+        "audit_issues"
+    ]
     assert "revisions/r0002/" in entry.document
     assert "revisions/r0002/" in entry.assets["preview"]
     assert {role: entry.assets[role] for role in formal_before} == {
@@ -76,10 +80,38 @@ def test_publish_commits_one_complete_new_asset_group(ir_definition, tmp_path):
 
     entry = update.entry
     assert entry.working_revision == entry.published_revision == 2
-    assert entry.capability_report["publication_status"] == "complete"
+    assert entry.capability_report["publication_status"] == "quality_failed"
+    assert entry.capability_report["audit_passed"] is False
+    assert entry.capability_report["audit_issues"]
     assert all("publications/r0002/assets/" in path for path in entry.assets.values())
     assert read_figure_asset_dimensions(run_root / entry.assets["png"])[2] == 600
     assert update.document["export"]["assets"] == entry.assets
+
+
+def test_save_working_keeps_legacy_manifest_audit_compatible(ir_definition, tmp_path):
+    initial = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="run-1",
+        technique="ir",
+        definitions=(ir_definition,),
+    )
+    run_root = tmp_path / "runs" / "run-1"
+    _remove_manifest_audit_fields(run_root)
+    document = __import__("json").loads(
+        (run_root / initial.figures[0].document).read_text("utf-8")
+    )
+
+    update = FigureProjectService(tmp_path).save_working(
+        run_id="run-1",
+        figure_id=initial.figures[0].figure_id,
+        document=document,
+    )
+
+    assert update.entry.capability_report["publication_status"] == (
+        "unpublished_changes"
+    )
+    assert update.entry.capability_report["audit_passed"] is True
+    assert update.entry.capability_report["audit_issues"] == []
 
 
 def test_publish_failure_preserves_previous_manifest(ir_definition, tmp_path):
@@ -114,3 +146,12 @@ def test_publish_failure_preserves_previous_manifest(ir_definition, tmp_path):
         )
 
     assert manifest_path.read_bytes() == manifest_before
+
+
+def _remove_manifest_audit_fields(run_root):
+    manifest_path = run_root / "figure_manifest.json"
+    payload = __import__("json").loads(manifest_path.read_text("utf-8"))
+    capability = payload["figures"][0]["capability_report"]
+    capability.pop("audit_passed", None)
+    capability.pop("audit_issues", None)
+    manifest_path.write_text(__import__("json").dumps(payload), encoding="utf-8")

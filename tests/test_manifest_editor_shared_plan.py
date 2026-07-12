@@ -64,7 +64,7 @@ def test_manifest_editor_save_then_publish_refreshes_lifecycle_context(
     working = editor._source_entry_context
     assert working.working_revision == 2
     assert working.published_revision == 1
-    assert working.publication_status == "unpublished_changes"
+    assert working.publication_status == "quality_failed"
     assert editor._source_path == working.preview_path
     assert all(
         (run_root / initial.figures[0].assets[role]).read_bytes()
@@ -76,7 +76,7 @@ def test_manifest_editor_save_then_publish_refreshes_lifecycle_context(
 
     published = editor._source_entry_context
     assert published.working_revision == published.published_revision == 2
-    assert published.publication_status == "complete"
+    assert published.publication_status == "quality_failed"
     assert all(
         "publications/r0002/assets/" in asset.path.replace("\\", "/")
         for asset in published.assets

@@ -8,6 +8,7 @@ from polynexus.core.figures.manifest import (
     RunFigureManifest,
     RunFigureManifestRepository,
 )
+from polynexus.core.figures.publication_audit import FigurePublicationAuditResult
 
 
 def test_capability_report_separates_editing_from_publication(
@@ -24,6 +25,38 @@ def test_capability_report_separates_editing_from_publication(
     assert report.editing_mode == "object"
     assert report.object_editing is True
     assert report.publication_status == "unpublished_changes"
+    assert report.audit_passed is True
+    assert report.audit_issues == ()
+
+
+def test_capability_report_marks_explicit_audit_failure(
+    render_plan,
+    complete_inspection,
+):
+    audit = FigurePublicationAuditResult(
+        passed=False,
+        issues=(
+            {
+                "code": "missing_panel_label",
+                "message": "Expected panel labels.",
+                "severity": "error",
+                "detail": "found 0, expected 1",
+            },
+        ),
+    )
+
+    report = resolve_figure_capabilities(
+        plan=render_plan,
+        inspection=complete_inspection,
+        audit=audit,
+        working_revision=1,
+        published_revision=1,
+    )
+
+    assert report.publication_status == "quality_failed"
+    assert report.audit_passed is False
+    assert report.audit_issues == audit.issues
+    assert report.to_payload()["audit_issues"] == [dict(audit.issues[0])]
 
 
 def test_manifest_repository_commits_relative_paths_and_active_pointer(tmp_path):

@@ -12,6 +12,10 @@ from matplotlib.figure import Figure
 
 from .inspector import FigureArtifactInspection, FigureArtifactInspector
 from .profiles import FigureOutputProfile
+from .publication_audit import (
+    FigurePublicationAuditResult,
+    FigurePublicationAuditService,
+)
 from .render_plan import FigureRenderPlan
 from .renderer import MatplotlibFigureRenderer
 
@@ -20,6 +24,7 @@ from .renderer import MatplotlibFigureRenderer
 class FigureArtifactExportResult:
     assets: dict[str, Path]
     inspection: FigureArtifactInspection
+    audit: FigurePublicationAuditResult
 
 
 class FigureArtifactExportService:
@@ -30,9 +35,11 @@ class FigureArtifactExportService:
         *,
         renderer: MatplotlibFigureRenderer | None = None,
         inspector: FigureArtifactInspector | None = None,
+        auditor: FigurePublicationAuditService | None = None,
     ) -> None:
         self._renderer = renderer or MatplotlibFigureRenderer()
         self._inspector = inspector or FigureArtifactInspector()
+        self._auditor = auditor or FigurePublicationAuditService()
 
     def export_preview(
         self,
@@ -104,6 +111,7 @@ class FigureArtifactExportService:
                     "figure artifact inspection failed: "
                     + "; ".join(inspection.errors)
                 )
+            audit = self._auditor.audit(plan=plan, assets=staged_assets)
             staging_dir.rename(final_dir)
         except BaseException:
             shutil.rmtree(staging_dir, ignore_errors=True)
@@ -115,6 +123,7 @@ class FigureArtifactExportService:
         return FigureArtifactExportResult(
             assets=final_assets,
             inspection=inspection,
+            audit=audit,
         )
 
     def _save_preview(

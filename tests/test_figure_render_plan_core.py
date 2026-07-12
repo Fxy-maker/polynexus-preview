@@ -33,6 +33,32 @@ def test_render_plan_rejects_tampered_data_snapshot(built_ir_document):
         FigureRenderPlanBuilder(run_root).build(document_path, document)
 
 
+def test_render_plan_preserves_panel_identity_metadata(built_ir_document):
+    run_root, document_path, document = built_ir_document
+    document["layout"]["panels"][0]["grid_span"] = {"rows": 2, "columns": 3}
+    document["layout"]["panels"][0]["panel_label"] = "(a)"
+
+    plan = FigureRenderPlanBuilder(run_root).build(document_path, document)
+
+    panel = plan.panels[0]
+    assert panel.row_span == 2
+    assert panel.column_span == 3
+    assert panel.panel_label == "(a)"
+
+
+def test_renderer_emits_stable_panel_and_panel_label_ids(built_ir_document):
+    run_root, document_path, document = built_ir_document
+    document["layout"]["panels"][0]["panel_label"] = "(a)"
+    plan = FigureRenderPlanBuilder(run_root).build(document_path, document)
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+
+    axis = figure.axes[0]
+    assert axis.get_gid() == "pn-panel:main"
+    assert axis.texts[0].get_text() == "(a)"
+    assert axis.texts[0].get_gid() == "pn-panel-label:main"
+
+
 @pytest.mark.filterwarnings("error")
 def test_renderer_uses_one_plan_for_series_lines_and_text(built_ir_document):
     run_root, document_path, document = built_ir_document

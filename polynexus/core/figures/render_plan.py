@@ -26,6 +26,9 @@ class RenderPanel:
     y_axis: RenderAxis
     title: str = ""
     show_legend: bool = False
+    row_span: int = 1
+    column_span: int = 1
+    panel_label: str = ""
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,9 @@ class FigureRenderPlanBuilder:
 
     def _panel_from_payload(self, payload: dict[str, Any]) -> RenderPanel:
         position = payload["grid_position"]
+        span = payload.get("grid_span", {})
+        if not isinstance(span, dict):
+            span = {}
         return RenderPanel(
             panel_id=str(payload["panel_id"]),
             row=int(position["row"]),
@@ -97,6 +103,9 @@ class FigureRenderPlanBuilder:
             y_axis=self._axis_from_payload(payload["y_axis"]),
             title=str(payload.get("title") or ""),
             show_legend=bool(payload.get("show_legend", False)),
+            row_span=int(span.get("rows", 1) or 1),
+            column_span=int(span.get("columns", 1) or 1),
+            panel_label=str(payload.get("panel_label") or ""),
         )
 
     @staticmethod

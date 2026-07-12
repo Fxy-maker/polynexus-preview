@@ -248,7 +248,7 @@ def test_manifest_publish_refreshes_complete_publication_without_new_working_sav
     assert window.legacy_saves == []
     assert refreshed.working_revision == 2
     assert refreshed.published_revision == 2
-    assert refreshed.publication_status == "complete"
+    assert refreshed.publication_status == "quality_failed"
     assert all(
         "publications/r0002/assets/" in asset.path.replace("\\", "/")
         for asset in refreshed.assets

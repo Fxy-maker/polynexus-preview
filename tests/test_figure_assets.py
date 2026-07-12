@@ -2,6 +2,8 @@ import struct
 import zlib
 from pathlib import Path
 
+from PIL import Image
+
 from polynexus.core.figure_assets import (
     discover_figure_asset,
     figure_id_from_path,
@@ -145,3 +147,13 @@ def test_public_dimension_reader_reports_png_svg_and_pdf(three_format_paths):
         144,
         72,
     )
+
+
+def test_public_dimension_reader_reports_tiff_dpi(tmp_path):
+    path = tmp_path / "figure.tiff"
+    Image.new("RGB", (1200, 600), color="white").save(
+        path,
+        dpi=(600, 600),
+    )
+
+    assert read_figure_asset_dimensions(path) == (1200, 600, 600)

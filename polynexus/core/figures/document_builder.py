@@ -37,6 +37,7 @@ class FigureDocumentBuilder:
                 "technique": definition.technique,
                 "scope": definition.scope,
                 "category": definition.category,
+                "publication_role": definition.publication_role,
                 "title": definition.title,
                 "created_at": now,
                 "updated_at": now,

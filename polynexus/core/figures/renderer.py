@@ -26,7 +26,13 @@ class MatplotlibFigureRenderer:
         )
         axes: dict[str, Any] = {}
         for panel in plan.panels:
-            axis = figure.add_subplot(grid[panel.row, panel.column])
+            axis = figure.add_subplot(
+                grid[
+                    panel.row : panel.row + panel.row_span,
+                    panel.column : panel.column + panel.column_span,
+                ]
+            )
+            axis.set_gid(f"pn-panel:{panel.panel_id}")
             axis.set_xlabel(self._axis_label(panel.x_axis))
             axis.set_ylabel(self._axis_label(panel.y_axis))
             axis.set_title(panel.title)
@@ -36,6 +42,18 @@ class MatplotlibFigureRenderer:
                 axis.invert_xaxis()
             if panel.y_axis.reversed:
                 axis.invert_yaxis()
+            if panel.panel_label:
+                axis.text(
+                    0.0,
+                    1.02,
+                    panel.panel_label,
+                    transform=axis.transAxes,
+                    fontsize=9.0,
+                    fontweight="bold",
+                    ha="left",
+                    va="bottom",
+                    gid=f"pn-panel-label:{panel.panel_id}",
+                )
             axes[panel.panel_id] = axis
 
         ordered_objects = sorted(

@@ -27,6 +27,8 @@ def test_pipeline_commits_complete_run_and_active_pointer(
     assert document["export"]["profile"] == "paper_complete"
     assert document["export"]["published_revision"] == 1
     assert document["export"]["assets"] == result.figures[0].assets
+    assert result.figures[0].capability_report["audit_passed"] is False
+    assert result.figures[0].capability_report["audit_issues"]
     assert json.loads((tmp_path / "active_run.json").read_text("utf-8")) == {
         "run_id": "run-1"
     }

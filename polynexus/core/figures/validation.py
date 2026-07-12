@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from .contracts import FigureDefinition
+from .contracts import FigureDefinition, PUBLICATION_ROLES
 
 _FIGURE_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
 _SCOPES = {"frame", "series"}
@@ -31,6 +31,8 @@ def validate_figure_definition(definition: FigureDefinition) -> None:
         errors.append(f"invalid scope: {definition.scope}")
     if definition.category not in _CATEGORIES:
         errors.append(f"invalid category: {definition.category}")
+    if definition.publication_role not in PUBLICATION_ROLES:
+        errors.append(f"invalid publication_role: {definition.publication_role}")
 
     panel_ids: set[str] = set()
     panel_positions: set[tuple[int, int]] = set()

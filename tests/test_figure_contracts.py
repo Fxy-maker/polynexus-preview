@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pytest
+
 from polynexus.core.figures.contracts import (
     AxisDefinition,
     DataColumnDefinition,
@@ -9,6 +11,10 @@ from polynexus.core.figures.contracts import (
     PanelDefinition,
 )
 from polynexus.core.figures.profiles import get_figure_output_profile
+from polynexus.core.figures.validation import (
+    FigureDefinitionValidationError,
+    validate_figure_definition,
+)
 
 
 def test_paper_complete_profile_has_fixed_roles():
@@ -106,3 +112,10 @@ def test_panel_contract_preserves_title_and_legend(ir_definition):
 
     assert payload["title"] == "Spectrum"
     assert payload["show_legend"] is True
+
+
+def test_figure_definition_rejects_unknown_publication_role(ir_definition):
+    invalid = replace(ir_definition, publication_role="unknown")
+
+    with pytest.raises(FigureDefinitionValidationError, match="publication_role"):
+        validate_figure_definition(invalid)

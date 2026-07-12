@@ -150,6 +150,8 @@ def _read_dimensions_for_path(path: Path) -> Tuple[int, int, int]:
             return _read_pdf_dimensions(path)
         if suffix in {"jpg", "jpeg"}:
             return _read_jpeg_dimensions(path)
+        if suffix in {"tif", "tiff"}:
+            return _read_tiff_dimensions(path)
     except OSError:
         return 0, 0, 0
     return 0, 0, 0
@@ -264,6 +266,21 @@ def _read_jpeg_dimensions(path: Path) -> Tuple[int, int, int]:
                 height, width = struct.unpack(">HH", data[1:5])
                 return int(width), int(height), 0
             handle.seek(payload_length, 1)
+
+
+def _read_tiff_dimensions(path: Path) -> Tuple[int, int, int]:
+    from PIL import Image
+
+    with Image.open(path) as image:
+        width, height = image.size
+        resolution = image.info.get("dpi", (0, 0))
+        dpi = 0
+        if isinstance(resolution, (tuple, list)) and len(resolution) >= 2:
+            x_dpi = float(resolution[0])
+            y_dpi = float(resolution[1])
+            if x_dpi > 0 and y_dpi > 0:
+                dpi = int(round((x_dpi + y_dpi) / 2.0))
+        return int(width), int(height), dpi
 
 
 def _svg_attr(text: str, name: str) -> str:
