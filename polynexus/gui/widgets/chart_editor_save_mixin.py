@@ -333,15 +333,42 @@ class ChartEditorSaveMixin:
         self._render()
 
     def _apply_generated_document_style_controls(self):
+        self._hydrate_generated_document_style_context()
+
+    def _reset_style_context(self):
+        self._set_line_edit(self._title_edit, "")
+        self._set_line_edit(self._xlabel_edit, "")
+        self._set_line_edit(self._ylabel_edit, "")
+        for combo, default_value in (
+            (self._colour_cb, "Default Blue"),
+            (self._font_cb, "Medium"),
+            (self._lw_cb, "Normal"),
+            (self._figsize_cb, "Medium (6in)"),
+        ):
+            self._set_combo(combo, default_value)
+        self._grid_cb.blockSignals(True)
+        self._grid_cb.setChecked(True)
+        self._grid_cb.blockSignals(False)
+        self._grid_on = True
+        self._grid_sl.blockSignals(True)
+        self._grid_sl.setValue(2)
+        self._grid_sl.blockSignals(False)
+        self._grid_alpha = 0.2
+        self._bg_color = "#FFFFFF"
+        self._dpi = 150
+
+    def _hydrate_generated_document_style_context(self):
+        self._reset_style_context()
         style = self._figure_document.get("style", {})
         if not isinstance(style, dict):
             return
-        if "title" in style:
-            self._set_line_edit(self._title_edit, str(style.get("title", "") or ""))
-        if "xlabel" in style:
-            self._set_line_edit(self._xlabel_edit, str(style.get("xlabel", "") or ""))
-        if "ylabel" in style:
-            self._set_line_edit(self._ylabel_edit, str(style.get("ylabel", "") or ""))
+        for field, widget in (
+            ("title", self._title_edit),
+            ("xlabel", self._xlabel_edit),
+            ("ylabel", self._ylabel_edit),
+        ):
+            if field in style:
+                self._set_line_edit(widget, str(style.get(field, "") or ""))
         self._set_combo(self._colour_cb, style.get("colour_scheme"))
         self._set_combo(self._font_cb, style.get("font"))
         self._set_combo(self._lw_cb, style.get("line_width"))
@@ -354,20 +381,22 @@ class ChartEditorSaveMixin:
         if "grid_alpha" in style:
             try:
                 alpha = max(0.0, min(1.0, float(style["grid_alpha"])))
-            except Exception:
+            except (TypeError, ValueError):
                 alpha = self._grid_alpha
             self._grid_sl.blockSignals(True)
             self._grid_sl.setValue(int(round(alpha * 10)))
             self._grid_sl.blockSignals(False)
             self._grid_alpha = alpha
-        if "bg_color" in style:
-            self._bg_color = str(style["bg_color"] or self._bg_color)
+        if "bg_color" in style and style["bg_color"]:
+            self._bg_color = str(style["bg_color"])
         if "dpi" in style:
             try:
-                self._dpi = int(style["dpi"])
-            except Exception:
+                dpi = int(style["dpi"])
+                if dpi > 0:
+                    self._dpi = dpi
+            except (TypeError, ValueError):
                 self._logger().warning(
-                    "Generated figure document DPI restore failed; keeping current DPI.",
+                    "Generated figure document DPI restore failed; keeping default DPI.",
                     exc_info=True,
                 )
 

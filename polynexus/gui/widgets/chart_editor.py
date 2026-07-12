@@ -791,12 +791,13 @@ class ChartEditor(
         )
         self._refresh_style_preset_controls()
 
-    def set_output_target(self, filepath):
+    def set_output_target(self, filepath, *, apply_saved_style=True):
         self._target_path = filepath or ""
         if self._target_path:
             self._target_label.setText(str(Path(self._target_path).name))
             self._btn_save_current.setEnabled(True)
-            self._apply_saved_style(load_figure_edit(self._target_path))
+            if apply_saved_style:
+                self._apply_saved_style(load_figure_edit(self._target_path))
         else:
             self._target_label.setText(tr("EDITOR_TARGET_NONE"))
             self._btn_save_current.setEnabled(False)
@@ -839,6 +840,7 @@ class ChartEditor(
         self._fig_generator = None
         self._fig_args = ()
         self._fig_kwargs = {}
+        self._reset_style_context()
 
         self._toolbar.setVisible(False)
         self._canvas.setVisible(False)
@@ -857,9 +859,12 @@ class ChartEditor(
             )
             self._asset_spec = discover_figure_asset(self._source_path)
             self._source_preview.load_figure(self._source_path)
-            self.set_output_target(self._source_path)
+            self.set_output_target(
+                self._source_path,
+                apply_saved_style=False,
+            )
             if self._is_generated_figure_document() and not self._force_static_source_mode:
-                self._apply_generated_document_style_controls()
+                self._hydrate_generated_document_style_context()
                 if self._show_generated_figure_document():
                     self._generated_document_mode = True
                     self._set_mode_header(
@@ -874,6 +879,7 @@ class ChartEditor(
                     self._annotation_canvas.setVisible(False)
                     self._refresh_object_list()
                     return
+            self._apply_saved_style(load_figure_edit(self._source_path))
             self._static_file_mode = True
             self._set_mode_header(
                 self._source_mode_title(),
