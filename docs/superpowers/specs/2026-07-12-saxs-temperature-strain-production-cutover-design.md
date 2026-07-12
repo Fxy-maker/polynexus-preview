@@ -1,6 +1,6 @@
 # SAXS Temperature/Strain Production Cutover Design
 
-**Date:** 2026-07-12  
+**Date:** 2026-07-12
 **Task:** `saxs-temperature-strain-production-cutover-2026-07-12`
 
 ## Goal
