@@ -105,7 +105,6 @@ class MainWindowRetranslateMixin:
             self._btn_results_export.setText(tr("RESULTS_EXPORT_TABLE"))
             self._btn_results_copy.setText(tr("RESULTS_COPY_TABLE"))
             self._btn_results_default_order.setText(tr("RESULTS_DEFAULT_ORDER"))
-            self._btn_view_current_figure.setText(tr("PLOTS_BTN_VIEW_CURRENT"))
             self._btn_legacy_recovery.setText(tr("PLOTS_BTN_RECOVER_LEGACY"))
             self._drop_label.setText(tr("DROP_HINT"))
             self._history_tech_label.setText(tr("HISTORY_TECHNIQUE"))
@@ -144,9 +143,6 @@ class MainWindowRetranslateMixin:
 
             if hasattr(self, "action_convergence_viewer"):
                 self.action_convergence_viewer.setText(tr("CONVERGENCE_DASHBOARD"))
-
-            if hasattr(self, "_btn_convergence_viewer"):
-                self._btn_convergence_viewer.setText(tr("CONVERGENCE_DASHBOARD"))
 
             if self._current_technique == "joint":
 

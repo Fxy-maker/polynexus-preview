@@ -8,9 +8,9 @@ Usage:
 from PySide6.QtGui import QShortcut, QKeySequence
 
 SHORTCUTS = [
-    ("Ctrl+R",        "_on_run",           "Run Analysis"),
-    ("Ctrl+Shift+R",  "_on_replot",        "Re-plot Only"),
-    ("Ctrl+E",        "_on_export",        "Export Results"),
+    ("Ctrl+R",        "_run_analysis",     "Run Analysis"),
+    ("Ctrl+Shift+R",  "_replot",            "Re-plot Only"),
+    ("Ctrl+E",        "_export_results",   "Export Results"),
     ("Ctrl+T",        "_toggle_theme",     "Toggle Theme"),
     ("Ctrl+L",        "_toggle_language",  "Toggle Language"),
     ("Ctrl+B",        "_toggle_sidebar",   "Toggle Sidebar"),

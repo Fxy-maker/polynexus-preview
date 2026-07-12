@@ -10,6 +10,7 @@ from .context_suggestion_service import (
 from .i18n import tr
 from .theme import TECHNIQUE_LABELS
 from .window_text_helpers import import_mode_text as _import_mode_text
+from .workspace_mode import WorkspaceMode, normalize_workspace_mode
 
 
 class MainWindowWorkspaceMixin:
@@ -18,20 +19,32 @@ class MainWindowWorkspaceMixin:
             return
 
         tech = self._current_technique or "saxs"
+        mode_getter = getattr(self, "_workspace_mode_value", None)
+        if callable(mode_getter):
+            workspace_mode = mode_getter()
+        else:
+            try:
+                workspace_mode = normalize_workspace_mode(
+                    getattr(self, "_workspace_mode", "") or tech
+                )
+            except ValueError:
+                workspace_mode = WorkspaceMode.ANALYSIS
+        is_samples = workspace_mode is WorkspaceMode.SAMPLES
+        is_joint = workspace_mode is WorkspaceMode.JOINT
         label = TECHNIQUE_LABELS.get(tech, tech.upper())
         title_key = "WORKSPACE_TITLE_ANALYSIS"
 
-        if tech == "samples":
+        if is_samples:
             label = tr("WORKFLOW_TECH_SAMPLES")
             title_key = "WORKSPACE_TITLE_SAMPLES"
 
-        if tech == "joint":
+        if is_joint:
             label = tr("WORKFLOW_TECH_JOINT")
             title_key = "WORKSPACE_TITLE_JOINT"
 
         submodule = getattr(self, "_current_submodule_id", "")
 
-        if tech == "joint":
+        if is_joint:
             count = 0
             hub = getattr(self, "_joint_hub", None)
             if hub is not None:
@@ -57,7 +70,7 @@ class MainWindowWorkspaceMixin:
             if submodule
             else tr("WORKSPACE_SUBTITLE_DEFAULT")
         )
-        if tech == "joint":
+        if is_joint:
             detail = tr("WORKSPACE_DETAIL_JOINT")
 
         self._workspace_subtitle.setText(f"{detail}  |  {filename}")

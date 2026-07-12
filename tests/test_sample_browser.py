@@ -1658,7 +1658,7 @@ def test_sample_browser_hides_unfinished_export_entry():
 
     browser = SampleBrowser()
 
-    assert browser._btn_export.text() == tr("SAMPLE_EXPORT_REPORT")
+    assert browser._btn_export.text() == tr("SAMPLE_EXPORT_MANIFEST")
     assert not browser._btn_export.isEnabled()
 
     browser.deleteLater()

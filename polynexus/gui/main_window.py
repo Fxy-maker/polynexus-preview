@@ -196,6 +196,7 @@ from ..core.engine import list_techniques, get_engine, logger, check_file_format
 from ..core.joint.dataset import build_joint_hub_report
 
 from .i18n import tr, set_language, get_language
+from .workspace_mode import WorkspaceMode
 from .window_text_helpers import (
     data_file_dialog_filter as _data_file_dialog_filter,
     format_import_suggestion_reason as _shared_format_import_suggestion_reason,
@@ -1272,6 +1273,7 @@ class MainWindow(
 
 
 
+        self._workspace_mode = WorkspaceMode.ANALYSIS
         self._current_technique = ""
 
         self._current_filepath = ""
@@ -1543,33 +1545,8 @@ class MainWindow(
 
 
     def setup_convergence_action(self):
-
-        """Add the result review entry to the main window."""
-
-        if not hasattr(self, "action_convergence_viewer"):
-            self.action_convergence_viewer = QAction(tr('CONVERGENCE_DASHBOARD'), self)
-            self.action_convergence_viewer.setObjectName("action_convergence_viewer")
-            self.action_convergence_viewer.setText(tr('CONVERGENCE_DASHBOARD'))
-            self.action_convergence_viewer.triggered.connect(self._open_convergence_viewer)
-            if hasattr(self, "_menu_view"):
-                self._menu_view.addAction(self.action_convergence_viewer)
-
-        if hasattr(self, "_btn_convergence_viewer"):
-            return
-
-        self._btn_convergence_viewer = QPushButton(tr('CONVERGENCE_DASHBOARD'))
-        self._btn_convergence_viewer.setObjectName("secondary_btn")
-        self._btn_convergence_viewer.setText(tr('CONVERGENCE_DASHBOARD'))
-        self._btn_convergence_viewer.clicked.connect(lambda: self.action_convergence_viewer.trigger())
-
-        layout = getattr(self, "_topbar_layout", None)
-        if layout is not None:
-            export_button = getattr(self, "_btn_export", None)
-            index = layout.indexOf(export_button) if export_button is not None else -1
-            if index >= 0:
-                layout.insertWidget(index, self._btn_convergence_viewer)
-            else:
-                layout.addWidget(self._btn_convergence_viewer)
+        """Keep the View-menu review action as the compatibility route."""
+        return getattr(self, "action_convergence_viewer", None)
 
 
     def _open_convergence_viewer(self):
@@ -2523,16 +2500,6 @@ class MainWindow(
         # Toolbar
 
         toolbar = QHBoxLayout()
-
-        self._btn_view_current_figure = QPushButton(tr("PLOTS_BTN_VIEW_CURRENT"))
-
-        self._btn_view_current_figure.setObjectName("secondary_btn")
-
-        self._btn_view_current_figure.clicked.connect(self._open_current_figure_viewer)
-
-        self._btn_view_current_figure.setEnabled(False)
-
-        toolbar.addWidget(self._btn_view_current_figure)
 
         self._btn_legacy_recovery = QPushButton(tr("PLOTS_BTN_RECOVER_LEGACY"))
 

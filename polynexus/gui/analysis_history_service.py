@@ -363,6 +363,7 @@ def current_results_record(
     output_dir: str = "",
     result_origin: str = "manual_run",
     confirmed: bool = False,
+    run_id: str = "current",
     created_at: str = "",
     is_default_project_label_fn: Callable[[str], bool] | None = None,
 ) -> dict:
@@ -449,8 +450,8 @@ def current_results_record(
         "history_context": history_context,
     }
     return {
-        "id": "current",
-        "batch_id": "current",
+        "id": str(run_id or "current"),
+        "batch_id": str(run_id or "current"),
         "technique": technique_key,
         "submodule": submodule_id,
         "created_at": str(created_at or "").strip(),
@@ -1281,6 +1282,8 @@ def result_comparison_candidates(current, db, *, inferred_sample_name: str = "")
         for sample in db.list_samples(limit=100):
             for batch in db.get_batches(sample.get("id", "")):
                 for run in db.get_analysis_runs(batch.get("id", "")):
+                    if str(run.get("id") or "") == "current":
+                        continue
                     if str(run.get("technique") or "").strip().lower() != current_technique:
                         continue
                     run_submodule = str(run.get("submodule") or "").strip().lower()

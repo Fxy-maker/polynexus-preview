@@ -1060,7 +1060,7 @@ class SampleBrowser(QWidget):
 
         action_bar.addStretch()
 
-        self._btn_export = QPushButton(tr("SAMPLE_EXPORT_REPORT"))
+        self._btn_export = QPushButton(tr("SAMPLE_EXPORT_MANIFEST"))
         self._btn_export.clicked.connect(self._on_export)
         action_bar.addWidget(self._btn_export)
         batch_layout.addLayout(action_bar)
@@ -1093,7 +1093,7 @@ class SampleBrowser(QWidget):
         self._btn_edit.setText(tr("SAMPLE_EDIT"))
         self._btn_new_batch.setText(tr("SAMPLE_BATCH_NEW"))
         self._btn_joint.setText(tr("SAMPLE_JOINT"))
-        self._btn_export.setText(tr("SAMPLE_EXPORT_REPORT"))
+        self._btn_export.setText(tr("SAMPLE_EXPORT_MANIFEST"))
         self._empty_state.setText(tr("SAMPLE_EMPTY_RESULTS"))
         self._set_table_headers()
         self._refresh_batch_label()

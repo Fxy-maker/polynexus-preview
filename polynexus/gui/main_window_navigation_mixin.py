@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .i18n import tr
+from .workspace_mode import WorkspaceMode, normalize_workspace_mode
 
 
 class MainWindowNavigationMixin:
@@ -19,6 +20,32 @@ class MainWindowNavigationMixin:
 
         if hasattr(self, "_nav_indicator"):
             self._nav_indicator.hide()
+
+    def _set_workspace_mode(self, mode):
+        self._workspace_mode = normalize_workspace_mode(mode)
+        return self._workspace_mode
+
+    def _workspace_mode_value(self):
+        current = getattr(self, "_workspace_mode", None)
+        legacy_value = getattr(self, "_current_technique", "") or "analysis"
+        if current not in (None, ""):
+            try:
+                normalized = normalize_workspace_mode(current)
+                if normalized is not WorkspaceMode.ANALYSIS:
+                    return normalized
+                try:
+                    legacy_mode = normalize_workspace_mode(legacy_value)
+                except ValueError:
+                    legacy_mode = WorkspaceMode.ANALYSIS
+                if legacy_mode is not WorkspaceMode.ANALYSIS:
+                    return legacy_mode
+                return normalized
+            except ValueError:
+                pass
+        try:
+            return normalize_workspace_mode(legacy_value)
+        except ValueError:
+            return WorkspaceMode.ANALYSIS
 
     def _refresh_sidebar_texts(self):
         main_window_module = self._main_window_module()
@@ -95,6 +122,7 @@ class MainWindowNavigationMixin:
     def _on_technique_selected(self, technique):
         main_window_module = self._main_window_module()
 
+        self._set_workspace_mode(WorkspaceMode.ANALYSIS)
         self._current_technique = technique
         self._set_sample_browser_visible(False)
         self._set_joint_hub_visible(False)
@@ -127,6 +155,7 @@ class MainWindowNavigationMixin:
         )
 
     def _on_submodule_selected(self, technique, submodule_id):
+        self._set_workspace_mode(WorkspaceMode.ANALYSIS)
         self._current_technique = technique
         self._current_submodule_id = submodule_id
         self._set_sample_browser_visible(False)

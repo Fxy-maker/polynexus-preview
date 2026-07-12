@@ -89,6 +89,8 @@ def test_persist_analysis_run_reuses_existing_sample_and_batch(tmp_path):
     window._persist_analysis_run(result)
     window._persist_analysis_run(result)
 
+    assert window._last_persisted_run_id
+
     db = window._ensure_sample_db()
     samples = db.list_samples(limit=100)
 

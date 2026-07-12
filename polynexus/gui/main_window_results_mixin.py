@@ -75,6 +75,7 @@ class MainWindowResultsMixin:
             output_dir=str(self._output_dir or ""),
             result_origin=self._current_result_origin(),
             confirmed=bool(getattr(self, "_current_result_confirmed_flag", False)),
+            run_id=str(getattr(self, "_last_persisted_run_id", "") or "current"),
             created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             is_default_project_label_fn=self._is_default_project_label_fn(),
         )

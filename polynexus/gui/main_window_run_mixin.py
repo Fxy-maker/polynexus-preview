@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from .i18n import tr
+from .workspace_mode import WorkspaceMode
 
 
 class MainWindowRunMixin:
@@ -53,7 +54,7 @@ class MainWindowRunMixin:
             self.log(tr("LOG_NO_TECHNIQUE"))
             return
 
-        if self._current_technique == "joint":
+        if self._workspace_mode_value() is WorkspaceMode.JOINT:
             self._run_joint_hub()
             return
 

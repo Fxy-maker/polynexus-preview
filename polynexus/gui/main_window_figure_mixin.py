@@ -30,9 +30,6 @@ class MainWindowFigureMixin:
             self._chart_gallery.clear()
             self._current_figure_path = ""
 
-            if hasattr(self, "_btn_view_current_figure"):
-                self._btn_view_current_figure.setEnabled(False)
-
             if hasattr(self, "_figure_preview"):
                 self._figure_preview.clear()
                 self._figure_preview.setVisible(False)
@@ -64,7 +61,6 @@ class MainWindowFigureMixin:
         show_chart_preview(
             self._figure_preview,
             self._current_figure_path,
-            view_button=getattr(self, "_btn_view_current_figure", None),
             entry=current_entry,
         )
 
@@ -173,7 +169,6 @@ class MainWindowFigureMixin:
             show_chart_preview(
                 self._figure_preview,
                 preview_path or filepath,
-                view_button=getattr(self, "_btn_view_current_figure", None),
                 entry=current_entry,
             )
         self.log(tr("LOG_CHART_SAVED", filepath))

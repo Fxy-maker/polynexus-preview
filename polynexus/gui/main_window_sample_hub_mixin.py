@@ -5,6 +5,7 @@ import os
 from .i18n import tr
 from .sample_analysis_service import request_sample_batch_analysis
 from ..data.sample_db import SampleDB
+from .workspace_mode import WorkspaceMode
 
 
 class MainWindowSampleHubMixin:
@@ -57,13 +58,14 @@ class MainWindowSampleHubMixin:
             )
 
     def _on_joint_hub_selection_changed(self, count):
-        if self._current_technique != "joint":
+        if self._workspace_mode_value() is not WorkspaceMode.JOINT:
             return
         self._btn_run.setEnabled(count > 0)
         if hasattr(self, "_workflow_metric_data"):
             self._workflow_metric_data.setText(tr("WORKFLOW_SELECTED_BATCHES", count))
 
     def _on_joint_selected(self, mode):
+        self._set_workspace_mode(WorkspaceMode.JOINT)
         self._current_technique = "joint"
         self._current_submodule_id = mode
         self._set_nav_visual_state(mode, "joint")
@@ -76,6 +78,7 @@ class MainWindowSampleHubMixin:
         self.log(tr("LOG_JOINT_MODE", mode))
 
     def _on_samples_selected(self):
+        self._set_workspace_mode(WorkspaceMode.SAMPLES)
         self._current_technique = "samples"
         self._current_submodule_id = ""
         self._set_joint_hub_visible(False)

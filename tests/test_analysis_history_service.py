@@ -396,6 +396,37 @@ def test_current_results_record_builds_standard_current_record_from_payload():
     assert summary["result"]["validation_passed"] is False
 
 
+def test_current_results_record_can_bind_to_persisted_run_id():
+    record = current_results_record(
+        {"parameters": {"r2": 0.91}},
+        technique="ir",
+        run_id="run-123",
+    )
+
+    assert record["id"] == "run-123"
+
+
+def test_result_comparison_candidates_excludes_current_sentinel_in_fallback(
+    tmp_path,
+):
+    from polynexus.data.sample_db import SampleDB
+    from polynexus.gui.analysis_history_service import result_comparison_candidates
+
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "run")
+    db.create_analysis_run(batch_id, "ir", results_summary={"project_label": "PA6"})
+
+    candidates = result_comparison_candidates(
+        {"id": "current", "technique": "ir", "results_summary": {"project_label": "missing"}},
+        db,
+        inferred_sample_name="missing",
+    )
+
+    assert all(candidate.get("id") != "current" for candidate in candidates)
+    db.close()
+
+
 def test_current_results_record_returns_empty_for_invalid_payload():
     assert current_results_record({}, technique="saxs") == {}
     assert current_results_record(None, technique="saxs") == {}

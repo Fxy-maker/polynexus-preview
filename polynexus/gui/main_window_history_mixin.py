@@ -356,9 +356,8 @@ class MainWindowHistoryMixin:
                 confirmed=bool(getattr(self, "_current_result_confirmed_flag", False)),
                 history_context=self._result_to_jsonable(self._history_context_snapshot()),
             )
-            self._persist_gui_analysis_run_fn()(db, result, context)
+            self._last_persisted_run_id = self._persist_gui_analysis_run_fn()(db, result, context)
             payload = self._analysis_run_result_payload_fn()(result)
-            self._last_persisted_run_id = ""
             logger.info(
                 "Analysis result persisted. technique=%s r2=%.4f",
                 str(payload.get("technique") or context.technique or "unknown"),
