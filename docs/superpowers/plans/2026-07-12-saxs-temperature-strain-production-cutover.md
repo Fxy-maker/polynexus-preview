@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make SAXS temperature/time and strain plotting manifest-backed through the shared figure publisher, with no ungated legacy fallback for active series modes.
+**Goal:** Lock SAXS temperature/time and strain plotting to the mainline shared publisher contract, with no ungated legacy fallback when definitions are empty.
 
-**Architecture:** Expose the existing SAXS mode dispatcher as a small read-only contract, then make `SAXSEngine.plot()` route non-empty definitions through `BaseEngine.publish_figure_definitions()`. When an active temperature/time, strain, or unsupported mixed state has no definitions, return an explicit no-publication result; preserve legacy fallback only for static mode. Existing provider recipes and scientific analysis remain unchanged except for tests that lock their boundary semantics.
+**Architecture:** Validate the mainline SAXS route that already sends non-empty definitions through `BaseEngine.publish_figure_definitions()` and returns an explicit no-publication result for empty definitions. Add regression coverage for temperature/time, strain, unsupported mixed state, and static empty-definition behavior; do not reintroduce or rewrite legacy plotting helpers.
 
 **Tech Stack:** Python 3.10+, NumPy, Matplotlib, pytest, existing `FigureProductionPublisher`/`RunFigureManifest` contracts.
 
@@ -12,9 +12,8 @@
 
 ## File map
 
-- Modify: `polynexus/core/saxs_engine/figure_provider.py` — expose the mode-selection contract used by both the dispatcher and production router.
-- Modify: `polynexus/core/saxs.py:1547-1606` — prevent temperature/time, strain, and unsupported states from entering legacy plotting after provider dispatch.
-- Create: `tests/test_saxs_publication_cutover.py` — route, manifest, metadata, and fallback acceptance tests.
+- Modify: none — mainline already contains the strict shared-publisher route.
+- Create: `tests/test_saxs_publication_cutover.py` — route, manifest, metadata, and empty-definition acceptance tests.
 - Existing coverage: `tests/test_saxs_publication_temperature_provider.py` and `tests/test_saxs_strain_figure_provider.py` remain the provider contract suites and must stay green.
 
 ### Task 1: Lock the mode-routing and production-entry behavior with failing tests
@@ -100,28 +99,12 @@ git add tests/test_saxs_publication_cutover.py
 git commit -m "test(saxs): define temperature strain production cutover"
 ```
 
-### Task 2: Expose one mode contract and make SAXS production routing strict
+### Task 2: Verify the existing strict SAXS production routing
 
 **Files:**
-- Modify: `polynexus/core/saxs_engine/figure_provider.py:14-94`
-- Modify: `polynexus/core/saxs.py:81,1547-1606`
 - Test: `tests/test_saxs_publication_cutover.py`
 
-- [ ] **Step 1: Add the public mode selector with the current decision table**
-
-Rename the private implementation to `saxs_publication_mode(engine_state)` or
-wrap it with that exact public function, preserving the existing decision order:
-
-```python
-def saxs_publication_mode(engine_state: Any) -> str:
-    # retain the existing condition/config conflict checks and result precedence
-    return _mode(engine_state)
-```
-
-Use the public function inside `build_saxs_figure_definitions()` and export it
-in `__all__`. Do not alter the scientific precedence rules in this step.
-
-- [ ] **Step 2: Run the mode-routing tests before changing plot()**
+- [ ] **Step 1: Run the existing route contract before finalizing the test-only cutover**
 
 Run:
 
@@ -129,13 +112,12 @@ Run:
 python -m pytest tests/test_saxs_static_figure_provider.py::test_provider_dispatch_is_deterministic_and_other_modes_are_safe tests/test_saxs_publication_temperature_provider.py::test_provider_prefers_completed_result_and_condition_state_over_static_config tests/test_saxs_strain_figure_provider.py::test_registry_dispatches_only_strain_and_definitions_validate -q
 ```
 
-Expected: PASS, confirming the selector extraction did not change provider
-selection.
+Expected: PASS, confirming the mainline provider and shared publisher contracts
+are already intact.
 
-- [ ] **Step 3: Route active series modes away from legacy fallback**
+- [ ] **Step 2: Confirm no production edit is needed**
 
-Import `saxs_publication_mode` in `polynexus/core/saxs.py`. Keep the existing
-non-empty branch unchanged:
+Inspect `SAXSEngine.plot()` and keep this mainline contract unchanged:
 
 ```python
 definitions = self.build_figure_definitions()
@@ -143,23 +125,19 @@ if definitions:
     return self.publish_figure_definitions(out, definitions=definitions)
 ```
 
-Immediately after it, add:
-
 ```python
-publication_mode = saxs_publication_mode(self)
-if publication_mode in {"temperature", "strain", "unsupported"}:
-    self.log(
-        f"SAXS {publication_mode} state produced no FigureDefinitions; "
-        "legacy plotting is disabled for production"
-    )
+definitions = tuple(self.build_figure_definitions())
+if not definitions:
+    self.log("No figure definitions available")
     return {}
+out = output_dir or self.cfg.output_dir or "saxs_output"
+return self.publish_figure_definitions(out, definitions)
 ```
 
-Leave the existing temperature/strain/static helper code below this guard so
-legacy symbols and static compatibility remain available to callers, while
-active production series modes cannot reach it.
+Do not add a legacy fallback branch. The provider and shared publisher already
+own production output.
 
-- [ ] **Step 4: Run the focused tests and verify GREEN**
+- [ ] **Step 3: Run the focused tests and verify GREEN**
 
 Run:
 
@@ -168,14 +146,14 @@ python -m pytest tests/test_saxs_publication_cutover.py tests/test_saxs_static_f
 ```
 
 Expected: all tests pass, including manifest creation, result metadata updates,
-series no-fallback behavior, unsupported conflict behavior, and static fallback
-compatibility.
+series no-publication behavior, unsupported conflict behavior, and static
+no-publication behavior.
 
-- [ ] **Step 5: Commit the implementation**
+- [ ] **Step 4: Commit the regression coverage**
 
 ```powershell
-git add polynexus/core/saxs_engine/figure_provider.py polynexus/core/saxs.py tests/test_saxs_publication_cutover.py
-git commit -m "feat(saxs): cut temperature strain plots over to publisher"
+git add tests/test_saxs_publication_cutover.py
+git commit -m "test(saxs): lock publication cutover boundary"
 ```
 
 ### Task 3: Verify provider, gallery, and repository acceptance boundaries

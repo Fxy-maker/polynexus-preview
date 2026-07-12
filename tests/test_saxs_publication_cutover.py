@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-import numpy as np
-
 from polynexus.core.saxs import SAXSEngine
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.figures.contracts import (
@@ -24,7 +22,6 @@ def _saxs_definition(*, figure_id: str = "saxs.cutover.main") -> FigureDefinitio
         technique="saxs",
         scope="series",
         category="series_overview",
-        publication_role="main",
         title="SAXS cutover",
         layout=FigureLayoutDefinition(
             width_in=2.0,
@@ -87,17 +84,6 @@ def _series_engine(mode: str) -> SAXSEngine:
     return engine
 
 
-def _legacy_temperature_result() -> SimpleNamespace:
-    return SimpleNamespace(
-        temperatures=np.asarray([20.0]),
-        lc_effective_array=np.asarray([3.0]),
-        lc_array=np.asarray([3.0]),
-        L_array=np.asarray([10.0]),
-        Xc_array=np.asarray([0.3]),
-        Q_star_array=np.asarray([1.0]),
-    )
-
-
 def test_temperature_plot_publishes_shared_manifest_and_result_metadata(
     tmp_path: Path,
     monkeypatch,
@@ -129,67 +115,29 @@ def test_strain_plot_publishes_shared_manifest_and_result_metadata(
     assert Path(engine.result.metadata["figure_manifest"]).is_file()
 
 
-def test_active_series_without_definitions_does_not_call_legacy_helpers(
-    monkeypatch,
-) -> None:
-    import polynexus.core.saxs as saxs_module
-
-    for mode, helper_name in (
-        ("temperature", "fig_temperature_overview"),
-        ("strain", "fig_strain_overview"),
-        ):
+def test_active_series_without_definitions_returns_no_assets(monkeypatch) -> None:
+    for mode in ("temperature", "strain"):
         engine = _series_engine(mode)
-        if mode == "temperature":
-            engine._temperature_result = _legacy_temperature_result()
         monkeypatch.setattr(engine, "build_figure_definitions", lambda: ())
-        monkeypatch.setattr(
-            saxs_module,
-            helper_name,
-            lambda *args, **kwargs: (_ for _ in ()).throw(
-                AssertionError("legacy helper was called")
-            ),
-        )
 
         assert engine.plot() == {}
 
 
-def test_unsupported_mixed_series_does_not_enter_legacy_plotting(monkeypatch) -> None:
-    import polynexus.core.saxs as saxs_module
-
+def test_unsupported_mixed_series_does_not_publish(monkeypatch) -> None:
     engine = SAXSEngine(SAXSConfig(experiment_type="temperature"))
     engine._condition_type = "strain"
     engine._analysis = SimpleNamespace()
-    engine._temperature_result = _legacy_temperature_result()
+    engine._temperature_result = SimpleNamespace()
     engine._strain_result = SimpleNamespace()
-    monkeypatch.setattr(
-        saxs_module,
-        "fig_temperature_overview",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("temperature legacy helper was called")
-        ),
-    )
-    monkeypatch.setattr(
-        saxs_module,
-        "generate_all_figures",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("generic legacy helper was called")
-        ),
-    )
+    monkeypatch.setattr(engine, "build_figure_definitions", lambda: ())
 
     assert engine.plot() == {}
 
 
-def test_static_mode_keeps_legacy_fallback(monkeypatch) -> None:
-    import polynexus.core.saxs as saxs_module
-
+def test_static_without_definitions_returns_no_assets(monkeypatch) -> None:
     engine = SAXSEngine(SAXSConfig(experiment_type="static"))
     engine._condition_type = "static"
     engine._analysis = SimpleNamespace()
     monkeypatch.setattr(engine, "build_figure_definitions", lambda: ())
-    monkeypatch.setattr(
-        saxs_module,
-        "generate_all_figures",
-        lambda *args, **kwargs: {"legacy": "legacy.pdf"},
-    )
 
-    assert engine.plot() == {"legacy": "legacy.pdf"}
+    assert engine.plot() == {}

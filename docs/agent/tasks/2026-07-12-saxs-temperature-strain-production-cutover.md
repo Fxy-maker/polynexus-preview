@@ -126,13 +126,12 @@ python scripts/verify.py --boundary
 
 ## Execution evidence
 
-- Implementation branch: `codex/saxs-temperature-strain-production-cutover`
-- Design commit: `9a3f5d1c`
-- RED test commit: `3fd6769f`
-- Production cutover commit: `3316c9a6`
-- Focused SAXS/shared publication matrix: 143 passed
+- Integration baseline: `origin/main` at `3ecf609b` already contains the shared SAXS publisher route and strict empty-definition behavior.
+- Rebased implementation branch: `codex/saxs-temperature-strain-production-cutover` (rebuilt from the current `origin/main` to avoid the old-branch conflict).
+- Design/plan and task evidence are retained; the rebased PR adds contract-locking regression coverage without replacing the newer mainline provider.
+- Rebased SAXS/provider cutover matrix: 17 passed
 - Main workspace task-card validation: passed
 - Main workspace quality/boundary gate: 516 focused tests passed, 108 preprocess tests passed, boundary audit passed
-- Direct changed-file checks: `figure_provider.py` and cutover tests pass Ruff; changed files compile
+- Direct changed-file checks: cutover tests and documentation pass; current mainline production files remain unchanged
 - Full `pytest -q`: exceeded the 5-minute execution limit without a reported failing test; treat as pending repository-runtime follow-up
 - Human review: required before integration

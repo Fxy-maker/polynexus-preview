@@ -5,10 +5,10 @@
 
 ## Goal
 
-Move SAXS temperature/time and strain plotting onto the existing
+Lock SAXS temperature/time and strain plotting to the existing
 `FigureDefinition -> FigurePipeline -> RunFigureManifest -> Gallery/Editor`
 lifecycle without changing scientific analysis, emitted parameter semantics, or
-the already-integrated static SAXS provider.
+the current mainline provider implementation.
 
 ## Current context
 
@@ -21,27 +21,25 @@ The repository already contains mode-aware SAXS figure providers:
 - `BaseEngine.publish_figure_definitions()` writes the shared manifest and
   updates `result.metadata` and `result.figures`.
 
-The remaining production gap is in `SAXSEngine.plot()`: when a temperature or
-strain state yields no definitions, it can still call the old
-`fig_temperature_overview`, `fig_strain_overview`, or generic legacy helpers.
-That creates a second production path and can produce output that is not
-manifest-backed or not governed by the provider's publication gates.
+The current mainline already routes non-empty SAXS definitions through the
+shared publisher and returns an empty mapping when no definitions are
+available. The remaining work in this cutover is to preserve that contract
+against future regressions and document the production boundary after the
+unified figure lifecycle merge.
 
 ## Options considered
 
-### Option A — Strict mode-specific cutover (selected)
+### Option A — Contract-lock the existing strict route (selected)
 
-Keep the existing providers and contracts, add boundary and acceptance tests,
-and make `SAXSEngine.plot()` use the shared publisher for temperature/time and
-strain whenever those modes are active. If a mode-specific provider returns no
-definitions, return no publication assets and record the reason in the engine
-log instead of invoking legacy helpers. Keep legacy helper functions importable
-for callers and static compatibility, but do not use them for temperature or
-strain production.
+Keep the current providers and contracts, add boundary and acceptance tests,
+and lock `SAXSEngine.plot()` to the shared publisher for every non-empty
+definition tuple. If a provider returns no definitions, return no publication
+assets for static, temperature/time, strain, or mixed/unsupported state instead
+of invoking legacy helpers.
 
-**Trade-off:** a malformed or incomplete series produces no legacy files until
-its provider can emit a governed SI/Diagnostics definition. This is intentional:
-it prevents an ungated file from being mistaken for a publication pack.
+**Trade-off:** a malformed or incomplete series produces no files until its
+provider can emit a governed definition. This prevents an ungated file from
+being mistaken for a publication pack.
 
 ### Option B — Compatibility flag around legacy fallback
 
@@ -80,17 +78,15 @@ handled as a later compatibility cleanup if still needed.
    The publisher writes preview/SVG/PNG/PDF/600-DPI TIFF assets, a run manifest,
    and the active-run pointer, then updates `result.metadata` and
    `result.figures`.
-7. For active temperature/time or strain state, an empty definition tuple is a
-   governed no-publication result: `plot()` returns `{}` and does not call any
-   legacy temperature/strain helper. Static mode retains its existing legacy
-   compatibility fallback when no provider definitions are available.
+7. For any SAXS state, an empty definition tuple is a governed no-publication
+   result: `plot()` returns `{}` and does not call a legacy helper.
 
 ## Error and compatibility handling
 
 - Provider conflicts remain safe no-ops: no mixed-mode definitions are emitted.
 - Empty or malformed frame evidence must not be promoted to Main by fallback
   plotting.
-- Existing legacy helper symbols remain import-compatible; this task does not
+- Existing legacy helper symbols remain outside this task; this task does not
   delete or rewrite them.
 - Existing gallery behavior remains manifest-first. A successful cutover is
   observable through `active_run.json`, `figure_manifest.json`, and the result
@@ -118,7 +114,8 @@ handled as a later compatibility cleanup if still needed.
 - A representative strain engine does the same.
 - An active temperature/strain engine with no provider definitions does not call
   the old helper path.
-- Static mode keeps its legacy compatibility behavior.
+- Static, temperature/time, strain, and unsupported empty-definition states all
+  keep the no-publication behavior.
 - The active manifest is consumable by the existing gallery ordering/filtering
   contract.
 
