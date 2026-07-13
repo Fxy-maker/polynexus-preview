@@ -250,6 +250,16 @@ class MainWindowRetranslateMixin:
             if hasattr(self, "_results_table"):
 
                 self._results_table.setHorizontalHeaderLabels([tr("RESULTS_PARAM"), tr("RESULTS_VALUE")])
+            if hasattr(self, "_results_panel"):
+                self._results_panel.retranslate()
+                source = getattr(self, "_current_results_table_source", None)
+                model = getattr(self, "_current_results_table_model", None)
+                if (
+                    isinstance(source, dict)
+                    and source.get("kind") == "results"
+                    and getattr(model, "primary_section", None) is not None
+                ):
+                    self._display_results(source.get("params"), source.get("result"))
             if hasattr(self, "_history_table"):
                 self._history_table.setHorizontalHeaderLabels(
                     [

@@ -21,7 +21,7 @@ from .export_context_service import (
     write_export_manifest,
     write_export_readme,
 )
-from .i18n import tr
+from .i18n import get_language, tr
 from .results_review_service import (
     result_review_ir_temperature_2d_user_summary_lines as build_result_review_ir_temperature_2d_user_summary_lines,
 )
@@ -29,6 +29,7 @@ from .results_table_service import (
     build_batch_results_table_model,
     build_results_table_model,
 )
+from .result_table_models import ResultTableSection
 from .table_clipboard_service import (
     copy_table_selection_to_clipboard as copy_table_selection_text_to_clipboard,
     extract_table_text_matrix,
@@ -63,6 +64,26 @@ class MainWindowOutputMixin:
             self._results_summary_label.setText(summary)
             self._results_summary_label.setVisible(bool(summary))
         self._update_results_review_panel()
+
+    def _reset_results_panel_for_legacy_table(self):
+        panel = getattr(self, "_results_panel", None)
+        if panel is None:
+            return
+        empty = ResultTableSection.empty()
+        panel.set_content(heroes=(), primary=empty, detail=empty, diagnostics=empty)
+
+    def _render_structured_results_model(self, table_model) -> bool:
+        panel = getattr(self, "_results_panel", None)
+        primary = getattr(table_model, "primary_section", None)
+        if panel is None or primary is None:
+            return False
+        panel.set_content(
+            heroes=table_model.hero_metrics,
+            primary=primary,
+            detail=table_model.detail_section or ResultTableSection.empty(),
+            diagnostics=table_model.diagnostic_section or ResultTableSection.empty(),
+        )
+        return True
 
     def _set_results_default_order_control_visible(self, visible):
         if hasattr(self, "_btn_results_default_order"):
@@ -99,6 +120,13 @@ class MainWindowOutputMixin:
         cols = snapshot.get("cols") or []
         rows = snapshot.get("rows") or []
         sortable = bool(snapshot.get("sortable"))
+
+        current_model = getattr(self, "_current_results_table_model", None)
+        if getattr(current_model, "primary_section", None) is not None:
+            self._render_structured_results_model(current_model)
+            self._results_table.horizontalHeader().setSortIndicator(-1, Qt.AscendingOrder)
+            self._results_table.setSortingEnabled(sortable)
+            return
 
         self._results_table.setSortingEnabled(False)
         self._results_table.setRowCount(len(rows))
@@ -145,6 +173,7 @@ class MainWindowOutputMixin:
         self.log(tr("LOG_RESULTS_TABLE_EXPORTED", len(matrix), len(headers), written_path))
 
     def _display_table_rows(self, columns, rows):
+        self._reset_results_panel_for_legacy_table()
         self._results_table.setRowCount(len(rows))
         self._results_table.setColumnCount(len(columns))
         self._results_table.setHorizontalHeaderLabels(columns)
@@ -200,6 +229,8 @@ class MainWindowOutputMixin:
             table.resizeRowsToContents()
 
     def _display_joint_report(self, report):
+        self._current_results_table_model = None
+        self._current_results_table_source = {"kind": "joint", "report": report}
         self._update_joint_diagnostics(report)
 
         rows = report.get("rows", [])
@@ -232,6 +263,13 @@ class MainWindowOutputMixin:
             all_results,
             ordered_columns_fn=self._ordered_results_columns,
         )
+        self._current_results_table_model = table_model
+        self._current_results_table_source = {
+            "kind": "batch",
+            "results": list(all_results),
+            "technique": str(getattr(self, "_current_technique", "") or ""),
+            "submodule": str(getattr(self, "_current_submodule_id", "") or ""),
+        }
         self._display_table_rows(table_model.columns, table_model.display_rows)
         self._store_results_table_default_order(
             table_model.columns,
@@ -250,12 +288,29 @@ class MainWindowOutputMixin:
         self._set_results_export_control_visible(False)
         self._set_results_copy_control_visible(False)
         self._clear_results_table_default_order()
+        current_technique = str(getattr(self, "_current_technique", "") or "")
+        current_submodule = str(getattr(self, "_current_submodule_id", "") or "")
+        dispatch_technique = current_technique
+        if not current_submodule.strip():
+            dispatch_technique = ""
         table_model = build_results_table_model(
             params,
             ordered_columns_fn=self._ordered_results_columns,
             flatten_params_fn=flatten_history_params,
+            technique=dispatch_technique,
+            submodule=current_submodule,
+            language=get_language(),
         )
-        self._display_table_rows(table_model.columns, table_model.display_rows)
+        self._current_results_table_model = table_model
+        self._current_results_table_source = {
+            "kind": "results",
+            "params": params,
+            "result": result,
+            "technique": str(getattr(self, "_current_technique", "") or ""),
+            "submodule": str(getattr(self, "_current_submodule_id", "") or ""),
+        }
+        if not self._render_structured_results_model(table_model):
+            self._display_table_rows(table_model.columns, table_model.display_rows)
 
         self._store_results_table_default_order(
             table_model.columns,
@@ -265,6 +320,21 @@ class MainWindowOutputMixin:
         self._set_results_export_control_visible(table_model.export_enabled)
         self._set_results_copy_control_visible(table_model.copy_enabled)
         self._results_table.setSortingEnabled(table_model.sortable)
+
+        if table_model.primary_section is not None:
+            if table_model.summary_kind == "multi_sample":
+                summary_text = tr("RESULTS_SUMMARY_MULTI_SAMPLE", table_model.summary_count)
+            elif table_model.summary_kind == "batch":
+                summary_text = self._frame_results_summary_text(table_model.summary_count)
+            else:
+                summary_text = self._single_results_summary_text(params)
+            risk_text = table_model.risk_text
+            next_text = table_model.next_text
+            if result is not None:
+                risk_text = risk_text or self._results_risk_summary_text(params, result)
+                next_text = next_text or self._results_next_step_text(params, result)
+            self._set_results_summary(summary_text, risk_text, next_text)
+            return
 
         if table_model.kind == "multi_sample":
             if result is not None:

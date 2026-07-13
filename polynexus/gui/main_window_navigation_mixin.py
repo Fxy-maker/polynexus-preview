@@ -124,6 +124,7 @@ class MainWindowNavigationMixin:
 
         self._set_workspace_mode(WorkspaceMode.ANALYSIS)
         self._current_technique = technique
+        self._current_submodule_id = ""
         self._set_sample_browser_visible(False)
         self._set_joint_hub_visible(False)
         self._btn_run.setEnabled(True)

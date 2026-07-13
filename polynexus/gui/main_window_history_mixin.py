@@ -3,8 +3,6 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -585,6 +583,7 @@ class MainWindowHistoryMixin:
         restored_payload = self._result_to_jsonable(record)
         if isinstance(restored_payload, dict) and restored_payload:
             self._results[str(technique).strip().lower()] = restored_payload
+        self._display_results(parameters, restored_payload or record)
 
         self._update_workspace_context()
         self._update_work_memory_panel()

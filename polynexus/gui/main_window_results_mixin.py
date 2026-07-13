@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
-
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -38,7 +36,8 @@ from .analysis_history_service import (
     result_comparison_baseline as select_result_comparison_baseline,
     result_comparison_candidates as collect_result_comparison_candidates,
 )
-from .i18n import get_language, tr
+from .i18n import tr
+from .widgets.results_table_panel import ResultsTablePanel
 from .results_review_service import (
     build_result_review_panel_texts_from_window,
 )
@@ -360,20 +359,14 @@ class MainWindowResultsMixin:
         self._results_confirm_group.setVisible(False)
         layout.addWidget(self._results_confirm_group)
 
-        self._results_table = QTableWidget()
-
-        self._results_table.setAlternatingRowColors(True)
-        self._results_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._results_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._results_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self._results_table.setWordWrap(False)
-        self._results_table.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self._results_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self._results_table.horizontalHeader().setStretchLastSection(False)
+        self._results_panel = ResultsTablePanel()
+        self._results_table = self._results_panel.primary_table
+        self._current_results_table_model = None
+        self._current_results_table_source = None
         self._results_copy_shortcut = QShortcut(QKeySequence.Copy, self._results_table)
         self._results_copy_shortcut.activated.connect(self._copy_results_table_to_clipboard)
 
-        layout.addWidget(self._results_table)
+        layout.addWidget(self._results_panel)
 
         action_row = QHBoxLayout()
         self._btn_results_export = QPushButton()
