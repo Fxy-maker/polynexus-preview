@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Callable
 
 from .i18n import tr
+from .analysis_results_table_service import build_analysis_results_presentation
+from .result_table_models import HeroMetric, ResultTableSection
+from .saxs_results_table_service import build_saxs_results_presentation
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -18,6 +25,13 @@ class ResultsTableModel:
     export_enabled: bool = False
     copy_enabled: bool = False
     sortable: bool = False
+    summary_kind: str = ""
+    hero_metrics: tuple[HeroMetric, ...] = ()
+    primary_section: ResultTableSection | None = None
+    detail_section: ResultTableSection | None = None
+    diagnostic_section: ResultTableSection | None = None
+    risk_text: str = ""
+    next_text: str = ""
 
 
 def _format_display_value(value, *, digits: int) -> str:
@@ -26,11 +40,99 @@ def _format_display_value(value, *, digits: int) -> str:
     return str(value)
 
 
+def _qualified_saxs_submodule(submodule: str) -> str:
+    normalized = str(submodule or "").strip().lower()
+    if normalized in {"", "saxs"}:
+        return "saxs.static"
+    if normalized.startswith("saxs."):
+        return normalized
+    return f"saxs.{normalized}"
+
+
+def _saxs_summary_kind(params: Any) -> str:
+    if not isinstance(params, dict):
+        return "single"
+    if "_batch_data" in params:
+        return "batch"
+    batch_frames = params.get("batch_frames", 0)
+    try:
+        return "batch" if batch_frames > 1 else "single"
+    except TypeError:
+        return "single"
+
+
+_ANALYSIS_SUBMODULES = {
+    "dsc": {
+        "dsc.standard",
+        "dsc.isothermal",
+        "dsc.nonisothermal",
+    },
+    "ir": {
+        "ir.standard",
+        "ir.mapping",
+        "ir.temperature_2d",
+    },
+    "waxs": {
+        "waxs.static",
+        "waxs.temperature",
+        "waxs.strain",
+    },
+    "nmr": {
+        "nmr.liquid_h",
+        "nmr.liquid_c",
+        "nmr.solid_h",
+        "nmr.solid_c",
+    },
+}
+
+
+def _qualified_analysis_submodule(technique: str, submodule: str) -> str:
+    tech = str(technique or "").strip().lower()
+    normalized = str(submodule or "").strip().lower()
+    if not normalized:
+        return {
+            "dsc": "dsc.standard",
+            "ir": "ir.standard",
+            "waxs": "waxs.static",
+            "nmr": "nmr.solid_h",
+        }.get(tech, "")
+    if normalized == tech:
+        return {
+            "dsc": "dsc.standard",
+            "ir": "ir.standard",
+            "waxs": "waxs.static",
+            "nmr": "nmr.solid_h",
+        }.get(tech, "")
+    if normalized.startswith(f"{tech}."):
+        return normalized
+    return f"{tech}.{normalized}"
+
+
+def _analysis_submodule_supported(technique: str, submodule: str) -> bool:
+    tech = str(technique or "").strip().lower()
+    normalized = _qualified_analysis_submodule(tech, submodule)
+    return normalized in _ANALYSIS_SUBMODULES.get(tech, set())
+
+
+def _analysis_summary_kind(params: Any) -> str:
+    if not isinstance(params, dict):
+        return "single"
+    if isinstance(params.get("_batch_data"), list):
+        return "batch"
+    try:
+        return "batch" if int(params.get("batch_frames", 0) or 0) > 1 else "single"
+    except (TypeError, ValueError):
+        return "single"
+
+
 def build_results_table_model(
     params,
     *,
     ordered_columns_fn: Callable[[list[str]], list[str]],
     flatten_params_fn: Callable[[Any], list[tuple[str, Any]]],
+    technique: str = "",
+    submodule: str = "",
+    language: str = "en",
 ) -> ResultsTableModel:
     if isinstance(params, dict) and len(params) > 1 and all(isinstance(v, dict) for v in params.values()) and not any(
         str(k).startswith("_") for k in params
@@ -63,7 +165,85 @@ def build_results_table_model(
             export_enabled=True,
             copy_enabled=True,
             sortable=True,
+            summary_kind="multi_sample",
         )
+
+    if str(technique or "").strip().lower() == "saxs":
+        try:
+            presentation = build_saxs_results_presentation(
+                params if isinstance(params, dict) else {},
+                submodule=_qualified_saxs_submodule(submodule),
+                language=language,
+            )
+        except Exception:
+            logger.warning(
+                "SAXS structured results presentation failed; using generic results table.",
+                exc_info=True,
+            )
+        else:
+            primary = presentation.primary
+            return ResultsTableModel(
+                kind=presentation.kind,
+                columns=[column.header for column in primary.columns],
+                display_rows=[
+                    [cell.display for cell in row]
+                    for row in primary.rows
+                ],
+                stored_rows=[
+                    [cell.raw for cell in row]
+                    for row in primary.rows
+                ],
+                summary_count=presentation.summary_count,
+                export_enabled=presentation.export_enabled,
+                copy_enabled=presentation.copy_enabled,
+                sortable=presentation.sortable,
+                summary_kind=_saxs_summary_kind(params),
+                hero_metrics=presentation.hero_metrics,
+                primary_section=primary,
+                detail_section=presentation.detail,
+                diagnostic_section=presentation.diagnostics,
+                risk_text=presentation.risk_text,
+                next_text=presentation.next_text,
+            )
+
+    normalized_technique = str(technique or "").strip().lower()
+    if normalized_technique in _ANALYSIS_SUBMODULES and _analysis_submodule_supported(
+        normalized_technique,
+        submodule,
+    ):
+        qualified_submodule = _qualified_analysis_submodule(normalized_technique, submodule)
+        try:
+            presentation = build_analysis_results_presentation(
+                params,
+                technique=normalized_technique,
+                submodule=qualified_submodule,
+                language=language,
+            )
+        except Exception:
+            logger.warning(
+                "Analysis results presentation failed; using generic results table.",
+                exc_info=True,
+            )
+        else:
+            if presentation is not None:
+                primary = presentation.primary
+                return ResultsTableModel(
+                    kind=presentation.kind,
+                    columns=[column.header for column in primary.columns],
+                    display_rows=[[cell.display for cell in row] for row in primary.rows],
+                    stored_rows=[[cell.raw for cell in row] for row in primary.rows],
+                    summary_count=presentation.summary_count,
+                    export_enabled=presentation.export_enabled,
+                    copy_enabled=presentation.copy_enabled,
+                    sortable=presentation.sortable,
+                    summary_kind=_analysis_summary_kind(params),
+                    hero_metrics=presentation.hero_metrics,
+                    primary_section=primary,
+                    detail_section=presentation.detail,
+                    diagnostic_section=presentation.diagnostics,
+                    risk_text=presentation.risk_text,
+                    next_text=presentation.next_text,
+                )
 
     batch_frames = params.get("batch_frames", 0) if isinstance(params, dict) else 0
     if isinstance(params, dict) and batch_frames > 1 and "_batch_data" in params:
@@ -97,6 +277,7 @@ def build_results_table_model(
             export_enabled=True,
             copy_enabled=True,
             sortable=True,
+            summary_kind="batch",
         )
 
     items = flatten_params_fn(params)
@@ -113,6 +294,7 @@ def build_results_table_model(
         export_enabled=has_items,
         copy_enabled=has_items,
         sortable=False,
+        summary_kind="single",
     )
 
 
@@ -165,4 +347,5 @@ def build_batch_results_table_model(
         export_enabled=has_rows,
         copy_enabled=has_rows,
         sortable=has_rows,
+        summary_kind="batch",
     )

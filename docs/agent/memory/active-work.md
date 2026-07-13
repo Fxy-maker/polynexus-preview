@@ -12,6 +12,7 @@
 
 ## In progress
 
+- Unified Tables results/export slice is active on `codex/unified-tables-results-export-v2` from main `3a0c5c8c`. The slice is limited to structured table templates/adapters, generic fallback, CSV/TSV/XLSX export, and clipboard extraction; GUI panel/workspace integration remains a separate task.
 - Unified Tables contracts slice is implemented on `codex/unified-tables-contracts-v2`; PR #11 passed local and GitHub gates and received user data-contract review on 2026-07-13. Results service/export, GUI integration, DSC/WAXS packs, editor/export reconciliation, and AI preprocessing remain separate task cards.
 - Mainline integration reconciliation completed the reviewed SAXS evidence-filtering slice in PR #10. Shared figure lifecycle compatibility, SAXS mode/evidence contract, cumulative review evidence, and temperature/strain filtering are recorded in the acceptance and memory documents; the squash merge is `70b299af`.
 - GUI startup performance task completed on 2026-07-11. The application entry now uses deferred optional UI construction; focused startup and MainWindow persistence evidence is recorded in `docs/acceptance/2026-07-11-gui-startup-performance.md`.
