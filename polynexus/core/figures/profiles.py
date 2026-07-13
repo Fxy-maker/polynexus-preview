@@ -41,6 +41,18 @@ _PROFILES = {
             "tiff": "figure.tiff",
         },
     ),
+    "waxs_publication": FigureOutputProfile(
+        profile_id="waxs_publication",
+        preview_filename="preview.png",
+        preview_dpi=150,
+        publication_png_dpi=600,
+        formal_assets={
+            "svg": "figure.svg",
+            "png": "figure.png",
+            "pdf": "figure.pdf",
+            "tiff": "figure.tiff",
+        },
+    ),
 }
 
 

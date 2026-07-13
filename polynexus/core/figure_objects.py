@@ -16,6 +16,7 @@ KNOWN_FIGURE_OBJECT_TYPES = {
     "axis",
     "plot_series",
     "heatmap",
+    "image_grid",
     "legend",
     "panel_label",
 }
@@ -32,6 +33,7 @@ DEFAULT_OBJECT_NAMES = {
     "axis": "Axis",
     "plot_series": "Plot Series",
     "heatmap": "Heatmap",
+    "image_grid": "Image Grid",
     "legend": "Legend",
     "panel_label": "Panel Label",
 }

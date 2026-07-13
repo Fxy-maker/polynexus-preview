@@ -75,6 +75,8 @@ class MatplotlibFigureRenderer:
                 self._render_plot_series(axis, plan, figure_object)
             elif object_type == "heatmap":
                 self._render_heatmap(figure, axis, plan, figure_object)
+            elif object_type == "image_grid":
+                self._render_image_grid(axis, plan, figure_object)
             elif object_type == "line":
                 self._render_line(axis, figure_object)
             elif object_type == "text":
@@ -235,6 +237,56 @@ class MatplotlibFigureRenderer:
         )
         label = str(style.get("colorbar_label") or "")
         figure.colorbar(image, ax=axis, label=label)
+
+    def _render_image_grid(
+        self,
+        axis,
+        plan: FigureRenderPlan,
+        figure_object: dict[str, Any],
+    ) -> list[Any]:
+        data_ref = str(figure_object.get("data_ref") or "")
+        try:
+            table = plan.data_tables[data_ref]
+        except KeyError as exc:
+            raise ValueError(f"unknown render data source: {data_ref}") from exc
+        grid_column = np.asarray(table[str(figure_object.get("grid_column") or "")], dtype=int)
+        grid_row = np.asarray(table[str(figure_object.get("grid_row") or "")], dtype=int)
+        x_values = np.asarray(table[str(figure_object.get("x_column") or "")], dtype=float)
+        y_values = np.asarray(table[str(figure_object.get("y_column") or "")], dtype=float)
+        z_values = np.asarray(table[str(figure_object.get("z_column") or "")], dtype=float)
+        if not (len(grid_column) == len(grid_row) == len(x_values) == len(y_values) == len(z_values)):
+            raise ValueError("image_grid data columns differ in length")
+        cells = sorted(set(zip(grid_column.tolist(), grid_row.tolist())))
+        if not cells:
+            raise ValueError("image_grid data is empty")
+        columns = max(item[0] for item in cells) + 1
+        rows = max(item[1] for item in cells) + 1
+        style = self._style(figure_object)
+        artists: list[Any] = []
+        for column, row in cells:
+            mask = (grid_column == column) & (grid_row == row)
+            unique_x = np.unique(x_values[mask])
+            unique_y = np.unique(y_values[mask])
+            if not len(unique_x) or not len(unique_y):
+                raise ValueError("image_grid cell is empty")
+            matrix = np.full((len(unique_y), len(unique_x)), np.nan, dtype=float)
+            x_index = {value: index for index, value in enumerate(unique_x)}
+            y_index = {value: index for index, value in enumerate(unique_y)}
+            for x_value, y_value, z_value in zip(x_values[mask], y_values[mask], z_values[mask]):
+                matrix[y_index[y_value], x_index[x_value]] = z_value
+            if np.isnan(matrix).any():
+                raise ValueError("image_grid cell is not a complete regular grid")
+            inset = axis.inset_axes([column / columns, 1.0 - (row + 1) / rows, 1.0 / columns, 1.0 / rows])
+            inset.set_xticks([])
+            inset.set_yticks([])
+            image = inset.imshow(
+                matrix,
+                origin=str(style.get("origin") or "upper"),
+                cmap=str(style.get("cmap") or "viridis"),
+                aspect="auto",
+            )
+            artists.append(image)
+        return artists
 
     def _render_line(self, axis, figure_object: dict[str, Any]) -> None:
         style = self._style(figure_object)

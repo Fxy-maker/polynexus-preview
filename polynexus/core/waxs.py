@@ -4,8 +4,6 @@ Wraps the modular waxs_engine sub-package while conforming to the
 BaseEngine interface (load -> preprocess -> analyze -> plot).
 """
 import logging
-logger = logging.getLogger(__name__)
-
 import numpy as np
 from typing import Dict, Any, List, Optional
 
@@ -18,6 +16,10 @@ from .waxs_engine import (
     export_strain_csv,
     WAXSTempResult, analyze_temperature_series,
 )
+from .waxs_engine.figure_provider import build_waxs_figure_definitions
+from .waxs_engine.legacy_figure_fallback import generate_legacy_waxs_figures
+
+logger = logging.getLogger(__name__)
 
 @register_technique("waxs")
 @register_submodule(SubModuleSpec(
@@ -125,7 +127,6 @@ class WAXSEngine(BaseEngine):
         sub = getattr(self, 'active_submodule', '')
         if sub == 'waxs.strain':
             self._waxs_config.do_sector_integration = True
-            n = len(self._dataset.scans)
             strains = self._sequence_values("strain", default_start=0.0, default_step=10.0)
             result = self.analyze_strain(strains)
             return result is not None
@@ -155,20 +156,24 @@ class WAXSEngine(BaseEngine):
         return True
 
     def build_figure_definitions(self):
-        """Return scientific figure definitions without publishing assets."""
+        """Return mode-specific editable WAXS publication definitions."""
 
-        from .waxs_engine.figure_provider import build_waxs_figure_definitions
-
-        return build_waxs_figure_definitions(tuple(self._results))
+        return build_waxs_figure_definitions(self)
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
-        definitions = tuple(self.build_figure_definitions())
-        if not definitions:
-            self.log("No figure definitions available")
+        if not self._results:
+            self.log("No analysis results to plot")
             return {}
         out = output_dir or self._waxs_config.output_dir or "waxs_output"
-        figures = self.publish_figure_definitions(out, definitions)
-        for path in figures.values():
+        definitions = self.build_figure_definitions()
+        if definitions:
+            return self.publish_figure_definitions(
+                out,
+                definitions=definitions,
+                profile_id="waxs_publication",
+            )
+        figures = generate_legacy_waxs_figures(self, out)
+        for name, path in figures.items():
             self.log(f"  Figure saved: {path}")
         return figures
 
