@@ -23,7 +23,7 @@ class FigureArtifactInspection:
 class FigureArtifactInspector:
     """Verify required roles and format-independent canvas geometry."""
 
-    _FORMAL_GEOMETRY_ROLES = ("svg", "png", "pdf")
+    _FORMAL_GEOMETRY_ROLES = ("svg", "png", "pdf", "tiff")
     _ASPECT_RATIO_TOLERANCE = 0.01
 
     def inspect(
@@ -50,6 +50,14 @@ class FigureArtifactInspector:
                 f"publication PNG DPI is {png_dpi}, "
                 f"expected {profile.publication_png_dpi}"
             )
+
+        if "tiff" in profile.formal_assets:
+            tiff_dpi = dimensions.get("tiff", (0, 0, 0))[2]
+            if tiff_dpi != profile.publication_png_dpi:
+                errors.append(
+                    f"publication TIFF DPI is {tiff_dpi}, "
+                    f"expected {profile.publication_png_dpi}"
+                )
 
         expected_ratio = plan.width_in / plan.height_in
         for role in self._FORMAL_GEOMETRY_ROLES:

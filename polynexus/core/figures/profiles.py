@@ -29,6 +29,18 @@ _PROFILES = {
             "pdf": "figure.pdf",
         },
     ),
+    "dsc_publication": FigureOutputProfile(
+        profile_id="dsc_publication",
+        preview_filename="preview.png",
+        preview_dpi=150,
+        publication_png_dpi=600,
+        formal_assets={
+            "svg": "figure.svg",
+            "png": "figure.png",
+            "pdf": "figure.pdf",
+            "tiff": "figure.tiff",
+        },
+    ),
 }
 
 

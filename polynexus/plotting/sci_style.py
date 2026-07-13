@@ -21,15 +21,15 @@ Usage:
 """
 
 from __future__ import annotations
-import logging
-logger = logging.getLogger(__name__)
-
-
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 1. Color Palettes
@@ -455,6 +455,17 @@ AXIS_LABELS: Dict[str, str] = {
     "Tc":           r"$T_{\mathrm{c}}$ ($^\circ$C)",
     "Cp":           r"$C_p$ (J/(g$\cdot$K))",
     "Xc_dsc":       r"Crystallinity $\phi_c^{\mathrm{DSC}}$ (\%)",
+    "enthalpy":     r"Enthalpy (J/g)",
+    "crystallinity": r"Crystallinity (\%)",
+    "conversion":   r"Relative crystallinity $X(t)$",
+    "time_min":     r"Time (min)",
+    "relative_crystallinity": r"Relative crystallinity $X(t)$",
+    "event":        "Event",
+    "sample":       "Sample",
+    "rate":         r"Rate (K/min)",
+    "kinetics_response": "Kinetics response",
+    "method":       "Method",
+    "gate_status":  "Gate status",
     "avrami_y":     r"$\ln[-\ln(1-X_c)]$",
     "beta":         r"Heating rate $\beta$ ($^\circ$C/min)",
 

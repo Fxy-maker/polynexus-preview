@@ -75,6 +75,7 @@ class PanelDefinition:
     y_axis: AxisDefinition
     title: str = ""
     show_legend: bool = False
+    panel_label: str = ""
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -84,6 +85,7 @@ class PanelDefinition:
             "y_axis": self.y_axis.to_payload(),
             "title": self.title,
             "show_legend": self.show_legend,
+            "panel_label": self.panel_label,
         }
 
 

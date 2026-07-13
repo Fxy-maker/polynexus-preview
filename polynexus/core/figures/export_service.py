@@ -100,6 +100,8 @@ class FigureArtifactExportService:
                 self._save_svg(plan, staged_assets["svg"], profile)
                 self._save_png(plan, staged_assets["png"], profile)
                 self._save_pdf(plan, staged_assets["pdf"], profile)
+                if "tiff" in staged_assets:
+                    self._save_tiff(plan, staged_assets["tiff"], profile)
 
             inspection = self._inspector.inspect(
                 plan=plan,
@@ -181,6 +183,21 @@ class FigureArtifactExportService:
             figure,
             path,
             file_format="pdf",
+            background=profile.background,
+        )
+
+    def _save_tiff(
+        self,
+        plan: FigureRenderPlan,
+        path: Path,
+        profile: FigureOutputProfile,
+    ) -> None:
+        figure = self._renderer.render(plan, dpi=profile.publication_png_dpi)
+        self._save_figure(
+            figure,
+            path,
+            file_format="tiff",
+            dpi=profile.publication_png_dpi,
             background=profile.background,
         )
 

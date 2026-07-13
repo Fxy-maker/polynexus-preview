@@ -74,7 +74,5 @@ def test_dsc_engine_exposes_complete_definitions(dsc_results):
 
     definitions = engine.build_figure_definitions()
 
-    assert {item.figure_id for item in definitions} >= {
-        "dsc.frame.thermogram.001",
-        "dsc.series.crystallinity",
-    }
+    assert "dsc.comparison.thermal-events" in {item.figure_id for item in definitions}
+    assert all(item.publication_role == "main" for item in definitions)

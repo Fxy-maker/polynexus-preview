@@ -106,12 +106,14 @@ def test_panel_contract_preserves_title_and_legend(ir_definition):
         ir_definition.layout.panels[0],
         title="Spectrum",
         show_legend=True,
+        panel_label="(a)",
     )
 
     payload = panel.to_payload()
 
     assert payload["title"] == "Spectrum"
     assert payload["show_legend"] is True
+    assert payload["panel_label"] == "(a)"
 
 
 def test_figure_definition_rejects_unknown_publication_role(ir_definition):

@@ -14,12 +14,9 @@ Module-level architecture:
 """
 
 import logging
-logger = logging.getLogger(__name__)
-
-import os
 import copy
 import numpy as np
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from .submodule_registry import SubModuleSpec, register_submodule
 from .engine import BaseEngine, EngineCategory, register_technique
@@ -27,7 +24,6 @@ from .dsc_engine import (
     DSCConfig,
     DSCScan,
     DSCResult,
-    load_scan,
     load_project,
     normalise_scan,
     preprocess_pipeline,
@@ -35,6 +31,9 @@ from .dsc_engine import (
     analyze_kinetics,
     AvramiResult,
 )
+from .dsc_engine.figure_provider import build_dsc_figure_definitions
+
+logger = logging.getLogger(__name__)
 
 
 @register_technique("dsc")
@@ -193,7 +192,6 @@ class DSCEngine(BaseEngine):
             )
             self._results.append(result)
 
-            params = result.parameters
             self.log(
                 f"  [{result.label}] "
                 + (f"Tg={result.Tg_C:.1f}°C " if not np.isnan(result.Tg_C) else "")
@@ -211,25 +209,46 @@ class DSCEngine(BaseEngine):
         return True
 
     def build_figure_definitions(self):
-        """Return scientific figure definitions without publishing assets."""
+        """Return mode-specific editable DSC publication definitions."""
 
-        from .dsc_engine.figure_provider import build_dsc_figure_definitions
-
-        return build_dsc_figure_definitions(tuple(self._results))
+        return build_dsc_figure_definitions(self)
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         """Generate SCI-quality DSC figures.
 
         Returns dict of figure_name → filepath.
         """
-        definitions = tuple(self.build_figure_definitions())
-        if not definitions:
-            self.log("No figure definitions available")
+        if not self._results:
+            self.log("No analysis results to plot")
             return {}
 
         out = output_dir or self._dsc_config.output_dir or "dsc_output"
-        figures = self.publish_figure_definitions(out, definitions)
-        for path in figures.values():
+        definitions = tuple(self.build_figure_definitions())
+        if definitions:
+            dsc_publication_prefixes = (
+                "dsc.standard.",
+                "dsc.comparison.",
+                "dsc.isothermal.",
+                "dsc.nonisothermal.",
+            )
+            profile_id = (
+                "dsc_publication"
+                if any(
+                    item.figure_id.startswith(dsc_publication_prefixes)
+                    for item in definitions
+                )
+                else "paper_complete"
+            )
+            figures = self.publish_figure_definitions(
+                out,
+                definitions=definitions,
+                profile_id=profile_id,
+            )
+        else:
+            self.log("No figure definitions available")
+            return {}
+
+        for name, path in figures.items():
             self.log(f"  Figure saved: {path}")
 
         return figures
