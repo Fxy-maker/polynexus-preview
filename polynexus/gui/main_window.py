@@ -191,6 +191,7 @@ from .results_review_service import (
 )
 from .results_table_service import build_batch_results_table_model
 from .table_export_service import write_table_export
+from .preprocess_decision_service import build_preprocess_ui_decision
 
 from ..core.engine import list_techniques, get_engine, logger, check_file_format
 from ..core.joint.dataset import build_joint_hub_report
@@ -438,6 +439,35 @@ class SideTuningReportDialog(QDialog):
         self._decision_label.setWordWrap(True)
         self._decision_label.setStyleSheet(f"color: {C_TEXT_MUTED}; padding: 0 0 10px 0;")
         layout.addWidget(self._decision_label)
+        self._preprocess_ui_decision = None
+        self._preprocess_metrics_label = QLabel("")
+        self._preprocess_metrics_label.setWordWrap(True)
+        self._preprocess_metrics_label.setTextInteractionFlags(
+            Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard
+        )
+        if "preprocess_decision" in self.report:
+            self._preprocess_ui_decision = build_preprocess_ui_decision(self.report)
+            view = self._preprocess_ui_decision
+            metric_text = "\n".join(
+                f"{name}: {value}" for name, value in view.metric_rows.items()
+            )
+            reason_text = ", ".join(view.reason_codes)
+            self._preprocess_metrics_label.setText(
+                "\n".join(
+                    part
+                    for part in (
+                        view.title,
+                        view.summary,
+                        metric_text,
+                        f"Reasons: {reason_text}" if reason_text else "",
+                    )
+                    if part
+                )
+            )
+            self._preprocess_metrics_label.setStyleSheet(
+                f"color: {C_TEXT_PRIMARY}; padding: 6px 0 10px 0;"
+            )
+            layout.addWidget(self._preprocess_metrics_label)
         benchmark = self._report_benchmark_text()
         self._benchmark_label = None
         if benchmark:
@@ -576,12 +606,21 @@ class SideTuningReportDialog(QDialog):
         )
         change_layout.addWidget(self._change_table)
         right_layout.addWidget(change_group, 1)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText(tr("AI_TUNING_APPLY"))
-        buttons.button(QDialogButtonBox.Cancel).setText(tr("COMMON_CANCEL"))
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self._buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self._buttons.button(QDialogButtonBox.Ok).setText(tr("AI_TUNING_APPLY"))
+        self._buttons.button(QDialogButtonBox.Cancel).setText(tr("COMMON_CANCEL"))
+        if self._preprocess_ui_decision is not None:
+            view = self._preprocess_ui_decision
+            self._buttons.button(QDialogButtonBox.Ok).setEnabled(
+                view.apply_enabled or view.undo_enabled
+            )
+            if view.undo_enabled:
+                self._buttons.button(QDialogButtonBox.Ok).setText("Undo")
+            elif view.mode in {"shadow", "keep_original"}:
+                self._buttons.button(QDialogButtonBox.Cancel).setText("Close")
+        self._buttons.accepted.connect(self.accept)
+        self._buttons.rejected.connect(self.reject)
+        layout.addWidget(self._buttons)
         self._populate_review_panels()
         self._fill_candidate_trials()
         self._fill_scores()
@@ -610,6 +649,8 @@ class SideTuningReportDialog(QDialog):
         )
 
     def best_config(self):
+        if self._preprocess_ui_decision is not None:
+            return dict(self._preprocess_ui_decision.selected_config)
         config = self.report.get("best_config") or {}
         return config if isinstance(config, dict) else {}
 

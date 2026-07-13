@@ -12,6 +12,18 @@
 
 ## In progress
 
+- AI preprocessing mainline is active on `codex/ai-preprocess-mainline-v2` from
+  `main@4437bc90`. Foundation, semantic intents, DSC/IR/WAXS, and SAXS/NMR
+  adapters are present; the current safety checkpoint adds scoped experience
+  retrieval, decision audit records, original-config snapshots, hash rechecks,
+  runtime negative-fraction evidence, and SAXS/NMR hard guards. Focused
+  preprocessing/calibration tests pass (`79`); the broader orchestration subset
+  passes (`244 passed, 1 skipped`). GUI confirmation, Golden/AI-off/fault gates,
+  CI, and human scientific review remain pending. Focused Golden/synthetic,
+  fault-injection, AI-off, and quality-gate checks now pass; local
+  `quality_gate.py --all-tests` exceeded 304 seconds without reporting a
+  failing test. The task card is
+  `docs/agent/tasks/2026-07-13-ai-preprocessing-mainline.md`.
 - Unified Tables results/export slice is merged in PR #12 at `3f050065`; the slice covers structured table templates/adapters, generic fallback, CSV/TSV/XLSX export, and clipboard extraction.
 - Unified Tables GUI integration is active on `codex/unified-tables-gui-integration-v2` from main `3f050065`. The slice is limited to the structured result panel, MainWindow service/view-model consumption, workspace/history restore context, and persistence/retranslation regressions; editor/export reconciliation remains separate.
 - DSC publication packs were reviewed and merged in PR #14 as `a5804d2a`, with the dedicated 600-DPI publication profile and standard/isothermal/non-isothermal evidence-gated providers. The dedicated main worktree is synchronized with `origin/main`.

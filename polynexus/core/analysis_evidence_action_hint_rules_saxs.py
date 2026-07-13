@@ -6,11 +6,11 @@ ACTION_HINT_RULES_SAXS: dict[str, tuple[list[str], list[str]]] = {
         ["residual_type should move toward random", "Bragg-region fit should stabilize"],
     ),
     "background_drift": (
-        ["savgol_window", "q_corr_min", "q_corr_max"],
+        ["bg_scale_value"],
         ["L_bragg and L_corr should move closer", "validation_summary should calm down"],
     ),
     "noise": (
-        ["savgol_window", "savgol_order"],
+        ["smooth_method", "smooth_span", "savgol_window", "savgol_order"],
         ["residual_type should move toward random", "q_peak_snr should stabilize"],
     ),
 }

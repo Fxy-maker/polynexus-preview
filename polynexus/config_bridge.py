@@ -43,6 +43,11 @@ DSC_PARAM_MAP: dict[str, ParamRule] = {
 }
 
 SAXS_PARAM_MAP: dict[str, ParamRule] = {
+    "bg_scale_value": ParamRule("bg_scale_value", float, (0.50, 1.50)),
+    "smooth_method": ParamRule(
+        "smooth_method", str, ("none", "savgol", "moving_average")
+    ),
+    "smooth_span": ParamRule("smooth_span", int, (3, 31)),
     "q_bragg_min": ParamRule("q_bragg_min", float, (0.05, 0.6)),
     "q_bragg_max": ParamRule("q_bragg_max", float, (0.3, 2.0)),
     "q_corr_min": ParamRule("q_corr_min", float, (0.03, 1.0)),

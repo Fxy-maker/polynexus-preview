@@ -21,6 +21,7 @@ def test_default_commands_include_fast_checks_only():
     assert [command.label for command in commands] == [
         "compile",
         "focused-tests",
+        "preprocess_optimization",
         "whitespace",
     ]
     assert commands[0].argv == ["python", "-m", "compileall", "scripts", "polynexus", "tests", "-q"]
@@ -47,7 +48,8 @@ def test_default_commands_include_fast_checks_only():
         "tests/test_quality_gate.py",
         "-q",
     ]
-    assert commands[2].argv == ["git", "diff", "--check"]
+    assert commands[2].argv[-1] == "-q"
+    assert commands[3].argv == ["git", "diff", "--check"]
 
 
 def test_default_commands_can_include_all_tests():
@@ -56,10 +58,11 @@ def test_default_commands_can_include_all_tests():
     assert [command.label for command in commands] == [
         "compile",
         "focused-tests",
+        "preprocess_optimization",
         "all-tests",
         "whitespace",
     ]
-    assert commands[2].argv == ["pytest", "-q"]
+    assert commands[3].argv == ["pytest", "-q"]
 
 
 def test_run_commands_stops_on_first_failure():

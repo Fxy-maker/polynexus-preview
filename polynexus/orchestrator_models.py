@@ -27,3 +27,7 @@ class RoundRecord:
     target_symptom: str = ""
     rollback_detail: str = ""
     decision_summary: str = ""
+    preprocess_intent: dict[str, Any] = field(default_factory=dict)
+    preprocess_candidates: list[dict[str, Any]] = field(default_factory=list)
+    preprocess_evidence: list[dict[str, Any]] = field(default_factory=list)
+    preprocess_decision: dict[str, Any] = field(default_factory=dict)

@@ -222,6 +222,14 @@ def _candidate_plans_for_action(
         raw_candidates = self._saxs_crop_action_candidates(current_config)
     elif action_name == "adjust_idf_smoothing":
         raw_candidates = self._saxs_idf_smoothing_candidates(current_config)
+    elif action_name == "rebalance_background_scale":
+        current_value = self._safe_float(current_config.get("bg_scale_value", 1.0))
+        raw_candidates = [
+            {"bg_scale_value": current_value - 0.05},
+            {"bg_scale_value": current_value + 0.05},
+        ]
+    elif action_name == "reduce_profile_noise":
+        raw_candidates = self._saxs_idf_smoothing_candidates(current_config)
     elif action_name == "switch_lorentz_method":
         current_method = str(current_config.get("lorentz_fit_method", "") or "").strip()
         choices = SAXS_PARAM_MAP["lorentz_fit_method"].constraint

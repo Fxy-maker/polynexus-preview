@@ -669,6 +669,9 @@ def _final_report(
         "best_output_parameters": self._to_plain_value(self._best_output),
         "history": [self._to_plain_value(asdict(record)) for record in self.history],
     }
+    preprocess_report = getattr(self, "_last_preprocess_report", {})
+    if isinstance(preprocess_report, dict) and preprocess_report:
+        report.update(self._to_plain_value(preprocess_report))
     return self._to_plain_value(report)
 
 

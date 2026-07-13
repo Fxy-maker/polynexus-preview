@@ -434,6 +434,9 @@ class MainWindowRunMixin:
         self._persist_analysis_run(result)
         self._update_workspace_context()
         self._update_results_compare_panel()
+        finalize_preprocess = getattr(self, "_finalize_preprocess_apply_success", None)
+        if callable(finalize_preprocess):
+            finalize_preprocess()
         self._last_ai_tuned_run = False
 
     def _on_joint_hub_error(self, msg):
@@ -455,6 +458,9 @@ class MainWindowRunMixin:
         self._set_running_ui(False)
         self.log(tr("LOG_ERROR_DETAIL", msg))
         self._append_analysis_warning_summary()
+        rollback_preprocess = getattr(self, "_rollback_preprocess_apply_failure", None)
+        if callable(rollback_preprocess):
+            rollback_preprocess()
 
     def _on_batch_file_done(self, filename, params):
         self._batch_results.append({"file": filename, "params": params})

@@ -15,6 +15,16 @@ from polynexus.core.dsc_engine import aggregate_dsc_result_metrics
 from .models import EvalCase, EvalResult, GroundTruth, Range
 
 
+def run_preprocess_manifest(path: str | Path) -> list[dict[str, Any]]:
+    from tests.eval.preprocess.synthetic_signals import run_synthetic_case
+
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    cases = payload.get("cases", []) if isinstance(payload, dict) else []
+    if not isinstance(cases, list):
+        raise EvalCaseLoadError("Preprocessing manifest cases must be a list")
+    return [run_synthetic_case(item) for item in cases if isinstance(item, dict)]
+
+
 class EvalCaseLoadError(ValueError):
     """Raised when a case file cannot be parsed into a valid EvalCase."""
 

@@ -32,6 +32,30 @@ class SAXSActionSpec:
 
 SAXS_ACTION_SPECS: tuple[SAXSActionSpec, ...] = (
     SAXSActionSpec(
+        name="rebalance_background_scale",
+        label="Rebalance background scale",
+        summary="Adjust only the scale of a real manually configured background profile.",
+        target_symptoms=("background_drift", "negative_intensity_excess"),
+        allowed_params=("bg_scale_value",),
+        expected_evidence_change=(
+            "background residuals should weaken",
+            "negative intensity should remain bounded",
+        ),
+        priority=6,
+    ),
+    SAXSActionSpec(
+        name="reduce_profile_noise",
+        label="Reduce profile noise",
+        summary="Adjust segment-safe smoothing without changing measured metadata.",
+        target_symptoms=("noise_dominant", "high_frequency_residual"),
+        allowed_params=("smooth_method", "smooth_span", "savgol_window", "savgol_order"),
+        expected_evidence_change=(
+            "residual noise should weaken",
+            "q-peak and Guinier support should remain stable",
+        ),
+        priority=5,
+    ),
+    SAXSActionSpec(
         name="adjust_q_crop",
         label="Adjust q crop",
         summary="Tighten or widen low-q/high-q coverage when contamination or truncation dominates the fit.",

@@ -51,6 +51,21 @@ def __init__(
     self._baseline_r_squared = 0.0
     self._baseline_eval_score = 0.0
 
+    from polynexus.core.preprocess_optimization import (
+        DecisionAuditLog,
+        ExperienceStore,
+        load_configured_preprocess_policy,
+    )
+
+    self.preprocess_policy = load_configured_preprocess_policy(self.technique)
+    self.preprocess_audit_log = DecisionAuditLog(
+        self.project_root / "results" / "audit" / "preprocess_decisions.jsonl"
+    )
+    self.preprocess_experience_store = ExperienceStore(
+        self.project_root / "results" / "audit" / "preprocess_experience.json"
+    )
+    self._last_preprocess_report: dict[str, Any] = {}
+
 
 def _emit_progress(
     self,

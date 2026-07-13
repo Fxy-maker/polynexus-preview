@@ -58,6 +58,13 @@ from polynexus.orchestrator_regressions import (
 )
 from polynexus.orchestrator_decisions import _decision_metrics as _shared_decision_metrics
 from polynexus.orchestrator_decisions import _evaluate_candidate as _shared_evaluate_candidate
+from polynexus.orchestrator_preprocess import (
+    _commit_preprocess_candidate as _shared_commit_preprocess_candidate,
+    _execute_preprocess_candidate as _shared_execute_preprocess_candidate,
+    _run_preprocess_intent as _shared_run_preprocess_intent,
+    _snapshot_for_preprocess as _shared_snapshot_for_preprocess,
+    run_preprocess_intent as _shared_public_run_preprocess_intent,
+)
 from polynexus.orchestrator_scoring import _dsc_support_snapshot as _shared_dsc_support_snapshot
 from polynexus.orchestrator_scoring import _first_text as _shared_first_text
 from polynexus.orchestrator_scoring import _ir_support_snapshot as _shared_ir_support_snapshot
@@ -262,6 +269,11 @@ class ParameterOrchestrator:
     __init__ = _shared_init
 
     run = _shared_run
+    run_preprocess_intent = _shared_public_run_preprocess_intent
+    _run_preprocess_intent = _shared_run_preprocess_intent
+    _snapshot_for_preprocess = _shared_snapshot_for_preprocess
+    _execute_preprocess_candidate = _shared_execute_preprocess_candidate
+    _commit_preprocess_candidate = _shared_commit_preprocess_candidate
     _emit_progress = _shared_emit_progress
 
     _restore_best = _shared_restore_best

@@ -12,6 +12,45 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 
+def preprocess_export_metadata(report: object) -> dict[str, Any]:
+    """Return optimizer metadata only when preprocessing was explicitly invoked."""
+    if not isinstance(report, dict) or not isinstance(report.get("preprocess_decision"), dict):
+        return {}
+    from polynexus.core.preprocess_optimization import stable_config_hash
+
+    decision = report["preprocess_decision"]
+    record = report.get("decision_record", {})
+    record = record if isinstance(record, dict) else {}
+    best_config = report.get("best_config", {})
+    best_config = best_config if isinstance(best_config, dict) else {}
+    return {
+        "schema_version": str(record.get("schema_version", "")),
+        "policy_version": str(record.get("policy_version", "")),
+        "core_version": str(record.get("core_version", "")),
+        "prompt_version": str(record.get("prompt_version", "")),
+        "final_config_hash": stable_config_hash(best_config),
+        "decision": str(decision.get("decision", "")),
+        "confidence_band": str(decision.get("confidence_band", "")),
+        "user_decision": str(decision.get("user_decision", record.get("user_decision", "")) or ""),
+        "evidence_refs": list(record.get("evidence_refs", [])),
+    }
+
+
+def _build_preprocess_section(report: object) -> str:
+    metadata = preprocess_export_metadata(report)
+    if not metadata:
+        return ""
+    rows = "".join(
+        f"<tr><td>{key}</td><td>{json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value}</td></tr>"
+        for key, value in metadata.items()
+    )
+    return f"""
+    <div class="section">
+        <h2>Preprocessing optimization</h2>
+        <table><tr><th>Field</th><th>Value</th></tr>{rows}</table>
+    </div>"""
+
+
 # ---------------------------------------------------------------------------
 #  HTML template
 # ---------------------------------------------------------------------------
@@ -377,6 +416,7 @@ def generate_report(project_name="Polymer Analysis",
                     ir_results=None,
                     nmr_results=None,
                     joint_results=None,
+                    preprocess_report=None,
                     ) -> str:
     """Generate a complete HTML report.
 
@@ -430,6 +470,10 @@ def generate_report(project_name="Polymer Analysis",
                 {''.join(rows)}
             </table>
         </div>""")
+
+    preprocess_section = _build_preprocess_section(preprocess_report)
+    if preprocess_section:
+        sections.append(preprocess_section)
 
     # Figures
     if output_dir:

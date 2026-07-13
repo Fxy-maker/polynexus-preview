@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "cases": [
+    {"case_id": "dsc-sloped-background", "technique": "DSC", "scenario": "background", "input_mode": "processed", "seed": 11, "intent": {"target": "baseline", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.80, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "dsc-noisy-weak-event", "technique": "DSC", "scenario": "noise", "input_mode": "processed", "seed": 12, "intent": {"target": "smoothing", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.75, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "ir-sloped-background", "technique": "IR", "scenario": "background", "input_mode": "processed", "seed": 13, "intent": {"target": "baseline", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.80, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "ir-noisy-weak-band", "technique": "IR", "scenario": "noise", "input_mode": "processed", "seed": 14, "intent": {"target": "smoothing", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.75, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "waxs-sloped-background", "technique": "WAXS", "scenario": "background", "input_mode": "processed", "seed": 15, "intent": {"target": "baseline", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.80, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "waxs-noisy-weak-peak", "technique": "WAXS", "scenario": "noise", "input_mode": "processed", "seed": 16, "intent": {"target": "smoothing", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.75, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "saxs-manual-background", "technique": "SAXS", "scenario": "background", "input_mode": "processed", "seed": 17, "intent": {"target": "baseline", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.80, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "saxs-mask-boundary-noise", "technique": "SAXS", "scenario": "noise", "input_mode": "processed", "seed": 18, "intent": {"target": "smoothing", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.70, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "nmr-processed-background", "technique": "NMR", "scenario": "background", "input_mode": "processed", "seed": 19, "intent": {"target": "baseline", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.80, "allowed_decisions": ["keep_original"]}},
+    {"case_id": "nmr-fid-noise", "technique": "NMR", "scenario": "noise", "input_mode": "fid", "seed": 20, "intent": {"target": "smoothing", "desired_effect": "medium"}, "expected": {"min_weak_peak_retention": 0.75, "allowed_decisions": ["keep_original"]}}
+  ]
+}

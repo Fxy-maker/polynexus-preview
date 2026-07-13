@@ -4,6 +4,7 @@ from typing import Any
 
 from .orchestrator_run_round_candidate_handler import _handle_candidate_plan_round
 from .orchestrator_run_round_direct_handler import _handle_direct_change_round
+from .orchestrator_run_round_preprocess_handler import _handle_preprocess_intent_round
 
 
 def _handle_invalid_changes_round(
@@ -70,4 +71,3 @@ def _handle_noop_converged_round(
         symptom_summary=symptom_summary,
     )
     return {"stop": True, "converged": True, "convergence_reason": "optimal"}
-

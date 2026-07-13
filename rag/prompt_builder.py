@@ -5,6 +5,8 @@ from dataclasses import asdict, is_dataclass
 from typing import Any
 
 from polynexus.config_bridge import DSC_PARAM_MAP, IR_PARAM_MAP, NMR_PARAM_MAP, SAXS_PARAM_MAP, WAXS_PARAM_MAP
+from polynexus.core.preprocess_optimization import get_preprocess_policy
+from rag.preprocess_intent import PREPROCESS_ACTION_NAMES
 from rag.polymer_knowledge import format_polymer_knowledge
 
 
@@ -1254,6 +1256,22 @@ class PromptBuilder:
         symptom_bridge = self._format_symptom_bridge(compact)
         allowed_actions = current_sample.get("allowed_actions", [])
         allowed_changes = current_sample.get("allowed_changes", {})
+        action_names = {
+            str(item.get("name", "") or "").strip()
+            for item in allowed_actions
+            if isinstance(item, dict)
+        } if isinstance(allowed_actions, list) else set()
+        symptoms = evidence.get("symptoms", [])
+        symptom_names = {
+            str(item.get("name", "") or "").strip()
+            for item in symptoms
+            if isinstance(item, dict)
+        } if isinstance(symptoms, list) else set()
+        preprocessing_requested = bool(action_names & PREPROCESS_ACTION_NAMES) or any(
+            token in name
+            for name in symptom_names
+            for token in ("baseline", "background", "noise", "smooth")
+        )
         contract = [
             "## Core evidence",
             evidence_text,
@@ -1302,6 +1320,32 @@ class PromptBuilder:
                 "- the user keeps the final scientific judgment.",
             ]
         )
+        if preprocessing_requested:
+            technique = str(current_sample.get("technique", "") or "").strip().upper()
+            policy = get_preprocess_policy(technique)
+            contract.extend(
+                [
+                    "",
+                    "## Preprocessing intent contract",
+                    "For a baseline or smoothing action, include this exact object shape:",
+                    "{",
+                    '  "preprocess_intent": {',
+                    '    "schema_version": "1.0",',
+                    '    "analysis_id": "current case_id",',
+                    f'    "technique": "{technique}",',
+                    f'    "target": "{" | ".join(policy.allowed_targets)}",',
+                    f'    "direction": "{" | ".join(policy.allowed_directions)}",',
+                    f'    "desired_effect": "{" | ".join(policy.allowed_effects)}",',
+                    '    "protected_features": ["policy-approved feature names"],',
+                    '    "target_symptoms": ["observed Core symptom names"],',
+                    '    "rationale_code": "short stable code",',
+                    '    "human_summary": "short explanation"',
+                    "  }",
+                    "}",
+                    "desired_effect is qualitative; Core maps it to bounded numeric candidates.",
+                    "Do not place baseline or smoothing parameters in changes; keep those changes empty.",
+                ]
+            )
         return f"{prompt}\n\n" + "\n".join(contract)
 
     def _format_symptom_bridge(self, compact_evidence: dict[str, Any]) -> str:

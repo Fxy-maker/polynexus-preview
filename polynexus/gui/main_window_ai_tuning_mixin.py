@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from copy import deepcopy
+from pathlib import Path
 
 from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QLineEdit, QSpinBox
 
@@ -14,6 +16,8 @@ from .analysis_history_service import (
     ai_tuning_tunable_summary_text,
 )
 from .i18n import get_language, tr
+from .preprocess_decision_service import build_preprocess_ui_decision
+from .preprocess_transaction_service import PreprocessTransactionService
 
 
 class MainWindowAITuningMixin:
@@ -361,12 +365,22 @@ class MainWindowAITuningMixin:
         self._update_work_memory_panel()
         self._update_results_review_panel()
         dialog = self._side_tuning_report_dialog_class()(report, self)
-        if dialog.exec() == QDialog.Accepted:
+        dialog_result = dialog.exec()
+        if "preprocess_decision" in report:
+            view = build_preprocess_ui_decision(report)
+            if view.mode == "confirm" and dialog_result == QDialog.Accepted:
+                self._begin_preprocess_confirmation(report, accepted_by="user_confirmed")
+            elif view.mode == "auto_apply":
+                self._register_preprocess_auto_accept(report)
+                if dialog_result == QDialog.Accepted:
+                    self._undo_last_preprocess_apply()
+        elif dialog_result == QDialog.Accepted:
             self._apply_best_config(dialog.best_config())
             self._last_ai_tuned_run = True
             if hasattr(self, "_tabs"):
                 self._tabs.setCurrentIndex(1)
-            self.log(tr("LOG_AI_TUNING_APPLY_AND_RERUN"))
+            if hasattr(self, "log"):
+                self.log(tr("LOG_AI_TUNING_APPLY_AND_RERUN"))
             self._run_analysis()
         self.log(tr("LOG_AI_TUNING_DONE"))
         try:
@@ -383,6 +397,130 @@ class MainWindowAITuningMixin:
         self._update_workflow_task_card()
         self.log(tr("LOG_ERROR_DETAIL", message))
         self._message_box_class().critical(self, tr("AI_TUNING_TITLE"), message)
+
+    def _capture_preprocess_config(self, selected_config):
+        snapshot = {}
+        for key in selected_config:
+            widget_lookup = getattr(self, "_config_widget_by_key", None)
+            if callable(widget_lookup) and widget_lookup(key) is None:
+                continue
+            snapshot[key] = deepcopy(self._config_value_by_key(key))
+        return snapshot
+
+    def _preprocess_transaction_service(self, technique=None):
+        service = getattr(self, "_preprocess_transaction", None)
+        if service is not None:
+            return service
+        current_technique = str(
+            technique or getattr(self, "_current_technique", "") or ""
+        ).strip().lower()
+
+        def get_result():
+            results = getattr(self, "_results", {})
+            return results.get(current_technique) if isinstance(results, dict) else None
+
+        def set_result(result):
+            results = getattr(self, "_results", None)
+            if isinstance(results, dict):
+                results[current_technique] = result
+
+        service = PreprocessTransactionService(
+            capture_config=self._capture_preprocess_config,
+            apply_config=self._apply_best_config,
+            get_result=get_result,
+            set_result=set_result,
+            rerun=self._run_analysis,
+            persist_experience=self._persist_preprocess_experience_proposal,
+            revoke_experience=self._revoke_preprocess_experience,
+        )
+        self._preprocess_transaction = service
+        return service
+
+    def _begin_preprocess_confirmation(self, report, *, accepted_by):
+        if not isinstance(report, dict):
+            return False
+        started = self._preprocess_transaction_service().begin_confirmation(
+            report,
+            accepted_by=accepted_by,
+        )
+        if started:
+            self._last_ai_tuned_run = True
+            if hasattr(self, "_tabs"):
+                self._tabs.setCurrentIndex(1)
+            if hasattr(self, "log"):
+                self.log(tr("LOG_AI_TUNING_APPLY_AND_RERUN"))
+        return started
+
+    def _register_preprocess_auto_accept(self, report):
+        if not isinstance(report, dict):
+            return False
+        results = getattr(self, "_results", {})
+        current_result = results.get(self._current_technique) if isinstance(results, dict) else None
+        return self._preprocess_transaction_service().register_auto_accept(
+            report,
+            previous_config=report.get("original_preprocess_config"),
+            previous_result=current_result,
+        )
+
+    def _persist_preprocess_experience_proposal(self, proposal, *, accepted_by):
+        if not isinstance(proposal, dict) or not proposal:
+            return ""
+        from polynexus.core.preprocess_optimization import (
+            ExperienceKey,
+            ExperienceRecord,
+            ExperienceStore,
+        )
+
+        key_payload = proposal.get("key", {})
+        if not isinstance(key_payload, dict) or not key_payload:
+            return ""
+        key = ExperienceKey(**key_payload)
+        experience_id = str(proposal.get("experience_id", "") or "")
+        if not experience_id:
+            return ""
+        record = ExperienceRecord(
+            experience_id=experience_id,
+            key=key,
+            config_delta=dict(proposal.get("config_delta", {})),
+            accepted_by=accepted_by,
+            evidence_summary=dict(proposal.get("evidence_summary", {})),
+            intent_summary=dict(proposal.get("intent_summary", {})),
+            symptom_names=tuple(str(item) for item in proposal.get("symptom_names", [])),
+        )
+        store = getattr(self, "preprocess_experience_store", None)
+        if store is None:
+            store = ExperienceStore(
+                Path.cwd() / "results" / "audit" / "preprocess_experience.json"
+            )
+            self.preprocess_experience_store = store
+        store.accept(record)
+        return experience_id
+
+    def _revoke_preprocess_experience(self, experience_id):
+        if not experience_id:
+            return False
+        store = getattr(self, "preprocess_experience_store", None)
+        return bool(store is not None and store.revoke(experience_id))
+
+    def _finalize_preprocess_apply_success(self):
+        service = getattr(self, "_preprocess_transaction", None)
+        if service is not None:
+            service.finalize_success()
+
+    def _rollback_preprocess_apply_failure(self):
+        service = getattr(self, "_preprocess_transaction", None)
+        if service is not None:
+            service.rollback_failure()
+
+    def _undo_last_preprocess_apply(self):
+        service = getattr(self, "_preprocess_transaction", None)
+        if service is None:
+            return False
+        started = service.undo()
+        if started:
+            if hasattr(self, "log"):
+                self.log(tr("LOG_AI_TUNING_APPLY_AND_RERUN"))
+        return started
 
     def _apply_best_config(self, best_config):
         if not isinstance(best_config, dict):

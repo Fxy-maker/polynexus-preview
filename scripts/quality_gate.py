@@ -323,6 +323,31 @@ def default_commands(include_all_tests: bool = False) -> list[GateCommand]:
                 "-q",
             ],
         ),
+        GateCommand(
+            "preprocess_optimization",
+            [
+                "pytest",
+                "tests/test_preprocess_optimization_contracts.py",
+                "tests/test_preprocess_optimization_policy.py",
+                "tests/test_preprocess_optimization_candidates.py",
+                "tests/test_preprocess_optimization_decision.py",
+                "tests/test_preprocess_optimization_storage.py",
+                "tests/test_preprocess_peak_metrics.py",
+                "tests/test_preprocess_phase1_adapters.py",
+                "tests/test_preprocess_saxs_adapter.py",
+                "tests/test_preprocess_nmr_adapter.py",
+                "tests/test_orchestrator_preprocess.py",
+                "tests/test_orchestrator_preprocess_automation.py",
+                "tests/test_preprocess_decision_service.py",
+                "tests/test_preprocess_transaction_service.py",
+                "tests/test_preprocess_decision_dialog.py",
+                "tests/test_preprocess_calibration.py",
+                "tests/test_preprocess_fault_injection.py",
+                "tests/test_preprocess_ai_off_compat.py",
+                "tests/eval/preprocess",
+                "-q",
+            ],
+        ),
     ]
     if include_all_tests:
         commands.append(GateCommand("all-tests", ["pytest", "-q"]))

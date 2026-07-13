@@ -6,6 +6,31 @@ from rag.polymer_knowledge import load_polymer_knowledge
 from rag.prompt_builder import PromptBuilder
 
 
+def test_prompt_requires_preprocess_intent_and_forbids_numeric_preprocess_changes() -> None:
+    prompt = PromptBuilder().build(
+        {
+            "case_id": "ir-baseline-1",
+            "technique": "IR",
+            "current_config": {"baseline_method": "als", "smooth_window": 7},
+            "analysis_evidence": {
+                "symptoms": [{"name": "baseline_drift", "severity": "warning"}],
+            },
+            "allowed_actions": [
+                {
+                    "name": "rebalance_baseline",
+                    "allowed_params": ["baseline_method", "baseline_lam", "baseline_p"],
+                }
+            ],
+        },
+        [],
+        [],
+    )
+
+    assert '"preprocess_intent"' in prompt
+    assert '"desired_effect": "light | medium | strong"' in prompt
+    assert "Do not place baseline or smoothing parameters in changes" in prompt
+
+
 def _round_record(
     round_num: int,
     before: float,

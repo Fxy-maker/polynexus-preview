@@ -9,6 +9,7 @@ from .orchestrator_run_round_handlers import (
     _handle_direct_change_round,
     _handle_invalid_changes_round,
     _handle_noop_converged_round,
+    _handle_preprocess_intent_round,
 )
 
 
@@ -34,6 +35,16 @@ def _execute_round_iteration(self, engine, baseline, round_num: int) -> dict[str
     changes = advice.get("changes", {})
     previous_record = self._best_record or baseline
     previous_r_squared = previous_record.r_squared
+
+    if advice.get("preprocess_intent") is not None or advice.get("preprocess_intent_error"):
+        return _handle_preprocess_intent_round(
+            self,
+            engine,
+            round_num,
+            advice,
+            previous_record,
+            prompt,
+        )
 
     if not isinstance(changes, dict):
         return _handle_invalid_changes_round(

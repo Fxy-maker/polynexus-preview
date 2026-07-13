@@ -4,12 +4,27 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from llm.llm_client import LLMCancelledError, LLMClient
 
 from .prompt_builder import PromptBuilder
+from .preprocess_intent import (
+    contains_preprocess_action,
+    normalize_preprocess_intent,
+    strip_numeric_preprocess_changes,
+)
 from .retriever import RagRetriever
+
+if TYPE_CHECKING:
+    import threading
+
+
+ADVISOR_SYSTEM_PROMPT = """You are PolyNexus's constrained tuning advisor.
+Core evidence and versioned policy are authoritative. Choose only allowed actions and,
+for preprocessing, emit only a strict qualitative PreprocessIntent. Never invent or
+write numeric baseline or smoothing parameters. Return exactly one JSON object.
+"""
 
 
 class Advisor:
@@ -54,7 +69,23 @@ class Advisor:
                 prompt = f"{prompt}\n\n## Workspace context\n{context_text}"
         self.last_prompt = prompt
         try:
-            raw = self.llm_client.chat(prompt, json_mode=True, cancel_event=cancel_event)
+            try:
+                raw = self.llm_client.chat(
+                    prompt,
+                    system=ADVISOR_SYSTEM_PROMPT,
+                    json_mode=True,
+                    cancel_event=cancel_event,
+                )
+            except TypeError as exc:
+                if "system" not in str(exc):
+                    raise
+                # Compatibility for lightweight third-party/test clients that
+                # predate the optional system-message argument.
+                raw = self.llm_client.chat(
+                    prompt,
+                    json_mode=True,
+                    cancel_event=cancel_event,
+                )
             parsed = self._parse_response(raw)
             parsed["llm_used"] = not self.llm_client.last_used_mock
         except LLMCancelledError:
@@ -237,10 +268,17 @@ class Advisor:
                 name = str(item or "").strip()
                 if name:
                     normalized_actions.append({"name": name, "reason": "", "expected_evidence_change": ""})
+        preprocess_intent, preprocess_intent_error = normalize_preprocess_intent(advice)
+        has_preprocess_request = (
+            "preprocess_intent" in advice
+            or contains_preprocess_action(normalized_actions)
+        )
+        if has_preprocess_request:
+            changes = strip_numeric_preprocess_changes(changes)
         converge = bool(advice.get("converge", False))
         if converge:
             changes = {}
-        return {
+        normalized = {
             "assessment": assessment,
             "confidence": confidence,
             "diagnosis": diagnosis,
@@ -259,6 +297,10 @@ class Advisor:
             "converge": converge,
             "llm_used": bool(advice.get("llm_used", False)),
         }
+        if has_preprocess_request:
+            normalized["preprocess_intent"] = preprocess_intent
+            normalized["preprocess_intent_error"] = preprocess_intent_error
+        return normalized
 
 
 def main(argv: list[str] | None = None) -> int:
