@@ -101,6 +101,7 @@ def _definition(*, figure_id: str, role: str, title: str, panel: PanelDefinition
             "function": "build_nonisothermal_dsc_figure_definitions",
             "inputs": {"source": "completed_analysis"},
             "parameters": {"source": "completed_analysis", "display_order": order, **dict(parameters or {})},
+            "v2_adapter": "dsc",
         },
         style_profile="sci_default",
     )

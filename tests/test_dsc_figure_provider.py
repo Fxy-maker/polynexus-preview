@@ -5,6 +5,7 @@ from polynexus.core.dsc import DSCEngine
 from polynexus.core.dsc_engine.core import DSCResult
 from polynexus.core.dsc_engine.figure_provider import build_dsc_figure_definitions
 from polynexus.core.figures.validation import validate_figure_definition
+from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 
 
 @pytest.fixture
@@ -66,6 +67,8 @@ def test_dsc_provider_emits_thermogram_tg_deconvolution_and_overview(dsc_results
 
     for definition in definitions:
         validate_figure_definition(definition)
+        assert definition.recipe["v2_adapter"] == "dsc"
+        assert build_v2_definition_artifact(definition).capability["v2_runtime"] == "ready"
 
 
 def test_dsc_engine_exposes_complete_definitions(dsc_results):
