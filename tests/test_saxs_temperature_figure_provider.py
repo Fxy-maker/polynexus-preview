@@ -3,6 +3,7 @@ import pytest
 from types import SimpleNamespace
 
 from polynexus.core.figures.validation import validate_figure_definition
+from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.saxs import SAXSEngine
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.figure_provider import (
@@ -54,6 +55,8 @@ def test_saxs_temperature_provider_emits_per_frame_and_waterfall_definitions(
 
     for definition in definitions:
         validate_figure_definition(definition)
+        assert definition.recipe["v2_adapter"] == "temperature_saxs"
+        assert build_v2_definition_artifact(definition).capability["v2_runtime"] == "ready"
 
 
 def test_saxs_temperature_provider_rejects_mismatched_frame_counts(

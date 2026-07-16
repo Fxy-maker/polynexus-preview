@@ -290,6 +290,27 @@ class LayoutResolver:
             return self._heatmap_node(graph_object, panel, binding_result)
         if graph_object.object_type == "line":
             props = graph_object.property_map
+            if {"x1", "y1", "x2", "y2"}.issubset(props):
+                coordinates = tuple(
+                    self._number(props[key], graph_object.object_id, key)
+                    for key in ("x1", "y1", "x2", "y2")
+                )
+                diagnostic = next(
+                    (item for item in coordinates if isinstance(item, SceneDiagnostic)),
+                    None,
+                )
+                if diagnostic is not None:
+                    return diagnostic
+                start = self._map_point(panel, coordinates[0], coordinates[1])
+                end = self._map_point(panel, coordinates[2], coordinates[3])
+                return SceneNode(
+                    graph_object.object_id,
+                    "line",
+                    panel.panel_id,
+                    graph_object.z_index,
+                    segments=(Segment(start, end),),
+                    style=graph_object.style_map,
+                )
             if "x" in props:
                 x = self._number(props["x"], graph_object.object_id, "x")
                 if isinstance(x, SceneDiagnostic):

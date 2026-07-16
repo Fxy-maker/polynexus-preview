@@ -76,6 +76,44 @@ def test_layout_resolver_maps_binding_values_to_panel_curve_and_error_geometry()
     assert all(segment.start.x == segment.end.x for segment in curve.segments)
 
 
+def test_layout_resolver_maps_segment_line_objects_between_axis_coordinates():
+    worksheet = _line_worksheet()
+    document = GraphDocument(
+        graph_id="segment-line",
+        revision_id="g1",
+        canvas_width_px=640,
+        canvas_height_px=480,
+        panels=(
+            PanelModel(
+                "main",
+                0,
+                0,
+                AxisModel("q", minimum=0.0, maximum=1.0),
+                AxisModel("I", minimum=0.0, maximum=1.0),
+            ),
+        ),
+        objects=(
+            GraphObject(
+                "identity",
+                "line",
+                "main",
+                properties={"x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0},
+            ),
+        ),
+    )
+
+    result = LayoutResolver().resolve(document, worksheet.current)
+
+    assert result.ok
+    assert result.scene is not None
+    segment = result.scene.node_by_id("identity").segments[0]
+    panel = result.scene.panel_by_id("main")
+    assert segment.start.x == panel.axis_rect.left
+    assert segment.start.y == panel.axis_rect.bottom
+    assert segment.end.x == panel.axis_rect.right
+    assert segment.end.y == panel.axis_rect.top
+
+
 def test_layout_resolver_builds_heatmap_cells_and_reports_bad_log_values():
     source = SourceDataset.from_columns(
         dataset_id="heatmap-source",

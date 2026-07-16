@@ -49,7 +49,7 @@ def _definition(*, figure_id: str, role: str, title: str, panels: Sequence[Panel
         layout=FigureLayoutDefinition(7.0, 3.8, 1, len(labelled), labelled),
         data_sources=tuple(sources),
         objects=tuple(dict(item) for item in objects),
-        recipe={"module": "polynexus.core.waxs_engine.figure_temperature", "function": "build_temperature_waxs_figure_definitions", "inputs": {"source": "completed_analysis"}, "parameters": {"source": "completed_analysis", "display_order": order, **dict(parameters or {})}},
+        recipe={"module": "polynexus.core.waxs_engine.figure_temperature", "function": "build_temperature_waxs_figure_definitions", "inputs": {"source": "completed_analysis"}, "parameters": {"source": "completed_analysis", "display_order": order, **dict(parameters or {})}, "v2_adapter": "waxs"},
             style_profile="sci_default",
         )
 
