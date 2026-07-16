@@ -107,6 +107,7 @@ def build_ir_spectrum_definitions(
                     "function": "build_ir_spectrum_definitions",
                     "inputs": {"result_label": result.label},
                     "parameters": {"frame_index": index},
+                    "v2_adapter": "ir",
                 },
                 style_profile="sci_default",
             )
@@ -167,6 +168,7 @@ def _build_peak_fit_definition(result: IRResult, index: int) -> FigureDefinition
             "function": "build_ir_figure_definitions",
             "inputs": {"result_label": result.label},
             "parameters": {"frame_index": index, "figure_kind": "peak_fit"},
+            "v2_adapter": "ir",
         },
         style_profile="sci_default",
     )
@@ -234,6 +236,7 @@ def _build_comparison_definition(result: IRResult, index: int) -> FigureDefiniti
             "function": "build_ir_figure_definitions",
             "inputs": {"result_label": result.label},
             "parameters": {"frame_index": index, "figure_kind": "comparison"},
+            "v2_adapter": "ir",
         },
         style_profile="sci_default",
     )
@@ -305,6 +308,7 @@ def _build_crystallinity_definition(
             "function": "build_ir_figure_definitions",
             "inputs": {"result_labels": [label for label, _value in rows]},
             "parameters": {"figure_kind": "crystallinity"},
+            "v2_adapter": "ir",
         },
         style_profile="sci_default",
     )

@@ -65,7 +65,7 @@ def _definition(*, figure_id: str, role: str, title: str, panel: PanelDefinition
         layout=FigureLayoutDefinition(6.8, 3.8, 1, 1, (replace(panel, panel_label="(a)"),)),
         data_sources=tuple(sources),
         objects=tuple(dict(item) for item in objects),
-        recipe={"module": "polynexus.core.dsc_engine.figure_isothermal", "function": "build_isothermal_dsc_figure_definitions", "inputs": {"source": "completed_analysis"}, "parameters": {"source": "completed_analysis", "display_order": order, **dict(parameters or {})}},
+        recipe={"module": "polynexus.core.dsc_engine.figure_isothermal", "function": "build_isothermal_dsc_figure_definitions", "inputs": {"source": "completed_analysis"}, "parameters": {"source": "completed_analysis", "display_order": order, **dict(parameters or {})}, "v2_adapter": "dsc"},
         style_profile="sci_default",
     )
 

@@ -390,6 +390,7 @@ def _build_scattering_frame(
                 "series_kind": series_kind,
                 "figure_kind": "scattering",
             },
+            "v2_adapter": "saxs_strain" if series_kind == "strain" else "saxs_static",
         },
         style_profile="sci_default",
     )
@@ -453,6 +454,7 @@ def _build_series_waterfall(
                 "intensity_transform": "log10_offset",
                 "selected_frame_indices": [index + 1 for index in selected_indices],
             },
+            "v2_adapter": "saxs_strain" if series_kind == "strain" else "saxs_static",
         },
         style_profile="sci_default",
     )
@@ -501,6 +503,7 @@ def _build_temperature_frame(
             "function": "build_saxs_temperature_definitions",
             "inputs": {"temperature_C": temperature},
             "parameters": {"frame_index": index, "figure_kind": "scattering"},
+            "v2_adapter": "temperature_saxs",
         },
         style_profile="sci_default",
     )
@@ -567,6 +570,7 @@ def _build_temperature_waterfall(
                 "intensity_transform": "log10_offset",
                 "selected_frame_indices": [index + 1 for index in selected_indices],
             },
+            "v2_adapter": "temperature_saxs",
             **({"evidence": evidence} if evidence is not None else {}),
         },
         style_profile="sci_default",
@@ -701,6 +705,7 @@ def _build_temperature_parameters(
                 "figure_kind": "parameters",
                 "lc_source": "effective_with_raw_fallback",
             },
+            "v2_adapter": "temperature_saxs",
             **({"evidence": evidence} if evidence is not None else {}),
         },
         style_profile="sci_default",
@@ -781,6 +786,7 @@ def _build_temperature_heatmap(
                 "common_q_point_count": point_count,
                 "common_q_range_nm1": [q_min, q_max],
             },
+            "v2_adapter": "temperature_saxs",
             **({"evidence": evidence} if evidence is not None else {}),
         },
         style_profile="sci_default",
