@@ -13,6 +13,7 @@ Modules:
 """
 
 from .config import SAXSConfig, ExperimentCondition
+from .processed_profile import ProcessedProfile
 from .io import (
     read_image, read_1d_profile, extract_geometry_from_header,
     scan_experiment_dir, assemble_dataset, recover_condition_axis,

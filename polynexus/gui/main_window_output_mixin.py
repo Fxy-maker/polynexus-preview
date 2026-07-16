@@ -393,6 +393,18 @@ class MainWindowOutputMixin:
         for sub in copied_sections:
             self.log(tr("LOG_COPIED").format(sub))
 
+        if str(getattr(self, "_current_technique", "") or "").strip().lower() == "saxs":
+            saxs_engine = getattr(self, "_engine_cache", {}).get("saxs")
+            export_bundle = getattr(saxs_engine, "export_bundle", None)
+            if callable(export_bundle):
+                try:
+                    saxs_bundle = export_bundle(os.path.join(save_root, "saxs_bundle"))
+                    self.log(
+                        f"SAXS bundle export: {getattr(saxs_bundle, 'status', 'unknown')}"
+                    )
+                except Exception as exc:
+                    self.log(f"SAXS bundle export skipped: {exc}")
+
         report_path = ""
         try:
             from ..core.report import generate_report, save_report
