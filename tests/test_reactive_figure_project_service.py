@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -6,15 +7,24 @@ from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.figures.reactive_project_service import ReactiveFigureProjectService
 from polynexus.plot_runtime.commands import EditWorksheetCells
 from polynexus.plot_runtime.matplotlib_renderer import PublicationProfile
-from tests.test_reactive_figure_temperature_saxs import _definition
 
 
-def test_reactive_project_service_saves_and_publishes_new_v2_revisions(tmp_path):
+@pytest.fixture
+def v2_ir_definition(ir_definition):
+    return replace(
+        ir_definition,
+        recipe={**ir_definition.recipe, "v2_adapter": "ir"},
+    )
+
+
+def test_reactive_project_service_saves_and_publishes_new_v2_revisions(
+    tmp_path, v2_ir_definition
+):
     manifest = FigurePipeline().run(
         output_root=tmp_path,
         run_id="v2-project",
-        technique="saxs",
-        definitions=(_definition(),),
+        technique="ir",
+        definitions=(v2_ir_definition,),
     )
     entry_before = manifest.figures[0]
     run_root = Path(tmp_path) / "runs" / "v2-project"
@@ -25,7 +35,7 @@ def test_reactive_project_service_saves_and_publishes_new_v2_revisions(tmp_path)
     service = ReactiveFigureProjectService(tmp_path)
     handle = service.load(run_id="v2-project", figure_id=entry_before.figure_id)
 
-    update = handle.session.execute(EditWorksheetCells({"profile-0::intensity": {1: 4.0}}))
+    update = handle.session.execute(EditWorksheetCells({"spectrum-data::absorbance": {1: 0.5}}))
     assert update.ok
     saved = service.save_working(handle)
     published = service.publish(handle, profile=PublicationProfile(dpi=100))
@@ -45,20 +55,22 @@ def test_reactive_project_service_saves_and_publishes_new_v2_revisions(tmp_path)
     assert updated_entry.capability_report["v2_published_revision"] == 1
 
 
-def test_reactive_project_service_rejects_publication_of_unsaved_working_state(tmp_path):
+def test_reactive_project_service_rejects_publication_of_unsaved_working_state(
+    tmp_path, v2_ir_definition
+):
     manifest = FigurePipeline().run(
         output_root=tmp_path,
         run_id="v2-unsaved-publication",
-        technique="saxs",
-        definitions=(_definition(),),
+        technique="ir",
+        definitions=(v2_ir_definition,),
     )
     figure_id = manifest.figures[0].figure_id
     service = ReactiveFigureProjectService(tmp_path)
     handle = service.load(run_id="v2-unsaved-publication", figure_id=figure_id)
 
-    assert handle.session.execute(EditWorksheetCells({"profile-0::intensity": {1: 4.0}})).ok
+    assert handle.session.execute(EditWorksheetCells({"spectrum-data::absorbance": {1: 0.5}})).ok
     assert service.save_working(handle).working_revision == 1
-    assert handle.session.execute(EditWorksheetCells({"profile-0::intensity": {1: 5.0}})).ok
+    assert handle.session.execute(EditWorksheetCells({"spectrum-data::absorbance": {1: 0.6}})).ok
 
     with pytest.raises(ValueError, match="Save the working revision before publishing"):
         service.publish(handle, profile=PublicationProfile(dpi=100))
@@ -74,12 +86,14 @@ def test_reactive_project_service_rejects_publication_of_unsaved_working_state(t
     assert all(path.exists() for path in published.assets)
 
 
-def test_approved_route_persists_review_and_default_enable_is_idempotent(tmp_path):
+def test_approved_route_persists_review_and_default_enable_is_idempotent(
+    tmp_path, v2_ir_definition
+):
     manifest = FigurePipeline().run(
         output_root=tmp_path,
         run_id="v2-review",
-        technique="saxs",
-        definitions=(_definition(),),
+        technique="ir",
+        definitions=(v2_ir_definition,),
     )
     figure_id = manifest.figures[0].figure_id
     service = ReactiveFigureProjectService(tmp_path)
@@ -94,7 +108,7 @@ def test_approved_route_persists_review_and_default_enable_is_idempotent(tmp_pat
         handle,
         reviewer="scientist@example.org",
         decision="approved",
-        scope=("architecture", "temperature_saxs", "compatibility"),
+        scope=("architecture", "ir", "compatibility"),
         notes="review packet accepted",
     )
     capability = reviewed.manifest.figures[0].capability_report
@@ -107,12 +121,14 @@ def test_approved_route_persists_review_and_default_enable_is_idempotent(tmp_pat
     assert enabled.figures[0].capability_report["v2_reviewed"] is True
 
 
-def test_new_working_revision_invalidates_previous_v2_review(tmp_path):
+def test_new_working_revision_invalidates_previous_v2_review(
+    tmp_path, v2_ir_definition
+):
     manifest = FigurePipeline().run(
         output_root=tmp_path,
         run_id="v2-review-invalidate",
-        technique="saxs",
-        definitions=(_definition(),),
+        technique="ir",
+        definitions=(v2_ir_definition,),
     )
     figure_id = manifest.figures[0].figure_id
     service = ReactiveFigureProjectService(tmp_path)
@@ -121,11 +137,11 @@ def test_new_working_revision_invalidates_previous_v2_review(tmp_path):
         handle,
         reviewer="scientist@example.org",
         decision="approved",
-        scope=("temperature_saxs",),
+        scope=("ir",),
     )
     service.enable_default(handle)
 
-    update = handle.session.execute(EditWorksheetCells({"profile-0::intensity": {1: 4.0}}))
+    update = handle.session.execute(EditWorksheetCells({"spectrum-data::absorbance": {1: 0.5}}))
     assert update.ok
     saved = service.save_working(handle)
     capability = saved.manifest.figures[0].capability_report
