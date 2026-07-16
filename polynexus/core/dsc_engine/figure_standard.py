@@ -187,6 +187,7 @@ def _definition(
                 "display_order": display_order,
                 **dict(parameters or {}),
             },
+            "v2_adapter": "dsc",
         },
         style_profile="sci_default",
     )

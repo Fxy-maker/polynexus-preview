@@ -267,6 +267,7 @@ def _build_crystallinity(
             "function": "build_nmr_figure_definitions",
             "inputs": {"result_labels": [label for label, _value in rows]},
             "parameters": {"figure_kind": "crystallinity"},
+            "v2_adapter": "nmr",
         },
         style_profile="sci_default",
     )
@@ -403,6 +404,7 @@ def _recipe(label: str, index: int, figure_kind: str) -> dict[str, object]:
         "function": "build_nmr_figure_definitions",
         "inputs": {"result_label": label},
         "parameters": {"frame_index": index, "figure_kind": figure_kind},
+        "v2_adapter": "nmr",
     }
 
 

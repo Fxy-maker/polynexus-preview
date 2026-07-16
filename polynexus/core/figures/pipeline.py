@@ -24,6 +24,7 @@ from .manifest import (
 from .profiles import FigureOutputProfile, get_figure_output_profile
 from .render_plan import FigureRenderPlanBuilder
 from .validation import validate_figure_definition
+from .v2_capabilities import build_v2_definition_artifact
 
 
 _RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -141,6 +142,11 @@ class FigurePipeline:
                 figure_dir=figure_dir,
                 data_sources=data_sources,
             )
+            v2_artifact = build_v2_definition_artifact(definition)
+            v2_sidecar_path: Path | None = None
+            if v2_artifact.sidecar is not None:
+                v2_sidecar_path = figure_dir / "reactive_figure_v2.json"
+                self._write_json(v2_sidecar_path, v2_artifact.sidecar)
             plan = FigureRenderPlanBuilder(staging).build(document_path, document)
             export = self._exporter.export_initial(
                 plan=plan,
@@ -164,6 +170,10 @@ class FigurePipeline:
                 working_revision=1,
                 published_revision=1,
             )
+            capability_payload = capability.to_payload()
+            capability_payload.update(v2_artifact.capability)
+            if v2_sidecar_path is not None:
+                capability_payload["v2_sidecar"] = self._run_relative(v2_sidecar_path, staging)
             return FigureManifestEntry(
                 figure_id=definition.figure_id,
                 title=definition.title,
@@ -172,7 +182,7 @@ class FigurePipeline:
                 document=self._run_relative(document_path, staging),
                 data_sources=tuple(str(item["path"]) for item in data_sources),
                 assets=asset_paths,
-                capability_report=capability.to_payload(),
+                capability_report=capability_payload,
                 working_revision=1,
                 published_revision=1,
                 error="",

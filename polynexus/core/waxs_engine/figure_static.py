@@ -110,6 +110,7 @@ def _definition(*, figure_id: str, role: str, title: str, panels: Sequence[Panel
                 "display_order": order,
                 **dict(parameters or {}),
             },
+            "v2_adapter": "waxs",
             },
             style_profile="sci_default",
         )

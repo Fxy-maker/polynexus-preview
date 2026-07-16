@@ -3,6 +3,7 @@ import pytest
 from types import SimpleNamespace
 
 from polynexus.core.figures.validation import validate_figure_definition
+from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.waxs import WAXSEngine
 from polynexus.core.waxs_engine.core import WAXSResult
 from polynexus.core.waxs_engine.figure_provider import build_waxs_figure_definitions
@@ -53,6 +54,11 @@ def test_waxs_provider_emits_profile_decomposition_and_overview(waxs_results):
 
     for definition in definitions:
         validate_figure_definition(definition)
+        assert definition.recipe["v2_adapter"] == "waxs"
+    assert (
+        build_v2_definition_artifact(definitions[0]).capability["v2_runtime"]
+        == "ready"
+    )
 
 
 def test_waxs_engine_exposes_complete_definitions(waxs_results):

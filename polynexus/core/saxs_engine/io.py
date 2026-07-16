@@ -208,11 +208,23 @@ def scan_experiment_dir(root_dir: str, cfg: SAXSConfig) -> List[ExperimentCondit
     root = Path(root_dir)
     exts = SUPPORTED_2D_EXTENSIONS
 
-    for entry in sorted(root.rglob("*")):
-        if entry.is_dir() or entry.name.startswith('.') or entry.name.startswith('results'):
-            continue
-        if entry.suffix.lower() not in exts:
-            continue
+    entries: list[Path] = []
+    for dirpath, dirnames, filenames in _os.walk(root):
+        dirnames[:] = sorted(
+            name
+            for name in dirnames
+            if not name.startswith('.')
+            and name.lower() != "polynexus_output"
+            and not name.startswith('results')
+        )
+        for filename in filenames:
+            if filename.startswith('.') or filename.startswith('results'):
+                continue
+            entry = Path(dirpath) / filename
+            if entry.suffix.lower() in exts:
+                entries.append(entry)
+
+    for entry in sorted(entries):
 
         header = {}
         if entry.suffix.lower() == ".edf":

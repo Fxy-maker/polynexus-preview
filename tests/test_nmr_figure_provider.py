@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from polynexus.core.figures.validation import validate_figure_definition
+from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.nmr import NMREngine
 from polynexus.core.nmr_engine.core import NMRResult
 from polynexus.core.nmr_engine.figure_provider import build_nmr_figure_definitions
@@ -61,6 +62,8 @@ def test_nmr_provider_emits_complete_semantic_figures(nmr_results):
 
     for definition in definitions:
         validate_figure_definition(definition)
+        assert definition.recipe["v2_adapter"] == "nmr"
+        assert build_v2_definition_artifact(definition).capability["v2_runtime"] == "ready"
 
 
 def test_nmr_engine_exposes_complete_definitions(nmr_results):

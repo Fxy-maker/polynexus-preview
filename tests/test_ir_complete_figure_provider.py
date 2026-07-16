@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from polynexus.core.figures.validation import validate_figure_definition
+from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.ir import IREngine
 from polynexus.core.ir_engine.core import IRResult
 from polynexus.core.ir_engine.figure_provider import build_ir_figure_definitions
@@ -66,6 +67,8 @@ def test_complete_ir_provider_emits_expected_semantic_figures(ir_complete_result
 
     for definition in definitions:
         validate_figure_definition(definition)
+        assert definition.recipe["v2_adapter"] == "ir"
+        assert build_v2_definition_artifact(definition).capability["v2_runtime"] == "ready"
 
 
 def test_ir_engine_handoff_returns_complete_definitions(ir_complete_results):
