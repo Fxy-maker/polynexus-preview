@@ -295,24 +295,12 @@ def _annotation_name(kind: str) -> str:
 
 
 def _annotation_bounds(annotation: dict) -> dict:
-    kind = str(annotation.get("type") or "").strip().lower()
-    if kind == "text":
-        return {
-            "x": float(annotation.get("x", 0.0) or 0.0),
-            "y": float(annotation.get("y", 0.0) or 0.0),
-        }
-    if kind in {"rectangle", "highlight"}:
-        return {
-            "x": float(annotation.get("x", 0.0) or 0.0),
-            "y": float(annotation.get("y", 0.0) or 0.0),
-            "width": float(annotation.get("width", 0.0) or 0.0),
-            "height": float(annotation.get("height", 0.0) or 0.0),
-        }
-    if kind in {"line", "arrow"}:
-        return {
-            "x1": float(annotation.get("x1", 0.0) or 0.0),
-            "y1": float(annotation.get("y1", 0.0) or 0.0),
-            "x2": float(annotation.get("x2", 0.0) or 0.0),
-            "y2": float(annotation.get("y2", 0.0) or 0.0),
-        }
-    return {}
+    bounds = {}
+    for key in ("x", "y", "width", "height", "x1", "y1", "x2", "y2"):
+        if key not in annotation:
+            continue
+        try:
+            bounds[key] = float(annotation[key])
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return bounds

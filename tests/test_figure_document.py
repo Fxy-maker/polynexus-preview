@@ -96,6 +96,7 @@ def test_static_annotation_is_a_layered_canonical_object():
             {
                 "id": "ann-1",
                 "type": "line",
+                "layer_id": "layer-legacy",
                 "x1": 0.1,
                 "y1": 0.2,
                 "x2": 0.8,
@@ -119,7 +120,7 @@ def test_normalize_figure_object_preserves_canonical_fields_and_unknown_fields()
     payload = {
         "id": "future-1",
         "type": "future_artist",
-        "layer_id": "layer-1",
+        "layer_id": "layer-legacy",
         "bounds": {"x": 0.1, "custom_axis": "x"},
         "style": {"future_stroke": {"width": 3}},
         "future_payload": {"x": 1},
@@ -172,6 +173,75 @@ def test_annotation_to_figure_object_preserves_known_annotation_fields():
     assert obj["y2"] == 0.4
     assert obj["style"]["color"] == "#D55E00"
     assert obj["style"]["line_width"] == 2.5
+
+
+def test_text_annotation_bounds_include_all_convertible_geometry_and_legacy_values():
+    annotation = {
+        "id": "ann-text-bounds",
+        "type": "text",
+        "x": "0.1",
+        "y": "0.2",
+        "width": "0.4",
+        "height": "0.5",
+    }
+
+    obj = annotation_to_figure_object(annotation)
+
+    assert obj["bounds"] == {"x": 0.1, "y": 0.2, "width": 0.4, "height": 0.5}
+    assert obj["x"] == "0.1"
+    assert obj["y"] == "0.2"
+    assert obj["width"] == "0.4"
+    assert obj["height"] == "0.5"
+
+
+def test_line_annotation_bounds_include_all_geometry_and_legacy_values():
+    annotation = {
+        "id": "ann-line-bounds",
+        "type": "line",
+        "x": "0.1",
+        "y": "0.2",
+        "width": "0.3",
+        "height": "0.4",
+        "x1": "0.5",
+        "y1": "0.6",
+        "x2": "0.7",
+        "y2": "0.8",
+    }
+
+    obj = annotation_to_figure_object(annotation)
+
+    assert obj["bounds"] == {
+        "x": 0.1,
+        "y": 0.2,
+        "width": 0.3,
+        "height": 0.4,
+        "x1": 0.5,
+        "y1": 0.6,
+        "x2": 0.7,
+        "y2": 0.8,
+    }
+    assert obj["x"] == "0.1"
+    assert obj["width"] == "0.3"
+    assert obj["x1"] == "0.5"
+    assert obj["y2"] == "0.8"
+
+
+def test_annotation_bounds_skip_nonconvertible_geometry_and_empty_types():
+    invalid = annotation_to_figure_object(
+        {
+            "id": "ann-invalid-bounds",
+            "type": "line",
+            "x": "not-a-number",
+            "y1": None,
+            "x2": "0.8",
+        }
+    )
+    empty = annotation_to_figure_object(
+        {"id": "ann-future", "type": "future_artist", "future_payload": {"x": 1}}
+    )
+
+    assert invalid["bounds"] == {"x2": 0.8}
+    assert empty["bounds"] == {}
 
 
 def test_generated_figure_document_records_data_recipe_style_and_objects(tmp_path):

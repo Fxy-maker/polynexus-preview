@@ -51,7 +51,7 @@ def normalize_figure_object(payload: dict) -> dict:
     obj.setdefault("visible", True)
     obj.setdefault("locked", False)
     obj.setdefault("z_index", 0)
-    obj.setdefault("layer_id", "layer-1")
+    obj["layer_id"] = "layer-1"
     obj.setdefault("bounds", {})
     obj.setdefault("style", {})
     return obj
