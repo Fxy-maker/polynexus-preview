@@ -23,7 +23,7 @@ class CompatibilityResult:
 
 
 _SUPPORTED_OBJECT_TYPES = frozenset(
-    {"plot_series", "heatmap", "line", "text", "legend"}
+    {"plot_series", "heatmap", "image_grid", "line", "text", "legend"}
 )
 
 
@@ -91,9 +91,12 @@ def adapt_legacy_figure_document(payload: Mapping[str, Any]) -> CompatibilityRes
             z_index=object_item.z_index,
         )
         objects.append(object_item)
-        if object_item.binding_id and object_item.object_type in {"plot_series", "heatmap", "highlight"}:
+        if object_item.binding_id and object_item.object_type in {"plot_series", "heatmap", "image_grid", "highlight"}:
             references = []
-            for role, key in (("x", "x_column"), ("y", "y_column"), ("z", "z_column"), ("value", "value_column")):
+            role_keys = [("x", "x_column"), ("y", "y_column"), ("z", "z_column"), ("value", "value_column")]
+            if object_item.object_type == "image_grid":
+                role_keys.extend((("grid_column", "grid_column"), ("grid_row", "grid_row")))
+            for role, key in role_keys:
                 column_id = str(raw.get(key) or "")
                 if column_id:
                     references.append(ColumnReference(role=role, column_id=column_id))

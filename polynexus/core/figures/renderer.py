@@ -11,7 +11,18 @@ from .render_plan import FigureRenderPlan, RenderAxis
 
 
 class MatplotlibFigureRenderer:
+    """Render a portable plan and retain object-to-artist identity metadata.
+
+    The identity map is intentionally renderer-owned rather than persisted in
+    the document.  GUI editors can consume it to reconnect canvas picks to the
+    renderer-neutral object ids after each redraw.
+    """
+
+    def __init__(self) -> None:
+        self.last_artist_map: dict[str, list[Any]] = {}
+
     def render(self, plan: FigureRenderPlan, *, dpi: int) -> Figure:
+        self.last_artist_map = {}
         figure = Figure(
             figsize=(plan.width_in, plan.height_in),
             dpi=dpi,
@@ -72,17 +83,25 @@ class MatplotlibFigureRenderer:
                 raise ValueError(f"unknown render panel: {panel_id}")
             axis = axes[panel_id]
             if object_type == "plot_series":
-                self._render_plot_series(axis, plan, figure_object)
+                artists = self._render_plot_series(axis, plan, figure_object)
             elif object_type == "heatmap":
-                self._render_heatmap(figure, axis, plan, figure_object)
+                artists = self._render_heatmap(figure, axis, plan, figure_object)
             elif object_type == "image_grid":
-                self._render_image_grid(axis, plan, figure_object)
+                artists = self._render_image_grid(axis, plan, figure_object)
             elif object_type == "line":
-                self._render_line(axis, figure_object)
+                artists = self._render_line(axis, figure_object)
             elif object_type == "text":
-                self._render_text(axis, figure_object)
+                artists = self._render_text(axis, figure_object)
             else:
                 raise ValueError(f"unsupported render object type: {object_type}")
+            object_id = str(figure_object.get("id") or "")
+            if object_id:
+                for artist in artists or ():
+                    if artist is None:
+                        continue
+                    if hasattr(artist, "set_gid"):
+                        artist.set_gid(f"pn-object:{object_id}")
+                    self.last_artist_map.setdefault(object_id, []).append(artist)
 
         for panel in plan.panels:
             legend_object = legend_objects.get(panel.panel_id)
@@ -147,7 +166,7 @@ class MatplotlibFigureRenderer:
         axis,
         plan: FigureRenderPlan,
         figure_object: dict[str, Any],
-    ) -> None:
+    ) -> list[Any]:
         data_ref = str(figure_object.get("data_ref") or "")
         try:
             table = plan.data_tables[data_ref]
@@ -171,24 +190,25 @@ class MatplotlibFigureRenderer:
             kwargs["label"] = name
         chart_kind = str(figure_object.get("chart_kind") or "line")
         if chart_kind == "bar":
-            axis.bar(
+            container = axis.bar(
                 table[x_column],
                 table[y_column],
                 color=style.get("color", "#4477AA"),
                 alpha=float(style.get("alpha", 1.0)),
                 label=name or None,
             )
+            return list(container.patches)
         elif chart_kind == "scatter":
-            axis.scatter(
+            return [axis.scatter(
                 table[x_column],
                 table[y_column],
                 color=style.get("color", "#222222"),
                 s=float(style.get("marker_size", 12.0)),
                 alpha=float(style.get("alpha", 1.0)),
                 label=name or None,
-            )
+            )]
         elif chart_kind == "line":
-            axis.plot(table[x_column], table[y_column], **kwargs)
+            return list(axis.plot(table[x_column], table[y_column], **kwargs))
         else:
             raise ValueError(f"unsupported chart kind: {chart_kind}")
 
@@ -198,7 +218,7 @@ class MatplotlibFigureRenderer:
         axis,
         plan: FigureRenderPlan,
         figure_object: dict[str, Any],
-    ) -> None:
+    ) -> list[Any]:
         data_ref = str(figure_object.get("data_ref") or "")
         try:
             table = plan.data_tables[data_ref]
@@ -237,6 +257,7 @@ class MatplotlibFigureRenderer:
         )
         label = str(style.get("colorbar_label") or "")
         figure.colorbar(image, ax=axis, label=label)
+        return [image]
 
     def _render_image_grid(
         self,
@@ -285,10 +306,12 @@ class MatplotlibFigureRenderer:
                 cmap=str(style.get("cmap") or "viridis"),
                 aspect="auto",
             )
-            artists.append(image)
+            # Include the inset frame so the ChartEditor can highlight and
+            # pick the whole native image-grid object, not just its pixels.
+            artists.extend((image, inset.patch))
         return artists
 
-    def _render_line(self, axis, figure_object: dict[str, Any]) -> None:
+    def _render_line(self, axis, figure_object: dict[str, Any]) -> list[Any]:
         style = self._style(figure_object)
         kwargs = {
             "color": style.get("color", "#222222"),
@@ -298,19 +321,19 @@ class MatplotlibFigureRenderer:
         }
         orientation = str(figure_object.get("orientation") or "")
         if orientation == "vertical":
-            axis.axvline(float(figure_object["x"]), **kwargs)
+            return [axis.axvline(float(figure_object["x"]), **kwargs)]
         elif orientation == "horizontal":
-            axis.axhline(float(figure_object["y"]), **kwargs)
+            return [axis.axhline(float(figure_object["y"]), **kwargs)]
         else:
-            axis.plot(
+            return axis.plot(
                 [float(figure_object["x1"]), float(figure_object["x2"])],
                 [float(figure_object["y1"]), float(figure_object["y2"])],
                 **kwargs,
             )
 
-    def _render_text(self, axis, figure_object: dict[str, Any]) -> None:
+    def _render_text(self, axis, figure_object: dict[str, Any]) -> list[Any]:
         style = self._style(figure_object)
-        axis.text(
+        return [axis.text(
             float(figure_object["x"]),
             float(figure_object["y"]),
             str(figure_object.get("text") or ""),
@@ -320,4 +343,4 @@ class MatplotlibFigureRenderer:
             rotation=float(figure_object.get("rotation", 0.0) or 0.0),
             ha=str(figure_object.get("horizontal_alignment") or "center"),
             va=str(figure_object.get("vertical_alignment") or "bottom"),
-        )
+        )]

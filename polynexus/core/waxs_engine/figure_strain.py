@@ -118,7 +118,7 @@ def _profile_definition(points: Sequence[Any], views: Sequence[WAXSScanView], in
     image_source = _image_grid_source(scans, indices)
     if image_source is not None:
         sources.append(image_source)
-        panels.append(_panel("patterns", x_label="Pixel x", y_label="Pixel y"))
+        panels.append(_panel("patterns", x_label=AXIS_LABELS["detector_x"], y_label=AXIS_LABELS["detector_y"]))
         objects.append({"id": "pattern-grid", "type": "image_grid", "panel_id": "patterns", "data_ref": image_source.source_id, "grid_column": "grid_column", "grid_row": "grid_row", "x_column": "pixel_x", "y_column": "pixel_y", "z_column": "intensity", "style": {"cmap": "viridis", "origin": "upper"}})
     return _definition(
         figure_id=EVOLUTION_ID,

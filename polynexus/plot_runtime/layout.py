@@ -288,6 +288,10 @@ class LayoutResolver:
             if binding_result is None:
                 return SceneDiagnostic("missing_binding", "heatmap has no data binding", graph_object.object_id)
             return self._heatmap_node(graph_object, panel, binding_result)
+        if graph_object.object_type == "image_grid":
+            if binding_result is None:
+                return SceneDiagnostic("missing_binding", "image grid has no data binding", graph_object.object_id)
+            return self._image_grid_node(graph_object, panel, binding_result)
         if graph_object.object_type == "line":
             props = graph_object.property_map
             if {"x1", "y1", "x2", "y2"}.issubset(props):
@@ -437,6 +441,105 @@ class LayoutResolver:
             rectangles=tuple(cells),
             style=graph_object.style_map,
             metadata={"source_revision_id": result.provenance.revision_id},
+        )
+
+    def _image_grid_node(self, graph_object: GraphObject, panel: PanelScene, result: BindingResolution) -> SceneNode | SceneDiagnostic:
+        required = {"x", "y", "z", "grid_column", "grid_row"}
+        if not required.issubset(result.columns):
+            return SceneDiagnostic(
+                "missing_binding_role",
+                "image grid binding requires x, y, z, grid_column, and grid_row roles",
+                graph_object.object_id,
+            )
+        values: dict[str, tuple[float, ...]] = {}
+        for role in required:
+            numeric = self._numbers(result.columns[role], graph_object.object_id, role)
+            if isinstance(numeric, SceneDiagnostic):
+                return numeric
+            values[role] = numeric
+        if len({len(item) for item in values.values()}) != 1 or not values["x"]:
+            return SceneDiagnostic(
+                "invalid_image_grid",
+                "image grid columns must be non-empty and equally sized",
+                graph_object.object_id,
+            )
+
+        columns = tuple(sorted(set(values["grid_column"])))
+        rows = tuple(sorted(set(values["grid_row"])))
+        if not columns or not rows:
+            return SceneDiagnostic("invalid_image_grid", "image grid frame coordinates are empty", graph_object.object_id)
+        column_index = {value: index for index, value in enumerate(columns)}
+        row_index = {value: index for index, value in enumerate(rows)}
+        frame_x: dict[tuple[float, float], set[float]] = {}
+        frame_y: dict[tuple[float, float], set[float]] = {}
+        frame_counts: dict[tuple[float, float], int] = {}
+        for grid_column, grid_row, x, y in zip(
+            values["grid_column"], values["grid_row"], values["x"], values["y"]
+        ):
+            key = (grid_column, grid_row)
+            frame_x.setdefault(key, set()).add(x)
+            frame_y.setdefault(key, set()).add(y)
+            frame_counts[key] = frame_counts.get(key, 0) + 1
+        # Keep a deterministic pixel lattice for every frame.  The WAXS
+        # provider emits equal-shaped images; mixed shapes are rejected rather
+        # than silently flattening one frame over another.
+        shape = {(
+            len(frame_x[key]),
+            len(frame_y[key]),
+        ) for key in frame_x}
+        if len(shape) != 1:
+            return SceneDiagnostic("invalid_image_grid", "image grid frames have different shapes", graph_object.object_id)
+        expected_cells = next(iter(shape))[0] * next(iter(shape))[1]
+        if any(count != expected_cells for count in frame_counts.values()):
+            return SceneDiagnostic("invalid_image_grid", "image grid frame is not a complete regular lattice", graph_object.object_id)
+        rectangles: list[HeatmapCell] = []
+        tile_width = panel.axis_rect.width / len(columns)
+        tile_height = panel.axis_rect.height / len(rows)
+        for grid_column, grid_row, x, y, intensity in zip(
+            values["grid_column"],
+            values["grid_row"],
+            values["x"],
+            values["y"],
+            values["z"],
+        ):
+            key = (grid_column, grid_row)
+            xs = tuple(sorted(frame_x[key]))
+            ys = tuple(sorted(frame_y[key]))
+            x_edges = _edges(xs)
+            y_edges = _edges(ys)
+            x_pos = xs.index(x)
+            y_pos = ys.index(y)
+            x_min, x_max = x_edges[0], x_edges[-1]
+            y_min, y_max = y_edges[0], y_edges[-1]
+            x_span = max(x_max - x_min, 1e-12)
+            y_span = max(y_max - y_min, 1e-12)
+            tile_left = panel.axis_rect.left + column_index[grid_column] * tile_width
+            tile_top = panel.axis_rect.top + row_index[grid_row] * tile_height
+            left = tile_left + (x_edges[x_pos] - x_min) / x_span * tile_width
+            right = tile_left + (x_edges[x_pos + 1] - x_min) / x_span * tile_width
+            top = tile_top + (y_edges[y_pos] - y_min) / y_span * tile_height
+            bottom = tile_top + (y_edges[y_pos + 1] - y_min) / y_span * tile_height
+            rectangles.append(
+                HeatmapCell(
+                    Rect(min(left, right), min(top, bottom), abs(right - left), abs(bottom - top)),
+                    intensity,
+                    int(grid_column),
+                    int(grid_row),
+                )
+            )
+        return SceneNode(
+            graph_object.object_id,
+            "image_grid",
+            panel.panel_id,
+            graph_object.z_index,
+            rectangles=tuple(rectangles),
+            style=graph_object.style_map,
+            metadata={
+                "source_revision_id": result.provenance.revision_id,
+                "grid_shape": (len(columns), len(rows)),
+                "grid_columns": columns,
+                "grid_rows": rows,
+            },
         )
 
     @staticmethod

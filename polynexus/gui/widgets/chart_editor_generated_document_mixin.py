@@ -64,7 +64,19 @@ class ChartEditorGeneratedDocumentMixin:
                 self._figure_document,
             )
             self._shared_render_plan = plan
-            return MatplotlibFigureRenderer().render(plan, dpi=self._dpi)
+            renderer = MatplotlibFigureRenderer()
+            figure = renderer.render(plan, dpi=self._dpi)
+            adapter = getattr(self, "_figure_render_adapter", None)
+            if adapter is not None:
+                adapter.reset_artist_map()
+                artist_map = getattr(renderer, "last_artist_map", {})
+                if isinstance(artist_map, dict):
+                    for object_id, artists in artist_map.items():
+                        adapter.register_artists(object_id, artists)
+                    adapter.highlight_selection(
+                        artist_map.get(str(self._selected_figure_object_id or ""), [])
+                    )
+            return figure
 
         self._shared_render_plan = None
         return self._build_legacy_generated_figure_document()
@@ -97,8 +109,13 @@ class ChartEditorGeneratedDocumentMixin:
     def _has_generated_image_grid_object(self):
         return any(
             isinstance(obj, dict)
-            and obj.get("type") == "plot_series"
-            and str(obj.get("chart_kind", "") or "") == "image_grid"
+            and (
+                obj.get("type") == "image_grid"
+                or (
+                    obj.get("type") == "plot_series"
+                    and str(obj.get("chart_kind", "") or "") == "image_grid"
+                )
+            )
             and obj.get("deleted") is not True
             and obj.get("visible", True) is not False
             for obj in self._generated_figure_objects()
@@ -110,8 +127,13 @@ class ChartEditorGeneratedDocumentMixin:
                 obj
                 for obj in self._generated_figure_objects()
                 if isinstance(obj, dict)
-                and obj.get("type") == "plot_series"
-                and str(obj.get("chart_kind", "") or "") == "image_grid"
+                and (
+                    obj.get("type") == "image_grid"
+                    or (
+                        obj.get("type") == "plot_series"
+                        and str(obj.get("chart_kind", "") or "") == "image_grid"
+                    )
+                )
                 and obj.get("deleted") is not True
                 and obj.get("visible", True) is not False
             ),
@@ -147,8 +169,15 @@ class ChartEditorGeneratedDocumentMixin:
             fontweight="bold",
         )
 
+        grid_style = (
+            image_grid_object.get("style", {})
+            if isinstance(image_grid_object.get("style"), dict)
+            else {}
+        )
         cmap = str(
-            image_grid_object.get("style", {}).get("colormap", "inferno") or "inferno"
+            grid_style.get("colormap")
+            or grid_style.get("cmap")
+            or "inferno"
         )
         object_id = str(image_grid_object.get("id", "") or "")
         artist_map: dict[str, list[object]] = {}
@@ -167,7 +196,8 @@ class ChartEditorGeneratedDocumentMixin:
                 image,
                 cmap=cmap,
                 origin=str(
-                    self._figure_document.get("style", {}).get("origin", "lower")
+                    grid_style.get("origin")
+                    or self._figure_document.get("style", {}).get("origin", "lower")
                     or "lower"
                 ),
             )
@@ -207,25 +237,41 @@ class ChartEditorGeneratedDocumentMixin:
         if not source:
             return []
 
-        source_path = str(source.get("path", "") or "")
-        if not source_path:
-            return []
+        rows = []
+        source_values = data_sources.get(data_ref)
+        if isinstance(source_values, dict) and source_values:
+            row_count = max(
+                (len(values) for values in source_values.values() if isinstance(values, list)),
+                default=0,
+            )
+            for row_index in range(row_count):
+                rows.append(
+                    {
+                        column: values[row_index] if row_index < len(values) else ""
+                        for column, values in source_values.items()
+                        if isinstance(values, list)
+                    }
+                )
 
-        path = Path(source_path)
-        document_root = (
-            Path(self._source_path).resolve().parent if self._source_path else Path.cwd()
-        )
-        if not path.is_absolute():
-            path = document_root / path
-        if not path.exists():
-            return []
+        if not rows:
+            source_path = str(source.get("path", "") or "")
+            if not source_path:
+                return []
 
-        try:
-            with path.open("r", encoding="utf-8-sig", newline="") as handle:
-                rows = list(csv.DictReader(handle))
-        except Exception:
-            logger.warning("Failed to load image grid metadata.", exc_info=True)
-            return []
+            path = self._resolve_generated_source_path(source_path)
+            if not path.exists():
+                return []
+
+            try:
+                with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                    rows = list(csv.DictReader(handle))
+            except Exception:
+                logger.warning("Failed to load image grid metadata.", exc_info=True)
+                return []
+
+        numeric_records = self._numeric_image_grid_records(rows, figure_object)
+        if numeric_records:
+            return numeric_records
 
         records = []
         for row in rows:
@@ -253,9 +299,7 @@ class ChartEditorGeneratedDocumentMixin:
             ).strip()
             if not image_path:
                 continue
-            image_file = Path(image_path)
-            if not image_file.is_absolute():
-                image_file = document_root / image_file
+            image_file = self._resolve_generated_source_path(image_path)
             if not image_file.exists():
                 continue
             try:
@@ -282,22 +326,119 @@ class ChartEditorGeneratedDocumentMixin:
         records.sort(key=lambda item: (item["grid_row"], item["grid_col"]))
         return records
 
+    def _numeric_image_grid_records(self, rows, figure_object):
+        """Rebuild editable grid cells from portable numeric pixel rows."""
+        if not isinstance(rows, list) or not rows:
+            return []
+        row_column = str(
+            figure_object.get("grid_row")
+            or figure_object.get("row_column")
+            or "grid_row"
+        )
+        column_column = str(
+            figure_object.get("grid_column")
+            or figure_object.get("column_column")
+            or "grid_column"
+        )
+        x_column = str(figure_object.get("x_column") or "pixel_x")
+        y_column = str(figure_object.get("y_column") or "pixel_y")
+        z_column = str(
+            figure_object.get("z_column")
+            or figure_object.get("value_column")
+            or "intensity"
+        )
+        label_column = str(figure_object.get("label_column") or "strain_pct")
+
+        # Older sidecars called the grid column ``grid_col``.  Keep that
+        # spelling as a read-only compatibility alias when no explicit column
+        # is present in the portable rows.
+        def value(row, key, *aliases):
+            for candidate in (key, *aliases):
+                if candidate in row:
+                    return row.get(candidate)
+            return None
+
+        import numpy as np
+
+        cells: dict[tuple[int, int], list[tuple[float, float, float]]] = {}
+        labels: dict[tuple[int, int], object] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            grid_row = self._optional_float(value(row, row_column))
+            grid_col = self._optional_float(
+                value(row, column_column, "grid_col" if column_column == "grid_column" else "grid_column")
+            )
+            x_value = self._optional_float(value(row, x_column))
+            y_value = self._optional_float(value(row, y_column))
+            z_value = self._optional_float(value(row, z_column))
+            numeric_values = (grid_row, grid_col, x_value, y_value, z_value)
+            if any(
+                value is None or not np.isfinite(value) for value in numeric_values
+            ):
+                continue
+            cell = (int(grid_row), int(grid_col))
+            cells.setdefault(cell, []).append(
+                (float(x_value), float(y_value), float(z_value))
+            )
+            labels.setdefault(cell, value(row, label_column, "strain", "label"))
+
+        records = []
+        for (grid_row, grid_col), points in cells.items():
+            unique_x = sorted({point[0] for point in points})
+            unique_y = sorted({point[1] for point in points})
+            if not unique_x or not unique_y:
+                continue
+            matrix = np.full((len(unique_y), len(unique_x)), np.nan, dtype=float)
+            x_index = {value: index for index, value in enumerate(unique_x)}
+            y_index = {value: index for index, value in enumerate(unique_y)}
+            for x_value, y_value, z_value in points:
+                matrix[y_index[y_value], x_index[x_value]] = z_value
+            if np.isnan(matrix).any():
+                continue
+            records.append(
+                {
+                    "grid_row": grid_row,
+                    "grid_col": grid_col,
+                    "label": labels.get((grid_row, grid_col), ""),
+                    "image": matrix,
+                }
+            )
+        records.sort(key=lambda item: (item["grid_row"], item["grid_col"]))
+        return records
+
     def _format_generated_grid_label(self, value):
         return _shared_format_generated_grid_label(value)
 
-    def _load_generated_document_data_sources(self):
-        data_sources = {}
-        document_root = (
+    def _generated_document_root(self):
+        return (
             Path(self._source_path).resolve().parent if self._source_path else Path.cwd()
         )
+
+    def _resolve_generated_source_path(self, source_path):
+        path = Path(str(source_path or ""))
+        if path.is_absolute():
+            return path
+        document_root = self._generated_document_root()
+        candidate = document_root / path
+        if candidate.exists():
+            return candidate
+        # Portable WAXS documents may store paths relative to their run root,
+        # while a no-manifest editor only knows the figure asset directory.
+        for parent in document_root.parents:
+            candidate = parent / path
+            if candidate.exists():
+                return candidate
+        return document_root / path
+
+    def _load_generated_document_data_sources(self):
+        data_sources = {}
         for source in self._figure_document.get("data_sources", []):
             source_id = str(source.get("id", "") or "")
             source_path = str(source.get("path", "") or "")
             if not source_id or not source_path:
                 continue
-            path = Path(source_path)
-            if not path.is_absolute():
-                path = document_root / path
+            path = self._resolve_generated_source_path(source_path)
             if not path.exists():
                 continue
             if source.get("kind") == "csv":

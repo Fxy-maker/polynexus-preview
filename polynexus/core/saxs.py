@@ -1690,7 +1690,11 @@ class SAXSEngine(BaseEngine):
             self.log("No figure definitions available")
             return {}
         out = output_dir or self.cfg.output_dir or "saxs_output"
-        figures = self.publish_figure_definitions(out, definitions)
+        figures = self.publish_figure_definitions(
+            out,
+            definitions,
+            profile_id="saxs_publication",
+        )
         for path in figures.values():
             self.log(f"  Figure saved: {path}")
         return figures

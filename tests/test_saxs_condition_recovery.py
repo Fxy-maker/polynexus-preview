@@ -70,3 +70,32 @@ def test_scan_experiment_dir_preserves_condition_confidence_metadata(tmp_path) -
     assert metadata["condition_source"] == "path_directory"
     assert metadata["condition_source_key"] == "temp_directory_label"
     assert metadata["condition_confidence"] >= 0.7
+
+
+def test_scan_experiment_dir_ignores_generated_output_tree(tmp_path) -> None:
+    root = tmp_path / "temperature_series"
+    root.mkdir()
+    raw = root / "PA6-250-170-S_0_00000.edf"
+    raw.write_text("dummy", encoding="utf-8")
+    generated = (
+        root
+        / "polynexus_output"
+        / "runs"
+        / "saxs-old"
+        / "figures"
+        / "saxs.temperature.waterfall"
+        / "assets"
+        / "figure.tiff"
+    )
+    generated.parent.mkdir(parents=True)
+    generated.write_bytes(b"generated figure asset")
+
+    cfg = SAXSConfig(
+        experiment_type="temperature",
+        condition_label="Temperature",
+        condition_unit="C",
+    )
+    conditions = scan_experiment_dir(str(root), cfg)
+    discovered = [path for condition in conditions for path in condition.files]
+
+    assert [Path(path).resolve() for path in discovered] == [raw.resolve()]

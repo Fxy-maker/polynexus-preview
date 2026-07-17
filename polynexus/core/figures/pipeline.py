@@ -186,6 +186,8 @@ class FigurePipeline:
                 working_revision=1,
                 published_revision=1,
                 error="",
+                publication_role=definition.publication_role,
+                display_order=self._definition_display_order(definition),
             )
         except Exception as exc:
             if figure_dir is not None:
@@ -209,7 +211,20 @@ class FigurePipeline:
             working_revision=0,
             published_revision=0,
             error=f"{type(error).__name__}: {error}",
+            publication_role=definition.publication_role,
+            display_order=FigurePipeline._definition_display_order(definition),
         )
+
+    @staticmethod
+    def _definition_display_order(definition: FigureDefinition) -> int:
+        recipe = definition.recipe if isinstance(definition.recipe, dict) else {}
+        parameters = recipe.get("parameters", {})
+        if not isinstance(parameters, dict):
+            return 0
+        try:
+            return int(parameters.get("display_order", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
 
     @staticmethod
     def _run_relative(path: Path, run_root: Path) -> str:

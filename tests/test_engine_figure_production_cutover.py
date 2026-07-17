@@ -91,7 +91,10 @@ def test_engine_plot_publishes_one_complete_manifest_without_legacy_writers(
     run_root, manifest = RunFigureManifestRepository(output_root).read_active_manifest()
     assert build_calls == 1
     assert manifest.technique == technique
-    expected_profile = "waxs_publication" if technique == "waxs" else "paper_complete"
+    expected_profile = {
+        "saxs": "saxs_publication",
+        "waxs": "waxs_publication",
+    }.get(technique, "paper_complete")
     assert manifest.output_profile == expected_profile
     assert len(manifest.figures) == 1
     entry = manifest.figures[0]

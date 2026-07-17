@@ -36,3 +36,14 @@ def test_invalid_avrami_never_becomes_main() -> None:
     definitions = build_isothermal_dsc_figure_definitions(_engine(r_squared=0.42))
     assert all(item.figure_id != "dsc.isothermal.avrami" for item in definitions if item.publication_role == "main")
     assert any(item.figure_id == "dsc.isothermal.fit.diagnostic" for item in definitions)
+
+
+def test_no_main_isothermal_pack_records_publication_fallback_reason() -> None:
+    diagnostic = next(
+        item
+        for item in build_isothermal_dsc_figure_definitions(_engine(r_squared=0.42))
+        if item.publication_role == "diagnostic"
+    )
+    parameters = diagnostic.recipe["parameters"]
+    assert parameters["no_publication_ready_figure"] is True
+    assert parameters["reason"] == "fit_quality_below_main_threshold"

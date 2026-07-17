@@ -55,6 +55,8 @@ class FigureGalleryEntry:
     published_revision: int = 0
     status: str = ""
     error: str = ""
+    publication_role: str = ""
+    display_order: int = 0
 
 
 @dataclass(frozen=True)
@@ -140,6 +142,8 @@ def build_active_manifest_gallery_entries(
                 published_revision=manifest_entry.published_revision,
                 status=manifest_entry.status,
                 error=manifest_entry.error,
+                publication_role=manifest_entry.publication_role,
+                display_order=manifest_entry.display_order,
             )
         )
     entries.sort(key=_entry_sort_key)
@@ -505,7 +509,12 @@ def _series_overview_rank(figure_id: str) -> int:
     return 50
 
 
-def _entry_sort_key(entry: FigureGalleryEntry) -> tuple[int, int, str]:
+def _entry_sort_key(entry: FigureGalleryEntry) -> tuple[int, int, int, int, str]:
+    publication_role_order = {
+        "main": 0,
+        "si": 1,
+        "diagnostic": 2,
+    }
     category_order = {
         FIGURE_CATEGORY_SERIES_OVERVIEW: 0,
         FIGURE_CATEGORY_PER_FRAME: 1,
@@ -516,7 +525,13 @@ def _entry_sort_key(entry: FigureGalleryEntry) -> tuple[int, int, str]:
         if entry.category == FIGURE_CATEGORY_SERIES_OVERVIEW
         else 99
     )
-    return (category_order.get(entry.category, 9), semantic_rank, entry.title)
+    return (
+        publication_role_order.get(str(entry.publication_role).lower(), 3),
+        int(entry.display_order),
+        category_order.get(entry.category, 9),
+        semantic_rank,
+        entry.title,
+    )
 
 
 def _append_asset_paths(target: OrderedDict[str, str], spec) -> None:

@@ -217,11 +217,17 @@ def build_nonisothermal_dsc_figure_definitions(engine: Any) -> tuple[FigureDefin
             title="Non-isothermal DSC diagnostics",
             panel=_panel("diagnostic", x_label=AXIS_LABELS["T"], x_unit="", y_label=AXIS_LABELS["relative_crystallinity"], y_unit=""),
             source=(_source("dsc-nonisothermal-empty", (("temperature_C", "degC", "float64"), ("relative_crystallinity", "", "float64")), {"temperature_C": (), "relative_crystallinity": ()}, role="diagnostic_evidence"),),
-            objects=(), category="diagnostic", order=100, parameters={"reason": "missing_non_isothermal_series"},
+            objects=(), category="diagnostic", order=100,
+            parameters={
+                "no_publication_ready_figure": True,
+                "reason": "missing_non_isothermal_series",
+            },
         ),)
     curves = _curves(series)
     definitions: list[FigureDefinition] = []
-    conversion = _conversion_definition(curves, role="main" if sum(len(_curve_pairs(curve)[0]) >= 2 for curve in curves) >= 2 else "si")
+    valid_curve_count = sum(len(_curve_pairs(curve)[0]) >= 2 for curve in curves)
+    conversion_role = "main" if valid_curve_count >= 2 else "si"
+    conversion = _conversion_definition(curves, role=conversion_role)
     if conversion is not None:
         definitions.append(conversion)
     methods: dict[str, Any] = {}
@@ -232,7 +238,14 @@ def build_nonisothermal_dsc_figure_definitions(engine: Any) -> tuple[FigureDefin
         if result is not None:
             methods[name] = result
     gates = {name: _method_gate(name, result) for name, result in methods.items()}
-    selected = next((name for name in _METHOD_ORDER if name in gates and gates[name][0]), None)
+    # A kinetics method is only a Main candidate when the requested conversion
+    # series itself is publication-ready; isolated fit metadata must not make
+    # a Main figure when the underlying curves are unavailable.
+    selected = (
+        next((name for name in _METHOD_ORDER if name in gates and gates[name][0]), None)
+        if conversion_role == "main"
+        else None
+    )
     for order, name in enumerate(_METHOD_ORDER, start=10):
         if name not in methods:
             continue
@@ -241,13 +254,19 @@ def build_nonisothermal_dsc_figure_definitions(engine: Any) -> tuple[FigureDefin
         definitions.append(_method_definition(name, methods[name], role=role, order=order, reason=reason))
     failed = {name: reason for name, (_passed, reason) in gates.items() if name != selected}
     if failed or not definitions:
+        has_main = any(item.publication_role == "main" for item in definitions)
         definitions.append(_definition(
             figure_id=DIAGNOSTIC_ID,
             role="diagnostic",
             title="Non-isothermal kinetics diagnostics",
             panel=_panel("diagnostic", x_label=AXIS_LABELS["method"], x_unit="", y_label=AXIS_LABELS["gate_status"], y_unit="", legend=False),
             source=(_source("dsc-nonisothermal-gates", (("method_index", "", "float64"), ("gate_value", "", "float64")), {"method_index": tuple(float(i) for i, _ in enumerate(failed)), "gate_value": tuple(0.0 for _ in failed)}, role="diagnostic_evidence"),),
-            objects=(), category="diagnostic", order=100, parameters={"kinetics_gate": failed},
+            objects=(), category="diagnostic", order=100,
+            parameters={
+                "kinetics_gate": failed,
+                "no_publication_ready_figure": not has_main,
+                "reason": "no_reliable_main" if not has_main else "supporting_diagnostics",
+            },
         ))
     return tuple(definitions)
 

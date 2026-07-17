@@ -171,7 +171,27 @@ def build_isothermal_dsc_figure_definitions(engine: Any) -> tuple[FigureDefiniti
             objects=(_plot("fit-diagnostic", "diagnostic", source.source_id, "time_min", "relative_crystallinity", name="Rejected fit", color="#D55E00", marker="o", chart_kind="scatter"),),
             category="diagnostic",
             order=100,
-            parameters={"gate": reason},
+            parameters={
+                "gate": reason,
+                "no_publication_ready_figure": True,
+                "reason": "fit_quality_below_main_threshold",
+            },
+        ))
+    elif best is None:
+        definitions.append(_definition(
+            figure_id=DIAGNOSTIC_ID,
+            role="diagnostic",
+            title="Avrami fit diagnostics",
+            panel=_panel("diagnostic", x_label=AXIS_LABELS["time_min"], x_unit="", y_label=AXIS_LABELS["relative_crystallinity"], y_unit="", legend=False),
+            sources=(_source("dsc-isothermal-empty", (("time_min", "min", "float64"), ("relative_crystallinity", "", "float64")), {"time_min": (), "relative_crystallinity": ()}, role="diagnostic_evidence"),),
+            objects=(),
+            category="diagnostic",
+            order=100,
+            parameters={
+                "gate": reason,
+                "no_publication_ready_figure": True,
+                "reason": "missing_avrami_fit",
+            },
         ))
     if not definitions:
         definitions.append(_definition(
@@ -180,7 +200,12 @@ def build_isothermal_dsc_figure_definitions(engine: Any) -> tuple[FigureDefiniti
             title="Avrami fit diagnostics",
             panel=_panel("diagnostic", x_label=AXIS_LABELS["time_min"], x_unit="", y_label=AXIS_LABELS["relative_crystallinity"], y_unit="", legend=False),
             sources=(_source("dsc-isothermal-empty", (("time_min", "min", "float64"), ("relative_crystallinity", "", "float64")), {"time_min": (), "relative_crystallinity": ()}, role="diagnostic_evidence"),),
-            objects=(), category="diagnostic", order=100, parameters={"gate": reason},
+            objects=(), category="diagnostic", order=100,
+            parameters={
+                "gate": reason,
+                "no_publication_ready_figure": True,
+                "reason": "missing_avrami_fit",
+            },
         ))
     return tuple(definitions)
 

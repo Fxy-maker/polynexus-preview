@@ -271,7 +271,11 @@ def _thermogram_definition(view: DSCScanView, *, role: str, display_order: int =
         width=7.2,
         height=3.6,
         display_order=display_order,
-        parameters={"scan_index": view.index, "quality_flags": list(view.quality_flags)},
+        parameters={
+            "scan_index": view.index,
+            "scan_direction": view.direction,
+            "quality_flags": list(view.quality_flags),
+        },
     )
 
 
@@ -363,7 +367,11 @@ def _comparison_definition(views: Sequence[DSCScanView]) -> FigureDefinition:
     )
 
 
-def _diagnostic_definition(views: Sequence[DSCScanView]) -> FigureDefinition:
+def _diagnostic_definition(
+    views: Sequence[DSCScanView],
+    *,
+    no_main: bool = False,
+) -> FigureDefinition:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
     reasons: dict[str, list[str]] = {}
@@ -393,7 +401,11 @@ def _diagnostic_definition(views: Sequence[DSCScanView]) -> FigureDefinition:
         panels=(_panel("evidence", 0, 0, x_label=AXIS_LABELS["T"], x_unit="", y_label=AXIS_LABELS["HF_Wg"], y_unit="", legend=True),),
         sources=sources,
         objects=objects,
-        parameters={"eligibility": reasons},
+        parameters={
+            "eligibility": reasons,
+            "no_publication_ready_figure": bool(no_main),
+            "reason": "no_reliable_main" if no_main else "supporting_diagnostics",
+        },
         display_order=100,
     )
 
@@ -427,7 +439,12 @@ def build_standard_dsc_figure_definitions(engine: Any) -> tuple[FigureDefinition
             definitions.append(definition)
     diagnostic_evidence = diagnostic_views + quantitative_evidence_views
     if diagnostic_evidence or not definitions:
-        definitions.append(_diagnostic_definition(diagnostic_evidence or views))
+        definitions.append(
+            _diagnostic_definition(
+                diagnostic_evidence or views,
+                no_main=not bool(main_views),
+            )
+        )
     return tuple(definitions)
 
 

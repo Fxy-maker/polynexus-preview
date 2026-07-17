@@ -16,6 +16,7 @@ from polynexus.core.figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
+from polynexus.plotting.sci_style import AXIS_LABELS, WONG_COLORS
 
 from .saxs_temperature import TempSeriesResult
 from .figure_common import SAXSFrameView, frame_views_from_engine
@@ -37,12 +38,116 @@ _SERIES_COLORS = (
 )
 
 
+def _sci_axis_label(label: str, *, y_axis: bool = False) -> str:
+    """Map recipe shorthand to the shared SCI axis vocabulary."""
+
+    text = str(label or "").lower()
+    if "temperature" in text:
+        return AXIS_LABELS["T"]
+    if "strain" in text:
+        return AXIS_LABELS["strain"]
+    if "time" in text:
+        return AXIS_LABELS["time"]
+    if "sample" in text:
+        return AXIS_LABELS["sample"]
+    if "crystall" in text:
+        return AXIS_LABELS["phi_c_saxs"]
+    if "invariant" in text or "q_star" in text:
+        return AXIS_LABELS["Q_star"]
+    if "thickness" in text or "length" in text or text in {"l", "l_nm"}:
+        return AXIS_LABELS["L"]
+    if "correlation" in text or "gamma" in text:
+        return AXIS_LABELS["gamma"] if y_axis else AXIS_LABELS["r"]
+    if "distance" in text or text in {"r", "r_nm"}:
+        return AXIS_LABELS["r"]
+    if "intensity" in text or text in {"i", "i(q)"}:
+        return AXIS_LABELS["I_saxs"]
+    if "scattering" in text or text.startswith("q"):
+        return AXIS_LABELS["q"]
+    return AXIS_LABELS["I_saxs"] if y_axis else AXIS_LABELS["q"]
+
+
+def _polish_publication_definitions(
+    definitions: Sequence[FigureDefinition],
+) -> tuple[FigureDefinition, ...]:
+    """Apply shared panel labels, axis vocabulary, and Wong colors."""
+
+    polished: list[FigureDefinition] = []
+    for definition in definitions:
+        panels = tuple(
+            replace(
+                panel,
+                title="",
+                panel_label=panel.panel_label or f"({chr(ord('a') + index)})",
+                x_axis=replace(
+                    panel.x_axis,
+                    label=_sci_axis_label(panel.x_axis.label),
+                    unit="",
+                ),
+                y_axis=replace(
+                    panel.y_axis,
+                    label=_sci_axis_label(panel.y_axis.label, y_axis=True),
+                    unit="",
+                ),
+            )
+            for index, panel in enumerate(definition.layout.panels)
+        )
+        objects: list[dict[str, object]] = []
+        for index, obj in enumerate(definition.objects):
+            item = dict(obj)
+            style = dict(item.get("style", {}))
+            if "color" in style:
+                style["color"] = WONG_COLORS[index % len(WONG_COLORS)]
+            item["style"] = style
+            objects.append(item)
+        polished.append(
+            replace(
+                definition,
+                layout=replace(definition.layout, panels=panels),
+                objects=tuple(objects),
+            )
+        )
+    return tuple(polished)
+
+
 def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
     """Build portable SAXS definitions for the engine's active analysis state."""
 
     mode = resolve_saxs_figure_mode(engine_state)
     if mode.mode in {"unsupported", "incomplete"}:
         return ()
+
+    # Completed engine runs use the publication-grade mode providers.  Keep
+    # the compact legacy projection below for light-weight callers that only
+    # expose q/I arrays (and for backwards-compatible notebooks/tests).
+    # The production recipe builders require completed batch evidence.  A
+    # lightweight legacy caller may expose an empty ``_batch_params`` field
+    # while providing only q/I arrays; keep that caller on the historical
+    # provider so its temperature summary/heatmap contract remains intact.
+    has_completed_batch = bool(getattr(engine_state, "_batch_params", ()))
+    is_real_engine = engine_state.__class__.__name__ == "SAXSEngine"
+    if has_completed_batch or is_real_engine:
+        if mode.mode == "static":
+            from .figure_static import build_static_saxs_figure_definitions
+
+            return build_static_saxs_figure_definitions(engine_state)
+        if mode.mode == "strain" and (
+            hasattr(engine_state, "_I_equat_list")
+            or is_real_engine
+        ):
+            from .figure_strain import build_strain_figure_definitions
+
+            return _polish_publication_definitions(
+                build_strain_figure_definitions(engine_state)
+            )
+        if mode.mode == "temperature" and (
+            bool(getattr(engine_state, "_results", ()))
+        ):
+            from .figure_temperature import build_temperature_figure_definitions
+
+            return _polish_publication_definitions(
+                build_temperature_figure_definitions(engine_state)
+            )
 
     temperature_result = getattr(engine_state, "_temperature_result", None)
     if mode.mode == "temperature" and temperature_result is not None:

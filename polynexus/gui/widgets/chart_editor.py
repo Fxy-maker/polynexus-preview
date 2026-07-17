@@ -4,7 +4,7 @@ import logging
 import shutil  # noqa: F401 - runtime API consumed by save mixin
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QSlider,
     QSpinBox,
     QSplitter,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -71,6 +72,7 @@ from .chart_editor_generated_selection_mixin import (
     ChartEditorGeneratedSelectionMixin,
 )
 from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
+from .chart_editor_layout_mixin import ChartEditorLayoutMixin
 from .chart_editor_object_list_mixin import ChartEditorObjectListMixin
 from .chart_editor_save_mixin import ChartEditorSaveMixin
 from .chart_editor_style_preset_mixin import ChartEditorStylePresetMixin
@@ -129,6 +131,7 @@ GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
 
 
 class ChartEditor(
+    ChartEditorLayoutMixin,
     ChartEditorAnnotationControlsMixin,
     ChartEditorSaveMixin,
     ChartEditorStylePresetMixin,
@@ -202,6 +205,12 @@ class ChartEditor(
         self._hover_preview_figure_object_id = ""
         self._hover_preview_handle_index = None
         self._generated_handle_drag_state = None
+        self._editor_dirty = False
+        self._loading_editor_state = False
+        self._text_render_timer = QTimer(self)
+        self._text_render_timer.setSingleShot(True)
+        self._text_render_timer.setInterval(0)
+        self._text_render_timer.timeout.connect(self._render)
         self._connected_canvas_figure = None
         self._figure_selection_model = FigureSelectionModel(self)
         self._figure_selection_model.selection_changed.connect(
@@ -209,6 +218,8 @@ class ChartEditor(
         )
         self._figure_render_adapter = FigureRenderAdapter()
         self._build_ui()
+        self.figure_changed.connect(self._mark_editor_dirty)
+        self.figure_saved.connect(lambda _path: self._set_editor_dirty(False))
         self._set_mode_header("")
         self._connect_canvas_interaction_events()
 
@@ -239,6 +250,8 @@ class ChartEditor(
         figure_layout.addWidget(self._annotation_canvas, 1)
         split.addWidget(figure_panel)
 
+        self._editor_header = self._build_editor_header()
+        self._editor_status_bar = self._build_editor_status_bar()
         split.addWidget(self._build_panel())
         split.setSizes([760, 320])
         split.setStretchFactor(0, 1)
@@ -246,7 +259,9 @@ class ChartEditor(
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(split)
+        layout.addWidget(self._editor_header)
+        layout.addWidget(split, 1)
+        layout.addWidget(self._editor_status_bar)
 
     def _connect_canvas_interaction_events(self):
         if self._canvas is None:
@@ -327,13 +342,27 @@ class ChartEditor(
         return super().eventFilter(watched, event)
 
     def _build_panel(self):
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
+        self._inspector_tabs = QTabWidget()
+        self._inspector_tabs.setObjectName("editor_inspector_tabs")
+        self._inspector_tabs.setMinimumWidth(280)
+        self._inspector_tabs.setAccessibleName(tr("EDITOR_INSPECTOR"))
 
-        panel = QWidget()
-        form = QFormLayout(panel)
-        form.setSpacing(8)
-        form.setContentsMargins(12, 12, 12, 12)
+        def make_page():
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            panel = QWidget()
+            form = QFormLayout(panel)
+            form.setSpacing(8)
+            form.setContentsMargins(12, 12, 12, 12)
+            scroll.setWidget(panel)
+            return scroll, form
+
+        object_page, object_form = make_page()
+        style_page, style_form = make_page()
+        annotation_page, annotation_form = make_page()
+        export_page, export_form = make_page()
+        self._forms = [object_form, style_form, annotation_form, export_form]
+        form = object_form
 
         self._target_label = QLabel(tr("EDITOR_TARGET_NONE"))
         self._target_label.setWordWrap(True)
@@ -409,6 +438,7 @@ class ChartEditor(
         form.addRow(tr("EDITOR_OBJECT_GEOMETRY_LABEL"), annotation_geometry)
         self._set_geometry_controls_enabled(False)
 
+        form = style_form
         preset_row = QWidget()
         preset_layout = QHBoxLayout(preset_row)
         preset_layout.setContentsMargins(0, 0, 0, 0)
@@ -435,39 +465,39 @@ class ChartEditor(
         form.addRow(tr("EDITOR_STYLE_PRESET_LABEL"), preset_row)
 
         self._title_edit = QLineEdit()
-        self._title_edit.textChanged.connect(self._render)
-        form.addRow("Title:", self._title_edit)
+        self._title_edit.textChanged.connect(self._schedule_text_render)
+        form.addRow(tr("EDITOR_FIELD_TITLE"), self._title_edit)
 
         self._xlabel_edit = QLineEdit()
-        self._xlabel_edit.textChanged.connect(self._render)
-        form.addRow("X:", self._xlabel_edit)
+        self._xlabel_edit.textChanged.connect(self._schedule_text_render)
+        form.addRow(tr("EDITOR_FIELD_XLABEL"), self._xlabel_edit)
 
         self._ylabel_edit = QLineEdit()
-        self._ylabel_edit.textChanged.connect(self._render)
-        form.addRow("Y:", self._ylabel_edit)
+        self._ylabel_edit.textChanged.connect(self._schedule_text_render)
+        form.addRow(tr("EDITOR_FIELD_YLABEL"), self._ylabel_edit)
 
         self._colour_cb = QComboBox()
         self._colour_cb.addItems(COLOUR_SCHEMES.keys())
         self._colour_cb.currentTextChanged.connect(self._on_colour_scheme_changed)
-        form.addRow("Colours:", self._colour_cb)
+        form.addRow(tr("EDITOR_FIELD_COLOURS"), self._colour_cb)
 
         self._font_cb = QComboBox()
         self._font_cb.addItems(FONT_SIZES.keys())
         self._font_cb.setCurrentText("Medium")
         self._font_cb.currentTextChanged.connect(self._on_font_changed)
-        form.addRow("Font:", self._font_cb)
+        form.addRow(tr("EDITOR_FIELD_FONT"), self._font_cb)
 
         self._lw_cb = QComboBox()
         self._lw_cb.addItems(LINE_WIDTHS.keys())
         self._lw_cb.setCurrentText("Normal")
         self._lw_cb.currentTextChanged.connect(self._on_line_width_changed)
-        form.addRow("Line:", self._lw_cb)
+        form.addRow(tr("EDITOR_FIELD_LINE"), self._lw_cb)
 
         self._figsize_cb = QComboBox()
         self._figsize_cb.addItems(FIGURE_SIZES.keys())
         self._figsize_cb.setCurrentText("Medium (6in)")
         self._figsize_cb.currentTextChanged.connect(self._on_figure_size_changed)
-        form.addRow("Size:", self._figsize_cb)
+        form.addRow(tr("EDITOR_FIELD_SIZE"), self._figsize_cb)
 
         self._grid_cb = QCheckBox("Grid")
         self._grid_cb.setChecked(True)
@@ -478,12 +508,13 @@ class ChartEditor(
         self._grid_sl.setRange(0, 10)
         self._grid_sl.setValue(2)
         self._grid_sl.valueChanged.connect(self._on_grid_alpha_changed)
-        form.addRow("Grid alpha:", self._grid_sl)
+        form.addRow(tr("EDITOR_FIELD_GRID_ALPHA"), self._grid_sl)
 
         btn_bg = QPushButton(tr("EDITOR_BTN_BG"))
         btn_bg.clicked.connect(self._pick_bg)
         form.addRow(btn_bg)
 
+        form = annotation_form
         annotation_text_row = QWidget()
         annotation_text_layout = QHBoxLayout(annotation_text_row)
         annotation_text_layout.setContentsMargins(0, 0, 0, 0)
@@ -653,6 +684,7 @@ class ChartEditor(
         self._btn_sci_defaults.clicked.connect(self._apply_sci_defaults)
         form.addRow(self._btn_sci_defaults)
 
+        form = export_form
         self._btn_save_current = QPushButton(tr("EDITOR_SAVE_EDITS"))
         self._btn_save_current.setObjectName("primary_btn")
         self._btn_save_current.clicked.connect(self.save_to_target)
@@ -675,15 +707,17 @@ class ChartEditor(
         self._btn_png.clicked.connect(lambda: self.save_as("png"))
         form.addRow(self._btn_png)
 
-        self._status_label = QLabel("")
-        self._status_label.setWordWrap(True)
-        form.addRow(self._status_label)
-
-        self._form = form
+        self._form = object_form
         self._btn_bg = btn_bg
-        scroll.setWidget(panel)
+        self._inspector_tabs.addTab(object_page, tr("EDITOR_INSPECTOR_OBJECT"))
+        self._inspector_tabs.addTab(style_page, tr("EDITOR_INSPECTOR_STYLE"))
+        self._inspector_tabs.addTab(
+            annotation_page,
+            tr("EDITOR_INSPECTOR_ANNOTATION"),
+        )
+        self._inspector_tabs.addTab(export_page, tr("EDITOR_INSPECTOR_EXPORT"))
         self._refresh_style_preset_controls()
-        return scroll
+        return self._inspector_tabs
 
     def _set_mode_header(self, title: str, *, mode_key: str = "", summary_key: str = "") -> None:
         self._mode_title_text = str(title or "")
@@ -696,6 +730,12 @@ class ChartEditor(
         self._mode_summary_label.setText(
             tr(self._mode_summary_key) if self._mode_summary_key else ""
         )
+        if hasattr(self, "_mode_badge"):
+            self._mode_badge.setText(
+                tr(self._mode_banner_key) if self._mode_banner_key else ""
+            )
+            self._set_source_identity_ui()
+            self._sync_header_actions()
         has_title = bool(self._mode_title_text)
         self._mode_title_label.setVisible(has_title)
         self._mode_banner_label.setVisible(bool(self._mode_banner_label.text()))
@@ -716,6 +756,17 @@ class ChartEditor(
         return ""
 
     def retranslate(self):
+        if hasattr(self, "_inspector_tabs"):
+            for index, key in enumerate(
+                (
+                    "EDITOR_INSPECTOR_OBJECT",
+                    "EDITOR_INSPECTOR_STYLE",
+                    "EDITOR_INSPECTOR_ANNOTATION",
+                    "EDITOR_INSPECTOR_EXPORT",
+                )
+            ):
+                self._inspector_tabs.setTabText(index, tr(key))
+        self.retranslate_layout()
         if hasattr(self, "_target_label"):
             if self._target_path:
                 self._target_label.setText(str(Path(self._target_path).name))
@@ -729,16 +780,23 @@ class ChartEditor(
                 (self._selected_object_label, tr("EDITOR_SELECTED_OBJECT_LABEL")),
                 (self._annotation_x_spin.parentWidget(), tr("EDITOR_OBJECT_GEOMETRY_LABEL")),
                 (self._style_preset_combo.parentWidget(), tr("EDITOR_STYLE_PRESET_LABEL")),
-                (self._title_edit, "Title:"),
-                (self._xlabel_edit, "X:"),
-                (self._ylabel_edit, "Y:"),
+                (self._title_edit, tr("EDITOR_FIELD_TITLE")),
+                (self._xlabel_edit, tr("EDITOR_FIELD_XLABEL")),
+                (self._ylabel_edit, tr("EDITOR_FIELD_YLABEL")),
                 (self._colour_cb, tr("EDITOR_FIELD_COLOURS")),
                 (self._font_cb, tr("EDITOR_FIELD_FONT")),
                 (self._lw_cb, tr("EDITOR_FIELD_LINE")),
                 (self._figsize_cb, tr("EDITOR_FIELD_SIZE")),
                 (self._grid_sl, tr("EDITOR_FIELD_GRID_ALPHA")),
             ]:
-                label = self._form.labelForField(widget)
+                label = next(
+                    (
+                        candidate
+                        for form in getattr(self, "_forms", [self._form])
+                        if (candidate := form.labelForField(widget)) is not None
+                    ),
+                    None,
+                )
                 if label is not None:
                     label.setText(text)
 
@@ -757,7 +815,14 @@ class ChartEditor(
         self._btn_annotation_apply_style.setText(
             tr("EDITOR_ANNOTATION_APPLY_STYLE")
         )
-        label = self._form.labelForField(self._annotation_color_edit.parentWidget())
+        label = next(
+            (
+                candidate
+                for form in getattr(self, "_forms", [self._form])
+                if (candidate := form.labelForField(self._annotation_color_edit.parentWidget())) is not None
+            ),
+            None,
+        )
         if label is not None:
             label.setText(tr("EDITOR_ANNOTATION_STYLE_LABEL"))
         self._btn_annotation_add_line.setText(tr("EDITOR_ANNOTATION_ADD_LINE"))
@@ -816,6 +881,8 @@ class ChartEditor(
 
     def set_source_figure(self, filepath, *, source_entry_context=None, force_static=False):
         """Edit persisted settings for an already-exported figure file."""
+        self._text_render_timer.stop()
+        self._loading_editor_state = True
         self._source_path = filepath or ""
         self._source_entry_context = source_entry_context
         self._btn_publish.setEnabled(self._has_manifest_project_context())
@@ -877,7 +944,10 @@ class ChartEditor(
                     self._canvas.setVisible(True)
                     self._source_preview.setVisible(False)
                     self._annotation_canvas.setVisible(False)
+                    self._set_editor_mode_ui(object_mode=True)
                     self._refresh_object_list()
+                    self._set_editor_dirty(False)
+                    self._loading_editor_state = False
                     return
             self._apply_saved_style(load_figure_edit(self._source_path))
             self._static_file_mode = True
@@ -886,6 +956,7 @@ class ChartEditor(
                 mode_key="EDITOR_MODE_STATIC",
                 summary_key="EDITOR_MODE_STATIC_SUMMARY",
             )
+            self._set_editor_mode_ui(object_mode=False)
             self._status_label.setText(tr("EDITOR_STATIC_MODE_HINT"))
             if self._annotation_canvas.load_image(self._asset_spec.preview_path):
                 self._annotation_canvas.load_annotation_state(
@@ -903,7 +974,10 @@ class ChartEditor(
             self._annotation_canvas.setVisible(False)
             self.set_output_target("")
             self._set_mode_header("")
+            self._set_editor_mode_ui(object_mode=False)
             self._refresh_object_list()
+        self._set_editor_dirty(False)
+        self._loading_editor_state = False
 
     def set_initial_labels(self, title="", xlabel="", ylabel=""):
         self._set_line_edit(self._title_edit, title or "")
@@ -912,6 +986,8 @@ class ChartEditor(
         self._render()
 
     def set_figure_generator(self, func, *args, **kwargs):
+        self._text_render_timer.stop()
+        self._loading_editor_state = True
         self._static_file_mode = False
         self._generated_document_mode = False
         self._source_path = ""
@@ -944,10 +1020,13 @@ class ChartEditor(
             mode_key="EDITOR_MODE_OBJECT",
             summary_key="EDITOR_MODE_OBJECT_SUMMARY",
         )
+        self._set_editor_mode_ui(object_mode=True)
         self._fig_generator = func
         self._fig_args = args
         self._fig_kwargs = kwargs
         self._render()
+        self._set_editor_dirty(False)
+        self._loading_editor_state = False
 
     def is_static_file_mode(self):
         return self._static_file_mode
