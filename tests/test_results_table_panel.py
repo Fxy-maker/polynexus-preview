@@ -82,9 +82,7 @@ def test_panel_populates_heroes_tabs_headers_and_typed_cell_roles(app: QApplicat
         provenance="analysis.score",
     )
 
-    panel.set_content(
-        heroes=(hero,), primary=primary, detail=detail, diagnostics=diagnostics
-    )
+    panel.set_content(heroes=(hero,), primary=primary, detail=detail, diagnostics=diagnostics)
 
     assert panel.tabs.count() == 3
     assert [panel.tabs.widget(index) for index in range(3)] == [
@@ -157,9 +155,7 @@ def test_repeated_content_replaces_old_hero_widgets_and_caps_cards_at_six(
 
     panel.set_content(heroes=(first,), primary=empty, detail=empty, diagnostics=empty)
     old_label = panel.hero_labels[0]
-    panel.set_content(
-        heroes=replacements, primary=empty, detail=empty, diagnostics=empty
-    )
+    panel.set_content(heroes=replacements, primary=empty, detail=empty, diagnostics=empty)
 
     assert old_label.parent() is None
     assert old_label not in panel.hero_labels
@@ -167,6 +163,153 @@ def test_repeated_content_replaces_old_hero_widgets_and_caps_cards_at_six(
     assert [label.text().splitlines()[0] for label in panel.hero_labels] == [
         f"Metric {index}" for index in range(6)
     ]
+
+
+def test_four_hero_metrics_share_one_row_and_keep_cards_light(app: QApplication) -> None:
+    ResultsTablePanel, _ = _panel_types()
+    panel = ResultsTablePanel()
+    empty = ResultTableSection.empty()
+    heroes = tuple(
+        HeroMetric(str(index), f"Metric {index}", index, str(index)) for index in range(4)
+    )
+
+    panel.set_content(heroes=heroes, primary=empty, detail=empty, diagnostics=empty)
+
+    assert panel._metrics_layout.itemAtPosition(0, 3).widget() is not None
+    assert panel._metrics_layout.itemAtPosition(1, 0) is None
+    assert len(panel.hero_labels) == 4
+    assert "background:" in panel.hero_labels[0].styleSheet()
+    assert "#222538" not in panel.hero_labels[0].styleSheet()
+
+
+def test_status_cells_use_compact_badges_and_tables_stretch_last_column(
+    app: QApplication,
+) -> None:
+    ResultsTablePanel, _ = _panel_types()
+    panel = ResultsTablePanel()
+    primary = _section(
+        (
+            TableCell(1.0, "1.0", status="review"),
+            TableCell("blocked", "blocked", status="blocked"),
+        ),
+        columns=(
+            TableColumn("score", "Score", alignment="right"),
+            TableColumn("status", "Status"),
+        ),
+    )
+
+    panel.set_content(
+        heroes=(),
+        primary=primary,
+        detail=ResultTableSection.empty(),
+        diagnostics=ResultTableSection.empty(),
+    )
+
+    for column, (status, translation_key) in enumerate(
+        (
+            ("review", "RESULTS_STATUS_REVIEW"),
+            ("blocked", "RESULTS_STATUS_BLOCKED"),
+        )
+    ):
+        status_label = panel.primary_table.cellWidget(0, column).findChild(
+            QLabel, f"result_cell_status_{status}"
+        )
+        assert status_label.text() == i18n.tr(translation_key)
+        assert "border-radius" in status_label.styleSheet()
+        assert "background" in status_label.styleSheet()
+        assert "border" in status_label.styleSheet()
+
+    assert panel.primary_table.horizontalHeader().stretchLastSection()
+    assert panel.detail_table.horizontalHeader().stretchLastSection()
+    assert panel.diagnostic_table.horizontalHeader().stretchLastSection()
+
+
+def test_review_hint_hides_when_empty_and_exposes_primary_action(
+    app: QApplication,
+) -> None:
+    ResultsTablePanel, _ = _panel_types()
+    panel = ResultsTablePanel()
+    assert panel.review_hint_widget.isHidden()
+    assert panel.review_hint_action.isHidden()
+    assert not panel.review_hint_action.isEnabled()
+    action_calls: list[str] = []
+
+    panel.set_review_hint(
+        title="当前判断",
+        detail="1 帧需复核",
+        next_text="先查看温度总览",
+        status="review",
+        action_text="查看温度总览",
+        action=lambda: action_calls.append("clicked"),
+    )
+
+    assert not panel.review_hint_widget.isHidden()
+    assert panel.review_hint_title.text() == "当前判断"
+    assert panel.review_hint_detail.text() == "1 帧需复核"
+    assert panel.review_hint_next.text() == "先查看温度总览"
+    assert panel.review_hint_action.text() == "查看温度总览"
+    panel.review_hint_action.click()
+    assert action_calls == ["clicked"]
+
+    panel.clear_review_hint()
+
+    assert panel.review_hint_widget.isHidden()
+
+
+def test_review_hint_retranslate_refreshes_localized_action_and_status(
+    app: QApplication,
+) -> None:
+    ResultsTablePanel, _ = _panel_types()
+    previous_language = i18n.get_language()
+    try:
+        i18n.set_language("en")
+        panel = ResultsTablePanel()
+        panel.set_review_hint(
+            title="summary",
+            detail="risk",
+            next_text="next",
+            status="review",
+            action_text=i18n.tr("SAXS_RESULTS_REVIEW_HINT_ACTION"),
+            action=lambda: None,
+        )
+
+        i18n.set_language("zh")
+        panel.retranslate()
+
+        assert panel.review_hint_title.text() == "summary"
+        assert panel.review_hint_detail.text() == "risk"
+        assert panel.review_hint_next.text() == "next"
+        assert panel.review_hint_action.text() == i18n.tr("SAXS_RESULTS_REVIEW_HINT_ACTION")
+        assert panel.review_hint_status.text() == i18n.tr("RESULTS_STATUS_REVIEW")
+    finally:
+        i18n.set_language(previous_language)
+
+
+def test_review_hint_replaces_action_without_stale_callback(app: QApplication) -> None:
+    ResultsTablePanel, _ = _panel_types()
+    panel = ResultsTablePanel()
+    old_calls: list[str] = []
+    new_calls: list[str] = []
+
+    panel.set_review_hint(
+        title="summary",
+        action_text="old",
+        action=lambda: old_calls.append("old"),
+    )
+    panel.set_review_hint(
+        title="summary",
+        action_text="new",
+        action=lambda: new_calls.append("new"),
+    )
+
+    panel.review_hint_action.click()
+    assert old_calls == []
+    assert new_calls == ["new"]
+
+    panel.clear_review_hint()
+    panel._invoke_review_hint_action()
+    assert old_calls == []
+    assert new_calls == ["new"]
 
 
 def test_typed_item_sorts_finite_numeric_values_numerically(app: QApplication) -> None:
@@ -240,9 +383,7 @@ def test_set_content_restores_each_tables_sorting_state(app: QApplication) -> No
     panel.diagnostic_table.setSortingEnabled(True)
     section = _section((TableCell("b", "B"), TableCell(2, "2")))
 
-    panel.set_content(
-        heroes=(), primary=section, detail=section, diagnostics=section
-    )
+    panel.set_content(heroes=(), primary=section, detail=section, diagnostics=section)
 
     assert panel.primary_table.isSortingEnabled()
     assert not panel.detail_table.isSortingEnabled()
@@ -311,9 +452,7 @@ def test_non_neutral_status_text_is_visible_in_both_languages(
     try:
         i18n.set_language("zh")
         panel = ResultsTablePanel()
-        panel.set_content(
-            heroes=heroes, primary=primary, detail=empty, diagnostics=empty
-        )
+        panel.set_content(heroes=heroes, primary=primary, detail=empty, diagnostics=empty)
 
         assert [panel.primary_table.item(0, column).text() for column in range(3)] == [
             "0.91",
@@ -346,8 +485,6 @@ def test_non_neutral_status_text_is_visible_in_both_languages(
 
 def _visible_cell_statuses(table: QTableWidget) -> list[str]:
     return [
-        table.cellWidget(0, column)
-        .findChild(QLabel, f"result_cell_status_{status}")
-        .text()
+        table.cellWidget(0, column).findChild(QLabel, f"result_cell_status_{status}").text()
         for column, status in enumerate(("reliable", "review", "blocked"))
     ]

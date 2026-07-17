@@ -260,6 +260,12 @@ class MainWindowRetranslateMixin:
                     and getattr(model, "primary_section", None) is not None
                 ):
                     self._display_results(source.get("params"), source.get("result"))
+                elif (
+                    isinstance(source, dict)
+                    and source.get("kind") == "batch"
+                    and source.get("results")
+                ):
+                    self._show_batch_results(source.get("results"))
             if hasattr(self, "_history_table"):
                 self._history_table.setHorizontalHeaderLabels(
                     [
