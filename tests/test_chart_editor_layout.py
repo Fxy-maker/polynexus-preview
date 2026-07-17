@@ -42,6 +42,19 @@ def test_editor_uses_canvas_first_inspector_layout():
     _app().processEvents()
 
 
+def test_editor_keeps_canvas_usable_at_narrow_window_width():
+    app = _app()
+    editor = ChartEditor()
+    editor.resize(640, 520)
+    editor.show()
+    app.processEvents()
+
+    assert editor._editor_splitter.sizes()[0] >= 220
+
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_object_and_static_modes_update_header_and_inspector(tmp_path):
     _app()
     editor = ChartEditor()

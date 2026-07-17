@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,  # noqa: F401 - runtime API consumed by save mixin
     QFormLayout,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -224,9 +225,12 @@ class ChartEditor(
         self._connect_canvas_interaction_events()
 
     def _build_ui(self):
-        split = QSplitter(Qt.Horizontal)
+        self._editor_splitter = QSplitter(Qt.Horizontal)
+        split = self._editor_splitter
+        split.setChildrenCollapsible(False)
 
         figure_panel = QWidget()
+        figure_panel.setMinimumWidth(220)
         figure_layout = QVBoxLayout(figure_panel)
         figure_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -252,7 +256,9 @@ class ChartEditor(
 
         self._editor_header = self._build_editor_header()
         self._editor_status_bar = self._build_editor_status_bar()
-        split.addWidget(self._build_panel())
+        inspector_panel = self._build_panel()
+        inspector_panel.setMinimumWidth(280)
+        split.addWidget(inspector_panel)
         split.setSizes([760, 320])
         split.setStretchFactor(0, 1)
         split.setStretchFactor(1, 0)
@@ -440,7 +446,7 @@ class ChartEditor(
 
         form = style_form
         preset_row = QWidget()
-        preset_layout = QHBoxLayout(preset_row)
+        preset_layout = QGridLayout(preset_row)
         preset_layout.setContentsMargins(0, 0, 0, 0)
         preset_layout.setSpacing(6)
 
@@ -448,19 +454,19 @@ class ChartEditor(
         self._style_preset_combo.setEditable(True)
         self._style_preset_combo.setInsertPolicy(QComboBox.NoInsert)
         self._style_preset_combo.editTextChanged.connect(self._on_style_preset_name_changed)
-        preset_layout.addWidget(self._style_preset_combo, 1)
+        preset_layout.addWidget(self._style_preset_combo, 0, 0, 1, 3)
 
         self._btn_style_preset_save = QPushButton(tr("EDITOR_STYLE_PRESET_SAVE"))
         self._btn_style_preset_save.clicked.connect(self._on_save_style_preset)
-        preset_layout.addWidget(self._btn_style_preset_save)
+        preset_layout.addWidget(self._btn_style_preset_save, 1, 0)
 
         self._btn_style_preset_apply = QPushButton(tr("EDITOR_STYLE_PRESET_APPLY"))
         self._btn_style_preset_apply.clicked.connect(self._on_apply_style_preset)
-        preset_layout.addWidget(self._btn_style_preset_apply)
+        preset_layout.addWidget(self._btn_style_preset_apply, 1, 1)
 
         self._btn_style_preset_delete = QPushButton(tr("EDITOR_STYLE_PRESET_DELETE"))
         self._btn_style_preset_delete.clicked.connect(self._on_delete_style_preset)
-        preset_layout.addWidget(self._btn_style_preset_delete)
+        preset_layout.addWidget(self._btn_style_preset_delete, 1, 2)
 
         form.addRow(tr("EDITOR_STYLE_PRESET_LABEL"), preset_row)
 
@@ -516,7 +522,7 @@ class ChartEditor(
 
         form = annotation_form
         annotation_text_row = QWidget()
-        annotation_text_layout = QHBoxLayout(annotation_text_row)
+        annotation_text_layout = QGridLayout(annotation_text_row)
         annotation_text_layout.setContentsMargins(0, 0, 0, 0)
         annotation_text_layout.setSpacing(6)
 
@@ -524,11 +530,11 @@ class ChartEditor(
         self._annotation_text_edit.setPlaceholderText(
             tr("EDITOR_ANNOTATION_TEXT_PLACEHOLDER")
         )
-        annotation_text_layout.addWidget(self._annotation_text_edit, 1)
+        annotation_text_layout.addWidget(self._annotation_text_edit, 0, 0, 1, 2)
 
         self._btn_annotation_add_text = QPushButton(tr("EDITOR_ANNOTATION_ADD_TEXT"))
         self._btn_annotation_add_text.clicked.connect(self._on_add_text_annotation)
-        annotation_text_layout.addWidget(self._btn_annotation_add_text)
+        annotation_text_layout.addWidget(self._btn_annotation_add_text, 1, 0)
 
         self._btn_annotation_update_text = QPushButton(
             tr("EDITOR_ANNOTATION_UPDATE_TEXT")
@@ -537,82 +543,82 @@ class ChartEditor(
             self._on_update_selected_text_annotation
         )
         self._btn_annotation_update_text.setEnabled(False)
-        annotation_text_layout.addWidget(self._btn_annotation_update_text)
+        annotation_text_layout.addWidget(self._btn_annotation_update_text, 1, 1)
         form.addRow(annotation_text_row)
 
         annotation_style = QWidget()
-        annotation_style_layout = QHBoxLayout(annotation_style)
+        annotation_style_layout = QGridLayout(annotation_style)
         annotation_style_layout.setContentsMargins(0, 0, 0, 0)
         annotation_style_layout.setSpacing(6)
 
         self._annotation_color_edit = QLineEdit("#D55E00")
         self._annotation_color_edit.setPlaceholderText("#RRGGBB")
-        annotation_style_layout.addWidget(self._annotation_color_edit, 1)
+        annotation_style_layout.addWidget(self._annotation_color_edit, 0, 0, 1, 2)
 
         self._annotation_font_size_spin = QSpinBox()
         self._annotation_font_size_spin.setRange(6, 72)
         self._annotation_font_size_spin.setValue(12)
         self._annotation_font_size_spin.setSuffix(" pt")
-        annotation_style_layout.addWidget(self._annotation_font_size_spin)
+        annotation_style_layout.addWidget(self._annotation_font_size_spin, 1, 0)
 
         self._annotation_line_width_spin = QDoubleSpinBox()
         self._annotation_line_width_spin.setRange(0.1, 20.0)
         self._annotation_line_width_spin.setSingleStep(0.5)
         self._annotation_line_width_spin.setValue(2.0)
         self._annotation_line_width_spin.setSuffix(" px")
-        annotation_style_layout.addWidget(self._annotation_line_width_spin)
+        annotation_style_layout.addWidget(self._annotation_line_width_spin, 1, 1)
 
         self._annotation_alpha_spin = QDoubleSpinBox()
         self._annotation_alpha_spin.setRange(0.0, 1.0)
         self._annotation_alpha_spin.setSingleStep(0.05)
         self._annotation_alpha_spin.setValue(0.35)
-        annotation_style_layout.addWidget(self._annotation_alpha_spin)
+        annotation_style_layout.addWidget(self._annotation_alpha_spin, 2, 0)
 
         self._annotation_line_style_combo = QComboBox()
         self._annotation_line_style_combo.addItems(LINE_STYLE_OPTIONS.keys())
         self._annotation_line_style_combo.setCurrentText("Solid")
-        annotation_style_layout.addWidget(self._annotation_line_style_combo)
+        annotation_style_layout.addWidget(self._annotation_line_style_combo, 2, 1)
 
         self._annotation_marker_combo = QComboBox()
         self._annotation_marker_combo.addItems(MARKER_OPTIONS.keys())
         self._annotation_marker_combo.setCurrentText("None")
-        annotation_style_layout.addWidget(self._annotation_marker_combo)
+        annotation_style_layout.addWidget(self._annotation_marker_combo, 3, 0)
 
         self._annotation_marker_size_spin = QDoubleSpinBox()
         self._annotation_marker_size_spin.setRange(1.0, 40.0)
         self._annotation_marker_size_spin.setSingleStep(1.0)
         self._annotation_marker_size_spin.setValue(6.0)
         self._annotation_marker_size_spin.setSuffix(" pt")
-        annotation_style_layout.addWidget(self._annotation_marker_size_spin)
+        annotation_style_layout.addWidget(self._annotation_marker_size_spin, 3, 1)
         self._set_style_controls_enabled(False, False, False, color_enabled=False)
 
         self._btn_annotation_apply_style = QPushButton(
             tr("EDITOR_ANNOTATION_APPLY_STYLE")
         )
         self._btn_annotation_apply_style.clicked.connect(self._on_annotation_apply_style)
-        annotation_style_layout.addWidget(self._btn_annotation_apply_style)
+        annotation_style_layout.addWidget(self._btn_annotation_apply_style, 4, 0, 1, 2)
         self._btn_annotation_apply_style.setEnabled(False)
         form.addRow(tr("EDITOR_ANNOTATION_STYLE_LABEL"), annotation_style)
 
         annotation_actions = QWidget()
-        annotation_actions_layout = QHBoxLayout(annotation_actions)
+        annotation_actions_layout = QGridLayout(annotation_actions)
         annotation_actions_layout.setContentsMargins(0, 0, 0, 0)
         annotation_actions_layout.setSpacing(6)
 
         self._btn_annotation_add_line = QPushButton(tr("EDITOR_ANNOTATION_ADD_LINE"))
         self._btn_annotation_add_line.setCheckable(True)
         self._btn_annotation_add_line.clicked.connect(self._on_add_line_annotation)
-        annotation_actions_layout.addWidget(self._btn_annotation_add_line)
+        annotation_actions_layout.addWidget(self._btn_annotation_add_line, 0, 0)
 
         self._btn_annotation_add_arrow = QPushButton(tr("EDITOR_ANNOTATION_ADD_ARROW"))
         self._btn_annotation_add_arrow.setCheckable(True)
         self._btn_annotation_add_arrow.clicked.connect(self._on_add_arrow_annotation)
-        annotation_actions_layout.addWidget(self._btn_annotation_add_arrow)
+        annotation_actions_layout.addWidget(self._btn_annotation_add_arrow, 0, 1)
 
         self._btn_annotation_add_rect = QPushButton(tr("EDITOR_ANNOTATION_ADD_RECT"))
         self._btn_annotation_add_rect.setCheckable(True)
         self._btn_annotation_add_rect.clicked.connect(self._on_add_rectangle_annotation)
-        annotation_actions_layout.addWidget(self._btn_annotation_add_rect)
+        annotation_actions_layout.addWidget(self._btn_annotation_add_rect, 0, 2)
 
         self._btn_annotation_add_highlight = QPushButton(
             tr("EDITOR_ANNOTATION_ADD_HIGHLIGHT")
@@ -621,63 +627,63 @@ class ChartEditor(
         self._btn_annotation_add_highlight.clicked.connect(
             self._on_add_highlight_annotation
         )
-        annotation_actions_layout.addWidget(self._btn_annotation_add_highlight)
+        annotation_actions_layout.addWidget(self._btn_annotation_add_highlight, 1, 0)
 
         self._btn_annotation_crop = QPushButton(tr("EDITOR_ANNOTATION_CROP"))
         self._btn_annotation_crop.setCheckable(True)
         self._btn_annotation_crop.clicked.connect(self._on_crop_annotation_canvas)
-        annotation_actions_layout.addWidget(self._btn_annotation_crop)
+        annotation_actions_layout.addWidget(self._btn_annotation_crop, 1, 1)
 
         self._btn_annotation_delete = QPushButton(tr("EDITOR_ANNOTATION_DELETE"))
         self._btn_annotation_delete.clicked.connect(self._on_annotation_delete)
-        annotation_actions_layout.addWidget(self._btn_annotation_delete)
+        annotation_actions_layout.addWidget(self._btn_annotation_delete, 1, 2)
 
         self._btn_annotation_copy = QPushButton(tr("EDITOR_ANNOTATION_COPY"))
         self._btn_annotation_copy.clicked.connect(self._on_annotation_copy)
-        annotation_actions_layout.addWidget(self._btn_annotation_copy)
+        annotation_actions_layout.addWidget(self._btn_annotation_copy, 2, 0)
 
         self._btn_annotation_paste = QPushButton(tr("EDITOR_ANNOTATION_PASTE"))
         self._btn_annotation_paste.clicked.connect(self._on_annotation_paste)
-        annotation_actions_layout.addWidget(self._btn_annotation_paste)
+        annotation_actions_layout.addWidget(self._btn_annotation_paste, 2, 1)
 
         self._btn_annotation_front = QPushButton(tr("EDITOR_ANNOTATION_FRONT"))
         self._btn_annotation_front.clicked.connect(self._on_annotation_front)
-        annotation_actions_layout.addWidget(self._btn_annotation_front)
+        annotation_actions_layout.addWidget(self._btn_annotation_front, 2, 2)
 
         self._btn_annotation_back = QPushButton(tr("EDITOR_ANNOTATION_BACK"))
         self._btn_annotation_back.clicked.connect(self._on_annotation_back)
-        annotation_actions_layout.addWidget(self._btn_annotation_back)
+        annotation_actions_layout.addWidget(self._btn_annotation_back, 3, 0)
         self._set_object_action_buttons_enabled(False)
 
         self._btn_annotation_undo = QPushButton(tr("EDITOR_ANNOTATION_UNDO"))
         self._btn_annotation_undo.clicked.connect(self._on_annotation_undo)
-        annotation_actions_layout.addWidget(self._btn_annotation_undo)
+        annotation_actions_layout.addWidget(self._btn_annotation_undo, 3, 1)
 
         self._btn_annotation_redo = QPushButton(tr("EDITOR_ANNOTATION_REDO"))
         self._btn_annotation_redo.clicked.connect(self._on_annotation_redo)
-        annotation_actions_layout.addWidget(self._btn_annotation_redo)
+        annotation_actions_layout.addWidget(self._btn_annotation_redo, 3, 2)
         form.addRow(annotation_actions)
 
         annotation_zoom = QWidget()
-        annotation_zoom_layout = QHBoxLayout(annotation_zoom)
+        annotation_zoom_layout = QGridLayout(annotation_zoom)
         annotation_zoom_layout.setContentsMargins(0, 0, 0, 0)
         annotation_zoom_layout.setSpacing(6)
 
         self._btn_annotation_fit = QPushButton(tr("EDITOR_ANNOTATION_FIT"))
         self._btn_annotation_fit.clicked.connect(self._on_annotation_fit)
-        annotation_zoom_layout.addWidget(self._btn_annotation_fit)
+        annotation_zoom_layout.addWidget(self._btn_annotation_fit, 0, 0)
 
         self._btn_annotation_zoom_100 = QPushButton(tr("EDITOR_ANNOTATION_ZOOM_100"))
         self._btn_annotation_zoom_100.clicked.connect(self._on_annotation_zoom_100)
-        annotation_zoom_layout.addWidget(self._btn_annotation_zoom_100)
+        annotation_zoom_layout.addWidget(self._btn_annotation_zoom_100, 0, 1)
 
         self._btn_annotation_zoom_out = QPushButton(tr("EDITOR_ANNOTATION_ZOOM_OUT"))
         self._btn_annotation_zoom_out.clicked.connect(self._on_annotation_zoom_out)
-        annotation_zoom_layout.addWidget(self._btn_annotation_zoom_out)
+        annotation_zoom_layout.addWidget(self._btn_annotation_zoom_out, 1, 0)
 
         self._btn_annotation_zoom_in = QPushButton(tr("EDITOR_ANNOTATION_ZOOM_IN"))
         self._btn_annotation_zoom_in.clicked.connect(self._on_annotation_zoom_in)
-        annotation_zoom_layout.addWidget(self._btn_annotation_zoom_in)
+        annotation_zoom_layout.addWidget(self._btn_annotation_zoom_in, 1, 1)
         form.addRow(annotation_zoom)
 
         self._btn_sci_defaults = QPushButton(tr("EDITOR_SCI_DEFAULTS"))
