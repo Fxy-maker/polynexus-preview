@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
 import platform
 import re
 from pathlib import Path
 from typing import Any, Callable
 
+from .capability_probe import OriginCapabilityProbe
 from .contracts import ExportRequest, ExportResult
 from .mapping import OriginSourceSpec, map_figure_document
 
@@ -142,12 +142,8 @@ class _OriginProFacade:
 
 
 def _default_available() -> bool:
-    if platform.system() != "Windows":
-        return False
-    try:
-        return importlib.util.find_spec("originpro") is not None
-    except (ImportError, ModuleNotFoundError, ValueError):
-        return False
+    report = OriginCapabilityProbe().probe()
+    return report.installed and report.originpro_available
 
 
 def _default_originpro_factory() -> _OriginProFacade:

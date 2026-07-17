@@ -1,5 +1,7 @@
 from polynexus.origin.contracts import ExportRequest
 from polynexus.origin.originpro_adapter import OriginProAdapter
+from polynexus.origin.originpro_adapter import _default_available
+from polynexus.origin.capability_probe import OriginCapability
 
 
 class FakeOriginPro:
@@ -61,3 +63,17 @@ def test_originpro_adapter_is_unavailable_for_visual_only_mode(tmp_path):
     )
 
     assert result.status == "unavailable"
+
+
+def test_default_originpro_capability_requires_origin_installation(monkeypatch):
+    monkeypatch.setattr(
+        "polynexus.origin.originpro_adapter.OriginCapabilityProbe.probe",
+        lambda _self: OriginCapability(
+            installed=False,
+            originpro_available=True,
+            com_available=False,
+            reason="Origin installation was not detected",
+        ),
+    )
+
+    assert _default_available() is False

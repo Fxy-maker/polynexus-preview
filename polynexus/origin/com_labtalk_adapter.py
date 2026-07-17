@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
 import platform
 import re
 from pathlib import Path
 from typing import Any, Callable
 
-from .capability_probe import ORIGIN_COM_PROGIDS
+from .capability_probe import ORIGIN_COM_PROGIDS, OriginCapabilityProbe
 from .contracts import ExportRequest, ExportResult
 from .mapping import OriginSourceSpec, map_figure_document
 
@@ -107,9 +106,7 @@ class ComLabTalkAdapter:
 
 
 def _default_com_available() -> bool:
-    if platform.system() != "Windows":
-        return False
-    return importlib.util.find_spec("win32com.client") is not None
+    return OriginCapabilityProbe().probe().com_available
 
 
 def _default_app_factory() -> Any:

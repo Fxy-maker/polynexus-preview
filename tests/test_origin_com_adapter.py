@@ -1,5 +1,7 @@
 from polynexus.origin.com_labtalk_adapter import ComLabTalkAdapter
+from polynexus.origin.com_labtalk_adapter import _default_com_available
 from polynexus.origin.contracts import ExportRequest
+from polynexus.origin.capability_probe import OriginCapability
 
 
 class FakeOriginApplication:
@@ -67,3 +69,17 @@ def test_com_adapter_is_unavailable_for_visual_only_mode(tmp_path):
     )
 
     assert result.status == "unavailable"
+
+
+def test_default_com_capability_requires_a_registered_origin_server(monkeypatch):
+    monkeypatch.setattr(
+        "polynexus.origin.com_labtalk_adapter.OriginCapabilityProbe.probe",
+        lambda _self: OriginCapability(
+            installed=True,
+            originpro_available=False,
+            com_available=False,
+            reason="COM server unavailable",
+        ),
+    )
+
+    assert _default_com_available() is False
