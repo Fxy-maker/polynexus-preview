@@ -1,4 +1,4 @@
-from polynexus.origin.registry import order_adapters
+from polynexus.origin.registry import build_default_adapters, order_adapters
 
 
 def test_registry_orders_injected_adapters_by_priority():
@@ -14,6 +14,16 @@ def test_registry_orders_injected_adapters_by_priority():
             FakeAdapter("com_labtalk", 80),
         ]
     )
+
+    assert [adapter.adapter_id for adapter in adapters] == [
+        "originpro",
+        "com_labtalk",
+        "package",
+    ]
+
+
+def test_default_registry_contains_all_three_adapters():
+    adapters = build_default_adapters()
 
     assert [adapter.adapter_id for adapter in adapters] == [
         "originpro",
