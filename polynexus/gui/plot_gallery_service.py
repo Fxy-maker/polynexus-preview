@@ -383,7 +383,7 @@ def select_plot_gallery_entry(
         selected_figure_id=first.figure_id,
         selected_path=first.preview_path,
         matched_preferred=False,
-        emit_preview=bool(preview_visible or not preferred_text),
+        emit_preview=bool(preview_visible),
     )
 
 
@@ -456,7 +456,7 @@ def select_plot_figure_path(
         matched_preferred = True
     else:
         selected_path = paths[0]
-        emit_preview = bool(preview_visible or not preferred_text)
+        emit_preview = bool(preview_visible)
 
     return PlotGallerySelection(
         selected_path=selected_path,

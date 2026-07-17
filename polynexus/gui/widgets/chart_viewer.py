@@ -4,9 +4,6 @@ Replaces the simple QListWidget file list in the Plots tab with
 interactive exported-figure previews. Theme-aware chrome support.
 """
 
-import logging
-logger = logging.getLogger(__name__)
-
 import csv
 import json
 import os
@@ -41,6 +38,7 @@ from ..plot_gallery_service import (
 from ..i18n import tr
 from ...core.engine import logger
 
+
 class ChartThumbnail(QWidget):
     """Single chart preview thumbnail with click-to-zoom."""
     clicked = Signal(str)
@@ -53,13 +51,14 @@ class ChartThumbnail(QWidget):
         super().__init__(parent)
         self.entry = entry
         self.filepath = entry.preview_path
+        self._source_pixmap = QPixmap()
         self._selected = False
         self._hovered = False
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip(
             f"{entry.title}\n{_gallery_state_text(entry.state)}"
         )
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(0)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QVBoxLayout(self)
@@ -69,7 +68,7 @@ class ChartThumbnail(QWidget):
         # Thumbnail image
         self._thumb = QLabel()
         self._thumb.setAlignment(Qt.AlignCenter)
-        self._thumb.setMinimumSize(300, 220)
+        self._thumb.setMinimumSize(0, 0)
         self._thumb.setMaximumSize(520, 340)
         self._thumb.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(self._thumb)
@@ -134,27 +133,43 @@ class ChartThumbnail(QWidget):
                 if renderer.isValid():
                     size = renderer.defaultSize()
                     w, h = size.width(), size.height()
-                    scale = min(480 / w, 300 / h)
-                    pixmap = QPixmap(int(w * scale), int(h * scale))
-                    pixmap.fill(Qt.transparent)
+                    if w <= 0 or h <= 0:
+                        return
+                    self._source_pixmap = QPixmap(w, h)
+                    self._source_pixmap.fill(Qt.transparent)
                     painter = QPainter()
-                    if painter.begin(pixmap):
+                    if painter.begin(self._source_pixmap):
                         try:
                             renderer.render(painter)
                         finally:
                             painter.end()
-                    self._thumb.setPixmap(pixmap)
+                    self._update_thumbnail_pixmap()
                     return
             except ImportError:
                 pass
 
-        pixmap = QPixmap(self.filepath)
-        if not pixmap.isNull():
-            scaled = pixmap.scaled(480, 300, Qt.KeepAspectRatio,
-                                   Qt.SmoothTransformation)
-            self._thumb.setPixmap(scaled)
+        self._source_pixmap = QPixmap(self.filepath)
+        if not self._source_pixmap.isNull():
+            self._update_thumbnail_pixmap()
         else:
             self._thumb.setText(tr("CHART_SVG_FALLBACK"))
+
+    def _update_thumbnail_pixmap(self):
+        if self._source_pixmap.isNull():
+            return
+        available = self._thumb.contentsRect().size()
+        if available.width() <= 0 or available.height() <= 0:
+            available = QSize(480, 300)
+        scaled = self._source_pixmap.scaled(
+            available,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self._thumb.setPixmap(scaled)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_thumbnail_pixmap()
 
     def _emit_primary_action(self):
         if self.entry.state in {FIGURE_STATE_OBJECT, FIGURE_STATE_STATIC} and self.entry.editable_path:
@@ -1138,5 +1153,3 @@ def _gallery_secondary_label(state: str) -> str:
         FIGURE_STATE_STATIC: tr("CHART_BTN_VIEW_FILE"),
         FIGURE_STATE_UNLINKED_EXPORT: tr("CHART_BTN_OPEN_AS_STATIC"),
     }.get(state, tr("CHART_BTN_VIEW_FILE"))
-
-
