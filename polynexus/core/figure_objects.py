@@ -43,7 +43,7 @@ def normalize_figure_object(payload: dict) -> dict:
     obj = deepcopy(payload) if isinstance(payload, dict) else {}
     object_type = str(obj.get("type") or "unknown").strip().lower()
     if object_type not in KNOWN_FIGURE_OBJECT_TYPES:
-        obj["original_type"] = object_type
+        obj.setdefault("original_type", object_type)
         object_type = "unknown"
     obj["type"] = object_type
     obj.setdefault("id", f"obj-{uuid4().hex[:12]}")
@@ -51,6 +51,7 @@ def normalize_figure_object(payload: dict) -> dict:
     obj.setdefault("visible", True)
     obj.setdefault("locked", False)
     obj.setdefault("z_index", 0)
+    obj.setdefault("layer_id", "layer-1")
     obj.setdefault("bounds", {})
     obj.setdefault("style", {})
     return obj

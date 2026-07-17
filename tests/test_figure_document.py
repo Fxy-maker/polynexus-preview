@@ -12,6 +12,7 @@ from polynexus.core.figure_document import (
     save_generated_figure_document,
     save_figure_document,
 )
+from polynexus.core.figure_objects import normalize_figure_object
 from polynexus.core.plot_edits import (
     load_figure_document_path,
     save_figure_document_path,
@@ -86,6 +87,68 @@ def test_static_background_document_round_trips(tmp_path):
     assert [item["type"] for item in loaded["objects"]] == ["image_background", "text"]
     assert loaded["objects"][0]["source_path"] == str(figure_path.resolve())
     assert loaded["objects"][1]["text"] == "Peak"
+
+
+def test_static_annotation_is_a_layered_canonical_object():
+    document = create_static_figure_document(
+        "figure.png",
+        annotations=[
+            {
+                "id": "ann-1",
+                "type": "line",
+                "x1": 0.1,
+                "y1": 0.2,
+                "x2": 0.8,
+                "y2": 0.9,
+                "color": "#0072B2",
+                "line_width": 2.0,
+            },
+        ],
+    )
+
+    line = next(item for item in document["objects"] if item["id"] == "ann-1")
+
+    assert line["layer_id"] == "layer-1"
+    assert line["bounds"] == {"x1": 0.1, "y1": 0.2, "x2": 0.8, "y2": 0.9}
+    assert line["style"]["color"] == "#0072B2"
+    assert document["layers"][0]["object_ids"] == ["background", "ann-1"]
+    assert document["objects"][0]["layer_id"] == "layer-1"
+
+
+def test_normalize_figure_object_preserves_canonical_fields_and_unknown_fields():
+    payload = {
+        "id": "future-1",
+        "type": "future_artist",
+        "layer_id": "layer-1",
+        "bounds": {"x": 0.1, "custom_axis": "x"},
+        "style": {"future_stroke": {"width": 3}},
+        "future_payload": {"x": 1},
+    }
+
+    normalized = normalize_figure_object(payload)
+
+    assert normalized["layer_id"] == "layer-1"
+    assert normalized["bounds"] == {"x": 0.1, "custom_axis": "x"}
+    assert normalized["style"] == {"future_stroke": {"width": 3}}
+    assert normalized["future_payload"] == {"x": 1}
+
+
+def test_normalization_is_idempotent_and_preserves_future_fields():
+    payload = {
+        "version": 1,
+        "objects": [
+            {
+                "id": "future-1",
+                "type": "future_artist",
+                "future_payload": {"x": 1},
+            }
+        ],
+    }
+
+    once = normalize_figure_document(payload)
+
+    assert normalize_figure_document(once) == once
+    assert once["objects"][0]["future_payload"] == {"x": 1}
 
 
 def test_annotation_to_figure_object_preserves_known_annotation_fields():
