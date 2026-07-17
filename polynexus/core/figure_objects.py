@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import math
+from copy import deepcopy
 from uuid import uuid4
 
 
@@ -58,7 +58,24 @@ def normalize_figure_object(payload: dict) -> dict:
     if not isinstance(bounds, dict):
         bounds = {}
     for key in GEOMETRY_KEYS:
-        if key in bounds or key not in obj:
+        if key in bounds:
+            try:
+                canonical_value = float(bounds[key])
+            except (TypeError, ValueError, OverflowError):
+                canonical_value = None
+            if canonical_value is not None and math.isfinite(canonical_value):
+                continue
+            try:
+                legacy_value = float(obj[key])
+            except (KeyError, TypeError, ValueError, OverflowError):
+                bounds.pop(key)
+                continue
+            if math.isfinite(legacy_value):
+                bounds[key] = legacy_value
+            else:
+                bounds.pop(key)
+            continue
+        if key not in obj:
             continue
         try:
             value = float(obj[key])

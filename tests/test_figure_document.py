@@ -1,6 +1,7 @@
 """Tests for object-level figure document state."""
 
 import json
+import math
 
 from polynexus.core.figure_document import (
     annotation_to_figure_object,
@@ -281,6 +282,103 @@ def test_normalize_figure_object_migrates_legacy_geometry_without_overwriting_bo
     }
     assert normalized["x"] == "0.1"
     assert normalized["y"] == "0.2"
+
+
+def test_normalize_figure_object_replaces_nonfinite_bounds_with_finite_legacy_values():
+    payload = {
+        "id": "invalid-canonical-geometry",
+        "type": "rectangle",
+        "x": "0.1",
+        "y": 0.2,
+        "width": "0.3",
+        "height": 0.4,
+        "bounds": {
+            "x": float("nan"),
+            "y": float("inf"),
+            "width": "-Infinity",
+            "height": "not-a-number",
+            "custom_axis": "x",
+        },
+    }
+
+    normalized = normalize_figure_object(payload)
+
+    assert normalized["bounds"] == {
+        "x": 0.1,
+        "y": 0.2,
+        "width": 0.3,
+        "height": 0.4,
+        "custom_axis": "x",
+    }
+
+
+def test_normalize_figure_object_rejects_nonfinite_canonical_bounds_without_mutating_payload():
+    payload = {
+        "id": "bad-bounds",
+        "type": "line",
+        "x1": 0.1,
+        "y1": 0.2,
+        "bounds": {"x1": float("nan"), "y1": float("inf"), "custom": "keep"},
+    }
+
+    normalized = normalize_figure_object(payload)
+
+    assert normalized["bounds"] == {
+        "x1": 0.1,
+        "y1": 0.2,
+        "custom": "keep",
+    }
+    assert math.isnan(payload["bounds"]["x1"])
+    assert math.isinf(payload["bounds"]["y1"])
+
+
+def test_normalize_figure_object_drops_invalid_bounds_without_legacy_values():
+    normalized = normalize_figure_object(
+        {
+            "id": "invalid-only-canonical-geometry",
+            "type": "rectangle",
+            "bounds": {
+                "x": float("nan"),
+                "y": float("inf"),
+                "width": "not-a-number",
+                "custom_axis": "x",
+            },
+        }
+    )
+
+    assert normalized["bounds"] == {"custom_axis": "x"}
+
+
+def test_normalize_figure_object_does_not_mutate_payload():
+    payload = {
+        "id": "unmodified-payload",
+        "type": "rectangle",
+        "x": "0.1",
+        "bounds": {"x": "not-a-number", "custom_axis": {"value": 1}},
+    }
+
+    normalized = normalize_figure_object(payload)
+
+    assert payload == {
+        "id": "unmodified-payload",
+        "type": "rectangle",
+        "x": "0.1",
+        "bounds": {"x": "not-a-number", "custom_axis": {"value": 1}},
+    }
+    assert normalized["bounds"] is not payload["bounds"]
+
+
+def test_normalize_figure_object_is_idempotent_after_rejecting_invalid_bounds():
+    payload = {
+        "id": "idempotent-invalid-geometry",
+        "type": "rectangle",
+        "x": "0.1",
+        "bounds": {"x": float("nan"), "custom_axis": "x"},
+    }
+
+    normalized = normalize_figure_object(payload)
+
+    assert normalize_figure_object(normalized) == normalized
 
 
 def test_normalize_document_handles_legacy_geometry_null_lists_and_invalid_version():
