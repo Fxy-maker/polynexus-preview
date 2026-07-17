@@ -77,7 +77,7 @@ class ChartEditorAnnotationControlsMixin:
         text = self._annotation_text_edit.text().strip()
         session = self._edit_session_for_adapter()
         annotation_id = self._annotation_canvas.selected_annotation_id()
-        if session is not None and annotation_id and text:
+        if session is not None and self._session_has_object(annotation_id) and text:
             session.select(annotation_id, "annotation_canvas")
             result = self._execute_edit(UpdateTextCommand(annotation_id, text))
             if result is not None and result.changed:
@@ -96,7 +96,7 @@ class ChartEditorAnnotationControlsMixin:
         color = self._annotation_color_edit.text().strip() or None
         session = self._edit_session_for_adapter()
         annotation_id = self._annotation_canvas.selected_annotation_id()
-        if session is not None and annotation_id:
+        if session is not None and self._session_has_object(annotation_id):
             updates = {
                 "font_size": float(self._annotation_font_size_spin.value()),
                 "line_width": float(self._annotation_line_width_spin.value()),
@@ -169,7 +169,7 @@ class ChartEditorAnnotationControlsMixin:
             return
         session = self._edit_session_for_adapter()
         annotation_id = self._annotation_canvas.selected_annotation_id()
-        if session is not None and annotation_id:
+        if session is not None and self._session_has_object(annotation_id):
             session.select(annotation_id, "annotation_canvas")
             self._execute_edit(DeleteObjectCommand(annotation_id))
             return
@@ -639,7 +639,10 @@ class ChartEditorAnnotationControlsMixin:
         session = self._edit_session_for_adapter()
         if session is not None:
             session.select(self._selected_figure_object_id, "list")
-            self._execute_edit(UpdateStyleCommand(self._selected_figure_object_id, updates))
+            result = self._execute_edit(UpdateStyleCommand(self._selected_figure_object_id, updates))
+            if result is not None and result.changed:
+                self._show_generated_figure_document()
+                self._persist_generated_document()
             return
         if not store.update_style(self._selected_figure_object_id, updates):
             return

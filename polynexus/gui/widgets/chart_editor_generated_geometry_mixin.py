@@ -93,6 +93,19 @@ class ChartEditorGeneratedGeometryMixin:
         if session is not None:
             session.select(object_id, "generated-canvas")
             result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+            if result is not None and result.changed:
+                self._sync_generated_object_property_controls(object_id)
+                self._update_generated_line_preview(object_id)
+                axes = self._figure.axes[0] if self._figure and self._figure.axes else None
+                if axes is not None:
+                    point = (
+                        [updates.get("x1"), updates.get("y1")]
+                        if int(handle_index or 0) <= 0
+                        else [updates.get("x2"), updates.get("y2")]
+                    )
+                    for artist in axes.collections:
+                        if artist.get_gid() == f"pn-current-handle:{object_id}":
+                            artist.set_offsets([point])
             return bool(result is not None and result.changed)
         if not self._generated_store().update_geometry(object_id, updates):
             return False
@@ -136,6 +149,17 @@ class ChartEditorGeneratedGeometryMixin:
         if session is not None:
             session.select(object_id, "generated-canvas")
             result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+            if result is not None and result.changed:
+                self._sync_generated_object_property_controls(object_id)
+                self._update_generated_line_preview(object_id)
+                axes = self._figure.axes[0] if self._figure and self._figure.axes else None
+                if axes is not None:
+                    point = [updates.get("x1"), updates.get("y1")]
+                    if self._selected_generated_line_handle_index == 1:
+                        point = [updates.get("x2"), updates.get("y2")]
+                    for artist in axes.collections:
+                        if artist.get_gid() == f"pn-current-handle:{object_id}":
+                            artist.set_offsets([point])
             return bool(result is not None and result.changed)
         if not self._generated_store().update_geometry(object_id, updates):
             return False
@@ -280,6 +304,10 @@ class ChartEditorGeneratedGeometryMixin:
                     {"loc": "upper left", "bbox_to_anchor": next_anchor},
                 )
             )
+            if result is not None and result.changed:
+                self._status_label.setText("Legend anchor updated.")
+                self._update_generated_legend_preview(object_id)
+                self._sync_generated_object_property_controls(object_id)
             return bool(result is not None and result.changed)
         changed = self._generated_store().update_style(
             object_id,

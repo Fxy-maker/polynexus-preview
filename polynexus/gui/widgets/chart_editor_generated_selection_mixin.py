@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ...core.figure_object_store import FigureObjectStore
+from ...core.figure_edit_capabilities import capabilities_for
 from ...core.plot_edits import save_figure_document_path
 from ...core.figure_document import save_figure_document
 
@@ -39,11 +40,15 @@ class ChartEditorGeneratedSelectionMixin:
     def _on_generated_selection_changed(self, object_id, source):
         self._selected_figure_object_id = str(object_id or "")
         session = self._edit_session_for_adapter()
+        figure_object = self._generated_figure_object_by_id(self._selected_figure_object_id)
+        if session is not None and figure_object is not None and not self._session_has_object(
+            self._selected_figure_object_id
+        ):
+            session = self._reset_edit_session_from_document(self._figure_document)
         if session is not None:
             session.select(self._selected_figure_object_id, f"generated-{source}")
         if not self._generated_document_mode and not self._is_generated_figure_document():
             return
-        figure_object = self._generated_figure_object_by_id(self._selected_figure_object_id)
         if source != "canvas":
             self._selection_cycle_hint_active = False
             if source != "list":
@@ -135,4 +140,12 @@ class ChartEditorGeneratedSelectionMixin:
         self._selected_object_label.setText(self._figure_object_list_label(figure_object))
         self._sync_generated_object_property_controls(self._selected_figure_object_id)
         self._sync_inspector_capabilities()
+        object_capabilities = capabilities_for(figure_object)
+        self._annotation_text_edit.setEnabled(bool(object_capabilities.text))
+        self._annotation_font_size_spin.setEnabled(bool(object_capabilities.font_size))
+        if str(figure_object.get("type", "") or "") != "plot_series":
+            self._annotation_line_width_spin.setEnabled(bool(object_capabilities.line_width))
+            self._annotation_line_style_combo.setEnabled(bool(object_capabilities.line_style))
+            self._annotation_marker_combo.setEnabled(bool(object_capabilities.marker))
+            self._annotation_marker_size_spin.setEnabled(bool(object_capabilities.marker_size))
         self._set_generated_selection_status(figure_object)

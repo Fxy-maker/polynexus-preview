@@ -49,9 +49,20 @@ class ChartEditorEditSessionMixin:
             None,
         )
 
+    def _session_has_object(self, object_id):
+        object_id = str(object_id or "")
+        session = self._edit_session_for_adapter()
+        document = session.document if session is not None else {}
+        return any(
+            isinstance(item, dict) and str(item.get("id", "") or "") == object_id
+            for item in document.get("objects", [])
+        )
+
     def _sync_inspector_capabilities(self):
         object_payload = self._selected_canonical_object()
         capabilities = capabilities_for(object_payload or {})
+        if getattr(self, "_generated_document_mode", False):
+            return capabilities
         set_style = getattr(self, "_set_style_controls_enabled", None)
         if callable(set_style):
             set_style(
@@ -127,10 +138,6 @@ class ChartEditorEditSessionMixin:
         finally:
             if callable(block_signals):
                 block_signals(previous)
-        if getattr(self, "_generated_document_mode", False):
-            render_document = getattr(self, "_show_generated_figure_document", None)
-            if callable(render_document):
-                render_document()
         return self._figure_document
 
     def _connect_annotation_canvas_edit_session(self):

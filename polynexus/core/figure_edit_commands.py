@@ -83,9 +83,13 @@ def _editable_object(
         return _failure("object_not_found", f"Object '{wanted}' was not found.", wanted), None
     _, payload = found
     capabilities = capabilities_for(payload)
+    legend_geometry_style = (
+        capability == "style"
+        and str(payload.get("type", "") or "") == "legend"
+    )
     if capabilities.locked and not (allow_locked_crop and capabilities.crop):
         return _failure("locked", f"Object '{wanted}' is locked.", wanted), None
-    if not getattr(capabilities, capability):
+    if not getattr(capabilities, capability) and not legend_geometry_style:
         return (
             _failure(
                 "capability_not_supported",
@@ -215,7 +219,14 @@ class UpdateStyleCommand:
                 continue
             capability_name = _STYLE_CAPABILITIES.get(str(key))
             capabilities = capabilities_for(payload)
-            if capability_name is not None and not getattr(capabilities, capability_name):
+            legend_geometry_style = str(payload.get("type", "") or "") == "legend" and str(
+                key
+            ) in {"loc", "bbox_to_anchor"}
+            if (
+                capability_name is not None
+                and not getattr(capabilities, capability_name)
+                and not legend_geometry_style
+            ):
                 return (
                     _failure(
                         "capability_not_supported",

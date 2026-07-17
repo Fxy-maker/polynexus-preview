@@ -166,6 +166,7 @@ class ChartEditorSaveMixin:
                 style_state = self._collect_style_state()
                 annotations = self._annotation_state()
                 render_path = path.with_name(f".{path.stem}.origin-render{path.suffix}")
+                render_asset_spec = {}
                 try:
                     rendered = False
                     if self._should_save_static_canvas(render_path, annotations):
@@ -177,15 +178,20 @@ class ChartEditorSaveMixin:
                         if source.exists():
                             chart_editor_module.shutil.copy2(source, render_path)
                             rendered = True
+                    if rendered and render_path.exists():
+                        render_asset_spec = chart_editor_module.discover_figure_asset(
+                            str(render_path)
+                        ).to_dict()
                     rendered_bytes = render_path.read_bytes() if rendered and render_path.exists() else b""
                 finally:
                     render_path.unlink(missing_ok=True)
 
-                asset_spec = (
+                asset_spec = render_asset_spec or (
                     self._asset_spec.to_dict()
                     if self._asset_spec is not None and hasattr(self._asset_spec, "to_dict")
                     else {}
                 )
+                asset_spec["figure_id"] = path.stem
                 asset_spec["preview_path"] = str(path.resolve())
                 document = chart_editor_module.create_static_figure_document(
                     str(path),
@@ -202,6 +208,7 @@ class ChartEditorSaveMixin:
                 )
                 if result is None:
                     return
+                chart_editor_module.save_figure_asset_spec(str(path), asset_spec)
                 self._figure_document = document
                 self._status_label.setText(
                     tr("EDITOR_SAVE_STATE_DONE", result.compatibility_path.name)
