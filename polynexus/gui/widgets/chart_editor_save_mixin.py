@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from io import BytesIO
 from pathlib import Path
 
 from ..i18n import tr
 from ..plot_gallery_service import build_active_manifest_gallery_entries
+from ...core.figure_edit_persistence import try_save_edit_bundle
 from ...core.figures.project_service import FigureProjectService
 
 
@@ -18,6 +20,31 @@ class ChartEditorSaveMixin:
     @classmethod
     def _logger(cls):
         return cls._chart_editor_module().logger
+
+    def _save_edit_bundle(self, path, document, rendered_bytes, style=None, annotations=None):
+        result = try_save_edit_bundle(
+            path,
+            document,
+            rendered_bytes,
+            legacy_style=style,
+            legacy_annotations=annotations,
+        )
+        if not result.ok:
+            set_dirty = getattr(self, "_set_editor_dirty", None)
+            if callable(set_dirty):
+                set_dirty(True)
+            else:
+                self._editor_dirty = True
+            status_label = getattr(self, "_status_label", None)
+            if status_label is not None:
+                status_label.setText(f"Save failed: {result.message}")
+            return None
+
+        session = getattr(self, "_edit_session", None)
+        mark_saved = getattr(session, "mark_saved", None)
+        if callable(mark_saved):
+            mark_saved()
+        return result
 
     def save_to_target(self):
         if self._has_manifest_project_context():
@@ -137,46 +164,63 @@ class ChartEditorSaveMixin:
             if self._static_file_mode and self._source_path:
                 self._backup_current_static_source(path)
                 style_state = self._collect_style_state()
-                state_path, _ = chart_editor_module.save_figure_edit(str(path), style_state)
                 annotations = self._annotation_state()
-                chart_editor_module.save_figure_annotations(str(path), annotations)
-                if self._should_save_static_canvas(path, annotations) and self._save_static_canvas_to_path(path):
-                    pass
-                elif not self._save_static_rendered_figure(path):
-                    source = chart_editor_module.Path(self._source_path)
-                    if source.exists() and source.resolve() != path.resolve():
-                        chart_editor_module.shutil.copy2(source, path)
-                asset_spec = chart_editor_module.discover_figure_asset(str(path)).to_dict()
-                chart_editor_module.save_figure_asset_spec(str(path), asset_spec)
+                render_path = path.with_name(f".{path.stem}.origin-render{path.suffix}")
+                try:
+                    rendered = False
+                    if self._should_save_static_canvas(render_path, annotations):
+                        rendered = self._save_static_canvas_to_path(render_path)
+                    if not rendered:
+                        rendered = self._save_static_rendered_figure(render_path)
+                    if not rendered:
+                        source = chart_editor_module.Path(self._source_path)
+                        if source.exists():
+                            chart_editor_module.shutil.copy2(source, render_path)
+                            rendered = True
+                    rendered_bytes = render_path.read_bytes() if rendered and render_path.exists() else b""
+                finally:
+                    render_path.unlink(missing_ok=True)
+
+                asset_spec = (
+                    self._asset_spec.to_dict()
+                    if self._asset_spec is not None and hasattr(self._asset_spec, "to_dict")
+                    else {}
+                )
+                asset_spec["preview_path"] = str(path.resolve())
                 document = chart_editor_module.create_static_figure_document(
                     str(path),
                     asset_spec=asset_spec,
                     style=style_state,
                     annotations=annotations,
                 )
-                document_path = chart_editor_module.save_figure_document(str(path), document)
-                chart_editor_module.save_figure_document_path(str(path), str(document_path))
-                self._status_label.setText(tr("EDITOR_SAVE_STATE_DONE", state_path.name))
+                result = self._save_edit_bundle(
+                    path,
+                    document,
+                    rendered_bytes,
+                    style_state,
+                    annotations,
+                )
+                if result is None:
+                    return
+                self._figure_document = document
+                self._status_label.setText(
+                    tr("EDITOR_SAVE_STATE_DONE", result.compatibility_path.name)
+                )
                 self.figure_saved.emit(str(path))
                 return
             self._status_label.setText(tr("EDITOR_NO_DATA"))
             return
 
-        state_path, _ = chart_editor_module.save_figure_edit(
-            str(path),
-            self._collect_style_state(),
-        )
+        style_state = self._collect_style_state()
 
         ext = path.suffix.lower().lstrip(".") or "svg"
         if ext == "jpg":
             ext = "jpeg"
 
-        from ...core.plot_edits import savefig_with_edits
-
+        rendered_buffer = BytesIO()
         try:
-            savefig_with_edits(
-                self._figure,
-                str(path),
+            self._figure.savefig(
+                rendered_buffer,
                 format=ext,
                 dpi=300 if ext in {"png", "jpeg", "jpg", "tiff"} else self._dpi,
                 bbox_inches="tight",
@@ -187,15 +231,32 @@ class ChartEditorSaveMixin:
                 "Chart editor save-with-edits failed; using direct save.",
                 exc_info=True,
             )
+            rendered_buffer = BytesIO()
             self._figure.savefig(
-                str(path),
+                rendered_buffer,
                 format=ext,
                 dpi=300 if ext in {"png", "jpeg", "jpg", "tiff"} else self._dpi,
                 bbox_inches="tight",
                 facecolor=self._bg_color,
             )
-
-        self._status_label.setText(tr("EDITOR_SAVE_DONE", state_path.name))
+        document = (
+            deepcopy(self._figure_document)
+            if isinstance(getattr(self, "_figure_document", None), dict)
+            else {"version": 1, "mode": "object", "objects": []}
+        )
+        document.setdefault("mode", "object")
+        document["style"] = style_state
+        result = self._save_edit_bundle(
+            path,
+            document,
+            rendered_buffer.getvalue(),
+            style_state,
+            self._annotation_state(),
+        )
+        if result is None:
+            return
+        self._figure_document = document
+        self._status_label.setText(tr("EDITOR_SAVE_DONE", result.compatibility_path.name))
         self.figure_saved.emit(str(path))
 
     def _save_generated_document_figure(self, path):
