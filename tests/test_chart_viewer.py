@@ -15,6 +15,8 @@ from polynexus.gui.i18n import tr
 from polynexus.gui.plot_gallery_service import (
     FIGURE_CATEGORY_PER_FRAME,
     FIGURE_CATEGORY_SERIES_OVERVIEW,
+    FIGURE_ROLE_DIAGNOSTIC,
+    FIGURE_ROLE_SI,
     FigureGalleryEntry,
 )
 from polynexus.gui.widgets.chart_viewer import (
@@ -320,6 +322,56 @@ def test_chart_gallery_category_filter_hides_non_matching_entries(tmp_path):
     app.processEvents()
 
     assert [thumb.entry.figure_id for thumb in gallery._thumbnails] == ["Fig_2_waterfall"]
+
+    gallery.deleteLater()
+    app.processEvents()
+
+
+def test_chart_gallery_publication_role_filter_separates_si_and_diagnostics(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    paths = []
+    for name in ("main", "si", "diagnostic"):
+        path = tmp_path / f"{name}.png"
+        pixmap = QPixmap(80, 40)
+        pixmap.fill(QColor("white"))
+        assert pixmap.save(str(path))
+        paths.append(path)
+
+    gallery = ChartGallery()
+    gallery.load_entries(
+        [
+            FigureGalleryEntry(
+                figure_id=name,
+                title=name,
+                category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+                state="object_editing",
+                preview_path=str(path.resolve()),
+                primary_path=str(path.resolve()),
+                editable_path=str(path.resolve()),
+                document_mode="object",
+                asset_paths=(str(path.resolve()),),
+                assets=(),
+                publication_role=role,
+            )
+            for name, path, role in (
+                ("main", paths[0], "main"),
+                ("si", paths[1], FIGURE_ROLE_SI),
+                ("diagnostic", paths[2], FIGURE_ROLE_DIAGNOSTIC),
+            )
+        ]
+    )
+
+    gallery._role_combo.setCurrentIndex(
+        gallery._role_combo.findData(FIGURE_ROLE_SI)
+    )
+    app.processEvents()
+    assert [thumb.entry.figure_id for thumb in gallery._thumbnails] == ["si"]
+
+    gallery._role_combo.setCurrentIndex(
+        gallery._role_combo.findData(FIGURE_ROLE_DIAGNOSTIC)
+    )
+    app.processEvents()
+    assert [thumb.entry.figure_id for thumb in gallery._thumbnails] == ["diagnostic"]
 
     gallery.deleteLater()
     app.processEvents()

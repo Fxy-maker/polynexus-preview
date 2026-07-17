@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from matplotlib.collections import PathCollection
 
+from ...core.figure_edit_commands import UpdateGeometryCommand, UpdateStyleCommand
 from ...core.figure_object_store import FigureObjectStore
 
 GENERATED_LEGEND_HIT_SLOP_PX = 6.0
@@ -88,6 +89,24 @@ class ChartEditorGeneratedGeometryMixin:
             updates = {"x1": float(x_value), "y1": float(y_value)}
         else:
             updates = {"x2": float(x_value), "y2": float(y_value)}
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+            if result is not None and result.changed:
+                self._sync_generated_object_property_controls(object_id)
+                self._update_generated_line_preview(object_id)
+                axes = self._figure.axes[0] if self._figure and self._figure.axes else None
+                if axes is not None:
+                    point = (
+                        [updates.get("x1"), updates.get("y1")]
+                        if int(handle_index or 0) <= 0
+                        else [updates.get("x2"), updates.get("y2")]
+                    )
+                    for artist in axes.collections:
+                        if artist.get_gid() == f"pn-current-handle:{object_id}":
+                            artist.set_offsets([point])
+            return bool(result is not None and result.changed)
         if not self._generated_store().update_geometry(object_id, updates):
             return False
         self._sync_generated_object_property_controls(object_id)
@@ -126,6 +145,22 @@ class ChartEditorGeneratedGeometryMixin:
                 "x2": round(float(origin_x2) + dx, 12),
                 "y2": round(float(origin_y2) + dy, 12),
             }
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+            if result is not None and result.changed:
+                self._sync_generated_object_property_controls(object_id)
+                self._update_generated_line_preview(object_id)
+                axes = self._figure.axes[0] if self._figure and self._figure.axes else None
+                if axes is not None:
+                    point = [updates.get("x1"), updates.get("y1")]
+                    if self._selected_generated_line_handle_index == 1:
+                        point = [updates.get("x2"), updates.get("y2")]
+                    for artist in axes.collections:
+                        if artist.get_gid() == f"pn-current-handle:{object_id}":
+                            artist.set_offsets([point])
+            return bool(result is not None and result.changed)
         if not self._generated_store().update_geometry(object_id, updates):
             return False
         self._sync_generated_object_property_controls(object_id)
@@ -260,6 +295,20 @@ class ChartEditorGeneratedGeometryMixin:
         if not figure_object or str(figure_object.get("type", "") or "") != "legend":
             return False
         next_anchor = [round(float(anchor_x), 12), round(float(anchor_y), 12)]
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(
+                UpdateStyleCommand(
+                    object_id,
+                    {"loc": "upper left", "bbox_to_anchor": next_anchor},
+                )
+            )
+            if result is not None and result.changed:
+                self._status_label.setText("Legend anchor updated.")
+                self._update_generated_legend_preview(object_id)
+                self._sync_generated_object_property_controls(object_id)
+            return bool(result is not None and result.changed)
         changed = self._generated_store().update_style(
             object_id,
             {

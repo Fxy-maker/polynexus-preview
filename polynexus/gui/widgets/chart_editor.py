@@ -74,6 +74,8 @@ from .chart_editor_generated_selection_mixin import (
 )
 from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
 from .chart_editor_layout_mixin import ChartEditorLayoutMixin
+from .chart_editor_edit_session_mixin import ChartEditorEditSessionMixin
+from .chart_editor_origin_mixin import ChartEditorOriginMixin
 from .chart_editor_object_list_mixin import ChartEditorObjectListMixin
 from .chart_editor_save_mixin import ChartEditorSaveMixin
 from .chart_editor_style_preset_mixin import ChartEditorStylePresetMixin
@@ -133,6 +135,8 @@ GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
 
 class ChartEditor(
     ChartEditorLayoutMixin,
+    ChartEditorEditSessionMixin,
+    ChartEditorOriginMixin,
     ChartEditorAnnotationControlsMixin,
     ChartEditorSaveMixin,
     ChartEditorStylePresetMixin,
@@ -169,6 +173,8 @@ class ChartEditor(
         self._mode_summary_key = ""
         self._asset_spec = None
         self._figure_document = {}
+        self._edit_session = None
+        self._last_edit_result = None
         self._shared_render_plan = None
         self._generated_document_mode = False
         self._static_file_mode = False
@@ -208,6 +214,9 @@ class ChartEditor(
         self._generated_handle_drag_state = None
         self._editor_dirty = False
         self._loading_editor_state = False
+        self._origin_export_thread = None
+        self._origin_export_worker = None
+        self._origin_export_service = None
         self._text_render_timer = QTimer(self)
         self._text_render_timer.setSingleShot(True)
         self._text_render_timer.setInterval(0)
@@ -219,6 +228,7 @@ class ChartEditor(
         )
         self._figure_render_adapter = FigureRenderAdapter()
         self._build_ui()
+        self._reset_edit_session_from_document(self._figure_document)
         self.figure_changed.connect(self._mark_editor_dirty)
         self.figure_saved.connect(lambda _path: self._set_editor_dirty(False))
         self._set_mode_header("")
@@ -712,6 +722,7 @@ class ChartEditor(
         self._btn_png = QPushButton(tr("EDITOR_EXPORT_PNG"))
         self._btn_png.clicked.connect(lambda: self.save_as("png"))
         form.addRow(self._btn_png)
+        self._build_origin_export_control(form)
 
         self._form = object_form
         self._btn_bg = btn_bg
@@ -855,6 +866,7 @@ class ChartEditor(
         self._btn_png.setText(tr("EDITOR_EXPORT_PNG"))
         self._btn_save_current.setText(tr("EDITOR_SAVE_EDITS"))
         self._btn_publish.setText(tr("EDITOR_PUBLISH_COMPLETE"))
+        self.retranslate_origin_export()
         self._set_mode_header(
             self._mode_title_text,
             mode_key=self._mode_banner_key,
@@ -930,6 +942,7 @@ class ChartEditor(
             self._figure_document = load_figure_document(
                 document_path or self._source_path
             )
+            self._reset_edit_session_from_document(self._figure_document)
             self._asset_spec = discover_figure_asset(self._source_path)
             self._source_preview.load_figure(self._source_path)
             self.set_output_target(
@@ -953,6 +966,7 @@ class ChartEditor(
                     self._set_editor_mode_ui(object_mode=True)
                     self._refresh_object_list()
                     self._set_editor_dirty(False)
+                    self._sync_origin_export_enabled()
                     self._loading_editor_state = False
                     return
             self._apply_saved_style(load_figure_edit(self._source_path))
@@ -965,9 +979,20 @@ class ChartEditor(
             self._set_editor_mode_ui(object_mode=False)
             self._status_label.setText(tr("EDITOR_STATIC_MODE_HINT"))
             if self._annotation_canvas.load_image(self._asset_spec.preview_path):
-                self._annotation_canvas.load_annotation_state(
-                    load_figure_annotations(self._source_path)
-                )
+                annotations = load_figure_annotations(self._source_path)
+                if not self._figure_document.get("objects"):
+                    asset_payload = (
+                        self._asset_spec.to_dict()
+                        if hasattr(self._asset_spec, "to_dict")
+                        else {}
+                    )
+                    self._figure_document = create_static_figure_document(
+                        self._source_path,
+                        asset_spec=asset_payload,
+                        annotations=annotations,
+                    )
+                    self._reset_edit_session_from_document(self._figure_document)
+                self._annotation_canvas.load_annotation_state(annotations)
                 self._annotation_canvas.setVisible(True)
                 self._refresh_object_list()
             else:
@@ -983,6 +1008,7 @@ class ChartEditor(
             self._set_editor_mode_ui(object_mode=False)
             self._refresh_object_list()
         self._set_editor_dirty(False)
+        self._sync_origin_export_enabled()
         self._loading_editor_state = False
 
     def set_initial_labels(self, title="", xlabel="", ylabel=""):
@@ -1001,6 +1027,7 @@ class ChartEditor(
         self._btn_publish.setEnabled(False)
         self._asset_spec = None
         self._figure_document = {}
+        self._reset_edit_session_from_document(self._figure_document)
         self._shared_render_plan = None
         self._selected_figure_object_id = ""
         self._hovered_figure_object_id = ""
@@ -1032,6 +1059,7 @@ class ChartEditor(
         self._fig_kwargs = kwargs
         self._render()
         self._set_editor_dirty(False)
+        self._sync_origin_export_enabled()
         self._loading_editor_state = False
 
     def is_static_file_mode(self):
@@ -1040,6 +1068,8 @@ class ChartEditor(
     def _set_export_buttons_enabled(self, enabled):
         for button in (self._btn_save_as, self._btn_svg, self._btn_png):
             button.setEnabled(enabled)
+        if hasattr(self, "_btn_origin_export"):
+            self._btn_origin_export.setEnabled(bool(enabled))
 
     def _on_colour_scheme_changed(self, name):
         self._current_colours = list(COLOUR_SCHEMES[name])

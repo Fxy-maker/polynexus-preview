@@ -29,6 +29,10 @@ from ..plot_gallery_service import (
     FIGURE_CATEGORY_OTHER_EXPORTS,
     FIGURE_CATEGORY_PER_FRAME,
     FIGURE_CATEGORY_SERIES_OVERVIEW,
+    FIGURE_ROLE_ALL,
+    FIGURE_ROLE_DIAGNOSTIC,
+    FIGURE_ROLE_MAIN,
+    FIGURE_ROLE_SI,
     FIGURE_STATE_OBJECT,
     FIGURE_STATE_STATIC,
     FIGURE_STATE_UNLINKED_EXPORT,
@@ -77,6 +81,10 @@ class ChartThumbnail(QWidget):
         self._state_badge.setObjectName("chart_state_badge")
         layout.addWidget(self._state_badge, 0, Qt.AlignLeft)
 
+        self._role_badge = QLabel(_gallery_role_text(entry.publication_role))
+        self._role_badge.setObjectName("chart_role_badge")
+        layout.addWidget(self._role_badge, 0, Qt.AlignLeft)
+
         self._label = QLabel(entry.title)
         self._label.setAlignment(Qt.AlignCenter)
         self._label.setObjectName("thumb_label")
@@ -116,6 +124,11 @@ class ChartThumbnail(QWidget):
             f"background: transparent; border: none;"
         )
         self._state_badge.setStyleSheet(
+            f"color: {t.text_primary}; background: {t.bg_surface}; "
+            f"border: 1px solid {border}; border-radius: {t.radius_sm}px; "
+            f"padding: 2px 8px; font-size: {t.font_size_sm}px; font-weight: 600;"
+        )
+        self._role_badge.setStyleSheet(
             f"color: {t.text_primary}; background: {t.bg_surface}; "
             f"border: 1px solid {border}; border-radius: {t.radius_sm}px; "
             f"padding: 2px 8px; font-size: {t.font_size_sm}px; font-weight: 600;"
@@ -872,6 +885,18 @@ class ChartGallery(QWidget):
         )
         self._category_combo.currentIndexChanged.connect(self._reload_visible_entries)
         toolbar.addWidget(self._category_combo)
+        self._role_label = QLabel(tr("CHART_ROLE_LABEL"))
+        toolbar.addWidget(self._role_label)
+        self._role_combo = QComboBox()
+        self._role_combo.addItem(tr("CHART_ROLE_ALL"), FIGURE_ROLE_ALL)
+        self._role_combo.addItem(tr("CHART_ROLE_MAIN"), FIGURE_ROLE_MAIN)
+        self._role_combo.addItem(tr("CHART_ROLE_SI"), FIGURE_ROLE_SI)
+        self._role_combo.addItem(
+            tr("CHART_ROLE_DIAGNOSTIC"),
+            FIGURE_ROLE_DIAGNOSTIC,
+        )
+        self._role_combo.currentIndexChanged.connect(self._reload_visible_entries)
+        toolbar.addWidget(self._role_combo)
         toolbar.addStretch()
         btn_export = QPushButton(tr("CHART_BTN_EXPORT_ALL"))
         btn_export.clicked.connect(self._export_all)
@@ -946,10 +971,12 @@ class ChartGallery(QWidget):
         if self._category_combo.count() == 0:
             return
         category = str(self._category_combo.currentData() or FIGURE_CATEGORY_ALL)
+        role = str(self._role_combo.currentData() or FIGURE_ROLE_ALL)
         self._entries = [
             entry
             for entry in self._all_entries
-            if category == FIGURE_CATEGORY_ALL or entry.category == category
+            if (category == FIGURE_CATEGORY_ALL or entry.category == category)
+            and (role == FIGURE_ROLE_ALL or entry.publication_role == role)
         ]
         self._entry_by_figure_id = {
             entry.figure_id: entry for entry in self._entries
@@ -1137,6 +1164,14 @@ def _gallery_state_text(state: str) -> str:
         FIGURE_STATE_STATIC: tr("CHART_STATE_STATIC"),
         FIGURE_STATE_UNLINKED_EXPORT: tr("CHART_STATE_UNLINKED"),
     }.get(state, tr("CHART_STATE_UNLINKED"))
+
+
+def _gallery_role_text(role: str) -> str:
+    return {
+        FIGURE_ROLE_MAIN: tr("CHART_ROLE_MAIN"),
+        FIGURE_ROLE_SI: tr("CHART_ROLE_SI"),
+        FIGURE_ROLE_DIAGNOSTIC: tr("CHART_ROLE_DIAGNOSTIC"),
+    }.get(role, tr("CHART_ROLE_UNSPECIFIED"))
 
 
 def _gallery_primary_label(state: str) -> str:

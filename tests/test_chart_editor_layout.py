@@ -55,6 +55,40 @@ def test_editor_keeps_canvas_usable_at_narrow_window_width():
     app.processEvents()
 
 
+def test_context_toolbar_has_stable_actions_and_retranslates():
+    _app()
+    editor = ChartEditor()
+
+    assert editor._editor_toolbar.action_ids() == [
+        "select",
+        "text",
+        "line",
+        "arrow",
+        "rectangle",
+        "undo",
+        "redo",
+        "export",
+    ]
+
+    previous = get_language()
+    try:
+        set_language("en")
+        editor.retranslate()
+        assert editor._editor_toolbar.action("select").text() == "Select"
+        assert editor._editor_toolbar.action("export").text() == "Export"
+
+        set_language("zh")
+        editor.retranslate()
+        assert editor._editor_toolbar.action("select").text() != "Select"
+        assert editor._editor_toolbar.action("export").text() != "Export"
+    finally:
+        set_language(previous)
+        editor.retranslate()
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
 def test_object_and_static_modes_update_header_and_inspector(tmp_path):
     _app()
     editor = ChartEditor()

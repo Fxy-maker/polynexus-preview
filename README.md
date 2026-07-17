@@ -62,6 +62,31 @@ polynexus ai-tune --technique waxs --file sample.edf --polymer PA6
 - Sample and batch history backed by SQLite
 - Cross-technique joint analysis workspace
 - AI-assisted parameter tuning with run history
+- Optional OriginLab export with newer Python, legacy COM/LabTalk, and no-Origin fallback paths
+
+## Optional OriginLab Export
+
+OriginLab integration is optional and Windows-only. The native editor and
+export paths work without Origin installed.
+
+To enable the COM compatibility path, install the optional bridge:
+
+```bash
+pip install -e ".[origin]"
+```
+
+When the Chart Editor's `Export to Origin` action is used, PolyNexus selects
+the highest-priority available adapter:
+
+1. the installed high-level `originpro` integration;
+2. COM plus bounded LabTalk commands;
+3. an `Origin_Export` package containing CSV data, JSON metadata, import script,
+   and PNG/SVG/PDF visual assets.
+
+Editable Origin output is loss-aware. For unsupported artists, transforms, or
+annotations, use the included SVG/PDF/PNG assets for visual fidelity. PolyNexus
+never requires Origin at startup and never writes `.opju` files as raw bytes;
+Origin itself performs native project saves.
 
 ## Project Structure
 
