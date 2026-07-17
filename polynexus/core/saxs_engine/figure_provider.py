@@ -110,6 +110,60 @@ def _polish_publication_definitions(
     return tuple(polished)
 
 
+def _temperature_summary_fallback(
+    engine_state: object,
+    definitions: Sequence[FigureDefinition],
+) -> tuple[FigureDefinition, ...]:
+    """Keep parameter/heatmap SI evidence when the composite gate is incomplete."""
+
+    existing_ids = {definition.figure_id for definition in definitions}
+    if "saxs.temperature.evolution" in existing_ids:
+        return tuple(definitions)
+
+    result = getattr(engine_state, "_temperature_result", None)
+    if result is None:
+        return tuple(definitions)
+    try:
+        legacy_definitions = build_saxs_temperature_definitions(
+            result,
+            tuple(getattr(engine_state, "_q_list", ()) or ()),
+            tuple(getattr(engine_state, "_I_list", ()) or ()),
+            evidence_frames=frame_views_from_engine(engine_state),
+        )
+    except (TypeError, ValueError):
+        return tuple(definitions)
+
+    fallback: list[FigureDefinition] = []
+    for definition in legacy_definitions:
+        if definition.figure_id not in {
+            "saxs.series.temperature.parameters",
+            "saxs.series.temperature.heatmap",
+        }:
+            continue
+        recipe = dict(definition.recipe)
+        parameters = dict(recipe.get("parameters", {}))
+        parameters.update(
+            {
+                "display_order": 110 if definition.figure_id.endswith("parameters") else 120,
+                "publication_fallback": "summary_si_when_evolution_gate_failed",
+            }
+        )
+        recipe["parameters"] = parameters
+        fallback.append(
+            replace(
+                definition,
+                publication_role="si",
+                display_order=int(parameters["display_order"]),
+                recipe=recipe,
+            )
+        )
+    if not fallback:
+        return tuple(definitions)
+    return _polish_publication_definitions(
+        tuple(definitions) + tuple(fallback)
+    )
+
+
 def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
     """Build portable SAXS definitions for the engine's active analysis state."""
 
@@ -146,7 +200,10 @@ def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
             from .figure_temperature import build_temperature_figure_definitions
 
             return _polish_publication_definitions(
-                build_temperature_figure_definitions(engine_state)
+                _temperature_summary_fallback(
+                    engine_state,
+                    build_temperature_figure_definitions(engine_state),
+                )
             )
 
     temperature_result = getattr(engine_state, "_temperature_result", None)
