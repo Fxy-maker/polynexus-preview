@@ -46,9 +46,11 @@ class OriginProAdapter:
 
         model = map_figure_document(request.document)
         facade = None
+        book_created = False
         try:
             facade = self._factory()
             facade.new_book("w")
+            book_created = True
             for source in model.sources:
                 source_path = _resolve_source_path(source, request)
                 if not source_path.is_file():
@@ -71,11 +73,11 @@ class OriginProAdapter:
             )
         except Exception as exc:
             return ExportResult(
-                status="partial" if facade is not None else "failed",
+                status=("partial" if book_created else "unavailable"),
                 adapter_id=self.adapter_id,
                 warnings=model.warnings,
                 message=str(exc),
-                recoverable=facade is None,
+                recoverable=not book_created,
             )
 
         return ExportResult.success_result(

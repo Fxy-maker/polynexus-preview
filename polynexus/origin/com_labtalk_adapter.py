@@ -44,6 +44,7 @@ class ComLabTalkAdapter:
 
         model = map_figure_document(request.document)
         app = None
+        commands_started = False
         try:
             app = self._app_factory()
             if app is None:
@@ -56,6 +57,7 @@ class ComLabTalkAdapter:
             request.output_root.mkdir(parents=True, exist_ok=True)
             project_path = request.output_root / f"{_safe_name(model.figure_id)}.opju"
             self._execute(app, "newbook;")
+            commands_started = True
             for source in model.sources:
                 source_path = _resolve_source_path(source, request)
                 if not source_path.is_file():
@@ -83,11 +85,11 @@ class ComLabTalkAdapter:
             )
         except Exception as exc:
             return ExportResult(
-                status="partial" if app is not None else "failed",
+                status=("partial" if commands_started else "unavailable"),
                 adapter_id=self.adapter_id,
                 warnings=model.warnings,
                 message=str(exc),
-                recoverable=app is None,
+                recoverable=not commands_started,
             )
 
         return ExportResult.success_result(

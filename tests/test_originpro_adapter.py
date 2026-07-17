@@ -77,3 +77,19 @@ def test_default_originpro_capability_requires_origin_installation(monkeypatch):
     )
 
     assert _default_available() is False
+
+
+def test_originpro_factory_failure_before_book_creation_is_unavailable(tmp_path):
+    class BrokenOriginPro:
+        def new_book(self, kind):
+            raise RuntimeError("Origin session unavailable")
+
+    adapter = OriginProAdapter(
+        originpro_factory=BrokenOriginPro,
+    )
+
+    result = adapter.export(
+        ExportRequest(document={}, output_root=tmp_path, mode="editable_origin")
+    )
+
+    assert result.status == "unavailable"

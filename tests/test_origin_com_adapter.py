@@ -83,3 +83,19 @@ def test_default_com_capability_requires_a_registered_origin_server(monkeypatch)
     )
 
     assert _default_com_available() is False
+
+
+def test_com_object_without_labtalk_is_unavailable_before_external_state(tmp_path):
+    class IncompleteOriginApplication:
+        pass
+
+    adapter = ComLabTalkAdapter(
+        app_factory=IncompleteOriginApplication,
+        com_available=lambda: True,
+    )
+
+    result = adapter.export(
+        ExportRequest(document={}, output_root=tmp_path, mode="editable_origin")
+    )
+
+    assert result.status == "unavailable"
