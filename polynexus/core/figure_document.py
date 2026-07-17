@@ -8,13 +8,14 @@ without binding the schema to a Qt widget implementation.
 from __future__ import annotations
 
 import json
+import math
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from .figure_objects import normalize_figure_object, style_from_payload
+from .figure_objects import GEOMETRY_KEYS, normalize_figure_object, style_from_payload
 
 
 DOCUMENT_VERSION = 1
@@ -213,26 +214,35 @@ def load_figure_document(figure_path: str) -> dict:
 
 def normalize_figure_document(payload: dict[str, Any]) -> dict:
     document = deepcopy(payload) if isinstance(payload, dict) else {}
-    document["version"] = int(document.get("version", DOCUMENT_VERSION) or DOCUMENT_VERSION)
+    try:
+        document["version"] = int(document.get("version", DOCUMENT_VERSION) or DOCUMENT_VERSION)
+    except (TypeError, ValueError, OverflowError):
+        document["version"] = DOCUMENT_VERSION
     document.setdefault("figure_id", "")
     document.setdefault("mode", OBJECT_MODE)
     document.setdefault("created_at", document.get("updated_at", ""))
     document.setdefault("updated_at", "")
-    document.setdefault("canvas", {})
-    document.setdefault("asset_spec", {})
-    document.setdefault("style", {})
-    document.setdefault("layers", [])
+    if not isinstance(document.get("canvas"), dict):
+        document["canvas"] = {}
+    if not isinstance(document.get("asset_spec"), dict):
+        document["asset_spec"] = {}
+    if not isinstance(document.get("style"), dict):
+        document["style"] = {}
+    if not isinstance(document.get("layers"), list):
+        document["layers"] = []
     document.setdefault("technique", "")
     document.setdefault("publication_role", "si")
     document["recipe"] = _normalize_recipe(document.get("recipe", {}))
+    objects = document.get("objects")
     document["objects"] = [
         normalize_figure_object(obj)
-        for obj in document.get("objects", [])
+        for obj in (objects if isinstance(objects, list) else [])
         if isinstance(obj, dict)
     ]
+    data_sources = document.get("data_sources")
     document["data_sources"] = [
         _normalize_data_source(source)
-        for source in document.get("data_sources", [])
+        for source in (data_sources if isinstance(data_sources, list) else [])
         if isinstance(source, dict)
     ]
     document.setdefault("export", {"formats": ["png", "svg", "pdf"], "last_exported": {}})
@@ -296,11 +306,13 @@ def _annotation_name(kind: str) -> str:
 
 def _annotation_bounds(annotation: dict) -> dict:
     bounds = {}
-    for key in ("x", "y", "width", "height", "x1", "y1", "x2", "y2"):
+    for key in GEOMETRY_KEYS:
         if key not in annotation:
             continue
         try:
-            bounds[key] = float(annotation[key])
+            value = float(annotation[key])
         except (TypeError, ValueError, OverflowError):
             continue
+        if math.isfinite(value):
+            bounds[key] = value
     return bounds

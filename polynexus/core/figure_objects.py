@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 from uuid import uuid4
 
 
@@ -22,6 +23,7 @@ KNOWN_FIGURE_OBJECT_TYPES = {
 }
 
 STYLE_KEYS = {"color", "font_size", "line_width", "alpha", "fill", "stroke"}
+GEOMETRY_KEYS = ("x", "y", "width", "height", "x1", "y1", "x2", "y2")
 
 DEFAULT_OBJECT_NAMES = {
     "image_background": "Background",
@@ -52,8 +54,21 @@ def normalize_figure_object(payload: dict) -> dict:
     obj.setdefault("locked", False)
     obj.setdefault("z_index", 0)
     obj["layer_id"] = "layer-1"
-    obj.setdefault("bounds", {})
-    obj.setdefault("style", {})
+    bounds = obj.get("bounds")
+    if not isinstance(bounds, dict):
+        bounds = {}
+    for key in GEOMETRY_KEYS:
+        if key in bounds or key not in obj:
+            continue
+        try:
+            value = float(obj[key])
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if math.isfinite(value):
+            bounds[key] = value
+    obj["bounds"] = bounds
+    if not isinstance(obj.get("style"), dict):
+        obj["style"] = {}
     return obj
 
 

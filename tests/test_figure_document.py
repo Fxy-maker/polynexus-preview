@@ -244,6 +244,99 @@ def test_annotation_bounds_skip_nonconvertible_geometry_and_empty_types():
     assert empty["bounds"] == {}
 
 
+def test_annotation_bounds_skip_nonfinite_geometry():
+    obj = annotation_to_figure_object(
+        {
+            "id": "ann-nonfinite-bounds",
+            "type": "rectangle",
+            "x": float("nan"),
+            "y": float("inf"),
+            "width": "-Infinity",
+            "height": "0.5",
+        }
+    )
+
+    assert obj["bounds"] == {"height": 0.5}
+
+
+def test_normalize_figure_object_migrates_legacy_geometry_without_overwriting_bounds():
+    payload = {
+        "id": "legacy-geometry",
+        "type": "rectangle",
+        "x": "0.1",
+        "y": "0.2",
+        "width": "0.3",
+        "height": "0.4",
+        "bounds": {"x": 0.9, "custom_axis": "x"},
+    }
+
+    normalized = normalize_figure_object(payload)
+
+    assert normalized["bounds"] == {
+        "x": 0.9,
+        "y": 0.2,
+        "width": 0.3,
+        "height": 0.4,
+        "custom_axis": "x",
+    }
+    assert normalized["x"] == "0.1"
+    assert normalized["y"] == "0.2"
+
+
+def test_normalize_document_handles_legacy_geometry_null_lists_and_invalid_version():
+    payload = {
+        "version": "v1",
+        "canvas": None,
+        "asset_spec": None,
+        "style": None,
+        "layers": None,
+        "objects": [
+            {
+                "id": "legacy-line",
+                "type": "line",
+                "x1": "0.1",
+                "y1": "0.2",
+                "x2": "0.3",
+                "y2": "0.4",
+                "bounds": {"x1": 0.8},
+            }
+        ],
+        "data_sources": None,
+    }
+
+    normalized = normalize_figure_document(payload)
+
+    assert normalized["version"] == 1
+    assert normalized["canvas"] == {}
+    assert normalized["asset_spec"] == {}
+    assert normalized["style"] == {}
+    assert normalized["layers"] == []
+    assert normalized["data_sources"] == []
+    assert normalized["objects"][0]["bounds"] == {
+        "x1": 0.8,
+        "y1": 0.2,
+        "x2": 0.3,
+        "y2": 0.4,
+    }
+    assert normalized["objects"][0]["x1"] == "0.1"
+    assert normalize_figure_document(normalized) == normalized
+
+
+def test_normalize_document_handles_null_object_and_data_source_lists():
+    normalized = normalize_figure_document(
+        {
+            "version": "not-a-number",
+            "objects": None,
+            "data_sources": None,
+        }
+    )
+
+    assert normalized["version"] == 1
+    assert normalized["objects"] == []
+    assert normalized["data_sources"] == []
+    assert normalize_figure_document(normalized) == normalized
+
+
 def test_generated_figure_document_records_data_recipe_style_and_objects(tmp_path):
     figure_path = tmp_path / "figures" / "Fig-W1_profile.svg"
     data_path = tmp_path / "data" / "waxs_profile.csv"
