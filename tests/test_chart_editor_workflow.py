@@ -60,6 +60,40 @@ def make_generated_editor(tmp_path):
     return editor
 
 
+def make_capability_editor(tmp_path):
+    path = tmp_path / "capabilities.png"
+    image = QImage(160, 100, QImage.Format_RGBA8888)
+    image.fill(QColor("white"))
+    assert image.save(str(path))
+    save_generated_figure_document(
+        str(path),
+        figure_id="capabilities",
+        objects=[
+            {
+                "id": "line-1",
+                "type": "line",
+                "name": "Line 01",
+                "x1": 0.1,
+                "y1": 0.2,
+                "x2": 0.8,
+                "y2": 0.9,
+                "style": {"color": "#000000", "line_width": 1.0},
+            },
+            {
+                "id": "text-1",
+                "type": "text",
+                "name": "Label",
+                "text": "Label",
+                "bounds": {"x": 0.2, "y": 0.3, "width": 0.2, "height": 0.1},
+                "style": {"color": "#111111", "font_size": 12},
+            },
+        ],
+    )
+    editor = ChartEditor()
+    editor.set_source_figure(str(path))
+    return editor
+
+
 @pytest.fixture
 def editor(tmp_path, app):
     return make_generated_editor(tmp_path)
@@ -121,3 +155,37 @@ def test_invalid_color_keeps_object_and_history_unchanged(editor):
 
     assert editor._generated_store().get("line-1") == before
     assert "invalid" in editor._status_label.text().lower()
+
+
+def test_inspector_controls_follow_session_capabilities_for_line_text_and_background(
+    tmp_path, app
+):
+    editor = make_capability_editor(tmp_path)
+
+    editor._select_generated_object("line-1", "list")
+    assert editor._edit_session.selection.object_id == "line-1"
+    assert editor._annotation_color_edit.isEnabled()
+    assert editor._annotation_line_width_spin.isEnabled()
+    assert editor._annotation_line_style_combo.isEnabled()
+    assert not editor._annotation_marker_combo.isEnabled()
+    assert not editor._annotation_text_edit.isEnabled()
+
+    editor._select_generated_object("text-1", "list")
+    assert editor._edit_session.selection.object_id == "text-1"
+    assert editor._annotation_color_edit.isEnabled()
+    assert editor._annotation_font_size_spin.isEnabled()
+    assert editor._annotation_text_edit.isEnabled()
+    assert not editor._annotation_line_width_spin.isEnabled()
+    assert not editor._annotation_line_style_combo.isEnabled()
+
+    static_editor = make_static_editor(tmp_path)
+    static_editor._object_list.setCurrentRow(0)
+    static_editor._sync_inspector_capabilities()
+    assert static_editor._selected_canonical_object()["type"] == "image_background"
+    assert not static_editor._annotation_color_edit.isEnabled()
+    assert not static_editor._annotation_font_size_spin.isEnabled()
+    assert not static_editor._annotation_x_spin.isEnabled()
+
+    editor.deleteLater()
+    static_editor.deleteLater()
+    app.processEvents()

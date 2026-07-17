@@ -226,6 +226,11 @@ class ChartEditorAnnotationControlsMixin:
         if not annotation:
             self._clear_annotation_property_controls()
             return
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            annotation_id = str(annotation.get("id", "") or "")
+            session.select(annotation_id, "annotation-canvas")
+            self._sync_inspector_capabilities()
         self._sync_object_action_buttons(str(annotation.get("id", "") or ""))
         self._selected_object_label.setText(self._object_list_label(annotation))
         has_position = "x" in annotation and "y" in annotation

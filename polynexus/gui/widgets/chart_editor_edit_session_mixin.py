@@ -7,11 +7,16 @@ from copy import deepcopy
 
 from ...core.figure_edit_commands import UpdateGeometryCommand, UpdateStyleCommand
 from ...core.figure_edit_session import EditSession
-from ...core.figure_edit_capabilities import EditResult
+from ...core.figure_edit_capabilities import EditResult, capabilities_for
 
 
 class ChartEditorEditSessionMixin:
     """Route widget proposals through the shared, undoable edit session."""
+
+    def set_tool(self, tool):
+        canvas = getattr(self, "_annotation_canvas", None)
+        setter = getattr(canvas, "set_tool", None)
+        return bool(setter(tool)) if callable(setter) else False
 
     def _reset_edit_session_from_document(self, document=None):
         payload = document if isinstance(document, dict) else {}
@@ -19,6 +24,53 @@ class ChartEditorEditSessionMixin:
         self._last_edit_result = EditResult(False)
         self._connect_annotation_canvas_edit_session()
         return self._edit_session
+
+    def _selected_canonical_object(self):
+        session = self._edit_session_for_adapter()
+        object_id = ""
+        if session is not None:
+            object_id = str(getattr(session.selection, "object_id", "") or "")
+        if not object_id:
+            object_id = str(getattr(self, "_selected_figure_object_id", "") or "")
+        if not object_id:
+            canvas = getattr(self, "_annotation_canvas", None)
+            object_id = str(getattr(canvas, "selected_annotation_id", lambda: "")() or "")
+        if not object_id and not getattr(self, "_generated_document_mode", False):
+            object_id = "background"
+        document = getattr(self, "_figure_document", {})
+        objects = document.get("objects", []) if isinstance(document, dict) else []
+        return next(
+            (
+                object_payload
+                for object_payload in objects
+                if isinstance(object_payload, dict)
+                and str(object_payload.get("id", "") or "") == object_id
+            ),
+            None,
+        )
+
+    def _sync_inspector_capabilities(self):
+        object_payload = self._selected_canonical_object()
+        capabilities = capabilities_for(object_payload or {})
+        set_style = getattr(self, "_set_style_controls_enabled", None)
+        if callable(set_style):
+            set_style(
+                capabilities.font_size,
+                capabilities.line_width,
+                capabilities.style,
+                color_enabled=capabilities.color,
+                line_style_enabled=capabilities.line_style,
+                marker_enabled=capabilities.marker,
+                marker_size_enabled=capabilities.marker_size,
+            )
+        set_geometry = getattr(self, "_set_geometry_controls_enabled", None)
+        if callable(set_geometry):
+            set_geometry(capabilities.geometry, capabilities.geometry)
+        for name in ("_annotation_text_edit", "_btn_annotation_update_text"):
+            control = getattr(self, name, None)
+            if control is not None:
+                control.setEnabled(capabilities.text)
+        return capabilities
 
     def _execute_edit(self, command):
         session = self._edit_session_for_adapter()

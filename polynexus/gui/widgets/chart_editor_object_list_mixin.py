@@ -142,6 +142,10 @@ class ChartEditorObjectListMixin:
             self._select_generated_object("", "list")
         else:
             self._selected_figure_object_id = ""
+            session = self._edit_session_for_adapter()
+            if session is not None:
+                session.select("background" if object_id == "__background__" else "", "list")
+                self._sync_inspector_capabilities()
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             if object_id == "__background__":
                 self._clear_annotation_property_controls()

@@ -38,6 +38,9 @@ class ChartEditorGeneratedSelectionMixin:
 
     def _on_generated_selection_changed(self, object_id, source):
         self._selected_figure_object_id = str(object_id or "")
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(self._selected_figure_object_id, f"generated-{source}")
         if not self._generated_document_mode and not self._is_generated_figure_document():
             return
         figure_object = self._generated_figure_object_by_id(self._selected_figure_object_id)
@@ -131,4 +134,5 @@ class ChartEditorGeneratedSelectionMixin:
             )
         self._selected_object_label.setText(self._figure_object_list_label(figure_object))
         self._sync_generated_object_property_controls(self._selected_figure_object_id)
+        self._sync_inspector_capabilities()
         self._set_generated_selection_status(figure_object)
