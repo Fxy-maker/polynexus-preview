@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 from .capability_probe import ORIGIN_COM_PROGIDS
 from .contracts import ExportRequest, ExportResult
-from .mapping import OriginFigureModel, OriginSourceSpec, map_figure_document
+from .mapping import OriginSourceSpec, map_figure_document
 
 
 class ComLabTalkAdapter:
