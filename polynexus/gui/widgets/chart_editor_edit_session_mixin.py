@@ -6,10 +6,19 @@ from collections.abc import Mapping
 from copy import deepcopy
 
 from ...core.figure_edit_commands import UpdateGeometryCommand, UpdateStyleCommand
+from ...core.figure_edit_session import EditSession
+from ...core.figure_edit_capabilities import EditResult
 
 
 class ChartEditorEditSessionMixin:
     """Route widget proposals through the shared, undoable edit session."""
+
+    def _reset_edit_session_from_document(self, document=None):
+        payload = document if isinstance(document, dict) else {}
+        self._edit_session = EditSession(payload)
+        self._last_edit_result = EditResult(False)
+        self._connect_annotation_canvas_edit_session()
+        return self._edit_session
 
     def _execute_edit(self, command):
         session = self._edit_session_for_adapter()
@@ -19,8 +28,22 @@ class ChartEditorEditSessionMixin:
         return self._project_edit_result(result)
 
     def _project_edit_result(self, result):
+        self._last_edit_result = result
         if getattr(result, "changed", False):
             self._sync_editor_from_session()
+            set_dirty = getattr(self, "_set_editor_dirty", None)
+            if callable(set_dirty):
+                set_dirty(True)
+            figure_changed = getattr(self, "figure_changed", None)
+            if figure_changed is not None:
+                figure_changed.emit()
+        status_label = getattr(self, "_status_label", None)
+        if status_label is not None:
+            message = getattr(result, "message", "") or getattr(result, "error_code", "")
+            if getattr(result, "error_code", "") == "invalid_color":
+                message = f"Invalid color: {message}"
+            if message:
+                status_label.setText(str(message))
         return result
 
     def _sync_editor_from_session(self):
@@ -52,6 +75,10 @@ class ChartEditorEditSessionMixin:
         finally:
             if callable(block_signals):
                 block_signals(previous)
+        if getattr(self, "_generated_document_mode", False):
+            render_document = getattr(self, "_show_generated_figure_document", None)
+            if callable(render_document):
+                render_document()
         return self._figure_document
 
     def _connect_annotation_canvas_edit_session(self):

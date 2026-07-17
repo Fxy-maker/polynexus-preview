@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from matplotlib.collections import PathCollection
 
+from ...core.figure_edit_commands import UpdateGeometryCommand, UpdateStyleCommand
 from ...core.figure_object_store import FigureObjectStore
 
 GENERATED_LEGEND_HIT_SLOP_PX = 6.0
@@ -88,6 +89,11 @@ class ChartEditorGeneratedGeometryMixin:
             updates = {"x1": float(x_value), "y1": float(y_value)}
         else:
             updates = {"x2": float(x_value), "y2": float(y_value)}
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+            return bool(result is not None and result.changed)
         if not self._generated_store().update_geometry(object_id, updates):
             return False
         self._sync_generated_object_property_controls(object_id)
@@ -126,6 +132,11 @@ class ChartEditorGeneratedGeometryMixin:
                 "x2": round(float(origin_x2) + dx, 12),
                 "y2": round(float(origin_y2) + dy, 12),
             }
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+            return bool(result is not None and result.changed)
         if not self._generated_store().update_geometry(object_id, updates):
             return False
         self._sync_generated_object_property_controls(object_id)
@@ -260,6 +271,16 @@ class ChartEditorGeneratedGeometryMixin:
         if not figure_object or str(figure_object.get("type", "") or "") != "legend":
             return False
         next_anchor = [round(float(anchor_x), 12), round(float(anchor_y), 12)]
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(
+                UpdateStyleCommand(
+                    object_id,
+                    {"loc": "upper left", "bbox_to_anchor": next_anchor},
+                )
+            )
+            return bool(result is not None and result.changed)
         changed = self._generated_store().update_style(
             object_id,
             {

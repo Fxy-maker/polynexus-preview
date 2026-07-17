@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
+from ...core.figure_document import annotation_to_figure_object
+from ...core.figure_edit_commands import (
+    AddObjectCommand,
+    DeleteObjectCommand,
+    UpdateStyleCommand,
+    UpdateTextCommand,
+)
 from ..chart_editor_generated_helpers import (
     annotation_line_style_value as _shared_annotation_line_style_value,
     annotation_marker_value as _shared_annotation_marker_value,
@@ -36,6 +45,26 @@ class ChartEditorAnnotationControlsMixin:
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
         text = self._annotation_text_edit.text().strip() or "Annotation"
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            annotation_id = f"ann-{uuid4().hex[:12]}"
+            object_payload = annotation_to_figure_object(
+                {
+                    "id": annotation_id,
+                    "type": "text",
+                    "x": 0.125,
+                    "y": 0.2,
+                    "text": text,
+                    "font_size": 12,
+                    "color": "#111111",
+                }
+            )
+            result = self._execute_edit(AddObjectCommand(object_payload))
+            if result is not None and result.changed:
+                session.select(annotation_id, "annotation_canvas")
+                self._annotation_canvas.select_annotation(annotation_id)
+                self._refresh_object_list(annotation_id)
+            return
         self._annotation_canvas.add_text_annotation(text, 20, 20)
         self._refresh_object_list(self._annotation_canvas.selected_annotation_id())
 
@@ -46,6 +75,15 @@ class ChartEditorAnnotationControlsMixin:
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
         text = self._annotation_text_edit.text().strip()
+        session = self._edit_session_for_adapter()
+        annotation_id = self._annotation_canvas.selected_annotation_id()
+        if session is not None and annotation_id and text:
+            session.select(annotation_id, "annotation_canvas")
+            result = self._execute_edit(UpdateTextCommand(annotation_id, text))
+            if result is not None and result.changed:
+                self._annotation_canvas.select_annotation(annotation_id)
+                self._refresh_object_list(annotation_id)
+            return
         if text and self._annotation_canvas.update_selected_text(text):
             self._refresh_object_list(self._annotation_canvas.selected_annotation_id())
 
@@ -56,6 +94,19 @@ class ChartEditorAnnotationControlsMixin:
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
         color = self._annotation_color_edit.text().strip() or None
+        session = self._edit_session_for_adapter()
+        annotation_id = self._annotation_canvas.selected_annotation_id()
+        if session is not None and annotation_id:
+            updates = {
+                "font_size": float(self._annotation_font_size_spin.value()),
+                "line_width": float(self._annotation_line_width_spin.value()),
+                "alpha": float(self._annotation_alpha_spin.value()),
+            }
+            if color:
+                updates["color"] = color
+            session.select(annotation_id, "annotation_canvas")
+            self._execute_edit(UpdateStyleCommand(annotation_id, updates))
+            return
         if self._annotation_canvas.update_selected_properties(
             color=color,
             font_size=self._annotation_font_size_spin.value(),
@@ -90,6 +141,10 @@ class ChartEditorAnnotationControlsMixin:
         self._annotation_canvas.set_tool("crop")
 
     def _on_annotation_undo(self):
+        session = self._edit_session_for_adapter()
+        if session is not None and session.can_undo:
+            self._project_edit_result(session.undo())
+            return
         if self._is_generated_figure_document() and self._last_deleted_figure_object_id:
             self._restore_last_deleted_generated_object()
             return
@@ -98,6 +153,10 @@ class ChartEditorAnnotationControlsMixin:
         self._annotation_canvas.undo()
 
     def _on_annotation_redo(self):
+        session = self._edit_session_for_adapter()
+        if session is not None and session.can_redo:
+            self._project_edit_result(session.redo())
+            return
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
         self._annotation_canvas.redo()
@@ -107,6 +166,12 @@ class ChartEditorAnnotationControlsMixin:
             self._soft_delete_selected_generated_object()
             return
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
+            return
+        session = self._edit_session_for_adapter()
+        annotation_id = self._annotation_canvas.selected_annotation_id()
+        if session is not None and annotation_id:
+            session.select(annotation_id, "annotation_canvas")
+            self._execute_edit(DeleteObjectCommand(annotation_id))
             return
         if self._annotation_canvas.delete_selected_annotation():
             self._refresh_object_list()
@@ -566,6 +631,11 @@ class ChartEditorAnnotationControlsMixin:
             updates["marker"] = marker
         if capabilities["marker_size"]:
             updates["marker_size"] = float(self._annotation_marker_size_spin.value())
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(self._selected_figure_object_id, "list")
+            self._execute_edit(UpdateStyleCommand(self._selected_figure_object_id, updates))
+            return
         if not store.update_style(self._selected_figure_object_id, updates):
             return
         self._persist_generated_document()

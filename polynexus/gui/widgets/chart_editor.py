@@ -74,6 +74,7 @@ from .chart_editor_generated_selection_mixin import (
 )
 from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
 from .chart_editor_layout_mixin import ChartEditorLayoutMixin
+from .chart_editor_edit_session_mixin import ChartEditorEditSessionMixin
 from .chart_editor_origin_mixin import ChartEditorOriginMixin
 from .chart_editor_object_list_mixin import ChartEditorObjectListMixin
 from .chart_editor_save_mixin import ChartEditorSaveMixin
@@ -134,6 +135,7 @@ GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
 
 class ChartEditor(
     ChartEditorLayoutMixin,
+    ChartEditorEditSessionMixin,
     ChartEditorOriginMixin,
     ChartEditorAnnotationControlsMixin,
     ChartEditorSaveMixin,
@@ -171,6 +173,8 @@ class ChartEditor(
         self._mode_summary_key = ""
         self._asset_spec = None
         self._figure_document = {}
+        self._edit_session = None
+        self._last_edit_result = None
         self._shared_render_plan = None
         self._generated_document_mode = False
         self._static_file_mode = False
@@ -224,6 +228,7 @@ class ChartEditor(
         )
         self._figure_render_adapter = FigureRenderAdapter()
         self._build_ui()
+        self._reset_edit_session_from_document(self._figure_document)
         self.figure_changed.connect(self._mark_editor_dirty)
         self.figure_saved.connect(lambda _path: self._set_editor_dirty(False))
         self._set_mode_header("")
@@ -937,6 +942,7 @@ class ChartEditor(
             self._figure_document = load_figure_document(
                 document_path or self._source_path
             )
+            self._reset_edit_session_from_document(self._figure_document)
             self._asset_spec = discover_figure_asset(self._source_path)
             self._source_preview.load_figure(self._source_path)
             self.set_output_target(
@@ -973,9 +979,20 @@ class ChartEditor(
             self._set_editor_mode_ui(object_mode=False)
             self._status_label.setText(tr("EDITOR_STATIC_MODE_HINT"))
             if self._annotation_canvas.load_image(self._asset_spec.preview_path):
-                self._annotation_canvas.load_annotation_state(
-                    load_figure_annotations(self._source_path)
-                )
+                annotations = load_figure_annotations(self._source_path)
+                if not self._figure_document.get("objects"):
+                    asset_payload = (
+                        self._asset_spec.to_dict()
+                        if hasattr(self._asset_spec, "to_dict")
+                        else {}
+                    )
+                    self._figure_document = create_static_figure_document(
+                        self._source_path,
+                        asset_spec=asset_payload,
+                        annotations=annotations,
+                    )
+                    self._reset_edit_session_from_document(self._figure_document)
+                self._annotation_canvas.load_annotation_state(annotations)
                 self._annotation_canvas.setVisible(True)
                 self._refresh_object_list()
             else:
@@ -1010,6 +1027,7 @@ class ChartEditor(
         self._btn_publish.setEnabled(False)
         self._asset_spec = None
         self._figure_document = {}
+        self._reset_edit_session_from_document(self._figure_document)
         self._shared_render_plan = None
         self._selected_figure_object_id = ""
         self._hovered_figure_object_id = ""

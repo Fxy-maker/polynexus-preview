@@ -9,6 +9,7 @@ from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
+from polynexus.core.figure_edit_commands import UpdateGeometryCommand
 from polynexus.gui.widgets.chart_editor import ChartEditor
 
 
@@ -71,6 +72,23 @@ def test_selected_generated_line_color_update_reaches_document(editor):
 
     assert editor._generated_store().get("line-1")["style"]["color"] == "#0072B2"
     assert editor._last_edit_result.changed is True
+
+
+def test_generated_style_and_geometry_share_one_edit_history(editor):
+    editor._select_generated_object("line-1", "list")
+    editor._annotation_color_edit.setText("#0072B2")
+    editor._btn_annotation_apply_style.click()
+    before_geometry = editor._generated_store().get("line-1")["x1"]
+
+    editor._execute_edit(UpdateGeometryCommand("line-1", {"x1": 0.25}))
+    assert len(editor._edit_session.history) == 2
+
+    editor._on_annotation_undo()
+    assert editor._generated_store().get("line-1")["x1"] == before_geometry
+    assert editor._generated_store().get("line-1")["style"]["color"] == "#0072B2"
+
+    editor._on_annotation_undo()
+    assert editor._generated_store().get("line-1")["style"]["color"] == "#000000"
 
 
 def test_static_text_annotation_round_trips_through_one_history(tmp_path, app):
