@@ -67,6 +67,66 @@ def test_annotation_canvas_renders_text_overlay(tmp_path):
     app.processEvents()
 
 
+def test_annotation_canvas_projects_document_objects_without_local_undo(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    objects = [
+        {
+            "id": "document-text",
+            "type": "text",
+            "x": 0.2,
+            "y": 0.25,
+            "text": "Projected",
+        }
+    ]
+
+    id_map = canvas.set_document_objects(objects)
+
+    assert set(id_map) == {"document-text"}
+    assert canvas.annotation_state() == objects
+    assert canvas._undo_stack == []
+    assert canvas.undo() is False
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_flushes_drag_as_object_edit_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [{"id": "document-text", "type": "text", "x": 0.2, "y": 0.25, "text": "Drag"}]
+    )
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+    item = next(item for item in canvas._scene.items() if item.data(0) == "document-text")
+
+    item.moveBy(20, 10)
+    assert canvas.flush_pending_object_edit() is True
+
+    assert len(requests) == 1
+    request = requests[0]
+    assert request["object_id"] == "document-text"
+    assert request["source"] == "annotation_canvas"
+    assert request["geometry"] == {"x": 0.4, "y": 0.45}
+    assert canvas._undo_stack == []
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
 def test_annotation_canvas_replace_image_preserves_annotations(tmp_path):
     app = QApplication.instance() or QApplication([])
     image_path = tmp_path / "source.png"
