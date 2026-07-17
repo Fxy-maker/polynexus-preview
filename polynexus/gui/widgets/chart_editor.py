@@ -74,6 +74,7 @@ from .chart_editor_generated_selection_mixin import (
 )
 from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
 from .chart_editor_layout_mixin import ChartEditorLayoutMixin
+from .chart_editor_origin_mixin import ChartEditorOriginMixin
 from .chart_editor_object_list_mixin import ChartEditorObjectListMixin
 from .chart_editor_save_mixin import ChartEditorSaveMixin
 from .chart_editor_style_preset_mixin import ChartEditorStylePresetMixin
@@ -133,6 +134,7 @@ GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
 
 class ChartEditor(
     ChartEditorLayoutMixin,
+    ChartEditorOriginMixin,
     ChartEditorAnnotationControlsMixin,
     ChartEditorSaveMixin,
     ChartEditorStylePresetMixin,
@@ -208,6 +210,9 @@ class ChartEditor(
         self._generated_handle_drag_state = None
         self._editor_dirty = False
         self._loading_editor_state = False
+        self._origin_export_thread = None
+        self._origin_export_worker = None
+        self._origin_export_service = None
         self._text_render_timer = QTimer(self)
         self._text_render_timer.setSingleShot(True)
         self._text_render_timer.setInterval(0)
@@ -712,6 +717,7 @@ class ChartEditor(
         self._btn_png = QPushButton(tr("EDITOR_EXPORT_PNG"))
         self._btn_png.clicked.connect(lambda: self.save_as("png"))
         form.addRow(self._btn_png)
+        self._build_origin_export_control(form)
 
         self._form = object_form
         self._btn_bg = btn_bg
@@ -855,6 +861,7 @@ class ChartEditor(
         self._btn_png.setText(tr("EDITOR_EXPORT_PNG"))
         self._btn_save_current.setText(tr("EDITOR_SAVE_EDITS"))
         self._btn_publish.setText(tr("EDITOR_PUBLISH_COMPLETE"))
+        self.retranslate_origin_export()
         self._set_mode_header(
             self._mode_title_text,
             mode_key=self._mode_banner_key,
@@ -953,6 +960,7 @@ class ChartEditor(
                     self._set_editor_mode_ui(object_mode=True)
                     self._refresh_object_list()
                     self._set_editor_dirty(False)
+                    self._sync_origin_export_enabled()
                     self._loading_editor_state = False
                     return
             self._apply_saved_style(load_figure_edit(self._source_path))
@@ -983,6 +991,7 @@ class ChartEditor(
             self._set_editor_mode_ui(object_mode=False)
             self._refresh_object_list()
         self._set_editor_dirty(False)
+        self._sync_origin_export_enabled()
         self._loading_editor_state = False
 
     def set_initial_labels(self, title="", xlabel="", ylabel=""):
@@ -1032,6 +1041,7 @@ class ChartEditor(
         self._fig_kwargs = kwargs
         self._render()
         self._set_editor_dirty(False)
+        self._sync_origin_export_enabled()
         self._loading_editor_state = False
 
     def is_static_file_mode(self):
@@ -1040,6 +1050,8 @@ class ChartEditor(
     def _set_export_buttons_enabled(self, enabled):
         for button in (self._btn_save_as, self._btn_svg, self._btn_png):
             button.setEnabled(enabled)
+        if hasattr(self, "_btn_origin_export"):
+            self._btn_origin_export.setEnabled(bool(enabled))
 
     def _on_colour_scheme_changed(self, name):
         self._current_colours = list(COLOUR_SCHEMES[name])
