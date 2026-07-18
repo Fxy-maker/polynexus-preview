@@ -10,9 +10,10 @@
   and activates the Origin graph when available; capability probing also reads
   the Windows user environment registry when the running GUI has a stale
   `os.environ`; object documents retain the editable Origin mode while static
-  documents retain visual-fidelity fallback; see decisions `0010` and `0011`.
-- The local `main` fast-forward merge is `f3e6876b`; the branch is not pushed.
-- The focused Origin/editor verification currently passes: 40 Origin-related
+  documents retain visual-fidelity fallback, and native layers rescale after
+  plots are added; see decisions `0010` and `0011`.
+- The local `main` fast-forward merge is `c566c040`; the branch is not pushed.
+- The focused Origin/editor verification currently passes: 41 Origin-related
   tests, 3 GUI-startup checks, and 238 ChartEditor regression tests. The
   prescribed verifier command
   cannot run because `scripts/verify.py` is absent; see lesson `0001`.
