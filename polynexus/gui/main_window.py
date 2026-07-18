@@ -81,7 +81,7 @@ from PySide6.QtWidgets import (
 
 )
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThread, QThreadPool, Signal, QSettings
+from PySide6.QtCore import QObject, QRunnable, Qt, QThread, QThreadPool, Signal, QSettings, QTimer
 
 from PySide6.QtGui import (
 
@@ -90,11 +90,6 @@ from PySide6.QtGui import (
 )
 
 
-
-from .widgets.chart_viewer import ChartGallery, FigureFilePreview
-
-from .widgets.joint_analysis_hub import JointAnalysisHub
-from .widgets.sample_browser import SampleBrowser
 
 from .styles import C_BG_CARD
 from .styles import C_BORDER_LIGHT
@@ -193,9 +188,6 @@ from .results_table_service import build_batch_results_table_model
 from .table_export_service import write_table_export
 from .preprocess_decision_service import build_preprocess_ui_decision
 
-from ..core.engine import list_techniques, get_engine, logger, check_file_format
-from ..core.joint.dataset import build_joint_hub_report
-
 from .i18n import tr, set_language, get_language
 from .workspace_mode import WorkspaceMode
 from .window_text_helpers import (
@@ -242,6 +234,34 @@ from ..utils import (
 )
 from ..utils.logger import PolyNexusLogger
 from llm.config import load_ai_settings
+
+
+def get_engine(*args, **kwargs):
+    """Resolve an analysis engine only when a run actually starts."""
+    from ..core.engine import get_engine as _get_engine
+
+    return _get_engine(*args, **kwargs)
+
+
+def check_file_format(*args, **kwargs):
+    """Resolve file-format validation only when an input is being run."""
+    from ..core.engine import check_file_format as _check_file_format
+
+    return _check_file_format(*args, **kwargs)
+
+
+def list_techniques(*args, **kwargs):
+    """Keep the historical module-level hook without eager core imports."""
+    from ..core.engine import list_techniques as _list_techniques
+
+    return _list_techniques(*args, **kwargs)
+
+
+def build_joint_hub_report(*args, **kwargs):
+    """Resolve joint-analysis reporting only when requested."""
+    from ..core.joint.dataset import build_joint_hub_report as _build_report
+
+    return _build_report(*args, **kwargs)
 
 
 SIDEBAR_SECTIONS = {
@@ -1294,9 +1314,14 @@ class MainWindow(
     QMainWindow,
 ):
 
-    def __init__(self):
+    def __init__(self, *, defer_optional_ui: bool = False):
 
         super().__init__()
+
+        self._startup_deferred = bool(defer_optional_ui)
+        self._deferred_startup_scheduled = False
+        self._deferred_startup_finished = not self._startup_deferred
+        self._deferred_startup_failed = False
 
         self.setWindowTitle(tr("WINDOW_TITLE"))
 
@@ -1392,6 +1417,63 @@ class MainWindow(
         # Bind keyboard shortcuts
 
         bind_shortcuts(self)
+
+    def schedule_deferred_startup(self) -> None:
+        """Build non-critical widgets after the first window paint."""
+        if (
+            not self._startup_deferred
+            or self._deferred_startup_finished
+            or self._deferred_startup_scheduled
+            or self._deferred_startup_failed
+        ):
+            return
+        self._deferred_startup_scheduled = True
+        QTimer.singleShot(0, self.finish_deferred_startup)
+
+    def finish_deferred_startup(self) -> None:
+        """Complete optional GUI construction exactly once."""
+        if (
+            not self._startup_deferred
+            or self._deferred_startup_finished
+            or self._deferred_startup_failed
+        ):
+            return
+
+        self._deferred_startup_scheduled = False
+        try:
+            self._build_data_optional_widgets()
+            deferred_tabs = (
+                (1, self._build_config_tab, "TAB_CONFIG"),
+                (2, self._build_results_tab, "TAB_RESULTS"),
+                (3, self._build_plots_tab, "TAB_PLOTS"),
+                (4, self._build_history_panel, "TAB_HISTORY"),
+            )
+            for index, builder, title_key in deferred_tabs:
+                self._replace_deferred_tab(index, builder(), tr(title_key))
+            self._retranslate_ui()
+            self._update_workspace_context()
+            self.setup_convergence_action()
+            self._deferred_startup_finished = True
+        except Exception as exc:
+            self._deferred_startup_failed = True
+            logger.exception("Deferred GUI startup failed")
+            self._show_deferred_startup_error(exc)
+
+    def _replace_deferred_tab(self, index, widget, title) -> None:
+        current_index = self._tabs.currentIndex()
+        self._tabs.removeTab(index)
+        self._tabs.insertTab(index, widget, title)
+        if current_index == index:
+            self._tabs.setCurrentIndex(index)
+
+    def _show_deferred_startup_error(self, exc: Exception) -> None:
+        message = QLabel(
+            tr("WORKFLOW_TASK_DEFAULT_DETAIL")
+            + f"\n\nOptional workspace initialization failed: {exc}"
+        )
+        message.setWordWrap(True)
+        message.setObjectName("deferred_startup_error")
+        self._replace_deferred_tab(1, message, tr("TAB_CONFIG"))
 
 
 
@@ -2246,14 +2328,15 @@ class MainWindow(
 
         self._tabs.addTab(self._build_data_tab(), tr("TAB_DATA"))
 
-        self._tabs.addTab(self._build_config_tab(), tr("TAB_CONFIG"))
-
-        self._tabs.addTab(self._build_results_tab(), tr("TAB_RESULTS"))
-
-        self._tabs.addTab(self._build_plots_tab(), tr("TAB_PLOTS"))
-
-        history_widget = self._build_history_panel()
-        self._tabs.addTab(history_widget, tr("TAB_HISTORY"))
+        if self._startup_deferred:
+            for title_key in ("TAB_CONFIG", "TAB_RESULTS", "TAB_PLOTS", "TAB_HISTORY"):
+                self._tabs.addTab(self._build_deferred_tab_placeholder(title_key), tr(title_key))
+        else:
+            self._tabs.addTab(self._build_config_tab(), tr("TAB_CONFIG"))
+            self._tabs.addTab(self._build_results_tab(), tr("TAB_RESULTS"))
+            self._tabs.addTab(self._build_plots_tab(), tr("TAB_PLOTS"))
+            history_widget = self._build_history_panel()
+            self._tabs.addTab(history_widget, tr("TAB_HISTORY"))
 
         self._tabs.currentChanged.connect(self._on_tab_changed)
 
@@ -2319,6 +2402,16 @@ class MainWindow(
         layout.addWidget(self._log_group, 1)
 
         return content_scroll
+
+    def _build_deferred_tab_placeholder(self, title_key):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        label = QLabel(tr("WORKFLOW_TASK_DEFAULT_DETAIL"))
+        label.setObjectName(f"deferred_{title_key.lower()}_placeholder")
+        label.setAlignment(Qt.AlignCenter)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        return widget
 
 
 
@@ -2402,12 +2495,42 @@ class MainWindow(
 
         layout.addWidget(batch_group)
 
+        self._data_optional_host = QWidget()
+        self._data_optional_layout = QVBoxLayout(self._data_optional_host)
+        self._data_optional_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._data_optional_host, 1)
+
+        self._joint_hub = None
+        self._sample_browser = None
+        if self._startup_deferred:
+            self._data_optional_placeholder = QLabel(tr("WORKFLOW_TASK_DEFAULT_DETAIL"))
+            self._data_optional_placeholder.setAlignment(Qt.AlignCenter)
+            self._data_optional_layout.addWidget(self._data_optional_placeholder)
+        else:
+            self._build_data_optional_widgets()
+
+        layout.addStretch()
+
+        return w
+
+    def _build_data_optional_widgets(self) -> None:
+        if self._joint_hub is not None or self._sample_browser is not None:
+            return
+
+        from .widgets.joint_analysis_hub import JointAnalysisHub
+        from .widgets.sample_browser import SampleBrowser
+
+        placeholder = getattr(self, "_data_optional_placeholder", None)
+        if placeholder is not None:
+            self._data_optional_layout.removeWidget(placeholder)
+            placeholder.deleteLater()
+            self._data_optional_placeholder = None
+
         self._joint_hub = JointAnalysisHub()
-        self._joint_hub.selection_changed.connect(
-            self._on_joint_hub_selection_changed)
+        self._joint_hub.selection_changed.connect(self._on_joint_hub_selection_changed)
         self._joint_hub.run_requested.connect(self._run_joint_hub)
         self._joint_hub.setVisible(False)
-        layout.addWidget(self._joint_hub, 1)
+        self._data_optional_layout.addWidget(self._joint_hub, 1)
 
         self._sample_browser = SampleBrowser()
         self._sample_browser.sample_created.connect(self._on_sample_created)
@@ -2418,15 +2541,9 @@ class MainWindow(
         self._sample_browser.batch_analysis_requested.connect(
             self._on_sample_batch_analysis_requested
         )
-        self._sample_browser.joint_analysis_requested.connect(
-            self._on_sample_joint_requested
-        )
+        self._sample_browser.joint_analysis_requested.connect(self._on_sample_joint_requested)
         self._sample_browser.setVisible(False)
-        layout.addWidget(self._sample_browser, 1)
-
-        layout.addStretch()
-
-        return w
+        self._data_optional_layout.addWidget(self._sample_browser, 1)
 
 
 
@@ -2512,6 +2629,8 @@ class MainWindow(
     def _build_plots_tab(self):
 
         """Plots tab: exported figure gallery and focused figure preview."""
+
+        from .widgets.chart_viewer import ChartGallery, FigureFilePreview
 
         w = QWidget()
 
