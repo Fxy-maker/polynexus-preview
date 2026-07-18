@@ -54,7 +54,10 @@ class ChartEditorOriginMixin:
             output_root=Path(output_root),
             mode=(
                 "editable_origin"
-                if self._generated_document_mode
+                if (
+                    self._generated_document_mode
+                    or document.get("mode") == "object"
+                )
                 else "visual_fidelity"
             ),
             allow_open_origin=True,

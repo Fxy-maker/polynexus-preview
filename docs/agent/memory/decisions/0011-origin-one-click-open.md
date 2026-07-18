@@ -19,6 +19,10 @@ The portable `Origin_Export` package remains the explicit fallback when native
 automation is unavailable. It is reported as a compatibility package, not as a
 live Origin graph.
 
+ChartEditor requests `editable_origin` for any persisted object document, even
+when the runtime generated-document flag is not set after a reload. Static
+image documents continue to use the visual-fidelity path.
+
 ## Rationale
 
 The user-facing intent is to see the current figure inside Origin, not merely

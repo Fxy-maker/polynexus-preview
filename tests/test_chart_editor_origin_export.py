@@ -83,6 +83,19 @@ def test_chart_editor_origin_request_preserves_gallery_run_root(tmp_path):
     _app().processEvents()
 
 
+def test_chart_editor_object_document_requests_editable_origin(tmp_path):
+    _app()
+    editor = ChartEditor()
+    editor._figure_document = {"mode": "object", "objects": []}
+    editor._generated_document_mode = False
+
+    request = editor._build_origin_export_request(tmp_path)
+
+    assert request.mode == "editable_origin"
+    editor.deleteLater()
+    _app().processEvents()
+
+
 def test_chart_editor_origin_export_does_not_open_directory_dialog(monkeypatch, tmp_path):
     _app()
     editor = ChartEditor()
