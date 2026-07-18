@@ -23,6 +23,7 @@ class ExportRequest:
     mode: ExportMode = "editable_origin"
     allow_open_origin: bool = True
     preferred_adapter: str | None = None
+    source_root: Path | None = None
 
     def __post_init__(self) -> None:
         if self.mode not in _EXPORT_MODES:
@@ -30,6 +31,8 @@ class ExportRequest:
         object.__setattr__(self, "output_root", Path(self.output_root).resolve())
         if self.figure_path is not None:
             object.__setattr__(self, "figure_path", Path(self.figure_path).resolve())
+        if self.source_root is not None:
+            object.__setattr__(self, "source_root", Path(self.source_root).resolve())
 
 
 @dataclass(frozen=True)

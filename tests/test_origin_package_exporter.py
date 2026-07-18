@@ -33,6 +33,43 @@ def test_package_exporter_writes_self_contained_bundle(tmp_path):
     assert (root / "import.ogs").exists()
 
 
+def test_package_exporter_resolves_run_relative_source_from_source_root(tmp_path):
+    run_root = tmp_path / "run-1"
+    relative_source = (
+        "figures/saxs_temperature_waterfall/data/"
+        "saxs-temperature-waterfall-000.csv"
+    )
+    source = run_root / relative_source
+    source.parent.mkdir(parents=True)
+    source.write_text("q,intensity\n0.1,2.0\n", encoding="utf-8")
+    figure = run_root / "figures/saxs_temperature_waterfall/figure.svg"
+    figure.write_text("<svg />", encoding="utf-8")
+
+    request = ExportRequest(
+        document={
+            "figure_id": "saxs_temperature_waterfall",
+            "data_sources": [
+                {
+                    "id": "saxs-temperature-waterfall-000",
+                    "path": relative_source,
+                    "path_kind": "run_relative",
+                }
+            ],
+        },
+        figure_path=figure,
+        source_root=run_root,
+        output_root=tmp_path / "out",
+        mode="package",
+    )
+
+    result = PackageExporter().export(request)
+
+    assert result.success is True
+    assert (
+        tmp_path / "out/Origin_Export/data/saxs-temperature-waterfall-000.csv"
+    ).read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
+
+
 def test_package_exporter_writes_inline_source_values(tmp_path):
     request = ExportRequest(
         document={

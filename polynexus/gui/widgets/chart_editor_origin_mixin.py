@@ -44,9 +44,13 @@ class ChartEditorOriginMixin:
             if isinstance(self._figure_document, dict)
             else {}
         )
+        source_root = str(
+            getattr(self._source_entry_context, "run_root", "") or ""
+        ).strip()
         return ExportRequest(
             document=document,
             figure_path=Path(self._source_path) if self._source_path else None,
+            source_root=Path(source_root) if source_root else None,
             output_root=Path(output_root),
             mode=(
                 "editable_origin"

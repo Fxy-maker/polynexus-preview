@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -64,6 +65,18 @@ def test_chart_editor_exposes_origin_action_and_builds_request(tmp_path):
     assert request.document["mode"] == "object"
     editor._show_origin_export_result(service.result)
     assert editor._status_label.text()
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_chart_editor_origin_request_preserves_gallery_run_root(tmp_path):
+    _app()
+    editor = ChartEditor()
+    editor._source_entry_context = SimpleNamespace(run_root=str(tmp_path / "run-1"))
+
+    request = editor._build_origin_export_request(tmp_path / "out")
+
+    assert request.source_root == (tmp_path / "run-1").resolve()
     editor.deleteLater()
     _app().processEvents()
 

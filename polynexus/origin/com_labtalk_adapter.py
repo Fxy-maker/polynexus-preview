@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import platform
 import re
-from pathlib import Path
 from typing import Any, Callable
 
 from .capability_probe import ORIGIN_COM_PROGIDS, OriginCapabilityProbe
 from .contracts import ExportRequest, ExportResult
-from .mapping import OriginSourceSpec, map_figure_document
+from .mapping import map_figure_document
+from .path_resolution import resolve_source_path
 
 
 class ComLabTalkAdapter:
@@ -59,7 +59,7 @@ class ComLabTalkAdapter:
             self._execute(app, "newbook;")
             commands_started = True
             for source in model.sources:
-                source_path = _resolve_source_path(source, request)
+                source_path = resolve_source_path(source.path, request)
                 if not source_path.is_file():
                     raise FileNotFoundError(f"data source does not exist: {source.path}")
                 self._execute(
@@ -121,25 +121,6 @@ def _default_app_factory() -> Any:
         except Exception as exc:
             last_error = exc
     raise RuntimeError("Unable to connect to an Origin COM server") from last_error
-
-
-def _resolve_source_path(source: OriginSourceSpec, request: ExportRequest) -> Path:
-    raw = Path(source.path)
-    if raw.is_absolute():
-        return raw.resolve()
-    candidates: list[Path] = []
-    if request.figure_path is not None:
-        candidates.extend(
-            [
-                request.figure_path.parent / raw,
-                request.figure_path.parent.parent / raw,
-            ]
-        )
-    candidates.append(Path.cwd() / raw)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return candidates[0].resolve() if candidates else raw.resolve()
 
 
 def _safe_name(value: str) -> str:
