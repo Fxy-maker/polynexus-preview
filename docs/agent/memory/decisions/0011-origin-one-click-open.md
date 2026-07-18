@@ -23,6 +23,10 @@ ChartEditor requests `editable_origin` for any persisted object document, even
 when the runtime generated-document flag is not set after a reload. Static
 image documents continue to use the visual-fidelity path.
 
+The native facade rescales each Origin graph layer after adding a plot. Origin
+starts new graph layers with a default `0..1` Y range, which hides valid SAXS
+intensity data unless the layer is rescaled.
+
 ## Rationale
 
 The user-facing intent is to see the current figure inside Origin, not merely

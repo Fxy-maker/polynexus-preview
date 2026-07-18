@@ -153,6 +153,7 @@ class _OriginProFacade:
             colx=int(frame.columns.get_loc(x_column)),
             coly=int(frame.columns.get_loc(y_column)),
         )
+        layer.rescale()
         self._graphs.append(graph)
 
     def save(self, path: Path) -> None:

@@ -1,5 +1,5 @@
 from polynexus.origin.contracts import ExportRequest
-from polynexus.origin.originpro_adapter import OriginProAdapter
+from polynexus.origin.originpro_adapter import OriginProAdapter, _OriginProFacade
 from polynexus.origin.originpro_adapter import _default_available
 from polynexus.origin.capability_probe import OriginCapability
 
@@ -61,6 +61,51 @@ def test_originpro_adapter_builds_editable_graph(tmp_path):
     assert ("show",) in facade.events
     assert ("activate",) in facade.events
     assert any(event[0] == "save" for event in facade.events)
+
+
+def test_originpro_facade_rescales_graph_after_adding_plot():
+    class FakeLayer:
+        def __init__(self):
+            self.events = []
+
+        def add_plot(self, sheet, *, colx, coly):
+            self.events.append(("add_plot", sheet, colx, coly))
+
+        def rescale(self):
+            self.events.append(("rescale",))
+
+    class FakeGraph:
+        def __init__(self, layer):
+            self.layer = layer
+
+        def __getitem__(self, index):
+            assert index == 0
+            return self.layer
+
+    class FakeModule:
+        def __init__(self, layer):
+            self.layer = layer
+
+        def new_graph(self, *, template):
+            assert template == "Line"
+            return FakeGraph(self.layer)
+
+    layer = FakeLayer()
+    facade = _OriginProFacade(FakeModule(layer))
+    facade._sheet = object()
+    columns = type(
+        "Columns",
+        (),
+        {
+            "__contains__": lambda _self, name: name in {"x", "y"},
+            "get_loc": lambda _self, name: {"x": 0, "y": 1}[name],
+        },
+    )()
+    facade._dataframes = [type("Frame", (), {"columns": columns})()]
+
+    facade.add_plot("x", "y", {})
+
+    assert [event[0] for event in layer.events] == ["add_plot", "rescale"]
 
 
 def test_originpro_adapter_resolves_run_relative_source_from_source_root(tmp_path):
