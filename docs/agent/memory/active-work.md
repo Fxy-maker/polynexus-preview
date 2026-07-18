@@ -9,11 +9,12 @@
   CSV sources resolve through the gallery `run_root`; native export now shows
   and activates the Origin graph when available; capability probing also reads
   the Windows user environment registry when the running GUI has a stale
-  `os.environ`; see decisions `0010` and `0011`.
-- The local `main` fast-forward merge is `0de93f93`; the branch is not pushed.
-- The focused Origin/editor verification currently passes: 38 Origin-related
-  tests, 41 merged GUI-startup/Origin checks, and 238 ChartEditor regression
-  tests. The prescribed verifier command
+  `os.environ`; object documents retain the editable Origin mode while static
+  documents retain visual-fidelity fallback; see decisions `0010` and `0011`.
+- The local `main` fast-forward merge is `f3e6876b`; the branch is not pushed.
+- The focused Origin/editor verification currently passes: 40 Origin-related
+  tests, 3 GUI-startup checks, and 238 ChartEditor regression tests. The
+  prescribed verifier command
   cannot run because `scripts/verify.py` is absent; see lesson `0001`.
 - A live smoke export through the configured OriginPro installation opened
   `Origin64` with a generated `.opju` graph visible; a real user-figure click
