@@ -46,6 +46,36 @@ def test_com_adapter_imports_data_and_saves_project(tmp_path):
     assert app.saved
 
 
+def test_com_adapter_resolves_run_relative_source_from_source_root(tmp_path):
+    run_root = tmp_path / "run-1"
+    relative_source = "figures/fig-1/data/source.csv"
+    source = run_root / relative_source
+    source.parent.mkdir(parents=True)
+    source.write_text("x,y\n1,2\n", encoding="utf-8")
+    app = FakeOriginApplication()
+    request = ExportRequest(
+        document={
+            "figure_id": "fig-1",
+            "data_sources": [
+                {"id": "data-1", "path": relative_source, "path_kind": "run_relative"}
+            ],
+            "objects": [],
+        },
+        figure_path=run_root / "figures/fig-1/figure.svg",
+        source_root=run_root,
+        output_root=tmp_path / "out",
+        mode="editable_origin",
+    )
+
+    result = ComLabTalkAdapter(
+        app_factory=lambda: app,
+        com_available=lambda: True,
+    ).export(request)
+
+    assert result.success is True
+    assert any(str(source) in command for command in app.commands)
+
+
 def test_labtalk_values_are_escaped(tmp_path):
     app = FakeOriginApplication()
     adapter = ComLabTalkAdapter(app_factory=lambda: app, com_available=lambda: True)

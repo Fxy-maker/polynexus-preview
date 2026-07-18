@@ -13,6 +13,7 @@ from typing import Any
 from ..core.figure_document import normalize_figure_document
 from .contracts import ExportRequest, ExportResult
 from .mapping import OriginSourceSpec, map_figure_document
+from .path_resolution import resolve_source_path
 
 
 _SAFE_SOURCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -105,7 +106,7 @@ class PackageExporter:
                 raise ValueError(f"unsafe data source id: {source.source_id}")
             target = data_root / f"{source.source_id}.csv"
             if source.path:
-                source_path = self._resolve_source_path(source.path, request)
+                source_path = resolve_source_path(source.path, request)
                 if not source_path.is_file():
                     raise FileNotFoundError(f"data source does not exist: {source.path}")
                 shutil.copy2(source_path, target)
@@ -115,25 +116,6 @@ class PackageExporter:
                 raise ValueError(f"data source has no path or values: {source.source_id}")
             written.append(target.relative_to(data_root.parent).as_posix())
         return written
-
-    @staticmethod
-    def _resolve_source_path(raw_path: str, request: ExportRequest) -> Path:
-        raw = Path(raw_path)
-        if raw.is_absolute():
-            return raw.resolve()
-        candidates: list[Path] = []
-        if request.figure_path is not None:
-            candidates.extend(
-                [
-                    request.figure_path.parent / raw,
-                    request.figure_path.parent.parent / raw,
-                ]
-            )
-        candidates.append(Path.cwd() / raw)
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate.resolve()
-        return candidates[0].resolve() if candidates else raw.resolve()
 
     @staticmethod
     def _write_inline_source(path: Path, source: OriginSourceSpec) -> None:

@@ -55,6 +55,33 @@ def test_originpro_adapter_builds_editable_graph(tmp_path):
     assert any(event[0] == "save" for event in facade.events)
 
 
+def test_originpro_adapter_resolves_run_relative_source_from_source_root(tmp_path):
+    run_root = tmp_path / "run-1"
+    relative_source = "figures/fig-1/data/source.csv"
+    source = run_root / relative_source
+    source.parent.mkdir(parents=True)
+    source.write_text("x,y\n1,2\n", encoding="utf-8")
+    facade = FakeOriginPro()
+    request = ExportRequest(
+        document={
+            "figure_id": "fig-1",
+            "data_sources": [
+                {"id": "data-1", "path": relative_source, "path_kind": "run_relative"}
+            ],
+            "objects": [],
+        },
+        figure_path=run_root / "figures/fig-1/figure.svg",
+        source_root=run_root,
+        output_root=tmp_path / "out",
+        mode="editable_origin",
+    )
+
+    result = OriginProAdapter(originpro_factory=lambda: facade).export(request)
+
+    assert result.success is True
+    assert ("from_csv", str(source)) in facade.events
+
+
 def test_originpro_adapter_is_unavailable_for_visual_only_mode(tmp_path):
     adapter = OriginProAdapter(originpro_factory=FakeOriginPro)
 

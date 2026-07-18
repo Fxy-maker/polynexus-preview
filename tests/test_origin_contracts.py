@@ -10,11 +10,13 @@ def test_export_request_normalizes_paths_and_is_immutable(tmp_path):
     request = ExportRequest(
         document={"figure_id": "fig-1"},
         figure_path=tmp_path / "figure.svg",
+        source_root=tmp_path / "run-1",
         output_root=tmp_path / "out",
         mode="editable_origin",
     )
 
     assert request.figure_path == (tmp_path / "figure.svg").resolve()
+    assert request.source_root == (tmp_path / "run-1").resolve()
     assert request.output_root == (tmp_path / "out").resolve()
     with pytest.raises(AttributeError):
         request.mode = "package"

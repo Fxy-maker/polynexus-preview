@@ -9,7 +9,8 @@ from typing import Any, Callable
 
 from .capability_probe import OriginCapabilityProbe
 from .contracts import ExportRequest, ExportResult
-from .mapping import OriginSourceSpec, map_figure_document
+from .mapping import map_figure_document
+from .path_resolution import resolve_source_path
 
 
 class OriginProAdapter:
@@ -52,7 +53,7 @@ class OriginProAdapter:
             facade.new_book("w")
             book_created = True
             for source in model.sources:
-                source_path = _resolve_source_path(source, request)
+                source_path = resolve_source_path(source.path, request)
                 if not source_path.is_file():
                     raise FileNotFoundError(f"data source does not exist: {source.path}")
                 facade.add_sheet(source.source_id)
@@ -152,25 +153,6 @@ def _default_originpro_factory() -> _OriginProFacade:
     import originpro
 
     return _OriginProFacade(originpro)
-
-
-def _resolve_source_path(source: OriginSourceSpec, request: ExportRequest) -> Path:
-    raw = Path(source.path)
-    if raw.is_absolute():
-        return raw.resolve()
-    candidates: list[Path] = []
-    if request.figure_path is not None:
-        candidates.extend(
-            [
-                request.figure_path.parent / raw,
-                request.figure_path.parent.parent / raw,
-            ]
-        )
-    candidates.append(Path.cwd() / raw)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return candidates[0].resolve() if candidates else raw.resolve()
 
 
 def _next_project_path(base: Path) -> Path:
