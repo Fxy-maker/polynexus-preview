@@ -14,9 +14,45 @@ class ChartEditorEditSessionMixin:
     """Route widget proposals through the shared, undoable edit session."""
 
     def set_tool(self, tool):
+        tool = str(tool or "select").strip().lower()
         canvas = getattr(self, "_annotation_canvas", None)
         setter = getattr(canvas, "set_tool", None)
-        return bool(setter(tool)) if callable(setter) else False
+        if callable(setter) and canvas is not None and not canvas.isHidden():
+            self._generated_draw_tool = "select"
+            return bool(setter(tool))
+
+        if getattr(self, "_generated_document_mode", False) and tool in {
+            "select",
+            "text",
+            "line",
+            "arrow",
+            "rectangle",
+        }:
+            self._generated_draw_tool = tool
+            self._generated_draw_start_data = None
+            tabs = getattr(self, "_inspector_tabs", None)
+            if tabs is not None and tool != "select":
+                tabs.setCurrentIndex(2)
+            text_control = getattr(self, "_annotation_text_edit", None)
+            if text_control is not None:
+                text_control.setEnabled(tool == "text")
+                if tool == "text":
+                    text_control.setFocus()
+            draw_style_enabled = tool in {"text", "line", "arrow", "rectangle"}
+            line_style_enabled = tool in {"line", "arrow", "rectangle"}
+            for name, enabled in (
+                ("_annotation_color_edit", draw_style_enabled),
+                ("_annotation_font_size_spin", tool == "text"),
+                ("_annotation_line_width_spin", line_style_enabled),
+                ("_annotation_alpha_spin", draw_style_enabled),
+                ("_annotation_line_style_combo", line_style_enabled),
+            ):
+                control = getattr(self, name, None)
+                if control is not None:
+                    control.setEnabled(enabled)
+            self._sync_editor_toolbar()
+            return True
+        return False
 
     def _reset_edit_session_from_document(self, document=None):
         payload = document if isinstance(document, dict) else {}

@@ -85,16 +85,23 @@ class ChartEditorOriginMixin:
         self._sync_origin_export_enabled()
 
     def _sync_origin_export_enabled(self) -> None:
-        if not hasattr(self, "_btn_origin_export"):
-            return
         active = getattr(self, "_origin_export_thread", None) is not None
-        has_document = bool(
+        has_document = self._has_origin_export_document()
+        enabled = bool(has_document and not active)
+        if hasattr(self, "_btn_origin_export"):
+            self._btn_origin_export.setEnabled(enabled)
+        action = getattr(self, "_header_export_actions", {}).get("origin")
+        if action is not None:
+            action.setEnabled(enabled)
+
+    def _has_origin_export_document(self) -> bool:
+        return bool(
             self._source_path
+            or getattr(self, "_fig_generator", None) is not None
             or self._generated_document_mode
             or self._static_file_mode
             or self._figure_document
         )
-        self._btn_origin_export.setEnabled(bool(has_document and not active))
 
     def _show_origin_export_result(self, result: ExportResult) -> None:
         if result.status == "success":

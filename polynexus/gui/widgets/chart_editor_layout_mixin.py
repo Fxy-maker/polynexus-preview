@@ -132,6 +132,11 @@ class ChartEditorLayoutMixin:
             tr("EDITOR_EXPORT_SVG"),
             lambda: self.save_as("svg"),
         )
+        self._add_header_export_action(
+            "origin",
+            tr("EDITOR_EXPORT_ORIGIN"),
+            self._export_to_origin,
+        )
         self._action_header_publish = self._add_header_export_action(
             "publish",
             tr("EDITOR_PUBLISH_COMPLETE"),
@@ -210,13 +215,19 @@ class ChartEditorLayoutMixin:
             getattr(self, "_generated_document_mode", False)
             or getattr(self, "_fig_generator", None) is not None
         )
-        current_tool = "select"
+        current_tool = str(getattr(self, "_generated_draw_tool", "select") or "select")
         if annotation_canvas_visible:
             current_tool = str(getattr(canvas, "current_tool", lambda: "select")())
 
         for action_id in _EditorContextToolbar._TOOL_ACTION_IDS:
             action = toolbar.action(action_id)
-            action.setEnabled(annotation_canvas_visible or (object_mode and action_id == "select"))
+            action.setEnabled(
+                annotation_canvas_visible
+                or (
+                    object_mode
+                    and action_id in {"select", "text", "line", "arrow", "rectangle"}
+                )
+            )
             action.blockSignals(True)
             action.setChecked(action_id == current_tool)
             action.blockSignals(False)
@@ -248,6 +259,9 @@ class ChartEditorLayoutMixin:
         if not hasattr(self, "_action_header_publish"):
             return
         self._action_header_publish.setEnabled(bool(self._has_manifest_project_context()))
+        sync_origin_export = getattr(self, "_sync_origin_export_enabled", None)
+        if sync_origin_export is not None:
+            sync_origin_export()
 
     def retranslate_layout(self):
         if not hasattr(self, "_editor_header"):
@@ -268,6 +282,7 @@ class ChartEditorLayoutMixin:
             ("save_as", "EDITOR_SAVE_AS_COPY"),
             ("png", "EDITOR_EXPORT_PNG"),
             ("svg", "EDITOR_EXPORT_SVG"),
+            ("origin", "EDITOR_EXPORT_ORIGIN"),
             ("publish", "EDITOR_PUBLISH_COMPLETE"),
         ):
             self._header_export_actions[key].setText(tr(translation_key))

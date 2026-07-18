@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 from PySide6.QtCore import Qt
+
+from ...core.figure_edit_commands import AddObjectCommand
+from ..i18n import tr
 
 
 class ChartEditorGeneratedInteractionMixin:
@@ -10,6 +15,9 @@ class ChartEditorGeneratedInteractionMixin:
         self._remember_generated_pointer_event(event)
         if not self._is_left_mouse_button(getattr(event, "button", None)):
             return
+        if self._generated_draw_tool != "select":
+            if self._handle_generated_draw_press(event):
+                return
         candidate_ids = self._figure_render_adapter.object_ids_for_mouseevent(event)
         overlap_cycle_hint_active = bool(candidate_ids and len(candidate_ids) > 1)
         pick_already_handled = (
@@ -114,6 +122,9 @@ class ChartEditorGeneratedInteractionMixin:
 
     def _on_generated_button_release(self, event):
         self._remember_generated_pointer_event(event)
+        if self._generated_draw_start_data is not None:
+            self._finish_generated_draw(event)
+            return
         drag_state = self._generated_handle_drag_state
         self._generated_handle_drag_state = None
         self._clear_generated_drag_status()
@@ -191,3 +202,103 @@ class ChartEditorGeneratedInteractionMixin:
             return
         self._clear_generated_hover_highlight()
         self._reset_generated_canvas_cursor()
+
+    def _handle_generated_draw_press(self, event):
+        tool = str(getattr(self, "_generated_draw_tool", "select") or "select")
+        data = self._generated_event_data_coordinates(event)
+        if data is None:
+            return False
+        if tool == "text":
+            text = self._annotation_text_edit.text().strip() or "Annotation"
+            return self._add_generated_tool_object(
+                tool,
+                data,
+                data,
+                text=text,
+            )
+        if tool in {"line", "arrow", "rectangle"}:
+            self._generated_draw_start_data = data
+            self._status_label.setText(tr("EDITOR_DRAW_OBJECT_HINT"))
+            return True
+        return False
+
+    def _finish_generated_draw(self, event):
+        start = self._generated_draw_start_data
+        self._generated_draw_start_data = None
+        end = self._generated_event_data_coordinates(event)
+        if start is None or end is None:
+            self.set_tool("select")
+            return
+        if start == end:
+            self.set_tool("select")
+            return
+        self._add_generated_tool_object(self._generated_draw_tool, start, end)
+
+    def _add_generated_tool_object(self, tool, start, end, *, text=""):
+        x1, y1 = (float(start[0]), float(start[1]))
+        x2, y2 = (float(end[0]), float(end[1]))
+        object_id = f"annotation-{uuid4().hex[:12]}"
+        color = self._annotation_color_edit.text().strip() or "#D55E00"
+        line_style = {
+            "Solid": "-",
+            "Dashed": "--",
+            "Dotted": ":",
+            "Dash Dot": "-.",
+        }.get(self._annotation_line_style_combo.currentText(), "-")
+        style = {
+            "color": color,
+            "line_width": float(self._annotation_line_width_spin.value()),
+            "line_style": line_style,
+            "alpha": float(self._annotation_alpha_spin.value()),
+        }
+        payload = {
+            "id": object_id,
+            "type": tool,
+            "name": {
+                "text": "Text",
+                "line": "Line",
+                "arrow": "Arrow",
+                "rectangle": "Rectangle",
+            }[tool],
+            "visible": True,
+            "locked": False,
+            "z_index": 1000,
+            "style": style,
+        }
+        panel_id = next(
+            (
+                str(item.get("panel_id") or "")
+                for item in self._figure_document.get("objects", [])
+                if isinstance(item, dict) and item.get("panel_id")
+            ),
+            "",
+        )
+        if panel_id:
+            payload["panel_id"] = panel_id
+        if tool == "text":
+            payload.update(
+                x=x1,
+                y=y1,
+                text=str(text or "Annotation"),
+                style={
+                    **style,
+                    "font_size": float(self._annotation_font_size_spin.value()),
+                },
+            )
+        elif tool in {"line", "arrow"}:
+            payload.update(x1=x1, y1=y1, x2=x2, y2=y2)
+        else:
+            payload.update(
+                x=min(x1, x2),
+                y=min(y1, y2),
+                width=abs(x2 - x1),
+                height=abs(y2 - y1),
+            )
+
+        result = self._execute_edit(AddObjectCommand(payload))
+        if result is None or not result.changed:
+            return False
+        self.set_tool("select")
+        self._show_generated_figure_document()
+        self._select_generated_object(object_id, "canvas")
+        return True

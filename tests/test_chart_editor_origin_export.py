@@ -5,6 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from polynexus.gui.origin_export_worker import OriginExportWorker
+from polynexus.gui.i18n import tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
 from polynexus.origin.contracts import ExportRequest, ExportResult
 
@@ -21,6 +22,30 @@ class FakeOriginService:
     def export(self, request):
         self.requests.append(request)
         return self.result
+
+
+def test_chart_editor_header_menu_exposes_origin_export(monkeypatch):
+    _app()
+    calls = []
+    monkeypatch.setattr(
+        ChartEditor,
+        "_export_to_origin",
+        lambda editor: calls.append(editor),
+    )
+    editor = ChartEditor()
+
+    action = editor._header_export_actions.get("origin")
+    assert action is not None
+    assert action.text() == tr("EDITOR_EXPORT_ORIGIN")
+    assert not action.isEnabled()
+
+    editor.set_figure_generator(lambda axis: axis.plot([0, 1], [0, 1]))
+    assert action.isEnabled()
+
+    action.trigger()
+    assert calls == [editor]
+    editor.deleteLater()
+    _app().processEvents()
 
 
 def test_chart_editor_exposes_origin_action_and_builds_request(tmp_path):

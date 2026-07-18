@@ -1,10 +1,12 @@
 import os
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
+from matplotlib.backend_bases import MouseEvent
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication
 
@@ -188,4 +190,154 @@ def test_inspector_controls_follow_session_capabilities_for_line_text_and_backgr
 
     editor.deleteLater()
     static_editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_editor_toolbar_can_start_annotation_tools(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+
+    for tool in ("text", "line", "arrow", "rectangle"):
+        action = editor._editor_toolbar.action(tool)
+        assert action.isEnabled(), f"generated canvas tool {tool!r} is disabled"
+        action.trigger()
+        assert editor._generated_draw_tool == tool
+        if tool == "text":
+            assert editor._annotation_text_edit.isEnabled()
+        else:
+            assert editor._annotation_color_edit.isEnabled()
+            assert editor._annotation_line_width_spin.isEnabled()
+            assert editor._annotation_line_style_combo.isEnabled()
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_tool_adds_text_object_to_edit_session(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.set_tool("text")
+    editor._annotation_text_edit.setText("Peak")
+
+    axis = editor._figure.axes[0]
+    event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        *axis.transData.transform((0.5, 0.5)),
+        button=1,
+    )
+    event.inaxes = axis
+    event.xdata = 0.5
+    event.ydata = 0.5
+    editor._on_generated_button_press(event)
+
+    created = [
+        item
+        for item in editor._figure_document.get("objects", [])
+        if item.get("type") == "text" and item.get("text") == "Peak"
+    ]
+    assert len(created) == 1
+    assert editor._selected_figure_object_id == created[0]["id"]
+    assert editor._generated_draw_tool == "select"
+
+    target = tmp_path / "edited.png"
+    editor._save_to_path(str(target))
+    reloaded = ChartEditor()
+    reloaded.set_source_figure(str(target))
+    assert any(
+        item.get("type") == "text" and item.get("text") == "Peak"
+        for item in reloaded._figure_document.get("objects", [])
+    )
+
+    editor.deleteLater()
+    reloaded.deleteLater()
+    app.processEvents()
+
+
+@pytest.mark.parametrize("tool", ("line", "arrow", "rectangle"))
+def test_generated_shape_tools_add_objects_after_canvas_drag(tmp_path, app, tool):
+    editor = make_generated_editor(tmp_path)
+    editor.set_tool(tool)
+    axis = editor._figure.axes[0]
+
+    def event(name, x_value, y_value):
+        event = MouseEvent(
+            name,
+            editor._canvas,
+            *axis.transData.transform((x_value, y_value)),
+            button=1,
+        )
+        event.inaxes = axis
+        event.xdata = x_value
+        event.ydata = y_value
+        return event
+
+    editor._on_generated_button_press(event("button_press_event", 0.2, 0.2))
+    editor._on_generated_button_release(event("button_release_event", 0.8, 0.8))
+
+    created = [
+        item
+        for item in editor._figure_document.get("objects", [])
+        if item.get("type") == tool and item.get("id") != "line-1"
+    ]
+    assert len(created) == 1
+    assert editor._selected_figure_object_id == created[0]["id"]
+    assert editor._generated_draw_tool == "select"
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_formal_generated_document_accepts_text_tool(built_ir_document, tmp_path, app):
+    from polynexus.core.figure_document import load_figure_document
+
+    run_root, document_path, _document = built_ir_document
+    source = tmp_path / "formal.png"
+    image = QImage(160, 100, QImage.Format_RGBA8888)
+    image.fill(QColor("white"))
+    assert image.save(str(source))
+    entry = SimpleNamespace(
+        run_root=str(run_root),
+        document_path=str(document_path),
+        figure_id="ir.frame.spectrum.001",
+        title="Formal figure",
+        editable_path=str(source),
+        primary_path=str(source),
+        preview_path=str(source),
+        state="object_editing",
+    )
+    editor = ChartEditor()
+    editor.set_source_figure(str(source), source_entry_context=entry)
+
+    assert editor._generated_document_mode is True
+    assert load_figure_document(str(document_path)).get("mode") == "object"
+    editor._title_edit.setText("Edited title")
+    app.processEvents()
+    assert editor._figure.axes[0].get_title() == "Edited title"
+    assert editor._editor_dirty is True
+    editor._colour_cb.setCurrentText("Warm")
+    app.processEvents()
+    assert editor._figure.axes[0].lines[0].get_color() == "#8B0000"
+    editor._grid_cb.setChecked(False)
+    app.processEvents()
+    assert not any(gridline.get_visible() for gridline in editor._figure.axes[0].get_xgridlines())
+
+    editor.set_tool("text")
+    editor._annotation_text_edit.setText("Peak")
+    axis = editor._figure.axes[0]
+    event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        *axis.transData.transform((1750.0, 0.2)),
+        button=1,
+    )
+    event.inaxes = axis
+    event.xdata = 1750.0
+    event.ydata = 0.2
+    editor._on_generated_button_press(event)
+
+    assert any(
+        item.get("type") == "text" and item.get("text") == "Peak"
+        for item in editor._figure_document.get("objects", [])
+    )
+
+    editor.deleteLater()
     app.processEvents()

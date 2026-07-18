@@ -9,7 +9,9 @@ from .publication_audit import FigurePublicationAuditResult
 from .render_plan import FigureRenderPlan
 
 
-_OBJECT_EDITABLE_TYPES = frozenset({"plot_series", "heatmap", "image_grid", "line", "text"})
+_OBJECT_EDITABLE_TYPES = frozenset(
+    {"plot_series", "heatmap", "image_grid", "line", "text", "arrow", "rectangle"}
+)
 
 
 @dataclass(frozen=True)
