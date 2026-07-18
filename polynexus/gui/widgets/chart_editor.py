@@ -177,6 +177,8 @@ class ChartEditor(
         self._last_edit_result = None
         self._shared_render_plan = None
         self._generated_document_mode = False
+        self._generated_draw_tool = "select"
+        self._generated_draw_start_data = None
         self._static_file_mode = False
         self._current_colours = list(COLOUR_SCHEMES["Default Blue"])
         self._title_size = 14
@@ -921,6 +923,8 @@ class ChartEditor(
         self._reset_generated_selection_model()
         self._reset_generated_canvas_cursor()
         self._generated_document_mode = False
+        self._generated_draw_tool = "select"
+        self._generated_draw_start_data = None
         self._static_file_mode = False
         self._fig_generator = None
         self._fig_args = ()
@@ -1022,6 +1026,8 @@ class ChartEditor(
         self._loading_editor_state = True
         self._static_file_mode = False
         self._generated_document_mode = False
+        self._generated_draw_tool = "select"
+        self._generated_draw_start_data = None
         self._source_path = ""
         self._source_entry_context = None
         self._btn_publish.setEnabled(False)

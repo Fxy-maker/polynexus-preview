@@ -25,6 +25,9 @@ class ChartEditorRenderMixin:
         if self._fig_generator is None:
             if self._generated_document_mode:
                 if self._show_generated_figure_document():
+                    figure_changed = getattr(self, "figure_changed", None)
+                    if figure_changed is not None:
+                        figure_changed.emit()
                     return
             if self._static_file_mode:
                 if not self._refresh_static_annotation_canvas_preview():

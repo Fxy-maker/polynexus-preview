@@ -90,6 +90,10 @@ class MatplotlibFigureRenderer:
                 artists = self._render_image_grid(axis, plan, figure_object)
             elif object_type == "line":
                 artists = self._render_line(axis, figure_object)
+            elif object_type == "arrow":
+                artists = self._render_arrow(axis, figure_object)
+            elif object_type == "rectangle":
+                artists = self._render_rectangle(axis, figure_object)
             elif object_type == "text":
                 artists = self._render_text(axis, figure_object)
             else:
@@ -344,3 +348,36 @@ class MatplotlibFigureRenderer:
             ha=str(figure_object.get("horizontal_alignment") or "center"),
             va=str(figure_object.get("vertical_alignment") or "bottom"),
         )]
+
+    def _render_arrow(self, axis, figure_object: dict[str, Any]) -> list[Any]:
+        style = self._style(figure_object)
+        return [axis.annotate(
+            "",
+            xy=(float(figure_object["x2"]), float(figure_object["y2"])),
+            xytext=(float(figure_object["x1"]), float(figure_object["y1"])),
+            arrowprops={
+                "arrowstyle": "->",
+                "color": style.get("color", "#222222"),
+                "linewidth": float(style.get("line_width", 1.0)),
+                "linestyle": style.get("line_style", "-"),
+                "alpha": float(style.get("alpha", 1.0)),
+            },
+        )]
+
+    def _render_rectangle(self, axis, figure_object: dict[str, Any]) -> list[Any]:
+        from matplotlib.patches import Rectangle
+
+        style = self._style(figure_object)
+        patch = Rectangle(
+            (float(figure_object["x"]), float(figure_object["y"])),
+            float(figure_object["width"]),
+            float(figure_object["height"]),
+            fill=bool(style.get("fill", False)),
+            facecolor=style.get("color", "#222222"),
+            edgecolor=style.get("color", "#222222"),
+            linewidth=float(style.get("line_width", 1.0)),
+            linestyle=style.get("line_style", "-"),
+            alpha=float(style.get("alpha", 1.0)),
+        )
+        axis.add_patch(patch)
+        return [patch]

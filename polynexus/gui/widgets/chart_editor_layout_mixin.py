@@ -210,13 +210,19 @@ class ChartEditorLayoutMixin:
             getattr(self, "_generated_document_mode", False)
             or getattr(self, "_fig_generator", None) is not None
         )
-        current_tool = "select"
+        current_tool = str(getattr(self, "_generated_draw_tool", "select") or "select")
         if annotation_canvas_visible:
             current_tool = str(getattr(canvas, "current_tool", lambda: "select")())
 
         for action_id in _EditorContextToolbar._TOOL_ACTION_IDS:
             action = toolbar.action(action_id)
-            action.setEnabled(annotation_canvas_visible or (object_mode and action_id == "select"))
+            action.setEnabled(
+                annotation_canvas_visible
+                or (
+                    object_mode
+                    and action_id in {"select", "text", "line", "arrow", "rectangle"}
+                )
+            )
             action.blockSignals(True)
             action.setChecked(action_id == current_tool)
             action.blockSignals(False)

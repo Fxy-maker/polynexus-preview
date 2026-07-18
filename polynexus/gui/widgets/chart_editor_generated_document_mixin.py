@@ -66,6 +66,10 @@ class ChartEditorGeneratedDocumentMixin:
             self._shared_render_plan = plan
             renderer = MatplotlibFigureRenderer()
             figure = renderer.render(plan, dpi=self._dpi)
+            self._apply_formal_editor_style(
+                figure,
+                getattr(renderer, "last_artist_map", {}),
+            )
             adapter = getattr(self, "_figure_render_adapter", None)
             if adapter is not None:
                 adapter.reset_artist_map()
@@ -80,6 +84,53 @@ class ChartEditorGeneratedDocumentMixin:
 
         self._shared_render_plan = None
         return self._build_legacy_generated_figure_document()
+
+    def _apply_formal_editor_style(self, figure, artist_map):
+        if figure is None or not hasattr(self, "_bg_color"):
+            return
+        figure.set_facecolor(self._bg_color)
+        figure.set_size_inches(*self._fig_size, forward=False)
+        title = self._title_edit.text().strip()
+        xlabel = self._xlabel_edit.text().strip()
+        ylabel = self._ylabel_edit.text().strip()
+        object_types = {
+            str(item.get("id") or ""): str(item.get("type") or "")
+            for item in self._figure_document.get("objects", [])
+            if isinstance(item, dict)
+        }
+        artist_to_object = {
+            id(artist): object_id
+            for object_id, artists in (artist_map or {}).items()
+            for artist in artists or ()
+        }
+        series_index = 0
+        for axis in figure.axes:
+            axis.set_facecolor(self._bg_color)
+            if title:
+                axis.set_title(title, fontsize=self._title_size, fontweight="bold")
+            if xlabel:
+                axis.set_xlabel(xlabel, fontsize=self._label_size)
+            if ylabel:
+                axis.set_ylabel(ylabel, fontsize=self._label_size)
+            axis.tick_params(labelsize=self._tick_size)
+            if self._grid_on:
+                axis.grid(
+                    True,
+                    alpha=self._grid_alpha,
+                    linestyle="--",
+                    linewidth=0.5,
+                )
+            else:
+                axis.grid(False)
+            for line in axis.lines:
+                object_id = str(artist_to_object.get(id(line), "") or "")
+                if object_types.get(object_id) == "plot_series":
+                    line.set_color(self._current_colours[series_index % len(self._current_colours)])
+                    line.set_linewidth(self._line_width)
+                    series_index += 1
+            for text in axis.texts:
+                if not str(text.get_gid() or "").startswith("pn-panel-label:"):
+                    text.set_fontsize(max(6, self._label_size - 2))
 
     @matplotlib.rc_context()
     def _build_legacy_generated_figure_document(self):
@@ -566,6 +617,66 @@ class ChartEditorGeneratedDocumentMixin:
                 alpha=alpha,
                 label=name or None,
             )
+
+        if object_type == "text":
+            return [
+                ax.text(
+                    float(figure_object.get("x", 0.0) or 0.0),
+                    float(figure_object.get("y", 0.0) or 0.0),
+                    str(figure_object.get("text", "") or ""),
+                    color=color,
+                    fontsize=float(style.get("font_size", 12.0) or 12.0),
+                    alpha=alpha,
+                    rotation=float(figure_object.get("rotation", 0.0) or 0.0),
+                    ha=str(figure_object.get("horizontal_alignment", "center") or "center"),
+                    va=str(figure_object.get("vertical_alignment", "bottom") or "bottom"),
+                )
+            ]
+
+        if object_type == "arrow":
+            x1 = self._optional_float(figure_object.get("x1"))
+            y1 = self._optional_float(figure_object.get("y1"))
+            x2 = self._optional_float(figure_object.get("x2"))
+            y2 = self._optional_float(figure_object.get("y2"))
+            if None in {x1, y1, x2, y2}:
+                return []
+            return [
+                ax.annotate(
+                    "",
+                    xy=(x2, y2),
+                    xytext=(x1, y1),
+                    arrowprops={
+                        "arrowstyle": "->",
+                        "color": color,
+                        "linewidth": line_width,
+                        "linestyle": style.get("line_style", "-"),
+                        "alpha": alpha,
+                    },
+                )
+            ]
+
+        if object_type == "rectangle":
+            from matplotlib.patches import Rectangle
+
+            x = self._optional_float(figure_object.get("x"))
+            y = self._optional_float(figure_object.get("y"))
+            width = self._optional_float(figure_object.get("width"))
+            height = self._optional_float(figure_object.get("height"))
+            if None in {x, y, width, height}:
+                return []
+            patch = Rectangle(
+                (x, y),
+                width,
+                height,
+                fill=bool(style.get("fill", False)),
+                facecolor=color,
+                edgecolor=color,
+                linewidth=line_width,
+                linestyle=style.get("line_style", "-"),
+                alpha=alpha,
+            )
+            ax.add_patch(patch)
+            return [patch]
 
         if object_type == "highlight":
             x_values = self._generated_column_values(figure_object, data_sources, "x_column")

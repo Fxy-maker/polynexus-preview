@@ -96,6 +96,44 @@ def test_renderer_uses_one_plan_for_series_lines_and_text(built_ir_document):
     assert [text.get_text() for text in axis.texts] == ["1700"]
 
 
+def test_renderer_supports_arrow_and_rectangle_annotations(built_ir_document):
+    run_root, document_path, document = built_ir_document
+    document["objects"].extend(
+        [
+            {
+                "id": "arrow-peak",
+                "type": "arrow",
+                "panel_id": "main",
+                "x1": 1800.0,
+                "y1": 0.1,
+                "x2": 1700.0,
+                "y2": 0.4,
+                "style": {"color": "#D55E00", "line_width": 1.2},
+            },
+            {
+                "id": "region-peak",
+                "type": "rectangle",
+                "panel_id": "main",
+                "x": 1700.0,
+                "y": 0.1,
+                "width": 50.0,
+                "height": 0.3,
+                "style": {"color": "#0072B2", "line_width": 0.8},
+            },
+        ]
+    )
+    plan = FigureRenderPlanBuilder(run_root).build(document_path, document)
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=150)
+
+    axis = figure.axes[0]
+    assert any(
+        getattr(artist, "get_gid", lambda: None)() == "pn-object:arrow-peak"
+        for artist in figure.findobj()
+    )
+    assert any(artist.get_gid() == "pn-object:region-peak" for artist in axis.patches)
+
+
 def test_renderer_supports_bar_series_and_panel_legend(render_plan):
     panel = replace(render_plan.panels[0], title="Metrics", show_legend=True)
     plan = replace(
