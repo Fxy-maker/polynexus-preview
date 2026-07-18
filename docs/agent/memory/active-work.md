@@ -1,6 +1,26 @@
 # Active Work
 
-> Last updated: 2026-07-11
+> Last updated: 2026-07-18
+
+## Current checkpoint
+
+- OriginLab integration is implemented and locally merged into `main`. The
+  ChartEditor top export menu exposes Origin, and run-relative generated-figure
+  CSV sources resolve through the gallery `run_root`; native export now shows
+  and activates the Origin graph when available; capability probing also reads
+  the Windows user environment registry when the running GUI has a stale
+  `os.environ`; see decisions `0010` and `0011`.
+- The focused Origin/editor verification currently passes: 38 Origin-related
+  tests and 238 ChartEditor regression tests. The prescribed verifier command
+  cannot run because `scripts/verify.py` is absent; see lesson `0001`.
+- A live smoke export through the configured OriginPro installation opened
+  `Origin64` with a generated `.opju` graph visible; a real user-figure click
+  remains the final manual check.
+- The agent memory foundation is now present: `README.md`,
+  `current-state.md`, this register, decision memory, and lesson memory.
+- The older entries below were last reconciled on 2026-07-11. Treat their
+  branch/PR status as historical context until each item is rechecked against
+  the current mainline.
 
 ## Completed
 

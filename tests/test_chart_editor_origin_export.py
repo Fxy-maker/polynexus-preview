@@ -1,6 +1,8 @@
 import os
 from types import SimpleNamespace
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
@@ -77,6 +79,25 @@ def test_chart_editor_origin_request_preserves_gallery_run_root(tmp_path):
     request = editor._build_origin_export_request(tmp_path / "out")
 
     assert request.source_root == (tmp_path / "run-1").resolve()
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_chart_editor_origin_export_does_not_open_directory_dialog(monkeypatch, tmp_path):
+    _app()
+    editor = ChartEditor()
+    editor._source_path = str(tmp_path / "figure.png")
+    started = []
+    monkeypatch.setattr(
+        editor,
+        "_choose_origin_output_root",
+        lambda: pytest.fail("native Origin export should not open a directory dialog"),
+    )
+    monkeypatch.setattr(editor, "_start_origin_export", started.append)
+
+    editor._export_to_origin()
+
+    assert len(started) == 1
     editor.deleteLater()
     _app().processEvents()
 

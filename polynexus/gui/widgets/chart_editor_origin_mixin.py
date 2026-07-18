@@ -63,10 +63,14 @@ class ChartEditorOriginMixin:
     def _export_to_origin(self) -> None:
         if getattr(self, "_origin_export_thread", None) is not None:
             return
-        output_root = self._choose_origin_output_root()
-        if not output_root:
-            return
+        output_root = self._default_origin_output_root()
         self._start_origin_export(self._build_origin_export_request(output_root))
+
+    def _default_origin_output_root(self) -> Path:
+        anchor = str(self._target_path or self._source_path or "").strip()
+        if anchor:
+            return Path(anchor).resolve().parent
+        return Path.cwd()
 
     def _start_origin_export(self, request: ExportRequest) -> None:
         thread = QThread(self)

@@ -30,11 +30,35 @@ def _module_available(module_name: str) -> bool:
         return False
 
 
+def _read_user_origin_exe() -> str:
+    """Read the user-scoped Origin executable setting on Windows.
+
+    ``setx`` persists environment variables for future processes only.  The
+    current GUI process may therefore not see ``ORIGIN_EXE`` in ``os.environ``
+    even though the user has configured it.  Reading the user environment key
+    here makes capability probing work without requiring a PolyNexus restart.
+    """
+    if platform.system() != "Windows":
+        return ""
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            value, _ = winreg.QueryValueEx(key, "ORIGIN_EXE")
+            return str(value or "").strip()
+    except (ImportError, OSError):
+        return ""
+
+
 def _candidate_origin_paths() -> list[Path]:
     candidates: list[Path] = []
     configured = str(os.environ.get("ORIGIN_EXE") or "").strip()
     if configured:
         candidates.append(Path(configured))
+
+    user_configured = _read_user_origin_exe()
+    if user_configured and user_configured != configured:
+        candidates.append(Path(user_configured))
 
     for command in ("Origin.exe", "OriginPro.exe"):
         resolved = shutil.which(command)

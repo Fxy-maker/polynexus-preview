@@ -12,6 +12,12 @@ class FakeOriginPro:
         self.events.append(("new_book", kind))
         return self
 
+    def show(self):
+        self.events.append(("show",))
+
+    def activate(self):
+        self.events.append(("activate",))
+
     def add_sheet(self, name):
         self.events.append(("add_sheet", name))
         return self
@@ -52,6 +58,8 @@ def test_originpro_adapter_builds_editable_graph(tmp_path):
     assert result.success is True
     assert ("from_csv", str(source)) in facade.events
     assert any(event[0] == "add_plot" for event in facade.events)
+    assert ("show",) in facade.events
+    assert ("activate",) in facade.events
     assert any(event[0] == "save" for event in facade.events)
 
 

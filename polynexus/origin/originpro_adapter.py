@@ -52,6 +52,8 @@ class OriginProAdapter:
             facade = self._factory()
             facade.new_book("w")
             book_created = True
+            if request.allow_open_origin:
+                facade.show()
             for source in model.sources:
                 source_path = resolve_source_path(source.path, request)
                 if not source_path.is_file():
@@ -60,6 +62,8 @@ class OriginProAdapter:
                 facade.from_csv(source_path)
             for plot in model.plots:
                 facade.add_plot(plot.x_column, plot.y_column, dict(plot.style))
+            if request.allow_open_origin:
+                facade.activate()
             request.output_root.mkdir(parents=True, exist_ok=True)
             project_path = _next_project_path(
                 request.output_root / f"{_safe_name(model.figure_id)}.opju"
@@ -102,6 +106,24 @@ class _OriginProFacade:
     def new_book(self, kind: str = "w") -> Any:
         self._book = self._module.new_sheet(kind, lname="PolyNexus")
         return self._book
+
+    def show(self) -> None:
+        set_show = getattr(self._module, "set_show", None)
+        if not callable(set_show):
+            raise RuntimeError("Origin Python integration cannot show the application")
+        set_show(True)
+
+    def activate(self) -> None:
+        if self._graphs:
+            activate = getattr(self._graphs[-1], "activate", None)
+            if callable(activate):
+                activate()
+                return
+        execute = getattr(self._module, "lt_exec", None)
+        if callable(execute):
+            execute("win -a;")
+            return
+        self.show()
 
     def add_sheet(self, name: str) -> Any:
         if self._book is None:

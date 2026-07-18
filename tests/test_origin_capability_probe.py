@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from polynexus.origin import capability_probe
 from polynexus.origin.capability_probe import OriginCapabilityProbe
 
 
@@ -44,3 +47,16 @@ def test_probe_catches_finder_errors(monkeypatch):
 
     assert report.installed is False
     assert "registry unavailable" in report.reason
+
+
+def test_candidate_paths_use_user_registry_when_process_environment_is_stale(monkeypatch):
+    configured_path = Path(r"D:\Program Files\OriginLab\Origin2026\Origin64.exe")
+    monkeypatch.delenv("ORIGIN_EXE", raising=False)
+    monkeypatch.setattr(capability_probe.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(capability_probe, "_read_user_origin_exe", lambda: str(configured_path))
+    monkeypatch.setenv("ProgramFiles", "")
+    monkeypatch.setenv("ProgramFiles(x86)", "")
+
+    candidates = capability_probe._candidate_origin_paths()
+
+    assert configured_path in candidates
