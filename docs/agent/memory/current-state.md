@@ -7,12 +7,14 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
-- The dedicated local `main` worktree is at merge commit `60615762`, which
-  includes the Origin editor menu and run-root source-path fixes. It is ahead of
-  `origin/main` locally; it has not been pushed.
+- The dedicated local `main` worktree is at merge commit `0de93f93`, which
+  includes the Origin editor menu, run-root source-path fixes, visible native
+  Origin activation, user-registry capability probing, and the GUI startup
+  boundary restoration. It is ahead of `origin/main` locally; it has not been
+  pushed.
 - The active development worktree is `D:\PolyNexus` on
-  `codex/origin-editor-usable-controls`, with the same Origin fixes committed
-  through `d91c512`. A pre-existing untracked `.superpowers/` directory is left
+  `codex/origin-editor-usable-controls`, at the same merged commit. Its
+  pre-existing untracked `.superpowers/` and Origin Lite design drafts are left
   untouched.
 
 ## Important boundaries
@@ -39,6 +41,7 @@ title: Current PolyNexus repository state
 
 - Origin capability, adapter, contract, package, and ChartEditor Origin tests:
   38 passed.
+- Merged GUI-startup plus Origin regression slice: 41 passed.
 - ChartEditor regression suite: 238 passed.
 - Ruff checks and `compileall` passed for the changed Origin/editor modules.
 - The repository contract documents `python scripts/verify.py --changed
@@ -52,6 +55,7 @@ title: Current PolyNexus repository state
   project title. The temporary `.opju` remained locked until Origin closes;
   this is expected application ownership. Broader user-figure manual testing
   remains pending.
-- The local mainline merge still needs an explicit push/review decision.
+- The local mainline merge is complete at `0de93f93`; an explicit push decision
+  remains pending.
 - Reconcile the older active-work entries in `active-work.md` against the
   current branch/PR state before using them as authoritative.
