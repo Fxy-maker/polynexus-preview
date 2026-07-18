@@ -174,3 +174,118 @@ def test_manifest_document_builds_figure_from_shared_render_plan(
         "dpi": 150,
     }
     assert editor._shared_render_plan is expected_plan
+
+
+def test_manifest_editor_registers_native_image_grid_artists_for_object_editing(
+    monkeypatch,
+):
+    from matplotlib.figure import Figure
+
+    from polynexus.gui.figure_render_adapter import FigureRenderAdapter
+    from polynexus.gui.widgets import chart_editor_generated_document_mixin as module
+
+    expected_plan = SimpleNamespace(figure_id="native-grid")
+    figure = Figure(figsize=(2.0, 1.0), dpi=100)
+    image_artist = figure.add_subplot(111).imshow([[1.0, 2.0], [3.0, 4.0]])
+
+    class _Builder:
+        def __init__(self, _run_root):
+            pass
+
+        def build(self, _path, _document):
+            return expected_plan
+
+    class _Renderer:
+        last_artist_map = {"pattern-grid": [image_artist]}
+
+        def render(self, _plan, *, dpi):
+            assert dpi == 120
+            return figure
+
+    monkeypatch.setattr(module, "FigureRenderPlanBuilder", _Builder)
+    monkeypatch.setattr(module, "MatplotlibFigureRenderer", _Renderer)
+
+    editor = object.__new__(module.ChartEditorGeneratedDocumentMixin)
+    editor._figure_document = {"mode": "object", "figure_id": "native-grid"}
+    editor._source_entry_context = SimpleNamespace(
+        run_root="/tmp/run",
+        document_path="/tmp/run/figure.pnfig.json",
+    )
+    editor._dpi = 120
+    editor._shared_render_plan = None
+    editor._figure_render_adapter = FigureRenderAdapter()
+    editor._selected_figure_object_id = "pattern-grid"
+
+    assert editor._build_generated_figure_document() is figure
+    assert editor._figure_render_adapter.artists_for_object_id("pattern-grid") == [
+        image_artist
+    ]
+
+
+def test_legacy_editor_rebuilds_native_image_grid_from_numeric_csv(tmp_path):
+    from polynexus.gui.figure_render_adapter import FigureRenderAdapter
+    from polynexus.gui.widgets.chart_editor_generated_document_mixin import (
+        ChartEditorGeneratedDocumentMixin,
+    )
+
+    csv_path = tmp_path / "image-grid.csv"
+    csv_path.write_text(
+        "grid_column,grid_row,pixel_x,pixel_y,intensity,strain_pct\n"
+        "0,0,0,0,1,0\n"
+        "0,0,1,0,2,0\n"
+        "0,0,0,1,3,0\n"
+        "0,0,1,1,4,0\n"
+        "1,0,0,0,5,50\n"
+        "1,0,1,0,6,50\n"
+        "1,0,0,1,7,50\n"
+        "1,0,1,1,8,50\n",
+        encoding="utf-8",
+    )
+    object_payload = {
+        "id": "pattern-grid",
+        "type": "image_grid",
+        "data_ref": "grid-data",
+        "grid_column": "grid_column",
+        "grid_row": "grid_row",
+        "x_column": "pixel_x",
+        "y_column": "pixel_y",
+        "z_column": "intensity",
+        "label_column": "strain_pct",
+        "style": {"cmap": "viridis", "origin": "lower"},
+    }
+    editor = object.__new__(ChartEditorGeneratedDocumentMixin)
+    editor._source_path = str(tmp_path / "figure.png")
+    editor._figure_document = {
+        "mode": "object",
+        "style": {},
+        "data_sources": [
+            {"id": "grid-data", "kind": "csv", "path": csv_path.name}
+        ],
+    }
+    editor._generated_figure_objects = lambda: [object_payload]
+    editor._figure_render_adapter = FigureRenderAdapter()
+    editor._selected_figure_object_id = ""
+
+    assert editor._has_generated_image_grid_object() is True
+    records = editor._load_image_grid_records(object_payload, {})
+
+    assert [(item["grid_col"], item["grid_row"]) for item in records] == [
+        (0, 0),
+        (1, 0),
+    ]
+    assert [item["image"].tolist() for item in records] == [
+        [[1.0, 2.0], [3.0, 4.0]],
+        [[5.0, 6.0], [7.0, 8.0]],
+    ]
+
+    editor._fig_size = (4.0, 2.0)
+    editor._dpi = 100
+    editor._bg_color = "#FFFFFF"
+    editor._title_size = 8
+    editor._tick_size = 6
+    editor._title_edit = SimpleNamespace(text=lambda: "WAXS strain patterns")
+    figure = editor._build_generated_image_grid_figure({})
+
+    assert figure is not None
+    assert len(figure.axes) == 2
+    assert len(editor._figure_render_adapter.artists_for_object_id("pattern-grid")) == 6

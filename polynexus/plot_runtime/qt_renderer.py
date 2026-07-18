@@ -113,13 +113,24 @@ class QtSceneRenderer:
             item.setPen(self._pen(node.style_map))
             item.setData(0, node.node_id)
             return item
-        if node.node_type == "heatmap":
+        if node.node_type in {"heatmap", "image_grid"}:
             group = QGraphicsItemGroup()
             group.setData(0, node.node_id)
-            color = QColor(str(node.style_map.get("color", "#6699cc")))
+            style = node.style_map
+            values = [float(cell.value) for cell in node.rectangles]
+            minimum = min(values) if values else 0.0
+            maximum = max(values) if values else 1.0
+            span = maximum - minimum or 1.0
             for cell in node.rectangles:
                 rect = cell.rect
                 item = QGraphicsRectItem(QRectF(rect.left, rect.top, rect.width, rect.height))
+                if node.node_type == "image_grid":
+                    normalized = max(0.0, min(1.0, (float(cell.value) - minimum) / span))
+                    # QColor's HSV path is renderer-neutral enough for the
+                    # preview while preserving each frame's intensity field.
+                    color = QColor.fromHsvF((1.0 - normalized) * 0.66, 0.85, 0.95)
+                else:
+                    color = QColor(str(style.get("color", "#6699cc")))
                 item.setPen(QPen(color, 0.5))
                 item.setBrush(QBrush(color))
                 group.addToGroup(item)

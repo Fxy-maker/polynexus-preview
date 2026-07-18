@@ -113,6 +113,49 @@ def test_saxs_engine_exposes_temperature_figure_definitions(
     assert "saxs.series.temperature.heatmap" in {item.figure_id for item in definitions}
 
 
+def test_saxs_completed_temperature_series_keeps_summary_fallback_when_evolution_gate_fails():
+    """Partial evidence must not collapse the gallery to waterfall/evidence only."""
+
+    engine = SAXSEngine(config=SAXSConfig(experiment_type="temperature"))
+    q_values = [np.asarray([0.1, 0.2, 0.3]), np.asarray([0.1, 0.2, 0.3])]
+    intensities = [np.asarray([10.0, 5.0, 2.0]), np.asarray([9.0, 4.0, 1.5])]
+    engine._temperature_result = TempSeriesResult(
+        temperatures=np.asarray([30.0, 60.0]),
+        L_array=np.asarray([12.0, 11.5]),
+        lc_array=np.asarray([4.0, 3.8]),
+        lc_effective_array=np.asarray([4.1, 3.9]),
+        Q_star_array=np.asarray([100.0, 90.0]),
+        Xc_array=np.asarray([0.4, 0.42]),
+    )
+    engine._q_list = q_values
+    engine._I_list = intensities
+    engine._conditions = [30.0, 60.0]
+    engine._batch_params = [{"file": "frame-30.edf"}, {"file": "frame-60.edf"}]
+    engine._batch_results = [
+        SimpleNamespace(
+            label="frame-30",
+            condition_value=30.0,
+            q=q_values[0],
+            I=intensities[0],
+            final_parameters={},
+        ),
+        SimpleNamespace(
+            label="frame-60",
+            condition_value=60.0,
+            q=q_values[1],
+            I=intensities[1],
+            final_parameters={},
+        ),
+    ]
+    engine._results = [object(), object()]
+
+    definitions = engine.build_figure_definitions()
+    figure_ids = {item.figure_id for item in definitions}
+
+    assert "saxs.series.temperature.parameters" in figure_ids
+    assert "saxs.series.temperature.heatmap" in figure_ids
+
+
 def _saxs_provider_state(**overrides):
     state = {
         "_analysis": None,

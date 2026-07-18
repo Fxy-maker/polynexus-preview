@@ -75,12 +75,15 @@ class PanelDefinition:
     y_axis: AxisDefinition
     title: str = ""
     show_legend: bool = False
+    row_span: int = 1
+    column_span: int = 1
     panel_label: str = ""
 
     def to_payload(self) -> dict[str, Any]:
         return {
             "panel_id": self.panel_id,
             "grid_position": {"row": self.row, "column": self.column},
+            "grid_span": {"rows": self.row_span, "columns": self.column_span},
             "x_axis": self.x_axis.to_payload(),
             "y_axis": self.y_axis.to_payload(),
             "title": self.title,
@@ -129,6 +132,7 @@ class FigureDefinition:
     recipe: Mapping[str, Any]
     style_profile: str
     publication_role: str = "si"
+    display_order: int = 0
 
     def with_objects(
         self,
@@ -146,6 +150,7 @@ class FigureDefinition:
             "scope": self.scope,
             "category": self.category,
             "publication_role": self.publication_role,
+            "display_order": self.display_order,
             "title": self.title,
             "layout": self.layout.to_payload(),
             "data_sources": [source.to_payload() for source in self.data_sources],

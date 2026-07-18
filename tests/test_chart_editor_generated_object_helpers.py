@@ -105,3 +105,19 @@ def test_generated_object_xy_and_columns_use_inline_data_before_source_columns()
         data_sources,
         "x_column",
     ) == [10, 20]
+
+
+def test_generated_object_capabilities_treat_native_image_grid_as_select_only() -> None:
+    capabilities = generated_object_capabilities(
+        {"type": "image_grid"},
+        selected_plot_series_point_geometry=True,
+    )
+
+    assert capabilities["renameable"] is True
+    assert capabilities["style"] is False
+    assert capabilities["deletable"] is True
+    assert capabilities["reorderable"] is False
+    assert capabilities["geometry"] is False
+    assert capabilities["line_style"] is False
+    assert capabilities["marker"] is False
+    assert capabilities["marker_size"] is False

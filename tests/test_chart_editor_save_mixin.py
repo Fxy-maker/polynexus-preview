@@ -3,12 +3,40 @@ from __future__ import annotations
 import importlib
 import importlib.util
 from copy import deepcopy
+from pathlib import Path
 
 from polynexus.core.figure_document import load_figure_document
 from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.figures.project_service import FigureProjectService
 from polynexus.gui.plot_gallery_service import build_active_manifest_gallery_entries
 from polynexus.gui.widgets.chart_editor import ChartEditor
+from polynexus.gui.widgets.chart_editor_save_mixin import ChartEditorSaveMixin
+
+
+class _BundleStatusStub:
+    def __init__(self):
+        self.text = ""
+
+    def setText(self, value):
+        self.text = str(value)
+
+
+class _BundleSessionStub:
+    def __init__(self):
+        self.saved = False
+
+    def mark_saved(self):
+        self.saved = True
+
+
+class _BundleHarness(ChartEditorSaveMixin):
+    def __init__(self):
+        self._editor_dirty = True
+        self._status_label = _BundleStatusStub()
+        self._edit_session = _BundleSessionStub()
+
+    def _set_editor_dirty(self, dirty):
+        self._editor_dirty = bool(dirty)
 
 
 class _SignalRecorder:
@@ -256,3 +284,43 @@ def test_manifest_publish_refreshes_complete_publication_without_new_working_sav
     assert window._source_path == refreshed.preview_path
     assert window._figure_document["export"]["published_revision"] == 2
     assert window.figure_saved.values == [refreshed.preview_path]
+
+
+def test_chart_editor_save_mixin_bundle_success_marks_session_saved(tmp_path):
+    harness = _BundleHarness()
+
+    result = harness._save_edit_bundle(
+        tmp_path / "edited.png",
+        {"version": 1, "objects": []},
+        b"image",
+        {"font": "Small"},
+        [],
+    )
+
+    assert result is not None and result.ok is True
+    assert harness._edit_session.saved is True
+    assert harness._editor_dirty is True
+
+
+def test_chart_editor_save_mixin_bundle_failure_keeps_dirty_and_reports_status(
+    tmp_path, monkeypatch
+):
+    harness = _BundleHarness()
+    target = tmp_path / "edited.png"
+    target.write_bytes(b"old")
+    monkeypatch.setattr(
+        Path,
+        "replace",
+        lambda *_: (_ for _ in ()).throw(OSError("disk full")),
+    )
+
+    result = harness._save_edit_bundle(
+        target,
+        {"version": 1, "objects": []},
+        b"new",
+    )
+
+    assert result is None
+    assert harness._editor_dirty is True
+    assert "Save failed" in harness._status_label.text
+    assert harness._edit_session.saved is False

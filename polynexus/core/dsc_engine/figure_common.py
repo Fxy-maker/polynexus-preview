@@ -22,6 +22,7 @@ class DSCScanView:
     parameters: Mapping[str, Any]
     quality_score: float
     quality_flags: tuple[str, ...]
+    direction: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "temperature_C", tuple(float(value) for value in self.temperature_C))
@@ -29,6 +30,10 @@ class DSCScanView:
         object.__setattr__(self, "parameters", _freeze_value(self.parameters))
         object.__setattr__(self, "quality_flags", tuple(str(flag) for flag in self.quality_flags))
         object.__setattr__(self, "quality_score", float(self.quality_score))
+        direction = str(self.direction or "").strip().lower()
+        if direction not in {"heating", "cooling", "isothermal"}:
+            direction = ""
+        object.__setattr__(self, "direction", direction)
 
 
 def _finite_float(value: Any, default: float = np.nan) -> float:
@@ -80,6 +85,11 @@ def scan_views_from_engine(engine: Any) -> tuple[DSCScanView, ...]:
                 parameters=_result_parameters(result),
                 quality_score=_finite_float(getattr(result, "quality_score", np.nan)),
                 quality_flags=tuple(getattr(result, "quality_flags", ()) or ()),
+                direction=str(
+                    getattr(result, "technique", "")
+                    or getattr(result, "direction", "")
+                    or ""
+                ),
             )
         )
     return tuple(views)

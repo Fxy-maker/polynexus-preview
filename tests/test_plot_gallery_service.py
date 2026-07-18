@@ -120,7 +120,7 @@ def test_select_plot_figure_path_uses_first_available_for_initial_selection(tmp_
 
     assert selection.selected_path == str(first)
     assert selection.matched_preferred is False
-    assert selection.emit_preview is True
+    assert selection.emit_preview is False
 
 
 def test_build_plot_gallery_entries_groups_sibling_exports_into_one_object_entry(tmp_path):

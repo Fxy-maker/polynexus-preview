@@ -64,6 +64,44 @@ class MainWindowOutputMixin:
             self._results_summary_label.setText(summary)
             self._results_summary_label.setVisible(bool(summary))
         self._update_results_review_panel()
+        self._update_results_review_hint(summary, risk, next_step)
+
+    def _update_results_review_hint(self, summary, risk_text="", next_text=""):
+        panel = getattr(self, "_results_panel", None)
+        if panel is None:
+            return
+
+        summary_text = str(summary or "")
+        risk_text_value = str(risk_text or "")
+        next_text_value = str(next_text or "")
+
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        submodule_id = str(getattr(self, "_current_submodule_id", "") or "").strip().lower()
+        if (
+            technique != "saxs"
+            or submodule_id not in {"temperature", "saxs.temperature"}
+            or not any((summary_text, risk_text_value, next_text_value))
+        ):
+            panel.clear_review_hint()
+            return
+
+        def jump_to_results_tab() -> None:
+            jump_to_tab = getattr(self, "_jump_to_tab", None)
+            if callable(jump_to_tab):
+                jump_to_tab(2)
+                return
+            tabs = getattr(self, "_tabs", None)
+            if tabs is not None and hasattr(tabs, "setCurrentIndex"):
+                tabs.setCurrentIndex(2)
+
+        panel.set_review_hint(
+            title=summary_text or tr("SAXS_RESULTS_REVIEW_HINT_TITLE"),
+            detail=risk_text_value,
+            next_text=next_text_value,
+            status="review" if risk_text_value else "neutral",
+            action_text=tr("SAXS_RESULTS_REVIEW_HINT_ACTION"),
+            action=jump_to_results_tab,
+        )
 
     def _reset_results_panel_for_legacy_table(self):
         panel = getattr(self, "_results_panel", None)
@@ -392,6 +430,18 @@ class MainWindowOutputMixin:
         copied_sections = copy_export_bundle_sections(self._output_dir, bundle_dirs)
         for sub in copied_sections:
             self.log(tr("LOG_COPIED").format(sub))
+
+        if str(getattr(self, "_current_technique", "") or "").strip().lower() == "saxs":
+            saxs_engine = getattr(self, "_engine_cache", {}).get("saxs")
+            export_bundle = getattr(saxs_engine, "export_bundle", None)
+            if callable(export_bundle):
+                try:
+                    saxs_bundle = export_bundle(os.path.join(save_root, "saxs_bundle"))
+                    self.log(
+                        f"SAXS bundle export: {getattr(saxs_bundle, 'status', 'unknown')}"
+                    )
+                except Exception as exc:
+                    self.log(f"SAXS bundle export skipped: {exc}")
 
         report_path = ""
         try:

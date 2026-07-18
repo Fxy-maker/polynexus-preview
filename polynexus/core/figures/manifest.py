@@ -23,9 +23,20 @@ class FigureManifestEntry:
     working_revision: int
     published_revision: int
     error: str
+    publication_role: str = "si"
+    display_order: int = 0
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> FigureManifestEntry:
+        capability_report = dict(payload.get("capability_report", {}))
+        raw_display_order = payload.get("display_order", 0)
+        try:
+            display_order = int(raw_display_order or 0)
+        except (TypeError, ValueError):
+            display_order = 0
+        raw_role = payload.get("publication_role")
+        if not str(raw_role or "").strip():
+            raw_role = _legacy_publication_role(payload.get("category"))
         return cls(
             figure_id=str(payload.get("figure_id") or ""),
             title=str(payload.get("title") or ""),
@@ -37,10 +48,12 @@ class FigureManifestEntry:
                 str(role): str(path)
                 for role, path in dict(payload.get("assets", {})).items()
             },
-            capability_report=dict(payload.get("capability_report", {})),
+            capability_report=capability_report,
             working_revision=int(payload.get("working_revision", 0) or 0),
             published_revision=int(payload.get("published_revision", 0) or 0),
             error=str(payload.get("error") or ""),
+            publication_role=str(raw_role),
+            display_order=display_order,
         )
 
     def to_payload(self) -> dict[str, Any]:
@@ -56,7 +69,19 @@ class FigureManifestEntry:
             "working_revision": self.working_revision,
             "published_revision": self.published_revision,
             "error": self.error,
+            "publication_role": self.publication_role,
+            "display_order": self.display_order,
         }
+
+
+def _legacy_publication_role(category: object) -> str:
+    """Map pre-role manifests to the safest publication role."""
+    normalized = str(category or "").strip().lower()
+    if normalized == "series_overview":
+        return "main"
+    if normalized in {"diagnostic", "per_frame"}:
+        return "diagnostic"
+    return "si"
 
 
 @dataclass(frozen=True)

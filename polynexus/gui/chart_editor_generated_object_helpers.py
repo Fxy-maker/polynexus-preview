@@ -14,7 +14,7 @@ def generated_object_capabilities(
 ) -> dict[str, bool]:
     object_type = str(figure_object.get("type", "") or "")
     chart_kind = str(figure_object.get("chart_kind", "") or "")
-    is_image_grid = chart_kind == "image_grid"
+    is_image_grid = object_type == "image_grid" or chart_kind == "image_grid"
     is_legend = object_type == "legend"
     is_line = object_type == "line"
     return {
@@ -22,7 +22,9 @@ def generated_object_capabilities(
         "style": not is_legend and not is_image_grid,
         "deletable": not is_legend,
         "reorderable": not is_legend and not is_image_grid,
-        "geometry": is_line or is_legend or selected_plot_series_point_geometry,
+        "geometry": is_line
+        or is_legend
+        or (object_type == "plot_series" and selected_plot_series_point_geometry),
         "line_style": object_type in {"line", "plot_series"}
         and chart_kind not in {"heatmap", "bar", "barh", "image_grid", "scatter"},
         "marker": object_type == "plot_series"

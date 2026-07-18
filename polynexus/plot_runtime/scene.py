@@ -40,6 +40,11 @@ class Segment:
 class HeatmapCell:
     rect: Rect
     value: float
+    # Optional native image-grid frame coordinates.  Plain heatmaps retain
+    # the defaults, while image-grid renderers use these to keep frames
+    # separate instead of flattening all pixels into one overlapping map.
+    grid_column: int = 0
+    grid_row: int = 0
 
 
 @dataclass(frozen=True)

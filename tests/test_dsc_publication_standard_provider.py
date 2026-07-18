@@ -147,6 +147,22 @@ def test_scan_views_copy_emitted_result_fields_without_reanalysis() -> None:
     assert views[0].parameters["Tm_peak_C"] == 177.0
 
 
+def test_scan_views_preserve_heating_or_cooling_direction_for_publication() -> None:
+    analysis = SimpleNamespace(
+        label="cooling-run",
+        technique="cooling",
+        T=np.asarray([120.0, 100.0, 80.0, 60.0, 40.0]),
+        HF=np.asarray([0.0, 0.4, 0.8, 0.3, 0.0]),
+        parameters={"Tc_peak_C": 80.0},
+        quality_score=0.9,
+        quality_flags=[],
+    )
+    view = scan_views_from_engine(SimpleNamespace(_results=[analysis]))[0]
+    assert view.direction == "cooling"
+    main = next(item for item in build_standard_dsc_figure_definitions(SimpleNamespace(_results=[analysis])) if item.publication_role == "main")
+    assert main.recipe["parameters"]["scan_direction"] == "cooling"
+
+
 def test_scan_views_preserve_temperature_heat_flow_positions() -> None:
     analysis = SimpleNamespace(
         label="gapped",
@@ -185,3 +201,12 @@ def test_misaligned_temperature_and_heat_flow_are_diagnostic() -> None:
         quality_flags=(),
     )
     assert classify_dsc_scan_eligibility(view).highest_role == "diagnostic"
+
+
+def test_no_main_standard_pack_records_publication_fallback_reason() -> None:
+    view = _view(quality_flags=("baseline_unstable",))
+    definitions = build_standard_dsc_figure_definitions(_engine_with_results(view))
+    diagnostic = next(item for item in definitions if item.publication_role == "diagnostic")
+    parameters = diagnostic.recipe["parameters"]
+    assert parameters["no_publication_ready_figure"] is True
+    assert parameters["reason"] == "no_reliable_main"

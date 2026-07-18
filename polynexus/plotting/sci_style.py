@@ -495,6 +495,8 @@ AXIS_LABELS: Dict[str, str] = {
     "b_lattice":    r"$b$ (nm)",
     "c_lattice":    r"$c$ (nm)",
     "FWHM":         r"FWHM ($^\circ$)",
+    "detector_x":   r"Detector $x$ (pixel)",
+    "detector_y":   r"Detector $y$ (pixel)",
 
     # NMR
     "ppm":          r"Chemical shift $\delta$ (ppm)",

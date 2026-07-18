@@ -206,6 +206,7 @@ class SAXSConfig:
 
     # ---- Smoothing ----
     smooth_method: str = "savgol"  # Best for preserving lamellar peak shape
+    baseline_method: str = "normalize"  # panel provenance; algorithm mapping remains explicit
     smooth_span: int = 5
     savgol_window: int = 7
     savgol_order: int = 2

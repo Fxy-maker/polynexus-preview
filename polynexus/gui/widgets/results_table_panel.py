@@ -16,21 +16,17 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-from ..i18n import tr
+from ..i18n import tr, tr_for_language
 from ..result_table_models import HeroMetric, ResultTableSection, TableColumn, TableScalar
-from ..styles import C_BG_CARD, C_BORDER, C_DANGER, C_SUCCESS, C_TEXT_PRIMARY, C_WARNING
+from ..theme import ThemeEngine
 
 _RAW_ROLE = Qt.UserRole
 _STATUS_ROLE = int(Qt.UserRole) + 1
-_STATUS_COLORS = {
-    "reliable": C_SUCCESS,
-    "review": C_WARNING,
-    "blocked": C_DANGER,
-}
 _STATUS_TEXT_KEYS = {
     "reliable": "RESULTS_STATUS_RELIABLE",
     "review": "RESULTS_STATUS_REVIEW",
@@ -49,6 +45,13 @@ def _status_text(status: str) -> str:
         return ""
     key = _STATUS_TEXT_KEYS.get(normalized)
     return tr(key) if key is not None else status.replace("_", " ")
+
+
+def _review_hint_status_text(status: str) -> str:
+    normalized = status.casefold()
+    if normalized in _STATUS_TEXT_KEYS:
+        return _status_text(normalized)
+    return normalized.replace("_", " ").title()
 
 
 def _hero_text(label: str, display: str, unit: str, status: str) -> str:
@@ -121,6 +124,7 @@ class ResultsTablePanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("results_table_panel")
+        self._theme_engine = ThemeEngine.instance()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -132,7 +136,7 @@ class ResultsTablePanel(QWidget):
         self._metrics_layout.setContentsMargins(0, 0, 0, 0)
         self._metrics_layout.setHorizontalSpacing(8)
         self._metrics_layout.setVerticalSpacing(8)
-        for column in range(3):
+        for column in range(4):
             self._metrics_layout.setColumnStretch(column, 1)
         layout.addWidget(self._metrics_widget)
 
@@ -146,12 +150,54 @@ class ResultsTablePanel(QWidget):
         self.tabs.addTab(self.primary_table, tr("RESULTS_TAB_KEY"))
         self.tabs.addTab(self.detail_table, tr("RESULTS_TAB_DETAIL"))
         self.tabs.addTab(self.diagnostic_table, tr("RESULTS_TAB_DIAGNOSTICS"))
+
+        self.review_hint_widget = QWidget(self)
+        self.review_hint_widget.setObjectName("results_review_hint")
+        review_hint_layout = QHBoxLayout(self.review_hint_widget)
+        review_hint_layout.setContentsMargins(12, 8, 12, 8)
+        review_hint_layout.setSpacing(8)
+
+        self._review_hint_status_dot = QLabel("●", self.review_hint_widget)
+        self._review_hint_status_dot.setObjectName("results_review_hint_status_dot")
+        self._review_hint_status_dot.setFixedWidth(12)
+        review_hint_layout.addWidget(self._review_hint_status_dot)
+
+        self.review_hint_status = QLabel(self.review_hint_widget)
+        self.review_hint_status.setObjectName("results_review_hint_status")
+        review_hint_layout.addWidget(self.review_hint_status)
+
+        self.review_hint_title = QLabel(self.review_hint_widget)
+        self.review_hint_title.setObjectName("results_review_hint_title")
+        review_hint_layout.addWidget(self.review_hint_title)
+
+        self.review_hint_detail = QLabel(self.review_hint_widget)
+        self.review_hint_detail.setObjectName("results_review_hint_detail")
+        self.review_hint_detail.setWordWrap(True)
+        review_hint_layout.addWidget(self.review_hint_detail, 1)
+
+        self.review_hint_next = QLabel(self.review_hint_widget)
+        self.review_hint_next.setObjectName("results_review_hint_next")
+        self.review_hint_next.setWordWrap(True)
+        review_hint_layout.addWidget(self.review_hint_next, 1)
+
+        self.review_hint_action = QPushButton(self.review_hint_widget)
+        self.review_hint_action.setObjectName("results_review_hint_action")
+        self.review_hint_action.clicked.connect(self._invoke_review_hint_action)
+        self.review_hint_action.hide()
+        self.review_hint_action.setEnabled(False)
+        review_hint_layout.addWidget(self.review_hint_action)
+
+        self._review_hint_action = None
+        self._review_hint_action_text_key = None
+        self.review_hint_widget.setVisible(False)
+        layout.insertWidget(1, self.review_hint_widget)
         layout.addWidget(self.tabs, 1)
 
         self._metrics_widget.setVisible(False)
         self.tabs.setTabVisible(0, True)
         self.tabs.setTabVisible(1, False)
         self.tabs.setTabVisible(2, False)
+        self._theme_engine.theme_changed.connect(self._refresh_visual_theme)
 
     def retranslate(self) -> None:
         """Refresh localized captions and visible status indicators."""
@@ -167,6 +213,7 @@ class ResultsTablePanel(QWidget):
                     str(label.property("metricStatus")),
                 )
             )
+            label.setAccessibleName(label.text())
         for table in (self.primary_table, self.detail_table, self.diagnostic_table):
             for label in table.findChildren(QLabel):
                 status = label.property("resultStatus")
@@ -174,6 +221,131 @@ class ResultsTablePanel(QWidget):
                     text = _status_text(str(status))
                     label.setText(text)
                     label.setAccessibleName(text)
+        status = self.review_hint_widget.property("reviewStatus")
+        if status is not None:
+            self.review_hint_status.setText(_review_hint_status_text(str(status)))
+        if self._review_hint_action_text_key is not None:
+            self.review_hint_action.setText(tr(self._review_hint_action_text_key))
+        self._refresh_review_hint_style()
+
+    def _refresh_visual_theme(self, _theme_name: str = "") -> None:
+        """Reapply the small amount of widget-local styling owned by this panel."""
+        tokens = self._theme_engine.tokens
+        for label in self.hero_labels:
+            if label.parent() is not None:
+                _apply_hero_style(label, tokens)
+        for table in (self.primary_table, self.detail_table, self.diagnostic_table):
+            for row in range(table.rowCount()):
+                for column in range(table.columnCount()):
+                    item = table.item(row, column)
+                    if item is not None:
+                        item.setForeground(QColor(tokens.text_primary))
+            for label in table.findChildren(QLabel):
+                status = label.property("resultStatus")
+                if status is not None:
+                    _apply_status_badge_style(label, str(status), tokens)
+                    container = label.parentWidget()
+                    if container is not None:
+                        display_label = container.findChild(QLabel, "result_cell_display")
+                        if display_label is not None:
+                            display_label.setStyleSheet(
+                                f"color: {tokens.text_primary}; background: transparent; "
+                                "border: none;"
+                            )
+        self._refresh_review_hint_style()
+
+    def _refresh_review_hint_style(self) -> None:
+        tokens = self._theme_engine.tokens
+        status = str(self.review_hint_widget.property("reviewStatus") or "neutral")
+        color, border = _status_colors(status, tokens)
+        self.review_hint_widget.setStyleSheet(
+            f"background: {tokens.bg_card}; border: 1px solid {border}; "
+            f"border-radius: {tokens.radius_md}px;"
+        )
+        self._review_hint_status_dot.setStyleSheet(
+            f"color: {color}; background: transparent; border: none;"
+        )
+        self.review_hint_status.setStyleSheet(
+            f"color: {color}; background: transparent; border: none; font-weight: 600;"
+        )
+        self.review_hint_title.setStyleSheet(
+            f"color: {tokens.text_primary}; background: transparent; border: none; "
+            "font-weight: 600;"
+        )
+        self.review_hint_detail.setStyleSheet(
+            f"color: {tokens.text_secondary}; background: transparent; border: none;"
+        )
+        self.review_hint_next.setStyleSheet(
+            f"color: {tokens.text_muted}; background: transparent; border: none;"
+        )
+        self.review_hint_action.setStyleSheet(
+            f"QPushButton {{ background: {tokens.accent_saxs}; color: {tokens.text_on_accent}; "
+            f"border: 1px solid {tokens.accent_saxs}; border-radius: {tokens.radius_sm}px; "
+            f"padding: {tokens.spacing_xs}px {tokens.spacing_md}px; }} "
+            f"QPushButton:hover {{ background: {tokens.bg_hover}; color: {tokens.text_primary}; "
+            f"border-color: {tokens.border_focus}; }}"
+        )
+
+    def set_review_hint(
+        self,
+        *,
+        title: str,
+        detail: str = "",
+        next_text: str = "",
+        status: str = "neutral",
+        action_text: str = "",
+        action=None,
+    ) -> None:
+        """Show a compact, actionable review hint above the result tabs."""
+        title_text = str(title or "")
+        detail_text = str(detail or "")
+        next_text_value = str(next_text or "")
+        status_value = str(status or "neutral").strip().casefold() or "neutral"
+        action_text_value = str(action_text or "")
+        self.review_hint_widget.setProperty("reviewStatus", status_value)
+        self.review_hint_status.setText(_review_hint_status_text(status_value))
+        self.review_hint_title.setText(title_text)
+        self.review_hint_detail.setText(detail_text)
+        self.review_hint_next.setText(next_text_value)
+        self.review_hint_action.setText(action_text_value)
+        self.review_hint_status.setVisible(bool(self.review_hint_status.text()))
+        self.review_hint_title.setVisible(bool(title_text))
+        self.review_hint_detail.setVisible(bool(detail_text))
+        self.review_hint_next.setVisible(bool(next_text_value))
+        self._review_hint_action = action if callable(action) else None
+        self._review_hint_action_text_key = None
+        if self._review_hint_action is not None:
+            action_key = "SAXS_RESULTS_REVIEW_HINT_ACTION"
+            if action_text_value in {
+                tr_for_language(action_key, "zh"),
+                tr_for_language(action_key, "en"),
+            }:
+                self._review_hint_action_text_key = action_key
+        has_action = bool(action_text_value and self._review_hint_action is not None)
+        self.review_hint_action.setVisible(has_action)
+        self.review_hint_action.setEnabled(has_action)
+        self._refresh_review_hint_style()
+        self.review_hint_widget.setVisible(bool(title_text or detail_text or next_text_value))
+
+    def clear_review_hint(self) -> None:
+        """Hide the review hint and release any previously supplied callback."""
+        self._review_hint_action = None
+        self._review_hint_action_text_key = None
+        self.review_hint_widget.setProperty("reviewStatus", None)
+        self.review_hint_widget.setVisible(False)
+        self.review_hint_status.setText("")
+        self.review_hint_title.setText("")
+        self.review_hint_detail.setText("")
+        self.review_hint_next.setText("")
+        self.review_hint_action.setText("")
+        self.review_hint_action.setVisible(False)
+        self.review_hint_action.setEnabled(False)
+        self._refresh_review_hint_style()
+
+    def _invoke_review_hint_action(self) -> None:
+        action = self._review_hint_action
+        if action is not None:
+            action()
 
     @staticmethod
     def _create_table(object_name: str) -> QTableWidget:
@@ -189,7 +361,7 @@ class ResultsTablePanel(QWidget):
         table.verticalHeader().setVisible(False)
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Interactive)
-        header.setStretchLastSection(False)
+        header.setStretchLastSection(True)
         header.setMinimumSectionSize(80)
         return table
 
@@ -220,7 +392,12 @@ class ResultsTablePanel(QWidget):
                 widget.deleteLater()
         self.hero_labels.clear()
 
-        for index, metric in enumerate(heroes[:6]):
+        visible_heroes = heroes[:6]
+        columns = 4 if len(visible_heroes) <= 4 else 3
+        for column in range(4):
+            self._metrics_layout.setColumnStretch(column, 1 if column < columns else 0)
+
+        for index, metric in enumerate(visible_heroes):
             label = QLabel(
                 _hero_text(metric.label, metric.display, metric.unit, metric.status),
                 self._metrics_widget,
@@ -231,19 +408,17 @@ class ResultsTablePanel(QWidget):
             label.setProperty("metricUnit", metric.unit)
             label.setProperty("metricStatus", metric.status)
             label.setToolTip(_tooltip_text(metric.tooltip, metric.provenance))
+            label.setAccessibleName(label.text())
+            label.setAccessibleDescription(label.toolTip())
             label.setWordWrap(True)
-            label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet(
-                f"background: {C_BG_CARD}; border: 1px solid {C_BORDER}; "
-                f"border-radius: 4px; color: {C_TEXT_PRIMARY}; padding: 8px;"
-            )
-            self._metrics_layout.addWidget(label, index // 3, index % 3)
+            label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            _apply_hero_style(label, self._theme_engine.tokens)
+            self._metrics_layout.addWidget(label, index // columns, index % columns)
             self.hero_labels.append(label)
 
         self._metrics_widget.setVisible(bool(self.hero_labels))
 
-    @staticmethod
-    def _populate_table(table: QTableWidget, section: ResultTableSection) -> None:
+    def _populate_table(self, table: QTableWidget, section: ResultTableSection) -> None:
         sorting_enabled = table.isSortingEnabled()
         table.setSortingEnabled(False)
         try:
@@ -261,9 +436,7 @@ class ResultsTablePanel(QWidget):
                         tooltip=_tooltip_text(cell.tooltip, cell.provenance),
                     )
                     item.setTextAlignment(_alignment_for(column))
-                    color = _STATUS_COLORS.get(cell.status.casefold())
-                    if color is not None:
-                        item.setForeground(QColor(color))
+                    item.setForeground(QColor(self._theme_engine.tokens.text_primary))
                     table.setItem(row_index, column_index, item)
                     if _status_text(cell.status):
                         table.setCellWidget(
@@ -280,8 +453,38 @@ class ResultsTablePanel(QWidget):
             for column_index in range(table.columnCount()):
                 width = min(max(table.columnWidth(column_index) + 12, 96), 420)
                 table.setColumnWidth(column_index, width)
+            table.horizontalHeader().setStretchLastSection(True)
         finally:
             table.setSortingEnabled(sorting_enabled)
+
+
+def _apply_hero_style(label: QLabel, tokens: Any) -> None:
+    label.setMinimumHeight(72)
+    label.setStyleSheet(
+        f"background: {tokens.bg_card}; border: 1px solid {tokens.border_light}; "
+        "border-radius: 10px; "
+        f"color: {tokens.text_primary}; padding: {tokens.spacing_sm}px {tokens.spacing_md}px;"
+    )
+
+
+def _status_colors(status: str, tokens: Any) -> tuple[str, str]:
+    normalized = status.casefold()
+    color = {
+        "reliable": tokens.success,
+        "review": tokens.warning,
+        "blocked": tokens.danger,
+    }.get(normalized, tokens.text_muted)
+    border = color if normalized in {"reliable", "review", "blocked"} else tokens.border_light
+    return color, border
+
+
+def _apply_status_badge_style(label: QLabel, status: str, tokens: Any) -> None:
+    color, border = _status_colors(status, tokens)
+    label.setStyleSheet(
+        f"color: {color}; background: {tokens.bg_surface}; "
+        f"border: 1px solid {border}; border-radius: 10px; "
+        "padding: 1px 6px; font-weight: 600;"
+    )
 
 
 def _alignment_for(column: TableColumn) -> Qt.AlignmentFlag:
@@ -311,6 +514,10 @@ def _status_cell_widget(
     display_label.setObjectName("result_cell_display")
     display_label.setToolTip(tooltip)
     display_label.setAlignment(_alignment_for(column))
+    display_label.setStyleSheet(
+        f"color: {ThemeEngine.instance().tokens.text_primary}; "
+        "background: transparent; border: none;"
+    )
     layout.addWidget(display_label, 1)
 
     normalized = status.casefold()
@@ -320,7 +527,6 @@ def _status_cell_widget(
     status_label.setProperty("resultStatus", status)
     status_label.setAccessibleName(text)
     status_label.setToolTip(tooltip)
-    color = _STATUS_COLORS.get(normalized, C_TEXT_PRIMARY)
-    status_label.setStyleSheet(f"color: {color}; font-weight: 600;")
+    _apply_status_badge_style(status_label, status, ThemeEngine.instance().tokens)
     layout.addWidget(status_label)
     return container

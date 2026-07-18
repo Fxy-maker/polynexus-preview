@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from polynexus.core.figure_assets import read_figure_asset_dimensions
 from polynexus.core.saxs import SAXSEngine
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.figures.contracts import (
@@ -99,6 +100,26 @@ def test_temperature_plot_publishes_shared_manifest_and_result_metadata(
     assert assets == engine.result.figures
     assert assets[definition.figure_id].endswith(".svg")
     assert json.loads((tmp_path / "active_run.json").read_text("utf-8"))["run_id"]
+
+
+def test_saxs_plot_uses_publication_profile_with_tiff_asset(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    engine = _series_engine("temperature")
+    definition = _saxs_definition(figure_id="saxs.temperature.publication")
+    monkeypatch.setattr(engine, "build_figure_definitions", lambda: (definition,))
+
+    engine.plot(str(tmp_path))
+
+    manifest = json.loads(
+        (tmp_path / "runs" / next((tmp_path / "runs").iterdir()).name / "figure_manifest.json")
+        .read_text("utf-8")
+    )
+    assert manifest["output_profile"] == "saxs_publication"
+    tiff = tmp_path / "runs" / next((tmp_path / "runs").iterdir()).name / manifest["figures"][0]["assets"]["tiff"]
+    assert tiff.name == "figure.tiff"
+    assert read_figure_asset_dimensions(tiff)[2] == 600
 
 
 def test_strain_plot_publishes_shared_manifest_and_result_metadata(

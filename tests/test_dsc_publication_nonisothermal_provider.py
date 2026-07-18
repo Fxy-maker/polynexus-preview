@@ -33,3 +33,16 @@ def test_conversion_curves_are_main_and_unqualified_kinetics_are_not() -> None:
 def test_qualified_kinetics_creates_one_second_main_candidate() -> None:
     definitions = build_nonisothermal_dsc_figure_definitions(_engine(kissinger_r2=0.96))
     assert next(item for item in definitions if item.figure_id == "dsc.nonisothermal.kissinger").publication_role == "main"
+
+
+def test_missing_nonisothermal_series_records_publication_fallback_reason() -> None:
+    diagnostic = next(
+        item
+        for item in build_nonisothermal_dsc_figure_definitions(
+            SimpleNamespace(_kinetics_data={})
+        )
+        if item.publication_role == "diagnostic"
+    )
+    parameters = diagnostic.recipe["parameters"]
+    assert parameters["no_publication_ready_figure"] is True
+    assert parameters["reason"] == "missing_non_isothermal_series"

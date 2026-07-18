@@ -33,7 +33,9 @@ class TemperatureV2AdapterResult:
     static_fallback: bool = False
 
 
-_SUPPORTED_OBJECT_TYPES = frozenset({"plot_series", "heatmap", "line", "text"})
+_SUPPORTED_OBJECT_TYPES = frozenset(
+    {"plot_series", "heatmap", "image_grid", "line", "text"}
+)
 
 
 def adapt_figure_definition(
@@ -157,7 +159,17 @@ def _build_document(
         if source_id:
             source = source_map[source_id]
             references: list[ColumnReference] = []
-            for role, key in (("x", "x_column"), ("y", "y_column"), ("z", "z_column"), ("error", "error_column")):
+            role_keys = [
+                ("x", "x_column"),
+                ("y", "y_column"),
+                ("z", "z_column"),
+                ("error", "error_column"),
+            ]
+            if object_type == "image_grid":
+                role_keys.extend(
+                    (("grid_column", "grid_column"), ("grid_row", "grid_row"))
+                )
+            for role, key in role_keys:
                 column_name = str(item.get(key) or "")
                 if not column_name:
                     continue
@@ -172,7 +184,13 @@ def _build_document(
                 DataBinding(
                     binding_id=binding_id,
                     object_id=object_id,
-                    kind="heatmap" if object_type == "heatmap" else "line",
+                    kind=(
+                        "heatmap"
+                        if object_type == "heatmap"
+                        else "image_grid"
+                        if object_type == "image_grid"
+                        else "line"
+                    ),
                     columns=tuple(references),
                     filters=(RowFilter("__v2_source_id", "==", source_id),),
                 )

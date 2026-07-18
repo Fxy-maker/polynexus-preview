@@ -193,3 +193,41 @@ def test_renderer_supports_regular_grid_heatmap(render_plan):
     assert len(figure.axes[0].collections) == 1
     assert len(figure.axes) == 2
     assert figure.axes[1].get_ylabel() == "I(q)"
+
+
+def test_renderer_tags_native_image_grid_artists_with_object_id(render_plan):
+    plan = replace(
+        render_plan,
+        objects=(
+            {
+                "id": "pattern-grid",
+                "type": "image_grid",
+                "panel_id": "main",
+                "data_ref": "grid",
+                "grid_column": "grid_column",
+                "grid_row": "grid_row",
+                "x_column": "pixel_x",
+                "y_column": "pixel_y",
+                "z_column": "intensity",
+                "style": {"cmap": "viridis", "origin": "upper"},
+            },
+        ),
+        data_tables={
+            "grid": {
+                "grid_column": [0, 0, 0, 0, 1, 1, 1, 1],
+                "grid_row": [0, 0, 1, 1, 0, 0, 1, 1],
+                "pixel_x": [0, 1, 0, 1, 0, 1, 0, 1],
+                "pixel_y": [0, 0, 1, 1, 0, 0, 1, 1],
+                "intensity": [1, 2, 3, 4, 5, 6, 7, 8],
+            }
+        },
+    )
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+
+    image_artists = [
+        artist
+        for artist in figure.findobj()
+        if getattr(artist, "get_gid", lambda: None)() == "pn-object:pattern-grid"
+    ]
+    assert len(image_artists) == 8

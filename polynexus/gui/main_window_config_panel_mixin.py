@@ -312,22 +312,16 @@ class MainWindowConfigPanelMixin:
             if config is None:
                 config = panel_values
             else:
-                for key, value in panel_values.items():
-                    if hasattr(config, key):
-                        if key == "crystallinity":
-                            try:
-                                text_value = str(value).strip()
-                                value = float(text_value) if text_value else float("nan")
-                            except (TypeError, ValueError):
-                                value = float("nan")
-                        elif key == "T_melt_expected":
-                            try:
-                                text_value = str(value).strip()
-                                value = float(text_value) if text_value else None
-                            except (TypeError, ValueError):
-                                value = None
+                if self._current_technique == "saxs":
+                    from polynexus.core.saxs_config_binding import (
+                        apply_saxs_config_panel_values,
+                    )
 
-                        setattr(config, key, value)
+                    apply_saxs_config_panel_values(config, panel_values)
+                else:
+                    for key, value in panel_values.items():
+                        if hasattr(config, key):
+                            setattr(config, key, value)
 
         return config
 

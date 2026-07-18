@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from polynexus.core.waxs_engine.figure_strain import build_strain_waxs_figure_definitions
+from polynexus.plotting.sci_style import AXIS_LABELS
 
 
 def _point(index: int, *, orientation: float = 0.4, with_image: bool = False) -> SimpleNamespace:
@@ -62,6 +63,9 @@ def test_reliable_strain_series_creates_1d_evolution_main() -> None:
 def test_valid_2d_patterns_add_editable_grid() -> None:
     main = _definition(build_strain_waxs_figure_definitions(_strain_engine(with_images=True)), "waxs.strain.evolution")
     assert any(item["type"] == "image_grid" for item in main.objects)
+    pattern_panel = main.layout.panels[1]
+    assert pattern_panel.x_axis.label == AXIS_LABELS["detector_x"]
+    assert pattern_panel.y_axis.label == AXIS_LABELS["detector_y"]
 
 
 def test_invalid_orientation_is_not_main_response() -> None:

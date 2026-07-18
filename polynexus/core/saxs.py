@@ -51,6 +51,10 @@ from .saxs_engine import (
     export_temp_series_csv,
 )
 from . import saxs_batch_helpers as _saxs_batch_helpers
+from .saxs_sequence_qa import build_sequence_qa_summary
+from .saxs_result_contract import publish_saxs_result_contract
+from .saxs_export_bundle import SAXSExportBundle, export_saxs_bundle
+from .saxs_engine.processed_profile import ProcessedProfile
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +66,10 @@ def _float_or_none(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if np.isfinite(number) else None
+
+
+def _text_or_empty(value: Any) -> str:
+    return "" if value is None else str(value)
 
 
 @register_technique("saxs")
@@ -173,6 +181,99 @@ class SAXSEngine(BaseEngine):
         self._condition_source_texts: List[str] = []
         self._condition_confidences: List[float] = []
         self._condition_type: str = ""
+        self._processed_profile: Optional[ProcessedProfile] = None
+        self._processed_list: List[ProcessedProfile] = []
+        self._sequence_qa_summary: Dict[str, Any] = {}
+        self._geometry_sources: List[str] = []
+        self._geometry_confidences: List[float] = []
+        self._skipped_files: List[Dict[str, Any]] = []
+
+    @staticmethod
+    def _processed_profile_from_payload(
+        payload: Dict[str, Any],
+        *,
+        source: str,
+        filepath: str | None = None,
+    ) -> ProcessedProfile | None:
+        """Build the stable profile projection while preserving legacy arrays."""
+        q = payload.get("q")
+        raw = payload.get("Iq", payload.get("I"))
+        if q is None or raw is None:
+            return None
+
+        q_array = np.atleast_1d(np.asarray(q, dtype=float))
+        raw_array = np.atleast_1d(np.asarray(raw, dtype=float))
+        diagnostics: Dict[str, Any] = {}
+        if len(q_array) != len(raw_array):
+            diagnostics["length_mismatch"] = {
+                "q": len(q_array),
+                "raw": len(raw_array),
+            }
+        for name in (
+            "Iq_corrected", "Iq_norm", "Iq_smooth",
+            "Iq_merid", "Iq_merid_corrected", "Iq_merid_norm", "Iq_merid_smooth",
+            "Iq_equat", "Iq_equat_corrected", "Iq_equat_norm", "Iq_equat_smooth",
+        ):
+            value = payload.get(name)
+            if value is not None:
+                layer_array = np.asarray(value)
+                layer_length = layer_array.size if layer_array.ndim == 0 else len(layer_array)
+                if layer_length != len(q_array):
+                    diagnostics.setdefault("layer_length_mismatch", {})[name] = layer_length
+
+        return ProcessedProfile(
+            q=q_array,
+            raw=raw_array,
+            corrected=payload.get("Iq_corrected"),
+            normalized=payload.get("Iq_norm"),
+            smoothed=payload.get("Iq_smooth"),
+            meridional_raw=payload.get("Iq_merid"),
+            meridional_corrected=payload.get("Iq_merid_corrected"),
+            meridional_normalized=payload.get("Iq_merid_norm"),
+            meridional_smoothed=payload.get("Iq_merid_smooth"),
+            equatorial_raw=payload.get("Iq_equat"),
+            equatorial_corrected=payload.get("Iq_equat_corrected"),
+            equatorial_normalized=payload.get("Iq_equat_norm"),
+            equatorial_smoothed=payload.get("Iq_equat_smooth"),
+            provenance={"source": source, **({"file": filepath} if filepath else {})},
+            quality_status="WARN" if diagnostics else "OK",
+            diagnostics=diagnostics,
+        )
+
+    def _publish_processed_profile(self, profile: ProcessedProfile | None) -> None:
+        self._processed_profile = profile
+        if profile is not None:
+            self.result.raw_data["processed_profile"] = profile
+            self.result.metadata["processed_profile_provenance"] = dict(profile.provenance)
+
+    @property
+    def processed_profile(self) -> ProcessedProfile | None:
+        return self._processed_profile
+
+    @property
+    def processed_profiles(self) -> tuple[ProcessedProfile, ...]:
+        return tuple(self._processed_list)
+
+    @property
+    def sequence_qa_summary(self) -> Dict[str, Any]:
+        return dict(self._sequence_qa_summary)
+
+    def _validate_results(self) -> bool:
+        """Run generic validation and publish the SAXS result contract."""
+        base_valid = super()._validate_results()
+        publish_saxs_result_contract(self)
+        return bool(base_valid and self.result.validation_passed)
+
+    def run_pipeline(
+        self,
+        filepath: str,
+        output_dir: str = "",
+        skip_to: str | None = None,
+    ) -> Any:
+        """Publish SAXS evidence even when load or preprocessing exits early."""
+        result = super().run_pipeline(filepath, output_dir=output_dir, skip_to=skip_to)
+        publish_saxs_result_contract(self)
+        return result
 
     def _apply_submodule_defaults(self) -> None:
         submodule = getattr(self, "active_submodule", "") or ""
@@ -250,6 +351,8 @@ class SAXSEngine(BaseEngine):
                 self.log("Failed to read EDF file")
                 return False
             self.cfg = extract_geometry_from_header(self._header, self.cfg)
+            self._processed_profile = None
+            self._processed_list = []
             self.log(f"EDF loaded: {self._img.shape}, SDD={self.cfg.sdd_m:.3f}m")
             return True
 
@@ -263,6 +366,8 @@ class SAXSEngine(BaseEngine):
             self._img = None
             self._header = meta
             self.cfg = extract_geometry_from_header(meta, self.cfg)
+            self._processed_profile = None
+            self._processed_list = []
             self.log(f"1D profile loaded: {len(q)} points, q=[{q[0]:.3f}, {q[-1]:.3f}]")
             return True
 
@@ -289,6 +394,12 @@ class SAXSEngine(BaseEngine):
         self._condition_source_keys = []
         self._condition_source_texts = []
         self._condition_confidences = []
+        self._processed_profile = None
+        self._processed_list = []
+        self._sequence_qa_summary = {}
+        self._geometry_sources = []
+        self._geometry_confidences = []
+        self._skipped_files = []
 
         total_loaded = 0
         for cond in conditions:
@@ -300,6 +411,7 @@ class SAXSEngine(BaseEngine):
                     cfg_copy = extract_geometry_from_header(header, self.cfg)
                     if img is None:
                         q, I, _ = read_1d_profile(str(filepath))
+                        pp = {"q": q, "Iq": I, "Iq_smooth": I}
                         I_merid, I_equat = None, None
                     else:
                         pp = preprocess_pipeline(img, cfg_copy)
@@ -312,6 +424,11 @@ class SAXSEngine(BaseEngine):
                     self._I_list.append(I)
                     self._I_merid_list.append(I_merid)
                     self._I_equat_list.append(I_equat)
+                    profile = self._processed_profile_from_payload(
+                        pp, source="directory_load", filepath=str(filepath)
+                    )
+                    if profile is not None:
+                        self._processed_list.append(profile)
                     if img is not None:
                         q_pf, I_pf = _integrate_pyfai_shadow(img, cfg_copy)
                         self._q_pyfai_list.append(q_pf if len(q_pf) > 0 else np.array([]))
@@ -321,19 +438,23 @@ class SAXSEngine(BaseEngine):
                         self._I_pyfai_list.append(np.array([]))
                     self._file_list.append(str(filepath))
                     self._conditions.append(cond.value)
-                    self._condition_keys.append(getattr(cond, "condition_key", None) or cond.value)
+                    condition_key = getattr(cond, "condition_key", None)
+                    self._condition_keys.append(cond.value if condition_key is None else condition_key)
                     metadata = cond.metadata if isinstance(getattr(cond, "metadata", None), dict) else {}
-                    self._condition_sources.append(str(metadata.get("condition_source", "") or ""))
-                    self._condition_source_keys.append(str(metadata.get("condition_source_key", "") or ""))
-                    self._condition_source_texts.append(str(metadata.get("condition_source_text", "") or ""))
+                    self._condition_sources.append(_text_or_empty(metadata.get("condition_source", "")))
+                    self._condition_source_keys.append(_text_or_empty(metadata.get("condition_source_key", "")))
+                    self._condition_source_texts.append(_text_or_empty(metadata.get("condition_source_text", "")))
                     conf = metadata.get("condition_confidence")
                     try:
                         conf = float(conf)
                     except (TypeError, ValueError):
                         conf = np.nan
                     self._condition_confidences.append(conf)
+                    self._geometry_sources.append("header" if header else "config_default")
+                    self._geometry_confidences.append(0.95 if header else 0.5)
                     total_loaded += 1
                 except Exception as e:
+                    self._skipped_files.append({"file": str(filepath), "reason": "load_failed", "error": str(e)})
                     self.log(f"Warning: failed to load {os.path.basename(str(filepath))}: {e}")
                     logger.warning("SAXS batch file load failed.", exc_info=True)
             if total_loaded >= 48:
@@ -354,6 +475,9 @@ class SAXSEngine(BaseEngine):
                 self._condition_source_keys = []
                 self._condition_source_texts = []
                 self._condition_confidences = []
+                self._processed_list = []
+                self._geometry_sources = []
+                self._geometry_confidences = []
                 for edf in all_edf[:48]:
                     try:
                         img, header = read_image(edf)
@@ -369,12 +493,18 @@ class SAXSEngine(BaseEngine):
                             self._I_pyfai_list.append(I_pf if len(q_pf) > 0 else np.array([]))
                         else:
                             q, I, _ = read_1d_profile(edf)
+                            pp = {"q": q, "Iq": I, "Iq_smooth": I}
                             self._q_list.append(q)
                             self._I_list.append(I)
                             self._I_merid_list.append(None)
                             self._I_equat_list.append(None)
                             self._q_pyfai_list.append(np.array([]))
                             self._I_pyfai_list.append(np.array([]))
+                        profile = self._processed_profile_from_payload(
+                            pp, source="directory_fallback", filepath=edf
+                        )
+                        if profile is not None:
+                            self._processed_list.append(profile)
                         self._file_list.append(edf)
                         self._conditions.append(np.nan)
                         self._condition_keys.append(f"unresolved::{os.path.basename(str(edf))}")
@@ -382,7 +512,10 @@ class SAXSEngine(BaseEngine):
                         self._condition_source_keys.append("")
                         self._condition_source_texts.append(os.path.basename(str(edf)))
                         self._condition_confidences.append(0.0)
+                        self._geometry_sources.append("header" if header else "config_default")
+                        self._geometry_confidences.append(0.95 if header else 0.5)
                     except Exception as e:
+                        self._skipped_files.append({"file": edf, "reason": "fallback_load_failed", "error": str(e)})
                         self.log(f"Warning: failed to load {os.path.basename(edf)}: {e}")
                         logger.warning("SAXS EDF fallback load failed.", exc_info=True)
                 if not self._condition_type:
@@ -438,9 +571,37 @@ class SAXSEngine(BaseEngine):
                 f"type={self._condition_type}, range=[unresolved]"
             )
 
+        discovered_files = [
+            str(filepath)
+            for condition in conditions
+            for filepath in getattr(condition, "files", [])
+        ]
+        loaded_set = set(self._file_list)
+        recorded_skips = {str(item.get("file", "")) for item in self._skipped_files}
+        for discovered in discovered_files:
+            if discovered not in loaded_set and discovered not in recorded_skips:
+                self._skipped_files.append({"file": discovered, "reason": "load_limit"})
+
+        self._sequence_qa_summary = build_sequence_qa_summary(
+            discovered_files=discovered_files,
+            loaded_files=self._file_list,
+            skipped_files=self._skipped_files,
+            conditions=self._conditions,
+            condition_keys=self._condition_keys,
+            condition_sources=self._condition_sources,
+            condition_source_keys=self._condition_source_keys,
+            condition_source_texts=self._condition_source_texts,
+            condition_confidences=self._condition_confidences,
+            geometry_sources=self._geometry_sources,
+            geometry_confidences=self._geometry_confidences,
+        )
+        self.result.metadata["sequence_qa"] = self._sequence_qa_summary
+        self.result.raw_data["processed_profiles"] = tuple(self._processed_list)
+
         if self._q_list:
             self._q = self._q_list[0]
             self._I = self._I_list[0]
+            self._publish_processed_profile(self._processed_list[0] if self._processed_list else None)
         return len(self._q_list) > 0
 
     def _parse_strain_from_filename(self, filepath: str) -> float:
@@ -465,6 +626,12 @@ class SAXSEngine(BaseEngine):
             self.result.raw_data["q"] = self._q
             self.result.raw_data["I"] = self._I
             self.result.raw_data["I_smooth"] = self._I_smooth
+            self._publish_processed_profile(
+                self._processed_profile_from_payload(
+                    {"q": self._q, "Iq": self._I, "Iq_smooth": self._I_smooth},
+                    source="static_1d_preprocess",
+                )
+            )
             self.log(f"1D data smoothed: {len(self._q)} points")
             return True
 
@@ -491,6 +658,9 @@ class SAXSEngine(BaseEngine):
         self.result.raw_data["img"] = self._img
         self.result.raw_data["sector_data"] = pp.get("sector_data", {})
         self.result.metadata.update(pp.get("metadata", {}))
+        self._publish_processed_profile(
+            self._processed_profile_from_payload(pp, source="static_image_preprocess")
+        )
         self.log(f"Preprocessed: q=[{self._q[0]:.3f}, {self._q[-1]:.3f}], n={len(self._q)}")
         return True
 
@@ -1520,7 +1690,11 @@ class SAXSEngine(BaseEngine):
             self.log("No figure definitions available")
             return {}
         out = output_dir or self.cfg.output_dir or "saxs_output"
-        figures = self.publish_figure_definitions(out, definitions)
+        figures = self.publish_figure_definitions(
+            out,
+            definitions,
+            profile_id="saxs_publication",
+        )
         for path in figures.values():
             self.log(f"  Figure saved: {path}")
         return figures
@@ -1705,14 +1879,31 @@ class SAXSEngine(BaseEngine):
             return params
         return {}
 
+    def export_bundle(self, output_dir: str) -> SAXSExportBundle:
+        """Write the reproducible SAXS bundle without hiding legacy writers."""
+        bundle = export_saxs_bundle(self, output_dir)
+        self.result.metadata["saxs_export_status"] = bundle.status
+        self.result.metadata["saxs_export_root"] = bundle.root
+        return bundle
+
     def export(self, output_dir: str) -> bool:
-        if not self._batch_results and self._analysis is None:
+        has_results = bool(
+            self._batch_results
+            or self._analysis is not None
+            or self._temperature_result is not None
+            or self._strain_result is not None
+            or self._processed_list
+        )
+        if not has_results:
             return False
+        legacy_ok = False
         try:
             results = self._batch_results if self._batch_results else [self._analysis]
-            export_parameters_csv(results, output_dir)
-            return True
+            if results and results[0] is not None:
+                export_parameters_csv(results, output_dir)
+                legacy_ok = True
         except Exception as e:
             self.log(f"Export failed: {e}")
             logger.warning("SAXS export failed.", exc_info=True)
-            return False
+        bundle = self.export_bundle(output_dir)
+        return bool(legacy_ok or bundle.succeeded)

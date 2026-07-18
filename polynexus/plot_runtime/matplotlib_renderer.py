@@ -36,7 +36,14 @@ class PublicationResult:
 class MatplotlibPublicationRenderer:
     """Render a ``RenderScene`` for publication without consulting Qt state."""
 
-    _SUPPORTED_NODE_TYPES = {"plot_series", "line", "heatmap", "legend", "text"}
+    _SUPPORTED_NODE_TYPES = {
+        "plot_series",
+        "line",
+        "heatmap",
+        "image_grid",
+        "legend",
+        "text",
+    }
     _SUPPORTED_FORMATS = {"svg", "pdf", "png", "tif", "tiff"}
 
     def render(self, scene: RenderScene, *, profile: PublicationProfile | None = None) -> Any:
@@ -286,6 +293,36 @@ class MatplotlibPublicationRenderer:
                         facecolor=color,
                         edgecolor=color,
                         linewidth=0.5,
+                    )
+                )
+            return
+        if node.node_type == "image_grid":
+            import matplotlib
+            from matplotlib.colors import Normalize
+
+            values = [float(cell.value) for cell in node.rectangles]
+            vmin = min(values) if values else 0.0
+            vmax = max(values) if values else 1.0
+            if vmax <= vmin:
+                vmax = vmin + 1.0
+            cmap_name = str(style.get("cmap", style.get("colormap", "viridis")) or "viridis")
+            try:
+                cmap = matplotlib.colormaps.get_cmap(cmap_name)
+            except (AttributeError, ValueError):
+                cmap = matplotlib.cm.get_cmap(cmap_name)
+            normalize = Normalize(vmin=vmin, vmax=vmax)
+            for cell in node.rectangles:
+                rect = cell.rect
+                color_value = cmap(normalize(float(cell.value)))
+                figure.add_artist(
+                    Rectangle(
+                        (cls._x(rect.left, width), cls._y(rect.bottom, height)),
+                        rect.width / width,
+                        rect.height / height,
+                        transform=figure.transFigure,
+                        facecolor=color_value,
+                        edgecolor=color_value,
+                        linewidth=0.25,
                     )
                 )
             return

@@ -78,6 +78,8 @@ class ChartEditorGeneratedPickMixin:
         object_type = str(figure_object.get("type", "") or "")
         if object_type == "highlight":
             return True
+        if object_type == "image_grid":
+            return True
         if object_type != "plot_series":
             return False
         chart_kind = str(figure_object.get("chart_kind", "") or "")

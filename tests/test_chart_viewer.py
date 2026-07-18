@@ -15,9 +15,16 @@ from polynexus.gui.i18n import tr
 from polynexus.gui.plot_gallery_service import (
     FIGURE_CATEGORY_PER_FRAME,
     FIGURE_CATEGORY_SERIES_OVERVIEW,
+    FIGURE_ROLE_DIAGNOSTIC,
+    FIGURE_ROLE_SI,
     FigureGalleryEntry,
 )
-from polynexus.gui.widgets.chart_viewer import ChartGallery, ChartViewer, FigureFilePreview
+from polynexus.gui.widgets.chart_viewer import (
+    ChartGallery,
+    ChartThumbnail,
+    ChartViewer,
+    FigureFilePreview,
+)
 
 
 def test_chart_viewer_data_table_copy_shortcut_copies_selected_row():
@@ -195,6 +202,40 @@ def test_chart_gallery_thumbnail_copy_button_copies_path(tmp_path):
     app.processEvents()
 
 
+def test_chart_thumbnail_rescales_image_to_fit_narrow_card(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    figure_path = tmp_path / "wide-gallery.png"
+    pixmap = QPixmap(1200, 200)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    entry = FigureGalleryEntry(
+        figure_id="wide-gallery",
+        title="wide gallery",
+        category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+        state="static_background",
+        preview_path=str(figure_path.resolve()),
+        primary_path=str(figure_path.resolve()),
+        editable_path=str(figure_path.resolve()),
+        document_mode="static_background",
+        asset_paths=(str(figure_path.resolve()),),
+        assets=(),
+    )
+
+    thumbnail = ChartThumbnail(entry)
+    thumbnail.resize(240, 320)
+    thumbnail.show()
+    app.processEvents()
+
+    pixmap = thumbnail._thumb.pixmap()
+    assert pixmap is not None
+    assert pixmap.width() <= thumbnail._thumb.contentsRect().width()
+    assert pixmap.height() <= thumbnail._thumb.contentsRect().height()
+
+    thumbnail.deleteLater()
+    app.processEvents()
+
+
 def test_chart_gallery_load_files_groups_related_assets_into_one_card(tmp_path):
     app = QApplication.instance() or QApplication([])
 
@@ -281,6 +322,56 @@ def test_chart_gallery_category_filter_hides_non_matching_entries(tmp_path):
     app.processEvents()
 
     assert [thumb.entry.figure_id for thumb in gallery._thumbnails] == ["Fig_2_waterfall"]
+
+    gallery.deleteLater()
+    app.processEvents()
+
+
+def test_chart_gallery_publication_role_filter_separates_si_and_diagnostics(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    paths = []
+    for name in ("main", "si", "diagnostic"):
+        path = tmp_path / f"{name}.png"
+        pixmap = QPixmap(80, 40)
+        pixmap.fill(QColor("white"))
+        assert pixmap.save(str(path))
+        paths.append(path)
+
+    gallery = ChartGallery()
+    gallery.load_entries(
+        [
+            FigureGalleryEntry(
+                figure_id=name,
+                title=name,
+                category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+                state="object_editing",
+                preview_path=str(path.resolve()),
+                primary_path=str(path.resolve()),
+                editable_path=str(path.resolve()),
+                document_mode="object",
+                asset_paths=(str(path.resolve()),),
+                assets=(),
+                publication_role=role,
+            )
+            for name, path, role in (
+                ("main", paths[0], "main"),
+                ("si", paths[1], FIGURE_ROLE_SI),
+                ("diagnostic", paths[2], FIGURE_ROLE_DIAGNOSTIC),
+            )
+        ]
+    )
+
+    gallery._role_combo.setCurrentIndex(
+        gallery._role_combo.findData(FIGURE_ROLE_SI)
+    )
+    app.processEvents()
+    assert [thumb.entry.figure_id for thumb in gallery._thumbnails] == ["si"]
+
+    gallery._role_combo.setCurrentIndex(
+        gallery._role_combo.findData(FIGURE_ROLE_DIAGNOSTIC)
+    )
+    app.processEvents()
+    assert [thumb.entry.figure_id for thumb in gallery._thumbnails] == ["diagnostic"]
 
     gallery.deleteLater()
     app.processEvents()

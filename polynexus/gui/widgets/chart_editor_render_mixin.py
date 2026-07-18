@@ -14,6 +14,13 @@ class ChartEditorRenderMixin:
     def _logger(cls):
         return cls._chart_editor_module().logger
 
+    def _schedule_text_render(self, *_):
+        timer = getattr(self, "_text_render_timer", None)
+        if timer is None:
+            self._render()
+            return
+        timer.start()
+
     def _render(self, *_):
         if self._fig_generator is None:
             if self._generated_document_mode:
@@ -22,6 +29,9 @@ class ChartEditorRenderMixin:
             if self._static_file_mode:
                 if not self._refresh_static_annotation_canvas_preview():
                     self._show_style_preview_figure()
+                mark_dirty = getattr(self, "_mark_editor_dirty", None)
+                if callable(mark_dirty):
+                    mark_dirty()
             return
         self._render_generator_figure()
 
@@ -98,12 +108,15 @@ class ChartEditorRenderMixin:
             ax.set_ylabel(ylabel, fontsize=self._label_size)
 
         ax.tick_params(labelsize=self._tick_size)
-        ax.grid(
-            self._grid_on,
-            alpha=self._grid_alpha,
-            linestyle="--",
-            linewidth=0.5,
-        )
+        if self._grid_on:
+            ax.grid(
+                True,
+                alpha=self._grid_alpha,
+                linestyle="--",
+                linewidth=0.5,
+            )
+        else:
+            ax.grid(False)
         for spine in ax.spines.values():
             spine.set_linewidth(0.8)
 

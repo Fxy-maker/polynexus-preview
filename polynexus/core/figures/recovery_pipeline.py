@@ -125,6 +125,8 @@ class FigureRecoveryPipeline:
                 working_revision=1,
                 published_revision=1,
                 error="",
+                publication_role=str(document.get("publication_role") or "si"),
+                display_order=self._document_display_order(document),
             )
             manifest = RunFigureManifest(
                 schema_version=1,
@@ -194,6 +196,17 @@ class FigureRecoveryPipeline:
             source["sha256"] = hashlib.sha256(destination.read_bytes()).hexdigest()
             recovered_sources.append(source)
         return recovered_sources
+
+    @staticmethod
+    def _document_display_order(document: dict) -> int:
+        recipe = document.get("recipe", {})
+        parameters = recipe.get("parameters", {}) if isinstance(recipe, dict) else {}
+        if not isinstance(parameters, dict):
+            return 0
+        try:
+            return int(parameters.get("display_order", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
 
     @staticmethod
     def _source_path(data_root: Path, path_text: str) -> Path:

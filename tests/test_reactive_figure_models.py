@@ -207,7 +207,7 @@ def test_legacy_adapter_maps_object_document_and_explains_static_fallback():
     assert static_result.diagnostic.static_fallback
 
 
-def test_legacy_adapter_does_not_claim_v2_support_for_image_grid_or_highlight():
+def test_legacy_adapter_keeps_image_grid_object_editable_for_v2():
     result = adapt_legacy_figure_document(
         {
             "mode": "object",
@@ -216,10 +216,8 @@ def test_legacy_adapter_does_not_claim_v2_support_for_image_grid_or_highlight():
         }
     )
 
-    assert result.document is None
-    assert result.diagnostic is not None
-    assert result.diagnostic.reason_code == "unsupported_object_type"
-    assert result.diagnostic.static_fallback
+    assert result.document is not None
+    assert result.document.object_by_id("grid").object_type == "image_grid"
 
 
 def test_command_stack_tracks_affected_ids_and_supports_undo_redo():

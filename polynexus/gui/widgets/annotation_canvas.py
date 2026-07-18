@@ -11,15 +11,19 @@ from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView, QVBoxLayout, QWidget
 
+from .annotation_render_adapter import AnnotationRenderAdapter
+
 
 class AnnotationCanvas(QWidget):
     tool_changed = Signal(str)
     selection_changed = Signal(str)
     annotations_changed = Signal()
+    object_edit_requested = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._scene = QGraphicsScene(self)
+        self._render_adapter = AnnotationRenderAdapter(self._scene)
         self._scene.selectionChanged.connect(self._on_scene_selection_changed)
         self._view = QGraphicsView(self._scene)
         self._view.setAlignment(Qt.AlignCenter)
@@ -37,6 +41,8 @@ class AnnotationCanvas(QWidget):
         self._current_tool = "select"
         self._draw_start: QPointF | None = None
         self._clipboard_annotation: dict | None = None
+        self._document_objects_mode = False
+        self._pending_object_geometry: dict[str, dict] = {}
         self.setFocusPolicy(Qt.StrongFocus)
 
         layout = QVBoxLayout(self)
@@ -49,11 +55,14 @@ class AnnotationCanvas(QWidget):
         if pixmap.isNull():
             return False
 
+        self._render_adapter.clear()
         self._scene.clear()
         self._annotations = []
         self._undo_stack = []
         self._redo_stack = []
         self._selected_annotation_id = ""
+        self._document_objects_mode = False
+        self._pending_object_geometry = {}
         self._image_path = str(Path(path))
         self._image_width = pixmap.width()
         self._image_height = pixmap.height()
@@ -76,12 +85,16 @@ class AnnotationCanvas(QWidget):
         selected_id = self._selected_annotation_id
         self._image_width = pixmap.width()
         self._image_height = pixmap.height()
+        self._render_adapter.clear()
         self._scene.clear()
         self._pixmap_item = self._scene.addPixmap(pixmap)
         self._pixmap_item.setPos(0, 0)
-        for annotation in self._annotations:
-            self._draw_annotation(annotation)
         self._scene.setSceneRect(QRectF(0, 0, self._image_width, self._image_height))
+        if self._document_objects_mode:
+            self._render_adapter.replace_objects(self._annotations)
+        else:
+            for annotation in self._annotations:
+                self._draw_annotation(annotation)
         if selected_id and any(item.get("id") == selected_id for item in self._annotations):
             self.select_annotation(selected_id)
         elif selected_id:
@@ -210,8 +223,18 @@ class AnnotationCanvas(QWidget):
     def selected_annotation(self) -> dict:
         if not self._selected_annotation_id:
             return {}
-        self.sync_scene_items_to_state()
-        annotation = self._annotation_by_id(self._selected_annotation_id)
+        if self._document_objects_mode:
+            annotation = next(
+                (
+                    item
+                    for item in self._render_adapter.scene_state()
+                    if item.get("id") == self._selected_annotation_id
+                ),
+                None,
+            )
+        else:
+            self.sync_scene_items_to_state()
+            annotation = self._annotation_by_id(self._selected_annotation_id)
         return deepcopy(annotation) if annotation is not None else {}
 
     def delete_selected_annotation(self) -> bool:
@@ -436,12 +459,87 @@ class AnnotationCanvas(QWidget):
         return True
 
     def annotation_state(self) -> list[dict]:
+        if self._document_objects_mode:
+            return self._render_adapter.scene_state()
         self.sync_scene_items_to_state()
         return deepcopy(self._annotations)
+
+    def set_document_objects(self, objects: list[dict]) -> dict[str, object]:
+        """Project shared-session objects without adding a canvas undo entry."""
+
+        previous_selection = self._selected_annotation_id
+        self._document_objects_mode = True
+        self._pending_object_geometry = {}
+        self._annotations = [
+            deepcopy(object_payload)
+            for object_payload in objects
+            if isinstance(object_payload, dict)
+        ]
+        self._undo_stack = []
+        self._redo_stack = []
+        self._selected_annotation_id = ""
+        self._rebuild_scene()
+        projected = {
+            str(item.data(0)): item
+            for item in self._scene.items()
+            if item.data(0)
+        }
+        selected_id = next(
+            (
+                str(object_payload.get("id", ""))
+                for object_payload in self._annotations
+                if object_payload.get("selected") or object_payload.get("is_selected")
+            ),
+            "",
+        )
+        if not selected_id and previous_selection in projected:
+            selected_id = previous_selection
+        if selected_id:
+            self.select_annotation(selected_id)
+        return projected
+
+    def flush_pending_object_edit(self) -> bool:
+        """Emit proposed geometry changes from projected scene items."""
+
+        if not self._document_objects_mode:
+            return False
+        emitted = False
+        projected_ids = {
+            str(object_payload.get("id", ""))
+            for object_payload in self._render_adapter.scene_state()
+        }
+        projected_items = {
+            str(item.data(0)): item
+            for item in self._scene.items()
+            if item.data(0) and str(item.data(0)) in projected_ids
+        }
+        for object_id, item in projected_items.items():
+            annotation = self._annotation_by_id(object_id)
+            if annotation is None:
+                continue
+            geometry = self._geometry_from_scene_item(item, annotation)
+            if not geometry:
+                continue
+            baseline = self._geometry_from_payload(annotation)
+            if geometry == baseline or geometry == self._pending_object_geometry.get(object_id):
+                continue
+            self._pending_object_geometry[object_id] = geometry
+            self.object_edit_requested.emit(
+                {
+                    "object_id": object_id,
+                    "source": "annotation_canvas",
+                    "geometry": geometry,
+                    "object_type": annotation.get("type", ""),
+                }
+            )
+            emitted = True
+        return emitted
 
     def sync_scene_items_to_state(self, emit_changed=True) -> bool:
         if self._image_width <= 0 or self._image_height <= 0:
             return False
+        if self._document_objects_mode:
+            return self.flush_pending_object_edit()
         updates: dict[str, dict] = {}
         for item in self._scene.items():
             annotation_id = item.data(0)
@@ -511,6 +609,9 @@ class AnnotationCanvas(QWidget):
         return changed
 
     def load_annotation_state(self, annotations: list[dict]) -> None:
+        self._render_adapter.clear()
+        self._document_objects_mode = False
+        self._pending_object_geometry = {}
         self._annotations = [
             deepcopy(annotation)
             for annotation in annotations
@@ -615,6 +716,60 @@ class AnnotationCanvas(QWidget):
 
     def _denormalize_y(self, value: float) -> float:
         return float(value) * float(self._image_height)
+
+    def _geometry_from_scene_item(self, item, annotation: dict) -> dict:
+        kind = annotation.get("type")
+        if kind == "text":
+            return {
+                "x": self._normalize_x(item.pos().x()),
+                "y": self._normalize_y(item.pos().y()),
+            }
+        if kind in {"rectangle", "highlight"} and hasattr(item, "rect"):
+            rect = item.mapRectToScene(item.rect())
+            return {
+                "x": self._normalize_x(rect.x()),
+                "y": self._normalize_y(rect.y()),
+                "width": self._normalize_x(rect.width()),
+                "height": self._normalize_y(rect.height()),
+            }
+        line_item = item if hasattr(item, "line") else self._line_child_item(item)
+        if kind in {"line", "arrow"} and line_item is not None:
+            line = line_item.line()
+            p1 = line_item.mapToScene(line.p1())
+            p2 = line_item.mapToScene(line.p2())
+            return {
+                "x1": self._normalize_x(p1.x()),
+                "y1": self._normalize_y(p1.y()),
+                "x2": self._normalize_x(p2.x()),
+                "y2": self._normalize_y(p2.y()),
+            }
+        return {}
+
+    @staticmethod
+    def _geometry_from_payload(annotation: dict) -> dict:
+        kind = annotation.get("type")
+        container = annotation
+        for key in ("geometry", "bounds"):
+            if isinstance(annotation.get(key), dict):
+                container = annotation[key]
+                break
+        if kind in {"text", "rectangle", "highlight"}:
+            keys = ("x", "y")
+            if kind in {"rectangle", "highlight"}:
+                keys += ("width", "height")
+        elif kind in {"line", "arrow"}:
+            keys = ("x1", "y1", "x2", "y2")
+        else:
+            return {}
+        result = {}
+        for key in keys:
+            if key not in container:
+                continue
+            try:
+                result[key] = round(float(container[key]), 6)
+            except (TypeError, ValueError, OverflowError):
+                continue
+        return result
 
     def _push_undo(self) -> None:
         self._undo_stack.append(self._snapshot_state())
@@ -875,13 +1030,17 @@ class AnnotationCanvas(QWidget):
 
     def _rebuild_scene(self) -> None:
         pixmap = self._pixmap_item.pixmap() if self._pixmap_item is not None else QPixmap()
+        self._render_adapter.clear()
         self._scene.clear()
         self._pixmap_item = None
         if not pixmap.isNull():
             self._pixmap_item = self._scene.addPixmap(pixmap)
             self._pixmap_item.setPos(0, 0)
-        for annotation in self._annotations:
-            self._draw_annotation(annotation)
+        if self._document_objects_mode:
+            self._render_adapter.replace_objects(self._annotations)
+        else:
+            for annotation in self._annotations:
+                self._draw_annotation(annotation)
         self._scene.setSceneRect(QRectF(0, 0, self._image_width, self._image_height))
 
     def _draw_annotation(self, annotation: dict) -> None:
