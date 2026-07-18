@@ -39,14 +39,23 @@ class ChartEditorOriginMixin:
         )
 
     def _build_origin_export_request(self, output_root) -> ExportRequest:
-        document = normalize_figure_document(
+        raw_document = (
             deepcopy(self._figure_document)
             if isinstance(self._figure_document, dict)
             else {}
         )
+        document = normalize_figure_document(
+            raw_document
+        )
         source_root = str(
             getattr(self._source_entry_context, "run_root", "") or ""
         ).strip()
+        has_persisted_object_document = bool(
+            self._source_path
+            and raw_document.get("mode") == "object"
+            and not getattr(self, "_force_static_source_mode", False)
+            and not getattr(self, "_static_file_mode", False)
+        )
         return ExportRequest(
             document=document,
             figure_path=Path(self._source_path) if self._source_path else None,
@@ -55,8 +64,12 @@ class ChartEditorOriginMixin:
             mode=(
                 "editable_origin"
                 if (
-                    self._generated_document_mode
-                    or document.get("mode") == "object"
+                    not getattr(self, "_force_static_source_mode", False)
+                    and not getattr(self, "_static_file_mode", False)
+                    and (
+                        self._generated_document_mode
+                        or has_persisted_object_document
+                    )
                 )
                 else "visual_fidelity"
             ),

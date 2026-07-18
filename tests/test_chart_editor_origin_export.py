@@ -64,6 +64,7 @@ def test_chart_editor_exposes_origin_action_and_builds_request(tmp_path):
     request = editor._build_origin_export_request(tmp_path)
 
     assert request.output_root == tmp_path.resolve()
+    assert request.mode == "visual_fidelity"
     assert request.document["mode"] == "object"
     editor._show_origin_export_result(service.result)
     assert editor._status_label.text()
@@ -86,12 +87,28 @@ def test_chart_editor_origin_request_preserves_gallery_run_root(tmp_path):
 def test_chart_editor_object_document_requests_editable_origin(tmp_path):
     _app()
     editor = ChartEditor()
+    editor._source_path = str(tmp_path / "figure.svg")
     editor._figure_document = {"mode": "object", "objects": []}
     editor._generated_document_mode = False
 
     request = editor._build_origin_export_request(tmp_path)
 
     assert request.mode == "editable_origin"
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_chart_editor_forced_static_object_document_stays_visual_fidelity(tmp_path):
+    _app()
+    editor = ChartEditor()
+    editor._source_path = str(tmp_path / "figure.svg")
+    editor._figure_document = {"mode": "object", "objects": []}
+    editor._force_static_source_mode = True
+    editor._static_file_mode = True
+
+    request = editor._build_origin_export_request(tmp_path)
+
+    assert request.mode == "visual_fidelity"
     editor.deleteLater()
     _app().processEvents()
 
