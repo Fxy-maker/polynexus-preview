@@ -23,7 +23,7 @@ Deliver the confirmed canvas-first Origin editor improvement: a persistent canva
 - [ ] Style and figure-size changes do not shrink the visible canvas or leave a fixed-size plot in the upper-left corner.
 - [ ] Inspector opens and closes as a drawer, preserves a user-requested close state, and restores canvas width when closed.
 - [ ] Users can create, select, style, save, reload, undo/redo, and export text, line, arrow, rectangle, and Bézier curve annotations.
-- [ ] Origin export resolves run-relative paths, materializes valid inline data when a file path is unavailable, and reports an actionable error when neither is available.
+- [ ] Origin export resolves run-relative paths, materializes valid inline data only when no file path is declared, and reports an actionable error when a declared path is missing or data is absent.
 - [ ] Focused regression suites and `python scripts/verify.py --changed --types` pass.
 
 ## Verification

@@ -281,7 +281,7 @@ git add polynexus/core/figure_objects.py polynexus/core/figure_edit_capabilities
 git commit -m "feat: add editable Origin curve annotations"
 ```
 
-### Task 4: Prepare Origin sources once and make missing-data failures actionable
+### Task 4: Prepare Origin sources once while preserving declared-file provenance
 
 **Files:**
 - Create: `polynexus/origin/source_preparation.py`
@@ -297,13 +297,13 @@ git commit -m "feat: add editable Origin curve annotations"
 - Test: `tests/test_origin_mapping.py`
 - Test: `tests/test_chart_editor_origin_export.py`
 
-- [ ] **Step 1: Write failing inline-fallback and diagnostic tests**
+- [ ] **Step 1: Write failing pure-inline and declared-path diagnostic tests**
 
 ```python
-def test_package_exporter_materializes_values_when_path_is_missing(tmp_path):
+def test_package_exporter_materializes_values_when_no_path_is_declared(tmp_path):
     request = ExportRequest(
         document={"data_sources": [{
-            "id": "inline-fallback", "path": "missing.csv",
+            "id": "inline-source",
             "columns": [{"name": "x"}, {"name": "y"}],
             "values": {"x": [1, 2], "y": [3, 4]},
         }]},
@@ -311,12 +311,14 @@ def test_package_exporter_materializes_values_when_path_is_missing(tmp_path):
     )
     result = PackageExporter().export(request)
     assert result.success
-    assert (result.artifacts[0] / "data/inline-fallback.csv").is_file()
+    assert (result.artifacts[0] / "data/inline-source.csv").is_file()
 
 
-def test_missing_source_error_names_source_and_attempted_roots(tmp_path):
+def test_declared_missing_source_does_not_fallback_to_inline_values(tmp_path):
     result = PackageExporter().export(
-        ExportRequest(document={"data_sources": [{"id": "bad", "path": "lost.csv"}]}, output_root=tmp_path / "out")
+        ExportRequest(document={"data_sources": [{
+            "id": "bad", "path": "lost.csv", "values": {"x": [1], "y": [2]},
+        }]}, output_root=tmp_path / "out")
     )
     assert result.status == "failed"
     assert "bad" in result.message
@@ -324,7 +326,7 @@ def test_missing_source_error_names_source_and_attempted_roots(tmp_path):
     assert "attempted roots" in result.message
 ```
 
-- [ ] **Step 2: Run the export tests to confirm current adapters do not share the fallback**
+- [ ] **Step 2: Run the export tests to confirm current adapters do not share strict preparation**
 
 Run:
 
@@ -332,7 +334,7 @@ Run:
 python -m pytest tests/test_origin_package_exporter.py tests/test_originpro_adapter.py tests/test_origin_com_adapter.py tests/test_chart_editor_origin_export.py -q
 ```
 
-Expected: FAIL for a non-empty missing `path` combined with valid `values` and for the missing diagnostic context.
+Expected: FAIL because all adapters do not yet prepare a non-empty missing `path` consistently or report the ordered attempted roots.
 
 - [ ] **Step 3: Create one source-preparation contract**
 
@@ -361,11 +363,13 @@ def prepare_origin_sources(sources, request, data_root: Path) -> Sequence[Prepar
         candidates = source_path_candidates(raw_path, request) if raw_path else ()
         resolved = resolve_source_path(raw_path, request) if raw_path else None
         target = data_root / f"{source_id}.csv"
-        if resolved is not None and resolved.is_file():
-            if resolved.resolve() != target.resolve():
-                shutil.copy2(resolved, target)
-            prepared.append(PreparedOriginSource(source_id, target, False))
-            continue
+        if raw_path:
+            if resolved is not None and resolved.is_file():
+                if resolved.resolve() != target.resolve():
+                    shutil.copy2(resolved, target)
+                prepared.append(PreparedOriginSource(source_id, target, False))
+                continue
+            raise OriginSourcePreparationError(source_id, raw_path, candidates)
         if source.values:
             _write_source_values(target, source.columns, source.values)
             prepared.append(PreparedOriginSource(source_id, target, True))
@@ -374,7 +378,7 @@ def prepare_origin_sources(sources, request, data_root: Path) -> Sequence[Prepar
     return tuple(prepared)
 ```
 
-Add `source_path_candidates(raw_path, request)` in `path_resolution.py`; it returns the existing ordered candidates for `source_root`, figure-file directories, and compatibility working directory. `_write_source_values()` writes the declared column order (or the `values` key order when no columns are declared). `data_root` must be inside the caller's approved staging or temporary directory.
+Add `source_path_candidates(raw_path, request)` in `path_resolution.py`; it returns the existing ordered candidates for `source_root`, figure-file directories, and compatibility working directory. A non-empty `raw_path` always has precedence and failure is terminal for that source. `_write_source_values()` is only used for a source with no path and writes the declared column order (or the `values` key order when no columns are declared). `data_root` must be inside the caller's approved staging or temporary directory.
 
 - [ ] **Step 4: Route every adapter through the same preparation path**
 
@@ -404,7 +408,7 @@ Run:
 python -m pytest tests/test_origin_mapping.py tests/test_origin_package_exporter.py tests/test_originpro_adapter.py tests/test_origin_com_adapter.py tests/test_origin_contracts.py tests/test_chart_editor_origin_export.py -q
 ```
 
-Expected: PASS; existing run-root paths keep working, inline fallback works for package/direct adapters, and failures identify the source and roots.
+Expected: PASS; existing run-root paths keep working, no-path inline sources work for package/direct adapters, and a declared stale path fails with the source and attempted roots.
 
 - [ ] **Step 7: Commit the Origin source slice**
 
@@ -443,7 +447,7 @@ Expected: both commands report the actual changed-file and integration-boundary 
 
 - [ ] **Step 3: Perform the manual acceptance pass and record exact evidence**
 
-Use the desktop editor to verify these actions in order: open a generated figure; collapse and re-open Inspector; switch to Style and change figure size; create and reshape a curve; create/edit a text object; export a run-relative data-source figure; export a document with a missing path and inline values; export a document with neither source nor values. Record observed result, command output, and any limitation in `docs/acceptance/2026-07-18-origin-editor-usability.md`.
+Use the desktop editor to verify these actions in order: open a generated figure; collapse and re-open Inspector; switch to Style and change figure size; create and reshape a curve; create/edit a text object; export a run-relative data-source figure; export a pathless inline-data source; confirm that a document with a declared missing path and inline values fails without fallback; export a document with neither source nor values. Record observed result, command output, and any limitation in `docs/acceptance/2026-07-18-origin-editor-usability.md`.
 
 - [ ] **Step 4: Update the task card and durable active-work memory**
 
