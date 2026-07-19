@@ -70,6 +70,18 @@ python scripts/verify.py --changed --types --full --boundary
 Use `--base <git-ref>` when checking a branch diff. Report exact commands and
 results; never claim a check passed without running it.
 
+After verification, create the task checkpoint automatically with an explicit
+file allowlist:
+
+```bash
+python scripts/auto_commit.py \
+  --message "feat(scope): short summary" \
+  --files path/to/file.py path/to/test_file.py
+```
+
+The helper refuses to mix existing staged files, paths outside the repository,
+or files without actual changes. It never pushes.
+
 ## 6. Superpowers integration
 
 If the current agent environment provides Superpowers skills, use:
@@ -85,12 +97,14 @@ If unavailable, follow the equivalent procedures in `docs/agent/`.
 
 ## 7. Review and checkpoints
 
-- One atomic task should map to one commit or PR when commits are authorized.
+- One atomic task should automatically produce one commit using
+  `scripts/auto_commit.py` after verification.
 - Link the task card and verification evidence in the commit or PR description.
+- Ordinary tasks do not wait for a separate human approval before committing.
 - Architecture, schema, security, performance, and scientific-semantics changes
-  require human review before merge.
+  still require human review before merge.
 - Review the cumulative diff at milestones, not only the last commit.
-- Do not auto-commit, push, merge, or deploy unless explicitly authorized.
+- Never auto-push, auto-merge, or auto-deploy.
 
 ## 8. Completion report
 
