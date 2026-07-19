@@ -234,6 +234,17 @@ class ChartThumbnail(QWidget):
         self._selected = selected
         self._apply_style()
 
+    def retranslate(self):
+        """Refresh localized labels after the application language changes."""
+        self.setToolTip(
+            f"{self.entry.title}\n{_gallery_state_text(self.entry.state)}"
+        )
+        self._state_badge.setText(_gallery_state_text(self.entry.state))
+        self._role_badge.setText(_gallery_role_text(self.entry.publication_role))
+        self._btn_primary.setText(_gallery_primary_label(self.entry.state))
+        self._btn_secondary.setText(_gallery_secondary_label(self.entry.state))
+        self._btn_copy.setText(tr("COMMON_COPY"))
+
     def enterEvent(self, event):
         self._hovered = True
         self._apply_style()
@@ -931,12 +942,12 @@ class ChartGallery(QWidget):
         self._role_combo.currentIndexChanged.connect(self._reload_visible_entries)
         toolbar.addWidget(self._role_combo)
         toolbar.addStretch()
-        btn_export = QPushButton(tr("CHART_BTN_EXPORT_ALL"))
-        btn_export.clicked.connect(self._export_all)
-        toolbar.addWidget(btn_export)
-        btn_clear = QPushButton(tr("CHART_BTN_CLEAR"))
-        btn_clear.clicked.connect(self.clear)
-        toolbar.addWidget(btn_clear)
+        self._btn_export_all = QPushButton(tr("CHART_BTN_EXPORT_ALL"))
+        self._btn_export_all.clicked.connect(self._export_all)
+        toolbar.addWidget(self._btn_export_all)
+        self._btn_clear = QPushButton(tr("CHART_BTN_CLEAR"))
+        self._btn_clear.clicked.connect(self.clear)
+        toolbar.addWidget(self._btn_clear)
         layout.addWidget(self._toolbar_widget)
 
         # Scroll area for thumbnails
@@ -1071,6 +1082,42 @@ class ChartGallery(QWidget):
     def summary_text(self) -> str:
         """Return the localized count for the currently visible entries."""
         return tr("CHART_GALLERY_SUMMARY", len(self._entries))
+
+    def retranslate(self):
+        """Refresh gallery controls and visible card labels."""
+        self._category_label.setText(tr("CHART_CATEGORY_LABEL"))
+        category_labels = (
+            (FIGURE_CATEGORY_ALL, "CHART_CATEGORY_ALL"),
+            (FIGURE_CATEGORY_SERIES_OVERVIEW, "CHART_CATEGORY_SERIES_OVERVIEW"),
+            (FIGURE_CATEGORY_PER_FRAME, "CHART_CATEGORY_PER_FRAME"),
+            (FIGURE_CATEGORY_OTHER_EXPORTS, "CHART_CATEGORY_OTHER_EXPORTS"),
+        )
+        for category, key in category_labels:
+            index = self._category_combo.findData(category)
+            if index >= 0:
+                self._category_combo.setItemText(index, tr(key))
+
+        self._role_label.setText(tr("CHART_ROLE_LABEL"))
+        role_labels = (
+            (FIGURE_ROLE_ALL, "CHART_ROLE_ALL"),
+            (FIGURE_ROLE_MAIN, "CHART_ROLE_MAIN"),
+            (FIGURE_ROLE_SI, "CHART_ROLE_SI"),
+            (FIGURE_ROLE_DIAGNOSTIC, "CHART_ROLE_DIAGNOSTIC"),
+        )
+        for role, key in role_labels:
+            index = self._role_combo.findData(role)
+            if index >= 0:
+                self._role_combo.setItemText(index, tr(key))
+
+        self._btn_export_all.setText(tr("CHART_BTN_EXPORT_ALL"))
+        self._btn_clear.setText(tr("CHART_BTN_CLEAR"))
+        for thumbnail in self._thumbnails:
+            thumbnail.retranslate()
+        self._asset_group.setTitle(tr("CHART_ASSET_PANEL_TITLE"))
+        current_entry = self.current_entry()
+        if current_entry is not None and current_entry.assets:
+            self._rebuild_asset_panel(current_entry)
+        self.summary_changed.emit(self.summary_text())
 
     def figure_paths(self):
         return list(self._figure_paths)

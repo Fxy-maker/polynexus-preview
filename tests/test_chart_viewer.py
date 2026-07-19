@@ -11,7 +11,7 @@ from PySide6.QtGui import QPixmap, QColor
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
-from polynexus.gui.i18n import tr
+from polynexus.gui.i18n import get_language, set_language, tr
 from polynexus.gui.styles import C_ACCENT_WAXS
 from polynexus.gui.theme import ThemeEngine
 from polynexus.gui.plot_gallery_service import (
@@ -345,6 +345,35 @@ def test_chart_gallery_toolbar_has_named_surface_and_borderless_scroll_area():
 
     gallery.deleteLater()
     app.processEvents()
+
+
+def test_chart_gallery_retranslate_updates_filters_and_thumbnail_actions(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    previous_language = get_language()
+
+    figure_path = tmp_path / "retranslate-gallery.png"
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+
+    try:
+        set_language("en")
+        gallery = ChartGallery()
+        gallery.load_files([str(figure_path)])
+        set_language("zh")
+        gallery.retranslate()
+
+        assert gallery._category_label.text() == tr("CHART_CATEGORY_LABEL")
+        assert gallery._role_label.text() == tr("CHART_ROLE_LABEL")
+        assert gallery._category_combo.itemText(0) == tr("CHART_CATEGORY_ALL")
+        assert gallery._role_combo.itemText(0) == tr("CHART_ROLE_ALL")
+        assert gallery._thumbnails[0]._btn_copy.text() == tr("COMMON_COPY")
+        assert gallery._thumbnails[0]._state_badge.text() == tr("CHART_STATE_STATIC")
+
+        gallery.deleteLater()
+        app.processEvents()
+    finally:
+        set_language(previous_language)
 
 
 def test_chart_gallery_load_files_groups_related_assets_into_one_card(tmp_path):

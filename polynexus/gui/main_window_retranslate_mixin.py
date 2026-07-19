@@ -135,6 +135,10 @@ class MainWindowRetranslateMixin:
 
                 self._figure_preview.retranslate()
 
+            if hasattr(self, "_chart_gallery"):
+
+                self._chart_gallery.retranslate()
+
             if hasattr(self, "_figure_viewer") and self._figure_viewer is not None:
 
                 self._figure_viewer.retranslate()
