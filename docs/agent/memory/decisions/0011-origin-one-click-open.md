@@ -31,6 +31,10 @@ One export creates one Origin Graph and reuses its first layer for all mapped
 plot series. This preserves multi-series figures as one native Origin graph
 instead of opening one graph window per curve.
 
+The first object-document panel's X/Y axis scales are forwarded to the Origin
+layer; the document's `log` scale maps to Origin's `log10` scale before the
+final rescale.
+
 ## Rationale
 
 The user-facing intent is to see the current figure inside Origin, not merely

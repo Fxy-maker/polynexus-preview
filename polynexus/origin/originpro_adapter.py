@@ -5,7 +5,7 @@ from __future__ import annotations
 import platform
 import re
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from .capability_probe import OriginCapabilityProbe
 from .contracts import ExportRequest, ExportResult
@@ -62,6 +62,10 @@ class OriginProAdapter:
                 facade.from_csv(source_path)
             for plot in model.plots:
                 facade.add_plot(plot.x_column, plot.y_column, dict(plot.style))
+            configure_axes = getattr(facade, "configure_axes", None)
+            if callable(configure_axes):
+                x_scale, y_scale = _document_axis_scales(request.document)
+                configure_axes(x_scale=x_scale, y_scale=y_scale)
             if request.allow_open_origin:
                 facade.activate()
             request.output_root.mkdir(parents=True, exist_ok=True)
@@ -161,6 +165,18 @@ class _OriginProFacade:
         if not self._graphs:
             self._graphs.append(graph)
 
+    def configure_axes(self, *, x_scale: str, y_scale: str) -> None:
+        if not self._graphs:
+            return
+        layer = self._graphs[-1][0]
+        origin_x_scale = _origin_axis_scale(x_scale)
+        origin_y_scale = _origin_axis_scale(y_scale)
+        if origin_x_scale:
+            layer.xscale = origin_x_scale
+        if origin_y_scale:
+            layer.yscale = origin_y_scale
+        layer.rescale()
+
     def save(self, path: Path) -> None:
         save = getattr(self._module, "save", None)
         if callable(save):
@@ -197,3 +213,23 @@ def _next_project_path(base: Path) -> Path:
 def _safe_name(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "figure"))
     return cleaned.strip("._") or "figure"
+
+
+def _document_axis_scales(document: Mapping[str, Any]) -> tuple[str, str]:
+    layout = document.get("layout", {}) if isinstance(document, Mapping) else {}
+    panels = layout.get("panels", []) if isinstance(layout, Mapping) else []
+    panel = panels[0] if panels and isinstance(panels[0], Mapping) else {}
+    x_axis = panel.get("x_axis", {}) if isinstance(panel, Mapping) else {}
+    y_axis = panel.get("y_axis", {}) if isinstance(panel, Mapping) else {}
+    x_scale = str(x_axis.get("scale") or "").strip().lower()
+    y_scale = str(y_axis.get("scale") or "").strip().lower()
+    return x_scale, y_scale
+
+
+def _origin_axis_scale(value: str) -> str:
+    scale = str(value or "").strip().lower()
+    if scale == "log":
+        return "log10"
+    if scale in {"linear", "log10", "ln", "log2"}:
+        return scale
+    return ""

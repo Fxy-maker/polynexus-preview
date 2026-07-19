@@ -28,6 +28,9 @@ class FakeOriginPro:
     def add_plot(self, x_column, y_column, style):
         self.events.append(("add_plot", x_column, y_column, style))
 
+    def configure_axes(self, *, x_scale, y_scale):
+        self.events.append(("configure_axes", x_scale, y_scale))
+
     def save(self, path):
         self.events.append(("save", str(path)))
 
@@ -61,6 +64,41 @@ def test_originpro_adapter_builds_editable_graph(tmp_path):
     assert ("show",) in facade.events
     assert ("activate",) in facade.events
     assert any(event[0] == "save" for event in facade.events)
+
+
+def test_originpro_adapter_applies_source_axis_scales(tmp_path):
+    facade = FakeOriginPro()
+    source = tmp_path / "data.csv"
+    source.write_text("x,y\n1,2\n", encoding="utf-8")
+    request = ExportRequest(
+        document={
+            "figure_id": "fig-log",
+            "layout": {
+                "panels": [
+                    {
+                        "x_axis": {"scale": "linear"},
+                        "y_axis": {"scale": "log"},
+                    }
+                ]
+            },
+            "data_sources": [{"id": "data-1", "path": str(source)}],
+            "objects": [
+                {
+                    "type": "plot_series",
+                    "data_ref": "data-1",
+                    "x_column": "x",
+                    "y_column": "y",
+                }
+            ],
+        },
+        output_root=tmp_path / "out",
+        mode="editable_origin",
+    )
+
+    result = OriginProAdapter(originpro_factory=lambda: facade).export(request)
+
+    assert result.success is True
+    assert ("configure_axes", "linear", "log") in facade.events
 
 
 def test_originpro_facade_rescales_graph_after_adding_plot():
@@ -151,6 +189,35 @@ def test_originpro_facade_reuses_one_graph_for_multiple_plots():
     facade.add_plot("x", "y", {})
 
     assert module.graph_count == 1
+
+
+def test_originpro_facade_maps_log_axis_to_origin_scale():
+    class FakeLayer:
+        def __init__(self):
+            self.xscale = None
+            self.yscale = None
+            self.rescaled = False
+
+        def rescale(self):
+            self.rescaled = True
+
+    class FakeGraph:
+        def __init__(self, layer):
+            self.layer = layer
+
+        def __getitem__(self, index):
+            assert index == 0
+            return self.layer
+
+    layer = FakeLayer()
+    facade = _OriginProFacade(object())
+    facade._graphs = [FakeGraph(layer)]
+
+    facade.configure_axes(x_scale="linear", y_scale="log")
+
+    assert layer.xscale == "linear"
+    assert layer.yscale == "log10"
+    assert layer.rescaled is True
 
 
 def test_originpro_adapter_resolves_run_relative_source_from_source_root(tmp_path):
