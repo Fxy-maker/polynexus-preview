@@ -6,6 +6,7 @@ import math
 from copy import deepcopy
 from collections.abc import Mapping, Sequence
 from typing import Any
+from uuid import uuid4
 
 from .figure_edit_capabilities import (
     EditCommand,
@@ -541,6 +542,164 @@ class SetLockCommand:
         return _success(self.object_id)
 
 
+def _batch_objects(document: dict, object_ids: Sequence[str]):
+    objects = _objects(document)
+    if objects is None:
+        return _failure("invalid_document", "Document objects must be a list."), None
+    wanted = tuple(dict.fromkeys(str(value or "").strip() for value in object_ids if str(value or "").strip()))
+    if len(wanted) < 2:
+        return _failure("selection_required", "At least two objects are required."), None
+    found = []
+    for object_id in wanted:
+        item = _find_object(document, object_id)
+        if item is None:
+            return _failure("object_not_found", f"Object '{object_id}' was not found.", object_id), None
+        payload = item[1]
+        if capabilities_for(payload).locked:
+            return _failure("locked", f"Object '{object_id}' is locked.", object_id), None
+        if not is_known_object_type(payload) or not capabilities_for(payload).geometry:
+            return _failure("capability_not_supported", f"Object '{object_id}' cannot be batched.", object_id), None
+        found.append((object_id, payload))
+    return None, found
+
+
+def _geometry_bounds(payload: dict):
+    container = payload.get("geometry") if isinstance(payload.get("geometry"), dict) else None
+    if container is None and isinstance(payload.get("bounds"), dict):
+        container = payload["bounds"]
+    if container is None:
+        container = payload
+    if all(key in container for key in ("x", "y", "width", "height")):
+        x = float(container["x"])
+        y = float(container["y"])
+        width = float(container["width"])
+        height = float(container["height"])
+        return container, x, y, x + width, y + height
+    if all(key in container for key in ("x1", "y1", "x2", "y2")):
+        x1, x2 = float(container["x1"]), float(container["x2"])
+        y1, y2 = float(container["y1"]), float(container["y2"])
+        return container, min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+    return None
+
+
+def _shift_geometry(payload: dict, container: dict, dx: float, dy: float) -> None:
+    for axis, delta in (("x", dx), ("y", dy)):
+        if axis in container:
+            container[axis] = round(float(container[axis]) + delta, 12)
+        elif axis == "x" and "x1" in container and "x2" in container:
+            container["x1"] = round(float(container["x1"]) + dx, 12)
+            container["x2"] = round(float(container["x2"]) + dx, 12)
+        elif axis == "y" and "y1" in container and "y2" in container:
+            container["y1"] = round(float(container["y1"]) + dy, 12)
+            container["y2"] = round(float(container["y2"]) + dy, 12)
+    for key in ("x", "y", "x1", "y1", "x2", "y2"):
+        if key in payload and key in container:
+            payload[key] = deepcopy(container[key])
+
+
+class AlignObjectsCommand:
+    """Align several editable objects in one undoable document operation."""
+
+    def __init__(self, object_ids: Sequence[str], mode: str):
+        self.object_ids = tuple(str(value or "").strip() for value in object_ids if str(value or "").strip())
+        self.mode = str(mode or "").strip().lower()
+
+    def apply(self, document: dict) -> tuple[EditResult, object]:
+        if self.mode not in {"left", "center", "right", "top", "middle", "bottom"}:
+            return _failure("invalid_alignment", "Unsupported alignment mode."), None
+        error, found = _batch_objects(document, self.object_ids)
+        if error is not None:
+            return error, None
+        assert found is not None
+        bounds = [(object_id, payload, _geometry_bounds(payload)) for object_id, payload in found]
+        if any(item[2] is None for item in bounds):
+            return _failure("invalid_geometry", "Every selected object needs editable bounds."), None
+        snapshots = {"objects": deepcopy(_objects(document))}
+        values = [item[2] for item in bounds]
+        assert all(value is not None for value in values)
+        target = {
+            "left": min(value[1] for value in values),
+            "center": (min(value[1] for value in values) + max(value[3] for value in values)) / 2,
+            "right": max(value[3] for value in values),
+            "top": min(value[2] for value in values),
+            "middle": (min(value[2] for value in values) + max(value[4] for value in values)) / 2,
+            "bottom": max(value[4] for value in values),
+        }[self.mode]
+        for _object_id, payload, geometry in bounds:
+            assert geometry is not None
+            anchor = {
+                "left": geometry[1],
+                "center": (geometry[1] + geometry[3]) / 2,
+                "right": geometry[3],
+                "top": geometry[2],
+                "middle": (geometry[2] + geometry[4]) / 2,
+                "bottom": geometry[4],
+            }[self.mode]
+            delta = target - anchor
+            _shift_geometry(payload, geometry[0], delta if self.mode in {"left", "center", "right"} else 0.0, delta if self.mode in {"top", "middle", "bottom"} else 0.0)
+        if _objects(document) == snapshots["objects"]:
+            return _noop(*self.object_ids, message="Objects are already aligned."), None
+        return _success(*self.object_ids), snapshots
+
+    def revert(self, document: dict, snapshot: object) -> EditResult:
+        objects = _objects(document)
+        if objects is None or not isinstance(snapshot, dict) or not isinstance(snapshot.get("objects"), list):
+            return _failure("invalid_snapshot", "The alignment snapshot is invalid.", *self.object_ids)
+        if objects == snapshot["objects"]:
+            return _noop(*self.object_ids, message="Alignment is already restored.")
+        objects[:] = deepcopy(snapshot["objects"])
+        return _success(*self.object_ids)
+
+
+class GroupObjectsCommand:
+    def __init__(self, object_ids: Sequence[str], group_id: str | None = None):
+        self.object_ids = tuple(str(value or "").strip() for value in object_ids if str(value or "").strip())
+        self.group_id = str(group_id or f"group-{uuid4().hex[:10]}")
+
+    def apply(self, document: dict) -> tuple[EditResult, object]:
+        error, found = _batch_objects(document, self.object_ids)
+        if error is not None:
+            return error, None
+        assert found is not None
+        snapshots = {"objects": deepcopy(_objects(document))}
+        for _object_id, payload in found:
+            payload["group_id"] = self.group_id
+        if _objects(document) == snapshots["objects"]:
+            return _noop(*self.object_ids, message="Objects are already grouped."), None
+        return _success(*self.object_ids), snapshots
+
+    def revert(self, document: dict, snapshot: object) -> EditResult:
+        objects = _objects(document)
+        if objects is None or not isinstance(snapshot, dict) or not isinstance(snapshot.get("objects"), list):
+            return _failure("invalid_snapshot", "The group snapshot is invalid.", *self.object_ids)
+        objects[:] = deepcopy(snapshot["objects"])
+        return _success(*self.object_ids)
+
+
+class UngroupObjectsCommand:
+    def __init__(self, object_ids: Sequence[str]):
+        self.object_ids = tuple(str(value or "").strip() for value in object_ids if str(value or "").strip())
+
+    def apply(self, document: dict) -> tuple[EditResult, object]:
+        error, found = _batch_objects(document, self.object_ids)
+        if error is not None:
+            return error, None
+        assert found is not None
+        if not any("group_id" in payload for _object_id, payload in found):
+            return _noop(*self.object_ids, message="No selected object belongs to a group."), None
+        snapshot = {"objects": deepcopy(_objects(document))}
+        for _object_id, payload in found:
+            payload.pop("group_id", None)
+        return _success(*self.object_ids), snapshot
+
+    def revert(self, document: dict, snapshot: object) -> EditResult:
+        objects = _objects(document)
+        if objects is None or not isinstance(snapshot, dict) or not isinstance(snapshot.get("objects"), list):
+            return _failure("invalid_snapshot", "The ungroup snapshot is invalid.", *self.object_ids)
+        objects[:] = deepcopy(snapshot["objects"])
+        return _success(*self.object_ids)
+
+
 class PasteObjectCommand:
     def __init__(
         self,
@@ -687,14 +846,17 @@ class CropCanvasCommand:
 
 __all__ = [
     "AddObjectCommand",
+    "AlignObjectsCommand",
     "CropCanvasCommand",
     "DeleteObjectCommand",
     "EditCommand",
     "EditResult",
     "MoveLayerCommand",
+    "GroupObjectsCommand",
     "PasteObjectCommand",
     "SetLockCommand",
     "SetVisibilityCommand",
+    "UngroupObjectsCommand",
     "UpdateGeometryCommand",
     "UpdateStyleCommand",
     "UpdateTextCommand",

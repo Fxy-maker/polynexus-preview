@@ -45,6 +45,7 @@ from .annotation_canvas import AnnotationCanvas
 from .chart_editor_annotation_controls_mixin import (
     ChartEditorAnnotationControlsMixin,
 )
+from .chart_editor_batch_edit_mixin import ChartEditorBatchEditMixin
 from .chart_editor_generated_drag_mixin import ChartEditorGeneratedDragMixin
 from .chart_editor_generated_drag_execution_mixin import (
     ChartEditorGeneratedDragExecutionMixin,
@@ -136,6 +137,7 @@ GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
 
 class ChartEditor(
     ChartEditorLayoutMixin,
+    ChartEditorBatchEditMixin,
     ChartEditorEditSessionMixin,
     ChartEditorOriginMixin,
     ChartEditorAnnotationControlsMixin,
@@ -722,6 +724,25 @@ class ChartEditor(
         self._btn_annotation_lock.setCheckable(True)
         self._btn_annotation_lock.clicked.connect(self._on_toggle_selected_lock)
         annotation_actions_layout.addWidget(self._btn_annotation_lock, 4, 0, 1, 3)
+
+        batch_actions = QWidget()
+        batch_layout = QHBoxLayout(batch_actions)
+        batch_layout.setContentsMargins(0, 0, 0, 0)
+        batch_layout.setSpacing(4)
+        for name, label_key, callback in (
+            ("_btn_annotation_align_left", "EDITOR_ALIGN_LEFT", lambda: self._align_selected_objects("left")),
+            ("_btn_annotation_align_center", "EDITOR_ALIGN_CENTER", lambda: self._align_selected_objects("center")),
+            ("_btn_annotation_align_top", "EDITOR_ALIGN_TOP", lambda: self._align_selected_objects("top")),
+            ("_btn_annotation_group", "EDITOR_GROUP", self._group_selected_objects),
+            ("_btn_annotation_ungroup", "EDITOR_UNGROUP", self._ungroup_selected_objects),
+        ):
+            button = QPushButton(tr(label_key))
+            button.setObjectName(name)
+            button.clicked.connect(callback)
+            setattr(self, name, button)
+            batch_layout.addWidget(button)
+        annotation_actions_layout.addWidget(batch_actions, 5, 0, 1, 3)
+        self._sync_batch_action_buttons()
         form.addRow(annotation_actions)
 
         annotation_zoom = QWidget()
@@ -911,6 +932,14 @@ class ChartEditor(
         self._btn_annotation_undo.setText(tr("EDITOR_ANNOTATION_UNDO"))
         self._btn_annotation_redo.setText(tr("EDITOR_ANNOTATION_REDO"))
         self._btn_annotation_lock.setText(tr("EDITOR_OBJECT_LOCK"))
+        for button_name, key in (
+            ("_btn_annotation_align_left", "EDITOR_ALIGN_LEFT"),
+            ("_btn_annotation_align_center", "EDITOR_ALIGN_CENTER"),
+            ("_btn_annotation_align_top", "EDITOR_ALIGN_TOP"),
+            ("_btn_annotation_group", "EDITOR_GROUP"),
+            ("_btn_annotation_ungroup", "EDITOR_UNGROUP"),
+        ):
+            getattr(self, button_name).setText(tr(key))
         self._btn_annotation_fit.setText(tr("EDITOR_ANNOTATION_FIT"))
         self._btn_annotation_zoom_100.setText(tr("EDITOR_ANNOTATION_ZOOM_100"))
         self._btn_annotation_zoom_out.setText(tr("EDITOR_ANNOTATION_ZOOM_OUT"))

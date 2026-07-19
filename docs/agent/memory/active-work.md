@@ -4,6 +4,13 @@
 
 ## Current checkpoint
 
+- Undoable batch alignment and grouping completed on 2026-07-19. The core now
+  supports left/center/top alignment plus group/ungroup as one `EditSession`
+  command each, preserving geometry dimensions and rejecting locked or
+  unsupported selections before mutation. ChartEditor exposes compact actions
+  only for multi-selection. Focused batch/core/layout suite passes (31); the
+  task-scoped verifier passes. Task card:
+  `docs/agent/tasks/2026-07-19-batch-alignment-and-grouping.md`.
 - Object tree search, multi-selection state, and locking completed on
   2026-07-19. The object tree now filters by id/name/type while retaining the
   background row, uses extended selection, and exposes ordered selected ids
