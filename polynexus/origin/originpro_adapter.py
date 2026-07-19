@@ -14,6 +14,34 @@ from .mapping import map_figure_document
 from .path_resolution import resolve_source_path
 
 
+_ORIGIN_SYMBOLS = {
+    "alpha": "α",
+    "beta": "β",
+    "gamma": "γ",
+    "delta": "δ",
+    "epsilon": "ε",
+    "eta": "η",
+    "kappa": "κ",
+    "lambda": "λ",
+    "mu": "μ",
+    "nu": "ν",
+    "pi": "π",
+    "rho": "ρ",
+    "sigma": "σ",
+    "tau": "τ",
+    "phi": "φ",
+    "chi": "χ",
+    "psi": "ψ",
+    "omega": "ω",
+    "times": "×",
+    "cdot": "·",
+    "pm": "±",
+    "infty": "∞",
+}
+_SUPERSCRIPT = str.maketrans("0123456789+-=()n", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ")
+_SUBSCRIPT = str.maketrans("0123456789+-=()", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎")
+
+
 class OriginProAdapter:
     adapter_id = "originpro"
     priority = 100
@@ -255,9 +283,9 @@ class _OriginProFacade:
         axis = getattr(layer, "axis", None)
         if callable(axis):
             if xlabel:
-                axis("x").title = str(xlabel)
+                axis("x").title = _origin_display_label(xlabel)
             if ylabel:
-                axis("y").title = str(ylabel)
+                axis("y").title = _origin_display_label(ylabel)
         origin_x_scale = _origin_axis_scale(x_scale)
         origin_y_scale = _origin_axis_scale(y_scale)
         if origin_x_scale:
@@ -278,6 +306,47 @@ class _OriginProFacade:
             self._graphs[-1].save(str(path))
             return
         raise RuntimeError("Origin Python integration did not create a graph")
+
+
+def _origin_display_label(value: str) -> str:
+    """Convert Matplotlib mathtext labels into readable Origin text."""
+
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    text = re.sub(
+        r"\\(?:mathrm|operatorname|text)\s*\{([^{}]*)\}",
+        r"\1",
+        text,
+    )
+    text = re.sub(r"\\(?:left|right)\b", "", text)
+    text = re.sub(
+        r"\^\{([^{}]+)\}",
+        lambda match: match.group(1).translate(_SUPERSCRIPT),
+        text,
+    )
+    text = re.sub(
+        r"_\{([^{}]+)\}",
+        lambda match: match.group(1).translate(_SUBSCRIPT),
+        text,
+    )
+    text = re.sub(
+        r"\^([A-Za-z0-9+\-=()])",
+        lambda match: match.group(1).translate(_SUPERSCRIPT),
+        text,
+    )
+    text = re.sub(
+        r"_([A-Za-z0-9+\-=()])",
+        lambda match: match.group(1).translate(_SUBSCRIPT),
+        text,
+    )
+    text = re.sub(
+        r"\\([A-Za-z]+)",
+        lambda match: _ORIGIN_SYMBOLS.get(match.group(1), match.group(1)),
+        text,
+    )
+    text = text.replace("$", "").replace("{", "").replace("}", "")
+    return " ".join(text.split())
 
 
 def _apply_plot_style(plot: Any, style: Mapping[str, Any] | None) -> None:

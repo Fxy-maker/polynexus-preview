@@ -29,6 +29,10 @@
   object-document panel, and plot presentation uses Origin's LabTalk width
   units. The task card is
   `docs/agent/tasks/2026-07-19-origin-single-graph-fidelity.md`.
+- Follow-up Origin label polish converts Matplotlib mathtext to Origin-safe
+  Unicode (`q (nm⁻¹)`, `I (a.u.)`) at the native adapter boundary; the focused
+  Origin suite is now 18 passed. The task card is
+  `docs/agent/tasks/2026-07-19-origin-label-display-polish.md`.
 - The agent memory foundation is now present: `README.md`,
   `current-state.md`, this register, decision memory, and lesson memory.
 - The older entries below were last reconciled on 2026-07-11. Treat their

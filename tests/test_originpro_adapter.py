@@ -1,7 +1,11 @@
 import pytest
 
 from polynexus.origin.contracts import ExportRequest
-from polynexus.origin.originpro_adapter import OriginProAdapter, _OriginProFacade
+from polynexus.origin import originpro_adapter
+from polynexus.origin.originpro_adapter import (
+    OriginProAdapter,
+    _OriginProFacade,
+)
 from polynexus.origin.originpro_adapter import _default_available
 from polynexus.origin.capability_probe import OriginCapability
 
@@ -242,18 +246,24 @@ def test_originpro_facade_configures_graph_title_labels_and_scales():
 
     facade.configure_figure(
         title="Full SAXS series waterfall",
-        xlabel="q (nm^-1)",
-        ylabel="I (a.u.)",
+        xlabel="$q$ (nm$^{-1}$)",
+        ylabel="$I$ (a.u.)",
         x_scale="linear",
         y_scale="log",
     )
 
     assert graph.lname == "Full SAXS series waterfall"
-    assert layer.axes["x"].title == "q (nm^-1)"
+    assert layer.axes["x"].title == "q (nm⁻¹)"
     assert layer.axes["y"].title == "I (a.u.)"
     assert layer.xscale == "linear"
     assert layer.yscale == "log10"
     assert layer.rescaled is True
+
+
+def test_origin_display_label_converts_mathtext_to_origin_safe_unicode():
+    assert originpro_adapter._origin_display_label("$I$ (a.u.)") == "I (a.u.)"
+    assert originpro_adapter._origin_display_label("$q$ (nm$^{-1}$)") == "q (nm⁻¹)"
+    assert originpro_adapter._origin_display_label(r"$\mu$m") == "μm"
 
 
 def test_originpro_adapter_applies_source_axis_scales(tmp_path):

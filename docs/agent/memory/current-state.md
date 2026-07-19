@@ -39,7 +39,8 @@ title: Current PolyNexus repository state
   must remain usable without Origin installed.
 - Native OriginPro export now maps each plot's `data_ref` to its own worksheet,
   applies document colors/names/line widths, and forwards first-panel axis
-  labels in addition to axis scales. All plots still reuse one Graph.
+  labels in addition to axis scales. Mathtext labels are converted to readable
+  Unicode at the native boundary, and all plots still reuse one Graph.
 
 ## Verification evidence
 
@@ -48,6 +49,8 @@ title: Current PolyNexus repository state
 - GUI-startup regression checks: 3 passed.
 - ChartEditor regression suite: 238 passed.
 - Native Origin source/style fidelity suite: 16 passed.
+- Native Origin label-display follow-up: 18 passed in the combined focused
+  Origin suite.
 - Automatic-commit regression tests: 2 passed.
 - Ruff checks and `compileall` passed for the changed Origin/editor modules.
 - The repository contract documents `python scripts/verify.py --changed
@@ -59,9 +62,9 @@ title: Current PolyNexus repository state
 - A live smoke export using the configured `Origin64.exe` returned
   `success/originpro` for the user's SAXS waterfall document. In-process
   inspection found one Graph, five plots, five document colors, five 0.8-point
-  lines, five source worksheets, named Y columns, and a `log10` Y axis. The
-  temporary `.opju` remains locked until Origin closes; this is expected
-  application ownership.
+  lines, five source worksheets, named Y columns, a `log10` Y axis, and clean
+  Unicode axis labels. The temporary `.opju` remains locked until Origin
+  closes; this is expected application ownership.
 - The local mainline merge is complete at `583709ad`; an explicit push decision
   remains pending.
 - Reconcile the older active-work entries in `active-work.md` against the

@@ -51,6 +51,7 @@ must also be attempted and reported if the script remains unavailable.
 ## Evidence
 
 - `python -m pytest tests/test_originpro_adapter.py tests/test_origin_mapping.py -q` -> `16 passed`.
+- The follow-up label-display regression extends the focused suite to `18 passed`.
 - `python -m pytest tests/test_chart_editor.py -q` -> `238 passed`.
 - `python -m ruff check polynexus/origin/originpro_adapter.py polynexus/origin/mapping.py tests/test_originpro_adapter.py tests/test_origin_mapping.py` -> passed.
 - `python -m compileall -q polynexus/origin tests/test_originpro_adapter.py tests/test_origin_mapping.py` -> passed.
@@ -60,4 +61,5 @@ must also be attempted and reported if the script remains unavailable.
 - Live OriginPro smoke returned `success/originpro`. In the same OriginPro
   process, the exported project contained one Graph with five plots, Y scale
   `log10`, five document colors, five `0.8`-point line widths, five source
-  worksheets, and the five sample names as Y-column labels.
+  worksheets, the five sample names as Y-column labels, and readable Unicode
+  axis labels (`I (a.u.)` and `q (nm⁻¹)`).
