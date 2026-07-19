@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import platform
 import re
+import math
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -61,11 +62,27 @@ class OriginProAdapter:
                 facade.add_sheet(source.source_id)
                 facade.from_csv(source_path)
             for plot in model.plots:
-                facade.add_plot(plot.x_column, plot.y_column, dict(plot.style))
-            configure_axes = getattr(facade, "configure_axes", None)
-            if callable(configure_axes):
-                x_scale, y_scale = _document_axis_scales(request.document)
-                configure_axes(x_scale=x_scale, y_scale=y_scale)
+                facade.add_plot(
+                    plot.x_column,
+                    plot.y_column,
+                    dict(plot.style),
+                    data_ref=plot.data_ref,
+                    name=plot.name,
+                )
+            configure_figure = getattr(facade, "configure_figure", None)
+            x_scale, y_scale = _document_axis_scales(request.document)
+            if callable(configure_figure):
+                configure_figure(
+                    title=model.title,
+                    xlabel=model.xlabel,
+                    ylabel=model.ylabel,
+                    x_scale=x_scale,
+                    y_scale=y_scale,
+                )
+            else:
+                configure_axes = getattr(facade, "configure_axes", None)
+                if callable(configure_axes):
+                    configure_axes(x_scale=x_scale, y_scale=y_scale)
             if request.allow_open_origin:
                 facade.activate()
             request.output_root.mkdir(parents=True, exist_ok=True)
@@ -103,12 +120,21 @@ class _OriginProFacade:
     def __init__(self, module: Any) -> None:
         self._module = module
         self._book = None
+        self._first_sheet = None
         self._sheet = None
-        self._dataframes: list[Any] = []
+        self._sheets: dict[str, Any] = {}
+        self._dataframes: dict[str, Any] = {}
+        self._current_source_id = ""
         self._graphs: list[Any] = []
 
     def new_book(self, kind: str = "w") -> Any:
-        self._book = self._module.new_sheet(kind, lname="PolyNexus")
+        self._first_sheet = self._module.new_sheet(kind, lname="PolyNexus")
+        get_book = getattr(self._first_sheet, "get_book", None)
+        self._book = get_book() if callable(get_book) else self._first_sheet
+        self._sheet = None
+        self._sheets.clear()
+        self._dataframes.clear()
+        self._current_source_id = ""
         return self._book
 
     def show(self) -> None:
@@ -130,45 +156,108 @@ class _OriginProFacade:
         self.show()
 
     def add_sheet(self, name: str) -> Any:
-        if self._book is None:
-            self.new_book("w")
-        self._sheet = self._book
+        if self._book is None or not self._sheets:
+            first_sheet = self._first_sheet
+            if first_sheet is None:
+                first_sheet = self.new_book("w")
+            self._sheet = first_sheet
+        else:
+            add_sheet = getattr(self._book, "add_sheet", None)
+            if not callable(add_sheet):
+                raise RuntimeError("Origin workbook cannot create source worksheets")
+            self._sheet = add_sheet(str(name))
+        source_id = str(name or "").strip()
+        if not source_id:
+            raise ValueError("Origin data source id cannot be empty")
+        self._sheets[source_id] = self._sheet
+        self._current_source_id = source_id
         return self._sheet
 
     def from_csv(self, path: Path) -> None:
         import pandas as pd
 
-        if self._sheet is None:
-            raise RuntimeError("Origin worksheet has not been created")
+        if self._sheet is None or not self._current_source_id:
+            raise RuntimeError("Origin worksheet has not been selected")
         frame = pd.read_csv(path)
-        self._dataframes.append(frame)
+        self._dataframes[self._current_source_id] = frame
         self._sheet.from_df(frame)
 
-    def add_plot(self, x_column: str, y_column: str, style: dict[str, Any]) -> None:
-        if self._sheet is None or not self._dataframes:
-            raise RuntimeError("Origin worksheet data has not been loaded")
-        frame = self._dataframes[-1]
+    def add_plot(
+        self,
+        x_column: str,
+        y_column: str,
+        style: dict[str, Any],
+        *,
+        data_ref: str = "",
+        name: str = "",
+    ) -> None:
+        sheet, frame = self._source_for_plot(data_ref)
         if x_column not in frame.columns or y_column not in frame.columns:
             raise KeyError(f"plot columns not found: {x_column}, {y_column}")
+        set_label = getattr(sheet, "set_label", None)
+        if name and callable(set_label):
+            set_label(y_column, str(name))
         graph = (
             self._graphs[-1]
             if self._graphs
             else self._module.new_graph(template="Line")
         )
         layer = graph[0]
-        layer.add_plot(
-            self._sheet,
+        plot = layer.add_plot(
+            sheet,
             colx=int(frame.columns.get_loc(x_column)),
             coly=int(frame.columns.get_loc(y_column)),
         )
+        _apply_plot_style(plot, style)
         layer.rescale()
         if not self._graphs:
             self._graphs.append(graph)
 
-    def configure_axes(self, *, x_scale: str, y_scale: str) -> None:
+    def _source_for_plot(self, data_ref: str) -> tuple[Any, Any]:
+        source_id = str(data_ref or "").strip()
+        if source_id:
+            sheet = self._sheets.get(source_id)
+            frame = self._dataframes.get(source_id)
+            if sheet is None or frame is None:
+                raise KeyError(f"Origin data source is not loaded: {source_id}")
+            return sheet, frame
+        if self._sheet is None:
+            raise RuntimeError("Origin worksheet has not been created")
+        if isinstance(self._dataframes, dict):
+            if self._current_source_id and self._current_source_id in self._dataframes:
+                return self._sheet, self._dataframes[self._current_source_id]
+            if len(self._dataframes) == 1:
+                source_id, frame = next(iter(self._dataframes.items()))
+                return self._sheets.get(source_id, self._sheet), frame
+            raise KeyError("Origin plot requires a data_ref when multiple sources are loaded")
+        if not self._dataframes:
+            raise RuntimeError("Origin worksheet data has not been loaded")
+        return self._sheet, self._dataframes[-1]
+
+    def configure_figure(
+        self,
+        *,
+        title: str = "",
+        xlabel: str = "",
+        ylabel: str = "",
+        x_scale: str,
+        y_scale: str,
+    ) -> None:
         if not self._graphs:
             return
-        layer = self._graphs[-1][0]
+        graph = self._graphs[-1]
+        layer = graph[0]
+        if title:
+            try:
+                graph.lname = str(title)
+            except (AttributeError, TypeError, ValueError):
+                pass
+        axis = getattr(layer, "axis", None)
+        if callable(axis):
+            if xlabel:
+                axis("x").title = str(xlabel)
+            if ylabel:
+                axis("y").title = str(ylabel)
         origin_x_scale = _origin_axis_scale(x_scale)
         origin_y_scale = _origin_axis_scale(y_scale)
         if origin_x_scale:
@@ -176,6 +265,9 @@ class _OriginProFacade:
         if origin_y_scale:
             layer.yscale = origin_y_scale
         layer.rescale()
+
+    def configure_axes(self, *, x_scale: str, y_scale: str) -> None:
+        self.configure_figure(x_scale=x_scale, y_scale=y_scale)
 
     def save(self, path: Path) -> None:
         save = getattr(self._module, "save", None)
@@ -186,6 +278,34 @@ class _OriginProFacade:
             self._graphs[-1].save(str(path))
             return
         raise RuntimeError("Origin Python integration did not create a graph")
+
+
+def _apply_plot_style(plot: Any, style: Mapping[str, Any] | None) -> None:
+    if plot is None or not isinstance(style, Mapping):
+        return
+    color = str(style.get("color") or "").strip()
+    if color:
+        try:
+            plot.color = color
+        except (AttributeError, TypeError, ValueError):
+            pass
+    try:
+        line_width = float(style.get("line_width"))
+    except (TypeError, ValueError, OverflowError):
+        line_width = 0.0
+    if math.isfinite(line_width) and line_width > 0:
+        set_cmd = getattr(plot, "set_cmd", None)
+        if callable(set_cmd):
+            try:
+                # Origin's LabTalk -w unit is 1/500 of a point (1000 = 2 pt).
+                set_cmd(f"-w {int(round(line_width * 500))}")
+            except (AttributeError, TypeError, ValueError):
+                pass
+        elif hasattr(type(plot), "width"):
+            try:
+                plot.width = line_width
+            except (AttributeError, TypeError, ValueError):
+                pass
 
 
 def _default_available() -> bool:

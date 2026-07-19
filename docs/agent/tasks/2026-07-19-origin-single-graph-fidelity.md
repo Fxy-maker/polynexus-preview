@@ -26,14 +26,14 @@ the linear-axis baseline.
 
 ## Acceptance criteria
 
-- A native export of the SAXS waterfall creates one Origin Graph, not one graph
-  window per series.
-- All five series are present in that Graph.
-- The Origin Y axis is logarithmic when the source object document declares a
-  logarithmic Y axis; linear axes remain linear.
-- Static and fallback export paths remain unchanged.
-- Focused tests, ChartEditor regression tests, Ruff, compileall, diff checks,
-  and a real OriginPro smoke export pass.
+- [x] A native export of the SAXS waterfall creates one Origin Graph, not one
+  graph window per series.
+- [x] All five series are present in that Graph.
+- [x] The Origin Y axis is logarithmic when the source object document declares
+  a logarithmic Y axis; linear axes remain linear.
+- [x] Static and fallback export paths remain unchanged.
+- [x] Focused tests, ChartEditor regression tests, Ruff, compileall, diff
+  checks, and a real OriginPro smoke export pass.
 
 ## Verification
 
@@ -47,3 +47,17 @@ git diff --check
 
 The repository-prescribed `python scripts/verify.py --changed --types` command
 must also be attempted and reported if the script remains unavailable.
+
+## Evidence
+
+- `python -m pytest tests/test_originpro_adapter.py tests/test_origin_mapping.py -q` -> `16 passed`.
+- `python -m pytest tests/test_chart_editor.py -q` -> `238 passed`.
+- `python -m ruff check polynexus/origin/originpro_adapter.py polynexus/origin/mapping.py tests/test_originpro_adapter.py tests/test_origin_mapping.py` -> passed.
+- `python -m compileall -q polynexus/origin tests/test_originpro_adapter.py tests/test_origin_mapping.py` -> passed.
+- `git diff --check` -> passed.
+- Both prescribed verifier invocations were attempted and failed because
+  `D:\PolyNexus\scripts\verify.py` is absent.
+- Live OriginPro smoke returned `success/originpro`. In the same OriginPro
+  process, the exported project contained one Graph with five plots, Y scale
+  `log10`, five document colors, five `0.8`-point line widths, five source
+  worksheets, and the five sample names as Y-column labels.

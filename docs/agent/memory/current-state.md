@@ -1,7 +1,7 @@
 ---
 kind: state
 status: active
-date: 2026-07-18
+date: 2026-07-19
 title: Current PolyNexus repository state
 ---
 
@@ -37,6 +37,9 @@ title: Current PolyNexus repository state
 - Origin export is optional and Windows-only. Adapter order is high-level
   `originpro`, COM/LabTalk, then an Origin-compatible package fallback. The GUI
   must remain usable without Origin installed.
+- Native OriginPro export now maps each plot's `data_ref` to its own worksheet,
+  applies document colors/names/line widths, and forwards first-panel axis
+  labels in addition to axis scales. All plots still reuse one Graph.
 
 ## Verification evidence
 
@@ -44,6 +47,7 @@ title: Current PolyNexus repository state
   44 passed.
 - GUI-startup regression checks: 3 passed.
 - ChartEditor regression suite: 238 passed.
+- Native Origin source/style fidelity suite: 16 passed.
 - Automatic-commit regression tests: 2 passed.
 - Ruff checks and `compileall` passed for the changed Origin/editor modules.
 - The repository contract documents `python scripts/verify.py --changed
@@ -53,10 +57,11 @@ title: Current PolyNexus repository state
 ## Known limitations and next actions
 
 - A live smoke export using the configured `Origin64.exe` returned
-- `success/originpro` for the user's SAXS waterfall document and generated a
-  native `.opju` with the rescaled graph layer. The temporary `.opju` remains
-  locked until Origin closes; this is expected application ownership. Broader
-  user-figure manual testing remains pending.
+  `success/originpro` for the user's SAXS waterfall document. In-process
+  inspection found one Graph, five plots, five document colors, five 0.8-point
+  lines, five source worksheets, named Y columns, and a `log10` Y axis. The
+  temporary `.opju` remains locked until Origin closes; this is expected
+  application ownership.
 - The local mainline merge is complete at `583709ad`; an explicit push decision
   remains pending.
 - Reconcile the older active-work entries in `active-work.md` against the

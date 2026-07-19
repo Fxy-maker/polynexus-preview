@@ -56,3 +56,23 @@ def test_mapping_preserves_band_columns_and_simple_annotations():
     assert mapped.plots[0].lower_y_column == "lower"
     assert mapped.plots[0].upper_y_column == "upper"
     assert mapped.annotations[0].object_type == "text"
+
+
+def test_mapping_uses_first_panel_axis_labels_when_style_labels_are_absent():
+    mapped = map_figure_document(
+        {
+            "title": "Waterfall",
+            "layout": {
+                "panels": [
+                    {
+                        "x_axis": {"label": "q (nm^-1)"},
+                        "y_axis": {"label": "I (a.u.)"},
+                    }
+                ]
+            },
+        }
+    )
+
+    assert mapped.title == "Waterfall"
+    assert mapped.xlabel == "q (nm^-1)"
+    assert mapped.ylabel == "I (a.u.)"

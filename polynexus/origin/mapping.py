@@ -53,6 +53,11 @@ def map_figure_document(document: Mapping[str, Any] | None) -> OriginFigureModel
     normalized = normalize_figure_document(dict(document or {}))
     style = normalized.get("style", {})
     style = style if isinstance(style, dict) else {}
+    layout = normalized.get("layout", {})
+    panels = layout.get("panels", []) if isinstance(layout, Mapping) else []
+    panel = panels[0] if panels and isinstance(panels[0], Mapping) else {}
+    x_axis = panel.get("x_axis", {}) if isinstance(panel, Mapping) else {}
+    y_axis = panel.get("y_axis", {}) if isinstance(panel, Mapping) else {}
 
     sources = tuple(
         OriginSourceSpec(
@@ -114,8 +119,8 @@ def map_figure_document(document: Mapping[str, Any] | None) -> OriginFigureModel
     return OriginFigureModel(
         figure_id=str(normalized.get("figure_id") or ""),
         title=str(style.get("title") or normalized.get("title") or ""),
-        xlabel=str(style.get("xlabel") or ""),
-        ylabel=str(style.get("ylabel") or ""),
+        xlabel=str(style.get("xlabel") or x_axis.get("label") or ""),
+        ylabel=str(style.get("ylabel") or y_axis.get("label") or ""),
         sources=sources,
         plots=tuple(plots),
         annotations=tuple(annotations),

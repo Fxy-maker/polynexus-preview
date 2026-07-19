@@ -1,6 +1,6 @@
 # Active Work
 
-> Last updated: 2026-07-18
+> Last updated: 2026-07-19
 
 ## Current checkpoint
 
@@ -15,12 +15,20 @@
   are forwarded, including logarithmic Y; see decisions `0010` and `0011`.
 - The local `main` fast-forward merge is `583709ad`; the branch is not pushed.
 - The focused Origin/editor verification currently passes: 44 Origin-related
-  tests, 3 GUI-startup checks, and 238 ChartEditor regression tests. The
+  tests plus the new 16-test source/style fidelity slice, 3 GUI-startup checks,
+  and 238 ChartEditor regression tests. The
   prescribed verifier command
   cannot run because `scripts/verify.py` is absent; see lesson `0001`.
-- A live smoke export through the configured OriginPro installation opened
-  `Origin64` with a generated `.opju` graph visible; a real user-figure click
-  remains the final manual check.
+- A live smoke export through the configured OriginPro installation returned
+  `success/originpro` and was inspected in-process: one Graph, five plots,
+  logarithmic Y, document colors, 0.8-point line widths, five source sheets,
+  and five sample names. The generated native `.opju` remains owned by Origin
+  until that application closes; no user-owned Origin process was closed.
+- Native multi-series export now binds each plot through `data_ref` instead of
+  reusing the last imported dataframe; axis labels fall back to the first
+  object-document panel, and plot presentation uses Origin's LabTalk width
+  units. The task card is
+  `docs/agent/tasks/2026-07-19-origin-single-graph-fidelity.md`.
 - The agent memory foundation is now present: `README.md`,
   `current-state.md`, this register, decision memory, and lesson memory.
 - The older entries below were last reconciled on 2026-07-11. Treat their

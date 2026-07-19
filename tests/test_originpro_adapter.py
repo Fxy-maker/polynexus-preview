@@ -1,3 +1,5 @@
+import pytest
+
 from polynexus.origin.contracts import ExportRequest
 from polynexus.origin.originpro_adapter import OriginProAdapter, _OriginProFacade
 from polynexus.origin.originpro_adapter import _default_available
@@ -25,8 +27,8 @@ class FakeOriginPro:
     def from_csv(self, path):
         self.events.append(("from_csv", str(path)))
 
-    def add_plot(self, x_column, y_column, style):
-        self.events.append(("add_plot", x_column, y_column, style))
+    def add_plot(self, x_column, y_column, style, *, data_ref="", name=""):
+        self.events.append(("add_plot", x_column, y_column, style, data_ref, name))
 
     def configure_axes(self, *, x_scale, y_scale):
         self.events.append(("configure_axes", x_scale, y_scale))
@@ -64,6 +66,194 @@ def test_originpro_adapter_builds_editable_graph(tmp_path):
     assert ("show",) in facade.events
     assert ("activate",) in facade.events
     assert any(event[0] == "save" for event in facade.events)
+
+
+def test_originpro_adapter_binds_each_plot_to_its_source_and_name(tmp_path):
+    facade = FakeOriginPro()
+    source_a = tmp_path / "data-a.csv"
+    source_b = tmp_path / "data-b.csv"
+    source_a.write_text("x,y\n1,2\n", encoding="utf-8")
+    source_b.write_text("x,y\n1,20\n", encoding="utf-8")
+    request = ExportRequest(
+        document={
+            "figure_id": "fig-multi",
+            "data_sources": [
+                {"id": "source-a", "path": str(source_a)},
+                {"id": "source-b", "path": str(source_b)},
+            ],
+            "objects": [
+                {
+                    "id": "plot-a",
+                    "type": "plot_series",
+                    "name": "Curve A",
+                    "data_ref": "source-a",
+                    "x_column": "x",
+                    "y_column": "y",
+                    "style": {"color": "#336699", "line_width": 1.5},
+                },
+                {
+                    "id": "plot-b",
+                    "type": "plot_series",
+                    "name": "Curve B",
+                    "data_ref": "source-b",
+                    "x_column": "x",
+                    "y_column": "y",
+                    "style": {"color": "#E69F00", "line_width": 2.0},
+                },
+            ],
+        },
+        output_root=tmp_path / "out",
+        mode="editable_origin",
+    )
+
+    result = OriginProAdapter(originpro_factory=lambda: facade).export(request)
+
+    assert result.success is True
+    assert [event for event in facade.events if event[0] == "add_plot"] == [
+        (
+            "add_plot",
+            "x",
+            "y",
+            {"color": "#336699", "line_width": 1.5},
+            "source-a",
+            "Curve A",
+        ),
+        (
+            "add_plot",
+            "x",
+            "y",
+            {"color": "#E69F00", "line_width": 2.0},
+            "source-b",
+            "Curve B",
+        ),
+    ]
+
+
+def test_originpro_facade_uses_source_sheet_and_applies_plot_style():
+    class FakeSheet:
+        def __init__(self, name):
+            self.name = name
+            self.labels = []
+
+        def set_label(self, column, value):
+            self.labels.append((column, value))
+
+    class FakeFrame:
+        def __init__(self):
+            self.columns = type(
+                "Columns",
+                (),
+                {
+                    "__contains__": lambda _self, name: name in {"x", "y"},
+                    "get_loc": lambda _self, name: {"x": 0, "y": 1}[name],
+                },
+            )()
+
+    class FakePlot:
+        def __init__(self):
+            self.color = None
+            self.commands = []
+
+        def set_cmd(self, *args):
+            self.commands.append(args)
+
+    class FakeLayer:
+        def __init__(self):
+            self.events = []
+            self.plot = FakePlot()
+
+        def add_plot(self, sheet, *, colx, coly):
+            self.events.append((sheet.name, colx, coly))
+            return self.plot
+
+        def rescale(self):
+            return None
+
+    class FakeGraph:
+        def __init__(self, layer):
+            self.layer = layer
+
+        def __getitem__(self, index):
+            assert index == 0
+            return self.layer
+
+    source_a = FakeSheet("source-a")
+    source_b = FakeSheet("source-b")
+    layer = FakeLayer()
+    facade = _OriginProFacade(object())
+    facade._sheets = {"source-a": source_a, "source-b": source_b}
+    facade._dataframes = {"source-a": FakeFrame(), "source-b": FakeFrame()}
+    facade._graphs = [FakeGraph(layer)]
+
+    facade.add_plot(
+        "x",
+        "y",
+        {"color": "#336699", "line_width": 1.5},
+        data_ref="source-b",
+        name="Curve B",
+    )
+
+    assert layer.events == [("source-b", 0, 1)]
+    assert source_b.labels == [("y", "Curve B")]
+    assert layer.plot.color == "#336699"
+    assert layer.plot.commands == [("-w 750",)]
+
+
+def test_originpro_facade_rejects_unknown_source_reference():
+    facade = _OriginProFacade(object())
+    facade._sheets = {"source-a": object()}
+    facade._dataframes = {"source-a": object()}
+
+    with pytest.raises(KeyError, match="not loaded: source-missing"):
+        facade.add_plot("x", "y", {}, data_ref="source-missing")
+
+
+def test_originpro_facade_configures_graph_title_labels_and_scales():
+    class FakeAxis:
+        def __init__(self):
+            self.title = ""
+
+    class FakeLayer:
+        def __init__(self):
+            self.xscale = ""
+            self.yscale = ""
+            self.axes = {"x": FakeAxis(), "y": FakeAxis()}
+            self.rescaled = False
+
+        def axis(self, name):
+            return self.axes[name]
+
+        def rescale(self):
+            self.rescaled = True
+
+    class FakeGraph:
+        def __init__(self, layer):
+            self.layer = layer
+            self.lname = ""
+
+        def __getitem__(self, index):
+            assert index == 0
+            return self.layer
+
+    layer = FakeLayer()
+    graph = FakeGraph(layer)
+    facade = _OriginProFacade(object())
+    facade._graphs = [graph]
+
+    facade.configure_figure(
+        title="Full SAXS series waterfall",
+        xlabel="q (nm^-1)",
+        ylabel="I (a.u.)",
+        x_scale="linear",
+        y_scale="log",
+    )
+
+    assert graph.lname == "Full SAXS series waterfall"
+    assert layer.axes["x"].title == "q (nm^-1)"
+    assert layer.axes["y"].title == "I (a.u.)"
+    assert layer.xscale == "linear"
+    assert layer.yscale == "log10"
+    assert layer.rescaled is True
 
 
 def test_originpro_adapter_applies_source_axis_scales(tmp_path):
