@@ -146,7 +146,11 @@ class _OriginProFacade:
         frame = self._dataframes[-1]
         if x_column not in frame.columns or y_column not in frame.columns:
             raise KeyError(f"plot columns not found: {x_column}, {y_column}")
-        graph = self._module.new_graph(template="Line")
+        graph = (
+            self._graphs[-1]
+            if self._graphs
+            else self._module.new_graph(template="Line")
+        )
         layer = graph[0]
         layer.add_plot(
             self._sheet,
@@ -154,7 +158,8 @@ class _OriginProFacade:
             coly=int(frame.columns.get_loc(y_column)),
         )
         layer.rescale()
-        self._graphs.append(graph)
+        if not self._graphs:
+            self._graphs.append(graph)
 
     def save(self, path: Path) -> None:
         save = getattr(self._module, "save", None)

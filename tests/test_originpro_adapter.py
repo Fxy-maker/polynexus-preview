@@ -108,6 +108,51 @@ def test_originpro_facade_rescales_graph_after_adding_plot():
     assert [event[0] for event in layer.events] == ["add_plot", "rescale"]
 
 
+def test_originpro_facade_reuses_one_graph_for_multiple_plots():
+    class FakeLayer:
+        def add_plot(self, sheet, *, colx, coly):
+            return None
+
+        def rescale(self):
+            return None
+
+    class FakeGraph:
+        def __init__(self, layer):
+            self.layer = layer
+
+        def __getitem__(self, index):
+            assert index == 0
+            return self.layer
+
+    class FakeModule:
+        def __init__(self):
+            self.graph_count = 0
+            self.layer = FakeLayer()
+
+        def new_graph(self, *, template):
+            assert template == "Line"
+            self.graph_count += 1
+            return FakeGraph(self.layer)
+
+    columns = type(
+        "Columns",
+        (),
+        {
+            "__contains__": lambda _self, name: name in {"x", "y"},
+            "get_loc": lambda _self, name: {"x": 0, "y": 1}[name],
+        },
+    )()
+    module = FakeModule()
+    facade = _OriginProFacade(module)
+    facade._sheet = object()
+    facade._dataframes = [type("Frame", (), {"columns": columns})()]
+
+    facade.add_plot("x", "y", {})
+    facade.add_plot("x", "y", {})
+
+    assert module.graph_count == 1
+
+
 def test_originpro_adapter_resolves_run_relative_source_from_source_root(tmp_path):
     run_root = tmp_path / "run-1"
     relative_source = "figures/fig-1/data/source.csv"

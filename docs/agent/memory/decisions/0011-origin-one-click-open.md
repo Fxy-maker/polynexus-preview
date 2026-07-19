@@ -27,6 +27,10 @@ The native facade rescales each Origin graph layer after adding a plot. Origin
 starts new graph layers with a default `0..1` Y range, which hides valid SAXS
 intensity data unless the layer is rescaled.
 
+One export creates one Origin Graph and reuses its first layer for all mapped
+plot series. This preserves multi-series figures as one native Origin graph
+instead of opening one graph window per curve.
+
 ## Rationale
 
 The user-facing intent is to see the current figure inside Origin, not merely
