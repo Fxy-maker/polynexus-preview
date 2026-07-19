@@ -4,6 +4,12 @@
 
 ## Current checkpoint
 
+- Chart gallery search, sorting, batch export, and revision status completed on
+  2026-07-19. Active gallery cards can be filtered by title/id/status, sorted
+  by title or working/published revision, checked for selected batch export,
+  and show working/published revision badges. The manifest-only boundary is
+  unchanged. Focused chart gallery/viewer suite passes (26). Task card:
+  `docs/agent/tasks/2026-07-19-chart-gallery-search-sort-batch.md`.
 - Undoable batch alignment and grouping completed on 2026-07-19. The core now
   supports left/center/top alignment plus group/ungroup as one `EditSession`
   command each, preserving geometry dimensions and rejecting locked or

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLabel, QScrollArea, QSizePolicy, QFileDialog, QComboBox,
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QAbstractItemView,
+    QCheckBox, QLineEdit,
 )
 from PySide6.QtCore import Qt, Signal, QSize, QEvent, QTimer
 from PySide6.QtGui import QPixmap, QPainter, QKeySequence, QShortcut
@@ -50,6 +51,7 @@ class ChartThumbnail(QWidget):
     edit_clicked = Signal(object)
     open_clicked = Signal(str)
     copy_clicked = Signal(str)
+    batch_checked_changed = Signal(str, bool)
 
     def __init__(self, entry: FigureGalleryEntry, parent=None):
         super().__init__(parent)
@@ -85,13 +87,25 @@ class ChartThumbnail(QWidget):
         self._role_badge = QLabel(_gallery_role_text(entry.publication_role))
         self._role_badge.setObjectName("chart_role_badge")
 
+        self._version_badge = QLabel(_gallery_revision_text(entry))
+        self._version_badge.setObjectName("chart_version_badge")
+
         badges = QHBoxLayout()
         badges.setContentsMargins(0, 0, 0, 0)
         badges.setSpacing(6)
         badges.addWidget(self._state_badge, 0, Qt.AlignLeft)
         badges.addWidget(self._role_badge, 0, Qt.AlignLeft)
+        badges.addWidget(self._version_badge, 0, Qt.AlignLeft)
         badges.addStretch()
         layout.addLayout(badges)
+
+        self._batch_check = QCheckBox(tr("CHART_SELECT"))
+        self._batch_check.toggled.connect(
+            lambda checked: self.batch_checked_changed.emit(
+                self.entry.figure_id, bool(checked)
+            )
+        )
+        layout.addWidget(self._batch_check)
 
         self._label = QLabel(entry.title)
         self._label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -157,6 +171,11 @@ class ChartThumbnail(QWidget):
         self._role_badge.setStyleSheet(
             f"color: {t.text_primary}; background: {t.bg_surface}; "
             f"border: 1px solid {border if self._hovered else t.border_light}; border-radius: {t.radius_sm}px; "
+            f"padding: 2px 8px; font-size: {t.font_size_sm}px; font-weight: 600;"
+        )
+        self._version_badge.setStyleSheet(
+            f"color: {t.text_primary}; background: {t.bg_surface}; "
+            f"border: 1px solid {t.border_light}; border-radius: {t.radius_sm}px; "
             f"padding: 2px 8px; font-size: {t.font_size_sm}px; font-weight: 600;"
         )
 
@@ -234,6 +253,11 @@ class ChartThumbnail(QWidget):
         self._selected = selected
         self._apply_style()
 
+    def set_batch_checked(self, checked: bool):
+        self._batch_check.blockSignals(True)
+        self._batch_check.setChecked(bool(checked))
+        self._batch_check.blockSignals(False)
+
     def retranslate(self):
         """Refresh localized labels after the application language changes."""
         self.setToolTip(
@@ -241,6 +265,8 @@ class ChartThumbnail(QWidget):
         )
         self._state_badge.setText(_gallery_state_text(self.entry.state))
         self._role_badge.setText(_gallery_role_text(self.entry.publication_role))
+        self._version_badge.setText(_gallery_revision_text(self.entry))
+        self._batch_check.setText(tr("CHART_SELECT"))
         self._btn_primary.setText(_gallery_primary_label(self.entry.state))
         self._btn_secondary.setText(_gallery_secondary_label(self.entry.state))
         self._btn_copy.setText(tr("COMMON_COPY"))
@@ -936,6 +962,7 @@ class ChartGallery(QWidget):
         self._figure_paths = []
         self._selected_path = ""
         self._selected_figure_id = ""
+        self._selected_batch_ids = set()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -978,10 +1005,35 @@ class ChartGallery(QWidget):
         )
         self._role_combo.currentIndexChanged.connect(self._reload_visible_entries)
         toolbar.addWidget(self._role_combo)
+        self._search_label = QLabel(tr("CHART_SEARCH_LABEL"))
+        toolbar.addWidget(self._search_label)
+        self._search_edit = QLineEdit()
+        self._search_edit.setPlaceholderText(tr("CHART_SEARCH_PLACEHOLDER"))
+        self._search_edit.setMaximumWidth(220)
+        self._search_edit.textChanged.connect(lambda _text: self._reload_visible_entries())
+        toolbar.addWidget(self._search_edit)
+        self._sort_label = QLabel(tr("CHART_SORT_LABEL"))
+        toolbar.addWidget(self._sort_label)
+        self._sort_combo = QComboBox()
+        for label_key, value in (
+            ("CHART_SORT_DEFAULT", "default"),
+            ("CHART_SORT_TITLE", "title"),
+            ("CHART_SORT_WORKING", "working_revision"),
+            ("CHART_SORT_PUBLISHED", "published_revision"),
+        ):
+            self._sort_combo.addItem(tr(label_key), value)
+        self._sort_combo.currentIndexChanged.connect(self._reload_visible_entries)
+        toolbar.addWidget(self._sort_combo)
         toolbar.addStretch()
         self._btn_export_all = QPushButton(tr("CHART_BTN_EXPORT_ALL"))
         self._btn_export_all.clicked.connect(self._export_all)
         toolbar.addWidget(self._btn_export_all)
+        self._btn_export_selected = QPushButton(tr("CHART_BTN_EXPORT_SELECTED"))
+        self._btn_export_selected.clicked.connect(self._export_selected)
+        toolbar.addWidget(self._btn_export_selected)
+        self._btn_select_all = QPushButton(tr("CHART_BTN_SELECT_ALL"))
+        self._btn_select_all.clicked.connect(self._select_all_visible)
+        toolbar.addWidget(self._btn_select_all)
         self._btn_clear = QPushButton(tr("CHART_BTN_CLEAR"))
         self._btn_clear.clicked.connect(self.clear)
         toolbar.addWidget(self._btn_clear)
@@ -1068,12 +1120,21 @@ class ChartGallery(QWidget):
             return
         category = str(self._category_combo.currentData() or FIGURE_CATEGORY_ALL)
         role = str(self._role_combo.currentData() or FIGURE_ROLE_ALL)
+        query = self._search_edit.text().strip().casefold()
         self._entries = [
             entry
             for entry in self._all_entries
             if (category == FIGURE_CATEGORY_ALL or entry.category == category)
             and (role == FIGURE_ROLE_ALL or entry.publication_role == role)
+            and (not query or query in _gallery_search_text(entry))
         ]
+        sort_key = str(self._sort_combo.currentData() or "default")
+        if sort_key == "title":
+            self._entries.sort(key=lambda entry: (entry.title.casefold(), entry.figure_id.casefold()))
+        elif sort_key == "working_revision":
+            self._entries.sort(key=lambda entry: (-int(entry.working_revision), entry.title.casefold()))
+        elif sort_key == "published_revision":
+            self._entries.sort(key=lambda entry: (-int(entry.published_revision), entry.title.casefold()))
         self._entry_by_figure_id = {
             entry.figure_id: entry for entry in self._entries
         }
@@ -1093,6 +1154,8 @@ class ChartGallery(QWidget):
             thumb.double_clicked.connect(self._open_viewer)
             thumb.edit_clicked.connect(self.edit_requested.emit)
             thumb.copy_clicked.connect(self._copy_path_to_clipboard)
+            thumb.batch_checked_changed.connect(self._on_batch_checked)
+            thumb.set_batch_checked(entry.figure_id in self._selected_batch_ids)
             self._thumbnails.append(thumb)
 
             if col == 0:
@@ -1147,6 +1210,20 @@ class ChartGallery(QWidget):
                 self._role_combo.setItemText(index, tr(key))
 
         self._btn_export_all.setText(tr("CHART_BTN_EXPORT_ALL"))
+        self._btn_export_selected.setText(tr("CHART_BTN_EXPORT_SELECTED"))
+        self._btn_select_all.setText(tr("CHART_BTN_SELECT_ALL"))
+        self._search_label.setText(tr("CHART_SEARCH_LABEL"))
+        self._search_edit.setPlaceholderText(tr("CHART_SEARCH_PLACEHOLDER"))
+        self._sort_label.setText(tr("CHART_SORT_LABEL"))
+        for value, key in (
+            ("default", "CHART_SORT_DEFAULT"),
+            ("title", "CHART_SORT_TITLE"),
+            ("working_revision", "CHART_SORT_WORKING"),
+            ("published_revision", "CHART_SORT_PUBLISHED"),
+        ):
+            index = self._sort_combo.findData(value)
+            if index >= 0:
+                self._sort_combo.setItemText(index, tr(key))
         self._btn_clear.setText(tr("CHART_BTN_CLEAR"))
         for thumbnail in self._thumbnails:
             thumbnail.retranslate()
@@ -1231,16 +1308,39 @@ class ChartGallery(QWidget):
             QApplication.clipboard().setText(filepath)
 
     def _export_all(self):
-        if not self._figure_paths:
+        self._export_paths(self._figure_paths)
+
+    def _export_selected(self):
+        selected_paths = [
+            path
+            for entry in self._all_entries
+            if entry.figure_id in self._selected_batch_ids
+            for path in entry.asset_paths
+        ]
+        self._export_paths(selected_paths)
+
+    def _export_paths(self, paths):
+        if not paths:
             return
         save_dir = QFileDialog.getExistingDirectory(self, tr("DIALOG_EXPORT_ALL_TITLE"))
         if not save_dir:
             return
         import shutil
-        for filepath in self._figure_paths:
+        for filepath in paths:
             dst = os.path.join(save_dir, os.path.basename(filepath))
             if not os.path.exists(dst):
                 shutil.copy2(filepath, dst)
+
+    def _on_batch_checked(self, figure_id, checked):
+        if checked:
+            self._selected_batch_ids.add(str(figure_id))
+        else:
+            self._selected_batch_ids.discard(str(figure_id))
+
+    def _select_all_visible(self):
+        self._selected_batch_ids.update(entry.figure_id for entry in self._entries)
+        for thumbnail in self._thumbnails:
+            thumbnail.set_batch_checked(True)
 
     def clear(self):
         self._clear_thumbnail_widgets()
@@ -1251,6 +1351,7 @@ class ChartGallery(QWidget):
         self._figure_paths = []
         self._selected_path = ""
         self._selected_figure_id = ""
+        self._selected_batch_ids.clear()
 
     def _clear_thumbnail_widgets(self):
         for thumb in self._thumbnails:
@@ -1303,6 +1404,27 @@ class ChartGallery(QWidget):
             self._asset_layout.addWidget(row)
         self._asset_group.setTitle(tr("CHART_ASSET_PANEL_TITLE"))
         self._asset_group.setVisible(bool(entry.assets))
+
+
+def _gallery_search_text(entry: FigureGalleryEntry) -> str:
+    return " ".join(
+        (
+            entry.figure_id,
+            entry.title,
+            entry.status,
+            entry.error,
+            entry.publication_status,
+        )
+    ).casefold()
+
+
+def _gallery_revision_text(entry: FigureGalleryEntry) -> str:
+    parts = []
+    if int(entry.working_revision or 0) > 0:
+        parts.append(tr("CHART_REVISION_WORKING", int(entry.working_revision)))
+    if int(entry.published_revision or 0) > 0:
+        parts.append(tr("CHART_REVISION_PUBLISHED", int(entry.published_revision)))
+    return " / ".join(parts) or tr("CHART_REVISION_NONE")
 
 
 def _gallery_state_text(state: str) -> str:
