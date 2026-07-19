@@ -40,6 +40,9 @@ _ORIGIN_SYMBOLS = {
 }
 _SUPERSCRIPT = str.maketrans("0123456789+-=()n", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ")
 _SUBSCRIPT = str.maketrans("0123456789+-=()", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎")
+_ORIGIN_DISPLAY_LINE_WIDTH = 1.2
+_ORIGIN_AXIS_THICKNESS = 0.8
+_ORIGIN_FRAME_AXES = ("x", "x2", "y", "y2")
 
 
 class OriginProAdapter:
@@ -292,6 +295,7 @@ class _OriginProFacade:
             layer.xscale = origin_x_scale
         if origin_y_scale:
             layer.yscale = origin_y_scale
+        _apply_axis_frame_style(layer)
         layer.rescale()
 
     def configure_axes(self, *, x_scale: str, y_scale: str) -> None:
@@ -363,18 +367,30 @@ def _apply_plot_style(plot: Any, style: Mapping[str, Any] | None) -> None:
     except (TypeError, ValueError, OverflowError):
         line_width = 0.0
     if math.isfinite(line_width) and line_width > 0:
+        display_width = max(line_width, _ORIGIN_DISPLAY_LINE_WIDTH)
         set_cmd = getattr(plot, "set_cmd", None)
         if callable(set_cmd):
             try:
                 # Origin's LabTalk -w unit is 1/500 of a point (1000 = 2 pt).
-                set_cmd(f"-w {int(round(line_width * 500))}")
+                set_cmd(f"-w {int(round(display_width * 500))}")
             except (AttributeError, TypeError, ValueError):
                 pass
         elif hasattr(type(plot), "width"):
             try:
-                plot.width = line_width
+                plot.width = display_width
             except (AttributeError, TypeError, ValueError):
                 pass
+
+
+def _apply_axis_frame_style(layer: Any) -> None:
+    set_float = getattr(layer, "set_float", None)
+    if not callable(set_float):
+        return
+    for axis in _ORIGIN_FRAME_AXES:
+        try:
+            set_float(f"{axis}.thickness", _ORIGIN_AXIS_THICKNESS)
+        except (AttributeError, TypeError, ValueError):
+            continue
 
 
 def _default_available() -> bool:

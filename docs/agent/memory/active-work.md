@@ -19,11 +19,13 @@
   and 238 ChartEditor regression tests. The
   prescribed verifier command
   cannot run because `scripts/verify.py` is absent; see lesson `0001`.
-- A live smoke export through the configured OriginPro installation returned
-  `success/originpro` and was inspected in-process: one Graph, five plots,
-  logarithmic Y, document colors, 0.8-point line widths, five source sheets,
-  and five sample names. The generated native `.opju` remains owned by Origin
-  until that application closes; no user-owned Origin process was closed.
+- A live style smoke export through the configured OriginPro installation
+  returned `success/originpro` for a synthetic five-plot document and was
+  inspected in-process: one Graph, five plots, logarithmic Y, document colors,
+  five 1.2-point display line widths, 0.8-point `x/x2/y/y2` frame axes, five
+  source sheets, and five sample names. The generated native `.opju` remains
+  owned by Origin until that application closes; no user-owned Origin process
+  was closed.
 - Native multi-series export now binds each plot through `data_ref` instead of
   reusing the last imported dataframe; axis labels fall back to the first
   object-document panel, and plot presentation uses Origin's LabTalk width

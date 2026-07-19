@@ -203,6 +203,21 @@ def test_originpro_facade_uses_source_sheet_and_applies_plot_style():
     assert layer.plot.commands == [("-w 750",)]
 
 
+def test_originpro_plot_style_uses_balanced_minimum_display_width():
+    class FakePlot:
+        def __init__(self):
+            self.commands = []
+
+        def set_cmd(self, command):
+            self.commands.append(command)
+
+    plot = FakePlot()
+
+    originpro_adapter._apply_plot_style(plot, {"line_width": 0.8})
+
+    assert plot.commands == ["-w 600"]
+
+
 def test_originpro_facade_rejects_unknown_source_reference():
     facade = _OriginProFacade(object())
     facade._sheets = {"source-a": object()}
@@ -258,6 +273,39 @@ def test_originpro_facade_configures_graph_title_labels_and_scales():
     assert layer.xscale == "linear"
     assert layer.yscale == "log10"
     assert layer.rescaled is True
+
+
+def test_originpro_facade_applies_balanced_axis_frame_thickness():
+    class FakeLayer:
+        def __init__(self):
+            self.properties = []
+
+        def set_float(self, prop, value):
+            self.properties.append((prop, value))
+
+        def rescale(self):
+            return None
+
+    class FakeGraph:
+        def __init__(self, layer):
+            self.layer = layer
+
+        def __getitem__(self, index):
+            assert index == 0
+            return self.layer
+
+    layer = FakeLayer()
+    facade = _OriginProFacade(object())
+    facade._graphs = [FakeGraph(layer)]
+
+    facade.configure_figure(x_scale="linear", y_scale="linear")
+
+    assert layer.properties == [
+        ("x.thickness", 0.8),
+        ("x2.thickness", 0.8),
+        ("y.thickness", 0.8),
+        ("y2.thickness", 0.8),
+    ]
 
 
 def test_origin_display_label_converts_mathtext_to_origin_safe_unicode():
