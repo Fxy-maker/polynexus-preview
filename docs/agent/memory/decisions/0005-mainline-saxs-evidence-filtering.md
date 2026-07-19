@@ -1,3 +1,10 @@
+---
+kind: decision
+status: active
+date: 2026-07-12
+title: Incremental SAXS evidence-filtering rollout
+---
+
 # Decision 0005: Incremental SAXS evidence-filtering rollout
 
 Date: 2026-07-12

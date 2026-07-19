@@ -60,9 +60,9 @@ title: Current PolyNexus repository state
 - The repository verification tooling was restored in commit `6002221`,
   including `scripts/verify.py`, `scripts/agent_memory.py`,
   `scripts/task_check.py`, and `pyrightconfig.json`. The prescribed command
-  now reaches the memory validation step but is blocked by the pre-existing
-  legacy decision file `docs/agent/memory/decisions/0005-mainline-saxs-evidence-filtering.md`,
-  which has no YAML front matter.
+  `python scripts/verify.py --changed --types` now passes, including the
+  memory check, changed-file checks, focused quality gate, and preprocessing
+  optimization gate.
 
 ## Known limitations and next actions
 

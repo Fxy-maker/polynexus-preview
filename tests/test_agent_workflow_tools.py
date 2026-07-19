@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+import sys
 
 from scripts.task_check import validate_task_text
 from scripts.verify import changed_python_paths, command_for, type_check_targets
@@ -118,3 +120,18 @@ def test_verification_assets_are_present():
     assert (root / "scripts" / "task_check.py").is_file()
     assert (root / "scripts" / "verify.py").is_file()
     assert (root / "pyrightconfig.json").is_file()
+
+
+def test_repository_memory_check_passes():
+    root = Path(__file__).resolve().parents[1]
+    script = root / "scripts" / "agent_memory.py"
+    completed = subprocess.run(
+        [sys.executable, str(script), "check", "--root", str(root)],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert completed.returncode == 0, completed.stderr
