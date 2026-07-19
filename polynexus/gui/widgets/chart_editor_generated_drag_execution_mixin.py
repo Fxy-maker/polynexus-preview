@@ -52,57 +52,55 @@ class ChartEditorGeneratedDragExecutionMixin:
             drag_state["activated"] = True
         drag_kind = str(drag_state.get("kind", "") or object_type)
         self._set_generated_canvas_cursor(Qt.CursorShape.ClosedHandCursor)
-        if drag_kind == "line":
-            coordinates = self._generated_event_data_coordinates(event)
-            if coordinates is None:
+        session = getattr(self, "_edit_session", None)
+        if session is not None:
+            self._edit_session = None
+        try:
+            if drag_kind == "line":
+                coordinates = self._generated_event_data_coordinates(event)
+                if coordinates is None:
+                    return
+                x_value, y_value = coordinates
+                handle_index = int(drag_state.get("handle_index", 0) or 0)
+                changed = self._apply_generated_line_handle_drag(
+                    object_id, handle_index, x_value, y_value
+                )
+            elif drag_kind == "line-body":
+                coordinates = self._generated_event_data_coordinates(event)
+                if coordinates is None:
+                    return
+                x_value, y_value = coordinates
+                changed = self._apply_generated_line_body_drag(
+                    object_id, drag_state, x_value, y_value
+                )
+            elif drag_kind == "plot_series":
+                coordinates = self._generated_event_data_coordinates(event)
+                if coordinates is None:
+                    return
+                x_value, y_value = coordinates
+                handle_index = int(drag_state.get("handle_index", 0) or 0)
+                changed = self._apply_generated_plot_series_handle_drag(
+                    object_id, handle_index, x_value, y_value
+                )
+            elif object_type == "legend":
+                axes_fraction = self._generated_event_axes_fraction(event)
+                if axes_fraction is None:
+                    self._set_generated_canvas_cursor(Qt.CursorShape.ClosedHandCursor)
+                    return
+                offset_x, offset_y = drag_state.get("grab_offset_axes", (0.0, 0.0))
+                changed = self._apply_generated_legend_drag(
+                    object_id,
+                    float(axes_fraction[0]) - float(offset_x),
+                    float(axes_fraction[1]) - float(offset_y),
+                )
+            else:
+                self._generated_handle_drag_state = None
+                self._clear_generated_drag_status()
+                self._reset_generated_canvas_cursor()
                 return
-            x_value, y_value = coordinates
-            handle_index = int(drag_state.get("handle_index", 0) or 0)
-            changed = self._apply_generated_line_handle_drag(
-                object_id,
-                handle_index,
-                x_value,
-                y_value,
-            )
-        elif drag_kind == "line-body":
-            coordinates = self._generated_event_data_coordinates(event)
-            if coordinates is None:
-                return
-            x_value, y_value = coordinates
-            changed = self._apply_generated_line_body_drag(
-                object_id,
-                drag_state,
-                x_value,
-                y_value,
-            )
-        elif drag_kind == "plot_series":
-            coordinates = self._generated_event_data_coordinates(event)
-            if coordinates is None:
-                return
-            x_value, y_value = coordinates
-            handle_index = int(drag_state.get("handle_index", 0) or 0)
-            changed = self._apply_generated_plot_series_handle_drag(
-                object_id,
-                handle_index,
-                x_value,
-                y_value,
-            )
-        elif object_type == "legend":
-            axes_fraction = self._generated_event_axes_fraction(event)
-            if axes_fraction is None:
-                self._set_generated_canvas_cursor(Qt.CursorShape.ClosedHandCursor)
-                return
-            offset_x, offset_y = drag_state.get("grab_offset_axes", (0.0, 0.0))
-            changed = self._apply_generated_legend_drag(
-                object_id,
-                float(axes_fraction[0]) - float(offset_x),
-                float(axes_fraction[1]) - float(offset_y),
-            )
-        else:
-            self._generated_handle_drag_state = None
-            self._clear_generated_drag_status()
-            self._reset_generated_canvas_cursor()
-            return
+        finally:
+            if session is not None:
+                self._edit_session = session
         if not changed:
             return
         self._set_generated_drag_status(object_id, drag_state)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..i18n import tr
+from .chart_editor_tool_icons import editor_tool_icon
 
 
 class _EditorContextToolbar(QToolBar):
@@ -33,7 +34,8 @@ class _EditorContextToolbar(QToolBar):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("editor_toolbar")
-        self.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.setIconSize(QSize(18, 18))
         self._actions_by_id = {}
         self._tool_action_group = QActionGroup(self)
         self._tool_action_group.setExclusive(True)
@@ -41,6 +43,7 @@ class _EditorContextToolbar(QToolBar):
             action = QAction(tr(translation_key), self)
             action.setObjectName(f"editor_toolbar_{action_id}")
             action.setToolTip(tr(translation_key))
+            action.setIcon(editor_tool_icon(action_id))
             if action_id in self._TOOL_ACTION_IDS:
                 action.setCheckable(True)
                 self._tool_action_group.addAction(action)

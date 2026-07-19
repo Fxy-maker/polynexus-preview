@@ -4,6 +4,13 @@
 
 ## Current checkpoint
 
+- Editor icon toolbar and one-command drag transactions completed on
+  2026-07-19. Toolbar actions now use deterministic vector icons with
+  translated tooltips. Generated drag motion is preview-only while a session
+  is active; release commits one `ReplaceObjectCommand`, then persists the
+  result, while Escape restores the original snapshot. Full focused
+  toolbar/transaction/drag/editor slice passes (252). Task card:
+  `docs/agent/tasks/2026-07-19-editor-toolbar-and-drag-transactions.md`.
 - Chart gallery search, sorting, batch export, and revision status completed on
   2026-07-19. Active gallery cards can be filtered by title/id/status, sorted
   by title or working/published revision, checked for selected batch export,

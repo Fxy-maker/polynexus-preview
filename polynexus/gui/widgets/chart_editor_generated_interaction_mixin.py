@@ -190,9 +190,11 @@ class ChartEditorGeneratedInteractionMixin:
                     self._show_generated_figure_document()
                     self._sync_generated_object_property_controls(object_id)
             return
+        committed = self._commit_generated_drag_transaction(drag_state)
         self._persist_generated_document()
-        self._show_generated_figure_document()
-        self.figure_changed.emit()
+        if not committed:
+            self._show_generated_figure_document()
+            self.figure_changed.emit()
 
     def _on_generated_figure_leave(self, _event):
         self._last_generated_pointer_state = None

@@ -2,8 +2,29 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from ...core.figure_edit_commands import ReplaceObjectCommand
+
 
 class ChartEditorGeneratedDragMixin:
+    def _commit_generated_drag_transaction(self, drag_state) -> bool:
+        if not isinstance(drag_state, dict) or not drag_state.get("dirty"):
+            return False
+        object_id = str(drag_state.get("object_id", "") or "").strip()
+        current = self._generated_figure_object_by_id(object_id)
+        original = drag_state.get("original_object")
+        if not object_id or not isinstance(current, dict) or not isinstance(original, dict):
+            return False
+        if current == original:
+            return False
+        session = getattr(self, "_edit_session", None)
+        if session is None:
+            session = getattr(self, "_edit_session_for_adapter", lambda: None)()
+        if session is None:
+            return False
+        session.select(object_id, "generated-canvas")
+        result = self._execute_edit(ReplaceObjectCommand(object_id, current))
+        return bool(result is not None and result.changed)
+
     def _activate_generated_drag_state(self, drag_state, event=None):
         object_id = str(drag_state.get("object_id", "") or "")
         figure_object = self._generated_figure_object_by_id(object_id)

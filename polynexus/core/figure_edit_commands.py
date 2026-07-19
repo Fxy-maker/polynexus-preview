@@ -542,6 +542,41 @@ class SetLockCommand:
         return _success(self.object_id)
 
 
+class ReplaceObjectCommand:
+    """Commit one already-previewed object state as a single history entry."""
+
+    def __init__(self, object_id: str, object_payload: Mapping[str, Any]):
+        self.object_id = str(object_id or "").strip()
+        self.object_payload = deepcopy(dict(object_payload)) if isinstance(object_payload, Mapping) else None
+
+    def apply(self, document: dict) -> tuple[EditResult, object]:
+        found = _find_object(document, self.object_id)
+        if found is None:
+            return _failure("object_not_found", f"Object '{self.object_id}' was not found.", self.object_id), None
+        if not isinstance(self.object_payload, dict) or str(self.object_payload.get("id", "")) != self.object_id:
+            return _failure("invalid_payload", "Replacement object id does not match.", self.object_id), None
+        if capabilities_for(found[1]).locked:
+            return _failure("locked", f"Object '{self.object_id}' is locked.", self.object_id), None
+        if found[1] == self.object_payload:
+            return _noop(self.object_id, message="Object already has the requested state."), None
+        snapshot = {"object": deepcopy(found[1])}
+        found[1].clear()
+        found[1].update(deepcopy(self.object_payload))
+        return _success(self.object_id), snapshot
+
+    def revert(self, document: dict, snapshot: object) -> EditResult:
+        found = _find_object(document, self.object_id)
+        if found is None:
+            return _failure("object_not_found", f"Object '{self.object_id}' was not found.", self.object_id)
+        if not isinstance(snapshot, dict) or not isinstance(snapshot.get("object"), dict):
+            return _failure("invalid_snapshot", "The replacement snapshot is invalid.", self.object_id)
+        if found[1] == snapshot["object"]:
+            return _noop(self.object_id, message="Object is already restored.")
+        found[1].clear()
+        found[1].update(deepcopy(snapshot["object"]))
+        return _success(self.object_id)
+
+
 def _batch_objects(document: dict, object_ids: Sequence[str]):
     objects = _objects(document)
     if objects is None:
@@ -855,6 +890,7 @@ __all__ = [
     "GroupObjectsCommand",
     "PasteObjectCommand",
     "SetLockCommand",
+    "ReplaceObjectCommand",
     "SetVisibilityCommand",
     "UngroupObjectsCommand",
     "UpdateGeometryCommand",
