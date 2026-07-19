@@ -4,6 +4,7 @@
 
 ## Current checkpoint
 
+- Chart gallery visual polish completed on 2026-07-19: the three-column layout remains, `ChartThumbnail` now has a unified card surface, and the blue border follows hover while selection uses a low-emphasis theme focus color. Task card: `docs/agent/tasks/2026-07-19-chart-gallery-visual-polish.md`; focused suite: 17 passed. The prescribed verifier remains unavailable because `scripts/verify.py` is missing.
 - OriginLab integration is implemented and locally merged into `main`. The
   ChartEditor top export menu exposes Origin, and run-relative generated-figure
   CSV sources resolve through the gallery `run_root`; native export now shows

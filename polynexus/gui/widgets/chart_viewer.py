@@ -58,6 +58,8 @@ class ChartThumbnail(QWidget):
         self._source_pixmap = QPixmap()
         self._selected = False
         self._hovered = False
+        self.setObjectName("chart_thumbnail")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip(
             f"{entry.title}\n{_gallery_state_text(entry.state)}"
@@ -66,8 +68,8 @@ class ChartThumbnail(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(8)
 
         # Thumbnail image
         self._thumb = QLabel()
@@ -79,14 +81,20 @@ class ChartThumbnail(QWidget):
 
         self._state_badge = QLabel(_gallery_state_text(entry.state))
         self._state_badge.setObjectName("chart_state_badge")
-        layout.addWidget(self._state_badge, 0, Qt.AlignLeft)
 
         self._role_badge = QLabel(_gallery_role_text(entry.publication_role))
         self._role_badge.setObjectName("chart_role_badge")
-        layout.addWidget(self._role_badge, 0, Qt.AlignLeft)
+
+        badges = QHBoxLayout()
+        badges.setContentsMargins(0, 0, 0, 0)
+        badges.setSpacing(6)
+        badges.addWidget(self._state_badge, 0, Qt.AlignLeft)
+        badges.addWidget(self._role_badge, 0, Qt.AlignLeft)
+        badges.addStretch()
+        layout.addLayout(badges)
 
         self._label = QLabel(entry.title)
-        self._label.setAlignment(Qt.AlignCenter)
+        self._label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self._label.setObjectName("thumb_label")
         self._label.setWordWrap(True)
         layout.addWidget(self._label)
@@ -95,12 +103,15 @@ class ChartThumbnail(QWidget):
         actions.setContentsMargins(0, 0, 0, 0)
         actions.setSpacing(6)
         self._btn_primary = QPushButton(_gallery_primary_label(entry.state))
+        self._btn_primary.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._btn_primary.clicked.connect(self._emit_primary_action)
         actions.addWidget(self._btn_primary)
         self._btn_secondary = QPushButton(_gallery_secondary_label(entry.state))
+        self._btn_secondary.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._btn_secondary.clicked.connect(self._emit_secondary_action)
         actions.addWidget(self._btn_secondary)
         self._btn_copy = QPushButton(tr("COMMON_COPY"))
+        self._btn_copy.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._btn_copy.setToolTip(tr("IMPORT_SUGGESTION_COPY_PATH_TOOLTIP"))
         self._btn_copy.clicked.connect(lambda: self.copy_clicked.emit(self.filepath))
         actions.addWidget(self._btn_copy)
@@ -111,26 +122,41 @@ class ChartThumbnail(QWidget):
 
     def _apply_style(self):
         t = ThemeEngine.instance().tokens
-        border = C_ACCENT_WAXS if self._selected else t.border_light
-        border_width = 2 if self._selected else 1
-        bg = t.bg_surface if self._hovered or self._selected else t.bg_card
-        self._thumb.setStyleSheet(
+        if self._hovered:
+            border = C_ACCENT_WAXS
+            border_width = 2
+            bg = t.bg_hover
+        elif self._selected:
+            border = t.border_focus
+            border_width = 1
+            bg = t.bg_surface
+        else:
+            border = t.border_light
+            border_width = 1
+            bg = t.bg_card
+        self.setStyleSheet(
+            "QWidget#chart_thumbnail {"
             f"background: {bg}; border: {border_width}px solid {border}; "
+            f"border-radius: {t.radius_xl}px;"
+            "}"
+        )
+        self._thumb.setStyleSheet(
+            f"background: {t.bg_surface}; border: 1px solid {t.border_light}; "
             f"border-radius: {t.radius_lg}px; padding: 4px;"
         )
         self._label.setStyleSheet(
-            f"color: {t.text_primary if self._selected else t.text_secondary}; "
-            f"font-size: {t.font_size_sm2}px; font-weight: {600 if self._selected else 500}; "
+            f"color: {t.text_primary if self._selected or self._hovered else t.text_secondary}; "
+            f"font-size: {t.font_size_sm2}px; font-weight: {600 if self._selected or self._hovered else 500}; "
             f"background: transparent; border: none;"
         )
         self._state_badge.setStyleSheet(
             f"color: {t.text_primary}; background: {t.bg_surface}; "
-            f"border: 1px solid {border}; border-radius: {t.radius_sm}px; "
+            f"border: 1px solid {border if self._hovered else t.border_light}; border-radius: {t.radius_sm}px; "
             f"padding: 2px 8px; font-size: {t.font_size_sm}px; font-weight: 600;"
         )
         self._role_badge.setStyleSheet(
             f"color: {t.text_primary}; background: {t.bg_surface}; "
-            f"border: 1px solid {border}; border-radius: {t.radius_sm}px; "
+            f"border: 1px solid {border if self._hovered else t.border_light}; border-radius: {t.radius_sm}px; "
             f"padding: 2px 8px; font-size: {t.font_size_sm}px; font-weight: 600;"
         )
 

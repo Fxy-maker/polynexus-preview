@@ -12,6 +12,8 @@ from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
 from polynexus.gui.i18n import tr
+from polynexus.gui.styles import C_ACCENT_WAXS
+from polynexus.gui.theme import ThemeEngine
 from polynexus.gui.plot_gallery_service import (
     FIGURE_CATEGORY_PER_FRAME,
     FIGURE_CATEGORY_SERIES_OVERVIEW,
@@ -231,6 +233,43 @@ def test_chart_thumbnail_rescales_image_to_fit_narrow_card(tmp_path):
     assert pixmap is not None
     assert pixmap.width() <= thumbnail._thumb.contentsRect().width()
     assert pixmap.height() <= thumbnail._thumb.contentsRect().height()
+
+    thumbnail.deleteLater()
+    app.processEvents()
+
+
+def test_chart_thumbnail_hover_border_moves_without_overriding_selection(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    figure_path = tmp_path / "hover-gallery.png"
+    pixmap = QPixmap(120, 80)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    entry = FigureGalleryEntry(
+        figure_id="hover-gallery",
+        title="hover gallery",
+        category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+        state="static_background",
+        preview_path=str(figure_path.resolve()),
+        primary_path=str(figure_path.resolve()),
+        editable_path=str(figure_path.resolve()),
+        document_mode="static_background",
+        asset_paths=(str(figure_path.resolve()),),
+        assets=(),
+    )
+
+    thumbnail = ChartThumbnail(entry)
+    thumbnail.set_selected(True)
+    thumbnail.enterEvent(None)
+    hovered_style = thumbnail.styleSheet()
+    thumbnail.leaveEvent(None)
+    selected_style = thumbnail.styleSheet()
+
+    assert C_ACCENT_WAXS in hovered_style
+    assert C_ACCENT_WAXS not in selected_style
+    assert ThemeEngine.instance().tokens.border_focus in selected_style
+    assert thumbnail._selected is True
+    assert thumbnail._hovered is False
 
     thumbnail.deleteLater()
     app.processEvents()
