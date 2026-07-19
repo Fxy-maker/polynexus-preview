@@ -57,9 +57,12 @@ title: Current PolyNexus repository state
   0.8-point `x/x2/y/y2` frame axes.
 - Automatic-commit regression tests: 2 passed.
 - Ruff checks and `compileall` passed for the changed Origin/editor modules.
-- The repository contract documents `python scripts/verify.py --changed
-  --types`, but `D:\PolyNexus\scripts\verify.py` is absent as of this
-  snapshot, so that command cannot currently run.
+- The repository verification tooling was restored in commit `6002221`,
+  including `scripts/verify.py`, `scripts/agent_memory.py`,
+  `scripts/task_check.py`, and `pyrightconfig.json`. The prescribed command
+  now reaches the memory validation step but is blocked by the pre-existing
+  legacy decision file `docs/agent/memory/decisions/0005-mainline-saxs-evidence-filtering.md`,
+  which has no YAML front matter.
 
 ## Known limitations and next actions
 

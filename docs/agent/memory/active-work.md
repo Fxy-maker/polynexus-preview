@@ -4,8 +4,8 @@
 
 ## Current checkpoint
 
-- Chart gallery visual polish completed on 2026-07-19: the three-column layout remains, `ChartThumbnail` now has a unified card surface, and the blue border follows hover while selection uses a low-emphasis theme focus color. Task card: `docs/agent/tasks/2026-07-19-chart-gallery-visual-polish.md`; focused suite: 17 passed. The prescribed verifier remains unavailable because `scripts/verify.py` is missing.
-- Chart gallery header polish completed on 2026-07-19: the plots page now has a localized gallery title/count, grouped recovery action, and a theme-aware toolbar container; the focused chart/gallery/startup slice passes 21 tests. The prescribed verifier remains unavailable because `scripts/verify.py` is missing.
+- Chart gallery visual polish completed on 2026-07-19: the three-column layout remains, `ChartThumbnail` now has a unified card surface, and the blue border follows hover while selection uses a low-emphasis theme focus color. Task card: `docs/agent/tasks/2026-07-19-chart-gallery-visual-polish.md`; focused suite: 17 passed. The verifier tooling is restored, but the full entry point is currently blocked by a legacy memory-file format issue.
+- Chart gallery header polish completed on 2026-07-19: the plots page now has a localized gallery title/count, grouped recovery action, and a theme-aware toolbar container; the focused chart/gallery/startup slice passes 21 tests. The verifier tooling is restored, but the full entry point is currently blocked by a legacy memory-file format issue.
 - Follow-up fix completed on 2026-07-19: `ChartGallery.retranslate()` now updates filters, actions, badges, and card labels after language changes, removing the mixed Chinese/English gallery state. Focused chart/gallery/startup slice passes 25 tests; restart is required for an already-running GUI process.
 - OriginLab integration is implemented and locally merged into `main`. The
   ChartEditor top export menu exposes Origin, and run-relative generated-figure
@@ -20,8 +20,9 @@
 - The focused Origin/editor verification currently passes: 44 Origin-related
   tests plus the new 16-test source/style fidelity slice, 3 GUI-startup checks,
   and 238 ChartEditor regression tests. The
-  prescribed verifier command
-  cannot run because `scripts/verify.py` is absent; see lesson `0001`.
+  prescribed verifier command reaches the memory check but stops on the
+  pre-existing missing YAML front matter in
+  `docs/agent/memory/decisions/0005-mainline-saxs-evidence-filtering.md`.
 - A live style smoke export through the configured OriginPro installation
   returned `success/originpro` for a synthetic five-plot document and was
   inspected in-process: one Graph, five plots, logarithmic Y, document colors,
