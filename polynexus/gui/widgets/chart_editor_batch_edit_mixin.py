@@ -15,7 +15,10 @@ class ChartEditorBatchEditMixin:
         for name in (
             "_btn_annotation_align_left",
             "_btn_annotation_align_center",
+            "_btn_annotation_align_right",
             "_btn_annotation_align_top",
+            "_btn_annotation_align_middle",
+            "_btn_annotation_align_bottom",
             "_btn_annotation_group",
             "_btn_annotation_ungroup",
         ):

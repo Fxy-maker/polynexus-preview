@@ -732,7 +732,10 @@ class ChartEditor(
         for name, label_key, callback in (
             ("_btn_annotation_align_left", "EDITOR_ALIGN_LEFT", lambda: self._align_selected_objects("left")),
             ("_btn_annotation_align_center", "EDITOR_ALIGN_CENTER", lambda: self._align_selected_objects("center")),
+            ("_btn_annotation_align_right", "EDITOR_ALIGN_RIGHT", lambda: self._align_selected_objects("right")),
             ("_btn_annotation_align_top", "EDITOR_ALIGN_TOP", lambda: self._align_selected_objects("top")),
+            ("_btn_annotation_align_middle", "EDITOR_ALIGN_MIDDLE", lambda: self._align_selected_objects("middle")),
+            ("_btn_annotation_align_bottom", "EDITOR_ALIGN_BOTTOM", lambda: self._align_selected_objects("bottom")),
             ("_btn_annotation_group", "EDITOR_GROUP", self._group_selected_objects),
             ("_btn_annotation_ungroup", "EDITOR_UNGROUP", self._ungroup_selected_objects),
         ):
@@ -935,7 +938,10 @@ class ChartEditor(
         for button_name, key in (
             ("_btn_annotation_align_left", "EDITOR_ALIGN_LEFT"),
             ("_btn_annotation_align_center", "EDITOR_ALIGN_CENTER"),
+            ("_btn_annotation_align_right", "EDITOR_ALIGN_RIGHT"),
             ("_btn_annotation_align_top", "EDITOR_ALIGN_TOP"),
+            ("_btn_annotation_align_middle", "EDITOR_ALIGN_MIDDLE"),
+            ("_btn_annotation_align_bottom", "EDITOR_ALIGN_BOTTOM"),
             ("_btn_annotation_group", "EDITOR_GROUP"),
             ("_btn_annotation_ungroup", "EDITOR_UNGROUP"),
         ):

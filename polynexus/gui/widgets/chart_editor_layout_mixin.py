@@ -185,12 +185,38 @@ class ChartEditorLayoutMixin:
         self._editor_shortcuts = []
         for sequence, callback in (
             ("Ctrl+S", self.save_to_target),
+            ("Ctrl+Shift+S", self.export_project_package),
             ("Ctrl+Z", self._on_annotation_undo),
             ("Ctrl+Shift+Z", self._on_annotation_redo),
         ):
             shortcut = QShortcut(QKeySequence(sequence), self)
             shortcut.activated.connect(callback)
             self._editor_shortcuts.append(shortcut)
+        canvas = getattr(self, "_canvas", None)
+        if canvas is None:
+            return
+        for sequence, callback in (
+            ("V", lambda: self.set_tool("select")),
+            ("T", lambda: self.set_tool("text")),
+            ("L", lambda: self.set_tool("line")),
+            ("A", lambda: self.set_tool("arrow")),
+            ("R", lambda: self.set_tool("rectangle")),
+            ("Delete", self._delete_selected_from_canvas),
+        ):
+            shortcut = QShortcut(QKeySequence(sequence), canvas)
+            shortcut.setContext(Qt.WidgetShortcut)
+            shortcut.activated.connect(callback)
+            self._editor_shortcuts.append(shortcut)
+
+    def _delete_selected_from_canvas(self):
+        if getattr(self, "_generated_document_mode", False) and getattr(
+            self, "_selected_figure_object_id", ""
+        ):
+            self._soft_delete_selected_generated_object()
+            return
+        canvas = getattr(self, "_annotation_canvas", None)
+        if canvas is not None and not canvas.isHidden():
+            canvas.delete_selected_annotation()
 
     def _set_editor_dirty(self, dirty: bool):
         self._editor_dirty = bool(dirty)

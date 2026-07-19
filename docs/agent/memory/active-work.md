@@ -4,6 +4,12 @@
 
 ## Current checkpoint
 
+- Editor tool shortcuts and complete alignment surface completed on 2026-07-19.
+  Canvas-scoped V/T/L/A/R/Del shortcuts avoid intercepting text fields, while
+  window-scoped save, project export, undo, and redo remain available. All six
+  alignment modes are reachable from the selection-aware batch controls.
+  Shortcut/layout/editor suite passes (249). Task card:
+  `docs/agent/tasks/2026-07-19-editor-shortcuts-and-alignment-surface.md`.
 - Editor icon toolbar and one-command drag transactions completed on
   2026-07-19. Toolbar actions now use deterministic vector icons with
   translated tooltips. Generated drag motion is preview-only while a session
