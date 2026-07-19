@@ -6,6 +6,7 @@ from polynexus.core.figure_edit_commands import (
     DeleteObjectCommand,
     MoveLayerCommand,
     PasteObjectCommand,
+    SetLockCommand,
     SetVisibilityCommand,
     UpdateGeometryCommand,
     UpdateStyleCommand,
@@ -160,6 +161,21 @@ def test_visibility_execute_noop_undo_redo_and_unknown_failure():
     failed = session.execute(SetVisibilityCommand("unknown-1", False))
     assert failed.changed is False
     assert failed.error_code == "capability_not_supported"
+
+
+def test_lock_execute_undo_redo_blocks_normal_edits():
+    session = EditSession(_document())
+
+    assert session.execute(SetLockCommand("line-1", True)).changed
+    assert session.document["objects"][1]["locked"] is True
+    blocked = session.execute(UpdateStyleCommand("line-1", {"color": "red"}))
+    assert blocked.changed is False
+    assert blocked.error_code == "locked"
+
+    assert session.undo().changed
+    assert "locked" not in session.document["objects"][1]
+    assert session.redo().changed
+    assert session.document["objects"][1]["locked"] is True
 
 
 def test_paste_object_execute_undo_redo_and_missing_source_failure():

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QListWidgetItem
+from PySide6.QtWidgets import QAbstractItemView, QListWidgetItem
 
 from ..i18n import tr
 
@@ -27,8 +27,12 @@ class ChartEditorObjectListMixin:
             kind = object_type.replace("_", " ").title()
         name = str(figure_object.get("name", "") or "").strip()
         if name and name.casefold() == kind.casefold():
-            return kind
-        return f"{kind}: {name}" if name else kind
+            label = kind
+        else:
+            label = f"{kind}: {name}" if name else kind
+        if bool(figure_object.get("locked")):
+            return f"{tr('EDITOR_OBJECT_LOCKED')} · {label}"
+        return label
 
     def _reorderable_generated_figure_objects(self):
         return [obj for obj in self._generated_figure_objects() if obj.get("type") != "legend"]
@@ -36,6 +40,12 @@ class ChartEditorObjectListMixin:
     def _refresh_object_list(self, selected_id=""):
         if not hasattr(self, "_object_list"):
             return
+        if hasattr(self._object_list, "setSelectionMode"):
+            self._object_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        query = str(
+            getattr(getattr(self, "_object_search_edit", None), "text", lambda: "")()
+            or ""
+        ).strip().casefold()
         self._syncing_object_list = True
         try:
             self._object_list.clear()
@@ -48,7 +58,18 @@ class ChartEditorObjectListMixin:
             figure_objects = self._generated_figure_objects()
             for figure_object in figure_objects:
                 object_id = str(figure_object.get("id", ""))
-                item = QListWidgetItem(self._figure_object_list_label(figure_object))
+                label = self._figure_object_list_label(figure_object)
+                searchable = " ".join(
+                    (
+                        object_id,
+                        str(figure_object.get("name", "") or ""),
+                        str(figure_object.get("type", "") or ""),
+                        label,
+                    )
+                ).casefold()
+                if query and query not in searchable:
+                    continue
+                item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, object_id)
                 item.setData(Qt.UserRole + 1, "figure_object")
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
@@ -67,7 +88,18 @@ class ChartEditorObjectListMixin:
 
             for annotation in annotations:
                 annotation_id = str(annotation.get("id", ""))
-                item = QListWidgetItem(self._object_list_label(annotation))
+                label = self._object_list_label(annotation)
+                searchable = " ".join(
+                    (
+                        annotation_id,
+                        str(annotation.get("text", "") or ""),
+                        str(annotation.get("type", "") or ""),
+                        label,
+                    )
+                ).casefold()
+                if query and query not in searchable:
+                    continue
+                item = QListWidgetItem(label)
                 item.setData(Qt.UserRole, annotation_id)
                 item.setData(Qt.UserRole + 1, "annotation")
                 self._object_list.addItem(item)
@@ -77,6 +109,17 @@ class ChartEditorObjectListMixin:
             self._object_list.setCurrentRow(selected_row)
         finally:
             self._syncing_object_list = False
+
+    def _object_list_selected_ids(self) -> tuple[str, ...]:
+        if not hasattr(self, "_object_list"):
+            return ()
+        ids = []
+        for item in self._object_list.selectedItems():
+            role = item.data(Qt.UserRole + 1)
+            object_id = str(item.data(Qt.UserRole) or "").strip()
+            if role in {"figure_object", "annotation"} and object_id:
+                ids.append(object_id)
+        return tuple(ids)
 
     def _rename_selected_generated_object(self):
         store = self._generated_store()
@@ -136,7 +179,12 @@ class ChartEditorObjectListMixin:
         object_id = current.data(Qt.UserRole)
         object_role = current.data(Qt.UserRole + 1)
         if object_role == "figure_object":
-            self._select_generated_object(str(object_id or ""), "list")
+            selected_ids = self._object_list_selected_ids()
+            select_many = getattr(self, "_select_generated_objects", None)
+            if callable(select_many):
+                select_many(selected_ids or [str(object_id or "")], "list")
+            else:
+                self._select_generated_object(str(object_id or ""), "list")
             return
         if self._generated_document_mode:
             self._select_generated_object("", "list")

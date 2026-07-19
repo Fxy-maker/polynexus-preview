@@ -6,6 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QColorDialog,
     QComboBox,
@@ -193,6 +194,7 @@ class ChartEditor(
         self._syncing_object_list = False
         self._syncing_geometry_controls = False
         self._selected_figure_object_id = ""
+        self._selected_figure_object_ids = ()
         self._hovered_figure_object_id = ""
         self._selection_status_text = ""
         self._selection_cycle_hint_active = False
@@ -434,8 +436,16 @@ class ChartEditor(
         self._mode_summary_label.setObjectName("editor_mode_summary")
         form.addRow(self._mode_summary_label)
 
+        self._object_search_edit = QLineEdit()
+        self._object_search_edit.setPlaceholderText(tr("EDITOR_OBJECT_SEARCH_PLACEHOLDER"))
+        self._object_search_edit.textChanged.connect(
+            lambda _text: self._refresh_object_list(self._selected_figure_object_id)
+        )
+        form.addRow(tr("EDITOR_OBJECT_SEARCH_LABEL"), self._object_search_edit)
+
         self._object_list = QListWidget()
         self._object_list.setMinimumHeight(96)
+        self._object_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self._object_list.installEventFilter(self)
         self._object_list.currentItemChanged.connect(
             self._on_object_list_selection_changed
@@ -707,6 +717,11 @@ class ChartEditor(
         self._btn_annotation_redo = QPushButton(tr("EDITOR_ANNOTATION_REDO"))
         self._btn_annotation_redo.clicked.connect(self._on_annotation_redo)
         annotation_actions_layout.addWidget(self._btn_annotation_redo, 3, 2)
+
+        self._btn_annotation_lock = QPushButton(tr("EDITOR_OBJECT_LOCK"))
+        self._btn_annotation_lock.setCheckable(True)
+        self._btn_annotation_lock.clicked.connect(self._on_toggle_selected_lock)
+        annotation_actions_layout.addWidget(self._btn_annotation_lock, 4, 0, 1, 3)
         form.addRow(annotation_actions)
 
         annotation_zoom = QWidget()
@@ -828,6 +843,7 @@ class ChartEditor(
         if hasattr(self, "_form"):
             for widget, text in [
                 (self._target_label, tr("EDITOR_TARGET_LABEL")),
+                (self._object_search_edit, tr("EDITOR_OBJECT_SEARCH_LABEL")),
                 (self._object_list, tr("EDITOR_OBJECT_LIST_LABEL")),
                 (self._selected_object_label, tr("EDITOR_SELECTED_OBJECT_LABEL")),
                 (self._annotation_x_spin.parentWidget(), tr("EDITOR_OBJECT_GEOMETRY_LABEL")),
@@ -860,6 +876,9 @@ class ChartEditor(
         self._annotation_text_edit.setPlaceholderText(
             tr("EDITOR_ANNOTATION_TEXT_PLACEHOLDER")
         )
+        self._object_search_edit.setPlaceholderText(
+            tr("EDITOR_OBJECT_SEARCH_PLACEHOLDER")
+        )
         self._btn_annotation_add_text.setText(tr("EDITOR_ANNOTATION_ADD_TEXT"))
         self._btn_annotation_update_text.setText(
             tr("EDITOR_ANNOTATION_UPDATE_TEXT")
@@ -891,6 +910,7 @@ class ChartEditor(
         self._btn_annotation_back.setText(tr("EDITOR_ANNOTATION_BACK"))
         self._btn_annotation_undo.setText(tr("EDITOR_ANNOTATION_UNDO"))
         self._btn_annotation_redo.setText(tr("EDITOR_ANNOTATION_REDO"))
+        self._btn_annotation_lock.setText(tr("EDITOR_OBJECT_LOCK"))
         self._btn_annotation_fit.setText(tr("EDITOR_ANNOTATION_FIT"))
         self._btn_annotation_zoom_100.setText(tr("EDITOR_ANNOTATION_ZOOM_100"))
         self._btn_annotation_zoom_out.setText(tr("EDITOR_ANNOTATION_ZOOM_OUT"))
@@ -944,6 +964,7 @@ class ChartEditor(
         self._figure_document = {}
         self._shared_render_plan = None
         self._selected_figure_object_id = ""
+        self._selected_figure_object_ids = ()
         self._hovered_figure_object_id = ""
         self._selection_status_text = ""
         self._hover_status_text = ""
@@ -1069,6 +1090,7 @@ class ChartEditor(
         self._reset_edit_session_from_document(self._figure_document)
         self._shared_render_plan = None
         self._selected_figure_object_id = ""
+        self._selected_figure_object_ids = ()
         self._hovered_figure_object_id = ""
         self._selection_status_text = ""
         self._hover_status_text = ""

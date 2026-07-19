@@ -37,8 +37,19 @@ class ChartEditorGeneratedSelectionMixin:
             return
         self._figure_selection_model.clear(source)
 
+    def _select_generated_objects(self, object_ids, source):
+        selected_ids = tuple(
+            str(object_id or "").strip()
+            for object_id in (object_ids or ())
+            if str(object_id or "").strip()
+        )
+        self._figure_selection_model.select_many(selected_ids, source)
+
     def _on_generated_selection_changed(self, object_id, source):
         self._selected_figure_object_id = str(object_id or "")
+        self._selected_figure_object_ids = tuple(
+            getattr(self._figure_selection_model, "selected_ids", ())
+        )
         session = self._edit_session_for_adapter()
         figure_object = self._generated_figure_object_by_id(self._selected_figure_object_id)
         if session is not None and figure_object is not None and not self._session_has_object(

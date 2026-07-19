@@ -6,6 +6,7 @@ from ...core.figure_document import annotation_to_figure_object
 from ...core.figure_edit_commands import (
     AddObjectCommand,
     DeleteObjectCommand,
+    SetLockCommand,
     UpdateStyleCommand,
     UpdateTextCommand,
 )
@@ -365,6 +366,7 @@ class ChartEditorAnnotationControlsMixin:
             "_btn_annotation_copy",
             "_btn_annotation_front",
             "_btn_annotation_back",
+            "_btn_annotation_lock",
         ):
             button = getattr(self, button_name, None)
             if button is not None:
@@ -383,6 +385,24 @@ class ChartEditorAnnotationControlsMixin:
             index = -1
         self._btn_annotation_back.setEnabled(index > 0)
         self._btn_annotation_front.setEnabled(index >= 0 and index < len(annotation_ids) - 1)
+
+    def _on_toggle_selected_lock(self):
+        object_id = str(getattr(self, "_selected_figure_object_id", "") or "")
+        if not object_id:
+            object_id = str(
+                getattr(self._annotation_canvas, "selected_annotation_id", lambda: "")()
+                or ""
+            )
+        object_payload = self._selected_canonical_object()
+        if not object_id or not isinstance(object_payload, dict):
+            return
+        session = self._edit_session_for_adapter()
+        if session is None:
+            return
+        session.select(object_id, "lock")
+        result = self._execute_edit(SetLockCommand(object_id, not bool(object_payload.get("locked"))))
+        if result is not None and result.changed:
+            self._refresh_object_list(object_id)
 
     def _set_control_value_silently(self, control, value):
         control.blockSignals(True)
@@ -534,6 +554,12 @@ class ChartEditorAnnotationControlsMixin:
         )
         self._btn_annotation_front.setEnabled(can_reorder)
         self._btn_annotation_back.setEnabled(can_reorder)
+        lock_button = getattr(self, "_btn_annotation_lock", None)
+        if lock_button is not None:
+            lock_button.setEnabled(str(figure_object.get("type", "") or "") != "image_background")
+            lock_button.blockSignals(True)
+            lock_button.setChecked(bool(figure_object.get("locked", False)))
+            lock_button.blockSignals(False)
         self._btn_annotation_update_text.setEnabled(bool(capabilities["renameable"]))
         self._annotation_text_edit.blockSignals(True)
         self._annotation_text_edit.setText(str(figure_object.get("name", "") or ""))

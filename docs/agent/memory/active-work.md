@@ -4,6 +4,14 @@
 
 ## Current checkpoint
 
+- Object tree search, multi-selection state, and locking completed on
+  2026-07-19. The object tree now filters by id/name/type while retaining the
+  background row, uses extended selection, and exposes ordered selected ids
+  with the first id preserved for existing Inspector/canvas routes. Locking is
+  an undoable `SetLockCommand`; locked objects continue to be selectable but
+  existing capability gates reject normal edits. Focused object-tree/core
+  selection suite passes (27). Task card:
+  `docs/agent/tasks/2026-07-19-object-tree-selection-and-locking.md`.
 - Editor safety and self-contained project export completed on 2026-07-19.
   `ChartEditor.closeEvent()` now offers Save/Discard/Cancel, keeps dirty state
   on failed or exceptional saves, and does not prompt for clean editors. The

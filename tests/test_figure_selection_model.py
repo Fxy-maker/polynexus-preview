@@ -44,3 +44,21 @@ def test_figure_selection_model_normalizes_empty_values_before_emitting():
     assert captured == []
     assert model.object_id == ""
     assert model.source == ""
+
+
+def test_figure_selection_model_exposes_ordered_multi_selection_with_first_id_compatibility():
+    app = QApplication.instance() or QApplication([])
+    model = FigureSelectionModel()
+    captured = []
+    model.selection_changed.connect(lambda object_id, source: captured.append((object_id, source)))
+
+    model.select_many(["line-2", "line-1", "line-2"], "object-list")
+    app.processEvents()
+
+    assert model.selected_ids == ("line-2", "line-1")
+    assert model.object_id == "line-2"
+    assert model.source == "object-list"
+    assert captured[-1] == ("line-2", "object-list")
+
+    model.clear("escape")
+    assert model.selected_ids == ()

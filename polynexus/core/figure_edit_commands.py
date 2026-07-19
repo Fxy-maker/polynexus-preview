@@ -496,6 +496,51 @@ class SetVisibilityCommand:
         return _success(self.object_id)
 
 
+class SetLockCommand:
+    """Toggle an editable object's lock state through the command session."""
+
+    def __init__(self, object_id: str, locked: bool):
+        self.object_id = str(object_id or "").strip()
+        self.locked = locked
+
+    def apply(self, document: dict) -> tuple[EditResult, object]:
+        found = _find_object(document, self.object_id)
+        if found is None:
+            return _failure("object_not_found", f"Object '{self.object_id}' was not found.", self.object_id), None
+        if not isinstance(self.locked, bool):
+            return _failure("invalid_payload", "Lock state must be a boolean.", self.object_id), None
+        payload = found[1]
+        if not is_known_object_type(payload) or str(payload.get("type", "")) == "image_background":
+            return _failure(
+                "capability_not_supported",
+                f"Object '{self.object_id}' does not support locking.",
+                self.object_id,
+            ), None
+        current = bool(payload.get("locked", False))
+        if current == self.locked and ("locked" in payload or not self.locked):
+            return _noop(self.object_id, message="Lock state already has the requested value."), None
+        snapshot = {"had_locked": "locked" in payload, "locked": deepcopy(payload.get("locked"))}
+        payload["locked"] = self.locked
+        return _success(self.object_id), snapshot
+
+    def revert(self, document: dict, snapshot: object) -> EditResult:
+        found = _find_object(document, self.object_id)
+        if found is None:
+            return _failure("object_not_found", f"Object '{self.object_id}' was not found.", self.object_id)
+        if not isinstance(snapshot, dict) or "had_locked" not in snapshot:
+            return _failure("invalid_snapshot", "The lock snapshot is invalid.", self.object_id)
+        payload = found[1]
+        had_locked = bool(snapshot["had_locked"])
+        old_value = deepcopy(snapshot.get("locked"))
+        if ("locked" in payload) == had_locked and payload.get("locked") == old_value:
+            return _noop(self.object_id, message="Lock state is already restored.")
+        if had_locked:
+            payload["locked"] = old_value
+        else:
+            payload.pop("locked", None)
+        return _success(self.object_id)
+
+
 class PasteObjectCommand:
     def __init__(
         self,
@@ -648,6 +693,7 @@ __all__ = [
     "EditResult",
     "MoveLayerCommand",
     "PasteObjectCommand",
+    "SetLockCommand",
     "SetVisibilityCommand",
     "UpdateGeometryCommand",
     "UpdateStyleCommand",
