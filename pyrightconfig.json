@@ -1,0 +1,17 @@
+{
+  "include": [
+    "scripts/agent_memory.py",
+    "scripts/task_check.py",
+    "scripts/verify.py"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    ".pytest_tmp*",
+    "dist",
+    "Python"
+  ],
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none"
+}
