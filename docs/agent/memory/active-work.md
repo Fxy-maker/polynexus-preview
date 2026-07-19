@@ -11,10 +11,10 @@
   the Windows user environment registry when the running GUI has a stale
   `os.environ`; object documents retain the editable Origin mode while static
   documents retain visual-fidelity fallback, and native layers rescale after
-  plots are added; all series now reuse one native Graph; see decisions `0010`
-  and `0011`.
-- The local `main` fast-forward merge is `16c268b3`; the branch is not pushed.
-- The focused Origin/editor verification currently passes: 42 Origin-related
+  plots are added; all series now reuse one native Graph; source axis scales
+  are forwarded, including logarithmic Y; see decisions `0010` and `0011`.
+- The local `main` fast-forward merge is `583709ad`; the branch is not pushed.
+- The focused Origin/editor verification currently passes: 44 Origin-related
   tests, 3 GUI-startup checks, and 238 ChartEditor regression tests. The
   prescribed verifier command
   cannot run because `scripts/verify.py` is absent; see lesson `0001`.

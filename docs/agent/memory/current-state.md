@@ -7,12 +7,12 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
-- The dedicated local `main` worktree is at merge commit `16c268b3`, which
+- The dedicated local `main` worktree is at merge commit `583709ad`, which
   includes the Origin editor menu, run-root source-path fixes, visible native
   Origin activation, object-document routing, native plot rescaling,
-  one-Graph multi-series export, user-registry capability probing, and the GUI
-  startup boundary restoration. It is ahead of `origin/main` locally; it has
-  not been pushed.
+  one-Graph multi-series export, source axis-scale forwarding, user-registry
+  capability probing, and the GUI startup boundary restoration. It is ahead of
+  `origin/main` locally; it has not been pushed.
 - The active development worktree is `D:\PolyNexus` on
   `codex/origin-editor-usable-controls`, at the same merged commit. Its
   pre-existing untracked `.superpowers/` and Origin Lite design drafts are left
@@ -41,7 +41,7 @@ title: Current PolyNexus repository state
 ## Verification evidence
 
 - Origin capability, adapter, contract, package, and ChartEditor Origin tests:
-  42 passed.
+  44 passed.
 - GUI-startup regression checks: 3 passed.
 - ChartEditor regression suite: 238 passed.
 - Automatic-commit regression tests: 2 passed.
@@ -57,7 +57,7 @@ title: Current PolyNexus repository state
   native `.opju` with the rescaled graph layer. The temporary `.opju` remains
   locked until Origin closes; this is expected application ownership. Broader
   user-figure manual testing remains pending.
-- The local mainline merge is complete at `16c268b3`; an explicit push decision
+- The local mainline merge is complete at `583709ad`; an explicit push decision
   remains pending.
 - Reconcile the older active-work entries in `active-work.md` against the
   current branch/PR state before using them as authoritative.
