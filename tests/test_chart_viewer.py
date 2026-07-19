@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
 from polynexus.gui.i18n import get_language, set_language, tr
+from polynexus.gui.figure_window_service import FigureDataResolution
 from polynexus.gui.styles import C_ACCENT_WAXS
 from polynexus.gui.theme import ThemeEngine
 from polynexus.gui.plot_gallery_service import (
@@ -49,6 +50,32 @@ def test_chart_viewer_data_table_copy_shortcut_copies_selected_row():
     assert lines[0] == "file\tvalue"
     assert lines[1] == "b.csv\t3.4"
     assert len(lines) == 2
+
+    viewer.deleteLater()
+    app.processEvents()
+
+
+def test_chart_viewer_reports_missing_source_without_replacing_preview(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    figure_path = tmp_path / "missing-source.png"
+    pixmap = QPixmap(48, 32)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+
+    viewer = ChartViewer()
+    statuses = []
+    viewer.status_message.connect(lambda message, level: statuses.append((message, level)))
+    viewer.load_figure(
+        str(figure_path),
+        {"wrong": [99]},
+        data_resolution=FigureDataResolution(error="source_missing"),
+    )
+    app.processEvents()
+
+    assert viewer._preview.current_file() == str(figure_path)
+    assert statuses[-1][1] == "warning"
+    assert "data" in statuses[-1][0].lower()
 
     viewer.deleteLater()
     app.processEvents()
@@ -574,6 +601,56 @@ def test_chart_gallery_object_entry_primary_route_emits_entry_not_preview(tmp_pa
     assert len(edit_hits) == 1
     assert edit_hits[0].figure_id == "temperature_overview"
     assert edit_hits[0].editable_path == str(svg_path.resolve())
+
+    gallery.deleteLater()
+    app.processEvents()
+
+
+def test_chart_gallery_double_click_passes_the_matching_entry_to_viewer(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    figure_path = tmp_path / "entry-bound.png"
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+
+    gallery = ChartGallery()
+    gallery.load_entries(
+        [
+            FigureGalleryEntry(
+                figure_id="entry-bound",
+                title="entry bound",
+                category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+                state="static_background",
+                preview_path=str(figure_path.resolve()),
+                primary_path=str(figure_path.resolve()),
+                editable_path=str(figure_path.resolve()),
+                document_mode="static_background",
+                asset_paths=(str(figure_path.resolve()),),
+                assets=(),
+            )
+        ]
+    )
+
+    class _Viewer:
+        def __init__(self):
+            self.loaded = None
+
+        def load_figure(self, filepath, *, entry=None):
+            self.loaded = (filepath, entry)
+
+        def show(self):
+            pass
+
+        def raise_(self):
+            pass
+
+    viewer = _Viewer()
+    gallery._viewer = viewer
+    gallery._open_viewer(str(figure_path.resolve()))
+
+    assert viewer.loaded[0] == str(figure_path.resolve())
+    assert viewer.loaded[1].figure_id == "entry-bound"
 
     gallery.deleteLater()
     app.processEvents()

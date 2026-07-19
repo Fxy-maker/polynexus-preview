@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import csv
 import os
 from datetime import datetime
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
@@ -29,6 +31,150 @@ def current_chart_raw_data(result) -> dict[str, Any] | None:
         return raw_data if isinstance(raw_data, dict) else None
     raw_data = getattr(result, "raw_data", None)
     return raw_data if isinstance(raw_data, dict) else None
+
+
+@dataclass(frozen=True)
+class FigureDataResolution:
+    """Normalized table data and provenance for one persisted figure."""
+
+    headers: tuple[str, ...] = ()
+    rows: tuple[tuple[Any, ...], ...] = ()
+    source_label: str = ""
+    error: str = ""
+
+
+def resolve_figure_data(
+    figure_path: str,
+    *,
+    document: dict[str, Any] | None = None,
+    entry: object | None = None,
+    fallback_data: object | None = None,
+) -> FigureDataResolution:
+    """Resolve data belonging to a persisted figure without guessing across figures."""
+
+    payload = document if isinstance(document, dict) else {}
+    sources = payload.get("data_sources")
+    if isinstance(sources, list) and sources:
+        source = _selected_figure_data_source(payload, sources)
+        if source is None:
+            return FigureDataResolution(error="source_unavailable")
+        return _resolve_figure_data_source(figure_path, entry, source, payload)
+
+    fallback = _fallback_data_resolution(fallback_data)
+    if fallback is not None:
+        return fallback
+    return FigureDataResolution(error="source_unavailable")
+
+
+def _selected_figure_data_source(
+    document: dict[str, Any], sources: list[object]
+) -> dict[str, Any] | None:
+    source_map = {
+        str(source.get("id") or ""): source
+        for source in sources
+        if isinstance(source, dict) and str(source.get("id") or "")
+    }
+    for figure_object in document.get("objects", []):
+        if not isinstance(figure_object, dict):
+            continue
+        data_ref = str(figure_object.get("data_ref") or "")
+        if data_ref and isinstance(source_map.get(data_ref), dict):
+            return source_map[data_ref]
+    return next((source for source in sources if isinstance(source, dict)), None)
+
+
+def _resolve_figure_data_source(
+    figure_path: str,
+    entry: object | None,
+    source: dict[str, Any],
+    document: dict[str, Any],
+) -> FigureDataResolution:
+    kind = str(source.get("kind") or "").strip().lower()
+    if kind == "inline":
+        return _inline_data_resolution(source, document)
+
+    path_text = str(source.get("path") or "").strip()
+    if not path_text:
+        return FigureDataResolution(error="source_missing")
+    path = _resolve_figure_source_path(figure_path, entry, path_text, source)
+    if not path.is_file():
+        return FigureDataResolution(error="source_missing")
+    if kind not in {"csv", "tsv", ""}:
+        return FigureDataResolution(error="source_unreadable")
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.reader(handle, delimiter="\t" if kind == "tsv" else ",")
+            rows = list(reader)
+    except (OSError, UnicodeError, csv.Error):
+        return FigureDataResolution(error="source_unreadable")
+    if not rows or not rows[0]:
+        return FigureDataResolution(error="source_unreadable")
+    headers = tuple(str(value) for value in rows[0])
+    values = tuple(tuple(value for value in row) for row in rows[1:])
+    return FigureDataResolution(headers, values, str(path), "")
+
+
+def _resolve_figure_source_path(
+    figure_path: str,
+    entry: object | None,
+    path_text: str,
+    source: dict[str, Any],
+) -> Path:
+    candidate = Path(path_text)
+    if candidate.is_absolute():
+        return candidate.resolve()
+    path_kind = str(source.get("path_kind") or "").strip().lower()
+    run_root = str(getattr(entry, "run_root", "") or "").strip()
+    if path_kind == "run_relative" and run_root:
+        return (Path(run_root).resolve() / candidate).resolve()
+    return (Path(figure_path).resolve().parent / candidate).resolve()
+
+
+def _inline_data_resolution(
+    source: dict[str, Any], document: dict[str, Any]
+) -> FigureDataResolution:
+    data = source.get("data")
+    if not isinstance(data, dict):
+        return FigureDataResolution(error="source_unreadable")
+    selected_object = next(
+        (
+            item
+            for item in document.get("objects", [])
+            if isinstance(item, dict)
+            and str(item.get("data_ref") or "") == str(source.get("id") or "")
+        ),
+        {},
+    )
+    preferred = [
+        str(selected_object.get(key) or "")
+        for key in ("x_column", "y_column")
+        if str(selected_object.get(key) or "") in data
+    ]
+    headers = tuple(preferred or [str(key) for key in data])
+    columns = [data.get(header) for header in headers]
+    if not columns or not all(isinstance(column, (list, tuple)) for column in columns):
+        return FigureDataResolution(error="source_unreadable")
+    row_count = max((len(column) for column in columns), default=0)
+    rows = tuple(
+        tuple(column[index] if index < len(column) else "" for column in columns)
+        for index in range(row_count)
+    )
+    return FigureDataResolution(headers, rows, str(source.get("id") or "inline"), "")
+
+
+def _fallback_data_resolution(data: object | None) -> FigureDataResolution | None:
+    if not isinstance(data, dict) or not data:
+        return None
+    headers = tuple(str(key) for key in data)
+    columns = [data[key] for key in data]
+    if not all(isinstance(column, (list, tuple)) for column in columns):
+        return None
+    row_count = max((len(column) for column in columns), default=0)
+    rows = tuple(
+        tuple(column[index] if index < len(column) else "" for column in columns)
+        for index in range(row_count)
+    )
+    return FigureDataResolution(headers, rows, "fallback", "")
 
 
 @dataclass(frozen=True)
@@ -78,6 +224,7 @@ def open_chart_viewer(
     figure_path: str,
     raw_data=None,
     *,
+    entry=None,
     viewer=None,
     viewer_factory: Callable[[], ChartViewer] = ChartViewer,
     edit_requested_handler=None,
@@ -93,7 +240,23 @@ def open_chart_viewer(
         if status_message_handler is not None:
             viewer.status_message.connect(status_message_handler)
     viewer.setWindowTitle(tr("FIGURE_VIEWER_WINDOW", os.path.basename(path)))
-    viewer.load_figure(path, raw_data)
+    document_path = normalize_figure_path(getattr(entry, "document_path", ""))
+    document = load_figure_document(document_path or path)
+    data_resolution = resolve_figure_data(
+        path,
+        document=document,
+        entry=entry,
+        fallback_data=raw_data,
+    )
+    try:
+        viewer.load_figure(
+            path,
+            raw_data,
+            entry=entry,
+            data_resolution=data_resolution,
+        )
+    except TypeError:
+        viewer.load_figure(path, raw_data)
     viewer.resize(1180, 820)
     viewer.show()
     viewer.raise_()

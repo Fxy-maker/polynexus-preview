@@ -4,6 +4,16 @@
 
 ## Current checkpoint
 
+- Chart viewer provenance and historical recovery completed on 2026-07-19.
+  `ChartViewer` now consumes selected figure entry/document context and a
+  figure-specific data resolution, with raw-data compatibility only when no
+  persisted source metadata exists. Run-relative CSV sources resolve through
+  the entry run root; missing sources produce an explicit warning while the
+  image preview remains usable. The recovery action now uses `ChartGallery`,
+  preserving the active manifest gallery. Focused provenance/viewer/recovery
+  suite passes (43); the task-scoped verifier passes, including quality gate
+  (281) and preprocessing optimization gate (103). Task card:
+  `docs/agent/tasks/2026-07-19-chart-data-provenance-and-recovery.md`.
 - Chart gallery visual polish completed on 2026-07-19: the three-column layout remains, `ChartThumbnail` now has a unified card surface, and the blue border follows hover while selection uses a low-emphasis theme focus color. Task card: `docs/agent/tasks/2026-07-19-chart-gallery-visual-polish.md`; focused suite: 17 passed. The verifier tooling is restored and the prescribed changed/type command passes.
 - Chart gallery header polish completed on 2026-07-19: the plots page now has a localized gallery title/count, grouped recovery action, and a theme-aware toolbar container; the focused chart/gallery/startup slice passes 21 tests. The verifier tooling is restored and the prescribed changed/type command passes.
 - Follow-up fix completed on 2026-07-19: `ChartGallery.retranslate()` now updates filters, actions, badges, and card labels after language changes, removing the mixed Chinese/English gallery state. Focused chart/gallery/startup slice passes 25 tests; restart is required for an already-running GUI process.

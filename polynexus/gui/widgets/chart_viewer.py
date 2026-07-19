@@ -627,9 +627,31 @@ class ChartViewer(QWidget):
         self._tabs.addTab(self._build_data_tab(), tr("CHART_TAB_DATA"))
         self.retranslate()
 
-    def load_figure(self, filepath, raw_data=None):
+    def load_figure(
+        self,
+        filepath,
+        raw_data=None,
+        *,
+        entry=None,
+        document=None,
+        data_resolution=None,
+    ):
+        if entry is not None:
+            self._preview.set_entry_context(entry)
+        if data_resolution is None:
+            from ..figure_window_service import resolve_figure_data
+            from ...core.figure_document import load_figure_document
+
+            document_path = str(getattr(entry, "document_path", "") or "").strip()
+            resolved_document = document or load_figure_document(document_path or filepath)
+            data_resolution = resolve_figure_data(
+                filepath,
+                document=resolved_document,
+                entry=entry,
+                fallback_data=raw_data,
+            )
         self._preview.load_figure(filepath)
-        self._populate_data_table(raw_data)
+        self._populate_data_table(data_resolution)
 
     def _build_data_tab(self) -> QWidget:
         widget = QWidget(self)
@@ -675,7 +697,15 @@ class ChartViewer(QWidget):
 
     def _populate_data_table(self, df_or_array) -> None:
         try:
-            headers, rows = self._normalize_data_to_table(df_or_array)
+            resolution_error = ""
+            if hasattr(df_or_array, "headers") and hasattr(df_or_array, "rows"):
+                headers = [str(value) for value in df_or_array.headers]
+                rows = [list(row) for row in df_or_array.rows]
+                resolution_error = str(getattr(df_or_array, "error", "") or "")
+                if resolution_error and not headers:
+                    headers, rows = [], []
+            else:
+                headers, rows = self._normalize_data_to_table(df_or_array)
             self._full_data_headers = headers
             self._full_data_rows = rows
             self._full_data_row_count = len(rows)
@@ -698,7 +728,13 @@ class ChartViewer(QWidget):
             self._data_table.resizeRowsToContents()
 
             if not headers:
-                self._data_stats.setText(tr("CHART_DATA_NO_ROWS"))
+                self._data_stats.setText(
+                    tr("CHART_DATA_LOAD_FAILED")
+                    if resolution_error
+                    else tr("CHART_DATA_NO_ROWS")
+                )
+                if resolution_error:
+                    self.status_message.emit(tr("CHART_DATA_LOAD_FAILED"), "warning")
                 return
 
             suffix = tr("CHART_DATA_LIMIT_SUFFIX") if len(rows) > 5000 else ""
@@ -886,6 +922,7 @@ class ChartGallery(QWidget):
     """Scrollable gallery of chart thumbnails."""
     figure_selected = Signal(str)
     edit_requested = Signal(object)
+    status_message = Signal(str, str)
     summary_changed = Signal(str)
 
     def __init__(self, parent=None):
@@ -1168,10 +1205,20 @@ class ChartGallery(QWidget):
         self.select_figure(filepath, emit=False)
 
     def _open_viewer(self, filepath):
+        entry = next(
+            (
+                item
+                for item in self._all_entries
+                if filepath in item.asset_paths
+                or filepath in {item.preview_path, item.editable_path, item.primary_path}
+            ),
+            None,
+        )
         if self._viewer is None:
             self._viewer = ChartViewer()
             self._viewer.edit_requested.connect(self.edit_requested.emit)
-        self._viewer.load_figure(filepath)
+            self._viewer.status_message.connect(self.status_message.emit)
+        self._viewer.load_figure(filepath, entry=entry)
         self._viewer.show()
         self._viewer.raise_()
 

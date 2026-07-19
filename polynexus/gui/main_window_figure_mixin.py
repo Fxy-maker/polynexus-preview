@@ -17,7 +17,7 @@ from .plot_gallery_service import (
     build_active_manifest_gallery_entries,
     select_plot_gallery_entry,
 )
-from .widgets.chart_viewer import ChartViewer
+from .widgets.chart_viewer import ChartGallery
 
 
 class MainWindowFigureMixin:
@@ -89,6 +89,11 @@ class MainWindowFigureMixin:
         self._figure_viewer = open_chart_viewer(
             figure_path,
             current_chart_raw_data(self._results.get(self._current_technique)),
+            entry=(
+                self._chart_gallery.current_entry()
+                if hasattr(self, "_chart_gallery")
+                else None
+            ),
             viewer=getattr(self, "_figure_viewer", None),
             edit_requested_handler=self._open_selected_chart_editor,
             status_message_handler=self._on_chart_viewer_status,
@@ -100,7 +105,7 @@ class MainWindowFigureMixin:
         if not entries:
             self.log(tr("LEGACY_RECOVERY_EMPTY"))
             return None
-        viewer = ChartViewer()
+        viewer = ChartGallery()
         viewer.setWindowTitle(tr("LEGACY_RECOVERY_WINDOW_TITLE"))
         viewer.edit_requested.connect(self._open_selected_chart_editor)
         viewer.status_message.connect(self._on_chart_viewer_status)

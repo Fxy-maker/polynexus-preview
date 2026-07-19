@@ -39,12 +39,16 @@ class _FakeViewer:
         self.shown = False
         self.raised = False
         self.activated = False
+        self.entry = None
+        self.data_resolution = None
 
     def setWindowTitle(self, title):
         self.window_title = title
 
-    def load_figure(self, filepath, raw_data=None):
+    def load_figure(self, filepath, raw_data=None, *, entry=None, data_resolution=None):
         self.loaded = (filepath, raw_data)
+        self.entry = entry
+        self.data_resolution = data_resolution
 
     def resize(self, width, height):
         self.resized = (width, height)
@@ -210,6 +214,34 @@ def test_open_chart_viewer_and_editor_configure_windows():
     assert editor.resized == (1000, 650)
     assert editor.shown is True
     assert len(editor.figure_saved.callbacks) == 1
+
+
+def test_open_chart_viewer_binds_entry_data_resolution(monkeypatch, tmp_path):
+    from polynexus.gui import figure_window_service as module
+
+    entry = SimpleNamespace(run_root=str(tmp_path), title="Series A")
+    document = {
+        "objects": [{"data_ref": "source-a"}],
+        "data_sources": [
+            {
+                "id": "source-a",
+                "kind": "inline",
+                "data": {"x": [1], "y": [2]},
+            }
+        ],
+    }
+    monkeypatch.setattr(module, "load_figure_document", lambda _path: document)
+
+    viewer = open_chart_viewer(
+        str(tmp_path / "figure.png"),
+        {"wrong": [99]},
+        entry=entry,
+        viewer_factory=_FakeViewer,
+    )
+
+    assert viewer.entry is entry
+    assert viewer.data_resolution.headers == ("x", "y")
+    assert viewer.data_resolution.rows == ((1, 2),)
 
 
 def test_open_chart_editor_uses_entry_context_and_title():

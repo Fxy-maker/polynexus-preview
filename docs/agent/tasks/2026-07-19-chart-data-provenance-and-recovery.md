@@ -1,6 +1,6 @@
 ---
 kind: task
-status: active
+status: completed
 date: 2026-07-19
 title: Chart data provenance and historical recovery
 ---
@@ -30,13 +30,13 @@ calls `load_entries`, which belongs to `ChartGallery`.
 
 ## Acceptance criteria
 
-- [ ] A gallery-opened viewer resolves the selected figure's own data sources.
-- [ ] A missing or unreadable source produces an explicit status message and
+- [x] A gallery-opened viewer resolves the selected figure's own data sources.
+- [x] A missing or unreadable source produces an explicit status message and
       does not silently display another figure's data.
-- [ ] A viewer opened for a selected figure receives its entry/document context.
-- [ ] The historical recovery view instantiates a widget that implements
+- [x] A viewer opened for a selected figure receives its entry/document context.
+- [x] The historical recovery view instantiates a widget that implements
       `load_entries` and keeps recovery entries separate from active gallery state.
-- [ ] Regression tests cover source selection, missing-source behavior, and the
+- [x] Regression tests cover source selection, missing-source behavior, and the
       real recovery widget contract.
 
 ## Affected boundaries
@@ -66,6 +66,13 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-19-chart-data-provenanc
   reports unavailable provenance instead of guessing from the current result.
 - Existing `open_chart_viewer(..., raw_data=...)` callers remain compatible while
   the entry/document path becomes the preferred source.
+
+## Evidence
+
+- Focused viewer/provenance/recovery suite: `43 passed`.
+- Task-scoped verifier: `python scripts/verify.py --task docs/agent/tasks/2026-07-19-chart-data-provenance-and-recovery.md --changed --types` passed.
+- The verifier also passed the core quality gate (`281 passed`) and
+  preprocessing optimization gate (`103 passed`).
 
 ## Memory impact
 

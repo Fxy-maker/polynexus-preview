@@ -32,7 +32,7 @@ def test_legacy_recovery_view_is_separate_from_active_gallery(monkeypatch):
         def connect(self, callback):
             self.connected.append(callback)
 
-    class _Viewer:
+    class _Gallery:
         def __init__(self):
             self.edit_requested = _Signal()
             self.status_message = _Signal()
@@ -64,7 +64,7 @@ def test_legacy_recovery_view_is_separate_from_active_gallery(monkeypatch):
         lambda _root: entries,
         raising=False,
     )
-    monkeypatch.setattr(module, "ChartViewer", _Viewer, raising=False)
+    monkeypatch.setattr(module, "ChartGallery", _Gallery, raising=False)
 
     class _Window(MainWindowFigureMixin):
         def __init__(self):
@@ -85,3 +85,40 @@ def test_legacy_recovery_view_is_separate_from_active_gallery(monkeypatch):
     assert viewer.shown is True
     assert window._chart_gallery is active_gallery
     assert window._current_figure_path == "active.svg"
+
+
+def test_current_figure_viewer_receives_selected_gallery_entry(monkeypatch):
+    from polynexus.gui import main_window_figure_mixin as module
+
+    captured = {}
+
+    def _open(path, raw_data, **kwargs):
+        captured.update(path=path, raw_data=raw_data, kwargs=kwargs)
+        return "viewer"
+
+    monkeypatch.setattr(module, "open_chart_viewer", _open)
+
+    entry = type("Entry", (), {"figure_id": "fig-a", "preview_path": "figure.svg"})()
+
+    class _Gallery:
+        def current_entry(self):
+            return entry
+
+    class _Window(MainWindowFigureMixin):
+        def __init__(self):
+            self._current_figure_path = "figure.svg"
+            self._chart_gallery = _Gallery()
+            self._results = {"technique": {"raw_data": {"wrong": [1]}}}
+            self._current_technique = "technique"
+            self._figure_viewer = None
+            self.logs = []
+
+        def log(self, message):
+            self.logs.append(message)
+
+    monkeypatch.setattr(module.os.path, "exists", lambda _path: True)
+
+    window = _Window()
+    window._open_current_figure_viewer()
+
+    assert captured["kwargs"]["entry"] is entry
