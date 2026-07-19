@@ -34,3 +34,4 @@
 
 - 2026-07-19：已确认视觉方向 A（三列卡片精修），实现中。
 - Completion: implementation finished on 2026-07-19. The focused chart-viewer suite passes 17 tests. The repository verifier is unavailable because `scripts/verify.py` is missing.
+- Second wave completed on 2026-07-19: added a localized gallery header/count, grouped the historical-recovery action, and wrapped gallery filters/actions in a theme-aware toolbar surface. Chart/gallery/startup focused tests pass 21 tests.

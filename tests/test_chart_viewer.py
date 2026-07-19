@@ -15,6 +15,7 @@ from polynexus.gui.i18n import tr
 from polynexus.gui.styles import C_ACCENT_WAXS
 from polynexus.gui.theme import ThemeEngine
 from polynexus.gui.plot_gallery_service import (
+    FIGURE_CATEGORY_ALL,
     FIGURE_CATEGORY_PER_FRAME,
     FIGURE_CATEGORY_SERIES_OVERVIEW,
     FIGURE_ROLE_DIAGNOSTIC,
@@ -272,6 +273,77 @@ def test_chart_thumbnail_hover_border_moves_without_overriding_selection(tmp_pat
     assert thumbnail._hovered is False
 
     thumbnail.deleteLater()
+    app.processEvents()
+
+
+def test_chart_gallery_summary_text_tracks_visible_filtered_entries(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    overview_path = tmp_path / "summary-overview.png"
+    frame_path = tmp_path / "summary-frame.png"
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(overview_path))
+    assert pixmap.save(str(frame_path))
+
+    gallery = ChartGallery()
+    gallery.load_entries(
+        [
+            FigureGalleryEntry(
+                figure_id="summary-overview",
+                title="summary overview",
+                category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+                state="static_background",
+                preview_path=str(overview_path.resolve()),
+                primary_path=str(overview_path.resolve()),
+                editable_path=str(overview_path.resolve()),
+                document_mode="static_background",
+                asset_paths=(str(overview_path.resolve()),),
+                assets=(),
+            ),
+            FigureGalleryEntry(
+                figure_id="summary-frame",
+                title="summary frame",
+                category=FIGURE_CATEGORY_PER_FRAME,
+                state="static_background",
+                preview_path=str(frame_path.resolve()),
+                primary_path=str(frame_path.resolve()),
+                editable_path=str(frame_path.resolve()),
+                document_mode="static_background",
+                asset_paths=(str(frame_path.resolve()),),
+                assets=(),
+            ),
+        ]
+    )
+
+    gallery._category_combo.setCurrentIndex(
+        gallery._category_combo.findData(FIGURE_CATEGORY_ALL)
+    )
+    app.processEvents()
+
+    assert "2" in gallery.summary_text()
+
+    gallery._category_combo.setCurrentIndex(
+        gallery._category_combo.findData(FIGURE_CATEGORY_PER_FRAME)
+    )
+    app.processEvents()
+
+    assert "1" in gallery.summary_text()
+
+    gallery.deleteLater()
+    app.processEvents()
+
+
+def test_chart_gallery_toolbar_has_named_surface_and_borderless_scroll_area():
+    app = QApplication.instance() or QApplication([])
+
+    gallery = ChartGallery()
+
+    assert gallery._toolbar_widget.objectName() == "gallery_toolbar"
+    assert gallery._scroll.objectName() == "chart_gallery_scroll"
+    assert "border: none" in gallery._scroll.styleSheet()
+
+    gallery.deleteLater()
     app.processEvents()
 
 

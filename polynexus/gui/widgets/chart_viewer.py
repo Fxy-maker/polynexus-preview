@@ -875,9 +875,11 @@ class ChartGallery(QWidget):
     """Scrollable gallery of chart thumbnails."""
     figure_selected = Signal(str)
     edit_requested = Signal(object)
+    summary_changed = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("chart_gallery")
         self._viewer = None
         self._all_entries = []
         self._entries = []
@@ -892,7 +894,12 @@ class ChartGallery(QWidget):
         layout.setSpacing(8)
 
         # Toolbar
-        toolbar = QHBoxLayout()
+        self._toolbar_widget = QWidget(self)
+        self._toolbar_widget.setObjectName("gallery_toolbar")
+        self._toolbar_widget.setAttribute(Qt.WA_StyledBackground, True)
+        toolbar = QHBoxLayout(self._toolbar_widget)
+        toolbar.setContentsMargins(12, 8, 12, 8)
+        toolbar.setSpacing(8)
         self._category_label = QLabel(tr("CHART_CATEGORY_LABEL"))
         toolbar.addWidget(self._category_label)
         self._category_combo = QComboBox()
@@ -930,10 +937,11 @@ class ChartGallery(QWidget):
         btn_clear = QPushButton(tr("CHART_BTN_CLEAR"))
         btn_clear.clicked.connect(self.clear)
         toolbar.addWidget(btn_clear)
-        layout.addLayout(toolbar)
+        layout.addWidget(self._toolbar_widget)
 
         # Scroll area for thumbnails
         self._scroll = QScrollArea()
+        self._scroll.setObjectName("chart_gallery_scroll")
         self._scroll.setWidgetResizable(True)
         self._scroll.setStyleSheet("background: transparent; border: none;")
 
@@ -950,6 +958,20 @@ class ChartGallery(QWidget):
         self._asset_layout.setContentsMargins(8, 8, 8, 8)
         self._asset_layout.setSpacing(6)
         layout.addWidget(self._asset_group)
+
+        ThemeEngine.instance().theme_changed.connect(
+            lambda _name: self._apply_gallery_chrome()
+        )
+        self._apply_gallery_chrome()
+
+    def _apply_gallery_chrome(self):
+        t = ThemeEngine.instance().tokens
+        self._toolbar_widget.setStyleSheet(
+            "QWidget#gallery_toolbar {"
+            f"background: {t.bg_card}; border: 1px solid {t.border_light}; "
+            f"border-radius: {t.radius_lg}px;"
+            "}"
+        )
 
     def load_directory(self, fig_dir, recursive=False):
         """Load one explicit directory without discovering historical files."""
@@ -1009,6 +1031,7 @@ class ChartGallery(QWidget):
         }
         self._selected_path = ""
         self._selected_figure_id = ""
+        self.summary_changed.emit(self.summary_text())
         if not self._entries:
             return
 
@@ -1044,6 +1067,10 @@ class ChartGallery(QWidget):
 
     def current_entry(self):
         return self._entry_by_figure_id.get(self._selected_figure_id)
+
+    def summary_text(self) -> str:
+        """Return the localized count for the currently visible entries."""
+        return tr("CHART_GALLERY_SUMMARY", len(self._entries))
 
     def figure_paths(self):
         return list(self._figure_paths)

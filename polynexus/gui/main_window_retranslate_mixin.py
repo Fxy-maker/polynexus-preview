@@ -106,6 +106,8 @@ class MainWindowRetranslateMixin:
             self._btn_results_copy.setText(tr("RESULTS_COPY_TABLE"))
             self._btn_results_default_order.setText(tr("RESULTS_DEFAULT_ORDER"))
             self._btn_legacy_recovery.setText(tr("PLOTS_BTN_RECOVER_LEGACY"))
+            self._gallery_title_label.setText(tr("CHART_GALLERY_TITLE"))
+            self._refresh_gallery_summary()
             self._drop_label.setText(tr("DROP_HINT"))
             self._history_tech_label.setText(tr("HISTORY_TECHNIQUE"))
             self._history_refresh_btn.setText(tr("HISTORY_REFRESH"))
@@ -213,6 +215,7 @@ class MainWindowRetranslateMixin:
             ("_config_preset_label", "CONFIG_PRESET_LABEL"),
             ("_config_placeholder", "CONFIG_PLACEHOLDER"),
             ("_plots_label", "PLOTS_EMPTY"),
+            ("_gallery_title_label", "CHART_GALLERY_TITLE"),
         ]:
 
             w = getattr(self, attr, None)

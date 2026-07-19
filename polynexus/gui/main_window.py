@@ -2638,6 +2638,20 @@ class MainWindow(
 
         layout.setSpacing(8)
 
+        gallery_header = QWidget()
+        gallery_header.setObjectName("gallery_page_header")
+        gallery_header_layout = QHBoxLayout(gallery_header)
+        gallery_header_layout.setContentsMargins(4, 4, 4, 0)
+        gallery_header_layout.setSpacing(10)
+        self._gallery_title_label = QLabel(tr("CHART_GALLERY_TITLE"))
+        self._gallery_title_label.setObjectName("gallery_title_label")
+        self._gallery_summary_label = QLabel(tr("CHART_GALLERY_SUMMARY", 0))
+        self._gallery_summary_label.setObjectName("gallery_summary_label")
+        gallery_header_layout.addWidget(self._gallery_title_label)
+        gallery_header_layout.addWidget(self._gallery_summary_label)
+        gallery_header_layout.addStretch()
+        layout.addWidget(gallery_header)
+
 
 
         # Figure library is the default Plots view. The large preview stays
@@ -2659,7 +2673,10 @@ class MainWindow(
 
         # Toolbar
 
-        toolbar = QHBoxLayout()
+        action_bar = QWidget()
+        action_bar.setObjectName("plots_action_bar")
+        toolbar = QHBoxLayout(action_bar)
+        toolbar.setContentsMargins(0, 0, 0, 0)
 
         self._btn_legacy_recovery = QPushButton(tr("PLOTS_BTN_RECOVER_LEGACY"))
 
@@ -2671,7 +2688,7 @@ class MainWindow(
 
         toolbar.addStretch()
 
-        layout.addLayout(toolbar)
+        layout.addWidget(action_bar)
 
         self._figure_preview = FigureFilePreview(
             show_edit_button=True,
@@ -2692,6 +2709,8 @@ class MainWindow(
 
         self._chart_gallery.figure_selected.connect(self._on_chart_selected)
 
+        self._chart_gallery.summary_changed.connect(self._refresh_gallery_summary)
+
         self._chart_gallery.edit_requested.connect(self._open_selected_chart_editor)
 
         self._chart_gallery.setVisible(False)
@@ -2700,9 +2719,25 @@ class MainWindow(
 
         layout.addWidget(self._chart_gallery, 4)
 
+        self._apply_gallery_header_style()
+
 
 
         return w
+
+    def _apply_gallery_header_style(self):
+        """Apply theme-aware emphasis to the figure gallery page header."""
+        if not hasattr(self, "_gallery_title_label"):
+            return
+        tokens = self._theme_engine.tokens
+        self._gallery_title_label.setStyleSheet(
+            f"color: {tokens.text_primary}; font-size: {tokens.font_size_xl}px; "
+            "font-weight: 700; background: transparent;"
+        )
+        self._gallery_summary_label.setStyleSheet(
+            f"color: {tokens.text_muted}; font-size: {tokens.font_size_sm}px; "
+            "background: transparent;"
+        )
 
 
     def _apply_theme(self):
@@ -2717,6 +2752,7 @@ class MainWindow(
             app.setStyleSheet(build_qss(self._theme_engine.tokens))
 
         self._theme_engine.switch(self._theme_engine.current)
+        self._apply_gallery_header_style()
 
         for btn in getattr(self, "_nav_buttons", {}).values():
 

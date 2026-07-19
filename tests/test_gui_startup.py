@@ -17,6 +17,7 @@ import polynexus.core  # noqa: F401,E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from polynexus.gui.main_window import MainWindow  # noqa: E402
+from polynexus.gui.i18n import tr  # noqa: E402
 
 
 @pytest.fixture
@@ -88,5 +89,8 @@ def test_deferred_window_is_interactive_before_optional_ui_finishes(qt_app):
     assert window._deferred_startup_finished is True
     assert window._tabs.count() == first_tab_count
     assert window._chart_gallery is first_chart_gallery
+    assert window._gallery_title_label.text() == tr("CHART_GALLERY_TITLE")
+    assert window._gallery_summary_label.text()
+    assert window._btn_legacy_recovery.isHidden() is False
 
     window.close()

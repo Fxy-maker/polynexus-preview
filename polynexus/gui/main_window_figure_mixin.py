@@ -21,10 +21,17 @@ from .widgets.chart_viewer import ChartViewer
 
 
 class MainWindowFigureMixin:
+    def _refresh_gallery_summary(self, _summary=None):
+        """Refresh the page-level figure count from the active gallery."""
+        if not hasattr(self, "_gallery_summary_label") or not hasattr(self, "_chart_gallery"):
+            return
+        self._gallery_summary_label.setText(self._chart_gallery.summary_text())
+
     def _populate_plots(self):
         """Load analysis figures into the ChartGallery."""
         entries = build_active_manifest_gallery_entries(self._output_dir)
         if not entries:
+            self._refresh_gallery_summary()
             self._plots_label.setVisible(True)
             self._chart_gallery.setVisible(False)
             self._chart_gallery.clear()
@@ -40,6 +47,7 @@ class MainWindowFigureMixin:
         self._plots_label.setVisible(False)
         self._chart_gallery.setVisible(True)
         self._chart_gallery.load_entries(entries)
+        self._refresh_gallery_summary()
 
         selection = select_plot_gallery_entry(
             entries,
