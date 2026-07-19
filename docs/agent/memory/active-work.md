@@ -4,6 +4,13 @@
 
 ## Current checkpoint
 
+- Final goal audit on 2026-07-19: the prescribed default verifier
+  `python scripts/verify.py --changed --types` passes after all checkpoints;
+  memory, compile, core quality gate (281), preprocessing optimization gate
+  (103), and whitespace checks are green. The broader
+  `python scripts/verify.py --changed --types --full --boundary` was attempted
+  and timed out after 244 seconds without emitting a failure diagnostic; this
+  remains a verification limitation, not evidence of a pass.
 - Editor tool shortcuts and complete alignment surface completed on 2026-07-19.
   Canvas-scoped V/T/L/A/R/Del shortcuts avoid intercepting text fields, while
   window-scoped save, project export, undo, and redo remain available. All six
