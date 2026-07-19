@@ -4,6 +4,15 @@
 
 ## Current checkpoint
 
+- Editor safety and self-contained project export completed on 2026-07-19.
+  `ChartEditor.closeEvent()` now offers Save/Discard/Cancel, keeps dirty state
+  on failed or exceptional saves, and does not prompt for clean editors. The
+  core `figure_project_bundle` service creates an atomic relocatable
+  `.pnproject.zip` containing the normalized document, figure assets, resolved
+  sources, and SHA-256 manifest; it refuses existing destinations and rejects
+  missing or run-root-escaping sources. Focused close/package/editor-export
+  suite passes (28). Task card:
+  `docs/agent/tasks/2026-07-19-editor-safety-and-project-export.md`.
 - Chart viewer provenance and historical recovery completed on 2026-07-19.
   `ChartViewer` now consumes selected figure entry/document context and a
   figure-specific data resolution, with raw-data compatibility only when no

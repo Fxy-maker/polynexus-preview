@@ -7,6 +7,10 @@ from pathlib import Path
 from ..i18n import tr
 from ..plot_gallery_service import build_active_manifest_gallery_entries
 from ...core.figure_edit_persistence import try_save_edit_bundle
+from ...core.figure_project_bundle import (
+    FigureProjectBundleError,
+    export_figure_project_bundle,
+)
 from ...core.figures.project_service import FigureProjectService
 
 
@@ -54,6 +58,51 @@ class ChartEditorSaveMixin:
             self.save_as()
             return
         self._save_to_path(self._target_path)
+
+    def export_project_package(self):
+        """Export the current figure, document, and data as one relocatable file."""
+        chart_editor_module = self._chart_editor_module()
+        figure_path = str(
+            getattr(self, "_source_path", "") or getattr(self, "_target_path", "")
+        ).strip()
+        if not figure_path:
+            self._status_label.setText(tr("EDITOR_NO_DATA"))
+            return None
+
+        default_name = f"{Path(figure_path).stem}.pnproject.zip"
+        output_path, _ = chart_editor_module.QFileDialog.getSaveFileName(
+            self,
+            tr("EDITOR_PROJECT_EXPORT_TITLE"),
+            default_name,
+            "PolyNexus Project (*.pnproject.zip)",
+        )
+        if not output_path:
+            return None
+        if not str(output_path).lower().endswith(".pnproject.zip"):
+            output_path = f"{output_path}.pnproject.zip"
+
+        document = (
+            self._generated_document_for_save()
+            if getattr(self, "_generated_document_mode", False)
+            else deepcopy(getattr(self, "_figure_document", {}) or {})
+        )
+        entry = getattr(self, "_source_entry_context", None)
+        source_root = str(getattr(entry, "run_root", "") or "").strip() or None
+        try:
+            result = export_figure_project_bundle(
+                document=document,
+                figure_path=Path(figure_path),
+                output_path=Path(output_path),
+                source_root=Path(source_root) if source_root else None,
+            )
+        except FigureProjectBundleError as exc:
+            self._status_label.setText(tr("EDITOR_PROJECT_EXPORT_FAILED", str(exc)))
+            return None
+
+        self._status_label.setText(
+            tr("EDITOR_PROJECT_EXPORT_DONE", str(result.output_path))
+        )
+        return result
 
     def publish_complete_assets(self):
         context = self._manifest_project_context()

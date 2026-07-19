@@ -359,6 +359,39 @@ class ChartEditor(
                         return True
         return super().eventFilter(watched, event)
 
+    def closeEvent(self, event):
+        """Protect edits when the editor window is closed."""
+        if not getattr(self, "_editor_dirty", False):
+            event.accept()
+            return
+
+        choice = QMessageBox.question(
+            self,
+            tr("EDITOR_CLOSE_TITLE"),
+            tr("EDITOR_CLOSE_UNSAVED"),
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
+        )
+        if choice == QMessageBox.StandardButton.Discard:
+            event.accept()
+            return
+        if choice == QMessageBox.StandardButton.Save:
+            try:
+                self.save_to_target()
+            except Exception as exc:
+                logger.warning("Chart editor close-save failed.", exc_info=True)
+                status_label = getattr(self, "_status_label", None)
+                if status_label is not None:
+                    status_label.setText(f"{tr('EDITOR_STATUS_SAVE_FAILED')}: {exc}")
+                event.ignore()
+                return
+            if not getattr(self, "_editor_dirty", False):
+                event.accept()
+                return
+        event.ignore()
+
     def _build_panel(self):
         self._inspector_tabs = QTabWidget()
         self._inspector_tabs.setObjectName("editor_inspector_tabs")

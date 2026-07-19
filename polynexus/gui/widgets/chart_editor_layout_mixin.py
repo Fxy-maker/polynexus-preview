@@ -137,6 +137,11 @@ class ChartEditorLayoutMixin:
             tr("EDITOR_EXPORT_ORIGIN"),
             self._export_to_origin,
         )
+        self._add_header_export_action(
+            "project",
+            tr("EDITOR_PROJECT_EXPORT"),
+            self.export_project_package,
+        )
         self._action_header_publish = self._add_header_export_action(
             "publish",
             tr("EDITOR_PUBLISH_COMPLETE"),
@@ -283,6 +288,7 @@ class ChartEditorLayoutMixin:
             ("png", "EDITOR_EXPORT_PNG"),
             ("svg", "EDITOR_EXPORT_SVG"),
             ("origin", "EDITOR_EXPORT_ORIGIN"),
+            ("project", "EDITOR_PROJECT_EXPORT"),
             ("publish", "EDITOR_PUBLISH_COMPLETE"),
         ):
             self._header_export_actions[key].setText(tr(translation_key))
