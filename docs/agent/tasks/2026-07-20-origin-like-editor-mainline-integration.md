@@ -94,3 +94,10 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-20-origin-like-editor-m
 - The full repository `pytest` suite may exceed the local five-minute runtime
   budget; exact timeout evidence will be reported if it recurs.
 - Existing unrelated untracked worktree files remain untouched.
+
+## Finish audit
+
+- On 2026-07-20, the structured task verifier and default verifier both passed.
+- Before the final local checkpoint, the source branch and the local `main`
+  worktree already matched at `38f5dbf1`; the coordinator will record this
+  audit and perform the remaining local finish step without pushing.
