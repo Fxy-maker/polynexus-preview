@@ -309,6 +309,43 @@ class ChartEditorGeneratedGeometryMixin:
         self._update_generated_line_preview(object_id)
         return True
 
+    def _apply_generated_body_drag(self, object_id, drag_state, x_value, y_value):
+        figure_object = self._generated_figure_object_by_id(object_id)
+        if not isinstance(figure_object, dict):
+            return False
+        press_data = drag_state.get("press_data")
+        origin_geometry = drag_state.get("origin_geometry", {})
+        if not isinstance(press_data, (list, tuple)) or len(press_data) < 2:
+            return False
+        if not isinstance(origin_geometry, dict):
+            return False
+        dx = round(float(x_value) - float(press_data[0]), 12)
+        dy = round(float(y_value) - float(press_data[1]), 12)
+        object_type = str(drag_state.get("object_type", "") or figure_object.get("type", ""))
+        preview_geometry = deepcopy(origin_geometry)
+        if object_type in {"text", "rectangle"}:
+            preview_geometry["x"] = round(float(origin_geometry.get("x", 0.0)) + dx, 12)
+            preview_geometry["y"] = round(float(origin_geometry.get("y", 0.0)) + dy, 12)
+        elif object_type == "curve":
+            for x_key, y_key in (("x1", "y1"), ("x2", "y2"), ("control_x", "control_y")):
+                preview_geometry[x_key] = round(float(origin_geometry.get(x_key, 0.0)) + dx, 12)
+                preview_geometry[y_key] = round(float(origin_geometry.get(y_key, 0.0)) + dy, 12)
+        else:
+            return False
+        drag_state = self._generated_drag_preview_mode(object_id)
+        if drag_state is not None:
+            return self._update_generated_drag_preview(
+                object_id,
+                preview_geometry,
+                object_type=object_type,
+            )
+        session = self._edit_session_for_adapter()
+        if session is None:
+            return bool(self._generated_store().update_geometry(object_id, preview_geometry))
+        session.select(object_id, "generated-canvas")
+        result = self._execute_edit(UpdateGeometryCommand(object_id, preview_geometry))
+        return bool(result is not None and result.changed)
+
     def _apply_generated_plot_series_handle_drag(self, object_id, handle_index, x_value, y_value):
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "plot_series":

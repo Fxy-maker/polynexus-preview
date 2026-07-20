@@ -8,6 +8,59 @@ GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
 
 
 class ChartEditorGeneratedHitTestingMixin:
+    def _generated_annotation_body_drag_start(self, event, object_id):
+        figure_object = self._generated_figure_object_by_id(object_id)
+        if not isinstance(figure_object, dict):
+            return None
+        object_type = str(figure_object.get("type", "") or "")
+        if object_type not in {"text", "rectangle", "curve"}:
+            return None
+        coordinates = self._generated_event_data_coordinates(event)
+        if coordinates is None:
+            return None
+        x_value, y_value = coordinates
+        geometry = self._generated_persisted_geometry(figure_object)
+        if object_type == "rectangle":
+            left = float(geometry.get("x", 0.0) or 0.0)
+            top = float(geometry.get("y", 0.0) or 0.0)
+            width = float(geometry.get("width", 0.0) or 0.0)
+            height = float(geometry.get("height", 0.0) or 0.0)
+            if not (left <= x_value <= left + width and top <= y_value <= top + height):
+                return None
+        elif object_type == "text":
+            anchor_x = float(geometry.get("x", 0.0) or 0.0)
+            anchor_y = float(geometry.get("y", 0.0) or 0.0)
+            width = float(geometry.get("width", 0.0) or 0.0) or max(
+                0.08, len(str(figure_object.get("text", "") or "")) * 0.025
+            )
+            height = float(geometry.get("height", 0.0) or 0.0) or 0.12
+            if not (
+                anchor_x - width / 2.0 <= x_value <= anchor_x + width / 2.0
+                and anchor_y <= y_value <= anchor_y + height
+            ):
+                return None
+        else:
+            artist = next(
+                iter(self._figure_render_adapter.artists_for_object_id(object_id)),
+                None,
+            )
+            if artist is None:
+                return None
+            try:
+                contains, _details = artist.contains(event)
+            except (AttributeError, RuntimeError, ValueError):
+                contains = False
+            if not contains:
+                return None
+        return {
+            "object_id": str(object_id or ""),
+            "kind": "body",
+            "object_type": object_type,
+            "dirty": False,
+            "press_data": coordinates,
+            "origin_geometry": geometry,
+        }
+
     def _generated_line_drag_start(self, event, object_id):
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "line":

@@ -53,6 +53,14 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- The 2026-07-20 editor interaction reliability slice adds stable static body
+  drag/resize transactions, generated text/rectangle body dragging, visible
+  distance-aware curve bends, line endpoint-preserving body movement, fixed
+  context-bar layout, and selection viewport preservation. Focused interaction
+  tests pass (`109`), remaining ChartEditor-related modules pass (`156`), and
+  targeted legacy ChartEditor drag/undo/static checks pass (`7`). The task card
+  is `docs/agent/tasks/2026-07-20-editor-interaction-reliability.md`.
+
 - The 2026-07-20 editor workflow completion slice passed its focused regression
   matrix (`354 passed`), structured verifier, and default verifier. It adds
   document diagnostics, distribution/visibility/layers/context actions,

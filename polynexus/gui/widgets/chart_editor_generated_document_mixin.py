@@ -1064,10 +1064,18 @@ class ChartEditorGeneratedDocumentMixin:
 
         old = self._canvas.figure
         self._hovered_figure_object_id = ""
+        captured_here = False
+        if getattr(self, "_generated_viewport_snapshot", None) is None:
+            capture = getattr(self, "_capture_generated_viewport", None)
+            if callable(capture):
+                capture()
+                captured_here = True
         self._fit_figure_to_live_canvas(fig)
         self._canvas.figure = fig
         self._figure = fig
         self._restore_generated_viewport()
+        if captured_here:
+            self._generated_viewport_snapshot = None
         self._connect_canvas_interaction_events()
         self._canvas.draw()
         if old:

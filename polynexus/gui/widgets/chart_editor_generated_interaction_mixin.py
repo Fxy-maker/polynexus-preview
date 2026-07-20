@@ -197,6 +197,7 @@ class ChartEditorGeneratedInteractionMixin:
             "line-body",
             "curve",
             "rectangle",
+            "body",
             "plot_series",
             "legend",
         }:
@@ -368,13 +369,14 @@ class ChartEditorGeneratedInteractionMixin:
         elif tool in {"line", "arrow"}:
             payload.update(x1=x1, y1=y1, x2=x2, y2=y2)
         elif tool == "curve":
+            control_x, control_y = self._generated_curve_control_point((x1, y1), (x2, y2))
             payload.update(
                 x1=x1,
                 y1=y1,
                 x2=x2,
                 y2=y2,
-                control_x=(x1 + x2) / 2.0,
-                control_y=(y1 + y2) / 2.0 + abs(x2 - x1) * 0.2,
+                control_x=control_x,
+                control_y=control_y,
             )
         else:
             payload.update(

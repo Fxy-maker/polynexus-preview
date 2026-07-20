@@ -106,6 +106,14 @@ class ChartEditorGeneratedDragExecutionMixin:
                 changed = self._apply_generated_line_body_drag(
                     object_id, drag_state, x_value, y_value
                 )
+            elif drag_kind == "body":
+                coordinates = self._generated_event_data_coordinates(event)
+                if coordinates is None:
+                    return
+                x_value, y_value = coordinates
+                changed = self._apply_generated_body_drag(
+                    object_id, drag_state, x_value, y_value
+                )
             elif drag_kind == "plot_series":
                 coordinates = self._generated_event_data_coordinates(event)
                 if coordinates is None:

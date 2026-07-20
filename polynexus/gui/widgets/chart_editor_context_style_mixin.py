@@ -91,7 +91,8 @@ class ChartEditorContextStyleMixin:
             "alpha": 1.0,
         }
         self._context_style_bar = bar
-        bar.hide()
+        bar.setMinimumHeight(32)
+        bar.setMaximumHeight(32)
         return bar
 
     @staticmethod
@@ -136,7 +137,13 @@ class ChartEditorContextStyleMixin:
             "rectangle",
         }
         if not (is_text or is_line):
-            bar.hide()
+            self._context_tool_hint.clear()
+            self._context_color.setVisible(False)
+            self._context_line_width.setVisible(False)
+            self._context_line_style.setVisible(False)
+            self._context_font_size.setVisible(False)
+            self._context_advanced.setVisible(False)
+            bar.show()
             return
 
         style = self._active_draw_style()

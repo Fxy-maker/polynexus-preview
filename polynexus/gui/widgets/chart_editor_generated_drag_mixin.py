@@ -117,12 +117,14 @@ class ChartEditorGeneratedDragMixin:
             self._clear_generated_drag_preview()
             self._generated_viewport_snapshot = None
             return True
+        drag_kind_for_geometry = str(drag_state.get("object_type", "") or "") if drag_kind == "body" else drag_kind
         geometry_keys = {
             "line": ("x1", "y1", "x2", "y2"),
             "line-body": ("x1", "y1", "x2", "y2"),
             "curve": ("x1", "y1", "x2", "y2", "control_x", "control_y"),
             "rectangle": ("x", "y", "width", "height"),
-        }.get(drag_kind)
+            "text": ("x", "y"),
+        }.get(drag_kind_for_geometry)
         if geometry_keys is None:
             return True
         original_object = drag_state.get("original_object")

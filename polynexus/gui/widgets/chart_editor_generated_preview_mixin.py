@@ -5,6 +5,7 @@ from copy import deepcopy
 from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch, PathPatch, Rectangle
 from matplotlib.path import Path
+from matplotlib.text import Text
 
 
 class ChartEditorGeneratedPreviewMixin:
@@ -116,6 +117,23 @@ class ChartEditorGeneratedPreviewMixin:
         return x1, y1, x2, y2
 
     @staticmethod
+    def _generated_curve_control_point(start_data, end_data):
+        x1, y1 = (float(start_data[0]), float(start_data[1]))
+        x2, y2 = (float(end_data[0]), float(end_data[1]))
+        dx = x2 - x1
+        dy = y2 - y1
+        length = (dx * dx + dy * dy) ** 0.5
+        if length <= 1e-9:
+            return x1, y1
+        bend = max(0.12, min(0.35, length * 0.35))
+        normal_x = -dy / length
+        normal_y = dx / length
+        if normal_y < 0.0:
+            normal_x *= -1.0
+            normal_y *= -1.0
+        return (x1 + x2) / 2.0 + normal_x * bend, (y1 + y2) / 2.0 + normal_y * bend
+
+    @staticmethod
     def _generated_persisted_geometry(figure_object):
         if not isinstance(figure_object, dict):
             return {}
@@ -166,9 +184,10 @@ class ChartEditorGeneratedPreviewMixin:
             )
             axis.add_patch(artist)
         elif tool == "curve":
+            control_x, control_y = self._generated_curve_control_point(start_data, end_data)
             artist = PathPatch(
                 Path(
-                    [(x1, y1), ((x1 + x2) / 2.0, (y1 + y2) / 2.0), (x2, y2)],
+                    [(x1, y1), (control_x, control_y), (x2, y2)],
                     [Path.MOVETO, Path.CURVE3, Path.CURVE3],
                 ),
                 fill=False,
@@ -260,6 +279,13 @@ class ChartEditorGeneratedPreviewMixin:
                 for artist in artists:
                     if isinstance(artist, PathPatch):
                         artist.set_path(path)
+        elif object_type == "text":
+            x_value = geometry.get("x")
+            y_value = geometry.get("y")
+            if x_value is not None and y_value is not None:
+                for artist in artists:
+                    if isinstance(artist, Text):
+                        artist.set_position((float(x_value), float(y_value)))
         elif object_type == "rectangle":
             bounds = geometry
             if isinstance(figure_object.get("bounds"), dict):

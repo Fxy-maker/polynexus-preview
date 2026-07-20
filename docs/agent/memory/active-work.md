@@ -2,6 +2,27 @@
 
 > Last updated: 2026-07-20
 
+## Editor interaction reliability — in progress 2026-07-20
+
+- Added direct body-drag transactions for static annotations and generated
+  text/rectangle/curve objects. Handles now resize text boxes as well as
+  rectangles, curve defaults use a distance-aware control point, line body
+  movement preserves both endpoints, and generated selection redraw preserves
+  manual axes limits.
+- The context style bar is a fixed-height overlay surface, so tool/selection
+  changes do not add or remove canvas layout height. Drag preview remains
+  non-persistent until release; release creates one edit-session/canvas history
+  entry and undo/redo restores the exact geometry.
+- Focused interaction matrix: `109 passed`; remaining ChartEditor-related
+  modules: `156 passed`; targeted legacy ChartEditor drag/undo/static checks:
+  `7 passed`. Structured verifier passed for task card
+  `docs/agent/tasks/2026-07-20-editor-interaction-reliability.md`.
+- Known limitation remains the pre-existing Windows Qt access violation in the
+  legacy `LayerTreeItem.setData()` compatibility path when the full
+  `tests/test_chart_editor*.py` set is combined; stable focused batches pass.
+- Next action: run the default verifier, checkpoint the explicit changed-file
+  allowlist, and leave all pre-existing untracked drafts/diagnostics untouched.
+
 ## Local finish verification — recorded 2026-07-20
 
 - The completed editor-workflow branch and the local `main` worktree both

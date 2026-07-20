@@ -322,12 +322,12 @@ class ChartEditor(
         canvas_tool_layout.addWidget(self._editor_toolbar, 0, Qt.AlignTop)
 
         canvas_stack = QWidget()
-        canvas_stack_layout = QVBoxLayout(canvas_stack)
+        canvas_stack_layout = QGridLayout(canvas_stack)
         canvas_stack_layout.setContentsMargins(0, 0, 0, 0)
-        canvas_stack_layout.addWidget(self._canvas, 1)
-        canvas_stack_layout.addWidget(self._source_preview, 1)
-        canvas_stack_layout.addWidget(self._annotation_canvas, 1)
-        canvas_stack_layout.addWidget(self._build_context_style_bar())
+        canvas_stack_layout.addWidget(self._canvas, 0, 0)
+        canvas_stack_layout.addWidget(self._source_preview, 0, 0)
+        canvas_stack_layout.addWidget(self._annotation_canvas, 0, 0)
+        canvas_stack_layout.addWidget(self._build_context_style_bar(), 0, 0, Qt.AlignBottom)
         self._build_inline_text_editor()
         canvas_tool_layout.addWidget(canvas_stack, 1)
 

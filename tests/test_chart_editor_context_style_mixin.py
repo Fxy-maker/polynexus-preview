@@ -71,3 +71,24 @@ def test_tool_selection_shows_draw_defaults_without_hiding_inspector():
 
     editor.deleteLater()
     _app().processEvents()
+
+
+def test_context_style_bar_does_not_resize_the_live_canvas(tmp_path):
+    app = _app()
+    editor = _generated_editor_with_object(
+        {"id": "line", "type": "line", "x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0}
+    )
+    editor.resize(900, 700)
+    editor.show()
+    app.processEvents()
+
+    before = editor._canvas.geometry()
+    editor._generated_draw_tool = "line"
+    editor._sync_context_style_bar()
+    app.processEvents()
+    after = editor._canvas.geometry()
+
+    assert after == before
+
+    editor.deleteLater()
+    app.processEvents()

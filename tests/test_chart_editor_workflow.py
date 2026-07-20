@@ -13,7 +13,7 @@ from PySide6.QtGui import QColor, QImage, QKeyEvent
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
-from polynexus.core.figure_edit_commands import UpdateGeometryCommand
+from polynexus.core.figure_edit_commands import AddObjectCommand, UpdateGeometryCommand
 from polynexus.gui.i18n import tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
 
@@ -222,6 +222,19 @@ def test_static_line_drag_commits_one_command_and_is_undoable(tmp_path, app):
     assert not any(item.get("type") == "line" for item in editor._figure_document["objects"])
 
 
+def test_generated_selection_preserves_manual_axes_limits(editor):
+    axes = editor._figure.axes[0]
+    axes.set_xlim(-2.0, 3.0)
+    axes.set_ylim(-4.0, 5.0)
+    before = (tuple(axes.get_xlim()), tuple(axes.get_ylim()))
+
+    editor._select_generated_object("line-1", "canvas")
+
+    axes = editor._figure.axes[0]
+    assert tuple(axes.get_xlim()) == before[0]
+    assert tuple(axes.get_ylim()) == before[1]
+
+
 def test_invalid_color_keeps_object_and_history_unchanged(editor):
     editor._select_generated_object("line-1", "list")
     before = deepcopy(editor._generated_store().get("line-1"))
@@ -346,6 +359,166 @@ def test_generated_text_drag_commits_persisted_box_geometry(tmp_path, app):
     text = next(item for item in editor._figure_document["objects"] if item.get("type") == "text")
     assert text["width"] == 3.0
     assert text["height"] == 1.0
+
+
+@pytest.mark.parametrize(
+    ("object_id", "object_payload", "point"),
+    (
+        (
+            "movable-text",
+            {"id": "movable-text", "type": "text", "x": 0.25, "y": 0.35, "text": "Peak"},
+            (0.25, 0.35),
+        ),
+        (
+            "movable-rectangle",
+            {
+                "id": "movable-rectangle",
+                "type": "rectangle",
+                "x": 0.25,
+                "y": 0.35,
+                "width": 0.3,
+                "height": 0.2,
+            },
+            (0.4, 0.45),
+        ),
+    ),
+)
+def test_generated_text_and_rectangle_body_presses_start_move_drag(
+    tmp_path, app, object_id, object_payload, point
+):
+    editor = make_generated_editor(tmp_path)
+    editor._execute_edit(AddObjectCommand(object_payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(object_id, "list")
+    axis = editor._figure.axes[0]
+    event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        *axis.transData.transform(point),
+        button=1,
+    )
+    event.inaxes = axis
+    event.xdata, event.ydata = point
+
+    target = editor._generated_drag_state_for_press(event, object_id)
+
+    assert target is not None
+    assert target["kind"] == "body"
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_curve_default_bend_is_not_a_fixed_shallow_offset(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    assert editor._add_generated_tool_object("curve", (0.1, 0.5), (0.9, 0.5)) is True
+
+    curve = next(
+        item
+        for item in editor._figure_document["objects"]
+        if item.get("type") == "curve"
+    )
+    assert abs(float(curve["control_y"]) - 0.5) >= 0.25
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+@pytest.mark.parametrize(
+    ("object_payload", "press_point", "release_point", "expected_keys"),
+    (
+        (
+            {"id": "move-text", "type": "text", "x": 0.25, "y": 0.35, "text": "Peak"},
+            (0.25, 0.35),
+            (0.4, 0.5),
+            {"x": 0.4, "y": 0.5},
+        ),
+        (
+            {
+                "id": "move-rectangle",
+                "type": "rectangle",
+                "x": 0.25,
+                "y": 0.35,
+                "width": 0.3,
+                "height": 0.2,
+            },
+            (0.4, 0.45),
+            (0.55, 0.6),
+            {"x": 0.4, "y": 0.5},
+        ),
+    ),
+)
+def test_generated_body_drag_commits_one_geometry_command(
+    tmp_path, app, object_payload, press_point, release_point, expected_keys
+):
+    editor = make_generated_editor(tmp_path)
+    editor._execute_edit(AddObjectCommand(object_payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(object_payload["id"], "list")
+    axis = editor._figure.axes[0]
+
+    def event(name, point):
+        result = MouseEvent(
+            name,
+            editor._canvas,
+            *axis.transData.transform(point),
+            button=1,
+        )
+        result.inaxes = axis
+        result.xdata, result.ydata = point
+        return result
+
+    history_before = len(editor._edit_session.history)
+    editor._on_generated_button_press(event("button_press_event", press_point))
+    editor._on_generated_mouse_move(event("motion_notify_event", release_point))
+    editor._on_generated_button_release(event("button_release_event", release_point))
+
+    moved = editor._generated_figure_object_by_id(object_payload["id"])
+    assert {key: moved[key] for key in expected_keys} == expected_keys
+    assert len(editor._edit_session.history) == history_before + 1
+
+    editor._on_annotation_undo()
+    restored = editor._generated_figure_object_by_id(object_payload["id"])
+    assert restored["x"] == object_payload.get("x")
+    assert restored["y"] == object_payload.get("y")
+    editor._on_annotation_redo()
+    redone = editor._generated_figure_object_by_id(object_payload["id"])
+    assert redone["x"] == expected_keys["x"]
+    assert redone["y"] == expected_keys["y"]
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_line_body_drag_preserves_endpoint_delta(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor._select_generated_object("line-1", "list")
+    axis = editor._figure.axes[0]
+    original = editor._generated_figure_object_by_id("line-1").copy()
+
+    def event(name, point):
+        result = MouseEvent(
+            name,
+            editor._canvas,
+            *axis.transData.transform(point),
+            button=1,
+        )
+        result.inaxes = axis
+        result.xdata, result.ydata = point
+        return result
+
+    start = ((original["x1"] + original["x2"]) / 2.0, (original["y1"] + original["y2"]) / 2.0)
+    end = (start[0] + 0.1, start[1] + 0.2)
+    editor._on_generated_button_press(event("button_press_event", start))
+    editor._on_generated_mouse_move(event("motion_notify_event", end))
+    editor._on_generated_button_release(event("button_release_event", end))
+
+    moved = editor._generated_figure_object_by_id("line-1")
+    assert moved["x2"] - moved["x1"] == pytest.approx(original["x2"] - original["x1"])
+    assert moved["y2"] - moved["y1"] == pytest.approx(original["y2"] - original["y1"])
+
+    editor.deleteLater()
+    app.processEvents()
 
 
 def test_generated_export_omits_editor_selection_handles_and_restores_selection(

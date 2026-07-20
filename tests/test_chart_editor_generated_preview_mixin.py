@@ -59,11 +59,10 @@ def test_generated_curve_draw_preview_uses_a_visible_quadratic_path():
 
     assert len(editor._generated_draw_preview_artists) == 1
     assert editor._generated_draw_preview_artists[0].get_gid() == "pn-preview:curve"
-    assert editor._generated_draw_preview_artists[0].get_path().vertices.tolist() == [
-        [0.0, 0.0],
-        [0.5, 0.0],
-        [1.0, 0.0],
-    ]
+    vertices = editor._generated_draw_preview_artists[0].get_path().vertices.tolist()
+    assert vertices[0] == [0.0, 0.0]
+    assert vertices[1] == [0.5, 0.35]
+    assert vertices[2] == [1.0, 0.0]
 
     editor.deleteLater()
     _app().processEvents()

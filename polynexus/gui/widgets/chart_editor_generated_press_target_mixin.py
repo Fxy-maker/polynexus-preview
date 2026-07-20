@@ -20,7 +20,7 @@ class ChartEditorGeneratedPressTargetMixin:
         if object_type == "curve":
             handle_hit = self._generated_point_handle_hit(event, object_id)
             if handle_hit is None:
-                return None
+                return self._generated_annotation_body_drag_start(event, object_id)
             return {
                 "object_id": str(object_id or ""),
                 "kind": "curve",
@@ -30,7 +30,7 @@ class ChartEditorGeneratedPressTargetMixin:
         if object_type == "rectangle":
             handle_hit = self._generated_point_handle_hit(event, object_id)
             if handle_hit is None:
-                return None
+                return self._generated_annotation_body_drag_start(event, object_id)
             return {
                 "object_id": str(object_id or ""),
                 "kind": "rectangle",
@@ -48,6 +48,8 @@ class ChartEditorGeneratedPressTargetMixin:
                 "nearest_point_hit": False,
                 "dirty": False,
             }
+        if object_type == "text":
+            return self._generated_annotation_body_drag_start(event, object_id)
         return None
 
     def _generated_drag_state_for_press(self, event, object_id):
@@ -68,7 +70,7 @@ class ChartEditorGeneratedPressTargetMixin:
         if object_type == "curve":
             handle_hit = self._generated_point_handle_hit(event, object_id)
             if handle_hit is None:
-                return None
+                return self._generated_annotation_body_drag_start(event, object_id)
             return {
                 "object_id": str(object_id or ""),
                 "kind": "curve",
@@ -78,7 +80,7 @@ class ChartEditorGeneratedPressTargetMixin:
         if object_type == "rectangle":
             handle_hit = self._generated_point_handle_hit(event, object_id)
             if handle_hit is None:
-                return None
+                return self._generated_annotation_body_drag_start(event, object_id)
             return {
                 "object_id": str(object_id or ""),
                 "kind": "rectangle",
@@ -98,6 +100,8 @@ class ChartEditorGeneratedPressTargetMixin:
             }
         if object_type == "legend":
             return self._generated_legend_drag_start(event, object_id)
+        if object_type == "text":
+            return self._generated_annotation_body_drag_start(event, object_id)
         return None
 
     def _generated_press_drag_target(self, event, exclude_object_id=""):

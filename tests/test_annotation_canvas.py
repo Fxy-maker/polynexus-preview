@@ -115,6 +115,108 @@ def test_annotation_canvas_text_box_applies_persisted_width(tmp_path):
     app.processEvents()
 
 
+def test_text_annotation_exposes_resize_handles_and_updates_box_geometry(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_text_annotation("Peak", 10, 8, width=60, height=20)
+    assert canvas.select_annotation(annotation_id) is True
+
+    assert len(canvas._selection_handle_items) == 4
+    assert canvas._begin_selection_handle_drag(QPointF(10, 8)) is True
+    assert canvas._finish_selection_handle_drag(QPointF(5, 5)) is True
+
+    geometry = canvas.selected_annotation()
+    assert geometry["x"] == 0.05
+    assert geometry["y"] == 0.1
+    assert geometry["width"] == 0.65
+    assert geometry["height"] == 0.46
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_select_mode_leaves_object_mouse_move_for_graphics_view(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.add_rectangle_annotation(10, 8, 40, 20)
+    viewport = canvas._view.viewport()
+    point = QPointF(canvas._view.mapFromScene(QPointF(25, 18)))
+    global_point = QPointF(viewport.mapToGlobal(point.toPoint()))
+    event = QMouseEvent(
+        QEvent.MouseMove,
+        point,
+        point,
+        global_point,
+        Qt.NoButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+
+    assert canvas.eventFilter(viewport, event) is False
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_static_rectangle_body_drag_updates_position_and_is_undoable(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    canvas.resize(400, 300)
+    canvas.show()
+    app.processEvents()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_rectangle_annotation(10, 8, 40, 20)
+    canvas.set_zoom_100()
+    canvas.select_annotation(annotation_id)
+    viewport = canvas._view.viewport()
+
+    def event(event_type, scene_point, buttons):
+        local = QPointF(canvas._view.mapFromScene(scene_point))
+        global_pos = QPointF(viewport.mapToGlobal(local.toPoint()))
+        return QMouseEvent(
+            event_type,
+            local,
+            local,
+            global_pos,
+            Qt.LeftButton if event_type != QEvent.MouseMove else Qt.NoButton,
+            buttons,
+            Qt.NoModifier,
+        )
+
+    app.sendEvent(viewport, event(QEvent.MouseButtonPress, QPointF(25, 18), Qt.LeftButton))
+    app.sendEvent(viewport, event(QEvent.MouseMove, QPointF(45, 28), Qt.LeftButton))
+    app.sendEvent(viewport, event(QEvent.MouseButtonRelease, QPointF(45, 28), Qt.NoButton))
+
+    moved = canvas.selected_annotation()
+    assert moved["x"] == 0.3
+    assert moved["y"] == 0.36
+    assert len(canvas._undo_stack) == 2
+    assert canvas.undo() is True
+    assert canvas.selected_annotation()["x"] == 0.1
+    assert canvas.redo() is True
+    assert canvas.selected_annotation()["x"] == 0.3
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
 def test_document_mode_line_drag_requests_canonical_geometry(tmp_path):
     app = QApplication.instance() or QApplication([])
     image_path = tmp_path / "source.png"
@@ -771,6 +873,26 @@ def test_annotation_canvas_curve_tool_creates_and_updates_control_geometry(tmp_p
     updated = canvas.selected_annotation()
     assert updated["control_x"] == 0.4
     assert updated["control_y"] == 0.2
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_curve_tool_uses_a_distance_aware_bend_by_default(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(200, 100)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    assert canvas.set_tool("curve") is True
+    assert canvas._finish_mouse_draw(QPointF(20, 80), QPointF(180, 80))
+
+    curve = canvas.selected_annotation()
+    midpoint_y = (curve["y1"] + curve["y2"]) / 2.0
+    assert abs(curve["control_y"] - midpoint_y) >= 0.25
 
     canvas.deleteLater()
     app.processEvents()
