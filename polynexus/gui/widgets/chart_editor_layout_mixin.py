@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...core.figure_edit_commands import SetVisibilityCommand
 from ..i18n import tr
 from .chart_editor_tool_icons import editor_tool_icon
 
@@ -202,11 +203,92 @@ class ChartEditorLayoutMixin:
             ("A", lambda: self.set_tool("arrow")),
             ("R", lambda: self.set_tool("rectangle")),
             ("Delete", self._delete_selected_from_canvas),
+            ("H", self._toggle_selected_visibility),
+            ("Ctrl+G", self._group_selected_objects),
+            ("Ctrl+Shift+G", self._ungroup_selected_objects),
+            ("Ctrl+Alt+H", lambda: self._set_selected_visibility(True)),
         ):
             shortcut = QShortcut(QKeySequence(sequence), canvas)
             shortcut.setContext(Qt.WidgetShortcut)
             shortcut.activated.connect(callback)
             self._editor_shortcuts.append(shortcut)
+
+    def _build_object_context_menu(self):
+        menu = QMenu(self)
+        self._object_context_actions = {}
+
+        def add_action(action_id, label_key, callback, parent=menu):
+            action = QAction(tr(label_key), parent)
+            action.setObjectName(f"editor_context_{action_id}")
+            action.triggered.connect(callback)
+            parent.addAction(action)
+            self._object_context_actions[action_id] = action
+            return action
+
+        add_action("toggle_visibility", "EDITOR_CONTEXT_VISIBILITY", self._toggle_selected_visibility)
+        add_action("toggle_lock", "EDITOR_OBJECT_LOCK", self._on_toggle_selected_lock)
+        add_action("delete", "EDITOR_ANNOTATION_DELETE", self._delete_selected_from_canvas)
+        menu.addSeparator()
+        add_action("bring_front", "EDITOR_ANNOTATION_FRONT", lambda: self._move_selected_generated_object(to_front=True))
+        add_action("send_back", "EDITOR_ANNOTATION_BACK", lambda: self._move_selected_generated_object(to_front=False))
+
+        align_menu = menu.addMenu(tr("EDITOR_CONTEXT_ALIGN"))
+        align_menu.setObjectName("editor_context_align_menu")
+        for mode, label_key in (
+            ("left", "EDITOR_ALIGN_LEFT"),
+            ("center", "EDITOR_ALIGN_CENTER"),
+            ("right", "EDITOR_ALIGN_RIGHT"),
+            ("top", "EDITOR_ALIGN_TOP"),
+            ("middle", "EDITOR_ALIGN_MIDDLE"),
+            ("bottom", "EDITOR_ALIGN_BOTTOM"),
+        ):
+            add_action(f"align_{mode}", label_key, lambda _checked=False, mode=mode: self._align_selected_objects(mode), align_menu)
+
+        distribute_menu = menu.addMenu(tr("EDITOR_CONTEXT_DISTRIBUTE"))
+        distribute_menu.setObjectName("editor_context_distribute_menu")
+        for mode, label_key in (
+            ("horizontal", "EDITOR_DISTRIBUTE_HORIZONTAL"),
+            ("vertical", "EDITOR_DISTRIBUTE_VERTICAL"),
+        ):
+            add_action(
+                f"distribute_{mode}",
+                label_key,
+                lambda _checked=False, mode=mode: self._distribute_selected_objects(mode),
+                distribute_menu,
+            )
+
+        menu.addSeparator()
+        add_action("group", "EDITOR_GROUP", self._group_selected_objects)
+        add_action("ungroup", "EDITOR_UNGROUP", self._ungroup_selected_objects)
+        return menu
+
+    def _show_object_context_menu(self, position):
+        menu = self._build_object_context_menu()
+        viewport = getattr(self._object_list, "viewport", lambda: self._object_list)()
+        menu.exec(viewport.mapToGlobal(position))
+
+    def _set_selected_visibility(self, visible: bool):
+        object_id = str(getattr(self, "_selected_figure_object_id", "") or "").strip()
+        if not object_id:
+            return False
+        if getattr(self, "_generated_document_mode", False) and not self._session_has_object(object_id):
+            self._reset_edit_session_from_document(self._figure_document)
+        result = self._execute_edit(SetVisibilityCommand(object_id, bool(visible)))
+        if result is not None and getattr(result, "changed", False):
+            if getattr(self, "_generated_document_mode", False):
+                self._persist_generated_document()
+                self._show_generated_figure_document()
+                self._refresh_object_list(object_id)
+            return True
+        return False
+
+    def _toggle_selected_visibility(self):
+        object_id = str(getattr(self, "_selected_figure_object_id", "") or "").strip()
+        if not object_id:
+            return False
+        payload = self._generated_figure_object_by_id_including_deleted(object_id)
+        visible = bool(payload.get("visible", True)) if isinstance(payload, dict) else True
+        return self._set_selected_visibility(not visible)
 
     def _delete_selected_from_canvas(self):
         if getattr(self, "_generated_document_mode", False) and getattr(

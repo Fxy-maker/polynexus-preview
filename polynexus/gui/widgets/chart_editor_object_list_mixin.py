@@ -312,8 +312,11 @@ class ChartEditorObjectListMixin:
             if isinstance(self._object_list, QTreeWidget)
             else item.data(Qt.UserRole)
         )
-        if getattr(self, "_generated_document_mode", False) and not self._session_has_object(
-            object_id
+        session_has_object = getattr(self, "_session_has_object", None)
+        if (
+            getattr(self, "_generated_document_mode", False)
+            and callable(session_has_object)
+            and not session_has_object(object_id)
         ):
             self._reset_edit_session_from_document(self._figure_document)
         result = self._execute_edit(

@@ -451,6 +451,10 @@ class ChartEditor(
         self._object_list.setMinimumHeight(96)
         self._object_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self._object_list.installEventFilter(self)
+        self._object_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._object_list.customContextMenuRequested.connect(
+            self._show_object_context_menu
+        )
         self._object_list.currentItemChanged.connect(
             self._on_object_list_selection_changed
         )
