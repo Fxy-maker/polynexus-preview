@@ -141,3 +141,27 @@ Every completed task must summarize:
 3. Verification commands and outcomes.
 4. Known limitations or follow-up work.
 5. Pre-existing workspace changes intentionally left untouched.
+
+## 10. Autonomous development loop
+
+The repository currently provides the loop primitives, not a single autonomous
+runner. A loop runner must treat each atomic task as a state machine:
+
+```text
+queued -> inspecting -> implementing -> verifying -> committed
+                           ^               |
+                           +-- repairing <-+
+
+verifying -> blocked after repeated failure
+committed -> next task or completed
+```
+
+For each iteration, preserve task state, changed-file scope, verification output,
+repair-attempt count, commit hash, and next action. Automatically repair ordinary
+test/lint/type failures, but pause after repeated failures or when the change
+requires product, architecture, schema, scientific, security, or deployment
+decisions. Use `scripts/verify.py` and `scripts/auto_commit.py` for the existing
+verification and checkpoint primitives.
+
+Do not claim that a continuous autonomous runner exists until an executable
+`scripts/agent_loop.py` or equivalent has been added and tested.
