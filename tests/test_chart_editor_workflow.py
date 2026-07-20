@@ -275,7 +275,7 @@ def test_generated_editor_toolbar_can_start_annotation_tools(tmp_path, app):
         action.trigger()
         assert editor._generated_draw_tool == tool
         assert not editor._context_style_bar.isHidden()
-        assert editor._inspector_panel.isHidden()
+        assert not editor._inspector_panel.isHidden()
         if tool == "text":
             assert not editor._context_font_size.isHidden()
             assert editor._context_line_width.isHidden()

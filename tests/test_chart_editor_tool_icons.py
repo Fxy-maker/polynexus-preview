@@ -56,7 +56,7 @@ def test_editor_toolbar_uses_non_empty_icons_and_accessible_tooltips():
     _app()
     editor = ChartEditor()
 
-    assert editor._editor_toolbar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+    assert editor._editor_toolbar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextUnderIcon
     for action_id in editor._editor_toolbar.action_ids():
         assert editor._editor_toolbar.action(action_id).icon().isNull() is False
         assert editor._editor_toolbar.action(action_id).toolTip()

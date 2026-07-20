@@ -14,7 +14,22 @@
 - The focused completion matrix reported `51 passed`. Existing untracked
   design drafts, acceptance notes, temporary diagnostics, and legacy worktrees
   were intentionally left untouched; the worktree remains unregistered and is
-  not eligible for automatic removal.
+   not eligible for automatic removal.
+
+## Editor visual polish — completed 2026-07-20
+
+- The editor shell now gives the canvas expanding space, uses a readable
+  text-under-icon tool rail with grouped history/export actions, keeps all
+  inspector tabs visible without scroll arrows, and exposes selection actions
+  beside the object/layer tree.
+- Focused visual/editor tests pass (`34 passed`); `tests/test_chart_editor.py`
+  passes independently (`238 passed`) and the workflow suite passes
+  independently (`19 passed`). Structured and default changed/type verifiers
+  both pass with quality gate `282` and preprocessing gate `103`.
+- A combined Qt-heavy invocation can still trigger a Windows access violation
+  inside the pre-existing `LayerTreeItem.setData` compatibility path; this is
+  recorded in the task card and is not claimed as resolved by this UI-only
+  slice.
 
 ## Origin-like editor mainline integration — completed 2026-07-20
 

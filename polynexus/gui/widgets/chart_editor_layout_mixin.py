@@ -3,10 +3,12 @@ from __future__ import annotations
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMenu,
     QPushButton,
+    QSizePolicy,
     QToolBar,
     QToolButton,
     QWidget,
@@ -38,14 +40,18 @@ class _EditorContextToolbar(QToolBar):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("editor_toolbar")
-        self.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.setIconSize(QSize(18, 18))
-        self.setFixedWidth(36)
+        self.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.setIconSize(QSize(20, 20))
+        self.setFixedWidth(78)
+        self.setMovable(False)
+        self.setFloatable(False)
         self._actions_by_id = {}
         self._buttons_by_id = {}
         self._tool_action_group = QActionGroup(self)
         self._tool_action_group.setExclusive(True)
         for action_id, translation_key in self._ACTION_KEYS:
+            if action_id in {"undo", "export"}:
+                self.addSeparator()
             text = tr(translation_key)
             action = QAction(text, self)
             action.setObjectName(f"editor_toolbar_{action_id}")
@@ -58,6 +64,8 @@ class _EditorContextToolbar(QToolBar):
             self.addAction(action)
             button = self.widgetForAction(action)
             if button is not None:
+                button.setAutoRaise(True)
+                button.setMinimumHeight(48)
                 button.setAccessibleName(text)
                 button.setAccessibleDescription(text)
                 self._buttons_by_id[action_id] = button
@@ -98,6 +106,84 @@ class ChartEditorLayoutMixin:
         ):
             toolbar.action(action_id).triggered.connect(callback)
         return toolbar
+
+    def _build_object_action_bar(self):
+        """Build high-frequency selection actions beside the layer tree."""
+        bar = QWidget()
+        bar.setObjectName("editor_object_action_bar")
+        bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        layout = QGridLayout(bar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setHorizontalSpacing(4)
+        layout.setVerticalSpacing(4)
+        self._object_action_buttons = {}
+
+        def add_button(action_id, label_key, callback, row, column):
+            button = QToolButton(bar)
+            button.setObjectName(f"editor_object_action_{action_id}")
+            button.setText(tr(label_key))
+            button.setToolTip(tr(label_key))
+            button.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.setMinimumHeight(28)
+            button.clicked.connect(callback)
+            self._object_action_buttons[action_id] = button
+            layout.addWidget(button, row, column)
+            return button
+
+        def add_menu(action_id, label_key, actions, row, column):
+            button = QToolButton(bar)
+            button.setObjectName(f"editor_object_action_{action_id}")
+            button.setText(tr(label_key))
+            button.setToolTip(tr(label_key))
+            button.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            button.setPopupMode(QToolButton.InstantPopup)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.setMinimumHeight(28)
+            menu = QMenu(button)
+            for mode, mode_key, callback in actions:
+                action = QAction(tr(mode_key), menu)
+                action.triggered.connect(
+                    lambda _checked=False, mode=mode, callback=callback: callback(mode)
+                )
+                menu.addAction(action)
+            button.setMenu(menu)
+            self._object_action_buttons[action_id] = button
+            layout.addWidget(button, row, column)
+            return button
+
+        add_button("visibility", "EDITOR_CONTEXT_VISIBILITY", self._toggle_selected_visibility, 0, 0)
+        add_button("lock", "EDITOR_OBJECT_LOCK", self._on_toggle_selected_lock, 0, 1)
+        add_menu(
+            "align",
+            "EDITOR_CONTEXT_ALIGN",
+            (
+                ("left", "EDITOR_ALIGN_LEFT", self._align_selected_objects),
+                ("center", "EDITOR_ALIGN_CENTER", self._align_selected_objects),
+                ("right", "EDITOR_ALIGN_RIGHT", self._align_selected_objects),
+                ("top", "EDITOR_ALIGN_TOP", self._align_selected_objects),
+                ("middle", "EDITOR_ALIGN_MIDDLE", self._align_selected_objects),
+                ("bottom", "EDITOR_ALIGN_BOTTOM", self._align_selected_objects),
+            ),
+            0,
+            2,
+        )
+        add_menu(
+            "distribute",
+            "EDITOR_CONTEXT_DISTRIBUTE",
+            (
+                ("horizontal", "EDITOR_DISTRIBUTE_HORIZONTAL", self._distribute_selected_objects),
+                ("vertical", "EDITOR_DISTRIBUTE_VERTICAL", self._distribute_selected_objects),
+            ),
+            0,
+            3,
+        )
+        add_button("group", "EDITOR_GROUP", self._group_selected_objects, 1, 0)
+        add_button("ungroup", "EDITOR_UNGROUP", self._ungroup_selected_objects, 1, 1)
+        add_button("delete", "EDITOR_ANNOTATION_DELETE", self._delete_selected_from_canvas, 1, 2)
+        for column in range(4):
+            layout.setColumnStretch(column, 1)
+        return bar
 
     def _build_editor_header(self):
         header = QWidget()

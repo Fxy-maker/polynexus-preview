@@ -401,6 +401,77 @@ QLabel#workspace_title {{
     font-weight: 650;
 }}
 
+QWidget#editor_inspector_panel {{
+    background-color: {t.bg_panel};
+    border-left: 1px solid {t.border_light};
+}}
+
+QWidget#editor_inspector_tabs QTabBar::tab {{
+    min-width: 0;
+    padding: {t.spacing_sm}px {t.spacing_md}px;
+}}
+
+QToolBar#editor_toolbar {{
+    background-color: {t.bg_card};
+    border: 1px solid {t.border_light};
+    border-radius: {t.radius_md}px;
+    padding: {t.spacing_sm}px 3px;
+    spacing: 3px;
+}}
+
+QToolBar#editor_toolbar QToolButton {{
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: {t.radius_sm}px;
+    color: {t.text_secondary};
+    padding: 4px 2px;
+    margin: 1px 2px;
+}}
+
+QToolBar#editor_toolbar QToolButton:hover {{
+    background-color: {t.bg_hover};
+    border-color: {t.border_light};
+    color: {t.text_primary};
+}}
+
+QToolBar#editor_toolbar QToolButton:checked {{
+    background-color: {t.accent_waxs}22;
+    border-color: {t.accent_waxs};
+    color: {t.accent_waxs};
+}}
+
+QToolBar#editor_toolbar::separator {{
+    height: 1px;
+    width: 56px;
+    margin: 5px 8px;
+    background-color: {t.border};
+}}
+
+QWidget#editor_object_action_bar QToolButton {{
+    background-color: {t.bg_card};
+    border: 1px solid {t.border_light};
+    border-radius: {t.radius_sm}px;
+    color: {t.text_secondary};
+    padding: 4px 6px;
+}}
+
+QWidget#editor_object_action_bar QToolButton:hover {{
+    border-color: {t.accent_waxs};
+    color: {t.accent_waxs};
+}}
+
+QWidget#editor_object_action_bar QToolButton:disabled {{
+    background-color: {t.bg_deep};
+    border-color: {t.border};
+    color: {t.text_muted};
+}}
+
+QWidget#editor_context_style_bar {{
+    background-color: {t.bg_card};
+    border-top: 1px solid {t.border_light};
+    padding: 2px 4px;
+}}
+
 QLabel#workspace_subtitle {{
     color: {t.text_secondary};
     font-size: {t.font_size_sm}px;

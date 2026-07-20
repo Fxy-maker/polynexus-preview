@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QDoubleSpinBox,
+    QSizePolicy,
     QSlider,
     QSpinBox,
     QSplitter,
@@ -292,14 +293,17 @@ class ChartEditor(
             figsize=self._fig_size, dpi=self._dpi, facecolor=self._bg_color
         )
         self._canvas = FigureCanvas(self._figure)
+        self._canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._canvas.setFocusPolicy(Qt.StrongFocus)
         self._canvas.installEventFilter(self)
         self._toolbar = NavToolbar(self._canvas, self)
         self._editor_toolbar = self._build_editor_toolbar()
         self._editor_toolbar.setOrientation(Qt.Vertical)
         self._source_preview = FigureFilePreview(show_edit_button=False)
+        self._source_preview.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._source_preview.setVisible(False)
         self._annotation_canvas = AnnotationCanvas()
+        self._annotation_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._annotation_canvas.setVisible(False)
         self._annotation_canvas.tool_changed.connect(self._sync_annotation_tool_buttons)
         self._annotation_canvas.selection_changed.connect(self._sync_annotation_property_controls)
@@ -335,7 +339,7 @@ class ChartEditor(
         self._editor_status_bar = self._build_editor_status_bar()
         inspector_panel = self._build_inspector_drawer(self._build_panel())
         split.addWidget(inspector_panel)
-        split.setSizes([760, 320])
+        split.setSizes([760, 390])
         split.setStretchFactor(0, 1)
         split.setStretchFactor(1, 0)
 
@@ -526,6 +530,9 @@ class ChartEditor(
         )
         self._object_list.itemChanged.connect(self._on_object_list_item_changed)
         form.addRow(tr("EDITOR_OBJECT_LIST_LABEL"), self._object_list)
+
+        self._object_action_bar = self._build_object_action_bar()
+        form.addRow(self._object_action_bar)
 
         self._selected_object_label = QLabel(tr("EDITOR_OBJECT_BACKGROUND"))
         form.addRow(tr("EDITOR_SELECTED_OBJECT_LABEL"), self._selected_object_label)
@@ -969,6 +976,10 @@ class ChartEditor(
             tr("EDITOR_INSPECTOR_ANNOTATION"),
         )
         self._inspector_tabs.addTab(export_page, tr("EDITOR_INSPECTOR_EXPORT"))
+        tab_bar = self._inspector_tabs.tabBar()
+        tab_bar.setUsesScrollButtons(False)
+        tab_bar.setExpanding(True)
+        tab_bar.setElideMode(Qt.ElideRight)
         self._refresh_style_preset_controls()
         self._refresh_template_controls()
         self._refresh_export_preset_controls()

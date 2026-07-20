@@ -28,6 +28,19 @@ class ChartEditorBatchEditMixin:
             button = getattr(self, name, None)
             if button is not None:
                 button.setEnabled(enabled)
+        object_buttons = getattr(self, "_object_action_buttons", {})
+        has_selection = bool(self._selected_batch_object_ids())
+        for action_id in ("visibility", "lock", "delete"):
+            button = object_buttons.get(action_id)
+            if button is not None:
+                button.setEnabled(has_selection)
+        for action_id in ("align", "group", "ungroup"):
+            button = object_buttons.get(action_id)
+            if button is not None:
+                button.setEnabled(enabled)
+        distribute_button = object_buttons.get("distribute")
+        if distribute_button is not None:
+            distribute_button.setEnabled(len(self._selected_batch_object_ids()) >= 3)
 
     def _selected_batch_object_ids(self) -> tuple[str, ...]:
         selected = tuple(

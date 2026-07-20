@@ -57,6 +57,36 @@ def test_editor_shows_inspector_by_default_for_discoverable_controls():
     app.processEvents()
 
 
+def test_editor_surface_exposes_readable_tools_and_non_scrolling_inspector_tabs():
+    _app()
+    editor = ChartEditor()
+
+    assert editor._editor_toolbar.toolButtonStyle() == Qt.ToolButtonTextUnderIcon
+    assert editor._editor_toolbar.width() >= 72
+    assert not editor._inspector_tabs.tabBar().usesScrollButtons()
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_object_tab_exposes_common_actions_next_to_layer_tree():
+    _app()
+    editor = ChartEditor()
+
+    assert set(editor._object_action_buttons) >= {
+        "visibility",
+        "lock",
+        "align",
+        "distribute",
+        "group",
+        "ungroup",
+        "delete",
+    }
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
 def test_editor_keeps_canvas_usable_at_narrow_window_width():
     app = _app()
     editor = ChartEditor()
@@ -217,8 +247,8 @@ def test_context_toolbar_has_stable_actions_and_retranslates():
 
     assert editor._editor_toolbar.orientation() == Qt.Vertical
     assert editor._editor_toolbar.parentWidget() is editor._canvas_tool_shell
-    assert editor._editor_toolbar.toolButtonStyle() == Qt.ToolButtonIconOnly
-    assert editor._editor_toolbar.iconSize() == QSize(18, 18)
+    assert editor._editor_toolbar.toolButtonStyle() == Qt.ToolButtonTextUnderIcon
+    assert editor._editor_toolbar.iconSize() == QSize(20, 20)
     assert editor._editor_toolbar.action_ids() == [
         "select",
         "text",
