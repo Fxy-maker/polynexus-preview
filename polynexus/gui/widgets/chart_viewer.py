@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QLabel, QScrollArea, QSizePolicy, QFileDialog, QComboBox,
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QCheckBox, QLineEdit,
+    QCheckBox, QLineEdit, QInputDialog, QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal, QSize, QEvent, QTimer
 from PySide6.QtGui import QPixmap, QPainter, QKeySequence, QShortcut
@@ -42,6 +42,9 @@ from ..plot_gallery_service import (
 )
 from ..i18n import tr
 from ...core.engine import logger
+from ...core.figure_batch_edit_service import apply_batch_edit_plan, build_batch_edit_plan
+from ...core.figure_document import load_figure_document_report, save_figure_document
+from ...core.figure_template_service import list_templates, load_template
 
 
 class ChartThumbnail(QWidget):
@@ -1031,6 +1034,10 @@ class ChartGallery(QWidget):
         self._btn_export_selected = QPushButton(tr("CHART_BTN_EXPORT_SELECTED"))
         self._btn_export_selected.clicked.connect(self._export_selected)
         toolbar.addWidget(self._btn_export_selected)
+        self._btn_batch_edit = QPushButton(tr("CHART_BTN_BATCH_EDIT"))
+        self._btn_batch_edit.setObjectName("chart_gallery_batch_edit")
+        self._btn_batch_edit.clicked.connect(self._batch_edit_selected)
+        toolbar.addWidget(self._btn_batch_edit)
         self._btn_select_all = QPushButton(tr("CHART_BTN_SELECT_ALL"))
         self._btn_select_all.clicked.connect(self._select_all_visible)
         toolbar.addWidget(self._btn_select_all)
@@ -1211,6 +1218,7 @@ class ChartGallery(QWidget):
 
         self._btn_export_all.setText(tr("CHART_BTN_EXPORT_ALL"))
         self._btn_export_selected.setText(tr("CHART_BTN_EXPORT_SELECTED"))
+        self._btn_batch_edit.setText(tr("CHART_BTN_BATCH_EDIT"))
         self._btn_select_all.setText(tr("CHART_BTN_SELECT_ALL"))
         self._search_label.setText(tr("CHART_SEARCH_LABEL"))
         self._search_edit.setPlaceholderText(tr("CHART_SEARCH_PLACEHOLDER"))
@@ -1318,6 +1326,70 @@ class ChartGallery(QWidget):
             for path in entry.asset_paths
         ]
         self._export_paths(selected_paths)
+
+    def _batch_edit_selected(self):
+        selected_entries = [
+            entry for entry in self._all_entries if entry.figure_id in self._selected_batch_ids
+        ]
+        if not selected_entries:
+            self.status_message.emit(tr("CHART_BATCH_EDIT_EMPTY"), "warning")
+            return
+        template_names = list_templates()
+        if not template_names:
+            self.status_message.emit(tr("CHART_BATCH_EDIT_NO_TEMPLATE"), "warning")
+            return
+        name, accepted = QInputDialog.getItem(
+            self,
+            tr("CHART_BATCH_EDIT_TITLE"),
+            tr("CHART_BATCH_EDIT_TEMPLATE"),
+            template_names,
+            0,
+            False,
+        )
+        if not accepted:
+            return
+        template = load_template(name)
+        plan_entries = []
+        for entry in selected_entries:
+            report_path = entry.document_path or entry.preview_path
+            save_path = entry.editable_path or entry.primary_path or entry.preview_path
+            report = load_figure_document_report(report_path)
+            plan_entries.append(
+                {
+                    "id": entry.figure_id,
+                    "document_path": save_path,
+                    "document": report.document if report.status == "valid" else None,
+                }
+            )
+        plan = build_batch_edit_plan(plan_entries, template)
+        if not plan.valid:
+            detail = "\n".join(target.error for target in plan.targets if target.error)
+            self.status_message.emit(detail or tr("CHART_BATCH_EDIT_INVALID"), "warning")
+            return
+        summary = "\n".join(
+            f"{target.target_id}: {', '.join(target.changed_fields) or 'no changes'}"
+            for target in plan.targets
+        )
+        answer = QMessageBox.question(
+            self,
+            tr("CHART_BATCH_EDIT_TITLE"),
+            tr("CHART_BATCH_EDIT_CONFIRM", summary),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            return
+
+        def save_target(path, document):
+            return save_figure_document(str(path), document)
+
+        try:
+            applied_ids = apply_batch_edit_plan(plan, save_target)
+        except Exception as exc:
+            self.status_message.emit(tr("CHART_BATCH_EDIT_FAILED", exc), "error")
+            return
+        self.status_message.emit(tr("CHART_BATCH_EDIT_DONE", len(applied_ids)), "success")
+        self._reload_visible_entries()
 
     def _export_paths(self, paths):
         if not paths:

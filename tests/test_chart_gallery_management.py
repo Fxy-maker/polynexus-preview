@@ -106,3 +106,12 @@ def test_chart_gallery_batch_export_copies_only_checked_cards(monkeypatch, tmp_p
     assert (destination / first.name).is_file()
     assert not (destination / second.name).exists()
     gallery.deleteLater()
+
+
+def test_chart_gallery_exposes_batch_edit_action():
+    QApplication.instance() or QApplication([])
+    gallery = ChartGallery()
+
+    assert gallery._btn_batch_edit.objectName() == "chart_gallery_batch_edit"
+    assert gallery._btn_batch_edit.text()
+    gallery.deleteLater()
