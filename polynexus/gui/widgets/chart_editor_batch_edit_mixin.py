@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ...core.figure_edit_commands import (
     AlignObjectsCommand,
+    DistributeObjectsCommand,
     GroupObjectsCommand,
     UngroupObjectsCommand,
 )
@@ -19,6 +20,8 @@ class ChartEditorBatchEditMixin:
             "_btn_annotation_align_top",
             "_btn_annotation_align_middle",
             "_btn_annotation_align_bottom",
+            "_btn_annotation_distribute_horizontal",
+            "_btn_annotation_distribute_vertical",
             "_btn_annotation_group",
             "_btn_annotation_ungroup",
         ):
@@ -57,6 +60,13 @@ class ChartEditorBatchEditMixin:
         if len(object_ids) < 2:
             return False
         result = self._execute_edit(GroupObjectsCommand(object_ids))
+        return self._batch_result_changed(result)
+
+    def _distribute_selected_objects(self, mode: str) -> bool:
+        object_ids = self._selected_batch_object_ids()
+        if len(object_ids) < 3:
+            return False
+        result = self._execute_edit(DistributeObjectsCommand(object_ids, mode))
         return self._batch_result_changed(result)
 
     def _ungroup_selected_objects(self) -> bool:

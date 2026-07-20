@@ -686,6 +686,68 @@ class AlignObjectsCommand:
         return _success(*self.object_ids)
 
 
+class DistributeObjectsCommand:
+    """Distribute three or more editable objects with equal bounding-box gaps."""
+
+    def __init__(self, object_ids: Sequence[str], mode: str):
+        self.object_ids = tuple(str(value or "").strip() for value in object_ids if str(value or "").strip())
+        self.mode = str(mode or "").strip().lower()
+
+    def apply(self, document: dict) -> tuple[EditResult, object]:
+        if self.mode not in {"horizontal", "vertical"}:
+            return _failure("invalid_distribution", "Unsupported distribution mode."), None
+        if len(tuple(dict.fromkeys(self.object_ids))) < 3:
+            return _failure(
+                "selection_required",
+                "At least three objects are required for distribution.",
+                *self.object_ids,
+            ), None
+        error, found = _batch_objects(document, self.object_ids)
+        if error is not None:
+            return error, None
+        assert found is not None
+        measured = [(object_id, payload, _geometry_bounds(payload)) for object_id, payload in found]
+        if any(item[2] is None for item in measured):
+            return _failure(
+                "invalid_geometry",
+                "Every selected object needs editable bounds.",
+                *self.object_ids,
+            ), None
+
+        snapshots = {"objects": deepcopy(_objects(document))}
+        axis_index = 1 if self.mode == "horizontal" else 2
+        end_index = 3 if self.mode == "horizontal" else 4
+        ordered = sorted(measured, key=lambda item: item[2][axis_index])
+        outer_start = ordered[0][2][axis_index]
+        outer_end = max(item[2][end_index] for item in ordered)
+        total_size = sum(item[2][end_index] - item[2][axis_index] for item in ordered)
+        gap = (outer_end - outer_start - total_size) / (len(ordered) - 1)
+        cursor = outer_start
+        for _object_id, payload, geometry in ordered:
+            current_start = geometry[axis_index]
+            delta = cursor - current_start
+            _shift_geometry(
+                payload,
+                geometry[0],
+                delta if self.mode == "horizontal" else 0.0,
+                delta if self.mode == "vertical" else 0.0,
+            )
+            cursor += geometry[end_index] - current_start + gap
+
+        if _objects(document) == snapshots["objects"]:
+            return _noop(*self.object_ids, message="Objects are already distributed."), None
+        return _success(*self.object_ids), snapshots
+
+    def revert(self, document: dict, snapshot: object) -> EditResult:
+        objects = _objects(document)
+        if objects is None or not isinstance(snapshot, dict) or not isinstance(snapshot.get("objects"), list):
+            return _failure("invalid_snapshot", "The distribution snapshot is invalid.", *self.object_ids)
+        if objects == snapshot["objects"]:
+            return _noop(*self.object_ids, message="Distribution is already restored.")
+        objects[:] = deepcopy(snapshot["objects"])
+        return _success(*self.object_ids)
+
+
 class GroupObjectsCommand:
     def __init__(self, object_ids: Sequence[str], group_id: str | None = None):
         self.object_ids = tuple(str(value or "").strip() for value in object_ids if str(value or "").strip())
@@ -882,6 +944,7 @@ class CropCanvasCommand:
 __all__ = [
     "AddObjectCommand",
     "AlignObjectsCommand",
+    "DistributeObjectsCommand",
     "CropCanvasCommand",
     "DeleteObjectCommand",
     "EditCommand",

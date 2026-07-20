@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractItemView, QListWidgetItem
 
 from ..i18n import tr
+from ...core.figure_edit_commands import SetVisibilityCommand
 
 
 class ChartEditorObjectListMixin:
@@ -210,10 +211,12 @@ class ChartEditorObjectListMixin:
             return
         if item.data(Qt.UserRole + 1) != "figure_object":
             return
-        store = self._generated_store()
-        if not store.set_visible(item.data(Qt.UserRole), item.checkState() == Qt.Checked):
+        result = self._execute_edit(
+            SetVisibilityCommand(
+                item.data(Qt.UserRole),
+                item.checkState() == Qt.Checked,
+            )
+        )
+        if result is None or not getattr(result, "changed", False):
             return
-        if self._source_path:
-            self._persist_generated_document()
-        self._show_generated_figure_document()
-        self.figure_changed.emit()
+        self._refresh_object_list(str(item.data(Qt.UserRole) or ""))

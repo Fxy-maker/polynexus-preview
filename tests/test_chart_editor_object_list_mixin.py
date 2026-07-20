@@ -85,3 +85,41 @@ def test_chart_editor_reuses_object_list_helpers_from_object_list_mixin() -> Non
     assert ChartEditor._move_selected_generated_object is ChartEditorObjectListMixin._move_selected_generated_object
     assert ChartEditor._on_object_list_selection_changed is ChartEditorObjectListMixin._on_object_list_selection_changed
     assert ChartEditor._on_object_list_item_changed is ChartEditorObjectListMixin._on_object_list_item_changed
+
+
+def test_object_visibility_change_routes_through_edit_session_command():
+    from polynexus.core.figure_edit_capabilities import EditResult
+    from PySide6.QtWidgets import QApplication, QListWidget
+
+    QApplication.instance() or QApplication([])
+
+    class _Harness(ChartEditorObjectListMixin):
+        def __init__(self):
+            self._object_list = QListWidget()
+            self._generated_document_mode = True
+            self._syncing_object_list = False
+            self.calls = []
+
+        def _execute_edit(self, command):
+            self.calls.append(command)
+            return EditResult(True)
+
+        def _refresh_object_list(self, selected_id=""):
+            self.refreshed = selected_id
+
+        def _show_generated_figure_document(self):
+            self.rendered = True
+
+    editor = _Harness()
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QListWidgetItem
+
+    item = QListWidgetItem("Line")
+    item.setData(Qt.UserRole, "line-a")
+    item.setData(Qt.UserRole + 1, "figure_object")
+    item.setCheckState(Qt.Unchecked)
+    editor._object_list.addItem(item)
+    editor._on_object_list_item_changed(item)
+
+    assert editor.calls[-1].object_id == "line-a"
+    assert editor.calls[-1].visible is False

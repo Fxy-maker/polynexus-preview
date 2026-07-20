@@ -737,6 +737,8 @@ class ChartEditor(
             ("_btn_annotation_align_top", "EDITOR_ALIGN_TOP", lambda: self._align_selected_objects("top")),
             ("_btn_annotation_align_middle", "EDITOR_ALIGN_MIDDLE", lambda: self._align_selected_objects("middle")),
             ("_btn_annotation_align_bottom", "EDITOR_ALIGN_BOTTOM", lambda: self._align_selected_objects("bottom")),
+            ("_btn_annotation_distribute_horizontal", "EDITOR_DISTRIBUTE_HORIZONTAL", lambda: self._distribute_selected_objects("horizontal")),
+            ("_btn_annotation_distribute_vertical", "EDITOR_DISTRIBUTE_VERTICAL", lambda: self._distribute_selected_objects("vertical")),
             ("_btn_annotation_group", "EDITOR_GROUP", self._group_selected_objects),
             ("_btn_annotation_ungroup", "EDITOR_UNGROUP", self._ungroup_selected_objects),
         ):
@@ -943,6 +945,8 @@ class ChartEditor(
             ("_btn_annotation_align_top", "EDITOR_ALIGN_TOP"),
             ("_btn_annotation_align_middle", "EDITOR_ALIGN_MIDDLE"),
             ("_btn_annotation_align_bottom", "EDITOR_ALIGN_BOTTOM"),
+            ("_btn_annotation_distribute_horizontal", "EDITOR_DISTRIBUTE_HORIZONTAL"),
+            ("_btn_annotation_distribute_vertical", "EDITOR_DISTRIBUTE_VERTICAL"),
             ("_btn_annotation_group", "EDITOR_GROUP"),
             ("_btn_annotation_ungroup", "EDITOR_UNGROUP"),
         ):

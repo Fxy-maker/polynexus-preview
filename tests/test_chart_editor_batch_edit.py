@@ -25,3 +25,16 @@ def test_batch_alignment_and_group_actions_submit_core_commands():
 
     assert editor._group_selected_objects() is True
     assert editor.calls[-1].object_ids == ("a", "b")
+
+
+def test_batch_distribution_actions_submit_horizontal_and_vertical_commands():
+    editor = _Harness()
+    editor._selected_figure_object_ids = ("a", "b", "c")
+
+    assert editor._distribute_selected_objects("horizontal") is True
+    assert editor.calls[-1].object_ids == ("a", "b", "c")
+    assert editor.calls[-1].mode == "horizontal"
+
+    assert editor._distribute_selected_objects("vertical") is True
+    assert editor.calls[-1].object_ids == ("a", "b", "c")
+    assert editor.calls[-1].mode == "vertical"

@@ -3,6 +3,8 @@ from __future__ import annotations
 from polynexus.core.figure_edit_commands import (
     AlignObjectsCommand,
     GroupObjectsCommand,
+    DistributeObjectsCommand,
+    SetVisibilityCommand,
     UngroupObjectsCommand,
 )
 from polynexus.core.figure_edit_session import EditSession
@@ -57,3 +59,59 @@ def test_group_and_ungroup_round_trip_as_single_commands():
 
     assert session.execute(UngroupObjectsCommand(("a", "b"))).changed is True
     assert all("group_id" not in item for item in session.document["objects"][:2])
+
+
+def test_distribute_objects_keeps_outer_edges_and_dimensions():
+    document = {
+        "objects": [
+            {"id": "a", "type": "rectangle", "x": 0.1, "y": 0.1, "width": 0.1, "height": 0.2},
+            {"id": "b", "type": "rectangle", "x": 0.35, "y": 0.4, "width": 0.05, "height": 0.3},
+            {"id": "c", "type": "rectangle", "x": 0.8, "y": 0.9, "width": 0.2, "height": 0.05},
+        ]
+    }
+    session = EditSession(document)
+
+    result = session.execute(DistributeObjectsCommand(("a", "b", "c"), "horizontal"))
+
+    assert result.changed is True
+    objects = {item["id"]: item for item in session.document["objects"]}
+    assert objects["a"]["x"] == 0.1
+    assert objects["b"]["x"] == 0.475
+    assert objects["c"]["x"] == 0.8
+    assert (objects["a"]["width"], objects["b"]["width"], objects["c"]["width"]) == (
+        0.1,
+        0.05,
+        0.2,
+    )
+    assert len(session.history) == 1
+    assert session.undo().changed is True
+    assert session.document == document
+
+
+def test_distribute_objects_rejects_two_objects_and_locked_selection():
+    session = EditSession(_document())
+
+    too_few = session.execute(DistributeObjectsCommand(("a", "b"), "vertical"))
+    assert too_few.changed is False
+    assert too_few.error_code == "selection_required"
+
+    before = session.document
+    locked = session.execute(DistributeObjectsCommand(("a", "b", "locked"), "vertical"))
+    assert locked.changed is False
+    assert locked.error_code == "locked"
+    assert session.document == before
+
+
+def test_visibility_command_round_trips_and_rejects_locked_objects():
+    session = EditSession(_document())
+
+    hidden = session.execute(SetVisibilityCommand("a", False))
+
+    assert hidden.changed is True
+    assert session.document["objects"][0]["visible"] is False
+    assert session.undo().changed is True
+    assert "visible" not in session.document["objects"][0]
+
+    locked = session.execute(SetVisibilityCommand("locked", False))
+    assert locked.changed is False
+    assert locked.error_code == "locked"
