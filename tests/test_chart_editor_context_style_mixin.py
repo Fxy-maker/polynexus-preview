@@ -55,19 +55,19 @@ def test_context_style_bar_updates_selected_line_through_edit_session():
     _app().processEvents()
 
 
-def test_tool_selection_shows_draw_defaults_without_opening_inspector():
+def test_tool_selection_shows_draw_defaults_without_hiding_inspector():
     _app()
     editor = _generated_editor_with_object(
         {"id": "line", "type": "line", "x1": 0.0, "y1": 0.0, "x2": 1.0, "y2": 1.0}
     )
 
-    assert editor._inspector_panel.isHidden()
+    assert not editor._inspector_panel.isHidden()
     assert editor.set_tool("line") is True
 
     assert not editor._context_style_bar.isHidden()
     assert not editor._context_color.isHidden()
     assert not editor._context_line_width.isHidden()
-    assert editor._inspector_panel.isHidden()
+    assert not editor._inspector_panel.isHidden()
 
     editor.deleteLater()
     _app().processEvents()

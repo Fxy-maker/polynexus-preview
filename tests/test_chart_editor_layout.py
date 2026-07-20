@@ -42,6 +42,21 @@ def test_editor_uses_canvas_first_inspector_layout():
     _app().processEvents()
 
 
+def test_editor_shows_inspector_by_default_for_discoverable_controls():
+    app = _app()
+    editor = ChartEditor()
+    editor.resize(1100, 720)
+    editor.show()
+    app.processEvents()
+
+    assert not editor._inspector_panel.isHidden()
+    assert editor._btn_header_inspector.isChecked()
+
+    editor.close()
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_editor_keeps_canvas_usable_at_narrow_window_width():
     app = _app()
     editor = ChartEditor()
@@ -63,10 +78,8 @@ def test_inspector_drawer_restores_canvas_width_after_manual_close():
     editor.show()
     app.processEvents()
 
-    editor._btn_header_inspector.click()
-    app.processEvents()
     expanded_canvas_width = editor._canvas.width()
-    editor._set_inspector_collapsed(True, manual=True)
+    editor._btn_header_inspector.click()
     app.processEvents()
 
     assert editor._inspector_panel.isHidden()
@@ -89,14 +102,14 @@ def test_header_inspector_toggle_controls_drawer():
     editor.show()
     app.processEvents()
 
-    assert editor._inspector_panel.isHidden()
+    assert not editor._inspector_panel.isHidden()
     editor._btn_header_inspector.click()
     app.processEvents()
-    assert not editor._inspector_panel.isHidden()
+    assert editor._inspector_panel.isHidden()
 
     editor._btn_header_inspector.click()
     app.processEvents()
-    assert editor._inspector_panel.isHidden()
+    assert not editor._inspector_panel.isHidden()
     editor.close()
     editor.deleteLater()
     app.processEvents()
@@ -121,22 +134,14 @@ def test_figure_size_change_keeps_live_canvas_pixel_size():
     app.processEvents()
 
 
-def test_inspector_starts_collapsed_and_selection_does_not_change_visibility():
+def test_inspector_starts_expanded_and_selection_does_not_change_visibility():
     app = _app()
     editor = ChartEditor()
     editor.resize(1100, 720)
     editor.show()
     app.processEvents()
 
-    assert editor._inspector_panel.isHidden()
-    editor._on_generated_selection_changed("missing", "canvas")
-    app.processEvents()
-    assert editor._inspector_panel.isHidden()
-
-    editor._btn_header_inspector.click()
-    app.processEvents()
     assert not editor._inspector_panel.isHidden()
-
     editor._on_generated_selection_changed("missing", "canvas")
     app.processEvents()
     assert not editor._inspector_panel.isHidden()
@@ -148,6 +153,14 @@ def test_inspector_starts_collapsed_and_selection_does_not_change_visibility():
     editor._on_generated_selection_changed("missing", "canvas")
     app.processEvents()
     assert editor._inspector_panel.isHidden()
+
+    editor._btn_header_inspector.click()
+    app.processEvents()
+    assert not editor._inspector_panel.isHidden()
+
+    editor._on_generated_selection_changed("missing", "canvas")
+    app.processEvents()
+    assert not editor._inspector_panel.isHidden()
     editor.close()
     editor.deleteLater()
     app.processEvents()
@@ -192,7 +205,7 @@ def test_escape_cancels_generated_draw_without_creating_an_object():
     assert editor._generated_draw_start_display is None
     assert editor._generated_draw_tool == "select"
     assert editor._figure_document["objects"] == []
-    assert editor._inspector_panel.isHidden()
+    assert not editor._inspector_panel.isHidden()
 
     editor.deleteLater()
     _app().processEvents()

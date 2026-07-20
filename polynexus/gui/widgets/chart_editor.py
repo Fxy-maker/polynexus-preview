@@ -344,7 +344,7 @@ class ChartEditor(
         layout.addWidget(self._editor_header)
         layout.addWidget(split, 1)
         layout.addWidget(self._editor_status_bar)
-        self._set_inspector_collapsed(True)
+        self._set_inspector_collapsed(False)
 
     def _connect_canvas_interaction_events(self):
         if self._canvas is None:
