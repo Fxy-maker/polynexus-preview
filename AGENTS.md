@@ -142,10 +142,36 @@ Every completed task must summarize:
 4. Known limitations or follow-up work.
 5. Pre-existing workspace changes intentionally left untouched.
 
-## 10. Autonomous development loop
+## 10. Local repository maintenance
 
-The repository currently provides the loop primitives, not a single autonomous
-runner. A loop runner must treat each atomic task as a state machine:
+For the routine local finish sequence, use the coordinator after an atomic task
+has an explicit changed-file allowlist:
+
+```powershell
+python scripts/repo_maintenance.py finish `
+  --target main `
+  --message "feat(scope): short summary" `
+  --files path/to/file.py path/to/test_file.py `
+  --task docs/agent/tasks/<task>.md `
+  --cleanup
+```
+
+It runs the structured verifier, calls `scripts/auto_commit.py`, merges the
+source branch into the local target worktree with `git merge --ff-only`, and
+delegates cleanup to `scripts/worktree_manager.py`. It is local-only: it never
+pushes, deploys, deletes branches, or resolves non-fast-forward history.
+Existing staged changes, a missing target worktree, or a dirty target stop the
+operation before merge. `--cleanup` still honors agent ownership, Git state,
+matching branch/HEAD, and the cooldown period.
+
+This coordinator is intentionally separate from the autonomous coding loop:
+it does not call an AI model or implement tasks.
+
+## 11. Autonomous development loop
+
+The repository provides loop primitives and the local maintenance coordinator,
+but not a single autonomous coding runner. A loop runner must treat each atomic
+task as a state machine:
 
 ```text
 queued -> inspecting -> implementing -> verifying -> committed
