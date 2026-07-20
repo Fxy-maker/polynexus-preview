@@ -110,6 +110,30 @@ def test_selected_generated_line_color_update_reaches_document(editor):
     assert editor._last_edit_result.changed is True
 
 
+def test_editor_surfaces_corrupt_document_warning(monkeypatch, tmp_path, app):
+    from polynexus.gui.widgets import chart_editor as module
+
+    source = tmp_path / "corrupt.png"
+    image = QImage(160, 100, QImage.Format_RGBA8888)
+    image.fill(QColor("white"))
+    assert image.save(str(source))
+    monkeypatch.setattr(
+        module,
+        "load_figure_document_report",
+        lambda _path: SimpleNamespace(
+            status="corrupt",
+            document={},
+            message="Figure document JSON is invalid.",
+            error_type="json",
+        ),
+    )
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(source))
+
+    assert "Figure document JSON is invalid." in editor._status_label.text()
+
+
 def test_generated_style_and_geometry_share_one_edit_history(editor):
     editor._select_generated_object("line-1", "list")
     editor._annotation_color_edit.setText("#0072B2")

@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from PySide6.QtCore import Qt
 
-from ..core.figure_document import load_figure_document
+from ..core.figure_document import load_figure_document, load_figure_document_report
 from .i18n import tr
 from .widgets.chart_editor import ChartEditor
 from .widgets.chart_viewer import ChartViewer
@@ -241,7 +241,10 @@ def open_chart_viewer(
             viewer.status_message.connect(status_message_handler)
     viewer.setWindowTitle(tr("FIGURE_VIEWER_WINDOW", os.path.basename(path)))
     document_path = normalize_figure_path(getattr(entry, "document_path", ""))
-    document = load_figure_document(document_path or path)
+    document_report = load_figure_document_report(document_path or path)
+    document = document_report.document if document_report.status == "valid" else {}
+    if document_report.status in {"corrupt", "unsupported"} and status_message_handler is not None:
+        status_message_handler(document_report.message, "warning")
     data_resolution = resolve_figure_data(
         path,
         document=document,

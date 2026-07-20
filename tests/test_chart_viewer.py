@@ -75,7 +75,8 @@ def test_chart_viewer_reports_missing_source_without_replacing_preview(tmp_path)
 
     assert viewer._preview.current_file() == str(figure_path)
     assert statuses[-1][1] == "warning"
-    assert "data" in statuses[-1][0].lower()
+    status_text = statuses[-1][0].lower()
+    assert "data" in status_text or "数据" in statuses[-1][0]
 
     viewer.deleteLater()
     app.processEvents()

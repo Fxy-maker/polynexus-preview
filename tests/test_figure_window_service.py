@@ -230,7 +230,11 @@ def test_open_chart_viewer_binds_entry_data_resolution(monkeypatch, tmp_path):
             }
         ],
     }
-    monkeypatch.setattr(module, "load_figure_document", lambda _path: document)
+    monkeypatch.setattr(
+        module,
+        "load_figure_document_report",
+        lambda _path: SimpleNamespace(status="valid", document=document),
+    )
 
     viewer = open_chart_viewer(
         str(tmp_path / "figure.png"),
@@ -242,6 +246,29 @@ def test_open_chart_viewer_binds_entry_data_resolution(monkeypatch, tmp_path):
     assert viewer.entry is entry
     assert viewer.data_resolution.headers == ("x", "y")
     assert viewer.data_resolution.rows == ((1, 2),)
+
+
+def test_open_chart_viewer_surfaces_corrupt_document_diagnostic(monkeypatch, tmp_path):
+    from polynexus.gui import figure_window_service as module
+
+    report = SimpleNamespace(
+        status="corrupt",
+        document={},
+        message="Figure document JSON is invalid.",
+        error_type="json",
+    )
+    monkeypatch.setattr(module, "load_figure_document_report", lambda _path: report)
+    statuses = []
+
+    viewer = open_chart_viewer(
+        str(tmp_path / "figure.png"),
+        {"x": [1], "y": [2]},
+        viewer_factory=_FakeViewer,
+        status_message_handler=lambda message, level: statuses.append((message, level)),
+    )
+
+    assert viewer.data_resolution.headers == ("x", "y")
+    assert statuses == [("Figure document JSON is invalid.", "warning")]
 
 
 def test_open_chart_editor_uses_entry_context_and_title():

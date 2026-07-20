@@ -86,7 +86,7 @@ from ..figure_render_adapter import FigureRenderAdapter
 from ..figure_selection_model import FigureSelectionModel
 from ...core.figure_document import (
     create_static_figure_document,  # noqa: F401 - runtime API for save mixin
-    load_figure_document,
+    load_figure_document_report,
     save_figure_document,  # noqa: F401 - runtime API consumed by save mixin
 )
 from ...core.figure_assets import discover_figure_asset
@@ -176,6 +176,7 @@ class ChartEditor(
         self._mode_summary_key = ""
         self._asset_spec = None
         self._figure_document = {}
+        self._document_load_report = None
         self._edit_session = None
         self._last_edit_result = None
         self._shared_render_plan = None
@@ -1032,8 +1033,12 @@ class ChartEditor(
             document_path = str(
                 getattr(self._source_entry_context, "document_path", "") or ""
             ).strip()
-            self._figure_document = load_figure_document(
+            document_report = load_figure_document_report(
                 document_path or self._source_path
+            )
+            self._document_load_report = document_report
+            self._figure_document = (
+                document_report.document if document_report.status == "valid" else {}
             )
             self._reset_edit_session_from_document(self._figure_document)
             self._asset_spec = discover_figure_asset(self._source_path)
@@ -1101,6 +1106,13 @@ class ChartEditor(
             self._set_editor_mode_ui(object_mode=False)
             self._refresh_object_list()
         self._set_editor_dirty(False)
+        if self._document_load_report is not None and self._document_load_report.status in {
+            "corrupt",
+            "unsupported",
+        }:
+            self._status_label.setText(
+                tr("EDITOR_DOCUMENT_WARNING", self._document_load_report.message)
+            )
         self._sync_origin_export_enabled()
         self._loading_editor_state = False
 

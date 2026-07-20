@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -19,8 +20,20 @@ from .figure_objects import GEOMETRY_KEYS, normalize_figure_object, style_from_p
 
 
 DOCUMENT_VERSION = 1
+SUPPORTED_DOCUMENT_VERSIONS = frozenset({DOCUMENT_VERSION, 2})
 STATIC_BACKGROUND_MODE = "static_background"
 OBJECT_MODE = "object"
+
+
+@dataclass(frozen=True)
+class FigureDocumentLoadReport:
+    """Result of loading a persisted figure document without hiding failures."""
+
+    status: str
+    path: Path
+    document: dict[str, Any]
+    message: str = ""
+    error_type: str = ""
 
 
 def figure_document_path(figure_path: str) -> Path:
@@ -187,7 +200,7 @@ def save_generated_figure_document(
     return path
 
 
-def load_figure_document(figure_path: str) -> dict:
+def _resolve_figure_document_path(figure_path: str) -> Path:
     source_path = Path(figure_path).resolve()
     is_document_path = source_path.name.lower().endswith(".pnfig.json")
     path = source_path if is_document_path else figure_document_path(figure_path)
@@ -202,14 +215,90 @@ def load_figure_document(figure_path: str) -> dict:
                     path = candidate
         except Exception:
             path = figure_document_path(figure_path)
+
+    return path
+
+
+def load_figure_document_report(figure_path: str) -> FigureDocumentLoadReport:
+    """Load a figure document and preserve an actionable failure classification."""
+
+    path = _resolve_figure_document_path(figure_path)
     if not path.exists():
-        return {}
+        return FigureDocumentLoadReport(
+            status="missing",
+            path=path,
+            document={},
+            message=f"Figure document was not found: {path.name}",
+            error_type="missing",
+        )
+
     try:
         with path.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
-    except Exception:
+    except json.JSONDecodeError as exc:
+        return FigureDocumentLoadReport(
+            status="corrupt",
+            path=path,
+            document={},
+            message=f"Figure document JSON is invalid at line {exc.lineno}, column {exc.colno}.",
+            error_type="json",
+        )
+    except (OSError, UnicodeError) as exc:
+        return FigureDocumentLoadReport(
+            status="corrupt",
+            path=path,
+            document={},
+            message=f"Figure document could not be read: {exc}",
+            error_type="io",
+        )
+
+    if not isinstance(payload, dict):
+        return FigureDocumentLoadReport(
+            status="corrupt",
+            path=path,
+            document={},
+            message="Figure document must contain a JSON object at its root.",
+            error_type="schema",
+        )
+
+    raw_version = payload.get("version", DOCUMENT_VERSION)
+    try:
+        version = int(raw_version)
+    except (TypeError, ValueError, OverflowError):
+        return FigureDocumentLoadReport(
+            status="corrupt",
+            path=path,
+            document={},
+            message="Figure document has an invalid version value.",
+            error_type="schema",
+        )
+    if version not in SUPPORTED_DOCUMENT_VERSIONS:
+        return FigureDocumentLoadReport(
+            status="unsupported",
+            path=path,
+            document=deepcopy(payload),
+            message=f"Figure document version {version} is not supported.",
+            error_type="version",
+        )
+
+    try:
+        document = normalize_figure_document(payload)
+    except (TypeError, ValueError, OverflowError, KeyError) as exc:
+        return FigureDocumentLoadReport(
+            status="corrupt",
+            path=path,
+            document={},
+            message=f"Figure document structure is invalid: {exc}",
+            error_type="schema",
+        )
+    return FigureDocumentLoadReport(status="valid", path=path, document=document)
+
+
+def load_figure_document(figure_path: str) -> dict:
+    report = load_figure_document_report(figure_path)
+    if report.status != "valid":
         return {}
-    return normalize_figure_document(payload)
+    return report.document
 
 
 def normalize_figure_document(payload: dict[str, Any]) -> dict:
