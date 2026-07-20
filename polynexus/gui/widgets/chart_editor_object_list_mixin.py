@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QAbstractItemView, QListWidgetItem
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QListWidgetItem,
+    QTreeWidget,
+)
 
 from ..i18n import tr
 from ...core.figure_edit_commands import SetVisibilityCommand
+from .chart_editor_layer_model import LayerTreeNode, build_layer_tree
+from .chart_editor_layer_widget import LayerTreeItem
 
 
 class ChartEditorObjectListMixin:
@@ -50,36 +56,50 @@ class ChartEditorObjectListMixin:
         self._syncing_object_list = True
         try:
             self._object_list.clear()
-            background = QListWidgetItem(tr("EDITOR_OBJECT_BACKGROUND"))
-            background.setData(Qt.UserRole, "__background__")
-            background.setData(Qt.UserRole + 1, "background")
-            self._object_list.addItem(background)
-
             selected_row = 0
             figure_objects = self._generated_figure_objects()
-            for figure_object in figure_objects:
-                object_id = str(figure_object.get("id", ""))
-                label = self._figure_object_list_label(figure_object)
-                searchable = " ".join(
-                    (
-                        object_id,
-                        str(figure_object.get("name", "") or ""),
-                        str(figure_object.get("type", "") or ""),
-                        label,
+            if isinstance(self._object_list, QTreeWidget):
+                background = LayerTreeItem([tr("EDITOR_OBJECT_BACKGROUND")])
+                background.setData(0, Qt.UserRole, "__background__")
+                background.setData(0, Qt.UserRole + 1, "background")
+                self._object_list.addTopLevelItem(background)
+                for node in build_layer_tree(
+                    figure_objects,
+                    query=query,
+                    label_for=self._figure_object_list_label,
+                ):
+                    self._add_layer_tree_node(node)
+                self._add_tree_annotations(query)
+                self._set_tree_current_item(selected_id)
+            else:
+                background = QListWidgetItem(tr("EDITOR_OBJECT_BACKGROUND"))
+                background.setData(Qt.UserRole, "__background__")
+                background.setData(Qt.UserRole + 1, "background")
+                self._object_list.addItem(background)
+
+                for figure_object in figure_objects:
+                    object_id = str(figure_object.get("id", ""))
+                    label = self._figure_object_list_label(figure_object)
+                    searchable = " ".join(
+                        (
+                            object_id,
+                            str(figure_object.get("name", "") or ""),
+                            str(figure_object.get("type", "") or ""),
+                            label,
+                        )
+                    ).casefold()
+                    if query and query not in searchable:
+                        continue
+                    item = QListWidgetItem(label)
+                    item.setData(Qt.UserRole, object_id)
+                    item.setData(Qt.UserRole + 1, "figure_object")
+                    item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                    item.setCheckState(
+                        Qt.Checked if figure_object.get("visible", True) is not False else Qt.Unchecked
                     )
-                ).casefold()
-                if query and query not in searchable:
-                    continue
-                item = QListWidgetItem(label)
-                item.setData(Qt.UserRole, object_id)
-                item.setData(Qt.UserRole + 1, "figure_object")
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(
-                    Qt.Checked if figure_object.get("visible", True) is not False else Qt.Unchecked
-                )
-                self._object_list.addItem(item)
-                if object_id and object_id == selected_id:
-                    selected_row = self._object_list.count() - 1
+                    self._object_list.addItem(item)
+                    if object_id and object_id == selected_id:
+                        selected_row = self._object_list.count() - 1
 
             annotations = []
             if self._annotation_canvas is not None and not self._annotation_canvas.isHidden():
@@ -87,35 +107,102 @@ class ChartEditorObjectListMixin:
             if not selected_id and self._annotation_canvas is not None:
                 selected_id = self._annotation_canvas.selected_annotation_id()
 
-            for annotation in annotations:
-                annotation_id = str(annotation.get("id", ""))
-                label = self._object_list_label(annotation)
-                searchable = " ".join(
-                    (
-                        annotation_id,
-                        str(annotation.get("text", "") or ""),
-                        str(annotation.get("type", "") or ""),
-                        label,
-                    )
-                ).casefold()
-                if query and query not in searchable:
-                    continue
-                item = QListWidgetItem(label)
-                item.setData(Qt.UserRole, annotation_id)
-                item.setData(Qt.UserRole + 1, "annotation")
-                self._object_list.addItem(item)
-                if annotation_id and annotation_id == selected_id:
-                    selected_row = self._object_list.count() - 1
-
-            self._object_list.setCurrentRow(selected_row)
+            if not isinstance(self._object_list, QTreeWidget):
+                for annotation in annotations:
+                    annotation_id = str(annotation.get("id", ""))
+                    label = self._object_list_label(annotation)
+                    searchable = " ".join(
+                        (
+                            annotation_id,
+                            str(annotation.get("text", "") or ""),
+                            str(annotation.get("type", "") or ""),
+                            label,
+                        )
+                    ).casefold()
+                    if query and query not in searchable:
+                        continue
+                    item = QListWidgetItem(label)
+                    item.setData(Qt.UserRole, annotation_id)
+                    item.setData(Qt.UserRole + 1, "annotation")
+                    self._object_list.addItem(item)
+                    if annotation_id and annotation_id == selected_id:
+                        selected_row = self._object_list.count() - 1
+                self._object_list.setCurrentRow(selected_row)
         finally:
             self._syncing_object_list = False
+
+    def _add_layer_tree_node(self, node: LayerTreeNode, parent=None):
+        if parent is None:
+            item = LayerTreeItem([node.label])
+            self._object_list.addTopLevelItem(item)
+        else:
+            item = LayerTreeItem(parent, [node.label])
+        item.setData(0, Qt.UserRole, node.object_id or node.node_id)
+        item.setData(
+            0,
+            Qt.UserRole + 1,
+            "figure_object" if node.role == "object" else node.role,
+        )
+        item.setToolTip(0, node.label)
+        if node.role == "object":
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(0, Qt.Checked if node.visible else Qt.Unchecked)
+        for child in node.children:
+            self._add_layer_tree_node(child, item)
+        if node.children:
+            item.setExpanded(True)
+        return item
+
+    def _add_tree_annotations(self, query):
+        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
+            return
+        for annotation in self._annotation_canvas.annotation_state():
+            annotation_id = str(annotation.get("id", ""))
+            label = self._object_list_label(annotation)
+            searchable = " ".join(
+                (
+                    annotation_id,
+                    str(annotation.get("text", "") or ""),
+                    str(annotation.get("type", "") or ""),
+                    label,
+                )
+            ).casefold()
+            if query and query.casefold() not in searchable:
+                continue
+            item = LayerTreeItem([label])
+            item.setData(0, Qt.UserRole, annotation_id)
+            item.setData(0, Qt.UserRole + 1, "annotation")
+            self._object_list.addTopLevelItem(item)
+
+    def _set_tree_current_item(self, selected_id):
+        if not selected_id:
+            self._object_list.setCurrentItem(self._object_list.topLevelItem(0))
+            return
+        stack = [self._object_list.topLevelItem(index) for index in range(self._object_list.topLevelItemCount())]
+        while stack:
+            item = stack.pop(0)
+            if str(item.data(0, Qt.UserRole) or "") == str(selected_id):
+                self._object_list.setCurrentItem(item)
+                return
+            stack.extend(item.child(index) for index in range(item.childCount()))
 
     def _object_list_selected_ids(self) -> tuple[str, ...]:
         if not hasattr(self, "_object_list"):
             return ()
         ids = []
         for item in self._object_list.selectedItems():
+            if isinstance(self._object_list, QTreeWidget):
+                role = item.data(0, Qt.UserRole + 1)
+                object_id = str(item.data(0, Qt.UserRole) or "").strip()
+                if role == "group":
+                    for index in range(item.childCount()):
+                        child = item.child(index)
+                        child_id = str(child.data(0, Qt.UserRole) or "").strip()
+                        if child.data(0, Qt.UserRole + 1) == "object" and child_id:
+                            ids.append(child_id)
+                elif role in {"object", "figure_object", "annotation"} and object_id:
+                    ids.append(object_id)
+                continue
             role = item.data(Qt.UserRole + 1)
             object_id = str(item.data(Qt.UserRole) or "").strip()
             if role in {"figure_object", "annotation"} and object_id:
@@ -177,9 +264,13 @@ class ChartEditorObjectListMixin:
     def _on_object_list_selection_changed(self, current, _previous=None):
         if self._syncing_object_list or current is None:
             return
-        object_id = current.data(Qt.UserRole)
-        object_role = current.data(Qt.UserRole + 1)
-        if object_role == "figure_object":
+        if isinstance(self._object_list, QTreeWidget):
+            object_id = current.data(0, Qt.UserRole)
+            object_role = current.data(0, Qt.UserRole + 1)
+        else:
+            object_id = current.data(Qt.UserRole)
+            object_role = current.data(Qt.UserRole + 1)
+        if object_role in {"figure_object", "object", "group"}:
             selected_ids = self._object_list_selected_ids()
             select_many = getattr(self, "_select_generated_objects", None)
             if callable(select_many):
@@ -209,14 +300,37 @@ class ChartEditorObjectListMixin:
     def _on_object_list_item_changed(self, item):
         if self._syncing_object_list or item is None:
             return
-        if item.data(Qt.UserRole + 1) != "figure_object":
+        item_role = (
+            item.data(0, Qt.UserRole + 1)
+            if isinstance(self._object_list, QTreeWidget)
+            else item.data(Qt.UserRole + 1)
+        )
+        if item_role not in {"figure_object", "object"}:
             return
+        object_id = (
+            item.data(0, Qt.UserRole)
+            if isinstance(self._object_list, QTreeWidget)
+            else item.data(Qt.UserRole)
+        )
+        if getattr(self, "_generated_document_mode", False) and not self._session_has_object(
+            object_id
+        ):
+            self._reset_edit_session_from_document(self._figure_document)
         result = self._execute_edit(
             SetVisibilityCommand(
-                item.data(Qt.UserRole),
-                item.checkState() == Qt.Checked,
+                object_id,
+                (
+                    item.checkState(0) == Qt.Checked
+                    if isinstance(self._object_list, QTreeWidget)
+                    else item.checkState() == Qt.Checked
+                ),
             )
         )
         if result is None or not getattr(result, "changed", False):
             return
-        self._refresh_object_list(str(item.data(Qt.UserRole) or ""))
+        if getattr(self, "_source_path", "") and getattr(
+            self, "_generated_document_mode", False
+        ):
+            self._persist_generated_document()
+            self._show_generated_figure_document()
+        self._refresh_object_list(str(object_id or ""))

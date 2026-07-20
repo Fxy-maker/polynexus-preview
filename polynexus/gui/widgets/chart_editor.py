@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
     QMessageBox,  # noqa: F401 - runtime API consumed by style-preset mixin
     QPushButton,
     QScrollArea,
@@ -76,6 +75,7 @@ from .chart_editor_generated_selection_mixin import (
 )
 from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
 from .chart_editor_layout_mixin import ChartEditorLayoutMixin
+from .chart_editor_layer_widget import LayerTreeWidget
 from .chart_editor_edit_session_mixin import ChartEditorEditSessionMixin
 from .chart_editor_origin_mixin import ChartEditorOriginMixin
 from .chart_editor_object_list_mixin import ChartEditorObjectListMixin
@@ -446,7 +446,8 @@ class ChartEditor(
         )
         form.addRow(tr("EDITOR_OBJECT_SEARCH_LABEL"), self._object_search_edit)
 
-        self._object_list = QListWidget()
+        self._object_list = LayerTreeWidget()
+        self._object_list.setHeaderHidden(True)
         self._object_list.setMinimumHeight(96)
         self._object_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self._object_list.installEventFilter(self)
