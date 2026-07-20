@@ -44,8 +44,10 @@ branch checked out in `D:\PolyNexus` after the user restarts it.
 4. `docs/agent/memory/current-state.md` and `active-work.md` record the new
    launch boundary and verification evidence.
 5. The local desktop shortcut is updated to call the launcher with the bundled
-   `pythonw.exe`, `D:\PolyNexus` as working directory, and the repository icon;
-   this is a machine-local setup action, not a tracked project artifact.
+   `pythonw.exe` and `D:\PolyNexus` as working directory. Its icon is changed
+   from the stale runtime-worktree path to a stable local icon (a repository
+   icon when one exists, otherwise the bundled executable icon). This is a
+   machine-local setup action, not a tracked project artifact.
 
 ## Launch flow
 
@@ -79,8 +81,8 @@ the desktop shortcut's canonical target.
 - The diagnostic command prints the active branch and commit and exits 0.
 - A deliberately mismatched `PYTHONPATH` cannot make the launcher accept an
   outside `polynexus` package.
-- The desktop shortcut uses the launcher, bundled Python, `D:\PolyNexus` as
-  working directory, and the tracked PolyNexus icon.
+- The desktop shortcut uses the launcher, bundled Python, and `D:\PolyNexus` as
+  working directory without referencing an old runtime worktree for its icon.
 - `python scripts/verify.py --changed --types` passes.
 
 ## Verification
