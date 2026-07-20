@@ -80,7 +80,7 @@ class ChartThumbnail(QWidget):
         # Thumbnail image
         self._thumb = QLabel()
         self._thumb.setAlignment(Qt.AlignCenter)
-        self._thumb.setMinimumSize(0, 0)
+        self._thumb.setMinimumSize(0, 220)
         self._thumb.setMaximumSize(520, 340)
         self._thumb.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(self._thumb)
@@ -145,7 +145,7 @@ class ChartThumbnail(QWidget):
             border_width = 2
             bg = t.bg_hover
         elif self._selected:
-            border = t.border_focus
+            border = t.border_light
             border_width = 1
             bg = t.bg_surface
         else:

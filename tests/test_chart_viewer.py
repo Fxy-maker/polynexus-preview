@@ -296,7 +296,8 @@ def test_chart_thumbnail_hover_border_moves_without_overriding_selection(tmp_pat
 
     assert C_ACCENT_WAXS in hovered_style
     assert C_ACCENT_WAXS not in selected_style
-    assert ThemeEngine.instance().tokens.border_focus in selected_style
+    assert ThemeEngine.instance().tokens.border_light in selected_style
+    assert thumbnail._thumb.minimumHeight() >= 220
     assert thumbnail._selected is True
     assert thumbnail._hovered is False
 
