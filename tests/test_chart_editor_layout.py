@@ -3,8 +3,8 @@ import warnings
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QImage, QPixmap
+from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtGui import QColor, QImage, QKeyEvent, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
@@ -63,6 +63,8 @@ def test_inspector_drawer_restores_canvas_width_after_manual_close():
     editor.show()
     app.processEvents()
 
+    editor._btn_header_inspector.click()
+    app.processEvents()
     expanded_canvas_width = editor._canvas.width()
     editor._set_inspector_collapsed(True, manual=True)
     app.processEvents()
@@ -87,13 +89,14 @@ def test_header_inspector_toggle_controls_drawer():
     editor.show()
     app.processEvents()
 
-    editor._btn_header_inspector.click()
-    app.processEvents()
     assert editor._inspector_panel.isHidden()
-
     editor._btn_header_inspector.click()
     app.processEvents()
     assert not editor._inspector_panel.isHidden()
+
+    editor._btn_header_inspector.click()
+    app.processEvents()
+    assert editor._inspector_panel.isHidden()
     editor.close()
     editor.deleteLater()
     app.processEvents()
@@ -118,19 +121,30 @@ def test_figure_size_change_keeps_live_canvas_pixel_size():
     app.processEvents()
 
 
-def test_selection_opens_drawer_unless_user_closed_it_manually():
+def test_inspector_starts_collapsed_and_selection_does_not_change_visibility():
     app = _app()
     editor = ChartEditor()
     editor.resize(1100, 720)
     editor.show()
     app.processEvents()
 
-    editor._set_inspector_collapsed(True)
+    assert editor._inspector_panel.isHidden()
+    editor._on_generated_selection_changed("missing", "canvas")
+    app.processEvents()
+    assert editor._inspector_panel.isHidden()
+
+    editor._btn_header_inspector.click()
+    app.processEvents()
+    assert not editor._inspector_panel.isHidden()
+
     editor._on_generated_selection_changed("missing", "canvas")
     app.processEvents()
     assert not editor._inspector_panel.isHidden()
 
-    editor._set_inspector_collapsed(True, manual=True)
+    editor._btn_header_inspector.click()
+    app.processEvents()
+    assert editor._inspector_panel.isHidden()
+
     editor._on_generated_selection_changed("missing", "canvas")
     app.processEvents()
     assert editor._inspector_panel.isHidden()
@@ -139,12 +153,59 @@ def test_selection_opens_drawer_unless_user_closed_it_manually():
     app.processEvents()
 
 
+def test_annotation_inspector_hides_legacy_creation_actions_but_keeps_advanced_editing():
+    _app()
+    editor = ChartEditor()
+
+    assert editor._btn_annotation_add_text.isHidden()
+    assert editor._btn_annotation_add_line.isHidden()
+    assert editor._btn_annotation_add_arrow.isHidden()
+    assert editor._btn_annotation_add_rect.isHidden()
+    assert editor._btn_annotation_add_highlight.isHidden()
+    assert editor._btn_annotation_crop.isHidden()
+    assert editor._btn_annotation_copy.isHidden()
+    assert editor._btn_annotation_paste.isHidden()
+    assert not editor._btn_annotation_update_text.isHidden()
+    assert not editor._btn_annotation_delete.isHidden()
+    assert not editor._btn_annotation_front.isHidden()
+    assert not editor._btn_annotation_back.isHidden()
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_escape_cancels_generated_draw_without_creating_an_object():
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {"mode": "object", "objects": []}
+    editor._reset_edit_session_from_document(editor._figure_document)
+    assert editor.set_tool("line") is True
+    editor._generated_draw_start_data = (1.0, 2.0)
+    editor._generated_draw_start_display = (20.0, 30.0)
+
+    event = QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier)
+
+    assert editor.eventFilter(editor._canvas, event) is True
+    assert event.isAccepted()
+    assert editor._generated_draw_start_data is None
+    assert editor._generated_draw_start_display is None
+    assert editor._generated_draw_tool == "select"
+    assert editor._figure_document["objects"] == []
+    assert editor._inspector_panel.isHidden()
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
 def test_context_toolbar_has_stable_actions_and_retranslates():
     _app()
     editor = ChartEditor()
 
     assert editor._editor_toolbar.orientation() == Qt.Vertical
     assert editor._editor_toolbar.parentWidget() is editor._canvas_tool_shell
+    assert editor._editor_toolbar.toolButtonStyle() == Qt.ToolButtonIconOnly
+    assert editor._editor_toolbar.iconSize() == QSize(18, 18)
     assert editor._editor_toolbar.action_ids() == [
         "select",
         "text",
@@ -156,18 +217,43 @@ def test_context_toolbar_has_stable_actions_and_retranslates():
         "redo",
         "export",
     ]
+    for action_id in editor._editor_toolbar.action_ids():
+        action = editor._editor_toolbar.action(action_id)
+        button = editor._editor_toolbar.widgetForAction(action)
+        assert not action.icon().isNull()
+        assert action.toolTip() == action.text()
+        assert button.accessibleName() == action.text()
 
     previous = get_language()
     try:
         set_language("en")
         editor.retranslate()
         assert editor._editor_toolbar.action("select").text() == "Select"
+        assert editor._editor_toolbar.action("select").toolTip() == "Select"
+        assert (
+            editor._editor_toolbar.widgetForAction(
+                editor._editor_toolbar.action("select")
+            ).accessibleName()
+            == "Select"
+        )
         assert editor._editor_toolbar.action("export").text() == "Export"
+        assert not editor._editor_toolbar.action("select").icon().isNull()
 
         set_language("zh")
         editor.retranslate()
         assert editor._editor_toolbar.action("select").text() != "Select"
+        assert (
+            editor._editor_toolbar.action("select").toolTip()
+            == editor._editor_toolbar.action("select").text()
+        )
+        assert (
+            editor._editor_toolbar.widgetForAction(
+                editor._editor_toolbar.action("select")
+            ).accessibleName()
+            == editor._editor_toolbar.action("select").text()
+        )
         assert editor._editor_toolbar.action("export").text() != "Export"
+        assert not editor._editor_toolbar.action("select").icon().isNull()
     finally:
         set_language(previous)
         editor.retranslate()

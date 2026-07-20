@@ -39,5 +39,8 @@ def test_build_generated_drag_status_text_for_line_body_uses_number_formatter():
 def test_generated_hover_cursor_shape_uses_expected_mapping():
     assert generated_hover_cursor_shape({"kind": "line"}) == Qt.CursorShape.CrossCursor
     assert generated_hover_cursor_shape({"kind": "plot_series"}) == Qt.CursorShape.CrossCursor
+    assert generated_hover_cursor_shape({"kind": "curve"}) == Qt.CursorShape.CrossCursor
+    assert generated_hover_cursor_shape({"kind": "rectangle", "handle_index": 0}) == Qt.CursorShape.SizeFDiagCursor
+    assert generated_hover_cursor_shape({"kind": "rectangle", "handle_index": 1}) == Qt.CursorShape.SizeBDiagCursor
     assert generated_hover_cursor_shape({"kind": "select"}) == Qt.CursorShape.PointingHandCursor
     assert generated_hover_cursor_shape({"kind": "legend"}) == Qt.CursorShape.OpenHandCursor

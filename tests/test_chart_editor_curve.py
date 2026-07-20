@@ -61,6 +61,64 @@ def test_generated_renderer_draws_bezier_curve():
     _app().processEvents()
 
 
+def test_generated_text_box_renders_as_wrapped_clipped_text_without_a_frame():
+    _app()
+    editor = ChartEditor()
+    figure = Figure()
+    axis = figure.add_subplot(111)
+
+    artists = editor._render_generated_figure_object(
+        axis,
+        {
+            "id": "note-1",
+            "type": "text",
+            "x": 0.2,
+            "y": 0.3,
+            "width": 0.4,
+            "height": 0.2,
+            "text": "Peak region annotation",
+            "style": {"color": "#0072B2", "font_size": 12.0},
+        },
+        {},
+        0,
+    )
+
+    assert len(artists) == 1
+    assert artists[0].get_wrap() is True
+    assert artists[0].get_clip_on() is True
+    assert len(axis.patches) == 0
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_text_box_uses_persisted_bounds_geometry_when_reloaded():
+    _app()
+    editor = ChartEditor()
+    figure = Figure()
+    axis = figure.add_subplot(111)
+
+    artists = editor._render_generated_figure_object(
+        axis,
+        {
+            "id": "note-1",
+            "type": "text",
+            "text": "Peak region annotation",
+            "bounds": {"x": 0.2, "y": 0.3, "width": 0.4, "height": 0.2},
+            "style": {"color": "#0072B2", "font_size": 12.0},
+        },
+        {},
+        0,
+    )
+
+    assert artists[0].get_position() == (0.2, 0.3)
+    assert artists[0].get_wrap() is True
+    assert artists[0].get_clip_on() is True
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
 def test_generated_curve_control_handle_updates_canonical_geometry():
     _app()
     editor = ChartEditor()
@@ -86,6 +144,243 @@ def test_generated_curve_control_handle_updates_canonical_geometry():
     curve = editor._generated_figure_object_by_id("curve-1")
     assert curve["control_x"] == 0.4
     assert curve["control_y"] == 0.8
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_rectangle_corner_handle_updates_geometry_through_edit_session():
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {
+        "mode": "object",
+        "objects": [
+            {
+                "id": "region",
+                "type": "rectangle",
+                "x": 1.0,
+                "y": 1.0,
+                "width": 2.0,
+                "height": 1.0,
+            }
+        ],
+    }
+    editor._reset_edit_session_from_document(editor._figure_document)
+
+    assert editor._apply_generated_rectangle_handle_drag("region", 2, 4.0, 3.0)
+    rectangle = editor._generated_figure_object_by_id("region")
+    assert rectangle["x"] == 1.0
+    assert rectangle["y"] == 1.0
+    assert rectangle["width"] == 3.0
+    assert rectangle["height"] == 2.0
+
+    editor._on_annotation_undo()
+    rectangle = editor._generated_figure_object_by_id("region")
+    assert rectangle["width"] == 2.0
+    assert rectangle["height"] == 1.0
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_rectangle_corner_handle_updates_bounds_geometry_through_edit_session():
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {
+        "mode": "object",
+        "objects": [
+            {
+                "id": "region",
+                "type": "rectangle",
+                "bounds": {"x": 1.0, "y": 1.0, "width": 2.0, "height": 1.0},
+            }
+        ],
+    }
+    editor._reset_edit_session_from_document(editor._figure_document)
+
+    assert editor._apply_generated_rectangle_handle_drag("region", 2, 4.0, 3.0)
+    assert editor._generated_figure_object_by_id("region")["bounds"] == {
+        "x": 1.0,
+        "y": 1.0,
+        "width": 3.0,
+        "height": 2.0,
+    }
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_rectangle_drag_commits_one_undoable_geometry_command():
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {
+        "mode": "object",
+        "objects": [
+            {
+                "id": "region",
+                "type": "rectangle",
+                "x": 1.0,
+                "y": 1.0,
+                "width": 2.0,
+                "height": 1.0,
+            }
+        ],
+    }
+    session = editor._reset_edit_session_from_document(editor._figure_document)
+    drag_state = {"object_id": "region", "kind": "rectangle", "handle_index": 2}
+    editor._activate_generated_drag_state(drag_state)
+
+    assert editor._apply_generated_rectangle_handle_drag("region", 2, 3.5, 2.5, preview=True)
+    assert editor._apply_generated_rectangle_handle_drag("region", 2, 4.0, 3.0, preview=True)
+    assert session.history == ()
+
+    assert editor._commit_generated_drag(drag_state) is True
+    assert len(session.history) == 1
+    assert editor._generated_figure_object_by_id("region")["width"] == 3.0
+    assert editor._on_annotation_undo() is None
+    assert editor._generated_figure_object_by_id("region")["width"] == 2.0
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_escape_cancels_generated_rectangle_preview_without_history_mutation():
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {
+        "mode": "object",
+        "objects": [
+            {
+                "id": "region",
+                "type": "rectangle",
+                "x": 1.0,
+                "y": 1.0,
+                "width": 2.0,
+                "height": 1.0,
+            }
+        ],
+    }
+    session = editor._reset_edit_session_from_document(editor._figure_document)
+    drag_state = {"object_id": "region", "kind": "rectangle", "handle_index": 2}
+    editor._activate_generated_drag_state(drag_state)
+
+    assert editor._apply_generated_rectangle_handle_drag("region", 2, 4.0, 3.0, preview=True)
+    assert editor._cancel_generated_drag() is True
+
+    assert session.history == ()
+    assert editor._generated_figure_object_by_id("region")["width"] == 2.0
+    assert editor._generated_figure_object_by_id("region")["height"] == 1.0
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_line_drag_coalesces_multiple_moves_into_one_undo_command():
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {
+        "mode": "object",
+        "objects": [
+            {"id": "line-1", "type": "line", "x1": 1.0, "y1": 1.0, "x2": 3.0, "y2": 2.0}
+        ],
+    }
+    session = editor._reset_edit_session_from_document(editor._figure_document)
+    drag_state = {"object_id": "line-1", "kind": "line", "handle_index": 1}
+    editor._activate_generated_drag_state(drag_state)
+
+    assert editor._apply_generated_line_handle_drag("line-1", 1, 3.5, 2.5)
+    assert editor._apply_generated_line_handle_drag("line-1", 1, 4.0, 3.0)
+    assert len(session.history) == 2
+
+    assert editor._commit_generated_drag(drag_state) is True
+    assert len(session.history) == 1
+    editor._on_annotation_undo()
+    assert editor._generated_figure_object_by_id("line-1")["x2"] == 3.0
+    assert editor._generated_figure_object_by_id("line-1")["y2"] == 2.0
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_rectangle_bounds_preview_updates_and_commits_nested_geometry():
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {
+        "mode": "object",
+        "objects": [
+            {
+                "id": "region",
+                "type": "rectangle",
+                "bounds": {"x": 1.0, "y": 1.0, "width": 2.0, "height": 1.0},
+            }
+        ],
+    }
+    session = editor._reset_edit_session_from_document(editor._figure_document)
+    drag_state = {"object_id": "region", "kind": "rectangle", "handle_index": 2}
+    editor._activate_generated_drag_state(drag_state)
+
+    assert editor._apply_generated_rectangle_handle_drag("region", 2, 4.0, 3.0, preview=True)
+    assert editor._generated_figure_object_by_id("region")["bounds"]["width"] == 3.0
+    assert editor._commit_generated_drag(drag_state) is True
+    assert len(session.history) == 1
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_escape_cancels_generated_line_drag_and_restores_edit_session_history():
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {
+        "mode": "object",
+        "objects": [
+            {"id": "line-1", "type": "line", "x1": 1.0, "y1": 1.0, "x2": 3.0, "y2": 2.0}
+        ],
+    }
+    session = editor._reset_edit_session_from_document(editor._figure_document)
+    drag_state = {"object_id": "line-1", "kind": "line", "handle_index": 1}
+    editor._activate_generated_drag_state(drag_state)
+
+    assert editor._apply_generated_line_handle_drag("line-1", 1, 4.0, 3.0)
+    assert editor._cancel_generated_drag() is True
+
+    assert session.history == ()
+    assert editor._generated_figure_object_by_id("line-1")["x2"] == 3.0
+    assert editor._generated_figure_object_by_id("line-1")["y2"] == 2.0
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_renderer_reads_rectangle_bounds_geometry():
+    _app()
+    editor = ChartEditor()
+    figure = Figure()
+    axis = figure.add_subplot(111)
+
+    artists = editor._render_generated_figure_object(
+        axis,
+        {
+            "id": "region",
+            "type": "rectangle",
+            "bounds": {"x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0},
+        },
+        {},
+        0,
+    )
+
+    assert len(artists) == 1
+    assert artists[0].get_x() == 1.0
+    assert artists[0].get_y() == 2.0
+    assert artists[0].get_width() == 3.0
+    assert artists[0].get_height() == 4.0
 
     editor.deleteLater()
     _app().processEvents()

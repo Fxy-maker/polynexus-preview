@@ -7,11 +7,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 from matplotlib.backend_bases import MouseEvent
-from PySide6.QtGui import QColor, QImage
+from matplotlib.figure import Figure
+from PySide6.QtCore import QEvent, QPointF, QRect, Qt
+from PySide6.QtGui import QColor, QImage, QKeyEvent
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
 from polynexus.core.figure_edit_commands import UpdateGeometryCommand
+from polynexus.gui.i18n import tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
 
 
@@ -173,6 +176,52 @@ def test_static_text_annotation_round_trips_through_one_history(tmp_path, app):
     assert reloaded._annotation_canvas.annotation_state()[0]["text"] == "Peak value"
 
 
+def test_static_text_drag_commits_one_box_after_inline_text(tmp_path, app):
+    editor = make_static_editor(tmp_path)
+    requests = []
+    editor._annotation_canvas.text_entry_requested.connect(requests.append)
+
+    assert editor._annotation_canvas.set_tool("text") is True
+    editor._annotation_canvas._finish_mouse_draw(QPointF(16, 10), QPointF(96, 30))
+
+    assert len(requests) == 1
+    assert [
+        item
+        for item in editor._figure_document["objects"]
+        if item.get("type") == "text"
+    ] == []
+    assert editor._commit_inline_text_entry("Peak region") is True
+
+    text = next(
+        item for item in editor._figure_document["objects"] if item.get("type") == "text"
+    )
+    assert text["type"] == "text"
+    assert text["bounds"]["width"] == 0.5
+    assert text["bounds"]["height"] == 0.2
+    assert editor._edit_session.can_undo is True
+    editor._on_annotation_undo()
+    assert [
+        item
+        for item in editor._figure_document["objects"]
+        if item.get("type") == "text"
+    ] == []
+
+
+def test_static_line_drag_commits_one_command_and_is_undoable(tmp_path, app):
+    editor = make_static_editor(tmp_path)
+
+    assert editor._annotation_canvas.set_tool("line") is True
+    editor._annotation_canvas._finish_mouse_draw(QPointF(16, 10), QPointF(96, 30))
+
+    line = next(
+        item for item in editor._figure_document["objects"] if item.get("type") == "line"
+    )
+    assert line["bounds"] == {"x1": 0.1, "y1": 0.1, "x2": 0.6, "y2": 0.3}
+    assert editor._edit_session.can_undo is True
+    editor._on_annotation_undo()
+    assert not any(item.get("type") == "line" for item in editor._figure_document["objects"])
+
+
 def test_invalid_color_keeps_object_and_history_unchanged(editor):
     editor._select_generated_object("line-1", "list")
     before = deepcopy(editor._generated_store().get("line-1"))
@@ -225,18 +274,21 @@ def test_generated_editor_toolbar_can_start_annotation_tools(tmp_path, app):
         assert action.isEnabled(), f"generated canvas tool {tool!r} is disabled"
         action.trigger()
         assert editor._generated_draw_tool == tool
+        assert not editor._context_style_bar.isHidden()
+        assert editor._inspector_panel.isHidden()
         if tool == "text":
-            assert editor._annotation_text_edit.isEnabled()
+            assert not editor._context_font_size.isHidden()
+            assert editor._context_line_width.isHidden()
         else:
-            assert editor._annotation_color_edit.isEnabled()
-            assert editor._annotation_line_width_spin.isEnabled()
-            assert editor._annotation_line_style_combo.isEnabled()
+            assert not editor._context_color.isHidden()
+            assert not editor._context_line_width.isHidden()
+            assert not editor._context_line_style.isHidden()
 
     editor.deleteLater()
     app.processEvents()
 
 
-def test_generated_text_tool_adds_text_object_to_edit_session(tmp_path, app):
+def test_generated_text_tool_waits_for_inline_text_before_adding_object(tmp_path, app):
     editor = make_generated_editor(tmp_path)
     editor.set_tool("text")
     editor._annotation_text_edit.setText("Peak")
@@ -252,7 +304,15 @@ def test_generated_text_tool_adds_text_object_to_edit_session(tmp_path, app):
     event.xdata = 0.5
     event.ydata = 0.5
     editor._on_generated_button_press(event)
+    editor._on_generated_button_release(event)
 
+    created = [
+        item
+        for item in editor._figure_document.get("objects", [])
+        if item.get("type") == "text"
+    ]
+    assert created == []
+    assert editor._commit_inline_text_entry("Peak") is True
     created = [
         item
         for item in editor._figure_document.get("objects", [])
@@ -273,6 +333,71 @@ def test_generated_text_tool_adds_text_object_to_edit_session(tmp_path, app):
 
     editor.deleteLater()
     reloaded.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_drag_commits_persisted_box_geometry(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+
+    editor._begin_generated_text_box((1.0, 2.0), (4.0, 3.0), QRect(20, 20, 100, 28))
+
+    assert not any(item.get("type") == "text" for item in editor._figure_document["objects"])
+    assert editor._commit_inline_text_entry("Peak region") is True
+    text = next(item for item in editor._figure_document["objects"] if item.get("type") == "text")
+    assert text["width"] == 3.0
+    assert text["height"] == 1.0
+
+
+def test_generated_export_omits_editor_selection_handles_and_restores_selection(
+    tmp_path, app, monkeypatch
+):
+    editor = make_generated_editor(tmp_path)
+    editor._select_generated_object("line-1", "list")
+    assert any(
+        artist.get_gid() == "pn-selection-handles:line-1"
+        for artist in editor._figure.axes[0].collections
+    )
+    exported_gids = []
+    original_savefig = Figure.savefig
+
+    def capture_export(figure, *args, **kwargs):
+        exported_gids.extend(
+            str(artist.get_gid() or "")
+            for axes in figure.axes
+            for artist in axes.collections
+        )
+        return original_savefig(figure, *args, **kwargs)
+
+    monkeypatch.setattr(Figure, "savefig", capture_export)
+    target = tmp_path / "exported.png"
+
+    editor._save_generated_document_figure(target)
+
+    assert not any(gid.startswith("pn-selection-handles:") for gid in exported_gids)
+    assert not any(gid.startswith("pn-current-handle:") for gid in exported_gids)
+    assert editor._selected_figure_object_id == "line-1"
+    assert any(
+        artist.get_gid() == "pn-selection-handles:line-1"
+        for artist in editor._figure.axes[0].collections
+    )
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_inline_text_escape_uses_common_draw_cancellation_status(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor._begin_generated_text_box((1.0, 2.0), (4.0, 3.0), QRect(20, 20, 100, 28))
+
+    event = QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier)
+    app.sendEvent(editor._inline_text_editor, event)
+
+    assert event.isAccepted()
+    assert editor._pending_inline_text is None
+    assert editor._inline_text_editor.isHidden()
+    assert editor._status_label.text() == tr("EDITOR_DRAW_CANCELLED")
+
+    editor.deleteLater()
     app.processEvents()
 
 
@@ -357,6 +482,8 @@ def test_formal_generated_document_accepts_text_tool(built_ir_document, tmp_path
     event.xdata = 1750.0
     event.ydata = 0.2
     editor._on_generated_button_press(event)
+    editor._on_generated_button_release(event)
+    assert editor._commit_inline_text_entry("Peak") is True
 
     assert any(
         item.get("type") == "text" and item.get("text") == "Peak"

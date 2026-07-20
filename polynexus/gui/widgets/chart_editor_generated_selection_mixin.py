@@ -126,12 +126,14 @@ class ChartEditorGeneratedSelectionMixin:
             self._clear_selected_generated_plot_series_handle_context()
             self._clear_generated_selection_status()
             self._clear_annotation_property_controls()
+            self._sync_context_style_bar()
             return
         if not figure_object:
             self._clear_selected_generated_line_handle_context()
             self._clear_selected_generated_plot_series_handle_context()
             self._clear_generated_selection_status()
             self._clear_annotation_property_controls()
+            self._sync_context_style_bar()
             return
         if (
             str(figure_object.get("type", "") or "") != "line"
@@ -165,3 +167,4 @@ class ChartEditorGeneratedSelectionMixin:
             self._annotation_marker_combo.setEnabled(bool(object_capabilities.marker))
             self._annotation_marker_size_spin.setEnabled(bool(object_capabilities.marker_size))
         self._set_generated_selection_status(figure_object)
+        self._sync_context_style_bar()

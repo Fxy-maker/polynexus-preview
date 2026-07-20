@@ -645,10 +645,21 @@ class ChartEditorGeneratedDocumentMixin:
             return [patch]
 
         if object_type == "text":
+            bounds = (
+                figure_object.get("bounds", {})
+                if isinstance(figure_object.get("bounds"), dict)
+                else {}
+            )
+            x = self._optional_float(bounds.get("x", figure_object.get("x")))
+            y = self._optional_float(bounds.get("y", figure_object.get("y")))
+            width = self._optional_float(bounds.get("width", figure_object.get("width")))
+            text_kwargs = {}
+            if width is not None and width > 0.0:
+                text_kwargs.update(wrap=True, clip_on=True)
             return [
                 ax.text(
-                    float(figure_object.get("x", 0.0) or 0.0),
-                    float(figure_object.get("y", 0.0) or 0.0),
+                    float(x or 0.0),
+                    float(y or 0.0),
                     str(figure_object.get("text", "") or ""),
                     color=color,
                     fontsize=float(style.get("font_size", 12.0) or 12.0),
@@ -656,6 +667,7 @@ class ChartEditorGeneratedDocumentMixin:
                     rotation=float(figure_object.get("rotation", 0.0) or 0.0),
                     ha=str(figure_object.get("horizontal_alignment", "center") or "center"),
                     va=str(figure_object.get("vertical_alignment", "bottom") or "bottom"),
+                    **text_kwargs,
                 )
             ]
 
@@ -684,10 +696,15 @@ class ChartEditorGeneratedDocumentMixin:
         if object_type == "rectangle":
             from matplotlib.patches import Rectangle
 
-            x = self._optional_float(figure_object.get("x"))
-            y = self._optional_float(figure_object.get("y"))
-            width = self._optional_float(figure_object.get("width"))
-            height = self._optional_float(figure_object.get("height"))
+            bounds = (
+                figure_object.get("bounds", {})
+                if isinstance(figure_object.get("bounds"), dict)
+                else figure_object
+            )
+            x = self._optional_float(bounds.get("x"))
+            y = self._optional_float(bounds.get("y"))
+            width = self._optional_float(bounds.get("width"))
+            height = self._optional_float(bounds.get("height"))
             if None in {x, y, width, height}:
                 return []
             patch = Rectangle(
@@ -1016,7 +1033,7 @@ class ChartEditorGeneratedDocumentMixin:
         try:
             target = QRectF(0, 0, width, height)
             painter.fillRect(target, self._bg_color)
-            scene.render(painter, target, rect)
+            self._annotation_canvas.render_scene(painter, target, rect)
         finally:
             painter.end()
         return path.exists() and path.stat().st_size > 0

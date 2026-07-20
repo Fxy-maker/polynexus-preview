@@ -10,6 +10,18 @@ from PySide6.QtGui import QBrush, QColor, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsTextItem
 
 
+_QT_PEN_STYLES = {
+    "-": Qt.SolidLine,
+    "--": Qt.DashLine,
+    ":": Qt.DotLine,
+    "-.": Qt.DashDotLine,
+}
+
+
+def qt_pen_style_for_line_style(value) -> Qt.PenStyle:
+    return _QT_PEN_STYLES.get(str(value or "-"), Qt.SolidLine)
+
+
 class AnnotationRenderAdapter:
     """Render annotation payloads without owning persistence or edit history."""
 
@@ -77,6 +89,9 @@ class AnnotationRenderAdapter:
             font = item.font()
             font.setPointSize(max(1, int(self._number(payload, "font_size", 12))))
             item.setFont(font)
+            width = self._width(payload, "width")
+            if width > 0:
+                item.setTextWidth(width)
             item.setPos(self._x(payload, "x"), self._y(payload, "y"))
             self._scene.addItem(item)
             self._configure_item(item, payload)
@@ -92,6 +107,7 @@ class AnnotationRenderAdapter:
             if kind == "rectangle":
                 pen = QPen(QColor(self._color(payload, "#D55E00")))
                 pen.setWidthF(max(0.1, self._number(payload, "line_width", 2.0)))
+                pen.setStyle(qt_pen_style_for_line_style(self._style_value(payload, "line_style", "-")))
                 item = self._scene.addRect(rect, pen, QBrush(Qt.NoBrush))
             else:
                 color = QColor(self._color(payload, "#F0E442"))
@@ -107,6 +123,7 @@ class AnnotationRenderAdapter:
             y2 = self._y(payload, "y2")
             pen = QPen(QColor(self._color(payload, "#D55E00")))
             pen.setWidthF(max(0.1, self._number(payload, "line_width", 2.0)))
+            pen.setStyle(qt_pen_style_for_line_style(self._style_value(payload, "line_style", "-")))
             line_item = self._scene.addLine(x1, y1, x2, y2, pen)
             if kind == "arrow":
                 head_item = self._draw_arrow_head(x1, y1, x2, y2, pen)
@@ -127,6 +144,7 @@ class AnnotationRenderAdapter:
             )
             pen = QPen(QColor(self._color(payload, "#D55E00")))
             pen.setWidthF(max(0.1, self._number(payload, "line_width", 2.0)))
+            pen.setStyle(qt_pen_style_for_line_style(self._style_value(payload, "line_style", "-")))
             item = self._scene.addPath(path, pen)
             self._configure_item(item, payload)
             return item
@@ -239,4 +257,4 @@ class AnnotationRenderAdapter:
         return str(value or default)
 
 
-__all__ = ["AnnotationRenderAdapter"]
+__all__ = ["AnnotationRenderAdapter", "qt_pen_style_for_line_style"]

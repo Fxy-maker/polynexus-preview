@@ -3,7 +3,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QRectF
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtWidgets import QApplication, QGraphicsScene
 
 from polynexus.core.figure_edit_session import EditSession
@@ -103,6 +103,42 @@ def test_render_adapter_sync_and_unknown_objects_are_safe():
     app.processEvents()
 
 
+def test_render_adapter_applies_persisted_line_style_to_strokes():
+    app = QApplication.instance() or QApplication([])
+    scene = QGraphicsScene()
+    scene.setSceneRect(QRectF(0, 0, 100, 50))
+    adapter = AnnotationRenderAdapter(scene)
+
+    projected = adapter.replace_objects(
+        [
+            {
+                "id": "line-1",
+                "type": "line",
+                "x1": 0.1,
+                "y1": 0.2,
+                "x2": 0.8,
+                "y2": 0.7,
+                "style": {"line_style": "--"},
+            },
+            {
+                "id": "curve-1",
+                "type": "curve",
+                "x1": 0.1,
+                "y1": 0.2,
+                "x2": 0.8,
+                "y2": 0.7,
+                "control_x": 0.5,
+                "control_y": 0.1,
+                "style": {"line_style": ":"},
+            },
+        ]
+    )
+
+    assert projected["line-1"].pen().style() == Qt.DashLine
+    assert projected["curve-1"].pen().style() == Qt.DotLine
+    app.processEvents()
+
+
 class _FakeSignal:
     def __init__(self):
         self._callbacks = []
@@ -169,5 +205,36 @@ def test_edit_session_mixin_routes_annotation_geometry_and_reprojects():
     assert editor._edit_session.document["objects"][0]["y"] == 0.5
     assert editor._figure_document["objects"][0]["x"] == 0.4
     assert editor._annotation_canvas.objects[0]["y"] == 0.5
+    assert editor._edit_session.can_undo
+    assert editor._annotation_canvas.signalsBlocked() is False
+
+
+def test_edit_session_mixin_routes_annotation_delete_and_reprojects():
+    editor = _FakeEditor(
+        {
+            "objects": [
+                {
+                    "id": "text-1",
+                    "type": "text",
+                    "x": 0.1,
+                    "y": 0.2,
+                    "text": "Peak",
+                }
+            ]
+        }
+    )
+
+    editor._sync_editor_from_session()
+    editor._annotation_canvas.object_edit_requested.emit(
+        {
+            "object_id": "text-1",
+            "source": "annotation_canvas",
+            "operation": "delete",
+        }
+    )
+
+    assert editor._edit_session.document["objects"] == []
+    assert editor._figure_document["objects"] == []
+    assert editor._annotation_canvas.objects == []
     assert editor._edit_session.can_undo
     assert editor._annotation_canvas.signalsBlocked() is False

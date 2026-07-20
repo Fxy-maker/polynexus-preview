@@ -45,6 +45,7 @@ from .chart_editor_annotation_controls_mixin import (
     ChartEditorAnnotationControlsMixin,
 )
 from .chart_editor_batch_edit_mixin import ChartEditorBatchEditMixin
+from .chart_editor_context_style_mixin import ChartEditorContextStyleMixin
 from .chart_editor_generated_drag_mixin import ChartEditorGeneratedDragMixin
 from .chart_editor_generated_drag_execution_mixin import (
     ChartEditorGeneratedDragExecutionMixin,
@@ -76,6 +77,7 @@ from .chart_editor_generated_selection_mixin import (
 from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
 from .chart_editor_layout_mixin import ChartEditorLayoutMixin
 from .chart_editor_layer_widget import LayerTreeWidget
+from .chart_editor_inline_text_mixin import ChartEditorInlineTextMixin
 from .chart_editor_inspector_drawer_mixin import ChartEditorInspectorDrawerMixin
 from .chart_editor_edit_session_mixin import ChartEditorEditSessionMixin
 from .chart_editor_export_preset_mixin import ChartEditorExportPresetMixin
@@ -161,6 +163,8 @@ class ChartEditor(
     ChartEditorInspectorDrawerMixin,
     ChartEditorLayoutMixin,
     ChartEditorBatchEditMixin,
+    ChartEditorContextStyleMixin,
+    ChartEditorInlineTextMixin,
     ChartEditorEditSessionMixin,
     ChartEditorExportPresetMixin,
     ChartEditorOriginMixin,
@@ -207,6 +211,7 @@ class ChartEditor(
         self._generated_document_mode = False
         self._generated_draw_tool = "select"
         self._generated_draw_start_data = None
+        self._generated_draw_start_display = None
         self._static_file_mode = False
         self._current_colours = list(COLOUR_SCHEMES["Default Blue"])
         self._title_size = 14
@@ -292,6 +297,12 @@ class ChartEditor(
         self._annotation_canvas.tool_changed.connect(self._sync_annotation_tool_buttons)
         self._annotation_canvas.selection_changed.connect(self._sync_annotation_property_controls)
         self._annotation_canvas.annotations_changed.connect(self._on_annotation_canvas_changed)
+        self._annotation_canvas.text_entry_requested.connect(
+            self._on_annotation_text_entry_requested
+        )
+        self._annotation_canvas.object_create_requested.connect(
+            self._on_annotation_object_create_requested
+        )
 
         self._canvas_tool_shell = QWidget()
         canvas_tool_layout = QHBoxLayout(self._canvas_tool_shell)
@@ -305,6 +316,8 @@ class ChartEditor(
         canvas_stack_layout.addWidget(self._canvas, 1)
         canvas_stack_layout.addWidget(self._source_preview, 1)
         canvas_stack_layout.addWidget(self._annotation_canvas, 1)
+        canvas_stack_layout.addWidget(self._build_context_style_bar())
+        self._build_inline_text_editor()
         canvas_tool_layout.addWidget(canvas_stack, 1)
 
         figure_layout.addWidget(self._toolbar)
@@ -324,6 +337,7 @@ class ChartEditor(
         layout.addWidget(self._editor_header)
         layout.addWidget(split, 1)
         layout.addWidget(self._editor_status_bar)
+        self._set_inspector_collapsed(True)
 
     def _connect_canvas_interaction_events(self):
         if self._canvas is None:
@@ -341,6 +355,9 @@ class ChartEditor(
     def eventFilter(self, watched, event):
         if watched is getattr(self, "_canvas", None):
             if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
+                if self._cancel_active_draw():
+                    event.accept()
+                    return True
                 if self._generated_handle_drag_state and self._cancel_generated_drag():
                     event.accept()
                     return True
@@ -353,6 +370,9 @@ class ChartEditor(
                     return True
         if watched is getattr(self, "_object_list", None):
             if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
+                if self._cancel_active_draw():
+                    event.accept()
+                    return True
                 if self._generated_handle_drag_state and self._cancel_generated_drag():
                     event.accept()
                     return True
@@ -693,7 +713,7 @@ class ChartEditor(
 
         self._btn_annotation_add_text = QPushButton(tr("EDITOR_ANNOTATION_ADD_TEXT"))
         self._btn_annotation_add_text.clicked.connect(self._on_add_text_annotation)
-        annotation_text_layout.addWidget(self._btn_annotation_add_text, 1, 0)
+        self._btn_annotation_add_text.hide()
 
         self._btn_annotation_update_text = QPushButton(
             tr("EDITOR_ANNOTATION_UPDATE_TEXT")
@@ -702,7 +722,7 @@ class ChartEditor(
             self._on_update_selected_text_annotation
         )
         self._btn_annotation_update_text.setEnabled(False)
-        annotation_text_layout.addWidget(self._btn_annotation_update_text, 1, 1)
+        annotation_text_layout.addWidget(self._btn_annotation_update_text, 1, 0, 1, 2)
         form.addRow(annotation_text_row)
 
         annotation_style = QWidget()
@@ -767,17 +787,17 @@ class ChartEditor(
         self._btn_annotation_add_line = QPushButton(tr("EDITOR_ANNOTATION_ADD_LINE"))
         self._btn_annotation_add_line.setCheckable(True)
         self._btn_annotation_add_line.clicked.connect(self._on_add_line_annotation)
-        annotation_actions_layout.addWidget(self._btn_annotation_add_line, 0, 0)
+        self._btn_annotation_add_line.hide()
 
         self._btn_annotation_add_arrow = QPushButton(tr("EDITOR_ANNOTATION_ADD_ARROW"))
         self._btn_annotation_add_arrow.setCheckable(True)
         self._btn_annotation_add_arrow.clicked.connect(self._on_add_arrow_annotation)
-        annotation_actions_layout.addWidget(self._btn_annotation_add_arrow, 0, 1)
+        self._btn_annotation_add_arrow.hide()
 
         self._btn_annotation_add_rect = QPushButton(tr("EDITOR_ANNOTATION_ADD_RECT"))
         self._btn_annotation_add_rect.setCheckable(True)
         self._btn_annotation_add_rect.clicked.connect(self._on_add_rectangle_annotation)
-        annotation_actions_layout.addWidget(self._btn_annotation_add_rect, 0, 2)
+        self._btn_annotation_add_rect.hide()
 
         self._btn_annotation_add_highlight = QPushButton(
             tr("EDITOR_ANNOTATION_ADD_HIGHLIGHT")
@@ -786,12 +806,12 @@ class ChartEditor(
         self._btn_annotation_add_highlight.clicked.connect(
             self._on_add_highlight_annotation
         )
-        annotation_actions_layout.addWidget(self._btn_annotation_add_highlight, 1, 0)
+        self._btn_annotation_add_highlight.hide()
 
         self._btn_annotation_crop = QPushButton(tr("EDITOR_ANNOTATION_CROP"))
         self._btn_annotation_crop.setCheckable(True)
         self._btn_annotation_crop.clicked.connect(self._on_crop_annotation_canvas)
-        annotation_actions_layout.addWidget(self._btn_annotation_crop, 1, 1)
+        self._btn_annotation_crop.hide()
 
         self._btn_annotation_delete = QPushButton(tr("EDITOR_ANNOTATION_DELETE"))
         self._btn_annotation_delete.clicked.connect(self._on_annotation_delete)
@@ -799,24 +819,24 @@ class ChartEditor(
 
         self._btn_annotation_copy = QPushButton(tr("EDITOR_ANNOTATION_COPY"))
         self._btn_annotation_copy.clicked.connect(self._on_annotation_copy)
-        annotation_actions_layout.addWidget(self._btn_annotation_copy, 2, 0)
+        self._btn_annotation_copy.hide()
 
         self._btn_annotation_paste = QPushButton(tr("EDITOR_ANNOTATION_PASTE"))
         self._btn_annotation_paste.clicked.connect(self._on_annotation_paste)
-        annotation_actions_layout.addWidget(self._btn_annotation_paste, 2, 1)
+        self._btn_annotation_paste.hide()
 
         self._btn_annotation_front = QPushButton(tr("EDITOR_ANNOTATION_FRONT"))
         self._btn_annotation_front.clicked.connect(self._on_annotation_front)
-        annotation_actions_layout.addWidget(self._btn_annotation_front, 2, 2)
+        annotation_actions_layout.addWidget(self._btn_annotation_front, 1, 0)
 
         self._btn_annotation_back = QPushButton(tr("EDITOR_ANNOTATION_BACK"))
         self._btn_annotation_back.clicked.connect(self._on_annotation_back)
-        annotation_actions_layout.addWidget(self._btn_annotation_back, 3, 0)
+        annotation_actions_layout.addWidget(self._btn_annotation_back, 1, 1)
         self._set_object_action_buttons_enabled(False)
 
         self._btn_annotation_undo = QPushButton(tr("EDITOR_ANNOTATION_UNDO"))
         self._btn_annotation_undo.clicked.connect(self._on_annotation_undo)
-        annotation_actions_layout.addWidget(self._btn_annotation_undo, 3, 1)
+        annotation_actions_layout.addWidget(self._btn_annotation_undo, 1, 2)
 
         self._btn_annotation_redo = QPushButton(tr("EDITOR_ANNOTATION_REDO"))
         self._btn_annotation_redo.clicked.connect(self._on_annotation_redo)
@@ -995,6 +1015,8 @@ class ChartEditor(
             ):
                 self._inspector_tabs.setTabText(index, tr(key))
         self.retranslate_layout()
+        self.retranslate_context_style_bar()
+        self.retranslate_inline_text_editor()
         if hasattr(self, "_target_label"):
             if self._target_path:
                 self._target_label.setText(str(Path(self._target_path).name))
@@ -1236,7 +1258,19 @@ class ChartEditor(
                         annotations=annotations,
                     )
                     self._reset_edit_session_from_document(self._figure_document)
-                self._annotation_canvas.load_annotation_state(annotations)
+                canonical_annotations = [
+                    item
+                    for item in self._figure_document.get("objects", [])
+                    if isinstance(item, dict)
+                    and item.get("type") != "image_background"
+                ]
+                if annotations or not canonical_annotations:
+                    self._annotation_canvas.load_annotation_state(annotations)
+                    self._annotation_canvas.set_document_interaction_enabled(True)
+                else:
+                    self._annotation_canvas.set_document_objects(
+                        self._figure_document.get("objects", [])
+                    )
                 self._annotation_canvas.setVisible(True)
                 self._refresh_object_list()
             else:

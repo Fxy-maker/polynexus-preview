@@ -40,19 +40,27 @@ class _EditorContextToolbar(QToolBar):
         self.setObjectName("editor_toolbar")
         self.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.setIconSize(QSize(18, 18))
+        self.setFixedWidth(36)
         self._actions_by_id = {}
+        self._buttons_by_id = {}
         self._tool_action_group = QActionGroup(self)
         self._tool_action_group.setExclusive(True)
         for action_id, translation_key in self._ACTION_KEYS:
-            action = QAction(tr(translation_key), self)
+            text = tr(translation_key)
+            action = QAction(text, self)
             action.setObjectName(f"editor_toolbar_{action_id}")
+            action.setIcon(editor_tool_icon(action_id, size=18))
             action.setToolTip(tr(translation_key))
-            action.setIcon(editor_tool_icon(action_id))
             if action_id in self._TOOL_ACTION_IDS:
                 action.setCheckable(True)
                 self._tool_action_group.addAction(action)
             self._actions_by_id[action_id] = action
             self.addAction(action)
+            button = self.widgetForAction(action)
+            if button is not None:
+                button.setAccessibleName(text)
+                button.setAccessibleDescription(text)
+                self._buttons_by_id[action_id] = button
 
     def action_ids(self):
         return [action_id for action_id, _ in self._ACTION_KEYS]
@@ -66,6 +74,10 @@ class _EditorContextToolbar(QToolBar):
             text = tr(translation_key)
             action.setText(text)
             action.setToolTip(text)
+            button = self._buttons_by_id.get(action_id)
+            if button is not None:
+                button.setAccessibleName(text)
+                button.setAccessibleDescription(text)
 
 
 class ChartEditorLayoutMixin:

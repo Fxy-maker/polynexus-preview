@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from copy import deepcopy
 
-from ...core.figure_edit_commands import UpdateGeometryCommand, UpdateStyleCommand
+from ...core.figure_edit_commands import DeleteObjectCommand, UpdateGeometryCommand, UpdateStyleCommand
 from ...core.figure_edit_session import EditSession
 from ...core.figure_edit_capabilities import EditResult, capabilities_for
+from ..i18n import tr
 
 
 class ChartEditorEditSessionMixin:
@@ -19,7 +20,10 @@ class ChartEditorEditSessionMixin:
         setter = getattr(canvas, "set_tool", None)
         if callable(setter) and canvas is not None and not canvas.isHidden():
             self._generated_draw_tool = "select"
-            return bool(setter(tool))
+            changed = bool(setter(tool))
+            if changed:
+                self._sync_context_style_bar()
+            return changed
 
         if getattr(self, "_generated_document_mode", False) and tool in {
             "select",
@@ -31,29 +35,49 @@ class ChartEditorEditSessionMixin:
         }:
             self._generated_draw_tool = tool
             self._generated_draw_start_data = None
-            tabs = getattr(self, "_inspector_tabs", None)
-            if tabs is not None and tool != "select":
-                tabs.setCurrentIndex(2)
-            text_control = getattr(self, "_annotation_text_edit", None)
-            if text_control is not None:
-                text_control.setEnabled(tool == "text")
-                if tool == "text":
-                    text_control.setFocus()
-            draw_style_enabled = tool in {"text", "line", "arrow", "curve", "rectangle"}
-            line_style_enabled = tool in {"line", "arrow", "curve", "rectangle"}
-            for name, enabled in (
-                ("_annotation_color_edit", draw_style_enabled),
-                ("_annotation_font_size_spin", tool == "text"),
-                ("_annotation_line_width_spin", line_style_enabled),
-                ("_annotation_alpha_spin", draw_style_enabled),
-                ("_annotation_line_style_combo", line_style_enabled),
-            ):
-                control = getattr(self, name, None)
-                if control is not None:
-                    control.setEnabled(enabled)
+            self._sync_context_style_bar()
             self._sync_editor_toolbar()
             return True
         return False
+
+    def _cancel_active_draw(self) -> bool:
+        cancelled = False
+        canvas = getattr(self, "_annotation_canvas", None)
+        if canvas is not None:
+            cancel_handle_drag = getattr(canvas, "_cancel_selection_handle_drag", None)
+            if callable(cancel_handle_drag) and cancel_handle_drag():
+                cancelled = True
+            if getattr(canvas, "_draw_start", None) is not None:
+                canvas._draw_start = None
+                clear_preview = getattr(canvas, "_clear_draw_preview", None)
+                if callable(clear_preview):
+                    clear_preview()
+                canvas.set_tool("select")
+                cancelled = True
+
+        if (
+            getattr(self, "_generated_draw_start_data", None) is not None
+            or getattr(self, "_generated_draw_start_display", None) is not None
+        ):
+            self._generated_draw_start_data = None
+            self._generated_draw_start_display = None
+            self._generated_draw_tool = "select"
+            sync_context = getattr(self, "_sync_context_style_bar", None)
+            if callable(sync_context):
+                sync_context()
+            sync_toolbar = getattr(self, "_sync_editor_toolbar", None)
+            if callable(sync_toolbar):
+                sync_toolbar()
+            cancelled = True
+
+        cancel_inline_text = getattr(self, "_cancel_inline_text_entry", None)
+        if callable(cancel_inline_text) and cancel_inline_text():
+            cancelled = True
+        if cancelled:
+            status_label = getattr(self, "_status_label", None)
+            if status_label is not None:
+                status_label.setText(tr("EDITOR_DRAW_CANCELLED"))
+        return cancelled
 
     def _reset_edit_session_from_document(self, document=None):
         payload = document if isinstance(document, dict) else {}
@@ -199,6 +223,9 @@ class ChartEditorEditSessionMixin:
         session = self._edit_session_for_adapter()
         if session is not None and callable(getattr(session, "select", None)):
             session.select(object_id, source)
+
+        if str(payload.get("operation", "") or "") == "delete":
+            return self._execute_edit(DeleteObjectCommand(object_id))
 
         geometry = self._payload_value(payload, "geometry")
         style = self._payload_value(payload, "style")

@@ -39,6 +39,10 @@ def test_chart_editor_reuses_generated_geometry_helpers_from_mixin() -> None:
         is mixin._apply_generated_line_handle_drag
     )
     assert (
+        ChartEditor._apply_generated_rectangle_handle_drag
+        is mixin._apply_generated_rectangle_handle_drag
+    )
+    assert (
         ChartEditor._apply_generated_line_body_drag
         is mixin._apply_generated_line_body_drag
     )

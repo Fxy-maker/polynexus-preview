@@ -11,7 +11,7 @@ from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView, QVBoxLayout, QWidget
 
-from .annotation_render_adapter import AnnotationRenderAdapter
+from .annotation_render_adapter import AnnotationRenderAdapter, qt_pen_style_for_line_style
 
 
 class AnnotationCanvas(QWidget):
@@ -19,6 +19,8 @@ class AnnotationCanvas(QWidget):
     selection_changed = Signal(str)
     annotations_changed = Signal()
     object_edit_requested = Signal(object)
+    object_create_requested = Signal(object)
+    text_entry_requested = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,8 +42,14 @@ class AnnotationCanvas(QWidget):
         self._zoom_mode = "fit"
         self._current_tool = "select"
         self._draw_start: QPointF | None = None
+        self._draw_preview_item = None
+        self._selection_handle_items: list[object] = []
+        self._selection_handle_drag: dict | None = None
+        self._syncing_scene_selection = False
         self._clipboard_annotation: dict | None = None
         self._document_objects_mode = False
+        self._document_interaction_enabled = False
+        self._document_interaction_object_ids: set[str] = set()
         self._pending_object_geometry: dict[str, dict] = {}
         self.setFocusPolicy(Qt.StrongFocus)
 
@@ -57,12 +65,15 @@ class AnnotationCanvas(QWidget):
             return False
 
         self._render_adapter.clear()
+        self._discard_scene_overlays()
         self._scene.clear()
         self._annotations = []
         self._undo_stack = []
         self._redo_stack = []
         self._selected_annotation_id = ""
         self._document_objects_mode = False
+        self._document_interaction_enabled = False
+        self._document_interaction_object_ids = set()
         self._pending_object_geometry = {}
         self._image_path = str(Path(path))
         self._image_width = pixmap.width()
@@ -87,6 +98,7 @@ class AnnotationCanvas(QWidget):
         self._image_width = pixmap.width()
         self._image_height = pixmap.height()
         self._render_adapter.clear()
+        self._discard_scene_overlays()
         self._scene.clear()
         self._pixmap_item = self._scene.addPixmap(pixmap)
         self._pixmap_item.setPos(0, 0)
@@ -103,7 +115,15 @@ class AnnotationCanvas(QWidget):
             self.selection_changed.emit("")
         return True
 
-    def add_text_annotation(self, text: str, x: float, y: float) -> str:
+    def add_text_annotation(
+        self,
+        text: str,
+        x: float,
+        y: float,
+        *,
+        width: float | None = None,
+        height: float | None = None,
+    ) -> str:
         if self._image_width <= 0 or self._image_height <= 0:
             return ""
         self._push_undo()
@@ -117,6 +137,10 @@ class AnnotationCanvas(QWidget):
             "font_size": 12,
             "color": "#111111",
         }
+        if width is not None and float(width) > 0:
+            annotation["width"] = self._normalize_x(float(width))
+        if height is not None and float(height) > 0:
+            annotation["height"] = self._normalize_y(float(height))
         self._annotations.append(annotation)
         self._draw_annotation(annotation)
         self.select_annotation(annotation_id)
@@ -209,11 +233,32 @@ class AnnotationCanvas(QWidget):
             return True
         self._current_tool = tool
         self._draw_start = None
+        self._clear_draw_preview()
         self.tool_changed.emit(tool)
         return True
 
     def current_tool(self) -> str:
         return self._current_tool
+
+    def set_document_interaction_enabled(self, enabled: bool) -> None:
+        """Route interactive gestures through document signals without projection."""
+
+        self._document_interaction_enabled = bool(enabled)
+        self._document_interaction_object_ids = (
+            {
+                str(annotation.get("id", "") or "")
+                for annotation in self._annotations
+                if annotation.get("id")
+            }
+            if self._document_interaction_enabled
+            else set()
+        )
+
+    def _document_route_enabled(self, object_id: str = "") -> bool:
+        return self._document_objects_mode or (
+            self._document_interaction_enabled
+            and str(object_id or "") in self._document_interaction_object_ids
+        )
 
     def image_size(self) -> tuple[int, int]:
         return self._image_width, self._image_height
@@ -224,6 +269,15 @@ class AnnotationCanvas(QWidget):
         ]
         if len(next_annotations) == len(self._annotations):
             return False
+        if self._document_route_enabled(annotation_id):
+            self.object_edit_requested.emit(
+                {
+                    "object_id": str(annotation_id),
+                    "source": "annotation_canvas",
+                    "operation": "delete",
+                }
+            )
+            return True
         self._push_undo()
         self._annotations = next_annotations
         if self._selected_annotation_id == annotation_id:
@@ -235,9 +289,14 @@ class AnnotationCanvas(QWidget):
     def select_annotation(self, annotation_id: str) -> bool:
         if not any(item.get("id") == annotation_id for item in self._annotations):
             return False
+        self._syncing_scene_selection = True
+        try:
+            for item in self._scene.items():
+                item.setSelected(item.data(0) == annotation_id)
+        finally:
+            self._syncing_scene_selection = False
         self._selected_annotation_id = annotation_id
-        for item in self._scene.items():
-            item.setSelected(item.data(0) == annotation_id)
+        self._refresh_selection_handles()
         self.selection_changed.emit(annotation_id)
         return True
 
@@ -249,6 +308,7 @@ class AnnotationCanvas(QWidget):
         self._selected_annotation_id = ""
         for item in self._scene.items():
             item.setSelected(False)
+        self._clear_selection_handles()
         self.selection_changed.emit("")
         return had_selection
 
@@ -278,29 +338,41 @@ class AnnotationCanvas(QWidget):
         annotation = self._annotation_by_id(annotation_id)
         if annotation is None:
             return False
-        self._push_undo()
         kind = annotation.get("type")
         dx_norm = self._normalize_x(dx)
         dy_norm = self._normalize_y(dy)
+        geometry = self._geometry_from_payload(annotation)
         if kind in {"text", "rectangle", "highlight"}:
-            annotation["x"] = round(float(annotation.get("x", 0.0)) + dx_norm, 6)
-            annotation["y"] = round(float(annotation.get("y", 0.0)) + dy_norm, 6)
+            geometry["x"] = round(float(annotation.get("x", 0.0)) + dx_norm, 6)
+            geometry["y"] = round(float(annotation.get("y", 0.0)) + dy_norm, 6)
         elif kind in {"line", "arrow", "curve"}:
-            annotation["x1"] = round(float(annotation.get("x1", 0.0)) + dx_norm, 6)
-            annotation["y1"] = round(float(annotation.get("y1", 0.0)) + dy_norm, 6)
-            annotation["x2"] = round(float(annotation.get("x2", 0.0)) + dx_norm, 6)
-            annotation["y2"] = round(float(annotation.get("y2", 0.0)) + dy_norm, 6)
+            geometry["x1"] = round(float(annotation.get("x1", 0.0)) + dx_norm, 6)
+            geometry["y1"] = round(float(annotation.get("y1", 0.0)) + dy_norm, 6)
+            geometry["x2"] = round(float(annotation.get("x2", 0.0)) + dx_norm, 6)
+            geometry["y2"] = round(float(annotation.get("y2", 0.0)) + dy_norm, 6)
             if kind == "curve":
-                annotation["control_x"] = round(
+                geometry["control_x"] = round(
                     float(annotation.get("control_x", 0.0)) + dx_norm,
                     6,
                 )
-                annotation["control_y"] = round(
+                geometry["control_y"] = round(
                     float(annotation.get("control_y", 0.0)) + dy_norm,
                     6,
                 )
         else:
             return False
+        if self._document_route_enabled(annotation_id):
+            self.object_edit_requested.emit(
+                {
+                    "object_id": str(annotation_id),
+                    "source": "annotation_canvas",
+                    "geometry": geometry,
+                    "object_type": kind,
+                }
+            )
+            return True
+        self._push_undo()
+        annotation.update(geometry)
         self._rebuild_scene()
         self.select_annotation(annotation_id)
         self.annotations_changed.emit()
@@ -324,6 +396,7 @@ class AnnotationCanvas(QWidget):
         *,
         color: str | None = None,
         line_width: float | None = None,
+        line_style: str | None = None,
         font_size: int | None = None,
         alpha: float | None = None,
     ) -> bool:
@@ -333,7 +406,9 @@ class AnnotationCanvas(QWidget):
         if annotation is None:
             return False
 
-        updates = self._validated_property_updates(annotation, color, line_width, font_size, alpha)
+        updates = self._validated_property_updates(
+            annotation, color, line_width, line_style, font_size, alpha
+        )
         if not updates:
             return False
 
@@ -449,6 +524,7 @@ class AnnotationCanvas(QWidget):
         self._image_width = crop_width
         self._image_height = crop_height
         self._selected_annotation_id = ""
+        self._discard_scene_overlays()
         self._scene.clear()
         self._pixmap_item = self._scene.addPixmap(cropped)
         self._pixmap_item.setPos(0, 0)
@@ -635,11 +711,25 @@ class AnnotationCanvas(QWidget):
                 updates[str(annotation_id)] = self._curve_geometry_from_item(item, annotation)
 
         changed = False
+        document_requests: list[dict] = []
         next_annotations = deepcopy(self._annotations)
         for annotation in next_annotations:
             annotation_id = str(annotation.get("id", ""))
             item_updates = updates.get(annotation_id)
             if not item_updates:
+                continue
+            if self._document_route_enabled(annotation_id):
+                baseline = self._geometry_from_payload(annotation)
+                if item_updates != baseline and item_updates != self._pending_object_geometry.get(annotation_id):
+                    self._pending_object_geometry[annotation_id] = item_updates
+                    document_requests.append(
+                        {
+                            "object_id": annotation_id,
+                            "source": "annotation_canvas",
+                            "geometry": item_updates,
+                            "object_type": annotation.get("type", ""),
+                        }
+                    )
                 continue
             for key, value in item_updates.items():
                 if annotation.get(key) != value:
@@ -655,11 +745,15 @@ class AnnotationCanvas(QWidget):
                 self.select_annotation(selected_id)
             if emit_changed:
                 self.annotations_changed.emit()
-        return changed
+        for payload in document_requests:
+            self.object_edit_requested.emit(payload)
+        return changed or bool(document_requests)
 
     def load_annotation_state(self, annotations: list[dict]) -> None:
         self._render_adapter.clear()
         self._document_objects_mode = False
+        self._document_interaction_enabled = False
+        self._document_interaction_object_ids = set()
         self._pending_object_geometry = {}
         self._annotations = [
             deepcopy(annotation)
@@ -684,17 +778,70 @@ class AnnotationCanvas(QWidget):
         painter = QPainter()
         if painter.begin(image):
             try:
-                self._scene.render(painter, QRectF(image.rect()), rect)
+                self.render_scene(painter, QRectF(image.rect()), rect)
             finally:
                 painter.end()
         return image
+
+    def render_scene(self, painter: QPainter, target: QRectF, source: QRectF | None = None) -> None:
+        source = source if source is not None else self._scene.sceneRect()
+        transient_items = [self._draw_preview_item, *self._selection_handle_items]
+        visibility = []
+        for item in transient_items:
+            if item is None or item.scene() is not self._scene:
+                continue
+            visibility.append((item, item.isVisible()))
+            item.setVisible(False)
+        selected_items = list(self._scene.selectedItems())
+        self._syncing_scene_selection = True
+        try:
+            for item in selected_items:
+                item.setSelected(False)
+            self._scene.render(painter, target, source)
+        finally:
+            for item in selected_items:
+                if item.scene() is self._scene:
+                    item.setSelected(True)
+            self._syncing_scene_selection = False
+            for item, was_visible in visibility:
+                if item.scene() is self._scene:
+                    item.setVisible(was_visible)
 
     def eventFilter(self, watched, event):
         if watched is self._view and event.type() == QEvent.KeyPress:
             self.keyPressEvent(event)
             return event.isAccepted()
         if watched is self._view.viewport() and self._current_tool == "select":
+            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                if self._begin_selection_handle_drag(self._scene_point_from_event(event)):
+                    event.accept()
+                    return True
+            if event.type() == QEvent.MouseMove and self._selection_handle_drag is not None:
+                self._update_selection_handle_drag(self._scene_point_from_event(event))
+                event.accept()
+                return True
+            if event.type() == QEvent.MouseMove:
+                annotation = self._annotation_by_id(self._selected_annotation_id)
+                handle_index = None
+                if annotation is not None:
+                    handle_index = self._selection_handle_index_at(
+                        annotation,
+                        self._geometry_from_payload(annotation),
+                        self._scene_point_from_event(event),
+                    )
+                if handle_index is None:
+                    self._view.viewport().unsetCursor()
+                else:
+                    self._view.viewport().setCursor(
+                        self._selection_handle_cursor_shape(annotation, handle_index)
+                    )
+                event.accept()
+                return True
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+                if self._selection_handle_drag is not None:
+                    self._finish_selection_handle_drag(self._scene_point_from_event(event))
+                    event.accept()
+                    return True
                 self.sync_scene_items_to_state()
                 return False
         if watched is self._view.viewport() and self._current_tool != "select":
@@ -702,9 +849,17 @@ class AnnotationCanvas(QWidget):
                 self._draw_start = self._scene_point_from_event(event)
                 event.accept()
                 return True
+            if event.type() == QEvent.MouseMove and self._draw_start is not None:
+                self._update_draw_preview(
+                    self._draw_start,
+                    self._scene_point_from_event(event),
+                )
+                event.accept()
+                return True
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 if self._draw_start is not None:
                     end = self._scene_point_from_event(event)
+                    self._clear_draw_preview()
                     self._finish_mouse_draw(self._draw_start, end)
                     self._draw_start = None
                     self.set_tool("select")
@@ -744,6 +899,16 @@ class AnnotationCanvas(QWidget):
                     event.accept()
                     return
         if event.key() == Qt.Key_Escape:
+            if self._selection_handle_drag is not None:
+                if self._cancel_selection_handle_drag():
+                    event.accept()
+                    return
+            if self._draw_start is not None:
+                self._draw_start = None
+                self._clear_draw_preview()
+                self.set_tool("select")
+                event.accept()
+                return
             if self.clear_selection():
                 event.accept()
                 return
@@ -818,11 +983,7 @@ class AnnotationCanvas(QWidget):
     @staticmethod
     def _geometry_from_payload(annotation: dict) -> dict:
         kind = annotation.get("type")
-        container = annotation
-        for key in ("geometry", "bounds"):
-            if isinstance(annotation.get(key), dict):
-                container = annotation[key]
-                break
+        container = AnnotationCanvas._geometry_container(annotation)
         if kind in {"text", "rectangle", "highlight"}:
             keys = ("x", "y")
             if kind in {"rectangle", "highlight"}:
@@ -842,6 +1003,14 @@ class AnnotationCanvas(QWidget):
             except (TypeError, ValueError, OverflowError):
                 continue
         return result
+
+    @staticmethod
+    def _geometry_container(payload: dict) -> dict:
+        for key in ("geometry", "bounds"):
+            value = payload.get(key)
+            if isinstance(value, dict):
+                return value
+        return payload
 
     def _push_undo(self) -> None:
         self._undo_stack.append(self._snapshot_state())
@@ -866,6 +1035,7 @@ class AnnotationCanvas(QWidget):
         self._image_height = int(state.get("image_height", 0) or 0)
         selected_id = str(state.get("selected_annotation_id", "") or "")
         pixmap = state.get("pixmap")
+        self._discard_scene_overlays()
         self._scene.clear()
         self._pixmap_item = None
         if isinstance(pixmap, QPixmap) and not pixmap.isNull():
@@ -904,13 +1074,44 @@ class AnnotationCanvas(QWidget):
             return ""
         tool = self._current_tool
         if tool == "text":
-            return self.add_text_annotation("Annotation", start.x(), start.y())
+            geometry = {
+                "x": self._normalize_x(start.x()),
+                "y": self._normalize_y(start.y()),
+            }
+            width = abs(end.x() - start.x())
+            height = abs(end.y() - start.y())
+            if width >= 3.0 and height >= 3.0:
+                geometry["width"] = self._normalize_x(width)
+                geometry["height"] = self._normalize_y(height)
+            if self._document_objects_mode or self._document_interaction_enabled:
+                self.text_entry_requested.emit({"type": "text", "geometry": geometry})
+                return ""
+            return self.add_text_annotation(
+                "Annotation",
+                start.x(),
+                start.y(),
+                width=width if "width" in geometry else None,
+                height=height if "height" in geometry else None,
+            )
         if tool in {"rectangle", "highlight"}:
             x = min(start.x(), end.x())
             y = min(start.y(), end.y())
             width = abs(end.x() - start.x())
             height = abs(end.y() - start.y())
             if width < 1.0 or height < 1.0:
+                return ""
+            if self._document_objects_mode or self._document_interaction_enabled:
+                self.object_create_requested.emit(
+                    {
+                        "type": tool,
+                        "geometry": {
+                            "x": self._normalize_x(x),
+                            "y": self._normalize_y(y),
+                            "width": self._normalize_x(width),
+                            "height": self._normalize_y(height),
+                        },
+                    }
+                )
                 return ""
             if tool == "rectangle":
                 return self.add_rectangle_annotation(x, y, width, height)
@@ -924,12 +1125,53 @@ class AnnotationCanvas(QWidget):
                 return ""
             return "crop" if self.crop_to_rect(x, y, width, height) else ""
         if tool == "line":
+            if self._document_objects_mode or self._document_interaction_enabled:
+                self.object_create_requested.emit(
+                    {
+                        "type": "line",
+                        "geometry": {
+                            "x1": self._normalize_x(start.x()),
+                            "y1": self._normalize_y(start.y()),
+                            "x2": self._normalize_x(end.x()),
+                            "y2": self._normalize_y(end.y()),
+                        },
+                    }
+                )
+                return ""
             return self.add_line_annotation(start.x(), start.y(), end.x(), end.y())
         if tool == "arrow":
+            if self._document_objects_mode or self._document_interaction_enabled:
+                self.object_create_requested.emit(
+                    {
+                        "type": "arrow",
+                        "geometry": {
+                            "x1": self._normalize_x(start.x()),
+                            "y1": self._normalize_y(start.y()),
+                            "x2": self._normalize_x(end.x()),
+                            "y2": self._normalize_y(end.y()),
+                        },
+                    }
+                )
+                return ""
             return self.add_arrow_annotation(start.x(), start.y(), end.x(), end.y())
         if tool == "curve":
             control_x = (start.x() + end.x()) / 2.0
             control_y = max(0.0, min(float(self._image_height), min(start.y(), end.y()) - 20.0))
+            if self._document_objects_mode or self._document_interaction_enabled:
+                self.object_create_requested.emit(
+                    {
+                        "type": "curve",
+                        "geometry": {
+                            "x1": self._normalize_x(start.x()),
+                            "y1": self._normalize_y(start.y()),
+                            "x2": self._normalize_x(end.x()),
+                            "y2": self._normalize_y(end.y()),
+                            "control_x": self._normalize_x(control_x),
+                            "control_y": self._normalize_y(control_y),
+                        },
+                    }
+                )
+                return ""
             return self.add_curve_annotation(
                 start.x(), start.y(), end.x(), end.y(), control_x, control_y
             )
@@ -942,6 +1184,8 @@ class AnnotationCanvas(QWidget):
         return None
 
     def _on_scene_selection_changed(self) -> None:
+        if self._syncing_scene_selection:
+            return
         for item in self._scene.selectedItems():
             annotation_id = item.data(0)
             if annotation_id and self._annotation_by_id(str(annotation_id)) is not None:
@@ -949,10 +1193,12 @@ class AnnotationCanvas(QWidget):
                 if self._selected_annotation_id != annotation_id:
                     self._selected_annotation_id = annotation_id
                     self.selection_changed.emit(annotation_id)
+                self._refresh_selection_handles()
                 return
         if self._selected_annotation_id:
             self._selected_annotation_id = ""
             self.selection_changed.emit("")
+        self._clear_selection_handles()
 
     def _nudge_selected_annotation(self, key, modifiers) -> bool:
         if not self._selected_annotation_id:
@@ -977,6 +1223,7 @@ class AnnotationCanvas(QWidget):
         annotation: dict,
         color: str | None,
         line_width: float | None,
+        line_style: str | None,
         font_size: int | None,
         alpha: float | None,
     ) -> dict:
@@ -986,6 +1233,10 @@ class AnnotationCanvas(QWidget):
             updates["color"] = str(color)
         if line_width is not None and kind in {"line", "arrow", "curve", "rectangle"}:
             updates["line_width"] = max(0.1, round(float(line_width), 3))
+        if line_style is not None and kind in {"line", "arrow", "curve", "rectangle"}:
+            normalized_style = str(line_style)
+            if normalized_style in {"-", "--", ":", "-."}:
+                updates["line_style"] = normalized_style
         if font_size is not None and kind == "text":
             updates["font_size"] = max(1, int(font_size))
         if alpha is not None and kind == "highlight":
@@ -1140,7 +1391,11 @@ class AnnotationCanvas(QWidget):
     def _rebuild_scene(self) -> None:
         pixmap = self._pixmap_item.pixmap() if self._pixmap_item is not None else QPixmap()
         self._render_adapter.clear()
+        self._discard_scene_overlays()
         self._scene.clear()
+        self._draw_preview_item = None
+        self._selection_handle_items = []
+        self._selection_handle_drag = None
         self._pixmap_item = None
         if not pixmap.isNull():
             self._pixmap_item = self._scene.addPixmap(pixmap)
@@ -1152,7 +1407,253 @@ class AnnotationCanvas(QWidget):
                 self._draw_annotation(annotation)
         self._scene.setSceneRect(QRectF(0, 0, self._image_width, self._image_height))
 
-    def _draw_annotation(self, annotation: dict) -> None:
+    def _clear_draw_preview(self) -> None:
+        item = self._draw_preview_item
+        self._draw_preview_item = None
+        if item is not None:
+            self._scene.removeItem(item)
+
+    def _discard_scene_overlays(self) -> None:
+        self._draw_preview_item = None
+        self._selection_handle_items = []
+        self._selection_handle_drag = None
+
+    def _update_draw_preview(self, start: QPointF, end: QPointF) -> None:
+        self._clear_draw_preview()
+        pen = QPen(QColor("#3B82F6"))
+        pen.setWidthF(1.5)
+        pen.setStyle(Qt.DashLine)
+        tool = self._current_tool
+        if tool in {"line", "arrow"}:
+            item = self._scene.addLine(start.x(), start.y(), end.x(), end.y(), pen)
+        elif tool in {"rectangle", "highlight", "crop", "text"}:
+            rect = QRectF(start, end).normalized()
+            item = self._scene.addRect(rect, pen, QBrush(Qt.NoBrush))
+        elif tool == "curve":
+            control_x = (start.x() + end.x()) / 2.0
+            control_y = max(0.0, min(float(self._image_height), min(start.y(), end.y()) - 20.0))
+            path = QPainterPath(start)
+            path.quadTo(QPointF(control_x, control_y), end)
+            item = self._scene.addPath(path, pen)
+        else:
+            return
+        item.setZValue(10_000)
+        self._draw_preview_item = item
+
+    def _clear_selection_handles(self) -> None:
+        for item in self._selection_handle_items:
+            self._scene.removeItem(item)
+        self._selection_handle_items = []
+
+    def _refresh_selection_handles(self, geometry: dict | None = None) -> None:
+        self._clear_selection_handles()
+        annotation = self._annotation_by_id(self._selected_annotation_id)
+        if annotation is None:
+            return
+        geometry = dict(geometry) if geometry is not None else self._geometry_from_payload(annotation)
+        for index, point in enumerate(self._selection_handle_points(annotation, geometry)):
+            item = self._scene.addEllipse(
+                QRectF(point.x() - 4.0, point.y() - 4.0, 8.0, 8.0),
+                QPen(QColor("#1D4ED8")),
+                QBrush(QColor("#DBEAFE")),
+            )
+            item.setData(0, "")
+            item.setData(1, index)
+            item.setAcceptedMouseButtons(Qt.NoButton)
+            item.setZValue(10_001)
+            self._selection_handle_items.append(item)
+
+    def _selection_handle_points(self, annotation: dict, geometry: dict) -> list[QPointF]:
+        kind = str(annotation.get("type", "") or "")
+        if kind in {"line", "arrow"}:
+            return [
+                self._scene_point_from_normalized(geometry["x1"], geometry["y1"]),
+                self._scene_point_from_normalized(geometry["x2"], geometry["y2"]),
+            ]
+        if kind == "curve":
+            points = [
+                self._scene_point_from_normalized(geometry["x1"], geometry["y1"]),
+                self._scene_point_from_normalized(geometry["x2"], geometry["y2"]),
+            ]
+            if "control_x" in geometry and "control_y" in geometry:
+                points.append(
+                    self._scene_point_from_normalized(
+                        geometry["control_x"], geometry["control_y"]
+                    )
+                )
+            return points
+        if kind == "rectangle":
+            left = geometry["x"]
+            top = geometry["y"]
+            right = left + geometry["width"]
+            bottom = top + geometry["height"]
+            return [
+                self._scene_point_from_normalized(left, top),
+                self._scene_point_from_normalized(right, top),
+                self._scene_point_from_normalized(right, bottom),
+                self._scene_point_from_normalized(left, bottom),
+            ]
+        return []
+
+    def _begin_selection_handle_drag(self, scene_point: QPointF) -> bool:
+        annotation = self._annotation_by_id(self._selected_annotation_id)
+        if annotation is None:
+            return False
+        geometry = self._geometry_from_payload(annotation)
+        handle_index = self._selection_handle_index_at(annotation, geometry, scene_point)
+        if handle_index is None:
+            return False
+        self._view.viewport().setCursor(
+            self._selection_handle_cursor_shape(annotation, handle_index)
+        )
+        self._selection_handle_drag = {
+            "object_id": str(annotation.get("id", "") or ""),
+            "object_type": str(annotation.get("type", "") or ""),
+            "handle_index": handle_index,
+            "original_geometry": geometry,
+            "preview_geometry": dict(geometry),
+        }
+        return True
+
+    def _update_selection_handle_drag(self, scene_point: QPointF) -> bool:
+        state = self._selection_handle_drag
+        if not isinstance(state, dict):
+            return False
+        geometry = self._geometry_with_handle_at(
+            state["object_type"],
+            dict(state["original_geometry"]),
+            int(state["handle_index"]),
+            scene_point,
+        )
+        state["preview_geometry"] = geometry
+        annotation = self._annotation_by_id(str(state["object_id"]))
+        if annotation is None:
+            return False
+        self._render_selection_handle_preview(annotation, geometry)
+        return True
+
+    def _finish_selection_handle_drag(self, scene_point: QPointF) -> bool:
+        if not self._update_selection_handle_drag(scene_point):
+            return False
+        state = self._selection_handle_drag
+        self._selection_handle_drag = None
+        annotation = self._annotation_by_id(str(state["object_id"]))
+        geometry = dict(state["preview_geometry"])
+        if annotation is None:
+            return False
+        if self._document_route_enabled(str(annotation.get("id", "") or "")):
+            self.object_edit_requested.emit(
+                {
+                    "object_id": str(annotation.get("id", "") or ""),
+                    "source": "annotation_canvas",
+                    "geometry": geometry,
+                    "object_type": annotation.get("type", ""),
+                }
+            )
+            return True
+        return self.update_selected_geometry(**geometry)
+
+    def _cancel_selection_handle_drag(self) -> bool:
+        state = self._selection_handle_drag
+        self._selection_handle_drag = None
+        if not isinstance(state, dict):
+            return False
+        annotation = self._annotation_by_id(str(state["object_id"]))
+        if annotation is not None:
+            if self._document_objects_mode:
+                self._render_selection_handle_preview(annotation, dict(state["original_geometry"]))
+            else:
+                self._clear_draw_preview()
+                self._refresh_selection_handles(dict(state["original_geometry"]))
+        self._view.viewport().unsetCursor()
+        return True
+
+    def _selection_handle_index_at(
+        self, annotation: dict, geometry: dict, scene_point: QPointF
+    ) -> int | None:
+        points = self._selection_handle_points(annotation, geometry)
+        if not points:
+            return None
+        handle_index = min(
+            range(len(points)),
+            key=lambda index: (points[index] - scene_point).manhattanLength(),
+        )
+        if (points[handle_index] - scene_point).manhattanLength() > 10.0:
+            return None
+        return handle_index
+
+    @staticmethod
+    def _selection_handle_cursor_shape(annotation: dict, handle_index: int):
+        if str(annotation.get("type", "") or "") == "rectangle":
+            return (
+                Qt.SizeFDiagCursor
+                if int(handle_index) in {0, 2}
+                else Qt.SizeBDiagCursor
+            )
+        return Qt.SizeAllCursor
+
+    def _render_selection_handle_preview(self, annotation: dict, geometry: dict) -> None:
+        payload = deepcopy(annotation)
+        container = self._geometry_container(payload)
+        container.update(geometry)
+        if self._document_objects_mode:
+            self._syncing_scene_selection = True
+            try:
+                item = self._render_adapter.sync_object(payload)
+                if item is not None:
+                    item.setSelected(True)
+            finally:
+                self._syncing_scene_selection = False
+            self._selected_annotation_id = str(annotation.get("id", ""))
+            self._refresh_selection_handles(geometry)
+            return
+        self._clear_draw_preview()
+        preview_payload = deepcopy(annotation)
+        preview_payload.update(geometry)
+        item = self._draw_annotation(preview_payload)
+        if item is not None:
+            item.setData(0, "")
+            item.setFlag(item.GraphicsItemFlag.ItemIsSelectable, False)
+            item.setFlag(item.GraphicsItemFlag.ItemIsMovable, False)
+            item.setZValue(10_000)
+            self._draw_preview_item = item
+        self._refresh_selection_handles(geometry)
+
+    def _geometry_with_handle_at(
+        self, kind: str, geometry: dict, handle_index: int, point: QPointF
+    ) -> dict:
+        x = self._normalize_x(point.x())
+        y = self._normalize_y(point.y())
+        if kind in {"line", "arrow"}:
+            geometry[("x1", "x2")[handle_index]] = x
+            geometry[("y1", "y2")[handle_index]] = y
+            return geometry
+        if kind == "curve":
+            key_pairs = {
+                0: ("x1", "y1"),
+                1: ("x2", "y2"),
+                2: ("control_x", "control_y"),
+            }
+            x_key, y_key = key_pairs[handle_index]
+            geometry[x_key] = x
+            geometry[y_key] = y
+            return geometry
+        if kind == "rectangle":
+            left = geometry["x"]
+            top = geometry["y"]
+            right = left + geometry["width"]
+            bottom = top + geometry["height"]
+            opposite = ((right, bottom), (left, bottom), (left, top), (right, top))[handle_index]
+            geometry["x"] = min(x, opposite[0])
+            geometry["y"] = min(y, opposite[1])
+            geometry["width"] = abs(x - opposite[0])
+            geometry["height"] = abs(y - opposite[1])
+        return geometry
+
+    def _scene_point_from_normalized(self, x: float, y: float) -> QPointF:
+        return QPointF(self._denormalize_x(x), self._denormalize_y(y))
+
+    def _draw_annotation(self, annotation: dict):
         kind = annotation.get("type")
         if kind == "text":
             item = QGraphicsTextItem(str(annotation.get("text", "")))
@@ -1160,17 +1661,21 @@ class AnnotationCanvas(QWidget):
             font = item.font()
             font.setPointSize(int(annotation.get("font_size", 12) or 12))
             item.setFont(font)
+            width = self._denormalize_x(float(annotation.get("width", 0.0) or 0.0))
+            if width > 0:
+                item.setTextWidth(width)
             item.setPos(
                 self._denormalize_x(float(annotation.get("x", 0.0))),
                 self._denormalize_y(float(annotation.get("y", 0.0))),
             )
             self._scene.addItem(item)
             self._configure_annotation_item(item, annotation.get("id", ""))
-            return
+            return item
 
         if kind == "rectangle":
             pen = QPen(QColor(str(annotation.get("color", "#D55E00"))))
             pen.setWidthF(float(annotation.get("line_width", 2.0) or 2.0))
+            pen.setStyle(qt_pen_style_for_line_style(annotation.get("line_style", "-")))
             rect = QRectF(
                 self._denormalize_x(float(annotation.get("x", 0.0))),
                 self._denormalize_y(float(annotation.get("y", 0.0))),
@@ -1179,7 +1684,7 @@ class AnnotationCanvas(QWidget):
             )
             item = self._scene.addRect(rect, pen, QBrush(Qt.NoBrush))
             self._configure_annotation_item(item, annotation.get("id", ""))
-            return
+            return item
 
         if kind == "highlight":
             color = QColor(str(annotation.get("color", "#F0E442")))
@@ -1192,7 +1697,7 @@ class AnnotationCanvas(QWidget):
             )
             item = self._scene.addRect(rect, QPen(Qt.NoPen), QBrush(color))
             self._configure_annotation_item(item, annotation.get("id", ""))
-            return
+            return item
 
         if kind in {"line", "arrow"}:
             x1 = self._denormalize_x(float(annotation.get("x1", 0.0)))
@@ -1201,6 +1706,7 @@ class AnnotationCanvas(QWidget):
             y2 = self._denormalize_y(float(annotation.get("y2", 0.0)))
             pen = QPen(QColor(str(annotation.get("color", "#D55E00"))))
             pen.setWidthF(float(annotation.get("line_width", 2.0) or 2.0))
+            pen.setStyle(qt_pen_style_for_line_style(annotation.get("line_style", "-")))
             line_item = self._scene.addLine(x1, y1, x2, y2, pen)
             if kind == "arrow":
                 head_item = self._draw_arrow_head(x1, y1, x2, y2, pen)
@@ -1208,6 +1714,8 @@ class AnnotationCanvas(QWidget):
                 self._configure_annotation_item(group, annotation.get("id", ""))
             else:
                 self._configure_annotation_item(line_item, annotation.get("id", ""))
+                group = line_item
+            return group
 
         if kind == "curve":
             path = QPainterPath(
@@ -1228,8 +1736,11 @@ class AnnotationCanvas(QWidget):
             )
             pen = QPen(QColor(str(annotation.get("color", "#D55E00"))))
             pen.setWidthF(float(annotation.get("line_width", 2.0) or 2.0))
+            pen.setStyle(qt_pen_style_for_line_style(annotation.get("line_style", "-")))
             item = self._scene.addPath(path, pen)
             self._configure_annotation_item(item, annotation.get("id", ""))
+            return item
+        return None
 
     def _configure_annotation_item(self, item, annotation_id: str) -> None:
         item.setData(0, annotation_id)

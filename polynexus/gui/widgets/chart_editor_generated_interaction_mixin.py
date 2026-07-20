@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRect, Qt
 
 from ...core.figure_edit_commands import AddObjectCommand
 from ..i18n import tr
@@ -190,7 +190,15 @@ class ChartEditorGeneratedInteractionMixin:
                     self._show_generated_figure_document()
                     self._sync_generated_object_property_controls(object_id)
             return
-        committed = self._commit_generated_drag_transaction(drag_state)
+        drag_kind = str(drag_state.get("kind", "") or "")
+        if drag_kind in {"line", "line-body", "curve", "rectangle"}:
+            committed = self._commit_generated_drag(drag_state)
+        else:
+            committed = self._commit_generated_drag_transaction(drag_state)
+        if not committed:
+            self._restore_generated_drag_snapshot(drag_state)
+            self._show_generated_figure_document()
+            return
         self._persist_generated_document()
         if not committed:
             self._show_generated_figure_document()
@@ -211,13 +219,13 @@ class ChartEditorGeneratedInteractionMixin:
         if data is None:
             return False
         if tool == "text":
-            text = self._annotation_text_edit.text().strip() or "Annotation"
-            return self._add_generated_tool_object(
-                tool,
-                data,
-                data,
-                text=text,
+            self._generated_draw_start_data = data
+            self._generated_draw_start_display = (
+                float(getattr(event, "x", 0.0) or 0.0),
+                float(getattr(event, "y", 0.0) or 0.0),
             )
+            self._status_label.setText(tr("EDITOR_DRAW_TEXT_HINT"))
+            return True
         if tool in {"line", "arrow", "curve", "rectangle"}:
             self._generated_draw_start_data = data
             self._status_label.setText(tr("EDITOR_DRAW_OBJECT_HINT"))
@@ -227,31 +235,78 @@ class ChartEditorGeneratedInteractionMixin:
     def _finish_generated_draw(self, event):
         start = self._generated_draw_start_data
         self._generated_draw_start_data = None
+        start_display = self._generated_draw_start_display
+        self._generated_draw_start_display = None
         end = self._generated_event_data_coordinates(event)
         if start is None or end is None:
             self.set_tool("select")
+            return
+        if self._generated_draw_tool == "text":
+            self._select_generated_object("", "text-entry")
+            self.set_tool("select")
+            self._begin_generated_text_box(
+                start,
+                end,
+                self._generated_canvas_rect(start_display, event),
+            )
             return
         if start == end:
             self.set_tool("select")
             return
         self._add_generated_tool_object(self._generated_draw_tool, start, end)
 
+    def _generated_canvas_rect(self, start_display, event) -> QRect:
+        start_x, start_y = start_display or (0.0, 0.0)
+        end_x = float(getattr(event, "x", start_x) or start_x)
+        end_y = float(getattr(event, "y", start_y) or start_y)
+        left = int(round(min(start_x, end_x)))
+        right = int(round(max(start_x, end_x)))
+        canvas_height = max(1, int(self._canvas.height()))
+        top = canvas_height - int(round(max(start_y, end_y)))
+        bottom = canvas_height - int(round(min(start_y, end_y)))
+        return QRect(left, top, max(1, right - left), max(1, bottom - top))
+
+    def _begin_generated_text_box(self, start, end, rect: QRect) -> None:
+        x1, y1 = (float(start[0]), float(start[1]))
+        x2, y2 = (float(end[0]), float(end[1]))
+        geometry = {"x": x1, "y": y1}
+        width = abs(x2 - x1)
+        height = abs(y2 - y1)
+        if width > 0 and height > 0:
+            geometry["width"] = width
+            geometry["height"] = height
+        self._begin_inline_text_entry(
+            {"mode": "generated", "type": "text", "geometry": geometry},
+            host=self._canvas,
+            rect=rect,
+        )
+
+    def _commit_generated_text_payload(self, payload: dict, text: str) -> bool:
+        geometry = payload.get("geometry")
+        if not isinstance(geometry, dict):
+            return False
+        x = float(geometry.get("x", 0.0) or 0.0)
+        y = float(geometry.get("y", 0.0) or 0.0)
+        width = float(geometry.get("width", 0.0) or 0.0)
+        height = float(geometry.get("height", 0.0) or 0.0)
+        return self._add_generated_tool_object(
+            "text",
+            (x, y),
+            (x + width, y + height),
+            text=text,
+        )
+
     def _add_generated_tool_object(self, tool, start, end, *, text=""):
         x1, y1 = (float(start[0]), float(start[1]))
         x2, y2 = (float(end[0]), float(end[1]))
         object_id = f"annotation-{uuid4().hex[:12]}"
-        color = self._annotation_color_edit.text().strip() or "#D55E00"
-        line_style = {
-            "Solid": "-",
-            "Dashed": "--",
-            "Dotted": ":",
-            "Dash Dot": "-.",
-        }.get(self._annotation_line_style_combo.currentText(), "-")
+        draw_style = self._active_draw_style()
+        color = str(draw_style.get("color", "#D55E00") or "#D55E00")
         style = {
             "color": color,
-            "line_width": float(self._annotation_line_width_spin.value()),
-            "line_style": line_style,
-            "alpha": float(self._annotation_alpha_spin.value()),
+            "line_width": float(draw_style.get("line_width", 2.0) or 2.0),
+            "line_style": str(draw_style.get("line_style", "-") or "-"),
+            "alpha": float(draw_style.get("alpha", 1.0) or 1.0),
         }
         payload = {
             "id": object_id,
@@ -285,9 +340,12 @@ class ChartEditorGeneratedInteractionMixin:
                 text=str(text or "Annotation"),
                 style={
                     **style,
-                    "font_size": float(self._annotation_font_size_spin.value()),
+                    "font_size": float(draw_style.get("font_size", 12.0) or 12.0),
                 },
             )
+            if abs(x2 - x1) > 0 and abs(y2 - y1) > 0:
+                payload["width"] = abs(x2 - x1)
+                payload["height"] = abs(y2 - y1)
         elif tool in {"line", "arrow"}:
             payload.update(x1=x1, y1=y1, x2=x2, y2=y2)
         elif tool == "curve":

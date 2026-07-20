@@ -95,6 +95,28 @@ class FigureRenderAdapter:
                 if control_x is not None and control_y is not None:
                     handle_points.append((control_x, control_y))
                     handle_indices.append(2)
+        elif object_type == "rectangle":
+            bounds = (
+                figure_object.get("bounds", {})
+                if isinstance(figure_object.get("bounds"), dict)
+                else figure_object
+            )
+            x = self._optional_float(bounds.get("x"))
+            y = self._optional_float(bounds.get("y"))
+            width = self._optional_float(bounds.get("width"))
+            height = self._optional_float(bounds.get("height"))
+            if None not in {x, y, width, height}:
+                right = float(x) + float(width)
+                top = float(y) + float(height)
+                handle_points.extend(
+                    [
+                        (float(x), float(y)),
+                        (right, float(y)),
+                        (right, top),
+                        (float(x), top),
+                    ]
+                )
+                handle_indices.extend([0, 1, 2, 3])
         elif object_type == "plot_series" and chart_kind not in {"heatmap", "bar", "barh", "image_grid"}:
             plot_series_points = self._plot_series_indexed_handle_points(figure_object)
             marker = str(style.get("marker", "") or "")

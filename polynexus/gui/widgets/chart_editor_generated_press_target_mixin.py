@@ -27,6 +27,16 @@ class ChartEditorGeneratedPressTargetMixin:
                 "handle_index": int(handle_hit),
                 "dirty": False,
             }
+        if object_type == "rectangle":
+            handle_hit = self._generated_point_handle_hit(event, object_id)
+            if handle_hit is None:
+                return None
+            return {
+                "object_id": str(object_id or ""),
+                "kind": "rectangle",
+                "handle_index": int(handle_hit),
+                "dirty": False,
+            }
         if object_type == "plot_series":
             handle_hit = self._generated_point_handle_hit(event, object_id)
             if handle_hit is None:
@@ -62,6 +72,16 @@ class ChartEditorGeneratedPressTargetMixin:
             return {
                 "object_id": str(object_id or ""),
                 "kind": "curve",
+                "handle_index": int(handle_hit),
+                "dirty": False,
+            }
+        if object_type == "rectangle":
+            handle_hit = self._generated_point_handle_hit(event, object_id)
+            if handle_hit is None:
+                return None
+            return {
+                "object_id": str(object_id or ""),
+                "kind": "rectangle",
                 "handle_index": int(handle_hit),
                 "dirty": False,
             }

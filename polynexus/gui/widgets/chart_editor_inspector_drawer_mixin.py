@@ -50,8 +50,7 @@ class ChartEditorInspectorDrawerMixin:
         return bool(panel is not None and panel.isHidden())
 
     def _reveal_inspector_for_selection(self) -> None:
-        if not getattr(self, "_inspector_closed_manually", False):
-            self._set_inspector_collapsed(False)
+        """Keep the Inspector visibility under explicit user control."""
 
     def _toggle_inspector_drawer(self) -> None:
         self._set_inspector_collapsed(

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from PySide6.QtCore import QPointF, QRect
+
 from ...core.figure_document import annotation_to_figure_object
 from ...core.figure_edit_commands import (
     AddObjectCommand,
@@ -43,6 +45,90 @@ MARKER_OPTIONS = {
 
 
 class ChartEditorAnnotationControlsMixin:
+    def _on_annotation_object_create_requested(self, payload):
+        if self._annotation_canvas is None or not isinstance(payload, dict):
+            return False
+        kind = str(payload.get("type", "") or "")
+        geometry = payload.get("geometry")
+        if kind not in {"line", "arrow", "curve", "rectangle", "highlight"} or not isinstance(
+            geometry, dict
+        ):
+            return False
+        annotation_id = f"ann-{uuid4().hex[:12]}"
+        style = self._active_draw_style()
+        object_payload = annotation_to_figure_object(
+            {"id": annotation_id, "type": kind, **geometry, **style}
+        )
+        session = self._edit_session_for_adapter()
+        if session is None:
+            return False
+        result = self._execute_edit(AddObjectCommand(object_payload))
+        if result is None or not result.changed:
+            return False
+        session.select(annotation_id, "annotation_canvas")
+        self._annotation_canvas.select_annotation(annotation_id)
+        self._refresh_object_list(annotation_id)
+        return True
+
+    def _on_annotation_text_entry_requested(self, payload):
+        if self._annotation_canvas is None or not isinstance(payload, dict):
+            return
+        geometry = payload.get("geometry")
+        if not isinstance(geometry, dict):
+            return
+        canvas = self._annotation_canvas
+        x = float(geometry.get("x", 0.0) or 0.0) * canvas._image_width
+        y = float(geometry.get("y", 0.0) or 0.0) * canvas._image_height
+        width = float(geometry.get("width", 0.0) or 0.0) * canvas._image_width
+        height = float(geometry.get("height", 0.0) or 0.0) * canvas._image_height
+        start = canvas._view.mapFromScene(QPointF(x, y))
+        end = canvas._view.mapFromScene(QPointF(x + width, y + height))
+        self._begin_inline_text_entry(
+            {"mode": "static", **payload},
+            host=canvas._view.viewport(),
+            rect=QRect(start, end).normalized(),
+        )
+
+    def _commit_inline_text_payload(self, payload: dict, text: str) -> bool:
+        mode = str(payload.get("mode", "") or "")
+        if mode == "generated":
+            return self._commit_generated_text_payload(payload, text)
+        if mode != "static":
+            return False
+        geometry = payload.get("geometry")
+        if not isinstance(geometry, dict):
+            return False
+        annotation_id = f"ann-{uuid4().hex[:12]}"
+        style = self._active_draw_style()
+        object_payload = annotation_to_figure_object(
+            {
+                "id": annotation_id,
+                "type": "text",
+                "text": str(text),
+                **geometry,
+                **style,
+            }
+        )
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            result = self._execute_edit(AddObjectCommand(object_payload))
+            if result is None or not result.changed:
+                return False
+            session.select(annotation_id, "annotation_canvas")
+            self._annotation_canvas.select_annotation(annotation_id)
+            self._refresh_object_list(annotation_id)
+            return True
+        width = float(geometry.get("width", 0.0) or 0.0) * self._annotation_canvas._image_width
+        height = float(geometry.get("height", 0.0) or 0.0) * self._annotation_canvas._image_height
+        created = self._annotation_canvas.add_text_annotation(
+            str(text),
+            float(geometry.get("x", 0.0) or 0.0) * self._annotation_canvas._image_width,
+            float(geometry.get("y", 0.0) or 0.0) * self._annotation_canvas._image_height,
+            width=width if width > 0 else None,
+            height=height if height > 0 else None,
+        )
+        return bool(created)
+
     def _on_add_text_annotation(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
@@ -102,6 +188,9 @@ class ChartEditorAnnotationControlsMixin:
             updates = {
                 "font_size": float(self._annotation_font_size_spin.value()),
                 "line_width": float(self._annotation_line_width_spin.value()),
+                "line_style": LINE_STYLE_OPTIONS.get(
+                    self._annotation_line_style_combo.currentText(), "-"
+                ),
                 "alpha": float(self._annotation_alpha_spin.value()),
             }
             if color:
@@ -113,6 +202,9 @@ class ChartEditorAnnotationControlsMixin:
             color=color,
             font_size=self._annotation_font_size_spin.value(),
             line_width=self._annotation_line_width_spin.value(),
+            line_style=LINE_STYLE_OPTIONS.get(
+                self._annotation_line_style_combo.currentText(), "-"
+            ),
             alpha=self._annotation_alpha_spin.value(),
         ):
             return
@@ -227,6 +319,7 @@ class ChartEditorAnnotationControlsMixin:
         annotation = self._annotation_canvas.selected_annotation()
         if not annotation:
             self._clear_annotation_property_controls()
+            self._sync_context_style_bar()
             return
         self._reveal_inspector_for_selection()
         session = self._edit_session_for_adapter()
@@ -314,6 +407,7 @@ class ChartEditorAnnotationControlsMixin:
         self._annotation_marker_combo.setCurrentText("None")
         self._annotation_marker_combo.blockSignals(False)
         self._set_control_value_silently(self._annotation_marker_size_spin, 6.0)
+        self._sync_context_style_bar()
 
     def _on_annotation_canvas_changed(self):
         if self._annotation_canvas is None:

@@ -320,14 +320,15 @@ class ChartEditorSaveMixin:
         self._backup_current_static_source(path)
         style_state = self._collect_style_state()
         state_path, _ = chart_editor_module.save_figure_edit(str(path), style_state)
-        if not self._show_generated_figure_document():
-            self._status_label.setText(tr("EDITOR_NO_DATA"))
-            return
-
-        ext = path.suffix.lower().lstrip(".") or "png"
-        if ext == "jpg":
-            ext = "jpeg"
+        selected_object_id = str(self._selected_figure_object_id or "")
         try:
+            self._selected_figure_object_id = ""
+            if not self._show_generated_figure_document():
+                self._status_label.setText(tr("EDITOR_NO_DATA"))
+                return
+            ext = path.suffix.lower().lstrip(".") or "png"
+            if ext == "jpg":
+                ext = "jpeg"
             self._figure.savefig(
                 str(path),
                 format=ext,
@@ -342,6 +343,9 @@ class ChartEditorSaveMixin:
             )
             self._status_label.setText(tr("EDITOR_NO_DATA"))
             return
+        finally:
+            self._selected_figure_object_id = selected_object_id
+            self._show_generated_figure_document()
 
         asset_spec = chart_editor_module.discover_figure_asset(str(path)).to_dict()
         chart_editor_module.save_figure_asset_spec(str(path), asset_spec)

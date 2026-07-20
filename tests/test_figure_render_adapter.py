@@ -245,6 +245,56 @@ def test_figure_render_adapter_scatter_selection_handles_add_current_point_empha
     assert handle_artists[1].get_offsets().tolist() == [[3.0, 2.0]]
 
 
+def test_figure_render_adapter_adds_four_editable_rectangle_corners():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    handle_artists = adapter.add_selection_handles(
+        ax,
+        {
+            "id": "region",
+            "type": "rectangle",
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0,
+        },
+    )
+
+    assert len(handle_artists) == 1
+    assert handle_artists[0].get_gid() == "pn-selection-handles:region"
+    assert handle_artists[0].get_offsets().tolist() == [
+        [1.0, 2.0],
+        [4.0, 2.0],
+        [4.0, 6.0],
+        [1.0, 6.0],
+    ]
+    assert getattr(handle_artists[0], "_pn_handle_indices", None) == [0, 1, 2, 3]
+
+
+def test_figure_render_adapter_adds_rectangle_handles_from_bounds_geometry():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    handle_artists = adapter.add_selection_handles(
+        ax,
+        {
+            "id": "region",
+            "type": "rectangle",
+            "bounds": {"x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0},
+        },
+    )
+
+    assert handle_artists[0].get_offsets().tolist() == [
+        [1.0, 2.0],
+        [4.0, 2.0],
+        [4.0, 6.0],
+        [1.0, 6.0],
+    ]
+
+
 def test_figure_render_adapter_highlights_selected_image_grid_frame_and_title():
     adapter = FigureRenderAdapter()
 

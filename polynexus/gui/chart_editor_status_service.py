@@ -39,8 +39,16 @@ def build_generated_hover_status_text(label: str, drag_state: dict[str, Any]) ->
 
 def generated_hover_cursor_shape(drag_state: dict[str, Any]):
     kind = str(drag_state.get("kind", "") or "")
-    if kind in {"line", "plot_series"}:
+    if kind in {"line", "curve", "plot_series"}:
         return Qt.CursorShape.CrossCursor
+    if kind == "rectangle":
+        try:
+            handle_index = int(drag_state.get("handle_index", 0))
+        except (TypeError, ValueError):
+            handle_index = 0
+        if handle_index in {0, 2}:
+            return Qt.CursorShape.SizeFDiagCursor
+        return Qt.CursorShape.SizeBDiagCursor
     if kind == "select":
         return Qt.CursorShape.PointingHandCursor
     return Qt.CursorShape.OpenHandCursor

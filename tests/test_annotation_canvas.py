@@ -67,6 +67,492 @@ def test_annotation_canvas_renders_text_overlay(tmp_path):
     app.processEvents()
 
 
+def test_document_mode_text_drag_requests_box_without_local_mutation(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects([])
+    requests = []
+    canvas.text_entry_requested.connect(requests.append)
+
+    assert canvas.set_tool("text") is True
+    assert canvas._finish_mouse_draw(QPointF(10, 8), QPointF(70, 28)) == ""
+
+    assert requests == [
+        {
+            "type": "text",
+            "geometry": {"x": 0.1, "y": 0.16, "width": 0.6, "height": 0.4},
+        }
+    ]
+    assert canvas.annotation_state() == []
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_text_box_applies_persisted_width(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_text_annotation("Peak region", 10, 8, width=60, height=20)
+    item = next(item for item in canvas._scene.items() if item.data(0) == annotation_id)
+
+    assert item.textWidth() == 60
+    assert canvas.selected_annotation()["width"] == 0.6
+    assert canvas.selected_annotation()["height"] == 0.4
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_document_mode_line_drag_requests_canonical_geometry(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects([])
+    requests = []
+    canvas.object_create_requested.connect(requests.append)
+
+    assert canvas.set_tool("line") is True
+    assert canvas._finish_mouse_draw(QPointF(10, 5), QPointF(70, 25)) == ""
+
+    assert requests == [
+        {
+            "type": "line",
+            "geometry": {"x1": 0.1, "y1": 0.1, "x2": 0.7, "y2": 0.5},
+        }
+    ]
+    assert canvas.annotation_state() == []
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_shows_and_clears_drag_preview(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects([])
+    viewport = canvas._view.viewport()
+    start = QPointF(canvas._view.mapFromScene(QPointF(10, 5)))
+    end = QPointF(canvas._view.mapFromScene(QPointF(70, 25)))
+    start_global = QPointF(viewport.mapToGlobal(start.toPoint()))
+    end_global = QPointF(viewport.mapToGlobal(end.toPoint()))
+
+    assert canvas.set_tool("line") is True
+    app.sendEvent(
+        viewport,
+        QMouseEvent(
+            QEvent.MouseButtonPress,
+            start,
+            start,
+            start_global,
+            Qt.LeftButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+        ),
+    )
+    app.sendEvent(
+        viewport,
+        QMouseEvent(
+            QEvent.MouseMove,
+            end,
+            end,
+            end_global,
+            Qt.NoButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+        ),
+    )
+
+    assert canvas._draw_preview_item is not None
+
+    app.sendEvent(
+        viewport,
+        QMouseEvent(
+            QEvent.MouseButtonRelease,
+            end,
+            end,
+            end_global,
+            Qt.LeftButton,
+            Qt.NoButton,
+            Qt.NoModifier,
+        ),
+    )
+    assert canvas._draw_preview_item is None
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_selected_static_curve_control_handle_commits_one_geometry_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [
+            {
+                "id": "curve-1",
+                "type": "curve",
+                "x1": 0.1,
+                "y1": 0.8,
+                "x2": 0.9,
+                "y2": 0.8,
+                "control_x": 0.5,
+                "control_y": 0.1,
+            }
+        ]
+    )
+    assert canvas.select_annotation("curve-1") is True
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+
+    assert canvas._begin_selection_handle_drag(QPointF(50, 5)) is True
+    assert canvas._update_selection_handle_drag(QPointF(45, 20)) is True
+    assert canvas._finish_selection_handle_drag(QPointF(45, 20)) is True
+
+    assert requests == [
+        {
+            "object_id": "curve-1",
+            "source": "annotation_canvas",
+            "geometry": {
+                "x1": 0.1,
+                "y1": 0.8,
+                "x2": 0.9,
+                "y2": 0.8,
+                "control_x": 0.45,
+                "control_y": 0.4,
+            },
+            "object_type": "curve",
+        }
+    ]
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_selected_static_line_endpoint_commits_one_geometry_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [{"id": "line-1", "type": "line", "x1": 0.1, "y1": 0.2, "x2": 0.8, "y2": 0.7}]
+    )
+    assert canvas.select_annotation("line-1") is True
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+
+    assert canvas._begin_selection_handle_drag(QPointF(10, 10)) is True
+    assert canvas._finish_selection_handle_drag(QPointF(25, 20)) is True
+
+    assert requests[-1]["geometry"] == {"x1": 0.25, "y1": 0.4, "x2": 0.8, "y2": 0.7}
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_legacy_static_handle_drag_routes_through_document_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    original = {"id": "legacy-line", "type": "line", "x1": 0.1, "y1": 0.2, "x2": 0.8, "y2": 0.7}
+    canvas.load_annotation_state([original])
+    canvas.set_document_interaction_enabled(True)
+    assert canvas.select_annotation("legacy-line") is True
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+
+    assert canvas._begin_selection_handle_drag(QPointF(10, 10)) is True
+    assert canvas._finish_selection_handle_drag(QPointF(25, 20)) is True
+
+    assert requests == [
+        {
+            "object_id": "legacy-line",
+            "source": "annotation_canvas",
+            "geometry": {"x1": 0.25, "y1": 0.4, "x2": 0.8, "y2": 0.7},
+            "object_type": "line",
+        }
+    ]
+    assert canvas.annotation_state() == [original]
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_legacy_static_delete_routes_through_document_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    original = {"id": "legacy-line", "type": "line", "x1": 0.1, "y1": 0.2, "x2": 0.8, "y2": 0.7}
+    canvas.load_annotation_state([original])
+    canvas.set_document_interaction_enabled(True)
+    assert canvas.select_annotation("legacy-line") is True
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+
+    assert canvas.delete_selected_annotation() is True
+
+    assert requests == [
+        {
+            "object_id": "legacy-line",
+            "source": "annotation_canvas",
+            "operation": "delete",
+        }
+    ]
+    assert canvas.annotation_state() == [original]
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_legacy_static_nudge_routes_through_document_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    original = {"id": "legacy-line", "type": "line", "x1": 0.1, "y1": 0.2, "x2": 0.8, "y2": 0.7}
+    canvas.load_annotation_state([original])
+    canvas.set_document_interaction_enabled(True)
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+
+    assert canvas.move_annotation("legacy-line", 20, 10) is True
+
+    assert requests == [
+        {
+            "object_id": "legacy-line",
+            "source": "annotation_canvas",
+            "geometry": {"x1": 0.3, "y1": 0.4, "x2": 1.0, "y2": 0.9},
+            "object_type": "line",
+        }
+    ]
+    assert canvas.annotation_state() == [original]
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_legacy_static_scene_drag_routes_through_document_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    original = {"id": "legacy-line", "type": "line", "x1": 0.1, "y1": 0.2, "x2": 0.8, "y2": 0.7}
+    canvas.load_annotation_state([original])
+    canvas.set_document_interaction_enabled(True)
+    line_item = next(item for item in canvas._scene.items() if item.data(0) == "legacy-line")
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+
+    line_item.moveBy(20, 10)
+    assert canvas.sync_scene_items_to_state() is True
+
+    assert requests == [
+        {
+            "object_id": "legacy-line",
+            "source": "annotation_canvas",
+            "geometry": {"x1": 0.3, "y1": 0.4, "x2": 1.0, "y2": 0.9},
+            "object_type": "line",
+        }
+    ]
+    assert canvas.annotation_state() == [original]
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_selected_static_rectangle_corner_commits_one_geometry_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [{"id": "region", "type": "rectangle", "x": 0.1, "y": 0.2, "width": 0.4, "height": 0.3}]
+    )
+    assert canvas.select_annotation("region") is True
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+
+    assert canvas._begin_selection_handle_drag(QPointF(10, 10)) is True
+    assert canvas._finish_selection_handle_drag(QPointF(5, 5)) is True
+
+    assert requests[-1]["geometry"] == {"x": 0.05, "y": 0.1, "width": 0.45, "height": 0.4}
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_escape_cancels_static_handle_drag_without_emitting_geometry_request(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    original = {"id": "region", "type": "rectangle", "x": 0.1, "y": 0.2, "width": 0.4, "height": 0.3}
+    canvas.set_document_objects([original])
+    assert canvas.select_annotation("region") is True
+    requests = []
+    canvas.object_edit_requested.connect(requests.append)
+
+    assert canvas._begin_selection_handle_drag(QPointF(10, 10)) is True
+    assert canvas._update_selection_handle_drag(QPointF(5, 5)) is True
+    canvas.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier))
+
+    assert canvas._selection_handle_drag is None
+    assert requests == []
+    assert canvas.annotation_state() == [original]
+    assert canvas._render_adapter.scene_state() == [original]
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_static_rectangle_handle_hover_uses_diagonal_resize_cursor(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    canvas.resize(400, 300)
+    canvas.show()
+    app.processEvents()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [{"id": "region", "type": "rectangle", "x": 0.1, "y": 0.2, "width": 0.4, "height": 0.3}]
+    )
+    assert canvas.select_annotation("region") is True
+    app.processEvents()
+    viewport = canvas._view.viewport()
+    local = QPointF(canvas._view.mapFromScene(QPointF(10, 10)))
+    global_pos = QPointF(viewport.mapToGlobal(local.toPoint()))
+
+    event = QMouseEvent(
+        QEvent.MouseMove,
+        local,
+        local,
+        global_pos,
+        Qt.NoButton,
+        Qt.NoButton,
+        Qt.NoModifier,
+    )
+    assert canvas.eventFilter(viewport, event) is True
+
+    assert viewport.cursor().shape() == Qt.SizeFDiagCursor
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_renders_legacy_dashed_line_style(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_line_annotation(10, 10, 80, 35)
+    assert canvas.update_selected_properties(line_style="--") is True
+    item = next(item for item in canvas._scene.items() if item.data(0) == annotation_id)
+
+    assert item.pen().style() == Qt.DashLine
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_static_canvas_export_omits_transient_preview_and_selection_handles(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [{"id": "region", "type": "rectangle", "x": 0.1, "y": 0.2, "width": 0.4, "height": 0.3}]
+    )
+    assert canvas.select_annotation("region") is True
+    canvas._update_draw_preview(QPointF(20, 5), QPointF(80, 40))
+
+    exported_with_editor_overlays = canvas.render_to_image()
+    canvas._clear_draw_preview()
+    canvas.clear_selection()
+    exported_without_editor_overlays = canvas.render_to_image()
+
+    assert [
+        exported_with_editor_overlays.pixelColor(x, y).rgba()
+        for y in range(exported_with_editor_overlays.height())
+        for x in range(exported_with_editor_overlays.width())
+    ] == [
+        exported_without_editor_overlays.pixelColor(x, y).rgba()
+        for y in range(exported_without_editor_overlays.height())
+        for x in range(exported_without_editor_overlays.width())
+    ]
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
 def test_annotation_canvas_projects_document_objects_without_local_undo(tmp_path):
     app = QApplication.instance() or QApplication([])
     image_path = tmp_path / "source.png"
@@ -659,6 +1145,134 @@ def test_annotation_canvas_scene_selection_updates_selected_annotation(tmp_path)
     scene_item.setSelected(True)
     app.processEvents()
 
+    assert canvas.selected_annotation_id() == annotation_id
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_scene_selected_curve_keeps_handles_after_drag_preview(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [
+            {
+                "id": "curve-1",
+                "type": "curve",
+                "x1": 0.1,
+                "y1": 0.8,
+                "x2": 0.9,
+                "y2": 0.8,
+                "control_x": 0.5,
+                "control_y": 0.1,
+            }
+        ]
+    )
+    canvas._selected_annotation_id = ""
+    scene_item = next(item for item in canvas._scene.items() if item.data(0) == "curve-1")
+    scene_item.setSelected(True)
+    app.processEvents()
+
+    assert canvas.selected_annotation_id() == "curve-1"
+    assert len(canvas._selection_handle_items) == 3
+    assert canvas._begin_selection_handle_drag(QPointF(50, 5)) is True
+    assert canvas._update_selection_handle_drag(QPointF(45, 20)) is True
+
+    assert canvas.selected_annotation_id() == "curve-1"
+    assert len(canvas._selection_handle_items) == 3
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_legacy_curve_without_control_points_remains_selectable(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [
+            {
+                "id": "legacy-curve",
+                "type": "curve",
+                "geometry": {"x1": 0.1, "y1": 0.8, "x2": 0.9, "y2": 0.8},
+            }
+        ]
+    )
+
+    assert canvas.select_annotation("legacy-curve") is True
+    assert len(canvas._selection_handle_items) == 2
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_document_handle_preview_updates_nested_geometry_without_selection_churn(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    curve = {
+        "id": "curve-1",
+        "type": "curve",
+        "geometry": {
+            "x1": 0.1,
+            "y1": 0.8,
+            "x2": 0.9,
+            "y2": 0.8,
+            "control_x": 0.5,
+            "control_y": 0.1,
+        },
+    }
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects([curve])
+    assert canvas.select_annotation("curve-1") is True
+    selection_changes = []
+    canvas.selection_changed.connect(selection_changes.append)
+
+    assert canvas._begin_selection_handle_drag(QPointF(50, 5)) is True
+    assert canvas._update_selection_handle_drag(QPointF(45, 20)) is True
+
+    preview = canvas._render_adapter.scene_state()[0]
+    assert preview["geometry"]["control_x"] == 0.45
+    assert preview["geometry"]["control_y"] == 0.4
+    assert selection_changes == []
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_local_handle_drag_renders_geometry_preview(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_line_annotation(10, 10, 80, 35)
+
+    assert canvas._begin_selection_handle_drag(QPointF(10, 10)) is True
+    assert canvas._update_selection_handle_drag(QPointF(25, 20)) is True
+
+    preview = canvas._draw_preview_item
+    assert preview is not None
+    assert preview.line().p1() == QPointF(25, 20)
+    assert canvas._selection_handle_items[0].rect().center() == QPointF(25, 20)
     assert canvas.selected_annotation_id() == annotation_id
 
     canvas.deleteLater()
