@@ -106,7 +106,33 @@ If unavailable, follow the equivalent procedures in `docs/agent/`.
 - Review the cumulative diff at milestones, not only the last commit.
 - Never auto-push, auto-merge, or auto-deploy.
 
-## 8. Completion report
+## 8. Worktree lifecycle
+
+Agent-created worktrees may be managed automatically only when they are
+registered and agent-owned. Use `scripts/worktree_manager.py` rather than
+deleting worktree directories directly:
+
+```bash
+python scripts/worktree_manager.py register <path-or-branch> --task <task-id>
+python scripts/worktree_manager.py list --json
+python scripts/worktree_manager.py inspect <path-or-branch>
+python scripts/worktree_manager.py finish <path-or-branch> --reason "..."
+python scripts/worktree_manager.py archive <path-or-branch> --reason "..."
+python scripts/worktree_manager.py clean
+python scripts/worktree_manager.py clean --apply
+```
+
+`clean` is dry-run by default and uses a one-hour cooldown. Deletion requires
+all of these independent checks: agent ownership, `pending_cleanup` status, a
+clean Git worktree, matching branch, matching HEAD/finished commit, and an
+elapsed cooldown. Unknown or user-owned worktrees are never auto-deleted.
+
+Dirty worktrees must be archived before removal. Archives are structured as
+`diff.patch`, `untracked_files/`, `task_state.json`, and `reason.md` under the
+user-level worktree archive directory. Branches are retained; automatic push,
+merge, and branch deletion remain forbidden.
+
+## 9. Completion report
 
 Every completed task must summarize:
 

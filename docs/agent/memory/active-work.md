@@ -22,6 +22,11 @@
 
 ## Current checkpoint
 
+- Worktree lifecycle manager added on 2026-07-20. Agent-owned worktrees can be
+  registered, marked pending cleanup only after a clean Git state, archived into
+  replayable WIP bundles, and removed only after branch/HEAD checks and a
+  one-hour cooldown. Existing unregistered worktrees are intentionally retained.
+
 - Unified GUI worktree launcher completed on 2026-07-20. The desktop launch path
   now uses `scripts/launch_gui.py` from the canonical `D:\PolyNexus`
   worktree; the launcher validates the imported package path, exposes branch

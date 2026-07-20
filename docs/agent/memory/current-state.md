@@ -77,6 +77,10 @@ title: Current PolyNexus repository state
   `python scripts/verify.py --changed --types` now passes, including the
   memory check, changed-file checks, focused quality gate, and preprocessing
   optimization gate.
+- Worktree lifecycle management is available through
+  `scripts/worktree_manager.py`. It uses a user-level registry, structured WIP
+  archives, Git state rechecks, and a one-hour cleanup cooldown; existing
+  unregistered worktrees remain protected.
 
 ## Known limitations and next actions
 
