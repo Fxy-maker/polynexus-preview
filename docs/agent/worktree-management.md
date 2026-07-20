@@ -14,9 +14,33 @@ python scripts/worktree_manager.py inspect <path-or-branch>
 python scripts/worktree_manager.py register <path-or-branch> --task <task-id>
 python scripts/worktree_manager.py finish <path-or-branch> --reason "task completed"
 python scripts/worktree_manager.py archive <path-or-branch> --reason "task interrupted"
+python scripts/worktree_manager.py adopt-legacy --json
+python scripts/worktree_manager.py adopt-legacy --apply
 python scripts/worktree_manager.py clean
 python scripts/worktree_manager.py clean --apply
 ```
+
+## One-time legacy adoption
+
+Worktrees created before the current registry existed are intentionally
+unregistered. First inspect eligible candidates without changing anything:
+
+```powershell
+python scripts/worktree_manager.py adopt-legacy --json
+```
+
+To explicitly adopt those candidates:
+
+```powershell
+python scripts/worktree_manager.py adopt-legacy --apply
+```
+
+The command considers only unregistered `codex/*` worktrees below the
+user-level Superpowers PolyNexus directory. Clean candidates become
+`pending_cleanup` with a fresh one-hour cooldown. Dirty candidates are copied
+to a structured WIP archive and marked `legacy_dirty`; they are never deleted
+by the adoption command. `clean --apply` remains the only deletion path, and
+branches are retained.
 
 The manager stores the registry and archives outside the repository, by default
 under:

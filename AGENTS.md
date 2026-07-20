@@ -118,9 +118,17 @@ python scripts/worktree_manager.py list --json
 python scripts/worktree_manager.py inspect <path-or-branch>
 python scripts/worktree_manager.py finish <path-or-branch> --reason "..."
 python scripts/worktree_manager.py archive <path-or-branch> --reason "..."
+python scripts/worktree_manager.py adopt-legacy --json
+python scripts/worktree_manager.py adopt-legacy --apply
 python scripts/worktree_manager.py clean
 python scripts/worktree_manager.py clean --apply
 ```
+
+For old Superpowers worktrees, `adopt-legacy --json` is the read-only report.
+Only an explicit `--apply` adopts eligible unregistered `codex/*` worktrees
+under the user-level Superpowers directory. Clean candidates enter the normal
+one-hour cooldown; dirty candidates are archived and remain ineligible for
+cleanup. Adoption never deletes a worktree or branch.
 
 `clean` is dry-run by default and uses a one-hour cooldown. Deletion requires
 all of these independent checks: agent ownership, `pending_cleanup` status, a

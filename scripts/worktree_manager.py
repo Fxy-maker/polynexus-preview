@@ -100,6 +100,47 @@ def _registry() -> dict[str, dict[str, Any]]:
     return value if isinstance(value, dict) else {}
 
 
+def legacy_candidates(
+    records: list[dict[str, str]],
+    registry: dict[str, dict[str, Any]],
+    current_root: Path,
+    managed_root: Path,
+) -> list[dict[str, str]]:
+    """Select unregistered legacy ``codex/*`` worktrees under ``managed_root``."""
+
+    current = current_root.resolve()
+    managed = managed_root.resolve()
+    candidates: list[dict[str, str]] = []
+    for record in records:
+        path = Path(record.get("worktree", "")).resolve()
+        branch = _branch(record)
+        if path == current or path == managed or managed not in path.parents:
+            continue
+        if not branch.startswith("codex/") or str(path) in registry:
+            continue
+        candidates.append(record)
+    return candidates
+
+
+def adoption_metadata(
+    record: dict[str, str], *, task: str, dirty: bool, now: datetime
+) -> dict[str, Any]:
+    """Build registry metadata for one explicitly adopted legacy worktree."""
+
+    adopted_at = now.isoformat()
+    return {
+        "owner": "agent",
+        "status": "legacy_dirty" if dirty else "pending_cleanup",
+        "task": task,
+        "path": str(Path(record["worktree"]).resolve()),
+        "branch": _branch(record),
+        "finished_commit": "" if dirty else record.get("HEAD", ""),
+        "finished_at": "" if dirty else adopted_at,
+        "legacy_adopted_at": adopted_at,
+        "dirty": dirty,
+    }
+
+
 def _save_registry(value: dict[str, dict[str, Any]]) -> None:
     REGISTRY_ROOT.mkdir(parents=True, exist_ok=True)
     temporary = REGISTRY_PATH.with_suffix(".tmp")
@@ -230,6 +271,55 @@ def _archive(root: Path, target: str, reason: str) -> int:
     return 0
 
 
+def _adopt_legacy(root: Path, apply: bool, as_json: bool, task_prefix: str) -> int:
+    registry = _registry()
+    candidates = legacy_candidates(
+        _git_worktree_records(root), registry, root, REGISTRY_ROOT
+    )
+    items: list[dict[str, Any]] = []
+    for record in candidates:
+        path = Path(record["worktree"]).resolve()
+        dirty = _status(path) if path.is_dir() else True
+        branch = _branch(record)
+        task = f"{task_prefix}{branch.replace('/', '-') }"
+        item: dict[str, Any] = {
+            "path": str(path),
+            "branch": branch,
+            "head": record.get("HEAD", ""),
+            "dirty": dirty,
+            "action": "archive-and-retain" if dirty else "register-pending_cleanup",
+            "applied": False,
+        }
+        if apply:
+            metadata = adoption_metadata(
+                record, task=task, dirty=dirty, now=_now()
+            )
+            registry[str(path)] = metadata
+            _save_registry(registry)
+            if dirty:
+                archive_result = _archive(
+                    root, str(path), "legacy worktree adopted while dirty"
+                )
+                if archive_result != 0:
+                    return archive_result
+            item["applied"] = True
+        items.append(item)
+
+    if as_json:
+        print(json.dumps(items, ensure_ascii=False, indent=2, sort_keys=True))
+    elif not items:
+        print("[worktree] no eligible legacy worktrees")
+    else:
+        print("PATH                                                   BRANCH                 ACTION")
+        for item in items:
+            state = "applied" if item["applied"] else "would-apply"
+            print(
+                f"{item['path'][:52]:<52} {item['branch'][:22]:<22} "
+                f"{state}:{item['action']}"
+            )
+    return 0
+
+
 def _list(root: Path, as_json: bool) -> int:
     registry = _registry()
     items: list[dict[str, Any]] = []
@@ -327,6 +417,12 @@ def main(argv: list[str] | None = None) -> int:
     archive = subparsers.add_parser("archive")
     archive.add_argument("target")
     archive.add_argument("--reason", required=True)
+    adopt = subparsers.add_parser(
+        "adopt-legacy", help="Report or explicitly adopt old Superpowers worktrees."
+    )
+    adopt.add_argument("--apply", action="store_true")
+    adopt.add_argument("--json", action="store_true", dest="as_json")
+    adopt.add_argument("--task-prefix", default="legacy-")
     clean = subparsers.add_parser("clean")
     clean.add_argument("--apply", action="store_true")
     clean.add_argument("--cooldown-hours", type=float, default=1.0)
@@ -344,6 +440,8 @@ def main(argv: list[str] | None = None) -> int:
             return _finish(root, args.target, args.reason)
         if args.command == "archive":
             return _archive(root, args.target, args.reason)
+        if args.command == "adopt-legacy":
+            return _adopt_legacy(root, args.apply, args.as_json, args.task_prefix)
         return _clean(root, args.apply, timedelta(hours=args.cooldown_hours))
     except (OSError, RuntimeError, ValueError) as error:
         print(f"[worktree] {error}", file=sys.stderr)
