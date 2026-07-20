@@ -30,6 +30,9 @@
   inside the pre-existing `LayerTreeItem.setData` compatibility path; this is
   recorded in the task card and is not claimed as resolved by this UI-only
   slice.
+- Local finish sequence is ready: source branch `codex/origin-editor-usable-controls`
+  is at `943411b2`, target `main` is clean at `0086ca40`, and the source-only
+  untracked drafts and diagnostics remain intentionally untouched.
 
 ## Origin-like editor mainline integration — completed 2026-07-20
 
