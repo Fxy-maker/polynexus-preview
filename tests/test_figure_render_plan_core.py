@@ -134,6 +134,70 @@ def test_renderer_supports_arrow_and_rectangle_annotations(built_ir_document):
     assert any(artist.get_gid() == "pn-object:region-peak" for artist in axis.patches)
 
 
+def test_renderer_supports_quadratic_curve_and_tags_artist(render_plan):
+    plan = replace(
+        render_plan,
+        objects=(
+            {
+                "id": "curve-1",
+                "type": "curve",
+                "panel_id": "main",
+                "x1": 0.0,
+                "y1": 0.0,
+                "x2": 1.0,
+                "y2": 0.0,
+                "control_x": 0.5,
+                "control_y": 1.0,
+                "style": {"color": "#0072B2", "line_width": 2.0},
+            },
+        ),
+    )
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+
+    curve_artists = [
+        artist
+        for artist in figure.findobj()
+        if getattr(artist, "get_gid", lambda: None)() == "pn-object:curve-1"
+    ]
+    assert len(curve_artists) == 1
+    assert curve_artists[0].get_path().vertices.tolist() == [
+        [0.0, 0.0],
+        [0.5, 1.0],
+        [1.0, 0.0],
+    ]
+
+
+def test_renderer_uses_midpoint_for_legacy_curve_control_point(render_plan):
+    plan = replace(
+        render_plan,
+        objects=(
+            {
+                "id": "legacy-curve",
+                "type": "curve",
+                "panel_id": "main",
+                "x1": 0.0,
+                "y1": 0.0,
+                "x2": 1.0,
+                "y2": 1.0,
+            },
+        ),
+    )
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+
+    curve_artist = next(
+        artist
+        for artist in figure.findobj()
+        if getattr(artist, "get_gid", lambda: None)() == "pn-object:legacy-curve"
+    )
+    assert curve_artist.get_path().vertices.tolist() == [
+        [0.0, 0.0],
+        [0.5, 0.5],
+        [1.0, 1.0],
+    ]
+
+
 def test_renderer_supports_bar_series_and_panel_legend(render_plan):
     panel = replace(render_plan.panels[0], title="Metrics", show_legend=True)
     plan = replace(

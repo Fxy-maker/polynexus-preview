@@ -46,7 +46,14 @@ class ChartEditorGeneratedDocumentMixin:
         )
 
     def _show_generated_figure_document(self):
-        fig = self._build_generated_figure_document()
+        try:
+            fig = self._build_generated_figure_document()
+        except Exception as exc:
+            logger.warning("Generated figure render failed.", exc_info=True)
+            status_label = getattr(self, "_status_label", None)
+            if status_label is not None:
+                status_label.setText(tr("EDITOR_STATUS_RENDER_FAILED", exc))
+            return False
         if fig is None:
             return False
         self._replace_canvas_figure(fig)
@@ -622,14 +629,28 @@ class ChartEditorGeneratedDocumentMixin:
             from matplotlib.patches import PathPatch
             from matplotlib.path import Path
 
-            x1 = self._optional_float(figure_object.get("x1"))
-            y1 = self._optional_float(figure_object.get("y1"))
-            x2 = self._optional_float(figure_object.get("x2"))
-            y2 = self._optional_float(figure_object.get("y2"))
-            control_x = self._optional_float(figure_object.get("control_x"))
-            control_y = self._optional_float(figure_object.get("control_y"))
-            if None in {x1, y1, x2, y2, control_x, control_y}:
+            bounds = (
+                figure_object.get("bounds", {})
+                if isinstance(figure_object.get("bounds"), dict)
+                else {}
+            )
+
+            def curve_value(name):
+                value = figure_object.get(name)
+                if value is None:
+                    value = bounds.get(name)
+                return self._optional_float(value)
+
+            x1 = curve_value("x1")
+            y1 = curve_value("y1")
+            x2 = curve_value("x2")
+            y2 = curve_value("y2")
+            control_x = curve_value("control_x")
+            control_y = curve_value("control_y")
+            if None in {x1, y1, x2, y2}:
                 return []
+            control_x = float(control_x if control_x is not None else (x1 + x2) / 2.0)
+            control_y = float(control_y if control_y is not None else (y1 + y2) / 2.0)
             patch = PathPatch(
                 Path(
                     [(x1, y1), (control_x, control_y), (x2, y2)],
@@ -1046,6 +1067,7 @@ class ChartEditorGeneratedDocumentMixin:
         self._fit_figure_to_live_canvas(fig)
         self._canvas.figure = fig
         self._figure = fig
+        self._restore_generated_viewport()
         self._connect_canvas_interaction_events()
         self._canvas.draw()
         if old:

@@ -6,6 +6,8 @@ from typing import Any
 
 import numpy as np
 from matplotlib.figure import Figure
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
 
 from .render_plan import FigureRenderPlan, RenderAxis
 
@@ -20,6 +22,21 @@ class MatplotlibFigureRenderer:
 
     def __init__(self) -> None:
         self.last_artist_map: dict[str, list[Any]] = {}
+
+    @staticmethod
+    def supports_object_type(object_type: str) -> bool:
+        """Return whether the shared renderer can draw an object type."""
+
+        return str(object_type or "").strip().lower() in {
+            "plot_series",
+            "heatmap",
+            "image_grid",
+            "line",
+            "arrow",
+            "curve",
+            "rectangle",
+            "text",
+        }
 
     def render(self, plan: FigureRenderPlan, *, dpi: int) -> Figure:
         self.last_artist_map = {}
@@ -92,6 +109,8 @@ class MatplotlibFigureRenderer:
                 artists = self._render_line(axis, figure_object)
             elif object_type == "arrow":
                 artists = self._render_arrow(axis, figure_object)
+            elif object_type == "curve":
+                artists = self._render_curve(axis, figure_object)
             elif object_type == "rectangle":
                 artists = self._render_rectangle(axis, figure_object)
             elif object_type == "text":
@@ -334,6 +353,40 @@ class MatplotlibFigureRenderer:
                 [float(figure_object["y1"]), float(figure_object["y2"])],
                 **kwargs,
             )
+
+    def _render_curve(self, axis, figure_object: dict[str, Any]) -> list[Any]:
+        bounds = figure_object.get("bounds", {})
+        if not isinstance(bounds, dict):
+            bounds = {}
+
+        def coordinate(name: str, fallback: float | None = None) -> float:
+            value = figure_object.get(name)
+            if value is None:
+                value = bounds.get(name)
+            if value is None:
+                value = fallback
+            return float(value)
+
+        x1 = coordinate("x1")
+        y1 = coordinate("y1")
+        x2 = coordinate("x2")
+        y2 = coordinate("y2")
+        control_x = coordinate("control_x", (x1 + x2) / 2.0)
+        control_y = coordinate("control_y", (y1 + y2) / 2.0)
+        style = self._style(figure_object)
+        patch = PathPatch(
+            Path(
+                [(x1, y1), (control_x, control_y), (x2, y2)],
+                [Path.MOVETO, Path.CURVE3, Path.CURVE3],
+            ),
+            fill=False,
+            edgecolor=style.get("color", "#222222"),
+            linewidth=float(style.get("line_width", 1.0)),
+            linestyle=style.get("line_style", "-"),
+            alpha=float(style.get("alpha", 1.0)),
+        )
+        axis.add_patch(patch)
+        return [patch]
 
     def _render_text(self, axis, figure_object: dict[str, Any]) -> list[Any]:
         style = self._style(figure_object)

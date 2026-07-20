@@ -1074,9 +1074,11 @@ class AnnotationCanvas(QWidget):
             return ""
         tool = self._current_tool
         if tool == "text":
+            x = min(start.x(), end.x())
+            y = min(start.y(), end.y())
             geometry = {
-                "x": self._normalize_x(start.x()),
-                "y": self._normalize_y(start.y()),
+                "x": self._normalize_x(x),
+                "y": self._normalize_y(y),
             }
             width = abs(end.x() - start.x())
             height = abs(end.y() - start.y())

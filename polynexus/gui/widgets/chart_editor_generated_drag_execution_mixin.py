@@ -26,6 +26,16 @@ class ChartEditorGeneratedDragExecutionMixin:
         self._remember_generated_pointer_event(event)
         drag_state = self._generated_handle_drag_state
         if not drag_state:
+            draw_start = getattr(self, "_generated_draw_start_data", None)
+            if draw_start is not None:
+                end = self._generated_event_data_coordinates(event)
+                if end is not None:
+                    self._update_generated_draw_preview(
+                        str(getattr(self, "_generated_draw_tool", "select") or "select"),
+                        draw_start,
+                        end,
+                    )
+                return
             self._suppress_generated_hover_until_pointer_move = False
             self._update_generated_canvas_cursor(event)
             return

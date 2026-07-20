@@ -2,6 +2,25 @@
 
 > Last updated: 2026-07-20
 
+## Origin-like editor mainline integration — completed 2026-07-20
+
+- Integrated the tested Origin-like annotation and generated-canvas
+  interactions into `codex/origin-editor-usable-controls` without replacing
+  the current object tree, batch editing, comparison, templates, export, or
+  canonical GUI launcher.
+- Text, line, arrow, curve, and rectangle creation now share direct-canvas
+  preview/commit behavior; static and generated geometry handles remain
+  undoable and export excludes editor overlays.
+- Fixed the release router so generated `plot_series` point edits and legend
+  drags commit through the preview transaction instead of falling back to the
+  legacy document-diff path, which had discarded preview-only changes.
+- Verification evidence: `238 passed` for `tests/test_chart_editor.py`,
+  `120 passed` for the remaining focused Origin-like editor/layout/workflow
+  matrix, `66 passed` for the generated drag/geometry/render/core matrix;
+  Ruff, compileall, and `git diff --check` passed. The prescribed structured
+  verifier is the final repository gate for this checkpoint.
+- Task card: `docs/agent/tasks/2026-07-20-origin-like-editor-mainline-integration.md`.
+
 ## Chart editor workflow completion — completed 2026-07-20
 
 - Completed the remaining editor workflow slice on

@@ -405,6 +405,65 @@ class UpdateGeometryCommand:
         return _success(self.object_id)
 
 
+class UpdatePlotSeriesDataCommand:
+    """Replace editable inline plot-series points as one undoable change."""
+
+    def __init__(
+        self,
+        object_id: str,
+        x_values: Sequence[Any] | None = None,
+        y_values: Sequence[Any] | None = None,
+    ):
+        self.object_id = str(object_id or "").strip()
+        self.x_values = deepcopy(list(x_values or []))
+        self.y_values = deepcopy(list(y_values or []))
+
+    def apply(self, document: dict) -> tuple[EditResult, object]:
+        error, found = _editable_object(document, self.object_id, "geometry")
+        if error is not None:
+            return error, None
+        assert found is not None
+        _, payload = found
+        if not self.x_values or not self.y_values or len(self.x_values) != len(self.y_values):
+            return _failure(
+                "invalid_payload",
+                "Plot-series x and y data must be non-empty and have equal length.",
+                self.object_id,
+            ), None
+        if any(not _valid_number(value) for value in [*self.x_values, *self.y_values]):
+            return _failure(
+                "invalid_geometry",
+                "Plot-series data values must be finite numbers.",
+                self.object_id,
+            ), None
+        previous = deepcopy(payload.get("data"))
+        if previous == {"x": self.x_values, "y": self.y_values}:
+            return _noop(self.object_id, message="Plot-series data is unchanged."), None
+        had_data = "data" in payload
+        payload["data"] = {"x": deepcopy(self.x_values), "y": deepcopy(self.y_values)}
+        return _success(self.object_id), {
+            "had_data": had_data,
+            "data": previous,
+        }
+
+    def revert(self, document: dict, snapshot: object) -> EditResult:
+        found = _find_object(document, self.object_id)
+        if found is None:
+            return _failure(
+                "object_not_found",
+                f"Object '{self.object_id}' was not found.",
+                self.object_id,
+            )
+        if not isinstance(snapshot, dict) or "had_data" not in snapshot:
+            return _failure("invalid_snapshot", "The plot-series data snapshot is invalid.", self.object_id)
+        payload = found[1]
+        if snapshot["had_data"]:
+            payload["data"] = deepcopy(snapshot.get("data"))
+        else:
+            payload.pop("data", None)
+        return _success(self.object_id)
+
+
 class MoveLayerCommand:
     def __init__(
         self,
@@ -1002,6 +1061,7 @@ __all__ = [
     "SetVisibilityCommand",
     "UngroupObjectsCommand",
     "UpdateGeometryCommand",
+    "UpdatePlotSeriesDataCommand",
     "UpdateStyleCommand",
     "UpdateTextCommand",
 ]

@@ -63,7 +63,15 @@ def build_generated_drag_status_text(
 ) -> str:
     kind = str(drag_state.get("kind", "") or "")
     if kind == "plot_series":
-        inline_data = figure_object.get("data", {})
+        preview_geometry = drag_state.get("preview_geometry")
+        inline_data = (
+            {
+                "x": preview_geometry.get("x_values", []),
+                "y": preview_geometry.get("y_values", []),
+            }
+            if isinstance(preview_geometry, dict)
+            else figure_object.get("data", {})
+        )
         if not isinstance(inline_data, dict):
             return ""
         point_index = int(drag_state.get("handle_index", 0) or 0)
@@ -76,25 +84,34 @@ def build_generated_drag_status_text(
         return tr("EDITOR_DRAG_STATUS_POINT", label, x_value, y_value)
     if kind == "line":
         handle_index = int(drag_state.get("handle_index", 0) or 0)
+        geometry = drag_state.get("preview_geometry")
+        source = geometry if isinstance(geometry, dict) else figure_object
         if handle_index <= 0:
-            x_value = number_formatter(figure_object.get("x1"))
-            y_value = number_formatter(figure_object.get("y1"))
+            x_value = number_formatter(source.get("x1"))
+            y_value = number_formatter(source.get("y1"))
         else:
-            x_value = number_formatter(figure_object.get("x2"))
-            y_value = number_formatter(figure_object.get("y2"))
+            x_value = number_formatter(source.get("x2"))
+            y_value = number_formatter(source.get("y2"))
         return tr("EDITOR_DRAG_STATUS_ENDPOINT", label, x_value, y_value)
     if kind == "line-body":
+        geometry = drag_state.get("preview_geometry")
+        source = geometry if isinstance(geometry, dict) else figure_object
         return tr(
             "EDITOR_DRAG_STATUS_LINE",
             label,
-            number_formatter(figure_object.get("x1")),
-            number_formatter(figure_object.get("y1")),
-            number_formatter(figure_object.get("x2")),
-            number_formatter(figure_object.get("y2")),
+            number_formatter(source.get("x1")),
+            number_formatter(source.get("y1")),
+            number_formatter(source.get("x2")),
+            number_formatter(source.get("y2")),
         )
     if kind == "legend":
         style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
-        bbox_to_anchor = style.get("bbox_to_anchor")
+        preview_geometry = drag_state.get("preview_geometry")
+        bbox_to_anchor = (
+            preview_geometry.get("bbox_to_anchor")
+            if isinstance(preview_geometry, dict)
+            else style.get("bbox_to_anchor")
+        )
         if not isinstance(bbox_to_anchor, (list, tuple)) or len(bbox_to_anchor) < 2:
             return ""
         return tr(

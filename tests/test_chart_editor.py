@@ -6232,7 +6232,7 @@ def test_chart_editor_object_list_delete_key_deletes_selected_annotation(tmp_pat
 
     editor = ChartEditor()
     editor.set_source_figure(str(figure_path))
-    annotation_id = editor._annotation_canvas.add_text_annotation("Remove from list", 20, 10)
+    editor._annotation_canvas.add_text_annotation("Remove from list", 20, 10)
     editor._object_list.setCurrentRow(1)
 
     delete_event = QKeyEvent(QEvent.KeyPress, Qt.Key_Delete, Qt.NoModifier)
@@ -9263,11 +9263,13 @@ def test_chart_editor_real_canvas_escape_cancels_line_body_drag_and_restores_val
             buttons=Qt.LeftButton,
         )
 
-        moved_line = editor._figure_document["objects"][0]
-        assert moved_line["x1"] == 1.75
-        assert moved_line["y1"] == 0.75
-        assert moved_line["x2"] == 2.75
-        assert moved_line["y2"] == 4.25
+        preview_geometry = editor._generated_handle_drag_state["preview_geometry"]
+        assert preview_geometry["x1"] == 1.75
+        assert preview_geometry["y1"] == 0.75
+        assert preview_geometry["x2"] == 2.75
+        assert preview_geometry["y2"] == 4.25
+        assert editor._figure_document["objects"][0]["x1"] == 1.5
+        assert editor._figure_document["objects"][0]["y1"] == 0.25
         assert round(editor._annotation_x_spin.value(), 4) == 1.75
         assert round(editor._annotation_y_spin.value(), 4) == 0.75
         assert round(editor._annotation_w_spin.value(), 4) == 2.75
@@ -9379,11 +9381,13 @@ def test_chart_editor_real_canvas_escape_cancels_line_endpoint_drag_and_restores
             buttons=Qt.LeftButton,
         )
 
-        moved_line = editor._figure_document["objects"][0]
-        assert moved_line["x1"] == 1.75
-        assert moved_line["y1"] == 0.5
-        assert moved_line["x2"] == 2.5
-        assert moved_line["y2"] == 3.75
+        preview_geometry = editor._generated_handle_drag_state["preview_geometry"]
+        assert preview_geometry["x1"] == 1.75
+        assert preview_geometry["y1"] == 0.5
+        assert preview_geometry["x2"] == 2.5
+        assert preview_geometry["y2"] == 3.75
+        assert editor._figure_document["objects"][0]["x1"] == 1.5
+        assert editor._figure_document["objects"][0]["y1"] == 0.25
         assert round(editor._annotation_x_spin.value(), 4) == 1.75
         assert round(editor._annotation_y_spin.value(), 4) == 0.5
         assert round(editor._annotation_w_spin.value(), 4) == 2.5
@@ -14585,9 +14589,13 @@ def test_chart_editor_escape_key_cancels_generated_scatter_drag_and_restores_val
         move_event.inaxes = axes
         editor._on_generated_mouse_move(move_event)
 
-        moved_series = editor._figure_document["objects"][0]
-        assert moved_series["data"]["x"] == [1.0, 2.35, 3.0]
-        assert moved_series["data"]["y"] == [1.0, 2.45, 2.0]
+        preview_geometry = editor._generated_handle_drag_state["preview_geometry"]
+        assert preview_geometry["x_values"] == [1.0, 2.35, 3.0]
+        assert preview_geometry["y_values"] == [1.0, 2.45, 2.0]
+        assert editor._figure_document["objects"][0]["data"] == {
+            "x": [1.0, 2.0, 3.0],
+            "y": [1.0, 3.0, 2.0],
+        }
         moved_scatter_artists = [
             artist
             for artist in editor._figure.axes[0].collections
@@ -14715,9 +14723,13 @@ def test_chart_editor_real_canvas_escape_cancels_marker_line_series_drag_and_res
             buttons=Qt.LeftButton,
         )
 
-        moved_series = editor._figure_document["objects"][0]
-        assert moved_series["data"]["x"] == [1.0, 2.35, 3.0]
-        assert moved_series["data"]["y"] == [1.0, 2.45, 2.0]
+        preview_geometry = editor._generated_handle_drag_state["preview_geometry"]
+        assert preview_geometry["x_values"] == [1.0, 2.35, 3.0]
+        assert preview_geometry["y_values"] == [1.0, 2.45, 2.0]
+        assert editor._figure_document["objects"][0]["data"] == {
+            "x": [1.0, 2.0, 3.0],
+            "y": [1.0, 3.0, 2.0],
+        }
         assert round(editor._annotation_x_spin.value(), 4) == 2.35
         assert round(editor._annotation_y_spin.value(), 4) == 2.45
 
@@ -14959,9 +14971,13 @@ def test_chart_editor_real_canvas_escape_cancels_line_series_drag_and_restores_v
             buttons=Qt.LeftButton,
         )
 
-        moved_series = editor._figure_document["objects"][0]
-        assert moved_series["data"]["x"] == [1.0, 2.35, 3.0]
-        assert moved_series["data"]["y"] == [1.0, 2.45, 2.0]
+        preview_geometry = editor._generated_handle_drag_state["preview_geometry"]
+        assert preview_geometry["x_values"] == [1.0, 2.35, 3.0]
+        assert preview_geometry["y_values"] == [1.0, 2.45, 2.0]
+        assert editor._figure_document["objects"][0]["data"] == {
+            "x": [1.0, 2.0, 3.0],
+            "y": [1.0, 3.0, 2.0],
+        }
         assert round(editor._annotation_x_spin.value(), 4) == 2.35
         assert round(editor._annotation_y_spin.value(), 4) == 2.45
 

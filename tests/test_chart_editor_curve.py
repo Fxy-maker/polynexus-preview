@@ -27,6 +27,27 @@ def test_generated_editor_exposes_curve_tool():
     _app().processEvents()
 
 
+def test_generated_tool_rejects_object_before_document_mutation(monkeypatch):
+    _app()
+    editor = ChartEditor()
+    editor._generated_document_mode = True
+    editor._figure_document = {"mode": "object", "objects": []}
+    editor._reset_edit_session_from_document(editor._figure_document)
+    monkeypatch.setattr(
+        "polynexus.gui.widgets.chart_editor_generated_interaction_mixin.MatplotlibFigureRenderer.supports_object_type",
+        staticmethod(lambda _object_type: False),
+    )
+
+    assert editor._add_generated_tool_object("curve", (0.0, 0.0), (1.0, 1.0)) is False
+    assert editor._figure_document["objects"] == []
+    assert editor._edit_session.history == ()
+    assert "curve" in editor._status_label.text()
+    assert editor._generated_draw_tool == "select"
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
 def test_generated_renderer_draws_bezier_curve():
     _app()
     editor = ChartEditor()
@@ -295,7 +316,8 @@ def test_generated_line_drag_coalesces_multiple_moves_into_one_undo_command():
 
     assert editor._apply_generated_line_handle_drag("line-1", 1, 3.5, 2.5)
     assert editor._apply_generated_line_handle_drag("line-1", 1, 4.0, 3.0)
-    assert len(session.history) == 2
+    assert len(session.history) == 0
+    assert editor._generated_handle_drag_state["preview_geometry"]["x2"] == 4.0
 
     assert editor._commit_generated_drag(drag_state) is True
     assert len(session.history) == 1
@@ -326,7 +348,9 @@ def test_generated_rectangle_bounds_preview_updates_and_commits_nested_geometry(
     editor._activate_generated_drag_state(drag_state)
 
     assert editor._apply_generated_rectangle_handle_drag("region", 2, 4.0, 3.0, preview=True)
-    assert editor._generated_figure_object_by_id("region")["bounds"]["width"] == 3.0
+    assert session.history == ()
+    assert editor._generated_handle_drag_state["preview_geometry"]["width"] == 3.0
+    assert editor._generated_figure_object_by_id("region")["bounds"]["width"] == 2.0
     assert editor._commit_generated_drag(drag_state) is True
     assert len(session.history) == 1
 

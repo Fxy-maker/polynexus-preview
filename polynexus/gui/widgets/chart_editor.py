@@ -53,6 +53,7 @@ from .chart_editor_generated_drag_execution_mixin import (
 from .chart_editor_generated_document_mixin import (
     ChartEditorGeneratedDocumentMixin,
 )
+from .chart_editor_generated_preview_mixin import ChartEditorGeneratedPreviewMixin
 from .chart_editor_generated_hover_mixin import ChartEditorGeneratedHoverMixin
 from .chart_editor_generated_hit_testing_mixin import (
     ChartEditorGeneratedHitTestingMixin,
@@ -175,6 +176,7 @@ class ChartEditor(
     ChartEditorGeneratedDragMixin,
     ChartEditorGeneratedDragExecutionMixin,
     ChartEditorGeneratedDocumentMixin,
+    ChartEditorGeneratedPreviewMixin,
     ChartEditorGeneratedGeometryMixin,
     ChartEditorGeneratedHoverMixin,
     ChartEditorGeneratedHitTestingMixin,
@@ -212,6 +214,11 @@ class ChartEditor(
         self._generated_draw_tool = "select"
         self._generated_draw_start_data = None
         self._generated_draw_start_display = None
+        self._generated_draw_preview_artists = []
+        self._generated_handle_preview_artists = []
+        self._generated_viewport_snapshot = None
+        self._generated_draw_preview_start = None
+        self._generated_draw_preview_start_display = None
         self._static_file_mode = False
         self._current_colours = list(COLOUR_SCHEMES["Default Blue"])
         self._title_size = 14
@@ -1175,6 +1182,8 @@ class ChartEditor(
         self._drag_status_text = ""
         self._last_deleted_figure_object_id = ""
         self._generated_handle_drag_state = None
+        self._clear_generated_draw_preview(redraw=False)
+        self._generated_viewport_snapshot = None
         self._clear_selected_generated_plot_series_handle_context()
         self._reset_generated_handle_memory()
         self._figure_render_adapter.clear_hover_highlight()
@@ -1324,6 +1333,8 @@ class ChartEditor(
         self._drag_status_text = ""
         self._last_deleted_figure_object_id = ""
         self._generated_handle_drag_state = None
+        self._clear_generated_draw_preview(redraw=False)
+        self._generated_viewport_snapshot = None
         self._clear_selected_generated_plot_series_handle_context()
         self._reset_generated_handle_memory()
         self._figure_render_adapter.clear_hover_highlight()

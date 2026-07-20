@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
 from matplotlib.collections import PathCollection
 
-from ...core.figure_edit_commands import UpdateGeometryCommand, UpdateStyleCommand
+from ...core.figure_edit_commands import (
+    UpdateGeometryCommand,
+    UpdateStyleCommand,
+)
 from ...core.figure_object_store import FigureObjectStore
 
 GENERATED_LEGEND_HIT_SLOP_PX = 6.0
@@ -89,6 +94,19 @@ class ChartEditorGeneratedGeometryMixin:
             updates = {"x1": float(x_value), "y1": float(y_value)}
         else:
             updates = {"x2": float(x_value), "y2": float(y_value)}
+        drag_state = self._generated_drag_preview_mode(object_id)
+        if drag_state is not None:
+            original_object = drag_state.get("original_object")
+            original_geometry = self._generated_persisted_geometry(
+                original_object if isinstance(original_object, dict) else figure_object
+            )
+            preview_geometry = deepcopy(original_geometry)
+            preview_geometry.update(updates)
+            return self._update_generated_drag_preview(
+                object_id,
+                preview_geometry,
+                object_type="line",
+            )
         session = self._edit_session_for_adapter()
         if session is not None:
             session.select(object_id, "generated-canvas")
@@ -125,6 +143,19 @@ class ChartEditorGeneratedGeometryMixin:
         if key_pair is None:
             return False
         updates = {key_pair[0]: float(x_value), key_pair[1]: float(y_value)}
+        drag_state = self._generated_drag_preview_mode(object_id)
+        if drag_state is not None:
+            original_object = drag_state.get("original_object")
+            original_geometry = self._generated_persisted_geometry(
+                original_object if isinstance(original_object, dict) else figure_object
+            )
+            preview_geometry = deepcopy(original_geometry)
+            preview_geometry.update(updates)
+            return self._update_generated_drag_preview(
+                object_id,
+                preview_geometry,
+                object_type="curve",
+            )
         session = self._edit_session_for_adapter()
         if session is None:
             return bool(self._generated_store().update_geometry(object_id, updates))
@@ -170,6 +201,22 @@ class ChartEditorGeneratedGeometryMixin:
             "width": abs(dragged_x - opposite_x),
             "height": abs(dragged_y - opposite_y),
         }
+        drag_state = self._generated_drag_preview_mode(object_id)
+        if drag_state is not None:
+            original_object = drag_state.get("original_object")
+            original_bounds = (
+                original_object.get("bounds", {})
+                if isinstance(original_object, dict)
+                and isinstance(original_object.get("bounds"), dict)
+                else original_object
+            )
+            preview_geometry = deepcopy(original_bounds or bounds)
+            preview_geometry.update(updates)
+            return self._update_generated_drag_preview(
+                object_id,
+                preview_geometry,
+                object_type="rectangle",
+            )
         if preview:
             preview_object = self._generated_figure_object_by_id(object_id)
             if not isinstance(preview_object, dict):
@@ -227,6 +274,19 @@ class ChartEditorGeneratedGeometryMixin:
                 "x2": round(float(origin_x2) + dx, 12),
                 "y2": round(float(origin_y2) + dy, 12),
             }
+        drag_state = self._generated_drag_preview_mode(object_id)
+        if drag_state is not None:
+            original_object = drag_state.get("original_object")
+            original_geometry = self._generated_persisted_geometry(
+                original_object if isinstance(original_object, dict) else figure_object
+            )
+            preview_geometry = deepcopy(original_geometry)
+            preview_geometry.update(updates)
+            return self._update_generated_drag_preview(
+                object_id,
+                preview_geometry,
+                object_type="line",
+            )
         session = self._edit_session_for_adapter()
         if session is not None:
             session.select(object_id, "generated-canvas")
@@ -253,6 +313,36 @@ class ChartEditorGeneratedGeometryMixin:
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "plot_series":
             return False
+        drag_state = self._generated_drag_preview_mode(object_id)
+        if drag_state is not None:
+            original_object = drag_state.get("original_object")
+            source_object = (
+                original_object if isinstance(original_object, dict) else figure_object
+            )
+            inline_data = source_object.get("data", {})
+            if isinstance(inline_data, dict):
+                x_values = list(inline_data.get("x", inline_data.get("x_values", [])) or [])
+                y_values = list(inline_data.get("y", inline_data.get("y_values", [])) or [])
+            else:
+                x_values, y_values = self._generated_object_xy(
+                    source_object,
+                    self._load_generated_document_data_sources(),
+                )
+            point_index = int(handle_index or 0)
+            if (
+                not x_values
+                or not y_values
+                or point_index < 0
+                or point_index >= min(len(x_values), len(y_values))
+            ):
+                return False
+            x_values[point_index] = float(x_value)
+            y_values[point_index] = float(y_value)
+            return self._update_generated_drag_preview(
+                object_id,
+                {"x_values": x_values, "y_values": y_values},
+                object_type="plot_series",
+            )
         inline_data = self._materialize_generated_plot_series_inline_data(figure_object)
         if not isinstance(inline_data, dict):
             return False
@@ -377,6 +467,33 @@ class ChartEditorGeneratedGeometryMixin:
         if not figure_object or str(figure_object.get("type", "") or "") != "legend":
             return False
         next_anchor = [round(float(anchor_x), 12), round(float(anchor_y), 12)]
+        drag_state = self._generated_drag_preview_mode(object_id)
+        if drag_state is not None:
+            original_object = drag_state.get("original_object")
+            original_style = (
+                original_object.get("style", {})
+                if isinstance(original_object, dict)
+                and isinstance(original_object.get("style"), dict)
+                else {}
+            )
+            preview_geometry = {
+                "bbox_to_anchor": next_anchor,
+                "loc": "upper left",
+                "original_style": deepcopy(original_style),
+            }
+            set_value = getattr(self, "_set_control_value_silently", None)
+            if callable(set_value):
+                x_spin = getattr(self, "_annotation_x_spin", None)
+                y_spin = getattr(self, "_annotation_y_spin", None)
+                if x_spin is not None:
+                    set_value(x_spin, next_anchor[0])
+                if y_spin is not None:
+                    set_value(y_spin, next_anchor[1])
+            return self._update_generated_drag_preview(
+                object_id,
+                preview_geometry,
+                object_type="legend",
+            )
         session = self._edit_session_for_adapter()
         if session is not None:
             session.select(object_id, "generated-canvas")

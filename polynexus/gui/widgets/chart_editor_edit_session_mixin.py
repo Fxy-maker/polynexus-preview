@@ -33,6 +33,11 @@ class ChartEditorEditSessionMixin:
             "curve",
             "rectangle",
         }:
+            clear_preview = getattr(self, "_clear_generated_draw_preview", None)
+            if callable(clear_preview):
+                clear_preview(redraw=False)
+            if getattr(self, "_generated_draw_start_data", None) is not None:
+                self._generated_viewport_snapshot = None
             self._generated_draw_tool = tool
             self._generated_draw_start_data = None
             self._sync_context_style_bar()
@@ -59,8 +64,12 @@ class ChartEditorEditSessionMixin:
             getattr(self, "_generated_draw_start_data", None) is not None
             or getattr(self, "_generated_draw_start_display", None) is not None
         ):
+            clear_preview = getattr(self, "_clear_generated_draw_preview", None)
+            if callable(clear_preview):
+                clear_preview(redraw=False)
             self._generated_draw_start_data = None
             self._generated_draw_start_display = None
+            self._generated_viewport_snapshot = None
             self._generated_draw_tool = "select"
             sync_context = getattr(self, "_sync_context_style_bar", None)
             if callable(sync_context):

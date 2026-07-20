@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from ...core.figure_edit_commands import ReplaceObjectCommand, UpdateGeometryCommand
+from ...core.figure_edit_commands import (
+    ReplaceObjectCommand,
+    UpdateGeometryCommand,
+    UpdatePlotSeriesDataCommand,
+    UpdateStyleCommand,
+)
 
 
 class ChartEditorGeneratedDragMixin:
@@ -39,6 +44,7 @@ class ChartEditorGeneratedDragMixin:
         if session is not None and "history_length" not in drag_state:
             drag_state["history_length"] = len(session.history)
         drag_state.setdefault("activated", False)
+        self._capture_generated_viewport()
         self._clear_generated_hover_highlight(redraw=False)
         self._generated_handle_drag_state = drag_state
         self._last_generated_pick_signature = None
@@ -56,6 +62,61 @@ class ChartEditorGeneratedDragMixin:
         if not isinstance(drag_state, dict):
             return False
         drag_kind = str(drag_state.get("kind", "") or "")
+        object_id = str(drag_state.get("object_id", "") or "")
+        session = self._edit_session_for_adapter()
+        if drag_kind == "plot_series":
+            preview_geometry = drag_state.get("preview_geometry")
+            if (
+                session is None
+                or not isinstance(preview_geometry, dict)
+                or not isinstance(preview_geometry.get("x_values"), list)
+                or not isinstance(preview_geometry.get("y_values"), list)
+            ):
+                return False
+            history_length = int(drag_state.get("history_length", len(session.history)) or 0)
+            while len(session.history) > history_length:
+                undone = session.undo()
+                if not undone.changed:
+                    return False
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(
+                UpdatePlotSeriesDataCommand(
+                    object_id,
+                    preview_geometry["x_values"],
+                    preview_geometry["y_values"],
+                )
+            )
+            if result is None or not result.changed:
+                return False
+            self._show_generated_figure_document()
+            self._clear_generated_drag_preview()
+            self._generated_viewport_snapshot = None
+            return True
+        if drag_kind == "legend":
+            preview_geometry = drag_state.get("preview_geometry")
+            if session is None or not isinstance(preview_geometry, dict):
+                return False
+            anchor = preview_geometry.get("bbox_to_anchor")
+            if not isinstance(anchor, list) or len(anchor) < 2:
+                return False
+            history_length = int(drag_state.get("history_length", len(session.history)) or 0)
+            while len(session.history) > history_length:
+                undone = session.undo()
+                if not undone.changed:
+                    return False
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(
+                UpdateStyleCommand(
+                    object_id,
+                    {"loc": "upper left", "bbox_to_anchor": anchor},
+                )
+            )
+            if result is None or not result.changed:
+                return False
+            self._show_generated_figure_document()
+            self._clear_generated_drag_preview()
+            self._generated_viewport_snapshot = None
+            return True
         geometry_keys = {
             "line": ("x1", "y1", "x2", "y2"),
             "line-body": ("x1", "y1", "x2", "y2"),
@@ -64,17 +125,21 @@ class ChartEditorGeneratedDragMixin:
         }.get(drag_kind)
         if geometry_keys is None:
             return True
-        object_id = str(drag_state.get("object_id", "") or "")
         original_object = drag_state.get("original_object")
         current_object = self._generated_figure_object_by_id(object_id)
         if not object_id or not isinstance(original_object, dict) or not isinstance(
             current_object, dict
         ):
             return False
+        preview_geometry = drag_state.get("preview_geometry")
         current_geometry = (
-            current_object.get("bounds", {})
-            if isinstance(current_object.get("bounds"), dict)
-            else current_object
+            preview_geometry
+            if isinstance(preview_geometry, dict)
+            else (
+                current_object.get("bounds", {})
+                if isinstance(current_object.get("bounds"), dict)
+                else current_object
+            )
         )
         original_geometry = (
             original_object.get("bounds", {})
@@ -87,7 +152,6 @@ class ChartEditorGeneratedDragMixin:
             if key in current_geometry
             and current_geometry.get(key) != original_geometry.get(key)
         }
-        session = self._edit_session_for_adapter()
         if session is None:
             return True
         history_length = int(drag_state.get("history_length", len(session.history)) or 0)
@@ -98,6 +162,8 @@ class ChartEditorGeneratedDragMixin:
         if not updates:
             self._sync_editor_from_session()
             self._show_generated_figure_document()
+            self._clear_generated_drag_preview()
+            self._generated_viewport_snapshot = None
             return True
         session.select(object_id, "generated-canvas")
         result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
@@ -105,6 +171,8 @@ class ChartEditorGeneratedDragMixin:
             return False
         self._sync_generated_object_property_controls(object_id)
         self._show_generated_figure_document()
+        self._clear_generated_drag_preview()
+        self._generated_viewport_snapshot = None
         return True
 
     def _cancel_generated_drag(self):
@@ -112,6 +180,7 @@ class ChartEditorGeneratedDragMixin:
         if not drag_state:
             return False
         self._generated_handle_drag_state = None
+        self._clear_generated_drag_preview()
         session = self._edit_session_for_adapter()
         history_length = int(
             drag_state.get("history_length", len(session.history) if session else 0) or 0
@@ -133,6 +202,7 @@ class ChartEditorGeneratedDragMixin:
             self._show_generated_figure_document()
             self._refresh_object_list(self._selected_figure_object_id)
             self._sync_generated_object_property_controls(self._selected_figure_object_id)
+        self._generated_viewport_snapshot = None
         if self._selected_figure_object_id:
             self._suppress_generated_hover_until_pointer_move = True
         if not self._refresh_generated_feedback_from_last_pointer():

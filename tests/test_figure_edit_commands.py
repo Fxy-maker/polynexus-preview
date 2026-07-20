@@ -9,6 +9,7 @@ from polynexus.core.figure_edit_commands import (
     SetLockCommand,
     SetVisibilityCommand,
     UpdateGeometryCommand,
+    UpdatePlotSeriesDataCommand,
     UpdateStyleCommand,
     UpdateTextCommand,
 )
@@ -127,6 +128,28 @@ def test_update_geometry_execute_noop_undo_redo_and_locked_failure():
     failed = session.execute(UpdateGeometryCommand("background", {"x": 1.0}))
     assert failed.changed is False
     assert failed.error_code == "locked"
+
+
+def test_update_plot_series_data_execute_undo_redo():
+    document = _document()
+    document["objects"].append(
+        {"id": "points", "type": "plot_series", "data": {"x": [1.0], "y": [2.0]}}
+    )
+    session = EditSession(document)
+
+    command = UpdatePlotSeriesDataCommand("points", [1.0, 2.0], [2.0, 3.0])
+    assert session.execute(command).changed
+    assert session.document["objects"][-1]["data"] == {
+        "x": [1.0, 2.0],
+        "y": [2.0, 3.0],
+    }
+    assert session.undo().changed
+    assert session.document["objects"][-1]["data"] == {"x": [1.0], "y": [2.0]}
+    assert session.redo().changed
+    assert session.document["objects"][-1]["data"] == {
+        "x": [1.0, 2.0],
+        "y": [2.0, 3.0],
+    }
 
 
 def test_move_layer_execute_noop_undo_redo_and_background_failure():

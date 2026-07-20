@@ -435,6 +435,76 @@ def test_generated_shape_tools_add_objects_after_canvas_drag(tmp_path, app, tool
     app.processEvents()
 
 
+def test_generated_shape_drag_preview_keeps_canvas_and_history_stable(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.set_tool("rectangle")
+    axis = editor._figure.axes[0]
+    original_figure = editor._figure
+    original_limits = (axis.get_xlim(), axis.get_ylim())
+
+    def event(name, x_value, y_value):
+        event = MouseEvent(
+            name,
+            editor._canvas,
+            *axis.transData.transform((x_value, y_value)),
+            button=1,
+        )
+        event.inaxes = axis
+        event.xdata = x_value
+        event.ydata = y_value
+        return event
+
+    editor._on_generated_button_press(event("button_press_event", 0.2, 0.2))
+    editor._on_generated_mouse_move(event("motion_notify_event", 0.4, 0.5))
+    editor._on_generated_mouse_move(event("motion_notify_event", 0.8, 0.7))
+
+    assert editor._figure is original_figure
+    assert editor._generated_draw_preview_artists
+    assert editor._edit_session.history == ()
+    assert axis.get_xlim() == original_limits[0]
+    assert axis.get_ylim() == original_limits[1]
+
+    editor._on_generated_button_release(event("button_release_event", 0.8, 0.7))
+    assert len(editor._edit_session.history) == 1
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_drag_previews_before_opening_inline_editor(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.set_tool("text")
+    axis = editor._figure.axes[0]
+
+    def event(name, x_value, y_value):
+        event = MouseEvent(
+            name,
+            editor._canvas,
+            *axis.transData.transform((x_value, y_value)),
+            button=1,
+        )
+        event.inaxes = axis
+        event.xdata = x_value
+        event.ydata = y_value
+        return event
+
+    editor._on_generated_button_press(event("button_press_event", 0.2, 0.2))
+    editor._on_generated_mouse_move(event("motion_notify_event", 0.6, 0.5))
+    assert editor._generated_draw_preview_artists
+    assert editor._pending_inline_text is None
+
+    editor._on_generated_button_release(event("button_release_event", 0.6, 0.5))
+    assert not editor._generated_draw_preview_artists
+    assert editor._pending_inline_text is not None
+    assert not any(
+        item.get("type") == "text" for item in editor._figure_document.get("objects", [])
+    )
+
+    editor._cancel_inline_text_entry()
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_formal_generated_document_accepts_text_tool(built_ir_document, tmp_path, app):
     from polynexus.core.figure_document import load_figure_document
 

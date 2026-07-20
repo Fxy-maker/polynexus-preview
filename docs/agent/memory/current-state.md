@@ -17,6 +17,10 @@ title: Current PolyNexus repository state
   `codex/origin-editor-usable-controls`, at the same merged commit. Its
   pre-existing untracked `.superpowers/` and Origin Lite design drafts are left
   untouched.
+- The 2026-07-20 Origin-like editor integration checkpoint is part of the
+  canonical branch finish sequence. It preserves the current workflow/editor
+  surface while adding the transplanted direct-canvas annotation interactions
+  and stabilized preview/commit drag transactions.
 - The desktop GUI launch boundary is now `D:\PolyNexus`. The repository-local
   `scripts/launch_gui.py` prepends that root to `PYTHONPATH`, probes the imported
   `polynexus.__file__`, and reports branch/commit identity before starting the
@@ -63,6 +67,9 @@ title: Current PolyNexus repository state
   44 passed.
 - GUI-startup regression checks: 3 passed.
 - ChartEditor regression suite: 238 passed.
+- Origin-like editor integration matrix: 358 focused editor/layout/workflow
+  tests passed in stable Qt batches, plus 66 generated drag/geometry/render/core
+  tests.
 - Native Origin source/style fidelity suite: 16 passed.
 - Native Origin label-display follow-up: 18 passed in the combined focused
   Origin suite.
@@ -91,7 +98,8 @@ title: Current PolyNexus repository state
   named Y columns, a `log10` Y axis, and clean Unicode axis labels. The
   temporary `.opju` remains locked until Origin closes; this is expected
   application ownership.
-- The local mainline merge is complete at `583709ad`; an explicit push decision
-  remains pending.
+- The Origin-like editor integration is local-only and is advanced through the
+  repository maintenance finish sequence; an explicit push decision remains
+  pending.
 - Reconcile the older active-work entries in `active-work.md` against the
   current branch/PR state before using them as authoritative.

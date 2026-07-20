@@ -5,6 +5,7 @@ from uuid import uuid4
 from PySide6.QtCore import QRect, Qt
 
 from ...core.figure_edit_commands import AddObjectCommand
+from ...core.figures.renderer import MatplotlibFigureRenderer
 from ..i18n import tr
 
 
@@ -191,18 +192,25 @@ class ChartEditorGeneratedInteractionMixin:
                     self._sync_generated_object_property_controls(object_id)
             return
         drag_kind = str(drag_state.get("kind", "") or "")
-        if drag_kind in {"line", "line-body", "curve", "rectangle"}:
+        if drag_kind in {
+            "line",
+            "line-body",
+            "curve",
+            "rectangle",
+            "plot_series",
+            "legend",
+        }:
             committed = self._commit_generated_drag(drag_state)
         else:
             committed = self._commit_generated_drag_transaction(drag_state)
         if not committed:
             self._restore_generated_drag_snapshot(drag_state)
+            self._clear_generated_drag_preview()
             self._show_generated_figure_document()
+            self._generated_viewport_snapshot = None
             return
         self._persist_generated_document()
-        if not committed:
-            self._show_generated_figure_document()
-            self.figure_changed.emit()
+        self.figure_changed.emit()
 
     def _on_generated_figure_leave(self, _event):
         self._last_generated_pointer_state = None
@@ -224,10 +232,12 @@ class ChartEditorGeneratedInteractionMixin:
                 float(getattr(event, "x", 0.0) or 0.0),
                 float(getattr(event, "y", 0.0) or 0.0),
             )
+            self._begin_generated_draw_preview(data, self._generated_draw_start_display)
             self._status_label.setText(tr("EDITOR_DRAW_TEXT_HINT"))
             return True
         if tool in {"line", "arrow", "curve", "rectangle"}:
             self._generated_draw_start_data = data
+            self._begin_generated_draw_preview(data)
             self._status_label.setText(tr("EDITOR_DRAW_OBJECT_HINT"))
             return True
         return False
@@ -239,8 +249,11 @@ class ChartEditorGeneratedInteractionMixin:
         self._generated_draw_start_display = None
         end = self._generated_event_data_coordinates(event)
         if start is None or end is None:
+            self._clear_generated_draw_preview()
+            self._generated_viewport_snapshot = None
             self.set_tool("select")
             return
+        self._clear_generated_draw_preview(redraw=False)
         if self._generated_draw_tool == "text":
             self._select_generated_object("", "text-entry")
             self.set_tool("select")
@@ -251,6 +264,7 @@ class ChartEditorGeneratedInteractionMixin:
             )
             return
         if start == end:
+            self._generated_viewport_snapshot = None
             self.set_tool("select")
             return
         self._add_generated_tool_object(self._generated_draw_tool, start, end)
@@ -269,7 +283,7 @@ class ChartEditorGeneratedInteractionMixin:
     def _begin_generated_text_box(self, start, end, rect: QRect) -> None:
         x1, y1 = (float(start[0]), float(start[1]))
         x2, y2 = (float(end[0]), float(end[1]))
-        geometry = {"x": x1, "y": y1}
+        geometry = {"x": min(x1, x2), "y": min(y1, y2)}
         width = abs(x2 - x1)
         height = abs(y2 - y1)
         if width > 0 and height > 0:
@@ -297,6 +311,11 @@ class ChartEditorGeneratedInteractionMixin:
         )
 
     def _add_generated_tool_object(self, tool, start, end, *, text=""):
+        if not MatplotlibFigureRenderer.supports_object_type(tool):
+            self._status_label.setText(tr("EDITOR_STATUS_UNSUPPORTED_OBJECT", tool))
+            self.set_tool("select")
+            self._generated_viewport_snapshot = None
+            return False
         x1, y1 = (float(start[0]), float(start[1]))
         x2, y2 = (float(end[0]), float(end[1]))
         object_id = f"annotation-{uuid4().hex[:12]}"
@@ -369,6 +388,6 @@ class ChartEditorGeneratedInteractionMixin:
         if result is None or not result.changed:
             return False
         self.set_tool("select")
-        self._show_generated_figure_document()
         self._select_generated_object(object_id, "canvas")
+        self._generated_viewport_snapshot = None
         return True

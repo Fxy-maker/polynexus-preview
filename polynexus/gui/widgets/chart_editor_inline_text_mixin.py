@@ -32,6 +32,7 @@ class ChartEditorInlineTextMixin:
         editor.editingFinished.connect(self._commit_inline_text_entry)
         self._inline_text_editor = editor
         self._pending_inline_text = None
+        self._inline_text_commit_in_progress = False
         return editor
 
     def _begin_inline_text_entry(self, payload: dict, *, host: QWidget, rect: QRect) -> None:
@@ -50,14 +51,27 @@ class ChartEditorInlineTextMixin:
 
     def _commit_inline_text_entry(self, text: str | None = None) -> bool:
         payload = self._pending_inline_text
-        if not isinstance(payload, dict):
+        if (
+            not isinstance(payload, dict)
+            or getattr(self, "_inline_text_commit_in_progress", False)
+        ):
             return False
         value = self._inline_text_editor.text() if text is None else text
+        if not str(value or "").strip():
+            self._cancel_inline_text_entry()
+            return False
+        self._inline_text_commit_in_progress = True
+        try:
+            committed = bool(
+                self._commit_inline_text_payload(payload, str(value).strip())
+            )
+        finally:
+            self._inline_text_commit_in_progress = False
+        if not committed:
+            return False
         self._pending_inline_text = None
         self._inline_text_editor.hide()
-        if not str(value or "").strip():
-            return False
-        return bool(self._commit_inline_text_payload(payload, str(value).strip()))
+        return True
 
     def _cancel_inline_text_entry(self) -> bool:
         had_pending_text = isinstance(getattr(self, "_pending_inline_text", None), dict)
