@@ -218,7 +218,7 @@ class ChartEditorGeneratedInteractionMixin:
                 data,
                 text=text,
             )
-        if tool in {"line", "arrow", "rectangle"}:
+        if tool in {"line", "arrow", "curve", "rectangle"}:
             self._generated_draw_start_data = data
             self._status_label.setText(tr("EDITOR_DRAW_OBJECT_HINT"))
             return True
@@ -260,6 +260,7 @@ class ChartEditorGeneratedInteractionMixin:
                 "text": "Text",
                 "line": "Line",
                 "arrow": "Arrow",
+                "curve": "Curve",
                 "rectangle": "Rectangle",
             }[tool],
             "visible": True,
@@ -289,6 +290,15 @@ class ChartEditorGeneratedInteractionMixin:
             )
         elif tool in {"line", "arrow"}:
             payload.update(x1=x1, y1=y1, x2=x2, y2=y2)
+        elif tool == "curve":
+            payload.update(
+                x1=x1,
+                y1=y1,
+                x2=x2,
+                y2=y2,
+                control_x=(x1 + x2) / 2.0,
+                control_y=(y1 + y2) / 2.0 + abs(x2 - x1) * 0.2,
+            )
         else:
             payload.update(
                 x=min(x1, x2),

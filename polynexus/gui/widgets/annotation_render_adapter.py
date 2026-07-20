@@ -14,7 +14,7 @@ class AnnotationRenderAdapter:
     """Render annotation payloads without owning persistence or edit history."""
 
     _PROJECTED_ROLE = 1
-    _SUPPORTED_TYPES = {"text", "line", "arrow", "rectangle", "highlight"}
+    _SUPPORTED_TYPES = {"text", "line", "arrow", "curve", "rectangle", "highlight"}
 
     def __init__(self, scene: QGraphicsScene):
         self._scene = scene
@@ -113,6 +113,21 @@ class AnnotationRenderAdapter:
                 item = self._scene.createItemGroup([line_item, head_item])
             else:
                 item = line_item
+            self._configure_item(item, payload)
+            return item
+
+        if kind == "curve":
+            path = QPainterPath(QPointF(self._x(payload, "x1"), self._y(payload, "y1")))
+            path.quadTo(
+                QPointF(
+                    self._x(payload, "control_x"),
+                    self._y(payload, "control_y"),
+                ),
+                QPointF(self._x(payload, "x2"), self._y(payload, "y2")),
+            )
+            pen = QPen(QColor(self._color(payload, "#D55E00")))
+            pen.setWidthF(max(0.1, self._number(payload, "line_width", 2.0)))
+            item = self._scene.addPath(path, pen)
             self._configure_item(item, payload)
             return item
         return None

@@ -53,6 +53,8 @@ class ChartEditorGeneratedSelectionMixin:
         sync_batch = getattr(self, "_sync_batch_action_buttons", None)
         if callable(sync_batch):
             sync_batch()
+        if self._selected_figure_object_id:
+            self._reveal_inspector_for_selection()
         session = self._edit_session_for_adapter()
         figure_object = self._generated_figure_object_by_id(self._selected_figure_object_id)
         if session is not None and figure_object is not None and not self._session_has_object(

@@ -76,6 +76,7 @@ from .chart_editor_generated_selection_mixin import (
 from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
 from .chart_editor_layout_mixin import ChartEditorLayoutMixin
 from .chart_editor_layer_widget import LayerTreeWidget
+from .chart_editor_inspector_drawer_mixin import ChartEditorInspectorDrawerMixin
 from .chart_editor_edit_session_mixin import ChartEditorEditSessionMixin
 from .chart_editor_export_preset_mixin import ChartEditorExportPresetMixin
 from .chart_editor_origin_mixin import ChartEditorOriginMixin
@@ -91,16 +92,22 @@ from ...core.figure_document import (
     save_figure_document,  # noqa: F401 - runtime API consumed by save mixin
 )
 from ...core.figure_assets import discover_figure_asset
-from ...core.figure_edit_commands import ReplaceDocumentCommand, UpdateStyleCommand
-from ...core.figure_style_bundle import apply_style_bundle, capture_style_bundle
-from ...core.figure_template_service import (
+from ...core.figure_edit_commands import (  # noqa: F401 - runtime API for editor mixins
+    ReplaceDocumentCommand,
+    UpdateStyleCommand,
+)
+from ...core.figure_style_bundle import (  # noqa: F401 - runtime API for editor mixins
+    apply_style_bundle,
+    capture_style_bundle,
+)
+from ...core.figure_template_service import (  # noqa: F401 - runtime API for template mixin
     apply_template,
     list_templates,
     load_template,
     save_template,
     template_from_document,
 )
-from ...core.figure_export_preset_service import (
+from ...core.figure_export_preset_service import (  # noqa: F401 - runtime API for export-preset mixin
     list_export_presets,
     load_export_preset,
     save_export_preset,
@@ -151,6 +158,7 @@ GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
 
 
 class ChartEditor(
+    ChartEditorInspectorDrawerMixin,
     ChartEditorLayoutMixin,
     ChartEditorBatchEditMixin,
     ChartEditorEditSessionMixin,
@@ -275,6 +283,8 @@ class ChartEditor(
         self._canvas.setFocusPolicy(Qt.StrongFocus)
         self._canvas.installEventFilter(self)
         self._toolbar = NavToolbar(self._canvas, self)
+        self._editor_toolbar = self._build_editor_toolbar()
+        self._editor_toolbar.setOrientation(Qt.Vertical)
         self._source_preview = FigureFilePreview(show_edit_button=False)
         self._source_preview.setVisible(False)
         self._annotation_canvas = AnnotationCanvas()
@@ -282,16 +292,28 @@ class ChartEditor(
         self._annotation_canvas.tool_changed.connect(self._sync_annotation_tool_buttons)
         self._annotation_canvas.selection_changed.connect(self._sync_annotation_property_controls)
         self._annotation_canvas.annotations_changed.connect(self._on_annotation_canvas_changed)
+
+        self._canvas_tool_shell = QWidget()
+        canvas_tool_layout = QHBoxLayout(self._canvas_tool_shell)
+        canvas_tool_layout.setContentsMargins(0, 0, 0, 0)
+        canvas_tool_layout.setSpacing(0)
+        canvas_tool_layout.addWidget(self._editor_toolbar, 0, Qt.AlignTop)
+
+        canvas_stack = QWidget()
+        canvas_stack_layout = QVBoxLayout(canvas_stack)
+        canvas_stack_layout.setContentsMargins(0, 0, 0, 0)
+        canvas_stack_layout.addWidget(self._canvas, 1)
+        canvas_stack_layout.addWidget(self._source_preview, 1)
+        canvas_stack_layout.addWidget(self._annotation_canvas, 1)
+        canvas_tool_layout.addWidget(canvas_stack, 1)
+
         figure_layout.addWidget(self._toolbar)
-        figure_layout.addWidget(self._canvas, 1)
-        figure_layout.addWidget(self._source_preview, 1)
-        figure_layout.addWidget(self._annotation_canvas, 1)
+        figure_layout.addWidget(self._canvas_tool_shell, 1)
         split.addWidget(figure_panel)
 
         self._editor_header = self._build_editor_header()
         self._editor_status_bar = self._build_editor_status_bar()
-        inspector_panel = self._build_panel()
-        inspector_panel.setMinimumWidth(280)
+        inspector_panel = self._build_inspector_drawer(self._build_panel())
         split.addWidget(inspector_panel)
         split.setSizes([760, 320])
         split.setStretchFactor(0, 1)
@@ -523,6 +545,34 @@ class ChartEditor(
         annotation_geometry_layout.addWidget(self._annotation_h_spin)
         form.addRow(tr("EDITOR_OBJECT_GEOMETRY_LABEL"), annotation_geometry)
         self._set_geometry_controls_enabled(False)
+
+        self._annotation_curve_control = QWidget()
+        annotation_curve_control_layout = QHBoxLayout(self._annotation_curve_control)
+        annotation_curve_control_layout.setContentsMargins(0, 0, 0, 0)
+        annotation_curve_control_layout.setSpacing(6)
+        self._annotation_curve_control_x_label = QLabel("X")
+        annotation_curve_control_layout.addWidget(self._annotation_curve_control_x_label)
+        self._annotation_curve_control_x_spin = QDoubleSpinBox()
+        self._annotation_curve_control_x_spin.setRange(0.0, 1.0)
+        self._annotation_curve_control_x_spin.setDecimals(4)
+        self._annotation_curve_control_x_spin.setSingleStep(0.01)
+        self._annotation_curve_control_x_spin.valueChanged.connect(
+            self._on_annotation_curve_control_changed
+        )
+        annotation_curve_control_layout.addWidget(self._annotation_curve_control_x_spin)
+        self._annotation_curve_control_y_label = QLabel("Y")
+        annotation_curve_control_layout.addWidget(self._annotation_curve_control_y_label)
+        self._annotation_curve_control_y_spin = QDoubleSpinBox()
+        self._annotation_curve_control_y_spin.setRange(0.0, 1.0)
+        self._annotation_curve_control_y_spin.setDecimals(4)
+        self._annotation_curve_control_y_spin.setSingleStep(0.01)
+        self._annotation_curve_control_y_spin.valueChanged.connect(
+            self._on_annotation_curve_control_changed
+        )
+        annotation_curve_control_layout.addWidget(self._annotation_curve_control_y_spin)
+        self._annotation_curve_control_label = QLabel(tr("EDITOR_CURVE_CONTROL_LABEL"))
+        form.addRow(self._annotation_curve_control_label, self._annotation_curve_control)
+        self._set_curve_control_enabled(False)
 
         form = style_form
         preset_row = QWidget()
@@ -958,6 +1008,7 @@ class ChartEditor(
                 (self._object_list, tr("EDITOR_OBJECT_LIST_LABEL")),
                 (self._selected_object_label, tr("EDITOR_SELECTED_OBJECT_LABEL")),
                 (self._annotation_x_spin.parentWidget(), tr("EDITOR_OBJECT_GEOMETRY_LABEL")),
+                (self._annotation_curve_control, tr("EDITOR_CURVE_CONTROL_LABEL")),
                 (self._style_preset_combo.parentWidget(), tr("EDITOR_STYLE_PRESET_LABEL")),
                 (self._title_edit, tr("EDITOR_FIELD_TITLE")),
                 (self._xlabel_edit, tr("EDITOR_FIELD_XLABEL")),

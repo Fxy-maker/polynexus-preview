@@ -21,6 +21,17 @@ class ChartEditorRenderMixin:
             return
         timer.start()
 
+    def _fit_figure_to_live_canvas(self, figure) -> None:
+        canvas = getattr(self, "_canvas", None)
+        if figure is None or canvas is None:
+            return
+        width = int(canvas.width())
+        height = int(canvas.height())
+        if width <= 0 or height <= 0:
+            return
+        dpi = float(getattr(figure, "dpi", self._dpi) or self._dpi)
+        figure.set_size_inches(width / dpi, height / dpi, forward=False)
+
     def _render(self, *_):
         if self._fig_generator is None:
             if self._generated_document_mode:
@@ -126,6 +137,7 @@ class ChartEditorRenderMixin:
         import matplotlib.pyplot as plt
 
         old = self._canvas.figure
+        self._fit_figure_to_live_canvas(fig)
         self._canvas.figure = fig
         self._figure = fig
         self._connect_canvas_interaction_events()

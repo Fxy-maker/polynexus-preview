@@ -26,6 +26,7 @@ class ChartEditorEditSessionMixin:
             "text",
             "line",
             "arrow",
+            "curve",
             "rectangle",
         }:
             self._generated_draw_tool = tool
@@ -38,8 +39,8 @@ class ChartEditorEditSessionMixin:
                 text_control.setEnabled(tool == "text")
                 if tool == "text":
                     text_control.setFocus()
-            draw_style_enabled = tool in {"text", "line", "arrow", "rectangle"}
-            line_style_enabled = tool in {"line", "arrow", "rectangle"}
+            draw_style_enabled = tool in {"text", "line", "arrow", "curve", "rectangle"}
+            line_style_enabled = tool in {"line", "arrow", "curve", "rectangle"}
             for name, enabled in (
                 ("_annotation_color_edit", draw_style_enabled),
                 ("_annotation_font_size_spin", tool == "text"),

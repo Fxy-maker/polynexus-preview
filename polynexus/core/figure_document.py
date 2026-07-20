@@ -388,6 +388,7 @@ def _annotation_name(kind: str) -> str:
         "text": "Text",
         "arrow": "Arrow",
         "line": "Line",
+        "curve": "Curve",
         "rectangle": "Rectangle",
         "highlight": "Highlight",
     }.get(kind, "Annotation")

@@ -49,6 +49,7 @@ _KNOWN_TYPES = {
     "image_background",
     "text",
     "line",
+    "curve",
     "arrow",
     "rectangle",
     "highlight",
@@ -100,6 +101,16 @@ def capabilities_for(object_payload: object) -> EditCapabilities:
     }
 
     if object_type == "line":
+        base.update(
+            style=True,
+            color=True,
+            line_width=True,
+            line_style=True,
+            geometry=True,
+            deletable=True,
+            reorderable=True,
+        )
+    elif object_type == "curve":
         base.update(
             style=True,
             color=True,

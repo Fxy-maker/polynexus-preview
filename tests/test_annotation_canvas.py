@@ -97,6 +97,38 @@ def test_annotation_canvas_projects_document_objects_without_local_undo(tmp_path
     app.processEvents()
 
 
+def test_annotation_canvas_projects_curve_document_object(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_document_objects(
+        [
+            {
+                "id": "curve-1",
+                "type": "curve",
+                "x1": 0.1,
+                "y1": 0.8,
+                "x2": 0.9,
+                "y2": 0.8,
+                "control_x": 0.5,
+                "control_y": 0.1,
+                "style": {"color": "#0072B2", "line_width": 2.0},
+            }
+        ]
+    )
+
+    assert canvas.annotation_state()[0]["type"] == "curve"
+    assert any(item.data(0) == "curve-1" for item in canvas._scene.items())
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
 def test_annotation_canvas_flushes_drag_as_object_edit_request(tmp_path):
     app = QApplication.instance() or QApplication([])
     image_path = tmp_path / "source.png"
@@ -206,6 +238,178 @@ def test_annotation_canvas_supports_line_arrow_and_highlight(tmp_path):
     assert annotations[2]["width"] == 0.4
     assert annotations[2]["height"] == 0.4
     assert not rendered.isNull()
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_supports_bezier_curve(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    curve_id = canvas.add_curve_annotation(10, 40, 90, 40, 50, 5)
+
+    curve = canvas.selected_annotation()
+    assert curve["id"] == curve_id
+    assert curve["type"] == "curve"
+    assert curve["x1"] == 0.1
+    assert curve["y2"] == 0.8
+    assert curve["control_x"] == 0.5
+    assert curve["control_y"] == 0.1
+    assert any(item.data(0) == curve_id for item in canvas._scene.items())
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_curve_tool_creates_and_updates_control_geometry(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    assert canvas.set_tool("curve") is True
+    assert canvas._finish_mouse_draw(QPointF(10, 40), QPointF(90, 40))
+    curve = canvas.selected_annotation()
+    assert curve["type"] == "curve"
+
+    assert canvas.update_selected_geometry(control_x=0.4, control_y=0.2) is True
+    updated = canvas.selected_annotation()
+    assert updated["control_x"] == 0.4
+    assert updated["control_y"] == 0.2
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_moves_curve_with_its_control_point(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill()
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    curve_id = canvas.add_curve_annotation(10, 40, 80, 35, 45, 5)
+
+    assert canvas.move_annotation(curve_id, 10, -5) is True
+    curve = canvas.selected_annotation()
+
+    assert curve["x1"] == 0.2
+    assert curve["y1"] == 0.7
+    assert curve["x2"] == 0.9
+    assert curve["y2"] == 0.6
+    assert curve["control_x"] == 0.55
+    assert curve["control_y"] == 0.0
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_syncs_a_dragged_curve_with_its_control_point(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill()
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    curve_id = canvas.add_curve_annotation(10, 40, 80, 35, 45, 5)
+    item = next(item for item in canvas._scene.items() if item.data(0) == curve_id)
+    item.setPos(QPointF(10, -5))
+
+    assert canvas.sync_scene_items_to_state() is True
+    curve = canvas.selected_annotation()
+
+    assert curve["x1"] == 0.2
+    assert curve["y1"] == 0.7
+    assert curve["x2"] == 0.9
+    assert curve["y2"] == 0.6
+    assert curve["control_x"] == 0.55
+    assert curve["control_y"] == 0.0
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_copies_curve_with_an_offset_control_point(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill()
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    curve_id = canvas.add_curve_annotation(10, 40, 80, 35, 45, 5)
+    assert canvas.copy_selected_annotation() is True
+
+    copied_id = canvas.paste_annotation()
+    copied = canvas.selected_annotation()
+
+    assert copied_id != curve_id
+    assert copied["x1"] == 0.15
+    assert copied["y1"] == 0.9
+    assert copied["x2"] == 0.85
+    assert copied["y2"] == 0.8
+    assert copied["control_x"] == 0.5
+    assert copied["control_y"] == 0.2
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_crops_curve_with_control_geometry(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill()
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    curve_id = canvas.add_curve_annotation(20, 40, 80, 35, 50, 5)
+
+    assert canvas.crop_to_rect(10, 0, 80, 50) is True
+    curve = next(item for item in canvas.annotation_state() if item["id"] == curve_id)
+
+    assert curve["x1"] == 0.125
+    assert curve["y1"] == 0.8
+    assert curve["x2"] == 0.875
+    assert curve["y2"] == 0.7
+    assert curve["control_x"] == 0.5
+    assert curve["control_y"] == 0.1
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
+def test_annotation_canvas_styles_curve_line_width(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill()
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.add_curve_annotation(10, 40, 80, 35, 45, 5)
+
+    assert canvas.update_selected_properties(color="#0072B2", line_width=3.5) is True
+    curve = canvas.selected_annotation()
+
+    assert curve["color"] == "#0072B2"
+    assert curve["line_width"] == 3.5
 
     canvas.deleteLater()
     app.processEvents()

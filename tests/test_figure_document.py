@@ -227,6 +227,33 @@ def test_line_annotation_bounds_include_all_geometry_and_legacy_values():
     assert obj["y2"] == "0.8"
 
 
+def test_curve_annotation_normalizes_control_geometry():
+    obj = annotation_to_figure_object(
+        {
+            "id": "ann-curve-bounds",
+            "type": "curve",
+            "x1": 0.1,
+            "y1": 0.2,
+            "x2": 0.8,
+            "y2": 0.9,
+            "control_x": 0.4,
+            "control_y": 0.05,
+            "line_width": 2.0,
+        }
+    )
+
+    assert obj["type"] == "curve"
+    assert obj["name"] == "Curve"
+    assert obj["bounds"] == {
+        "x1": 0.1,
+        "y1": 0.2,
+        "x2": 0.8,
+        "y2": 0.9,
+        "control_x": 0.4,
+        "control_y": 0.05,
+    }
+
+
 def test_annotation_bounds_skip_nonconvertible_geometry_and_empty_types():
     invalid = annotation_to_figure_object(
         {

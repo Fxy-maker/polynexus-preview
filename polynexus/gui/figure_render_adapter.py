@@ -78,7 +78,7 @@ class FigureRenderAdapter:
 
         handle_points: list[tuple[float, float]] = []
         handle_indices: list[int] = []
-        if object_type == "line":
+        if object_type in {"line", "curve"}:
             x1 = self._optional_float(figure_object.get("x1"))
             y1 = self._optional_float(figure_object.get("y1"))
             x2 = self._optional_float(figure_object.get("x2"))
@@ -89,6 +89,12 @@ class FigureRenderAdapter:
             if x2 is not None and y2 is not None:
                 handle_points.append((x2, y2))
                 handle_indices.append(1)
+            if object_type == "curve":
+                control_x = self._optional_float(figure_object.get("control_x"))
+                control_y = self._optional_float(figure_object.get("control_y"))
+                if control_x is not None and control_y is not None:
+                    handle_points.append((control_x, control_y))
+                    handle_indices.append(2)
         elif object_type == "plot_series" and chart_kind not in {"heatmap", "bar", "barh", "image_grid"}:
             plot_series_points = self._plot_series_indexed_handle_points(figure_object)
             marker = str(style.get("marker", "") or "")
@@ -125,7 +131,7 @@ class FigureRenderAdapter:
         setattr(handles, "_pn_handle_indices", list(handle_indices))
         overlay_artists = [handles]
         if (
-            object_type in {"line", "plot_series"}
+            object_type in {"line", "curve", "plot_series"}
             and selected_handle_index is not None
             and len(handle_points) > 1
         ):

@@ -51,6 +51,90 @@ def test_editor_keeps_canvas_usable_at_narrow_window_width():
 
     assert editor._editor_splitter.sizes()[0] >= 220
 
+    editor.close()
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_inspector_drawer_restores_canvas_width_after_manual_close():
+    app = _app()
+    editor = ChartEditor()
+    editor.resize(1100, 720)
+    editor.show()
+    app.processEvents()
+
+    expanded_canvas_width = editor._canvas.width()
+    editor._set_inspector_collapsed(True, manual=True)
+    app.processEvents()
+
+    assert editor._inspector_panel.isHidden()
+    assert editor._canvas.width() > expanded_canvas_width
+
+    editor._set_inspector_collapsed(False)
+    app.processEvents()
+
+    assert not editor._inspector_panel.isHidden()
+    assert editor._canvas.width() < expanded_canvas_width + 1
+    editor.close()
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_header_inspector_toggle_controls_drawer():
+    app = _app()
+    editor = ChartEditor()
+    editor.resize(1100, 720)
+    editor.show()
+    app.processEvents()
+
+    editor._btn_header_inspector.click()
+    app.processEvents()
+    assert editor._inspector_panel.isHidden()
+
+    editor._btn_header_inspector.click()
+    app.processEvents()
+    assert not editor._inspector_panel.isHidden()
+    editor.close()
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_figure_size_change_keeps_live_canvas_pixel_size():
+    app = _app()
+    editor = ChartEditor()
+    editor.set_figure_generator(lambda axis: axis.plot([0, 1], [0, 1]))
+    editor.resize(1100, 720)
+    editor.show()
+    app.processEvents()
+
+    before = editor._canvas.get_width_height()
+    editor._figsize_cb.setCurrentText("Small (4in)")
+    app.processEvents()
+
+    assert editor._canvas.get_width_height() == before
+    editor._set_editor_dirty(False)
+    editor.close()
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_selection_opens_drawer_unless_user_closed_it_manually():
+    app = _app()
+    editor = ChartEditor()
+    editor.resize(1100, 720)
+    editor.show()
+    app.processEvents()
+
+    editor._set_inspector_collapsed(True)
+    editor._on_generated_selection_changed("missing", "canvas")
+    app.processEvents()
+    assert not editor._inspector_panel.isHidden()
+
+    editor._set_inspector_collapsed(True, manual=True)
+    editor._on_generated_selection_changed("missing", "canvas")
+    app.processEvents()
+    assert editor._inspector_panel.isHidden()
+    editor.close()
     editor.deleteLater()
     app.processEvents()
 
@@ -59,11 +143,14 @@ def test_context_toolbar_has_stable_actions_and_retranslates():
     _app()
     editor = ChartEditor()
 
+    assert editor._editor_toolbar.orientation() == Qt.Vertical
+    assert editor._editor_toolbar.parentWidget() is editor._canvas_tool_shell
     assert editor._editor_toolbar.action_ids() == [
         "select",
         "text",
         "line",
         "arrow",
+        "curve",
         "rectangle",
         "undo",
         "redo",

@@ -18,7 +18,20 @@ from .figure_edit_capabilities import (
 
 
 _UNSET = object()
-_GEOMETRY_KEYS = {"x", "y", "width", "height", "x1", "y1", "x2", "y2", "left", "top"}
+_GEOMETRY_KEYS = {
+    "x",
+    "y",
+    "width",
+    "height",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "control_x",
+    "control_y",
+    "left",
+    "top",
+}
 _STYLE_CAPABILITIES = {
     "color": "color",
     "line_width": "line_width",

@@ -65,6 +65,17 @@ class ChartEditorGeneratedDragExecutionMixin:
                 changed = self._apply_generated_line_handle_drag(
                     object_id, handle_index, x_value, y_value
                 )
+            elif drag_kind == "curve":
+                coordinates = self._generated_event_data_coordinates(event)
+                if coordinates is None:
+                    return
+                x_value, y_value = coordinates
+                changed = self._apply_generated_curve_handle_drag(
+                    object_id,
+                    int(drag_state.get("handle_index", 0) or 0),
+                    x_value,
+                    y_value,
+                )
             elif drag_kind == "line-body":
                 coordinates = self._generated_event_data_coordinates(event)
                 if coordinates is None:

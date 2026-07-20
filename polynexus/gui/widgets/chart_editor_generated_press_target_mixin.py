@@ -17,6 +17,16 @@ class ChartEditorGeneratedPressTargetMixin:
                 "handle_index": int(handle_hit),
                 "dirty": False,
             }
+        if object_type == "curve":
+            handle_hit = self._generated_point_handle_hit(event, object_id)
+            if handle_hit is None:
+                return None
+            return {
+                "object_id": str(object_id or ""),
+                "kind": "curve",
+                "handle_index": int(handle_hit),
+                "dirty": False,
+            }
         if object_type == "plot_series":
             handle_hit = self._generated_point_handle_hit(event, object_id)
             if handle_hit is None:
@@ -45,6 +55,16 @@ class ChartEditorGeneratedPressTargetMixin:
                     "dirty": False,
                 }
             return self._generated_line_drag_start(event, object_id)
+        if object_type == "curve":
+            handle_hit = self._generated_point_handle_hit(event, object_id)
+            if handle_hit is None:
+                return None
+            return {
+                "object_id": str(object_id or ""),
+                "kind": "curve",
+                "handle_index": int(handle_hit),
+                "dirty": False,
+            }
         if object_type == "plot_series":
             hit_info = self._generated_plot_series_drag_hit(event, object_id, figure_object)
             if hit_info is None:

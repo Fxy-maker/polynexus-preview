@@ -48,6 +48,7 @@ class AnnotationCanvas(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._view)
+        self._view.installEventFilter(self)
         self._view.viewport().installEventFilter(self)
 
     def load_image(self, path: str) -> bool:
@@ -149,6 +150,37 @@ class AnnotationCanvas(QWidget):
     def add_arrow_annotation(self, x1: float, y1: float, x2: float, y2: float) -> str:
         return self._add_segment_annotation("arrow", x1, y1, x2, y2)
 
+    def add_curve_annotation(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        control_x: float,
+        control_y: float,
+    ) -> str:
+        if self._image_width <= 0 or self._image_height <= 0:
+            return ""
+        self._push_undo()
+        annotation_id = f"ann-{uuid4().hex[:12]}"
+        annotation = {
+            "id": annotation_id,
+            "type": "curve",
+            "x1": self._normalize_x(x1),
+            "y1": self._normalize_y(y1),
+            "x2": self._normalize_x(x2),
+            "y2": self._normalize_y(y2),
+            "control_x": self._normalize_x(control_x),
+            "control_y": self._normalize_y(control_y),
+            "color": "#D55E00",
+            "line_width": 2.0,
+        }
+        self._annotations.append(annotation)
+        self._draw_annotation(annotation)
+        self.select_annotation(annotation_id)
+        self.annotations_changed.emit()
+        return annotation_id
+
     def add_highlight_annotation(self, x: float, y: float, width: float, height: float) -> str:
         if self._image_width <= 0 or self._image_height <= 0:
             return ""
@@ -171,7 +203,7 @@ class AnnotationCanvas(QWidget):
         return annotation_id
 
     def set_tool(self, tool: str) -> bool:
-        if tool not in {"select", "text", "line", "arrow", "rectangle", "highlight", "crop"}:
+        if tool not in {"select", "text", "line", "arrow", "curve", "rectangle", "highlight", "crop"}:
             return False
         if self._current_tool == tool:
             return True
@@ -253,11 +285,20 @@ class AnnotationCanvas(QWidget):
         if kind in {"text", "rectangle", "highlight"}:
             annotation["x"] = round(float(annotation.get("x", 0.0)) + dx_norm, 6)
             annotation["y"] = round(float(annotation.get("y", 0.0)) + dy_norm, 6)
-        elif kind in {"line", "arrow"}:
+        elif kind in {"line", "arrow", "curve"}:
             annotation["x1"] = round(float(annotation.get("x1", 0.0)) + dx_norm, 6)
             annotation["y1"] = round(float(annotation.get("y1", 0.0)) + dy_norm, 6)
             annotation["x2"] = round(float(annotation.get("x2", 0.0)) + dx_norm, 6)
             annotation["y2"] = round(float(annotation.get("y2", 0.0)) + dy_norm, 6)
+            if kind == "curve":
+                annotation["control_x"] = round(
+                    float(annotation.get("control_x", 0.0)) + dx_norm,
+                    6,
+                )
+                annotation["control_y"] = round(
+                    float(annotation.get("control_y", 0.0)) + dy_norm,
+                    6,
+                )
         else:
             return False
         self._rebuild_scene()
@@ -315,6 +356,8 @@ class AnnotationCanvas(QWidget):
         y1: float | None = None,
         x2: float | None = None,
         y2: float | None = None,
+        control_x: float | None = None,
+        control_y: float | None = None,
     ) -> bool:
         if not self._selected_annotation_id:
             return False
@@ -339,6 +382,10 @@ class AnnotationCanvas(QWidget):
             updates["x2"] = round(min(1.0, max(0.0, float(x2))), 6)
         if y2 is not None and "y2" in annotation:
             updates["y2"] = round(min(1.0, max(0.0, float(y2))), 6)
+        if control_x is not None and "control_x" in annotation:
+            updates["control_x"] = round(min(1.0, max(0.0, float(control_x))), 6)
+        if control_y is not None and "control_y" in annotation:
+            updates["control_y"] = round(min(1.0, max(0.0, float(control_y))), 6)
         if not updates:
             return False
         if all(annotation.get(key) == value for key, value in updates.items()):
@@ -584,6 +631,8 @@ class AnnotationCanvas(QWidget):
                         "x2": self._normalize_x(p2.x()),
                         "y2": self._normalize_y(p2.y()),
                     }
+            elif kind == "curve":
+                updates[str(annotation_id)] = self._curve_geometry_from_item(item, annotation)
 
         changed = False
         next_annotations = deepcopy(self._annotations)
@@ -641,6 +690,9 @@ class AnnotationCanvas(QWidget):
         return image
 
     def eventFilter(self, watched, event):
+        if watched is self._view and event.type() == QEvent.KeyPress:
+            self.keyPressEvent(event)
+            return event.isAccepted()
         if watched is self._view.viewport() and self._current_tool == "select":
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 self.sync_scene_items_to_state()
@@ -743,7 +795,25 @@ class AnnotationCanvas(QWidget):
                 "x2": self._normalize_x(p2.x()),
                 "y2": self._normalize_y(p2.y()),
             }
+        if kind == "curve":
+            return self._curve_geometry_from_item(item, annotation)
         return {}
+
+    def _curve_geometry_from_item(self, item, annotation: dict) -> dict:
+        baseline = self._geometry_from_payload(annotation)
+        required = ("x1", "y1", "x2", "y2", "control_x", "control_y")
+        if any(key not in baseline for key in required):
+            return {}
+        dx = self._normalize_x(item.pos().x())
+        dy = self._normalize_y(item.pos().y())
+        return {
+            "x1": round(baseline["x1"] + dx, 6),
+            "y1": round(baseline["y1"] + dy, 6),
+            "x2": round(baseline["x2"] + dx, 6),
+            "y2": round(baseline["y2"] + dy, 6),
+            "control_x": round(baseline["control_x"] + dx, 6),
+            "control_y": round(baseline["control_y"] + dy, 6),
+        }
 
     @staticmethod
     def _geometry_from_payload(annotation: dict) -> dict:
@@ -757,8 +827,10 @@ class AnnotationCanvas(QWidget):
             keys = ("x", "y")
             if kind in {"rectangle", "highlight"}:
                 keys += ("width", "height")
-        elif kind in {"line", "arrow"}:
+        elif kind in {"line", "arrow", "curve"}:
             keys = ("x1", "y1", "x2", "y2")
+            if kind == "curve":
+                keys += ("control_x", "control_y")
         else:
             return {}
         result = {}
@@ -855,6 +927,12 @@ class AnnotationCanvas(QWidget):
             return self.add_line_annotation(start.x(), start.y(), end.x(), end.y())
         if tool == "arrow":
             return self.add_arrow_annotation(start.x(), start.y(), end.x(), end.y())
+        if tool == "curve":
+            control_x = (start.x() + end.x()) / 2.0
+            control_y = max(0.0, min(float(self._image_height), min(start.y(), end.y()) - 20.0))
+            return self.add_curve_annotation(
+                start.x(), start.y(), end.x(), end.y(), control_x, control_y
+            )
         return ""
 
     def _annotation_by_id(self, annotation_id: str) -> dict | None:
@@ -906,7 +984,7 @@ class AnnotationCanvas(QWidget):
         updates = {}
         if color:
             updates["color"] = str(color)
-        if line_width is not None and kind in {"line", "arrow", "rectangle"}:
+        if line_width is not None and kind in {"line", "arrow", "curve", "rectangle"}:
             updates["line_width"] = max(0.1, round(float(line_width), 3))
         if font_size is not None and kind == "text":
             updates["font_size"] = max(1, int(font_size))
@@ -925,11 +1003,20 @@ class AnnotationCanvas(QWidget):
         if kind in {"text", "rectangle", "highlight"}:
             annotation["x"] = round(float(annotation.get("x", 0.0)) + dx_norm, 6)
             annotation["y"] = round(float(annotation.get("y", 0.0)) + dy_norm, 6)
-        elif kind in {"line", "arrow"}:
+        elif kind in {"line", "arrow", "curve"}:
             annotation["x1"] = round(float(annotation.get("x1", 0.0)) + dx_norm, 6)
             annotation["y1"] = round(float(annotation.get("y1", 0.0)) + dy_norm, 6)
             annotation["x2"] = round(float(annotation.get("x2", 0.0)) + dx_norm, 6)
             annotation["y2"] = round(float(annotation.get("y2", 0.0)) + dy_norm, 6)
+            if kind == "curve":
+                annotation["control_x"] = round(
+                    float(annotation.get("control_x", 0.0)) + dx_norm,
+                    6,
+                )
+                annotation["control_y"] = round(
+                    float(annotation.get("control_y", 0.0)) + dy_norm,
+                    6,
+                )
 
     def _move_selected_layer(self, to_front: bool) -> bool:
         if not self._selected_annotation_id:
@@ -1009,21 +1096,43 @@ class AnnotationCanvas(QWidget):
             updated["height"] = round((iy2 - iy1) / height, 6)
             return updated
 
-        if kind in {"line", "arrow"}:
-            x1 = self._denormalize_x(float(annotation.get("x1", 0.0)))
-            y1 = self._denormalize_y(float(annotation.get("y1", 0.0)))
-            x2 = self._denormalize_x(float(annotation.get("x2", 0.0)))
-            y2 = self._denormalize_y(float(annotation.get("y2", 0.0)))
-            min_x = min(x1, x2)
-            max_x = max(x1, x2)
-            min_y = min(y1, y2)
-            max_y = max(y1, y2)
+        if kind in {"line", "arrow", "curve"}:
+            points = [
+                (
+                    self._denormalize_x(float(annotation.get("x1", 0.0))),
+                    self._denormalize_y(float(annotation.get("y1", 0.0))),
+                ),
+                (
+                    self._denormalize_x(float(annotation.get("x2", 0.0))),
+                    self._denormalize_y(float(annotation.get("y2", 0.0))),
+                ),
+            ]
+            if kind == "curve":
+                points.append(
+                    (
+                        self._denormalize_x(float(annotation.get("control_x", 0.0))),
+                        self._denormalize_y(float(annotation.get("control_y", 0.0))),
+                    )
+                )
+            min_x = min(point[0] for point in points)
+            max_x = max(point[0] for point in points)
+            min_y = min(point[1] for point in points)
+            max_y = max(point[1] for point in points)
             if max_x < left or min_x > left + width or max_y < top or min_y > top + height:
                 return None
-            updated["x1"] = round(min(1.0, max(0.0, (x1 - left) / width)), 6)
-            updated["y1"] = round(min(1.0, max(0.0, (y1 - top) / height)), 6)
-            updated["x2"] = round(min(1.0, max(0.0, (x2 - left) / width)), 6)
-            updated["y2"] = round(min(1.0, max(0.0, (y2 - top) / height)), 6)
+            updated["x1"] = round(min(1.0, max(0.0, (points[0][0] - left) / width)), 6)
+            updated["y1"] = round(min(1.0, max(0.0, (points[0][1] - top) / height)), 6)
+            updated["x2"] = round(min(1.0, max(0.0, (points[1][0] - left) / width)), 6)
+            updated["y2"] = round(min(1.0, max(0.0, (points[1][1] - top) / height)), 6)
+            if kind == "curve":
+                updated["control_x"] = round(
+                    min(1.0, max(0.0, (points[2][0] - left) / width)),
+                    6,
+                )
+                updated["control_y"] = round(
+                    min(1.0, max(0.0, (points[2][1] - top) / height)),
+                    6,
+                )
             return updated
 
         return updated
@@ -1099,6 +1208,28 @@ class AnnotationCanvas(QWidget):
                 self._configure_annotation_item(group, annotation.get("id", ""))
             else:
                 self._configure_annotation_item(line_item, annotation.get("id", ""))
+
+        if kind == "curve":
+            path = QPainterPath(
+                QPointF(
+                    self._denormalize_x(float(annotation.get("x1", 0.0))),
+                    self._denormalize_y(float(annotation.get("y1", 0.0))),
+                )
+            )
+            path.quadTo(
+                QPointF(
+                    self._denormalize_x(float(annotation.get("control_x", 0.0))),
+                    self._denormalize_y(float(annotation.get("control_y", 0.0))),
+                ),
+                QPointF(
+                    self._denormalize_x(float(annotation.get("x2", 0.0))),
+                    self._denormalize_y(float(annotation.get("y2", 0.0))),
+                ),
+            )
+            pen = QPen(QColor(str(annotation.get("color", "#D55E00"))))
+            pen.setWidthF(float(annotation.get("line_width", 2.0) or 2.0))
+            item = self._scene.addPath(path, pen)
+            self._configure_annotation_item(item, annotation.get("id", ""))
 
     def _configure_annotation_item(self, item, annotation_id: str) -> None:
         item.setData(0, annotation_id)

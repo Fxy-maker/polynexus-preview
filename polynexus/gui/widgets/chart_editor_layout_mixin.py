@@ -25,12 +25,15 @@ class _EditorContextToolbar(QToolBar):
         ("text", "EDITOR_TOOL_TEXT"),
         ("line", "EDITOR_TOOL_LINE"),
         ("arrow", "EDITOR_TOOL_ARROW"),
+        ("curve", "EDITOR_TOOL_CURVE"),
         ("rectangle", "EDITOR_TOOL_RECTANGLE"),
         ("undo", "EDITOR_TOOL_UNDO"),
         ("redo", "EDITOR_TOOL_REDO"),
         ("export", "EDITOR_TOOL_EXPORT"),
     )
-    _TOOL_ACTION_IDS = frozenset({"select", "text", "line", "arrow", "rectangle"})
+    _TOOL_ACTION_IDS = frozenset(
+        {"select", "text", "line", "arrow", "curve", "rectangle"}
+    )
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,6 +78,7 @@ class ChartEditorLayoutMixin:
             ("text", lambda: self.set_tool("text")),
             ("line", lambda: self.set_tool("line")),
             ("arrow", lambda: self.set_tool("arrow")),
+            ("curve", lambda: self.set_tool("curve")),
             ("rectangle", lambda: self.set_tool("rectangle")),
             ("undo", lambda: self._on_annotation_undo()),
             ("redo", lambda: self._on_annotation_redo()),
@@ -96,9 +100,6 @@ class ChartEditorLayoutMixin:
         self._source_title_label.setToolTip(tr("EDITOR_SOURCE_UNNAMED"))
         layout.addWidget(self._source_title_label, 1)
 
-        self._editor_toolbar = self._build_editor_toolbar()
-        layout.addWidget(self._editor_toolbar)
-
         self._mode_badge = QLabel("")
         self._mode_badge.setObjectName("editor_mode_badge")
         self._mode_badge.setAccessibleName(tr("EDITOR_MODE_BADGE"))
@@ -108,6 +109,13 @@ class ChartEditorLayoutMixin:
         self._dirty_badge.setObjectName("editor_dirty_badge")
         self._dirty_badge.setAccessibleName(tr("EDITOR_DIRTY_STATE"))
         layout.addWidget(self._dirty_badge)
+
+        self._btn_header_inspector = QToolButton()
+        self._btn_header_inspector.setCheckable(True)
+        self._btn_header_inspector.setText(tr("EDITOR_INSPECTOR"))
+        self._btn_header_inspector.setAccessibleName(tr("EDITOR_INSPECTOR"))
+        self._btn_header_inspector.clicked.connect(self._toggle_inspector_drawer)
+        layout.addWidget(self._btn_header_inspector)
 
         self._btn_header_save = QPushButton(tr("EDITOR_SAVE_EDITS"))
         self._btn_header_save.setObjectName("editor_header_save")
@@ -156,6 +164,7 @@ class ChartEditorLayoutMixin:
 
         self._install_editor_shortcuts()
         self._set_editor_dirty(False)
+        self._sync_inspector_toggle()
         return header
 
     def _add_header_export_action(self, key, text, callback):
@@ -341,7 +350,8 @@ class ChartEditorLayoutMixin:
                 annotation_canvas_visible
                 or (
                     object_mode
-                    and action_id in {"select", "text", "line", "arrow", "rectangle"}
+                    and action_id
+                    in {"select", "text", "line", "arrow", "curve", "rectangle"}
                 )
             )
             action.blockSignals(True)
@@ -386,6 +396,8 @@ class ChartEditorLayoutMixin:
         self._inspector_tabs.setAccessibleName(tr("EDITOR_INSPECTOR"))
         self._mode_badge.setAccessibleName(tr("EDITOR_MODE_BADGE"))
         self._dirty_badge.setAccessibleName(tr("EDITOR_DIRTY_STATE"))
+        self._btn_header_inspector.setText(tr("EDITOR_INSPECTOR"))
+        self._btn_header_inspector.setAccessibleName(tr("EDITOR_INSPECTOR"))
         self._status_label.setAccessibleName(tr("EDITOR_STATUS"))
         self._zoom_label.setAccessibleName(tr("EDITOR_ZOOM_STATUS"))
         if hasattr(self, "_editor_toolbar"):

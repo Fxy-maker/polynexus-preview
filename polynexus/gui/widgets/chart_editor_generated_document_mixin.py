@@ -618,6 +618,32 @@ class ChartEditorGeneratedDocumentMixin:
                 label=name or None,
             )
 
+        if object_type == "curve":
+            from matplotlib.patches import PathPatch
+            from matplotlib.path import Path
+
+            x1 = self._optional_float(figure_object.get("x1"))
+            y1 = self._optional_float(figure_object.get("y1"))
+            x2 = self._optional_float(figure_object.get("x2"))
+            y2 = self._optional_float(figure_object.get("y2"))
+            control_x = self._optional_float(figure_object.get("control_x"))
+            control_y = self._optional_float(figure_object.get("control_y"))
+            if None in {x1, y1, x2, y2, control_x, control_y}:
+                return []
+            patch = PathPatch(
+                Path(
+                    [(x1, y1), (control_x, control_y), (x2, y2)],
+                    [Path.MOVETO, Path.CURVE3, Path.CURVE3],
+                ),
+                fill=False,
+                edgecolor=color,
+                linewidth=line_width,
+                linestyle=style.get("line_style", "-"),
+                alpha=alpha,
+            )
+            ax.add_patch(patch)
+            return [patch]
+
         if object_type == "text":
             return [
                 ax.text(
@@ -1000,6 +1026,7 @@ class ChartEditorGeneratedDocumentMixin:
 
         old = self._canvas.figure
         self._hovered_figure_object_id = ""
+        self._fit_figure_to_live_canvas(fig)
         self._canvas.figure = fig
         self._figure = fig
         self._connect_canvas_interaction_events()

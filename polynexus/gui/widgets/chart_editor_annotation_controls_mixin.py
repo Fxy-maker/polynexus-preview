@@ -7,6 +7,7 @@ from ...core.figure_edit_commands import (
     AddObjectCommand,
     DeleteObjectCommand,
     SetLockCommand,
+    UpdateGeometryCommand,
     UpdateStyleCommand,
     UpdateTextCommand,
 )
@@ -227,6 +228,7 @@ class ChartEditorAnnotationControlsMixin:
         if not annotation:
             self._clear_annotation_property_controls()
             return
+        self._reveal_inspector_for_selection()
         session = self._edit_session_for_adapter()
         if session is not None:
             annotation_id = str(annotation.get("id", "") or "")
@@ -237,8 +239,11 @@ class ChartEditorAnnotationControlsMixin:
         has_position = "x" in annotation and "y" in annotation
         has_size = "width" in annotation and "height" in annotation
         has_segment = all(key in annotation for key in ("x1", "y1", "x2", "y2"))
+        is_curve = str(annotation.get("type", "") or "") == "curve"
         self._set_geometry_spin_ranges(0.0, 1.0)
         self._set_geometry_controls_enabled(has_position or has_segment, has_size or has_segment)
+        self._set_curve_control_enabled(is_curve)
+        self._set_curve_control_ranges(0.0, 1.0)
         if has_segment:
             self._set_geometry_label_mode("segment")
         elif has_size:
@@ -263,6 +268,15 @@ class ChartEditorAnnotationControlsMixin:
                 self._annotation_w_spin.setValue(float(annotation.get("x2", 0.0) or 0.0))
             if "y2" in annotation:
                 self._annotation_h_spin.setValue(float(annotation.get("y2", 0.0) or 0.0))
+            if is_curve:
+                self._set_control_value_silently(
+                    self._annotation_curve_control_x_spin,
+                    self._curve_control_value(annotation, "control_x"),
+                )
+                self._set_control_value_silently(
+                    self._annotation_curve_control_y_spin,
+                    self._curve_control_value(annotation, "control_y"),
+                )
         finally:
             self._syncing_geometry_controls = False
         is_text_annotation = "text" in annotation
@@ -273,7 +287,7 @@ class ChartEditorAnnotationControlsMixin:
         kind = str(annotation.get("type", "") or "")
         self._set_style_controls_enabled(
             kind == "text",
-            kind in {"line", "arrow", "rectangle"},
+            kind in {"line", "arrow", "curve", "rectangle"},
             kind == "highlight",
         )
         color = str(annotation.get("color", "") or "")
@@ -331,6 +345,33 @@ class ChartEditorAnnotationControlsMixin:
             self._annotation_h_spin,
         ):
             control.setRange(float(minimum), float(maximum))
+
+    def _set_curve_control_ranges(self, minimum, maximum):
+        for control in (
+            self._annotation_curve_control_x_spin,
+            self._annotation_curve_control_y_spin,
+        ):
+            control.setRange(float(minimum), float(maximum))
+
+    def _set_curve_control_enabled(self, enabled):
+        visible = bool(enabled)
+        self._annotation_curve_control.setVisible(visible)
+        self._annotation_curve_control_label.setVisible(visible)
+        self._annotation_curve_control_x_spin.setEnabled(visible)
+        self._annotation_curve_control_y_spin.setEnabled(visible)
+
+    @staticmethod
+    def _curve_control_value(figure_object, key):
+        container = figure_object
+        for container_key in ("geometry", "bounds"):
+            candidate = figure_object.get(container_key)
+            if isinstance(candidate, dict):
+                container = candidate
+                break
+        try:
+            return float(container.get(key, 0.0) or 0.0)
+        except (TypeError, ValueError, OverflowError):
+            return 0.0
 
     def _set_style_controls_enabled(
         self,
@@ -419,6 +460,7 @@ class ChartEditorAnnotationControlsMixin:
         self._set_geometry_label_mode("box")
         self._set_geometry_spin_ranges(0.0, 1.0)
         self._set_geometry_controls_enabled(False)
+        self._set_curve_control_enabled(False)
         self._set_style_controls_enabled(False, False, False, color_enabled=False)
         self._set_object_action_buttons_enabled(False)
         self._set_control_value_silently(self._annotation_font_size_spin, 12)
@@ -466,6 +508,29 @@ class ChartEditorAnnotationControlsMixin:
         ):
             self._refresh_object_list(self._annotation_canvas.selected_annotation_id())
 
+    def _on_annotation_curve_control_changed(self, *_):
+        if self._syncing_geometry_controls:
+            return
+        control_x = float(self._annotation_curve_control_x_spin.value())
+        control_y = float(self._annotation_curve_control_y_spin.value())
+        if self._selected_figure_object_id and self._is_generated_figure_document():
+            if self._apply_generated_curve_handle_drag(
+                self._selected_figure_object_id,
+                2,
+                control_x,
+                control_y,
+            ):
+                self._persist_generated_document()
+                self.figure_changed.emit()
+            return
+        if self._annotation_canvas is None or self._annotation_canvas.isHidden():
+            return
+        if self._annotation_canvas.update_selected_geometry(
+            control_x=control_x,
+            control_y=control_y,
+        ):
+            self._refresh_object_list(self._annotation_canvas.selected_annotation_id())
+
     def _update_selected_generated_object_geometry(self):
         figure_object = self._generated_figure_object_by_id(self._selected_figure_object_id)
         if not figure_object:
@@ -496,7 +561,7 @@ class ChartEditorAnnotationControlsMixin:
             self._show_generated_figure_document()
             self.figure_changed.emit()
             return
-        if str(figure_object.get("type", "") or "") != "line":
+        if str(figure_object.get("type", "") or "") not in {"line", "curve"}:
             return
         store = self._generated_store()
         geometry = self._generated_object_geometry_config(figure_object)
@@ -516,6 +581,18 @@ class ChartEditorAnnotationControlsMixin:
                 "x2": float(self._annotation_w_spin.value()),
                 "y2": float(self._annotation_h_spin.value()),
             }
+        session = self._edit_session_for_adapter()
+        if session is not None:
+            session.select(self._selected_figure_object_id, "generated-inspector")
+            result = self._execute_edit(
+                UpdateGeometryCommand(self._selected_figure_object_id, updates)
+            )
+            if result is None or not result.changed:
+                return
+            self._persist_generated_document()
+            self._show_generated_figure_document()
+            self.figure_changed.emit()
+            return
         if not store.update_geometry(self._selected_figure_object_id, updates):
             return
         self._persist_generated_document()
@@ -543,6 +620,12 @@ class ChartEditorAnnotationControlsMixin:
         self._set_geometry_spin_ranges(
             -1_000_000_000.0 if capabilities["geometry"] else 0.0,
             1_000_000_000.0 if capabilities["geometry"] else 1.0,
+        )
+        is_curve = str(figure_object.get("type", "") or "") == "curve"
+        self._set_curve_control_enabled(is_curve)
+        self._set_curve_control_ranges(
+            -1_000_000_000.0 if is_curve else 0.0,
+            1_000_000_000.0 if is_curve else 1.0,
         )
         self._set_geometry_control_enabled_state(*geometry["enabled"])
         self._set_geometry_label_mode(str(geometry.get("mode", "box") or "box"))
@@ -607,6 +690,15 @@ class ChartEditorAnnotationControlsMixin:
             self._set_control_value_silently(
                 self._annotation_h_spin,
                 float(geometry["values"][3]),
+            )
+        if is_curve:
+            self._set_control_value_silently(
+                self._annotation_curve_control_x_spin,
+                self._curve_control_value(figure_object, "control_x"),
+            )
+            self._set_control_value_silently(
+                self._annotation_curve_control_y_spin,
+                self._curve_control_value(figure_object, "control_y"),
             )
 
     def _generated_object_capabilities(self, figure_object):

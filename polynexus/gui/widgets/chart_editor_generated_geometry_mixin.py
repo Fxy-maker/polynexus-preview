@@ -113,6 +113,29 @@ class ChartEditorGeneratedGeometryMixin:
         self._update_generated_line_preview(object_id)
         return True
 
+    def _apply_generated_curve_handle_drag(self, object_id, handle_index, x_value, y_value):
+        figure_object = self._generated_figure_object_by_id(object_id)
+        if not figure_object or str(figure_object.get("type", "") or "") != "curve":
+            return False
+        key_pair = {
+            0: ("x1", "y1"),
+            1: ("x2", "y2"),
+            2: ("control_x", "control_y"),
+        }.get(int(handle_index))
+        if key_pair is None:
+            return False
+        updates = {key_pair[0]: float(x_value), key_pair[1]: float(y_value)}
+        session = self._edit_session_for_adapter()
+        if session is None:
+            return bool(self._generated_store().update_geometry(object_id, updates))
+        session.select(object_id, "generated-canvas")
+        result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+        if result is None or not result.changed:
+            return False
+        self._sync_generated_object_property_controls(object_id)
+        self._show_generated_figure_document()
+        return True
+
     def _apply_generated_line_body_drag(self, object_id, drag_state, x_value, y_value):
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "line":

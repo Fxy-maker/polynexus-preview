@@ -16,7 +16,7 @@ def generated_object_capabilities(
     chart_kind = str(figure_object.get("chart_kind", "") or "")
     is_image_grid = object_type == "image_grid" or chart_kind == "image_grid"
     is_legend = object_type == "legend"
-    is_line = object_type == "line"
+    is_line = object_type in {"line", "curve"}
     return {
         "renameable": not is_legend,
         "style": not is_legend and not is_image_grid,
@@ -25,7 +25,7 @@ def generated_object_capabilities(
         "geometry": is_line
         or is_legend
         or (object_type == "plot_series" and selected_plot_series_point_geometry),
-        "line_style": object_type in {"line", "plot_series"}
+        "line_style": object_type in {"line", "curve", "plot_series"}
         and chart_kind not in {"heatmap", "bar", "barh", "image_grid", "scatter"},
         "marker": object_type == "plot_series"
         and chart_kind not in {"heatmap", "bar", "barh", "image_grid"},
@@ -79,7 +79,7 @@ def generated_object_geometry_config(
                 0.0,
             ),
         }
-    if object_type != "line":
+    if object_type not in {"line", "curve"}:
         return {
             "mode": "box",
             "enabled": (False, False, False, False),

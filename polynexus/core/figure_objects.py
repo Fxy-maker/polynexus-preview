@@ -12,6 +12,7 @@ KNOWN_FIGURE_OBJECT_TYPES = {
     "text",
     "arrow",
     "line",
+    "curve",
     "rectangle",
     "highlight",
     "axis",
@@ -23,13 +24,25 @@ KNOWN_FIGURE_OBJECT_TYPES = {
 }
 
 STYLE_KEYS = {"color", "font_size", "line_width", "alpha", "fill", "stroke"}
-GEOMETRY_KEYS = ("x", "y", "width", "height", "x1", "y1", "x2", "y2")
+GEOMETRY_KEYS = (
+    "x",
+    "y",
+    "width",
+    "height",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "control_x",
+    "control_y",
+)
 
 DEFAULT_OBJECT_NAMES = {
     "image_background": "Background",
     "text": "Text",
     "arrow": "Arrow",
     "line": "Line",
+    "curve": "Curve",
     "rectangle": "Rectangle",
     "highlight": "Highlight",
     "axis": "Axis",
