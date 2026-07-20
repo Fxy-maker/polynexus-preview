@@ -114,5 +114,6 @@ def test_chart_gallery_exposes_batch_edit_action():
 
     assert gallery._btn_batch_edit.objectName() == "chart_gallery_batch_edit"
     assert gallery._btn_compare_selected.objectName() == "chart_gallery_compare_selected"
+    assert gallery._btn_compare_revisions.objectName() == "chart_gallery_compare_revisions"
     assert gallery._btn_batch_edit.text()
     gallery.deleteLater()

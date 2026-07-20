@@ -77,6 +77,7 @@ from .chart_editor_generated_status_mixin import ChartEditorGeneratedStatusMixin
 from .chart_editor_layout_mixin import ChartEditorLayoutMixin
 from .chart_editor_layer_widget import LayerTreeWidget
 from .chart_editor_edit_session_mixin import ChartEditorEditSessionMixin
+from .chart_editor_export_preset_mixin import ChartEditorExportPresetMixin
 from .chart_editor_origin_mixin import ChartEditorOriginMixin
 from .chart_editor_object_list_mixin import ChartEditorObjectListMixin
 from .chart_editor_save_mixin import ChartEditorSaveMixin
@@ -98,6 +99,11 @@ from ...core.figure_template_service import (
     load_template,
     save_template,
     template_from_document,
+)
+from ...core.figure_export_preset_service import (
+    list_export_presets,
+    load_export_preset,
+    save_export_preset,
 )
 from ...core.plot_edits import (
     COLOUR_SCHEMES,
@@ -148,6 +154,7 @@ class ChartEditor(
     ChartEditorLayoutMixin,
     ChartEditorBatchEditMixin,
     ChartEditorEditSessionMixin,
+    ChartEditorExportPresetMixin,
     ChartEditorOriginMixin,
     ChartEditorAnnotationControlsMixin,
     ChartEditorSaveMixin,
@@ -843,6 +850,37 @@ class ChartEditor(
         self._btn_png = QPushButton(tr("EDITOR_EXPORT_PNG"))
         self._btn_png.clicked.connect(lambda: self.save_as("png"))
         form.addRow(self._btn_png)
+
+        export_preset_row = QWidget()
+        export_preset_layout = QGridLayout(export_preset_row)
+        export_preset_layout.setContentsMargins(0, 0, 0, 0)
+        export_preset_layout.setSpacing(6)
+        self._export_preset_combo = QComboBox()
+        self._export_preset_combo.setEditable(True)
+        self._export_preset_combo.setInsertPolicy(QComboBox.NoInsert)
+        self._export_preset_combo.editTextChanged.connect(self._on_export_preset_name_changed)
+        export_preset_layout.addWidget(self._export_preset_combo, 0, 0, 1, 2)
+        self._btn_export_preset_save = QPushButton(tr("EDITOR_EXPORT_PRESET_SAVE"))
+        self._btn_export_preset_save.clicked.connect(self._on_save_export_preset)
+        export_preset_layout.addWidget(self._btn_export_preset_save, 1, 0)
+        self._btn_export_preset_apply = QPushButton(tr("EDITOR_EXPORT_PRESET_APPLY"))
+        self._btn_export_preset_apply.clicked.connect(self._on_apply_export_preset)
+        export_preset_layout.addWidget(self._btn_export_preset_apply, 1, 1)
+        form.addRow(tr("EDITOR_EXPORT_PRESET_LABEL"), export_preset_row)
+
+        self._export_format_combo = QComboBox()
+        for label, value in (
+            ("PNG", "png"),
+            ("SVG", "svg"),
+            ("PDF", "pdf"),
+            ("Origin", "origin"),
+            ("Project", "project"),
+        ):
+            self._export_format_combo.addItem(label, value)
+        form.addRow(tr("EDITOR_EXPORT_FORMAT_LABEL"), self._export_format_combo)
+        self._btn_export_preset_run = QPushButton(tr("EDITOR_EXPORT_PRESET_RUN"))
+        self._btn_export_preset_run.clicked.connect(self._export_with_preset)
+        form.addRow(self._btn_export_preset_run)
         self._build_origin_export_control(form)
 
         self._form = object_form
@@ -856,6 +894,7 @@ class ChartEditor(
         self._inspector_tabs.addTab(export_page, tr("EDITOR_INSPECTOR_EXPORT"))
         self._refresh_style_preset_controls()
         self._refresh_template_controls()
+        self._refresh_export_preset_controls()
         return self._inspector_tabs
 
     def _set_mode_header(self, title: str, *, mode_key: str = "", summary_key: str = "") -> None:
@@ -1008,6 +1047,9 @@ class ChartEditor(
         self._btn_save_as.setText(tr("EDITOR_SAVE_AS_COPY"))
         self._btn_svg.setText(tr("EDITOR_EXPORT_SVG"))
         self._btn_png.setText(tr("EDITOR_EXPORT_PNG"))
+        self._btn_export_preset_save.setText(tr("EDITOR_EXPORT_PRESET_SAVE"))
+        self._btn_export_preset_apply.setText(tr("EDITOR_EXPORT_PRESET_APPLY"))
+        self._btn_export_preset_run.setText(tr("EDITOR_EXPORT_PRESET_RUN"))
         self._btn_save_current.setText(tr("EDITOR_SAVE_EDITS"))
         self._btn_publish.setText(tr("EDITOR_PUBLISH_COMPLETE"))
         self.retranslate_origin_export()

@@ -44,6 +44,7 @@ from ..i18n import tr
 from ...core.engine import logger
 from ...core.figure_batch_edit_service import apply_batch_edit_plan, build_batch_edit_plan
 from ...core.figure_document import load_figure_document_report, save_figure_document
+from ...core.figure_revision_diff import build_revision_diff
 from ...core.figure_template_service import list_templates, load_template
 
 
@@ -1043,6 +1044,10 @@ class ChartGallery(QWidget):
         self._btn_compare_selected.setObjectName("chart_gallery_compare_selected")
         self._btn_compare_selected.clicked.connect(self._compare_selected)
         toolbar.addWidget(self._btn_compare_selected)
+        self._btn_compare_revisions = QPushButton(tr("CHART_BTN_COMPARE_REVISIONS"))
+        self._btn_compare_revisions.setObjectName("chart_gallery_compare_revisions")
+        self._btn_compare_revisions.clicked.connect(self._compare_working_published)
+        toolbar.addWidget(self._btn_compare_revisions)
         self._btn_select_all = QPushButton(tr("CHART_BTN_SELECT_ALL"))
         self._btn_select_all.clicked.connect(self._select_all_visible)
         toolbar.addWidget(self._btn_select_all)
@@ -1225,6 +1230,7 @@ class ChartGallery(QWidget):
         self._btn_export_selected.setText(tr("CHART_BTN_EXPORT_SELECTED"))
         self._btn_batch_edit.setText(tr("CHART_BTN_BATCH_EDIT"))
         self._btn_compare_selected.setText(tr("CHART_BTN_COMPARE_SELECTED"))
+        self._btn_compare_revisions.setText(tr("CHART_BTN_COMPARE_REVISIONS"))
         self._btn_select_all.setText(tr("CHART_BTN_SELECT_ALL"))
         self._search_label.setText(tr("CHART_SEARCH_LABEL"))
         self._search_edit.setPlaceholderText(tr("CHART_SEARCH_PLACEHOLDER"))
@@ -1420,6 +1426,41 @@ class ChartGallery(QWidget):
         self._comparison_view = ChartComparisonView(request, self)
         self._comparison_view.show()
         self._comparison_view.raise_()
+
+    def _compare_working_published(self):
+        selected_entries = [
+            entry for entry in self._all_entries if entry.figure_id in self._selected_batch_ids
+        ]
+        if len(selected_entries) != 1:
+            self.status_message.emit(tr("CHART_COMPARE_REVISION_SELECTION_REQUIRED"), "warning")
+            return
+        entry = selected_entries[0]
+        if not entry.run_root or entry.working_revision <= 0 or entry.published_revision <= 0:
+            self.status_message.emit(tr("CHART_COMPARE_REVISION_UNAVAILABLE"), "warning")
+            return
+        working_path = (
+            Path(entry.run_root)
+            / "figures"
+            / entry.figure_id
+            / "revisions"
+            / f"r{int(entry.working_revision):04d}"
+            / "figure.pnfig.json"
+        )
+        published_path = Path(entry.document_path)
+        working = load_figure_document_report(str(working_path))
+        published = load_figure_document_report(str(published_path))
+        if working.status != "valid" or published.status != "valid":
+            self.status_message.emit(tr("CHART_COMPARE_REVISION_UNAVAILABLE"), "warning")
+            return
+        diff = build_revision_diff(published.document, working.document)
+        summary = tr(
+            "CHART_COMPARE_REVISION_SUMMARY",
+            int(entry.working_revision),
+            int(entry.published_revision),
+            len(diff.document_changes),
+            len(diff.asset_changes),
+        )
+        QMessageBox.information(self, tr("CHART_COMPARE_REVISIONS_TITLE"), summary)
 
     def _export_paths(self, paths):
         if not paths:
