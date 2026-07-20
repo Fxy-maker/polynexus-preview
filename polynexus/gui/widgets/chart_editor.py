@@ -90,6 +90,15 @@ from ...core.figure_document import (
     save_figure_document,  # noqa: F401 - runtime API consumed by save mixin
 )
 from ...core.figure_assets import discover_figure_asset
+from ...core.figure_edit_commands import ReplaceDocumentCommand, UpdateStyleCommand
+from ...core.figure_style_bundle import apply_style_bundle, capture_style_bundle
+from ...core.figure_template_service import (
+    apply_template,
+    list_templates,
+    load_template,
+    save_template,
+    template_from_document,
+)
 from ...core.plot_edits import (
     COLOUR_SCHEMES,
     FIGURE_SIZES,
@@ -224,6 +233,7 @@ class ChartEditor(
         self._origin_export_thread = None
         self._origin_export_worker = None
         self._origin_export_service = None
+        self._format_clipboard = None
         self._text_render_timer = QTimer(self)
         self._text_render_timer.setSingleShot(True)
         self._text_render_timer.setInterval(0)
@@ -533,6 +543,35 @@ class ChartEditor(
 
         form.addRow(tr("EDITOR_STYLE_PRESET_LABEL"), preset_row)
 
+        template_row = QWidget()
+        template_layout = QGridLayout(template_row)
+        template_layout.setContentsMargins(0, 0, 0, 0)
+        template_layout.setSpacing(6)
+        self._template_combo = QComboBox()
+        self._template_combo.setEditable(True)
+        self._template_combo.setInsertPolicy(QComboBox.NoInsert)
+        self._template_combo.editTextChanged.connect(self._on_template_name_changed)
+        template_layout.addWidget(self._template_combo, 0, 0, 1, 2)
+        self._btn_template_save = QPushButton(tr("EDITOR_TEMPLATE_SAVE"))
+        self._btn_template_save.clicked.connect(self._on_save_template)
+        template_layout.addWidget(self._btn_template_save, 1, 0)
+        self._btn_template_apply = QPushButton(tr("EDITOR_TEMPLATE_APPLY"))
+        self._btn_template_apply.clicked.connect(self._on_apply_template)
+        template_layout.addWidget(self._btn_template_apply, 1, 1)
+        form.addRow(tr("EDITOR_TEMPLATE_LABEL"), template_row)
+
+        format_row = QWidget()
+        format_layout = QHBoxLayout(format_row)
+        format_layout.setContentsMargins(0, 0, 0, 0)
+        format_layout.setSpacing(6)
+        self._btn_copy_format = QPushButton(tr("EDITOR_FORMAT_COPY"))
+        self._btn_copy_format.clicked.connect(self._copy_selected_format)
+        format_layout.addWidget(self._btn_copy_format)
+        self._btn_paste_format = QPushButton(tr("EDITOR_FORMAT_PASTE"))
+        self._btn_paste_format.clicked.connect(self._paste_selected_format)
+        format_layout.addWidget(self._btn_paste_format)
+        form.addRow(tr("EDITOR_FORMAT_LABEL"), format_row)
+
         self._title_edit = QLineEdit()
         self._title_edit.textChanged.connect(self._schedule_text_render)
         form.addRow(tr("EDITOR_FIELD_TITLE"), self._title_edit)
@@ -816,6 +855,7 @@ class ChartEditor(
         )
         self._inspector_tabs.addTab(export_page, tr("EDITOR_INSPECTOR_EXPORT"))
         self._refresh_style_preset_controls()
+        self._refresh_template_controls()
         return self._inspector_tabs
 
     def _set_mode_header(self, title: str, *, mode_key: str = "", summary_key: str = "") -> None:
@@ -904,6 +944,10 @@ class ChartEditor(
         self._btn_style_preset_save.setText(tr("EDITOR_STYLE_PRESET_SAVE"))
         self._btn_style_preset_apply.setText(tr("EDITOR_STYLE_PRESET_APPLY"))
         self._btn_style_preset_delete.setText(tr("EDITOR_STYLE_PRESET_DELETE"))
+        self._btn_template_save.setText(tr("EDITOR_TEMPLATE_SAVE"))
+        self._btn_template_apply.setText(tr("EDITOR_TEMPLATE_APPLY"))
+        self._btn_copy_format.setText(tr("EDITOR_FORMAT_COPY"))
+        self._btn_paste_format.setText(tr("EDITOR_FORMAT_PASTE"))
         self._btn_bg.setText(tr("EDITOR_BTN_BG"))
         self._annotation_text_edit.setPlaceholderText(
             tr("EDITOR_ANNOTATION_TEXT_PLACEHOLDER")

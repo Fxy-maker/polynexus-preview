@@ -31,6 +31,42 @@ class ChartEditorStylePresetMixin:
         return cls._chart_editor_module().delete_style_preset
 
     @classmethod
+    def _list_templates_fn(cls):
+        return cls._chart_editor_module().list_templates
+
+    @classmethod
+    def _load_template_fn(cls):
+        return cls._chart_editor_module().load_template
+
+    @classmethod
+    def _save_template_fn(cls):
+        return cls._chart_editor_module().save_template
+
+    @classmethod
+    def _template_from_document_fn(cls):
+        return cls._chart_editor_module().template_from_document
+
+    @classmethod
+    def _apply_template_fn(cls):
+        return cls._chart_editor_module().apply_template
+
+    @classmethod
+    def _capture_style_bundle_fn(cls):
+        return cls._chart_editor_module().capture_style_bundle
+
+    @classmethod
+    def _apply_style_bundle_fn(cls):
+        return cls._chart_editor_module().apply_style_bundle
+
+    @classmethod
+    def _replace_document_command(cls):
+        return cls._chart_editor_module().ReplaceDocumentCommand
+
+    @classmethod
+    def _update_style_command(cls):
+        return cls._chart_editor_module().UpdateStyleCommand
+
+    @classmethod
     def _logger(cls):
         return cls._chart_editor_module().logger
 
@@ -106,6 +142,95 @@ class ChartEditorStylePresetMixin:
         self._style_preset_combo.blockSignals(False)
         self._set_style_preset_placeholder(tr("EDITOR_STYLE_PRESET_PLACEHOLDER"))
         self._update_style_preset_action_state(names=names)
+
+    def _current_template_name(self):
+        return str(self._template_combo.currentText() or "").strip()
+
+    def _on_template_name_changed(self, _text):
+        names = self._list_templates_fn()()
+        self._btn_template_apply.setEnabled(self._current_template_name() in names)
+
+    def _refresh_template_controls(self):
+        names = self._list_templates_fn()()
+        current = self._current_template_name()
+        self._template_combo.blockSignals(True)
+        self._template_combo.clear()
+        self._template_combo.addItems(names)
+        if current:
+            self._template_combo.setEditText(current)
+        self._template_combo.blockSignals(False)
+        self._btn_template_apply.setEnabled(bool(current and current in names))
+
+    def _on_save_template(self):
+        name = self._current_template_name()
+        if not name:
+            self._message_box_class().warning(
+                self,
+                tr("EDITOR_TEMPLATE_TITLE"),
+                tr("EDITOR_TEMPLATE_NAME_REQUIRED"),
+            )
+            return
+        try:
+            template = self._template_from_document_fn()(self._figure_document, name)
+            path = self._save_template_fn()(name, template)
+        except (TypeError, ValueError, OSError) as exc:
+            self._message_box_class().warning(
+                self,
+                tr("EDITOR_TEMPLATE_TITLE"),
+                str(exc),
+            )
+            return
+        self._refresh_template_controls()
+        self._template_combo.setEditText(name)
+        self._status_label.setText(tr("EDITOR_TEMPLATE_SAVED", name, path.name))
+
+    def _on_apply_template(self):
+        name = self._current_template_name()
+        template = self._load_template_fn()(name)
+        if not template:
+            self._message_box_class().warning(
+                self,
+                tr("EDITOR_TEMPLATE_TITLE"),
+                tr("EDITOR_TEMPLATE_MISSING", name),
+            )
+            return
+        updated = self._apply_template_fn()(self._figure_document, template)
+        result = self._execute_edit(self._replace_document_command()(updated))
+        if result is None or not getattr(result, "changed", False):
+            return
+        if getattr(self, "_generated_document_mode", False):
+            self._persist_generated_document()
+            self._show_generated_figure_document()
+        self._status_label.setText(tr("EDITOR_TEMPLATE_APPLIED", name))
+
+    def _copy_selected_format(self):
+        object_payload = self._selected_canonical_object()
+        if not isinstance(object_payload, dict):
+            return
+        self._format_clipboard = self._capture_style_bundle_fn()(object_payload)
+        self._status_label.setText(tr("EDITOR_FORMAT_COPIED"))
+
+    def _paste_selected_format(self):
+        object_payload = self._selected_canonical_object()
+        bundle = getattr(self, "_format_clipboard", None)
+        if not isinstance(object_payload, dict) or not isinstance(bundle, dict):
+            return
+        applied = self._apply_style_bundle_fn()(object_payload, bundle)
+        if not applied.applied:
+            self._status_label.setText(tr("EDITOR_FORMAT_SKIPPED"))
+            return
+        object_id = str(object_payload.get("id", "") or "")
+        result = self._execute_edit(
+            self._update_style_command()(object_id, applied.object.get("style", {}))
+        )
+        if result is not None and getattr(result, "changed", False):
+            if getattr(self, "_generated_document_mode", False):
+                self._persist_generated_document()
+                self._show_generated_figure_document()
+            skipped = ", ".join(applied.skipped)
+            self._status_label.setText(
+                tr("EDITOR_FORMAT_APPLIED", skipped) if skipped else tr("EDITOR_STATUS_APPLIED")
+            )
 
     def _on_save_style_preset(self):
         preset_name = self._current_style_preset_name()

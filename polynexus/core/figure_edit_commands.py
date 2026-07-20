@@ -577,6 +577,37 @@ class ReplaceObjectCommand:
         return _success(self.object_id)
 
 
+class ReplaceDocumentCommand:
+    """Commit a validated whole-document transformation as one edit."""
+
+    def __init__(self, document: Mapping[str, Any]):
+        self.document = deepcopy(dict(document)) if isinstance(document, Mapping) else None
+
+    def apply(self, document: dict) -> tuple[EditResult, object]:
+        if not isinstance(self.document, dict):
+            return _failure("invalid_payload", "Replacement document must be a mapping."), None
+        if not isinstance(document, dict):
+            return _failure("invalid_document", "The figure document must be a mapping."), None
+        if document == self.document:
+            return _noop(message="Document already has the requested state."), None
+        snapshot = {"document": deepcopy(document)}
+        document.clear()
+        document.update(deepcopy(self.document))
+        return _success(message="Document replaced."), snapshot
+
+    def revert(self, document: dict, snapshot: object) -> EditResult:
+        if not isinstance(document, dict) or not isinstance(snapshot, dict):
+            return _failure("invalid_snapshot", "The document snapshot is invalid.")
+        previous = snapshot.get("document")
+        if not isinstance(previous, dict):
+            return _failure("invalid_snapshot", "The document snapshot is invalid.")
+        if document == previous:
+            return _noop(message="Document is already restored.")
+        document.clear()
+        document.update(deepcopy(previous))
+        return _success(message="Document restored.")
+
+
 def _batch_objects(document: dict, object_ids: Sequence[str]):
     objects = _objects(document)
     if objects is None:
@@ -954,6 +985,7 @@ __all__ = [
     "PasteObjectCommand",
     "SetLockCommand",
     "ReplaceObjectCommand",
+    "ReplaceDocumentCommand",
     "SetVisibilityCommand",
     "UngroupObjectsCommand",
     "UpdateGeometryCommand",

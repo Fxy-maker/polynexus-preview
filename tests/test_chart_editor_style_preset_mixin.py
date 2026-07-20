@@ -15,3 +15,20 @@ def test_chart_editor_reuses_style_preset_helpers_from_style_preset_mixin() -> N
     assert ChartEditor._on_save_style_preset is ChartEditorStylePresetMixin._on_save_style_preset
     assert ChartEditor._on_apply_style_preset is ChartEditorStylePresetMixin._on_apply_style_preset
     assert ChartEditor._on_delete_style_preset is ChartEditorStylePresetMixin._on_delete_style_preset
+
+
+def test_chart_editor_exposes_template_and_format_painter_controls():
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    editor = ChartEditor()
+
+    for name in (
+        "_template_combo",
+        "_btn_template_save",
+        "_btn_template_apply",
+        "_btn_copy_format",
+        "_btn_paste_format",
+    ):
+        assert hasattr(editor, name)
+    editor.deleteLater()
