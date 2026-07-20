@@ -49,6 +49,13 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- The 2026-07-20 editor workflow completion slice passed its focused regression
+  matrix (`354 passed`), structured verifier, and default verifier. It adds
+  document diagnostics, distribution/visibility/layers/context actions,
+  templates/format painter, previewed batch editing, comparison/revision diff,
+  and export presets; see task card
+  `docs/agent/tasks/2026-07-20-editor-workflow-completion.md`.
+
 - Unified GUI launcher tests: 6 passed; system and bundled Python diagnostic
   probes both resolved `D:\PolyNexus\polynexus\__init__.py` on the active
   development branch before the implementation checkpoint.

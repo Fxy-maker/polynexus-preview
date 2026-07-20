@@ -2,6 +2,24 @@
 
 > Last updated: 2026-07-20
 
+## Chart editor workflow completion — completed 2026-07-20
+
+- Completed the remaining editor workflow slice on
+  `codex/origin-editor-usable-controls`: structured corrupt/unsupported
+  document diagnostics, undoable horizontal/vertical distribution and
+  visibility, a hierarchical layer tree with legacy row compatibility, context
+  menus and scoped shortcuts, data-free chart templates, format painter,
+  previewed atomic batch editing, side-by-side chart comparison, working-vs-
+  published revision diff, and named export presets.
+- Focused editor/core/gallery regression command passed with `354 passed`.
+- Structured verifier passed:
+  `python scripts/verify.py --task docs/agent/tasks/2026-07-20-editor-workflow-completion.md --changed --types`.
+  Default verifier also passed:
+  `python scripts/verify.py --changed --types`; quality-gate focused tests
+  passed (`282`) and preprocessing optimization tests passed (`103`).
+- Known limitation: the revision comparison UI presents normalized document
+  and asset-count differences; it does not perform a pixel-level image diff.
+
 ## Current checkpoint
 
 - Unified GUI worktree launcher completed on 2026-07-20. The desktop launch path

@@ -1,6 +1,6 @@
 ---
 kind: task
-status: in_progress
+status: completed
 date: 2026-07-20
 title: Complete editor reliability, productivity, and research workflow
 ---
@@ -33,16 +33,26 @@ and export presets.
 
 ## Acceptance criteria
 
-- Corrupt/unsupported documents show an actionable diagnostic while preserving
-  the original file.
-- Horizontal and vertical distribution are undoable and selection-aware.
-- The object surface supports nested layer groups, visibility, lock state,
-  search, context menus, and scoped shortcuts.
-- Templates, format painter, batch chart editing, comparison, working-vs-
-  published diff, and export presets are available from the GUI.
-- Each behavior change has focused regression coverage.
-- Structured and default repository verification pass, or any limitation is
-  reported with exact evidence.
+- [x] Corrupt/unsupported documents show an actionable diagnostic while preserving
+      the original file.
+- [x] Horizontal and vertical distribution are undoable and selection-aware.
+- [x] The object surface supports nested layer groups, visibility, lock state,
+      search, context menus, and scoped shortcuts.
+- [x] Templates, format painter, batch chart editing, comparison, working-vs-
+      published diff, and export presets are available from the GUI.
+- [x] Each behavior change has focused regression coverage.
+- [x] Structured and default repository verification pass, or any limitation is
+      reported with exact evidence.
+
+## Implementation plan
+
+1. Add document-load diagnostics and safe GUI warnings.
+2. Add distribution, undoable visibility, hierarchical layers, context actions,
+   and scoped shortcuts.
+3. Add templates, format painter, previewed batch editing, chart comparison,
+   revision diff, and export presets.
+4. Run focused regressions and both repository verification commands, then
+   record evidence and known limitations.
 
 ## Verification
 
