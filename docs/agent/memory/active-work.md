@@ -1,9 +1,19 @@
 # Active Work
 
-> Last updated: 2026-07-19
+> Last updated: 2026-07-20
 
 ## Current checkpoint
 
+- Unified GUI worktree launcher completed on 2026-07-20. The desktop launch path
+  now uses `scripts/launch_gui.py` from the canonical `D:\PolyNexus`
+  worktree; the launcher validates the imported package path, exposes branch
+  and commit diagnostics, and preserves explicit worktree selection without
+  guessing among isolated worktrees. Task card:
+  `docs/agent/tasks/2026-07-20-unified-gui-worktree-launcher.md`. Focused
+  launcher tests pass (6); the task-scoped verifier passes, including Ruff,
+  compile, core quality (281), preprocessing optimization (103), memory, and
+  whitespace checks; both system and bundled Python diagnostics resolve to
+  `D:\PolyNexus\polynexus\__init__.py`.
 - Final goal audit on 2026-07-19: the prescribed default verifier
   `python scripts/verify.py --changed --types` passes after all checkpoints;
   memory, compile, core quality gate (281), preprocessing optimization gate

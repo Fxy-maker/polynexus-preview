@@ -1,7 +1,7 @@
 ---
 kind: state
 status: active
-date: 2026-07-19
+date: 2026-07-20
 title: Current PolyNexus repository state
 ---
 
@@ -17,6 +17,10 @@ title: Current PolyNexus repository state
   `codex/origin-editor-usable-controls`, at the same merged commit. Its
   pre-existing untracked `.superpowers/` and Origin Lite design drafts are left
   untouched.
+- The desktop GUI launch boundary is now `D:\PolyNexus`. The repository-local
+  `scripts/launch_gui.py` prepends that root to `PYTHONPATH`, probes the imported
+  `polynexus.__file__`, and reports branch/commit identity before starting the
+  GUI, so stale editable-install worktrees cannot be selected silently.
 
 ## Important boundaries
 
@@ -45,6 +49,9 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- Unified GUI launcher tests: 6 passed; system and bundled Python diagnostic
+  probes both resolved `D:\PolyNexus\polynexus\__init__.py` on the active
+  development branch before the implementation checkpoint.
 - Origin capability, adapter, contract, package, and ChartEditor Origin tests:
   44 passed.
 - GUI-startup regression checks: 3 passed.

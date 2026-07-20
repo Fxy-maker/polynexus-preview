@@ -21,15 +21,15 @@ silently following an older Python editable-install worktree.
 
 ## Acceptance criteria
 
-- [ ] `scripts/launch_gui.py --diagnose` reports the canonical source root,
+- [x] `scripts/launch_gui.py --diagnose` reports the canonical source root,
   active branch, commit, interpreter, and imported package path.
-- [ ] The launcher prepends its resolved root to `PYTHONPATH` and rejects an
+- [x] The launcher prepends its resolved root to `PYTHONPATH` and rejects an
   imported `polynexus` package outside that root.
-- [ ] The normal launcher starts `python -m polynexus --gui` with the resolved
+- [x] The normal launcher starts `python -m polynexus --gui` with the resolved
   root as cwd and propagates the child exit code.
-- [ ] The desktop shortcut invokes the launcher from `D:\PolyNexus` and no
+- [x] The desktop shortcut invokes the launcher from `D:\PolyNexus` and no
   longer references `D:\PolyNexus-runtime-stability` for its icon.
-- [ ] The README explains the canonical GUI worktree and restart-after-switch
+- [x] The README explains the canonical GUI worktree and restart-after-switch
   workflow.
 
 ## Affected boundaries

@@ -32,6 +32,24 @@ or:
 polynexus-gui
 ```
 
+### Development GUI and worktrees
+
+The desktop shortcut uses `D:\PolyNexus` as the single canonical GUI runtime
+worktree. Create or switch GUI development branches in that directory, then
+close and reopen the GUI after switching; a running Python process does not
+hot-reload a different Git checkout.
+
+```powershell
+Set-Location D:\PolyNexus
+git switch -c codex/gui-launch-validation
+& .\Python\pythoncore-3.14-64\python.exe .\scripts\launch_gui.py --diagnose
+```
+
+The diagnostic output shows the source root, branch, commit, interpreter, and
+imported package path. Isolated worktrees are not selected automatically. To
+inspect one explicitly, run its local launcher with
+`--worktree <path> --diagnose`; this does not change the desktop shortcut.
+
 ### 3. Run CLI analysis
 
 Examples:
