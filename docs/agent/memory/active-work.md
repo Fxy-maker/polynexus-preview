@@ -2,6 +2,20 @@
 
 > Last updated: 2026-07-20
 
+## Local finish verification — recorded 2026-07-20
+
+- The completed editor-workflow branch and the local `main` worktree both
+  resolve to `5e973d30`; the feature code is already locally integrated.
+- Fresh structured verification passed with
+  `python scripts/verify.py --task docs/agent/tasks/2026-07-20-editor-workflow-completion.md --changed --types`.
+- Fresh default verification passed with
+  `python scripts/verify.py --changed --types`; the quality gate reported
+  `282 passed` and the preprocessing optimization gate reported `103 passed`.
+- The focused completion matrix reported `51 passed`. Existing untracked
+  design drafts, acceptance notes, temporary diagnostics, and legacy worktrees
+  were intentionally left untouched; the worktree remains unregistered and is
+  not eligible for automatic removal.
+
 ## Origin-like editor mainline integration — completed 2026-07-20
 
 - Integrated the tested Origin-like annotation and generated-canvas
