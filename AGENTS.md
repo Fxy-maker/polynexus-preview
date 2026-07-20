@@ -167,6 +167,12 @@ matching branch/HEAD, and the cooldown period.
 This coordinator is intentionally separate from the autonomous coding loop:
 it does not call an AI model or implement tasks.
 
+The exact user phrase `收尾任务` authorizes the agent to run this finish
+sequence for the current atomic task. The agent must derive an explicit
+changed-file allowlist from the current task, supply the task card and commit
+message, and stop to ask if those values are ambiguous. Ordinary phrases such
+as “做完了” or “完成这个任务” do not trigger local mainline integration.
+
 ## 11. Autonomous development loop
 
 The repository provides loop primitives and the local maintenance coordinator,
