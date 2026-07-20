@@ -958,6 +958,7 @@ class ChartGallery(QWidget):
         super().__init__(parent)
         self.setObjectName("chart_gallery")
         self._viewer = None
+        self._comparison_view = None
         self._all_entries = []
         self._entries = []
         self._entry_by_figure_id = {}
@@ -1038,6 +1039,10 @@ class ChartGallery(QWidget):
         self._btn_batch_edit.setObjectName("chart_gallery_batch_edit")
         self._btn_batch_edit.clicked.connect(self._batch_edit_selected)
         toolbar.addWidget(self._btn_batch_edit)
+        self._btn_compare_selected = QPushButton(tr("CHART_BTN_COMPARE_SELECTED"))
+        self._btn_compare_selected.setObjectName("chart_gallery_compare_selected")
+        self._btn_compare_selected.clicked.connect(self._compare_selected)
+        toolbar.addWidget(self._btn_compare_selected)
         self._btn_select_all = QPushButton(tr("CHART_BTN_SELECT_ALL"))
         self._btn_select_all.clicked.connect(self._select_all_visible)
         toolbar.addWidget(self._btn_select_all)
@@ -1219,6 +1224,7 @@ class ChartGallery(QWidget):
         self._btn_export_all.setText(tr("CHART_BTN_EXPORT_ALL"))
         self._btn_export_selected.setText(tr("CHART_BTN_EXPORT_SELECTED"))
         self._btn_batch_edit.setText(tr("CHART_BTN_BATCH_EDIT"))
+        self._btn_compare_selected.setText(tr("CHART_BTN_COMPARE_SELECTED"))
         self._btn_select_all.setText(tr("CHART_BTN_SELECT_ALL"))
         self._search_label.setText(tr("CHART_SEARCH_LABEL"))
         self._search_edit.setPlaceholderText(tr("CHART_SEARCH_PLACEHOLDER"))
@@ -1390,6 +1396,30 @@ class ChartGallery(QWidget):
             return
         self.status_message.emit(tr("CHART_BATCH_EDIT_DONE", len(applied_ids)), "success")
         self._reload_visible_entries()
+
+    def _compare_selected(self):
+        selected_entries = [
+            entry for entry in self._all_entries if entry.figure_id in self._selected_batch_ids
+        ]
+        if len(selected_entries) != 2:
+            self.status_message.emit(tr("CHART_COMPARE_SELECTION_REQUIRED"), "warning")
+            return
+        from .chart_comparison_view import ChartComparisonRequest, ChartComparisonView
+
+        left, right = selected_entries
+        request = ChartComparisonRequest(
+            left_id=left.figure_id,
+            right_id=right.figure_id,
+            left_title=left.title,
+            right_title=right.title,
+            left_path=left.preview_path,
+            right_path=right.preview_path,
+            left_revision=int(left.working_revision),
+            right_revision=int(right.working_revision),
+        )
+        self._comparison_view = ChartComparisonView(request, self)
+        self._comparison_view.show()
+        self._comparison_view.raise_()
 
     def _export_paths(self, paths):
         if not paths:
