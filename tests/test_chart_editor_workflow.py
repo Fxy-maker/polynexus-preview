@@ -9,7 +9,7 @@ import pytest
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, QPointF, QRect, Qt
-from PySide6.QtGui import QColor, QImage, QKeyEvent
+from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
@@ -840,6 +840,53 @@ def test_generated_text_drag_previews_before_opening_inline_editor(tmp_path, app
     )
 
     editor._cancel_inline_text_entry()
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_drag_places_inline_editor_above_canvas(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.resize(1400, 900)
+    editor.show()
+    app.processEvents()
+    editor.set_tool("text")
+
+    canvas = editor._canvas
+    axis = editor._figure.axes[0]
+    device_ratio = float(canvas.devicePixelRatioF() or 1.0)
+
+    def canvas_position(x_value, y_value):
+        x_pixel, y_pixel = axis.transData.transform((x_value, y_value))
+        return QPointF(
+            float(x_pixel) / device_ratio,
+            (float(canvas.figure.bbox.height) - float(y_pixel)) / device_ratio,
+        )
+
+    def send_mouse_event(event_type, position, buttons):
+        global_position = QPointF(canvas.mapToGlobal(position.toPoint()))
+        event = QMouseEvent(
+            event_type,
+            position,
+            position,
+            global_position,
+            Qt.LeftButton,
+            buttons,
+            Qt.NoModifier,
+        )
+        app.sendEvent(canvas, event)
+        app.processEvents()
+
+    start = canvas_position(0.2, 0.2)
+    end = canvas_position(0.6, 0.5)
+    send_mouse_event(QEvent.MouseButtonPress, start, Qt.LeftButton)
+    send_mouse_event(QEvent.MouseMove, end, Qt.LeftButton)
+    send_mouse_event(QEvent.MouseButtonRelease, end, Qt.NoButton)
+
+    inline_editor = editor._inline_text_editor
+    assert inline_editor.isVisible()
+    center = inline_editor.mapToGlobal(inline_editor.rect().center())
+    assert QApplication.widgetAt(center) is inline_editor
+
     editor.deleteLater()
     app.processEvents()
 

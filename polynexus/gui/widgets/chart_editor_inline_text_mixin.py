@@ -47,6 +47,7 @@ class ChartEditorInlineTextMixin:
         self._inline_text_editor.setGeometry(top_left.x(), top_left.y(), width, height)
         self._inline_text_editor.clear()
         self._inline_text_editor.show()
+        self._inline_text_editor.raise_()
         self._inline_text_editor.setFocus()
 
     def _commit_inline_text_entry(self, text: str | None = None) -> bool:

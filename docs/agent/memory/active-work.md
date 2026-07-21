@@ -1,5 +1,19 @@
 # Active Work
 
+## Inline text editor layering fix - completed 2026-07-21
+
+- Real Qt reproduction showed the generated text input was visible and focused
+  but covered by the Matplotlib canvas. The shared inline text editor now raises
+  itself before focusing, so the input is visible and interactive for direct
+  canvas text placement.
+- Focused text/inline matrix passed (`15 passed`), including the real Qt widget
+  stacking regression. Structured verification passed with Ruff, compile,
+  quality gate `282 passed`, preprocessing gate `103 passed`, and whitespace
+  checks. The task card is
+  `docs/agent/tasks/2026-07-21-inline-text-layering.md`.
+- The GUI must be restarted after this checkpoint; the screenshot supplied by
+  the user predates this fix.
+
 ## Empty selection visibility follow-up - completed 2026-07-21
 
 - The editor now distinguishes an empty selection from the compatibility
