@@ -291,6 +291,7 @@ class ChartEditorObjectListMixin:
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             if object_id == "__background__":
                 self._clear_annotation_property_controls()
+                self._selected_object_label.setText(tr("EDITOR_OBJECT_BACKGROUND"))
             return
         if object_id == "__background__":
             self._annotation_canvas.clear_selection()

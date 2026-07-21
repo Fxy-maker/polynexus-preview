@@ -557,7 +557,7 @@ class ChartEditorAnnotationControlsMixin:
 
     def _clear_annotation_property_controls(self):
         self._selected_figure_object_id = ""
-        self._selected_object_label.setText(tr("EDITOR_OBJECT_BACKGROUND"))
+        self._selected_object_label.setText(tr("EDITOR_OBJECT_NONE"))
         self._annotation_text_edit.blockSignals(True)
         self._annotation_text_edit.setText("")
         self._annotation_text_edit.blockSignals(False)

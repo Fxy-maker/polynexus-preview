@@ -543,7 +543,7 @@ class ChartEditor(
         self._object_action_bar = self._build_object_action_bar()
         form.addRow(self._object_action_bar)
 
-        self._selected_object_label = QLabel(tr("EDITOR_OBJECT_BACKGROUND"))
+        self._selected_object_label = QLabel(tr("EDITOR_OBJECT_NONE"))
         form.addRow(tr("EDITOR_SELECTED_OBJECT_LABEL"), self._selected_object_label)
 
         annotation_geometry = QWidget()

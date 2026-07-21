@@ -699,6 +699,8 @@ def test_chart_editor_keeps_empty_object_document_in_object_mode(tmp_path, monke
     assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
     assert editor._object_list.count() == 1
     assert editor._object_list.item(0).data(Qt.UserRole) == "__background__"
+    assert editor._selected_figure_object_id == ""
+    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
 
     editor.deleteLater()
     app.processEvents()
@@ -803,7 +805,7 @@ def test_chart_editor_blank_canvas_click_clears_generated_selection(tmp_path, mo
 
     assert editor._selected_figure_object_id == ""
     assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
     assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
     editor.deleteLater()
@@ -855,7 +857,7 @@ def test_chart_editor_escape_key_clears_generated_selection(tmp_path, monkeypatc
     assert escape_event.isAccepted()
     assert editor._selected_figure_object_id == ""
     assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
     assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
     editor.deleteLater()
@@ -907,7 +909,7 @@ def test_chart_editor_escape_key_on_object_list_clears_generated_selection(
     assert escape_event.isAccepted()
     assert editor._selected_figure_object_id == ""
     assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
     assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
     editor.deleteLater()
@@ -971,7 +973,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "guide-line"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.CrossCursor
 
@@ -1052,7 +1054,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_keeps_hover_on
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "guide-b"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.CrossCursor
 
@@ -1834,7 +1836,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "legend"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.OpenHandCursor
         assert "legend" in editor._status_label.text().lower()
@@ -1921,7 +1923,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "series-heatmap"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.PointingHandCursor
         assert "heatmap" in editor._status_label.text().lower()
@@ -2030,7 +2032,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "series-pattern-grid"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.PointingHandCursor
         assert "image grid" in editor._status_label.text().lower()
@@ -2109,7 +2111,7 @@ def test_chart_editor_object_list_escape_key_clears_selection_and_keeps_hover_on
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "guide-b"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.CrossCursor
 
@@ -2197,7 +2199,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "tolerance-band"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.PointingHandCursor
         assert "tolerance band" in editor._status_label.text().lower()
@@ -2280,7 +2282,7 @@ def test_chart_editor_object_list_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "series-heatmap"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.PointingHandCursor
         assert "heatmap" in editor._status_label.text().lower()
@@ -2349,7 +2351,7 @@ def test_chart_editor_object_list_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "legend"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.OpenHandCursor
         assert "legend" in editor._status_label.text().lower()
@@ -2454,7 +2456,7 @@ def test_chart_editor_object_list_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "series-pattern-grid"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.PointingHandCursor
         assert "image grid" in editor._status_label.text().lower()
@@ -2536,7 +2538,7 @@ def test_chart_editor_object_list_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "tolerance-band"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.PointingHandCursor
         assert "tolerance band" in editor._status_label.text().lower()
@@ -2602,7 +2604,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "series-bar"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.PointingHandCursor
         assert "bar series" in editor._status_label.text().lower()
@@ -2668,7 +2670,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "series-scatter"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.CrossCursor
         assert "scatter" in editor._status_label.text().lower()
@@ -2730,7 +2732,7 @@ def test_chart_editor_object_list_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "series-bar"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.PointingHandCursor
         assert "bar series" in editor._status_label.text().lower()
@@ -2792,7 +2794,7 @@ def test_chart_editor_object_list_escape_key_clears_selection_and_restores_hover
         assert escape_event.isAccepted()
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == "series-scatter"
         assert editor._canvas.cursor().shape() == Qt.CursorShape.CrossCursor
         assert "scatter" in editor._status_label.text().lower()
@@ -3959,7 +3961,7 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_heatmap_object(
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == ""
         assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
@@ -6216,7 +6218,7 @@ def test_chart_editor_escape_key_clears_static_annotation_selection(tmp_path, mo
     assert escape_event.isAccepted()
     assert editor._annotation_canvas.selected_annotation_id() == ""
     assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
 
     editor.deleteLater()
     app.processEvents()
@@ -6244,7 +6246,7 @@ def test_chart_editor_object_list_delete_key_deletes_selected_annotation(tmp_pat
     assert editor._annotation_canvas.annotation_state() == []
     assert editor._object_list.count() == 1
     assert editor._annotation_canvas.selected_annotation_id() == ""
-    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
 
     editor.deleteLater()
     app.processEvents()

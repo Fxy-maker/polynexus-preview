@@ -1,5 +1,18 @@
 # Active Work
 
+## Empty selection visibility follow-up - completed 2026-07-21
+
+- The editor now distinguishes an empty selection from the compatibility
+  Background row with localized `未选择对象` / `No object selected` feedback.
+  Clearing generated or static selection returns to this state, while explicit
+  background activation still reports Background.
+- Focused behavior checks pass (`4 passed`); structured and default changed/type
+  verification both pass with quality gate `282 passed` and preprocessing gate
+  `103 passed`. The task card is
+  `docs/agent/tasks/2026-07-21-empty-selection-visibility.md`.
+- A running GUI must be restarted to load the new source; the launcher probe
+  confirms the canonical root is `D:\PolyNexus`.
+
 ## Strong editor feedback mode - implementation complete, checkpoint blocked 2026-07-21
 
 - Generated chart selection now renders transient blue dashed frames for text,
