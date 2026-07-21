@@ -444,7 +444,9 @@ def test_chart_editor_opens_generated_figure_as_live_canvas(tmp_path, monkeypatc
     editor.set_source_figure(str(figure_path))
 
     assert editor._canvas.isHidden() is False
-    assert editor._toolbar.isHidden() is False
+    # Generated object editing hides Matplotlib's navigation toolbar so its
+    # pan/zoom gesture cannot intercept annotation clicks and drags.
+    assert editor._toolbar.isHidden() is True
     assert editor._annotation_canvas.isHidden() is True
     assert editor._figure.axes
     assert len(editor._figure.axes[0].lines) == 1
