@@ -2,7 +2,7 @@
 
 > Last updated: 2026-07-20
 
-## Editor interaction reliability — in progress 2026-07-20
+## Editor interaction reliability — completed 2026-07-20
 
 - Added direct body-drag transactions for static annotations and generated
   text/rectangle/curve objects. Handles now resize text boxes as well as
@@ -20,8 +20,10 @@
 - Known limitation remains the pre-existing Windows Qt access violation in the
   legacy `LayerTreeItem.setData()` compatibility path when the full
   `tests/test_chart_editor*.py` set is combined; stable focused batches pass.
-- Next action: run the default verifier, checkpoint the explicit changed-file
-  allowlist, and leave all pre-existing untracked drafts/diagnostics untouched.
+- Local checkpoint commit: `132bf912` (`fix(editor): stabilize direct canvas
+  interactions`). The explicit finish metadata is being merged to local
+  `main`; no push is performed. All pre-existing untracked drafts/diagnostics
+  remain intentionally untouched.
 
 ## Local finish verification — recorded 2026-07-20
 

@@ -45,18 +45,18 @@ undo/redo behavior.
 
 ## Acceptance criteria
 
-- [ ] A text object and rectangle can be selected, moved, and resized with handles;
+- [x] A text object and rectangle can be selected, moved, and resized with handles;
   their geometry changes in the intended direction.
-- [ ] Moving a line preserves independently editable endpoints and never collapses
+- [x] Moving a line preserves independently editable endpoints and never collapses
   its horizontal/diagonal geometry merely because the pointer moved downward.
-- [ ] A curve can be bent substantially beyond the previous fixed ~20 px default;
+- [x] A curve can be bent substantially beyond the previous fixed ~20 px default;
   its control point can be moved without changing zoom.
-- [ ] Showing or hiding the bottom context style controls leaves the canvas widget's
+- [x] Showing or hiding the bottom context style controls leaves the canvas widget's
   geometry unchanged.
-- [ ] One completed drag creates one undoable edit; undo restores the prior state
+- [x] One completed drag creates one undoable edit; undo restores the prior state
   and redo restores the edited state.
-- [ ] Selecting a curve leaves zoom level and view transform unchanged.
-- [ ] Existing focused editor, workflow, render, and export tests remain green.
+- [x] Selecting a curve leaves zoom level and view transform unchanged.
+- [x] Existing focused editor, workflow, render, and export tests remain green.
 
 ## Verification
 
