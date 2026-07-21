@@ -16,6 +16,7 @@ from .chart_editor_interaction_controller import (
     EditorInteractionController,
     EditorTool,
 )
+from .editor_geometry import Box
 
 
 class AnnotationCanvas(QWidget):
@@ -1145,15 +1146,21 @@ class AnnotationCanvas(QWidget):
         if self._image_width <= 0 or self._image_height <= 0:
             return ""
         tool = self._current_tool
+        box = Box.from_drag(
+            (float(start.x()), float(start.y())),
+            (float(end.x()), float(end.y())),
+        )
+        if box is None:
+            return ""
         if tool == "text":
-            x = min(start.x(), end.x())
-            y = min(start.y(), end.y())
+            x = box.x
+            y = box.y
             geometry = {
                 "x": self._normalize_x(x),
                 "y": self._normalize_y(y),
             }
-            width = abs(end.x() - start.x())
-            height = abs(end.y() - start.y())
+            width = box.width
+            height = box.height
             if width >= 3.0 and height >= 3.0:
                 geometry["width"] = self._normalize_x(width)
                 geometry["height"] = self._normalize_y(height)
@@ -1162,16 +1169,16 @@ class AnnotationCanvas(QWidget):
                 return ""
             return self.add_text_annotation(
                 "Annotation",
-                start.x(),
-                start.y(),
+                box.x,
+                box.y,
                 width=width if "width" in geometry else None,
                 height=height if "height" in geometry else None,
             )
         if tool in {"rectangle", "highlight"}:
-            x = min(start.x(), end.x())
-            y = min(start.y(), end.y())
-            width = abs(end.x() - start.x())
-            height = abs(end.y() - start.y())
+            x = box.x
+            y = box.y
+            width = box.width
+            height = box.height
             if width < 1.0 or height < 1.0:
                 return ""
             if self._document_objects_mode or self._document_interaction_enabled:

@@ -95,6 +95,30 @@ def test_document_mode_text_drag_requests_box_without_local_mutation(tmp_path):
     app.processEvents()
 
 
+def test_text_creation_uses_the_same_normalized_box_for_reversed_drag(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    assert canvas.set_tool("text") is True
+    annotation_id = canvas._finish_mouse_draw(QPointF(70, 28), QPointF(10, 8))
+
+    annotation = next(
+        item for item in canvas.annotation_state() if item["id"] == annotation_id
+    )
+    assert annotation["x"] == 0.1
+    assert annotation["y"] == 0.16
+    assert annotation["width"] == 0.6
+    assert annotation["height"] == 0.4
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
 def test_annotation_canvas_text_box_applies_persisted_width(tmp_path):
     app = QApplication.instance() or QApplication([])
     image_path = tmp_path / "source.png"
