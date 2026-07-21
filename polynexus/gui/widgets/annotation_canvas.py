@@ -20,6 +20,7 @@ from .chart_editor_interaction_controller import (
 
 class AnnotationCanvas(QWidget):
     tool_changed = Signal(str)
+    interaction_cancelled = Signal()
     selection_changed = Signal(str)
     annotations_changed = Signal()
     object_edit_requested = Signal(object)
@@ -959,10 +960,12 @@ class AnnotationCanvas(QWidget):
         if event.key() == Qt.Key_Escape:
             if self._selection_handle_drag is not None:
                 if self._cancel_selection_handle_drag():
+                    self.interaction_cancelled.emit()
                     event.accept()
                     return
             if self._annotation_body_drag is not None:
                 if self._cancel_annotation_body_drag():
+                    self.interaction_cancelled.emit()
                     event.accept()
                     return
             if self._draw_start is not None:
@@ -970,6 +973,7 @@ class AnnotationCanvas(QWidget):
                 self._clear_draw_preview()
                 self._interaction_controller.cancel()
                 self.set_tool("select")
+                self.interaction_cancelled.emit()
                 event.accept()
                 return
             if self.clear_selection():

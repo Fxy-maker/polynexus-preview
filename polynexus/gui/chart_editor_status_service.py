@@ -6,7 +6,82 @@ from typing import Any, Callable
 
 from PySide6.QtCore import Qt
 
-from .i18n import tr
+from .i18n import get_language, tr
+
+
+_EDITOR_TOOL_LABEL_KEYS = {
+    "select": "EDITOR_TOOL_SELECT",
+    "text": "EDITOR_TOOL_TEXT",
+    "line": "EDITOR_TOOL_LINE",
+    "arrow": "EDITOR_TOOL_ARROW",
+    "curve": "EDITOR_TOOL_CURVE",
+    "rectangle": "EDITOR_TOOL_RECTANGLE",
+    "highlight": "EDITOR_ANNOTATION_ADD_HIGHLIGHT",
+    "crop": "EDITOR_ANNOTATION_CROP",
+}
+
+
+def build_editor_tool_hint(tool: Any) -> str:
+    """Return the short instruction shown after changing the editor tool."""
+    normalized_tool = str(tool or "select").strip().lower()
+    label = tr(_EDITOR_TOOL_LABEL_KEYS.get(normalized_tool, "EDITOR_TOOL_SELECT"))
+    is_zh = get_language() == "zh"
+    cancel = "按 Esc 取消。" if is_zh else " Press Esc to cancel."
+    if normalized_tool == "select":
+        instruction = (
+            "点击对象选中；拖动主体移动，拖动手柄编辑。"
+            if is_zh
+            else "Click an object to select it; drag its body to move it or a handle to edit it."
+        )
+    elif normalized_tool == "text":
+        instruction = tr("EDITOR_DRAW_TEXT_HINT")
+    elif normalized_tool == "curve":
+        instruction = tr("EDITOR_DRAW_CURVE_HINT")
+    elif normalized_tool == "highlight":
+        instruction = "拖动创建高亮。" if is_zh else "Drag to create a highlight."
+    elif normalized_tool == "crop":
+        instruction = "拖动裁剪画布。" if is_zh else "Drag to crop the canvas."
+    else:
+        instruction = f"拖动创建{label}。" if is_zh else f"Drag to create a {label.lower()}."
+    return f"{label}：{instruction}{cancel}" if is_zh else f"{label}: {instruction}{cancel}"
+
+
+def build_editor_selection_hint(object_type: Any, label: Any) -> str:
+    """Return the body and handle instruction for a selected editor object."""
+    normalized_type = str(object_type or "").strip().lower()
+    display_label = str(label or "").strip() or tr("EDITOR_OBJECT_LIST_LABEL")
+    is_zh = get_language() == "zh"
+    if normalized_type in {"line", "arrow"}:
+        instruction = (
+            "拖动主体移动；拖动端点调整大小。"
+            if is_zh
+            else "Drag the body to move it; drag an endpoint to resize it."
+        )
+    elif normalized_type == "curve":
+        instruction = (
+            "拖动主体移动；拖动端点或中间手柄调整曲线。"
+            if is_zh
+            else "Drag the body to move it; drag an endpoint or middle handle to reshape it."
+        )
+    elif normalized_type in {"text", "rectangle", "highlight"}:
+        instruction = (
+            "拖动主体移动；拖动手柄调整大小。"
+            if is_zh
+            else "Drag the body to move it; drag a handle to resize it."
+        )
+    elif normalized_type == "plot_series":
+        instruction = "拖动曲线或数据点编辑。" if is_zh else "Drag the line or a data point to edit it."
+    elif normalized_type == "legend":
+        instruction = "拖动主体移动。" if is_zh else "Drag the body to move it."
+    else:
+        instruction = (
+            "拖动主体移动；拖动手柄编辑。"
+            if is_zh
+            else "Drag the body to move it; drag a handle to edit it."
+        )
+    cancel = "按 Esc 取消。" if is_zh else " Press Esc to cancel."
+    separator = "" if is_zh else ". "
+    return f"{tr('EDITOR_SELECTED_STATUS_OBJECT', display_label)}{separator}{instruction}{cancel}"
 
 
 def format_generated_status_number(value: Any) -> str:

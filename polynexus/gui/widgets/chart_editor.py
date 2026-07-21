@@ -241,6 +241,8 @@ class ChartEditor(
         self._selected_figure_object_ids = ()
         self._hovered_figure_object_id = ""
         self._selection_status_text = ""
+        self._tool_status_text = ""
+        self._cancel_status_text = ""
         self._selection_cycle_hint_active = False
         self._hover_status_text = ""
         self._drag_status_text = ""
@@ -309,7 +311,10 @@ class ChartEditor(
         self._annotation_canvas = AnnotationCanvas()
         self._annotation_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._annotation_canvas.setVisible(False)
-        self._annotation_canvas.tool_changed.connect(self._sync_annotation_tool_buttons)
+        self._annotation_canvas.tool_changed.connect(self._on_annotation_tool_changed)
+        self._annotation_canvas.interaction_cancelled.connect(
+            self._on_annotation_interaction_cancelled
+        )
         self._annotation_canvas.selection_changed.connect(self._sync_annotation_property_controls)
         self._annotation_canvas.annotations_changed.connect(self._on_annotation_canvas_changed)
         self._annotation_canvas.text_entry_requested.connect(
@@ -1193,6 +1198,8 @@ class ChartEditor(
         self._selected_figure_object_ids = ()
         self._hovered_figure_object_id = ""
         self._selection_status_text = ""
+        self._tool_status_text = ""
+        self._cancel_status_text = ""
         self._hover_status_text = ""
         self._drag_status_text = ""
         self._last_deleted_figure_object_id = ""
@@ -1344,6 +1351,8 @@ class ChartEditor(
         self._selected_figure_object_ids = ()
         self._hovered_figure_object_id = ""
         self._selection_status_text = ""
+        self._tool_status_text = ""
+        self._cancel_status_text = ""
         self._hover_status_text = ""
         self._drag_status_text = ""
         self._last_deleted_figure_object_id = ""

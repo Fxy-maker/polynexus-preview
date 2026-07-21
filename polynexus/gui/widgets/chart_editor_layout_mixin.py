@@ -49,6 +49,12 @@ class _EditorContextToolbar(QToolBar):
         self._buttons_by_id = {}
         self._tool_action_group = QActionGroup(self)
         self._tool_action_group.setExclusive(True)
+        self.setStyleSheet(
+            "QToolButton[editor-tool-active=\"true\"] {"
+            " background-color: #dbeafe; color: #1d4ed8;"
+            " border: 1px solid #2563eb; border-radius: 4px;"
+            "}"
+        )
         for action_id, translation_key in self._ACTION_KEYS:
             if action_id in {"undo", "export"}:
                 self.addSeparator()
@@ -69,6 +75,9 @@ class _EditorContextToolbar(QToolBar):
                 button.setAccessibleName(text)
                 button.setAccessibleDescription(text)
                 self._buttons_by_id[action_id] = button
+
+        self._actions_by_id["select"].setChecked(True)
+        self._buttons_by_id["select"].setProperty("editor-tool-active", True)
 
     def action_ids(self):
         return [action_id for action_id, _ in self._ACTION_KEYS]
@@ -473,6 +482,12 @@ class ChartEditorLayoutMixin:
             action.blockSignals(True)
             action.setChecked(action_id == current_tool)
             action.blockSignals(False)
+            button = toolbar.widgetForAction(action)
+            if button is not None:
+                button.setProperty("editor-tool-active", action_id == current_tool)
+                button.style().unpolish(button)
+                button.style().polish(button)
+                button.update()
 
         session = getattr(self, "_edit_session", None)
         toolbar.action("undo").setEnabled(

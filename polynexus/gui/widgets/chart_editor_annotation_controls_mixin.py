@@ -212,27 +212,27 @@ class ChartEditorAnnotationControlsMixin:
     def _on_add_rectangle_annotation(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
-        self._annotation_canvas.set_tool("rectangle")
+        self.set_tool("rectangle")
 
     def _on_add_line_annotation(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
-        self._annotation_canvas.set_tool("line")
+        self.set_tool("line")
 
     def _on_add_arrow_annotation(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
-        self._annotation_canvas.set_tool("arrow")
+        self.set_tool("arrow")
 
     def _on_add_highlight_annotation(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
-        self._annotation_canvas.set_tool("highlight")
+        self.set_tool("highlight")
 
     def _on_crop_annotation_canvas(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
-        self._annotation_canvas.set_tool("crop")
+        self.set_tool("crop")
 
     def _on_annotation_undo(self):
         session = self._edit_session_for_adapter()
@@ -311,6 +311,17 @@ class ChartEditorAnnotationControlsMixin:
             button.blockSignals(True)
             button.setChecked(name == tool)
             button.blockSignals(False)
+
+    def _on_annotation_tool_changed(self, tool):
+        self._sync_annotation_tool_buttons(tool)
+        self._sync_editor_toolbar()
+
+    def _on_annotation_interaction_cancelled(self):
+        canvas = getattr(self, "_annotation_canvas", None)
+        if canvas is not None and canvas.current_tool() != "select":
+            canvas.set_tool("select")
+        self._set_editor_cancel_status()
+        self._sync_editor_toolbar()
 
     def _sync_annotation_property_controls(self, _annotation_id=""):
         if self._annotation_canvas is None:

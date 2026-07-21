@@ -8,15 +8,29 @@ from copy import deepcopy
 from ...core.figure_edit_commands import DeleteObjectCommand, UpdateGeometryCommand, UpdateStyleCommand
 from ...core.figure_edit_session import EditSession
 from ...core.figure_edit_capabilities import EditResult, capabilities_for
-from ..i18n import tr
 from .chart_editor_interaction_controller import EditorTool
 
 
 class ChartEditorEditSessionMixin:
     """Route widget proposals through the shared, undoable edit session."""
 
+    def _sync_annotation_property_controls(self, annotation_id=""):
+        """Keep static annotation selection feedback on the shared status label."""
+        self._clear_editor_cancel_status()
+        super()._sync_annotation_property_controls(annotation_id)
+        if not getattr(self, "_static_file_mode", False):
+            return
+        canvas = getattr(self, "_annotation_canvas", None)
+        annotation = canvas.selected_annotation() if canvas is not None else None
+        if isinstance(annotation, dict):
+            label = self._object_list_label(annotation)
+            self._set_editor_selection_hint(annotation.get("type", ""), label)
+        else:
+            self._clear_generated_selection_status()
+
     def set_tool(self, tool):
         tool = str(tool or "select").strip().lower()
+        self._clear_editor_cancel_status()
         shared_tools = {item.value for item in EditorTool}
         deactivate_navigation = getattr(self, "_deactivate_navigation_toolbar", None)
         if callable(deactivate_navigation):
@@ -28,6 +42,8 @@ class ChartEditorEditSessionMixin:
             changed = bool(setter(tool))
             if changed:
                 self._sync_context_style_bar()
+                self._sync_editor_toolbar()
+                self._set_editor_tool_hint(tool)
             return changed
 
         if getattr(self, "_generated_document_mode", False) and tool in shared_tools:
@@ -43,6 +59,7 @@ class ChartEditorEditSessionMixin:
             self._generated_draw_start_data = None
             self._sync_context_style_bar()
             self._sync_editor_toolbar()
+            self._set_editor_tool_hint(tool)
             return True
         return False
 
@@ -58,7 +75,7 @@ class ChartEditorEditSessionMixin:
                 clear_preview = getattr(canvas, "_clear_draw_preview", None)
                 if callable(clear_preview):
                     clear_preview()
-                canvas.set_tool("select")
+                self.set_tool("select")
                 cancelled = True
 
         if (
@@ -84,9 +101,7 @@ class ChartEditorEditSessionMixin:
         if callable(cancel_inline_text) and cancel_inline_text():
             cancelled = True
         if cancelled:
-            status_label = getattr(self, "_status_label", None)
-            if status_label is not None:
-                status_label.setText(tr("EDITOR_DRAW_CANCELLED"))
+            self._set_editor_cancel_status()
         return cancelled
 
     def _reset_edit_session_from_document(self, document=None):

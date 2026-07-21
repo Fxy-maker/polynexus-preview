@@ -46,6 +46,7 @@ class ChartEditorGeneratedSelectionMixin:
         self._figure_selection_model.select_many(selected_ids, source)
 
     def _on_generated_selection_changed(self, object_id, source):
+        self._clear_editor_cancel_status()
         self._selected_figure_object_id = str(object_id or "")
         self._selected_figure_object_ids = tuple(
             getattr(self._figure_selection_model, "selected_ids", ())
