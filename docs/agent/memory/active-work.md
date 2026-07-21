@@ -1,5 +1,25 @@
 # Active Work
 
+## Unified canvas interaction - completed 2026-07-21
+
+- Added immutable `Box`, `Segment`, and `Curve` geometry records with legacy
+  payload adapters. Generated text and rectangle previews now retain full box
+  geometry while moving on linear and logarithmic axes; selection frames and
+  handles update from that same geometry.
+- Generated text now uses the dragged box's left-bottom anchor, supports body
+  movement and four-corner resizing, and commits width/height in one undoable
+  edit. Static text and rectangle creation normalizes reversed drags through
+  the same box contract.
+- Focused cross-mode interaction matrix passed (`141 passed`). Structured and
+  default changed/type verifiers pass when `PYTEST_ADDOPTS` points to
+  `D:\\PolyNexus\\.pytest_tmp_alt`: quality gate `282 passed`, preprocessing
+  gate `103 passed`, compile, whitespace, and memory checks passed.
+- Running the local preview server still owns repository `.pytest_tmp`, so the
+  verifier without the basetemp override reports WinError 5 during pytest
+  cleanup; this is an environment limitation, not a source failure.
+- Implementation commits are `e34ed75`, `814d9f5`, `d0b297b`, and `d24cc8b`.
+
+
 ## Inline text editor layering fix - completed 2026-07-21
 
 - Real Qt reproduction showed the generated text input was visible and focused
