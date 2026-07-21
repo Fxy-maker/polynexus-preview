@@ -17,6 +17,8 @@
 - Structured and default verifiers passed: Ruff/compile, quality gate `282
   passed`, preprocessing gate `103 passed`, and whitespace checks. Task card:
   `docs/agent/tasks/2026-07-21-unified-editor-interaction-architecture.md`.
+- Code checkpoint: `36a0cc5`; local mainline finish is authorized and pending
+  through `scripts/repo_maintenance.py`.
 
 ## Navigation toolbar interaction conflict — completed 2026-07-21
 
