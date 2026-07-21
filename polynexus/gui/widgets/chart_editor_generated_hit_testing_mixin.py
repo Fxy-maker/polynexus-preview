@@ -5,6 +5,7 @@ GENERATED_LINE_ENDPOINT_HIT_RADIUS_PX = 14.0
 GENERATED_SCATTER_POINT_HIT_RADIUS_PX = 14.0
 GENERATED_LINE_SERIES_BODY_HIT_RADIUS_PX = 10.0
 GENERATED_MARKER_POINT_HIT_MAX_RADIUS_PX = 20.0
+GENERATED_CURVE_BODY_HIT_RADIUS_PX = 12.0
 
 
 class ChartEditorGeneratedHitTestingMixin:
@@ -70,6 +71,20 @@ class ChartEditorGeneratedHitTestingMixin:
                 )
             if not hit:
                 return None
+        elif object_type == "curve":
+            hit = self._generated_curve_body_hit(event, figure_object, geometry)
+            if not hit:
+                artist = next(
+                    iter(self._figure_render_adapter.artists_for_object_id(object_id)),
+                    None,
+                )
+                if artist is not None:
+                    try:
+                        hit, _details = artist.contains(event)
+                    except (AttributeError, RuntimeError, ValueError):
+                        hit = False
+            if not hit:
+                return None
         else:
             artist = next(
                 iter(self._figure_render_adapter.artists_for_object_id(object_id)),
@@ -91,6 +106,54 @@ class ChartEditorGeneratedHitTestingMixin:
             "press_data": coordinates,
             "origin_geometry": geometry,
         }
+
+    def _generated_curve_body_hit(self, event, figure_object, geometry):
+        if not isinstance(geometry, dict):
+            return False
+        points = []
+        for key in ("x1", "y1", "control_x", "control_y", "x2", "y2"):
+            value = self._optional_float(geometry.get(key))
+            if value is None:
+                return False
+            points.append(value)
+        x1, y1, control_x, control_y, x2, y2 = points
+        artist = next(
+            iter(
+                self._figure_render_adapter.artists_for_object_id(
+                    str(figure_object.get("id", "") or "")
+                )
+            ),
+            None,
+        )
+        if artist is None or not hasattr(artist, "get_transform"):
+            return False
+        try:
+            transform = artist.get_transform()
+            curve_points = []
+            for index in range(25):
+                t = float(index) / 24.0
+                inverse_t = 1.0 - t
+                curve_points.append(
+                    (
+                        inverse_t * inverse_t * x1
+                        + 2.0 * inverse_t * t * control_x
+                        + t * t * x2,
+                        inverse_t * inverse_t * y1
+                        + 2.0 * inverse_t * t * control_y
+                        + t * t * y2,
+                    )
+                )
+            pixel_points = transform.transform(curve_points)
+        except (AttributeError, RuntimeError, TypeError, ValueError, OverflowError):
+            return False
+        return (
+            self._nearest_pixel_segment_match(
+                pixel_points,
+                event,
+                max_radius=GENERATED_CURVE_BODY_HIT_RADIUS_PX,
+            )
+            is not None
+        )
 
     def _generated_line_drag_start(self, event, object_id):
         figure_object = self._generated_figure_object_by_id(object_id)

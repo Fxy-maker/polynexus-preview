@@ -1,5 +1,18 @@
 # Active Work
 
+## Curve body hit regression — completed 2026-07-21
+
+- Generated curve body picking now samples the quadratic path in data space,
+  transforms it through the rendered artist into pixels, and reuses the
+  existing segment hit tolerance. This fixes visible-stroke misses on
+  logarithmic axes while retaining the original artist fallback.
+- The curve body can now enter the existing preview drag transaction; endpoint
+  and control-point movement remain persisted through the existing geometry
+  command path.
+- Focused workflow, curve, and hit-testing tests pass (`47 passed`); the task
+  verifier passes with Ruff, compile, quality gate (`282 passed`), preprocessing
+  gate (`103 passed`), and whitespace checks.
+
 ## Generated canvas drag regression — completed 2026-07-21
 
 - Text body hit testing now uses the rendered artist window extent, so labels
