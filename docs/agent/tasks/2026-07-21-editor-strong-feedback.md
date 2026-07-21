@@ -39,6 +39,11 @@ contracts.
 
 See `docs/superpowers/plans/2026-07-21-editor-strong-feedback.md`.
 
+1. Complete tool, selection, and active-toolbar feedback.
+2. Add transient generated-object selection frames and export filtering.
+3. Add static selection frames and synchronize the layer tree.
+4. Run the editor regression matrix and record handoff evidence.
+
 ## Verification
 
 ```text

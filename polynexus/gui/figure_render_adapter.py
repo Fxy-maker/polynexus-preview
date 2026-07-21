@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from types import SimpleNamespace
 
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 
 
 class FigureRenderAdapter:
@@ -78,7 +82,7 @@ class FigureRenderAdapter:
 
         handle_points: list[tuple[float, float]] = []
         handle_indices: list[int] = []
-        if object_type in {"line", "curve"}:
+        if object_type in {"line", "arrow", "curve"}:
             x1 = self._optional_float(figure_object.get("x1"))
             y1 = self._optional_float(figure_object.get("y1"))
             x2 = self._optional_float(figure_object.get("x2"))
@@ -174,6 +178,146 @@ class FigureRenderAdapter:
                 current_handle.set_gid(f"pn-current-handle:{object_id}")
                 overlay_artists.append(current_handle)
         return overlay_artists
+
+    def add_selection_frame(self, ax, figure_object: dict) -> list[object]:
+        """Add a transient visual frame around an editable figure object."""
+        if not isinstance(figure_object, dict):
+            return []
+        object_id = str(figure_object.get("id", "") or "")
+        if not object_id:
+            return []
+
+        object_type = str(figure_object.get("type", "") or "")
+        frame_kwargs = {
+            "color": "#0072B2",
+            "linestyle": "--",
+            "linewidth": 1.5,
+            "zorder": 10_000,
+        }
+
+        def finite_optional_float(value):
+            parsed = self._optional_float(value)
+            return parsed if parsed is not None and math.isfinite(parsed) else None
+
+        if object_type in {"line", "arrow", "curve"}:
+            geometry_keys = ("x1", "y1", "x2", "y2")
+            if object_type == "curve":
+                geometry_keys += ("control_x", "control_y")
+            values = [finite_optional_float(figure_object.get(key)) for key in geometry_keys]
+            if any(value is None for value in values):
+                return []
+            points = list(zip(values[::2], values[1::2]))
+            xs = [float(point[0]) for point in points]
+            ys = [float(point[1]) for point in points]
+            left, right = min(xs), max(xs)
+            bottom, top = min(ys), max(ys)
+            frame = Line2D(
+                [left, right, right, left, left],
+                [bottom, bottom, top, top, bottom],
+                **frame_kwargs,
+            )
+            ax.add_line(frame)
+        elif object_type in {"text", "plot_series"}:
+            frame = self._artist_selection_frame(ax, object_id, figure_object, frame_kwargs)
+            if frame is None:
+                return []
+            ax.add_patch(frame)
+        elif object_type == "rectangle":
+            bounds = (
+                figure_object.get("bounds", {})
+                if isinstance(figure_object.get("bounds"), dict)
+                else figure_object
+            )
+            x = finite_optional_float(bounds.get("x"))
+            y = finite_optional_float(bounds.get("y"))
+            width = finite_optional_float(bounds.get("width"))
+            height = finite_optional_float(bounds.get("height"))
+            if None in {x, y, width, height}:
+                return []
+            frame = Rectangle(
+                (float(x), float(y)),
+                float(width),
+                float(height),
+                fill=False,
+                edgecolor=frame_kwargs["color"],
+                linestyle=frame_kwargs["linestyle"],
+                linewidth=frame_kwargs["linewidth"],
+                zorder=frame_kwargs["zorder"],
+            )
+            ax.add_patch(frame)
+        else:
+            return []
+
+        frame.set_gid(f"pn-selection-frame:{object_id}")
+        return [frame]
+
+    def _artist_selection_frame(self, ax, object_id: str, figure_object: dict, frame_kwargs: dict):
+        for artist in self.artists_for_object_id(object_id):
+            if not hasattr(artist, "get_window_extent"):
+                continue
+            figure = getattr(artist, "figure", None) or getattr(ax, "figure", None)
+            canvas = getattr(figure, "canvas", None)
+            renderer = None
+            if canvas is not None and hasattr(canvas, "get_renderer"):
+                try:
+                    renderer = canvas.get_renderer()
+                except (AttributeError, RuntimeError):
+                    renderer = None
+            if renderer is None and figure is not None:
+                try:
+                    canvas = FigureCanvasAgg(figure)
+                    canvas.draw()
+                    renderer = canvas.get_renderer()
+                except (AttributeError, RuntimeError, ValueError):
+                    renderer = None
+            if renderer is None:
+                continue
+            try:
+                window_bbox = artist.get_window_extent(renderer)
+                data_bbox = ax.transData.inverted().transform_bbox(window_bbox)
+                values = (
+                    data_bbox.x0,
+                    data_bbox.y0,
+                    data_bbox.width,
+                    data_bbox.height,
+                )
+            except (AttributeError, RuntimeError, ValueError):
+                continue
+            if all(math.isfinite(float(value)) for value in values):
+                return Rectangle(
+                    (float(values[0]), float(values[1])),
+                    float(values[2]),
+                    float(values[3]),
+                    fill=False,
+                    edgecolor=frame_kwargs["color"],
+                    linestyle=frame_kwargs["linestyle"],
+                    linewidth=frame_kwargs["linewidth"],
+                    zorder=frame_kwargs["zorder"],
+                )
+
+        bounds = (
+            figure_object.get("bounds", {})
+            if isinstance(figure_object.get("bounds"), dict)
+            else figure_object
+        )
+        x = self._optional_float(bounds.get("x"))
+        y = self._optional_float(bounds.get("y"))
+        width = self._optional_float(bounds.get("width"))
+        height = self._optional_float(bounds.get("height"))
+        if None in {x, y, width, height} or not all(
+            math.isfinite(float(value)) for value in (x, y, width, height)
+        ):
+            return None
+        return Rectangle(
+            (float(x), float(y)),
+            float(width),
+            float(height),
+            fill=False,
+            edgecolor=frame_kwargs["color"],
+            linestyle=frame_kwargs["linestyle"],
+            linewidth=frame_kwargs["linewidth"],
+            zorder=frame_kwargs["zorder"],
+        )
 
     def render_document(
         self,

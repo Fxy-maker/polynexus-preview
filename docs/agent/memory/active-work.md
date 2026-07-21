@@ -1,5 +1,28 @@
 # Active Work
 
+## Strong editor feedback mode - implementation complete, checkpoint blocked 2026-07-21
+
+- Generated chart selection now renders transient blue dashed frames for text,
+  rectangle, line, arrow, curve, and rendered series bounds. Frames stay
+  outside the persistent artist map and are absent during generated export.
+- Static annotation selection now has a transient blue dashed scene frame below
+  handles. It is hidden by `render_scene()` exports, removed on Escape/clear/
+  rebuild, and does not enter annotation history. The object tree preserves the
+  background row for compatibility but clears its selection state when there is
+  no editable object and scrolls matching nested rows into view.
+- Focused matrix passed: `127 passed` for annotation canvas, layout, and
+  workflow tests; renderer/workflow selection and export checks passed with
+  `20 passed`. Changed modules compile and `git diff --check` passes.
+- The task card is valid after adding numbered implementation steps. `ruff
+  0.15.22` and `pyright 1.1.411` are now installed in the bundled Python
+  runtime and the verifier reaches the quality gate. The quality gate remains
+  blocked by Windows permission errors while cleaning `.pytest_tmp`; the full
+  combined editor matrix also retains the known Qt access violation in the
+  legacy `LayerTreeItem.setData()` path.
+- The atomic checkpoint could not be created because this sandbox identity lacks
+  write permission for `.git/index` and `.git/objects`; no push, merge, or
+  cleanup was performed, and pre-existing untracked drafts remain untouched.
+
 ## Unified editor interaction architecture — completed 2026-07-21
 
 - Connected the Qt-independent `EditorInteractionController` to static

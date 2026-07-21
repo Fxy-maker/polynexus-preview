@@ -58,6 +58,8 @@ class ChartEditorObjectListMixin:
             self._object_list.clear()
             selected_row = 0
             figure_objects = self._generated_figure_objects()
+            if not selected_id and self._annotation_canvas is not None:
+                selected_id = self._annotation_canvas.selected_annotation_id()
             if isinstance(self._object_list, QTreeWidget):
                 background = LayerTreeItem([tr("EDITOR_OBJECT_BACKGROUND")])
                 background.setData(0, Qt.UserRole, "__background__")
@@ -104,9 +106,6 @@ class ChartEditorObjectListMixin:
             annotations = []
             if self._annotation_canvas is not None and not self._annotation_canvas.isHidden():
                 annotations = self._annotation_canvas.annotation_state()
-            if not selected_id and self._annotation_canvas is not None:
-                selected_id = self._annotation_canvas.selected_annotation_id()
-
             if not isinstance(self._object_list, QTreeWidget):
                 for annotation in annotations:
                     annotation_id = str(annotation.get("id", ""))
@@ -176,13 +175,16 @@ class ChartEditorObjectListMixin:
 
     def _set_tree_current_item(self, selected_id):
         if not selected_id:
-            self._object_list.setCurrentItem(self._object_list.topLevelItem(0))
+            background = self._object_list.topLevelItem(0)
+            self._object_list.setCurrentItem(background)
+            self._object_list.clearSelection()
             return
         stack = [self._object_list.topLevelItem(index) for index in range(self._object_list.topLevelItemCount())]
         while stack:
             item = stack.pop(0)
             if str(item.data(0, Qt.UserRole) or "") == str(selected_id):
                 self._object_list.setCurrentItem(item)
+                self._object_list.scrollToItem(item)
                 return
             stack.extend(item.child(index) for index in range(item.childCount()))
 

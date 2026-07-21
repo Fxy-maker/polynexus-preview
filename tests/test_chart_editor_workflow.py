@@ -684,6 +684,10 @@ def test_generated_export_omits_editor_selection_handles_and_restores_selection(
     editor = make_generated_editor(tmp_path)
     editor._select_generated_object("line-1", "list")
     assert any(
+        artist.get_gid() == "pn-selection-frame:line-1"
+        for artist in editor._figure.axes[0].lines
+    )
+    assert any(
         artist.get_gid() == "pn-selection-handles:line-1"
         for artist in editor._figure.axes[0].collections
     )
@@ -694,7 +698,7 @@ def test_generated_export_omits_editor_selection_handles_and_restores_selection(
         exported_gids.extend(
             str(artist.get_gid() or "")
             for axes in figure.axes
-            for artist in axes.collections
+            for artist in (*axes.lines, *axes.patches, *axes.collections)
         )
         return original_savefig(figure, *args, **kwargs)
 
@@ -705,7 +709,12 @@ def test_generated_export_omits_editor_selection_handles_and_restores_selection(
 
     assert not any(gid.startswith("pn-selection-handles:") for gid in exported_gids)
     assert not any(gid.startswith("pn-current-handle:") for gid in exported_gids)
+    assert not any(gid.startswith("pn-selection-frame:") for gid in exported_gids)
     assert editor._selected_figure_object_id == "line-1"
+    assert any(
+        artist.get_gid() == "pn-selection-frame:line-1"
+        for artist in editor._figure.axes[0].lines
+    )
     assert any(
         artist.get_gid() == "pn-selection-handles:line-1"
         for artist in editor._figure.axes[0].collections
@@ -858,6 +867,13 @@ def test_formal_generated_document_accepts_text_tool(built_ir_document, tmp_path
 
     assert editor._generated_document_mode is True
     assert load_figure_document(str(document_path)).get("mode") == "object"
+    selected_id = str(editor._figure_document["objects"][0]["id"])
+    editor._select_generated_object(selected_id, "list")
+    assert any(
+        str(artist.get_gid() or "") == f"pn-selection-frame:{selected_id}"
+        for axis in editor._figure.axes
+        for artist in (*axis.lines, *axis.patches)
+    )
     editor._title_edit.setText("Edited title")
     app.processEvents()
     assert editor._figure.axes[0].get_title() == "Edited title"

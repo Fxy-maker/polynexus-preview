@@ -49,6 +49,7 @@ class AnnotationCanvas(QWidget):
         self._draw_start: QPointF | None = None
         self._draw_preview_item = None
         self._selection_handle_items: list[object] = []
+        self._selection_frame_item = None
         self._selection_handle_drag: dict | None = None
         self._annotation_body_drag: dict | None = None
         self._syncing_scene_selection = False
@@ -804,7 +805,11 @@ class AnnotationCanvas(QWidget):
 
     def render_scene(self, painter: QPainter, target: QRectF, source: QRectF | None = None) -> None:
         source = source if source is not None else self._scene.sceneRect()
-        transient_items = [self._draw_preview_item, *self._selection_handle_items]
+        transient_items = [
+            self._draw_preview_item,
+            self._selection_frame_item,
+            *self._selection_handle_items,
+        ]
         visibility = []
         for item in transient_items:
             if item is None or item.scene() is not self._scene:
@@ -1483,6 +1488,9 @@ class AnnotationCanvas(QWidget):
 
     def _discard_scene_overlays(self) -> None:
         self._draw_preview_item = None
+        if self._selection_frame_item is not None:
+            self._scene.removeItem(self._selection_frame_item)
+        self._selection_frame_item = None
         self._selection_handle_items = []
         self._selection_handle_drag = None
         self._annotation_body_drag = None
@@ -1509,6 +1517,9 @@ class AnnotationCanvas(QWidget):
         self._draw_preview_item = item
 
     def _clear_selection_handles(self) -> None:
+        if self._selection_frame_item is not None:
+            self._scene.removeItem(self._selection_frame_item)
+            self._selection_frame_item = None
         for item in self._selection_handle_items:
             self._scene.removeItem(item)
         self._selection_handle_items = []
@@ -1519,6 +1530,27 @@ class AnnotationCanvas(QWidget):
         if annotation is None:
             return
         geometry = dict(geometry) if geometry is not None else self._geometry_from_payload(annotation)
+        points = self._selection_handle_points(annotation, geometry)
+        if points:
+            frame_rect = QRectF(points[0], points[0])
+            for point in points[1:]:
+                frame_rect = frame_rect.united(QRectF(point, point))
+            frame_rect = frame_rect.adjusted(-5.0, -5.0, 5.0, 5.0)
+            frame_pen = QPen(QColor("#2563EB"))
+            frame_pen.setStyle(Qt.DashLine)
+            frame_pen.setWidthF(1.5)
+            self._selection_frame_item = self._scene.addRect(
+                frame_rect,
+                frame_pen,
+                QBrush(Qt.NoBrush),
+            )
+            self._selection_frame_item.setData(0, "")
+            self._selection_frame_item.setAcceptedMouseButtons(Qt.NoButton)
+            self._selection_frame_item.setFlag(
+                self._selection_frame_item.GraphicsItemFlag.ItemIsSelectable,
+                False,
+            )
+            self._selection_frame_item.setZValue(10_000)
         for index, point in enumerate(self._selection_handle_points(annotation, geometry)):
             item = self._scene.addEllipse(
                 QRectF(point.x() - 4.0, point.y() - 4.0, 8.0, 8.0),

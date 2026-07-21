@@ -1,9 +1,12 @@
+import math
 from types import SimpleNamespace
 
 from matplotlib import colors as mcolors
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 import pytest
 
 from polynexus.gui.figure_render_adapter import FigureRenderAdapter
@@ -499,3 +502,216 @@ def test_figure_render_adapter_handles_empty_object_list_without_artist_mappings
     assert fig is not None
     assert artist_map == {}
     assert apply_calls == ["called"]
+
+
+def test_figure_render_adapter_adds_transient_line_selection_frame_from_endpoints():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+    persisted = ax.plot([0.0, 4.0], [1.0, 3.0])[0]
+    adapter.register_artists("line-1", [persisted])
+
+    frames = adapter.add_selection_frame(
+        ax,
+        {"id": "line-1", "type": "line", "x1": 4.0, "y1": 3.0, "x2": 1.0, "y2": 1.0},
+    )
+
+    assert len(frames) == 1
+    frame = frames[0]
+    assert isinstance(frame, Line2D)
+    assert frame.get_gid() == "pn-selection-frame:line-1"
+    assert list(frame.get_xdata()) == [1.0, 4.0, 4.0, 1.0, 1.0]
+    assert list(frame.get_ydata()) == [1.0, 1.0, 3.0, 3.0, 1.0]
+    assert frame.get_color() == "#0072B2"
+    assert frame.get_linestyle() == "--"
+    assert frame.get_fillstyle() == "full"
+    assert frame.get_zorder() > 1000
+    assert adapter.object_id_for_artist(frame) == ""
+    assert adapter.artists_for_object_id("line-1") == [persisted]
+
+
+def test_figure_render_adapter_adds_transient_curve_selection_frame_from_control_extent():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    frames = adapter.add_selection_frame(
+        ax,
+        {
+            "id": "curve-1",
+            "type": "curve",
+            "x1": 2.0,
+            "y1": 4.0,
+            "x2": 8.0,
+            "y2": 6.0,
+            "control_x": 5.0,
+            "control_y": 12.0,
+        },
+    )
+
+    assert len(frames) == 1
+    frame = frames[0]
+    assert isinstance(frame, Line2D)
+    assert list(frame.get_xdata()) == [2.0, 8.0, 8.0, 2.0, 2.0]
+    assert list(frame.get_ydata()) == [4.0, 4.0, 12.0, 12.0, 4.0]
+    assert frame.get_gid() == "pn-selection-frame:curve-1"
+    assert frame.get_linestyle() == "--"
+    assert frame.get_zorder() > 1000
+
+
+def test_figure_render_adapter_adds_transient_rectangle_selection_frame_from_bounds():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    frames = adapter.add_selection_frame(
+        ax,
+        {
+            "id": "rect-1",
+            "type": "rectangle",
+            "bounds": {"x": 1.5, "y": 2.0, "width": 3.0, "height": 4.5},
+        },
+    )
+
+    assert len(frames) == 1
+    frame = frames[0]
+    assert isinstance(frame, Rectangle)
+    assert frame.get_x() == pytest.approx(1.5)
+    assert frame.get_y() == pytest.approx(2.0)
+    assert frame.get_width() == pytest.approx(3.0)
+    assert frame.get_height() == pytest.approx(4.5)
+    assert frame.get_gid() == "pn-selection-frame:rect-1"
+    assert frame.get_edgecolor() == pytest.approx(mcolors.to_rgba("#0072B2"))
+    assert frame.get_linestyle() == "--"
+    assert frame.get_fill() is False
+    assert frame.get_zorder() > 1000
+    assert adapter.object_id_for_artist(frame) == ""
+    assert adapter.artists_for_object_id("rect-1") == []
+
+
+def test_figure_render_adapter_adds_transient_text_selection_frame_from_fallback_bounds():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    frames = adapter.add_selection_frame(
+        ax,
+        {
+            "id": "text-1",
+            "type": "text",
+            "x": 3.0,
+            "y": 4.0,
+            "width": 2.5,
+            "height": 1.25,
+        },
+    )
+
+    assert len(frames) == 1
+    frame = frames[0]
+    assert isinstance(frame, Rectangle)
+    assert frame.get_x() == pytest.approx(3.0)
+    assert frame.get_y() == pytest.approx(4.0)
+    assert frame.get_width() == pytest.approx(2.5)
+    assert frame.get_height() == pytest.approx(1.25)
+    assert frame.get_gid() == "pn-selection-frame:text-1"
+    assert frame.get_linestyle() == "--"
+    assert frame.get_fill() is False
+    assert adapter.object_id_for_artist(frame) == ""
+
+
+def test_figure_render_adapter_uses_rendered_text_extent_for_selection_frame():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+    text_artist = ax.text(2.0, 3.0, "Peak", fontsize=18)
+    adapter.register_artists("text-rendered", [text_artist])
+    FigureCanvasAgg(fig).draw()
+
+    frame = adapter.add_selection_frame(
+        ax,
+        {"id": "text-rendered", "type": "text", "x": 2.0, "y": 3.0},
+    )[0]
+
+    text_bbox = text_artist.get_window_extent(fig.canvas.get_renderer())
+    data_bbox = ax.transData.inverted().transform_bbox(text_bbox)
+    assert frame.get_x() == pytest.approx(data_bbox.x0)
+    assert frame.get_y() == pytest.approx(data_bbox.y0)
+    assert frame.get_width() == pytest.approx(data_bbox.width)
+    assert frame.get_height() == pytest.approx(data_bbox.height)
+
+
+def test_figure_render_adapter_adds_transient_arrow_selection_frame_from_endpoints():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    frames = adapter.add_selection_frame(
+        ax,
+        {"id": "arrow-1", "type": "arrow", "x1": 4.0, "y1": 3.0, "x2": 1.0, "y2": 1.0},
+    )
+
+    assert len(frames) == 1
+    assert list(frames[0].get_xdata()) == [1.0, 4.0, 4.0, 1.0, 1.0]
+    assert list(frames[0].get_ydata()) == [1.0, 1.0, 3.0, 3.0, 1.0]
+    assert frames[0].get_gid() == "pn-selection-frame:arrow-1"
+
+
+@pytest.mark.parametrize(
+    "figure_object",
+    [
+        {"id": "missing-line", "type": "line", "x1": 1.0, "y1": 2.0},
+        {"id": "missing-curve", "type": "curve", "x1": 1.0, "y1": 2.0, "x2": 3.0, "y2": 4.0},
+        {"id": "missing-rect", "type": "rectangle", "bounds": {"x": 1.0, "y": 2.0}},
+        {"id": "missing-text", "type": "text", "x": 1.0, "y": 2.0, "width": 3.0},
+    ],
+)
+def test_figure_render_adapter_skips_selection_frame_for_invalid_geometry(figure_object):
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    assert adapter.add_selection_frame(ax, figure_object) == []
+
+
+@pytest.mark.parametrize(
+    "figure_object",
+    [
+        {
+            "id": "nonfinite-line",
+            "type": "line",
+            "x1": math.nan,
+            "y1": 2.0,
+            "x2": 3.0,
+            "y2": 4.0,
+        },
+        {
+            "id": "nonfinite-curve",
+            "type": "curve",
+            "x1": 1.0,
+            "y1": 2.0,
+            "x2": 3.0,
+            "y2": 4.0,
+            "control_x": 2.0,
+            "control_y": math.inf,
+        },
+        {
+            "id": "nonfinite-rectangle",
+            "type": "rectangle",
+            "bounds": {"x": 1.0, "y": 2.0, "width": -math.inf, "height": 4.0},
+        },
+        {
+            "id": "nonfinite-text",
+            "type": "text",
+            "x": 1.0,
+            "y": -math.inf,
+            "width": 3.0,
+            "height": 2.0,
+        },
+    ],
+)
+def test_figure_render_adapter_skips_selection_frame_for_nonfinite_geometry(figure_object):
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    assert adapter.add_selection_frame(ax, figure_object) == []

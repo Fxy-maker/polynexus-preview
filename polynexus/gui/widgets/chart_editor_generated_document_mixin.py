@@ -87,6 +87,10 @@ class ChartEditorGeneratedDocumentMixin:
                     adapter.highlight_selection(
                         artist_map.get(str(self._selected_figure_object_id or ""), [])
                     )
+                self._add_generated_selection_handles(
+                    figure,
+                    self._load_generated_document_data_sources(),
+                )
             return figure
 
         self._shared_render_plan = None
@@ -852,6 +856,7 @@ class ChartEditorGeneratedDocumentMixin:
         target_axes = fig.axes[0] if fig.axes else None
         if target_axes is None:
             return
+        self._figure_render_adapter.add_selection_frame(target_axes, figure_object)
         self._figure_render_adapter.add_selection_handles(
             target_axes,
             figure_object,

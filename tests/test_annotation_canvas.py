@@ -141,6 +141,34 @@ def test_text_annotation_exposes_resize_handles_and_updates_box_geometry(tmp_pat
     app.processEvents()
 
 
+def test_selected_static_annotation_shows_transient_frame_and_escape_clears_it(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    assert canvas.load_image(str(image_path)) is True
+    annotation_id = canvas.add_rectangle_annotation(10, 8, 40, 20)
+    assert canvas.select_annotation(annotation_id) is True
+
+    frame = canvas._selection_frame_item
+    assert frame is not None
+    assert frame.pen().color().name().upper() == "#2563EB"
+    assert frame.pen().style() == Qt.DashLine
+    assert frame.zValue() < canvas._selection_handle_items[0].zValue()
+    assert frame.acceptedMouseButtons() == Qt.NoButton
+
+    event = QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier)
+    app.sendEvent(canvas, event)
+
+    assert canvas._selection_frame_item is None
+    assert canvas._selection_handle_items == []
+    canvas.deleteLater()
+    app.processEvents()
+
+
 def test_select_mode_leaves_object_mouse_move_for_graphics_view(tmp_path):
     app = QApplication.instance() or QApplication([])
     image_path = tmp_path / "source.png"
