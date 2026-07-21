@@ -436,8 +436,23 @@ QToolBar#editor_toolbar QToolButton:hover {{
 
 QToolBar#editor_toolbar QToolButton:checked {{
     background-color: {t.accent_waxs}22;
-    border-color: {t.accent_waxs};
+    border-color: {t.border_focus};
     color: {t.accent_waxs};
+}}
+
+QToolBar#editor_toolbar QToolButton[editor-tool-active="true"] {{
+    background-color: {t.accent_waxs}12;
+    border-color: {t.border_focus};
+    color: {t.accent_waxs};
+}}
+
+QToolBar#editor_toolbar QToolButton[editor-toolbar-role="history"] {{
+    padding: 2px;
+    border-radius: {t.radius_sm}px;
+}}
+
+QToolBar#editor_toolbar QToolButton[editor-toolbar-role="history"]:disabled {{
+    color: {t.text_muted};
 }}
 
 QToolBar#editor_toolbar::separator {{

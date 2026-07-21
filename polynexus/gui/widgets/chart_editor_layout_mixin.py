@@ -51,8 +51,14 @@ class _EditorContextToolbar(QToolBar):
         self._tool_action_group.setExclusive(True)
         self.setStyleSheet(
             "QToolButton[editor-tool-active=\"true\"] {"
-            " background-color: #dbeafe; color: #1d4ed8;"
-            " border: 1px solid #2563eb; border-radius: 4px;"
+            " background-color: #eff6ff; color: #1d4ed8;"
+            " border: 1px solid #bfdbfe; border-radius: 6px;"
+            "}"
+            " QToolButton[editor-toolbar-role=\"history\"] {"
+            " padding: 2px; border-radius: 6px;"
+            "}"
+            " QToolButton[editor-toolbar-role=\"history\"]:disabled {"
+            " color: #94a3b8;"
             "}"
         )
         for action_id, translation_key in self._ACTION_KEYS:
@@ -70,8 +76,21 @@ class _EditorContextToolbar(QToolBar):
             self.addAction(action)
             button = self.widgetForAction(action)
             if button is not None:
+                role = (
+                    "drawing"
+                    if action_id in self._TOOL_ACTION_IDS
+                    else "history"
+                    if action_id in {"undo", "redo"}
+                    else "output"
+                )
+                button.setProperty("editor-toolbar-role", role)
                 button.setAutoRaise(True)
-                button.setMinimumHeight(48)
+                if role == "history":
+                    button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+                    button.setFixedSize(34, 34)
+                else:
+                    button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+                    button.setMinimumHeight(48)
                 button.setAccessibleName(text)
                 button.setAccessibleDescription(text)
                 self._buttons_by_id[action_id] = button

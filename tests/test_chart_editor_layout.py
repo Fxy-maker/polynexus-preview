@@ -340,6 +340,36 @@ def test_context_toolbar_has_stable_actions_and_retranslates():
     _app().processEvents()
 
 
+def test_context_toolbar_groups_drawing_tools_and_compacts_history_actions():
+    _app()
+    editor = ChartEditor()
+
+    for action_id in ("select", "text", "line", "arrow", "curve", "rectangle"):
+        button = editor._editor_toolbar.widgetForAction(
+            editor._editor_toolbar.action(action_id)
+        )
+        assert button.property("editor-toolbar-role") == "drawing"
+        assert button.toolButtonStyle() == Qt.ToolButtonTextUnderIcon
+
+    for action_id in ("undo", "redo"):
+        button = editor._editor_toolbar.widgetForAction(
+            editor._editor_toolbar.action(action_id)
+        )
+        assert button.property("editor-toolbar-role") == "history"
+        assert button.toolButtonStyle() == Qt.ToolButtonIconOnly
+        assert button.minimumHeight() <= 36
+        assert button.toolTip() == button.accessibleName()
+
+    export_button = editor._editor_toolbar.widgetForAction(
+        editor._editor_toolbar.action("export")
+    )
+    assert export_button.property("editor-toolbar-role") == "output"
+    assert export_button.toolButtonStyle() == Qt.ToolButtonTextUnderIcon
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
 def test_context_toolbar_marks_the_checked_tool_button_with_an_accent_property():
     _app()
     editor = ChartEditor()
