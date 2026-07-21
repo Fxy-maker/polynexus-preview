@@ -41,3 +41,7 @@ stroke.
 python -m pytest tests/test_chart_editor_workflow.py tests/test_chart_editor_curve.py tests/test_chart_editor_generated_hit_testing_mixin.py -q
 python scripts/verify.py --task docs/agent/tasks/2026-07-21-curve-body-hit-regression.md --changed --types
 ```
+
+## Local checkpoint
+
+- Implementation checkpoint before local mainline finish: `4055d079`.
