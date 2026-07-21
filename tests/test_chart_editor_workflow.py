@@ -521,6 +521,74 @@ def test_generated_line_body_drag_preserves_endpoint_delta(tmp_path, app):
     app.processEvents()
 
 
+def test_generated_text_body_hit_uses_rendered_text_bounds_on_log_axis(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "log-text",
+        "type": "text",
+        "x": 0.5,
+        "y": 1_000_000.0,
+        "text": "Peak label",
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    axis = editor._figure.axes[0]
+    axis.set_yscale("log")
+    axis.set_ylim(1e4, 1e8)
+    editor._canvas.draw()
+    artist = editor._figure_render_adapter.artists_for_object_id("log-text")[0]
+    bbox = artist.get_window_extent(editor._canvas.get_renderer())
+    pixel = ((bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0)
+    data = axis.transData.inverted().transform(pixel)
+    event = MouseEvent("button_press_event", editor._canvas, *pixel, button=1)
+    event.inaxes = axis
+    event.xdata, event.ydata = float(data[0]), float(data[1])
+    target = editor._generated_drag_state_for_press(event, "log-text")
+
+    assert target is not None
+    assert target["kind"] == "body"
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_line_body_drag_uses_display_delta_on_log_axis(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor._select_generated_object("line-1", "list")
+    axis = editor._figure.axes[0]
+    axis.set_yscale("log")
+    axis.set_ylim(0.1, 10.0)
+    editor._canvas.draw()
+    original = editor._generated_figure_object_by_id("line-1").copy()
+    artist = editor._generated_line_artist("line-1")
+    artist_pixels = artist.get_transform().transform(list(zip(artist.get_xdata(), artist.get_ydata())))
+    press_pixel = (artist_pixels[0] + artist_pixels[1]) / 2.0
+    start = tuple(axis.transData.inverted().transform(press_pixel))
+    press = MouseEvent("button_press_event", editor._canvas, *press_pixel, button=1)
+    press.inaxes = axis
+    press.xdata, press.ydata = start
+    editor._on_generated_button_press(press)
+
+    move_pixel = (float(press_pixel[0]), float(press_pixel[1]) - 80.0)
+    move = MouseEvent("motion_notify_event", editor._canvas, *move_pixel, button=1)
+    move.inaxes = None
+    move.xdata = None
+    move.ydata = None
+    editor._on_generated_mouse_move(move)
+
+    preview = editor._generated_handle_drag_state["preview_geometry"]
+    moved_pixel = axis.transData.transform((preview["x1"], preview["y1"]))
+    assert moved_pixel[1] - axis.transData.transform((original["x1"], original["y1"]))[1] == pytest.approx(
+        -80.0, abs=4.0
+    )
+    assert preview["y1"] > 0.0
+    assert preview["y2"] > 0.0
+
+    editor._cancel_generated_drag()
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_generated_export_omits_editor_selection_handles_and_restores_selection(
     tmp_path, app, monkeypatch
 ):

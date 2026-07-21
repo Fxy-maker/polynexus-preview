@@ -28,16 +28,47 @@ class ChartEditorGeneratedHitTestingMixin:
             if not (left <= x_value <= left + width and top <= y_value <= top + height):
                 return None
         elif object_type == "text":
-            anchor_x = float(geometry.get("x", 0.0) or 0.0)
-            anchor_y = float(geometry.get("y", 0.0) or 0.0)
-            width = float(geometry.get("width", 0.0) or 0.0) or max(
-                0.08, len(str(figure_object.get("text", "") or "")) * 0.025
-            )
-            height = float(geometry.get("height", 0.0) or 0.0) or 0.12
-            if not (
-                anchor_x - width / 2.0 <= x_value <= anchor_x + width / 2.0
-                and anchor_y <= y_value <= anchor_y + height
-            ):
+            text_artists = self._figure_render_adapter.artists_for_object_id(object_id)
+            hit = False
+            renderer = None
+            try:
+                renderer = self._canvas.get_renderer()
+            except (AttributeError, RuntimeError):
+                renderer = None
+            if renderer is None:
+                try:
+                    self._canvas.draw()
+                    renderer = self._canvas.get_renderer()
+                except (AttributeError, RuntimeError):
+                    renderer = None
+            for artist in text_artists:
+                try:
+                    if renderer is not None:
+                        window_extent = artist.get_window_extent(renderer)
+                        hit = bool(
+                            window_extent.contains(
+                                float(getattr(event, "x", 0.0) or 0.0),
+                                float(getattr(event, "y", 0.0) or 0.0),
+                            )
+                        )
+                    else:
+                        hit, _details = artist.contains(event)
+                except (AttributeError, RuntimeError, ValueError):
+                    hit = False
+                if hit:
+                    break
+            if not hit:
+                anchor_x = float(geometry.get("x", 0.0) or 0.0)
+                anchor_y = float(geometry.get("y", 0.0) or 0.0)
+                width = float(geometry.get("width", 0.0) or 0.0) or max(
+                    0.08, len(str(figure_object.get("text", "") or "")) * 0.025
+                )
+                height = float(geometry.get("height", 0.0) or 0.0) or 0.12
+                hit = (
+                    anchor_x - width / 2.0 <= x_value <= anchor_x + width / 2.0
+                    and anchor_y <= y_value <= anchor_y + height
+                )
+            if not hit:
                 return None
         else:
             artist = next(

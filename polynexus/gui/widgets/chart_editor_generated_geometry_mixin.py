@@ -258,22 +258,35 @@ class ChartEditorGeneratedGeometryMixin:
         origin_y2 = self._optional_float(origin_geometry.get("y2"))
         if start_x is None or start_y is None or origin_x1 is None or origin_y1 is None:
             return False
-        dx = round(float(x_value) - float(start_x), 12)
-        dy = round(float(y_value) - float(start_y), 12)
         mode = str(drag_state.get("geometry_mode", "segment") or "segment")
-        if mode == "vertical":
-            updates = {"x1": round(float(origin_x1) + dx, 12)}
-        elif mode == "horizontal":
-            updates = {"y1": round(float(origin_y1) + dy, 12)}
-        else:
-            if origin_x2 is None or origin_y2 is None:
-                return False
-            updates = {
-                "x1": round(float(origin_x1) + dx, 12),
-                "y1": round(float(origin_y1) + dy, 12),
-                "x2": round(float(origin_x2) + dx, 12),
-                "y2": round(float(origin_y2) + dy, 12),
-            }
+        line_artist = self._generated_line_artist(object_id)
+        transform = (
+            line_artist.get_transform()
+            if line_artist is not None and hasattr(line_artist, "get_transform")
+            else None
+        )
+        updates = self._generated_display_translation(
+            drag_state,
+            {"x1": origin_x1, "y1": origin_y1, "x2": origin_x2, "y2": origin_y2},
+            mode=mode,
+            transform=transform,
+        )
+        if updates is None:
+            dx = round(float(x_value) - float(start_x), 12)
+            dy = round(float(y_value) - float(start_y), 12)
+            if mode == "vertical":
+                updates = {"x1": round(float(origin_x1) + dx, 12)}
+            elif mode == "horizontal":
+                updates = {"y1": round(float(origin_y1) + dy, 12)}
+            else:
+                if origin_x2 is None or origin_y2 is None:
+                    return False
+                updates = {
+                    "x1": round(float(origin_x1) + dx, 12),
+                    "y1": round(float(origin_y1) + dy, 12),
+                    "x2": round(float(origin_x2) + dx, 12),
+                    "y2": round(float(origin_y2) + dy, 12),
+                }
         drag_state = self._generated_drag_preview_mode(object_id)
         if drag_state is not None:
             original_object = drag_state.get("original_object")
@@ -319,19 +332,37 @@ class ChartEditorGeneratedGeometryMixin:
             return False
         if not isinstance(origin_geometry, dict):
             return False
-        dx = round(float(x_value) - float(press_data[0]), 12)
-        dy = round(float(y_value) - float(press_data[1]), 12)
         object_type = str(drag_state.get("object_type", "") or figure_object.get("type", ""))
-        preview_geometry = deepcopy(origin_geometry)
+        transform = self._generated_object_transform(object_id)
         if object_type in {"text", "rectangle"}:
-            preview_geometry["x"] = round(float(origin_geometry.get("x", 0.0)) + dx, 12)
-            preview_geometry["y"] = round(float(origin_geometry.get("y", 0.0)) + dy, 12)
+            preview_geometry = self._generated_display_translation(
+                drag_state,
+                {"x": origin_geometry.get("x"), "y": origin_geometry.get("y")},
+                transform=transform,
+            )
         elif object_type == "curve":
-            for x_key, y_key in (("x1", "y1"), ("x2", "y2"), ("control_x", "control_y")):
-                preview_geometry[x_key] = round(float(origin_geometry.get(x_key, 0.0)) + dx, 12)
-                preview_geometry[y_key] = round(float(origin_geometry.get(y_key, 0.0)) + dy, 12)
+            preview_geometry = self._generated_display_translation(
+                drag_state,
+                {
+                    key: origin_geometry.get(key)
+                    for key in ("x1", "y1", "x2", "y2", "control_x", "control_y")
+                },
+                transform=transform,
+            )
         else:
             return False
+        if preview_geometry is None:
+            dx = round(float(x_value) - float(press_data[0]), 12)
+            dy = round(float(y_value) - float(press_data[1]), 12)
+            preview_geometry = deepcopy(origin_geometry)
+            if object_type in {"text", "rectangle"}:
+                preview_geometry["x"] = round(float(origin_geometry.get("x", 0.0)) + dx, 12)
+                preview_geometry["y"] = round(float(origin_geometry.get("y", 0.0)) + dy, 12)
+            elif object_type == "curve":
+                for x_key, y_key in (("x1", "y1"), ("x2", "y2"), ("control_x", "control_y")):
+                    preview_geometry[x_key] = round(float(origin_geometry.get(x_key, 0.0)) + dx, 12)
+                    preview_geometry[y_key] = round(float(origin_geometry.get(y_key, 0.0)) + dy, 12)
+
         drag_state = self._generated_drag_preview_mode(object_id)
         if drag_state is not None:
             return self._update_generated_drag_preview(
@@ -345,6 +376,93 @@ class ChartEditorGeneratedGeometryMixin:
         session.select(object_id, "generated-canvas")
         result = self._execute_edit(UpdateGeometryCommand(object_id, preview_geometry))
         return bool(result is not None and result.changed)
+
+    def _generated_display_translation(
+        self, drag_state, geometry, *, mode="segment", transform=None
+    ):
+        press_pixels = drag_state.get("press_pixels")
+        current_pixels = drag_state.get("current_pixels")
+        axes = self._figure.axes[0] if self._figure and self._figure.axes else None
+        if (
+            axes is None
+            or not isinstance(press_pixels, (list, tuple))
+            or not isinstance(current_pixels, (list, tuple))
+            or len(press_pixels) < 2
+            or len(current_pixels) < 2
+        ):
+            return None
+        if (
+            str(axes.get_xscale() or "linear") == "linear"
+            and str(axes.get_yscale() or "linear") == "linear"
+        ):
+            return None
+        try:
+            delta_x = float(current_pixels[0]) - float(press_pixels[0])
+            delta_y = float(current_pixels[1]) - float(press_pixels[1])
+        except (TypeError, ValueError):
+            return None
+        transform = transform or axes.transData
+        try:
+            inverse_transform = transform.inverted()
+        except (AttributeError, RuntimeError, ValueError):
+            return None
+
+        def translate(x_value, y_value):
+            if x_value is None or y_value is None:
+                return None
+            try:
+                pixel_x, pixel_y = transform.transform((float(x_value), float(y_value)))
+                data_x, data_y = inverse_transform.transform(
+                    (float(pixel_x) + delta_x, float(pixel_y) + delta_y)
+                )
+                return round(float(data_x), 12), round(float(data_y), 12)
+            except (AttributeError, TypeError, ValueError, OverflowError, RuntimeError):
+                return None
+
+        translated = {}
+        if mode == "vertical":
+            point = translate(geometry.get("x1"), geometry.get("y1"))
+            if point is None:
+                return None
+            translated["x1"] = point[0]
+        elif mode == "horizontal":
+            point = translate(geometry.get("x1"), geometry.get("y1"))
+            if point is None:
+                return None
+            translated["y1"] = point[1]
+        elif {"x1", "y1", "x2", "y2"}.issubset(geometry):
+            for x_key, y_key in (("x1", "y1"), ("x2", "y2")):
+                point = translate(geometry.get(x_key), geometry.get(y_key))
+                if point is None:
+                    return None
+                translated[x_key], translated[y_key] = point
+            for x_key, y_key in (("control_x", "control_y"),):
+                if x_key in geometry and y_key in geometry:
+                    point = translate(geometry.get(x_key), geometry.get(y_key))
+                    if point is None:
+                        return None
+                    translated[x_key], translated[y_key] = point
+        elif {"x", "y"}.issubset(geometry):
+            point = translate(geometry.get("x"), geometry.get("y"))
+            if point is None:
+                return None
+            translated["x"], translated["y"] = point
+        else:
+            return None
+        return translated
+
+    def _generated_object_transform(self, object_id):
+        artists = self._figure_render_adapter.artists_for_object_id(object_id)
+        for artist in artists:
+            if artist is None or not hasattr(artist, "get_transform"):
+                continue
+            try:
+                transform = artist.get_transform()
+            except (AttributeError, RuntimeError, ValueError):
+                continue
+            if transform is not None:
+                return transform
+        return None
 
     def _apply_generated_plot_series_handle_drag(self, object_id, handle_index, x_value, y_value):
         figure_object = self._generated_figure_object_by_id(object_id)

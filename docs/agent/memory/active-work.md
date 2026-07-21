@@ -1,5 +1,21 @@
 # Active Work
 
+## Generated canvas drag regression — completed 2026-07-21
+
+- Text body hit testing now uses the rendered artist window extent, so labels
+  remain selectable when logarithmic-axis data coordinates make the old fixed
+  fallback bounds inaccurate.
+- Generated drag viewport snapshots now retain X/Y axis scales. Non-linear
+  axis body movement uses the active artist transform and pointer pixel delta;
+  linear axes retain the exact data-coordinate movement contract.
+- Focused generated drag/workflow tests pass (`31 passed`). The structured
+  verifier passes for task card
+  `docs/agent/tasks/2026-07-21-generated-canvas-drag-regression.md`, including
+  Ruff, compile, quality gate (`282 passed`), preprocessing gate (`103 passed`),
+  and whitespace checks.
+- The pre-existing untracked drafts and diagnostics remain intentionally
+  untouched; no push or mainline merge was performed for this follow-up.
+
 > Last updated: 2026-07-20
 
 ## Editor interaction reliability — completed 2026-07-20

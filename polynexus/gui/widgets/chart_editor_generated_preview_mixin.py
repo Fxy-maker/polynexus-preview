@@ -35,6 +35,8 @@ class ChartEditorGeneratedPreviewMixin:
                 {
                     "xlim": tuple(float(value) for value in axis.get_xlim()),
                     "ylim": tuple(float(value) for value in axis.get_ylim()),
+                    "xscale": str(axis.get_xscale() or "linear"),
+                    "yscale": str(axis.get_yscale() or "linear"),
                 }
                 for axis in axes
             ],
@@ -66,9 +68,11 @@ class ChartEditorGeneratedPreviewMixin:
             if not isinstance(axis_snapshot, dict):
                 continue
             try:
+                axis.set_xscale(str(axis_snapshot.get("xscale", "linear") or "linear"))
+                axis.set_yscale(str(axis_snapshot.get("yscale", "linear") or "linear"))
                 axis.set_xlim(axis_snapshot["xlim"])
                 axis.set_ylim(axis_snapshot["ylim"])
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError, RuntimeError):
                 continue
             restored = True
         return restored

@@ -60,6 +60,10 @@ class ChartEditorGeneratedDragExecutionMixin:
                 )
                 return
             drag_state["activated"] = True
+        drag_state["current_pixels"] = (
+            float(getattr(event, "x", 0.0) or 0.0),
+            float(getattr(event, "y", 0.0) or 0.0),
+        )
         drag_kind = str(drag_state.get("kind", "") or object_type)
         self._set_generated_canvas_cursor(Qt.CursorShape.ClosedHandCursor)
         session = getattr(self, "_edit_session", None)
