@@ -7,6 +7,7 @@ from matplotlib.patches import FancyArrowPatch, PathPatch, Rectangle
 from matplotlib.path import Path
 from matplotlib.text import Text
 
+from .editor_geometry import Box
 
 class ChartEditorGeneratedPreviewMixin:
     """Own editor-only artists used while a generated gesture is in progress."""
@@ -328,6 +329,7 @@ class ChartEditorGeneratedPreviewMixin:
                     transform=axes.transAxes,
                 )
         self._update_generated_drag_handle_artists(object_id, geometry, object_type)
+        self._update_generated_selection_frame(object_id, geometry, object_type)
         self._sync_generated_drag_preview_controls(geometry, object_type)
         state["preview_artists"] = artists
         self._generated_handle_preview_artists = artists
@@ -335,6 +337,23 @@ class ChartEditorGeneratedPreviewMixin:
         if canvas is not None:
             canvas.draw_idle()
         return True
+
+    def _update_generated_selection_frame(self, object_id, geometry, object_type):
+        if object_type not in {"text", "rectangle"}:
+            return
+        box = Box.from_payload(geometry)
+        if box is None:
+            return
+        expected_gid = f"pn-selection-frame:{object_id}"
+        figure = getattr(self, "_figure", None)
+        for axis in list(getattr(figure, "axes", ()) or ()):
+            for artist in axis.patches:
+                if str(getattr(artist, "get_gid", lambda: "")() or "") != expected_gid:
+                    continue
+                if isinstance(artist, Rectangle):
+                    artist.set_xy((box.x, box.y))
+                    artist.set_width(box.width)
+                    artist.set_height(box.height)
 
     def _sync_generated_drag_preview_controls(self, geometry, object_type):
         set_value = getattr(self, "_set_control_value_silently", None)
@@ -399,16 +418,13 @@ class ChartEditorGeneratedPreviewMixin:
                     geometry.get("control_y", (float(y1) + float(y2)) / 2.0),
                 ),
             ]
-        elif object_type == "rectangle":
-            x = geometry.get("x")
-            y = geometry.get("y")
-            width = geometry.get("width")
-            height = geometry.get("height")
-            if None in {x, y, width, height}:
+        elif object_type in {"rectangle", "text"}:
+            box = Box.from_payload(geometry)
+            if box is None:
                 return
-            right = float(x) + float(width)
-            top = float(y) + float(height)
-            points = [(x, y), (right, y), (right, top), (x, top)]
+            right = box.x + box.width
+            top = box.y + box.height
+            points = [(box.x, box.y), (right, box.y), (right, top), (box.x, top)]
         elif object_type == "plot_series":
             x_values = list(geometry.get("x_values", ()) or ())
             y_values = list(geometry.get("y_values", ()) or ())

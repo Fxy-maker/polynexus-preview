@@ -298,6 +298,33 @@ def test_figure_render_adapter_adds_rectangle_handles_from_bounds_geometry():
     ]
 
 
+def test_figure_render_adapter_adds_text_box_handles_from_persisted_geometry():
+    adapter = FigureRenderAdapter()
+    fig = Figure(figsize=(4.0, 3.0), dpi=100, facecolor="#FFFFFF")
+    ax = fig.add_subplot(111)
+
+    handle_artists = adapter.add_selection_handles(
+        ax,
+        {
+            "id": "text-box",
+            "type": "text",
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0,
+        },
+    )
+
+    assert len(handle_artists) == 1
+    assert handle_artists[0].get_offsets().tolist() == [
+        [1.0, 2.0],
+        [4.0, 2.0],
+        [4.0, 6.0],
+        [1.0, 6.0],
+    ]
+    assert getattr(handle_artists[0], "_pn_handle_indices", None) == [0, 1, 2, 3]
+
+
 def test_figure_render_adapter_highlights_selected_image_grid_frame_and_title():
     adapter = FigureRenderAdapter()
 

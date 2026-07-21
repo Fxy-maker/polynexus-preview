@@ -11,6 +11,8 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
+from .widgets.editor_geometry import Box
+
 
 class FigureRenderAdapter:
     _PICK_RADIUS = 10.0
@@ -99,16 +101,17 @@ class FigureRenderAdapter:
                 if control_x is not None and control_y is not None:
                     handle_points.append((control_x, control_y))
                     handle_indices.append(2)
-        elif object_type == "rectangle":
+        elif object_type in {"rectangle", "text"}:
             bounds = (
                 figure_object.get("bounds", {})
                 if isinstance(figure_object.get("bounds"), dict)
                 else figure_object
             )
-            x = self._optional_float(bounds.get("x"))
-            y = self._optional_float(bounds.get("y"))
-            width = self._optional_float(bounds.get("width"))
-            height = self._optional_float(bounds.get("height"))
+            box = Box.from_payload(bounds)
+            x = box.x if box is not None else None
+            y = box.y if box is not None else None
+            width = box.width if box is not None else None
+            height = box.height if box is not None else None
             if None not in {x, y, width, height}:
                 right = float(x) + float(width)
                 top = float(y) + float(height)
@@ -217,7 +220,26 @@ class FigureRenderAdapter:
                 **frame_kwargs,
             )
             ax.add_line(frame)
-        elif object_type in {"text", "plot_series"}:
+        elif object_type == "text":
+            box = Box.from_payload(figure_object)
+            frame = (
+                Rectangle(
+                    (box.x, box.y),
+                    box.width,
+                    box.height,
+                    fill=False,
+                    edgecolor=frame_kwargs["color"],
+                    linestyle=frame_kwargs["linestyle"],
+                    linewidth=frame_kwargs["linewidth"],
+                    zorder=frame_kwargs["zorder"],
+                )
+                if box is not None and box.width > 0 and box.height > 0
+                else self._artist_selection_frame(ax, object_id, figure_object, frame_kwargs)
+            )
+            if frame is None:
+                return []
+            ax.add_patch(frame)
+        elif object_type == "plot_series":
             frame = self._artist_selection_frame(ax, object_id, figure_object, frame_kwargs)
             if frame is None:
                 return []

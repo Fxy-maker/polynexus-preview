@@ -9,6 +9,7 @@ from ...core.figure_edit_commands import (
     UpdateStyleCommand,
 )
 from ...core.figure_object_store import FigureObjectStore
+from .editor_geometry import Box
 
 GENERATED_LEGEND_HIT_SLOP_PX = 6.0
 
@@ -335,9 +336,20 @@ class ChartEditorGeneratedGeometryMixin:
         object_type = str(drag_state.get("object_type", "") or figure_object.get("type", ""))
         transform = self._generated_object_transform(object_id)
         if object_type in {"text", "rectangle"}:
+            box = Box.from_payload(origin_geometry)
+            if box is None and object_type == "rectangle":
+                return False
+            base_geometry = (
+                box.to_payload()
+                if box is not None
+                else {
+                    "x": origin_geometry.get("x"),
+                    "y": origin_geometry.get("y"),
+                }
+            )
             preview_geometry = self._generated_display_translation(
                 drag_state,
-                {"x": origin_geometry.get("x"), "y": origin_geometry.get("y")},
+                base_geometry,
                 transform=transform,
             )
         elif object_type == "curve":
@@ -356,8 +368,18 @@ class ChartEditorGeneratedGeometryMixin:
             dy = round(float(y_value) - float(press_data[1]), 12)
             preview_geometry = deepcopy(origin_geometry)
             if object_type in {"text", "rectangle"}:
-                preview_geometry["x"] = round(float(origin_geometry.get("x", 0.0)) + dx, 12)
-                preview_geometry["y"] = round(float(origin_geometry.get("y", 0.0)) + dy, 12)
+                box = Box.from_payload(origin_geometry)
+                if box is None and object_type == "rectangle":
+                    return False
+                if box is not None:
+                    preview_geometry = box.translated(dx, dy).to_payload()
+                else:
+                    preview_geometry["x"] = round(
+                        float(origin_geometry.get("x", 0.0)) + dx, 12
+                    )
+                    preview_geometry["y"] = round(
+                        float(origin_geometry.get("y", 0.0)) + dy, 12
+                    )
             elif object_type == "curve":
                 for x_key, y_key in (("x1", "y1"), ("x2", "y2"), ("control_x", "control_y")):
                     preview_geometry[x_key] = round(float(origin_geometry.get(x_key, 0.0)) + dx, 12)
@@ -447,6 +469,9 @@ class ChartEditorGeneratedGeometryMixin:
             if point is None:
                 return None
             translated["x"], translated["y"] = point
+            for key in ("width", "height"):
+                if key in geometry:
+                    translated[key] = deepcopy(geometry[key])
         else:
             return None
         return translated

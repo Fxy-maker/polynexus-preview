@@ -591,6 +591,119 @@ def test_generated_text_body_drag_moves_on_log_axis(tmp_path, app):
     app.processEvents()
 
 
+def test_generated_text_body_drag_preview_keeps_box_geometry_and_selection_frame(
+    tmp_path, app
+):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "boxed-text",
+        "type": "text",
+        "x": 0.72,
+        "y": 1.0,
+        "width": 0.15,
+        "height": 0.5,
+        "text": "Peak label",
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+    axis = editor._figure.axes[0]
+    axis.set_yscale("log")
+    axis.set_ylim(0.1, 10.0)
+    editor._canvas.draw()
+    artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    pixel = artist.get_transform().transform((payload["x"], payload["y"]))
+
+    def event(name, point, *, inaxes=True):
+        result = MouseEvent(name, editor._canvas, *point, button=1)
+        result.inaxes = axis if inaxes else None
+        result.xdata, result.ydata = axis.transData.inverted().transform(point)
+        return result
+
+    editor._on_generated_button_press(event("button_press_event", pixel))
+    editor._on_generated_mouse_move(
+        event("motion_notify_event", (float(pixel[0]) + 32.0, float(pixel[1]) + 18.0), inaxes=False)
+    )
+
+    preview = editor._generated_handle_drag_state["preview_geometry"]
+    assert preview["width"] == pytest.approx(payload["width"])
+    assert preview["height"] == pytest.approx(payload["height"])
+    frame = next(
+        artist
+        for artist in editor._figure.axes[0].patches
+        if artist.get_gid() == f"pn-selection-frame:{payload['id']}"
+    )
+    assert frame.get_x() != pytest.approx(payload["x"])
+
+    editor._cancel_generated_drag()
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_rectangle_body_drag_preview_moves_the_visible_box(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "boxed-rectangle",
+        "type": "rectangle",
+        "x": 0.72,
+        "y": 0.3,
+        "width": 0.15,
+        "height": 0.2,
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+    axis = editor._figure.axes[0]
+    axis.set_yscale("log")
+    axis.set_ylim(0.1, 10.0)
+    editor._canvas.draw()
+
+    def event(name, point, *, inaxes=True):
+        result = MouseEvent(name, editor._canvas, *axis.transData.transform(point), button=1)
+        result.inaxes = axis if inaxes else None
+        result.xdata, result.ydata = point
+        return result
+
+    press_point = (payload["x"] + payload["width"] / 2.0, payload["y"] + payload["height"] / 2.0)
+    editor._on_generated_button_press(event("button_press_event", press_point))
+    editor._on_generated_mouse_move(
+        event("motion_notify_event", (press_point[0] + 0.1, press_point[1] + 0.08))
+    )
+
+    preview = editor._generated_handle_drag_state["preview_geometry"]
+    assert preview["x"] != pytest.approx(payload["x"])
+    assert preview["y"] != pytest.approx(payload["y"])
+    assert preview["width"] == pytest.approx(payload["width"])
+    assert preview["height"] == pytest.approx(payload["height"])
+
+    editor._cancel_generated_drag()
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_box_uses_its_left_bottom_corner_as_anchor(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "anchored-text",
+        "type": "text",
+        "x": 0.2,
+        "y": 0.3,
+        "width": 0.25,
+        "height": 0.12,
+        "text": "Peak",
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+
+    artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    assert artist.get_position() == pytest.approx((payload["x"], payload["y"]))
+    assert artist.get_ha() == "left"
+    assert artist.get_va() == "bottom"
+
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_generated_curve_body_hit_uses_rendered_path_on_log_axis(tmp_path, app):
     editor = make_generated_editor(tmp_path)
     payload = {

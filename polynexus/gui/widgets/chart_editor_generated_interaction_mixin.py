@@ -7,6 +7,7 @@ from PySide6.QtCore import QRect, Qt
 from ...core.figure_edit_commands import AddObjectCommand
 from ...core.figures.renderer import MatplotlibFigureRenderer
 from ..i18n import tr
+from .editor_geometry import Box
 
 
 class ChartEditorGeneratedInteractionMixin:
@@ -260,7 +261,8 @@ class ChartEditorGeneratedInteractionMixin:
         controller = getattr(self, "_interaction_controller", None)
         if controller is not None:
             controller.finish_create(end) if end is not None else controller.cancel()
-        if start is None or end is None:
+        box = Box.from_drag(start, end) if start is not None and end is not None else None
+        if start is None or end is None or box is None:
             self._clear_generated_draw_preview()
             self._generated_viewport_snapshot = None
             self.set_tool("select")
@@ -270,9 +272,8 @@ class ChartEditorGeneratedInteractionMixin:
             self._select_generated_object("", "text-entry")
             self.set_tool("select")
             self._begin_generated_text_box(
-                start,
-                end,
-                self._generated_canvas_rect(start_display, event),
+                box,
+                rect=self._generated_canvas_rect(start_display, event),
             )
             return
         if start == end:
@@ -292,15 +293,11 @@ class ChartEditorGeneratedInteractionMixin:
         bottom = canvas_height - int(round(min(start_y, end_y)))
         return QRect(left, top, max(1, right - left), max(1, bottom - top))
 
-    def _begin_generated_text_box(self, start, end, rect: QRect) -> None:
-        x1, y1 = (float(start[0]), float(start[1]))
-        x2, y2 = (float(end[0]), float(end[1]))
-        geometry = {"x": min(x1, x2), "y": min(y1, y2)}
-        width = abs(x2 - x1)
-        height = abs(y2 - y1)
-        if width > 0 and height > 0:
-            geometry["width"] = width
-            geometry["height"] = height
+    def _begin_generated_text_box(self, start, end=None, rect: QRect | None = None) -> None:
+        box = start if isinstance(start, Box) else Box.from_drag(start, end)
+        if box is None or rect is None:
+            return
+        geometry = box.to_payload()
         self._begin_inline_text_entry(
             {"mode": "generated", "type": "text", "geometry": geometry},
             host=self._canvas,
