@@ -91,6 +91,20 @@ class _EditorContextToolbar(QToolBar):
 class ChartEditorLayoutMixin:
     """Presentation helpers for the canvas-first chart editor shell."""
 
+    def _deactivate_navigation_toolbar(self):
+        toolbar = getattr(self, "_toolbar", None)
+        if toolbar is None:
+            return False
+        mode = getattr(toolbar, "mode", None)
+        mode_name = str(getattr(mode, "name", "") or "").upper()
+        if mode_name == "PAN":
+            toolbar.pan()
+            return True
+        if mode_name == "ZOOM":
+            toolbar.zoom()
+            return True
+        return False
+
     def _build_editor_toolbar(self):
         toolbar = _EditorContextToolbar(self)
         for action_id, callback in (
@@ -423,6 +437,10 @@ class ChartEditorLayoutMixin:
     def _set_editor_mode_ui(self, *, object_mode: bool):
         if not hasattr(self, "_inspector_tabs"):
             return
+        self._deactivate_navigation_toolbar()
+        navigation_toolbar = getattr(self, "_toolbar", None)
+        if navigation_toolbar is not None:
+            navigation_toolbar.setVisible(not object_mode)
         self._inspector_tabs.setCurrentIndex(0 if object_mode else 2)
         self._sync_header_actions()
         self._sync_editor_toolbar()

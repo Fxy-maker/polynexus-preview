@@ -16,6 +16,9 @@ class ChartEditorEditSessionMixin:
 
     def set_tool(self, tool):
         tool = str(tool or "select").strip().lower()
+        deactivate_navigation = getattr(self, "_deactivate_navigation_toolbar", None)
+        if callable(deactivate_navigation):
+            deactivate_navigation()
         canvas = getattr(self, "_annotation_canvas", None)
         setter = getattr(canvas, "set_tool", None)
         if callable(setter) and canvas is not None and not canvas.isHidden():

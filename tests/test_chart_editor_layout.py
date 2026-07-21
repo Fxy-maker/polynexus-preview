@@ -87,6 +87,40 @@ def test_object_tab_exposes_common_actions_next_to_layer_tree():
     _app().processEvents()
 
 
+def test_generated_object_mode_keeps_navigation_toolbar_from_stealing_canvas_gestures(
+    tmp_path,
+):
+    _app()
+    source = _write_static_source(tmp_path)
+    save_generated_figure_document(
+        str(source),
+        figure_id="navigation-conflict",
+        objects=[
+            {
+                "id": "line-1",
+                "type": "line",
+                "x1": 0.2,
+                "y1": 0.2,
+                "x2": 0.8,
+                "y2": 0.8,
+            }
+        ],
+    )
+    editor = ChartEditor()
+    editor.set_source_figure(str(source))
+
+    assert editor._generated_document_mode
+    assert editor._toolbar.isHidden()
+
+    editor._toolbar.zoom()
+    assert getattr(editor._toolbar.mode, "name", "") == "ZOOM"
+    editor.set_tool("text")
+    assert getattr(editor._toolbar.mode, "name", "") == "NONE"
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
 def test_editor_keeps_canvas_usable_at_narrow_window_width():
     app = _app()
     editor = ChartEditor()

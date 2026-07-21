@@ -1,5 +1,15 @@
 # Active Work
 
+## Navigation toolbar interaction conflict — completed 2026-07-21
+
+- Generated object-edit mode now hides Matplotlib's pan/zoom toolbar, which was
+  drawing the orange zoom rubber-band and intercepting annotation drags.
+- Selecting a generated text, line, arrow, curve, or rectangle tool now exits
+  any active navigation mode before the gesture begins; static preview mode
+  retains the navigation toolbar.
+- Focused layout/workflow tests pass (`49 passed`). Task card:
+  `docs/agent/tasks/2026-07-21-navigation-toolbar-interaction-conflict.md`.
+
 ## Curve body hit regression — completed 2026-07-21
 
 - Generated curve body picking now samples the quadratic path in data space,
