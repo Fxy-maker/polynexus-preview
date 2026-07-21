@@ -12,6 +12,10 @@ from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, 
 from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsTextItem, QGraphicsView, QVBoxLayout, QWidget
 
 from .annotation_render_adapter import AnnotationRenderAdapter, qt_pen_style_for_line_style
+from .chart_editor_interaction_controller import (
+    EditorInteractionController,
+    EditorTool,
+)
 
 
 class AnnotationCanvas(QWidget):
@@ -52,6 +56,7 @@ class AnnotationCanvas(QWidget):
         self._document_interaction_enabled = False
         self._document_interaction_object_ids: set[str] = set()
         self._pending_object_geometry: dict[str, dict] = {}
+        self._interaction_controller = EditorInteractionController()
         self.setFocusPolicy(Qt.StrongFocus)
 
         layout = QVBoxLayout(self)
@@ -232,10 +237,14 @@ class AnnotationCanvas(QWidget):
         return annotation_id
 
     def set_tool(self, tool: str) -> bool:
+        tool = str(tool or "").strip().lower()
         if tool not in {"select", "text", "line", "arrow", "curve", "rectangle", "highlight", "crop"}:
             return False
         if self._current_tool == tool:
             return True
+        if tool in {item.value for item in EditorTool}:
+            if not self._interaction_controller.set_tool(tool):
+                return False
         self._current_tool = tool
         self._draw_start = None
         self._clear_draw_preview()
@@ -855,6 +864,16 @@ class AnnotationCanvas(QWidget):
                 if handle_index is not None:
                     event.accept()
                     return True
+                if annotation is not None:
+                    body_hit = any(
+                        str(item.data(0) or "") == str(self._selected_annotation_id or "")
+                        for item in self._scene.items(
+                            self._scene_point_from_event(event)
+                        )
+                    )
+                    if body_hit:
+                        self._view.viewport().setCursor(Qt.OpenHandCursor)
+                        return False
                 return False
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 if self._selection_handle_drag is not None:
@@ -870,9 +889,23 @@ class AnnotationCanvas(QWidget):
         if watched is self._view.viewport() and self._current_tool != "select":
             if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
                 self._draw_start = self._scene_point_from_event(event)
+                if self._current_tool in {item.value for item in EditorTool}:
+                    transition = self._interaction_controller.begin_create(
+                        (self._draw_start.x(), self._draw_start.y())
+                    )
+                    if not transition.accepted:
+                        self._draw_start = None
+                        return False
                 event.accept()
                 return True
             if event.type() == QEvent.MouseMove and self._draw_start is not None:
+                if self._current_tool in {item.value for item in EditorTool}:
+                    self._interaction_controller.update_create(
+                        (
+                            self._scene_point_from_event(event).x(),
+                            self._scene_point_from_event(event).y(),
+                        )
+                    )
                 self._update_draw_preview(
                     self._draw_start,
                     self._scene_point_from_event(event),
@@ -882,6 +915,8 @@ class AnnotationCanvas(QWidget):
             if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
                 if self._draw_start is not None:
                     end = self._scene_point_from_event(event)
+                    if self._current_tool in {item.value for item in EditorTool}:
+                        self._interaction_controller.finish_create((end.x(), end.y()))
                     self._clear_draw_preview()
                     self._finish_mouse_draw(self._draw_start, end)
                     self._draw_start = None
@@ -933,6 +968,7 @@ class AnnotationCanvas(QWidget):
             if self._draw_start is not None:
                 self._draw_start = None
                 self._clear_draw_preview()
+                self._interaction_controller.cancel()
                 self.set_tool("select")
                 event.accept()
                 return
@@ -1545,6 +1581,14 @@ class AnnotationCanvas(QWidget):
             "original_geometry": geometry,
             "preview_geometry": dict(geometry),
         }
+        transition = self._interaction_controller.begin_handle_drag(
+            str(annotation.get("id", "") or ""),
+            handle_index,
+            (scene_point.x(), scene_point.y()),
+        )
+        if not transition.accepted:
+            self._selection_handle_drag = None
+            return False
         return True
 
     def _update_selection_handle_drag(self, scene_point: QPointF) -> bool:
@@ -1558,6 +1602,7 @@ class AnnotationCanvas(QWidget):
             scene_point,
         )
         state["preview_geometry"] = geometry
+        self._interaction_controller.update_drag((scene_point.x(), scene_point.y()))
         annotation = self._annotation_by_id(str(state["object_id"]))
         if annotation is None:
             return False
@@ -1569,6 +1614,7 @@ class AnnotationCanvas(QWidget):
             return False
         state = self._selection_handle_drag
         self._selection_handle_drag = None
+        self._interaction_controller.finish_drag()
         annotation = self._annotation_by_id(str(state["object_id"]))
         geometry = dict(state["preview_geometry"])
         if annotation is None:
@@ -1590,6 +1636,7 @@ class AnnotationCanvas(QWidget):
         self._selection_handle_drag = None
         if not isinstance(state, dict):
             return False
+        self._interaction_controller.cancel()
         annotation = self._annotation_by_id(str(state["object_id"]))
         if annotation is not None:
             if self._document_objects_mode:
@@ -1630,6 +1677,13 @@ class AnnotationCanvas(QWidget):
             "original_geometry": geometry,
             "preview_geometry": dict(geometry),
         }
+        transition = self._interaction_controller.begin_body_drag(
+            annotation_id,
+            (scene_point.x(), scene_point.y()),
+        )
+        if not transition.accepted:
+            self._annotation_body_drag = None
+            return False
         self._view.viewport().setCursor(Qt.ClosedHandCursor)
         return True
 
@@ -1655,6 +1709,7 @@ class AnnotationCanvas(QWidget):
         else:
             return False
         state["preview_geometry"] = original
+        self._interaction_controller.update_drag((scene_point.x(), scene_point.y()))
         annotation = self._annotation_by_id(str(state["object_id"]))
         if annotation is None:
             return False
@@ -1666,6 +1721,7 @@ class AnnotationCanvas(QWidget):
             return False
         state = self._annotation_body_drag
         self._annotation_body_drag = None
+        self._interaction_controller.finish_drag()
         annotation = self._annotation_by_id(str(state["object_id"]))
         if annotation is None:
             return False
@@ -1700,6 +1756,7 @@ class AnnotationCanvas(QWidget):
         self._annotation_body_drag = None
         if not isinstance(state, dict):
             return False
+        self._interaction_controller.cancel()
         annotation = self._annotation_by_id(str(state["object_id"]))
         if annotation is not None:
             self._render_selection_handle_preview(annotation, dict(state["original_geometry"]))

@@ -30,6 +30,9 @@ class ChartEditorGeneratedDragExecutionMixin:
             if draw_start is not None:
                 end = self._generated_event_data_coordinates(event)
                 if end is not None:
+                    controller = getattr(self, "_interaction_controller", None)
+                    if controller is not None:
+                        controller.update_create(end)
                     self._update_generated_draw_preview(
                         str(getattr(self, "_generated_draw_tool", "select") or "select"),
                         draw_start,
@@ -64,6 +67,9 @@ class ChartEditorGeneratedDragExecutionMixin:
             float(getattr(event, "x", 0.0) or 0.0),
             float(getattr(event, "y", 0.0) or 0.0),
         )
+        controller = getattr(self, "_interaction_controller", None)
+        if controller is not None:
+            controller.update_drag(drag_state["current_pixels"])
         drag_kind = str(drag_state.get("kind", "") or object_type)
         self._set_generated_canvas_cursor(Qt.CursorShape.ClosedHandCursor)
         session = getattr(self, "_edit_session", None)

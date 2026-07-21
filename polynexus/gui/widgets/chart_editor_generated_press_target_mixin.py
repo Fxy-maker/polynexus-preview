@@ -106,6 +106,17 @@ class ChartEditorGeneratedPressTargetMixin:
 
     def _generated_press_drag_target(self, event, exclude_object_id=""):
         exclude_object_id = str(exclude_object_id or "")
+        adapter = getattr(self, "_generated_interaction_adapter", None)
+        if not exclude_object_id and adapter is not None:
+            target = adapter.hit_test(event)
+            if target is not None:
+                drag_state = self._generated_drag_state_for_press(
+                    event,
+                    target.object_id,
+                )
+                if drag_state is not None:
+                    drag_state["hit_target"] = target
+                    return target.object_id, drag_state
         seen: set[str] = set()
         for object_id in self._generated_press_drag_object_ids():
             object_id = str(object_id or "")

@@ -9,6 +9,7 @@ from ...core.figure_edit_commands import DeleteObjectCommand, UpdateGeometryComm
 from ...core.figure_edit_session import EditSession
 from ...core.figure_edit_capabilities import EditResult, capabilities_for
 from ..i18n import tr
+from .chart_editor_interaction_controller import EditorTool
 
 
 class ChartEditorEditSessionMixin:
@@ -16,6 +17,7 @@ class ChartEditorEditSessionMixin:
 
     def set_tool(self, tool):
         tool = str(tool or "select").strip().lower()
+        shared_tools = {item.value for item in EditorTool}
         deactivate_navigation = getattr(self, "_deactivate_navigation_toolbar", None)
         if callable(deactivate_navigation):
             deactivate_navigation()
@@ -28,14 +30,10 @@ class ChartEditorEditSessionMixin:
                 self._sync_context_style_bar()
             return changed
 
-        if getattr(self, "_generated_document_mode", False) and tool in {
-            "select",
-            "text",
-            "line",
-            "arrow",
-            "curve",
-            "rectangle",
-        }:
+        if getattr(self, "_generated_document_mode", False) and tool in shared_tools:
+            controller = getattr(self, "_interaction_controller", None)
+            if controller is not None and not controller.set_tool(tool):
+                return False
             clear_preview = getattr(self, "_clear_generated_draw_preview", None)
             if callable(clear_preview):
                 clear_preview(redraw=False)

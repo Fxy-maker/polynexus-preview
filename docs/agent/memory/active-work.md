@@ -1,5 +1,23 @@
 # Active Work
 
+## Unified editor interaction architecture — completed 2026-07-21
+
+- Connected the Qt-independent `EditorInteractionController` to static
+  `AnnotationCanvas` creation, body drag, handle drag, cancellation, and the
+  generated ChartEditor tool/gesture lifecycle. Creation tools return to
+  Select, and generated object mode continues to deactivate Matplotlib
+  navigation before annotation gestures.
+- Added `GeneratedInteractionAdapter` and immutable `HitTarget` records so
+  generated text, line, curve, rectangle, legend, and point targets expose a
+  consistent object/body/handle/cursor contract while existing edit-session
+  commands remain the history authority.
+- Added focused adapter/controller tests and a real Qt static creation gesture
+  regression. Focused interaction/workflow matrix: `115 passed`; all
+  ChartEditor/AnnotationCanvas regressions: `465 passed`.
+- Structured and default verifiers passed: Ruff/compile, quality gate `282
+  passed`, preprocessing gate `103 passed`, and whitespace checks. Task card:
+  `docs/agent/tasks/2026-07-21-unified-editor-interaction-architecture.md`.
+
 ## Navigation toolbar interaction conflict — completed 2026-07-21
 
 - Generated object-edit mode now hides Matplotlib's pan/zoom toolbar, which was

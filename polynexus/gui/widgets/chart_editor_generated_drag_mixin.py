@@ -44,6 +44,20 @@ class ChartEditorGeneratedDragMixin:
         if session is not None and "history_length" not in drag_state:
             drag_state["history_length"] = len(session.history)
         drag_state.setdefault("activated", False)
+        controller = getattr(self, "_interaction_controller", None)
+        if controller is not None:
+            handle_index = drag_state.get("handle_index")
+            if handle_index is None:
+                controller.begin_body_drag(
+                    object_id,
+                    drag_state.get("press_pixels", (0.0, 0.0)),
+                )
+            else:
+                controller.begin_handle_drag(
+                    object_id,
+                    handle_index,
+                    drag_state.get("press_pixels", (0.0, 0.0)),
+                )
         self._capture_generated_viewport()
         self._clear_generated_hover_highlight(redraw=False)
         self._generated_handle_drag_state = drag_state
@@ -181,6 +195,9 @@ class ChartEditorGeneratedDragMixin:
         drag_state = self._generated_handle_drag_state
         if not drag_state:
             return False
+        controller = getattr(self, "_interaction_controller", None)
+        if controller is not None:
+            controller.cancel()
         self._generated_handle_drag_state = None
         self._clear_generated_drag_preview()
         session = self._edit_session_for_adapter()

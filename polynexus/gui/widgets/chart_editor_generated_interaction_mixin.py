@@ -128,6 +128,9 @@ class ChartEditorGeneratedInteractionMixin:
             return
         drag_state = self._generated_handle_drag_state
         self._generated_handle_drag_state = None
+        controller = getattr(self, "_interaction_controller", None)
+        if controller is not None and drag_state:
+            controller.finish_drag()
         self._clear_generated_drag_status()
         selected_object_id = str(self._selected_figure_object_id or "")
         suppress_selected_self_feedback = bool(
@@ -227,6 +230,11 @@ class ChartEditorGeneratedInteractionMixin:
         data = self._generated_event_data_coordinates(event)
         if data is None:
             return False
+        controller = getattr(self, "_interaction_controller", None)
+        if controller is not None:
+            transition = controller.begin_create(data)
+            if not transition.accepted:
+                return False
         if tool == "text":
             self._generated_draw_start_data = data
             self._generated_draw_start_display = (
@@ -249,6 +257,9 @@ class ChartEditorGeneratedInteractionMixin:
         start_display = self._generated_draw_start_display
         self._generated_draw_start_display = None
         end = self._generated_event_data_coordinates(event)
+        controller = getattr(self, "_interaction_controller", None)
+        if controller is not None:
+            controller.finish_create(end) if end is not None else controller.cancel()
         if start is None or end is None:
             self._clear_generated_draw_preview()
             self._generated_viewport_snapshot = None

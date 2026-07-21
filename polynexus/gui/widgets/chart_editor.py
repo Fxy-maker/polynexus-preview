@@ -72,6 +72,8 @@ from .chart_editor_generated_pick_mixin import ChartEditorGeneratedPickMixin
 from .chart_editor_generated_press_target_mixin import (
     ChartEditorGeneratedPressTargetMixin,
 )
+from .chart_editor_generated_interaction_adapter import GeneratedInteractionAdapter
+from .chart_editor_interaction_controller import EditorInteractionController
 from .chart_editor_render_mixin import ChartEditorRenderMixin
 from .chart_editor_generated_selection_mixin import (
     ChartEditorGeneratedSelectionMixin,
@@ -212,6 +214,8 @@ class ChartEditor(
         self._last_edit_result = None
         self._shared_render_plan = None
         self._generated_document_mode = False
+        self._interaction_controller = EditorInteractionController()
+        self._generated_interaction_adapter = GeneratedInteractionAdapter(self)
         self._generated_draw_tool = "select"
         self._generated_draw_start_data = None
         self._generated_draw_start_display = None

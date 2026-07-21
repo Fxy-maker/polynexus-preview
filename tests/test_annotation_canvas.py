@@ -217,6 +217,31 @@ def test_static_rectangle_body_drag_updates_position_and_is_undoable(tmp_path):
     app.processEvents()
 
 
+def test_static_creation_qt_gesture_returns_to_select_after_commit(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    image_path = tmp_path / "source.png"
+    pixmap = QPixmap(100, 50)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(image_path))
+
+    canvas = AnnotationCanvas()
+    canvas.resize(400, 300)
+    canvas.show()
+    app.processEvents()
+    assert canvas.load_image(str(image_path)) is True
+    canvas.set_zoom_100()
+    assert canvas.set_tool("rectangle") is True
+
+    _send_canvas_drag(canvas, 10, 8, 70, 28)
+
+    assert canvas.current_tool() == "select"
+    assert canvas._interaction_controller.tool.value == "select"
+    assert canvas.annotation_state()[0]["type"] == "rectangle"
+
+    canvas.deleteLater()
+    app.processEvents()
+
+
 def test_document_mode_line_drag_requests_canonical_geometry(tmp_path):
     app = QApplication.instance() or QApplication([])
     image_path = tmp_path / "source.png"
