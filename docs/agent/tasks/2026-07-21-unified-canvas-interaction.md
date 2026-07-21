@@ -83,3 +83,9 @@ python scripts/verify.py --changed --types
 - Matplotlib text wrapping remains renderer-native; the persisted box controls
   selection, movement, and resizing, while line wrapping follows Matplotlib's
   `wrap` behavior.
+
+## Local finish checkpoint
+
+- 2026-07-21: User explicitly authorized the repository local finish sequence;
+  the coordinator is the only operation allowed to create the finish marker,
+  fast-forward the local `main`, and perform cooldown-protected cleanup.
