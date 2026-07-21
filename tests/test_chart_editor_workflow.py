@@ -612,7 +612,8 @@ def test_generated_text_body_drag_preview_keeps_box_geometry_and_selection_frame
     axis.set_ylim(0.1, 10.0)
     editor._canvas.draw()
     artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
-    pixel = artist.get_transform().transform((payload["x"], payload["y"]))
+    bbox = artist.get_window_extent(editor._canvas.get_renderer())
+    pixel = ((bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0)
 
     def event(name, point, *, inaxes=True):
         result = MouseEvent(name, editor._canvas, *point, button=1)
@@ -699,6 +700,52 @@ def test_generated_text_box_uses_its_left_bottom_corner_as_anchor(tmp_path, app)
     assert artist.get_position() == pytest.approx((payload["x"], payload["y"]))
     assert artist.get_ha() == "left"
     assert artist.get_va() == "bottom"
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_corner_drag_resizes_the_persisted_box(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "resizable-text",
+        "type": "text",
+        "x": 0.2,
+        "y": 0.3,
+        "width": 0.25,
+        "height": 0.12,
+        "text": "Peak",
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+    axis = editor._figure.axes[0]
+
+    def event(name, point):
+        result = MouseEvent(
+            name, editor._canvas, *axis.transData.transform(point), button=1
+        )
+        result.inaxes = axis
+        result.xdata, result.ydata = point
+        return result
+
+    editor._on_generated_button_press(event("button_press_event", (payload["x"], payload["y"])))
+    assert editor._generated_handle_drag_state["kind"] == "text"
+    assert editor._generated_handle_drag_state["handle_index"] == 0
+    editor._on_generated_mouse_move(
+        event("motion_notify_event", (payload["x"] - 0.05, payload["y"] - 0.04))
+    )
+    preview = editor._generated_handle_drag_state["preview_geometry"]
+    assert preview["width"] == pytest.approx(payload["width"] + 0.05)
+    assert preview["height"] == pytest.approx(payload["height"] + 0.04)
+    editor._on_generated_button_release(
+        event("button_release_event", (payload["x"] - 0.05, payload["y"] - 0.04))
+    )
+
+    saved = editor._generated_figure_object_by_id(payload["id"])
+    assert saved["width"] == pytest.approx(payload["width"] + 0.05)
+    assert saved["height"] == pytest.approx(payload["height"] + 0.04)
+    assert len(editor._edit_session.history) == 2
 
     editor.deleteLater()
     app.processEvents()

@@ -108,6 +108,17 @@ class ChartEditorGeneratedDragExecutionMixin:
                     y_value,
                     preview=True,
                 )
+            elif drag_kind == "text":
+                coordinates = self._generated_event_data_coordinates(event)
+                if coordinates is None:
+                    return
+                x_value, y_value = coordinates
+                changed = self._apply_generated_text_handle_drag(
+                    object_id,
+                    int(drag_state.get("handle_index", 0) or 0),
+                    x_value,
+                    y_value,
+                )
             elif drag_kind == "line-body":
                 coordinates = self._generated_event_data_coordinates(event)
                 if coordinates is None:

@@ -137,7 +137,7 @@ class ChartEditorGeneratedDragMixin:
             "line-body": ("x1", "y1", "x2", "y2"),
             "curve": ("x1", "y1", "x2", "y2", "control_x", "control_y"),
             "rectangle": ("x", "y", "width", "height"),
-            "text": ("x", "y"),
+            "text": ("x", "y", "width", "height"),
         }.get(drag_kind_for_geometry)
         if geometry_keys is None:
             return True

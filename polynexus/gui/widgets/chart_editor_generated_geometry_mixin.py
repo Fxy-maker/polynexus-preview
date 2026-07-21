@@ -243,6 +243,61 @@ class ChartEditorGeneratedGeometryMixin:
         self._show_generated_figure_document()
         return True
 
+    def _apply_generated_text_handle_drag(self, object_id, handle_index, x_value, y_value):
+        figure_object = self._generated_figure_object_by_id(object_id)
+        if not figure_object or str(figure_object.get("type", "") or "") != "text":
+            return False
+        box = Box.from_payload(figure_object)
+        if box is None:
+            return False
+        try:
+            corner_index = int(handle_index)
+            dragged_x = float(x_value)
+            dragged_y = float(y_value)
+        except (TypeError, ValueError):
+            return False
+        if corner_index not in {0, 1, 2, 3}:
+            return False
+        right = box.x + box.width
+        top = box.y + box.height
+        opposite_x, opposite_y = (
+            (right, top),
+            (box.x, top),
+            (box.x, box.y),
+            (right, box.y),
+        )[corner_index]
+        updates = {
+            "x": min(dragged_x, opposite_x),
+            "y": min(dragged_y, opposite_y),
+            "width": max(abs(dragged_x - opposite_x), Box.MIN_SIZE),
+            "height": max(abs(dragged_y - opposite_y), Box.MIN_SIZE),
+        }
+        drag_state = self._generated_drag_preview_mode(object_id)
+        if drag_state is not None:
+            original_object = drag_state.get("original_object")
+            original_box = Box.from_payload(
+                original_object if isinstance(original_object, dict) else figure_object
+            )
+            if original_box is None:
+                return False
+            preview_geometry = original_box.to_payload()
+            preview_geometry.update(updates)
+            return self._update_generated_drag_preview(
+                object_id,
+                preview_geometry,
+                object_type="text",
+            )
+        session = self._edit_session_for_adapter()
+        if session is None:
+            return bool(self._generated_store().update_geometry(object_id, updates))
+        session.select(object_id, "generated-canvas")
+        result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+        if result is None or not result.changed:
+            return False
+        self._sync_generated_object_property_controls(object_id)
+        self._show_generated_figure_document()
+        return True
+
     def _apply_generated_line_body_drag(self, object_id, drag_state, x_value, y_value):
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "line":

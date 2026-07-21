@@ -201,6 +201,7 @@ class ChartEditorGeneratedInteractionMixin:
             "line-body",
             "curve",
             "rectangle",
+            "text",
             "body",
             "plot_series",
             "legend",
