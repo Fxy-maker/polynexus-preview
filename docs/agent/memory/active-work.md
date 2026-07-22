@@ -15,8 +15,8 @@
   compile, quality gate (`282 passed`), preprocessing gate (`103 passed`), and
   whitespace checks.
 - Commit evidence: prerequisite label slices are `63acd9a5`, `ef2d297f`,
-  `9de895c8`, `13ab1961`, and `e1dc44a`; this completion checkpoint is created
-  after verification and its real hash is reported in the task handoff.
+  `9de895c8`, `13ab1961`, and `e1dc44a`; the completion checkpoint is
+  `bfa6f2ed`, created after verification. None of these commits were pushed.
 - A running GUI must be restarted before manual inspection.
 
 ## Generated text double-click editing - verification-ready 2026-07-22
