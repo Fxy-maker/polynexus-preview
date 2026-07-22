@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
-from PySide6.QtCore import QEvent, QPointF, QRect, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
@@ -364,6 +364,27 @@ def test_generated_text_drag_commits_persisted_box_geometry(tmp_path, app):
     text = next(item for item in editor._figure_document["objects"] if item.get("type") == "text")
     assert text["width"] == 0.3
     assert text["height"] == 0.2
+
+
+def test_generated_text_box_uses_compact_single_line_inline_editor(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.resize(1400, 900)
+    editor.show()
+    app.processEvents()
+
+    tall_rect = QRect(20, 20, 180, 240)
+    editor._begin_generated_text_box((0.2, 0.3), (0.5, 0.5), tall_rect)
+
+    inline_editor = editor._inline_text_editor
+    expected_top_left = editor._canvas.mapTo(editor, tall_rect.topLeft())
+    expected_height = max(24, inline_editor.fontMetrics().height() + 8)
+    assert inline_editor.isVisible()
+    assert inline_editor.geometry().topLeft() == expected_top_left
+    assert inline_editor.height() == expected_height
+    assert inline_editor.height() < tall_rect.height()
+
+    editor.deleteLater()
+    app.processEvents()
 
 
 def test_generated_text_box_creation_marks_axes_coordinate_space(tmp_path, app):
@@ -726,9 +747,18 @@ def test_generated_text_double_click_opens_inline_editor(tmp_path, app):
     assert editor._pending_inline_text["mode"] == "generated-edit"
     assert editor._pending_inline_text["object_id"] == payload["id"]
     assert editor._inline_text_editor.text() == "Original label"
+    expected_top_left = editor._canvas.mapTo(
+        editor,
+        QPoint(
+            int(round(float(bbox.x0))),
+            editor._canvas.height() - int(round(float(bbox.y1))),
+        ),
+    )
+    assert editor._inline_text_editor.geometry().topLeft() == expected_top_left
 
     editor._inline_text_editor.setText("Updated label")
-    assert editor._commit_inline_text_entry() is True
+    event = QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.NoModifier)
+    app.sendEvent(editor._inline_text_editor, event)
     assert editor._generated_figure_object_by_id(payload["id"])["text"] == "Updated label"
     editor._on_annotation_undo()
     assert editor._generated_figure_object_by_id(payload["id"])["text"] == "Original label"

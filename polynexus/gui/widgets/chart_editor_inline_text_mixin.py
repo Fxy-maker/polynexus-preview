@@ -41,16 +41,25 @@ class ChartEditorInlineTextMixin:
         self._cancel_inline_text_entry()
         geometry = QRect(rect).normalized()
         top_left = host.mapTo(self, geometry.topLeft())
-        width = max(96, geometry.width())
-        height = max(24, geometry.height())
-        self._pending_inline_text = dict(payload)
-        self._inline_text_editor.setGeometry(top_left.x(), top_left.y(), width, height)
         initial_text = payload.get("initial_text")
         if initial_text is None:
             self._inline_text_editor.clear()
         else:
             self._inline_text_editor.setText(str(initial_text))
             self._inline_text_editor.selectAll()
+        font_metrics = self._inline_text_editor.fontMetrics()
+        available_width = max(1, host.width() - max(0, geometry.x()))
+        width = min(
+            available_width,
+            max(
+                96,
+                geometry.width(),
+                font_metrics.horizontalAdvance(self._inline_text_editor.text()) + 24,
+            ),
+        )
+        height = max(24, font_metrics.height() + 8)
+        self._pending_inline_text = dict(payload)
+        self._inline_text_editor.setGeometry(top_left.x(), top_left.y(), width, height)
         self._inline_text_editor.show()
         self._inline_text_editor.raise_()
         self._inline_text_editor.setFocus()

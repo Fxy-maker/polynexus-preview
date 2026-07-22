@@ -1,5 +1,24 @@
 # Active Work
 
+## Origin-style generated text labels - completed 2026-07-22
+
+- Task card: `docs/agent/tasks/2026-07-22-origin-label-text.md`. Generated
+  labels are unwrapped, use tight rendered selection overlays, resize by font
+  size, and now open a compact one-line editor at the rendered label top edge.
+- TDD evidence: the new tall-rectangle Qt regression failed first (`240 !=
+  24`), then the focused creation/double-click Enter/Escape workflow passed
+  (`3 passed`). The required full label matrix passed (`87 passed`, four known
+  Matplotlib tight-layout warnings).
+- Verifier commands: `python scripts/verify.py --task
+  docs/agent/tasks/2026-07-22-origin-label-text.md --changed --types` and
+  `python scripts/verify.py --changed --types` both passed, including Ruff,
+  compile, quality gate (`282 passed`), preprocessing gate (`103 passed`), and
+  whitespace checks.
+- Commit evidence: prerequisite label slices are `63acd9a5`, `ef2d297f`,
+  `9de895c8`, `13ab1961`, and `e1dc44a`; this completion checkpoint is created
+  after verification and its real hash is reported in the task handoff.
+- A running GUI must be restarted before manual inspection.
+
 ## Generated text double-click editing - verification-ready 2026-07-22
 
 - Existing generated text now opens the shared inline editor on a canvas
