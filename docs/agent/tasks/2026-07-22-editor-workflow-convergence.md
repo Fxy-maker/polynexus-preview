@@ -1,7 +1,7 @@
 ---
 id: 2026-07-22-editor-workflow-convergence
 title: Converge the PolyNexus data-to-editor workflow
-status: in-progress
+status: completed
 scope: architecture, GUI workflow, editor interaction, export, testing
 ---
 
@@ -96,6 +96,7 @@ python scripts/verify.py --changed --types
 - M3 run lifecycle now exposes reading/processing/exporting stages and cooperative cancellation guards; cancelled runs are not published and failures expose retry.
 - M4 export scope is split into current-run and project-package intents; gallery secondary actions are selection-activated.
 - M5 diagnostics use a collapsible log drawer and the shell hides secondary metrics/actions on narrow windows.
+- M6 behavioral boundary is now explicit through `WorkspaceContext`, editor capability descriptors, worker lifecycle signals, and scoped export/gallery actions; no scientific or renderer contract was changed.
 
 Final desktop acceptance:
 
