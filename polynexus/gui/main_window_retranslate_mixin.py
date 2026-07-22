@@ -193,6 +193,7 @@ class MainWindowRetranslateMixin:
                 self._refresh_history()
 
             self._update_workspace_context()
+            self._update_results_context_banner()
 
         except Exception:
             logger.warning("Failed to refresh translated group titles and history filter.", exc_info=True)

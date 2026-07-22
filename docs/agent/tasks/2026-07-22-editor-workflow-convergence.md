@@ -1,7 +1,7 @@
 ---
 id: 2026-07-22-editor-workflow-convergence
 title: Converge the PolyNexus data-to-editor workflow
-status: design-approved
+status: in-progress
 scope: architecture, GUI workflow, editor interaction, export, testing
 ---
 
@@ -86,6 +86,12 @@ Per milestone and final structured check:
 python scripts/verify.py --task docs/agent/tasks/2026-07-22-editor-workflow-convergence.md --changed --types
 python scripts/verify.py --changed --types
 ```
+
+## Progress checkpoint
+
+- M1 workspace context contract, projection, and context-bound result gating are implemented.
+- Focused context matrix: `13 passed` across workspace, navigation, results, run, history, and figure mixins.
+- Known limitation: repository-wide `scripts/verify.py --changed --types` still reports pre-existing Ruff findings in the monolithic `main_window.py`; no unrelated cleanup was included.
 
 Final desktop acceptance:
 

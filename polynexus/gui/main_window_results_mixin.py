@@ -75,7 +75,14 @@ class MainWindowResultsMixin:
         stale = technique in contexts and not self._result_context_is_current(technique)
         banner.setVisible(stale)
         if stale:
-            banner.setText(tr("WORKSPACE_RESULT_STALE"))
+            owner = contexts.get(technique)
+            banner.setText(
+                tr(
+                    "WORKSPACE_RESULT_STALE",
+                    owner.technique if owner is not None else technique,
+                    owner.run_id if owner is not None else "-",
+                )
+            )
 
     def _current_results_record(self) -> dict:
         technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
@@ -142,7 +149,7 @@ class MainWindowResultsMixin:
         layout.addWidget(self._work_memory_panel)
 
         self._results_context_banner = QLabel()
-        self._results_context_banner.setObjectName("results_context_banner")
+        self._results_context_banner.setObjectName("workspace_result_context_banner")
         self._results_context_banner.setWordWrap(True)
         self._results_context_banner.setVisible(False)
         layout.addWidget(self._results_context_banner)
