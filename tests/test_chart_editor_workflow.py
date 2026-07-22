@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
 from polynexus.core.figure_edit_commands import AddObjectCommand, UpdateGeometryCommand
+from polynexus.gui.figure_render_adapter import FigureRenderAdapter
 from polynexus.gui.i18n import tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
 
@@ -935,6 +936,70 @@ def test_generated_text_selection_overlays_follow_rendered_extent_and_hit_displa
 
     editor.deleteLater()
     app.processEvents()
+
+
+def test_generated_text_selection_overlays_refresh_after_canvas_resize(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "resized-label",
+        "type": "text",
+        "coordinate_space": "axes",
+        "bounds": {"x": 0.2, "y": 0.6, "width": 0.7, "height": 0.5},
+        "text": "Peak",
+        "style": {"font_size": 12.0},
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+    axis = editor._figure.axes[0]
+    editor._canvas.draw()
+    text_artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    original_bbox = text_artist.get_window_extent(editor._canvas.get_renderer())
+
+    editor._canvas.resize(editor._canvas.width() + 180, editor._canvas.height() + 120)
+    editor._fit_figure_to_live_canvas(editor._figure)
+    editor._canvas.draw()
+
+    text_bbox = text_artist.get_window_extent(editor._canvas.get_renderer())
+    assert text_bbox != original_bbox
+    frame = next(
+        artist
+        for artist in axis.patches
+        if artist.get_gid() == f"pn-selection-frame:{payload['id']}"
+    )
+    handles = next(
+        artist
+        for artist in axis.collections
+        if artist.get_gid() == f"pn-selection-handles:{payload['id']}"
+    )
+    assert frame.get_x() == pytest.approx(text_bbox.x0 - 4.0)
+    assert frame.get_y() == pytest.approx(text_bbox.y0 - 4.0)
+    assert frame.get_width() == pytest.approx(text_bbox.width + 8.0)
+    assert frame.get_height() == pytest.approx(text_bbox.height + 8.0)
+    assert tuple(handles.get_offsets()[2]) == pytest.approx(
+        (text_bbox.x1 + 4.0, text_bbox.y1 + 4.0)
+    )
+    corner = handles.get_offsets()[2]
+    event = MouseEvent("button_press_event", editor._canvas, *corner, button=1)
+    event.inaxes = axis
+    assert editor._generated_point_handle_hit(event, payload["id"]) == 2
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_rendered_text_selection_bbox_preserves_figure_canvas_on_agg_fallback():
+    figure = Figure(figsize=(4.0, 3.0), dpi=100)
+    axis = figure.add_subplot(111)
+    artist = axis.text(0.2, 0.3, "Peak")
+    adapter = FigureRenderAdapter()
+    adapter.register_artists("label", [artist])
+    original_canvas = figure.canvas
+
+    bbox = adapter.rendered_text_selection_bbox("label")
+
+    assert bbox is not None
+    assert figure.canvas is original_canvas
 
 
 def test_generated_rectangle_body_drag_preview_moves_the_visible_box(tmp_path, app):

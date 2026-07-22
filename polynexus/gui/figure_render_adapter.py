@@ -6,7 +6,8 @@ import math
 from copy import deepcopy
 from types import SimpleNamespace
 
-from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.artist import Artist
+from matplotlib.backends.backend_agg import RendererAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
@@ -18,6 +19,26 @@ from .widgets.editor_geometry import Box
 
 
 TEXT_SELECTION_PADDING_PX = 4.0
+
+
+class _TextSelectionOverlaySynchronizer(Artist):
+    """Refresh display-space text overlays immediately before the figure draws."""
+
+    def __init__(self, adapter, object_id, frame, handles):
+        super().__init__()
+        self._adapter = adapter
+        self._object_id = str(object_id or "")
+        self._frame = frame
+        self._handles = handles
+        self.set_zorder(9_999)
+
+    def draw(self, renderer):
+        self._adapter._synchronize_text_selection_overlays(
+            self._object_id,
+            self._frame,
+            self._handles,
+            renderer,
+        )
 
 
 class FigureRenderAdapter:
@@ -79,17 +100,17 @@ class FigureRenderAdapter:
         return list(self._object_id_to_artists.get(str(object_id or ""), []))
 
     def rendered_text_selection_bbox(
-        self, object_id: str, *, padding_px=TEXT_SELECTION_PADDING_PX
+        self, object_id: str, *, padding_px=TEXT_SELECTION_PADDING_PX, renderer=None
     ):
         """Return a finite, padded display-space selection box for rendered text."""
         for artist in self.artists_for_object_id(object_id):
             if not isinstance(artist, Text):
                 continue
-            renderer = self._renderer_for_artist(artist)
-            if renderer is None:
+            extent_renderer = renderer or self._renderer_for_artist(artist)
+            if extent_renderer is None:
                 continue
             try:
-                bbox = artist.get_window_extent(renderer).padded(float(padding_px))
+                bbox = artist.get_window_extent(extent_renderer).padded(float(padding_px))
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 continue
             if all(
@@ -203,6 +224,19 @@ class FigureRenderAdapter:
         )
         handles.set_gid(f"pn-selection-handles:{object_id}")
         setattr(handles, "_pn_handle_indices", list(handle_indices))
+        if object_type == "text":
+            frame = next(
+                (
+                    artist
+                    for artist in ax.patches
+                    if artist.get_gid() == f"pn-selection-frame:{object_id}"
+                ),
+                None,
+            )
+            if frame is not None:
+                ax.add_artist(
+                    _TextSelectionOverlaySynchronizer(self, object_id, frame, handles)
+                )
         overlay_artists = [handles]
         if (
             object_type in {"line", "curve", "plot_series"}
@@ -381,11 +415,36 @@ class FigureRenderAdapter:
         if figure is None:
             return None
         try:
-            canvas = FigureCanvasAgg(figure)
-            canvas.draw()
-            return canvas.get_renderer()
-        except (AttributeError, RuntimeError, ValueError):
+            bbox = figure.bbox
+            width = int(math.ceil(float(bbox.width)))
+            height = int(math.ceil(float(bbox.height)))
+            dpi = float(figure.dpi)
+            if width <= 0 or height <= 0 or not math.isfinite(dpi) or dpi <= 0.0:
+                return None
+            renderer = RendererAgg(width, height, dpi)
+            figure.draw(renderer)
+            return renderer
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
+
+    def _synchronize_text_selection_overlays(self, object_id, frame, handles, renderer):
+        bbox = self.rendered_text_selection_bbox(object_id, renderer=renderer)
+        if bbox is None:
+            return
+        frame.set_bounds(
+            float(bbox.x0),
+            float(bbox.y0),
+            float(bbox.width),
+            float(bbox.height),
+        )
+        handles.set_offsets(
+            [
+                (float(bbox.x0), float(bbox.y0)),
+                (float(bbox.x1), float(bbox.y0)),
+                (float(bbox.x1), float(bbox.y1)),
+                (float(bbox.x0), float(bbox.y1)),
+            ]
+        )
 
     def render_document(
         self,
