@@ -1051,6 +1051,25 @@ def test_generated_text_drag_places_inline_editor_above_canvas(tmp_path, app):
     app.processEvents()
 
 
+def test_generated_text_rect_converts_device_pixels_to_logical_canvas_coordinates(
+    tmp_path, app, monkeypatch
+):
+    editor = make_generated_editor(tmp_path)
+    editor.resize(1400, 900)
+    editor.show()
+    app.processEvents()
+    monkeypatch.setattr(editor, "_generated_canvas_device_ratio", lambda: 2.0, raising=False)
+
+    event = SimpleNamespace(x=600.0, y=500.0)
+    rect = editor._generated_canvas_rect((200.0, 700.0), event)
+
+    expected_top = editor._canvas.height() - 350
+    assert rect == QRect(100, expected_top, 200, 100)
+
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_formal_generated_document_accepts_text_tool(built_ir_document, tmp_path, app):
     from polynexus.core.figure_document import load_figure_document
 

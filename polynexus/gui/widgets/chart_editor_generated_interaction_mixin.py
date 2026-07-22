@@ -284,15 +284,29 @@ class ChartEditorGeneratedInteractionMixin:
         self._add_generated_tool_object(self._generated_draw_tool, start, end)
 
     def _generated_canvas_rect(self, start_display, event) -> QRect:
+        device_ratio = self._generated_canvas_device_ratio()
         start_x, start_y = start_display or (0.0, 0.0)
-        end_x = float(getattr(event, "x", start_x) or start_x)
-        end_y = float(getattr(event, "y", start_y) or start_y)
+        start_x = float(start_x) / device_ratio
+        start_y = float(start_y) / device_ratio
+        end_x = float(getattr(event, "x", start_x * device_ratio) or start_x * device_ratio)
+        end_y = float(getattr(event, "y", start_y * device_ratio) or start_y * device_ratio)
+        end_x /= device_ratio
+        end_y /= device_ratio
         left = int(round(min(start_x, end_x)))
         right = int(round(max(start_x, end_x)))
         canvas_height = max(1, int(self._canvas.height()))
         top = canvas_height - int(round(max(start_y, end_y)))
         bottom = canvas_height - int(round(min(start_y, end_y)))
         return QRect(left, top, max(1, right - left), max(1, bottom - top))
+
+    def _generated_canvas_device_ratio(self) -> float:
+        """Return the device-to-Qt-pixel ratio used by Matplotlib mouse events."""
+        canvas = getattr(self, "_canvas", None)
+        try:
+            ratio = float(canvas.devicePixelRatioF()) if canvas is not None else 1.0
+        except (AttributeError, TypeError, ValueError):
+            ratio = 1.0
+        return max(1.0, ratio)
 
     def _begin_generated_text_box(self, start, end=None, rect: QRect | None = None) -> None:
         box = start if isinstance(start, Box) else Box.from_drag(start, end)
