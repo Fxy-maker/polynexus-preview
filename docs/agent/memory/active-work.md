@@ -1,5 +1,23 @@
 # Active Work
 
+## Generated text placement and font sizing - completed 2026-07-22
+
+- Generated text boxes now use their stored box origin as the visual left-top
+  anchor, while unboxed text keeps its legacy anchor behavior. The renderer and
+  generated-document preview use the same alignment calculation, so selection
+  and final rendering no longer disagree about where text begins.
+- The generated-object Inspector and context style bar now expose and hydrate
+  text font size. Changes are routed through the shared undoable style command,
+  persisted to the document, and immediately rebuild the visible artist.
+- Generated style submission now only sends line width to object types whose
+  core edit capabilities support it; text font-size changes are no longer
+  rejected by an unrelated line-width field.
+- Focused text/renderer regression checks pass. The broader batch retains the
+  pre-existing `test_manifest_editor_registers_native_image_grid_artists_for_object_editing`
+  fixture failure because it directly instantiates an incomplete mixin without
+  `_generated_figure_object_by_id`; it is outside this fix and remains untouched.
+- The canonical launcher diagnostic resolves `D:\PolyNexus\polynexus\__init__.py`.
+
 ## High-DPI live canvas fit - completed 2026-07-22
 
 - Fixed generated/editor figure fitting on Windows display scaling: Qt widget

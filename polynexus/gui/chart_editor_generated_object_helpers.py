@@ -22,6 +22,7 @@ def generated_object_capabilities(
         "style": not is_legend and not is_image_grid,
         "deletable": not is_legend,
         "reorderable": not is_legend and not is_image_grid,
+        "font_size": object_type == "text",
         "geometry": is_line
         or is_legend
         or (object_type == "plot_series" and selected_plot_series_point_geometry),

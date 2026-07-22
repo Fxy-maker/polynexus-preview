@@ -18,6 +18,7 @@ def test_generated_object_capabilities_cover_common_generated_object_types() -> 
         "style": False,
         "deletable": False,
         "reorderable": False,
+        "font_size": False,
         "geometry": True,
         "line_style": False,
         "marker": False,
@@ -40,6 +41,7 @@ def test_generated_object_capabilities_cover_common_generated_object_types() -> 
     )
     assert line_caps["geometry"] is True
     assert line_caps["line_style"] is True
+    assert line_caps["font_size"] is False
 
 
 def test_generated_object_geometry_config_handles_legend_plot_series_and_line() -> None:

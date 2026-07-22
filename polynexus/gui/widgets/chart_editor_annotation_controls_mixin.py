@@ -5,6 +5,7 @@ from uuid import uuid4
 from PySide6.QtCore import QPointF, QRect
 
 from ...core.figure_document import annotation_to_figure_object
+from ...core.figure_edit_capabilities import capabilities_for
 from ...core.figure_edit_commands import (
     AddObjectCommand,
     DeleteObjectCommand,
@@ -499,6 +500,8 @@ class ChartEditorAnnotationControlsMixin:
         if button is not None:
             button.setEnabled(
                 bool(
+                    font_size_enabled
+                    or
                     color_enabled
                     or line_style_enabled
                     or marker_enabled
@@ -713,7 +716,7 @@ class ChartEditorAnnotationControlsMixin:
         capabilities = self._generated_object_capabilities(figure_object)
         self._set_geometry_controls_enabled(False)
         self._set_style_controls_enabled(
-            False,
+            bool(capabilities["font_size"]),
             bool(capabilities["style"]),
             bool(capabilities["style"]),
             color_enabled=bool(capabilities["style"]),
@@ -759,6 +762,10 @@ class ChartEditorAnnotationControlsMixin:
         self._set_control_value_silently(
             self._annotation_line_width_spin,
             float(style.get("line_width", self._line_width) or self._line_width),
+        )
+        self._set_control_value_silently(
+            self._annotation_font_size_spin,
+            int(float(style.get("font_size", 12) or 12)),
         )
         self._set_control_value_silently(
             self._annotation_alpha_spin,
@@ -842,11 +849,11 @@ class ChartEditorAnnotationControlsMixin:
         if not figure_object:
             return
         capabilities = self._generated_object_capabilities(figure_object)
+        edit_capabilities = capabilities_for(figure_object)
         color = self._annotation_color_edit.text().strip()
-        updates = {
-            "line_width": float(self._annotation_line_width_spin.value()),
-            "alpha": float(self._annotation_alpha_spin.value()),
-        }
+        updates = {"alpha": float(self._annotation_alpha_spin.value())}
+        if edit_capabilities.line_width:
+            updates["line_width"] = float(self._annotation_line_width_spin.value())
         if color:
             updates["color"] = color
         if capabilities["line_style"]:
@@ -859,6 +866,8 @@ class ChartEditorAnnotationControlsMixin:
             updates["marker"] = marker
         if capabilities["marker_size"]:
             updates["marker_size"] = float(self._annotation_marker_size_spin.value())
+        if capabilities["font_size"]:
+            updates["font_size"] = float(self._annotation_font_size_spin.value())
         session = self._edit_session_for_adapter()
         if session is not None:
             session.select(self._selected_figure_object_id, "list")

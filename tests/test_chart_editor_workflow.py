@@ -682,7 +682,7 @@ def test_generated_rectangle_body_drag_preview_moves_the_visible_box(tmp_path, a
     app.processEvents()
 
 
-def test_generated_text_box_uses_its_left_bottom_corner_as_anchor(tmp_path, app):
+def test_generated_text_box_uses_its_left_top_corner_as_visual_anchor(tmp_path, app):
     editor = make_generated_editor(tmp_path)
     payload = {
         "id": "anchored-text",
@@ -697,9 +697,67 @@ def test_generated_text_box_uses_its_left_bottom_corner_as_anchor(tmp_path, app)
     editor._show_generated_figure_document()
 
     artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
-    assert artist.get_position() == pytest.approx((payload["x"], payload["y"]))
+    assert artist.get_position() == pytest.approx(
+        (payload["x"], payload["y"] + payload["height"])
+    )
     assert artist.get_ha() == "left"
-    assert artist.get_va() == "bottom"
+    assert artist.get_va() == "top"
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_inspector_applies_and_syncs_font_size(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "styled-text",
+        "type": "text",
+        "x": 0.2,
+        "y": 0.3,
+        "width": 0.25,
+        "height": 0.12,
+        "text": "Peak",
+        "style": {"font_size": 16},
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+
+    assert editor._annotation_font_size_spin.value() == 16
+    assert editor._annotation_font_size_spin.isEnabled()
+
+    editor._annotation_font_size_spin.setValue(24)
+    editor._btn_annotation_apply_style.click()
+
+    assert editor._generated_figure_object_by_id(payload["id"])["style"]["font_size"] == 24.0
+    artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    assert artist.get_fontsize() == pytest.approx(24.0)
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_context_font_size_redraws_artist(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "context-text",
+        "type": "text",
+        "x": 0.2,
+        "y": 0.3,
+        "width": 0.25,
+        "height": 0.12,
+        "text": "Peak",
+        "style": {"font_size": 12},
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+
+    editor._context_font_size.setValue(30)
+
+    assert editor._generated_figure_object_by_id(payload["id"])["style"]["font_size"] == 30.0
+    artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    assert artist.get_fontsize() == pytest.approx(30.0)
 
     editor.deleteLater()
     app.processEvents()

@@ -390,16 +390,45 @@ class MatplotlibFigureRenderer:
 
     def _render_text(self, axis, figure_object: dict[str, Any]) -> list[Any]:
         style = self._style(figure_object)
+        bounds = (
+            figure_object.get("bounds", {})
+            if isinstance(figure_object.get("bounds"), dict)
+            else {}
+        )
+        x = float(bounds.get("x", figure_object.get("x", 0.0)))
+        y = float(bounds.get("y", figure_object.get("y", 0.0)))
+        width = float(bounds.get("width", figure_object.get("width", 0.0)) or 0.0)
+        height = float(bounds.get("height", figure_object.get("height", 0.0)) or 0.0)
+        has_box = width > 0.0 and height > 0.0
+        horizontal_alignment = str(
+            figure_object.get(
+                "horizontal_alignment", "left" if has_box else "center"
+            )
+            or ("left" if has_box else "center")
+        )
+        vertical_alignment = str(
+            figure_object.get("vertical_alignment", "top" if has_box else "bottom")
+            or ("top" if has_box else "bottom")
+        )
+        if has_box:
+            if horizontal_alignment == "center":
+                x += width / 2.0
+            elif horizontal_alignment == "right":
+                x += width
+            if vertical_alignment == "center":
+                y += height / 2.0
+            elif vertical_alignment == "top":
+                y += height
         return [axis.text(
-            float(figure_object["x"]),
-            float(figure_object["y"]),
+            x,
+            y,
             str(figure_object.get("text") or ""),
             color=style.get("color", "#222222"),
             fontsize=float(style.get("font_size", 8.0)),
             alpha=float(style.get("alpha", 1.0)),
             rotation=float(figure_object.get("rotation", 0.0) or 0.0),
-            ha=str(figure_object.get("horizontal_alignment") or "center"),
-            va=str(figure_object.get("vertical_alignment") or "bottom"),
+            ha=horizontal_alignment,
+            va=vertical_alignment,
         )]
 
     def _render_arrow(self, axis, figure_object: dict[str, Any]) -> list[Any]:

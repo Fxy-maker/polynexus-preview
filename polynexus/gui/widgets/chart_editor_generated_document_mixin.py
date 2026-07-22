@@ -678,28 +678,43 @@ class ChartEditorGeneratedDocumentMixin:
             x = self._optional_float(bounds.get("x", figure_object.get("x")))
             y = self._optional_float(bounds.get("y", figure_object.get("y")))
             width = self._optional_float(bounds.get("width", figure_object.get("width")))
-            has_box = width is not None and width > 0.0 and self._optional_float(
-                bounds.get("height", figure_object.get("height"))
-            ) is not None
+            height = self._optional_float(bounds.get("height", figure_object.get("height")))
+            has_box = width is not None and width > 0.0 and height is not None and height > 0.0
+            horizontal_alignment = str(
+                figure_object.get(
+                    "horizontal_alignment", "left" if has_box else "center"
+                )
+                or ("left" if has_box else "center")
+            )
+            vertical_alignment = str(
+                figure_object.get("vertical_alignment", "top" if has_box else "bottom")
+                or ("top" if has_box else "bottom")
+            )
+            anchor_x = float(x or 0.0)
+            anchor_y = float(y or 0.0)
+            if has_box:
+                if horizontal_alignment == "center":
+                    anchor_x += float(width) / 2.0
+                elif horizontal_alignment == "right":
+                    anchor_x += float(width)
+                if vertical_alignment == "center":
+                    anchor_y += float(height) / 2.0
+                elif vertical_alignment == "top":
+                    anchor_y += float(height)
             text_kwargs = {}
             if width is not None and width > 0.0:
                 text_kwargs.update(wrap=True, clip_on=True)
             return [
                 ax.text(
-                    float(x or 0.0),
-                    float(y or 0.0),
+                    anchor_x,
+                    anchor_y,
                     str(figure_object.get("text", "") or ""),
                     color=color,
                     fontsize=float(style.get("font_size", 12.0) or 12.0),
                     alpha=alpha,
                     rotation=float(figure_object.get("rotation", 0.0) or 0.0),
-                    ha=str(
-                        figure_object.get(
-                            "horizontal_alignment", "left" if has_box else "center"
-                        )
-                        or ("left" if has_box else "center")
-                    ),
-                    va=str(figure_object.get("vertical_alignment", "bottom") or "bottom"),
+                    ha=horizontal_alignment,
+                    va=vertical_alignment,
                     **text_kwargs,
                 )
             ]

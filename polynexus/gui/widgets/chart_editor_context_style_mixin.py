@@ -220,6 +220,9 @@ class ChartEditorContextStyleMixin:
             result = self._execute_edit(UpdateStyleCommand(object_id, updates))
             if result is None or not result.changed:
                 return False
+            if getattr(self, "_generated_document_mode", False):
+                self._show_generated_figure_document()
+                self._persist_generated_document()
             self._sync_context_style_bar()
             return True
         canvas = getattr(self, "_annotation_canvas", None)

@@ -96,6 +96,35 @@ def test_renderer_uses_one_plan_for_series_lines_and_text(built_ir_document):
     assert [text.get_text() for text in axis.texts] == ["1700"]
 
 
+def test_renderer_anchors_box_text_at_its_left_top_corner(built_ir_document):
+    run_root, document_path, document = built_ir_document
+    document["objects"].append(
+        {
+            "id": "boxed-text",
+            "type": "text",
+            "panel_id": "main",
+            "text": "Peak",
+            "x": 1700.0,
+            "y": 0.2,
+            "width": 50.0,
+            "height": 0.3,
+            "style": {"font_size": 12},
+        }
+    )
+    plan = FigureRenderPlanBuilder(run_root).build(document_path, document)
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+    text_artist = next(
+        text
+        for text in figure.axes[0].texts
+        if text.get_text() == "Peak"
+    )
+
+    assert text_artist.get_position() == pytest.approx((1700.0, 0.5))
+    assert text_artist.get_ha() == "left"
+    assert text_artist.get_va() == "top"
+
+
 def test_renderer_supports_arrow_and_rectangle_annotations(built_ir_document):
     run_root, document_path, document = built_ir_document
     document["objects"].extend(
