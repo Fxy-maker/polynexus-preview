@@ -703,10 +703,11 @@ class ChartEditorGeneratedDocumentMixin:
                 horizontal_alignment=horizontal_alignment,
                 vertical_alignment=vertical_alignment,
             )
+            is_axes_label = is_axes_text_box(figure_object)
             text_kwargs = {}
-            if width is not None and width > 0.0:
+            if width is not None and width > 0.0 and not is_axes_label:
                 text_kwargs.update(wrap=True, clip_on=True)
-            if is_axes_text_box(figure_object):
+            if is_axes_label:
                 text_kwargs["transform"] = ax.transAxes
             return [
                 ax.text(

@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 from PySide6.QtWidgets import QApplication
 import pytest
 
+from polynexus.core.figures.renderer import MatplotlibFigureRenderer
 from polynexus.gui.widgets.chart_editor import ChartEditor
 
 
@@ -165,6 +166,32 @@ def test_generated_axes_text_box_uses_axes_transform():
 
     assert artists[0].get_transform() == axis.transAxes
     assert artists[0].get_position() == (0.2, 0.5)
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_axes_text_label_ignores_legacy_box_wrapping_and_clipping():
+    _app()
+    editor = ChartEditor()
+    figure = Figure()
+    axis = figure.add_subplot(111)
+    payload = {
+        "id": "axes-label-1",
+        "type": "text",
+        "coordinate_space": "axes",
+        "bounds": {"x": 0.2, "y": 0.3, "width": 0.04, "height": 0.02},
+        "text": "A label that exceeds its former box",
+        "style": {"color": "#0072B2", "font_size": 12.0},
+    }
+
+    editor_artist = editor._render_generated_figure_object(axis, payload, {}, 0)[0]
+    core_artist = MatplotlibFigureRenderer()._render_text(axis, payload)[0]
+
+    assert editor_artist.get_wrap() is False
+    assert editor_artist.get_clip_on() is False
+    assert core_artist.get_wrap() is False
+    assert core_artist.get_clip_on() is False
 
     editor.deleteLater()
     _app().processEvents()

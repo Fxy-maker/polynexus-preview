@@ -419,11 +419,12 @@ class MatplotlibFigureRenderer:
             horizontal_alignment=horizontal_alignment,
             vertical_alignment=vertical_alignment,
         )
+        is_axes_label = is_axes_text_box(figure_object)
         text_kwargs = {
             "wrap": True,
             "clip_on": True,
-        } if has_box else {}
-        if is_axes_text_box(figure_object):
+        } if has_box and not is_axes_label else {}
+        if is_axes_label:
             text_kwargs["transform"] = axis.transAxes
         return [axis.text(
             x,
