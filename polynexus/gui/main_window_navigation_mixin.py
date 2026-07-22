@@ -122,6 +122,8 @@ class MainWindowNavigationMixin:
     def _on_technique_selected(self, technique):
         main_window_module = self._main_window_module()
 
+        if technique != getattr(self, "_current_technique", ""):
+            self._invalidate_context_bound_views()
         self._set_workspace_mode(WorkspaceMode.ANALYSIS)
         self._current_technique = technique
         self._current_submodule_id = ""
@@ -156,6 +158,11 @@ class MainWindowNavigationMixin:
         )
 
     def _on_submodule_selected(self, technique, submodule_id):
+        if (
+            technique != getattr(self, "_current_technique", "")
+            or submodule_id != getattr(self, "_current_submodule_id", "")
+        ):
+            self._invalidate_context_bound_views()
         self._set_workspace_mode(WorkspaceMode.ANALYSIS)
         self._current_technique = technique
         self._current_submodule_id = submodule_id

@@ -11,12 +11,93 @@ from .i18n import tr
 from .theme import TECHNIQUE_LABELS
 from .window_text_helpers import import_mode_text as _import_mode_text
 from .workspace_mode import WorkspaceMode, normalize_workspace_mode
+from .workspace_context import WorkspaceContext, WorkspaceResultStatus
 
 
 class MainWindowWorkspaceMixin:
+    def _workspace_context_snapshot(self, *, result_status=None, run_id=None):
+        resolved_run_id = (
+            str(run_id)
+            if run_id is not None
+            else str(getattr(self, "_last_persisted_run_id", "") or "")
+        )
+        if result_status is None:
+            result_status = (
+                WorkspaceResultStatus.COMPLETE
+                if resolved_run_id
+                else WorkspaceResultStatus.EMPTY
+            )
+        if not isinstance(result_status, WorkspaceResultStatus):
+            result_status = WorkspaceResultStatus(str(result_status).strip().lower())
+        return WorkspaceContext(
+            technique=str(getattr(self, "_current_technique", "") or ""),
+            submodule=str(getattr(self, "_current_submodule_id", "") or ""),
+            source_path=str(getattr(self, "_current_filepath", "") or ""),
+            input_mode=str(getattr(self, "_current_input_mode", "") or ""),
+            output_dir=str(getattr(self, "_output_dir", "") or ""),
+            run_id=resolved_run_id,
+            run_root=str(getattr(self, "_output_dir", "") or ""),
+            result_status=result_status,
+            result_origin=str(self._current_result_origin() or "")
+            if callable(getattr(self, "_current_result_origin", None))
+            else "",
+        )
+
+    def _record_result_context(self, technique=None, *, status="complete", run_id=None):
+        if not hasattr(self, "_result_contexts"):
+            self._result_contexts = {}
+        context_status = status
+        if not isinstance(context_status, WorkspaceResultStatus):
+            context_status = WorkspaceResultStatus(str(context_status).strip().lower())
+        context = self._workspace_context_snapshot(
+            result_status=context_status,
+            run_id=run_id,
+        )
+        key = str(technique or context.technique or "").strip().lower()
+        if key:
+            self._result_contexts[key] = context
+        self._workspace_context = context
+        return context
+
+    def _result_context_is_current(self, technique=None) -> bool:
+        if not hasattr(self, "_result_contexts"):
+            return False
+        current = getattr(self, "_workspace_context", WorkspaceContext.empty())
+        key = str(technique or current.technique or "").strip().lower()
+        stored = self._result_contexts.get(key)
+        return bool(stored and current.result_matches(stored))
+
+    def _workspace_context_summary_text(self, context) -> str:
+        source = os.path.basename(context.source_path.rstrip("/\\")) if context.source_path else tr("WORKFLOW_NO_DATA")
+        run_id = context.run_id or tr("WORKSPACE_RUN_NOT_PERSISTED")
+        return tr(
+            "WORKSPACE_CONTEXT_SUMMARY",
+            context.technique or "-",
+            context.submodule or tr("WORKSPACE_SUBMODULE_NONE"),
+            source,
+            run_id,
+        )
+
+    def _invalidate_context_bound_views(self):
+        self._last_persisted_run_id = ""
+        self._current_result_confirmed_flag = False
+        self._current_figure_path = ""
+        preview = getattr(self, "_figure_preview", None)
+        if preview is not None:
+            clear = getattr(preview, "clear", None)
+            if callable(clear):
+                clear()
+            preview.setVisible(False)
+        self._workspace_context = self._workspace_context_snapshot(
+            result_status=WorkspaceResultStatus.EMPTY,
+            run_id="",
+        )
+
     def _update_workspace_context(self):
         if not hasattr(self, "_workspace_title"):
             return
+
+        self._workspace_context = self._workspace_context_snapshot()
 
         tech = self._current_technique or "saxs"
         mode_getter = getattr(self, "_workspace_mode_value", None)
@@ -74,6 +155,10 @@ class MainWindowWorkspaceMixin:
             detail = tr("WORKSPACE_DETAIL_JOINT")
 
         self._workspace_subtitle.setText(f"{detail}  |  {filename}")
+
+        context_summary = getattr(self, "_workspace_context_summary", None)
+        if context_summary is not None:
+            context_summary.setText(self._workspace_context_summary_text(self._workspace_context))
 
         if hasattr(self, "_workflow_metric_tech"):
             self._workflow_metric_tech.setText(label)

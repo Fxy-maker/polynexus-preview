@@ -190,6 +190,7 @@ from .preprocess_decision_service import build_preprocess_ui_decision
 
 from .i18n import tr, set_language, get_language
 from .workspace_mode import WorkspaceMode
+from .workspace_context import WorkspaceContext
 from .window_text_helpers import (
     data_file_dialog_filter as _data_file_dialog_filter,
     format_import_suggestion_reason as _shared_format_import_suggestion_reason,
@@ -1341,6 +1342,7 @@ class MainWindow(
 
         self._workspace_mode = WorkspaceMode.ANALYSIS
         self._current_technique = ""
+        self._current_submodule_id = ""
 
         self._current_filepath = ""
         self._current_input_mode = ""
@@ -1377,6 +1379,8 @@ class MainWindow(
         self._last_ai_tuning_context = {}
         self._current_ai_tuning_goal = "symptom"
         self._last_persisted_run_id = ""
+        self._workspace_context = WorkspaceContext.empty()
+        self._result_contexts = {}
         self._current_result_confirmed_flag = False
         self._results_compare_selected_run_id = ""
 
@@ -2256,9 +2260,17 @@ class MainWindow(
 
         self._workspace_subtitle.setObjectName("workspace_subtitle")
 
+        self._workspace_context_summary = QLabel()
+
+        self._workspace_context_summary.setObjectName("workspace_context_summary")
+
+        self._workspace_context_summary.setWordWrap(True)
+
         title_box.addWidget(self._workspace_title)
 
         title_box.addWidget(self._workspace_subtitle)
+
+        title_box.addWidget(self._workspace_context_summary)
 
         header_layout.addLayout(title_box, 1)
 
