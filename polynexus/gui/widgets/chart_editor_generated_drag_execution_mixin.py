@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 
-from ...core.figure_text_geometry import is_axes_text_box
-
 GENERATED_DRAG_START_THRESHOLD_PX = 3.0
 
 
@@ -116,19 +114,11 @@ class ChartEditorGeneratedDragExecutionMixin:
                     preview=True,
                 )
             elif drag_kind == "text":
-                coordinates = (
-                    self._generated_event_axes_fraction(event)
-                    if is_axes_text_box(figure_object)
-                    else self._generated_event_data_coordinates(event)
-                )
-                if coordinates is None:
-                    return
-                x_value, y_value = coordinates
                 changed = self._apply_generated_text_handle_drag(
                     object_id,
                     int(drag_state.get("handle_index", 0) or 0),
-                    x_value,
-                    y_value,
+                    float(getattr(event, "x", 0.0) or 0.0),
+                    float(getattr(event, "y", 0.0) or 0.0),
                 )
             elif drag_kind == "line-body":
                 coordinates = self._generated_event_data_coordinates(event)

@@ -6,6 +6,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch, PathPatch, Rectangle
 from matplotlib.path import Path
 from matplotlib.text import Text
+from matplotlib.transforms import Affine2D
 
 from ...core.figure_text_geometry import text_box_anchor
 from .editor_geometry import Box
@@ -246,7 +247,9 @@ class ChartEditorGeneratedPreviewMixin:
             else None
         )
 
-    def _update_generated_drag_preview(self, object_id, geometry, *, object_type=""):
+    def _update_generated_drag_preview(
+        self, object_id, geometry, *, object_type="", style_updates=None
+    ):
         """Update existing artists without touching the document or history."""
 
         state = self._generated_drag_preview_mode(object_id)
@@ -257,6 +260,8 @@ class ChartEditorGeneratedPreviewMixin:
             return False
         object_type = object_type or str(figure_object.get("type", "") or "")
         state["preview_geometry"] = deepcopy(geometry)
+        if isinstance(style_updates, dict):
+            state["preview_style"] = deepcopy(style_updates)
         artists = list(self._figure_render_adapter.artists_for_object_id(object_id))
         if object_type in {"line", "line-body"}:
             x1 = geometry.get("x1")
@@ -288,9 +293,54 @@ class ChartEditorGeneratedPreviewMixin:
                     if isinstance(artist, PathPatch):
                         artist.set_path(path)
         elif object_type == "text":
-            x_value = geometry.get("x")
-            y_value = geometry.get("y")
-            if x_value is not None and y_value is not None:
+            font_size = (
+                style_updates.get("font_size")
+                if isinstance(style_updates, dict)
+                else None
+            )
+            if font_size is not None:
+                original_transforms = state.get("text_preview_transforms")
+                if not isinstance(original_transforms, list):
+                    original_transforms = [
+                        (artist, artist.get_transform())
+                        for artist in artists
+                        if isinstance(artist, Text)
+                    ]
+                    state["text_preview_transforms"] = original_transforms
+                for artist, original_transform in original_transforms:
+                    artist.set_transform(original_transform)
+                    artist.set_fontsize(float(font_size))
+                canvas = getattr(self, "_canvas", None)
+                if canvas is not None:
+                    try:
+                        canvas.draw()
+                    except (AttributeError, RuntimeError):
+                        pass
+                bbox = self._figure_render_adapter.rendered_text_selection_bbox(object_id)
+                opposite_corner = state.get("opposite_corner")
+                handle_index = int(state.get("handle_index", 0) or 0)
+                if bbox is not None and isinstance(opposite_corner, (list, tuple)):
+                    current_corner = self._generated_text_bbox_corner(
+                        bbox, (handle_index + 2) % 4
+                    )
+                    offset_x = float(opposite_corner[0]) - float(current_corner[0])
+                    offset_y = float(opposite_corner[1]) - float(current_corner[1])
+                    for artist, original_transform in original_transforms:
+                        artist.set_transform(
+                            original_transform
+                            + Affine2D().translate(offset_x, offset_y)
+                        )
+                    if canvas is not None:
+                        try:
+                            canvas.draw()
+                        except (AttributeError, RuntimeError):
+                            pass
+            else:
+                x_value = geometry.get("x")
+                y_value = geometry.get("y")
+                if x_value is None or y_value is None:
+                    x_value = y_value = None
+            if font_size is None and x_value is not None and y_value is not None:
                 width = geometry.get("width", figure_object.get("width", 0.0))
                 height = geometry.get("height", figure_object.get("height", 0.0))
                 anchor = text_box_anchor(
@@ -341,9 +391,12 @@ class ChartEditorGeneratedPreviewMixin:
                     (float(anchor[0]), float(anchor[1])),
                     transform=axes.transAxes,
                 )
-        self._update_generated_drag_handle_artists(object_id, geometry, object_type)
-        self._update_generated_selection_frame(object_id, geometry, object_type)
-        self._sync_generated_drag_preview_controls(geometry, object_type)
+        if object_type != "text":
+            self._update_generated_drag_handle_artists(object_id, geometry, object_type)
+            self._update_generated_selection_frame(object_id, geometry, object_type)
+        self._sync_generated_drag_preview_controls(
+            geometry, object_type, style_updates=style_updates
+        )
         state["preview_artists"] = artists
         self._generated_handle_preview_artists = artists
         canvas = getattr(self, "_canvas", None)
@@ -368,7 +421,9 @@ class ChartEditorGeneratedPreviewMixin:
                     artist.set_width(box.width)
                     artist.set_height(box.height)
 
-    def _sync_generated_drag_preview_controls(self, geometry, object_type):
+    def _sync_generated_drag_preview_controls(
+        self, geometry, object_type, *, style_updates=None
+    ):
         set_value = getattr(self, "_set_control_value_silently", None)
         if not callable(set_value):
             return
@@ -396,6 +451,8 @@ class ChartEditorGeneratedPreviewMixin:
                 "_annotation_w_spin": geometry.get("width"),
                 "_annotation_h_spin": geometry.get("height"),
             }
+        elif object_type == "text" and isinstance(style_updates, dict):
+            values = {"_annotation_font_size_spin": style_updates.get("font_size")}
         elif object_type == "plot_series":
             state = self._generated_drag_preview_mode()
             index = int((state or {}).get("handle_index", 0) or 0)

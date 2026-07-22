@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import math
 
 from matplotlib.collections import PathCollection
 
@@ -244,62 +245,95 @@ class ChartEditorGeneratedGeometryMixin:
         self._show_generated_figure_document()
         return True
 
-    def _apply_generated_text_handle_drag(self, object_id, handle_index, x_value, y_value):
+    @staticmethod
+    def _generated_text_bbox_corner(bbox, corner_index):
+        return (
+            (float(bbox.x0), float(bbox.y0)),
+            (float(bbox.x1), float(bbox.y0)),
+            (float(bbox.x1), float(bbox.y1)),
+            (float(bbox.x0), float(bbox.y1)),
+        )[int(corner_index)]
+
+    def _apply_generated_text_handle_drag(
+        self, object_id, handle_index, display_x, display_y
+    ):
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "text":
             return False
-        box = Box.from_payload(figure_object)
-        if box is None:
-            return False
         try:
             corner_index = int(handle_index)
-            dragged_x = float(x_value)
-            dragged_y = float(y_value)
+            dragged_corner = (float(display_x), float(display_y))
         except (TypeError, ValueError):
             return False
         if corner_index not in {0, 1, 2, 3}:
             return False
-        right = box.x + box.width
-        top = box.y + box.height
-        opposite_x, opposite_y = (
-            (right, top),
-            (box.x, top),
-            (box.x, box.y),
-            (right, box.y),
-        )[corner_index]
-        updates = {
-            "x": min(dragged_x, opposite_x),
-            "y": min(dragged_y, opposite_y),
-            "width": max(abs(dragged_x - opposite_x), Box.MIN_SIZE),
-            "height": max(abs(dragged_y - opposite_y), Box.MIN_SIZE),
-        }
-        if is_axes_text_box(figure_object):
-            updates = clamp_axes_box(
-                updates["x"],
-                updates["y"],
-                updates["width"],
-                updates["height"],
-            )
         drag_state = self._generated_drag_preview_mode(object_id)
+        selection_bbox = self._figure_render_adapter.rendered_text_selection_bbox(object_id)
+        if selection_bbox is None:
+            return False
+        style = (
+            figure_object.get("style", {})
+            if isinstance(figure_object.get("style"), dict)
+            else {}
+        )
+        try:
+            original_font_size = float(style.get("font_size", 12.0) or 12.0)
+        except (TypeError, ValueError):
+            original_font_size = 12.0
         if drag_state is not None:
-            original_object = drag_state.get("original_object")
-            original_box = Box.from_payload(
-                original_object if isinstance(original_object, dict) else figure_object
+            original_bbox = drag_state.get("original_text_bbox")
+            if not isinstance(original_bbox, tuple) or len(original_bbox) != 4:
+                original_bbox = (
+                    float(selection_bbox.x0),
+                    float(selection_bbox.y0),
+                    float(selection_bbox.x1),
+                    float(selection_bbox.y1),
+                )
+                drag_state["original_text_bbox"] = original_bbox
+                drag_state["original_font_size"] = original_font_size
+                drag_state["original_text_corner"] = self._generated_text_bbox_corner(
+                    selection_bbox, corner_index
+                )
+                drag_state["opposite_corner"] = self._generated_text_bbox_corner(
+                    selection_bbox, (corner_index + 2) % 4
+                )
+            original_corner = tuple(drag_state["original_text_corner"])
+            opposite_corner = tuple(drag_state["opposite_corner"])
+            old_distance = math.dist(original_corner, opposite_corner)
+            new_distance = max(1.0, math.dist(dragged_corner, opposite_corner))
+            font_size = min(
+                96.0,
+                max(
+                    6.0,
+                    float(drag_state.get("original_font_size", original_font_size))
+                    * new_distance
+                    / max(1.0, old_distance),
+                ),
             )
-            if original_box is None:
-                return False
-            preview_geometry = original_box.to_payload()
-            preview_geometry.update(updates)
+            style_updates = {"font_size": round(font_size, 3)}
+            drag_state["preview_style"] = style_updates
             return self._update_generated_drag_preview(
                 object_id,
-                preview_geometry,
+                {},
                 object_type="text",
+                style_updates=style_updates,
             )
+        original_corner = self._generated_text_bbox_corner(selection_bbox, corner_index)
+        opposite_corner = self._generated_text_bbox_corner(
+            selection_bbox, (corner_index + 2) % 4
+        )
+        old_distance = math.dist(original_corner, opposite_corner)
+        new_distance = max(1.0, math.dist(dragged_corner, opposite_corner))
+        font_size = min(
+            96.0,
+            max(6.0, original_font_size * new_distance / max(1.0, old_distance)),
+        )
+        updates = {"font_size": round(font_size, 3)}
         session = self._edit_session_for_adapter()
         if session is None:
-            return bool(self._generated_store().update_geometry(object_id, updates))
+            return bool(self._generated_store().update_style(object_id, updates))
         session.select(object_id, "generated-canvas")
-        result = self._execute_edit(UpdateGeometryCommand(object_id, updates))
+        result = self._execute_edit(UpdateStyleCommand(object_id, updates))
         if result is None or not result.changed:
             return False
         self._sync_generated_object_property_controls(object_id)

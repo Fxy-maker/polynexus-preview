@@ -131,14 +131,46 @@ class ChartEditorGeneratedDragMixin:
             self._clear_generated_drag_preview()
             self._generated_viewport_snapshot = None
             return True
-        drag_kind_for_geometry = str(drag_state.get("object_type", "") or "") if drag_kind == "body" else drag_kind
-        geometry_keys = {
+        if drag_kind == "text":
+            preview_style = drag_state.get("preview_style")
+            font_size = (
+                preview_style.get("font_size")
+                if isinstance(preview_style, dict)
+                else None
+            )
+            if session is None or font_size is None:
+                return False
+            history_length = int(drag_state.get("history_length", len(session.history)) or 0)
+            while len(session.history) > history_length:
+                undone = session.undo()
+                if not undone.changed:
+                    return False
+            session.select(object_id, "generated-canvas")
+            result = self._execute_edit(
+                UpdateStyleCommand(object_id, {"font_size": float(font_size)})
+            )
+            if result is None or not result.changed:
+                return False
+            self._sync_generated_object_property_controls(object_id)
+            self._show_generated_figure_document()
+            self._clear_generated_drag_preview()
+            self._generated_viewport_snapshot = None
+            return True
+        drag_kind_for_geometry = (
+            str(drag_state.get("object_type", "") or "")
+            if drag_kind == "body"
+            else drag_kind
+        )
+        geometry_keys = (
+            ("x", "y", "width", "height")
+            if drag_kind == "body" and drag_kind_for_geometry == "text"
+            else {
             "line": ("x1", "y1", "x2", "y2"),
             "line-body": ("x1", "y1", "x2", "y2"),
             "curve": ("x1", "y1", "x2", "y2", "control_x", "control_y"),
             "rectangle": ("x", "y", "width", "height"),
-            "text": ("x", "y", "width", "height"),
-        }.get(drag_kind_for_geometry)
+            }.get(drag_kind_for_geometry)
+        )
         if geometry_keys is None:
             return True
         original_object = drag_state.get("original_object")

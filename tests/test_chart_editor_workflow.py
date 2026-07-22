@@ -13,7 +13,11 @@ from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
-from polynexus.core.figure_edit_commands import AddObjectCommand, UpdateGeometryCommand
+from polynexus.core.figure_edit_commands import (
+    AddObjectCommand,
+    UpdateGeometryCommand,
+    UpdateStyleCommand,
+)
 from polynexus.gui.figure_render_adapter import FigureRenderAdapter
 from polynexus.gui.i18n import tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
@@ -1124,26 +1128,33 @@ def test_generated_text_context_font_size_redraws_artist(tmp_path, app):
     app.processEvents()
 
 
-def test_generated_text_corner_drag_resizes_the_persisted_box(tmp_path, app):
+def test_generated_text_corner_drag_scales_font_without_changing_persisted_geometry(
+    tmp_path, app
+):
     editor = make_generated_editor(tmp_path)
     payload = {
         "id": "resizable-text",
         "type": "text",
-        "x": 0.2,
-        "y": 0.3,
-        "width": 0.25,
-        "height": 0.12,
+        "coordinate_space": "axes",
+        "bounds": {"x": 0.2, "y": 0.3, "width": 0.25, "height": 0.12},
         "text": "Peak",
+        "style": {"font_size": 12.0},
     }
     editor._execute_edit(AddObjectCommand(payload))
     editor._show_generated_figure_document()
     editor._select_generated_object(payload["id"], "list")
     axis = editor._figure.axes[0]
+    editor._canvas.draw()
     handles = next(
         artist
         for artist in axis.collections
         if artist.get_gid() == f"pn-selection-handles:{payload['id']}"
     )
+    original_corner = tuple(handles.get_offsets()[0])
+    original_opposite_corner = tuple(handles.get_offsets()[2])
+    original_font_size = payload["style"]["font_size"]
+    original_bounds = deepcopy(payload["bounds"])
+    history_before = len(editor._edit_session.history)
 
     def event(name, pixel):
         result = MouseEvent(name, editor._canvas, *pixel, button=1)
@@ -1151,24 +1162,46 @@ def test_generated_text_corner_drag_resizes_the_persisted_box(tmp_path, app):
         result.xdata, result.ydata = axis.transData.inverted().transform(pixel)
         return result
 
-    editor._on_generated_button_press(event("button_press_event", handles.get_offsets()[0]))
+    editor._on_generated_button_press(event("button_press_event", original_corner))
     assert editor._generated_handle_drag_state["kind"] == "text"
     assert editor._generated_handle_drag_state["handle_index"] == 0
-    moved_corner = axis.transData.transform((payload["x"] - 0.05, payload["y"] - 0.04))
+    moved_corner = (original_corner[0] - 36.0, original_corner[1] - 24.0)
     editor._on_generated_mouse_move(
         event("motion_notify_event", moved_corner)
     )
-    preview = editor._generated_handle_drag_state["preview_geometry"]
-    assert preview["width"] == pytest.approx(payload["width"] + 0.05)
-    assert preview["height"] == pytest.approx(payload["height"] + 0.04)
+    preview = editor._generated_handle_drag_state["preview_style"]
+    assert preview["font_size"] > original_font_size
+    assert editor._annotation_font_size_spin.value() == pytest.approx(
+        preview["font_size"], abs=1.0
+    )
+    assert editor._generated_figure_object_by_id(payload["id"])["bounds"] == original_bounds
+    editor._canvas.draw()
+    preview_handles = next(
+        artist
+        for artist in axis.collections
+        if artist.get_gid() == f"pn-selection-handles:{payload['id']}"
+    )
+    assert tuple(preview_handles.get_offsets()[2]) == pytest.approx(
+        original_opposite_corner, abs=1.0
+    )
     editor._on_generated_button_release(
         event("button_release_event", moved_corner)
     )
 
     saved = editor._generated_figure_object_by_id(payload["id"])
-    assert saved["width"] == pytest.approx(payload["width"] + 0.05)
-    assert saved["height"] == pytest.approx(payload["height"] + 0.04)
-    assert len(editor._edit_session.history) == 2
+    assert saved["bounds"] == original_bounds
+    assert saved["style"]["font_size"] == pytest.approx(preview["font_size"])
+    assert len(editor._edit_session.history) == history_before + 1
+    assert isinstance(editor._edit_session.history[-1], UpdateStyleCommand)
+
+    editor._on_annotation_undo()
+    assert editor._generated_figure_object_by_id(payload["id"])["style"][
+        "font_size"
+    ] == pytest.approx(original_font_size)
+    editor._on_annotation_redo()
+    assert editor._generated_figure_object_by_id(payload["id"])["style"][
+        "font_size"
+    ] == pytest.approx(preview["font_size"])
 
     editor.deleteLater()
     app.processEvents()
