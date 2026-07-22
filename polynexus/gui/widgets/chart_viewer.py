@@ -1054,6 +1054,7 @@ class ChartGallery(QWidget):
         self._btn_clear = QPushButton(tr("CHART_BTN_CLEAR"))
         self._btn_clear.clicked.connect(self.clear)
         toolbar.addWidget(self._btn_clear)
+        self._sync_selection_actions()
         layout.addWidget(self._toolbar_widget)
 
         # Scroll area for thumbnails
@@ -1157,6 +1158,7 @@ class ChartGallery(QWidget):
         }
         self._selected_path = ""
         self._selected_figure_id = ""
+        self._sync_selection_actions()
         self.summary_changed.emit(self.summary_text())
         if not self._entries:
             return
@@ -1293,6 +1295,7 @@ class ChartGallery(QWidget):
         for thumb in self._thumbnails:
             thumb.set_selected(thumb.entry.figure_id == entry.figure_id)
         self._rebuild_asset_panel(entry)
+        self._sync_selection_actions()
         if emit:
             self.figure_selected.emit(entry.preview_path)
 
@@ -1479,11 +1482,30 @@ class ChartGallery(QWidget):
             self._selected_batch_ids.add(str(figure_id))
         else:
             self._selected_batch_ids.discard(str(figure_id))
+        self._sync_selection_actions()
+
+    def _sync_selection_actions(self):
+        """Keep secondary gallery actions discoverable only when actionable."""
+        selected_count = len(self._selected_batch_ids)
+        has_selected = selected_count > 0
+        has_entries = bool(self._entries)
+        for button, visible, enabled in (
+            (getattr(self, "_btn_export_selected", None), has_selected, has_selected),
+            (getattr(self, "_btn_batch_edit", None), has_selected, has_selected),
+            (getattr(self, "_btn_compare_selected", None), selected_count == 2, selected_count == 2),
+            (getattr(self, "_btn_compare_revisions", None), selected_count == 1, selected_count == 1),
+            (getattr(self, "_btn_export_all", None), has_entries, has_entries),
+        ):
+            if button is None:
+                continue
+            button.setVisible(visible)
+            button.setEnabled(enabled)
 
     def _select_all_visible(self):
         self._selected_batch_ids.update(entry.figure_id for entry in self._entries)
         for thumbnail in self._thumbnails:
             thumbnail.set_batch_checked(True)
+        self._sync_selection_actions()
 
     def clear(self):
         self._clear_thumbnail_widgets()
@@ -1495,6 +1517,7 @@ class ChartGallery(QWidget):
         self._selected_path = ""
         self._selected_figure_id = ""
         self._selected_batch_ids.clear()
+        self._sync_selection_actions()
 
     def _clear_thumbnail_widgets(self):
         for thumb in self._thumbnails:

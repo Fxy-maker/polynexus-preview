@@ -38,6 +38,8 @@ class MainWindowRunMixin:
         self._btn_run.setText(tr("BTN_RUN"))
         if hasattr(self, "_btn_cancel"):
             self._btn_cancel.setVisible(False)
+        if hasattr(self, "_btn_retry"):
+            self._btn_retry.setVisible(False)
         self.log(tr("RUN_CANCELLED"))
 
     def _cancel_run(self):
@@ -211,6 +213,8 @@ class MainWindowRunMixin:
 
     def _run_single(self):
         self._run_cancel_requested = False
+        if hasattr(self, "_btn_retry"):
+            self._btn_retry.setVisible(False)
         self._set_results_summary("")
         self._set_results_export_control_visible(False)
         self._set_results_copy_control_visible(False)
@@ -284,6 +288,8 @@ class MainWindowRunMixin:
         )
         if native_directory_run:
             self._run_cancel_requested = False
+            if hasattr(self, "_btn_retry"):
+                self._btn_retry.setVisible(False)
             mode_label = (
                 tr("IMPORT_MODE_SEQUENCE")
                 if str(getattr(self, "_current_input_mode", "") or "").strip().lower() == "sequence"
@@ -338,6 +344,8 @@ class MainWindowRunMixin:
 
         self._btn_run.setEnabled(False)
         self._run_cancel_requested = False
+        if hasattr(self, "_btn_retry"):
+            self._btn_retry.setVisible(False)
         if hasattr(self, "_btn_cancel"):
             self._btn_cancel.setVisible(True)
         self._btn_run.setText(tr("BTN_BATCH"))
@@ -557,6 +565,8 @@ class MainWindowRunMixin:
         self._set_running_ui(False)
         if hasattr(self, "_btn_cancel"):
             self._btn_cancel.setVisible(False)
+        if hasattr(self, "_btn_retry"):
+            self._btn_retry.setVisible(True)
         self.log(tr("LOG_ERROR_DETAIL", msg))
         self._append_analysis_warning_summary()
         rollback_preprocess = getattr(self, "_rollback_preprocess_apply_failure", None)

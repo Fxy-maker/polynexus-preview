@@ -4,6 +4,43 @@ from .i18n import tr
 
 
 class MainWindowShellMixin:
+    def _apply_responsive_shell(self):
+        narrow = self.width() < 1120 if hasattr(self, "width") else False
+        for attr in ("_workflow_metric_tech", "_workflow_metric_data"):
+            widget = getattr(self, attr, None)
+            if widget is not None:
+                widget.setVisible(not narrow)
+        for attr in ("_btn_replot", "_btn_export_current"):
+            widget = getattr(self, attr, None)
+            if widget is not None:
+                widget.setVisible(not narrow)
+        project_export = getattr(self, "_btn_export", None)
+        if project_export is not None:
+            project_export.setVisible(not narrow)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_responsive_shell()
+
+    def _set_log_drawer_expanded(self, expanded: bool):
+        """Collapse diagnostics to keep the primary workflow compact."""
+        group = getattr(self, "_log_group", None)
+        if group is None:
+            return
+        layout = group.layout()
+        if layout is None:
+            return
+        for index in range(layout.count()):
+            item = layout.itemAt(index)
+            widget = item.widget()
+            if widget is not None:
+                widget.setVisible(bool(expanded))
+            elif item.layout() is not None:
+                for child_index in range(item.layout().count()):
+                    child = item.layout().itemAt(child_index).widget()
+                    if child is not None:
+                        child.setVisible(bool(expanded))
+
     @staticmethod
     def _main_window_module():
         from . import main_window as main_window_module

@@ -1611,6 +1611,10 @@ class MainWindow(
         self._btn_cancel.setObjectName("secondary_btn")
         self._btn_cancel.setVisible(False)
         self._btn_cancel.clicked.connect(self._cancel_run)
+        self._btn_retry = QPushButton(tr("BTN_RETRY"))
+        self._btn_retry.setObjectName("secondary_btn")
+        self._btn_retry.setVisible(False)
+        self._btn_retry.clicked.connect(self._run_analysis)
 
         self._btn_replot = QPushButton(tr("BTN_REPLOT"))
 
@@ -1664,10 +1668,16 @@ class MainWindow(
 
         layout.addWidget(self._btn_run)
         layout.addWidget(self._btn_cancel)
+        layout.addWidget(self._btn_retry)
 
 
 
-        self._btn_export = QPushButton(tr("BTN_EXPORT"))
+        self._btn_export_current = QPushButton(tr("BTN_EXPORT_CURRENT"))
+        self._btn_export_current.setObjectName("secondary_btn")
+        self._btn_export_current.clicked.connect(lambda: self._export_results(scope="current"))
+        layout.addWidget(self._btn_export_current)
+
+        self._btn_export = QPushButton(tr("BTN_EXPORT_PROJECT"))
 
         self._btn_export.setObjectName("secondary_btn")
 
@@ -2168,6 +2178,9 @@ class MainWindow(
 
         if running:
 
+            if hasattr(self, "_log_group"):
+                self._log_group.setChecked(True)
+
             start_busy_pulse(self._btn_run)
 
             if hasattr(self, "_workflow_metric_state"):
@@ -2364,6 +2377,9 @@ class MainWindow(
 
 
         self._log_group = QGroupBox(tr("GROUP_LOG"))
+        self._log_group.setCheckable(True)
+        self._log_group.setChecked(False)
+        self._log_group.toggled.connect(self._set_log_drawer_expanded)
 
         log_glayout = QVBoxLayout(self._log_group)
 
@@ -2415,6 +2431,8 @@ class MainWindow(
         self._batch_list_copy_shortcut.activated.connect(self._copy_batch_list_to_clipboard)
 
         log_glayout.addWidget(self._batch_list)
+
+        self._set_log_drawer_expanded(False)
 
 
 

@@ -415,17 +415,38 @@ class MainWindowOutputMixin:
             ir_summary_fn=build_result_review_ir_temperature_2d_user_summary_lines,
         )
 
-    def _export_results(self):
+    def _export_results(self, *, scope="project"):
         if not self._results and not self._batch_results:
             self.log(tr("LOG_NO_RESULTS"))
             return
+
+        current_technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        current_scope = str(scope or "project").strip().lower() == "current"
+        result_keys = (
+            [current_technique]
+            if current_scope and current_technique in self._results
+            else list(self._results.keys())
+        )
+        if current_scope and not result_keys:
+            self.log(tr("LOG_NO_RESULTS"))
+            return
+        if current_scope:
+            self.log(
+                tr(
+                    "EXPORT_PREFLIGHT_CURRENT",
+                    current_technique.upper(),
+                    str(getattr(self, "_last_persisted_run_id", "") or tr("WORKSPACE_RUN_NOT_PERSISTED")),
+                )
+            )
+        else:
+            self.log(tr("EXPORT_PREFLIGHT_PROJECT", ", ".join(sorted(str(key).upper() for key in result_keys))))
 
         save_dir = QFileDialog.getExistingDirectory(self, tr("DIALOG_EXPORT_TITLE"), self._get_last_dir())
         if not save_dir:
             return
 
         self._save_last_dir(save_dir)
-        save_root = os.path.join(save_dir, "PolyNexus_Export")
+        save_root = os.path.join(save_dir, "PolyNexus_Run_Export" if current_scope else "PolyNexus_Export")
         bundle_dirs = create_export_bundle_dirs(save_root)
         copied_sections = copy_export_bundle_sections(self._output_dir, bundle_dirs)
         for sub in copied_sections:
@@ -450,11 +471,11 @@ class MainWindowOutputMixin:
             html = generate_report(
                 project_name=self._project_label.text(),
                 output_dir=self._output_dir,
-                dsc_results=[self._results.get("dsc")] if "dsc" in self._results else None,
-                waxs_results=[self._results.get("waxs")] if "waxs" in self._results else None,
-                saxs_results=[self._results.get("saxs")] if "saxs" in self._results else None,
-                ir_results=[self._results.get("ir")] if "ir" in self._results else None,
-                nmr_results=[self._results.get("nmr")] if "nmr" in self._results else None,
+                dsc_results=[self._results.get("dsc")] if "dsc" in result_keys else None,
+                waxs_results=[self._results.get("waxs")] if "waxs" in result_keys else None,
+                saxs_results=[self._results.get("saxs")] if "saxs" in result_keys else None,
+                ir_results=[self._results.get("ir")] if "ir" in result_keys else None,
+                nmr_results=[self._results.get("nmr")] if "nmr" in result_keys else None,
             )
 
             report_path = save_report(html, str(bundle_dirs["report"]))
@@ -475,13 +496,13 @@ class MainWindowOutputMixin:
             current_technique=str(self._current_technique or ""),
             current_submodule=str(getattr(self, "_current_submodule_id", "") or ""),
             input_mode=str(getattr(self, "_current_input_mode", "") or ""),
-            included_techniques=self._results.keys(),
+            included_techniques=result_keys,
             copied_sections=copied_sections or [],
             primary_report=primary_report,
             task_context=export_context,
         )
 
-        techniques = ", ".join(sorted(str(key).upper() for key in self._results.keys()))
+        techniques = ", ".join(sorted(str(key).upper() for key in result_keys))
         if not techniques:
             techniques = "None"
         joint_summary = str(export_context.get("joint_summary") or "").strip()

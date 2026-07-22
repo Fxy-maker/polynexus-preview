@@ -76,8 +76,10 @@ class MainWindowRetranslateMixin:
         for w, key in [
             (self._btn_run, "BTN_RUN"),
             (self._btn_cancel, "BTN_CANCEL"),
+            (self._btn_retry, "BTN_RETRY"),
             (self._btn_replot, "BTN_REPLOT"),
-            (self._btn_export, "BTN_EXPORT"),
+            (self._btn_export, "BTN_EXPORT_PROJECT"),
+            (self._btn_export_current, "BTN_EXPORT_CURRENT"),
         ]:
 
             _safe_set(w, tr(key))
