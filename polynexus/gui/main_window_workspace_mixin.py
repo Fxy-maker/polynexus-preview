@@ -54,7 +54,9 @@ class MainWindowWorkspaceMixin:
             run_id=run_id,
         )
         key = str(technique or context.technique or "").strip().lower()
-        if key:
+        if key and not (
+            context_status is WorkspaceResultStatus.COMPLETE and not context.run_id
+        ):
             self._result_contexts[key] = context
         self._workspace_context = context
         return context

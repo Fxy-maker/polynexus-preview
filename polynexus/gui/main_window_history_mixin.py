@@ -355,6 +355,13 @@ class MainWindowHistoryMixin:
                 history_context=self._result_to_jsonable(self._history_context_snapshot()),
             )
             self._last_persisted_run_id = self._persist_gui_analysis_run_fn()(db, result, context)
+            record_context = getattr(self, "_record_result_context", None)
+            if callable(record_context):
+                record_context(
+                    context.technique,
+                    status="complete",
+                    run_id=self._last_persisted_run_id,
+                )
             payload = self._analysis_run_result_payload_fn()(result)
             logger.info(
                 "Analysis result persisted. technique=%s r2=%.4f",
@@ -583,6 +590,14 @@ class MainWindowHistoryMixin:
         restored_payload = self._result_to_jsonable(record)
         if isinstance(restored_payload, dict) and restored_payload:
             self._results[str(technique).strip().lower()] = restored_payload
+        self._last_persisted_run_id = str(record.get("id") or "")
+        record_context = getattr(self, "_record_result_context", None)
+        if callable(record_context):
+            record_context(
+                technique,
+                status="complete",
+                run_id=self._last_persisted_run_id,
+            )
         self._display_results(parameters, restored_payload or record)
 
         self._update_workspace_context()

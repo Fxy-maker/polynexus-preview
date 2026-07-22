@@ -58,8 +58,24 @@ class MainWindowResultsMixin:
 
     def _current_results_payload(self) -> dict:
         technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        contexts = getattr(self, "_result_contexts", {})
+        if technique in contexts and not self._result_context_is_current(technique):
+            self._update_results_context_banner()
+            return {}
         result = self._results.get(technique)
+        self._update_results_context_banner()
         return build_current_results_payload(result)
+
+    def _update_results_context_banner(self) -> None:
+        banner = getattr(self, "_results_context_banner", None)
+        if banner is None:
+            return
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        contexts = getattr(self, "_result_contexts", {})
+        stale = technique in contexts and not self._result_context_is_current(technique)
+        banner.setVisible(stale)
+        if stale:
+            banner.setText(tr("WORKSPACE_RESULT_STALE"))
 
     def _current_results_record(self) -> dict:
         technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
@@ -124,6 +140,12 @@ class MainWindowResultsMixin:
         layout = QVBoxLayout(w)
         self._work_memory_panel = self._build_work_memory_panel()
         layout.addWidget(self._work_memory_panel)
+
+        self._results_context_banner = QLabel()
+        self._results_context_banner.setObjectName("results_context_banner")
+        self._results_context_banner.setWordWrap(True)
+        self._results_context_banner.setVisible(False)
+        layout.addWidget(self._results_context_banner)
 
         self._joint_diagnostics_group = QGroupBox(tr("GROUP_JOINT_DIAGNOSTICS"))
 

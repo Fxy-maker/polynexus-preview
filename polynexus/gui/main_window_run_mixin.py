@@ -349,6 +349,13 @@ class MainWindowRunMixin:
         self._set_running_ui(False)
 
         self._results[self._current_technique] = result
+        record_context = getattr(self, "_record_result_context", None)
+        if callable(record_context):
+            record_context(
+                self._current_technique,
+                status="complete",
+                run_id=getattr(self, "_last_persisted_run_id", ""),
+            )
         if self._worker is not None and getattr(self._worker, "engine", None) is not None:
             self._engine_cache[self._current_technique] = self._worker.engine
 
@@ -432,6 +439,15 @@ class MainWindowRunMixin:
         self._populate_plots()
         self._tabs.setCurrentIndex(2)
         self._persist_analysis_run(result)
+        # Persistence assigns the stable run id; keep the in-memory result tied
+        # to that exact workspace identity before any view is refreshed.
+        record_context = getattr(self, "_record_result_context", None)
+        if callable(record_context):
+            record_context(
+                self._current_technique,
+                status="complete",
+                run_id=getattr(self, "_last_persisted_run_id", ""),
+            )
         self._update_workspace_context()
         self._update_results_compare_panel()
         finalize_preprocess = getattr(self, "_finalize_preprocess_apply_success", None)

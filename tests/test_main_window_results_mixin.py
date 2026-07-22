@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+from polynexus.gui.main_window_workspace_mixin import MainWindowWorkspaceMixin
+from polynexus.gui.workspace_context import WorkspaceContext, WorkspaceResultStatus
 
 
 class _FakeResultsWindow(MainWindowResultsMixin):
@@ -43,3 +45,33 @@ def test_main_window_reuses_result_context_helpers_from_results_mixin() -> None:
     assert MainWindow._result_origin_label is MainWindowResultsMixin._result_origin_label
     assert MainWindow._build_results_tab is MainWindowResultsMixin._build_results_tab
     assert MainWindow._build_joint_metric_label is MainWindowResultsMixin._build_joint_metric_label
+
+
+class _StaleResultsWindow(MainWindowResultsMixin, MainWindowWorkspaceMixin):
+    def __init__(self) -> None:
+        self._current_technique = "waxs"
+        self._results = {"waxs": {"parameters": {"r2": 0.9}}}
+        self._result_contexts = {
+            "waxs": WorkspaceContext(
+                technique="saxs",
+                source_path="D:/old/sample.edf",
+                run_id="run-old",
+                result_status=WorkspaceResultStatus.COMPLETE,
+            )
+        }
+        self._workspace_context = WorkspaceContext(
+            technique="waxs",
+            source_path="D:/new/sample.edf",
+            result_status=WorkspaceResultStatus.EMPTY,
+        )
+        self._results_context_banner = type("Banner", (), {
+            "setVisible": lambda self, value: setattr(self, "visible", value),
+            "setText": lambda self, value: setattr(self, "text", value),
+        })()
+
+
+def test_stale_result_context_is_not_projected_as_current_payload() -> None:
+    window = _StaleResultsWindow()
+
+    assert window._current_results_payload() == {}
+    assert window._results_context_banner.visible is True

@@ -88,7 +88,12 @@ class MainWindowFigureMixin:
             return
         self._figure_viewer = open_chart_viewer(
             figure_path,
-            current_chart_raw_data(self._results.get(self._current_technique)),
+            current_chart_raw_data(
+                self._results.get(self._current_technique)
+                if not hasattr(self, "_result_contexts")
+                or self._result_context_is_current(self._current_technique)
+                else None
+            ),
             entry=(
                 self._chart_gallery.current_entry()
                 if hasattr(self, "_chart_gallery")
