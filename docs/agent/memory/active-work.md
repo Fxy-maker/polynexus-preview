@@ -1,5 +1,19 @@
 # Active Work
 
+## Generated text drag anchor follow-up - in progress 2026-07-22
+
+- Reproduced the screenshot issue with a regression test: the generated text
+  preview moved its Matplotlib `Text` artist to the persisted box origin
+  `(x, y)` while the box renderer uses the left/top anchor `(x, y + height)`.
+  This made the text visibly fall to the box's lower-left corner during drag.
+- Added the shared `polynexus/core/figure_text_geometry.py` anchor contract and
+  routed formal rendering, legacy generated preview rendering, and live drag
+  preview through it. The focused editor/render matrix now passes (`103`),
+  including log-axis text-box movement.
+- Default verifier and checkpoint remain pending until the final diff review;
+  the already-running GUI must be restarted from `D:\PolyNexus\scripts\launch_gui.py`
+  after commit.
+
 ## Generated text placement and font sizing - completed 2026-07-22
 
 - Generated text boxes now use their stored box origin as the visual left-top

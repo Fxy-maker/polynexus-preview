@@ -9,6 +9,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
+from ..figure_text_geometry import text_box_anchor
 from .render_plan import FigureRenderPlan, RenderAxis
 
 
@@ -410,15 +411,14 @@ class MatplotlibFigureRenderer:
             figure_object.get("vertical_alignment", "top" if has_box else "bottom")
             or ("top" if has_box else "bottom")
         )
-        if has_box:
-            if horizontal_alignment == "center":
-                x += width / 2.0
-            elif horizontal_alignment == "right":
-                x += width
-            if vertical_alignment == "center":
-                y += height / 2.0
-            elif vertical_alignment == "top":
-                y += height
+        x, y = text_box_anchor(
+            x,
+            y,
+            width,
+            height,
+            horizontal_alignment=horizontal_alignment,
+            vertical_alignment=vertical_alignment,
+        )
         return [axis.text(
             x,
             y,

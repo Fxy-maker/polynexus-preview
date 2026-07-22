@@ -24,6 +24,7 @@ from ..chart_editor_generated_object_helpers import (
     generated_object_xy as _shared_generated_object_xy,
 )
 from ...plotting.sci_style import set_sci_style as _apply_sci_style
+from ...core.figure_text_geometry import text_box_anchor
 from ...core.plot_edits import COLOUR_SCHEMES, FIGURE_SIZES, LINE_WIDTHS
 from ...core.figures.render_plan import FigureRenderPlanBuilder
 from ...core.figures.renderer import MatplotlibFigureRenderer
@@ -690,17 +691,14 @@ class ChartEditorGeneratedDocumentMixin:
                 figure_object.get("vertical_alignment", "top" if has_box else "bottom")
                 or ("top" if has_box else "bottom")
             )
-            anchor_x = float(x or 0.0)
-            anchor_y = float(y or 0.0)
-            if has_box:
-                if horizontal_alignment == "center":
-                    anchor_x += float(width) / 2.0
-                elif horizontal_alignment == "right":
-                    anchor_x += float(width)
-                if vertical_alignment == "center":
-                    anchor_y += float(height) / 2.0
-                elif vertical_alignment == "top":
-                    anchor_y += float(height)
+            anchor_x, anchor_y = text_box_anchor(
+                float(x or 0.0),
+                float(y or 0.0),
+                float(width or 0.0),
+                float(height or 0.0),
+                horizontal_alignment=horizontal_alignment,
+                vertical_alignment=vertical_alignment,
+            )
             text_kwargs = {}
             if width is not None and width > 0.0:
                 text_kwargs.update(wrap=True, clip_on=True)

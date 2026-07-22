@@ -7,6 +7,7 @@ from matplotlib.patches import FancyArrowPatch, PathPatch, Rectangle
 from matplotlib.path import Path
 from matplotlib.text import Text
 
+from ...core.figure_text_geometry import text_box_anchor
 from .editor_geometry import Box
 
 class ChartEditorGeneratedPreviewMixin:
@@ -288,9 +289,19 @@ class ChartEditorGeneratedPreviewMixin:
             x_value = geometry.get("x")
             y_value = geometry.get("y")
             if x_value is not None and y_value is not None:
+                width = geometry.get("width", figure_object.get("width", 0.0))
+                height = geometry.get("height", figure_object.get("height", 0.0))
+                anchor = text_box_anchor(
+                    float(x_value),
+                    float(y_value),
+                    float(width or 0.0),
+                    float(height or 0.0),
+                    horizontal_alignment=figure_object.get("horizontal_alignment"),
+                    vertical_alignment=figure_object.get("vertical_alignment"),
+                )
                 for artist in artists:
                     if isinstance(artist, Text):
-                        artist.set_position((float(x_value), float(y_value)))
+                        artist.set_position(anchor)
         elif object_type == "rectangle":
             bounds = geometry
             if isinstance(figure_object.get("bounds"), dict):

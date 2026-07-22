@@ -132,7 +132,9 @@ def test_generated_text_box_uses_persisted_bounds_geometry_when_reloaded():
         0,
     )
 
-    assert artists[0].get_position() == (0.2, 0.3)
+    assert artists[0].get_position() == (0.2, 0.5)
+    assert artists[0].get_ha() == "left"
+    assert artists[0].get_va() == "top"
     assert artists[0].get_wrap() is True
     assert artists[0].get_clip_on() is True
 

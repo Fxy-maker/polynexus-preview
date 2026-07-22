@@ -629,6 +629,10 @@ def test_generated_text_body_drag_preview_keeps_box_geometry_and_selection_frame
     preview = editor._generated_handle_drag_state["preview_geometry"]
     assert preview["width"] == pytest.approx(payload["width"])
     assert preview["height"] == pytest.approx(payload["height"])
+    text_artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    assert text_artist.get_position() == pytest.approx(
+        (preview["x"], preview["y"] + preview["height"])
+    )
     frame = next(
         artist
         for artist in editor._figure.axes[0].patches
