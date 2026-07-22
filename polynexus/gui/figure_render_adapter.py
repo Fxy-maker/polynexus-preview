@@ -10,9 +10,14 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+from matplotlib.text import Text
+from matplotlib.transforms import IdentityTransform
 
 from ..core.figure_text_geometry import is_axes_text_box
 from .widgets.editor_geometry import Box
+
+
+TEXT_SELECTION_PADDING_PX = 4.0
 
 
 class FigureRenderAdapter:
@@ -73,6 +78,27 @@ class FigureRenderAdapter:
     def artists_for_object_id(self, object_id: str) -> list[object]:
         return list(self._object_id_to_artists.get(str(object_id or ""), []))
 
+    def rendered_text_selection_bbox(
+        self, object_id: str, *, padding_px=TEXT_SELECTION_PADDING_PX
+    ):
+        """Return a finite, padded display-space selection box for rendered text."""
+        for artist in self.artists_for_object_id(object_id):
+            if not isinstance(artist, Text):
+                continue
+            renderer = self._renderer_for_artist(artist)
+            if renderer is None:
+                continue
+            try:
+                bbox = artist.get_window_extent(renderer).padded(float(padding_px))
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                continue
+            if all(
+                math.isfinite(float(value))
+                for value in (bbox.x0, bbox.y0, bbox.x1, bbox.y1)
+            ):
+                return bbox
+        return None
+
     def add_selection_handles(self, ax, figure_object: dict, *, selected_handle_index=None):
         if not isinstance(figure_object, dict):
             return []
@@ -102,7 +128,19 @@ class FigureRenderAdapter:
                 if control_x is not None and control_y is not None:
                     handle_points.append((control_x, control_y))
                     handle_indices.append(2)
-        elif object_type in {"rectangle", "text"}:
+        elif object_type == "text":
+            bbox = self.rendered_text_selection_bbox(object_id)
+            if bbox is not None:
+                handle_points.extend(
+                    [
+                        (float(bbox.x0), float(bbox.y0)),
+                        (float(bbox.x1), float(bbox.y0)),
+                        (float(bbox.x1), float(bbox.y1)),
+                        (float(bbox.x0), float(bbox.y1)),
+                    ]
+                )
+                handle_indices.extend([0, 1, 2, 3])
+        elif object_type == "rectangle":
             bounds = (
                 figure_object.get("bounds", {})
                 if isinstance(figure_object.get("bounds"), dict)
@@ -156,7 +194,12 @@ class FigureRenderAdapter:
             edgecolors="#D55E00",
             linewidths=2.0,
             zorder=10_000,
-            transform=ax.transAxes if is_axes_text_box(figure_object) else ax.transData,
+            transform=(
+                IdentityTransform()
+                if object_type == "text"
+                else (ax.transAxes if is_axes_text_box(figure_object) else ax.transData)
+            ),
+            clip_on=False if object_type == "text" else True,
         )
         handles.set_gid(f"pn-selection-handles:{object_id}")
         setattr(handles, "_pn_handle_indices", list(handle_indices))
@@ -223,24 +266,21 @@ class FigureRenderAdapter:
             )
             ax.add_line(frame)
         elif object_type == "text":
-            box = Box.from_payload(figure_object)
-            frame = (
-                Rectangle(
-                    (box.x, box.y),
-                    box.width,
-                    box.height,
-                    fill=False,
-                    edgecolor=frame_kwargs["color"],
-                    linestyle=frame_kwargs["linestyle"],
-                    linewidth=frame_kwargs["linewidth"],
-                    zorder=frame_kwargs["zorder"],
-                    transform=ax.transAxes if is_axes_text_box(figure_object) else ax.transData,
-                )
-                if box is not None and box.width > 0 and box.height > 0
-                else self._artist_selection_frame(ax, object_id, figure_object, frame_kwargs)
-            )
-            if frame is None:
+            bbox = self.rendered_text_selection_bbox(object_id)
+            if bbox is None:
                 return []
+            frame = Rectangle(
+                (float(bbox.x0), float(bbox.y0)),
+                float(bbox.width),
+                float(bbox.height),
+                fill=False,
+                edgecolor=frame_kwargs["color"],
+                linestyle=frame_kwargs["linestyle"],
+                linewidth=frame_kwargs["linewidth"],
+                zorder=frame_kwargs["zorder"],
+                transform=IdentityTransform(),
+                clip_on=False,
+            )
             ax.add_patch(frame)
         elif object_type == "plot_series":
             frame = self._artist_selection_frame(ax, object_id, figure_object, frame_kwargs)
@@ -280,21 +320,7 @@ class FigureRenderAdapter:
         for artist in self.artists_for_object_id(object_id):
             if not hasattr(artist, "get_window_extent"):
                 continue
-            figure = getattr(artist, "figure", None) or getattr(ax, "figure", None)
-            canvas = getattr(figure, "canvas", None)
-            renderer = None
-            if canvas is not None and hasattr(canvas, "get_renderer"):
-                try:
-                    renderer = canvas.get_renderer()
-                except (AttributeError, RuntimeError):
-                    renderer = None
-            if renderer is None and figure is not None:
-                try:
-                    canvas = FigureCanvasAgg(figure)
-                    canvas.draw()
-                    renderer = canvas.get_renderer()
-                except (AttributeError, RuntimeError, ValueError):
-                    renderer = None
+            renderer = self._renderer_for_artist(artist)
             if renderer is None:
                 continue
             try:
@@ -343,6 +369,23 @@ class FigureRenderAdapter:
             linewidth=frame_kwargs["linewidth"],
             zorder=frame_kwargs["zorder"],
         )
+
+    def _renderer_for_artist(self, artist):
+        figure = getattr(artist, "figure", None)
+        canvas = getattr(figure, "canvas", None)
+        if canvas is not None and hasattr(canvas, "get_renderer"):
+            try:
+                return canvas.get_renderer()
+            except (AttributeError, RuntimeError):
+                pass
+        if figure is None:
+            return None
+        try:
+            canvas = FigureCanvasAgg(figure)
+            canvas.draw()
+            return canvas.get_renderer()
+        except (AttributeError, RuntimeError, ValueError):
+            return None
 
     def render_document(
         self,

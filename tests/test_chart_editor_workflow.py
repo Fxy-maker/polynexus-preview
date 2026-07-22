@@ -850,12 +850,8 @@ def test_generated_axes_text_body_drag_commits_one_viewport_geometry_command(
         for artist in axis.collections
         if artist.get_gid() == f"pn-selection-handles:{payload['id']}"
     )
-    assert frame.get_transform().transform((0.0, 0.0)) == pytest.approx(
-        axis.transAxes.transform((0.2, 0.6))
-    )
-    assert handles.get_offset_transform().transform((0.2, 0.6)) == pytest.approx(
-        axis.transAxes.transform((0.2, 0.6))
-    )
+    assert frame.get_data_transform().transform((0.0, 0.0)) == pytest.approx((0.0, 0.0))
+    assert handles.get_offset_transform().transform((0.0, 0.0)) == pytest.approx((0.0, 0.0))
     axis.set_yscale("log")
     editor._canvas.draw()
     artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
@@ -880,6 +876,62 @@ def test_generated_axes_text_body_drag_commits_one_viewport_geometry_command(
     assert len(editor._edit_session.history) == history_before + 1
     editor._on_annotation_undo()
     assert editor._generated_figure_object_by_id(payload["id"])["bounds"] == payload["bounds"]
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_text_selection_overlays_follow_rendered_extent_and_hit_display_handles(
+    tmp_path, app
+):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "tight-label",
+        "type": "text",
+        "coordinate_space": "axes",
+        "bounds": {"x": 0.2, "y": 0.6, "width": 0.7, "height": 0.5},
+        "text": "Peak",
+        "style": {"font_size": 12.0},
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+    axis = editor._figure.axes[0]
+    editor._canvas.draw()
+    renderer = editor._canvas.get_renderer()
+    text_artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    text_bbox = text_artist.get_window_extent(renderer)
+    frame = next(
+        artist
+        for artist in axis.patches
+        if artist.get_gid() == f"pn-selection-frame:{payload['id']}"
+    )
+    handles = next(
+        artist
+        for artist in axis.collections
+        if artist.get_gid() == f"pn-selection-handles:{payload['id']}"
+    )
+
+    assert frame.get_data_transform().transform((0.0, 0.0)) == pytest.approx((0.0, 0.0))
+    assert frame.get_x() == pytest.approx(text_bbox.x0 - 4.0)
+    assert frame.get_y() == pytest.approx(text_bbox.y0 - 4.0)
+    assert frame.get_width() == pytest.approx(text_bbox.width + 8.0)
+    assert frame.get_height() == pytest.approx(text_bbox.height + 8.0)
+    assert frame.get_width() < 100.0
+    assert handles.get_offset_transform().transform((0.0, 0.0)) == pytest.approx((0.0, 0.0))
+    expected_corners = [
+        (text_bbox.x0 - 4.0, text_bbox.y0 - 4.0),
+        (text_bbox.x1 + 4.0, text_bbox.y0 - 4.0),
+        (text_bbox.x1 + 4.0, text_bbox.y1 + 4.0),
+        (text_bbox.x0 - 4.0, text_bbox.y1 + 4.0),
+    ]
+    for offset, expected_corner in zip(handles.get_offsets(), expected_corners):
+        assert tuple(offset) == pytest.approx(expected_corner)
+
+    corner = handles.get_offsets()[2]
+    event = MouseEvent("button_press_event", editor._canvas, *corner, button=1)
+    event.inaxes = axis
+    assert editor._generated_point_handle_hit(event, payload["id"]) == 2
 
     editor.deleteLater()
     app.processEvents()
@@ -1022,26 +1074,30 @@ def test_generated_text_corner_drag_resizes_the_persisted_box(tmp_path, app):
     editor._show_generated_figure_document()
     editor._select_generated_object(payload["id"], "list")
     axis = editor._figure.axes[0]
+    handles = next(
+        artist
+        for artist in axis.collections
+        if artist.get_gid() == f"pn-selection-handles:{payload['id']}"
+    )
 
-    def event(name, point):
-        result = MouseEvent(
-            name, editor._canvas, *axis.transData.transform(point), button=1
-        )
+    def event(name, pixel):
+        result = MouseEvent(name, editor._canvas, *pixel, button=1)
         result.inaxes = axis
-        result.xdata, result.ydata = point
+        result.xdata, result.ydata = axis.transData.inverted().transform(pixel)
         return result
 
-    editor._on_generated_button_press(event("button_press_event", (payload["x"], payload["y"])))
+    editor._on_generated_button_press(event("button_press_event", handles.get_offsets()[0]))
     assert editor._generated_handle_drag_state["kind"] == "text"
     assert editor._generated_handle_drag_state["handle_index"] == 0
+    moved_corner = axis.transData.transform((payload["x"] - 0.05, payload["y"] - 0.04))
     editor._on_generated_mouse_move(
-        event("motion_notify_event", (payload["x"] - 0.05, payload["y"] - 0.04))
+        event("motion_notify_event", moved_corner)
     )
     preview = editor._generated_handle_drag_state["preview_geometry"]
     assert preview["width"] == pytest.approx(payload["width"] + 0.05)
     assert preview["height"] == pytest.approx(payload["height"] + 0.04)
     editor._on_generated_button_release(
-        event("button_release_event", (payload["x"] - 0.05, payload["y"] - 0.04))
+        event("button_release_event", moved_corner)
     )
 
     saved = editor._generated_figure_object_by_id(payload["id"])

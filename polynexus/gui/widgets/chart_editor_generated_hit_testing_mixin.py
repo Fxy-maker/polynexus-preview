@@ -367,8 +367,11 @@ class ChartEditorGeneratedHitTestingMixin:
         if len(offsets) <= 0:
             return None
         figure_object = self._generated_figure_object_by_id(object_id)
-        transform = axes.transAxes if is_axes_text_box(figure_object) else axes.transData
-        pixel_offsets = transform.transform(offsets)
+        if isinstance(figure_object, dict) and str(figure_object.get("type", "") or "") == "text":
+            pixel_offsets = offsets
+        else:
+            transform = axes.transAxes if is_axes_text_box(figure_object) else axes.transData
+            pixel_offsets = transform.transform(offsets)
         best_match = self._nearest_pixel_point_match(pixel_offsets, event, max_radius=12.0)
         if best_match is None:
             return None
