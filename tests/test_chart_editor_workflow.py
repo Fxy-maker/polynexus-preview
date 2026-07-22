@@ -1174,7 +1174,12 @@ def test_generated_text_corner_drag_scales_font_without_changing_persisted_geome
     assert editor._annotation_font_size_spin.value() == pytest.approx(
         preview["font_size"], abs=1.0
     )
-    assert editor._generated_figure_object_by_id(payload["id"])["bounds"] == original_bounds
+    preview_artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    assert preview_artist.get_fontsize() == pytest.approx(preview["font_size"])
+    preview_object = editor._generated_figure_object_by_id(payload["id"])
+    assert preview_object["bounds"] == original_bounds
+    assert preview_object["style"]["font_size"] == pytest.approx(original_font_size)
+    assert len(editor._edit_session.history) == history_before
     editor._canvas.draw()
     preview_handles = next(
         artist
