@@ -18,6 +18,16 @@ class ChartEditorGeneratedInteractionMixin:
         self._remember_generated_pointer_event(event)
         if not self._is_left_mouse_button(getattr(event, "button", None)):
             return
+        if (
+            bool(getattr(event, "dblclick", False))
+            and self._generated_draw_tool == "select"
+        ):
+            object_id = self._generated_text_edit_target(event)
+            if object_id:
+                self._select_generated_object(object_id, "double-click")
+                if self._begin_generated_text_edit(object_id):
+                    self._suppress_generated_hover_until_pointer_move = False
+                    return
         if self._generated_draw_tool != "select":
             if self._handle_generated_draw_press(event):
                 return
@@ -316,6 +326,74 @@ class ChartEditorGeneratedInteractionMixin:
         except (AttributeError, TypeError, ValueError):
             ratio = 1.0
         return max(1.0, ratio)
+
+    def _generated_text_edit_target(self, event) -> str:
+        candidate_ids = []
+        selected_id = str(self._selected_figure_object_id or "")
+        if selected_id:
+            candidate_ids.append(selected_id)
+        candidate_ids.extend(self._figure_render_adapter.object_ids_for_mouseevent(event))
+        candidate_ids.extend(self._generated_press_drag_object_ids())
+        seen = set()
+        for object_id in candidate_ids:
+            object_id = str(object_id or "")
+            if not object_id or object_id in seen:
+                continue
+            seen.add(object_id)
+            figure_object = self._generated_figure_object_by_id(object_id)
+            if not isinstance(figure_object, dict) or figure_object.get("type") != "text":
+                continue
+            if self._generated_annotation_body_drag_start(event, object_id) is not None:
+                return object_id
+        return ""
+
+    def _begin_generated_text_edit(self, object_id: str) -> bool:
+        figure_object = self._generated_figure_object_by_id(object_id)
+        if not isinstance(figure_object, dict) or figure_object.get("type") != "text":
+            return False
+        renderer = None
+        try:
+            renderer = self._canvas.get_renderer()
+        except (AttributeError, RuntimeError):
+            renderer = None
+        if renderer is None:
+            return False
+        artist = next(
+            (
+                item
+                for item in self._figure_render_adapter.artists_for_object_id(object_id)
+                if hasattr(item, "get_window_extent")
+            ),
+            None,
+        )
+        if artist is None:
+            return False
+        try:
+            extent = artist.get_window_extent(renderer)
+            ratio = self._generated_canvas_device_ratio()
+            canvas_height = max(1, int(self._canvas.height()))
+            left = int(round(float(extent.x0) / ratio))
+            right = int(round(float(extent.x1) / ratio))
+            top = canvas_height - int(round(float(extent.y1) / ratio))
+            bottom = canvas_height - int(round(float(extent.y0) / ratio))
+            rect = QRect(
+                left,
+                top,
+                max(1, right - left),
+                max(1, bottom - top),
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+        self._begin_inline_text_entry(
+            {
+                "mode": "generated-edit",
+                "object_id": str(object_id),
+                "initial_text": str(figure_object.get("text", "") or ""),
+            },
+            host=self._canvas,
+            rect=rect,
+        )
+        return isinstance(getattr(self, "_pending_inline_text", None), dict)
 
     def _begin_generated_text_box(self, start, end=None, rect: QRect | None = None) -> None:
         box = start if isinstance(start, Box) else Box.from_drag(start, end)

@@ -45,7 +45,12 @@ class ChartEditorInlineTextMixin:
         height = max(24, geometry.height())
         self._pending_inline_text = dict(payload)
         self._inline_text_editor.setGeometry(top_left.x(), top_left.y(), width, height)
-        self._inline_text_editor.clear()
+        initial_text = payload.get("initial_text")
+        if initial_text is None:
+            self._inline_text_editor.clear()
+        else:
+            self._inline_text_editor.setText(str(initial_text))
+            self._inline_text_editor.selectAll()
         self._inline_text_editor.show()
         self._inline_text_editor.raise_()
         self._inline_text_editor.setFocus()

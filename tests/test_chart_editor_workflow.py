@@ -690,6 +690,48 @@ def test_generated_text_body_hit_uses_rendered_text_bounds_on_log_axis(tmp_path,
     app.processEvents()
 
 
+def test_generated_text_double_click_opens_inline_editor(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "editable-text",
+        "type": "text",
+        "coordinate_space": "axes",
+        "bounds": {"x": 0.2, "y": 0.3, "width": 0.3, "height": 0.12},
+        "text": "Original label",
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+    axis = editor._figure.axes[0]
+    editor._canvas.draw()
+    artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    bbox = artist.get_window_extent(editor._canvas.get_renderer())
+    press_pixel = ((bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0)
+    event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        *press_pixel,
+        button=1,
+        dblclick=True,
+    )
+    event.inaxes = axis
+
+    editor._on_generated_button_press(event)
+
+    assert editor._pending_inline_text["mode"] == "generated-edit"
+    assert editor._pending_inline_text["object_id"] == payload["id"]
+    assert editor._inline_text_editor.text() == "Original label"
+
+    editor._inline_text_editor.setText("Updated label")
+    assert editor._commit_inline_text_entry() is True
+    assert editor._generated_figure_object_by_id(payload["id"])["text"] == "Updated label"
+    editor._on_annotation_undo()
+    assert editor._generated_figure_object_by_id(payload["id"])["text"] == "Original label"
+
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_generated_text_body_drag_moves_on_log_axis(tmp_path, app):
     editor = make_generated_editor(tmp_path)
     payload = {

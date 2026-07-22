@@ -95,6 +95,8 @@ class ChartEditorAnnotationControlsMixin:
         mode = str(payload.get("mode", "") or "")
         if mode == "generated":
             return self._commit_generated_text_payload(payload, text)
+        if mode == "generated-edit":
+            return self._commit_generated_text_edit_payload(payload, text)
         if mode != "static":
             return False
         geometry = payload.get("geometry")
@@ -130,6 +132,28 @@ class ChartEditorAnnotationControlsMixin:
             height=height if height > 0 else None,
         )
         return bool(created)
+
+    def _commit_generated_text_edit_payload(self, payload: dict, text: str) -> bool:
+        object_id = str(payload.get("object_id", "") or "").strip()
+        if not object_id or not isinstance(text, str):
+            return False
+        figure_object = self._generated_figure_object_by_id(object_id)
+        if not isinstance(figure_object, dict):
+            return False
+        if str(figure_object.get("text", "") or "") == text:
+            return True
+        session = self._edit_session_for_adapter()
+        if session is None:
+            return False
+        session.select(object_id, "generated-text-edit")
+        result = self._execute_edit(UpdateTextCommand(object_id, text))
+        if result is None or not result.changed:
+            return False
+        self._persist_generated_document()
+        self._show_generated_figure_document()
+        self._refresh_object_list(object_id)
+        self.figure_changed.emit()
+        return True
 
     def _on_add_text_annotation(self):
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():

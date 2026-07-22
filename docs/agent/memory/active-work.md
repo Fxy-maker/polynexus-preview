@@ -1,5 +1,17 @@
 # Active Work
 
+## Generated text double-click editing - verification-ready 2026-07-22
+
+- Existing generated text now opens the shared inline editor on a canvas
+  double-click, prefilled with the displayed `text` value rather than the
+  object-list name.
+- Submission uses `UpdateTextCommand`, persists the object document, refreshes
+  the rendered figure, and remains undoable.
+- Focused ChartEditor workflow/curve matrix passes (`62 passed`); the four
+  tight-layout warnings are pre-existing log-axis warnings.
+- A running GUI must be restarted from `D:\PolyNexus\scripts\launch_gui.py`
+  before visual acceptance.
+
 ## Viewport-anchored generated text boxes - verification-ready 2026-07-22
 
 - Implemented the approved Axes-relative text-box slice from task card
