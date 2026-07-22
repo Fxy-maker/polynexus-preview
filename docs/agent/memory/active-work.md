@@ -1,5 +1,17 @@
 # Active Work
 
+## High-DPI live canvas fit - completed 2026-07-22
+
+- Fixed generated/editor figure fitting on Windows display scaling: Qt widget
+  dimensions are logical pixels, while Matplotlib's Agg buffer uses device
+  pixels. The live figure now scales both dimensions by
+  `devicePixelRatioF()`, preventing interaction rebuilds from rendering at
+  2/3 or 1/2 of the available canvas width/height.
+- Added a regression test that reproduces a 150% display and asserts the
+  figure buffer matches the device-pixel canvas size. Focused render/workflow
+  tests pass (`40 passed`); the default changed/type verifier passes with
+  quality gate `282 passed` and preprocessing gate `103 passed`.
+
 ## Unified canvas interaction - completed 2026-07-21
 
 - Added immutable `Box`, `Segment`, and `Curve` geometry records with legacy

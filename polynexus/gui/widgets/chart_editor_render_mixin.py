@@ -29,8 +29,22 @@ class ChartEditorRenderMixin:
         height = int(canvas.height())
         if width <= 0 or height <= 0:
             return
+        try:
+            device_ratio = float(canvas.devicePixelRatioF() or 1.0)
+        except (AttributeError, TypeError, ValueError):
+            device_ratio = 1.0
+        device_ratio = max(1.0, device_ratio)
         dpi = float(getattr(figure, "dpi", self._dpi) or self._dpi)
-        figure.set_size_inches(width / dpi, height / dpi, forward=False)
+        # Qt reports widget dimensions in logical pixels while Matplotlib's
+        # Agg buffer is sized in device pixels.  At 150%/200% Windows scale,
+        # using the logical dimensions directly leaves the figure at only
+        # 2/3 or 1/2 of the canvas and makes the chart appear to shrink when
+        # an interaction rebuilds it.
+        figure.set_size_inches(
+            width * device_ratio / dpi,
+            height * device_ratio / dpi,
+            forward=False,
+        )
 
     def _render(self, *_):
         if self._fig_generator is None:

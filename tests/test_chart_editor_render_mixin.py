@@ -66,3 +66,29 @@ def test_chart_editor_render_mixin_uses_placeholder_when_static_preview_cannot_r
     window._render()
 
     assert window.calls == ["static-preview", "placeholder"]
+
+
+def test_fit_figure_to_live_canvas_accounts_for_high_dpi_device_pixels():
+    module = importlib.import_module("polynexus.gui.widgets.chart_editor_render_mixin")
+    from matplotlib.figure import Figure
+
+    class _Canvas:
+        def width(self):
+            return 1000
+
+        def height(self):
+            return 800
+
+        def devicePixelRatioF(self):
+            return 1.5
+
+    class _Window(module.ChartEditorRenderMixin):
+        _dpi = 100
+
+        def __init__(self):
+            self._canvas = _Canvas()
+
+    figure = Figure(figsize=(2, 2), dpi=100)
+    _Window()._fit_figure_to_live_canvas(figure)
+
+    assert tuple(figure.bbox.bounds)[2:] == (1500.0, 1200.0)
