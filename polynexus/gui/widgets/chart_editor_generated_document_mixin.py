@@ -1083,10 +1083,13 @@ class ChartEditorGeneratedDocumentMixin:
             if callable(capture):
                 capture()
                 captured_here = True
-        self._fit_figure_to_live_canvas(fig)
         self._canvas.figure = fig
         self._figure = fig
         self._restore_generated_viewport()
+        # The Qt canvas can normalize a replacement Figure to logical pixels,
+        # and viewport restoration can restore the old logical figure size;
+        # apply the live-canvas device-pixel fit after both operations.
+        self._fit_figure_to_live_canvas(fig)
         if captured_here:
             self._generated_viewport_snapshot = None
         self._connect_canvas_interaction_events()

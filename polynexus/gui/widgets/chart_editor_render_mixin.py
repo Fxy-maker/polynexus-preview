@@ -151,9 +151,12 @@ class ChartEditorRenderMixin:
         import matplotlib.pyplot as plt
 
         old = self._canvas.figure
-        self._fit_figure_to_live_canvas(fig)
         self._canvas.figure = fig
         self._figure = fig
+        # FigureCanvasQTAgg may resize a newly assigned Figure to its logical
+        # widget dimensions. Fit only after assignment so the device-pixel
+        # correction is not overwritten by the backend.
+        self._fit_figure_to_live_canvas(fig)
         self._connect_canvas_interaction_events()
         self._canvas.draw()
         if old:

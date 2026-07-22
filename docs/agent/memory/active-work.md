@@ -7,6 +7,9 @@
   pixels. The live figure now scales both dimensions by
   `devicePixelRatioF()`, preventing interaction rebuilds from rendering at
   2/3 or 1/2 of the available canvas width/height.
+- Figure replacement now assigns the new figure, restores only its viewport
+  state, and performs the device-pixel fit last; both the Qt backend assignment
+  and viewport-size restoration previously overwrote the corrected size.
 - Added a regression test that reproduces a 150% display and asserts the
   figure buffer matches the device-pixel canvas size. Focused render/workflow
   tests pass (`40 passed`); the default changed/type verifier passes with
