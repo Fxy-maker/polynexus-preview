@@ -6,6 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from matplotlib.figure import Figure
 from PySide6.QtWidgets import QApplication
+import pytest
 
 from polynexus.gui.widgets.chart_editor import ChartEditor
 
@@ -137,6 +138,56 @@ def test_generated_text_box_uses_persisted_bounds_geometry_when_reloaded():
     assert artists[0].get_va() == "top"
     assert artists[0].get_wrap() is True
     assert artists[0].get_clip_on() is True
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_axes_text_box_uses_axes_transform():
+    _app()
+    editor = ChartEditor()
+    figure = Figure()
+    axis = figure.add_subplot(111)
+
+    artists = editor._render_generated_figure_object(
+        axis,
+        {
+            "id": "axes-note-1",
+            "type": "text",
+            "coordinate_space": "axes",
+            "bounds": {"x": 0.2, "y": 0.3, "width": 0.4, "height": 0.2},
+            "text": "Viewport annotation",
+            "style": {"color": "#0072B2", "font_size": 12.0},
+        },
+        {},
+        0,
+    )
+
+    assert artists[0].get_transform() == axis.transAxes
+    assert artists[0].get_position() == (0.2, 0.5)
+
+    editor.deleteLater()
+    _app().processEvents()
+
+
+def test_generated_text_draw_preview_uses_axes_transform():
+    _app()
+    editor = ChartEditor()
+    figure = Figure()
+    axis = figure.add_subplot(111)
+    axis.set_xlim(0.0, 10.0)
+    axis.set_ylim(0.0, 20.0)
+    editor._figure = figure
+
+    artist = editor._make_generated_draw_preview_artist(
+        "text",
+        (0.2, 0.3),
+        (0.5, 0.5),
+    )
+
+    assert artist.get_transform().transform((0.0, 0.0)) == pytest.approx(
+        axis.transAxes.transform((0.2, 0.3))
+    )
 
     editor.deleteLater()
     _app().processEvents()

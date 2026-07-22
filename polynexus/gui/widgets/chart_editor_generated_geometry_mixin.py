@@ -9,6 +9,7 @@ from ...core.figure_edit_commands import (
     UpdateStyleCommand,
 )
 from ...core.figure_object_store import FigureObjectStore
+from ...core.figure_text_geometry import clamp_axes_box, is_axes_text_box
 from .editor_geometry import Box
 
 GENERATED_LEGEND_HIT_SLOP_PX = 6.0
@@ -272,6 +273,13 @@ class ChartEditorGeneratedGeometryMixin:
             "width": max(abs(dragged_x - opposite_x), Box.MIN_SIZE),
             "height": max(abs(dragged_y - opposite_y), Box.MIN_SIZE),
         }
+        if is_axes_text_box(figure_object):
+            updates = clamp_axes_box(
+                updates["x"],
+                updates["y"],
+                updates["width"],
+                updates["height"],
+            )
         drag_state = self._generated_drag_preview_mode(object_id)
         if drag_state is not None:
             original_object = drag_state.get("original_object")
@@ -390,6 +398,9 @@ class ChartEditorGeneratedGeometryMixin:
             return False
         object_type = str(drag_state.get("object_type", "") or figure_object.get("type", ""))
         transform = self._generated_object_transform(object_id)
+        if is_axes_text_box(figure_object):
+            axes = self._figure.axes[0] if self._figure and self._figure.axes else None
+            transform = axes.transAxes if axes is not None else transform
         if object_type in {"text", "rectangle"}:
             box = Box.from_payload(origin_geometry)
             if box is None and object_type == "rectangle":
@@ -440,6 +451,16 @@ class ChartEditorGeneratedGeometryMixin:
                     preview_geometry[x_key] = round(float(origin_geometry.get(x_key, 0.0)) + dx, 12)
                     preview_geometry[y_key] = round(float(origin_geometry.get(y_key, 0.0)) + dy, 12)
 
+        if is_axes_text_box(figure_object) and all(
+            key in preview_geometry for key in ("x", "y", "width", "height")
+        ):
+            preview_geometry = clamp_axes_box(
+                preview_geometry["x"],
+                preview_geometry["y"],
+                preview_geometry["width"],
+                preview_geometry["height"],
+            )
+
         drag_state = self._generated_drag_preview_mode(object_id)
         if drag_state is not None:
             return self._update_generated_drag_preview(
@@ -468,8 +489,10 @@ class ChartEditorGeneratedGeometryMixin:
             or len(current_pixels) < 2
         ):
             return None
+        is_axes_space = transform is axes.transAxes
         if (
-            str(axes.get_xscale() or "linear") == "linear"
+            not is_axes_space
+            and str(axes.get_xscale() or "linear") == "linear"
             and str(axes.get_yscale() or "linear") == "linear"
         ):
             return None

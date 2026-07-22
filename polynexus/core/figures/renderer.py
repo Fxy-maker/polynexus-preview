@@ -9,7 +9,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
-from ..figure_text_geometry import text_box_anchor
+from ..figure_text_geometry import is_axes_text_box, text_box_anchor
 from .render_plan import FigureRenderPlan, RenderAxis
 
 
@@ -419,6 +419,12 @@ class MatplotlibFigureRenderer:
             horizontal_alignment=horizontal_alignment,
             vertical_alignment=vertical_alignment,
         )
+        text_kwargs = {
+            "wrap": True,
+            "clip_on": True,
+        } if has_box else {}
+        if is_axes_text_box(figure_object):
+            text_kwargs["transform"] = axis.transAxes
         return [axis.text(
             x,
             y,
@@ -429,6 +435,7 @@ class MatplotlibFigureRenderer:
             rotation=float(figure_object.get("rotation", 0.0) or 0.0),
             ha=horizontal_alignment,
             va=vertical_alignment,
+            **text_kwargs,
         )]
 
     def _render_arrow(self, axis, figure_object: dict[str, Any]) -> list[Any]:

@@ -1,6 +1,23 @@
 # Active Work
 
-## Generated text drag anchor follow-up - in progress 2026-07-22
+## Viewport-anchored generated text boxes - verification-ready 2026-07-22
+
+- Implemented the approved Axes-relative text-box slice from task card
+  `docs/agent/tasks/2026-07-22-viewport-text-box-refactor.md`. New generated
+  text creation stores normalized `x/y/width/height` with
+  `coordinate_space: "axes"`; rendering, preview, hit testing, selection
+  frames/handles, body movement, corner resizing, and Inspector edits consume
+  the same Axes transform.
+- Legacy data-coordinate text remains readable and is converted to a persisted
+  Axes-relative box when the generated document is saved. Core renderer export
+  uses the same transform for marked boxes.
+- Fresh expanded focused matrix passes (`106 passed`), structured and default verifiers
+  pass with quality gate `282 passed` and preprocessing gate `103 passed`.
+- The live GUI acceptance pass remains pending; restart the canonical launcher
+  from `D:\PolyNexus` before manual visual verification. The pre-existing
+  `.pytest_tmp` ownership issue is avoided with `D:\PolyNexus\.pytest_tmp_alt`.
+
+## Generated text drag anchor follow-up - completed 2026-07-22
 
 - Reproduced the screenshot issue with a regression test: the generated text
   preview moved its Matplotlib `Text` artist to the persisted box origin
@@ -10,9 +27,9 @@
   routed formal rendering, legacy generated preview rendering, and live drag
   preview through it. The focused editor/render matrix now passes (`103`),
   including log-axis text-box movement.
-- Default verifier and checkpoint remain pending until the final diff review;
-  the already-running GUI must be restarted from `D:\PolyNexus\scripts\launch_gui.py`
-  after commit.
+- The final structured/default verifiers pass; live GUI acceptance still
+  requires restarting the canonical launcher from
+  `D:\PolyNexus\scripts\launch_gui.py`.
 
 ## Generated text placement and font sizing - completed 2026-07-22
 

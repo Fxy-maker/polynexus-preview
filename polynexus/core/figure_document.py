@@ -102,11 +102,24 @@ def create_generated_figure_document(
     canvas: dict | None = None,
 ) -> dict:
     source = Path(figure_path).resolve()
-    figure_objects = [
-        normalize_figure_object(obj)
-        for obj in (objects or [])
-        if isinstance(obj, dict)
-    ]
+    figure_objects = []
+    for obj in (objects or []):
+        if not isinstance(obj, dict):
+            continue
+        normalized = normalize_figure_object(obj)
+        if (
+            normalized.get("type") == "text"
+            and "coordinate_space" not in normalized
+            and all(
+                isinstance(normalized.get("bounds"), dict)
+                and normalized["bounds"].get(key) is not None
+                for key in ("x", "y", "width", "height")
+            )
+            and normalized["bounds"]["width"] > 0.0
+            and normalized["bounds"]["height"] > 0.0
+        ):
+            normalized["coordinate_space"] = "axes"
+        figure_objects.append(normalized)
     return {
         "version": DOCUMENT_VERSION,
         "figure_id": str(figure_id or source.stem),

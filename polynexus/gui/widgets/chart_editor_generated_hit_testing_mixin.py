@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ...core.figure_text_geometry import is_axes_text_box
+
 GENERATED_LINE_BODY_HIT_RADIUS_PX = 10.0
 GENERATED_LINE_ENDPOINT_HIT_RADIUS_PX = 14.0
 GENERATED_SCATTER_POINT_HIT_RADIUS_PX = 14.0
@@ -16,7 +18,11 @@ class ChartEditorGeneratedHitTestingMixin:
         object_type = str(figure_object.get("type", "") or "")
         if object_type not in {"text", "rectangle", "curve"}:
             return None
-        coordinates = self._generated_event_data_coordinates(event)
+        coordinates = (
+            self._generated_event_axes_fraction(event)
+            if is_axes_text_box(figure_object)
+            else self._generated_event_data_coordinates(event)
+        )
         if coordinates is None:
             return None
         x_value, y_value = coordinates
@@ -58,17 +64,23 @@ class ChartEditorGeneratedHitTestingMixin:
                     hit = False
                 if hit:
                     break
-            if not hit:
+            if not hit and not is_axes_text_box(figure_object):
                 anchor_x = float(geometry.get("x", 0.0) or 0.0)
                 anchor_y = float(geometry.get("y", 0.0) or 0.0)
                 width = float(geometry.get("width", 0.0) or 0.0) or max(
                     0.08, len(str(figure_object.get("text", "") or "")) * 0.025
                 )
                 height = float(geometry.get("height", 0.0) or 0.0) or 0.12
-                hit = (
-                    anchor_x - width / 2.0 <= x_value <= anchor_x + width / 2.0
-                    and anchor_y <= y_value <= anchor_y + height
-                )
+                if is_axes_text_box(figure_object):
+                    hit = (
+                        anchor_x <= x_value <= anchor_x + width
+                        and anchor_y <= y_value <= anchor_y + height
+                    )
+                else:
+                    hit = (
+                        anchor_x - width / 2.0 <= x_value <= anchor_x + width / 2.0
+                        and anchor_y <= y_value <= anchor_y + height
+                    )
             if not hit:
                 return None
         elif object_type == "curve":
@@ -354,7 +366,9 @@ class ChartEditorGeneratedHitTestingMixin:
             return None
         if len(offsets) <= 0:
             return None
-        pixel_offsets = axes.transData.transform(offsets)
+        figure_object = self._generated_figure_object_by_id(object_id)
+        transform = axes.transAxes if is_axes_text_box(figure_object) else axes.transData
+        pixel_offsets = transform.transform(offsets)
         best_match = self._nearest_pixel_point_match(pixel_offsets, event, max_radius=12.0)
         if best_match is None:
             return None

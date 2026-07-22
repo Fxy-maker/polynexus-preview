@@ -2,6 +2,54 @@
 
 from __future__ import annotations
 
+import math
+
+
+AXES_MIN = 0.0
+AXES_MAX = 1.0
+
+
+def _finite(value: float, default: float = 0.0) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return float(default)
+    return number if math.isfinite(number) else float(default)
+
+
+def clamp_axes_box(x: float, y: float, width: float, height: float) -> dict[str, float]:
+    """Normalize a positive text box so it stays inside an Axes rectangle."""
+
+    width = min(max(_finite(width), 0.0), AXES_MAX)
+    height = min(max(_finite(height), 0.0), AXES_MAX)
+    x = min(max(_finite(x), AXES_MIN), AXES_MAX - width)
+    y = min(max(_finite(y), AXES_MIN), AXES_MAX - height)
+    return {"x": x, "y": y, "width": width, "height": height}
+
+
+def axes_box_from_display(display_rect, axes_transform) -> dict[str, float]:
+    """Convert a display-pixel rectangle through ``axes.transAxes``."""
+
+    if not isinstance(display_rect, (tuple, list)) or len(display_rect) < 4:
+        raise ValueError("display_rect must contain x, y, width, and height")
+    x0, y0, width, height = (_finite(value) for value in display_rect[:4])
+    inverse = axes_transform.inverted()
+    first_x, first_y = inverse.transform((x0, y0))
+    second_x, second_y = inverse.transform((x0 + width, y0 + height))
+    left, right = sorted((float(first_x), float(second_x)))
+    bottom, top = sorted((float(first_y), float(second_y)))
+    return clamp_axes_box(left, bottom, right - left, top - bottom)
+
+
+def is_axes_text_box(payload) -> bool:
+    """Return whether a figure text object uses the viewport contract."""
+
+    return (
+        isinstance(payload, dict)
+        and str(payload.get("type", "") or "").lower() == "text"
+        and str(payload.get("coordinate_space", "") or "").lower() == "axes"
+    )
+
 
 def text_box_anchor(
     x: float,
@@ -44,4 +92,9 @@ def text_box_anchor(
     return anchor_x, anchor_y
 
 
-__all__ = ["text_box_anchor"]
+__all__ = [
+    "axes_box_from_display",
+    "clamp_axes_box",
+    "is_axes_text_box",
+    "text_box_anchor",
+]

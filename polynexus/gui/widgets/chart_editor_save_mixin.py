@@ -360,6 +360,13 @@ class ChartEditorSaveMixin:
     def _generated_document_for_save(self):
         document = deepcopy(self._figure_document) if isinstance(self._figure_document, dict) else {}
         document["mode"] = "object"
+        convert_legacy = getattr(
+            self,
+            "_convert_legacy_generated_text_objects_for_save",
+            None,
+        )
+        if callable(convert_legacy):
+            convert_legacy(document)
         style = (
             deepcopy(document.get("style", {}))
             if isinstance(document.get("style"), dict)

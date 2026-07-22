@@ -24,7 +24,11 @@ from ..chart_editor_generated_object_helpers import (
     generated_object_xy as _shared_generated_object_xy,
 )
 from ...plotting.sci_style import set_sci_style as _apply_sci_style
-from ...core.figure_text_geometry import text_box_anchor
+from ...core.figure_text_geometry import (
+    axes_box_from_display,
+    is_axes_text_box,
+    text_box_anchor,
+)
 from ...core.plot_edits import COLOUR_SCHEMES, FIGURE_SIZES, LINE_WIDTHS
 from ...core.figures.render_plan import FigureRenderPlanBuilder
 from ...core.figures.renderer import MatplotlibFigureRenderer
@@ -702,6 +706,8 @@ class ChartEditorGeneratedDocumentMixin:
             text_kwargs = {}
             if width is not None and width > 0.0:
                 text_kwargs.update(wrap=True, clip_on=True)
+            if is_axes_text_box(figure_object):
+                text_kwargs["transform"] = ax.transAxes
             return [
                 ax.text(
                     anchor_x,
@@ -838,6 +844,50 @@ class ChartEditorGeneratedDocumentMixin:
 
     def _generated_object_xy(self, figure_object, data_sources):
         return _shared_generated_object_xy(figure_object, data_sources)
+
+    def _convert_legacy_generated_text_objects_for_save(self, document):
+        """Materialize legacy data-coordinate text as Axes-relative boxes."""
+
+        if not isinstance(document, dict) or self._figure is None or not self._figure.axes:
+            return False
+        renderer = None
+        try:
+            renderer = self._canvas.get_renderer()
+        except (AttributeError, RuntimeError):
+            renderer = None
+        if renderer is None:
+            try:
+                self._canvas.draw()
+                renderer = self._canvas.get_renderer()
+            except (AttributeError, RuntimeError):
+                return False
+        changed = False
+        objects = document.get("objects", [])
+        for figure_object in objects if isinstance(objects, list) else []:
+            if is_axes_text_box(figure_object):
+                continue
+            if not isinstance(figure_object, dict) or figure_object.get("type") != "text":
+                continue
+            artists = self._figure_render_adapter.artists_for_object_id(
+                str(figure_object.get("id", "") or "")
+            )
+            artist = next((item for item in artists if hasattr(item, "get_window_extent")), None)
+            axes = getattr(artist, "axes", None) or self._figure.axes[0]
+            if artist is None or axes is None:
+                continue
+            try:
+                extent = artist.get_window_extent(renderer)
+                geometry = axes_box_from_display(
+                    (extent.x0, extent.y0, extent.width, extent.height),
+                    axes.transAxes,
+                )
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                continue
+            figure_object["coordinate_space"] = "axes"
+            figure_object["bounds"] = dict(geometry)
+            figure_object.update(geometry)
+            changed = True
+        return changed
 
     def _generated_column_values(self, figure_object, data_sources, key):
         return _shared_generated_column_values(figure_object, data_sources, key)

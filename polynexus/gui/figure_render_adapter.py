@@ -11,6 +11,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
+from ..core.figure_text_geometry import is_axes_text_box
 from .widgets.editor_geometry import Box
 
 
@@ -155,6 +156,7 @@ class FigureRenderAdapter:
             edgecolors="#D55E00",
             linewidths=2.0,
             zorder=10_000,
+            transform=ax.transAxes if is_axes_text_box(figure_object) else ax.transData,
         )
         handles.set_gid(f"pn-selection-handles:{object_id}")
         setattr(handles, "_pn_handle_indices", list(handle_indices))
@@ -232,6 +234,7 @@ class FigureRenderAdapter:
                     linestyle=frame_kwargs["linestyle"],
                     linewidth=frame_kwargs["linewidth"],
                     zorder=frame_kwargs["zorder"],
+                    transform=ax.transAxes if is_axes_text_box(figure_object) else ax.transData,
                 )
                 if box is not None and box.width > 0 and box.height > 0
                 else self._artist_selection_frame(ax, object_id, figure_object, frame_kwargs)

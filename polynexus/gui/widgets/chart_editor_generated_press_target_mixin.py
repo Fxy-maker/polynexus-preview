@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ...core.figure_text_geometry import is_axes_text_box
+
 
 class ChartEditorGeneratedPressTargetMixin:
     def _generated_selected_handle_drag_state_for_press(self, event, object_id):
@@ -49,6 +51,19 @@ class ChartEditorGeneratedPressTargetMixin:
                 "dirty": False,
             }
         if object_type == "text":
+            if not is_axes_text_box(figure_object):
+                handle_hit = self._generated_point_handle_hit(event, object_id)
+                if handle_hit is not None:
+                    return {
+                        "object_id": str(object_id or ""),
+                        "kind": "text",
+                        "handle_index": int(handle_hit),
+                        "dirty": False,
+                    }
+                return self._generated_annotation_body_drag_start(event, object_id)
+            body = self._generated_annotation_body_drag_start(event, object_id)
+            if body is not None:
+                return body
             handle_hit = self._generated_point_handle_hit(event, object_id)
             if handle_hit is not None:
                 return {
@@ -57,7 +72,7 @@ class ChartEditorGeneratedPressTargetMixin:
                     "handle_index": int(handle_hit),
                     "dirty": False,
                 }
-            return self._generated_annotation_body_drag_start(event, object_id)
+            return None
         return None
 
     def _generated_drag_state_for_press(self, event, object_id):

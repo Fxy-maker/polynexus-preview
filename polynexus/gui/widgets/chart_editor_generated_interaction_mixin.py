@@ -6,6 +6,7 @@ from PySide6.QtCore import QRect, Qt
 
 from ...core.figure_edit_commands import AddObjectCommand
 from ...core.figures.renderer import MatplotlibFigureRenderer
+from ...core.figure_text_geometry import clamp_axes_box
 from ..i18n import tr
 from .editor_geometry import Box
 
@@ -229,7 +230,11 @@ class ChartEditorGeneratedInteractionMixin:
 
     def _handle_generated_draw_press(self, event):
         tool = str(getattr(self, "_generated_draw_tool", "select") or "select")
-        data = self._generated_event_data_coordinates(event)
+        data = (
+            self._generated_event_axes_fraction(event)
+            if tool == "text"
+            else self._generated_event_data_coordinates(event)
+        )
         if data is None:
             return False
         controller = getattr(self, "_interaction_controller", None)
@@ -258,7 +263,11 @@ class ChartEditorGeneratedInteractionMixin:
         self._generated_draw_start_data = None
         start_display = self._generated_draw_start_display
         self._generated_draw_start_display = None
-        end = self._generated_event_data_coordinates(event)
+        end = (
+            self._generated_event_axes_fraction(event)
+            if self._generated_draw_tool == "text"
+            else self._generated_event_data_coordinates(event)
+        )
         controller = getattr(self, "_interaction_controller", None)
         if controller is not None:
             controller.finish_create(end) if end is not None else controller.cancel()
@@ -314,7 +323,12 @@ class ChartEditorGeneratedInteractionMixin:
             return
         geometry = box.to_payload()
         self._begin_inline_text_entry(
-            {"mode": "generated", "type": "text", "geometry": geometry},
+            {
+                "mode": "generated",
+                "type": "text",
+                "coordinate_space": "axes",
+                "geometry": geometry,
+            },
             host=self._canvas,
             rect=rect,
         )
@@ -327,6 +341,12 @@ class ChartEditorGeneratedInteractionMixin:
         y = float(geometry.get("y", 0.0) or 0.0)
         width = float(geometry.get("width", 0.0) or 0.0)
         height = float(geometry.get("height", 0.0) or 0.0)
+        if payload.get("coordinate_space") == "axes":
+            geometry = clamp_axes_box(x, y, width, height)
+            x = geometry["x"]
+            y = geometry["y"]
+            width = geometry["width"]
+            height = geometry["height"]
         return self._add_generated_tool_object(
             "text",
             (x, y),
@@ -386,6 +406,14 @@ class ChartEditorGeneratedInteractionMixin:
                     "font_size": float(draw_style.get("font_size", 12.0) or 12.0),
                 },
             )
+            if all(0.0 <= value <= 1.0 for value in (x1, y1, x2, y2)):
+                payload["coordinate_space"] = "axes"
+            payload["bounds"] = {
+                "x": x1,
+                "y": y1,
+                "width": abs(x2 - x1),
+                "height": abs(y2 - y1),
+            }
             if abs(x2 - x1) > 0 and abs(y2 - y1) > 0:
                 payload["width"] = abs(x2 - x1)
                 payload["height"] = abs(y2 - y1)

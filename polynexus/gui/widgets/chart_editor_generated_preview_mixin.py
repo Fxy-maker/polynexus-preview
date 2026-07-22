@@ -217,6 +217,8 @@ class ChartEditorGeneratedPreviewMixin:
                 zorder=20_000,
             )
             axis.add_patch(artist)
+            if tool == "text":
+                artist.set_transform(axis.transAxes)
         else:
             return None
         artist.set_gid(f"pn-preview:{tool}")

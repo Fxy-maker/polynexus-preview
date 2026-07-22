@@ -6,6 +6,7 @@ from PySide6.QtCore import QPointF, QRect
 
 from ...core.figure_document import annotation_to_figure_object
 from ...core.figure_edit_capabilities import capabilities_for
+from ...core.figure_text_geometry import clamp_axes_box, is_axes_text_box
 from ...core.figure_edit_commands import (
     AddObjectCommand,
     DeleteObjectCommand,
@@ -663,6 +664,37 @@ class ChartEditorAnnotationControlsMixin:
                 self._selected_figure_object_id,
                 float(self._annotation_x_spin.value()),
                 float(self._annotation_y_spin.value()),
+            ):
+                return
+            self._persist_generated_document()
+            self._show_generated_figure_document()
+            self.figure_changed.emit()
+            return
+        if str(figure_object.get("type", "") or "") == "text":
+            updates = {
+                "x": float(self._annotation_x_spin.value()),
+                "y": float(self._annotation_y_spin.value()),
+                "width": float(self._annotation_w_spin.value()),
+                "height": float(self._annotation_h_spin.value()),
+            }
+            if is_axes_text_box(figure_object):
+                updates = clamp_axes_box(
+                    updates["x"],
+                    updates["y"],
+                    updates["width"],
+                    updates["height"],
+                )
+            session = self._edit_session_for_adapter()
+            if session is not None:
+                session.select(self._selected_figure_object_id, "generated-inspector")
+                result = self._execute_edit(
+                    UpdateGeometryCommand(self._selected_figure_object_id, updates)
+                )
+                if result is None or not result.changed:
+                    return
+            elif not self._generated_store().update_geometry(
+                self._selected_figure_object_id,
+                updates,
             ):
                 return
             self._persist_generated_document()

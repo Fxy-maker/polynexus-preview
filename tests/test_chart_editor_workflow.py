@@ -352,13 +352,36 @@ def test_generated_text_tool_waits_for_inline_text_before_adding_object(tmp_path
 def test_generated_text_drag_commits_persisted_box_geometry(tmp_path, app):
     editor = make_generated_editor(tmp_path)
 
-    editor._begin_generated_text_box((1.0, 2.0), (4.0, 3.0), QRect(20, 20, 100, 28))
+    editor._begin_generated_text_box((0.2, 0.3), (0.5, 0.5), QRect(20, 20, 100, 28))
 
     assert not any(item.get("type") == "text" for item in editor._figure_document["objects"])
     assert editor._commit_inline_text_entry("Peak region") is True
     text = next(item for item in editor._figure_document["objects"] if item.get("type") == "text")
-    assert text["width"] == 3.0
-    assert text["height"] == 1.0
+    assert text["width"] == 0.3
+    assert text["height"] == 0.2
+
+
+def test_generated_text_box_creation_marks_axes_coordinate_space(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+
+    editor._begin_generated_text_box((0.2, 0.3), (0.5, 0.5), QRect(20, 20, 100, 28))
+
+    assert editor._commit_inline_text_entry("Viewport note") is True
+    text = next(
+        item
+        for item in editor._figure_document["objects"]
+        if item.get("type") == "text"
+    )
+    assert text["coordinate_space"] == "axes"
+    assert text["bounds"] == {
+        "x": pytest.approx(0.2),
+        "y": pytest.approx(0.3),
+        "width": pytest.approx(0.3),
+        "height": pytest.approx(0.2),
+    }
+
+    editor.deleteLater()
+    app.processEvents()
 
 
 @pytest.mark.parametrize(
@@ -404,6 +427,121 @@ def test_generated_text_and_rectangle_body_presses_start_move_drag(
 
     assert target is not None
     assert target["kind"] == "body"
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_axes_text_body_press_uses_axes_coordinates(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor._execute_edit(
+        AddObjectCommand(
+            {
+                "id": "axes-text",
+                "type": "text",
+                "coordinate_space": "axes",
+                "bounds": {"x": 0.2, "y": 0.3, "width": 0.3, "height": 0.15},
+                "text": "Viewport",
+            }
+        )
+    )
+    editor._show_generated_figure_document()
+    editor._select_generated_object("axes-text", "list")
+    axis = editor._figure.axes[0]
+    axis.set_yscale("log")
+    editor._canvas.draw()
+    text_artist = editor._figure_render_adapter.artists_for_object_id("axes-text")[0]
+    extent = text_artist.get_window_extent(editor._canvas.get_renderer())
+    press_x = (float(extent.x0) + float(extent.x1)) / 2.0
+    press_y = (float(extent.y0) + float(extent.y1)) / 2.0
+    event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        press_x,
+        press_y,
+        button=1,
+    )
+    event.inaxes = axis
+
+    target = editor._generated_drag_state_for_press(event, "axes-text")
+
+    assert target is not None
+    assert target["kind"] == "body"
+    expected_axes = axis.transAxes.inverted().transform((press_x, press_y))
+    assert target["press_data"] == pytest.approx(expected_axes, abs=0.002)
+
+    editor._activate_generated_drag_state(target, event)
+    target["current_pixels"] = (float(event.x) + 20.0, float(event.y) + 20.0)
+    assert editor._apply_generated_body_drag(
+        "axes-text",
+        target,
+        0.4,
+        0.42,
+    ) is True
+    preview = target["preview_geometry"]
+    assert preview["x"] > 0.2
+    assert preview["y"] > 0.3
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_legacy_generated_text_converts_to_axes_box_when_saved(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor._execute_edit(
+        AddObjectCommand(
+            {
+                "id": "legacy-text",
+                "type": "text",
+                "x": 0.4,
+                "y": 0.5,
+                "text": "Legacy",
+            }
+        )
+    )
+    editor._show_generated_figure_document()
+
+    saved = editor._generated_document_for_save()
+    text = next(item for item in saved["objects"] if item.get("id") == "legacy-text")
+
+    assert text["coordinate_space"] == "axes"
+    assert text["bounds"]["width"] > 0.0
+    assert text["bounds"]["height"] > 0.0
+    assert text["x"] == text["bounds"]["x"]
+    assert text["y"] == text["bounds"]["y"]
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_axes_text_inspector_edits_the_same_box_geometry(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor._execute_edit(
+        AddObjectCommand(
+            {
+                "id": "inspector-text",
+                "type": "text",
+                "coordinate_space": "axes",
+                "bounds": {"x": 0.2, "y": 0.3, "width": 0.25, "height": 0.12},
+                "text": "Inspector",
+            }
+        )
+    )
+    editor._show_generated_figure_document()
+    editor._select_generated_object("inspector-text", "list")
+    editor._annotation_x_spin.setValue(0.35)
+    editor._annotation_y_spin.setValue(0.4)
+    editor._annotation_w_spin.setValue(0.3)
+    editor._annotation_h_spin.setValue(0.15)
+    editor._update_selected_generated_object_geometry()
+
+    text = editor._generated_figure_object_by_id("inspector-text")
+    assert text["bounds"] == {
+        "x": pytest.approx(0.35),
+        "y": pytest.approx(0.4),
+        "width": pytest.approx(0.3),
+        "height": pytest.approx(0.15),
+    }
 
     editor.deleteLater()
     app.processEvents()
@@ -641,6 +779,66 @@ def test_generated_text_body_drag_preview_keeps_box_geometry_and_selection_frame
     assert frame.get_x() != pytest.approx(payload["x"])
 
     editor._cancel_generated_drag()
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_axes_text_body_drag_commits_one_viewport_geometry_command(
+    tmp_path, app
+):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "viewport-drag-text",
+        "type": "text",
+        "coordinate_space": "axes",
+        "bounds": {"x": 0.2, "y": 0.6, "width": 0.25, "height": 0.12},
+        "text": "Viewport drag",
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._show_generated_figure_document()
+    editor._select_generated_object(payload["id"], "list")
+    axis = editor._figure.axes[0]
+    frame = next(
+        artist
+        for artist in axis.patches
+        if artist.get_gid() == f"pn-selection-frame:{payload['id']}"
+    )
+    handles = next(
+        artist
+        for artist in axis.collections
+        if artist.get_gid() == f"pn-selection-handles:{payload['id']}"
+    )
+    assert frame.get_transform().transform((0.0, 0.0)) == pytest.approx(
+        axis.transAxes.transform((0.2, 0.6))
+    )
+    assert handles.get_offset_transform().transform((0.2, 0.6)) == pytest.approx(
+        axis.transAxes.transform((0.2, 0.6))
+    )
+    axis.set_yscale("log")
+    editor._canvas.draw()
+    artist = editor._figure_render_adapter.artists_for_object_id(payload["id"])[0]
+    extent = artist.get_window_extent(editor._canvas.get_renderer())
+    press_pixel = ((extent.x0 + extent.x1) / 2.0, (extent.y0 + extent.y1) / 2.0)
+
+    press = MouseEvent("button_press_event", editor._canvas, *press_pixel, button=1)
+    press.inaxes = axis
+    editor._on_generated_button_press(press)
+    history_before = len(editor._edit_session.history)
+    move_pixel = (float(press_pixel[0]) + 36.0, float(press_pixel[1]) - 24.0)
+    move = MouseEvent("motion_notify_event", editor._canvas, *move_pixel, button=1)
+    move.inaxes = None
+    editor._on_generated_mouse_move(move)
+
+    preview = editor._generated_handle_drag_state["preview_geometry"]
+    assert preview["y"] < payload["bounds"]["y"]
+    editor._on_generated_button_release(move)
+
+    moved = editor._generated_figure_object_by_id(payload["id"])
+    assert moved["bounds"]["y"] < payload["bounds"]["y"]
+    assert len(editor._edit_session.history) == history_before + 1
+    editor._on_annotation_undo()
+    assert editor._generated_figure_object_by_id(payload["id"])["bounds"] == payload["bounds"]
+
     editor.deleteLater()
     app.processEvents()
 

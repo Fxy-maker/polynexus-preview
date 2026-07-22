@@ -125,6 +125,32 @@ def test_renderer_anchors_box_text_at_its_left_top_corner(built_ir_document):
     assert text_artist.get_va() == "top"
 
 
+def test_renderer_keeps_axes_text_in_viewport_coordinate_space(built_ir_document):
+    run_root, document_path, document = built_ir_document
+    document["objects"].append(
+        {
+            "id": "viewport-text",
+            "type": "text",
+            "panel_id": "main",
+            "coordinate_space": "axes",
+            "text": "Viewport",
+            "bounds": {"x": 0.2, "y": 0.3, "width": 0.25, "height": 0.1},
+            "style": {"font_size": 12},
+        }
+    )
+    plan = FigureRenderPlanBuilder(run_root).build(document_path, document)
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+    text_artist = next(
+        text
+        for text in figure.axes[0].texts
+        if text.get_text() == "Viewport"
+    )
+
+    assert text_artist.get_transform() == figure.axes[0].transAxes
+    assert text_artist.get_position() == pytest.approx((0.2, 0.4))
+
+
 def test_renderer_supports_arrow_and_rectangle_annotations(built_ir_document):
     run_root, document_path, document = built_ir_document
     document["objects"].extend(

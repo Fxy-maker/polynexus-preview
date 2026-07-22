@@ -195,6 +195,32 @@ def test_text_annotation_bounds_include_all_convertible_geometry_and_legacy_valu
     assert obj["height"] == "0.5"
 
 
+def test_new_generated_text_objects_use_axes_relative_geometry():
+    document = create_generated_figure_document(
+        "figure.png",
+        objects=[
+            {
+                "id": "text-axes",
+                "type": "text",
+                "x": 0.2,
+                "y": 0.3,
+                "width": 0.25,
+                "height": 0.1,
+                "text": "Peak",
+            }
+        ],
+    )
+
+    text = document["objects"][0]
+    assert text["coordinate_space"] == "axes"
+    assert text["bounds"] == {
+        "x": 0.2,
+        "y": 0.3,
+        "width": 0.25,
+        "height": 0.1,
+    }
+
+
 def test_line_annotation_bounds_include_all_geometry_and_legacy_values():
     annotation = {
         "id": "ann-line-bounds",
