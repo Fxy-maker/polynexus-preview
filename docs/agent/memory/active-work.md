@@ -1,5 +1,19 @@
 # Active Work
 
+## Editor workflow convergence - active 2026-07-22
+
+- Task card: `docs/agent/tasks/2026-07-22-editor-workflow-convergence.md`.
+- M1 context identity and stale-result gating are committed; M2 capability
+  header, M3 lifecycle controls, M4 export/gallery scope, and M5 shell
+  diagnostics are implemented in local checkpoints.
+- Focused workflow checks pass (`19` shell/gallery/output checks, `13` context
+  boundary checks, `7` worker/editor capability checks). Full ChartEditor runs
+  remain vulnerable to the known Qt access violation and must be split into
+  stable batches.
+- Next action: run the structured task verifier with the external pytest
+  basetemp override, then perform a manual `scripts/launch_gui.py --diagnose`
+  acceptance pass before marking the Goal complete.
+
 ## Origin-style generated text labels - completed 2026-07-22
 
 - Task card: `docs/agent/tasks/2026-07-22-origin-label-text.md`. Generated

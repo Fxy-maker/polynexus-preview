@@ -1,7 +1,7 @@
 ---
 kind: state
 status: active
-date: 2026-07-20
+date: 2026-07-22
 title: Current PolyNexus repository state
 ---
 
@@ -98,6 +98,18 @@ title: Current PolyNexus repository state
   unregistered worktrees remain protected.
 
 ## Known limitations and next actions
+
+- The workflow-convergence Goal is active on `codex/origin-editor-usable-controls`.
+  Commits `6857f05`, `8f254d1`, `0cc03b5`, `03e9090`, `a4fa6e3`, and `8a6075f`
+  add workspace context safety, editor capability labels, run stages/cancel/retry,
+  split export intents, selection-activated gallery actions, a diagnostics drawer,
+  and narrow-window shell reduction. Focused checks for these slices are green.
+- The full ChartEditor invocation still has a pre-existing Windows Qt access
+  violation in the legacy LayerTreeItem path; run stable focused batches with an
+  external `--basetemp` directory for acceptance evidence.
+- `scripts/verify.py --changed --types` currently reports the repository's
+  pre-existing Ruff baseline in the monolithic `main_window.py`; changed behavior
+  was validated with focused pytest and `py_compile` checks.
 
 - A live style smoke export using the configured `Origin64.exe` returned
   `success/originpro` for a synthetic five-plot document. In-process

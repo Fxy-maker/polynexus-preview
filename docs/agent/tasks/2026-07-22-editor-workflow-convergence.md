@@ -92,6 +92,10 @@ python scripts/verify.py --changed --types
 - M1 workspace context contract, projection, and context-bound result gating are implemented.
 - Focused context matrix: `13 passed` across workspace, navigation, results, run, history, and figure mixins.
 - Known limitation: repository-wide `scripts/verify.py --changed --types` still reports pre-existing Ruff findings in the monolithic `main_window.py`; no unrelated cleanup was included.
+- M2 editor capability header is implemented for object and static modes; direct selection/drag/cancel/save feedback remains on the existing shared editor session.
+- M3 run lifecycle now exposes reading/processing/exporting stages and cooperative cancellation guards; cancelled runs are not published and failures expose retry.
+- M4 export scope is split into current-run and project-package intents; gallery secondary actions are selection-activated.
+- M5 diagnostics use a collapsible log drawer and the shell hides secondary metrics/actions on narrow windows.
 
 Final desktop acceptance:
 
