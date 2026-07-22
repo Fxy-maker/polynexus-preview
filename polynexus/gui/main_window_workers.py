@@ -20,6 +20,8 @@ class AnalysisWorker(QThread):
     progress = Signal(int, int)
     finished = Signal(object)
     error_msg = Signal(str)
+    stage = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, technique, filepath, output_dir, config=None, submodule_id=None, engine=None):
         super().__init__()
@@ -30,6 +32,11 @@ class AnalysisWorker(QThread):
         self.submodule_id = submodule_id
         self.engine = engine
         self.skip_to = None
+        self._cancel_requested = False
+
+    def cancel(self):
+        self._cancel_requested = True
+        self.requestInterruption()
 
     def run(self):
         main_window_module = _main_window_module()
@@ -41,6 +48,7 @@ class AnalysisWorker(QThread):
                 f"AnalysisWorker: technique={self.technique}, "
                 f"file={main_window_module.os.path.basename(self.filepath)}"
             )
+            self.stage.emit("reading")
             engine = self.engine or main_window_module.get_engine(
                 self.technique,
                 config=self.config,
@@ -52,7 +60,15 @@ class AnalysisWorker(QThread):
                 self.error_msg.emit(msg)
                 return
             self.engine = engine
+            if self._cancel_requested or self.isInterruptionRequested():
+                self.cancelled.emit()
+                return
+            self.stage.emit("processing")
             result = engine.run_pipeline(self.filepath, self.output_dir, skip_to=self.skip_to)
+            if self._cancel_requested or self.isInterruptionRequested():
+                self.cancelled.emit()
+                return
+            self.stage.emit("exporting")
             self.finished.emit(result)
         except Exception as exc:
             msg = tr("ANALYSIS_WORKER_ERROR", exc, main_window_module.traceback.format_exc())
@@ -69,6 +85,8 @@ class BatchWorker(QThread):
     file_done = Signal(str, dict)
     batch_finished = Signal(list)
     error_msg = Signal(str)
+    stage = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, technique, file_list, output_dir, config=None, submodule_id=None):
         super().__init__()
@@ -78,6 +96,11 @@ class BatchWorker(QThread):
         self.config = config
         self.submodule_id = submodule_id
         self.skip_to = None
+        self._cancel_requested = False
+
+    def cancel(self):
+        self._cancel_requested = True
+        self.requestInterruption()
 
     def run(self):
         main_window_module = _main_window_module()
@@ -92,7 +115,11 @@ class BatchWorker(QThread):
         )
 
         for i, fp in enumerate(self.file_list):
+            if self._cancel_requested or self.isInterruptionRequested():
+                self.cancelled.emit()
+                return
             self.progress.emit(i + 1, total)
+            self.stage.emit("reading")
             fname = main_window_module.os.path.basename(fp)
             try:
                 engine = main_window_module.get_engine(
@@ -105,6 +132,10 @@ class BatchWorker(QThread):
                     main_window_module.os.path.splitext(fname)[0],
                 )
                 result = engine.run_pipeline(fp, file_out)
+                if self._cancel_requested or self.isInterruptionRequested():
+                    self.cancelled.emit()
+                    return
+                self.stage.emit("exporting")
                 params = engine.get_parameters()
                 self.file_done.emit(fname, params)
                 logger.info(f"[{i+1}/{total}] {fname} - OK")
@@ -117,6 +148,9 @@ class BatchWorker(QThread):
                     exc_info=True,
                 )
 
+        if self._cancel_requested or self.isInterruptionRequested():
+            self.cancelled.emit()
+            return
         self.batch_finished.emit(all_results)
 
 

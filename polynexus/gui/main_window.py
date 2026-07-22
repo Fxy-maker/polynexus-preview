@@ -1379,6 +1379,8 @@ class MainWindow(
         self._last_ai_tuning_context = {}
         self._current_ai_tuning_goal = "symptom"
         self._last_persisted_run_id = ""
+        self._run_cancel_requested = False
+        self._run_stage_key = ""
         self._workspace_context = WorkspaceContext.empty()
         self._result_contexts = {}
         self._current_result_confirmed_flag = False
@@ -1605,6 +1607,10 @@ class MainWindow(
 
 
         self._btn_run = QPushButton(tr("BTN_RUN"))
+        self._btn_cancel = QPushButton(tr("BTN_CANCEL"))
+        self._btn_cancel.setObjectName("secondary_btn")
+        self._btn_cancel.setVisible(False)
+        self._btn_cancel.clicked.connect(self._cancel_run)
 
         self._btn_replot = QPushButton(tr("BTN_REPLOT"))
 
@@ -1657,6 +1663,7 @@ class MainWindow(
         layout.addWidget(self._btn_replot)
 
         layout.addWidget(self._btn_run)
+        layout.addWidget(self._btn_cancel)
 
 
 

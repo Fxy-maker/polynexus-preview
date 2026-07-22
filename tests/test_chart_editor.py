@@ -564,6 +564,7 @@ def test_chart_editor_shows_persistent_object_mode_banner(tmp_path, monkeypatch)
     assert editor._mode_title_label.text() == "temperature overview"
     assert editor._mode_banner_label.text() == tr("EDITOR_MODE_OBJECT")
     assert editor._mode_summary_label.text() == tr("EDITOR_MODE_OBJECT_SUMMARY")
+    assert any(token in editor._capability_badge.text().lower() for token in ("editable", "可编辑"))
     assert editor._status_label.text() != tr("EDITOR_MODE_OBJECT")
 
     editor.deleteLater()
@@ -586,6 +587,7 @@ def test_chart_editor_shows_persistent_static_mode_banner(tmp_path, monkeypatch)
     assert editor._mode_title_label.text() == "source"
     assert editor._mode_banner_label.text() == tr("EDITOR_MODE_STATIC")
     assert editor._mode_summary_label.text() == tr("EDITOR_MODE_STATIC_SUMMARY")
+    assert any(token in editor._capability_badge.text().lower() for token in ("editable", "可编辑"))
 
     editor.deleteLater()
     app.processEvents()

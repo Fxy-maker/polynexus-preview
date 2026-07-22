@@ -245,6 +245,13 @@ class ChartEditorLayoutMixin:
         self._mode_badge.setAccessibleName(tr("EDITOR_MODE_BADGE"))
         layout.addWidget(self._mode_badge)
 
+        self._capability_badge = QLabel("")
+        self._capability_badge.setObjectName("editor_capability_badge")
+        self._capability_badge.setAccessibleName(tr("EDITOR_CAPABILITIES"))
+        self._capability_badge.setWordWrap(True)
+        self._capability_badge.setVisible(False)
+        layout.addWidget(self._capability_badge)
+
         self._dirty_badge = QLabel(tr("EDITOR_STATE_SAVED"))
         self._dirty_badge.setObjectName("editor_dirty_badge")
         self._dirty_badge.setAccessibleName(tr("EDITOR_DIRTY_STATE"))
@@ -545,6 +552,7 @@ class ChartEditorLayoutMixin:
         self._source_title_label.setAccessibleName(tr("EDITOR_SOURCE_IDENTITY"))
         self._inspector_tabs.setAccessibleName(tr("EDITOR_INSPECTOR"))
         self._mode_badge.setAccessibleName(tr("EDITOR_MODE_BADGE"))
+        self._capability_badge.setAccessibleName(tr("EDITOR_CAPABILITIES"))
         self._dirty_badge.setAccessibleName(tr("EDITOR_DIRTY_STATE"))
         self._btn_header_inspector.setText(tr("EDITOR_INSPECTOR"))
         self._btn_header_inspector.setAccessibleName(tr("EDITOR_INSPECTOR"))

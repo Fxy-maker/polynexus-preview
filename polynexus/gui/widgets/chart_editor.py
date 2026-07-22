@@ -37,6 +37,7 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
 from matplotlib.figure import Figure
 
 from ..i18n import tr
+from ..chart_editor_capability_service import descriptor_for_editor_mode
 from ..chart_editor_plot_helpers import (
     make_bar_plot as _shared_make_bar_plot,
     make_line_plot as _shared_make_line_plot,
@@ -1011,6 +1012,11 @@ class ChartEditor(
             )
             self._set_source_identity_ui()
             self._sync_header_actions()
+            descriptor = descriptor_for_editor_mode(self._mode_banner_key)
+            capability_text = tr(descriptor.capability_key) if descriptor else ""
+            if hasattr(self, "_capability_badge"):
+                self._capability_badge.setText(capability_text)
+                self._capability_badge.setVisible(bool(capability_text))
         has_title = bool(self._mode_title_text)
         self._mode_title_label.setVisible(has_title)
         self._mode_banner_label.setVisible(bool(self._mode_banner_label.text()))

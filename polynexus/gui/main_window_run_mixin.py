@@ -7,6 +7,59 @@ from .workspace_mode import WorkspaceMode
 
 
 class MainWindowRunMixin:
+    def _on_run_stage(self, stage):
+        key = str(stage or "").strip().lower()
+        if not key:
+            return
+        self._run_stage_key = key
+        label = tr({
+            "reading": "RUN_STAGE_READING",
+            "processing": "RUN_STAGE_PROCESSING",
+            "exporting": "RUN_STAGE_EXPORTING",
+        }.get(key, "RUN_STAGE_PROCESSING"))
+        if hasattr(self, "_workflow_metric_state"):
+            self._workflow_metric_state.setText(label)
+        if hasattr(self, "_progress"):
+            self._progress.setToolTip(label)
+
+    def _connect_worker_lifecycle(self, worker):
+        worker.stage.connect(self._on_run_stage)
+        cancelled = getattr(worker, "cancelled", None)
+        if cancelled is not None:
+            cancelled.connect(self._on_worker_cancelled)
+
+    def _on_worker_cancelled(self, *, clear_request=True):
+        if clear_request:
+            self._run_cancel_requested = False
+        self._stop_progress_animation_fn()(self._progress)
+        self._progress.setVisible(False)
+        self._set_running_ui(False, tr("RUN_CANCELLED"))
+        self._btn_run.setEnabled(True)
+        self._btn_run.setText(tr("BTN_RUN"))
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(False)
+        self.log(tr("RUN_CANCELLED"))
+
+    def _cancel_run(self):
+        worker = None
+        for attr in ("_worker", "_batch_worker", "_joint_worker"):
+            candidate = getattr(self, attr, None)
+            if candidate is None:
+                continue
+            is_running = getattr(candidate, "isRunning", None)
+            if not callable(is_running) or is_running():
+                worker = candidate
+                break
+        if worker is None:
+            return False
+        self._run_cancel_requested = True
+        cancel = getattr(worker, "cancel", None)
+        if callable(cancel):
+            cancel()
+        elif hasattr(worker, "requestInterruption"):
+            worker.requestInterruption()
+        self._on_worker_cancelled(clear_request=False)
+        return True
     @staticmethod
     def _main_window_module():
         from . import main_window as main_window_module
@@ -104,6 +157,9 @@ class MainWindowRunMixin:
         os.makedirs(self._output_dir, exist_ok=True)
 
         self._btn_run.setEnabled(False)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(True)
+        self._run_cancel_requested = False
         self._btn_run.setText(tr("BTN_RUNNING"))
         self._progress.setVisible(True)
         self._start_progress_animation_fn()(self._progress)
@@ -122,6 +178,8 @@ class MainWindowRunMixin:
 
         self._btn_run.setText(tr("BTN_GENERATE_OVERVIEW"))
         self._btn_run.setEnabled(True)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(False)
 
         hub = getattr(self, "_joint_hub", None)
         self._btn_run.setEnabled(hub is not None and hub.has_selection())
@@ -152,6 +210,7 @@ class MainWindowRunMixin:
             self.log(tr("LOG_JOINT_VALIDATION_MORE", len(interesting) - 8))
 
     def _run_single(self):
+        self._run_cancel_requested = False
         self._set_results_summary("")
         self._set_results_export_control_visible(False)
         self._set_results_copy_control_visible(False)
@@ -191,6 +250,8 @@ class MainWindowRunMixin:
         self.log(tr("LOG_RUN_MODE_SINGLE", os.path.basename(self._current_filepath)))
 
         self._btn_run.setEnabled(False)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(True)
         self._btn_run.setText(tr("BTN_RUNNING"))
         self._progress.setVisible(True)
         self._start_progress_animation_fn()(self._progress)
@@ -206,6 +267,7 @@ class MainWindowRunMixin:
             submodule_id=submodule_id,
         )
         self._worker.log_msg.connect(self.log)
+        self._connect_worker_lifecycle(self._worker)
         self._worker.finished.connect(self._on_finished)
         self._worker.error_msg.connect(self._on_error)
         self._worker.start()
@@ -221,6 +283,7 @@ class MainWindowRunMixin:
             or submodule_id in ("dsc.isothermal", "dsc.nonisothermal", "ir.temperature_2d")
         )
         if native_directory_run:
+            self._run_cancel_requested = False
             mode_label = (
                 tr("IMPORT_MODE_SEQUENCE")
                 if str(getattr(self, "_current_input_mode", "") or "").strip().lower() == "sequence"
@@ -231,6 +294,8 @@ class MainWindowRunMixin:
             self._batch_list.setVisible(False)
             self._update_batch_list_copy_button()
             self._btn_run.setEnabled(False)
+            if hasattr(self, "_btn_cancel"):
+                self._btn_cancel.setVisible(True)
             self._btn_run.setText(tr("BTN_RUNNING"))
             self._progress.setVisible(True)
             self._start_progress_animation_fn()(self._progress)
@@ -249,6 +314,7 @@ class MainWindowRunMixin:
                 submodule_id=submodule_id,
             )
             self._worker.log_msg.connect(self.log)
+            self._connect_worker_lifecycle(self._worker)
             self._worker.finished.connect(self._on_finished)
             self._worker.error_msg.connect(self._on_error)
             self._worker.start()
@@ -271,6 +337,9 @@ class MainWindowRunMixin:
         self.log(tr("LOG_RUN_MODE_BATCH", len(file_list), os.path.basename(fp.rstrip("/\\"))))
 
         self._btn_run.setEnabled(False)
+        self._run_cancel_requested = False
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(True)
         self._btn_run.setText(tr("BTN_BATCH"))
         self._progress.setVisible(True)
         self._progress.setRange(0, len(file_list))
@@ -292,6 +361,7 @@ class MainWindowRunMixin:
             submodule_id=submodule_id,
         )
         self._batch_worker.log_msg.connect(self.log)
+        self._connect_worker_lifecycle(self._batch_worker)
         self._batch_worker.progress.connect(lambda current, total: self._progress.setValue(current))
         self._batch_worker.file_done.connect(self._on_batch_file_done)
         self._batch_worker.batch_finished.connect(self._on_batch_finished)
@@ -333,6 +403,7 @@ class MainWindowRunMixin:
             engine=cached_engine,
         )
         self._worker.log_msg.connect(self.log)
+        self._connect_worker_lifecycle(self._worker)
         self._worker.finished.connect(self._on_replot_finished)
         self._worker.error_msg.connect(self._on_error)
         self._worker.skip_to = "plot" if cached_engine is not None else None
@@ -344,9 +415,13 @@ class MainWindowRunMixin:
             self.log(tr("LOG_REPLOT_START_FALLBACK"))
 
     def _on_replot_finished(self, result):
+        if getattr(self, "_run_cancel_requested", False):
+            return self._on_worker_cancelled()
         self._btn_replot.setEnabled(True)
         self._btn_replot.setText(tr("BTN_REPLOT"))
         self._set_running_ui(False)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(False)
 
         self._results[self._current_technique] = result
         record_context = getattr(self, "_record_result_context", None)
@@ -417,11 +492,15 @@ class MainWindowRunMixin:
             self.log(tr("LOG_DIRECTORY_RUN_DONE_FALLBACK", source_name))
 
     def _on_finished(self, result):
+        if getattr(self, "_run_cancel_requested", False):
+            return self._on_worker_cancelled()
         self._btn_run.setEnabled(True)
         self._btn_run.setText(tr("BTN_RUN"))
         self._stop_progress_animation_fn()(self._progress)
         self._progress.setVisible(False)
         self._set_running_ui(False)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(False)
 
         self._results[self._current_technique] = result
         if self._worker is not None and getattr(self._worker, "engine", None) is not None:
@@ -459,6 +538,8 @@ class MainWindowRunMixin:
         self._stop_progress_animation_fn()(self._progress)
         self._progress.setVisible(False)
         self._set_running_ui(False)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(False)
         self._btn_run.setEnabled(True)
         self._btn_run.setText(tr("BTN_GENERATE_OVERVIEW"))
         hub = getattr(self, "_joint_hub", None)
@@ -467,11 +548,15 @@ class MainWindowRunMixin:
         self.log(tr("LOG_ERROR_DETAIL", msg))
 
     def _on_error(self, msg):
+        if getattr(self, "_run_cancel_requested", False):
+            return self._on_worker_cancelled()
         self._btn_run.setEnabled(True)
         self._btn_run.setText(tr("BTN_RUN"))
         self._stop_progress_animation_fn()(self._progress)
         self._progress.setVisible(False)
         self._set_running_ui(False)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(False)
         self.log(tr("LOG_ERROR_DETAIL", msg))
         self._append_analysis_warning_summary()
         rollback_preprocess = getattr(self, "_rollback_preprocess_apply_failure", None)
@@ -482,6 +567,8 @@ class MainWindowRunMixin:
         self._batch_results.append({"file": filename, "params": params})
 
     def _on_batch_finished(self, all_results):
+        if getattr(self, "_run_cancel_requested", False):
+            return self._on_worker_cancelled()
         self._btn_run.setEnabled(True)
         self._btn_run.setText(tr("BTN_RUN"))
         self._stop_progress_animation_fn()(self._progress)
@@ -489,6 +576,8 @@ class MainWindowRunMixin:
         self._batch_list.setVisible(False)
         self._update_batch_list_copy_button()
         self._set_running_ui(False)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(False)
 
         self.log(tr("LOG_BATCH_DONE").format(len(all_results)))
         self._hide_joint_diagnostics()

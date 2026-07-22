@@ -75,6 +75,7 @@ class MainWindowRetranslateMixin:
         # Topbar buttons (these always exist)
         for w, key in [
             (self._btn_run, "BTN_RUN"),
+            (self._btn_cancel, "BTN_CANCEL"),
             (self._btn_replot, "BTN_REPLOT"),
             (self._btn_export, "BTN_EXPORT"),
         ]:
