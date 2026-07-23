@@ -23,6 +23,7 @@ def legend_presentation(
     handle_count: int,
     available_width_px: float,
     default_fontsize: float | None,
+    labels: tuple[str, ...] | list[str] = (),
 ) -> LegendPresentation:
     """Choose compact rendering only for narrow automatic multi-series legends."""
 
@@ -36,13 +37,17 @@ def legend_presentation(
         and count > 3
         and float(available_width_px or 0.0) < _COMPACT_LEGEND_WIDTH_PX
     )
-    if compact:
-        columns = 1
-    else:
-        try:
-            columns = max(1, int(style.get("ncol") or (2 if count > 3 else 1)))
-        except (TypeError, ValueError):
-            columns = 2 if count > 3 else 1
+    try:
+        requested_columns = max(1, int(style.get("ncol") or (2 if count > 3 else 1)))
+    except (TypeError, ValueError):
+        requested_columns = 2 if count > 3 else 1
+    columns = 1 if compact else requested_columns
+    if automatic and columns > 1 and labels and default_fontsize is not None:
+        longest_label = max(len(str(label or "")) for label in labels)
+        entry_width = max(72.0, longest_label * float(default_fontsize) * 0.78 + 54.0)
+        column_budget = max(1, int(float(available_width_px) * 0.42 // entry_width))
+        columns = min(columns, column_budget)
+        compact = compact or columns < requested_columns
     fontsize = (
         float(default_fontsize) * _COMPACT_FONT_SCALE
         if compact and default_fontsize is not None

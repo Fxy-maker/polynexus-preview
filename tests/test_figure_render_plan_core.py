@@ -35,6 +35,20 @@ def test_automatic_multiseries_legend_retains_two_columns_on_wide_canvas():
     assert presentation.fontsize == 9.0
 
 
+def test_automatic_long_name_legend_uses_one_column_before_plot_is_crowded():
+    from polynexus.core.figures.legend_presentation import legend_presentation
+
+    presentation = legend_presentation(
+        {"auto_generated": True, "style": {"ncol": 2}},
+        handle_count=5,
+        available_width_px=780,
+        labels=("PA6-250-170-S_0_00000",) * 5,
+        default_fontsize=9.0,
+    )
+
+    assert presentation.ncol == 1
+
+
 def test_render_plan_resolves_relative_csv_and_reversed_axis(
     built_ir_document,
 ):
@@ -409,7 +423,7 @@ def test_renderer_compacts_automatic_multiseries_legend_on_narrow_canvas(render_
             "data_ref": "spectrum-data",
             "x_column": "wavenumber_cm1",
             "y_column": "absorbance",
-            "name": f"Sample {index}",
+            "name": f"PA6-250-{170 + index * 5}-S_0_00000",
             "style": {},
         }
         for index in range(5)
@@ -423,10 +437,14 @@ def test_renderer_compacts_automatic_multiseries_legend_on_narrow_canvas(render_
             "style": {"loc": "upper right", "ncol": 2},
         },
     )
-    plan = replace(render_plan, width_in=3.6, panels=(panel,), objects=objects)
+    plan = replace(render_plan, width_in=12.0, panels=(panel,), objects=objects)
 
-    legend = MatplotlibFigureRenderer().render(plan, dpi=100).axes[0].get_legend()
+    renderer = MatplotlibFigureRenderer()
+    wide_legend = renderer.render(plan, dpi=100).axes[0].get_legend()
+    legend = renderer.render(plan, dpi=100, viewport_width_px=780).axes[0].get_legend()
 
+    assert wide_legend is not None
+    assert wide_legend._ncols == 2
     assert legend is not None
     assert legend._ncols == 1
     assert legend.get_texts()[0].get_fontsize() == pytest.approx(7.65)

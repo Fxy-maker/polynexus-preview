@@ -40,7 +40,13 @@ class MatplotlibFigureRenderer:
             "text",
         }
 
-    def render(self, plan: FigureRenderPlan, *, dpi: int) -> Figure:
+    def render(
+        self,
+        plan: FigureRenderPlan,
+        *,
+        dpi: int,
+        viewport_width_px: float | None = None,
+    ) -> Figure:
         self.last_artist_map = {}
         figure = Figure(
             figsize=(plan.width_in, plan.height_in),
@@ -158,12 +164,12 @@ class MatplotlibFigureRenderer:
                         legend_object,
                         handle_count=len(handles),
                         available_width_px=(
-                            plan.width_in
-                            * dpi
+                            (viewport_width_px or plan.width_in * dpi)
                             * max(1, panel.column_span)
                             / max(1, plan.columns)
                         ),
                         default_fontsize=9.0,
+                        labels=tuple(str(label) for label in labels),
                     )
                     axis.legend(**self._legend_kwargs(legend_object, presentation))
                 else:
