@@ -20,12 +20,12 @@ and drag behavior.
 
 ## Acceptance criteria
 
-- [ ] Two or more named visible series show one default legend using their
+- [x] Two or more named visible series show one default legend using their
   names verbatim.
-- [ ] One series does not gain a legend.
-- [ ] Renaming a series refreshes the corresponding legend entry.
-- [ ] Explicit legend visibility and drag position remain intact.
-- [ ] Five-series legends use a compact two-column arrangement.
+- [x] One series does not gain a legend.
+- [x] Renaming a series refreshes the corresponding legend entry.
+- [x] Explicit legend visibility and drag position remain intact.
+- [x] Five-series legends use a compact two-column arrangement.
 
 ## Implementation plan
 

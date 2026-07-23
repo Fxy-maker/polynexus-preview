@@ -1,5 +1,25 @@
 # Active Work
 
+## Multi-series chart legend defaults - completed 2026-07-23
+
+- Object-mode figures now materialize a persisted legend only when at least two
+  named plot series are visible. The legend uses sample names verbatim,
+  defaults to upper-right placement, and switches to two columns when more
+  than three series are present.
+- Renaming a series refreshes its legend entry through the existing editor
+  name control. Existing legend visibility and dragged position remain
+  authoritative; a single-series chart remains legend-free.
+- The legacy and formal renderer paths now use the same persisted legend
+  object. This also fixed selected-line endpoint switching, where the second
+  endpoint click had previously cleared selection instead of moving the active
+  handle emphasis.
+- TDD evidence: object-store, renderer, and offscreen ChartEditor regressions
+  first failed for one-series suppression, formal `show_legend: false` output,
+  compact columns, and endpoint selection; the final focused matrix passed
+  `264` tests. Task card:
+  `docs/agent/tasks/2026-07-23-editor-multiseries-legend.md`. Running GUI
+  instances must be restarted before manual inspection.
+
 ## Responsive editor inspector sidebar - completed 2026-07-23
 
 - The ChartEditor inspector can now shrink to 280 logical pixels without
