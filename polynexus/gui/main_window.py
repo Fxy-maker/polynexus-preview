@@ -191,6 +191,7 @@ from .preprocess_decision_service import build_preprocess_ui_decision
 from .i18n import tr, set_language, get_language
 from .workspace_mode import WorkspaceMode
 from .workspace_context import WorkspaceContext
+from .run_state_service import RunState
 from .window_text_helpers import (
     data_file_dialog_filter as _data_file_dialog_filter,
     format_import_suggestion_reason as _shared_format_import_suggestion_reason,
@@ -1379,7 +1380,7 @@ class MainWindow(
         self._last_ai_tuning_context = {}
         self._current_ai_tuning_goal = "symptom"
         self._last_persisted_run_id = ""
-        self._run_cancel_requested = False
+        self._run_state = RunState()
         self._run_stage_key = ""
         self._workspace_context = WorkspaceContext.empty()
         self._result_contexts = {}

@@ -19,6 +19,8 @@ def test_main_window_reuses_run_workflow_helpers_from_run_mixin():
     assert MainWindow._run_batch is MainWindowRunMixin._run_batch
     assert MainWindow._replot is MainWindowRunMixin._replot
     assert MainWindow._on_replot_finished is MainWindowRunMixin._on_replot_finished
+    assert MainWindow._transition_run_state is MainWindowRunMixin._transition_run_state
+    assert MainWindow._copy_error_diagnostics is MainWindowRunMixin._copy_error_diagnostics
     assert MainWindow._log_analysis_diagnostics is MainWindowRunMixin._log_analysis_diagnostics
     assert MainWindow._log_run_completion_summary is MainWindowRunMixin._log_run_completion_summary
     assert MainWindow._on_finished is MainWindowRunMixin._on_finished
