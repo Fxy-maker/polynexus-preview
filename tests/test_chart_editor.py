@@ -407,7 +407,7 @@ def test_chart_editor_object_list_tracks_generated_figure_objects(tmp_path, monk
     editor = ChartEditor()
     editor.set_source_figure(str(figure_path))
 
-    assert editor._object_list.count() == 4
+    assert editor._object_list.count() == 3
     assert editor._object_list.item(0).data(Qt.UserRole) == "__background__"
     assert editor._object_list.item(1).data(Qt.UserRole) == "series-intensity"
     assert editor._object_list.item(1).data(Qt.UserRole + 1) == "figure_object"
@@ -415,8 +415,7 @@ def test_chart_editor_object_list_tracks_generated_figure_objects(tmp_path, monk
     assert editor._object_list.item(2).data(Qt.UserRole) == "line-qstar"
     assert editor._object_list.item(2).data(Qt.UserRole + 1) == "figure_object"
     assert editor._object_list.item(2).text() == "Line: q*"
-    assert editor._object_list.item(3).data(Qt.UserRole) == "legend"
-    assert editor._object_list.item(3).text() == "Legend"
+    assert editor._figure.axes[0].get_legend() is None
 
     editor.deleteLater()
     app.processEvents()
@@ -5743,7 +5742,13 @@ def test_chart_editor_hides_legend_when_no_generated_series_are_visible(tmp_path
                 "type": "plot_series",
                 "name": "Only",
                 "data": {"x": [1.0, 2.0], "y": [1.0, 2.0]},
-            }
+            },
+            {
+                "id": "series-reference",
+                "type": "plot_series",
+                "name": "Reference",
+                "data": {"x": [1.0, 2.0], "y": [2.0, 1.0]},
+            },
         ],
     )
 
@@ -5752,6 +5757,12 @@ def test_chart_editor_hides_legend_when_no_generated_series_are_visible(tmp_path
     assert editor._figure.axes[0].get_legend() is not None
 
     editor._object_list.item(1).setCheckState(Qt.Unchecked)
+    app.processEvents()
+
+    assert len(editor._figure.axes[0].lines) == 1
+    assert editor._figure.axes[0].get_legend() is None
+
+    editor._object_list.item(2).setCheckState(Qt.Unchecked)
     app.processEvents()
 
     assert len(editor._figure.axes[0].lines) == 0

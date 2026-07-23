@@ -129,7 +129,7 @@ class MatplotlibFigureRenderer:
 
         for panel in plan.panels:
             legend_object = legend_objects.get(panel.panel_id)
-            if not panel.show_legend or (
+            if (not panel.show_legend and legend_object is None) or (
                 legend_object is not None
                 and legend_object.get("visible") is False
             ):
@@ -172,6 +172,12 @@ class MatplotlibFigureRenderer:
         anchor = style.get("bbox_to_anchor")
         if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
             kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
+        ncol = style.get("ncol")
+        if ncol is not None:
+            try:
+                kwargs["ncol"] = max(1, int(ncol))
+            except (TypeError, ValueError):
+                pass
         return kwargs
 
     @staticmethod

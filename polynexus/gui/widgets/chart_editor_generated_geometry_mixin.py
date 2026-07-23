@@ -1006,7 +1006,7 @@ class ChartEditorGeneratedGeometryMixin:
     def _generated_legend_visible(self):
         legend = self._generated_figure_object_by_id("legend")
         if legend is None:
-            return True
+            return False
         return legend.get("visible", True) is not False
 
     def _generated_figure_object_by_id(self, object_id):

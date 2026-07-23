@@ -10,7 +10,7 @@ class ChartEditorGeneratedPressTargetMixin:
             return None
         object_type = str(figure_object.get("type", "") or "")
         if object_type == "line":
-            handle_hit = self._generated_point_handle_hit(event, object_id)
+            handle_hit = self._generated_line_handle_hit(event, object_id)
             if handle_hit is None:
                 return None
             return {

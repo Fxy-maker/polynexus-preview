@@ -67,6 +67,7 @@ class ChartEditorGeneratedDocumentMixin:
     def _build_generated_figure_document(self):
         if not self._is_generated_figure_document():
             return None
+        self._ensure_generated_legend_object()
         entry = getattr(self, "_source_entry_context", None)
         run_root = str(getattr(entry, "run_root", "") or "").strip()
         document_path = str(getattr(entry, "document_path", "") or "").strip()
