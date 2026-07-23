@@ -145,8 +145,13 @@ class ChartEditorGeneratedDocumentMixin:
                     line.set_linewidth(self._line_width)
                     series_index += 1
             for text in axis.texts:
-                if not str(text.get_gid() or "").startswith("pn-panel-label:"):
-                    text.set_fontsize(max(6, self._label_size - 2))
+                object_id = str(artist_to_object.get(id(text), "") or "")
+                if (
+                    object_types.get(object_id) == "text"
+                    or str(text.get_gid() or "").startswith("pn-panel-label:")
+                ):
+                    continue
+                text.set_fontsize(max(6, self._label_size - 2))
 
     @matplotlib.rc_context()
     def _build_legacy_generated_figure_document(self):

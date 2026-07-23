@@ -222,6 +222,40 @@ def test_manifest_editor_registers_native_image_grid_artists_for_object_editing(
     ]
 
 
+def test_formal_editor_style_preserves_object_text_font_size() -> None:
+    from matplotlib.figure import Figure
+
+    from polynexus.gui.widgets.chart_editor_generated_document_mixin import (
+        ChartEditorGeneratedDocumentMixin,
+    )
+
+    figure = Figure(figsize=(4.0, 2.0), dpi=100)
+    axis = figure.add_subplot(111)
+    label = axis.text(0.5, 0.5, "Peak", fontsize=72.0)
+    guide_label = axis.text(0.1, 0.1, "Guide", fontsize=72.0)
+
+    editor = object.__new__(ChartEditorGeneratedDocumentMixin)
+    editor._figure_document = {
+        "objects": [{"id": "label", "type": "text", "style": {"font_size": 72.0}}]
+    }
+    editor._bg_color = "#FFFFFF"
+    editor._fig_size = (4.0, 2.0)
+    editor._title_edit = SimpleNamespace(text=lambda: "")
+    editor._xlabel_edit = SimpleNamespace(text=lambda: "")
+    editor._ylabel_edit = SimpleNamespace(text=lambda: "")
+    editor._title_size = 14
+    editor._label_size = 14
+    editor._tick_size = 10
+    editor._grid_on = False
+    editor._current_colours = ["#000000"]
+    editor._line_width = 1.0
+
+    editor._apply_formal_editor_style(figure, {"label": [label]})
+
+    assert label.get_fontsize() == 72.0
+    assert guide_label.get_fontsize() == 12.0
+
+
 def test_legacy_editor_rebuilds_native_image_grid_from_numeric_csv(tmp_path):
     from polynexus.gui.figure_render_adapter import FigureRenderAdapter
     from polynexus.gui.widgets.chart_editor_generated_document_mixin import (

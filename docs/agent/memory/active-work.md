@@ -1,5 +1,20 @@
 # Active Work
 
+## Generated text font-size commit fix - completed 2026-07-23
+
+- Fixed the formal manifest-render styling pass so it no longer overwrites a
+  generated text object's persisted `style.font_size`. This keeps a corner-drag
+  font-size preview visually identical after mouse release and the resulting
+  document rebuild.
+- TDD evidence: the focused regression initially failed because a `72 pt`
+  object label was reset to `12 pt`; it passes after the object-level style
+  boundary is preserved. The ChartEditor workflow suite passes (`48 passed`,
+  four known Matplotlib tight-layout warnings).
+- The isolated generated-document mixin suite retains one pre-existing,
+  unrelated harness failure in
+  `test_manifest_editor_registers_native_image_grid_artists_for_object_editing`:
+  it instantiates an incomplete mixin without `_generated_figure_object_by_id`.
+
 ## Editor workflow convergence - implementation complete 2026-07-23
 
 - Task card: `docs/agent/tasks/2026-07-22-editor-workflow-convergence.md`.
