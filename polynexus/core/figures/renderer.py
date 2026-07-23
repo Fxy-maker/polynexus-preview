@@ -10,6 +10,7 @@ from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
 from ..figure_text_geometry import is_axes_text_box, text_box_anchor
+from .legend_presentation import LegendPresentation, legend_presentation
 from .render_plan import FigureRenderPlan, RenderAxis
 
 
@@ -152,7 +153,21 @@ class MatplotlibFigureRenderer:
             axis = axes[panel.panel_id]
             handles, labels = axis.get_legend_handles_labels()
             if handles and labels:
-                axis.legend(**self._legend_kwargs(legend_object))
+                if isinstance(legend_object, dict):
+                    presentation = legend_presentation(
+                        legend_object,
+                        handle_count=len(handles),
+                        available_width_px=(
+                            plan.width_in
+                            * dpi
+                            * max(1, panel.column_span)
+                            / max(1, plan.columns)
+                        ),
+                        default_fontsize=9.0,
+                    )
+                    axis.legend(**self._legend_kwargs(legend_object, presentation))
+                else:
+                    axis.legend()
 
         return figure
 
@@ -174,7 +189,10 @@ class MatplotlibFigureRenderer:
         return legends
 
     @staticmethod
-    def _legend_kwargs(figure_object: dict[str, Any] | None) -> dict[str, Any]:
+    def _legend_kwargs(
+        figure_object: dict[str, Any] | None,
+        presentation: LegendPresentation | None = None,
+    ) -> dict[str, Any]:
         if not isinstance(figure_object, dict):
             return {}
         style = figure_object.get("style", {})
@@ -187,12 +205,17 @@ class MatplotlibFigureRenderer:
         anchor = style.get("bbox_to_anchor")
         if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
             kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
-        ncol = style.get("ncol")
-        if ncol is not None:
-            try:
-                kwargs["ncol"] = max(1, int(ncol))
-            except (TypeError, ValueError):
-                pass
+        if presentation is not None:
+            kwargs["ncol"] = presentation.ncol
+            if presentation.fontsize is not None:
+                kwargs["fontsize"] = presentation.fontsize
+        else:
+            ncol = style.get("ncol")
+            if ncol is not None:
+                try:
+                    kwargs["ncol"] = max(1, int(ncol))
+                except (TypeError, ValueError):
+                    pass
         return kwargs
 
     @staticmethod

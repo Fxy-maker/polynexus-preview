@@ -6,6 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
 import matplotlib as mpl
+import pytest
 from matplotlib.backend_bases import MouseEvent
 
 from PySide6.QtCore import QEvent, QPointF, Qt
@@ -8163,6 +8164,14 @@ def test_chart_editor_multiseries_legend_uses_sample_names_and_refreshes_on_rena
         "PA6-250-205-S_0_00000",
         "PA6-250-220-S_0_00000",
     ]
+
+    editor._canvas.resize(360, 520)
+    editor._show_generated_figure_document()
+
+    compact_legend = editor._figure.axes[0].get_legend()
+    assert compact_legend is not None
+    assert compact_legend._ncols == 1
+    assert compact_legend.get_texts()[0].get_fontsize() == pytest.approx(9.35)
 
     editor.deleteLater()
     app.processEvents()

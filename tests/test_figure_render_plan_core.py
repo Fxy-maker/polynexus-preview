@@ -399,6 +399,39 @@ def test_renderer_hides_automatic_legend_when_only_one_series_remains_visible(re
     assert MatplotlibFigureRenderer().render(one_visible_plan, dpi=100).axes[0].get_legend() is None
 
 
+def test_renderer_compacts_automatic_multiseries_legend_on_narrow_canvas(render_plan):
+    panel = replace(render_plan.panels[0], show_legend=False)
+    objects = tuple(
+        {
+            "id": f"series-{index}",
+            "type": "plot_series",
+            "panel_id": "main",
+            "data_ref": "spectrum-data",
+            "x_column": "wavenumber_cm1",
+            "y_column": "absorbance",
+            "name": f"Sample {index}",
+            "style": {},
+        }
+        for index in range(5)
+    ) + (
+        {
+            "id": "legend",
+            "type": "legend",
+            "panel_id": "main",
+            "visible": True,
+            "auto_generated": True,
+            "style": {"loc": "upper right", "ncol": 2},
+        },
+    )
+    plan = replace(render_plan, width_in=3.6, panels=(panel,), objects=objects)
+
+    legend = MatplotlibFigureRenderer().render(plan, dpi=100).axes[0].get_legend()
+
+    assert legend is not None
+    assert legend._ncols == 1
+    assert legend.get_texts()[0].get_fontsize() == pytest.approx(7.65)
+
+
 def test_renderer_supports_regular_grid_heatmap(render_plan):
     plan = replace(
         render_plan,

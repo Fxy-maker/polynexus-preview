@@ -29,6 +29,7 @@ from ...core.figure_text_geometry import (
     is_axes_text_box,
     text_box_anchor,
 )
+from ...core.figures.legend_presentation import legend_presentation
 from ...core.plot_edits import COLOUR_SCHEMES, FIGURE_SIZES, LINE_WIDTHS
 from ...core.figures.render_plan import FigureRenderPlanBuilder
 from ...core.figures.renderer import MatplotlibFigureRenderer
@@ -987,9 +988,17 @@ class ChartEditorGeneratedDocumentMixin:
                 and isinstance(legend_object.get("style"), dict)
                 else {}
             )
-            legend_ncol = max(
-                1,
-                int(legend_style.get("ncol") or (2 if len(handles) > 3 else 1)),
+            canvas = getattr(self, "_canvas", None)
+            canvas_width = (
+                float(canvas.width())
+                if canvas is not None and callable(getattr(canvas, "width", None))
+                else float(ax.bbox.width)
+            )
+            presentation = legend_presentation(
+                legend_object,
+                handle_count=len(handles),
+                available_width_px=max(1.0, canvas_width),
+                default_fontsize=float(self._tick_size),
             )
             bbox_to_anchor = legend_style.get("bbox_to_anchor")
             anchor_x = None
@@ -999,18 +1008,18 @@ class ChartEditorGeneratedDocumentMixin:
                 anchor_y = self._optional_float(bbox_to_anchor[1])
             if anchor_x is not None and anchor_y is not None:
                 ax.legend(
-                    fontsize=self._tick_size,
+                    fontsize=presentation.fontsize,
                     frameon=False,
-                    ncol=legend_ncol,
+                    ncol=presentation.ncol,
                     loc=str(legend_style.get("loc", "") or "upper left"),
                     bbox_to_anchor=(float(anchor_x), float(anchor_y)),
                     bbox_transform=ax.transAxes,
                 )
             else:
                 ax.legend(
-                    fontsize=self._tick_size,
+                    fontsize=presentation.fontsize,
                     frameon=False,
-                    ncol=legend_ncol,
+                    ncol=presentation.ncol,
                     loc=str(legend_style.get("loc", "") or "upper right"),
                 )
         elif ax.get_legend() is not None:
