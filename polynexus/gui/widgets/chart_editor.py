@@ -374,6 +374,19 @@ class ChartEditor(
         self._canvas.mpl_connect("figure_leave_event", self._on_generated_figure_leave)
 
     def eventFilter(self, watched, event):
+        history_shortcut_widgets = getattr(self, "_history_shortcut_input_widgets", set())
+        if (
+            watched in history_shortcut_widgets
+            and event.type() == QEvent.KeyPress
+            and event.modifiers() & Qt.ControlModifier
+            and event.key() in {Qt.Key_Z, Qt.Key_Y}
+        ):
+            if event.key() == Qt.Key_Y or event.modifiers() & Qt.ShiftModifier:
+                self._on_annotation_redo()
+            else:
+                self._on_annotation_undo()
+            event.accept()
+            return True
         if watched is getattr(self, "_canvas", None):
             if event.type() == QEvent.KeyPress and event.key() == Qt.Key_Escape:
                 if self._cancel_active_draw():

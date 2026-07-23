@@ -1,5 +1,16 @@
 # Active Work
 
+## Editor history shortcuts in numeric controls - completed 2026-07-23
+
+- Fixed the ChartEditor's Ctrl+Z routing when focus is inside a numeric style
+  or geometry control. Those controls previously consumed the key before the
+  window-level history shortcut could run, making a just-completed font-size
+  edit appear non-undoable.
+- Ctrl+Z now undoes from canvas or numeric-control focus; Ctrl+Shift+Z and
+  Ctrl+Y redo. Plain text inputs retain their local text-editing behavior.
+- Qt workflow coverage exercises static canvas focus, generated canvas focus,
+  and the generated context font-size spin control, including redo.
+
 ## Generated text font-size commit fix - completed 2026-07-23
 
 - Fixed the formal manifest-render styling pass so it no longer overwrites a

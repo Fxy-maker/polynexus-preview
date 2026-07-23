@@ -345,10 +345,12 @@ class ChartEditorLayoutMixin:
             ("Ctrl+Shift+S", self.export_project_package),
             ("Ctrl+Z", self._on_annotation_undo),
             ("Ctrl+Shift+Z", self._on_annotation_redo),
+            ("Ctrl+Y", self._on_annotation_redo),
         ):
             shortcut = QShortcut(QKeySequence(sequence), self)
             shortcut.activated.connect(callback)
             self._editor_shortcuts.append(shortcut)
+        self._install_history_shortcut_event_filters()
         canvas = getattr(self, "_canvas", None)
         if canvas is None:
             return
@@ -368,6 +370,31 @@ class ChartEditorLayoutMixin:
             shortcut.setContext(Qt.WidgetShortcut)
             shortcut.activated.connect(callback)
             self._editor_shortcuts.append(shortcut)
+
+    def _install_history_shortcut_event_filters(self):
+        self._history_shortcut_input_widgets = set()
+        for attribute in (
+            "_context_font_size",
+            "_annotation_x_spin",
+            "_annotation_y_spin",
+            "_annotation_w_spin",
+            "_annotation_h_spin",
+            "_annotation_curve_control_x_spin",
+            "_annotation_curve_control_y_spin",
+            "_annotation_font_size_spin",
+            "_annotation_line_width_spin",
+            "_annotation_alpha_spin",
+            "_annotation_marker_size_spin",
+        ):
+            control = getattr(self, attribute, None)
+            if control is None:
+                continue
+            self._history_shortcut_input_widgets.add(control)
+            control.installEventFilter(self)
+            line_edit = getattr(control, "lineEdit", lambda: None)()
+            if line_edit is not None:
+                self._history_shortcut_input_widgets.add(line_edit)
+                line_edit.installEventFilter(self)
 
     def _build_object_context_menu(self):
         menu = QMenu(self)

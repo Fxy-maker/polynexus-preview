@@ -10,6 +10,7 @@ from matplotlib.backend_bases import MouseEvent
 from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.figure_document import save_generated_figure_document
@@ -179,6 +180,67 @@ def test_static_text_annotation_round_trips_through_one_history(tmp_path, app):
     reloaded = make_static_editor(tmp_path, source=target)
     assert reloaded._annotation_canvas.annotation_state()[0]["id"] == annotation_id
     assert reloaded._annotation_canvas.annotation_state()[0]["text"] == "Peak value"
+
+
+def test_editor_ctrl_z_undoes_canvas_edit_with_canvas_focus(tmp_path, app):
+    editor = make_static_editor(tmp_path)
+    editor.show()
+    app.processEvents()
+    editor._annotation_text_edit.setText("Undo me")
+    editor._btn_annotation_add_text.click()
+    canvas_view = editor._annotation_canvas._view
+    canvas_view.setFocus()
+    app.processEvents()
+
+    QTest.keyClick(canvas_view, Qt.Key_Z, Qt.ControlModifier)
+    app.processEvents()
+
+    assert editor._annotation_canvas.annotation_state() == []
+    assert editor._edit_session.can_redo is True
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_editor_ctrl_z_undoes_generated_edit_with_canvas_focus(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.show()
+    app.processEvents()
+    editor._execute_edit(UpdateGeometryCommand("line-1", {"x1": 0.25}))
+    editor._canvas.setFocus()
+    app.processEvents()
+
+    QTest.keyClick(editor._canvas, Qt.Key_Z, Qt.ControlModifier)
+    app.processEvents()
+
+    assert editor._generated_figure_object_by_id("line-1")["x1"] == 0.1
+    assert editor._edit_session.can_redo is True
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_editor_ctrl_z_undoes_generated_edit_with_context_spin_focus(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.show()
+    app.processEvents()
+    editor._execute_edit(UpdateGeometryCommand("line-1", {"x1": 0.25}))
+    context_font_input = editor._context_font_size.lineEdit()
+    context_font_input.setFocus()
+    app.processEvents()
+
+    QTest.keyClick(context_font_input, Qt.Key_Z, Qt.ControlModifier)
+    app.processEvents()
+
+    assert editor._generated_figure_object_by_id("line-1")["x1"] == 0.1
+
+    QTest.keyClick(context_font_input, Qt.Key_Z, Qt.ControlModifier | Qt.ShiftModifier)
+    app.processEvents()
+
+    assert editor._generated_figure_object_by_id("line-1")["x1"] == 0.25
+
+    editor.deleteLater()
+    app.processEvents()
 
 
 def test_static_text_drag_commits_one_box_after_inline_text(tmp_path, app):
