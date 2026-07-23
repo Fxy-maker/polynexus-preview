@@ -79,7 +79,14 @@ class ChartEditorGeneratedDocumentMixin:
             )
             self._shared_render_plan = plan
             renderer = MatplotlibFigureRenderer()
-            figure = renderer.render(plan, dpi=self._dpi)
+            canvas = getattr(self, "_canvas", None)
+            width = getattr(canvas, "width", None)
+            viewport_width = float(width()) if callable(width) else None
+            figure = renderer.render(
+                plan,
+                dpi=self._dpi,
+                viewport_width_px=viewport_width,
+            )
             self._apply_formal_editor_style(
                 figure,
                 getattr(renderer, "last_artist_map", {}),

@@ -146,9 +146,10 @@ def test_manifest_document_builds_figure_from_shared_render_plan(
             return expected_plan
 
     class _Renderer:
-        def render(self, plan, *, dpi):
+        def render(self, plan, *, dpi, viewport_width_px):
             calls["plan"] = plan
             calls["dpi"] = dpi
+            calls["viewport_width_px"] = viewport_width_px
             return expected_figure
 
     monkeypatch.setattr(module, "FigureRenderPlanBuilder", _Builder, raising=False)
@@ -162,6 +163,8 @@ def test_manifest_document_builds_figure_from_shared_render_plan(
     )
     editor._dpi = 150
     editor._shared_render_plan = None
+    editor._canvas = SimpleNamespace(width=lambda: 780)
+    editor._ensure_generated_legend_object = lambda: None
 
     figure = editor._build_generated_figure_document()
 
@@ -172,6 +175,7 @@ def test_manifest_document_builds_figure_from_shared_render_plan(
         "document": editor._figure_document,
         "plan": expected_plan,
         "dpi": 150,
+        "viewport_width_px": 780.0,
     }
     assert editor._shared_render_plan is expected_plan
 
@@ -198,8 +202,9 @@ def test_manifest_editor_registers_native_image_grid_artists_for_object_editing(
     class _Renderer:
         last_artist_map = {"pattern-grid": [image_artist]}
 
-        def render(self, _plan, *, dpi):
+        def render(self, _plan, *, dpi, viewport_width_px=None):
             assert dpi == 120
+            assert viewport_width_px is None
             return figure
 
     monkeypatch.setattr(module, "FigureRenderPlanBuilder", _Builder)
@@ -215,6 +220,8 @@ def test_manifest_editor_registers_native_image_grid_artists_for_object_editing(
     editor._shared_render_plan = None
     editor._figure_render_adapter = FigureRenderAdapter()
     editor._selected_figure_object_id = "pattern-grid"
+    editor._ensure_generated_legend_object = lambda: None
+    editor._add_generated_selection_handles = lambda *_args: None
 
     assert editor._build_generated_figure_document() is figure
     assert editor._figure_render_adapter.artists_for_object_id("pattern-grid") == [
