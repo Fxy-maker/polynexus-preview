@@ -159,6 +159,7 @@ def test_figure_object_store_ensures_compact_legend_for_named_visible_series():
         "name": "Legend",
         "visible": True,
         "locked": False,
+        "auto_generated": True,
         "z_index": 3,
         "style": {"loc": "upper right", "ncol": 1},
     }
@@ -247,6 +248,34 @@ def test_figure_object_store_uses_panel_id_without_provider_legend_gate():
     assert store.ensure_legend_object() is True
     assert document["objects"][-1]["id"] == "legend"
     assert document["objects"][-1]["panel_id"] == "main"
+
+
+def test_figure_object_store_skips_automatic_legend_for_multi_panel_documents():
+    document = {
+        "layout": {
+            "panels": [
+                {"panel_id": "main", "show_legend": False},
+                {"panel_id": "detail", "show_legend": False},
+            ]
+        },
+        "objects": [
+            {
+                "id": "series-a",
+                "type": "plot_series",
+                "name": "Observed",
+                "panel_id": "main",
+            },
+            {
+                "id": "series-b",
+                "type": "plot_series",
+                "name": "Reference",
+                "panel_id": "detail",
+            },
+        ],
+    }
+
+    assert FigureObjectStore(document).ensure_legend_object() is False
+    assert [item["id"] for item in document["objects"]] == ["series-a", "series-b"]
 
 
 def test_figure_object_store_moves_selected_object_without_crossing_legend():

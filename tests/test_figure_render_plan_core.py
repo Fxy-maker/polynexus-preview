@@ -326,6 +326,51 @@ def test_renderer_applies_explicit_lifecycle_legend_visibility_and_position(
     assert hidden_figure.axes[0].get_legend() is None
 
 
+def test_renderer_hides_automatic_legend_when_only_one_series_remains_visible(render_plan):
+    panel = replace(render_plan.panels[0], show_legend=False)
+    objects = (
+        {
+            "id": "series-a",
+            "type": "plot_series",
+            "panel_id": "main",
+            "data_ref": "spectrum-data",
+            "x_column": "wavenumber_cm1",
+            "y_column": "absorbance",
+            "name": "Observed",
+            "visible": True,
+            "style": {},
+        },
+        {
+            "id": "series-b",
+            "type": "plot_series",
+            "panel_id": "main",
+            "data_ref": "spectrum-data",
+            "x_column": "wavenumber_cm1",
+            "y_column": "absorbance",
+            "name": "Reference",
+            "visible": True,
+            "style": {},
+        },
+        {
+            "id": "legend",
+            "type": "legend",
+            "panel_id": "main",
+            "visible": True,
+            "auto_generated": True,
+            "style": {"loc": "upper right", "ncol": 1},
+        },
+    )
+    plan = replace(render_plan, panels=(panel,), objects=objects)
+
+    assert MatplotlibFigureRenderer().render(plan, dpi=100).axes[0].get_legend() is not None
+
+    one_visible_plan = replace(
+        plan,
+        objects=({**objects[0], "visible": False}, objects[1], objects[2]),
+    )
+    assert MatplotlibFigureRenderer().render(one_visible_plan, dpi=100).axes[0].get_legend() is None
+
+
 def test_renderer_supports_regular_grid_heatmap(render_plan):
     plan = replace(
         render_plan,

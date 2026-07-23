@@ -131,6 +131,8 @@ class FigureObjectStore:
                     str(lifecycle_panel.get("panel_id") or ""),
                 )
             return False
+        if isinstance(panels, list) and panels and lifecycle_panel is None:
+            return False
         named_visible_series = [
             obj
             for obj in objects
@@ -148,6 +150,7 @@ class FigureObjectStore:
             "name": "Legend",
             "visible": True,
             "locked": False,
+            "auto_generated": True,
             "z_index": len(objects),
             "style": {
                 "loc": "upper right",

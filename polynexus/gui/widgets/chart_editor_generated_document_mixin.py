@@ -962,8 +962,25 @@ class ChartEditorGeneratedDocumentMixin:
         for spine in ax.spines.values():
             spine.set_linewidth(0.8)
         handles, _labels = ax.get_legend_handles_labels()
-        if handles and self._generated_legend_visible():
-            legend_object = self._generated_figure_object_by_id_including_deleted("legend")
+        legend_object = self._generated_figure_object_by_id_including_deleted("legend")
+        automatic_legend_series_count = sum(
+            1
+            for figure_object in self._figure_document.get("objects", [])
+            if isinstance(figure_object, dict)
+            and str(figure_object.get("type", "") or "") == "plot_series"
+            and figure_object.get("visible", True) is not False
+            and figure_object.get("deleted") is not True
+            and str(figure_object.get("name", "") or "").strip()
+        )
+        if (
+            handles
+            and self._generated_legend_visible()
+            and (
+                not isinstance(legend_object, dict)
+                or legend_object.get("auto_generated") is not True
+                or automatic_legend_series_count >= 2
+            )
+        ):
             legend_style = (
                 legend_object.get("style", {})
                 if isinstance(legend_object, dict)

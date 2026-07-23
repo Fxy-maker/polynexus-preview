@@ -134,6 +134,21 @@ class MatplotlibFigureRenderer:
                 and legend_object.get("visible") is False
             ):
                 continue
+            if (
+                isinstance(legend_object, dict)
+                and legend_object.get("auto_generated") is True
+                and sum(
+                    1
+                    for figure_object in ordered_objects
+                    if str(figure_object.get("type") or "") == "plot_series"
+                    and figure_object.get("visible") is not False
+                    and str(figure_object.get("name") or "").strip()
+                    and str(figure_object.get("panel_id") or panel.panel_id)
+                    == panel.panel_id
+                )
+                < 2
+            ):
+                continue
             axis = axes[panel.panel_id]
             handles, labels = axis.get_legend_handles_labels()
             if handles and labels:

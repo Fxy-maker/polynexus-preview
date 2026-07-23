@@ -10,13 +10,14 @@
   name control. Existing legend visibility and dragged position remain
   authoritative; a single-series chart remains legend-free.
 - The legacy and formal renderer paths now use the same persisted legend
-  object. This also fixed selected-line endpoint switching, where the second
-  endpoint click had previously cleared selection instead of moving the active
-  handle emphasis.
+  object. Multi-panel documents intentionally retain their pre-existing legend
+  state rather than receiving an unassigned automatic object. This also fixed
+  selected-line endpoint switching, where the second endpoint click had
+  previously cleared selection instead of moving the active handle emphasis.
 - TDD evidence: object-store, renderer, and offscreen ChartEditor regressions
   first failed for one-series suppression, formal `show_legend: false` output,
-  compact columns, and endpoint selection; the final focused matrix passed
-  `264` tests. Task card:
+  compact columns, multi-panel safety, and endpoint selection; the final
+  focused matrix passed `266` tests. Task card:
   `docs/agent/tasks/2026-07-23-editor-multiseries-legend.md`. Running GUI
   instances must be restarted before manual inspection.
 
