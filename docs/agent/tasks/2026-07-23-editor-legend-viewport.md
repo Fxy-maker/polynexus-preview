@@ -18,13 +18,13 @@ font size a persistent, undoable editor property.
 
 ## Acceptance criteria
 
-- [ ] Five long sample names in a narrow formal editor viewport select a safe
+- [x] Five long sample names in a narrow formal editor viewport select a safe
   layout without collapsing the plot area.
-- [ ] Wide publication output keeps its independent intended layout.
-- [ ] Legend font size is enabled, saved, undoable, and identical in preview
+- [x] Wide publication output keeps its independent intended layout.
+- [x] Legend font size is enabled, saved, undoable, and identical in preview
   and export.
-- [ ] Explicit legend font size overrides automatic compact scaling.
-- [ ] Existing legend selection, drag, rename/cancel, and text double-click
+- [x] Explicit legend font size overrides automatic compact scaling.
+- [x] Existing legend selection, drag, rename/cancel, and text double-click
   regressions remain green.
 
 ## Implementation plan
@@ -47,6 +47,15 @@ python -m pytest tests/test_figure_edit_capabilities.py tests/test_figure_object
 python scripts/verify.py --task docs/agent/tasks/2026-07-23-editor-legend-viewport.md --changed --types
 python scripts/verify.py --changed --types
 ```
+
+## Completion evidence
+
+- 2026-07-23: focused editor/render matrix passed (`291 passed`).
+- 2026-07-23: structured and default changed/type verification passed.  The
+  repository's configured `.pytest_tmp` directory has an inherited Windows
+  access restriction, so those verifier invocations used an explicit isolated
+  `PYTEST_ADDOPTS=--basetemp=D:\PolyNexus\.pytest_tmp_verify`; no existing
+  scratch directory was modified.
 
 ## Working contract
 

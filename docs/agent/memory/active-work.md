@@ -1,5 +1,24 @@
 # Active Work
 
+## Editor legend viewport and typography - completed 2026-07-23
+
+- Formal manifest previews pass the actual live canvas width to the shared
+  Matplotlib renderer.  Long automatic sample-name legends choose a safe
+  single-column presentation before constrained layout can collapse the plot;
+  publication exports retain their independent planned width and can remain
+  two-column.
+- The same responsive label-aware rule now also applies to legacy generated
+  previews.  An explicit legend font size is a normal editable style property:
+  it is persisted, rendered in preview/export, and restored through undo.
+  Selecting a legend exposes only the font-size control; unrelated color,
+  line-width, and alpha controls remain disabled.
+- Evidence: focused matrix `291 passed`; structured and default verifier runs
+  passed, including quality-gate `282` and preprocessing `103`.  Task card:
+  `docs/agent/tasks/2026-07-23-editor-legend-viewport.md`.  The verifier used
+  an isolated pytest base directory because the pre-existing repository
+  `.pytest_tmp` has a Windows access restriction; no existing scratch artifact
+  was changed. Restart the GUI before visual confirmation.
+
 ## Editor legend interaction polish - completed 2026-07-23
 
 - Automatic multi-series legends now share one responsive presentation policy

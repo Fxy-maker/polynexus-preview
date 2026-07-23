@@ -17,7 +17,7 @@
 - Modify: `polynexus/core/figures/renderer.py:35-170`
 - Modify: `tests/test_figure_render_plan_core.py`
 
-- [ ] **Step 1: Write failing policy and formal renderer tests**
+- [x] **Step 1: Write failing policy and formal renderer tests**
 
 ```python
 presentation = legend_presentation(
@@ -34,13 +34,13 @@ assert editor_figure.axes[0].get_legend()._ncols == 1
 assert renderer.render(plan, dpi=150).axes[0].get_legend()._ncols == 2
 ```
 
-- [ ] **Step 2: Run the new test and verify it fails**
+- [x] **Step 2: Run the new test and verify it fails**
 
 Run: `python -m pytest tests/test_figure_render_plan_core.py -k "viewport or long_name" -q`
 
 Expected: FAIL because `render()` has no viewport parameter and the policy does not accept labels.
 
-- [ ] **Step 3: Extend the pure policy without mutating the document**
+- [x] **Step 3: Extend the pure policy without mutating the document**
 
 ```python
 def legend_presentation(..., labels=()):
@@ -57,7 +57,7 @@ Use an explicit `style.font_size` unchanged. Compact scaling applies only when
 no explicit font size is stored. Keep `loc` and `bbox_to_anchor` out of the
 policy result.
 
-- [ ] **Step 4: Pass optional preview width from the renderer boundary**
+- [x] **Step 4: Pass optional preview width from the renderer boundary**
 
 ```python
 def render(self, plan, *, dpi, viewport_width_px=None):
@@ -74,13 +74,13 @@ def render(self, plan, *, dpi, viewport_width_px=None):
 Preserve the existing public call sites by making the parameter keyword-only
 and optional.
 
-- [ ] **Step 5: Run focused renderer tests**
+- [x] **Step 5: Run focused renderer tests**
 
 Run: `python -m pytest tests/test_figure_render_plan_core.py -k "legend" -q`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 python scripts/auto_commit.py --message "fix(editor): adapt formal legends to viewport width" --files polynexus/core/figures/legend_presentation.py polynexus/core/figures/renderer.py tests/test_figure_render_plan_core.py
@@ -93,7 +93,7 @@ python scripts/auto_commit.py --message "fix(editor): adapt formal legends to vi
 - Modify: `tests/test_chart_editor_generated_document_mixin.py`
 - Modify: `tests/test_manifest_editor_shared_plan.py`
 
-- [ ] **Step 1: Write a failing manifest-editor viewport regression**
+- [x] **Step 1: Write a failing manifest-editor viewport regression**
 
 ```python
 editor._canvas.resize(780, 620)
@@ -103,13 +103,13 @@ assert legend._ncols == 1
 assert editor._figure.axes[0].get_position().width > 0.42
 ```
 
-- [ ] **Step 2: Run the regression and verify it fails**
+- [x] **Step 2: Run the regression and verify it fails**
 
 Run: `python -m pytest tests/test_manifest_editor_shared_plan.py -k long_series -q`
 
 Expected: FAIL because the formal renderer only sees publication-plan width.
 
-- [ ] **Step 3: Forward the actual drawable width before renderer creation**
+- [x] **Step 3: Forward the actual drawable width before renderer creation**
 
 ```python
 canvas = getattr(self, "_canvas", None)
@@ -124,13 +124,13 @@ figure = renderer.render(
 Do not alter the post-replacement canvas fit, document canvas size, or export
 caller behavior.
 
-- [ ] **Step 4: Run the manifest and legacy renderer regressions**
+- [x] **Step 4: Run the manifest and legacy renderer regressions**
 
 Run: `python -m pytest tests/test_manifest_editor_shared_plan.py tests/test_chart_editor_generated_document_mixin.py tests/test_chart_editor.py -k "legend or manifest" -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 python scripts/auto_commit.py --message "fix(editor): use live viewport for formal legend preview" --files polynexus/gui/widgets/chart_editor_generated_document_mixin.py tests/test_chart_editor_generated_document_mixin.py tests/test_manifest_editor_shared_plan.py
@@ -144,7 +144,7 @@ python scripts/auto_commit.py --message "fix(editor): use live viewport for form
 - Modify: `tests/test_figure_edit_capabilities.py`
 - Modify: `tests/test_chart_editor.py`
 
-- [ ] **Step 1: Write failing legend capability/style regressions**
+- [x] **Step 1: Write failing legend capability/style regressions**
 
 ```python
 assert capabilities_for({"type": "legend"}).font_size is True
@@ -157,13 +157,13 @@ editor._on_annotation_undo()
 assert "font_size" not in editor._generated_figure_object_by_id("legend")["style"]
 ```
 
-- [ ] **Step 2: Run the regressions and verify they fail**
+- [x] **Step 2: Run the regressions and verify they fail**
 
 Run: `python -m pytest tests/test_figure_edit_capabilities.py tests/test_chart_editor.py -k legend_font_size -q`
 
 Expected: FAIL because legend capability disables the control and policy ignores `style.font_size`.
 
-- [ ] **Step 3: Enable the existing style path and honor the stored size**
+- [x] **Step 3: Enable the existing style path and honor the stored size**
 
 ```python
 elif object_type == "legend":
@@ -174,13 +174,13 @@ Resolve `style["font_size"]` only when it is a finite positive number;
 otherwise fall back to the policy default. Do not enable irrelevant color,
 line, marker, or alpha controls for legends.
 
-- [ ] **Step 4: Run focused edit, undo, preview, and export tests**
+- [x] **Step 4: Run focused edit, undo, preview, and export tests**
 
 Run: `python -m pytest tests/test_figure_edit_capabilities.py tests/test_figure_render_plan_core.py tests/test_chart_editor.py -k "legend and font_size" -q`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 python scripts/auto_commit.py --message "feat(editor): support editable legend font size" --files polynexus/core/figure_edit_capabilities.py polynexus/core/figures/legend_presentation.py tests/test_figure_edit_capabilities.py tests/test_chart_editor.py
@@ -192,7 +192,7 @@ python scripts/auto_commit.py --message "feat(editor): support editable legend f
 - Create: `docs/agent/tasks/2026-07-23-editor-legend-viewport.md`
 - Modify: `docs/agent/memory/active-work.md`
 
-- [ ] **Step 1: Run the complete focused matrix**
+- [x] **Step 1: Run the complete focused matrix**
 
 ```powershell
 $env:QT_QPA_PLATFORM='offscreen'
@@ -200,14 +200,14 @@ $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\.pytest_tmp_alt'
 python -m pytest tests/test_figure_edit_capabilities.py tests/test_figure_object_store.py tests/test_figure_render_plan_core.py tests/test_chart_editor.py tests/test_manifest_editor_shared_plan.py -q
 ```
 
-- [ ] **Step 2: Run structured and default verification**
+- [x] **Step 2: Run structured and default verification**
 
 ```powershell
 python scripts/verify.py --task docs/agent/tasks/2026-07-23-editor-legend-viewport.md --changed --types
 python scripts/verify.py --changed --types
 ```
 
-- [ ] **Step 3: Commit durable evidence**
+- [x] **Step 3: Commit durable evidence**
 
 ```powershell
 python scripts/auto_commit.py --message "docs(editor): record viewport-safe legend verification" --files docs/agent/tasks/2026-07-23-editor-legend-viewport.md docs/agent/memory/active-work.md
