@@ -6,7 +6,7 @@ Give generated multi-curve charts a compact default legend based on their
 existing sample names, while retaining ordinary ChartEditor rename, visibility,
 and drag behavior.
 
-## Boundaries
+## Affected boundaries
 
 - `FigureObjectStore` legend materialization rules.
 - Generated-document Matplotlib legend layout.
@@ -27,9 +27,18 @@ and drag behavior.
 - [ ] Explicit legend visibility and drag position remain intact.
 - [ ] Five-series legends use a compact two-column arrangement.
 
-## Plan
+## Implementation plan
 
-`docs/superpowers/plans/2026-07-23-editor-multiseries-legend.md`
+1. Constrain automatic legend materialization to two or more named, visible
+   plot-series objects, without replacing an existing legend object.
+2. Give a newly materialized legend compact persisted placement and column
+   defaults, then render those defaults through the existing Matplotlib path.
+3. Add offscreen regressions for unmodified sample names, rename
+   synchronization, one-series suppression, and preserved explicit state.
+4. Run the focused matrix and required repository verification, then record
+   the exact evidence in agent memory.
+
+Detailed steps: `docs/superpowers/plans/2026-07-23-editor-multiseries-legend.md`.
 
 ## Verification
 
