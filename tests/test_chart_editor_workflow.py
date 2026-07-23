@@ -11,7 +11,7 @@ from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFormLayout, QGridLayout
 
 from polynexus.core.figure_document import load_figure_document, save_generated_figure_document
 from polynexus.core.figure_edit_commands import (
@@ -600,6 +600,33 @@ def test_inline_text_editor_uses_canvas_editing_chrome(tmp_path, app):
     assert inline_editor.placeholderText() == ""
     assert "border: 1px dashed" in inline_editor.styleSheet()
     assert "background: transparent" in inline_editor.styleSheet()
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_inspector_reflows_without_horizontal_scrollbar_at_compact_width(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.resize(900, 700)
+    editor.show()
+    app.processEvents()
+    editor._editor_splitter.setSizes([620, 280])
+    app.processEvents()
+
+    assert editor._inspector_panel.width() <= 285
+    assert all(
+        page.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
+        for page in editor._inspector_scroll_pages
+    )
+    page_widths = []
+    for index, page in enumerate(editor._inspector_scroll_pages):
+        editor._inspector_tabs.setCurrentIndex(index)
+        app.processEvents()
+        page_widths.append((page.widget().minimumSizeHint().width(), page.viewport().width()))
+    assert all(content_width <= viewport_width for content_width, viewport_width in page_widths), page_widths
+    assert all(form.rowWrapPolicy() == QFormLayout.WrapAllRows for form in editor._forms)
+    assert editor._object_list.maximumHeight() == 300
+    assert isinstance(editor._annotation_batch_layout, QGridLayout)
 
     editor.deleteLater()
     app.processEvents()

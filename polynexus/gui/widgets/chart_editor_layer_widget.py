@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
 
@@ -37,6 +37,14 @@ class LayerTreeItem(QTreeWidgetItem):
 
 class LayerTreeWidget(QTreeWidget):
     """Hierarchical object surface with QListWidget-compatible row helpers."""
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        return QSize(0, hint.height())
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        return QSize(0, hint.height())
 
     def _leaf_items(self):
         items = []

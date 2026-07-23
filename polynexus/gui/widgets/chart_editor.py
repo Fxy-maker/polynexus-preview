@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGridLayout,
     QHBoxLayout,
+    QLayout,
     QLabel,
     QLineEdit,
     QMessageBox,  # noqa: F401 - runtime API consumed by style-preset mixin
@@ -494,16 +495,20 @@ class ChartEditor(
     def _build_panel(self):
         self._inspector_tabs = QTabWidget()
         self._inspector_tabs.setObjectName("editor_inspector_tabs")
-        self._inspector_tabs.setMinimumWidth(280)
+        self._inspector_tabs.setMinimumWidth(0)
         self._inspector_tabs.setAccessibleName(tr("EDITOR_INSPECTOR"))
 
         def make_page():
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             panel = QWidget()
+            panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
             form = QFormLayout(panel)
+            form.setRowWrapPolicy(QFormLayout.WrapAllRows)
+            form.setSizeConstraint(QLayout.SetNoConstraint)
             form.setSpacing(8)
-            form.setContentsMargins(12, 12, 12, 12)
+            form.setContentsMargins(4, 12, 4, 12)
             scroll.setWidget(panel)
             return scroll, form
 
@@ -511,6 +516,7 @@ class ChartEditor(
         style_page, style_form = make_page()
         annotation_page, annotation_form = make_page()
         export_page, export_form = make_page()
+        self._inspector_scroll_pages = [object_page, style_page, annotation_page, export_page]
         self._forms = [object_form, style_form, annotation_form, export_form]
         form = object_form
 
@@ -542,7 +548,9 @@ class ChartEditor(
 
         self._object_list = LayerTreeWidget()
         self._object_list.setHeaderHidden(True)
+        self._object_list.setTextElideMode(Qt.ElideRight)
         self._object_list.setMinimumHeight(96)
+        self._object_list.setMaximumHeight(300)
         self._object_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self._object_list.installEventFilter(self)
         self._object_list.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -562,7 +570,7 @@ class ChartEditor(
         form.addRow(tr("EDITOR_SELECTED_OBJECT_LABEL"), self._selected_object_label)
 
         annotation_geometry = QWidget()
-        annotation_geometry_layout = QHBoxLayout(annotation_geometry)
+        annotation_geometry_layout = QGridLayout(annotation_geometry)
         annotation_geometry_layout.setContentsMargins(0, 0, 0, 0)
         annotation_geometry_layout.setSpacing(6)
 
@@ -572,8 +580,8 @@ class ChartEditor(
         self._annotation_x_spin.setSingleStep(0.01)
         self._annotation_x_spin.valueChanged.connect(self._on_annotation_geometry_changed)
         self._annotation_x_label = QLabel("X")
-        annotation_geometry_layout.addWidget(self._annotation_x_label)
-        annotation_geometry_layout.addWidget(self._annotation_x_spin)
+        annotation_geometry_layout.addWidget(self._annotation_x_label, 0, 0)
+        annotation_geometry_layout.addWidget(self._annotation_x_spin, 0, 1)
 
         self._annotation_y_spin = QDoubleSpinBox()
         self._annotation_y_spin.setRange(0.0, 1.0)
@@ -581,8 +589,8 @@ class ChartEditor(
         self._annotation_y_spin.setSingleStep(0.01)
         self._annotation_y_spin.valueChanged.connect(self._on_annotation_geometry_changed)
         self._annotation_y_label = QLabel("Y")
-        annotation_geometry_layout.addWidget(self._annotation_y_label)
-        annotation_geometry_layout.addWidget(self._annotation_y_spin)
+        annotation_geometry_layout.addWidget(self._annotation_y_label, 0, 2)
+        annotation_geometry_layout.addWidget(self._annotation_y_spin, 0, 3)
 
         self._annotation_w_spin = QDoubleSpinBox()
         self._annotation_w_spin.setRange(0.0, 1.0)
@@ -590,8 +598,8 @@ class ChartEditor(
         self._annotation_w_spin.setSingleStep(0.01)
         self._annotation_w_spin.valueChanged.connect(self._on_annotation_geometry_changed)
         self._annotation_w_label = QLabel("W")
-        annotation_geometry_layout.addWidget(self._annotation_w_label)
-        annotation_geometry_layout.addWidget(self._annotation_w_spin)
+        annotation_geometry_layout.addWidget(self._annotation_w_label, 1, 0)
+        annotation_geometry_layout.addWidget(self._annotation_w_spin, 1, 1)
 
         self._annotation_h_spin = QDoubleSpinBox()
         self._annotation_h_spin.setRange(0.0, 1.0)
@@ -599,17 +607,17 @@ class ChartEditor(
         self._annotation_h_spin.setSingleStep(0.01)
         self._annotation_h_spin.valueChanged.connect(self._on_annotation_geometry_changed)
         self._annotation_h_label = QLabel("H")
-        annotation_geometry_layout.addWidget(self._annotation_h_label)
-        annotation_geometry_layout.addWidget(self._annotation_h_spin)
+        annotation_geometry_layout.addWidget(self._annotation_h_label, 1, 2)
+        annotation_geometry_layout.addWidget(self._annotation_h_spin, 1, 3)
         form.addRow(tr("EDITOR_OBJECT_GEOMETRY_LABEL"), annotation_geometry)
         self._set_geometry_controls_enabled(False)
 
         self._annotation_curve_control = QWidget()
-        annotation_curve_control_layout = QHBoxLayout(self._annotation_curve_control)
+        annotation_curve_control_layout = QGridLayout(self._annotation_curve_control)
         annotation_curve_control_layout.setContentsMargins(0, 0, 0, 0)
         annotation_curve_control_layout.setSpacing(6)
         self._annotation_curve_control_x_label = QLabel("X")
-        annotation_curve_control_layout.addWidget(self._annotation_curve_control_x_label)
+        annotation_curve_control_layout.addWidget(self._annotation_curve_control_x_label, 0, 0)
         self._annotation_curve_control_x_spin = QDoubleSpinBox()
         self._annotation_curve_control_x_spin.setRange(0.0, 1.0)
         self._annotation_curve_control_x_spin.setDecimals(4)
@@ -617,9 +625,9 @@ class ChartEditor(
         self._annotation_curve_control_x_spin.valueChanged.connect(
             self._on_annotation_curve_control_changed
         )
-        annotation_curve_control_layout.addWidget(self._annotation_curve_control_x_spin)
+        annotation_curve_control_layout.addWidget(self._annotation_curve_control_x_spin, 0, 1)
         self._annotation_curve_control_y_label = QLabel("Y")
-        annotation_curve_control_layout.addWidget(self._annotation_curve_control_y_label)
+        annotation_curve_control_layout.addWidget(self._annotation_curve_control_y_label, 0, 2)
         self._annotation_curve_control_y_spin = QDoubleSpinBox()
         self._annotation_curve_control_y_spin.setRange(0.0, 1.0)
         self._annotation_curve_control_y_spin.setDecimals(4)
@@ -627,7 +635,7 @@ class ChartEditor(
         self._annotation_curve_control_y_spin.valueChanged.connect(
             self._on_annotation_curve_control_changed
         )
-        annotation_curve_control_layout.addWidget(self._annotation_curve_control_y_spin)
+        annotation_curve_control_layout.addWidget(self._annotation_curve_control_y_spin, 0, 3)
         self._annotation_curve_control_label = QLabel(tr("EDITOR_CURVE_CONTROL_LABEL"))
         form.addRow(self._annotation_curve_control_label, self._annotation_curve_control)
         self._set_curve_control_enabled(False)
@@ -886,10 +894,10 @@ class ChartEditor(
         annotation_actions_layout.addWidget(self._btn_annotation_lock, 4, 0, 1, 3)
 
         batch_actions = QWidget()
-        batch_layout = QHBoxLayout(batch_actions)
+        batch_layout = QGridLayout(batch_actions)
         batch_layout.setContentsMargins(0, 0, 0, 0)
         batch_layout.setSpacing(4)
-        for name, label_key, callback in (
+        for index, (name, label_key, callback) in enumerate((
             ("_btn_annotation_align_left", "EDITOR_ALIGN_LEFT", lambda: self._align_selected_objects("left")),
             ("_btn_annotation_align_center", "EDITOR_ALIGN_CENTER", lambda: self._align_selected_objects("center")),
             ("_btn_annotation_align_right", "EDITOR_ALIGN_RIGHT", lambda: self._align_selected_objects("right")),
@@ -900,12 +908,15 @@ class ChartEditor(
             ("_btn_annotation_distribute_vertical", "EDITOR_DISTRIBUTE_VERTICAL", lambda: self._distribute_selected_objects("vertical")),
             ("_btn_annotation_group", "EDITOR_GROUP", self._group_selected_objects),
             ("_btn_annotation_ungroup", "EDITOR_UNGROUP", self._ungroup_selected_objects),
-        ):
+        )):
             button = QPushButton(tr(label_key))
             button.setObjectName(name)
             button.clicked.connect(callback)
             setattr(self, name, button)
-            batch_layout.addWidget(button)
+            batch_layout.addWidget(button, index // 3, index % 3)
+        for column in range(3):
+            batch_layout.setColumnStretch(column, 1)
+        self._annotation_batch_layout = batch_layout
         annotation_actions_layout.addWidget(batch_actions, 5, 0, 1, 3)
         self._sync_batch_action_buttons()
         form.addRow(annotation_actions)

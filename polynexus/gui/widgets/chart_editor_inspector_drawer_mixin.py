@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 class ChartEditorInspectorDrawerMixin:
     """Own the ChartEditor Inspector drawer without changing editor state."""
 
-    _inspector_minimum_width = 360
+    _inspector_minimum_width = 280
 
     def _build_inspector_drawer(self, inspector_tabs):
         panel = QWidget()

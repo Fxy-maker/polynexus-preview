@@ -166,7 +166,8 @@ class ChartEditorLayoutMixin:
             button.setText(tr(label_key))
             button.setToolTip(tr(label_key))
             button.setToolButtonStyle(Qt.ToolButtonTextOnly)
-            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.setMinimumWidth(0)
+            button.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
             button.setMinimumHeight(28)
             button.clicked.connect(callback)
             self._object_action_buttons[action_id] = button
@@ -180,7 +181,8 @@ class ChartEditorLayoutMixin:
             button.setToolTip(tr(label_key))
             button.setToolButtonStyle(Qt.ToolButtonTextOnly)
             button.setPopupMode(QToolButton.InstantPopup)
-            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.setMinimumWidth(0)
+            button.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
             button.setMinimumHeight(28)
             menu = QMenu(button)
             for mode, mode_key, callback in actions:

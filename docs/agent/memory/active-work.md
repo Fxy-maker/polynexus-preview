@@ -1,5 +1,17 @@
 # Active Work
 
+## Responsive editor inspector sidebar - completed 2026-07-23
+
+- The ChartEditor inspector can now shrink to 280 logical pixels without
+  horizontal scrolling or clipped controls. Inspector forms wrap labels above
+  controls, object labels elide instead of forcing width, and the object tree
+  has a bounded height so its property fields remain reachable below.
+- Batch actions use a three-column grid rather than one long horizontal strip;
+  object action controls can shrink with the sidebar without changing commands.
+- The focused compact-width Qt regression and editor matrix passed (`78 passed`,
+  four known Matplotlib tight-layout warnings). Restart the GUI before visual
+  inspection.
+
 ## Inline text editor visual polish - completed 2026-07-23
 
 - Direct canvas text entry no longer displays the native blue `QLineEdit`
