@@ -216,6 +216,7 @@ class MatplotlibFigureRenderer:
                     kwargs["ncol"] = max(1, int(ncol))
                 except (TypeError, ValueError):
                     pass
+        kwargs["frameon"] = False
         return kwargs
 
     @staticmethod

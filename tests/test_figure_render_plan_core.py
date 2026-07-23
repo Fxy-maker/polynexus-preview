@@ -430,6 +430,7 @@ def test_renderer_compacts_automatic_multiseries_legend_on_narrow_canvas(render_
     assert legend is not None
     assert legend._ncols == 1
     assert legend.get_texts()[0].get_fontsize() == pytest.approx(7.65)
+    assert legend.get_frame().get_visible() is False
 
 
 def test_renderer_supports_regular_grid_heatmap(render_plan):

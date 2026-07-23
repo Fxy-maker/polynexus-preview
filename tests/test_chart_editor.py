@@ -8171,7 +8171,7 @@ def test_chart_editor_multiseries_legend_uses_sample_names_and_refreshes_on_rena
     compact_legend = editor._figure.axes[0].get_legend()
     assert compact_legend is not None
     assert compact_legend._ncols == 1
-    assert compact_legend.get_texts()[0].get_fontsize() == pytest.approx(9.35)
+    assert compact_legend.get_texts()[0].get_fontsize() == pytest.approx(7.65)
 
     editor.deleteLater()
     app.processEvents()
@@ -8335,6 +8335,72 @@ def test_chart_editor_selecting_legend_preserves_its_rendered_bounds(tmp_path, m
     assert selected is not None
 
     assert selected.get_window_extent(editor._canvas.get_renderer()).bounds == pytest.approx(before)
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_double_click_blank_canvas_does_not_open_legend_name_dialog(
+    tmp_path, monkeypatch
+):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+    figure_path = tmp_path / "figures" / "generated-legend-double-click-blank.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        technique="saxs",
+        figure_id="generated-legend-double-click-blank",
+        objects=[
+            {
+                "id": f"series-{index}",
+                "type": "plot_series",
+                "name": f"Sample {index}",
+                "data": {"x": [1.0, 2.0], "y": [float(index), float(index + 1)]},
+            }
+            for index in range(4)
+        ],
+    )
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    axis = editor._figure.axes[0]
+    pixel = axis.transData.transform((1.5, -2.0))
+    event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        *pixel,
+        button=1,
+        dblclick=True,
+    )
+    event.inaxes = axis
+
+    editor._on_generated_button_press(event)
+
+    assert editor._active_legend_name_dialog is None
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_legend_name_dialog_only_lists_its_panel_series():
+    app = QApplication.instance() or QApplication([])
+    editor = ChartEditor()
+    editor._figure_document = {
+        "mode": "object",
+        "objects": [
+            {"id": "series-a", "type": "plot_series", "panel_id": "a", "name": "A"},
+            {"id": "series-b", "type": "plot_series", "panel_id": "b", "name": "B"},
+            {"id": "legend-a", "type": "legend", "panel_id": "a"},
+            {"id": "legend-b", "type": "legend", "panel_id": "b"},
+        ],
+    }
+
+    series = editor._generated_legend_series("legend-a")
+
+    assert series == [{"id": "series-a", "name": "A"}]
 
     editor.deleteLater()
     app.processEvents()

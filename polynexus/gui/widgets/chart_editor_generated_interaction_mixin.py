@@ -372,11 +372,25 @@ class ChartEditorGeneratedInteractionMixin:
                 continue
             seen.add(object_id)
             figure_object = self._generated_figure_object_by_id(object_id)
-            if isinstance(figure_object, dict) and figure_object.get("type") == "legend":
+            if (
+                isinstance(figure_object, dict)
+                and figure_object.get("type") == "legend"
+                and self._generated_legend_drag_start(event, object_id) is not None
+            ):
                 return object_id
         return ""
 
-    def _generated_legend_series(self) -> list[dict]:
+    def _generated_legend_series(self, legend_object_id: str) -> list[dict]:
+        legend = self._generated_figure_object_by_id(legend_object_id)
+        if not isinstance(legend, dict) or legend.get("type") != "legend":
+            return []
+        legend_panel_id = str(legend.get("panel_id") or "")
+        panel_ids = {
+            str(figure_object.get("panel_id") or "")
+            for figure_object in self._figure_document.get("objects", [])
+            if isinstance(figure_object, dict)
+            and figure_object.get("type") == "plot_series"
+        }
         return [
             {
                 "id": str(figure_object.get("id") or ""),
@@ -388,10 +402,15 @@ class ChartEditorGeneratedInteractionMixin:
             and figure_object.get("visible", True) is not False
             and figure_object.get("deleted") is not True
             and str(figure_object.get("name") or "").strip()
+            and (
+                str(figure_object.get("panel_id") or "") == legend_panel_id
+                if legend_panel_id or len(panel_ids) > 1
+                else True
+            )
         ]
 
     def _begin_generated_legend_name_edit(self, legend_object_id: str) -> bool:
-        series = self._generated_legend_series()
+        series = self._generated_legend_series(legend_object_id)
         if not series:
             return False
         from .chart_editor_legend_dialog import LegendSeriesNameDialog

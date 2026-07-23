@@ -998,7 +998,7 @@ class ChartEditorGeneratedDocumentMixin:
                 legend_object,
                 handle_count=len(handles),
                 available_width_px=max(1.0, canvas_width),
-                default_fontsize=float(self._tick_size),
+                default_fontsize=9.0,
             )
             bbox_to_anchor = legend_style.get("bbox_to_anchor")
             anchor_x = None
