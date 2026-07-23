@@ -958,10 +958,11 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "guide-line"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: Guide",
+        status_text = editor._status_label.text()
+        assert status_text.startswith(
+            tr("EDITOR_SELECTED_STATUS_OBJECT", "Line: Guide")
         )
+        assert "endpoint" in status_text.lower()
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((1.0, 1.0))
