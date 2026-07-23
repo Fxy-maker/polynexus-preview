@@ -822,9 +822,9 @@ class ChartEditorAnnotationControlsMixin:
         self._set_geometry_controls_enabled(False)
         self._set_style_controls_enabled(
             bool(capabilities["font_size"]),
-            bool(edit_capabilities.line_width),
+            bool(capabilities["style"] and edit_capabilities.line_width),
             bool(capabilities["style"] and not is_legend),
-            color_enabled=bool(edit_capabilities.color),
+            color_enabled=bool(capabilities["style"] and edit_capabilities.color),
             line_style_enabled=bool(capabilities["line_style"]),
             marker_enabled=bool(capabilities["marker"]),
             marker_size_enabled=bool(capabilities["marker_size"]),
