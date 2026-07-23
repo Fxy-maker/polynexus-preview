@@ -61,21 +61,21 @@ changed-file allowlist. No milestone may silently change scientific semantics.
 
 ## Acceptance criteria
 
-- [ ] Switching technique, submodule, source, or history never presents an
+- [x] Switching technique, submodule, source, or history never presents an
   unrelated result as current; context and stale state are visible.
-- [ ] Editor mode and capabilities are permanently identifiable for generated,
+- [x] Editor mode and capabilities are permanently identifiable for generated,
   static, preview, and compatibility/fallback documents.
-- [ ] Static and generated direct-canvas operations provide consistent
+- [x] Static and generated direct-canvas operations provide consistent
   selection, hover, drag, resize, cancel, undo/redo, and export feedback.
-- [ ] Ordinary analysis exposes stage, progress where known, and cooperative
+- [x] Ordinary analysis exposes stage, progress where known, and cooperative
   cancellation without publishing partial results.
-- [ ] Export clearly distinguishes current-run export from project export and
+- [x] Export clearly distinguishes current-run export from project export and
   shows a preflight scope/provenance summary.
-- [ ] Gallery browsing remains simple while secondary batch/compare/revision
+- [x] Gallery browsing remains simple while secondary batch/compare/revision
   actions appear only when selection makes them meaningful.
-- [ ] Logs/diagnostics are collapsible, narrow windows preserve the primary
+- [x] Logs/diagnostics are collapsible, narrow windows preserve the primary
   task, and user-triggered failures offer copyable diagnostics and recovery.
-- [ ] Existing editor, figure, export, Origin, and scientific regression
+- [x] Existing editor, figure, export, Origin, and scientific regression
   suites remain green.
 
 ## Verification
@@ -97,6 +97,26 @@ python scripts/verify.py --changed --types
 - M4 export scope is split into current-run and project-package intents; gallery secondary actions are selection-activated.
 - M5 diagnostics use a collapsible log drawer and the shell hides secondary metrics/actions on narrow windows.
 - M6 behavioral boundary is now explicit through `WorkspaceContext`, editor capability descriptors, worker lifecycle signals, and scoped export/gallery actions; no scientific or renderer contract was changed.
+- 2026-07-23 hardening evidence: direct-canvas feedback expectations now cover
+  actionable selection guidance, visibility refresh is deferred until the
+  `itemChanged` stack unwinds (removing the reproducible `LayerTreeItem`
+  access violation), and full `tests/test_chart_editor.py` passes (`238`).
+- User-triggered run failures retain a copyable diagnostic payload plus retry
+  guidance. Run publication is now governed by the pure `RunState` contract;
+  cancelled or cancelling runs cannot publish late results.
+- Final focused workflow matrix passed (`118`, four known Matplotlib
+  tight-layout warnings). Structured verification passed with quality gate
+  `282` and preprocessing gate `103`; `python scripts/launch_gui.py
+  --diagnose` resolved the active `D:\PolyNexus` package on
+  `codex/origin-editor-usable-controls` at `9fc109c6` before the final
+  evidence checkpoint.
+- M6 decision: do not split `main_window.py` further in this task. The new
+  workspace, diagnostics, and run-state services establish the required
+  behavioral boundaries; broad visual refactoring would add risk without
+  improving the accepted workflow.
+- Remaining acceptance limitation: offscreen Qt and launcher diagnostics do
+  not substitute for a human visual walkthrough of static/generated/log-axis
+  drag interactions and narrow-window presentation.
 
 Final desktop acceptance:
 

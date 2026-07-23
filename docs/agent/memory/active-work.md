@@ -1,18 +1,25 @@
 # Active Work
 
-## Editor workflow convergence - active 2026-07-22
+## Editor workflow convergence - implementation complete 2026-07-23
 
 - Task card: `docs/agent/tasks/2026-07-22-editor-workflow-convergence.md`.
 - M1 context identity and stale-result gating are committed; M2 capability
   header, M3 lifecycle controls, M4 export/gallery scope, and M5 shell
   diagnostics are implemented in local checkpoints.
-- Focused workflow checks pass (`19` shell/gallery/output checks, `13` context
-  boundary checks, `7` worker/editor capability checks). Full ChartEditor runs
-  remain vulnerable to the known Qt access violation and must be split into
-  stable batches.
-- Next action: run the structured task verifier with the external pytest
-  basetemp override, then perform a manual `scripts/launch_gui.py --diagnose`
-  acceptance pass before marking the Goal complete.
+- The 2026-07-23 hardening checkpoint aligns actionable selection feedback,
+  defers visibility-tree refresh until the active Qt `itemChanged` call
+  returns, adds copyable error diagnostics, and formalizes the GUI `RunState`
+  contract so cancelled work cannot publish a late result.
+- Evidence: `tests/test_chart_editor.py` passes (`238`); the focused workflow
+  matrix passes (`118`, four known Matplotlib tight-layout warnings); the
+  structured verifier passes with quality gate `282` and preprocessing
+  optimization `103`; `scripts/launch_gui.py --diagnose` resolves the active
+  `D:\PolyNexus\polynexus\__init__.py` on
+  `codex/origin-editor-usable-controls` at `9fc109c6`.
+- M6 decision: no broad `main_window.py` split in this task because the new
+  service boundaries cover the accepted behavior. A human visual walkthrough
+  remains the only planned follow-up; existing untracked drafts and diagnostics
+  remain untouched.
 
 ## Origin-style generated text labels - completed 2026-07-22
 

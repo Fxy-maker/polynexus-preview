@@ -104,12 +104,22 @@ title: Current PolyNexus repository state
   add workspace context safety, editor capability labels, run stages/cancel/retry,
   split export intents, selection-activated gallery actions, a diagnostics drawer,
   and narrow-window shell reduction. Focused checks for these slices are green.
-- The full ChartEditor invocation still has a pre-existing Windows Qt access
-  violation in the legacy LayerTreeItem path; run stable focused batches with an
-  external `--basetemp` directory for acceptance evidence.
+- The 2026-07-23 workflow hardening checkpoint removes the reproducible
+  Windows Qt access violation in the legacy `LayerTreeItem` visibility path by
+  deferring tree reconstruction until `itemChanged` returns. The full
+  `tests/test_chart_editor.py` invocation now passes (`238`) with an external
+  `--basetemp` directory.
 - `scripts/verify.py --changed --types` currently reports the repository's
   pre-existing Ruff baseline in the monolithic `main_window.py`; changed behavior
   was validated with focused pytest and `py_compile` checks.
+
+- The final workflow-focused matrix passes (`118`, four known Matplotlib
+  tight-layout warnings), along with the structured task verifier, quality
+  gate (`282`), preprocessing optimization gate (`103`), and GUI launcher
+  diagnostic. Copyable error diagnostics and the immutable GUI `RunState`
+  service are now explicit boundaries; a human visual walkthrough remains
+  pending for static/generated/log-axis interactions and narrow-window shell
+  presentation.
 
 - A live style smoke export using the configured `Origin64.exe` returned
   `success/originpro` for a synthetic five-plot document. In-process

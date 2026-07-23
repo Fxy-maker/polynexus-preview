@@ -187,6 +187,7 @@ def test_figure_size_change_keeps_live_canvas_pixel_size():
     editor.resize(1100, 720)
     editor.show()
     app.processEvents()
+    app.processEvents()
 
     before = editor._canvas.get_width_height()
     editor._figsize_cb.setCurrentText("Small (4in)")
