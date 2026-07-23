@@ -586,6 +586,25 @@ def test_generated_text_box_uses_compact_single_line_inline_editor(tmp_path, app
     app.processEvents()
 
 
+def test_inline_text_editor_uses_canvas_editing_chrome(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor.resize(1400, 900)
+    editor.show()
+    app.processEvents()
+    editor._begin_generated_text_box((0.2, 0.3), (0.5, 0.5), QRect(20, 20, 240, 28))
+
+    inline_editor = editor._inline_text_editor
+    assert inline_editor.isVisible()
+    assert inline_editor.hasFocus()
+    assert inline_editor.hasFrame() is False
+    assert inline_editor.placeholderText() == ""
+    assert "border: 1px dashed" in inline_editor.styleSheet()
+    assert "background: transparent" in inline_editor.styleSheet()
+
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_generated_text_box_creation_marks_axes_coordinate_space(tmp_path, app):
     editor = make_generated_editor(tmp_path)
 

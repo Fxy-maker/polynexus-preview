@@ -1,5 +1,18 @@
 # Active Work
 
+## Inline text editor visual polish - completed 2026-07-23
+
+- Direct canvas text entry no longer displays the native blue `QLineEdit`
+  focus frame or the `标注文字` / `Annotation text` placeholder over the
+  figure. It now uses a transparent input layer, a subtle dashed edit range,
+  and Qt's existing blinking caret.
+- Enter-to-commit, Escape-to-cancel, focus, text geometry, and double-click
+  editing remain on the same shared inline-editor path.
+- TDD evidence: the focused visual contract first failed because the input
+  retained its native frame, then passed after the minimal chrome change. The
+  direct-text workflow matrix passed (`77 passed`, four known Matplotlib
+  tight-layout warnings). Restart the GUI before visual inspection.
+
 ## Generated undo/redo visual synchronization - completed 2026-07-23
 
 - Fixed generated-object undo and redo so session history now immediately

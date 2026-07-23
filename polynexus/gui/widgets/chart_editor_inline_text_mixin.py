@@ -3,9 +3,6 @@ from __future__ import annotations
 from PySide6.QtCore import QRect, Qt
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-from ..i18n import tr
-
-
 class _InlineTextEdit(QLineEdit):
     def __init__(self, on_cancel, parent=None):
         super().__init__(parent)
@@ -25,7 +22,16 @@ class ChartEditorInlineTextMixin:
     def _build_inline_text_editor(self) -> QLineEdit:
         editor = _InlineTextEdit(self._cancel_active_draw, self)
         editor.setObjectName("editor_inline_text")
-        editor.setPlaceholderText(tr("EDITOR_ANNOTATION_TEXT_PLACEHOLDER"))
+        editor.setFrame(False)
+        editor.setPlaceholderText("")
+        editor.setStyleSheet(
+            "QLineEdit#editor_inline_text {"
+            "background: transparent;"
+            "border: 1px dashed rgba(47, 111, 191, 150);"
+            "border-radius: 2px;"
+            "padding: 0 4px;"
+            "}"
+        )
         editor.setMinimumHeight(24)
         editor.hide()
         editor.returnPressed.connect(self._commit_inline_text_entry)
@@ -99,9 +105,9 @@ class ChartEditorInlineTextMixin:
         return had_pending_text
 
     def retranslate_inline_text_editor(self) -> None:
-        editor = getattr(self, "_inline_text_editor", None)
-        if editor is not None:
-            editor.setPlaceholderText(tr("EDITOR_ANNOTATION_TEXT_PLACEHOLDER"))
+        # Canvas text entry intentionally has no placeholder: the caret and
+        # dashed edit range are the visual affordance in every language.
+        return None
 
 
 __all__ = ["ChartEditorInlineTextMixin"]
