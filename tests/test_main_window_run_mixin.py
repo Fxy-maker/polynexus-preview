@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import os
+from types import SimpleNamespace
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication
+
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_run_mixin import MainWindowRunMixin
 
@@ -19,3 +26,26 @@ def test_main_window_reuses_run_workflow_helpers_from_run_mixin():
     assert MainWindow._on_error is MainWindowRunMixin._on_error
     assert MainWindow._on_batch_file_done is MainWindowRunMixin._on_batch_file_done
     assert MainWindow._on_batch_finished is MainWindowRunMixin._on_batch_finished
+
+
+def test_run_error_diagnostics_can_be_copied_without_copying_ui_status_text():
+    app = QApplication.instance() or QApplication([])
+
+    class Harness:
+        _main_window_module = lambda self: SimpleNamespace(QApplication=QApplication)
+
+        def __init__(self):
+            self.logged = []
+
+        def log(self, message):
+            self.logged.append(message)
+
+    harness = Harness()
+    MainWindowRunMixin._record_error_diagnostic(harness, "bad input\ntraceback line")
+
+    assert MainWindowRunMixin._copy_error_diagnostics(harness) is True
+    assert QApplication.clipboard().text().startswith("analysis: bad input")
+    assert "traceback line" in QApplication.clipboard().text()
+    assert harness.logged
+
+    app.processEvents()

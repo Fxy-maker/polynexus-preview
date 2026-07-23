@@ -1615,6 +1615,10 @@ class MainWindow(
         self._btn_retry.setObjectName("secondary_btn")
         self._btn_retry.setVisible(False)
         self._btn_retry.clicked.connect(self._run_analysis)
+        self._btn_copy_diagnostics = QPushButton(tr("BTN_COPY_DIAGNOSTICS"))
+        self._btn_copy_diagnostics.setObjectName("secondary_btn")
+        self._btn_copy_diagnostics.setVisible(False)
+        self._btn_copy_diagnostics.clicked.connect(self._copy_error_diagnostics)
 
         self._btn_replot = QPushButton(tr("BTN_REPLOT"))
 
@@ -1669,6 +1673,7 @@ class MainWindow(
         layout.addWidget(self._btn_run)
         layout.addWidget(self._btn_cancel)
         layout.addWidget(self._btn_retry)
+        layout.addWidget(self._btn_copy_diagnostics)
 
 
 
