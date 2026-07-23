@@ -8177,6 +8177,169 @@ def test_chart_editor_multiseries_legend_uses_sample_names_and_refreshes_on_rena
     app.processEvents()
 
 
+def test_chart_editor_double_click_legend_edits_series_names_in_one_undo_step(
+    tmp_path, monkeypatch
+):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+    sample_names = ["PA6 A", "PA6 B", "PA6 C", "PA6 D", "PA6 E"]
+    figure_path = tmp_path / "figures" / "generated-legend-double-click.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        technique="saxs",
+        figure_id="generated-legend-double-click",
+        objects=[
+            {
+                "id": f"series-{index}",
+                "type": "plot_series",
+                "name": name,
+                "data": {"x": [1.0, 2.0], "y": [float(index), float(index + 1)]},
+            }
+            for index, name in enumerate(sample_names)
+        ],
+    )
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    editor._canvas.draw()
+    legend = editor._figure.axes[0].get_legend()
+    assert legend is not None
+    bbox = legend.get_window_extent(editor._canvas.get_renderer())
+    event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        (bbox.x0 + bbox.x1) / 2.0,
+        (bbox.y0 + bbox.y1) / 2.0,
+        button=1,
+        dblclick=True,
+    )
+    event.inaxes = editor._figure.axes[0]
+
+    editor._on_generated_button_press(event)
+
+    dialog = getattr(editor, "_active_legend_name_dialog", None)
+    assert dialog is not None
+    dialog._name_edits[2].setText("PA6 C revised")
+    dialog.accept()
+    app.processEvents()
+    assert [
+        item["name"]
+        for item in editor._figure_document["objects"]
+        if item.get("type") == "plot_series"
+    ] == ["PA6 A", "PA6 B", "PA6 C revised", "PA6 D", "PA6 E"]
+
+    editor._on_annotation_undo()
+    assert [
+        item["name"]
+        for item in editor._figure_document["objects"]
+        if item.get("type") == "plot_series"
+    ] == sample_names
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_cancelled_legend_name_dialog_keeps_series_names(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+    figure_path = tmp_path / "figures" / "generated-legend-cancel.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        technique="saxs",
+        figure_id="generated-legend-cancel",
+        objects=[
+            {
+                "id": f"series-{index}",
+                "type": "plot_series",
+                "name": name,
+                "data": {"x": [1.0, 2.0], "y": [float(index), float(index + 1)]},
+            }
+            for index, name in enumerate(["A", "B", "C", "D"])
+        ],
+    )
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    editor._canvas.draw()
+    legend = editor._figure.axes[0].get_legend()
+    assert legend is not None
+    bbox = legend.get_window_extent(editor._canvas.get_renderer())
+    event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        (bbox.x0 + bbox.x1) / 2.0,
+        (bbox.y0 + bbox.y1) / 2.0,
+        button=1,
+        dblclick=True,
+    )
+    event.inaxes = editor._figure.axes[0]
+
+    editor._on_generated_button_press(event)
+
+    dialog = getattr(editor, "_active_legend_name_dialog", None)
+    assert dialog is not None
+    dialog._name_edits[1].setText("Would be discarded")
+    dialog.reject()
+    app.processEvents()
+    assert [
+        item["name"]
+        for item in editor._figure_document["objects"]
+        if item.get("type") == "plot_series"
+    ] == ["A", "B", "C", "D"]
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_selecting_legend_preserves_its_rendered_bounds(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+    figure_path = tmp_path / "figures" / "generated-legend-selection-stable.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        technique="saxs",
+        figure_id="generated-legend-selection-stable",
+        objects=[
+            {
+                "id": f"series-{index}",
+                "type": "plot_series",
+                "name": f"Sample {index}",
+                "data": {"x": [1.0, 2.0], "y": [float(index), float(index + 1)]},
+            }
+            for index in range(5)
+        ],
+    )
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    editor._canvas.draw()
+    legend = editor._figure.axes[0].get_legend()
+    assert legend is not None
+    before = legend.get_window_extent(editor._canvas.get_renderer()).bounds
+    _send_matplotlib_canvas_click(
+        editor._canvas,
+        (before[0] + before[0] + before[2]) / 2.0,
+        (before[1] + before[1] + before[3]) / 2.0,
+    )
+    editor._canvas.draw()
+    selected = editor._figure.axes[0].get_legend()
+    assert selected is not None
+
+    assert selected.get_window_extent(editor._canvas.get_renderer()).bounds == pytest.approx(before)
+
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_chart_editor_generated_image_grid_selection_disables_style_and_reorder_controls(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from uuid import uuid4
 
 from PySide6.QtCore import QRect, Qt
@@ -22,6 +23,12 @@ class ChartEditorGeneratedInteractionMixin:
             bool(getattr(event, "dblclick", False))
             and self._generated_draw_tool == "select"
         ):
+            legend_object_id = self._generated_legend_edit_target(event)
+            if legend_object_id:
+                self._select_generated_object(legend_object_id, "double-click")
+                if self._begin_generated_legend_name_edit(legend_object_id):
+                    self._suppress_generated_hover_until_pointer_move = False
+                    return
             object_id = self._generated_text_edit_target(event)
             if object_id:
                 self._select_generated_object(object_id, "double-click")
@@ -350,6 +357,87 @@ class ChartEditorGeneratedInteractionMixin:
             if self._generated_annotation_body_drag_start(event, object_id) is not None:
                 return object_id
         return ""
+
+    def _generated_legend_edit_target(self, event) -> str:
+        candidate_ids = []
+        selected_id = str(self._selected_figure_object_id or "")
+        if selected_id:
+            candidate_ids.append(selected_id)
+        candidate_ids.extend(self._figure_render_adapter.object_ids_for_mouseevent(event))
+        candidate_ids.extend(self._generated_press_drag_object_ids())
+        seen = set()
+        for object_id in candidate_ids:
+            object_id = str(object_id or "")
+            if not object_id or object_id in seen:
+                continue
+            seen.add(object_id)
+            figure_object = self._generated_figure_object_by_id(object_id)
+            if isinstance(figure_object, dict) and figure_object.get("type") == "legend":
+                return object_id
+        return ""
+
+    def _generated_legend_series(self) -> list[dict]:
+        return [
+            {
+                "id": str(figure_object.get("id") or ""),
+                "name": str(figure_object.get("name") or ""),
+            }
+            for figure_object in self._figure_document.get("objects", [])
+            if isinstance(figure_object, dict)
+            and figure_object.get("type") == "plot_series"
+            and figure_object.get("visible", True) is not False
+            and figure_object.get("deleted") is not True
+            and str(figure_object.get("name") or "").strip()
+        ]
+
+    def _begin_generated_legend_name_edit(self, legend_object_id: str) -> bool:
+        series = self._generated_legend_series()
+        if not series:
+            return False
+        from .chart_editor_legend_dialog import LegendSeriesNameDialog
+
+        dialog = LegendSeriesNameDialog(series, self)
+        dialog.accepted.connect(
+            lambda: self._commit_generated_legend_series_names(series, dialog.names())
+        )
+        dialog.finished.connect(self._clear_generated_legend_name_dialog)
+        self._active_legend_name_dialog = dialog
+        dialog.open()
+        return True
+
+    def _clear_generated_legend_name_dialog(self, _result=0) -> None:
+        self._active_legend_name_dialog = None
+
+    def _commit_generated_legend_series_names(self, series, names) -> bool:
+        updated_document = deepcopy(self._figure_document)
+        objects = updated_document.get("objects", [])
+        if not isinstance(objects, list):
+            return False
+        updates = {
+            str(series[index].get("id") or ""): str(name or "").strip()
+            for index, name in enumerate(names)
+            if index < len(series) and str(name or "").strip()
+        }
+        changed = False
+        for figure_object in objects:
+            object_id = (
+                str(figure_object.get("id") or "")
+                if isinstance(figure_object, dict)
+                else ""
+            )
+            name = updates.get(object_id)
+            if name and isinstance(figure_object, dict) and figure_object.get("name") != name:
+                figure_object["name"] = name
+                changed = True
+        if not changed:
+            return False
+        result = self._execute_edit(self._replace_document_command()(updated_document))
+        if result is None or not getattr(result, "changed", False):
+            return False
+        self._persist_generated_document()
+        self._show_generated_figure_document()
+        self._refresh_object_list(self._selected_figure_object_id)
+        return True
 
     def _begin_generated_text_edit(self, object_id: str) -> bool:
         figure_object = self._generated_figure_object_by_id(object_id)

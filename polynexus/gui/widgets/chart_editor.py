@@ -275,6 +275,7 @@ class ChartEditor(
         self._text_render_timer.setSingleShot(True)
         self._text_render_timer.setInterval(0)
         self._text_render_timer.timeout.connect(self._render)
+        self._active_legend_name_dialog = None
         self._connected_canvas_figure = None
         self._figure_selection_model = FigureSelectionModel(self)
         self._figure_selection_model.selection_changed.connect(
