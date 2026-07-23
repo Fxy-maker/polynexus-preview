@@ -201,6 +201,40 @@ class ChartEditorObjectListMixin:
                 return
             stack.extend(item.child(index) for index in range(item.childCount()))
 
+    def _restore_object_list_selection(self, object_ids):
+        selected_ids = {
+            str(object_id or "").strip() for object_id in object_ids or () if str(object_id or "").strip()
+        }
+        if not selected_ids or not hasattr(self, "_object_list"):
+            return
+        self._syncing_object_list = True
+        try:
+            if isinstance(self._object_list, QTreeWidget):
+                items = []
+                stack = [
+                    self._object_list.topLevelItem(index)
+                    for index in range(self._object_list.topLevelItemCount())
+                ]
+                while stack:
+                    item = stack.pop(0)
+                    if str(item.data(0, Qt.UserRole) or "") in selected_ids:
+                        items.append(item)
+                    stack.extend(item.child(index) for index in range(item.childCount()))
+            else:
+                items = [
+                    self._object_list.item(index)
+                    for index in range(self._object_list.count())
+                    if str(self._object_list.item(index).data(Qt.UserRole) or "") in selected_ids
+                ]
+            if not items:
+                return
+            self._object_list.clearSelection()
+            self._object_list.setCurrentItem(items[0])
+            for item in items:
+                item.setSelected(True)
+        finally:
+            self._syncing_object_list = False
+
     def _object_list_selected_ids(self) -> tuple[str, ...]:
         if not hasattr(self, "_object_list"):
             return ()

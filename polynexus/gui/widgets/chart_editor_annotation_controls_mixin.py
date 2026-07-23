@@ -263,7 +263,10 @@ class ChartEditorAnnotationControlsMixin:
     def _on_annotation_undo(self):
         session = self._edit_session_for_adapter()
         if session is not None and session.can_undo:
-            self._project_edit_result(session.undo())
+            selected_object_ids = tuple(self._figure_selection_model.selected_ids)
+            result = self._project_edit_result(session.undo())
+            if result.changed:
+                self._refresh_generated_history_navigation(selected_object_ids)
             return
         if self._is_generated_figure_document() and self._last_deleted_figure_object_id:
             self._restore_last_deleted_generated_object()
@@ -275,11 +278,55 @@ class ChartEditorAnnotationControlsMixin:
     def _on_annotation_redo(self):
         session = self._edit_session_for_adapter()
         if session is not None and session.can_redo:
-            self._project_edit_result(session.redo())
+            selected_object_ids = tuple(self._figure_selection_model.selected_ids)
+            result = self._project_edit_result(session.redo())
+            if result.changed:
+                self._refresh_generated_history_navigation(selected_object_ids)
             return
         if self._annotation_canvas is None or self._annotation_canvas.isHidden():
             return
         self._annotation_canvas.redo()
+
+    def _refresh_generated_history_navigation(self, selected_object_ids=()):
+        if not self._is_generated_figure_document():
+            return
+        self._persist_generated_document()
+        selection_model = self._figure_selection_model
+        cached_object_ids = tuple(
+            getattr(self, "_generated_history_selection_ids", ()) or ()
+        )
+        preferred_object_ids = (
+            cached_object_ids
+            if selection_model.source == "history" and cached_object_ids
+            else selected_object_ids or cached_object_ids
+        )
+        object_ids = tuple(
+            str(object_id or "").strip()
+            for object_id in preferred_object_ids
+            if str(object_id or "").strip()
+        )
+        restored_ids = tuple(
+            object_id
+            for object_id in object_ids
+            if self._generated_figure_object_by_id(object_id) is not None
+        )
+        if restored_ids:
+            self._generated_history_selection_ids = (
+                object_ids if len(restored_ids) != len(object_ids) else ()
+            )
+            selection_changed = (
+                selection_model.selected_ids != restored_ids or selection_model.source != "history"
+            )
+            self._select_generated_objects(restored_ids, "history")
+            if not selection_changed:
+                self._show_generated_figure_document()
+                self._refresh_object_list(restored_ids[0])
+                self._sync_generated_object_property_controls(restored_ids[0])
+                self._sync_context_style_bar()
+            self._restore_object_list_selection(restored_ids)
+            return
+        self._generated_history_selection_ids = object_ids
+        self._select_generated_object("", "history")
 
     def _on_annotation_delete(self):
         if self._selected_figure_object_id and self._is_generated_figure_document():

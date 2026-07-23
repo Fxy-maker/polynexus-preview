@@ -1,5 +1,19 @@
 # Active Work
 
+## Generated undo/redo visual synchronization - completed 2026-07-23
+
+- Fixed generated-object undo and redo so session history now immediately
+  rebuilds the canvas, refreshes selection controls, and persists the restored
+  document. Previously the document changed first, while the canvas continued
+  showing the old artist until a later canvas interaction caused a redraw.
+- History navigation now clears the UI selection when an undone add no longer
+  exists, then restores the object(s), layer-tree selection, and inspector when
+  redo recreates them. Repeated history navigation of an unchanged selection
+  source also redraws explicitly rather than relying on a selection signal.
+- Regression coverage verifies an inspector geometry edit, immediate undo
+  redraw, immediate redo redraw, added-object selection/inspector recovery,
+  and batch-selection recovery without an intervening canvas click.
+
 ## Editor history shortcuts in numeric controls - completed 2026-07-23
 
 - Fixed the ChartEditor's Ctrl+Z routing when focus is inside a numeric style

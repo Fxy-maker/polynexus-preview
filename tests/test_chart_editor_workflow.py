@@ -13,7 +13,7 @@ from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from polynexus.core.figure_document import save_generated_figure_document
+from polynexus.core.figure_document import load_figure_document, save_generated_figure_document
 from polynexus.core.figure_edit_commands import (
     AddObjectCommand,
     UpdateGeometryCommand,
@@ -238,6 +238,143 @@ def test_editor_ctrl_z_undoes_generated_edit_with_context_spin_focus(tmp_path, a
     app.processEvents()
 
     assert editor._generated_figure_object_by_id("line-1")["x1"] == 0.25
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_undo_immediately_redraws_canvas(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    editor._select_generated_object("line-1", "list")
+    editor._annotation_x_spin.setValue(0.25)
+    moved_artist = editor._generated_line_artist("line-1")
+    assert moved_artist.get_xdata()[0] == 0.25
+
+    editor._on_annotation_undo()
+
+    restored_artist = editor._generated_line_artist("line-1")
+    assert restored_artist.get_xdata()[0] == 0.1
+    restored_document = load_figure_document(editor._source_path)
+    assert restored_document["objects"][0]["x1"] == 0.1
+
+    editor._on_annotation_redo()
+
+    redone_artist = editor._generated_line_artist("line-1")
+    assert redone_artist.get_xdata()[0] == 0.25
+    redone_document = load_figure_document(editor._source_path)
+    assert redone_document["objects"][0]["x1"] == 0.25
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_redo_restores_added_object_selection_and_inspector(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    payload = {
+        "id": "history-text",
+        "type": "text",
+        "name": "History label",
+        "coordinate_space": "axes",
+        "bounds": {"x": 0.2, "y": 0.3, "width": 0.25, "height": 0.12},
+        "text": "Restored label",
+        "style": {"color": "#111111", "font_size": 18.0},
+    }
+    editor._execute_edit(AddObjectCommand(payload))
+    editor._select_generated_object(payload["id"], "list")
+
+    editor._on_annotation_undo()
+
+    assert editor._generated_figure_object_by_id(payload["id"]) is None
+    assert editor._selected_figure_object_id == ""
+    assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
+
+    editor._on_annotation_redo()
+
+    assert editor._generated_figure_object_by_id(payload["id"]) is not None
+    assert editor._selected_figure_object_id == payload["id"]
+    assert editor._object_list.currentItem().data(Qt.UserRole) == payload["id"]
+    assert editor._annotation_text_edit.text() == payload["name"]
+    assert editor._annotation_font_size_spin.value() == payload["style"]["font_size"]
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_history_preserves_multi_selection_for_batch_edits(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    object_ids = ("history-text-a", "history-text-b")
+    for object_id, x_position in zip(object_ids, (0.2, 0.55), strict=True):
+        editor._execute_edit(
+            AddObjectCommand(
+                {
+                    "id": object_id,
+                    "type": "text",
+                    "name": object_id,
+                    "coordinate_space": "axes",
+                    "bounds": {
+                        "x": x_position,
+                        "y": 0.3,
+                        "width": 0.2,
+                        "height": 0.12,
+                    },
+                    "text": object_id,
+                    "style": {"color": "#111111", "font_size": 14.0},
+                }
+            )
+        )
+    editor._show_generated_figure_document()
+    editor._refresh_object_list()
+    editor._select_generated_objects(object_ids, "list")
+
+    assert editor._align_selected_objects("left") is True
+
+    editor._on_annotation_undo()
+
+    assert editor._figure_selection_model.selected_ids == object_ids
+    assert editor._selected_figure_object_ids == object_ids
+    assert editor._object_list_selected_ids() == object_ids
+
+    editor._on_annotation_redo()
+
+    assert editor._figure_selection_model.selected_ids == object_ids
+    assert editor._selected_figure_object_ids == object_ids
+    assert editor._object_list_selected_ids() == object_ids
+    assert editor._btn_annotation_align_left.isEnabled()
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_generated_redo_restores_partially_removed_multi_selection(tmp_path, app):
+    editor = make_generated_editor(tmp_path)
+    added_id = "history-text-b"
+    editor._execute_edit(
+        AddObjectCommand(
+            {
+                "id": added_id,
+                "type": "text",
+                "name": "History B",
+                "coordinate_space": "axes",
+                "bounds": {"x": 0.55, "y": 0.3, "width": 0.2, "height": 0.12},
+                "text": "History B",
+                "style": {"color": "#111111", "font_size": 14.0},
+            }
+        )
+    )
+    editor._show_generated_figure_document()
+    editor._refresh_object_list()
+    selected_ids = ("line-1", added_id)
+    editor._select_generated_objects(selected_ids, "list")
+
+    editor._on_annotation_undo()
+
+    assert editor._figure_selection_model.selected_ids == ("line-1",)
+    assert editor._object_list_selected_ids() == ("line-1",)
+
+    editor._on_annotation_redo()
+
+    assert editor._figure_selection_model.selected_ids == selected_ids
+    assert editor._object_list_selected_ids() == selected_ids
 
     editor.deleteLater()
     app.processEvents()

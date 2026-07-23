@@ -248,6 +248,7 @@ class ChartEditor(
         self._hover_status_text = ""
         self._drag_status_text = ""
         self._last_deleted_figure_object_id = ""
+        self._generated_history_selection_ids = ()
         self._last_generated_pick_signature = None
         self._last_generated_pick_candidates = []
         self._last_generated_pick_gui_event_id = None
@@ -1222,6 +1223,7 @@ class ChartEditor(
         self._hover_status_text = ""
         self._drag_status_text = ""
         self._last_deleted_figure_object_id = ""
+        self._generated_history_selection_ids = ()
         self._generated_handle_drag_state = None
         self._clear_generated_draw_preview(redraw=False)
         self._generated_viewport_snapshot = None
@@ -1375,6 +1377,7 @@ class ChartEditor(
         self._hover_status_text = ""
         self._drag_status_text = ""
         self._last_deleted_figure_object_id = ""
+        self._generated_history_selection_ids = ()
         self._generated_handle_drag_state = None
         self._clear_generated_draw_preview(redraw=False)
         self._generated_viewport_snapshot = None
