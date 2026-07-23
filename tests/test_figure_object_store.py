@@ -127,7 +127,7 @@ def test_figure_object_store_updates_geometry_in_place():
     assert store.update_geometry("missing", {"x1": 0.0}) is False
 
 
-def test_figure_object_store_ensures_legend_object_for_named_series():
+def test_figure_object_store_ensures_compact_legend_for_named_visible_series():
     document = {
         "objects": [
             {
@@ -145,7 +145,7 @@ def test_figure_object_store_ensures_legend_object_for_named_series():
             {
                 "id": "series-b",
                 "type": "plot_series",
-                "name": "   ",
+                "name": "Reference",
                 "visible": True,
             },
         ]
@@ -160,12 +160,64 @@ def test_figure_object_store_ensures_legend_object_for_named_series():
         "visible": True,
         "locked": False,
         "z_index": 3,
-        "style": {},
+        "style": {"loc": "upper right", "ncol": 1},
     }
     assert store.ensure_legend_object() is False
 
 
-def test_figure_object_store_uses_lifecycle_panel_legend_semantics():
+def test_figure_object_store_skips_legend_for_one_named_visible_series():
+    document = {
+        "objects": [
+            {
+                "id": "background",
+                "type": "image_background",
+                "name": "Background",
+                "visible": True,
+            },
+            {
+                "id": "series-a",
+                "type": "plot_series",
+                "name": "Observed",
+                "visible": True,
+            }
+        ]
+    }
+
+    assert FigureObjectStore(document).ensure_legend_object() is False
+    assert [item["id"] for item in document["objects"]] == ["background", "series-a"]
+
+
+def test_figure_object_store_preserves_existing_hidden_legend():
+    document = {
+        "objects": [
+            {
+                "id": "series-a",
+                "type": "plot_series",
+                "name": "Observed",
+                "visible": True,
+            },
+            {
+                "id": "series-b",
+                "type": "plot_series",
+                "name": "Reference",
+                "visible": True,
+            },
+            {
+                "id": "legend",
+                "type": "legend",
+                "name": "Legend",
+                "visible": False,
+                "style": {"loc": "lower left"},
+            },
+        ]
+    }
+
+    assert FigureObjectStore(document).ensure_legend_object() is False
+    assert document["objects"][-1]["visible"] is False
+    assert document["objects"][-1]["style"] == {"loc": "lower left"}
+
+
+def test_figure_object_store_uses_panel_id_without_provider_legend_gate():
     document = {
         "layout": {
             "panels": [
@@ -181,15 +233,16 @@ def test_figure_object_store_uses_lifecycle_panel_legend_semantics():
                 "type": "plot_series",
                 "name": "Observed",
                 "panel_id": "main",
-            }
+            },
+            {
+                "id": "series-b",
+                "type": "plot_series",
+                "name": "Reference",
+                "panel_id": "main",
+            },
         ],
     }
     store = FigureObjectStore(document)
-
-    assert store.ensure_legend_object() is False
-    assert [item["id"] for item in document["objects"]] == ["series-a"]
-
-    document["layout"]["panels"][0]["show_legend"] = True
 
     assert store.ensure_legend_object() is True
     assert document["objects"][-1]["id"] == "legend"

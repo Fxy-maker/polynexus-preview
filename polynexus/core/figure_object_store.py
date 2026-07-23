@@ -114,10 +114,6 @@ class FigureObjectStore:
         if isinstance(panels, list) and panels:
             if len(panels) == 1 and isinstance(panels[0], dict):
                 lifecycle_panel = panels[0]
-            if lifecycle_panel is None or not bool(
-                lifecycle_panel.get("show_legend", False)
-            ):
-                return False
 
         existing_legend = next(
             (
@@ -135,14 +131,16 @@ class FigureObjectStore:
                     str(lifecycle_panel.get("panel_id") or ""),
                 )
             return False
-        has_named_series = any(
-            isinstance(obj, dict)
+        named_visible_series = [
+            obj
+            for obj in objects
+            if isinstance(obj, dict)
             and str(obj.get("type", "") or "") == "plot_series"
+            and obj.get("visible", True) is not False
             and obj.get("deleted") is not True
             and str(obj.get("name", "") or "").strip()
-            for obj in objects
-        )
-        if not has_named_series:
+        ]
+        if len(named_visible_series) < 2:
             return False
         legend = {
             "id": "legend",
@@ -151,7 +149,10 @@ class FigureObjectStore:
             "visible": True,
             "locked": False,
             "z_index": len(objects),
-            "style": {},
+            "style": {
+                "loc": "upper right",
+                "ncol": 2 if len(named_visible_series) > 3 else 1,
+            },
         }
         if lifecycle_panel is not None:
             legend["panel_id"] = str(lifecycle_panel.get("panel_id") or "")
