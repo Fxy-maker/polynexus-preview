@@ -7,6 +7,34 @@ from polynexus.core.figures.render_plan import FigureRenderPlanBuilder
 from polynexus.core.figures.renderer import MatplotlibFigureRenderer
 
 
+def test_automatic_multiseries_legend_becomes_single_column_on_narrow_canvas():
+    from polynexus.core.figures.legend_presentation import legend_presentation
+
+    presentation = legend_presentation(
+        {"auto_generated": True, "style": {"ncol": 2}},
+        handle_count=5,
+        available_width_px=360,
+        default_fontsize=9.0,
+    )
+
+    assert presentation.ncol == 1
+    assert presentation.fontsize == pytest.approx(7.65)
+
+
+def test_automatic_multiseries_legend_retains_two_columns_on_wide_canvas():
+    from polynexus.core.figures.legend_presentation import legend_presentation
+
+    presentation = legend_presentation(
+        {"auto_generated": True, "style": {"ncol": 2}},
+        handle_count=5,
+        available_width_px=900,
+        default_fontsize=9.0,
+    )
+
+    assert presentation.ncol == 2
+    assert presentation.fontsize == 9.0
+
+
 def test_render_plan_resolves_relative_csv_and_reversed_axis(
     built_ir_document,
 ):
