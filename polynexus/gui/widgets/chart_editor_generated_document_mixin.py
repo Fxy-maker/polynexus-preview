@@ -969,7 +969,7 @@ class ChartEditorGeneratedDocumentMixin:
             ax.grid(False)
         for spine in ax.spines.values():
             spine.set_linewidth(0.8)
-        handles, _labels = ax.get_legend_handles_labels()
+        handles, labels = ax.get_legend_handles_labels()
         legend_object = self._generated_figure_object_by_id_including_deleted("legend")
         automatic_legend_series_count = sum(
             1
@@ -1006,6 +1006,7 @@ class ChartEditorGeneratedDocumentMixin:
                 handle_count=len(handles),
                 available_width_px=max(1.0, canvas_width),
                 default_fontsize=9.0,
+                labels=tuple(str(label) for label in labels),
             )
             bbox_to_anchor = legend_style.get("bbox_to_anchor")
             anchor_x = None

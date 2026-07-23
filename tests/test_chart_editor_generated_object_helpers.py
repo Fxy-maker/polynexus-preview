@@ -15,10 +15,10 @@ def test_generated_object_capabilities_cover_common_generated_object_types() -> 
     )
     assert legend_caps == {
         "renameable": False,
-        "style": False,
+        "style": True,
         "deletable": False,
         "reorderable": False,
-        "font_size": False,
+        "font_size": True,
         "geometry": True,
         "line_style": False,
         "marker": False,

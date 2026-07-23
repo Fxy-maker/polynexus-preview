@@ -49,6 +49,21 @@ def test_automatic_long_name_legend_uses_one_column_before_plot_is_crowded():
     assert presentation.ncol == 1
 
 
+def test_explicit_legend_font_size_overrides_automatic_compact_scaling():
+    from polynexus.core.figures.legend_presentation import legend_presentation
+
+    presentation = legend_presentation(
+        {"auto_generated": True, "style": {"ncol": 2, "font_size": 15.0}},
+        handle_count=5,
+        available_width_px=780,
+        labels=("PA6-250-170-S_0_00000",) * 5,
+        default_fontsize=9.0,
+    )
+
+    assert presentation.ncol == 1
+    assert presentation.fontsize == 15.0
+
+
 def test_render_plan_resolves_relative_csv_and_reversed_axis(
     built_ir_document,
 ):

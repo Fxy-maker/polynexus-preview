@@ -167,7 +167,14 @@ def capabilities_for(object_payload: object) -> EditCapabilities:
     elif object_type == "image_background":
         base.update(crop=True, locked=True)
     elif object_type == "legend":
-        base.update(text=True, geometry=True, deletable=True, reorderable=True)
+        base.update(
+            style=True,
+            text=True,
+            font_size=True,
+            geometry=True,
+            deletable=True,
+            reorderable=True,
+        )
 
     if object_type in _KNOWN_TYPES and object_type != "image_background" and explicitly_locked:
         for key in tuple(base):

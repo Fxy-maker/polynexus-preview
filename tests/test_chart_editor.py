@@ -7145,7 +7145,7 @@ def test_chart_editor_style_controls_follow_selected_object_type(tmp_path, monke
     app.processEvents()
 
 
-def test_chart_editor_generated_legend_selection_disables_rename_and_style_controls(tmp_path, monkeypatch):
+def test_chart_editor_generated_legend_selection_supports_undoable_font_size_only(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
 
@@ -7184,10 +7184,37 @@ def test_chart_editor_generated_legend_selection_disables_rename_and_style_contr
     assert editor._annotation_color_edit.isEnabled() is False
     assert editor._annotation_line_width_spin.isEnabled() is False
     assert editor._annotation_alpha_spin.isEnabled() is False
-    assert editor._btn_annotation_apply_style.isEnabled() is False
+    assert editor._annotation_font_size_spin.isEnabled() is True
+    assert editor._btn_annotation_apply_style.isEnabled() is True
     assert editor._btn_annotation_delete.isEnabled() is False
     assert editor._btn_annotation_front.isEnabled() is False
     assert editor._btn_annotation_back.isEnabled() is False
+
+    editor._annotation_font_size_spin.setValue(15)
+    editor._btn_annotation_apply_style.click()
+
+    legend_object = next(
+        item for item in editor._figure_document["objects"] if item.get("type") == "legend"
+    )
+    assert legend_object["style"]["font_size"] == 15.0
+    saved_document = load_figure_document(str(figure_path))
+    saved_legend = next(
+        item for item in saved_document["objects"] if item.get("type") == "legend"
+    )
+    assert saved_legend["style"]["font_size"] == 15.0
+    assert editor._figure.axes[0].get_legend().get_texts()[0].get_fontsize() == 15.0
+
+    editor._on_annotation_undo()
+
+    legend_object = next(
+        item for item in editor._figure_document["objects"] if item.get("type") == "legend"
+    )
+    assert "font_size" not in legend_object["style"]
+    saved_document = load_figure_document(str(figure_path))
+    saved_legend = next(
+        item for item in saved_document["objects"] if item.get("type") == "legend"
+    )
+    assert "font_size" not in saved_legend["style"]
 
     editor.deleteLater()
     app.processEvents()
@@ -8149,7 +8176,7 @@ def test_chart_editor_multiseries_legend_uses_sample_names_and_refreshes_on_rena
     legend = editor._figure.axes[0].get_legend()
     assert legend is not None
     assert [text.get_text() for text in legend.get_texts()] == sample_names
-    assert legend._ncols == 2
+    assert legend._ncols == 1
 
     editor._object_list.setCurrentRow(3)
     editor._annotation_text_edit.setText("PA6-250-195-S-revised")
@@ -8164,6 +8191,7 @@ def test_chart_editor_multiseries_legend_uses_sample_names_and_refreshes_on_rena
         "PA6-250-205-S_0_00000",
         "PA6-250-220-S_0_00000",
     ]
+    assert refreshed_legend._ncols == 1
 
     editor._canvas.resize(360, 520)
     editor._show_generated_figure_document()

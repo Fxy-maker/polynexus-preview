@@ -22,7 +22,8 @@ def test_capabilities_cover_supported_objects_and_keep_unknown_conservative():
     assert series.marker and series.marker_size and series.line_width
     assert background.crop and background.locked
     assert not background.deletable and not background.reorderable
-    assert legend.geometry and legend.text and legend.deletable
+    assert legend.style and legend.geometry and legend.text and legend.font_size
+    assert legend.deletable
     assert unknown == capabilities_for({"type": "unknown"})
     assert not any(unknown.__dict__.values())
 

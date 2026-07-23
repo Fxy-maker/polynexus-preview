@@ -817,12 +817,14 @@ class ChartEditorAnnotationControlsMixin:
             return
         style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
         capabilities = self._generated_object_capabilities(figure_object)
+        edit_capabilities = capabilities_for(figure_object)
+        is_legend = str(figure_object.get("type", "") or "") == "legend"
         self._set_geometry_controls_enabled(False)
         self._set_style_controls_enabled(
             bool(capabilities["font_size"]),
-            bool(capabilities["style"]),
-            bool(capabilities["style"]),
-            color_enabled=bool(capabilities["style"]),
+            bool(edit_capabilities.line_width),
+            bool(capabilities["style"] and not is_legend),
+            color_enabled=bool(edit_capabilities.color),
             line_style_enabled=bool(capabilities["line_style"]),
             marker_enabled=bool(capabilities["marker"]),
             marker_size_enabled=bool(capabilities["marker_size"]),
@@ -954,10 +956,13 @@ class ChartEditorAnnotationControlsMixin:
         capabilities = self._generated_object_capabilities(figure_object)
         edit_capabilities = capabilities_for(figure_object)
         color = self._annotation_color_edit.text().strip()
-        updates = {"alpha": float(self._annotation_alpha_spin.value())}
+        is_legend = str(figure_object.get("type", "") or "") == "legend"
+        updates = {}
+        if capabilities["style"] and not is_legend:
+            updates["alpha"] = float(self._annotation_alpha_spin.value())
         if edit_capabilities.line_width:
             updates["line_width"] = float(self._annotation_line_width_spin.value())
-        if color:
+        if color and edit_capabilities.color:
             updates["color"] = color
         if capabilities["line_style"]:
             line_style = self._annotation_line_style_value()
