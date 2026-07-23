@@ -5781,7 +5781,13 @@ def test_chart_editor_reorder_buttons_ignore_legend_object(tmp_path, monkeypatch
                 "type": "plot_series",
                 "name": "Only",
                 "data": {"x": [1.0, 2.0], "y": [1.0, 2.0]},
-            }
+            },
+            {
+                "id": "legend",
+                "type": "legend",
+                "name": "Legend",
+                "visible": True,
+            },
         ],
     )
 
@@ -8091,6 +8097,64 @@ def test_chart_editor_auto_generated_legend_uses_clean_feedback_label(
         app.processEvents()
     finally:
         set_language(previous)
+
+
+def test_chart_editor_multiseries_legend_uses_sample_names_and_refreshes_on_rename(
+    tmp_path, monkeypatch
+):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+    sample_names = [
+        "PA6-250-170-S_0_00000",
+        "PA6-250-185-S_0_00000",
+        "PA6-250-195-S_0_00000",
+        "PA6-250-205-S_0_00000",
+        "PA6-250-220-S_0_00000",
+    ]
+    figure_path = tmp_path / "figures" / "generated-multiseries-legend.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        technique="saxs",
+        figure_id="generated-multiseries-legend",
+        objects=[
+            {
+                "id": f"series-{index}",
+                "type": "plot_series",
+                "name": sample_name,
+                "data": {"x": [1.0, 2.0], "y": [float(index), float(index + 1)]},
+            }
+            for index, sample_name in enumerate(sample_names)
+        ],
+    )
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+
+    legend = editor._figure.axes[0].get_legend()
+    assert legend is not None
+    assert [text.get_text() for text in legend.get_texts()] == sample_names
+    assert legend._ncols == 2
+
+    editor._object_list.setCurrentRow(3)
+    editor._annotation_text_edit.setText("PA6-250-195-S-revised")
+    editor._on_update_selected_text_annotation()
+
+    refreshed_legend = editor._figure.axes[0].get_legend()
+    assert refreshed_legend is not None
+    assert [text.get_text() for text in refreshed_legend.get_texts()] == [
+        "PA6-250-170-S_0_00000",
+        "PA6-250-185-S_0_00000",
+        "PA6-250-195-S-revised",
+        "PA6-250-205-S_0_00000",
+        "PA6-250-220-S_0_00000",
+    ]
+
+    editor.deleteLater()
+    app.processEvents()
 
 
 def test_chart_editor_generated_image_grid_selection_disables_style_and_reorder_controls(tmp_path, monkeypatch):

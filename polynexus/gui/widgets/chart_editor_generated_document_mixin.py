@@ -969,6 +969,10 @@ class ChartEditorGeneratedDocumentMixin:
                 and isinstance(legend_object.get("style"), dict)
                 else {}
             )
+            legend_ncol = max(
+                1,
+                int(legend_style.get("ncol") or (2 if len(handles) > 3 else 1)),
+            )
             bbox_to_anchor = legend_style.get("bbox_to_anchor")
             anchor_x = None
             anchor_y = None
@@ -979,12 +983,18 @@ class ChartEditorGeneratedDocumentMixin:
                 ax.legend(
                     fontsize=self._tick_size,
                     frameon=False,
+                    ncol=legend_ncol,
                     loc=str(legend_style.get("loc", "") or "upper left"),
                     bbox_to_anchor=(float(anchor_x), float(anchor_y)),
                     bbox_transform=ax.transAxes,
                 )
             else:
-                ax.legend(fontsize=self._tick_size, frameon=False)
+                ax.legend(
+                    fontsize=self._tick_size,
+                    frameon=False,
+                    ncol=legend_ncol,
+                    loc=str(legend_style.get("loc", "") or "upper right"),
+                )
         elif ax.get_legend() is not None:
             ax.get_legend().remove()
 
