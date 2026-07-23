@@ -1,5 +1,27 @@
 # Active Work
 
+## Editor legend interaction polish - completed 2026-07-23
+
+- Automatic multi-series legends now share one responsive presentation policy
+  across formal `MatplotlibFigureRenderer` output and the ChartEditor's legacy
+  generated preview: wide canvases retain two columns, while narrow canvases
+  use one compact in-plot column and a smaller readable font. This policy is
+  transient and never changes saved legend position or style merely because a
+  user selects it.
+- Double-clicking a generated legend now opens a compact localized dialog with
+  one curve-name input per visible legend series. Confirming applies all
+  nonblank names through one undoable document replacement, persists once,
+  redraws once, and keeps the legend selected; Escape/Cancel leaves the
+  document untouched.
+- A final review hardening pass ensures a double-click must land on the legend
+  itself and filters multi-panel dialog rows to the legend's own panel, so text
+  and blank-canvas double-clicks remain available for their existing actions.
+- Evidence: focused object-store/render/editor matrix passed `274`; the task
+  verifier and default changed/type verifier both passed, including the quality
+  gate (`282`) and preprocessing optimization gate (`103`). Task card:
+  `docs/agent/tasks/2026-07-23-editor-legend-interaction.md`. Restart the GUI
+  before live visual confirmation.
+
 ## Multi-series chart legend defaults - completed 2026-07-23
 
 - Object-mode figures now materialize a persisted legend only when at least two

@@ -20,20 +20,30 @@ layout-stable selection, and batch sample-name editing on double-click.
 
 ## Acceptance criteria
 
-- [ ] Five automatic named series use two columns on wide canvases and a
+- [x] Five automatic named series use two columns on wide canvases and a
   smaller single-column legend inside the plot on narrow canvases.
-- [ ] A normal legend click selects it without altering bounds, placement, or
+- [x] A normal legend click selects it without altering bounds, placement, or
   persisted legend style.
-- [ ] Double-click opens one name field per represented series; Enter commits
+- [x] Double-click opens one name field per represented series; Enter commits
   all nonblank edits through one undoable document change and refreshes once.
-- [ ] Esc/Cancel leaves the figure document untouched.
-- [ ] Preview and formal renderer share the same automatic presentation policy.
-- [ ] Existing default names, visibility, drag, selection overlay, and export
+- [x] Esc/Cancel leaves the figure document untouched.
+- [x] Preview and formal renderer share the same automatic presentation policy.
+- [x] Existing default names, visibility, drag, selection overlay, and export
   behavior remain green.
 
 ## Implementation plan
 
-`docs/superpowers/plans/2026-07-23-editor-legend-interaction.md`
+1. Add a pure responsive legend-presentation policy for automatic legends and
+   prove the narrow/wide behavior with renderer tests.
+2. Consume that policy in both the formal Matplotlib renderer and the legacy
+   ChartEditor preview renderer without mutating persisted legend geometry.
+3. Add a compact Qt dialog and route generated-legend double-clicks to an
+   atomic, undoable `plot_series.name` document replacement.
+4. Cover selection stability, accept/undo, cancel, legacy rendering, and
+   formal rendering through focused offscreen regressions, then run the task
+   and default repository verifiers.
+
+Detailed TDD steps: `docs/superpowers/plans/2026-07-23-editor-legend-interaction.md`.
 
 ## Verification
 
