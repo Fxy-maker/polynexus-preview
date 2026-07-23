@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QListWidgetItem,
@@ -14,6 +14,19 @@ from .chart_editor_layer_widget import LayerTreeItem
 
 
 class ChartEditorObjectListMixin:
+    def _schedule_object_list_refresh(self, selected_id=""):
+        """Refresh after itemChanged returns to avoid deleting a live Qt item."""
+        if getattr(self, "_object_list_refresh_pending", False):
+            return
+        self._object_list_refresh_pending = True
+
+        def refresh():
+            self._object_list_refresh_pending = False
+            if getattr(self, "_object_list", None) is not None:
+                self._refresh_object_list(selected_id)
+
+        QTimer.singleShot(0, refresh)
+
     def _object_list_label(self, annotation):
         kind = str(annotation.get("type", "annotation") or "annotation").title()
         if annotation.get("text"):
@@ -339,4 +352,4 @@ class ChartEditorObjectListMixin:
         ):
             self._persist_generated_document()
             self._show_generated_figure_document()
-        self._refresh_object_list(str(object_id or ""))
+        self._schedule_object_list_refresh(str(object_id or ""))

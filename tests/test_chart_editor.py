@@ -135,6 +135,14 @@ def _send_matplotlib_canvas_mouse_event(
     return mouse_event
 
 
+def _assert_selected_status(editor, label):
+    status_text = editor._status_label.text()
+    assert status_text.startswith(
+        tr("EDITOR_SELECTED_STATUS_OBJECT", label)
+    )
+    return status_text
+
+
 def _image_bytes(image):
     image = image.convertToFormat(QImage.Format_RGBA8888)
     return bytes(image.constBits())
@@ -1128,10 +1136,11 @@ def test_chart_editor_real_canvas_click_switches_selection_to_hovered_other_obje
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "guide-a"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: Guide A",
+        status_text = editor._status_label.text()
+        assert status_text.startswith(
+            tr("EDITOR_SELECTED_STATUS_OBJECT", "Line: Guide A")
         )
+        assert "endpoint" in status_text.lower()
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((1.0, 2.0))
@@ -1150,10 +1159,11 @@ def test_chart_editor_real_canvas_click_switches_selection_to_hovered_other_obje
         assert editor._selected_object_label.text() == "Line: Guide B"
         assert editor._hovered_figure_object_id == ""
         assert editor._canvas.cursor().shape() == Qt.CursorShape.CrossCursor
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: Guide B",
+        status_text = editor._status_label.text()
+        assert status_text.startswith(
+            tr("EDITOR_SELECTED_STATUS_OBJECT", "Line: Guide B")
         )
+        assert "endpoint" in status_text.lower()
 
         line_artists = {
             editor._figure_render_adapter.object_id_for_artist(artist): artist
@@ -1218,10 +1228,7 @@ def test_chart_editor_real_canvas_click_switches_from_bar_selection_to_legend(
 
         assert editor._selected_figure_object_id == "series-bar-a"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-bar-a"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Bar A",
-        )
+        _assert_selected_status(editor, "Plot Series: Bar A")
 
         legend = editor._figure.axes[0].get_legend()
         assert legend is not None
@@ -1242,7 +1249,7 @@ def test_chart_editor_real_canvas_click_switches_from_bar_selection_to_legend(
         assert editor._object_list.currentItem().data(Qt.UserRole) == "legend"
         assert editor._selected_object_label.text() == "Legend"
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         editor.deleteLater()
         app.processEvents()
@@ -1303,7 +1310,7 @@ def test_chart_editor_real_canvas_click_switches_from_legend_selection_to_bar(
 
         assert editor._selected_figure_object_id == "legend"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "legend"
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((2.0, 0.9))
@@ -1321,10 +1328,7 @@ def test_chart_editor_real_canvas_click_switches_from_legend_selection_to_bar(
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-bar-b"
         assert editor._selected_object_label.text() == "Plot Series: Bar B"
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Bar B",
-        )
+        _assert_selected_status(editor, "Plot Series: Bar B")
 
         editor.deleteLater()
         app.processEvents()
@@ -1419,10 +1423,7 @@ def test_chart_editor_real_canvas_click_switches_from_heatmap_selection_to_highl
 
         assert editor._selected_figure_object_id == "series-heatmap"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-heatmap"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Heatmap: Heatmap Pattern",
-        )
+        _assert_selected_status(editor, "Heatmap: Heatmap Pattern")
 
         hover_xpix, hover_ypix = axes.transData.transform((4.0, 1.8))
         _send_matplotlib_canvas_move(editor._canvas, hover_xpix, hover_ypix)
@@ -1439,10 +1440,7 @@ def test_chart_editor_real_canvas_click_switches_from_heatmap_selection_to_highl
         assert editor._object_list.currentItem().data(Qt.UserRole) == "tolerance-band"
         assert editor._selected_object_label.text() == "Highlight: Tolerance Band"
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Highlight: Tolerance Band",
-        )
+        _assert_selected_status(editor, "Highlight: Tolerance Band")
 
         editor.deleteLater()
         app.processEvents()
@@ -1537,10 +1535,7 @@ def test_chart_editor_real_canvas_click_switches_from_highlight_selection_to_hea
 
         assert editor._selected_figure_object_id == "tolerance-band"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "tolerance-band"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Highlight: Tolerance Band",
-        )
+        _assert_selected_status(editor, "Highlight: Tolerance Band")
 
         hover_xpix, hover_ypix = axes.transData.transform((0.5, 0.5))
         _send_matplotlib_canvas_move(editor._canvas, hover_xpix, hover_ypix)
@@ -1557,10 +1552,7 @@ def test_chart_editor_real_canvas_click_switches_from_highlight_selection_to_hea
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-heatmap"
         assert editor._selected_object_label.text() == "Heatmap: Heatmap Pattern"
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Heatmap: Heatmap Pattern",
-        )
+        _assert_selected_status(editor, "Heatmap: Heatmap Pattern")
 
         editor.deleteLater()
         app.processEvents()
@@ -1650,10 +1642,7 @@ def test_chart_editor_real_canvas_click_switches_line_series_selection_and_point
         assert round(editor._annotation_x_spin.value(), 4) == 2.0
         assert round(editor._annotation_y_spin.value(), 4) == 4.0
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Series B",
-        )
+        _assert_selected_status(editor, "Plot Series: Series B")
 
         line_artists = {
             editor._figure_render_adapter.object_id_for_artist(artist): artist
@@ -1762,10 +1751,7 @@ def test_chart_editor_real_canvas_click_switches_from_line_series_point_to_line_
         assert round(editor._annotation_w_spin.value(), 4) == 3.0
         assert round(editor._annotation_h_spin.value(), 4) == 4.5
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: Guide",
-        )
+        _assert_selected_status(editor, "Line: Guide")
 
         line_artists = {
             editor._figure_render_adapter.object_id_for_artist(artist): artist
@@ -1822,7 +1808,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         editor._object_list.setCurrentRow(3)
 
         assert editor._selected_figure_object_id == "legend"
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         legend = editor._figure.axes[0].get_legend()
         assert legend is not None
@@ -1910,10 +1896,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "series-heatmap"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Heatmap: Heatmap Pattern",
-        )
+        _assert_selected_status(editor, "Heatmap: Heatmap Pattern")
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((0.5, 0.5))
@@ -2019,10 +2002,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "series-pattern-grid"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Image Grid: 2D WAXS Pattern Grid",
-        )
+        _assert_selected_status(editor, "Image Grid: 2D WAXS Pattern Grid")
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((0.5, 0.5))
@@ -2186,10 +2166,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "tolerance-band"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Highlight: Tolerance Band",
-        )
+        _assert_selected_status(editor, "Highlight: Tolerance Band")
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((2.0, 1.8))
@@ -2591,10 +2568,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "series-bar"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Bar Series",
-        )
+        _assert_selected_status(editor, "Plot Series: Bar Series")
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((1.0, 1.5))
@@ -2657,10 +2631,7 @@ def test_chart_editor_real_canvas_escape_key_clears_selection_and_restores_hover
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "series-scatter"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Scatter",
-        )
+        _assert_selected_status(editor, "Plot Series: Scatter")
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((2.0, 3.0))
@@ -3881,10 +3852,7 @@ def test_chart_editor_real_canvas_near_heatmap_edge_hover_and_click_selects_heat
 
         assert editor._selected_figure_object_id == "series-heatmap"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-heatmap"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Heatmap: Heatmap Pattern",
-        )
+        _assert_selected_status(editor, "Heatmap: Heatmap Pattern")
 
         editor.deleteLater()
         app.processEvents()
@@ -3955,10 +3923,7 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_heatmap_object(
 
         assert editor._selected_figure_object_id == "series-heatmap"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-heatmap"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Heatmap: Heatmap Pattern",
-        )
+        _assert_selected_status(editor, "Heatmap: Heatmap Pattern")
 
         _send_matplotlib_canvas_click(editor._canvas, 5.0, 5.0)
 
@@ -4123,10 +4088,7 @@ def test_chart_editor_real_canvas_hover_and_click_select_generated_highlight_obj
 
         assert editor._selected_figure_object_id == "tolerance-band"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "tolerance-band"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Highlight: Tolerance Band",
-        )
+        _assert_selected_status(editor, "Highlight: Tolerance Band")
 
         editor.deleteLater()
         app.processEvents()
@@ -4205,10 +4167,7 @@ def test_chart_editor_real_canvas_near_highlight_edge_hover_and_click_selects_hi
 
         assert editor._selected_figure_object_id == "tolerance-band"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "tolerance-band"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Highlight: Tolerance Band",
-        )
+        _assert_selected_status(editor, "Highlight: Tolerance Band")
 
         editor.deleteLater()
         app.processEvents()
@@ -4355,16 +4314,13 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_highlight_object(
 
         assert editor._selected_figure_object_id == "tolerance-band"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "tolerance-band"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Highlight: Tolerance Band",
-        )
+        _assert_selected_status(editor, "Highlight: Tolerance Band")
 
         _send_matplotlib_canvas_click(editor._canvas, 5.0, 5.0)
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == ""
         assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
@@ -4887,10 +4843,7 @@ def test_chart_editor_real_canvas_hover_and_click_select_generated_bar_object(
 
         assert editor._selected_figure_object_id == "series-bar"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-bar"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Bar Series",
-        )
+        _assert_selected_status(editor, "Plot Series: Bar Series")
 
         editor.deleteLater()
         app.processEvents()
@@ -4949,10 +4902,7 @@ def test_chart_editor_real_canvas_near_bar_edge_hover_and_click_still_selects_ba
 
         assert editor._selected_figure_object_id == "series-bar"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-bar"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Bar Series",
-        )
+        _assert_selected_status(editor, "Plot Series: Bar Series")
 
         editor.deleteLater()
         app.processEvents()
@@ -5059,16 +5009,13 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_bar_object(
 
         assert editor._selected_figure_object_id == "series-bar"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-bar"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Bar Series",
-        )
+        _assert_selected_status(editor, "Plot Series: Bar Series")
 
         _send_matplotlib_canvas_click(editor._canvas, 5.0, 5.0)
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == ""
         assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
@@ -5128,10 +5075,7 @@ def test_chart_editor_real_canvas_hover_and_click_select_generated_barh_object(
 
         assert editor._selected_figure_object_id == "series-barh"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-barh"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: BarH Series",
-        )
+        _assert_selected_status(editor, "Plot Series: BarH Series")
 
         editor.deleteLater()
         app.processEvents()
@@ -5190,10 +5134,7 @@ def test_chart_editor_real_canvas_near_barh_edge_hover_and_click_still_selects_b
 
         assert editor._selected_figure_object_id == "series-barh"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-barh"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: BarH Series",
-        )
+        _assert_selected_status(editor, "Plot Series: BarH Series")
 
         editor.deleteLater()
         app.processEvents()
@@ -5243,16 +5184,13 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_barh_object(
 
         assert editor._selected_figure_object_id == "series-barh"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-barh"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: BarH Series",
-        )
+        _assert_selected_status(editor, "Plot Series: BarH Series")
 
         _send_matplotlib_canvas_click(editor._canvas, 5.0, 5.0)
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == ""
         assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
@@ -5346,7 +5284,7 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_image_grid_object(
 
     assert editor._selected_figure_object_id == ""
     assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
     assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
     editor.deleteLater()
@@ -7567,7 +7505,7 @@ def test_chart_editor_real_canvas_tiny_motion_on_legend_selects_without_dragging
         assert [obj["type"] for obj in document["objects"]] == ["plot_series", "plot_series"]
         assert editor._selected_figure_object_id == "legend"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "legend"
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         editor.deleteLater()
         app.processEvents()
@@ -7635,7 +7573,7 @@ def test_chart_editor_real_canvas_near_legend_edge_hover_and_click_selects_legen
 
         assert editor._selected_figure_object_id == "legend"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "legend"
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         editor.deleteLater()
         app.processEvents()
@@ -7685,7 +7623,7 @@ def test_chart_editor_real_canvas_hover_on_selected_legend_shows_drag_hint(
         editor._object_list.setCurrentRow(3)
 
         assert editor._selected_figure_object_id == "legend"
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         legend = editor._figure.axes[0].get_legend()
         assert legend is not None
@@ -7703,7 +7641,7 @@ def test_chart_editor_real_canvas_hover_on_selected_legend_shows_drag_hint(
 
         _send_matplotlib_canvas_move(editor._canvas, 5.0, 5.0)
 
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         editor.deleteLater()
         app.processEvents()
@@ -7762,13 +7700,13 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_legend_object(
         _send_matplotlib_canvas_click(editor._canvas, hover_xpix, hover_ypix)
         assert editor._selected_figure_object_id == "legend"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "legend"
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         _send_matplotlib_canvas_click(editor._canvas, 5.0, 5.0)
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == ""
         assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
@@ -8147,7 +8085,7 @@ def test_chart_editor_auto_generated_legend_uses_clean_feedback_label(
 
         _send_matplotlib_canvas_click(editor._canvas, hover_xpix, hover_ypix)
         assert editor._selected_figure_object_id == "legend"
-        assert editor._status_label.text() == tr("EDITOR_SELECTED_STATUS_OBJECT", "Legend")
+        _assert_selected_status(editor, "Legend")
 
         editor.deleteLater()
         app.processEvents()
@@ -8817,10 +8755,7 @@ def test_chart_editor_real_canvas_tiny_motion_on_line_body_selects_without_dragg
         assert line["y2"] == 3.75
         assert editor._selected_figure_object_id == "line-qstar"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "line-qstar"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: q*",
-        )
+        _assert_selected_status(editor, "Line: q*")
         assert editor._annotation_x_label.text() == "X1"
         assert editor._annotation_y_label.text() == "Y1"
         assert editor._annotation_w_label.text() == "X2"
@@ -8899,16 +8834,13 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_line_object(
 
         assert editor._selected_figure_object_id == "line-qstar"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "line-qstar"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: q*",
-        )
+        _assert_selected_status(editor, "Line: q*")
 
         _send_matplotlib_canvas_click(editor._canvas, 5.0, 5.0)
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == ""
         assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
@@ -9056,10 +8988,7 @@ def test_chart_editor_real_canvas_near_line_body_hover_and_click_selects_line(
         assert editor._object_list.currentItem().data(Qt.UserRole) == "line-qstar"
         assert editor._selected_object_label.text() == "Line: q*"
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: q*",
-        )
+        _assert_selected_status(editor, "Line: q*")
 
         editor.deleteLater()
         app.processEvents()
@@ -9107,10 +9036,7 @@ def test_chart_editor_real_canvas_hover_on_selected_line_body_shows_drag_hint(
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "line-qstar"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: q*",
-        )
+        _assert_selected_status(editor, "Line: q*")
 
         axes = editor._figure.axes[0]
         pixel_points = axes.transData.transform([(1.5, 0.25), (2.5, 3.75)])
@@ -9134,10 +9060,7 @@ def test_chart_editor_real_canvas_hover_on_selected_line_body_shows_drag_hint(
 
         _send_matplotlib_canvas_move(editor._canvas, 5.0, 5.0)
 
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: q*",
-        )
+        _assert_selected_status(editor, "Line: q*")
 
         editor.deleteLater()
         app.processEvents()
@@ -10991,10 +10914,7 @@ def test_chart_editor_real_canvas_tiny_motion_on_scatter_point_selects_without_d
     assert series["data"]["y"] == [1.0, 3.0, 2.0]
     assert editor._selected_figure_object_id == "series-scatter"
     assert editor._object_list.currentItem().data(Qt.UserRole) == "series-scatter"
-    assert editor._status_label.text() == tr(
-        "EDITOR_SELECTED_STATUS_OBJECT",
-        "Plot Series: Scatter",
-    )
+    _assert_selected_status(editor, "Plot Series: Scatter")
 
     editor.deleteLater()
     app.processEvents()
@@ -11167,10 +11087,7 @@ def test_chart_editor_real_canvas_hover_on_selected_scatter_point_shows_drag_hin
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "series-scatter"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Scatter",
-        )
+        _assert_selected_status(editor, "Plot Series: Scatter")
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((2.0, 3.0))
@@ -11202,10 +11119,7 @@ def test_chart_editor_real_canvas_hover_on_selected_scatter_point_shows_drag_hin
             if artist.get_gid() == "pn-hover-handle:series-scatter"
         ]
         assert cleared_preview_handle_artists == []
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Scatter",
-        )
+        _assert_selected_status(editor, "Plot Series: Scatter")
 
         editor.deleteLater()
         app.processEvents()
@@ -11269,10 +11183,7 @@ def test_chart_editor_real_canvas_near_scatter_point_hover_and_click_selects_sca
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-scatter"
         assert editor._selected_object_label.text() == "Plot Series: Scatter"
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Scatter",
-        )
+        _assert_selected_status(editor, "Plot Series: Scatter")
 
         editor.deleteLater()
         app.processEvents()
@@ -11393,10 +11304,7 @@ def test_chart_editor_real_canvas_near_large_scatter_marker_hover_and_click_sele
 
         assert editor._selected_figure_object_id == "series-scatter"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-scatter"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Scatter",
-        )
+        _assert_selected_status(editor, "Plot Series: Scatter")
 
         editor.deleteLater()
         app.processEvents()
@@ -11572,16 +11480,13 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_scatter_object(
 
         assert editor._selected_figure_object_id == "series-scatter"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-scatter"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Scatter",
-        )
+        _assert_selected_status(editor, "Plot Series: Scatter")
 
         _send_matplotlib_canvas_click(editor._canvas, 5.0, 5.0)
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == ""
         assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
 
@@ -11977,7 +11882,7 @@ def test_chart_editor_real_blank_canvas_click_clears_selected_line_series_object
 
     assert editor._selected_figure_object_id == ""
     assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+    assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
     assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
     assert editor._selected_generated_plot_series_object_id == ""
     assert editor._selected_generated_plot_series_handle_index is None
@@ -12052,7 +11957,7 @@ def test_chart_editor_real_blank_canvas_click_clears_hover_feedback_after_hoveri
 
         assert editor._selected_figure_object_id == ""
         assert editor._object_list.currentItem().data(Qt.UserRole) == "__background__"
-        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_BACKGROUND")
+        assert editor._selected_object_label.text() == tr("EDITOR_OBJECT_NONE")
         assert editor._hovered_figure_object_id == ""
         assert editor._canvas.cursor().shape() == initial_cursor
         assert editor._status_label.text() == tr("EDITOR_OBJECT_MODE_HINT")
@@ -13558,10 +13463,7 @@ def test_chart_editor_real_canvas_hover_on_selected_line_series_body_shows_drag_
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "series-line"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Line",
-        )
+        _assert_selected_status(editor, "Plot Series: Line")
 
         axes = editor._figure.axes[0]
         segment_points = axes.transData.transform([(1.0, 1.0), (2.0, 3.0)])
@@ -13583,10 +13485,7 @@ def test_chart_editor_real_canvas_hover_on_selected_line_series_body_shows_drag_
 
         _send_matplotlib_canvas_move(editor._canvas, 5.0, 5.0)
 
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Line",
-        )
+        _assert_selected_status(editor, "Plot Series: Line")
 
         editor.deleteLater()
         app.processEvents()
@@ -13689,10 +13588,7 @@ def test_chart_editor_real_canvas_hover_on_object_list_selected_markerless_line_
             if artist.get_gid() == "pn-hover-handle:series-line"
         ]
         assert cleared_preview_handle_artists == []
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Line",
-        )
+        _assert_selected_status(editor, "Plot Series: Line")
 
         editor.deleteLater()
         app.processEvents()
@@ -13789,10 +13685,7 @@ def test_chart_editor_real_canvas_hover_on_object_list_selected_markerless_line_
             if artist.get_gid() == "pn-hover-handle:series-line"
         ]
         assert cleared_preview_handle_artists == []
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Line",
-        )
+        _assert_selected_status(editor, "Plot Series: Line")
 
         editor.deleteLater()
         app.processEvents()
@@ -13861,10 +13754,7 @@ def test_chart_editor_real_canvas_near_line_series_body_hover_and_click_selects_
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-line"
         assert editor._selected_object_label.text() == "Plot Series: Line"
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Line",
-        )
+        _assert_selected_status(editor, "Plot Series: Line")
 
         editor.deleteLater()
         app.processEvents()
@@ -13926,10 +13816,7 @@ def test_chart_editor_real_canvas_near_large_marker_line_series_hover_and_click_
         assert editor._selected_figure_object_id == "series-line"
         assert editor._object_list.currentItem().data(Qt.UserRole) == "series-line"
         assert editor._selected_object_label.text() == "Plot Series: Line"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Plot Series: Line",
-        )
+        _assert_selected_status(editor, "Plot Series: Line")
 
         editor.deleteLater()
         app.processEvents()
@@ -14171,10 +14058,7 @@ def test_chart_editor_real_canvas_hover_on_selected_line_endpoint_shows_drag_hin
         editor._object_list.setCurrentRow(1)
 
         assert editor._selected_figure_object_id == "guide-line"
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: Guide",
-        )
+        _assert_selected_status(editor, "Line: Guide")
 
         axes = editor._figure.axes[0]
         hover_xpix, hover_ypix = axes.transData.transform((1.0, 1.0))
@@ -14205,10 +14089,7 @@ def test_chart_editor_real_canvas_hover_on_selected_line_endpoint_shows_drag_hin
             if artist.get_gid() == "pn-hover-handle:guide-line"
         ]
         assert cleared_preview_handle_artists == []
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: Guide",
-        )
+        _assert_selected_status(editor, "Line: Guide")
 
         editor.deleteLater()
         app.processEvents()
@@ -14362,10 +14243,7 @@ def test_chart_editor_real_canvas_near_line_endpoint_hover_and_click_selects_lin
         assert editor._object_list.currentItem().data(Qt.UserRole) == "guide-line"
         assert editor._selected_object_label.text() == "Line: Guide"
         assert editor._hovered_figure_object_id == ""
-        assert editor._status_label.text() == tr(
-            "EDITOR_SELECTED_STATUS_OBJECT",
-            "Line: Guide",
-        )
+        _assert_selected_status(editor, "Line: Guide")
 
         editor.deleteLater()
         app.processEvents()

@@ -100,6 +100,10 @@ class ChartEditorGeneratedInteractionMixin:
             if selected_object_id:
                 self._selection_cycle_hint_active = False
                 self._select_generated_object("", "canvas")
+            else:
+                # Keep the inspector aligned with the background row when the
+                # user clicks empty canvas space without an active object.
+                self._selected_object_label.setText(tr("EDITOR_OBJECT_BACKGROUND"))
             return
         object_id, drag_state = press_target
         drag_kind = str(drag_state.get("kind", "") or "")
