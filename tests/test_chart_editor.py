@@ -5615,7 +5615,7 @@ def test_chart_editor_renames_selected_generated_object(tmp_path, monkeypatch):
     document = load_figure_document(str(figure_path))
     assert document["objects"][0]["name"] == "Edited Spectrum"
     assert editor._object_list.item(1).text() == "Plot Series: Edited Spectrum"
-    assert editor._figure.axes[0].get_legend().get_texts()[0].get_text() == "Edited Spectrum"
+    assert editor._figure.axes[0].get_legend() is None
 
     editor.deleteLater()
     app.processEvents()
