@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import isfinite
 
+from .legend_geometry import import_legend_geometry
+
 
 _COMPACT_LEGEND_WIDTH_PX = 560.0
 _COMPACT_FONT_SCALE = 0.85
@@ -33,10 +35,12 @@ def legend_presentation(
     style = style if isinstance(style, dict) else {}
     explicit_fontsize = _positive_finite_float(style.get("font_size"))
     effective_fontsize = explicit_fontsize or default_fontsize
-    box_size = _positive_box_size(style.get("box_size"))
     layout_width_px = float(available_width_px)
-    if box_size is not None:
-        layout_width_px *= box_size[0]
+    geometry = import_legend_geometry(style)
+    if geometry.rect_axes is not None:
+        layout_width_px *= geometry.rect_axes[2]
+    elif geometry.size_axes is not None:
+        layout_width_px *= geometry.size_axes[0]
     count = max(0, int(handle_count or 0))
     automatic = figure_object.get("auto_generated") is True
     compact = (
@@ -69,13 +73,3 @@ def _positive_finite_float(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return candidate if isfinite(candidate) and candidate > 0.0 else None
-
-
-def _positive_box_size(value: object) -> tuple[float, float] | None:
-    if not isinstance(value, (list, tuple)) or len(value) < 2:
-        return None
-    width = _positive_finite_float(value[0])
-    height = _positive_finite_float(value[1])
-    if width is None or height is None:
-        return None
-    return width, height

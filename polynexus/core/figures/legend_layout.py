@@ -54,10 +54,12 @@ def resolve_legend_layout(
     if raw_box is not None and box_values is None:
         diagnostic = "invalid legend box geometry; using automatic layout"
     elif box_values is not None:
+        width, height = box_values[:2]
+        if width > 0.0 and height > 0.0:
+            size_axes = (width, height)
         if anchor_values is None:
             diagnostic = "invalid legend anchor geometry; using automatic layout"
         else:
-            width, height = box_values[:2]
             if width <= 0.0 or height <= 0.0:
                 diagnostic = "invalid legend box geometry; using automatic layout"
             else:
@@ -81,7 +83,7 @@ def resolve_legend_layout(
         return LegendLayout(
             mode="auto",
             anchor_axes=anchor_axes,
-            size_axes=None,
+            size_axes=size_axes,
             content_bbox_display=content_bbox_display,
             interaction_bbox_display=content_bbox_display,
             diagnostic=diagnostic,

@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from PySide6.QtCore import Qt
 
-from ..core.figures.legend_layout import resolve_legend_layout
+from ..core.figures.legend_geometry import import_legend_geometry
 from .i18n import get_language, tr
 
 
@@ -182,21 +182,21 @@ def build_generated_drag_status_text(
         )
     if kind == "legend":
         style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
-        layout = resolve_legend_layout(style)
-        if layout.diagnostic:
-            return f"{label}: {layout.diagnostic}"
         preview_geometry = drag_state.get("preview_geometry")
-        bbox_to_anchor = (
-            preview_geometry.get("bbox_to_anchor")
-            if isinstance(preview_geometry, dict)
-            else style.get("bbox_to_anchor")
-        )
-        if not isinstance(bbox_to_anchor, (list, tuple)) or len(bbox_to_anchor) < 2:
+        source = preview_geometry if isinstance(preview_geometry, dict) else style
+        imported = import_legend_geometry(source)
+        if imported.diagnostic:
+            return f"{label}: {imported.diagnostic}"
+        anchor = imported.anchor_axes
+        if anchor is None:
+            return ""
+        x_value, y_value = anchor
+        if x_value is None or y_value is None:
             return ""
         return tr(
             "EDITOR_DRAG_STATUS_LEGEND",
             label,
-            number_formatter(bbox_to_anchor[0]),
-            number_formatter(bbox_to_anchor[1]),
+            number_formatter(x_value),
+            number_formatter(y_value),
         )
     return ""

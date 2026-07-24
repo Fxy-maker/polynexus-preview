@@ -112,18 +112,13 @@ class ChartEditorGeneratedDragMixin:
                 return False
             updates = drag_state.get("preview_style")
             if not isinstance(updates, dict):
-                anchor = preview_geometry.get("bbox_to_anchor")
-                if not isinstance(anchor, list) or len(anchor) < 2:
+                legend_geometry = preview_geometry.get("legend_geometry")
+                if not isinstance(legend_geometry, dict):
                     return False
-                updates = {
-                    "loc": str(preview_geometry.get("loc", "") or "upper left"),
-                    "bbox_to_anchor": anchor,
-                }
-                if drag_kind == "legend-resize":
-                    box_size = preview_geometry.get("box_size")
-                    if not isinstance(box_size, list) or len(box_size) < 2:
-                        return False
-                    updates["box_size"] = box_size
+                updates = {"legend_geometry": deepcopy(legend_geometry)}
+                font_size = preview_geometry.get("font_size")
+                if font_size is not None:
+                    updates["font_size"] = font_size
             history_length = int(drag_state.get("history_length", len(session.history)) or 0)
             while len(session.history) > history_length:
                 undone = session.undo()

@@ -1,5 +1,23 @@
 # Active Work
 
+## Unified LegendGeometry persistence boundary - completed 2026-07-24
+
+- Completed the final migration layer for the Origin-style legend object.
+  `LegendGeometry` now carries canonical axes/display rectangles plus legacy
+  automatic anchor metadata, so editor helpers, previews, status text,
+  presentation sizing, and both renderers no longer interpret legacy placement
+  fields independently.
+- Style commands, `FigureObjectStore`, and document saves remove `loc`,
+  `bbox_to_anchor`, and `box_size` whenever `legend_geometry` is present while
+  legacy-only documents remain readable through the importer. Undo restores the
+  prior style snapshot correctly.
+- Evidence: focused legend/editor matrix `297 passed`; structured verifier and
+  default verifier both passed, including quality gate `282` and preprocessing
+  gate `103`. Task card:
+  `docs/agent/tasks/2026-07-24-legend-object-geometry.md`.
+- Manual GUI walkthrough of static, log-axis, and multi-series visuals remains
+  pending after restarting the desktop process; Chromium is unavailable.
+
 ## Unified LegendLayout refactor - completed 2026-07-24
 
 - Generated legends now resolve legacy `loc`, two/four-value

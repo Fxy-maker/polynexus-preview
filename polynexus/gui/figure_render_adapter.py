@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from matplotlib.text import Text
-from matplotlib.transforms import Bbox, IdentityTransform
+from matplotlib.transforms import IdentityTransform
 
 from ..core.figure_text_geometry import is_axes_text_box
 from .widgets.editor_geometry import Box

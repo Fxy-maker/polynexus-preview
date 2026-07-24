@@ -138,5 +138,11 @@ title: Current PolyNexus repository state
   continuously during preview and restores box/font together on undo. Manual
   GUI review of static, log-axis, and multi-series visuals remains pending
   because Chromium is unavailable.
+- The 2026-07-24 LegendGeometry persistence follow-up is complete. Canonical
+  `legend_geometry` now survives editor command/store/save boundaries, legacy
+  placement keys are removed after an explicit geometry edit, and automatic
+  legacy anchors remain readable through one importer. The focused
+  legend/editor matrix passes `297`; structured and default changed/type
+  verifiers both pass. Manual visual review after GUI restart remains pending.
 - Reconcile the older active-work entries in `active-work.md` against the
   current branch/PR state before using them as authoritative.

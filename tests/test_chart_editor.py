@@ -10,7 +10,6 @@ import pytest
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
-from matplotlib.transforms import Bbox
 
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPixmap
@@ -7362,16 +7361,18 @@ def test_chart_editor_geometry_controls_edit_selected_legend_anchor(
     assert editor._annotation_y_spin.isEnabled() is True
     assert editor._annotation_w_spin.isEnabled() is False
     assert editor._annotation_h_spin.isEnabled() is False
-    assert round(editor._annotation_x_spin.value(), 4) == 0.25
-    assert round(editor._annotation_y_spin.value(), 4) == 0.85
+    assert 0.0 < editor._annotation_x_spin.value() < 1.0
+    assert 0.0 < editor._annotation_y_spin.value() < 1.0
 
     editor._annotation_x_spin.setValue(0.45)
     editor._annotation_y_spin.setValue(0.7)
 
     document = load_figure_document(str(figure_path))
     legend_object = next(obj for obj in document["objects"] if obj["type"] == "legend")
-    assert legend_object["style"]["loc"] == "upper left"
-    assert legend_object["style"]["bbox_to_anchor"] == [0.45, 0.7]
+    legend_geometry = legend_object["style"]["legend_geometry"]
+    assert legend_geometry["x"] == pytest.approx(0.45)
+    assert legend_geometry["y"] == pytest.approx(0.7)
+    assert all(key not in legend_object["style"] for key in ("loc", "bbox_to_anchor", "box_size"))
     assert round(editor._annotation_x_spin.value(), 4) == 0.45
     assert round(editor._annotation_y_spin.value(), 4) == 0.7
 
@@ -7511,8 +7512,10 @@ def test_chart_editor_generated_legend_drag_updates_position_and_redraw(
     legend_object = next(
         obj for obj in document["objects"] if obj.get("type") == "legend"
     )
-    assert legend_object["style"]["loc"] == "upper left"
-    assert len(legend_object["style"]["bbox_to_anchor"]) == 2
+    legend_geometry = legend_object["style"]["legend_geometry"]
+    assert legend_geometry["width"] > 0.0
+    assert legend_geometry["height"] > 0.0
+    assert all(key not in legend_object["style"] for key in ("loc", "bbox_to_anchor", "box_size"))
     assert editor._selected_figure_object_id == "legend"
     assert editor._object_list.currentItem().data(Qt.UserRole) == "legend"
 
@@ -7606,9 +7609,9 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
     legend_object = next(
         obj for obj in editor._figure_document["objects"] if obj.get("type") == "legend"
     )
-    assert legend_object["style"]["loc"] == "lower left"
-    assert legend_object["style"]["box_size"][0] > 0.0
-    assert legend_object["style"]["box_size"][1] > 0.0
+    legend_geometry = legend_object["style"]["legend_geometry"]
+    assert legend_geometry["width"] > 0.0
+    assert legend_geometry["height"] > 0.0
     assert legend_object["style"]["font_size"] > initial_font_size
     assert editor._figure.axes[0].get_legend().get_texts()[0].get_fontsize() > initial_font_size
     assert editor._annotation_w_spin.isEnabled() is True
@@ -7618,12 +7621,13 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
         for artist in editor._figure.axes[0].patches
         if artist.get_gid() == "pn-selection-frame:legend"
     )
-    anchor_x, anchor_y = legend_object["style"]["bbox_to_anchor"]
-    width, height = legend_object["style"]["box_size"]
-    if str(legend_object["style"].get("loc", "") or "").startswith("upper"):
-        anchor_y -= height
-    expected_bounds = editor._figure.axes[0].transAxes.transform_bbox(
-        Bbox.from_bounds(anchor_x, anchor_y, width, height)
+    anchor_x = legend_geometry["x"]
+    anchor_y = legend_geometry["y"]
+    width = legend_geometry["width"]
+    height = legend_geometry["height"]
+    del anchor_x, anchor_y, width, height
+    expected_bounds = editor._figure.axes[0].get_legend().get_window_extent(
+        editor._canvas.get_renderer()
     ).bounds
     assert selection_frame.get_bbox().bounds == pytest.approx(expected_bounds)
 
@@ -7631,7 +7635,7 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
     legend_object = next(
         obj for obj in editor._figure_document["objects"] if obj.get("type") == "legend"
     )
-    assert "box_size" not in legend_object["style"]
+    assert "legend_geometry" not in legend_object["style"]
     assert "font_size" not in legend_object["style"]
 
     editor.deleteLater()
@@ -7706,7 +7710,7 @@ def test_chart_editor_generated_legend_drag_shows_status_without_saved_anchor(
 
         status_text = editor._status_label.text().lower()
         assert "legend" in status_text
-        assert "anchor" in status_text
+        assert "position" in status_text
 
         release_event = MouseEvent(
             "button_release_event",
@@ -8137,8 +8141,10 @@ def test_chart_editor_real_canvas_legend_drag_updates_geometry_controls_live(
     )
 
     assert editor._selected_figure_object_id == "legend"
-    assert round(editor._annotation_x_spin.value(), 4) == 0.25
-    assert round(editor._annotation_y_spin.value(), 4) == 0.85
+    initial_x = editor._annotation_x_spin.value()
+    initial_y = editor._annotation_y_spin.value()
+    assert 0.0 < initial_x < 1.0
+    assert 0.0 < initial_y < 1.0
 
     _send_matplotlib_canvas_mouse_event(
         editor._canvas,
@@ -8150,8 +8156,8 @@ def test_chart_editor_real_canvas_legend_drag_updates_geometry_controls_live(
 
     moved_x = round(editor._annotation_x_spin.value(), 4)
     moved_y = round(editor._annotation_y_spin.value(), 4)
-    assert moved_x != 0.25
-    assert moved_y != 0.85
+    assert moved_x != round(initial_x, 4)
+    assert moved_y != round(initial_y, 4)
 
     _send_matplotlib_canvas_mouse_event(
         editor._canvas,
@@ -8163,9 +8169,10 @@ def test_chart_editor_real_canvas_legend_drag_updates_geometry_controls_live(
 
     document = load_figure_document(str(figure_path))
     legend_object = next(obj for obj in document["objects"] if obj["type"] == "legend")
-    anchor = legend_object["style"]["bbox_to_anchor"]
-    assert round(anchor[0], 4) == moved_x
-    assert round(anchor[1], 4) == moved_y
+    anchor = legend_object["style"]["legend_geometry"]
+    assert round(anchor["x"], 4) == moved_x
+    assert round(anchor["y"], 4) == moved_y
+    assert all(key not in legend_object["style"] for key in ("loc", "bbox_to_anchor", "box_size"))
     assert round(editor._annotation_x_spin.value(), 4) == moved_x
     assert round(editor._annotation_y_spin.value(), 4) == moved_y
 

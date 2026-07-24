@@ -4,6 +4,7 @@ from copy import deepcopy
 import math
 
 from matplotlib.collections import PathCollection
+from matplotlib.transforms import Bbox
 
 from ...core.figure_edit_commands import (
     UpdateGeometryCommand,
@@ -11,7 +12,7 @@ from ...core.figure_edit_commands import (
 )
 from ...core.figure_object_store import FigureObjectStore
 from ...core.figure_text_geometry import clamp_axes_box, is_axes_text_box
-from ...core.figures.legend_layout import legend_style_updates, resolve_legend_layout
+from ...core.figures.legend_geometry import LegendGeometry, import_legend_geometry
 from .editor_geometry import Box
 
 GENERATED_LEGEND_HIT_SLOP_PX = 6.0
@@ -726,11 +727,17 @@ class ChartEditorGeneratedGeometryMixin:
             return None
         base_geometry = self._generated_legend_box_geometry(figure_object, legend, axes)
         base_font_size = self._generated_legend_base_font_size(figure_object, legend)
+        base_rect_display = (
+            tuple(float(value) for value in window_extent.extents)
+            if window_extent is not None
+            else None
+        )
         return {
             "object_id": str(object_id or ""),
             "kind": "legend",
             "dirty": False,
             "legend_base_geometry": base_geometry,
+            "legend_base_rect_display": base_rect_display,
             "legend_base_font_size": base_font_size,
             "grab_offset_axes": (
                 round(float(event_axes[0]) - float(anchor_axes[0]), 12),
@@ -754,47 +761,34 @@ class ChartEditorGeneratedGeometryMixin:
         return 9.0
 
     def _generated_legend_anchor_for_drag(self, figure_object, legend, axes):
-        style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
         window_extent = self._generated_legend_window_extent(legend)
         if window_extent is None:
             return None
-        layout = resolve_legend_layout(
+        style = figure_object.get("style", {}) if isinstance(figure_object, dict) else {}
+        geometry = import_legend_geometry(
             style,
             axes=axes,
             content_bbox_display=window_extent,
+            panel_id=str(figure_object.get("panel_id", "") or ""),
         )
-        if layout.anchor_axes is not None:
-            return tuple(round(float(value), 12) for value in layout.anchor_axes)
-        try:
-            anchor_x, anchor_y = axes.transAxes.inverted().transform(
-                [float(window_extent.x0), float(window_extent.y1)]
-            )
-        except Exception:
+        anchor = geometry.anchor_axes
+        if anchor is None:
             return None
         try:
-            return round(float(anchor_x), 12), round(float(anchor_y), 12)
+            return round(float(anchor[0]), 12), round(float(anchor[1]), 12)
         except (TypeError, ValueError):
             return None
 
     def _generated_legend_box_geometry(self, figure_object, legend, axes):
-        style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
         window_extent = self._generated_legend_window_extent(legend)
         if window_extent is None:
             return None
-        layout = resolve_legend_layout(
-            style,
-            axes=axes,
-            content_bbox_display=window_extent,
-        )
-        if layout.anchor_axes is not None and layout.size_axes is not None:
-            return (*layout.anchor_axes, *layout.size_axes)
-        interaction_bbox = layout.interaction_bbox_display or window_extent
         try:
             lower_left = axes.transAxes.inverted().transform(
-                [float(interaction_bbox.x0), float(interaction_bbox.y0)]
+                [float(window_extent.x0), float(window_extent.y0)]
             )
             upper_right = axes.transAxes.inverted().transform(
-                [float(interaction_bbox.x1), float(interaction_bbox.y1)]
+                [float(window_extent.x1), float(window_extent.y1)]
             )
         except Exception:
             return None
@@ -812,66 +806,57 @@ class ChartEditorGeneratedGeometryMixin:
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "legend":
             return False
+        axes = self._figure.axes[0] if self._figure is not None and self._figure.axes else None
+        legend = self._generated_legend_artist()
+        if axes is None or legend is None:
+            return False
+        original_style = (
+            figure_object.get("style", {})
+            if isinstance(figure_object.get("style"), dict)
+            else {}
+        )
+        current_geometry = import_legend_geometry(
+            original_style,
+            axes=axes,
+            content_bbox_display=self._generated_legend_window_extent(legend),
+            panel_id=str(figure_object.get("panel_id", "") or ""),
+        )
+        if current_geometry.rect_axes is None:
+            return False
         next_anchor = [round(float(anchor_x), 12), round(float(anchor_y), 12)]
-        next_box_size = None
+        width, height = current_geometry.rect_axes[2:]
         if box_size is not None:
             if not isinstance(box_size, (list, tuple)) or len(box_size) < 2:
                 return False
-            width = self._optional_float(box_size[0])
-            height = self._optional_float(box_size[1])
-            if width is None or height is None or width <= 0.0 or height <= 0.0:
+            parsed_width = self._optional_float(box_size[0])
+            parsed_height = self._optional_float(box_size[1])
+            if (
+                parsed_width is None
+                or parsed_height is None
+                or parsed_width <= 0.0
+                or parsed_height <= 0.0
+            ):
                 return False
-            next_box_size = [round(float(width), 12), round(float(height), 12)]
+            width, height = parsed_width, parsed_height
         next_font_size = None
         if font_size is not None:
             parsed_font_size = self._optional_float(font_size)
             if parsed_font_size is None or parsed_font_size <= 0.0:
                 return False
             next_font_size = round(float(parsed_font_size), 3)
-        original_style = (
-            figure_object.get("style", {})
-            if isinstance(figure_object.get("style"), dict)
-            else {}
+        geometry = LegendGeometry(
+            panel_id=current_geometry.panel_id,
+            rect_axes=(float(next_anchor[0]), float(next_anchor[1]), float(width), float(height)),
+            rect_display=current_geometry.rect_display,
+            font_size=current_geometry.font_size,
+            ncol=current_geometry.ncol,
         )
-        existing_layout = resolve_legend_layout(original_style)
-        effective_box_size = next_box_size or (
-            list(existing_layout.size_axes)
-            if existing_layout.size_axes is not None
-            else None
-        )
-        if effective_box_size is not None:
-            draft_layout = resolve_legend_layout(
-                {
-                    "loc": "upper left",
-                    "bbox_to_anchor": next_anchor,
-                    "box_size": effective_box_size,
-                }
-            )
-            canonical_style = legend_style_updates(draft_layout, original_style)
-            updates = {
-                key: canonical_style[key]
-                for key in ("loc", "bbox_to_anchor", "box_size")
-                if key in canonical_style
-            }
-            if next_font_size is not None:
-                updates["font_size"] = next_font_size
-        else:
-            legacy_loc = str(original_style.get("loc", "") or "upper left")
-            if not isinstance(original_style.get("bbox_to_anchor"), (list, tuple)):
-                legacy_loc = "upper left"
-            updates = {
-                "loc": legacy_loc,
-                "bbox_to_anchor": next_anchor,
-            }
+        if next_font_size is not None:
+            geometry = geometry.with_font_size(next_font_size)
+        updates = geometry.serialize(original_style)
         drag_state = self._generated_drag_preview_mode(object_id)
         if drag_state is not None:
-            preview_geometry = {
-                "bbox_to_anchor": updates["bbox_to_anchor"],
-                "loc": updates["loc"],
-                "original_style": deepcopy(original_style),
-            }
-            if "box_size" in updates:
-                preview_geometry["box_size"] = updates["box_size"]
+            preview_geometry = deepcopy(updates)
             set_value = getattr(self, "_set_control_value_silently", None)
             if callable(set_value):
                 x_spin = getattr(self, "_annotation_x_spin", None)
@@ -880,13 +865,13 @@ class ChartEditorGeneratedGeometryMixin:
                     set_value(x_spin, next_anchor[0])
                 if y_spin is not None:
                     set_value(y_spin, next_anchor[1])
-                if next_box_size is not None:
+                if box_size is not None:
                     width_spin = getattr(self, "_annotation_w_spin", None)
                     height_spin = getattr(self, "_annotation_h_spin", None)
                     if width_spin is not None:
-                        set_value(width_spin, next_box_size[0])
+                        set_value(width_spin, width)
                     if height_spin is not None:
-                        set_value(height_spin, next_box_size[1])
+                        set_value(height_spin, height)
             return self._update_generated_drag_preview(
                 object_id,
                 preview_geometry,
@@ -903,7 +888,7 @@ class ChartEditorGeneratedGeometryMixin:
                 )
             )
             if result is not None and result.changed:
-                self._status_label.setText("Legend anchor updated.")
+                self._status_label.setText("Legend geometry updated.")
                 self._update_generated_legend_preview(object_id)
                 self._sync_generated_object_property_controls(object_id)
             return bool(result is not None and result.changed)
@@ -937,51 +922,46 @@ class ChartEditorGeneratedGeometryMixin:
             if isinstance(drag_state, dict) and isinstance(drag_state.get("original_object"), dict)
             else figure_object
         )
-        geometry = self._generated_legend_box_geometry(source_object, legend, axes)
-        if geometry is None:
-            return False
-        left, bottom, width, height = geometry
-        right = left + width
-        top = bottom + height
-        min_width = 0.08
-        min_height = 0.06
-        if int(handle_index) in {0, 3}:
-            left = min(float(axes_x), right - min_width)
-        else:
-            right = max(float(axes_x), left + min_width)
-        if int(handle_index) in {0, 1}:
-            bottom = min(float(axes_y), top - min_height)
-        else:
-            top = max(float(axes_y), bottom + min_height)
-        base_geometry = (
-            drag_state.get("legend_base_geometry")
-            if isinstance(drag_state, dict)
-            else None
+        source_style = (
+            source_object.get("style", {})
+            if isinstance(source_object.get("style"), dict)
+            else {}
         )
+        base_rect = drag_state.get("legend_base_geometry") if isinstance(drag_state, dict) else None
+        base_display = drag_state.get("legend_base_rect_display") if isinstance(drag_state, dict) else None
         if (
-            not isinstance(base_geometry, (list, tuple))
-            or len(base_geometry) < 4
-            or float(base_geometry[2]) <= 0.0
-            or float(base_geometry[3]) <= 0.0
+            isinstance(base_rect, (list, tuple))
+            and len(base_rect) >= 4
+            and isinstance(base_display, (list, tuple))
+            and len(base_display) >= 4
         ):
-            base_geometry = geometry
-        base_font_size = (
-            self._optional_float(drag_state.get("legend_base_font_size"))
-            if isinstance(drag_state, dict)
-            else None
-        )
-        if base_font_size is None or base_font_size <= 0.0:
-            base_font_size = self._generated_legend_base_font_size(source_object, legend)
-        width_scale = max(0.05, (right - left) / float(base_geometry[2]))
-        height_scale = max(0.05, (top - bottom) / float(base_geometry[3]))
-        area_scale = (width_scale * height_scale) ** 0.5
-        scaled_font_size = min(72.0, max(6.0, float(base_font_size) * area_scale))
+            base_geometry = LegendGeometry(
+                panel_id=str(source_object.get("panel_id", "") or ""),
+                rect_axes=tuple(float(value) for value in base_rect[:4]),
+                rect_display=Bbox.from_extents(*[float(value) for value in base_display[:4]]),
+                font_size=float(drag_state.get("legend_base_font_size", 9.0) or 9.0),
+                ncol=int(source_style.get("ncol", 1) or 1),
+            )
+        else:
+            base_geometry = import_legend_geometry(
+                source_style,
+                axes=axes,
+                content_bbox_display=self._generated_legend_window_extent(legend),
+                panel_id=str(source_object.get("panel_id", "") or ""),
+            )
+        if base_geometry.rect_display is None:
+            return False
+        target_display = axes.transAxes.transform((float(axes_x), float(axes_y)))
+        resized = base_geometry.resized(int(handle_index), target_display, axes=axes)
+        if resized.rect_axes is None:
+            return False
+        left, bottom, width, height = resized.rect_axes
         return self._apply_generated_legend_style(
             object_id,
             left,
             bottom,
-            box_size=[right - left, top - bottom],
-            font_size=scaled_font_size,
+            box_size=[width, height],
+            font_size=resized.font_size,
         )
 
     def _apply_generated_legend_box_geometry(self, object_id, anchor_x, anchor_y, width, height):
@@ -1157,25 +1137,32 @@ class ChartEditorGeneratedGeometryMixin:
         ):
             return
         style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
-        bbox_to_anchor = style.get("bbox_to_anchor")
-        if not isinstance(bbox_to_anchor, (list, tuple)) or len(bbox_to_anchor) < 2:
-            return
-        anchor_x = self._optional_float(bbox_to_anchor[0])
-        anchor_y = self._optional_float(bbox_to_anchor[1])
-        if anchor_x is None or anchor_y is None:
-            return
         axes = self._figure.axes[0]
-        layout = resolve_legend_layout(style, axes=axes)
-        if layout.mode == "fixed" and layout.anchor_axes and layout.size_axes:
+        geometry = import_legend_geometry(
+            style,
+            axes=axes,
+            content_bbox_display=self._generated_legend_window_extent(legend),
+        )
+        if geometry.rect_axes is not None:
             legend.set_loc("lower left")
             legend.set_bbox_to_anchor(
-                (*layout.anchor_axes, *layout.size_axes),
+                geometry.rect_axes,
                 transform=axes.transAxes,
             )
+            for text in legend.get_texts():
+                text.set_fontsize(float(geometry.font_size))
             self._canvas.draw_idle()
             return
-        legend.set_loc(str(style.get("loc", "") or "upper left"))
-        legend.set_bbox_to_anchor((float(anchor_x), float(anchor_y)), transform=axes.transAxes)
+        if geometry.anchor_axes is not None:
+            legend.set_loc(geometry.auto_loc or "upper left")
+            legend.set_bbox_to_anchor(
+                (float(geometry.anchor_axes[0]), float(geometry.anchor_axes[1])),
+                transform=axes.transAxes,
+            )
+        font_size = self._optional_float(style.get("font_size"))
+        if font_size is not None and font_size > 0.0:
+            for text in legend.get_texts():
+                text.set_fontsize(float(font_size))
         self._canvas.draw_idle()
 
     def _is_left_mouse_button(self, button):

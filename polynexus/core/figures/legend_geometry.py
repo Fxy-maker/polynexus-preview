@@ -20,6 +20,7 @@ DEFAULT_FONT_SIZE = 9.0
 MIN_FONT_SIZE = 6.0
 MAX_FONT_SIZE = 72.0
 MIN_DISPLAY_SIZE = 8.0
+LEGACY_LEGEND_STYLE_KEYS = ("loc", "bbox_to_anchor", "box_size")
 
 
 @dataclass(frozen=True)
@@ -27,18 +28,37 @@ class LegendGeometry:
     """One legend rectangle shared by rendering and editor interaction."""
 
     panel_id: str = ""
+    anchor_axes: tuple[float, float] | None = None
+    size_axes: tuple[float, float] | None = None
     rect_axes: tuple[float, float, float, float] | None = None
     rect_display: Bbox | None = None
     font_size: float = DEFAULT_FONT_SIZE
     ncol: int = 1
+    auto_loc: str = ""
     diagnostic: str | None = None
 
-    def with_display_rect(self, rect: Bbox | None, *, axes: Any = None) -> "LegendGeometry":
+    def with_display_rect(
+        self,
+        rect: Bbox | None,
+        *,
+        axes: Any = None,
+        update_axes: bool = False,
+    ) -> "LegendGeometry":
         normalized = _finite_bbox(rect)
         rect_axes = self.rect_axes
+        anchor_axes = self.anchor_axes
         if normalized is not None and axes is not None:
-            rect_axes = _display_bbox_to_axes(axes, normalized)
-        return replace(self, rect_display=normalized, rect_axes=rect_axes)
+            measured_axes = _display_bbox_to_axes(axes, normalized)
+            if update_axes or self.rect_axes is None:
+                rect_axes = measured_axes
+            if (update_axes or anchor_axes is None) and measured_axes is not None:
+                anchor_axes = measured_axes[:2]
+        return replace(
+            self,
+            rect_display=normalized,
+            rect_axes=rect_axes,
+            anchor_axes=anchor_axes,
+        )
 
     def moved(self, dx_display: float, dy_display: float, *, axes: Any = None) -> "LegendGeometry":
         if self.rect_display is None:
@@ -56,7 +76,7 @@ class LegendGeometry:
             self.rect_display.x1 + dx,
             self.rect_display.y1 + dy,
         )
-        return self.with_display_rect(rect, axes=axes)
+        return self.with_display_rect(rect, axes=axes, update_axes=True)
 
     def resized(
         self,
@@ -96,6 +116,7 @@ class LegendGeometry:
         return self.with_display_rect(
             Bbox.from_bounds(left, bottom, width, height),
             axes=axes,
+            update_axes=True,
         ).with_font_size(font_size)
 
     def with_font_size(self, value: float) -> "LegendGeometry":
@@ -114,7 +135,7 @@ class LegendGeometry:
         """Serialize canonical geometry while dropping legacy placement keys."""
 
         style = dict(original_style) if isinstance(original_style, dict) else {}
-        for key in ("loc", "bbox_to_anchor", "box_size"):
+        for key in LEGACY_LEGEND_STYLE_KEYS:
             style.pop(key, None)
         if self.rect_axes is not None:
             x, y, width, height = self.rect_axes
@@ -128,6 +149,22 @@ class LegendGeometry:
         style["font_size"] = round(float(self.font_size), 3)
         style["ncol"] = max(1, int(self.ncol))
         return style
+
+
+def canonicalize_legend_style(style: dict[str, Any] | None) -> dict[str, Any]:
+    """Drop legacy placement keys once canonical geometry is present.
+
+    Loading remains backwards compatible: a legacy-only style is returned
+    unchanged because its rendered dimensions may not be known yet.  As soon
+    as an explicit ``legend_geometry`` exists, it is the sole placement
+    authority and the historical fields must not survive alongside it.
+    """
+
+    normalized = dict(style) if isinstance(style, dict) else {}
+    if isinstance(normalized.get("legend_geometry"), dict):
+        for key in LEGACY_LEGEND_STYLE_KEYS:
+            normalized.pop(key, None)
+    return normalized
 
 
 def import_legend_geometry(
@@ -144,12 +181,17 @@ def import_legend_geometry(
     ncol = _positive_int(normalized_style.get("ncol")) or 1
     diagnostic: str | None = None
     rect_axes: tuple[float, float, float, float] | None = None
+    anchor_axes: tuple[float, float] | None = None
+    size_axes: tuple[float, float] | None = None
 
     explicit = normalized_style.get("legend_geometry")
     if explicit is not None:
         rect_axes = _axes_rect(explicit)
         if rect_axes is None:
             diagnostic = "invalid legend geometry; using automatic layout"
+        else:
+            anchor_axes = rect_axes[:2]
+            size_axes = rect_axes[2:]
     else:
         layout = resolve_legend_layout(
             normalized_style,
@@ -158,6 +200,12 @@ def import_legend_geometry(
         )
         if layout.anchor_axes is not None and layout.size_axes is not None:
             rect_axes = (*layout.anchor_axes, *layout.size_axes)
+            anchor_axes = layout.anchor_axes
+            size_axes = layout.size_axes
+        elif layout.anchor_axes is not None:
+            anchor_axes = layout.anchor_axes
+        elif layout.size_axes is not None:
+            size_axes = layout.size_axes
         diagnostic = layout.diagnostic
 
     rect_display = None
@@ -167,13 +215,20 @@ def import_legend_geometry(
         rect_display = _finite_bbox(content_bbox_display)
         if rect_axes is None and rect_display is not None and axes is not None:
             rect_axes = _display_bbox_to_axes(axes, rect_display)
+            if anchor_axes is None and rect_axes is not None:
+                anchor_axes = rect_axes[:2]
+            if size_axes is None and rect_axes is not None:
+                size_axes = rect_axes[2:]
 
     return LegendGeometry(
         panel_id=str(panel_id or ""),
+        anchor_axes=anchor_axes,
+        size_axes=size_axes,
         rect_axes=rect_axes,
         rect_display=rect_display,
         font_size=font_size,
         ncol=ncol,
+        auto_loc=str(normalized_style.get("loc", "") or ""),
         diagnostic=diagnostic,
     )
 

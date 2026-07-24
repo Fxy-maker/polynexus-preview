@@ -15,6 +15,7 @@ from .figure_edit_capabilities import (
     is_valid_color,
     is_known_object_type,
 )
+from .figures.legend_geometry import canonicalize_legend_style
 
 
 _UNSET = object()
@@ -261,6 +262,8 @@ class UpdateStyleCommand:
         for key, value in self.updates.items():
             if value is not None:
                 next_style[key] = deepcopy(value)
+        if str(payload.get("type", "") or "") == "legend":
+            next_style = canonicalize_legend_style(next_style)
         if next_style == style and had_style:
             return _noop(self.object_id, message="Style already has the requested values."), None
         if not next_style and not had_style:

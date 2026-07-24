@@ -64,6 +64,46 @@ def test_update_style_execute_undo_redo():
     assert session.document["objects"][1]["style"]["line_width"] == 2.5
 
 
+def test_update_legend_geometry_drops_legacy_placement_fields():
+    document = {
+        "objects": [
+            {
+                "id": "legend",
+                "type": "legend",
+                "style": {
+                    "loc": "upper right",
+                    "bbox_to_anchor": [0.8, 0.9],
+                    "box_size": [0.2, 0.1],
+                    "ncol": 2,
+                },
+            }
+        ]
+    }
+    session = EditSession(document)
+
+    result = session.execute(
+        UpdateStyleCommand(
+            "legend",
+            {
+                "legend_geometry": {
+                    "space": "axes",
+                    "x": 0.4,
+                    "y": 0.3,
+                    "width": 0.35,
+                    "height": 0.2,
+                }
+            },
+        )
+    )
+
+    assert result.changed is True
+    style = session.document["objects"][0]["style"]
+    assert style["legend_geometry"]["x"] == 0.4
+    assert all(key not in style for key in ("loc", "bbox_to_anchor", "box_size"))
+    assert session.undo().changed is True
+    assert session.document["objects"][0]["style"]["loc"] == "upper right"
+
+
 def test_add_object_execute_undo_redo_and_duplicate_failure():
     session = EditSession(_document())
     payload = {"id": "rectangle-1", "type": "rectangle", "style": {"color": "red"}}

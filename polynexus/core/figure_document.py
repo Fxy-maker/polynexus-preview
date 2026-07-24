@@ -178,6 +178,13 @@ def annotation_to_figure_object(annotation: dict) -> dict:
 def save_figure_document(figure_path: str, document: dict) -> Path:
     path = figure_document_path(figure_path)
     payload = normalize_figure_document(document)
+    from .figures.legend_geometry import canonicalize_legend_style
+
+    for figure_object in payload.get("objects", []):
+        if not isinstance(figure_object, dict) or str(figure_object.get("type", "") or "") != "legend":
+            continue
+        style = figure_object.get("style")
+        figure_object["style"] = canonicalize_legend_style(style)
     payload["updated_at"] = datetime.now().isoformat(timespec="seconds")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:

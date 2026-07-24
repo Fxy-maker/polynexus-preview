@@ -212,13 +212,15 @@ class MatplotlibFigureRenderer:
             kwargs["loc"] = "lower left"
             kwargs["bbox_to_anchor"] = (x, y, width, height)
         else:
-            loc = str(style.get("loc") or "").strip()
+            loc = geometry.auto_loc.strip()
             if loc:
                 kwargs["loc"] = loc
-            anchor = style.get("bbox_to_anchor")
-            if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
+            if geometry.anchor_axes is not None:
                 try:
-                    kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
+                    kwargs["bbox_to_anchor"] = (
+                        float(geometry.anchor_axes[0]),
+                        float(geometry.anchor_axes[1]),
+                    )
                 except (TypeError, ValueError):
                     pass
         if presentation is not None:

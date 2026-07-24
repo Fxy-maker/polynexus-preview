@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from .figures.legend_geometry import canonicalize_legend_style
+
 
 class FigureObjectStore:
     """Small mutation layer around generated figure document objects."""
@@ -64,6 +66,11 @@ class FigureObjectStore:
                 continue
             style[key] = value
             changed = True
+        if str(obj.get("type", "") or "") == "legend":
+            canonical = canonicalize_legend_style(style)
+            if canonical != style:
+                obj["style"] = canonical
+                changed = True
         return changed
 
     def set_visible(self, object_id: str, visible: bool) -> bool:

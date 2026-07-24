@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from ..core.figures.legend_geometry import import_legend_geometry
 from .chart_editor_generated_helpers import optional_float
 
 
@@ -51,25 +52,24 @@ def generated_object_geometry_config(
                 "values": (0.0, 0.0, 0.0, 0.0),
             }
         style = figure_object.get("style", {})
-        box_size = style.get("box_size") if isinstance(style, dict) else None
-        if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
-            width = optional_float(box_size[0])
-            height = optional_float(box_size[1])
-            if width is not None and height is not None and width > 0.0 and height > 0.0:
-                return {
-                    "mode": "box",
-                    "enabled": (True, True, True, True),
-                    "values": (
-                        float(legend_anchor[0]),
-                        float(legend_anchor[1]),
-                        float(width),
-                        float(height),
-                    ),
-                }
+        imported_geometry = import_legend_geometry(style if isinstance(style, dict) else {})
+        if imported_geometry.rect_axes is not None:
+            return {
+                "mode": "box",
+                "enabled": (True, True, True, True),
+                "values": tuple(float(value) for value in imported_geometry.rect_axes),
+            }
+        anchor = imported_geometry.anchor_axes or legend_anchor
+        if anchor is None:
+            return {
+                "mode": "box",
+                "enabled": (False, False, False, False),
+                "values": (0.0, 0.0, 0.0, 0.0),
+            }
         return {
             "mode": "point",
             "enabled": (True, True, False, False),
-            "values": (float(legend_anchor[0]), float(legend_anchor[1]), 0.0, 0.0),
+            "values": (float(anchor[0]), float(anchor[1]), 0.0, 0.0),
         }
     if object_type == "plot_series":
         if point_index is None or not isinstance(inline_data, dict):

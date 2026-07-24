@@ -21,19 +21,47 @@ drag/resize preview, undo/redo, persistence, and export always agree.
 - Generated ChartEditor selection, preview, drag, undo, and status paths.
 - Legend, renderer, editor, and export regression tests.
 
+## Implementation plan
+
+1. Introduce `LegendGeometry` as the single importer and runtime geometry
+   snapshot, retaining legacy placement parsing only at that boundary.
+2. Route the shared renderer, generated renderer, display adapter, selection
+   frame, handles, hit testing, and drag previews through measured live bounds.
+3. Make body moves and corner resizes use one geometry transaction, with corner
+   resize scaling font size continuously and undo restoring geometry and style.
+4. Canonicalize edited and saved legend styles to `legend_geometry`, removing
+   legacy keys after migration while keeping legacy-only documents readable.
+5. Run the focused legend/editor matrix and both structured and default
+   repository verification commands; record manual visual review limitations.
+
 ## Acceptance criteria
 
-- [ ] Runtime code uses one `LegendGeometry`; no editor path directly interprets
+- [x] Runtime code uses one `LegendGeometry`; no editor path directly interprets
   `loc`, `bbox_to_anchor`, or `box_size`.
-- [ ] New saves use `style.legend_geometry`; legacy fields are read only by one
-  importer and remain readable during migration.
-- [ ] The selection frame and handles equal the live legend display bounds.
-- [ ] Body move and corner resize keep content, frame, handles, and hit testing
+- [x] Edited saves use `style.legend_geometry`; legacy-only documents are read
+  through one importer and remain readable during migration.
+- [x] The selection frame and handles equal the live legend display bounds.
+- [x] Body move and corner resize keep content, frame, handles, and hit testing
   synchronized during preview and after commit.
-- [ ] Resize scales font content continuously; body move does not change font.
-- [ ] One undo/redo restores position, size, font, and column presentation.
-- [ ] Multi-series, single-series suppression, log axes, static fallback, and
+- [x] Resize scales font content continuously; body move does not change font.
+- [x] One undo/redo restores position, size, font, and column presentation.
+- [x] Multi-series, single-series suppression, log axes, static fallback, and
   export-overlay isolation remain green.
+
+## Verification evidence
+
+- Focused legend/editor matrix: `297 passed`.
+- Core style migration regression: `54 passed` (included in the matrix's
+  relevant core coverage).
+- `git diff --check`: passed.
+- Structured verifier: `python scripts/verify.py --task docs/agent/tasks/2026-07-24-legend-object-geometry.md --changed --types` passed.
+- Default verifier: `python scripts/verify.py --changed --types` passed.
+
+## Known limitations
+
+- Manual GUI walkthrough of static images, log axes, and multi-series legends is
+  still required after restarting the desktop process; the optional Chromium
+  visual companion is unavailable in this environment.
 
 ## Verification
 

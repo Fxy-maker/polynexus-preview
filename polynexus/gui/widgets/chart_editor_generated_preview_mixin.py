@@ -377,30 +377,23 @@ class ChartEditorGeneratedPreviewMixin:
                 elif hasattr(artist, "set_offsets"):
                     artist.set_offsets(list(zip(x_values, y_values)))
         elif object_type == "legend":
-            anchor = geometry.get("bbox_to_anchor")
             axes = self._generated_preview_axis()
             legend = self._generated_legend_artist()
-            if (
-                legend is not None
-                and axes is not None
-                and isinstance(anchor, (list, tuple))
-                and len(anchor) >= 2
-            ):
-                from ...core.figures.legend_layout import resolve_legend_layout
+            if legend is not None and axes is not None:
+                from ...core.figures.legend_geometry import import_legend_geometry
 
-                layout = resolve_legend_layout(geometry, axes=axes)
+                imported_geometry = import_legend_geometry(geometry, axes=axes)
                 legend.set_loc(
                     "lower left"
-                    if layout.mode == "fixed"
-                    else str(geometry.get("loc", "") or "upper left")
+                    if imported_geometry.rect_axes is not None
+                    else (imported_geometry.auto_loc or "upper left")
                 )
-                bbox = (float(anchor[0]), float(anchor[1]))
-                if layout.mode == "fixed" and layout.anchor_axes and layout.size_axes:
-                    bbox = (*layout.anchor_axes, *layout.size_axes)
-                legend.set_bbox_to_anchor(
-                    bbox,
-                    transform=axes.transAxes,
-                )
+                if imported_geometry.rect_axes is not None:
+                    bbox = imported_geometry.rect_axes
+                else:
+                    bbox = imported_geometry.anchor_axes
+                if bbox is not None:
+                    legend.set_bbox_to_anchor(bbox, transform=axes.transAxes)
                 font_size = (
                     self._optional_float(style_updates.get("font_size"))
                     if isinstance(style_updates, dict)
@@ -500,16 +493,23 @@ class ChartEditorGeneratedPreviewMixin:
         elif object_type == "text" and isinstance(style_updates, dict):
             values = {"_annotation_font_size_spin": style_updates.get("font_size")}
         elif object_type == "legend":
-            anchor = geometry.get("bbox_to_anchor", ())
-            box_size = geometry.get("box_size", ())
-            if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
+            legend_geometry = geometry.get("legend_geometry")
+            if isinstance(legend_geometry, dict):
                 values = {
-                    "_annotation_x_spin": anchor[0],
-                    "_annotation_y_spin": anchor[1],
+                    "_annotation_x_spin": legend_geometry.get("x"),
+                    "_annotation_y_spin": legend_geometry.get("y"),
+                    "_annotation_w_spin": legend_geometry.get("width"),
+                    "_annotation_h_spin": legend_geometry.get("height"),
                 }
-                if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
-                    values["_annotation_w_spin"] = box_size[0]
-                    values["_annotation_h_spin"] = box_size[1]
+            else:
+                from ...core.figures.legend_geometry import import_legend_geometry
+
+                imported_geometry = import_legend_geometry(geometry)
+                if imported_geometry.anchor_axes is not None:
+                    values = {
+                        "_annotation_x_spin": imported_geometry.anchor_axes[0],
+                        "_annotation_y_spin": imported_geometry.anchor_axes[1],
+                    }
         elif object_type == "plot_series":
             state = self._generated_drag_preview_mode()
             index = int((state or {}).get("handle_index", 0) or 0)

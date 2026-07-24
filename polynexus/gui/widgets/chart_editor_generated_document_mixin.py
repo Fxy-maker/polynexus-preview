@@ -1022,19 +1022,16 @@ class ChartEditorGeneratedDocumentMixin:
                     bbox_transform=ax.transAxes,
                 )
             else:
-                bbox_to_anchor = legend_style.get("bbox_to_anchor")
-                anchor_x = None
-                anchor_y = None
-                if isinstance(bbox_to_anchor, (list, tuple)) and len(bbox_to_anchor) >= 2:
-                    anchor_x = self._optional_float(bbox_to_anchor[0])
-                    anchor_y = self._optional_float(bbox_to_anchor[1])
-                if anchor_x is not None and anchor_y is not None:
+                if geometry.anchor_axes is not None:
                     ax.legend(
                         fontsize=presentation.fontsize,
                         frameon=False,
                         ncol=presentation.ncol,
-                        loc=str(legend_style.get("loc", "") or "upper left"),
-                        bbox_to_anchor=(float(anchor_x), float(anchor_y)),
+                        loc=geometry.auto_loc or "upper left",
+                        bbox_to_anchor=(
+                            float(geometry.anchor_axes[0]),
+                            float(geometry.anchor_axes[1]),
+                        ),
                         bbox_transform=ax.transAxes,
                     )
                 else:
