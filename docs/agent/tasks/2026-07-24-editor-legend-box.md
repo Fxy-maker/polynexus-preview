@@ -49,7 +49,11 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-24-editor-legend-box.md
 
 - `10d4c61` adds one undoable `UpdateStyleCommand` for legend-corner drags,
   persistent axes-fraction W/H, and a matching transient display-space box.
+- `0353b98` makes the selection overlay fall back to the rendered legend when
+  a persisted box is disjoint from the current legend, preventing a stale box
+  from appearing over the plotted curves.
 - 2026-07-24 focused matrix: `272 passed`.
+- Follow-up alignment matrix: `273 passed`.
 - 2026-07-24 changed-file verifier: passed with
   `PYTEST_ADDOPTS=--basetemp=D:\PolyNexus\.pytest_tmp_legend_box_verify`;
   quality gates: `282 passed` and `103 passed`.
