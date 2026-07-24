@@ -7537,6 +7537,7 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
     legend_object = next(
         obj for obj in editor._figure_document["objects"] if obj.get("type") == "legend"
     )
+    assert legend_object["style"]["loc"] == "lower left"
     assert legend_object["style"]["box_size"][0] > 0.0
     assert legend_object["style"]["box_size"][1] > 0.0
     assert editor._annotation_w_spin.isEnabled() is True

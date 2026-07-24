@@ -11,7 +11,7 @@ from ...core.figure_edit_commands import (
 )
 from ...core.figure_object_store import FigureObjectStore
 from ...core.figure_text_geometry import clamp_axes_box, is_axes_text_box
-from ...core.figures.legend_layout import resolve_legend_layout
+from ...core.figures.legend_layout import legend_style_updates, resolve_legend_layout
 from .editor_geometry import Box
 
 GENERATED_LEGEND_HIT_SLOP_PX = 6.0
@@ -748,7 +748,7 @@ class ChartEditorGeneratedGeometryMixin:
             return tuple(round(float(value), 12) for value in layout.anchor_axes)
         try:
             anchor_x, anchor_y = axes.transAxes.inverted().transform(
-                [float(window_extent.x0), float(window_extent.y0)]
+                [float(window_extent.x0), float(window_extent.y1)]
             )
         except Exception:
             return None
@@ -801,22 +801,48 @@ class ChartEditorGeneratedGeometryMixin:
             if width is None or height is None or width <= 0.0 or height <= 0.0:
                 return False
             next_box_size = [round(float(width), 12), round(float(height), 12)]
+        original_style = (
+            figure_object.get("style", {})
+            if isinstance(figure_object.get("style"), dict)
+            else {}
+        )
+        existing_layout = resolve_legend_layout(original_style)
+        effective_box_size = next_box_size or (
+            list(existing_layout.size_axes)
+            if existing_layout.size_axes is not None
+            else None
+        )
+        if effective_box_size is not None:
+            draft_layout = resolve_legend_layout(
+                {
+                    "loc": "upper left",
+                    "bbox_to_anchor": next_anchor,
+                    "box_size": effective_box_size,
+                }
+            )
+            canonical_style = legend_style_updates(draft_layout, original_style)
+            updates = {
+                key: canonical_style[key]
+                for key in ("loc", "bbox_to_anchor", "box_size")
+                if key in canonical_style
+            }
+        else:
+            legacy_loc = str(original_style.get("loc", "") or "upper left")
+            if not isinstance(original_style.get("bbox_to_anchor"), (list, tuple)):
+                legacy_loc = "upper left"
+            updates = {
+                "loc": legacy_loc,
+                "bbox_to_anchor": next_anchor,
+            }
         drag_state = self._generated_drag_preview_mode(object_id)
         if drag_state is not None:
-            original_object = drag_state.get("original_object")
-            original_style = (
-                original_object.get("style", {})
-                if isinstance(original_object, dict)
-                and isinstance(original_object.get("style"), dict)
-                else {}
-            )
             preview_geometry = {
-                "bbox_to_anchor": next_anchor,
-                "loc": "upper left",
+                "bbox_to_anchor": updates["bbox_to_anchor"],
+                "loc": updates["loc"],
                 "original_style": deepcopy(original_style),
             }
-            if next_box_size is not None:
-                preview_geometry["box_size"] = next_box_size
+            if "box_size" in updates:
+                preview_geometry["box_size"] = updates["box_size"]
             set_value = getattr(self, "_set_control_value_silently", None)
             if callable(set_value):
                 x_spin = getattr(self, "_annotation_x_spin", None)
@@ -836,11 +862,9 @@ class ChartEditorGeneratedGeometryMixin:
                 object_id,
                 preview_geometry,
                 object_type="legend",
+                style_updates=updates,
             )
         session = self._edit_session_for_adapter()
-        updates = {"loc": "upper left", "bbox_to_anchor": next_anchor}
-        if next_box_size is not None:
-            updates["box_size"] = next_box_size
         if session is not None:
             session.select(object_id, "generated-canvas")
             result = self._execute_edit(
@@ -1088,18 +1112,16 @@ class ChartEditorGeneratedGeometryMixin:
         if anchor_x is None or anchor_y is None:
             return
         axes = self._figure.axes[0]
+        layout = resolve_legend_layout(style, axes=axes)
+        if layout.mode == "fixed" and layout.anchor_axes and layout.size_axes:
+            legend.set_loc("lower left")
+            legend.set_bbox_to_anchor(
+                (*layout.anchor_axes, *layout.size_axes),
+                transform=axes.transAxes,
+            )
+            self._canvas.draw_idle()
+            return
         legend.set_loc(str(style.get("loc", "") or "upper left"))
-        box_size = style.get("box_size")
-        if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
-            width = self._optional_float(box_size[0])
-            height = self._optional_float(box_size[1])
-            if width is not None and height is not None and width > 0.0 and height > 0.0:
-                legend.set_bbox_to_anchor(
-                    (float(anchor_x), float(anchor_y), float(width), float(height)),
-                    transform=axes.transAxes,
-                )
-                self._canvas.draw_idle()
-                return
         legend.set_bbox_to_anchor((float(anchor_x), float(anchor_y)), transform=axes.transAxes)
         self._canvas.draw_idle()
 

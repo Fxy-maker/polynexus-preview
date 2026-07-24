@@ -378,7 +378,6 @@ class ChartEditorGeneratedPreviewMixin:
                     artist.set_offsets(list(zip(x_values, y_values)))
         elif object_type == "legend":
             anchor = geometry.get("bbox_to_anchor")
-            box_size = geometry.get("box_size")
             axes = self._generated_preview_axis()
             legend = self._generated_legend_artist()
             if (
@@ -387,13 +386,17 @@ class ChartEditorGeneratedPreviewMixin:
                 and isinstance(anchor, (list, tuple))
                 and len(anchor) >= 2
             ):
-                legend.set_loc("upper left")
+                from ...core.figures.legend_layout import resolve_legend_layout
+
+                layout = resolve_legend_layout(geometry, axes=axes)
+                legend.set_loc(
+                    "lower left"
+                    if layout.mode == "fixed"
+                    else str(geometry.get("loc", "") or "upper left")
+                )
                 bbox = (float(anchor[0]), float(anchor[1]))
-                if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
-                    width = self._optional_float(box_size[0])
-                    height = self._optional_float(box_size[1])
-                    if width is not None and height is not None and width > 0.0 and height > 0.0:
-                        bbox = (float(anchor[0]), float(anchor[1]), float(width), float(height))
+                if layout.mode == "fixed" and layout.anchor_axes and layout.size_axes:
+                    bbox = (*layout.anchor_axes, *layout.size_axes)
                 legend.set_bbox_to_anchor(
                     bbox,
                     transform=axes.transAxes,
