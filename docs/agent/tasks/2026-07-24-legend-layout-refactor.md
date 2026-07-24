@@ -29,6 +29,9 @@ Replace the editor's split legend geometry interpretations with one resolved
 - [x] Formal, legacy, log-axis, multi-series, and static fallback matrices are
   green; transient overlays never enter exports.
 - [x] Resolver diagnostics replace silent geometry fallbacks.
+- [x] Corner-resizing a generated legend scales its text continuously with the
+  box during preview and persists the resulting font size in the same undoable
+  transaction.
 
 ## Implementation plan
 
@@ -63,6 +66,10 @@ drafts already present in the worktree remain outside this task's allowlist.
   drag/undo/helper tests passed; fixed edits normalize to `loc="lower left"`.
 - Final focused matrix: `292 passed` with an external Windows pytest base
   directory.
+- Origin-like resize follow-up: corner drag now derives a continuous font-size
+  scale from the resize box area, applies it to preview text immediately, and
+  restores both `box_size` and `font_size` on undo. The focused matrix remains
+  `292 passed`.
 - Structured verifier: `python scripts/verify.py --task
   docs/agent/tasks/2026-07-24-legend-layout-refactor.md --changed --types`
   passed; quality gate `282 passed`, preprocessing gate `103 passed`.

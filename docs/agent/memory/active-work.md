@@ -12,6 +12,11 @@
   same resolved geometry. Disjoint persisted boxes no longer trigger a hidden
   rendered-bounds fallback, so the visible legend and edit frame cannot belong
   to different layout interpretations.
+- Origin-like corner resize now treats the box as a true content scale: the
+  drag transaction captures the starting geometry/font, derives a continuous
+  area-based font scale, applies it during preview, and persists it with the
+  box dimensions. Undo restores both geometry and typography, eliminating the
+  former "frame grows, text snaps back" behavior.
 - First fixed-box edit normalizes the style to `loc="lower left"`; preview and
   commit share the same style update. Generated export clears selection before
   rendering, so transient frames/handles remain non-exported. Invalid legacy

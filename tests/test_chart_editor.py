@@ -7565,6 +7565,7 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
         for artist in editor._figure.axes[0].collections
         if artist.get_gid() == "pn-selection-handles:legend"
     )
+    initial_font_size = editor._figure.axes[0].get_legend().get_texts()[0].get_fontsize()
     lower_right_x, lower_right_y = handles.get_offsets()[1]
     axes = editor._figure.axes[0]
 
@@ -7579,8 +7580,8 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
     editor._on_generated_button_press(press_event)
     assert editor._generated_handle_drag_state["kind"] == "legend-resize"
 
-    release_x = float(lower_right_x + 50.0)
-    release_y = float(lower_right_y - 24.0)
+    release_x = float(lower_right_x + 80.0)
+    release_y = float(lower_right_y - 60.0)
     move_event = MouseEvent(
         "motion_notify_event",
         editor._canvas,
@@ -7590,6 +7591,8 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
     )
     move_event.inaxes = axes
     editor._on_generated_mouse_move(move_event)
+    preview_font_size = editor._figure.axes[0].get_legend().get_texts()[0].get_fontsize()
+    assert preview_font_size > initial_font_size
     release_event = MouseEvent(
         "button_release_event",
         editor._canvas,
@@ -7606,6 +7609,8 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
     assert legend_object["style"]["loc"] == "lower left"
     assert legend_object["style"]["box_size"][0] > 0.0
     assert legend_object["style"]["box_size"][1] > 0.0
+    assert legend_object["style"]["font_size"] > initial_font_size
+    assert editor._figure.axes[0].get_legend().get_texts()[0].get_fontsize() > initial_font_size
     assert editor._annotation_w_spin.isEnabled() is True
     assert editor._annotation_h_spin.isEnabled() is True
     selection_frame = next(
@@ -7627,6 +7632,7 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
         obj for obj in editor._figure_document["objects"] if obj.get("type") == "legend"
     )
     assert "box_size" not in legend_object["style"]
+    assert "font_size" not in legend_object["style"]
 
     editor.deleteLater()
     app.processEvents()

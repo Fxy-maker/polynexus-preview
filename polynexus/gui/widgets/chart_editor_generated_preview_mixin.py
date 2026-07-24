@@ -401,6 +401,14 @@ class ChartEditorGeneratedPreviewMixin:
                     bbox,
                     transform=axes.transAxes,
                 )
+                font_size = (
+                    self._optional_float(style_updates.get("font_size"))
+                    if isinstance(style_updates, dict)
+                    else None
+                )
+                if font_size is not None and font_size > 0.0:
+                    for text in legend.get_texts():
+                        text.set_fontsize(float(font_size))
                 canvas = getattr(self, "_canvas", None)
                 if canvas is not None:
                     try:

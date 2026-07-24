@@ -134,7 +134,9 @@ title: Current PolyNexus repository state
 - The 2026-07-24 LegendLayout refactor is complete on the active branch.
   Generated legend placement, selection, drag/resize, inspector, and export
   now share `polynexus/core/figures/legend_layout.py`; focused compatibility
-  and editor coverage is `292 passed`. Manual GUI review of static, log-axis,
-  and multi-series visuals remains pending because Chromium is unavailable.
+  and editor coverage is `292 passed`. Corner resize also scales legend text
+  continuously during preview and restores box/font together on undo. Manual
+  GUI review of static, log-axis, and multi-series visuals remains pending
+  because Chromium is unavailable.
 - Reconcile the older active-work entries in `active-work.md` against the
   current branch/PR state before using them as authoritative.

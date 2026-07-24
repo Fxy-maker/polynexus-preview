@@ -724,15 +724,34 @@ class ChartEditorGeneratedGeometryMixin:
         anchor_axes = self._generated_legend_anchor_for_drag(figure_object, legend, axes)
         if event_axes is None or anchor_axes is None:
             return None
+        base_geometry = self._generated_legend_box_geometry(figure_object, legend, axes)
+        base_font_size = self._generated_legend_base_font_size(figure_object, legend)
         return {
             "object_id": str(object_id or ""),
             "kind": "legend",
             "dirty": False,
+            "legend_base_geometry": base_geometry,
+            "legend_base_font_size": base_font_size,
             "grab_offset_axes": (
                 round(float(event_axes[0]) - float(anchor_axes[0]), 12),
                 round(float(event_axes[1]) - float(anchor_axes[1]), 12),
             ),
         }
+
+    def _generated_legend_base_font_size(self, figure_object, legend):
+        style = figure_object.get("style", {}) if isinstance(figure_object, dict) else {}
+        explicit = self._optional_float(style.get("font_size")) if isinstance(style, dict) else None
+        if explicit is not None and explicit > 0.0:
+            return float(explicit)
+        try:
+            texts = legend.get_texts() if legend is not None else []
+            if texts:
+                rendered = self._optional_float(texts[0].get_fontsize())
+                if rendered is not None and rendered > 0.0:
+                    return float(rendered)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
+        return 9.0
 
     def _generated_legend_anchor_for_drag(self, figure_object, legend, axes):
         style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
@@ -787,7 +806,9 @@ class ChartEditorGeneratedGeometryMixin:
             return None
         return left, bottom, width, height
 
-    def _apply_generated_legend_style(self, object_id, anchor_x, anchor_y, *, box_size=None):
+    def _apply_generated_legend_style(
+        self, object_id, anchor_x, anchor_y, *, box_size=None, font_size=None
+    ):
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "legend":
             return False
@@ -801,6 +822,12 @@ class ChartEditorGeneratedGeometryMixin:
             if width is None or height is None or width <= 0.0 or height <= 0.0:
                 return False
             next_box_size = [round(float(width), 12), round(float(height), 12)]
+        next_font_size = None
+        if font_size is not None:
+            parsed_font_size = self._optional_float(font_size)
+            if parsed_font_size is None or parsed_font_size <= 0.0:
+                return False
+            next_font_size = round(float(parsed_font_size), 3)
         original_style = (
             figure_object.get("style", {})
             if isinstance(figure_object.get("style"), dict)
@@ -826,6 +853,8 @@ class ChartEditorGeneratedGeometryMixin:
                 for key in ("loc", "bbox_to_anchor", "box_size")
                 if key in canonical_style
             }
+            if next_font_size is not None:
+                updates["font_size"] = next_font_size
         else:
             legacy_loc = str(original_style.get("loc", "") or "upper left")
             if not isinstance(original_style.get("bbox_to_anchor"), (list, tuple)):
@@ -924,11 +953,35 @@ class ChartEditorGeneratedGeometryMixin:
             bottom = min(float(axes_y), top - min_height)
         else:
             top = max(float(axes_y), bottom + min_height)
+        base_geometry = (
+            drag_state.get("legend_base_geometry")
+            if isinstance(drag_state, dict)
+            else None
+        )
+        if (
+            not isinstance(base_geometry, (list, tuple))
+            or len(base_geometry) < 4
+            or float(base_geometry[2]) <= 0.0
+            or float(base_geometry[3]) <= 0.0
+        ):
+            base_geometry = geometry
+        base_font_size = (
+            self._optional_float(drag_state.get("legend_base_font_size"))
+            if isinstance(drag_state, dict)
+            else None
+        )
+        if base_font_size is None or base_font_size <= 0.0:
+            base_font_size = self._generated_legend_base_font_size(source_object, legend)
+        width_scale = max(0.05, (right - left) / float(base_geometry[2]))
+        height_scale = max(0.05, (top - bottom) / float(base_geometry[3]))
+        area_scale = (width_scale * height_scale) ** 0.5
+        scaled_font_size = min(72.0, max(6.0, float(base_font_size) * area_scale))
         return self._apply_generated_legend_style(
             object_id,
             left,
             bottom,
             box_size=[right - left, top - bottom],
+            font_size=scaled_font_size,
         )
 
     def _apply_generated_legend_box_geometry(self, object_id, anchor_x, anchor_y, width, height):
