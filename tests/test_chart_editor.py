@@ -6749,6 +6749,72 @@ def test_chart_editor_static_edit_manual_acceptance_flow(tmp_path, monkeypatch):
     app.processEvents()
 
 
+def test_chart_editor_generated_export_renders_without_selection_overlay(
+    tmp_path, monkeypatch
+):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+
+    figure_path = tmp_path / "figures" / "generated.png"
+    export_path = tmp_path / "figures" / "generated-copy.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        technique="saxs",
+        figure_id="generated",
+        objects=[
+            {
+                "id": "series-a",
+                "type": "plot_series",
+                "name": "A",
+                "data": {"x": [1.0, 2.0], "y": [1.0, 2.0]},
+            },
+            {
+                "id": "series-b",
+                "type": "plot_series",
+                "name": "B",
+                "data": {"x": [1.0, 2.0], "y": [2.0, 1.0]},
+            },
+        ],
+    )
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    editor._object_list.setCurrentRow(3)
+    assert editor._selected_figure_object_id == "legend"
+    observed_selection_ids = []
+
+    original_show_document = editor._show_generated_figure_document
+
+    def show_document_and_capture(*args, **kwargs):
+        result = original_show_document(*args, **kwargs)
+        figure = editor._figure
+        original_savefig = figure.savefig
+
+        def capture_savefig(*save_args, **save_kwargs):
+            observed_selection_ids.append(editor._selected_figure_object_id)
+            return original_savefig(*save_args, **save_kwargs)
+
+        monkeypatch.setattr(figure, "savefig", capture_savefig)
+        return result
+
+    monkeypatch.setattr(
+        editor,
+        "_show_generated_figure_document",
+        show_document_and_capture,
+    )
+    editor._save_generated_document_figure(export_path)
+
+    assert observed_selection_ids == [""]
+    assert export_path.exists()
+
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_chart_editor_annotation_zoom_buttons_control_canvas_view(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
