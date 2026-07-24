@@ -7189,6 +7189,25 @@ def test_chart_editor_generated_legend_selection_supports_undoable_font_size_onl
     assert editor._btn_annotation_delete.isEnabled() is False
     assert editor._btn_annotation_front.isEnabled() is False
     assert editor._btn_annotation_back.isEnabled() is False
+    frame = next(
+        (
+            artist
+            for artist in editor._figure.axes[0].patches
+            if artist.get_gid() == "pn-selection-frame:legend"
+        ),
+        None,
+    )
+    handles = next(
+        (
+            artist
+            for artist in editor._figure.axes[0].collections
+            if artist.get_gid() == "pn-selection-handles:legend"
+        ),
+        None,
+    )
+    assert frame is not None
+    assert handles is not None
+    assert len(handles.get_offsets()) == 4
 
     editor._annotation_font_size_spin.setValue(15)
     editor._btn_annotation_apply_style.click()

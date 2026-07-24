@@ -120,6 +120,24 @@ class FigureRenderAdapter:
                 return bbox
         return None
 
+    def rendered_legend_selection_bbox(self, ax):
+        """Return the current legend extent in display coordinates."""
+
+        legend = ax.get_legend() if ax is not None else None
+        if legend is None:
+            return None
+        renderer = self._renderer_for_artist(legend)
+        if renderer is None:
+            return None
+        try:
+            bbox = legend.get_window_extent(renderer)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+        values = (bbox.x0, bbox.y0, bbox.x1, bbox.y1)
+        if not all(math.isfinite(float(value)) for value in values):
+            return None
+        return bbox
+
     def add_selection_handles(self, ax, figure_object: dict, *, selected_handle_index=None):
         if not isinstance(figure_object, dict):
             return []
@@ -151,6 +169,18 @@ class FigureRenderAdapter:
                     handle_indices.append(2)
         elif object_type == "text":
             bbox = self.rendered_text_selection_bbox(object_id)
+            if bbox is not None:
+                handle_points.extend(
+                    [
+                        (float(bbox.x0), float(bbox.y0)),
+                        (float(bbox.x1), float(bbox.y0)),
+                        (float(bbox.x1), float(bbox.y1)),
+                        (float(bbox.x0), float(bbox.y1)),
+                    ]
+                )
+                handle_indices.extend([0, 1, 2, 3])
+        elif object_type == "legend":
+            bbox = self.rendered_legend_selection_bbox(ax)
             if bbox is not None:
                 handle_points.extend(
                     [
@@ -217,10 +247,10 @@ class FigureRenderAdapter:
             zorder=10_000,
             transform=(
                 IdentityTransform()
-                if object_type == "text"
+                if object_type in {"text", "legend"}
                 else (ax.transAxes if is_axes_text_box(figure_object) else ax.transData)
             ),
-            clip_on=False if object_type == "text" else True,
+            clip_on=False if object_type in {"text", "legend"} else True,
         )
         handles.set_gid(f"pn-selection-handles:{object_id}")
         setattr(handles, "_pn_handle_indices", list(handle_indices))
@@ -301,6 +331,23 @@ class FigureRenderAdapter:
             ax.add_line(frame)
         elif object_type == "text":
             bbox = self.rendered_text_selection_bbox(object_id)
+            if bbox is None:
+                return []
+            frame = Rectangle(
+                (float(bbox.x0), float(bbox.y0)),
+                float(bbox.width),
+                float(bbox.height),
+                fill=False,
+                edgecolor=frame_kwargs["color"],
+                linestyle=frame_kwargs["linestyle"],
+                linewidth=frame_kwargs["linewidth"],
+                zorder=frame_kwargs["zorder"],
+                transform=IdentityTransform(),
+                clip_on=False,
+            )
+            ax.add_patch(frame)
+        elif object_type == "legend":
+            bbox = self.rendered_legend_selection_bbox(ax)
             if bbox is None:
                 return []
             frame = Rectangle(
