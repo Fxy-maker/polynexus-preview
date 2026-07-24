@@ -11,6 +11,7 @@ from ...core.figure_edit_commands import (
 )
 from ...core.figure_object_store import FigureObjectStore
 from ...core.figure_text_geometry import clamp_axes_box, is_axes_text_box
+from ...core.figures.legend_layout import resolve_legend_layout
 from .editor_geometry import Box
 
 GENERATED_LEGEND_HIT_SLOP_PX = 6.0
@@ -735,18 +736,20 @@ class ChartEditorGeneratedGeometryMixin:
 
     def _generated_legend_anchor_for_drag(self, figure_object, legend, axes):
         style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
-        bbox_to_anchor = style.get("bbox_to_anchor")
-        loc = str(style.get("loc", "") or "")
-        if loc == "upper left" and isinstance(bbox_to_anchor, (list, tuple)) and len(bbox_to_anchor) >= 2:
-            x_value = self._optional_float(bbox_to_anchor[0])
-            y_value = self._optional_float(bbox_to_anchor[1])
-            if x_value is not None and y_value is not None:
-                return round(float(x_value), 12), round(float(y_value), 12)
         window_extent = self._generated_legend_window_extent(legend)
         if window_extent is None:
             return None
+        layout = resolve_legend_layout(
+            style,
+            axes=axes,
+            content_bbox_display=window_extent,
+        )
+        if layout.anchor_axes is not None:
+            return tuple(round(float(value), 12) for value in layout.anchor_axes)
         try:
-            anchor_x, anchor_y = axes.transAxes.inverted().transform([float(window_extent.x0), float(window_extent.y1)])
+            anchor_x, anchor_y = axes.transAxes.inverted().transform(
+                [float(window_extent.x0), float(window_extent.y0)]
+            )
         except Exception:
             return None
         try:
@@ -756,36 +759,23 @@ class ChartEditorGeneratedGeometryMixin:
 
     def _generated_legend_box_geometry(self, figure_object, legend, axes):
         style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
-        anchor = style.get("bbox_to_anchor")
-        box_size = style.get("box_size")
-        if (
-            isinstance(anchor, (list, tuple))
-            and len(anchor) >= 2
-            and isinstance(box_size, (list, tuple))
-            and len(box_size) >= 2
-        ):
-            anchor_x = self._optional_float(anchor[0])
-            anchor_y = self._optional_float(anchor[1])
-            width = self._optional_float(box_size[0])
-            height = self._optional_float(box_size[1])
-            if (
-                anchor_x is not None
-                and anchor_y is not None
-                and width is not None
-                and height is not None
-                and width > 0.0
-                and height > 0.0
-            ):
-                return float(anchor_x), float(anchor_y), float(width), float(height)
         window_extent = self._generated_legend_window_extent(legend)
         if window_extent is None:
             return None
+        layout = resolve_legend_layout(
+            style,
+            axes=axes,
+            content_bbox_display=window_extent,
+        )
+        if layout.anchor_axes is not None and layout.size_axes is not None:
+            return (*layout.anchor_axes, *layout.size_axes)
+        interaction_bbox = layout.interaction_bbox_display or window_extent
         try:
             lower_left = axes.transAxes.inverted().transform(
-                [float(window_extent.x0), float(window_extent.y0)]
+                [float(interaction_bbox.x0), float(interaction_bbox.y0)]
             )
             upper_right = axes.transAxes.inverted().transform(
-                [float(window_extent.x1), float(window_extent.y1)]
+                [float(interaction_bbox.x1), float(interaction_bbox.y1)]
             )
         except Exception:
             return None

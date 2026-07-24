@@ -89,3 +89,15 @@ def test_auto_layout_uses_measured_content_for_interaction_box() -> None:
 
     assert layout.mode == "auto"
     assert layout.interaction_bbox_display == content
+
+
+def test_auto_legacy_anchor_remains_available_for_inspector_compatibility() -> None:
+    from polynexus.core.figures.legend_layout import resolve_legend_layout
+
+    layout = resolve_legend_layout(
+        {"loc": "upper left", "bbox_to_anchor": [0.25, 0.85]}
+    )
+
+    assert layout.mode == "auto"
+    assert layout.anchor_axes == (0.25, 0.85)
+    assert layout.size_axes is None

@@ -7355,7 +7355,7 @@ def test_chart_editor_generated_legend_uses_persisted_box_bounds(tmp_path, monke
         axis.transAxes.inverted()
     ).bounds
 
-    assert bounds == pytest.approx((0.25, 0.85, 0.4, 0.16))
+    assert bounds == pytest.approx((0.25, 0.69, 0.4, 0.16))
 
     editor.deleteLater()
     app.processEvents()
@@ -7548,6 +7548,8 @@ def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_un
     )
     anchor_x, anchor_y = legend_object["style"]["bbox_to_anchor"]
     width, height = legend_object["style"]["box_size"]
+    if str(legend_object["style"].get("loc", "") or "").startswith("upper"):
+        anchor_y -= height
     expected_bounds = editor._figure.axes[0].transAxes.transform_bbox(
         Bbox.from_bounds(anchor_x, anchor_y, width, height)
     ).bounds
@@ -8542,7 +8544,7 @@ def test_chart_editor_selecting_legend_preserves_its_rendered_bounds(tmp_path, m
     app.processEvents()
 
 
-def test_legend_selection_box_falls_back_when_persisted_box_is_disjoint():
+def test_legend_selection_box_uses_resolved_fixed_geometry_when_content_is_disjoint():
     figure = Figure(figsize=(4.0, 3.0), dpi=100)
     FigureCanvasAgg(figure)
     axes = figure.add_subplot(111)
@@ -8560,12 +8562,19 @@ def test_legend_selection_box_falls_back_when_persisted_box_is_disjoint():
         },
     }
 
-    actual = adapter.rendered_legend_selection_bbox(axes)
     selected = adapter.legend_selection_bbox(axes, figure_object)
 
-    assert actual is not None
     assert selected is not None
-    assert selected.bounds == pytest.approx(actual.bounds)
+    lower_left = axes.transAxes.transform((0.1, 0.1))
+    upper_right = axes.transAxes.transform((0.4, 0.25))
+    assert selected.bounds == pytest.approx(
+        (
+            lower_left[0],
+            lower_left[1],
+            upper_right[0] - lower_left[0],
+            upper_right[1] - lower_left[1],
+        )
+    )
 
 
 def test_chart_editor_double_click_blank_canvas_does_not_open_legend_name_dialog(

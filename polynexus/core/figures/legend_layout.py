@@ -72,11 +72,15 @@ def resolve_legend_layout(
             size_axes = (width, height)
         else:
             diagnostic = "invalid legend box geometry; using automatic layout"
+    elif anchor_values is not None:
+        # Keep a legacy point anchor available to inspector and drag callers;
+        # without a size it is not enough to define a fixed interaction box.
+        anchor_axes = (anchor_values[0], anchor_values[1])
 
     if anchor_axes is None or size_axes is None:
         return LegendLayout(
             mode="auto",
-            anchor_axes=None,
+            anchor_axes=anchor_axes,
             size_axes=None,
             content_bbox_display=content_bbox_display,
             interaction_bbox_display=content_bbox_display,
