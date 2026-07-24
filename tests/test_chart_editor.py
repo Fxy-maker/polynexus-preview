@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib as mpl
 import pytest
 from matplotlib.backend_bases import MouseEvent
+from matplotlib.transforms import Bbox
 
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPixmap
@@ -7451,6 +7452,109 @@ def test_chart_editor_generated_legend_drag_updates_position_and_redraw(
     editor._canvas.draw()
     final_bbox = final_legend.get_window_extent(editor._canvas.get_renderer())
     assert final_bbox.x0 > start_bbox.x0 + 5.0
+
+    editor.deleteLater()
+    app.processEvents()
+
+
+def test_chart_editor_generated_legend_corner_drag_persists_resizable_box_and_undo(
+    tmp_path, monkeypatch
+):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+
+    figure_path = tmp_path / "figures" / "generated-legend-resize.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        technique="waxs",
+        figure_id="generated-legend-resize",
+        objects=[
+            {
+                "id": "series-a",
+                "type": "plot_series",
+                "name": "A",
+                "data": {"x": [1.0, 2.0], "y": [1.0, 2.0]},
+            },
+            {
+                "id": "series-b",
+                "type": "plot_series",
+                "name": "B",
+                "data": {"x": [1.0, 2.0], "y": [2.0, 1.0]},
+            },
+        ],
+    )
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    editor._object_list.setCurrentRow(3)
+    handles = next(
+        artist
+        for artist in editor._figure.axes[0].collections
+        if artist.get_gid() == "pn-selection-handles:legend"
+    )
+    lower_right_x, lower_right_y = handles.get_offsets()[1]
+    axes = editor._figure.axes[0]
+
+    press_event = MouseEvent(
+        "button_press_event",
+        editor._canvas,
+        lower_right_x,
+        lower_right_y,
+        button=1,
+    )
+    press_event.inaxes = axes
+    editor._on_generated_button_press(press_event)
+    assert editor._generated_handle_drag_state["kind"] == "legend-resize"
+
+    release_x = float(lower_right_x + 50.0)
+    release_y = float(lower_right_y - 24.0)
+    move_event = MouseEvent(
+        "motion_notify_event",
+        editor._canvas,
+        release_x,
+        release_y,
+        button=1,
+    )
+    move_event.inaxes = axes
+    editor._on_generated_mouse_move(move_event)
+    release_event = MouseEvent(
+        "button_release_event",
+        editor._canvas,
+        release_x,
+        release_y,
+        button=1,
+    )
+    release_event.inaxes = axes
+    editor._on_generated_button_release(release_event)
+
+    legend_object = next(
+        obj for obj in editor._figure_document["objects"] if obj.get("type") == "legend"
+    )
+    assert legend_object["style"]["box_size"][0] > 0.0
+    assert legend_object["style"]["box_size"][1] > 0.0
+    assert editor._annotation_w_spin.isEnabled() is True
+    assert editor._annotation_h_spin.isEnabled() is True
+    selection_frame = next(
+        artist
+        for artist in editor._figure.axes[0].patches
+        if artist.get_gid() == "pn-selection-frame:legend"
+    )
+    anchor_x, anchor_y = legend_object["style"]["bbox_to_anchor"]
+    width, height = legend_object["style"]["box_size"]
+    expected_bounds = editor._figure.axes[0].transAxes.transform_bbox(
+        Bbox.from_bounds(anchor_x, anchor_y, width, height)
+    ).bounds
+    assert selection_frame.get_bbox().bounds == pytest.approx(expected_bounds)
+
+    editor._on_annotation_undo()
+    legend_object = next(
+        obj for obj in editor._figure_document["objects"] if obj.get("type") == "legend"
+    )
+    assert "box_size" not in legend_object["style"]
 
     editor.deleteLater()
     app.processEvents()

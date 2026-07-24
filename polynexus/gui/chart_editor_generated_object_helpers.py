@@ -50,6 +50,22 @@ def generated_object_geometry_config(
                 "enabled": (False, False, False, False),
                 "values": (0.0, 0.0, 0.0, 0.0),
             }
+        style = figure_object.get("style", {})
+        box_size = style.get("box_size") if isinstance(style, dict) else None
+        if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
+            width = optional_float(box_size[0])
+            height = optional_float(box_size[1])
+            if width is not None and height is not None and width > 0.0 and height > 0.0:
+                return {
+                    "mode": "box",
+                    "enabled": (True, True, True, True),
+                    "values": (
+                        float(legend_anchor[0]),
+                        float(legend_anchor[1]),
+                        float(width),
+                        float(height),
+                    ),
+                }
         return {
             "mode": "point",
             "enabled": (True, True, False, False),

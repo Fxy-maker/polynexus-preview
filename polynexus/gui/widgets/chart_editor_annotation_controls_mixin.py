@@ -731,11 +731,22 @@ class ChartEditorAnnotationControlsMixin:
             self.figure_changed.emit()
             return
         if str(figure_object.get("type", "") or "") == "legend":
-            if not self._apply_generated_legend_drag(
-                self._selected_figure_object_id,
-                float(self._annotation_x_spin.value()),
-                float(self._annotation_y_spin.value()),
-            ):
+            geometry = self._generated_object_geometry_config(figure_object)
+            if bool(geometry["enabled"][2]) and bool(geometry["enabled"][3]):
+                changed = self._apply_generated_legend_box_geometry(
+                    self._selected_figure_object_id,
+                    float(self._annotation_x_spin.value()),
+                    float(self._annotation_y_spin.value()),
+                    float(self._annotation_w_spin.value()),
+                    float(self._annotation_h_spin.value()),
+                )
+            else:
+                changed = self._apply_generated_legend_drag(
+                    self._selected_figure_object_id,
+                    float(self._annotation_x_spin.value()),
+                    float(self._annotation_y_spin.value()),
+                )
+            if not changed:
                 return
             self._persist_generated_document()
             self._show_generated_figure_document()

@@ -227,6 +227,7 @@ class ChartEditorGeneratedInteractionMixin:
             "body",
             "plot_series",
             "legend",
+            "legend-resize",
         }:
             committed = self._commit_generated_drag(drag_state)
         else:

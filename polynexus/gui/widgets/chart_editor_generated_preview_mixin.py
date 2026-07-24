@@ -378,6 +378,7 @@ class ChartEditorGeneratedPreviewMixin:
                     artist.set_offsets(list(zip(x_values, y_values)))
         elif object_type == "legend":
             anchor = geometry.get("bbox_to_anchor")
+            box_size = geometry.get("box_size")
             axes = self._generated_preview_axis()
             legend = self._generated_legend_artist()
             if (
@@ -387,10 +388,22 @@ class ChartEditorGeneratedPreviewMixin:
                 and len(anchor) >= 2
             ):
                 legend.set_loc("upper left")
+                bbox = (float(anchor[0]), float(anchor[1]))
+                if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
+                    width = self._optional_float(box_size[0])
+                    height = self._optional_float(box_size[1])
+                    if width is not None and height is not None and width > 0.0 and height > 0.0:
+                        bbox = (float(anchor[0]), float(anchor[1]), float(width), float(height))
                 legend.set_bbox_to_anchor(
-                    (float(anchor[0]), float(anchor[1])),
+                    bbox,
                     transform=axes.transAxes,
                 )
+                canvas = getattr(self, "_canvas", None)
+                if canvas is not None:
+                    try:
+                        canvas.draw()
+                    except (AttributeError, RuntimeError):
+                        pass
         if object_type != "text":
             self._update_generated_drag_handle_artists(object_id, geometry, object_type)
             self._update_generated_selection_frame(object_id, geometry, object_type)
@@ -405,6 +418,28 @@ class ChartEditorGeneratedPreviewMixin:
         return True
 
     def _update_generated_selection_frame(self, object_id, geometry, object_type):
+        if object_type == "legend":
+            axes = self._generated_preview_axis()
+            bbox = self._figure_render_adapter.legend_selection_bbox(
+                axes,
+                self._generated_figure_object_by_id(object_id),
+                geometry=geometry,
+            )
+            if bbox is None:
+                return
+            figure = getattr(self, "_figure", None)
+            for axis in list(getattr(figure, "axes", ()) or ()):
+                for artist in axis.patches:
+                    if str(getattr(artist, "get_gid", lambda: "")() or "") != f"pn-selection-frame:{object_id}":
+                        continue
+                    if isinstance(artist, Rectangle):
+                        artist.set_bounds(
+                            float(bbox.x0),
+                            float(bbox.y0),
+                            float(bbox.width),
+                            float(bbox.height),
+                        )
+            return
         if object_type not in {"text", "rectangle"}:
             return
         box = Box.from_payload(geometry)
@@ -453,6 +488,17 @@ class ChartEditorGeneratedPreviewMixin:
             }
         elif object_type == "text" and isinstance(style_updates, dict):
             values = {"_annotation_font_size_spin": style_updates.get("font_size")}
+        elif object_type == "legend":
+            anchor = geometry.get("bbox_to_anchor", ())
+            box_size = geometry.get("box_size", ())
+            if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
+                values = {
+                    "_annotation_x_spin": anchor[0],
+                    "_annotation_y_spin": anchor[1],
+                }
+                if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
+                    values["_annotation_w_spin"] = box_size[0]
+                    values["_annotation_h_spin"] = box_size[1]
         elif object_type == "plot_series":
             state = self._generated_drag_preview_mode()
             index = int((state or {}).get("handle_index", 0) or 0)
@@ -495,6 +541,21 @@ class ChartEditorGeneratedPreviewMixin:
             right = box.x + box.width
             top = box.y + box.height
             points = [(box.x, box.y), (right, box.y), (right, top), (box.x, top)]
+        elif object_type == "legend":
+            axes = self._generated_preview_axis()
+            bbox = self._figure_render_adapter.legend_selection_bbox(
+                axes,
+                self._generated_figure_object_by_id(object_id),
+                geometry=geometry,
+            )
+            if bbox is None:
+                return
+            points = [
+                (float(bbox.x0), float(bbox.y0)),
+                (float(bbox.x1), float(bbox.y0)),
+                (float(bbox.x1), float(bbox.y1)),
+                (float(bbox.x0), float(bbox.y1)),
+            ]
         elif object_type == "plot_series":
             x_values = list(geometry.get("x_values", ()) or ())
             y_values = list(geometry.get("y_values", ()) or ())

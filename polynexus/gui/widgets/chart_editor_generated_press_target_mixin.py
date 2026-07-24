@@ -50,6 +50,16 @@ class ChartEditorGeneratedPressTargetMixin:
                 "nearest_point_hit": False,
                 "dirty": False,
             }
+        if object_type == "legend":
+            handle_hit = self._generated_point_handle_hit(event, object_id)
+            if handle_hit is not None:
+                return {
+                    "object_id": str(object_id or ""),
+                    "kind": "legend-resize",
+                    "handle_index": int(handle_hit),
+                    "dirty": False,
+                }
+            return self._generated_legend_drag_start(event, object_id)
         if object_type == "text":
             if not is_axes_text_box(figure_object):
                 handle_hit = self._generated_point_handle_hit(event, object_id)

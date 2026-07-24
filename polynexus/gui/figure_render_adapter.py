@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from matplotlib.text import Text
-from matplotlib.transforms import IdentityTransform
+from matplotlib.transforms import Bbox, IdentityTransform
 
 from ..core.figure_text_geometry import is_axes_text_box
 from .widgets.editor_geometry import Box
@@ -138,6 +138,38 @@ class FigureRenderAdapter:
             return None
         return bbox
 
+    def legend_selection_bbox(self, ax, figure_object: dict | None, *, geometry=None):
+        """Return the persisted legend box when available, else its rendered bounds."""
+        style = geometry if isinstance(geometry, dict) else {}
+        if not style:
+            style = (
+                figure_object.get("style", {})
+                if isinstance(figure_object, dict) and isinstance(figure_object.get("style"), dict)
+                else {}
+            )
+        anchor = style.get("bbox_to_anchor")
+        box_size = style.get("box_size")
+        if (
+            ax is not None
+            and isinstance(anchor, (list, tuple))
+            and len(anchor) >= 2
+            and isinstance(box_size, (list, tuple))
+            and len(box_size) >= 2
+        ):
+            values = [self._optional_float(value) for value in (*anchor[:2], *box_size[:2])]
+            if all(value is not None and math.isfinite(float(value)) for value in values):
+                x, y, width, height = (float(value) for value in values)
+                if width > 0.0 and height > 0.0:
+                    lower_left = ax.transAxes.transform((x, y))
+                    upper_right = ax.transAxes.transform((x + width, y + height))
+                    return Bbox.from_extents(
+                        float(lower_left[0]),
+                        float(lower_left[1]),
+                        float(upper_right[0]),
+                        float(upper_right[1]),
+                    )
+        return self.rendered_legend_selection_bbox(ax)
+
     def add_selection_handles(self, ax, figure_object: dict, *, selected_handle_index=None):
         if not isinstance(figure_object, dict):
             return []
@@ -180,7 +212,7 @@ class FigureRenderAdapter:
                 )
                 handle_indices.extend([0, 1, 2, 3])
         elif object_type == "legend":
-            bbox = self.rendered_legend_selection_bbox(ax)
+            bbox = self.legend_selection_bbox(ax, figure_object)
             if bbox is not None:
                 handle_points.extend(
                     [
@@ -347,7 +379,7 @@ class FigureRenderAdapter:
             )
             ax.add_patch(frame)
         elif object_type == "legend":
-            bbox = self.rendered_legend_selection_bbox(ax)
+            bbox = self.legend_selection_bbox(ax, figure_object)
             if bbox is None:
                 return []
             frame = Rectangle(

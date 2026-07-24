@@ -754,11 +754,63 @@ class ChartEditorGeneratedGeometryMixin:
         except (TypeError, ValueError):
             return None
 
-    def _apply_generated_legend_drag(self, object_id, anchor_x, anchor_y):
+    def _generated_legend_box_geometry(self, figure_object, legend, axes):
+        style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
+        anchor = style.get("bbox_to_anchor")
+        box_size = style.get("box_size")
+        if (
+            isinstance(anchor, (list, tuple))
+            and len(anchor) >= 2
+            and isinstance(box_size, (list, tuple))
+            and len(box_size) >= 2
+        ):
+            anchor_x = self._optional_float(anchor[0])
+            anchor_y = self._optional_float(anchor[1])
+            width = self._optional_float(box_size[0])
+            height = self._optional_float(box_size[1])
+            if (
+                anchor_x is not None
+                and anchor_y is not None
+                and width is not None
+                and height is not None
+                and width > 0.0
+                and height > 0.0
+            ):
+                return float(anchor_x), float(anchor_y), float(width), float(height)
+        window_extent = self._generated_legend_window_extent(legend)
+        if window_extent is None:
+            return None
+        try:
+            lower_left = axes.transAxes.inverted().transform(
+                [float(window_extent.x0), float(window_extent.y0)]
+            )
+            upper_right = axes.transAxes.inverted().transform(
+                [float(window_extent.x1), float(window_extent.y1)]
+            )
+        except Exception:
+            return None
+        left = min(float(lower_left[0]), float(upper_right[0]))
+        bottom = min(float(lower_left[1]), float(upper_right[1]))
+        width = abs(float(upper_right[0]) - float(lower_left[0]))
+        height = abs(float(upper_right[1]) - float(lower_left[1]))
+        if width <= 0.0 or height <= 0.0:
+            return None
+        return left, bottom, width, height
+
+    def _apply_generated_legend_style(self, object_id, anchor_x, anchor_y, *, box_size=None):
         figure_object = self._generated_figure_object_by_id(object_id)
         if not figure_object or str(figure_object.get("type", "") or "") != "legend":
             return False
         next_anchor = [round(float(anchor_x), 12), round(float(anchor_y), 12)]
+        next_box_size = None
+        if box_size is not None:
+            if not isinstance(box_size, (list, tuple)) or len(box_size) < 2:
+                return False
+            width = self._optional_float(box_size[0])
+            height = self._optional_float(box_size[1])
+            if width is None or height is None or width <= 0.0 or height <= 0.0:
+                return False
+            next_box_size = [round(float(width), 12), round(float(height), 12)]
         drag_state = self._generated_drag_preview_mode(object_id)
         if drag_state is not None:
             original_object = drag_state.get("original_object")
@@ -773,6 +825,8 @@ class ChartEditorGeneratedGeometryMixin:
                 "loc": "upper left",
                 "original_style": deepcopy(original_style),
             }
+            if next_box_size is not None:
+                preview_geometry["box_size"] = next_box_size
             set_value = getattr(self, "_set_control_value_silently", None)
             if callable(set_value):
                 x_spin = getattr(self, "_annotation_x_spin", None)
@@ -781,18 +835,28 @@ class ChartEditorGeneratedGeometryMixin:
                     set_value(x_spin, next_anchor[0])
                 if y_spin is not None:
                     set_value(y_spin, next_anchor[1])
+                if next_box_size is not None:
+                    width_spin = getattr(self, "_annotation_w_spin", None)
+                    height_spin = getattr(self, "_annotation_h_spin", None)
+                    if width_spin is not None:
+                        set_value(width_spin, next_box_size[0])
+                    if height_spin is not None:
+                        set_value(height_spin, next_box_size[1])
             return self._update_generated_drag_preview(
                 object_id,
                 preview_geometry,
                 object_type="legend",
             )
         session = self._edit_session_for_adapter()
+        updates = {"loc": "upper left", "bbox_to_anchor": next_anchor}
+        if next_box_size is not None:
+            updates["box_size"] = next_box_size
         if session is not None:
             session.select(object_id, "generated-canvas")
             result = self._execute_edit(
                 UpdateStyleCommand(
                     object_id,
-                    {"loc": "upper left", "bbox_to_anchor": next_anchor},
+                    updates,
                 )
             )
             if result is not None and result.changed:
@@ -802,16 +866,64 @@ class ChartEditorGeneratedGeometryMixin:
             return bool(result is not None and result.changed)
         changed = self._generated_store().update_style(
             object_id,
-            {
-                "loc": "upper left",
-                "bbox_to_anchor": next_anchor,
-            },
+            updates,
         )
         if not changed:
             return False
         self._sync_generated_object_property_controls(object_id)
         self._update_generated_legend_preview(object_id)
         return True
+
+    def _apply_generated_legend_drag(self, object_id, anchor_x, anchor_y):
+        return self._apply_generated_legend_style(object_id, anchor_x, anchor_y)
+
+    def _apply_generated_legend_resize(self, object_id, handle_index, axes_x, axes_y):
+        figure_object = self._generated_figure_object_by_id(object_id)
+        legend = self._generated_legend_artist()
+        axes = self._figure.axes[0] if self._figure is not None and self._figure.axes else None
+        if (
+            not isinstance(figure_object, dict)
+            or legend is None
+            or axes is None
+            or int(handle_index) not in {0, 1, 2, 3}
+        ):
+            return False
+        drag_state = self._generated_drag_preview_mode(object_id)
+        source_object = (
+            drag_state.get("original_object")
+            if isinstance(drag_state, dict) and isinstance(drag_state.get("original_object"), dict)
+            else figure_object
+        )
+        geometry = self._generated_legend_box_geometry(source_object, legend, axes)
+        if geometry is None:
+            return False
+        left, bottom, width, height = geometry
+        right = left + width
+        top = bottom + height
+        min_width = 0.08
+        min_height = 0.06
+        if int(handle_index) in {0, 3}:
+            left = min(float(axes_x), right - min_width)
+        else:
+            right = max(float(axes_x), left + min_width)
+        if int(handle_index) in {0, 1}:
+            bottom = min(float(axes_y), top - min_height)
+        else:
+            top = max(float(axes_y), bottom + min_height)
+        return self._apply_generated_legend_style(
+            object_id,
+            left,
+            bottom,
+            box_size=[right - left, top - bottom],
+        )
+
+    def _apply_generated_legend_box_geometry(self, object_id, anchor_x, anchor_y, width, height):
+        return self._apply_generated_legend_style(
+            object_id,
+            anchor_x,
+            anchor_y,
+            box_size=[max(float(width), 0.08), max(float(height), 0.06)],
+        )
 
     def _materialize_generated_plot_series_inline_data(self, figure_object):
         if not figure_object or str(figure_object.get("type", "") or "") != "plot_series":
@@ -987,6 +1099,17 @@ class ChartEditorGeneratedGeometryMixin:
             return
         axes = self._figure.axes[0]
         legend.set_loc(str(style.get("loc", "") or "upper left"))
+        box_size = style.get("box_size")
+        if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
+            width = self._optional_float(box_size[0])
+            height = self._optional_float(box_size[1])
+            if width is not None and height is not None and width > 0.0 and height > 0.0:
+                legend.set_bbox_to_anchor(
+                    (float(anchor_x), float(anchor_y), float(width), float(height)),
+                    transform=axes.transAxes,
+                )
+                self._canvas.draw_idle()
+                return
         legend.set_bbox_to_anchor((float(anchor_x), float(anchor_y)), transform=axes.transAxes)
         self._canvas.draw_idle()
 

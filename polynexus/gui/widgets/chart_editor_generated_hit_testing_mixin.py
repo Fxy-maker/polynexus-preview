@@ -367,7 +367,10 @@ class ChartEditorGeneratedHitTestingMixin:
         if len(offsets) <= 0:
             return None
         figure_object = self._generated_figure_object_by_id(object_id)
-        if isinstance(figure_object, dict) and str(figure_object.get("type", "") or "") == "text":
+        if (
+            isinstance(figure_object, dict)
+            and str(figure_object.get("type", "") or "") in {"text", "legend"}
+        ):
             pixel_offsets = offsets
         else:
             transform = axes.transAxes if is_axes_text_box(figure_object) else axes.transData

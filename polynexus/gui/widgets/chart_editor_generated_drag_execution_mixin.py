@@ -145,6 +145,16 @@ class ChartEditorGeneratedDragExecutionMixin:
                 changed = self._apply_generated_plot_series_handle_drag(
                     object_id, handle_index, x_value, y_value
                 )
+            elif drag_kind == "legend-resize":
+                axes_fraction = self._generated_event_axes_fraction(event)
+                if axes_fraction is None:
+                    return
+                changed = self._apply_generated_legend_resize(
+                    object_id,
+                    int(drag_state.get("handle_index", 0) or 0),
+                    float(axes_fraction[0]),
+                    float(axes_fraction[1]),
+                )
             elif object_type == "legend":
                 axes_fraction = self._generated_event_axes_fraction(event)
                 if axes_fraction is None:

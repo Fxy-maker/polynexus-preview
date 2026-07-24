@@ -106,13 +106,19 @@ class ChartEditorGeneratedDragMixin:
             self._clear_generated_drag_preview()
             self._generated_viewport_snapshot = None
             return True
-        if drag_kind == "legend":
+        if drag_kind in {"legend", "legend-resize"}:
             preview_geometry = drag_state.get("preview_geometry")
             if session is None or not isinstance(preview_geometry, dict):
                 return False
             anchor = preview_geometry.get("bbox_to_anchor")
             if not isinstance(anchor, list) or len(anchor) < 2:
                 return False
+            updates = {"loc": "upper left", "bbox_to_anchor": anchor}
+            if drag_kind == "legend-resize":
+                box_size = preview_geometry.get("box_size")
+                if not isinstance(box_size, list) or len(box_size) < 2:
+                    return False
+                updates["box_size"] = box_size
             history_length = int(drag_state.get("history_length", len(session.history)) or 0)
             while len(session.history) > history_length:
                 undone = session.undo()
@@ -122,12 +128,13 @@ class ChartEditorGeneratedDragMixin:
             result = self._execute_edit(
                 UpdateStyleCommand(
                     object_id,
-                    {"loc": "upper left", "bbox_to_anchor": anchor},
+                    updates,
                 )
             )
             if result is None or not result.changed:
                 return False
             self._show_generated_figure_document()
+            self._sync_generated_object_property_controls(object_id)
             self._clear_generated_drag_preview()
             self._generated_viewport_snapshot = None
             return True
