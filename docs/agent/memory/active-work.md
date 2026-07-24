@@ -620,6 +620,15 @@
 
 ## Suggested next candidates
 
+- Editor legend-box task completed on 2026-07-24 at `10d4c61`: generated
+  legends now retain their rendered layout on selection, expose a transient
+  non-exported Origin-style box with four handles, persist corner-resize W/H
+  through one undoable style transaction, and surface the same geometry in the
+  inspector. Evidence: task card
+  `docs/agent/tasks/2026-07-24-editor-legend-box.md`; focused matrix `272
+  passed`, changed-file verifier plus quality gates `282 passed` and `103
+  passed` using a dedicated pytest base temp directory.
+
 1. Add incremental Ruff checks for changed files, then ratchet toward full-repo
    cleanliness.
 2. Add a small index or search adapter for memory entries only after the Markdown

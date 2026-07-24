@@ -18,7 +18,7 @@
 - Modify: `polynexus/gui/widgets/chart_editor_generated_document_mixin.py`
 - Test: `tests/test_figure_render_plan_core.py`
 
-- [ ] **Step 1: Write failing policy tests**
+- [x] **Step 1: Write failing policy tests**
 
 ```python
 presentation = legend_presentation(
@@ -30,13 +30,13 @@ assert presentation.fontsize == 15.0
 assert presentation.ncol == 1
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_figure_render_plan_core.py -k legend_box -q`
 
 Expected: FAIL because `box_size` is ignored.
 
-- [ ] **Step 3: Implement the pure policy**
+- [x] **Step 3: Implement the pure policy**
 
 ```python
 box_size = _positive_box_size(style.get("box_size"))
@@ -46,7 +46,7 @@ if box_size is not None:
 
 Use the stored positive explicit font size without generic editor overrides.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run: `python -m pytest tests/test_figure_render_plan_core.py -k "legend_box or legend" -q`
 
@@ -59,7 +59,7 @@ Commit: `fix(editor): honor persistent legend box layout`
 - Modify: `polynexus/gui/widgets/chart_editor_generated_document_mixin.py`
 - Test: `tests/test_chart_editor.py`
 
-- [ ] **Step 1: Write a failing selected-legend overlay test**
+- [x] **Step 1: Write a failing selected-legend overlay test**
 
 ```python
 editor._object_list.setCurrentRow(legend_row)
@@ -67,13 +67,13 @@ assert _artist_by_gid(editor, "pn-selection-frame:legend") is not None
 assert _artist_by_gid(editor, "pn-selection-handles:legend") is not None
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_chart_editor.py -k selected_legend_frame -q`
 
 Expected: FAIL because adapter only frames text, rectangles, lines, and series.
 
-- [ ] **Step 3: Add display-space legend overlays**
+- [x] **Step 3: Add display-space legend overlays**
 
 ```python
 bbox = legend.get_window_extent(renderer)
@@ -84,7 +84,7 @@ frame = Rectangle((bbox.x0, bbox.y0), bbox.width, bbox.height,
 Create four display-space corner handle points with the normal selection GIDs;
 do not register them as legend artists or include them in exports.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run: `python -m pytest tests/test_chart_editor.py -k "selected_legend_frame or legend" -q`
 
@@ -100,7 +100,7 @@ Commit: `feat(editor): show legend resize handles`
 - Modify: `polynexus/gui/widgets/chart_editor_annotation_controls_mixin.py`
 - Test: `tests/test_chart_editor.py`
 
-- [ ] **Step 1: Write failing drag/undo tests**
+- [x] **Step 1: Write failing drag/undo tests**
 
 ```python
 drag_corner(editor, "legend", corner="lower_right", delta=(80, -30))
@@ -109,13 +109,13 @@ editor._on_annotation_undo()
 assert "box_size" not in legend_style(editor)
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/test_chart_editor.py -k legend_resize -q`
 
 Expected: FAIL because legends only create `kind="legend"` body drags.
 
-- [ ] **Step 3: Implement the minimal drag contract**
+- [x] **Step 3: Implement the minimal drag contract**
 
 ```python
 if handle_hit is not None:
@@ -128,7 +128,7 @@ positive minimum, preview with the existing temporary drag state, and commit
 `{"loc": "upper left", "bbox_to_anchor": anchor, "box_size": size}` using
 one `UpdateStyleCommand`.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run: `python -m pytest tests/test_chart_editor.py -k "legend_resize or legend_drag" -q`
 
@@ -140,14 +140,14 @@ Commit: `feat(editor): resize legends from canvas handles`
 - Modify: `docs/agent/tasks/2026-07-24-editor-legend-box.md`
 - Modify: `docs/agent/memory/active-work.md`
 
-- [ ] **Step 1: Run the focused matrix**
+- [x] **Step 1: Run the focused matrix**
 
 Run: `python -m pytest tests/test_figure_render_plan_core.py tests/test_chart_editor.py tests/test_chart_editor_generated_object_helpers.py -q`
 
-- [ ] **Step 2: Run structured verification**
+- [x] **Step 2: Run structured verification**
 
 Run: `python scripts/verify.py --task docs/agent/tasks/2026-07-24-editor-legend-box.md --changed --types`
 
-- [ ] **Step 3: Record results and commit**
+- [x] **Step 3: Record results and commit**
 
 Commit: `docs(editor): record legend box verification`
