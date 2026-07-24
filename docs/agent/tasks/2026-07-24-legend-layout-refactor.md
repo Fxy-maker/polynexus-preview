@@ -20,17 +20,17 @@ Replace the editor's split legend geometry interpretations with one resolved
 
 ## Acceptance criteria
 
-- [ ] Legacy `loc`/two-value and four-value `bbox_to_anchor` documents render
+- [x] Legacy `loc`/two-value and four-value `bbox_to_anchor` documents render
   without visual jumps and are not rewritten on open.
-- [ ] Auto and fixed legends both resolve through `LegendLayout`.
-- [ ] Selected frame/handles, hit testing, drag, and inspector use the same
+- [x] Auto and fixed legends both resolve through `LegendLayout`.
+- [x] Selected frame/handles, hit testing, drag, and inspector use the same
   interaction rectangle.
-- [ ] Body and corner edits are one undoable transaction and survive reload.
-- [ ] Formal, legacy, log-axis, multi-series, and static fallback matrices are
+- [x] Body and corner edits are one undoable transaction and survive reload.
+- [x] Formal, legacy, log-axis, multi-series, and static fallback matrices are
   green; transient overlays never enter exports.
-- [ ] Resolver diagnostics replace silent geometry fallbacks.
+- [x] Resolver diagnostics replace silent geometry fallbacks.
 
-## Required workflow
+## Implementation plan
 
 1. Write failing resolver/compatibility tests, then implement the pure model.
 2. Wire formal and legacy renderers and add renderer parity tests.
@@ -51,3 +51,20 @@ python scripts/verify.py --changed --types
 
 The untracked `.superpowers/`, `.pytest_tmp_*`, and dated design/acceptance
 drafts already present in the worktree remain outside this task's allowlist.
+
+## Evidence
+
+- Task 1 resolver red/green cycle: `5` new compatibility tests plus the
+  existing renderer core matrix passed.
+- Task 2 formal/legacy parity: renderer core matrix `28 passed`.
+- Task 3 selection/geometry: full `tests/test_chart_editor.py` matrix
+  `247 passed`.
+- Task 4 legend interaction matrix: `29` legend tests and `34` combined
+  drag/undo/helper tests passed; fixed edits normalize to `loc="lower left"`.
+- Final focused matrix: `280 passed` with an external Windows pytest base
+  directory.
+- Structured verifier: `python scripts/verify.py --task
+  docs/agent/tasks/2026-07-24-legend-layout-refactor.md --changed --types`
+  passed; quality gate `282 passed`, preprocessing gate `103 passed`.
+- Chromium visual companion was unavailable because the local executable is
+  not installed; GUI visual walkthrough remains a manual follow-up.

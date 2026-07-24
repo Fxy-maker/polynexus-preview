@@ -1,5 +1,28 @@
 # Active Work
 
+## Unified LegendLayout refactor - completed 2026-07-24
+
+- Generated legends now resolve legacy `loc`, two/four-value
+  `bbox_to_anchor`, and `box_size` through the pure
+  `polynexus/core/figures/legend_layout.py` model. Auto layouts retain legacy
+  anchors for inspector compatibility; fixed layouts canonicalize to a
+  lower-left axes anchor and positive width/height.
+- Formal and legacy renderers, selection frames/handles, hit testing, drag
+  previews, inspector geometry, undo transactions, and persistence consume the
+  same resolved geometry. Disjoint persisted boxes no longer trigger a hidden
+  rendered-bounds fallback, so the visible legend and edit frame cannot belong
+  to different layout interpretations.
+- First fixed-box edit normalizes the style to `loc="lower left"`; preview and
+  commit share the same style update. Generated export clears selection before
+  rendering, so transient frames/handles remain non-exported. Invalid legacy
+  dimensions surface a concise status diagnostic.
+- Evidence: focused legend/editor matrix `280 passed`; task verifier passed
+  with quality gate `282` and preprocessing gate `103`. Task card:
+  `docs/agent/tasks/2026-07-24-legend-layout-refactor.md`.
+- Known follow-up: restart the GUI for manual visual review of static images,
+  log axes, and multi-series legends; the optional Chromium visual companion
+  could not launch because the local executable is unavailable.
+
 ## Editor legend viewport and typography - completed 2026-07-23
 
 - Formal manifest previews pass the actual live canvas width to the shared
