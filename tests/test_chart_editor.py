@@ -7290,6 +7290,54 @@ def test_chart_editor_geometry_controls_edit_selected_legend_anchor(
     app.processEvents()
 
 
+def test_chart_editor_generated_legend_uses_persisted_box_bounds(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("POLYNEXUS_USER_CONFIG_DIR", str(tmp_path / "user_config"))
+
+    figure_path = tmp_path / "figures" / "generated-legend-box.png"
+    figure_path.parent.mkdir()
+    pixmap = QPixmap(80, 40)
+    pixmap.fill(QColor("white"))
+    assert pixmap.save(str(figure_path))
+    save_generated_figure_document(
+        str(figure_path),
+        technique="waxs",
+        figure_id="generated-legend-box",
+        objects=[
+            {
+                "id": f"series-{index}",
+                "type": "plot_series",
+                "name": f"Sample {index}",
+                "data": {"x": [1.0, 2.0], "y": [float(index), float(index + 1)]},
+            }
+            for index in range(2)
+        ]
+        + [
+            {
+                "id": "legend",
+                "type": "legend",
+                "style": {
+                    "loc": "upper left",
+                    "bbox_to_anchor": [0.25, 0.85],
+                    "box_size": [0.4, 0.16],
+                },
+            }
+        ],
+    )
+
+    editor = ChartEditor()
+    editor.set_source_figure(str(figure_path))
+    axis = editor._figure.axes[0]
+    bounds = editor._figure.axes[0].get_legend().get_bbox_to_anchor().transformed(
+        axis.transAxes.inverted()
+    ).bounds
+
+    assert bounds == pytest.approx((0.25, 0.85, 0.4, 0.16))
+
+    editor.deleteLater()
+    app.processEvents()
+
+
 def test_chart_editor_generated_legend_drag_updates_position_and_redraw(
     tmp_path, monkeypatch
 ):

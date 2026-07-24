@@ -64,6 +64,40 @@ def test_explicit_legend_font_size_overrides_automatic_compact_scaling():
     assert presentation.fontsize == 15.0
 
 
+def test_legend_box_width_limits_columns_without_changing_explicit_font_size():
+    from polynexus.core.figures.legend_presentation import legend_presentation
+
+    presentation = legend_presentation(
+        {
+            "auto_generated": True,
+            "style": {"ncol": 2, "font_size": 15.0, "box_size": [0.34, 0.18]},
+        },
+        handle_count=5,
+        available_width_px=2000,
+        labels=("PA6-250-170-S_0_00000",) * 5,
+        default_fontsize=9.0,
+    )
+
+    assert presentation.ncol == 1
+    assert presentation.fontsize == 15.0
+
+
+def test_renderer_anchors_legend_to_persisted_box_size():
+    from polynexus.core.figures.renderer import MatplotlibFigureRenderer
+
+    kwargs = MatplotlibFigureRenderer._legend_kwargs(
+        {
+            "style": {
+                "loc": "upper left",
+                "bbox_to_anchor": [0.2, 0.8],
+                "box_size": [0.4, 0.16],
+            }
+        }
+    )
+
+    assert kwargs["bbox_to_anchor"] == (0.2, 0.8, 0.4, 0.16)
+
+
 def test_render_plan_resolves_relative_csv_and_reversed_axis(
     built_ir_document,
 ):

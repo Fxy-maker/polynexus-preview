@@ -1015,12 +1015,29 @@ class ChartEditorGeneratedDocumentMixin:
                 anchor_x = self._optional_float(bbox_to_anchor[0])
                 anchor_y = self._optional_float(bbox_to_anchor[1])
             if anchor_x is not None and anchor_y is not None:
+                anchor = (float(anchor_x), float(anchor_y))
+                box_size = legend_style.get("box_size")
+                if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
+                    box_width = self._optional_float(box_size[0])
+                    box_height = self._optional_float(box_size[1])
+                    if (
+                        box_width is not None
+                        and box_height is not None
+                        and box_width > 0.0
+                        and box_height > 0.0
+                    ):
+                        anchor = (
+                            float(anchor_x),
+                            float(anchor_y),
+                            float(box_width),
+                            float(box_height),
+                        )
                 ax.legend(
                     fontsize=presentation.fontsize,
                     frameon=False,
                     ncol=presentation.ncol,
                     loc=str(legend_style.get("loc", "") or "upper left"),
-                    bbox_to_anchor=(float(anchor_x), float(anchor_y)),
+                    bbox_to_anchor=anchor,
                     bbox_transform=ax.transAxes,
                 )
             else:

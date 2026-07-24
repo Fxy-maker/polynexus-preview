@@ -210,7 +210,24 @@ class MatplotlibFigureRenderer:
             kwargs["loc"] = loc
         anchor = style.get("bbox_to_anchor")
         if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
-            kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
+            box_size = style.get("box_size")
+            if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
+                try:
+                    width = float(box_size[0])
+                    height = float(box_size[1])
+                except (TypeError, ValueError):
+                    width = height = 0.0
+                if width > 0.0 and height > 0.0:
+                    kwargs["bbox_to_anchor"] = (
+                        float(anchor[0]),
+                        float(anchor[1]),
+                        width,
+                        height,
+                    )
+                else:
+                    kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
+            else:
+                kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
         if presentation is not None:
             kwargs["ncol"] = presentation.ncol
             if presentation.fontsize is not None:

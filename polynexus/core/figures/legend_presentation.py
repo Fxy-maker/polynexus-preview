@@ -33,12 +33,16 @@ def legend_presentation(
     style = style if isinstance(style, dict) else {}
     explicit_fontsize = _positive_finite_float(style.get("font_size"))
     effective_fontsize = explicit_fontsize or default_fontsize
+    box_size = _positive_box_size(style.get("box_size"))
+    layout_width_px = float(available_width_px)
+    if box_size is not None:
+        layout_width_px *= box_size[0]
     count = max(0, int(handle_count or 0))
     automatic = figure_object.get("auto_generated") is True
     compact = (
         automatic
         and count > 3
-        and float(available_width_px or 0.0) < _COMPACT_LEGEND_WIDTH_PX
+        and layout_width_px < _COMPACT_LEGEND_WIDTH_PX
     )
     try:
         requested_columns = max(1, int(style.get("ncol") or (2 if count > 3 else 1)))
@@ -48,7 +52,7 @@ def legend_presentation(
     if automatic and columns > 1 and labels and effective_fontsize is not None:
         longest_label = max(len(str(label or "")) for label in labels)
         entry_width = max(72.0, longest_label * float(effective_fontsize) * 0.78 + 54.0)
-        column_budget = max(1, int(float(available_width_px) * 0.42 // entry_width))
+        column_budget = max(1, int(layout_width_px * 0.42 // entry_width))
         columns = min(columns, column_budget)
         compact = compact or columns < requested_columns
     fontsize = (
@@ -65,3 +69,13 @@ def _positive_finite_float(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return candidate if isfinite(candidate) and candidate > 0.0 else None
+
+
+def _positive_box_size(value: object) -> tuple[float, float] | None:
+    if not isinstance(value, (list, tuple)) or len(value) < 2:
+        return None
+    width = _positive_finite_float(value[0])
+    height = _positive_finite_float(value[1])
+    if width is None or height is None:
+        return None
+    return width, height
