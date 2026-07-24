@@ -144,5 +144,8 @@ title: Current PolyNexus repository state
   legacy anchors remain readable through one importer. The focused
   legend/editor matrix passes `297`; structured and default changed/type
   verifiers both pass. Manual visual review after GUI restart remains pending.
+- The same LegendGeometry slice now includes draw-time synchronization for
+  display-space legend selection overlays, covering the real GUI's post-layout
+  canvas resize path. The adapter and ChartEditor resize regressions pass.
 - Reconcile the older active-work entries in `active-work.md` against the
   current branch/PR state before using them as authoritative.

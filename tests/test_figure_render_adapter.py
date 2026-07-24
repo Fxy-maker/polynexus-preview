@@ -117,6 +117,34 @@ def test_figure_render_adapter_maps_legend_artists_to_legend_object_id():
         assert adapter.object_id_for_artist(artist) == "legend"
 
 
+def test_legend_selection_overlay_reflows_when_figure_viewport_changes():
+    figure = Figure(figsize=(4.0, 3.0), dpi=100)
+    FigureCanvasAgg(figure)
+    axes = figure.add_subplot(111)
+    axes.plot([0.0, 1.0], [0.0, 1.0], label="Observed")
+    axes.plot([0.0, 1.0], [1.0, 0.0], label="Reference")
+    axes.legend(loc="upper right")
+    adapter = FigureRenderAdapter()
+    legend_object = {"id": "legend", "type": "legend"}
+
+    frames = adapter.add_selection_frame(axes, legend_object)
+    handles = adapter.add_selection_handles(axes, legend_object)
+    assert frames and handles
+
+    figure.canvas.draw()
+    figure.set_size_inches(7.0, 3.0, forward=False)
+    axes.set_position((0.12, 0.14, 0.78, 0.74))
+    figure.canvas.draw()
+
+    live_bounds = axes.get_legend().get_window_extent(figure.canvas.get_renderer()).bounds
+    assert frames[0].get_bbox().bounds == pytest.approx(live_bounds)
+    offsets = handles[0].get_offsets()
+    assert tuple(offsets[0]) == pytest.approx(live_bounds[:2])
+    assert tuple(offsets[2]) == pytest.approx(
+        (live_bounds[0] + live_bounds[2], live_bounds[1] + live_bounds[3])
+    )
+
+
 def test_figure_render_adapter_expands_pick_radius_for_registered_scatter_artists():
     adapter = FigureRenderAdapter()
 

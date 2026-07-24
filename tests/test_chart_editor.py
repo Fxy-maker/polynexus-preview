@@ -8628,6 +8628,15 @@ def test_chart_editor_selecting_legend_preserves_its_rendered_bounds(tmp_path, m
         selected.get_window_extent(editor._canvas.get_renderer()).bounds
     )
 
+    # A real Qt canvas can resize after the selection overlay is created when
+    # the inspector/sidebar settles. The overlay must follow the re-laid-out
+    # legend instead of retaining its original display pixels.
+    editor._figure.set_size_inches(6.5, 4.0, forward=False)
+    editor._figure.axes[0].set_position((0.12, 0.14, 0.78, 0.74))
+    editor._canvas.draw()
+    resized_bounds = selected.get_window_extent(editor._canvas.get_renderer()).bounds
+    assert frame.get_bbox().bounds == pytest.approx(resized_bounds)
+
     editor.deleteLater()
     app.processEvents()
 

@@ -41,6 +41,27 @@ class _TextSelectionOverlaySynchronizer(Artist):
         )
 
 
+class _LegendSelectionOverlaySynchronizer(Artist):
+    """Refresh display-space legend overlays before every figure draw."""
+
+    def __init__(self, adapter, axes, frame, handles):
+        super().__init__()
+        self._adapter = adapter
+        self._axes = axes
+        self._frame = frame
+        self._handles = handles
+        self.set_zorder(9_999)
+        self.set_gid("pn-legend-selection-synchronizer")
+
+    def draw(self, renderer):
+        self._adapter._synchronize_legend_selection_overlays(
+            self._axes,
+            self._frame,
+            self._handles,
+            renderer,
+        )
+
+
 class FigureRenderAdapter:
     _PICK_RADIUS = 10.0
 
@@ -120,13 +141,13 @@ class FigureRenderAdapter:
                 return bbox
         return None
 
-    def rendered_legend_selection_bbox(self, ax):
+    def rendered_legend_selection_bbox(self, ax, renderer=None):
         """Return the current legend extent in display coordinates."""
 
         legend = ax.get_legend() if ax is not None else None
         if legend is None:
             return None
-        renderer = self._renderer_for_artist(legend)
+        renderer = renderer or self._renderer_for_artist(legend)
         if renderer is None:
             return None
         try:
@@ -266,6 +287,22 @@ class FigureRenderAdapter:
         )
         handles.set_gid(f"pn-selection-handles:{object_id}")
         setattr(handles, "_pn_handle_indices", list(handle_indices))
+        if object_type == "legend":
+            frame = next(
+                (
+                    artist
+                    for artist in ax.patches
+                    if artist.get_gid() == f"pn-selection-frame:{object_id}"
+                ),
+                None,
+            )
+            if frame is not None and not any(
+                artist.get_gid() == "pn-legend-selection-synchronizer"
+                for artist in ax.artists
+            ):
+                ax.add_artist(
+                    _LegendSelectionOverlaySynchronizer(self, ax, frame, handles)
+                )
         if object_type == "text":
             frame = next(
                 (
@@ -302,6 +339,25 @@ class FigureRenderAdapter:
                 current_handle.set_gid(f"pn-current-handle:{object_id}")
                 overlay_artists.append(current_handle)
         return overlay_artists
+
+    def _synchronize_legend_selection_overlays(self, ax, frame, handles, renderer):
+        bbox = self.rendered_legend_selection_bbox(ax, renderer=renderer)
+        if bbox is None:
+            return
+        frame.set_bounds(
+            float(bbox.x0),
+            float(bbox.y0),
+            float(bbox.width),
+            float(bbox.height),
+        )
+        handles.set_offsets(
+            [
+                (float(bbox.x0), float(bbox.y0)),
+                (float(bbox.x1), float(bbox.y0)),
+                (float(bbox.x1), float(bbox.y1)),
+                (float(bbox.x0), float(bbox.y1)),
+            ]
+        )
 
     def add_selection_frame(self, ax, figure_object: dict) -> list[object]:
         """Add a transient visual frame around an editable figure object."""

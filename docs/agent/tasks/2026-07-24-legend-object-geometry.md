@@ -54,6 +54,8 @@ drag/resize preview, undo/redo, persistence, and export always agree.
 - Core style migration regression: `54 passed` (included in the matrix's
   relevant core coverage).
 - `git diff --check`: passed.
+- The viewport-resize regression keeps the live legend, selection frame, and
+  four handles aligned after a figure/canvas resize.
 - Structured verifier: `python scripts/verify.py --task docs/agent/tasks/2026-07-24-legend-object-geometry.md --changed --types` passed.
 - Default verifier: `python scripts/verify.py --changed --types` passed.
 

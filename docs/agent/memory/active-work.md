@@ -18,6 +18,17 @@
 - Manual GUI walkthrough of static, log-axis, and multi-series visuals remains
   pending after restarting the desktop process; Chromium is unavailable.
 
+## Legend overlay viewport synchronization - completed 2026-07-24
+
+- Fixed the remaining real-GUI mismatch where the legend moved after the Qt
+  canvas/sidebar resized but its display-space selection frame and handles kept
+  their original pixels. A draw-time overlay synchronizer now refreshes the
+  frame and handles from the live Matplotlib legend extent on every render.
+- Evidence: focused legend/editor matrix remains `297 passed`; the dedicated
+  adapter and ChartEditor viewport-resize regressions pass; structured and
+  default changed/type verifiers pass with quality gate `282` and preprocessing
+  gate `103`.
+
 ## Unified LegendLayout refactor - completed 2026-07-24
 
 - Generated legends now resolve legacy `loc`, two/four-value
