@@ -16,7 +16,7 @@
   commit share the same style update. Generated export clears selection before
   rendering, so transient frames/handles remain non-exported. Invalid legacy
   dimensions surface a concise status diagnostic.
-- Evidence: focused legend/editor matrix `280 passed`; task verifier passed
+- Evidence: focused legend/editor matrix `292 passed`; task verifier passed
   with quality gate `282` and preprocessing gate `103`. Task card:
   `docs/agent/tasks/2026-07-24-legend-layout-refactor.md`.
 - Known follow-up: restart the GUI for manual visual review of static images,

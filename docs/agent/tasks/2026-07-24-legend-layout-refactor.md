@@ -61,7 +61,7 @@ drafts already present in the worktree remain outside this task's allowlist.
   `247 passed`.
 - Task 4 legend interaction matrix: `29` legend tests and `34` combined
   drag/undo/helper tests passed; fixed edits normalize to `loc="lower left"`.
-- Final focused matrix: `280 passed` with an external Windows pytest base
+- Final focused matrix: `292 passed` with an external Windows pytest base
   directory.
 - Structured verifier: `python scripts/verify.py --task
   docs/agent/tasks/2026-07-24-legend-layout-refactor.md --changed --types`
