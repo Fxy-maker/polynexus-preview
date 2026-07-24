@@ -65,6 +65,12 @@ drag/resize preview, undo/redo, persistence, and export always agree.
   still required after restarting the desktop process; the optional Chromium
   visual companion is unavailable in this environment.
 
+## Local finish checkpoint
+
+- Source branch implementation checkpoints: `b40f7dcb` and `2facf126`.
+- This task card is the explicit allowlist anchor for the local `main` fast-forward
+  finish sequence; no push, merge conflict resolution, or deployment is implied.
+
 ## Verification
 
 ```powershell
