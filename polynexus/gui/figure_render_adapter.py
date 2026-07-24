@@ -14,7 +14,6 @@ from matplotlib.patches import Rectangle
 from matplotlib.text import Text
 from matplotlib.transforms import Bbox, IdentityTransform
 
-from ..core.figures.legend_layout import resolve_legend_layout
 from ..core.figure_text_geometry import is_axes_text_box
 from .widgets.editor_geometry import Box
 
@@ -140,21 +139,16 @@ class FigureRenderAdapter:
         return bbox
 
     def legend_selection_bbox(self, ax, figure_object: dict | None, *, geometry=None):
-        """Return the canonical interaction box for a generated legend."""
-        style = geometry if isinstance(geometry, dict) else {}
-        if not style:
-            style = (
-                figure_object.get("style", {})
-                if isinstance(figure_object, dict) and isinstance(figure_object.get("style"), dict)
-                else {}
-            )
-        rendered_bbox = self.rendered_legend_selection_bbox(ax)
-        layout = resolve_legend_layout(
-            style,
-            axes=ax,
-            content_bbox_display=rendered_bbox,
-        )
-        return layout.interaction_bbox_display or rendered_bbox
+        """Return the live legend's display bounds for interaction.
+
+        Persisted style geometry and transient preview payloads are inputs to
+        rendering, not a second interaction rectangle. Once the legend artist
+        exists, its measured display bounds are the only reliable geometry for
+        selection, hit testing, and handles.
+        """
+
+        del figure_object, geometry
+        return self.rendered_legend_selection_bbox(ax)
 
     def add_selection_handles(self, ax, figure_object: dict, *, selected_handle_index=None):
         if not isinstance(figure_object, dict):

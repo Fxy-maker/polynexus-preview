@@ -8612,12 +8612,20 @@ def test_chart_editor_selecting_legend_preserves_its_rendered_bounds(tmp_path, m
     assert selected is not None
 
     assert selected.get_window_extent(editor._canvas.get_renderer()).bounds == pytest.approx(before)
+    frame = next(
+        artist
+        for artist in editor._figure.axes[0].patches
+        if artist.get_gid() == "pn-selection-frame:legend"
+    )
+    assert frame.get_bbox().bounds == pytest.approx(
+        selected.get_window_extent(editor._canvas.get_renderer()).bounds
+    )
 
     editor.deleteLater()
     app.processEvents()
 
 
-def test_legend_selection_box_uses_resolved_fixed_geometry_when_content_is_disjoint():
+def test_legend_selection_box_tracks_live_content_when_persisted_geometry_is_disjoint():
     figure = Figure(figsize=(4.0, 3.0), dpi=100)
     FigureCanvasAgg(figure)
     axes = figure.add_subplot(111)
@@ -8638,16 +8646,8 @@ def test_legend_selection_box_uses_resolved_fixed_geometry_when_content_is_disjo
     selected = adapter.legend_selection_bbox(axes, figure_object)
 
     assert selected is not None
-    lower_left = axes.transAxes.transform((0.1, 0.1))
-    upper_right = axes.transAxes.transform((0.4, 0.25))
-    assert selected.bounds == pytest.approx(
-        (
-            lower_left[0],
-            lower_left[1],
-            upper_right[0] - lower_left[0],
-            upper_right[1] - lower_left[1],
-        )
-    )
+    actual = axes.get_legend().get_window_extent(figure.canvas.get_renderer())
+    assert selected.bounds == pytest.approx(actual.bounds)
 
 
 def test_chart_editor_double_click_blank_canvas_does_not_open_legend_name_dialog(

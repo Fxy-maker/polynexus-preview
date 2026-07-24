@@ -1,10 +1,12 @@
 from dataclasses import replace
 
 from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 import pytest
 
 from polynexus.core.figures.render_plan import FigureRenderPlanBuilder
 from polynexus.core.figures.renderer import MatplotlibFigureRenderer
+from polynexus.gui.figure_render_adapter import FigureRenderAdapter
 
 
 def test_automatic_multiseries_legend_becomes_single_column_on_narrow_canvas():
@@ -113,6 +115,33 @@ def test_renderer_legacy_four_value_anchor_matches_resolved_fixed_layout():
     assert layout.mode == "fixed"
     assert kwargs["loc"] == "lower left"
     assert kwargs["bbox_to_anchor"] == (0.1, 0.2, 0.35, 0.25)
+
+
+def test_renderer_legend_geometry_round_trip_uses_live_display_bounds():
+    figure = Figure(figsize=(4.0, 3.0), dpi=100)
+    FigureCanvasAgg(figure)
+    axes = figure.add_subplot(111)
+    axes.plot([1.0, 2.0], [1.0, 2.0], label="Series")
+    axes.legend(loc="upper right")
+    figure.canvas.draw()
+
+    legend = axes.get_legend()
+    assert legend is not None
+    actual = legend.get_window_extent(figure.canvas.get_renderer())
+    adapter = FigureRenderAdapter()
+    figure_object = {
+        "id": "legend",
+        "type": "legend",
+        "style": {
+            "bbox_to_anchor": [0.1, 0.1],
+            "box_size": [0.3, 0.15],
+        },
+    }
+
+    selected = adapter.legend_selection_bbox(axes, figure_object)
+
+    assert selected is not None
+    assert selected.bounds == pytest.approx(actual.bounds)
 
 
 def test_render_plan_resolves_relative_csv_and_reversed_axis(

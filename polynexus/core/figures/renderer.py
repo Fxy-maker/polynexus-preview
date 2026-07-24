@@ -10,7 +10,7 @@ from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
 from ..figure_text_geometry import is_axes_text_box, text_box_anchor
-from .legend_layout import resolve_legend_layout
+from .legend_geometry import import_legend_geometry
 from .legend_presentation import LegendPresentation, legend_presentation
 from .render_plan import FigureRenderPlan, RenderAxis
 
@@ -206,10 +206,9 @@ class MatplotlibFigureRenderer:
         if not isinstance(style, dict):
             return {}
         kwargs: dict[str, Any] = {}
-        layout = resolve_legend_layout(style)
-        if layout.mode == "fixed" and layout.anchor_axes and layout.size_axes:
-            x, y = layout.anchor_axes
-            width, height = layout.size_axes
+        geometry = import_legend_geometry(style)
+        if geometry.rect_axes is not None:
+            x, y, width, height = geometry.rect_axes
             kwargs["loc"] = "lower left"
             kwargs["bbox_to_anchor"] = (x, y, width, height)
         else:

@@ -29,7 +29,7 @@ from ...core.figure_text_geometry import (
     is_axes_text_box,
     text_box_anchor,
 )
-from ...core.figures.legend_layout import resolve_legend_layout
+from ...core.figures.legend_geometry import import_legend_geometry
 from ...core.figures.legend_presentation import legend_presentation
 from ...core.plot_edits import COLOUR_SCHEMES, FIGURE_SIZES, LINE_WIDTHS
 from ...core.figures.render_plan import FigureRenderPlanBuilder
@@ -1009,10 +1009,9 @@ class ChartEditorGeneratedDocumentMixin:
                 default_fontsize=9.0,
                 labels=tuple(str(label) for label in labels),
             )
-            layout = resolve_legend_layout(legend_style)
-            if layout.mode == "fixed" and layout.anchor_axes and layout.size_axes:
-                anchor_x, anchor_y = layout.anchor_axes
-                box_width, box_height = layout.size_axes
+            geometry = import_legend_geometry(legend_style, axes=ax)
+            if geometry.rect_axes is not None:
+                anchor_x, anchor_y, box_width, box_height = geometry.rect_axes
                 anchor = (anchor_x, anchor_y, box_width, box_height)
                 ax.legend(
                     fontsize=presentation.fontsize,
