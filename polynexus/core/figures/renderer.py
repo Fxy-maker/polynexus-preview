@@ -10,6 +10,7 @@ from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
 from ..figure_text_geometry import is_axes_text_box, text_box_anchor
+from .legend_layout import resolve_legend_layout
 from .legend_presentation import LegendPresentation, legend_presentation
 from .render_plan import FigureRenderPlan, RenderAxis
 
@@ -205,29 +206,22 @@ class MatplotlibFigureRenderer:
         if not isinstance(style, dict):
             return {}
         kwargs: dict[str, Any] = {}
-        loc = str(style.get("loc") or "").strip()
-        if loc:
-            kwargs["loc"] = loc
-        anchor = style.get("bbox_to_anchor")
-        if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
-            box_size = style.get("box_size")
-            if isinstance(box_size, (list, tuple)) and len(box_size) >= 2:
+        layout = resolve_legend_layout(style)
+        if layout.mode == "fixed" and layout.anchor_axes and layout.size_axes:
+            x, y = layout.anchor_axes
+            width, height = layout.size_axes
+            kwargs["loc"] = "lower left"
+            kwargs["bbox_to_anchor"] = (x, y, width, height)
+        else:
+            loc = str(style.get("loc") or "").strip()
+            if loc:
+                kwargs["loc"] = loc
+            anchor = style.get("bbox_to_anchor")
+            if isinstance(anchor, (list, tuple)) and len(anchor) >= 2:
                 try:
-                    width = float(box_size[0])
-                    height = float(box_size[1])
-                except (TypeError, ValueError):
-                    width = height = 0.0
-                if width > 0.0 and height > 0.0:
-                    kwargs["bbox_to_anchor"] = (
-                        float(anchor[0]),
-                        float(anchor[1]),
-                        width,
-                        height,
-                    )
-                else:
                     kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
-            else:
-                kwargs["bbox_to_anchor"] = (float(anchor[0]), float(anchor[1]))
+                except (TypeError, ValueError):
+                    pass
         if presentation is not None:
             kwargs["ncol"] = presentation.ncol
             if presentation.fontsize is not None:

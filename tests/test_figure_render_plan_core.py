@@ -95,7 +95,24 @@ def test_renderer_anchors_legend_to_persisted_box_size():
         }
     )
 
-    assert kwargs["bbox_to_anchor"] == (0.2, 0.8, 0.4, 0.16)
+    assert kwargs["loc"] == "lower left"
+    assert kwargs["bbox_to_anchor"] == (0.2, 0.64, 0.4, 0.16)
+
+
+def test_renderer_legacy_four_value_anchor_matches_resolved_fixed_layout():
+    from polynexus.core.figures.legend_layout import resolve_legend_layout
+    from polynexus.core.figures.renderer import MatplotlibFigureRenderer
+
+    style = {
+        "loc": "lower left",
+        "bbox_to_anchor": [0.1, 0.2, 0.35, 0.25],
+    }
+    layout = resolve_legend_layout(style)
+    kwargs = MatplotlibFigureRenderer._legend_kwargs({"style": style})
+
+    assert layout.mode == "fixed"
+    assert kwargs["loc"] == "lower left"
+    assert kwargs["bbox_to_anchor"] == (0.1, 0.2, 0.35, 0.25)
 
 
 def test_render_plan_resolves_relative_csv_and_reversed_axis(
