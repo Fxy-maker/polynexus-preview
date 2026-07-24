@@ -8,6 +8,8 @@ import numpy as np
 import matplotlib as mpl
 import pytest
 from matplotlib.backend_bases import MouseEvent
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 from matplotlib.transforms import Bbox
 
 from PySide6.QtCore import QEvent, QPointF, Qt
@@ -15,6 +17,7 @@ from PySide6.QtGui import QColor, QImage, QKeyEvent, QMouseEvent, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from polynexus.gui.i18n import get_language, set_language, tr
+from polynexus.gui.figure_render_adapter import FigureRenderAdapter
 from polynexus.gui.widgets.chart_editor import ChartEditor
 from polynexus.core.figure_document import load_figure_document, save_generated_figure_document
 from polynexus.core.plot_edits import load_figure_annotations, load_figure_asset_spec
@@ -8537,6 +8540,32 @@ def test_chart_editor_selecting_legend_preserves_its_rendered_bounds(tmp_path, m
 
     editor.deleteLater()
     app.processEvents()
+
+
+def test_legend_selection_box_falls_back_when_persisted_box_is_disjoint():
+    figure = Figure(figsize=(4.0, 3.0), dpi=100)
+    FigureCanvasAgg(figure)
+    axes = figure.add_subplot(111)
+    axes.plot([1.0, 2.0], [1.0, 2.0], label="Series")
+    axes.legend(loc="upper right")
+    figure.canvas.draw()
+
+    adapter = FigureRenderAdapter()
+    figure_object = {
+        "id": "legend",
+        "type": "legend",
+        "style": {
+            "bbox_to_anchor": [0.1, 0.1],
+            "box_size": [0.3, 0.15],
+        },
+    }
+
+    actual = adapter.rendered_legend_selection_bbox(axes)
+    selected = adapter.legend_selection_bbox(axes, figure_object)
+
+    assert actual is not None
+    assert selected is not None
+    assert selected.bounds == pytest.approx(actual.bounds)
 
 
 def test_chart_editor_double_click_blank_canvas_does_not_open_legend_name_dialog(

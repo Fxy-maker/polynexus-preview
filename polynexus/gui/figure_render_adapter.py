@@ -162,12 +162,16 @@ class FigureRenderAdapter:
                 if width > 0.0 and height > 0.0:
                     lower_left = ax.transAxes.transform((x, y))
                     upper_right = ax.transAxes.transform((x + width, y + height))
-                    return Bbox.from_extents(
+                    persisted_bbox = Bbox.from_extents(
                         float(lower_left[0]),
                         float(lower_left[1]),
                         float(upper_right[0]),
                         float(upper_right[1]),
                     )
+                    rendered_bbox = self.rendered_legend_selection_bbox(ax)
+                    if rendered_bbox is None or persisted_bbox.overlaps(rendered_bbox):
+                        return persisted_bbox
+                    return rendered_bbox
         return self.rendered_legend_selection_bbox(ax)
 
     def add_selection_handles(self, ax, figure_object: dict, *, selected_handle_index=None):
