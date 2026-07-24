@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from PySide6.QtCore import Qt
 
+from ..core.figures.legend_layout import resolve_legend_layout
 from .i18n import get_language, tr
 
 
@@ -181,6 +182,9 @@ def build_generated_drag_status_text(
         )
     if kind == "legend":
         style = figure_object.get("style", {}) if isinstance(figure_object.get("style"), dict) else {}
+        layout = resolve_legend_layout(style)
+        if layout.diagnostic:
+            return f"{label}: {layout.diagnostic}"
         preview_geometry = drag_state.get("preview_geometry")
         bbox_to_anchor = (
             preview_geometry.get("bbox_to_anchor")

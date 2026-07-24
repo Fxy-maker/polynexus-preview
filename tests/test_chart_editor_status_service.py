@@ -40,6 +40,25 @@ def test_build_generated_drag_status_text_for_line_body_uses_number_formatter():
         set_language(previous)
 
 
+def test_build_generated_drag_status_text_exposes_invalid_legend_layout():
+    previous = get_language()
+    try:
+        set_language("en")
+        text = build_generated_drag_status_text(
+            "Legend",
+            {"kind": "legend"},
+            {
+                "style": {
+                    "bbox_to_anchor": [0.2, 0.8],
+                    "box_size": [float("nan"), -0.1],
+                }
+            },
+        )
+        assert "invalid legend box geometry" in text
+    finally:
+        set_language(previous)
+
+
 def test_generated_hover_cursor_shape_uses_expected_mapping():
     assert generated_hover_cursor_shape({"kind": "line"}) == Qt.CursorShape.CrossCursor
     assert generated_hover_cursor_shape({"kind": "plot_series"}) == Qt.CursorShape.CrossCursor
