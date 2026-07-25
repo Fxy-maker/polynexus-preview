@@ -269,3 +269,8 @@ title: Current PolyNexus repository state
   `docs/acceptance/2026-07-25-waxs-lifecycle-closure.md`; restarted-GUI 2D
   review, scientific sign-off, and AI-off/failure/fallback release review
   remain open.
+- IR standard, temperature-2D, and mapping/ROI now have one shared lifecycle
+  regression over explicit typed DTOs. Mapping provenance and invalid-pixel
+  diagnostics remain preserved without vendor or band semantics inference.
+  Evidence is in `docs/acceptance/2026-07-25-ir-lifecycle-closure.md`;
+  vendor-input, real/Golden, restarted-GUI, and AI/fallback review remain open.

@@ -1,5 +1,15 @@
 # Active Work
 
+## IR figure lifecycle closure - automated boundary completed 2026-07-25
+
+- Added `tests/test_ir_lifecycle_closure.py` for standard, temperature-2D, and
+  explicit mapping/ROI DTOs. Mapping provenance and invalid-pixel diagnostics
+  are asserted through the shared lifecycle.
+- Focused IR lifecycle/provider/temperature/mapping/export/history matrix: 47
+  passed. Evidence: `docs/acceptance/2026-07-25-ir-lifecycle-closure.md`.
+- Vendor-native mapping input, real/Golden source review, restarted-GUI visual
+  review, and the shared AI-off/failure/fallback matrix remain open.
+
 ## WAXS figure lifecycle closure - automated boundary completed 2026-07-25
 
 - Added `tests/test_waxs_lifecycle_closure.py` for static, temperature, and
