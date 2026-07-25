@@ -14,7 +14,7 @@ from .comparators import (
     compute_tm_vs_long_period,
     compute_xc_vs_crystallite_size,
 )
-from .dataset import TECHNIQUES, JointBatchRow
+from .dataset import JointBatchRow
 from .matchers import MultiTechniqueTimeline
 from .models import FibrillarJointModel, JointModel, LamellarJointModel
 from .plotters import (
@@ -39,6 +39,34 @@ class JointCoordinator:
             "lamellar": LamellarJointModel,
             "fibrillar": FibrillarJointModel,
         }
+
+    def build_figure_definitions(self, rows: list[JointBatchRow]):
+        """Build Manifest-ready figures from already-collected hub rows."""
+
+        from .figure_provider import build_joint_figure_definitions
+
+        return build_joint_figure_definitions(rows)
+
+    def publish_figure_definitions(
+        self,
+        output_dir,
+        rows: list[JointBatchRow],
+        *,
+        run_id: str | None = None,
+    ):
+        """Publish a Joint hub snapshot through the shared figure lifecycle."""
+
+        from ..figures.production import FigureProductionPublisher
+
+        definitions = self.build_figure_definitions(rows)
+        if not definitions:
+            raise ValueError("Joint publication requires at least one figure definition")
+        return FigureProductionPublisher().publish(
+            output_root=output_dir,
+            technique="joint",
+            definitions=definitions,
+            run_id=run_id,
+        )
 
     def compare_same_sample(self, sample_id: str, batches: list[str]) -> dict:
         """Compare results across batches of the same sample."""

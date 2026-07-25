@@ -131,6 +131,13 @@ IR acceptance chain remain open; see
 - [ ] Present conflicts as review evidence with provenance, never as silent correction.
 - [ ] Add Joint report, Workbench, figure/export context and history linkage.
 
+Current checkpoint (2026-07-25): the existing Joint hub rows now have a shared
+FigureDefinition provider and Coordinator publication entrypoint for
+`joint.series.crystallinity`, `joint.series.multiscale`, and
+`joint.series.coverage`. The legacy `joint.compare` GUI report still needs to
+consume that entrypoint; see
+`docs/acceptance/2026-07-25-joint-figure-provider-checkpoint.md`.
+
 ### Phase 8: AI, release and full acceptance
 
 **Files:**

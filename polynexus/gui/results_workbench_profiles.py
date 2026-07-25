@@ -221,8 +221,8 @@ _TECHNIQUE_FIGURES = {
         ("ir.mapping.spectra", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
     ),
     "joint": (
-        ("Fig-Joint_crystallinity", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
-        ("Fig-Joint_multiscale", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+        ("joint.series.crystallinity", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("joint.series.multiscale", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
     ),
     "nmr.liquid_h": (
         ("nmr.frame.spectrum.001", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),

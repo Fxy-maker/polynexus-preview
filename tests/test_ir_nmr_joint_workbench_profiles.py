@@ -33,6 +33,6 @@ def test_nmr_and_joint_profiles_are_customized() -> None:
     assert profile_for("nmr.liquid_c").tab_labels == profile_for("nmr.liquid_h").tab_labels
     assert profile_for("nmr.solid_h").tab_labels == profile_for("nmr.solid_c").tab_labels
     assert tuple(link.key for link in profile_for("joint").figure_links) == (
-        "Fig-Joint_crystallinity",
-        "Fig-Joint_multiscale",
+        "joint.series.crystallinity",
+        "joint.series.multiscale",
     )
