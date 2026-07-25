@@ -5789,6 +5789,8 @@ def test_export_results_creates_structured_bundle_with_manifest(tmp_path):
             "data": "data",
             "report": "report",
             "metadata": "metadata",
+            "figure_runs": "metadata/runs",
+            "active_figure_run": "metadata/active_run.json",
         }
         assert manifest["current_technique"] == "saxs"
         assert manifest["current_submodule"] == "saxs.static"

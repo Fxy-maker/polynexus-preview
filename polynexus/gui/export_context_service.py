@@ -112,6 +112,10 @@ def copy_export_bundle_sections(source_root, bundle_dirs: dict[str, Path]) -> li
     metadata_dst = bundle_dirs.get("metadata")
     if runs_src.is_dir() and metadata_dst is not None:
         shutil.copytree(runs_src, Path(metadata_dst) / "runs", dirs_exist_ok=True)
+        copied_sections.append("figure_runs")
+        active_run = out_src / "active_run.json"
+        if active_run.is_file():
+            shutil.copy2(active_run, Path(metadata_dst) / "active_run.json")
     return copied_sections
 
 
@@ -246,6 +250,7 @@ def export_readme_text(
         "- figures/   Exported plots and images",
         "- data/      Parameter tables and derived CSV files",
         "- metadata/  Export manifest and package notes",
+        "- metadata/runs/  Manifest-backed figure documents, assets, and provenance",
         "",
         "Review priority:",
         f"1. {review_priority[0]}",
@@ -293,6 +298,8 @@ def export_manifest_payload(
             "data": "data",
             "report": "report",
             "metadata": "metadata",
+            "figure_runs": "metadata/runs",
+            "active_figure_run": "metadata/active_run.json",
         },
         "primary_report": str(primary_report or ""),
         "task_context": task_context if isinstance(task_context, dict) else {},

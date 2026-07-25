@@ -874,6 +874,12 @@
   (`32 passed`); task-scoped verifier passed with quality gate `282` and
   preprocessing gate `103`. Atomic checkpoint is still pending. See
   `docs/agent/tasks/2026-07-25-history-gallery-restore.md`.
+- Export bundles now declare `figure_runs: metadata/runs` and
+  `active_figure_run: metadata/active_run.json`; the source active pointer is
+  copied when present and README names the manifest-backed run section. Focused
+  export/GUI matrix passed (`15 passed`); task verifier passed with quality gate
+  `282` and preprocessing gate `103`. Atomic checkpoint is still pending. See
+  `docs/agent/tasks/2026-07-25-export-figure-run-provenance.md`.
 - AI preprocessing mainline is active on `codex/ai-preprocess-mainline-v2` from
   `main@4437bc90`. Foundation, semantic intents, DSC/IR/WAXS, and SAXS/NMR
   adapters are present; the current safety checkpoint adds scoped experience

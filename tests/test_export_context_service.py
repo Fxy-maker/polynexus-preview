@@ -235,6 +235,8 @@ def test_export_manifest_payload_builds_stable_metadata_shape():
             "data": "data",
             "report": "report",
             "metadata": "metadata",
+            "figure_runs": "metadata/runs",
+            "active_figure_run": "metadata/active_run.json",
         },
         "primary_report": "report/polynexus_report.html",
         "task_context": {"task_type": "Single-file analysis"},
@@ -350,6 +352,7 @@ def test_copy_export_bundle_sections_copies_available_sections(tmp_path):
     report = source / "report"
     metadata = source / "metadata"
     run_manifest = source / "runs" / "joint-run-1" / "figure_manifest.json"
+    active_run = source / "active_run.json"
     figures.mkdir(parents=True)
     data.mkdir()
     report.mkdir()
@@ -360,11 +363,12 @@ def test_copy_export_bundle_sections_copies_available_sections(tmp_path):
     (report / "analysis_report.md").write_text("# Report\n", encoding="utf-8")
     (metadata / "manifest.json").write_text("{}", encoding="utf-8")
     run_manifest.write_text('{"run_id":"joint-run-1"}', encoding="utf-8")
+    active_run.write_text('{"run_id":"joint-run-1"}', encoding="utf-8")
 
     bundle_dirs = create_export_bundle_dirs(tmp_path / "bundle")
     copied = copy_export_bundle_sections(source, bundle_dirs)
 
-    assert copied == ["figures", "data", "report", "metadata"]
+    assert copied == ["figures", "data", "report", "metadata", "figure_runs"]
     assert (bundle_dirs["figures"] / "Fig-1.png").exists()
     assert (bundle_dirs["data"] / "results.csv").exists()
     assert (bundle_dirs["report"] / "analysis_report.md").exists()
@@ -372,3 +376,6 @@ def test_copy_export_bundle_sections_copies_available_sections(tmp_path):
     assert (
         bundle_dirs["metadata"] / "runs" / "joint-run-1" / "figure_manifest.json"
     ).exists()
+    assert (bundle_dirs["metadata"] / "active_run.json").read_text(encoding="utf-8") == (
+        '{"run_id":"joint-run-1"}'
+    )
