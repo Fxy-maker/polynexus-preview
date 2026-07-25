@@ -74,3 +74,12 @@ python scripts/auto_commit.py --message "test(saxs): lock temperature figure pan
   whitespace checks passed.
 - Production SAXS algorithms and providers were left unchanged because the
   existing implementation already satisfied the locked contracts.
+
+## Strain and static slice status
+
+- Strain provider order/role regression and shared review-hint wiring are
+  checkpointed in `51709fd`; focused strain matrix: `8 passed`.
+- Static comparison/support/diagnostic order regression is isolated in
+  `tests/test_saxs_static_figure_panels.py`; focused test: `1 passed`.
+- Static checkpoint and final goal reconciliation remain pending until the
+  repository verifier is rerun for the isolated static allowlist.
