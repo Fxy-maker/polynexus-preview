@@ -1,5 +1,15 @@
 # Active Work
 
+## WAXS figure lifecycle closure - automated boundary completed 2026-07-25
+
+- Added `tests/test_waxs_lifecycle_closure.py` for static, temperature, and
+  strain. The strain case retains the existing `image_grid` reactive V2
+  worksheet edit/save/publish route.
+- Focused WAXS lifecycle/publication/provider/Workbench/V2/history matrix:
+  29 passed. Evidence: `docs/acceptance/2026-07-25-waxs-lifecycle-closure.md`.
+- Restarted-GUI 2D visual review, real-data scientific sign-off, and the shared
+  AI-off/failure/fallback release matrix remain open.
+
 ## DSC figure lifecycle closure - automated boundary completed 2026-07-25
 
 - Added `tests/test_dsc_lifecycle_closure.py`, a parameterized standard /

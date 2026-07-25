@@ -263,3 +263,9 @@ title: Current PolyNexus repository state
   `docs/acceptance/2026-07-25-dsc-lifecycle-closure.md`; automated GUI restart,
   real-data scientific sign-off, and AI-off/failure/fallback release review
   remain open.
+- WAXS static, temperature, and strain now have one shared lifecycle
+  regression. Static/temperature use the ordinary project service; strain
+  preserves its reactive V2 image-grid edit/save/publish route. Evidence is in
+  `docs/acceptance/2026-07-25-waxs-lifecycle-closure.md`; restarted-GUI 2D
+  review, scientific sign-off, and AI-off/failure/fallback release review
+  remain open.
