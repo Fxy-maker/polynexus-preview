@@ -274,3 +274,9 @@ title: Current PolyNexus repository state
   diagnostics remain preserved without vendor or band semantics inference.
   Evidence is in `docs/acceptance/2026-07-25-ir-lifecycle-closure.md`;
   vendor-input, real/Golden, restarted-GUI, and AI/fallback review remain open.
+- NMR liquid/solid H/C now have a real-fixture lifecycle regression over
+  `NMREngine.run_pipeline`, evidence, Manifest/Gallery, editor revisions,
+  export provenance, and History restore. Solid 13C assignment-limited Xc is
+  still provisional. Evidence is in
+  `docs/acceptance/2026-07-25-nmr-lifecycle-closure.md`; restarted-GUI,
+  scientific sign-off, and AI/fallback review remain open.

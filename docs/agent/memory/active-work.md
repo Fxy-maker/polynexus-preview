@@ -1,5 +1,17 @@
 # Active Work
 
+## NMR real-data lifecycle closure - automated boundary completed 2026-07-25
+
+- Added `tests/test_nmr_lifecycle_closure.py` across repository liquid 1H/C and
+  solid 1H/C fixtures. Each run covers engine input/preprocessing/analysis,
+  evidence, Manifest/Gallery, editor revision publication, export provenance,
+  and History restore.
+- Four-partition lifecycle: 4 passed in 252.98s; combined NMR matrix: 47
+  passed in 348.63s. Evidence:
+  `docs/acceptance/2026-07-25-nmr-lifecycle-closure.md`.
+- Assignment-limited solid 13C Xc remains provisional; restarted-GUI visual
+  review, scientific sign-off, and AI-off/failure/fallback remain open.
+
 ## IR figure lifecycle closure - automated boundary completed 2026-07-25
 
 - Added `tests/test_ir_lifecycle_closure.py` for standard, temperature-2D, and
