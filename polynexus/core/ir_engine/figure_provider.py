@@ -369,6 +369,7 @@ def build_ir_spectrum_definitions(
     """Describe editable IR spectrum figures without choosing output behavior."""
 
     definitions: list[FigureDefinition] = []
+    main_spectrum_emitted = False
     for index, result in enumerate(results, start=1):
         if len(result.wavenumber) == 0 or len(result.absorbance) == 0:
             continue
@@ -421,8 +422,10 @@ def build_ir_spectrum_definitions(
                     "v2_adapter": "ir",
                 },
                 style_profile="sci_default",
+                publication_role="main" if not main_spectrum_emitted else "si",
             )
         )
+        main_spectrum_emitted = True
     return tuple(definitions)
 
 
@@ -456,6 +459,7 @@ def _build_peak_fit_definition(result: IRResult, index: int) -> FigureDefinition
         technique="ir",
         scope="frame",
         category="per_frame",
+        publication_role="si",
         title=f"IR Peak Fit - {result.label}",
         layout=_ir_spectrum_layout(show_legend=True),
         data_sources=(
@@ -494,6 +498,7 @@ def _build_comparison_definition(result: IRResult, index: int) -> FigureDefiniti
         technique="ir",
         scope="frame",
         category="per_frame",
+        publication_role="diagnostic",
         title=f"IR Experimental And Computed - {result.label}",
         layout=_ir_spectrum_layout(show_legend=True),
         data_sources=(
@@ -569,6 +574,7 @@ def _build_crystallinity_definition(
         technique="ir",
         scope="series",
         category="series_overview",
+        publication_role="main",
         title="IR Crystallinity Overview",
         layout=FigureLayoutDefinition(
             width_in=7.0,

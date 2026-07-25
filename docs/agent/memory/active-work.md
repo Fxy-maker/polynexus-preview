@@ -71,6 +71,19 @@
   commit remain pending. Vendor reader, real fixture, fallback/AI gates, and
   restarted-GUI acceptance are intentionally open.
 
+## IR three-mode vertical slice - code checkpoint in progress 2026-07-25
+
+- Standard IR now assigns an explicit Main role to the first spectrum and the
+  crystallinity overview, SI to subsequent spectra and peak fits, and
+  diagnostic to experimental/computed comparisons.
+- Temperature-2D and mapping/ROI role matrices are explicitly regression
+  tested; mapping provenance and invalid-pixel evidence remain unchanged.
+- The shared FigurePipeline sibling-failure behavior is covered: one
+  `generation_failed` entry does not hide ready siblings.
+- Focused matrix is `26 passed`; task-scoped verifier and auto-commit are
+  pending. Real reader/fixture, AI/fallback, export-bundle, and restarted-GUI
+  acceptance remain open.
+
 ## NMR/Joint published-run provenance matrix - in progress 2026-07-25
 
 - NMR spectrum/deconvolution publication roles are now explicit (`main` and

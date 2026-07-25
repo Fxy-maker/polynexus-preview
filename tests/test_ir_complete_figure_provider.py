@@ -72,6 +72,18 @@ def test_complete_ir_provider_emits_expected_semantic_figures(ir_complete_result
         assert build_v2_definition_artifact(definition).capability["v2_runtime"] == "ready"
 
 
+def test_complete_ir_provider_assigns_conservative_standard_publication_roles(ir_complete_results):
+    definitions = build_ir_figure_definitions(ir_complete_results)
+
+    assert [item.publication_role for item in definitions] == [
+        "main",
+        "si",
+        "diagnostic",
+        "si",
+        "main",
+    ]
+
+
 def test_ir_engine_handoff_returns_complete_definitions(ir_complete_results):
     engine = IREngine()
     engine._results = list(ir_complete_results)
@@ -97,4 +109,30 @@ def test_ir_engine_handoff_includes_temperature_2d_definitions():
 
     assert [item.figure_id for item in definitions] == [
         "ir.temperature_2d.heatmap",
+    ]
+
+
+def test_ir_temperature_2d_provider_assigns_main_support_and_diagnostic_roles():
+    engine = IREngine()
+    engine._temperature_2d_result = IRTemp2DResult(
+        frames=[
+            IRTempFrame(label="H100", temperature_C=100),
+            IRTempFrame(label="H110", temperature_C=110),
+        ],
+        wavenumber=np.array([1000.0, 1100.0]),
+        absorbance_matrix=np.array([[0.1, 0.2], [0.2, 0.3]]),
+        band_intensity_vs_frame={"amide": [0.1, 0.2]},
+        band_indices_vs_frame={"ratio": [1.0, 1.1]},
+        sync_corr=np.eye(2),
+        async_corr=np.eye(2),
+    )
+
+    definitions = engine.build_figure_definitions()
+
+    assert [item.publication_role for item in definitions] == [
+        "main",
+        "si",
+        "si",
+        "diagnostic",
+        "diagnostic",
     ]

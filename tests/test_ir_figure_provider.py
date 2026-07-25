@@ -1,4 +1,5 @@
 import numpy as np
+from dataclasses import replace
 
 from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.ir_engine.core import IRResult
@@ -81,3 +82,44 @@ def test_ir_spectrum_vertical_slice_produces_complete_manifest(tmp_path):
     assert entry.status == "ready"
     assert entry.capability_report["editing_mode"] == "object"
     assert set(entry.assets) == {"preview", "svg", "png", "pdf"}
+
+
+def test_ir_pipeline_keeps_ready_siblings_when_one_definition_fails(tmp_path):
+    definition = build_ir_spectrum_definitions(
+        (
+            IRResult(
+                label="sample-ir",
+                wavenumber=np.array([1800.0, 1700.0, 1600.0]),
+                absorbance=np.array([0.1, 0.4, 0.2]),
+            ),
+        )
+    )[0]
+    broken = replace(
+        definition,
+        figure_id="ir.frame.broken",
+        objects=(
+            {
+                "id": "broken-series",
+                "type": "plot_series",
+                "panel_id": "main",
+                "data_ref": "missing-source",
+                "x_column": "wavenumber_cm1",
+                "y_column": "absorbance",
+            },
+        ),
+    )
+    valid = replace(definition, figure_id="ir.frame.valid")
+
+    manifest = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="ir-failure-sibling-1",
+        technique="ir",
+        definitions=(broken, valid),
+        profile_id="paper_complete",
+    )
+
+    assert [(item.figure_id, item.status) for item in manifest.figures] == [
+        ("ir.frame.broken", "generation_failed"),
+        ("ir.frame.valid", "ready"),
+    ]
+    assert "unknown data_ref" in manifest.figures[0].error

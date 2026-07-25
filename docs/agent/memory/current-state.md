@@ -218,3 +218,9 @@ title: Current PolyNexus repository state
   remains provisional. Real partition visual and full provenance/release
   acceptance remain open. Evidence is in
   `docs/acceptance/2026-07-25-nmr-workbench-checkpoint.md`.
+- IR standard now has explicit conservative Main/SI/diagnostic roles for
+  spectra, fits, computed comparison, and crystallinity; temperature-2D and
+  mapping/ROI role matrices plus sibling-safe Manifest failure visibility are
+  regression-covered. The focused checkpoint is recorded in
+  `docs/acceptance/2026-07-25-ir-three-mode-vertical-slice.md`; real reader,
+  AI/fallback, export-bundle, and restarted-GUI release gates remain open.
