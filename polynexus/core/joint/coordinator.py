@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -67,6 +68,31 @@ class JointCoordinator:
             definitions=definitions,
             run_id=run_id,
         )
+
+    def publish_hub_report(
+        self,
+        rows: list[JointBatchRow],
+        output_dir,
+        *,
+        run_id: str | None = None,
+    ) -> dict:
+        """Build the hub report and attach its Manifest publication context."""
+
+        from .dataset import build_joint_hub_report
+
+        report = build_joint_hub_report(rows)
+        publication = self.publish_figure_definitions(
+            output_dir,
+            rows,
+            run_id=run_id,
+        )
+        run_root = Path(output_dir).resolve() / "runs" / publication.run_id
+        report["figure_publication"] = {
+            "run_id": publication.run_id,
+            "manifest": str(run_root / "figure_manifest.json"),
+            "figure_ids": tuple(publication.primary_assets),
+        }
+        return report
 
     def compare_same_sample(self, sample_id: str, batches: list[str]) -> dict:
         """Compare results across batches of the same sample."""

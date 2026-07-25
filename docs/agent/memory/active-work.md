@@ -5,14 +5,16 @@
 - Added `polynexus/core/joint/figure_provider.py` over the existing
   `JointBatchRow` contract. It emits main crystallinity comparison, SAXS/WAXS
   multiscale support, and evidence-coverage diagnostic definitions.
-- `JointCoordinator.publish_figure_definitions()` now publishes those
-  definitions through the shared production pipeline. Workbench IDs are
-  `joint.series.crystallinity` and `joint.series.multiscale`.
+- `JointCoordinator.publish_figure_definitions()` and
+  `publish_hub_report()` now publish through the shared production pipeline
+  and attach Manifest context to the report. `JointHubWorker` calls this
+  service, so a real `joint.compare` run produces the new entries. Workbench
+  IDs are `joint.series.crystallinity` and `joint.series.multiscale`.
 - Evidence: `docs/acceptance/2026-07-25-joint-figure-provider-checkpoint.md`;
   focused Joint/provider/profile matrix 12 passed.
-- Remaining: route `joint.compare` GUI report/history/export through the new
-  lifecycle, add conflict provenance and AI-off/failure/fallback tests, then
-  perform real-data and restarted-GUI review. Do not call Joint complete yet.
+- Remaining: add MainWindow-level Gallery/Workbench/history/export regression,
+  conflict provenance and AI-off/failure/fallback tests, then perform
+  real-data and restarted-GUI review. Do not call Joint complete yet.
 
 ## IR temperature-2D Figure lifecycle checkpoint - code completed 2026-07-25
 

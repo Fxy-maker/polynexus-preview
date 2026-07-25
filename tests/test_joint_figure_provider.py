@@ -79,3 +79,12 @@ def test_joint_coordinator_exposes_manifest_publication_entrypoint(tmp_path):
         "joint.series.crystallinity",
         "joint.series.multiscale",
     }
+
+
+def test_joint_coordinator_attaches_manifest_context_to_hub_report(tmp_path):
+    report = JointCoordinator().publish_hub_report(_rows(), tmp_path, run_id="joint-hub")
+
+    publication = report["figure_publication"]
+    assert publication["run_id"] == "joint-hub"
+    assert publication["manifest"].endswith("runs\\joint-hub\\figure_manifest.json")
+    assert "joint.series.crystallinity" in publication["figure_ids"]

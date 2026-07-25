@@ -190,6 +190,7 @@ title: Current PolyNexus repository state
   `docs/acceptance/2026-07-25-ir-temperature-2d-workbench-checkpoint.md`.
 - Joint hub rows now have a shared FigureDefinition provider and Coordinator
   publication entrypoint for crystallinity, multiscale, and evidence-coverage
-  figures. The legacy `joint.compare` GUI report is not yet wired to that
-  entrypoint; evidence is in
+  figures; `JointHubWorker` now attaches the Manifest context to real GUI run
+  reports. MainWindow-level Gallery/history/export regression remains open;
+  evidence is in
   `docs/acceptance/2026-07-25-joint-figure-provider-checkpoint.md`.

@@ -131,7 +131,7 @@ class BatchWorker(QThread):
                     self.output_dir,
                     main_window_module.os.path.splitext(fname)[0],
                 )
-                result = engine.run_pipeline(fp, file_out)
+                engine.run_pipeline(fp, file_out)
                 if self._cancel_requested or self.isInterruptionRequested():
                     self.cancelled.emit()
                     return
@@ -168,7 +168,9 @@ class JointHubWorker(QThread):
     def run(self):
         main_window_module = _main_window_module()
         try:
-            report = main_window_module.build_joint_hub_report(self.rows)
+            from ..core.joint.coordinator import JointCoordinator
+
+            report = JointCoordinator().publish_hub_report(self.rows, self.output_dir)
             self.finished.emit(report)
         except Exception as exc:
             self.error_msg.emit(tr("JOINT_OVERVIEW_FAILED", exc))
