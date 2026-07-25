@@ -1,10 +1,8 @@
 """NMR spectroscopy analysis engine."""
 
 from __future__ import annotations
+
 import logging
-logger = logging.getLogger(__name__)
-
-
 import os
 from typing import Any, Dict, List
 
@@ -26,8 +24,11 @@ from .nmr_engine import (
 )
 from .nmr_engine.io import (
     infer_nucleus, infer_sample_state,
-    NMR_EXTS, NMR_OUTPUT_DIRS,
+    NMR_EXTS,
 )  # fmt: off
+
+
+logger = logging.getLogger(__name__)
 
 
 def _expected_from_submodule(submodule_id: str | None) -> tuple[str | None, str | None]:
@@ -421,9 +422,22 @@ class NMREngine(BaseEngine):
             return {}
         out = output_dir or self._cfg.output_dir or "nmr_output"
         figures = self.publish_figure_definitions(out, definitions)
+        # Keep the tabular data contract that predates the unified figure
+        # publisher.  Figure assets and machine-readable exports belong to the
+        # same run root, so callers can relocate the complete bundle together.
+        from .nmr_engine.nmr_output import export_parameters_csv, export_peaks_csv
+
+        export_parameters_csv(self._results, out)
+        export_peaks_csv(self._results, out)
+        # Preserve the legacy public key spelling while the manifest keeps its
+        # canonical hyphenated logical figure ID.
+        compatibility_figures = dict(figures)
+        for key, path in figures.items():
+            if "region-integrals" in key:
+                compatibility_figures[key.replace("region-integrals", "region_integrals")] = path
         for path in figures.values():
             self.log(f"  Figure saved: {path}")
-        return figures
+        return compatibility_figures
 
     def get_parameters(self):
         if not self._results:

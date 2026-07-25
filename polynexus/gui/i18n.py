@@ -2442,6 +2442,28 @@ _WORKBENCH_LABELS_EN = {
     "RESULTS_WORKBENCH_WAXS_STRAIN_SUPPORT": "Response support",
     "RESULTS_WORKBENCH_WAXS_STRAIN_DIAGNOSTICS": "Detector diagnostics",
 }
+_WORKBENCH_EXTRA_LABELS_EN = {
+    "RESULTS_WORKBENCH_IR_STANDARD_PRIMARY": "Spectrum & bands",
+    "RESULTS_WORKBENCH_IR_STANDARD_SUPPORT": "Assignment support",
+    "RESULTS_WORKBENCH_IR_STANDARD_DIAGNOSTICS": "Baseline diagnostics",
+    "RESULTS_WORKBENCH_IR_TEMPERATURE_2D_PRIMARY": "Spectral evolution",
+    "RESULTS_WORKBENCH_IR_TEMPERATURE_2D_SUPPORT": "Band tracking",
+    "RESULTS_WORKBENCH_IR_TEMPERATURE_2D_DIAGNOSTICS": "Sequence & matrix validity",
+    "RESULTS_WORKBENCH_IR_MAPPING_PRIMARY": "Map & ROI",
+    "RESULTS_WORKBENCH_IR_MAPPING_SUPPORT": "Band assignments",
+    "RESULTS_WORKBENCH_IR_MAPPING_DIAGNOSTICS": "Pixel diagnostics",
+    "RESULTS_WORKBENCH_NMR_LIQUID_H_PRIMARY": "Peaks & assignments",
+    "RESULTS_WORKBENCH_NMR_LIQUID_H_SUPPORT": "Solvent / fit support",
+    "RESULTS_WORKBENCH_NMR_LIQUID_H_DIAGNOSTICS": "SNR & overlap diagnostics",
+    "RESULTS_WORKBENCH_NMR_SOLID_C_PRIMARY": "Phase & composition",
+    "RESULTS_WORKBENCH_NMR_SOLID_C_SUPPORT": "Assignment coverage",
+    "RESULTS_WORKBENCH_NMR_SOLID_C_DIAGNOSTICS": "Broad-line diagnostics",
+    "RESULTS_WORKBENCH_JOINT_PRIMARY": "Cross-technique consistency",
+    "RESULTS_WORKBENCH_JOINT_SUPPORT": "Evidence & provenance",
+    "RESULTS_WORKBENCH_JOINT_DIAGNOSTICS": "Conflict diagnostics",
+}
+_WORKBENCH_LABELS_EN.update(_WORKBENCH_EXTRA_LABELS_EN)
+_WORKBENCH_LABELS_ZH.update(_WORKBENCH_EXTRA_LABELS_EN)
 _WORKBENCH_GENERIC_LABELS = {
     "DSC_STANDARD": ("DSC / Thermal events", "Thermal events and baseline support"),
     "DSC_ISOTHERMAL": ("DSC / Isothermal crystallization", "Crystallization evolution and Avrami support"),

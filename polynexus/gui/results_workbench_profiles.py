@@ -208,6 +208,38 @@ _TECHNIQUE_FIGURES = {
         ("waxs.strain.evolution", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
         ("waxs.strain.full-series.si", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
     ),
+    "ir.standard": (
+        ("ir.frame.spectrum.001", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("ir.series.crystallinity", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "ir.temperature_2d": (
+        ("Fig-IRT1_2D_heatmap", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("Fig-IRT4_band_tracking", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "ir.mapping": (
+        ("ir.mapping.roi", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("ir.mapping.spectra", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "joint": (
+        ("Fig-Joint_crystallinity", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("Fig-Joint_multiscale", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "nmr.liquid_h": (
+        ("nmr.frame.spectrum.001", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("nmr.frame.deconvolution.001", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "nmr.liquid_c": (
+        ("nmr.frame.spectrum.001", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("nmr.frame.deconvolution.001", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "nmr.solid_h": (
+        ("nmr.frame.spectrum.001", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("nmr.series.crystallinity", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "nmr.solid_c": (
+        ("nmr.frame.spectrum.001", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("nmr.series.crystallinity", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
 }
 
 _TECHNIQUE_TABS = {
@@ -240,6 +272,46 @@ _TECHNIQUE_TABS = {
         "RESULTS_WORKBENCH_WAXS_STRAIN_PRIMARY",
         "RESULTS_WORKBENCH_WAXS_STRAIN_SUPPORT",
         "RESULTS_WORKBENCH_WAXS_STRAIN_DIAGNOSTICS",
+    ),
+    "ir.standard": (
+        "RESULTS_WORKBENCH_IR_STANDARD_PRIMARY",
+        "RESULTS_WORKBENCH_IR_STANDARD_SUPPORT",
+        "RESULTS_WORKBENCH_IR_STANDARD_DIAGNOSTICS",
+    ),
+    "ir.temperature_2d": (
+        "RESULTS_WORKBENCH_IR_TEMPERATURE_2D_PRIMARY",
+        "RESULTS_WORKBENCH_IR_TEMPERATURE_2D_SUPPORT",
+        "RESULTS_WORKBENCH_IR_TEMPERATURE_2D_DIAGNOSTICS",
+    ),
+    "ir.mapping": (
+        "RESULTS_WORKBENCH_IR_MAPPING_PRIMARY",
+        "RESULTS_WORKBENCH_IR_MAPPING_SUPPORT",
+        "RESULTS_WORKBENCH_IR_MAPPING_DIAGNOSTICS",
+    ),
+    "nmr.liquid_h": (
+        "RESULTS_WORKBENCH_NMR_LIQUID_H_PRIMARY",
+        "RESULTS_WORKBENCH_NMR_LIQUID_H_SUPPORT",
+        "RESULTS_WORKBENCH_NMR_LIQUID_H_DIAGNOSTICS",
+    ),
+    "nmr.liquid_c": (
+        "RESULTS_WORKBENCH_NMR_LIQUID_H_PRIMARY",
+        "RESULTS_WORKBENCH_NMR_LIQUID_H_SUPPORT",
+        "RESULTS_WORKBENCH_NMR_LIQUID_H_DIAGNOSTICS",
+    ),
+    "nmr.solid_h": (
+        "RESULTS_WORKBENCH_NMR_SOLID_C_PRIMARY",
+        "RESULTS_WORKBENCH_NMR_SOLID_C_SUPPORT",
+        "RESULTS_WORKBENCH_NMR_SOLID_C_DIAGNOSTICS",
+    ),
+    "nmr.solid_c": (
+        "RESULTS_WORKBENCH_NMR_SOLID_C_PRIMARY",
+        "RESULTS_WORKBENCH_NMR_SOLID_C_SUPPORT",
+        "RESULTS_WORKBENCH_NMR_SOLID_C_DIAGNOSTICS",
+    ),
+    "joint": (
+        "RESULTS_WORKBENCH_JOINT_PRIMARY",
+        "RESULTS_WORKBENCH_JOINT_SUPPORT",
+        "RESULTS_WORKBENCH_JOINT_DIAGNOSTICS",
     ),
 }
 
