@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -21,8 +21,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..i18n import tr, tr_for_language
+from ..i18n import get_language, tr, tr_for_language
 from ..result_table_models import HeroMetric, ResultTableSection, TableColumn, TableScalar
+from ..results_workbench_profiles import ResultsWorkbenchProfile, profile_for
 from ..theme import ThemeEngine
 
 _RAW_ROLE = Qt.UserRole
@@ -121,6 +122,9 @@ class TypedTableWidgetItem(QTableWidgetItem):
 class ResultsTablePanel(QWidget):
     """Display hero metrics and primary, detail, and diagnostic result tables."""
 
+    figure_link_requested = Signal(str)
+    review_action_requested = Signal(str)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("results_table_panel")
@@ -129,6 +133,38 @@ class ResultsTablePanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
+
+        self._profile = profile_for("generic", language=get_language())
+        self._workbench_header = QWidget(self)
+        self._workbench_header.setObjectName("results_workbench_header")
+        header_layout = QVBoxLayout(self._workbench_header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(2)
+        self.workbench_title = QLabel(self._workbench_header)
+        self.workbench_title.setObjectName("results_workbench_title")
+        self.workbench_title.setAccessibleName(self.workbench_title.objectName())
+        header_layout.addWidget(self.workbench_title)
+        self.workbench_subtitle = QLabel(self._workbench_header)
+        self.workbench_subtitle.setObjectName("results_workbench_subtitle")
+        self.workbench_subtitle.setWordWrap(True)
+        header_layout.addWidget(self.workbench_subtitle)
+        self.figure_links_widget = QWidget(self._workbench_header)
+        self.figure_links_widget.setObjectName("results_workbench_figure_links")
+        self.figure_links_layout = QHBoxLayout(self.figure_links_widget)
+        self.figure_links_layout.setContentsMargins(0, 4, 0, 2)
+        self.figure_links_layout.setSpacing(6)
+        header_layout.addWidget(self.figure_links_widget)
+        self.workbench_review_action = QPushButton(self._workbench_header)
+        self.workbench_review_action.setObjectName("results_workbench_review_action")
+        self.workbench_review_action.clicked.connect(self._emit_profile_review_action)
+        header_layout.addWidget(self.workbench_review_action, 0, Qt.AlignLeft)
+        layout.addWidget(self._workbench_header)
+
+        self.workbench_state = QLabel(self)
+        self.workbench_state.setObjectName("results_workbench_state")
+        self.workbench_state.setWordWrap(True)
+        self.workbench_state.hide()
+        layout.addWidget(self.workbench_state)
 
         self._metrics_widget = QWidget(self)
         self._metrics_widget.setObjectName("results_metrics")
@@ -198,12 +234,11 @@ class ResultsTablePanel(QWidget):
         self.tabs.setTabVisible(1, False)
         self.tabs.setTabVisible(2, False)
         self._theme_engine.theme_changed.connect(self._refresh_visual_theme)
+        self.set_profile(self._profile)
 
     def retranslate(self) -> None:
         """Refresh localized captions and visible status indicators."""
-        self.tabs.setTabText(0, tr("RESULTS_TAB_KEY"))
-        self.tabs.setTabText(1, tr("RESULTS_TAB_DETAIL"))
-        self.tabs.setTabText(2, tr("RESULTS_TAB_DIAGNOSTICS"))
+        self.set_profile(self._profile.for_language(get_language()))
         for label in self.hero_labels:
             label.setText(
                 _hero_text(
@@ -227,6 +262,41 @@ class ResultsTablePanel(QWidget):
         if self._review_hint_action_text_key is not None:
             self.review_hint_action.setText(tr(self._review_hint_action_text_key))
         self._refresh_review_hint_style()
+
+    @property
+    def profile(self) -> ResultsWorkbenchProfile:
+        return self._profile
+
+    def set_profile(self, profile: ResultsWorkbenchProfile | None) -> None:
+        """Apply mode-specific narrative metadata without changing result data."""
+        self._profile = profile or profile_for("generic", language=get_language())
+        language = self._profile.language
+        self.workbench_title.setText(self._profile.title)
+        self.workbench_subtitle.setText(self._profile.subtitle)
+        self.workbench_review_action.setText(self._profile.review_action.label_for(language))
+        self.workbench_review_action.setVisible(self._profile.key != "generic")
+        self.tabs.setTabText(0, self._profile.tab_labels[0])
+        self.tabs.setTabText(1, self._profile.tab_labels[1])
+        self.tabs.setTabText(2, self._profile.tab_labels[2])
+        while self.figure_links_layout.count():
+            item = self.figure_links_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        for link in self._profile.figure_links:
+            button = QPushButton(link.label_for(language), self.figure_links_widget)
+            button.setObjectName(
+                "results_figure_link_" + link.key.replace(".", "_").replace("-", "_")
+            )
+            button.setProperty("figureLinkKey", link.key)
+            button.setProperty("figureLinkRole", link.role)
+            button.clicked.connect(lambda _checked=False, key=link.key: self.figure_link_requested.emit(key))
+            self.figure_links_layout.addWidget(button)
+        self.figure_links_layout.addStretch(1)
+        self.figure_links_widget.setVisible(bool(self._profile.figure_links))
+
+    def _emit_profile_review_action(self) -> None:
+        self.review_action_requested.emit(self._profile.review_action.key)
 
     def _refresh_visual_theme(self, _theme_name: str = "") -> None:
         """Reapply the small amount of widget-local styling owned by this panel."""
@@ -372,8 +442,11 @@ class ResultsTablePanel(QWidget):
         primary: ResultTableSection,
         detail: ResultTableSection,
         diagnostics: ResultTableSection,
+        profile: ResultsWorkbenchProfile | None = None,
+        error_text: str = "",
     ) -> None:
         """Replace the complete structured result presentation."""
+        self.set_profile(profile or profile_for("generic", language=get_language()))
         self._set_heroes(heroes)
         self._populate_table(self.primary_table, primary)
         self._populate_table(self.detail_table, detail)
@@ -381,6 +454,13 @@ class ResultsTablePanel(QWidget):
         self.tabs.setTabVisible(0, True)
         self.tabs.setTabVisible(1, bool(detail.rows))
         self.tabs.setTabVisible(2, bool(diagnostics.rows))
+        state_text = str(error_text or "") or (
+            self._profile.empty_state
+            if not (heroes or primary.rows or detail.rows or diagnostics.rows)
+            else ""
+        )
+        self.workbench_state.setText(state_text)
+        self.workbench_state.setVisible(bool(state_text))
 
     def _set_heroes(self, heroes: tuple[HeroMetric, ...]) -> None:
         while self._metrics_layout.count():

@@ -1,5 +1,18 @@
 # Active Work
 
+## Results Workbench profile platform - Phase 1 completed 2026-07-25
+
+- Added the typed profile registry at `polynexus/gui/results_workbench_profiles.py`.
+- SAXS static/temperature/strain now have distinct titles, narratives, tabs,
+  review actions, empty/error states, and validated existing SAXS figure IDs.
+- DSC/WAXS/IR/NMR/Joint modes are registered through the same profile boundary.
+- `ResultsTableModel` carries the profile; `ResultsTablePanel` renders the
+  profile header, figure links, profile action, and empty/error state; main
+  window routing sends figure links to the manifest-backed gallery.
+- Acceptance note: `docs/acceptance/2026-07-25-results-workbench-phase1.md`.
+- Next action: complete the SAXS three-mode vertical slice against real/Golden
+  fixtures, including Gallery/Editor/export and fallback/AI-off acceptance.
+
 ## PolyNexus full software vertical delivery - active 2026-07-25
 
 - Overall goal: complete the shared platform, customized Results Workbench,

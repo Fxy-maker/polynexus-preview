@@ -163,3 +163,14 @@ title: Current PolyNexus repository state
   canvas resize path. The adapter and ChartEditor resize regressions pass.
 - Reconcile the older active-work entries in `active-work.md` against the
   current branch/PR state before using them as authoritative.
+
+## Latest full-software checkpoint
+
+- Results Workbench Phase 1 is implemented locally: typed profile registry,
+  SAXS mode-specific narrative and Figure IDs, generic DSC/WAXS/IR/NMR/Joint
+  registrations, profile-driven Qt shell states, and gallery/review routing.
+- Acceptance evidence is recorded in
+  `docs/acceptance/2026-07-25-results-workbench-phase1.md`.
+- This does not mark any technique vertical slice complete; SAXS still needs
+  end-to-end Figure Pack, Gallery/Editor/export, fallback, AI-off, and human
+  visual/scientific acceptance.

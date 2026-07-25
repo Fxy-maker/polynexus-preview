@@ -66,6 +66,21 @@ class MainWindowOutputMixin:
         self._update_results_review_panel()
         self._update_results_review_hint(summary, risk, next_step)
 
+    def _on_results_figure_link(self, figure_key: str) -> None:
+        """Route a profile figure link to the manifest-backed gallery."""
+        jump_to_tab = getattr(self, "_jump_to_tab", None)
+        if callable(jump_to_tab):
+            jump_to_tab(3)
+        gallery = getattr(self, "_chart_gallery", None)
+        if gallery is not None and hasattr(gallery, "select_figure"):
+            gallery.select_figure(str(figure_key or ""))
+
+    def _on_results_profile_action(self, _action_key: str) -> None:
+        """Keep profile review actions inside the existing results workflow."""
+        jump_to_results = getattr(self, "_jump_to_results", None)
+        if callable(jump_to_results):
+            jump_to_results()
+
     def _update_results_review_hint(self, summary, risk_text="", next_text=""):
         panel = getattr(self, "_results_panel", None)
         if panel is None:
@@ -120,6 +135,7 @@ class MainWindowOutputMixin:
             primary=primary,
             detail=table_model.detail_section or ResultTableSection.empty(),
             diagnostics=table_model.diagnostic_section or ResultTableSection.empty(),
+            profile=getattr(table_model, "profile", None),
         )
         return True
 

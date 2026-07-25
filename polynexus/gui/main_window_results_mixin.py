@@ -389,6 +389,8 @@ class MainWindowResultsMixin:
         layout.addWidget(self._results_confirm_group)
 
         self._results_panel = ResultsTablePanel()
+        self._results_panel.figure_link_requested.connect(self._on_results_figure_link)
+        self._results_panel.review_action_requested.connect(self._on_results_profile_action)
         self._results_table = self._results_panel.primary_table
         self._current_results_table_model = None
         self._current_results_table_source = None

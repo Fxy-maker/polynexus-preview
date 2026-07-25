@@ -9,6 +9,7 @@ from typing import Any, Callable
 from .i18n import tr
 from .analysis_results_table_service import build_analysis_results_presentation
 from .result_table_models import HeroMetric, ResultTableSection
+from .results_workbench_profiles import profile_for
 from .saxs_results_table_service import build_saxs_results_presentation
 
 
@@ -32,6 +33,7 @@ class ResultsTableModel:
     diagnostic_section: ResultTableSection | None = None
     risk_text: str = ""
     next_text: str = ""
+    profile: Any = None
 
 
 def _format_display_value(value, *, digits: int) -> str:
@@ -204,6 +206,7 @@ def build_results_table_model(
                 diagnostic_section=presentation.diagnostics,
                 risk_text=presentation.risk_text,
                 next_text=presentation.next_text,
+                profile=profile_for(presentation.kind, language=language),
             )
 
     normalized_technique = str(technique or "").strip().lower()
@@ -243,6 +246,7 @@ def build_results_table_model(
                     diagnostic_section=presentation.diagnostics,
                     risk_text=presentation.risk_text,
                     next_text=presentation.next_text,
+                    profile=profile_for(presentation.kind, language=language),
                 )
 
     batch_frames = params.get("batch_frames", 0) if isinstance(params, dict) else 0

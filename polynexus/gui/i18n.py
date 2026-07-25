@@ -2350,8 +2350,87 @@ _ANALYSIS_LABELS_EN = {
         "TABLE_ANALYSIS_SCAN": "Scan", "TABLE_ANALYSIS_TG": "Tg", "TABLE_ANALYSIS_TM_PEAK": "Tm peak", "TABLE_ANALYSIS_DHM": "DHm", "TABLE_ANALYSIS_TC": "Tc/Tcc", "TABLE_ANALYSIS_XC": "Crystallinity", "TABLE_ANALYSIS_EVENT_SUPPORT": "Event support", "TABLE_ANALYSIS_TIME": "Time", "TABLE_ANALYSIS_TEMPERATURE": "Temperature", "TABLE_ANALYSIS_CONVERSION": "Conversion", "TABLE_ANALYSIS_AVRAMI_N": "Avrami n", "TABLE_ANALYSIS_KISSINGER_EA": "Kissinger Ea", "TABLE_ANALYSIS_OZAWA_EA": "Ozawa Ea", "TABLE_ANALYSIS_MO_EA": "Mo Ea", "TABLE_ANALYSIS_FRIEDMAN_EA": "Friedman Ea", "TABLE_ANALYSIS_FIT_QUALITY": "Fit quality", "TABLE_ANALYSIS_SAMPLE": "Sample", "TABLE_ANALYSIS_MATERIAL_MATCH": "Material match", "TABLE_ANALYSIS_MATCH_SCORE": "Match score", "TABLE_ANALYSIS_PEAK_COUNT": "Peak count", "TABLE_ANALYSIS_BAND_HIT_COUNT": "Band hits", "TABLE_ANALYSIS_ASSIGNMENT_CONFIDENCE": "Assignment confidence", "TABLE_ANALYSIS_CRYSTALLINITY_INDEX": "Crystallinity index", "TABLE_ANALYSIS_STATUS": "Status", "TABLE_ANALYSIS_BAND_TRACKING_STATUS": "Band tracking status", "TABLE_ANALYSIS_TRANSITION_TEMPERATURE": "Transition temperature", "TABLE_ANALYSIS_SYNCHRONOUS_SUPPORT": "Synchronous support", "TABLE_ANALYSIS_ASYNCHRONOUS_SUPPORT": "Asynchronous support", "TABLE_ANALYSIS_LOW_CONFIDENCE_RATIO": "Low-confidence frame ratio", "TABLE_ANALYSIS_CONDITION": "Condition", "TABLE_ANALYSIS_SCHERRER_SIZE": "Scherrer size", "TABLE_ANALYSIS_DOMINANT_CRYSTAL": "Dominant crystal type", "TABLE_ANALYSIS_PHYSICAL_SUPPORT": "Physical support", "TABLE_ANALYSIS_TREND_SUPPORT": "Trend support", "TABLE_ANALYSIS_CRYSTAL_TRANSITION": "Crystal transition", "TABLE_ANALYSIS_ORIENTATION": "Orientation", "TABLE_ANALYSIS_STRAIN": "Strain", "TABLE_ANALYSIS_SPECTRUM": "Spectrum", "TABLE_ANALYSIS_NUCLEUS": "Nucleus", "TABLE_ANALYSIS_SAMPLE_STATE": "Sample state", "TABLE_ANALYSIS_DOMINANT_PEAK": "Dominant peak", "TABLE_ANALYSIS_MEDIAN_SNR": "Median SNR", "TABLE_ANALYSIS_MEAN_FWHM": "Mean FWHM", "TABLE_ANALYSIS_PHASE_COMPOSITION": "Phase composition", "TABLE_ANALYSIS_ASSIGNMENT_COVERAGE": "Assignment coverage", "TABLE_ANALYSIS_NOT_DETECTED": "Not detected", "TABLE_ANALYSIS_NOT_APPLICABLE": "Not applicable",
     }.items()
 }
+_WORKBENCH_LABELS_ZH = {
+    "RESULTS_WORKBENCH_REVIEW_ACTION": "打开复核入口",
+    "RESULTS_WORKBENCH_EMPTY": "当前模式还没有可显示的结构化结果。",
+    "RESULTS_WORKBENCH_ERROR": "结果展示失败；请查看诊断并重试。",
+    "RESULTS_WORKBENCH_FIGURE_MAIN": "主图",
+    "RESULTS_WORKBENCH_FIGURE_SUPPORT": "支撑图",
+    "RESULTS_WORKBENCH_FIGURE_SELECTED": "候选帧",
+    "RESULTS_WORKBENCH_PRIMARY": "核心结果",
+    "RESULTS_WORKBENCH_SUPPORT": "支撑证据",
+    "RESULTS_WORKBENCH_DIAGNOSTICS": "质量诊断",
+    "RESULTS_WORKBENCH_GENERIC_TITLE": "结果工作台",
+    "RESULTS_WORKBENCH_GENERIC_SUBTITLE": "结果、证据和诊断",
+    "RESULTS_WORKBENCH_SAXS_STATIC_TITLE": "SAXS / 静态结构",
+    "RESULTS_WORKBENCH_SAXS_STATIC_SUBTITLE": "样品比较与结构支撑证据",
+    "RESULTS_WORKBENCH_SAXS_STATIC_PRIMARY": "结构比较",
+    "RESULTS_WORKBENCH_SAXS_STATIC_SUPPORT": "支撑证据",
+    "RESULTS_WORKBENCH_SAXS_STATIC_DIAGNOSTICS": "单帧诊断",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_TITLE": "SAXS / 温变演化",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_SUBTITLE": "演化趋势、转变支撑与选定帧",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_PRIMARY": "演化结果",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_SUPPORT": "转变支撑",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_DIAGNOSTICS": "序列诊断",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_TITLE": "SAXS / 应变演化",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_SUBTITLE": "形貌、取向与结构阶段证据",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_PRIMARY": "形貌演化",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_SUPPORT": "取向与阶段",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_DIAGNOSTICS": "序列诊断",
+}
+_WORKBENCH_LABELS_EN = {
+    "RESULTS_WORKBENCH_REVIEW_ACTION": "Open review",
+    "RESULTS_WORKBENCH_EMPTY": "No structured result is available for this mode yet.",
+    "RESULTS_WORKBENCH_ERROR": "The result view failed; inspect diagnostics and retry.",
+    "RESULTS_WORKBENCH_FIGURE_MAIN": "Main figure",
+    "RESULTS_WORKBENCH_FIGURE_SUPPORT": "Support figure",
+    "RESULTS_WORKBENCH_FIGURE_SELECTED": "Selected frames",
+    "RESULTS_WORKBENCH_PRIMARY": "Key results",
+    "RESULTS_WORKBENCH_SUPPORT": "Support evidence",
+    "RESULTS_WORKBENCH_DIAGNOSTICS": "Quality diagnostics",
+    "RESULTS_WORKBENCH_GENERIC_TITLE": "Results Workbench",
+    "RESULTS_WORKBENCH_GENERIC_SUBTITLE": "Results, evidence and diagnostics",
+    "RESULTS_WORKBENCH_SAXS_STATIC_TITLE": "SAXS / Static structure",
+    "RESULTS_WORKBENCH_SAXS_STATIC_SUBTITLE": "Sample comparison and structural support evidence",
+    "RESULTS_WORKBENCH_SAXS_STATIC_PRIMARY": "Structure comparison",
+    "RESULTS_WORKBENCH_SAXS_STATIC_SUPPORT": "Support evidence",
+    "RESULTS_WORKBENCH_SAXS_STATIC_DIAGNOSTICS": "Frame diagnostics",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_TITLE": "SAXS / Temperature evolution",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_SUBTITLE": "Evolution, transition support and selected frames",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_PRIMARY": "Evolution",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_SUPPORT": "Transition support",
+    "RESULTS_WORKBENCH_SAXS_TEMPERATURE_DIAGNOSTICS": "Sequence diagnostics",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_TITLE": "SAXS / Strain evolution",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_SUBTITLE": "Morphology, orientation and phase evidence",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_PRIMARY": "Morphology evolution",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_SUPPORT": "Orientation & phase",
+    "RESULTS_WORKBENCH_SAXS_STRAIN_DIAGNOSTICS": "Sequence diagnostics",
+}
+_WORKBENCH_GENERIC_LABELS = {
+    "DSC_STANDARD": ("DSC / Thermal events", "Thermal events and baseline support"),
+    "DSC_ISOTHERMAL": ("DSC / Isothermal crystallization", "Crystallization evolution and Avrami support"),
+    "DSC_NONISOTHERMAL": ("DSC / Non-isothermal kinetics", "Conversion and kinetic-method agreement"),
+    "WAXS_STATIC": ("WAXS / Static phase structure", "Pattern, phase, size and orientation evidence"),
+    "WAXS_TEMPERATURE": ("WAXS / Temperature evolution", "Phase transition and trend support"),
+    "WAXS_STRAIN": ("WAXS / Strain evolution", "Orientation, phase and size evidence"),
+    "IR_STANDARD": ("IR / Spectrum and bands", "Band assignments and baseline support"),
+    "IR_MAPPING": ("IR / Mapping", "ROI spectra, assignment and pixel diagnostics"),
+    "IR_TEMPERATURE_2D": ("IR / Temperature evolution", "Band trends and map support"),
+    "NMR_LIQUID_H": ("NMR / Liquid ¹H", "Peaks, assignments and solvent support"),
+    "NMR_LIQUID_C": ("NMR / Liquid ¹³C", "Peaks, assignments and solvent support"),
+    "NMR_SOLID_H": ("NMR / Solid ¹H", "Phase, composition and assignment coverage"),
+    "NMR_SOLID_C": ("NMR / Solid ¹³C", "Phase, composition and assignment coverage"),
+    "JOINT": ("Joint / Cross-technique review", "Consistency, conflicts and provenance"),
+}
+for _technique_key, (_title, _subtitle) in _WORKBENCH_GENERIC_LABELS.items():
+    _WORKBENCH_LABELS_EN[f"RESULTS_WORKBENCH_{_technique_key}_TITLE"] = _title
+    _WORKBENCH_LABELS_EN[f"RESULTS_WORKBENCH_{_technique_key}_SUBTITLE"] = _subtitle
+    _WORKBENCH_LABELS_ZH[f"RESULTS_WORKBENCH_{_technique_key}_TITLE"] = _title
+    _WORKBENCH_LABELS_ZH[f"RESULTS_WORKBENCH_{_technique_key}_SUBTITLE"] = _subtitle
 _ZH.update(_ANALYSIS_LABELS_ZH)
 _EN.update(_ANALYSIS_LABELS_EN)
+_ZH.update(_WORKBENCH_LABELS_ZH)
+_EN.update(_WORKBENCH_LABELS_EN)
 _TABLES = {"zh": _ZH, "en": _EN}
 _current_lang = "en"
 

@@ -34,12 +34,12 @@
 - Test: `tests/test_results_table_service.py`, `tests/test_result_table_templates.py`, `tests/test_main_window_output_mixin.py`
 - Create: `tests/test_results_workbench_profiles.py`
 
-- [ ] Define a typed Workbench Profile contract for title, heroes, primary/detail/diagnostics, review action, figure links and empty/error states.
-- [ ] Implement the shared shell without embedding technique-specific calculations.
-- [ ] Add profiles for SAXS static/temperature/strain first, then generic profile registration for DSC/WAXS/IR/NMR/Joint.
-- [ ] Make tab labels, empty states, evidence status and action routing profile-driven.
-- [ ] Add Qt-independent presentation tests plus focused offscreen Qt tests.
-- [ ] Verify mode switching, retranslation, no-result, low-confidence and diagnostic-only states.
+- [x] Define a typed Workbench Profile contract for title, heroes, primary/detail/diagnostics, review action, figure links and empty/error states.
+- [x] Implement the shared shell without embedding technique-specific calculations.
+- [x] Add profiles for SAXS static/temperature/strain first, then generic profile registration for DSC/WAXS/IR/NMR/Joint.
+- [x] Make tab labels, empty states, evidence status and action routing profile-driven.
+- [x] Add Qt-independent presentation tests plus focused offscreen Qt tests.
+- [x] Verify mode switching, retranslation, no-result, low-confidence and diagnostic-only states.
 - [ ] Checkpoint only after focused tests, Ruff, compile, `git diff --check`, and `python scripts/verify.py --changed --types` pass.
 
 ### Phase 2: SAXS complete vertical slice
