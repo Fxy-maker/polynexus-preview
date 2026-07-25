@@ -9,6 +9,12 @@
   NMR reader/core matrix remains `17 passed`. GUI/export/restart and scientific
   review are still open; this is not a complete NMR release claim.
 - Task card: `docs/agent/tasks/2026-07-25-nmr-evidence-persistence.md`.
+- A read-only real-engine smoke run over the repository's liquid H/C and
+  solid H/C fixtures completed through external output roots. All four runs
+  passed validation and emitted evidence plus active Manifest figures; solid
+  13C remained assignment-limited for Xc and fit/assignment warnings were
+  retained. This proves core/publication behavior, not GUI restart or human
+  scientific acceptance.
 
 ## Joint published-run restore - acceptance regression added 2026-07-25
 

@@ -41,3 +41,22 @@ available to SampleDB and History without a technique-specific GUI branch.
 The focused regression passed, and the real reader/core matrix remains green
 (`17 passed`). This closes the code-level evidence handoff only; four-partition
 real GUI/export/restart review and scientific acceptance remain open.
+
+## Real-engine smoke evidence (2026-07-25)
+
+The existing repository fixtures were run through `NMREngine.run_pipeline()`
+to external output roots, without modifying the fixtures:
+
+- liquid 1H: validation passed, 10 peaks, 4 published figures;
+- liquid 13C: validation passed with one fit-quality warning, 18 peaks, 4
+  published figures;
+- solid 1H: validation passed with seven fit-quality warnings across seven
+  spectra, 28 published figures;
+- solid 13C: validation passed with fit-quality and assignment warnings,
+  6--18 peaks across seven spectra, assignment-limited Xc, and 28 published
+  figures.
+
+Each run emitted `AnalysisEvidence` with signal, peak, assignment, and
+structure sections and an active Manifest run. This is real engine/core and
+publication evidence; GUI restart, Editor/export inspection, and human review
+remain open.

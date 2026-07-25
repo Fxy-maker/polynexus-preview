@@ -32,8 +32,8 @@ when the entire vertical definition in the full-software task card is proven.
 | IR standard | spectrum/peak/band/evidence result | standard provider IDs | customized profile | existing export/history contracts | mapping-independent release audit open |
 | IR temperature-2D | matrix, transition bands, 2D-COS evidence | heatmap/tracking/indices/COS IDs | customized profile | existing export/history contracts | release audit open |
 | IR mapping/ROI | registry/template only; no agreed map/ROI input contract | no mapping provider | profile only | not proven | blocked on scientific data contract |
-| NMR liquid H/C | peak, assignment, solvent and quality evidence | spectrum/deconvolution/comparison IDs | four partition profiles | CSV/API compatibility restored | real/visual/release audit open |
-| NMR solid H/C | assignment-gated phase/Xc evidence | assignment-gated provider IDs | four partition profiles | CSV/API compatibility restored | real/visual/release audit open |
+| NMR liquid H/C | peak, assignment, solvent and quality evidence | spectrum/deconvolution/comparison IDs | four partition profiles | CSV/API compatibility restored; real engine smoke passed | GUI/visual/release audit open |
+| NMR solid H/C | assignment-gated phase/Xc evidence | assignment-gated provider IDs | four partition profiles | CSV/API compatibility restored; real engine smoke passed | GUI/visual/release audit open |
 | Joint | cross-technique rows, validations and provenance context | crystallinity/multiscale/coverage IDs | custom typed report Workbench | completion + restore + export context covered | conflict/fallback/real/visual audit open |
 
 ## Core test evidence
