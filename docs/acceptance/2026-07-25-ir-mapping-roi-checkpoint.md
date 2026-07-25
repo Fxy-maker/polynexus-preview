@@ -28,6 +28,7 @@ does not claim a vendor instrument reader or scientific band-selection policy.
 - Task-scoped verifier passed with an external basetemp:
   `python scripts/verify.py --task docs/agent/tasks/2026-07-25-ir-mapping-roi-contract.md --changed --types`
   (Ruff/compile/type baseline, quality gate 282, preprocessing gate 103).
+- Atomic checkpoint commit: `863ec3a` (`feat(ir): add mapping roi figure lifecycle`).
 
 ## Open review items
 

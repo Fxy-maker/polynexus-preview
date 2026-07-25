@@ -40,7 +40,7 @@ band。JSON/仪器 reader 适配留给后续科学评审。
 - [x] 有 Main map、SI ROI spectra、diagnostic invalid-pixel FigureDefinition。
 - [x] 三类 definition 可通过 shared FigurePipeline 生成 Manifest。
 - [x] Mapping Workbench links 指向这些真实 figure IDs；没有数据时保持明确 empty state。
-- [x] focused pytest、structured verifier 和 auto-commit 均有记录（checkpoint commit 待完成）。
+- [x] focused pytest、structured verifier 和 auto-commit 均有记录（checkpoint `863ec3a`）。
 
 ## Verification
 
