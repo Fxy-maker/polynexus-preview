@@ -331,7 +331,7 @@ class EvalRunner:
 
     def _uses_real_engine(self, case: EvalCase) -> bool:
         tech = case.technique.lower().strip()
-        if tech not in {"waxs", "dsc", "saxs", "ir"}:
+        if tech not in {"waxs", "dsc", "saxs", "ir", "nmr"}:
             return False
         if case.data_file.startswith("synth:"):
             return False
@@ -344,13 +344,14 @@ class EvalRunner:
             "saxs": {"saxs.static", "saxs.temperature", "saxs.strain"},
             "dsc": {"dsc.standard", "dsc.heating", "dsc.cooling", "dsc.isothermal", "dsc.nonisothermal"},
             "ir": {"ir.standard", "ir.temperature_2d"},
+            "nmr": {"nmr.liquid_h", "nmr.liquid_c", "nmr.solid_h", "nmr.solid_c"},
         }
         return submodule in allowed[tech]
 
     def _run_real_engine(self, case: EvalCase) -> dict[str, Any]:
         tech = case.technique.lower().strip()
-        if tech not in {"waxs", "dsc", "saxs", "ir"}:
-            raise NotImplementedError("Engine bridge currently supports WAXS, SAXS, DSC, and IR real cases only.")
+        if tech not in {"waxs", "dsc", "saxs", "ir", "nmr"}:
+            raise NotImplementedError("Engine bridge does not support this real case.")
 
         from polynexus.core import get_engine
 
@@ -366,6 +367,8 @@ class EvalRunner:
             self._apply_waxs_config_overrides(engine, case)
         elif tech == "ir":
             self._apply_ir_config_overrides(engine, case)
+        elif tech == "nmr":
+            self._apply_nmr_config_overrides(engine, case)
         else:
             self._apply_saxs_config_overrides(engine, case)
         result = engine.run_pipeline(str(data_path), output_dir="")
@@ -378,6 +381,9 @@ class EvalRunner:
         elif tech == "saxs":
             output_parameters = self._saxs_output_parameters(engine, result)
             parameters_used = self._saxs_parameters_used(engine, data_path)
+        elif tech == "nmr":
+            output_parameters = self._nmr_output_parameters(engine, result)
+            parameters_used = self._nmr_parameters_used(engine, data_path)
         else:
             output_parameters = self._waxs_output_parameters(engine, result)
             parameters_used = self._waxs_parameters_used(engine, data_path)
@@ -519,6 +525,17 @@ class EvalRunner:
         parameters["data_file"] = str(data_path)
         return self._to_plain_value(parameters)
 
+    def _nmr_parameters_used(self, engine: Any, data_path: Path) -> dict[str, Any]:
+        config = getattr(engine, "_cfg", None)
+        if config is not None and hasattr(config, "to_dict"):
+            parameters = dict(config.to_dict())
+        else:
+            parameters = {}
+        parameters["engine"] = "nmr"
+        parameters["submodule"] = getattr(engine, "active_submodule", "nmr.solid_c") or "nmr.solid_c"
+        parameters["data_file"] = str(data_path)
+        return self._to_plain_value(parameters)
+
     def _waxs_output_parameters(self, engine: Any, result: Any) -> dict[str, Any]:
         output = dict(getattr(result, "parameters", {}) or {})
         waxs_results = getattr(engine, "_results", []) or []
@@ -606,6 +623,63 @@ class EvalRunner:
             except Exception:
                 pass
         return self._to_plain_value({key: value for key, value in output.items() if value is not None})
+
+    def _nmr_output_parameters(self, engine: Any, result: Any) -> dict[str, Any]:
+        output = self._flatten_nmr_parameters(dict(getattr(result, "parameters", {}) or {}))
+        if not output:
+            output = self._flatten_nmr_parameters(
+                dict(getattr(engine, "get_parameters", lambda: {})() or {})
+            )
+
+        nmr_results = getattr(engine, "_results", []) or []
+        if nmr_results:
+            first = nmr_results[0]
+            peaks = []
+            for peak in getattr(first, "peaks", []) or []:
+                item = {
+                    "ppm": peak.get("ppm"),
+                    "height": peak.get("height"),
+                    "fwhm_ppm": peak.get("fwhm_ppm"),
+                    "area": peak.get("area"),
+                    "assignment": peak.get("assignment", ""),
+                }
+                peaks.append({key: self._to_plain_value(value) for key, value in item.items() if value is not None})
+
+            output.update(
+                {
+                    "n_peaks": getattr(first, "n_peaks", output.get("n_peaks", len(peaks))),
+                    "dominant_peak_ppm": getattr(first, "dominant_peak_ppm", output.get("dominant_peak_ppm")),
+                    "median_snr": getattr(first, "median_snr", output.get("median_snr")),
+                    "Xc_pct": getattr(first, "Xc_pct", output.get("Xc_pct")),
+                    "Xc_method": getattr(first, "Xc_method", output.get("Xc_method", "")),
+                    "Xc_assignment_status": getattr(first, "Xc_assignment_status", output.get("Xc_assignment_status", "")),
+                    "r_squared": getattr(first, "r_squared", output.get("r_squared")),
+                    "sample_state": getattr(first, "sample_state", output.get("sample_state", "")),
+                    "nucleus": getattr(first, "nucleus", output.get("nucleus", "")),
+                }
+            )
+            if peaks:
+                output["peaks"] = peaks
+                output["peak_shifts"] = [peak["ppm"] for peak in peaks if "ppm" in peak]
+            ppm = getattr(first, "ppm", [])
+            if len(ppm) > 0:
+                output["x_min"] = float(np.nanmin(ppm))
+                output["x_max"] = float(np.nanmax(ppm))
+
+        output["engine"] = "nmr"
+        output["submodule"] = getattr(engine, "active_submodule", "nmr.solid_c") or "nmr.solid_c"
+        return self._to_plain_value({key: value for key, value in output.items() if value is not None})
+
+    @staticmethod
+    def _flatten_nmr_parameters(payload: dict[str, Any]) -> dict[str, Any]:
+        if not payload:
+            return {}
+        if any(key in payload for key in ("n_peaks", "dominant_peak_ppm", "Xc_pct")):
+            return payload
+        for value in payload.values():
+            if isinstance(value, dict) and any(key in value for key in ("n_peaks", "dominant_peak_ppm", "Xc_pct")):
+                return dict(value)
+        return payload
 
     def _saxs_output_parameters(self, engine: Any, result: Any) -> dict[str, Any]:
         output = dict(getattr(engine.result, "parameters", {}) or {})
@@ -702,6 +776,22 @@ class EvalRunner:
         for name, value in case.config_overrides.items():
             field_name = aliases.get(name, name)
             if field_name in config_fields and field_name in analyze_fields:
+                setattr(config, field_name, value)
+
+    def _apply_nmr_config_overrides(self, engine: Any, case: EvalCase) -> None:
+        config = getattr(engine, "_cfg", None)
+        if config is None:
+            return
+        config_fields = set(getattr(config, "__dataclass_fields__", {}))
+        aliases = {
+            "baseline_corr": "baseline_method",
+            "peak_threshold": "peak_height_min",
+            "peak_distance": "peak_distance_ppm",
+            "polymer": "polymer_name",
+        }
+        for name, value in case.config_overrides.items():
+            field_name = aliases.get(name, name)
+            if field_name in config_fields:
                 setattr(config, field_name, value)
 
     def _dsc_parameters_used(self, engine: Any, data_path: Path) -> dict[str, Any]:

@@ -859,6 +859,15 @@
 
 ## In progress
 
+- NMR real-engine evaluation bridge is implemented on the current worktree. The
+  EvalRunner now recognizes `nmr.liquid_h`, `nmr.liquid_c`, `nmr.solid_h`, and
+  `nmr.solid_c`, applies scoped config aliases, and emits peak shifts, peak
+  counts, SNR, Xc/assignment status, fit quality, and engine/submodule
+  provenance. The bridge regression and the existing IR/DSC/SAXS/WAXS eval /
+  publication matrix pass (`12 passed`); task-scoped verifier and atomic
+  checkpoint remain pending. The repository still lacks a registered NMR
+  vendor/real regression source, so this is not scientific real-data
+  acceptance. See `docs/agent/tasks/2026-07-25-nmr-real-eval-bridge.md`.
 - AI preprocessing mainline is active on `codex/ai-preprocess-mainline-v2` from
   `main@4437bc90`. Foundation, semantic intents, DSC/IR/WAXS, and SAXS/NMR
   adapters are present; the current safety checkpoint adds scoped experience
