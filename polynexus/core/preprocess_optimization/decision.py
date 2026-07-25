@@ -46,6 +46,10 @@ def _hard_guards(
     if not results["run_status"]:
         reasons.append("run_status")
 
+    results["fallback_active"] = not evidence.fallback_active
+    if evidence.fallback_active:
+        reasons.append("fallback_active")
+
     for name in policy.required_evidence:
         value = _metric_value(evidence, name)
         if not _finite(value):

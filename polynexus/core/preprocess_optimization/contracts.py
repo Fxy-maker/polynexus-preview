@@ -65,6 +65,8 @@ class PreprocessEvidence:
     integrated_area_change: float | None = None
     weak_peak_retention: float | None = None
     physical_parameter_drift: float | None = None
+    fallback_active: bool = False
+    fallback_reason: str = ""
     technique_specific: dict[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
 

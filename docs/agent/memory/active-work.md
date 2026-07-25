@@ -104,6 +104,17 @@
 - Real-data/restarted-GUI review, export bundle inspection, AI-off/failure/
   fallback scientific acceptance, and final release review remain open.
 
+## Preprocessing fallback safety matrix - code checkpoint in progress 2026-07-25
+
+- `PreprocessEvidence` now records normalized fallback state/reason and the
+  shared decision guard fails closed for fallback-active candidates across DSC,
+  IR, WAXS, SAXS, and NMR.
+- The cross-technique matrix covers AI-off shadow defaults, failed runs, and
+  fallback-derived evidence; Joint is explicitly preprocessing N/A.
+- Focused matrix is `42 passed`; task-scoped verifier passed with quality 282
+  and preprocessing 103. Checkpoint commit and final changed/type verification
+  remain pending; real/Golden and GUI/scientific review remain open.
+
 ## Results Workbench profile platform - Phase 1 completed 2026-07-25
 
 - Added the typed profile registry at `polynexus/gui/results_workbench_profiles.py`.

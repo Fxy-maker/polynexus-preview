@@ -66,6 +66,46 @@ def nested_number(mapping: dict[str, Any], paths: Iterable[Sequence[str]]) -> fl
     return None
 
 
+_FALLBACK_ACTIVE_KEYS = frozenset(
+    {
+        "fallback_active",
+        "calibrated_fallback_active",
+        "temperature_calibration_fallback_active",
+    }
+)
+_FALLBACK_REASON_KEYS = frozenset(
+    {
+        "fallback_reason",
+        "calibrated_fallback_reason",
+        "temperature_calibration_fallback_reason",
+    }
+)
+
+
+def fallback_signal(snapshot: AnalysisSnapshot) -> tuple[bool, str]:
+    """Normalize known fallback markers without interpreting their values."""
+
+    active = False
+    reason = ""
+    pending: list[object] = [snapshot.output_parameters, snapshot.analysis_evidence]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            for key, item in value.items():
+                normalized = str(key or "").strip().lower()
+                if normalized in _FALLBACK_ACTIVE_KEYS and bool(item):
+                    active = True
+                if normalized in _FALLBACK_REASON_KEYS and str(item or "").strip() and not reason:
+                    reason = str(item).strip()
+                if isinstance(item, (dict, list, tuple)):
+                    pending.append(item)
+        elif isinstance(value, (list, tuple)):
+            pending.extend(value)
+    if active and not reason:
+        reason = "fallback_active"
+    return active, reason
+
+
 class TechniquePreprocessAdapter(ABC):
     technique: str
     name: str
@@ -176,6 +216,7 @@ class TechniquePreprocessAdapter(ABC):
             {f"{key}_change": value for key, value in named_area_changes.items()}
         )
         technique_specific["peak_coverage"] = peak_metrics.coverage
+        fallback_active, fallback_reason = fallback_signal(candidate)
 
         return PreprocessEvidence(
             schema_version=SCHEMA_VERSION,
@@ -191,6 +232,8 @@ class TechniquePreprocessAdapter(ABC):
             integrated_area_change=integrated_area_change,
             weak_peak_retention=weak_peak_retention,
             physical_parameter_drift=physical_drift,
+            fallback_active=fallback_active,
+            fallback_reason=fallback_reason,
             technique_specific=technique_specific,
         )
 
