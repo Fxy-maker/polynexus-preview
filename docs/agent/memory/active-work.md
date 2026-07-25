@@ -1,5 +1,23 @@
 # Active Work
 
+## NMR evidence persistence - code completed 2026-07-25
+
+- Ordinary `NMREngine.analyze()` now builds the shared NMR `AnalysisEvidence`
+  payload from the representative typed result and attaches it to
+  `AnalysisResult`; spectrum count remains explicit metadata.
+- The focused engine-assembly regression is green, and the repository's real
+  NMR reader/core matrix remains `17 passed`. GUI/export/restart and scientific
+  review are still open; this is not a complete NMR release claim.
+- Task card: `docs/agent/tasks/2026-07-25-nmr-evidence-persistence.md`.
+
+## Joint published-run restore - acceptance regression added 2026-07-25
+
+- A Qt regression now covers Joint publish -> History restore -> custom
+  Workbench -> active Manifest Gallery, with all three figure IDs and the run
+  ID asserted. Export bundle provenance is covered by the existing export
+  contract test.
+- Real-data, AI/fallback, and restarted-GUI release review remain open.
+
 ## Full-software baseline inventory - verified 2026-07-25
 
 - The evidence ledger is now recorded in

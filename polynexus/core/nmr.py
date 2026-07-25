@@ -406,6 +406,22 @@ class NMREngine(BaseEngine):
                 self.result.metadata["dominant_peak_ppm"] = f"{first_result.dominant_peak_ppm:.6g}"
             if np.isfinite(first_result.median_snr):
                 self.result.metadata["median_snr"] = f"{first_result.median_snr:.6g}"
+            # Persist the same evidence contract used by the GUI/history
+            # layer.  NMR keeps a typed result per spectrum, while the shared
+            # run record needs one JSON-safe evidence summary; use the first
+            # spectrum as the run-level representative and retain the full
+            # spectrum count in metadata.
+            from .analysis_evidence import build_analysis_evidence
+
+            evidence = build_analysis_evidence(
+                "NMR",
+                output_parameters=first_result.parameters,
+                validation_context={
+                    "submodule_id": getattr(self, "active_submodule", "") or "",
+                    "spectra_count": len(self._results),
+                },
+            )
+            self.result.set_analysis_evidence(evidence)
         return True
 
     def build_figure_definitions(self):

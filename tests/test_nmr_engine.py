@@ -107,6 +107,48 @@ def test_nmr_result_parameters_include_assignment_source_statistics() -> None:
     assert params["solvent_peak_count"] == 1
 
 
+def test_nmr_engine_analysis_attaches_unified_evidence_for_history_persistence(monkeypatch) -> None:
+    from polynexus.core import nmr as nmr_module
+    from polynexus.core.nmr_engine.core import NMRResult
+    from polynexus.core.nmr_engine.io import NMRSpectrum
+
+    expected = NMRResult(
+        label="synthetic-c",
+        nucleus="13C",
+        sample_state="solid",
+        n_peaks=2,
+        median_snr=12.0,
+        mean_fwhm_ppm=1.2,
+        peaks=[
+            {"ppm": 173.5, "assignment": "C=O (c)", "phase": "c", "snr": 12.0},
+            {"ppm": 42.0, "assignment": "Calpha_am (a)", "phase": "a", "snr": 11.0},
+        ],
+        Xc_pct=41.0,
+        Xc_method="requires_crystalline_amorphous_assignment",
+        Xc_assignment_status="supported",
+    )
+    monkeypatch.setattr(nmr_module, "analyze_spectrum", lambda *args, **kwargs: expected)
+
+    engine = nmr_module.NMREngine()
+    engine.active_submodule = "nmr.solid_c"
+    engine._spectra = [
+        NMRSpectrum(
+            label="synthetic-c",
+            nucleus="13C",
+            ppm=np.array([180.0, 42.0, 173.5]),
+            intensity=np.array([0.1, 0.4, 0.8]),
+            metadata={"sample_state": "solid"},
+        )
+    ]
+
+    assert engine.analyze() is True
+
+    evidence = engine.result.analysis_evidence
+    assert evidence["technique"] == "NMR"
+    assert evidence["peak_evidence"]["peak_count"] == 2
+    assert evidence["structure_evidence"]["Xc_assignment_status"] == "supported"
+
+
 def test_nmr_assignment_library_scores_phase_pair_support() -> None:
     from polynexus.core.nmr_engine.core import NMRResult, _score_assignment_library
 

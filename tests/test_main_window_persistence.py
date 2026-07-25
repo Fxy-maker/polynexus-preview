@@ -19,6 +19,8 @@ import numpy as np
 from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.ir_engine.core import IRResult
 from polynexus.core.ir_engine.figure_provider import build_ir_figure_definitions
+from polynexus.core.joint.coordinator import JointCoordinator
+from polynexus.core.joint.dataset import JointBatchRow, JointRunRecord
 from polynexus.gui.main_window import AITuneWorker, AnalysisWorker, MainWindow, JointHubWorker, SideTuningReportDialog, _data_file_dialog_filter
 from polynexus.gui.i18n import get_language, set_language, tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
@@ -4370,6 +4372,55 @@ def test_history_restore_rehydrates_active_manifest_gallery(tmp_path):
 
     assert window._chart_gallery.figure_ids() == [definition.figure_id]
     assert window._chart_gallery.current_entry().run_id == manifest.run_id
+
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_joint_history_restore_rehydrates_report_and_active_manifest_gallery(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    output_root = tmp_path / "joint-output"
+    rows = [
+        JointBatchRow(
+            sample_id="sample-a",
+            sample_name="PA6-A",
+            family="polyamide",
+            batch_id="batch-a",
+            batch_label="annealed",
+            runs={
+                "dsc": JointRunRecord("dsc-a", "dsc", results_summary={"Xc_pct": 42.0}),
+                "waxs": JointRunRecord("waxs-a", "waxs", results_summary={"Xc_pct": 39.0, "D_Scherrer_nm": 7.0}),
+                "saxs": JointRunRecord("saxs-a", "saxs", results_summary={"L_nm": 12.0, "lc_nm": 5.0}),
+            },
+        )
+    ]
+    report = JointCoordinator().publish_hub_report(rows, output_root, run_id="joint-history-run")
+    record = {
+        "id": "joint-history-run",
+        "technique": "joint",
+        "submodule": "joint.compare",
+        "created_at": "2026-07-25T10:00:00Z",
+        "output_dir": str(output_root),
+        "parameters": {},
+        "results_summary": {
+            "result": report,
+            "figure_run_id": "joint-history-run",
+            "history_context": {},
+        },
+    }
+
+    window = MainWindow()
+    with patch.object(window, "_display_results"):
+        assert window._restore_history_record(record)
+
+    assert window._joint_report == report
+    assert window._results_panel.profile.key == "joint"
+    assert set(window._chart_gallery.figure_ids()) == {
+        "joint.series.crystallinity",
+        "joint.series.multiscale",
+        "joint.series.coverage",
+    }
+    assert window._chart_gallery.current_entry().run_id == "joint-history-run"
 
     window.deleteLater()
     app.processEvents()

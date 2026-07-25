@@ -29,3 +29,15 @@ to a strong Joint conclusion by this checkpoint.
   history/provenance walkthroughs need a dedicated end-to-end matrix.
 - This is a Workbench/Figure lifecycle checkpoint, not a complete NMR vertical
   release claim.
+
+## Evidence persistence follow-up (2026-07-25)
+
+The ordinary `NMREngine.analyze()` path now attaches the shared
+`AnalysisEvidence` payload to `AnalysisResult`, including peak count, signal
+quality, assignment evidence, and assignment-gated Xc status. This is the
+payload consumed by the existing GUI `AnalysisRunPersistenceContext`, so it is
+available to SampleDB and History without a technique-specific GUI branch.
+
+The focused regression passed, and the real reader/core matrix remains green
+(`17 passed`). This closes the code-level evidence handoff only; four-partition
+real GUI/export/restart review and scientific acceptance remain open.

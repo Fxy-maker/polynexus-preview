@@ -55,3 +55,12 @@ first two logical IDs.
 Remaining: Joint scientific conflict/provenance review, AI-off/failure and
 fallback behavior, real-data and restarted-GUI visual acceptance, and release
 boundary review. The legacy PNG/CSV compatibility path is intentionally kept.
+
+## Published-run restore follow-up (2026-07-25)
+
+An end-to-end Qt regression now publishes a Joint report, restores the History
+record with its output root, rehydrates the custom Joint Workbench, and checks
+that all three active Manifest Gallery entries retain the published run ID.
+The export contract separately preserves `metadata/runs/` and the active-run
+pointer. Scientific conflict review, real data, AI/fallback, and restarted-GUI
+release review remain open.
