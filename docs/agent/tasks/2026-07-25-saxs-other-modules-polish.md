@@ -81,5 +81,5 @@ python scripts/auto_commit.py --message "test(saxs): lock temperature figure pan
   checkpointed in `51709fd`; focused strain matrix: `8 passed`.
 - Static comparison/support/diagnostic order regression is isolated in
   `tests/test_saxs_static_figure_panels.py`; focused test: `1 passed`.
-- Static checkpoint and final goal reconciliation remain pending until the
-  repository verifier is rerun for the isolated static allowlist.
+- Static checkpoint: `2346df0`; the three SAXS slices are complete. Optional
+  follow-up is a restarted-GUI visual walkthrough and human scientific review.

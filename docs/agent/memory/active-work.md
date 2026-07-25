@@ -25,14 +25,15 @@
 - Next action: run strain-slice verification and create its allowlisted checkpoint,
   then verify the static slice independently.
 
-## SAXS other modules polish - static slice in progress 2026-07-25
+## SAXS other modules polish - all slices completed 2026-07-25
 
 - Design/plan: `docs/superpowers/specs/2026-07-25-saxs-static-other-panels-design.md`、
   `docs/superpowers/plans/2026-07-25-saxs-static-other-panels.md`。
 - Static provider order/role regression is isolated in
   `tests/test_saxs_static_figure_panels.py`; focused result: `1 passed`.
-- Next action: finish repository verification and create the static checkpoint;
-  then reconcile the main task card and mark the SAXS goal complete.
+- Static checkpoint: `2346df0`; the full SAXS goal is now reconciled across
+  temperature, strain and static slices. Further work is limited to optional
+  restarted-GUI visual walkthrough and human scientific review.
 
 ## Unified LegendGeometry persistence boundary - completed 2026-07-24
 

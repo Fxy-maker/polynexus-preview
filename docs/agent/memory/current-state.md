@@ -11,8 +11,9 @@ title: Current PolyNexus repository state
   worktree. The first temperature slice is contract-only: provider regressions
   lock evolution/Avrami/waterfall/selected-evidence ordering and fallback
   roles. The strain slice now also routes its existing review summary/risk/
-  next-step text through the shared review hint; static remains a separate
-  follow-up sub-project.
+  next-step text through the shared review hint. Static comparison/support/
+  diagnostic ordering is also covered by a dedicated regression; all three
+  SAXS sub-projects are complete on the current branch.
 
 - The dedicated local `main` worktree is at merge commit `583709ad`, which
   includes the Origin editor menu, run-root source-path fixes, visible native
