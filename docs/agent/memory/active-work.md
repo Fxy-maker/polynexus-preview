@@ -1,5 +1,20 @@
 # Active Work
 
+## SAXS other modules polish - temperature slice completed 2026-07-25
+
+- Goal: 按温变 -> 拉伸 -> 静态顺序扩展 SAXS 板块组织经验；当前只处理温变
+  `evolution / Avrami / selected evidence`，保持 waterfall 现状。
+- Design/task/plan: `docs/superpowers/specs/2026-07-25-saxs-temperature-other-panels-design.md`、
+  `docs/superpowers/plans/2026-07-25-saxs-temperature-other-panels.md`、
+  `docs/agent/tasks/2026-07-25-saxs-other-modules-polish.md`。
+- Current evidence: 新增温变 provider 契约测试 `2 passed`；既有 review-hint 与
+  result-table 回归合计 `15 passed`。`python scripts/verify.py --changed --types`
+  在外置 pytest basetemp 下通过，quality gate `282 passed`、preprocessing gate
+  `103 passed`；Ruff、compile、type baseline、memory 和 whitespace checks 通过。
+  现有 provider 已满足顺序、fallback、role 边界，因此本阶段没有科学算法或
+  生产 provider 改动。
+- Next action: checkpoint 后为拉伸 SAXS 单独创建设计/计划，不与本阶段混改。
+
 ## Unified LegendGeometry persistence boundary - completed 2026-07-24
 
 - Completed the final migration layer for the Origin-style legend object.
