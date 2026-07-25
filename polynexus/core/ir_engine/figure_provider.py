@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
+import numpy as np
+
 from polynexus.core.figures.contracts import (
     AxisDefinition,
     DataColumnDefinition,
@@ -15,10 +17,13 @@ from polynexus.core.figures.contracts import (
 )
 
 from .core import IRResult
+from .ir_temperature import IRTemp2DResult
 
 
 def build_ir_figure_definitions(
     results: Sequence[IRResult],
+    *,
+    temperature_2d_result: IRTemp2DResult | None = None,
 ) -> tuple[FigureDefinition, ...]:
     """Build the complete set of available semantic IR figures."""
 
@@ -49,7 +54,309 @@ def build_ir_figure_definitions(
     crystallinity = _build_crystallinity_definition(results)
     if crystallinity is not None:
         definitions.append(crystallinity)
+    if temperature_2d_result is not None:
+        definitions.extend(build_ir_temperature_2d_figure_definitions(temperature_2d_result))
     return tuple(definitions)
+
+
+def build_ir_temperature_2d_figure_definitions(
+    result: IRTemp2DResult,
+) -> tuple[FigureDefinition, ...]:
+    """Describe IR temperature-series figures through the shared contract."""
+
+    matrix = _finite_matrix(result.absorbance_matrix)
+    wavenumber = _finite_values(result.wavenumber)
+    if matrix.ndim != 2 or not wavenumber.size or matrix.shape[1] != len(wavenumber):
+        return ()
+    frame_count = matrix.shape[0]
+    if frame_count == 0 or len(result.frames) != frame_count:
+        return ()
+
+    heatmap_source = FigureDataSourceDefinition(
+        source_id="ir-temperature-2d-matrix",
+        columns=(
+            DataColumnDefinition("wavenumber_cm1", "cm^-1"),
+            DataColumnDefinition("frame_index", ""),
+            DataColumnDefinition("absorbance", "a.u."),
+        ),
+        values={
+            "wavenumber_cm1": tuple(
+                float(value) for value in np.tile(wavenumber, frame_count)
+            ),
+            "frame_index": tuple(
+                float(index) for index in np.repeat(np.arange(frame_count), len(wavenumber))
+            ),
+            "absorbance": tuple(float(value) for value in matrix.reshape(-1)),
+        },
+    )
+    definitions: list[FigureDefinition] = [
+        FigureDefinition(
+            figure_id="ir.temperature_2d.heatmap",
+            technique="ir",
+            scope="series",
+            category="series_overview",
+            publication_role="main",
+            title="IR Temperature-Series Spectral Evolution",
+            layout=_ir_temperature_2d_layout(
+                x_label="Wavenumber",
+                x_unit="cm^-1",
+                y_label="Sequence frame",
+                y_unit="",
+                x_reversed=True,
+            ),
+            data_sources=(heatmap_source,),
+            objects=(
+                {
+                    "id": "temperature-2d-heatmap",
+                    "type": "heatmap",
+                    "panel_id": "main",
+                    "data_ref": heatmap_source.source_id,
+                    "x_column": "wavenumber_cm1",
+                    "y_column": "frame_index",
+                    "z_column": "absorbance",
+                    "style": {
+                        "cmap": "viridis",
+                        "colorbar_label": "Absorbance (a.u.)",
+                    },
+                },
+            ),
+            recipe=_temperature_2d_recipe(result, "heatmap"),
+            style_profile="sci_default",
+            display_order=10,
+        )
+    ]
+
+    tracking = _temperature_2d_series_definition(
+        result,
+        result.band_intensity_vs_frame,
+        figure_id="ir.temperature_2d.band-tracking",
+        title="IR Temperature-Series Band Tracking",
+        y_label="Band height",
+        y_unit="a.u.",
+        category="supplementary",
+        display_order=20,
+        recipe_kind="band_tracking",
+    )
+    if tracking is not None:
+        definitions.append(tracking)
+
+    indices = _temperature_2d_series_definition(
+        result,
+        result.band_indices_vs_frame,
+        figure_id="ir.temperature_2d.band-indices",
+        title="IR Temperature-Series Band Indices",
+        y_label="Band index",
+        y_unit="",
+        category="supplementary",
+        display_order=30,
+        recipe_kind="band_indices",
+    )
+    if indices is not None:
+        definitions.append(indices)
+
+    for kind, correlation, order in (
+        ("synchronous", result.sync_corr, 40),
+        ("asynchronous", result.async_corr, 50),
+    ):
+        correlation_definition = _temperature_2d_correlation_definition(
+            result,
+            correlation,
+            kind=kind,
+            display_order=order,
+        )
+        if correlation_definition is not None:
+            definitions.append(correlation_definition)
+    return tuple(definitions)
+
+
+def _temperature_2d_series_definition(
+    result: IRTemp2DResult,
+    series: dict[str, Sequence[float]],
+    *,
+    figure_id: str,
+    title: str,
+    y_label: str,
+    y_unit: str,
+    category: str,
+    display_order: int,
+    recipe_kind: str,
+) -> FigureDefinition | None:
+    objects: list[dict[str, object]] = []
+    sources: list[FigureDataSourceDefinition] = []
+    for index, (name, values) in enumerate(sorted(series.items())):
+        finite = [
+            (float(frame_index), float(value))
+            for frame_index, value in enumerate(values)
+            if np.isfinite(value)
+        ]
+        if len(finite) < 2:
+            continue
+        source = FigureDataSourceDefinition(
+            source_id=f"ir-temperature-2d-{recipe_kind}-{index:03d}",
+            columns=(
+                DataColumnDefinition("frame_index", ""),
+                DataColumnDefinition("value", y_unit),
+            ),
+            values={
+                "frame_index": tuple(item[0] for item in finite),
+                "value": tuple(item[1] for item in finite),
+            },
+        )
+        sources.append(source)
+        objects.append(
+            {
+                "id": f"{recipe_kind}-{index:03d}",
+                "type": "plot_series",
+                "panel_id": "main",
+                "name": str(name),
+                "data_ref": source.source_id,
+                "x_column": "frame_index",
+                "y_column": "value",
+                "chart_kind": "line",
+                "style": {"line_width": 0.9},
+            }
+        )
+    if not sources:
+        return None
+    return FigureDefinition(
+        figure_id=figure_id,
+        technique="ir",
+        scope="series",
+        category=category,
+        publication_role="si",
+        title=title,
+        layout=_ir_temperature_2d_layout(
+            x_label="Sequence frame",
+            x_unit="",
+            y_label=y_label,
+            y_unit=y_unit,
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe=_temperature_2d_recipe(result, recipe_kind),
+        style_profile="sci_default",
+        display_order=display_order,
+    )
+
+
+def _temperature_2d_correlation_definition(
+    result: IRTemp2DResult,
+    correlation: np.ndarray,
+    *,
+    kind: str,
+    display_order: int,
+) -> FigureDefinition | None:
+    matrix = np.asarray(correlation, dtype=float)
+    wavenumber = _finite_values(result.wavenumber)
+    if matrix.shape != (len(wavenumber), len(wavenumber)) or not np.isfinite(matrix).all():
+        return None
+    source_id = f"ir-temperature-2d-{kind}-correlation"
+    source = FigureDataSourceDefinition(
+        source_id=source_id,
+        columns=(
+            DataColumnDefinition("wavenumber_x_cm1", "cm^-1"),
+            DataColumnDefinition("wavenumber_y_cm1", "cm^-1"),
+            DataColumnDefinition("correlation", "a.u."),
+        ),
+        values={
+            "wavenumber_x_cm1": tuple(float(value) for value in np.tile(wavenumber, len(wavenumber))),
+            "wavenumber_y_cm1": tuple(float(value) for value in np.repeat(wavenumber, len(wavenumber))),
+            "correlation": tuple(float(value) for value in matrix.reshape(-1)),
+        },
+    )
+    return FigureDefinition(
+        figure_id=f"ir.temperature_2d.{kind}-correlation",
+        technique="ir",
+        scope="series",
+        category="diagnostic",
+        publication_role="diagnostic",
+        title=f"IR {kind.title()} 2D Correlation",
+        layout=_ir_temperature_2d_layout(
+            x_label="Wavenumber",
+            x_unit="cm^-1",
+            y_label="Wavenumber",
+            y_unit="cm^-1",
+            x_reversed=True,
+            y_reversed=True,
+        ),
+        data_sources=(source,),
+        objects=(
+            {
+                "id": f"{kind}-correlation-heatmap",
+                "type": "heatmap",
+                "panel_id": "main",
+                "data_ref": source_id,
+                "x_column": "wavenumber_x_cm1",
+                "y_column": "wavenumber_y_cm1",
+                "z_column": "correlation",
+                "style": {"cmap": "RdBu_r", "colorbar_label": "Correlation"},
+            },
+        ),
+        recipe=_temperature_2d_recipe(result, f"{kind}_correlation"),
+        style_profile="sci_default",
+        display_order=display_order,
+    )
+
+
+def _ir_temperature_2d_layout(
+    *,
+    x_label: str,
+    x_unit: str,
+    y_label: str,
+    y_unit: str,
+    x_reversed: bool = False,
+    y_reversed: bool = False,
+) -> FigureLayoutDefinition:
+    return FigureLayoutDefinition(
+        width_in=7.0,
+        height_in=4.6,
+        rows=1,
+        columns=1,
+        panels=(
+            PanelDefinition(
+                panel_id="main",
+                row=0,
+                column=0,
+                x_axis=AxisDefinition(
+                    axis_id="x",
+                    label=x_label,
+                    unit=x_unit,
+                    reversed=x_reversed,
+                ),
+                y_axis=AxisDefinition(
+                    axis_id="y",
+                    label=y_label,
+                    unit=y_unit,
+                    reversed=y_reversed,
+                ),
+                show_legend=True,
+            ),
+        ),
+    )
+
+
+def _temperature_2d_recipe(result: IRTemp2DResult, figure_kind: str) -> dict[str, object]:
+    return {
+        "module": "polynexus.core.ir_engine.figure_provider",
+        "function": "build_ir_temperature_2d_figure_definitions",
+        "inputs": {"series_label": result.label},
+        "parameters": {"figure_kind": figure_kind, "frame_count": len(result.frames)},
+        "v2_adapter": "ir",
+    }
+
+
+def _finite_matrix(values: object) -> np.ndarray:
+    matrix = np.asarray(values, dtype=float)
+    if matrix.ndim != 2 or not np.isfinite(matrix).all():
+        return np.empty((0, 0), dtype=float)
+    return matrix
+
+
+def _finite_values(values: object) -> np.ndarray:
+    array = np.asarray(values, dtype=float)
+    if array.ndim != 1 or not np.isfinite(array).all():
+        return np.array([], dtype=float)
+    return array
 
 
 def build_ir_spectrum_definitions(

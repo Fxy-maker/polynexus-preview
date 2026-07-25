@@ -16,9 +16,6 @@ Supports:
 """
 
 import logging
-logger = logging.getLogger(__name__)
-
-import os
 import numpy as np
 from typing import Dict, Any, List, Optional
 
@@ -36,8 +33,10 @@ from .ir_engine import (
     IRTemp2DResult,
     detect_temperature_2d,
     analyze_temperature_2d_series,
-    simulate_spectrum,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_technique("ir")
@@ -144,7 +143,8 @@ class IREngine(BaseEngine):
 
     def preprocess(self) -> bool:
         if not self._spectra:
-            self.log("No data loaded"); return False
+            self.log("No data loaded")
+            return False
         cfg = self._ir_config
         for i, spec in enumerate(self._spectra):
             try:
@@ -158,7 +158,8 @@ class IREngine(BaseEngine):
 
     def analyze(self) -> bool:
         if not self._spectra:
-            self.log("No preprocessed data"); return False
+            self.log("No preprocessed data")
+            return False
         cfg = self._ir_config
         self._results = []
         self._temperature_2d_result = None
@@ -211,7 +212,10 @@ class IREngine(BaseEngine):
 
         from .ir_engine.figure_provider import build_ir_figure_definitions
 
-        return build_ir_figure_definitions(tuple(self._results))
+        return build_ir_figure_definitions(
+            tuple(self._results),
+            temperature_2d_result=self._temperature_2d_result,
+        )
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         definitions = tuple(self.build_figure_definitions())
@@ -232,7 +236,8 @@ class IREngine(BaseEngine):
     def get_parameters(self) -> Dict[str, Any]:
         if self.active_submodule == "ir.temperature_2d" and self._temperature_2d_result:
             return self._temperature_2d_result.parameters
-        if not self._results: return {}
+        if not self._results:
+            return {}
         merged = {}
         for r in self._results:
             merged[r.label] = r.parameters

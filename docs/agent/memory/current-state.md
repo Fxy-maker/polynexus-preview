@@ -183,3 +183,8 @@ title: Current PolyNexus repository state
 - WAXS static/temperature/strain now have mode-specific Workbench tabs and
   provider Manifest ID contracts, including 2D strain routing; evidence is in
   `docs/acceptance/2026-07-25-waxs-workbench-checkpoint.md`.
+- IR temperature-2D now consumes its existing analysis result through the
+  shared FigureDefinition/Manifest pipeline. The mode has real logical IDs for
+  heatmap, band tracking, band indices, and 2D-COS diagnostics; mapping/ROI and
+  the complete IR vertical acceptance remain open. Evidence is in
+  `docs/acceptance/2026-07-25-ir-temperature-2d-workbench-checkpoint.md`.

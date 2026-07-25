@@ -213,8 +213,8 @@ _TECHNIQUE_FIGURES = {
         ("ir.series.crystallinity", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
     ),
     "ir.temperature_2d": (
-        ("Fig-IRT1_2D_heatmap", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
-        ("Fig-IRT4_band_tracking", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+        ("ir.temperature_2d.heatmap", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("ir.temperature_2d.band-tracking", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
     ),
     "ir.mapping": (
         ("ir.mapping.roi", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),

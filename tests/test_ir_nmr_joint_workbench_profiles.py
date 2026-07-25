@@ -9,8 +9,8 @@ def test_ir_profiles_expose_mode_specific_narratives_and_known_figure_entrypoint
         "ir.series.crystallinity",
     )
     assert tuple(link.key for link in profile_for("ir.temperature_2d").figure_links) == (
-        "Fig-IRT1_2D_heatmap",
-        "Fig-IRT4_band_tracking",
+        "ir.temperature_2d.heatmap",
+        "ir.temperature_2d.band-tracking",
     )
     assert profile_for("ir.mapping").tab_labels == (
         "Map & ROI",

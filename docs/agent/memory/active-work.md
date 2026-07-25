@@ -1,5 +1,22 @@
 # Active Work
 
+## IR temperature-2D Figure lifecycle checkpoint - code completed 2026-07-25
+
+- `IREngine.build_figure_definitions()` now passes the existing
+  `IRTemp2DResult` to the shared IR provider. The provider emits validated
+  Manifest IDs for the main heatmap, band tracking, band indices, and
+  synchronous/asynchronous correlation diagnostics.
+- The Workbench profile now routes to
+  `ir.temperature_2d.heatmap` and `ir.temperature_2d.band-tracking`; the old
+  `Fig-IRT*` files remain legacy output and are not treated as normal Gallery
+  entries.
+- Evidence: `docs/acceptance/2026-07-25-ir-temperature-2d-workbench-checkpoint.md`;
+  focused provider/lifecycle/profile matrix 7 passed; changed/type verifier,
+  quality gate 282, and preprocessing gate 103 passed.
+- Remaining: IR mapping/ROI provider and complete standard/temperature/mapping
+  Figure Pack, Gallery/Editor/export, fallback, real/Golden, and visual
+  acceptance. Next action: add the IR mapping/ROI FigureDefinition boundary.
+
 ## Results Workbench profile platform - Phase 1 completed 2026-07-25
 
 - Added the typed profile registry at `polynexus/gui/results_workbench_profiles.py`.

@@ -99,6 +99,12 @@
 - [ ] Mapping/ROI map, spectra and invalid-pixel diagnostics.
 - [ ] Connect Workbench, Figure Pack, Manifest/Gallery/Editor/export and visual fixtures.
 
+Current checkpoint (2026-07-25): IR standard already has a shared provider;
+temperature-2D now has Manifest-backed FigureDefinitions for its heatmap, band
+tracking, band indices, and 2D-COS diagnostics. Mapping/ROI and the complete
+IR acceptance chain remain open; see
+`docs/acceptance/2026-07-25-ir-temperature-2d-workbench-checkpoint.md`.
+
 ### Phase 6: NMR complete vertical slice
 
 **Files:**

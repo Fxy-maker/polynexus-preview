@@ -7,6 +7,7 @@ from polynexus.core.ir import IREngine
 from polynexus.core.ir_engine.core import IRResult
 from polynexus.core.ir_engine.figure_provider import build_ir_figure_definitions
 from polynexus.core.ir_engine.io import IRSpectrum
+from polynexus.core.ir_engine.ir_temperature import IRTemp2DResult, IRTempFrame
 
 
 @pytest.fixture
@@ -82,3 +83,18 @@ def test_ir_engine_handoff_returns_complete_definitions(ir_complete_results):
         "ir.frame.comparison.001",
         "ir.series.crystallinity",
     }
+
+
+def test_ir_engine_handoff_includes_temperature_2d_definitions():
+    engine = IREngine()
+    engine._temperature_2d_result = IRTemp2DResult(
+        frames=[IRTempFrame(label="H100", temperature_C=100)],
+        wavenumber=np.array([1000.0, 1100.0]),
+        absorbance_matrix=np.array([[0.1, 0.2]]),
+    )
+
+    definitions = engine.build_figure_definitions()
+
+    assert [item.figure_id for item in definitions] == [
+        "ir.temperature_2d.heatmap",
+    ]

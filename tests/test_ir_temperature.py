@@ -11,8 +11,15 @@ from polynexus.core.ir_engine import (
     preprocess_pipeline,
 )
 from polynexus.core.ir_engine.ir_temperature import (
+    IRTemp2DResult,
+    IRTempFrame,
     generate_temperature_2d_figures,
 )
+from polynexus.core.ir_engine.figure_provider import (
+    build_ir_temperature_2d_figure_definitions,
+)
+from polynexus.core.figures.validation import validate_figure_definition
+from polynexus.core.figures.pipeline import FigurePipeline
 
 
 def _temperature_ir_dir() -> Path:
@@ -67,6 +74,52 @@ def test_temperature_2d_series_builds_matrix_2dcos_and_exports(tmp_path):
     assert (tmp_path / "data" / "ir_temperature_parameters.csv").exists()
     assert (tmp_path / "data" / "ir_temperature_matrix.csv").exists()
     assert (tmp_path / "data" / "ir_temperature_2dcos_cross_peaks.csv").exists()
+
+
+def test_temperature_2d_figure_definitions_use_shared_manifest_contract():
+    result = IRTemp2DResult(
+        frames=[
+            IRTempFrame(label="H100", temperature_C=100),
+            IRTempFrame(label="H120", temperature_C=120),
+        ],
+        wavenumber=np.array([1000.0, 1100.0]),
+        absorbance_matrix=np.array([[0.1, 0.2], [0.3, 0.4]]),
+        band_intensity_vs_frame={"amide_I": [0.2, 0.4]},
+        band_indices_vs_frame={"amide_I": [1.0, 1.2]},
+        sync_corr=np.eye(2),
+        async_corr=np.eye(2),
+    )
+
+    definitions = build_ir_temperature_2d_figure_definitions(result)
+    ids = tuple(item.figure_id for item in definitions)
+    assert ids[:3] == (
+        "ir.temperature_2d.heatmap",
+        "ir.temperature_2d.band-tracking",
+        "ir.temperature_2d.band-indices",
+    )
+    assert definitions[0].publication_role == "main"
+    assert definitions[1].publication_role == "si"
+    for definition in definitions:
+        validate_figure_definition(definition)
+
+
+def test_temperature_2d_definitions_publish_through_manifest_pipeline(tmp_path):
+    result = IRTemp2DResult(
+        frames=[IRTempFrame(label="H100", temperature_C=100)],
+        wavenumber=np.array([1000.0, 1100.0]),
+        absorbance_matrix=np.array([[0.1, 0.2]]),
+    )
+
+    manifest = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="ir-temperature-2d",
+        technique="ir",
+        definitions=build_ir_temperature_2d_figure_definitions(result),
+    )
+
+    assert manifest.figures[0].figure_id == "ir.temperature_2d.heatmap"
+    assert manifest.figures[0].status == "ready"
+    assert (tmp_path / "runs" / "ir-temperature-2d" / "figure_manifest.json").is_file()
 
 
 def test_temperature_2d_real_sequence_freezes_current_baseline_shape_and_risks():
