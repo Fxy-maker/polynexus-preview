@@ -1,5 +1,20 @@
 # Active Work
 
+## PolyNexus full software vertical delivery - active 2026-07-25
+
+- Overall goal: complete the shared platform, customized Results Workbench,
+  SAXS/DSC/WAXS/IR/NMR/Joint vertical slices, AI quality gates, export and
+  release acceptance. The complete scope and completion definition are recorded
+  in `docs/agent/tasks/2026-07-25-full-software-vertical-delivery.md`.
+- Overall design/plan:
+  `docs/superpowers/specs/2026-07-25-full-software-development-architecture-design.md`
+  and `docs/superpowers/plans/2026-07-25-full-software-development.md`.
+- Current status: Phase 0 inventory and Phase 1 Workbench contract are next;
+  previous SAXS provider contracts and editor work are foundations, not a
+  complete overall product release.
+- Constraint: every technique mode must pass the full vertical definition of
+  done before its phase is marked complete.
+
 ## SAXS other modules polish - temperature slice completed 2026-07-25
 
 - Goal: 按温变 -> 拉伸 -> 静态顺序扩展 SAXS 板块组织经验；当前只处理温变

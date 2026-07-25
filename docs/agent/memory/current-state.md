@@ -7,6 +7,12 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- A new full-software vertical-delivery goal is active. It explicitly treats
+  Results Workbench customization as a first-class product phase and requires
+  each SAXS/DSC/WAXS/IR/NMR/Joint mode to complete analysis, evidence,
+  Workbench, Figure Pack, Manifest/Gallery/Editor, export and acceptance before
+  release claims.
+
 - SAXS other-modules polishing is an active goal on the current development
   worktree. The first temperature slice is contract-only: provider regressions
   lock evolution/Avrami/waterfall/selected-evidence ordering and fallback
