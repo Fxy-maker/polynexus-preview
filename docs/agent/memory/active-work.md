@@ -24,6 +24,16 @@
   the final cross-module AI-off/failure/fallback matrix.
 - Next action: build the DSC three-mode profile/Workbench vertical slice.
 
+## DSC three-mode Workbench checkpoint - code completed 2026-07-25
+
+- DSC standard/isothermal/non-isothermal profiles now use mode-specific tabs
+  and real publication-provider Manifest IDs; existing structured analysis,
+  evidence, FigureDocument, export, and evaluation contracts remain intact.
+- Evidence: `docs/acceptance/2026-07-25-dsc-workbench-checkpoint.md`;
+  focused DSC matrix 53 passed and Results Workbench matrix 47 passed.
+- Release visual/scientific review and cross-module AI-off/failure/fallback
+  audit remain pending. Next action: WAXS profile and figure-contract slice.
+
 ## PolyNexus full software vertical delivery - active 2026-07-25
 
 - Overall goal: complete the shared platform, customized Results Workbench,

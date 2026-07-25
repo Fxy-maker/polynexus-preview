@@ -177,3 +177,6 @@ title: Current PolyNexus repository state
 - The SAXS code checkpoint is now implemented: real Manifest ID routing,
   fallback candidate selection, and figure/gallery regression evidence are
   recorded in `docs/acceptance/2026-07-25-saxs-full-vertical-slice.md`.
+- DSC standard/isothermal/non-isothermal now have mode-specific Workbench tabs
+  and publication-provider Manifest ID contracts; evidence is recorded in
+  `docs/acceptance/2026-07-25-dsc-workbench-checkpoint.md`.

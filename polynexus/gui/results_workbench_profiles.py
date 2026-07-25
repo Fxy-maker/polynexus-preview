@@ -183,19 +183,58 @@ _GENERIC_NARRATIVES = {
     "joint": ("Joint / Cross-technique review", "Consistency, conflicts and provenance"),
 }
 
+_TECHNIQUE_FIGURES = {
+    "dsc.standard": (
+        ("dsc.standard.thermogram", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("dsc.comparison.thermal-events", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "dsc.isothermal": (
+        ("dsc.isothermal.avrami", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("dsc.isothermal.series", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "dsc.nonisothermal": (
+        ("dsc.nonisothermal.conversion", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("dsc.nonisothermal.kissinger", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+}
+
+_TECHNIQUE_TABS = {
+    "dsc.standard": (
+        "RESULTS_WORKBENCH_DSC_STANDARD_PRIMARY",
+        "RESULTS_WORKBENCH_DSC_STANDARD_SUPPORT",
+        "RESULTS_WORKBENCH_DSC_STANDARD_DIAGNOSTICS",
+    ),
+    "dsc.isothermal": (
+        "RESULTS_WORKBENCH_DSC_ISOTHERMAL_PRIMARY",
+        "RESULTS_WORKBENCH_DSC_ISOTHERMAL_SUPPORT",
+        "RESULTS_WORKBENCH_DSC_ISOTHERMAL_DIAGNOSTICS",
+    ),
+    "dsc.nonisothermal": (
+        "RESULTS_WORKBENCH_DSC_NONISOTHERMAL_PRIMARY",
+        "RESULTS_WORKBENCH_DSC_NONISOTHERMAL_SUPPORT",
+        "RESULTS_WORKBENCH_DSC_NONISOTHERMAL_DIAGNOSTICS",
+    ),
+}
+
 for _key, (_title, _subtitle) in _GENERIC_NARRATIVES.items():
     _PROFILES[_key] = _profile(
         _key,
         title=f"RESULTS_WORKBENCH_{_key.upper().replace('.', '_')}_TITLE",
         subtitle=f"RESULTS_WORKBENCH_{_key.upper().replace('.', '_')}_SUBTITLE",
-        tabs=(
-            "RESULTS_WORKBENCH_PRIMARY",
-            "RESULTS_WORKBENCH_SUPPORT",
-            "RESULTS_WORKBENCH_DIAGNOSTICS",
+        tabs=_TECHNIQUE_TABS.get(
+            _key,
+            (
+                "RESULTS_WORKBENCH_PRIMARY",
+                "RESULTS_WORKBENCH_SUPPORT",
+                "RESULTS_WORKBENCH_DIAGNOSTICS",
+            ),
         ),
-        figures=(
-            (f"{_key}.main", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
-            (f"{_key}.support", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+        figures=_TECHNIQUE_FIGURES.get(
+            _key,
+            (
+                (f"{_key}.main", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+                (f"{_key}.support", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+            ),
         ),
     )
 

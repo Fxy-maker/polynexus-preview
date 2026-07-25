@@ -68,10 +68,10 @@
 - Test: `tests/test_dsc_*`, figure pipeline and results-workbench tests
 - Create: `docs/acceptance/2026-07-25-dsc-full-vertical-slice.md`
 
-- [ ] Standard: thermal curve, Tg/Tm/Tc/Xc and integration/baseline diagnostics.
-- [ ] Isothermal: crystallization evolution, Avrami fit and fit-range diagnostics.
-- [ ] Non-isothermal: conversion and Kissinger/Ozawa/Mo/Friedman support with method-disagreement diagnostics.
-- [ ] Connect FigureDocument/Manifest/Gallery/Editor/export and real-data visual acceptance.
+- [x] Standard: thermal curve, Tg/Tm/Tc/Xc and integration/baseline diagnostics.
+- [x] Isothermal: crystallization evolution, Avrami fit and fit-range diagnostics.
+- [x] Non-isothermal: conversion and Kissinger/Ozawa/Mo/Friedman support with method-disagreement diagnostics.
+- [x] Connect FigureDocument/Manifest/Gallery/Editor/export and real-data visual acceptance.
 
 ### Phase 4: WAXS complete vertical slice
 
