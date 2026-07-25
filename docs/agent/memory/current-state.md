@@ -166,6 +166,11 @@ title: Current PolyNexus repository state
 
 ## Latest full-software checkpoint
 
+- The requirement-by-requirement baseline ledger is recorded in
+  `docs/acceptance/2026-07-25-full-software-baseline.md`. Core matrices pass
+  with external basetemps (SAXS 210, DSC 64, WAXS 46, IR 30, NMR 24, Joint
+  18); this does not constitute full vertical or release acceptance.
+
 - Results Workbench Phase 1 is implemented locally: typed profile registry,
   SAXS mode-specific narrative and Figure IDs, generic DSC/WAXS/IR/NMR/Joint
   registrations, profile-driven Qt shell states, and gallery/review routing.

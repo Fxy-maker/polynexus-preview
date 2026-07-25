@@ -1,5 +1,16 @@
 # Active Work
 
+## Full-software baseline inventory - verified 2026-07-25
+
+- The evidence ledger is now recorded in
+  `docs/acceptance/2026-07-25-full-software-baseline.md`.
+- External-basetemp core matrices pass: SAXS 210, DSC 64, WAXS 46, IR 30,
+  NMR 24, Joint 18; shared quality gate 282 and preprocessing gate 103.
+- These are contract/core results only. The ledger explicitly leaves IR
+  mapping/ROI semantics, real-run Gallery/Editor/export verification, fallback
+  and AI-failure coverage, restarted-GUI visual review, and release approval
+  open.
+
 ## NMR Workbench/Figure checkpoint - verified 2026-07-25
 
 - Liquid H/C and solid H/C profiles are customized; the shared NMR provider
