@@ -1,5 +1,18 @@
 # Active Work
 
+## DSC figure lifecycle closure - automated boundary completed 2026-07-25
+
+- Added `tests/test_dsc_lifecycle_closure.py`, a parameterized standard /
+  isothermal / non-isothermal regression over provider -> Manifest/Gallery ->
+  editor working save -> complete publication -> export provenance -> History
+  restore.
+- Focused DSC lifecycle matrix: 78 passed; history/gallery subset: 10 passed.
+  The task-scoped verifier passed with quality gate 282 and preprocessing gate
+  103. Evidence: `docs/acceptance/2026-07-25-dsc-lifecycle-closure.md`.
+- No production code was needed because the shared lifecycle contracts were
+  already connected. Restarted-GUI visual review, real-data scientific sign-off,
+  and the shared AI-off/failure/fallback release matrix remain open.
+
 ## Unified engine evidence handoff - code completed 2026-07-25
 
 - Ordinary DSC, WAXS, and IR analysis now attach the shared

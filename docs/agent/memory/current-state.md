@@ -256,3 +256,10 @@ title: Current PolyNexus repository state
   typed result plus scalar series metadata. Existing richer evidence remains
   authoritative; focused coverage is recorded in
   `docs/acceptance/2026-07-25-unified-engine-evidence-handoff.md`.
+- DSC standard, isothermal, and non-isothermal now have one shared lifecycle
+  regression covering publication, active Manifest/Gallery, editor working and
+  published revisions, export figure-run provenance, and History restore. The
+  lifecycle matrix is recorded in
+  `docs/acceptance/2026-07-25-dsc-lifecycle-closure.md`; automated GUI restart,
+  real-data scientific sign-off, and AI-off/failure/fallback release review
+  remain open.
