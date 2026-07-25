@@ -31,6 +31,8 @@ from .ir_engine import (
     preprocess_pipeline,
     analyze_spectrum,
     IRTemp2DResult,
+    IRMappingResult,
+    validate_ir_mapping_result,
     detect_temperature_2d,
     analyze_temperature_2d_series,
 )
@@ -106,6 +108,7 @@ class IREngine(BaseEngine):
         self._results: List[IRResult] = []
         self._computed_modes: List[ComputedMode] = []
         self._temperature_2d_result: Optional[IRTemp2DResult] = None
+        self._mapping_result: Optional[IRMappingResult] = None
         if isinstance(config, dict):
             self.set_config(**config)
 
@@ -215,7 +218,27 @@ class IREngine(BaseEngine):
         return build_ir_figure_definitions(
             tuple(self._results),
             temperature_2d_result=self._temperature_2d_result,
+            mapping_result=self._mapping_result,
         )
+
+    def set_mapping_result(self, result: IRMappingResult) -> None:
+        """Attach an explicit mapping payload to the shared AnalysisResult."""
+
+        validate_ir_mapping_result(result)
+        self._mapping_result = result
+        self.result.raw_data["mapping_values"] = np.asarray(result.map_values, dtype=float)
+        self.result.raw_data["mapping_invalid_pixel_mask"] = np.asarray(
+            result.invalid_pixel_mask,
+            dtype=bool,
+        )
+        self.result.parameters = {
+            "map_shape": list(result.map_shape),
+            "map_metric": result.map_metric,
+            "valid_pixel_ratio": result.valid_pixel_ratio,
+            "n_roi": len(result.roi_spectra),
+        }
+        self.result.metadata["mapping_source_id"] = str(result.provenance["source_id"])
+        self.result.analysis_evidence = result.to_evidence()
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         definitions = tuple(self.build_figure_definitions())

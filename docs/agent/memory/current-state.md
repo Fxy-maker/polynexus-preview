@@ -193,6 +193,13 @@ title: Current PolyNexus repository state
   heatmap, band tracking, band indices, and 2D-COS diagnostics; mapping/ROI and
   the complete IR vertical acceptance remain open. Evidence is in
   `docs/acceptance/2026-07-25-ir-temperature-2d-workbench-checkpoint.md`.
+- IR mapping/ROI now has a conservative typed handoff and shared lifecycle:
+  explicit scalar map/coordinates/mask/ROI spectra/provenance, structural
+  evidence, three publication-role FigureDefinitions, engine handoff, and
+  Workbench links. It deliberately does not infer an instrument file format or
+  band meaning. Evidence is in
+  `docs/acceptance/2026-07-25-ir-mapping-roi-checkpoint.md`; real reader/fixture
+  and visual/fallback acceptance remain open.
 - Joint hub rows now have a shared FigureDefinition provider and Coordinator
   publication entrypoint for crystallinity, multiscale, and evidence-coverage
   figures; `JointHubWorker` attaches Manifest context to real GUI run reports.

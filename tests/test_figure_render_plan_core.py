@@ -577,6 +577,35 @@ def test_renderer_supports_regular_grid_heatmap(render_plan):
     assert figure.axes[1].get_ylabel() == "I(q)"
 
 
+def test_renderer_supports_masked_regular_grid_heatmap(render_plan):
+    plan = replace(
+        render_plan,
+        objects=(
+            {
+                "id": "masked-map",
+                "type": "heatmap",
+                "panel_id": "main",
+                "data_ref": "grid",
+                "x_column": "x",
+                "y_column": "y",
+                "z_column": "value",
+                "style": {"cmap": "viridis", "colorbar_label": "Value"},
+            },
+        ),
+        data_tables={
+            "grid": {
+                "x": [0.0, 1.0, 0.0, 1.0],
+                "y": [0.0, 0.0, 1.0, 1.0],
+                "value": [1.0, float("nan"), 3.0, 4.0],
+            }
+        },
+    )
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+
+    assert len(figure.axes[0].collections) == 1
+
+
 def test_renderer_tags_native_image_grid_artists_with_object_id(render_plan):
     plan = replace(
         render_plan,

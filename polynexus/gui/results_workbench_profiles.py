@@ -219,6 +219,7 @@ _TECHNIQUE_FIGURES = {
     "ir.mapping": (
         ("ir.mapping.roi", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
         ("ir.mapping.spectra", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+        ("ir.mapping.invalid-pixels", "RESULTS_WORKBENCH_FIGURE_DIAGNOSTIC", "diagnostic"),
     ),
     "joint": (
         ("joint.series.crystallinity", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),

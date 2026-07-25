@@ -58,6 +58,19 @@
   Figure Pack, Gallery/Editor/export, fallback, real/Golden, and visual
   acceptance. Next action: add the IR mapping/ROI FigureDefinition boundary.
 
+## IR mapping/ROI contract checkpoint - in progress 2026-07-25
+
+- Added `IRMappingResult`/`IRMappingROISpectrum` with explicit map geometry,
+  invalid-pixel mask, ROI spectra, metric label, and provenance source id.
+- Added structural evidence and `IREngine.set_mapping_result()` handoff;
+  provider emits Main `ir.mapping.roi`, SI `ir.mapping.spectra`, and diagnostic
+  `ir.mapping.invalid-pixels` through the shared FigurePipeline.
+- Mapping Workbench now links all three logical IDs. Masked NaN heatmap cells
+  remain visible as masked cells instead of being imputed.
+- Focused implementation tests are green; structured verifier and checkpoint
+  commit remain pending. Vendor reader, real fixture, fallback/AI gates, and
+  restarted-GUI acceptance are intentionally open.
+
 ## Results Workbench profile platform - Phase 1 completed 2026-07-25
 
 - Added the typed profile registry at `polynexus/gui/results_workbench_profiles.py`.

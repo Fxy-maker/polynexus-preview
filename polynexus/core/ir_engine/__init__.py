@@ -41,6 +41,12 @@ from .ir_temperature import (
     analyze_temperature_2d_series, compute_2d_correlation,
     export_temperature_2d_csv,
 )
+from .ir_mapping import (
+    IRMappingROISpectrum,
+    IRMappingResult,
+    build_ir_mapping_figure_definitions,
+    validate_ir_mapping_result,
+)
 
 
 from .ir_state import (
@@ -86,4 +92,13 @@ __all__ = [
     "detect_temperature_2d", "parse_temperature_condition",
     "analyze_temperature_2d_series", "compute_2d_correlation",
     "export_temperature_2d_csv",
+    "judge_from_dsc", "judge_from_ir_crystallinity_bands", "judge_polymer_state",
+    "IR_CRYSTALLINITY_BANDS",
+    "generate_castep_phonon_input", "generate_vasp_vib_incar",
+    "generate_qe_phonon_input", "correct_lo_to_splitting",
+    "predict_ir_active_modes", "POLYMER_SPACE_GROUPS", "IR_ACTIVE_POINT_GROUPS",
+    "generate_gaussian_input", "generate_orca_input", "generate_xyz_from_smiles",
+    "POLYMER_SMILES", "GAUSSIAN_ROUTES", "ORCA_ROUTES",
+    "IRMappingROISpectrum", "IRMappingResult",
+    "build_ir_mapping_figure_definitions", "validate_ir_mapping_result",
 ]

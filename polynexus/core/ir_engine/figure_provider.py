@@ -17,6 +17,7 @@ from polynexus.core.figures.contracts import (
 )
 
 from .core import IRResult
+from .ir_mapping import IRMappingResult, build_ir_mapping_figure_definitions
 from .ir_temperature import IRTemp2DResult
 
 
@@ -24,6 +25,7 @@ def build_ir_figure_definitions(
     results: Sequence[IRResult],
     *,
     temperature_2d_result: IRTemp2DResult | None = None,
+    mapping_result: IRMappingResult | None = None,
 ) -> tuple[FigureDefinition, ...]:
     """Build the complete set of available semantic IR figures."""
 
@@ -56,6 +58,8 @@ def build_ir_figure_definitions(
         definitions.append(crystallinity)
     if temperature_2d_result is not None:
         definitions.extend(build_ir_temperature_2d_figure_definitions(temperature_2d_result))
+    if mapping_result is not None:
+        definitions.extend(build_ir_mapping_figure_definitions(mapping_result))
     return tuple(definitions)
 
 

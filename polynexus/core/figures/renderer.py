@@ -328,17 +328,23 @@ class MatplotlibFigureRenderer:
         if len(unique_x) == 0 or len(unique_y) == 0:
             raise ValueError("heatmap data is empty")
         matrix = np.full((len(unique_y), len(unique_x)), np.nan, dtype=float)
+        seen = np.zeros((len(unique_y), len(unique_x)), dtype=bool)
         x_index = {value: index for index, value in enumerate(unique_x)}
         y_index = {value: index for index, value in enumerate(unique_y)}
         for x_value, y_value, z_value in zip(x_values, y_values, z_values):
-            matrix[y_index[y_value], x_index[x_value]] = z_value
-        if np.isnan(matrix).any():
+            row_index = y_index[y_value]
+            column_index = x_index[x_value]
+            if seen[row_index, column_index]:
+                raise ValueError("heatmap data contains duplicate grid cells")
+            seen[row_index, column_index] = True
+            matrix[row_index, column_index] = z_value
+        if not seen.all():
             raise ValueError("heatmap data does not form a complete regular grid")
         style = self._style(figure_object)
         image = axis.pcolormesh(
             unique_x,
             unique_y,
-            matrix,
+            np.ma.masked_invalid(matrix),
             shading="auto",
             cmap=str(style.get("cmap") or "viridis"),
         )
