@@ -76,19 +76,30 @@ def build_ir_temperature_2d_figure_definitions(
     if frame_count == 0 or len(result.frames) != frame_count:
         return ()
 
+    frame_metadata = _temperature_2d_frame_metadata(result.frames)
+    frame_indices = np.repeat(np.arange(frame_count), len(wavenumber))
+
     heatmap_source = FigureDataSourceDefinition(
         source_id="ir-temperature-2d-matrix",
         columns=(
             DataColumnDefinition("wavenumber_cm1", "cm^-1"),
             DataColumnDefinition("frame_index", ""),
+            DataColumnDefinition("temperature_C", "C"),
+            DataColumnDefinition("time_min", "min"),
             DataColumnDefinition("absorbance", "a.u."),
         ),
         values={
             "wavenumber_cm1": tuple(
                 float(value) for value in np.tile(wavenumber, frame_count)
             ),
-            "frame_index": tuple(
-                float(index) for index in np.repeat(np.arange(frame_count), len(wavenumber))
+            "frame_index": tuple(float(index) for index in frame_indices),
+            "temperature_C": tuple(
+                _temperature_2d_source_value(frame_metadata[int(index)], "temperature_C")
+                for index in frame_indices
+            ),
+            "time_min": tuple(
+                _temperature_2d_source_value(frame_metadata[int(index)], "time_min")
+                for index in frame_indices
             ),
             "absorbance": tuple(float(value) for value in matrix.reshape(-1)),
         },
@@ -199,10 +210,26 @@ def _temperature_2d_series_definition(
             source_id=f"ir-temperature-2d-{recipe_kind}-{index:03d}",
             columns=(
                 DataColumnDefinition("frame_index", ""),
+                DataColumnDefinition("temperature_C", "C"),
+                DataColumnDefinition("time_min", "min"),
                 DataColumnDefinition("value", y_unit),
             ),
             values={
                 "frame_index": tuple(item[0] for item in finite),
+                "temperature_C": tuple(
+                    _temperature_2d_source_value(
+                        _temperature_2d_frame_metadata(result.frames)[int(item[0])],
+                        "temperature_C",
+                    )
+                    for item in finite
+                ),
+                "time_min": tuple(
+                    _temperature_2d_source_value(
+                        _temperature_2d_frame_metadata(result.frames)[int(item[0])],
+                        "time_min",
+                    )
+                    for item in finite
+                ),
                 "value": tuple(item[1] for item in finite),
             },
         )
@@ -345,8 +372,44 @@ def _temperature_2d_recipe(result: IRTemp2DResult, figure_kind: str) -> dict[str
         "function": "build_ir_temperature_2d_figure_definitions",
         "inputs": {"series_label": result.label},
         "parameters": {"figure_kind": figure_kind, "frame_count": len(result.frames)},
+        "frame_metadata": _temperature_2d_frame_metadata(result.frames),
         "v2_adapter": "ir",
     }
+
+
+def _temperature_2d_frame_metadata(frames: Sequence[object]) -> list[dict[str, object]]:
+    metadata: list[dict[str, object]] = []
+    for index, frame in enumerate(frames):
+        metadata.append(
+            {
+                "frame_index": index,
+                "label": str(getattr(frame, "label", "") or ""),
+                "stage": str(getattr(frame, "stage", "") or ""),
+                "temperature_C": _finite_or_none(getattr(frame, "temperature_C", np.nan)),
+                "time_min": _finite_or_none(getattr(frame, "time_min", np.nan)),
+                "time_estimated": bool(getattr(frame, "time_estimated", False)),
+                "sequence_order_source": str(
+                    getattr(frame, "sequence_order_source", "") or ""
+                ),
+            }
+        )
+    return metadata
+
+
+def _finite_or_none(value: object) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return numeric if np.isfinite(numeric) else None
+
+
+def _temperature_2d_source_value(
+    metadata: dict[str, object],
+    key: str,
+) -> float:
+    value = metadata.get(key)
+    return float(value) if value is not None else float("nan")
 
 
 def _finite_matrix(values: object) -> np.ndarray:

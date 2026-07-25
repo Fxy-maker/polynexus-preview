@@ -880,6 +880,13 @@
   export/GUI matrix passed (`15 passed`); task verifier passed with quality gate
   `282` and preprocessing gate `103`. Atomic checkpoint is still pending. See
   `docs/agent/tasks/2026-07-25-export-figure-run-provenance.md`.
+- IR temperature-2D figure data now preserves numeric `temperature_C` and
+  `time_min` columns and recipe-level label/stage/estimated-time/order-source
+  metadata; missing numeric conditions remain NaN and no axis or role semantics
+  changed. The 15-test IR provider/temperature matrix and task verifier passed
+  with quality gate `282` and preprocessing gate `103`. Atomic checkpoint is
+  still pending. See
+  `docs/agent/tasks/2026-07-25-ir-temperature-frame-provenance.md`.
 - AI preprocessing mainline is active on `codex/ai-preprocess-mainline-v2` from
   `main@4437bc90`. Foundation, semantic intents, DSC/IR/WAXS, and SAXS/NMR
   adapters are present; the current safety checkpoint adds scoped experience

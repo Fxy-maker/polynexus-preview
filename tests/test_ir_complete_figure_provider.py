@@ -5,7 +5,10 @@ from polynexus.core.figures.validation import validate_figure_definition
 from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.ir import IREngine
 from polynexus.core.ir_engine.core import IRResult
-from polynexus.core.ir_engine.figure_provider import build_ir_figure_definitions
+from polynexus.core.ir_engine.figure_provider import (
+    build_ir_figure_definitions,
+    build_ir_temperature_2d_figure_definitions,
+)
 from polynexus.core.ir_engine.io import IRSpectrum
 from polynexus.core.ir_engine.ir_temperature import IRTemp2DResult, IRTempFrame
 
@@ -136,3 +139,70 @@ def test_ir_temperature_2d_provider_assigns_main_support_and_diagnostic_roles():
         "diagnostic",
         "diagnostic",
     ]
+
+
+def test_ir_temperature_2d_definitions_preserve_frame_condition_metadata():
+    result = IRTemp2DResult(
+        frames=[
+            IRTempFrame(
+                label="H100",
+                stage="heating",
+                temperature_C=100.0,
+                time_min=2.5,
+                sequence_order_source="metadata",
+            ),
+            IRTempFrame(
+                label="H110",
+                stage="hold",
+                temperature_C=110.0,
+                time_min=5.0,
+                sequence_order_source="metadata",
+            ),
+        ],
+        wavenumber=np.array([1000.0, 1100.0]),
+        absorbance_matrix=np.array([[0.1, 0.2], [0.2, 0.3]]),
+        band_intensity_vs_frame={"amide": [0.1, 0.2]},
+    )
+
+    definitions = build_ir_temperature_2d_figure_definitions(result)
+    heatmap = definitions[0]
+    source = heatmap.data_sources[0]
+
+    assert [column.name for column in source.columns] == [
+        "wavenumber_cm1",
+        "frame_index",
+        "temperature_C",
+        "time_min",
+        "absorbance",
+    ]
+    assert source.values["temperature_C"] == (100.0, 100.0, 110.0, 110.0)
+    assert heatmap.recipe["frame_metadata"] == [
+        {
+            "frame_index": 0,
+            "label": "H100",
+            "stage": "heating",
+            "temperature_C": 100.0,
+            "time_min": 2.5,
+            "time_estimated": False,
+            "sequence_order_source": "metadata",
+        },
+        {
+            "frame_index": 1,
+            "label": "H110",
+            "stage": "hold",
+            "temperature_C": 110.0,
+            "time_min": 5.0,
+            "time_estimated": False,
+            "sequence_order_source": "metadata",
+        },
+    ]
+
+    tracking = definitions[1]
+    tracking_source = tracking.data_sources[0]
+    assert [column.name for column in tracking_source.columns] == [
+        "frame_index",
+        "temperature_C",
+        "time_min",
+        "value",
+    ]
+    assert tracking_source.values["temperature_C"] == (100.0, 110.0)
