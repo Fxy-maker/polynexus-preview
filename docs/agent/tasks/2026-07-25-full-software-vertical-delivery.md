@@ -42,6 +42,28 @@ Provider-only、字段模板-only、单元测试-only 都只能标记为 foundat
 - Golden/real-data fixtures、TDD regression、type/lint/compile、quality gate、
   visual GUI review、publication audit、CI/release checks。
 
+## Acceptance criteria
+
+- [ ] Each technique mode has a typed result/evidence presentation and a customized Results Workbench profile.
+- [ ] Main/SI/diagnostic figures publish through FigureDefinition and RunFigureManifest, appear in the active Gallery, and route to Editor/export with provenance.
+- [ ] History, persistence, export, AI-off/failure/fallback, Golden/real-data, and restarted-GUI checks are recorded for every released mode.
+- [ ] Scientific, schema, and unresolved mapping/ROI decisions remain explicitly marked for human review instead of being guessed.
+
+## Affected boundaries
+
+- Core analysis/evidence and technique-specific figure providers.
+- Shared FigureDocument/Manifest/Gallery/Editor/export/history contracts.
+- Results Workbench profiles, MainWindow adapters, and focused regression tests.
+- `docs/acceptance/`, `docs/agent/memory/`, and this task card.
+
+## Implementation plan
+
+1. Inventory and lock shared result, evidence, Workbench, figure, Manifest, history, and export contracts.
+2. Complete each technique as an independent vertical slice in dependency order.
+3. Add typed Workbench/profile and MainWindow integration regressions before production changes.
+4. Verify normal, fallback, low-confidence, invalid, AI-off, and AI-failure paths with Golden/real-data fixtures.
+5. Run structured and release verifiers, update acceptance/memory, and create one atomic checkpoint per slice.
+
 ## Non-goals
 
 - 不在绘图层重算科学参数、修复输入数据或改变证据阈值。

@@ -52,3 +52,43 @@ def test_build_results_table_model_dispatches_structured_analysis_presentation()
     assert model.kind == "dsc.standard"
     assert model.primary_section is not None
     assert model.diagnostic_section is not None
+
+
+def test_build_results_table_model_dispatches_joint_workbench_presentation():
+    model = build_results_table_model(
+        {
+            "summary": "Cross-technique review",
+            "rows": [
+                {
+                    "sample": "PA6",
+                    "batch": "annealed-01",
+                    "condition": "180 C",
+                    "techniques": "DSC/WAXS/SAXS",
+                    "opportunities": "crystallinity consistency",
+                    "alerts": 1,
+                    "source": "sample-db/run-1",
+                }
+            ],
+            "validations": [
+                {
+                    "severity": "WARN",
+                    "sample": "PA6",
+                    "batch": "annealed-01",
+                    "check": "xc_consistency",
+                    "message": "review mismatch",
+                }
+            ],
+        },
+        ordered_columns_fn=lambda columns: list(columns),
+        flatten_params_fn=_flatten,
+        technique="joint",
+        submodule="joint.compare",
+    )
+
+    assert model.kind == "joint"
+    assert model.profile.key == "joint"
+    assert model.primary_section is not None
+    assert model.primary_section.rows
+    assert model.diagnostic_section is not None
+    assert model.diagnostic_section.rows
+    assert model.profile.figure_links[0].key == "joint.series.crystallinity"

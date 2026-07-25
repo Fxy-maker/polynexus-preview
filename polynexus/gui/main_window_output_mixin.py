@@ -297,9 +297,23 @@ class MainWindowOutputMixin:
             table.resizeRowsToContents()
 
     def _display_joint_report(self, report):
-        self._current_results_table_model = None
         self._current_results_table_source = {"kind": "joint", "report": report}
         self._update_joint_diagnostics(report)
+
+        table_model = build_results_table_model(
+            report,
+            ordered_columns_fn=self._ordered_results_columns,
+            flatten_params_fn=flatten_history_params,
+            technique="joint",
+            submodule=str(getattr(self, "_current_submodule_id", "") or ""),
+            language=get_language(),
+        )
+        self._current_results_table_model = table_model
+        if self._render_structured_results_model(table_model):
+            self._results_table.setSortingEnabled(table_model.sortable)
+            self._set_results_export_control_visible(table_model.export_enabled)
+            self._set_results_copy_control_visible(table_model.copy_enabled)
+            return
 
         rows = report.get("rows", [])
         columns = [

@@ -12,7 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtGui import QColor, QPixmap
-from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox
 
 from polynexus.gui.main_window import AITuneWorker, AnalysisWorker, MainWindow, JointHubWorker, SideTuningReportDialog, _data_file_dialog_filter
 from polynexus.gui.i18n import get_language, set_language, tr
@@ -67,8 +67,6 @@ def _table_headers(table):
 
 
 def test_persist_analysis_run_reuses_existing_sample_and_batch(tmp_path):
-    app = QApplication.instance() or QApplication([])
-
     data_file = tmp_path / "pa6_run.csv"
     data_file.write_text("q,I\n0.1,1.0\n", encoding="utf-8")
 
@@ -2397,7 +2395,6 @@ def test_history_restore_rehydrates_result_review_context(tmp_path):
 
 def test_results_review_panel_restores_benchmark_from_history_context(tmp_path):
     app = QApplication.instance() or QApplication([])
-    previous = get_language()
     set_language("en")
     tmp_path.mkdir(parents=True, exist_ok=True)
 
@@ -2722,7 +2719,10 @@ def test_joint_overview_failure_message_uses_translation():
 
         from unittest.mock import patch
 
-        with patch("polynexus.gui.main_window.build_joint_hub_report", side_effect=RuntimeError("boom")):
+        with patch(
+            "polynexus.core.joint.coordinator.JointCoordinator.publish_hub_report",
+            side_effect=RuntimeError("boom"),
+        ):
             worker.run()
 
         assert captured == ["Joint overview failed: boom"]
@@ -4224,6 +4224,7 @@ def test_joint_validation_log_uses_translation_prefix():
         set_language("en")
         window = MainWindow()
         window._joint_hub = type("Hub", (), {"has_selection": lambda self: True})()
+        window._start_run_lifecycle()
 
         report = {
             "summary": "ok",
@@ -4247,6 +4248,58 @@ def test_joint_validation_log_uses_translation_prefix():
         app.processEvents()
     finally:
         set_language(previous)
+
+
+def test_joint_hub_finished_persists_report_for_history():
+    app = QApplication.instance() or QApplication([])
+
+    window = MainWindow()
+    window._current_technique = "joint"
+    window._current_submodule_id = "joint.compare"
+    window._joint_hub = type(
+        "Hub",
+        (),
+        {"has_selection": lambda self: True, "selected_rows": lambda self: []},
+    )()
+    window._start_run_lifecycle()
+    report = {"summary": "ok", "rows": [], "validations": []}
+
+    with patch.object(window, "_persist_analysis_run") as persist:
+        with patch.object(window, "_save_joint_hub_artifacts"):
+            with patch.object(window, "_display_joint_report"):
+                with patch.object(window, "_populate_plots"):
+                    window._on_joint_hub_finished(report)
+
+    persist.assert_called_once_with(report)
+
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_joint_report_uses_custom_workbench_profile_and_figure_links():
+    app = QApplication.instance() or QApplication([])
+
+    window = MainWindow()
+    window._current_technique = "joint"
+    window._current_submodule_id = "joint.compare"
+    report = {
+        "summary": "Cross-technique review",
+        "rows": [{"sample": "PA6", "batch": "b1", "condition": "180 C", "alerts": 0}],
+        "validations": [],
+    }
+
+    window._display_joint_report(report)
+
+    assert window._results_panel.profile.key == "joint"
+    link = window._results_panel.findChild(
+        type(window._results_panel.workbench_review_action),
+        "results_figure_link_joint_series_crystallinity",
+    )
+    assert link is not None
+    assert window._current_results_table_model.kind == "joint"
+
+    window.deleteLater()
+    app.processEvents()
 
 
 def test_joint_hub_artifacts_include_condition_values_and_timeline(tmp_path):

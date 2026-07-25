@@ -240,6 +240,7 @@ class MainWindowRunMixin:
         self._populate_plots()
         self._tabs.setCurrentIndex(2)
         self._btn_replot.setEnabled(False)
+        self._persist_analysis_run(report)
         self._update_workspace_context()
         self.log(tr("LOG_JOINT_OVERVIEW_DONE", report.get("summary", "")))
 

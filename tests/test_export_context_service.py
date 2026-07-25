@@ -349,14 +349,17 @@ def test_copy_export_bundle_sections_copies_available_sections(tmp_path):
     data = source / "data"
     report = source / "report"
     metadata = source / "metadata"
+    run_manifest = source / "runs" / "joint-run-1" / "figure_manifest.json"
     figures.mkdir(parents=True)
     data.mkdir()
     report.mkdir()
     metadata.mkdir()
+    run_manifest.parent.mkdir(parents=True)
     (figures / "Fig-1.png").write_text("figure", encoding="utf-8")
     (data / "results.csv").write_text("a,b\n1,2\n", encoding="utf-8")
     (report / "analysis_report.md").write_text("# Report\n", encoding="utf-8")
     (metadata / "manifest.json").write_text("{}", encoding="utf-8")
+    run_manifest.write_text('{"run_id":"joint-run-1"}', encoding="utf-8")
 
     bundle_dirs = create_export_bundle_dirs(tmp_path / "bundle")
     copied = copy_export_bundle_sections(source, bundle_dirs)
@@ -366,3 +369,6 @@ def test_copy_export_bundle_sections_copies_available_sections(tmp_path):
     assert (bundle_dirs["data"] / "results.csv").exists()
     assert (bundle_dirs["report"] / "analysis_report.md").exists()
     assert (bundle_dirs["metadata"] / "manifest.json").exists()
+    assert (
+        bundle_dirs["metadata"] / "runs" / "joint-run-1" / "figure_manifest.json"
+    ).exists()

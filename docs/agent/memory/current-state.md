@@ -190,9 +190,11 @@ title: Current PolyNexus repository state
   `docs/acceptance/2026-07-25-ir-temperature-2d-workbench-checkpoint.md`.
 - Joint hub rows now have a shared FigureDefinition provider and Coordinator
   publication entrypoint for crystallinity, multiscale, and evidence-coverage
-  figures; `JointHubWorker` now attaches the Manifest context to real GUI run
-  reports. MainWindow-level Gallery/history/export regression remains open;
-  evidence is in
+  figures; `JointHubWorker` attaches Manifest context to real GUI run reports.
+  Joint completion persists History, renders the custom Workbench profile, and
+  export bundles preserve `metadata/runs/<run_id>/`. Active Gallery selection
+  against a real run, scientific conflict provenance, fallback/AI-off paths,
+  and visual/release acceptance remain open. Evidence is in
   `docs/acceptance/2026-07-25-joint-figure-provider-checkpoint.md`.
 - NMR liquid/solid H/C profiles and shared FigureDefinition/export behavior are
   covered by a focused 29-test checkpoint; assignment-limited solid-state Xc

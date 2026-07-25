@@ -107,6 +107,11 @@ def copy_export_bundle_sections(source_root, bundle_dirs: dict[str, Path]) -> li
         if src.is_dir():
             shutil.copytree(src, dst, dirs_exist_ok=True)
             copied_sections.append(sub)
+
+    runs_src = out_src / "runs"
+    metadata_dst = bundle_dirs.get("metadata")
+    if runs_src.is_dir() and metadata_dst is not None:
+        shutil.copytree(runs_src, Path(metadata_dst) / "runs", dirs_exist_ok=True)
     return copied_sections
 
 

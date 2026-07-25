@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from .i18n import tr
 from .analysis_results_table_service import build_analysis_results_presentation
+from .joint_results_table_service import build_joint_results_presentation
 from .result_table_models import HeroMetric, ResultTableSection
 from .results_workbench_profiles import profile_for
 from .saxs_results_table_service import build_saxs_results_presentation
@@ -210,6 +211,28 @@ def build_results_table_model(
             )
 
     normalized_technique = str(technique or "").strip().lower()
+    if normalized_technique == "joint":
+        presentation = build_joint_results_presentation(params, language=language)
+        primary = presentation.primary
+        return ResultsTableModel(
+            kind=presentation.kind,
+            columns=[column.header for column in primary.columns],
+            display_rows=[[cell.display for cell in row] for row in primary.rows],
+            stored_rows=[[cell.raw for cell in row] for row in primary.rows],
+            summary_count=presentation.summary_count,
+            export_enabled=presentation.export_enabled,
+            copy_enabled=presentation.copy_enabled,
+            sortable=presentation.sortable,
+            summary_kind="joint",
+            hero_metrics=presentation.hero_metrics,
+            primary_section=primary,
+            detail_section=presentation.detail,
+            diagnostic_section=presentation.diagnostics,
+            risk_text=presentation.risk_text,
+            next_text=presentation.next_text,
+            profile=profile_for("joint", language=language),
+        )
+
     if normalized_technique in _ANALYSIS_SUBMODULES and _analysis_submodule_supported(
         normalized_technique,
         submodule,

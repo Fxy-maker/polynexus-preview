@@ -34,3 +34,21 @@ first two logical IDs.
   AI-off/failure behavior, real data, and restarted-GUI visual review remain
   open.
 - This checkpoint is not a complete Joint vertical slice.
+
+## MainWindow integration follow-up (2026-07-25)
+
+- Joint completion now persists the report through the shared analysis-run
+  history path after the worker publishes its Manifest context.
+- Joint reports now use the custom `joint` Results Workbench presentation,
+  including typed primary/detail/diagnostic sections, summary metrics, and
+  figure links for `joint.series.crystallinity` and
+  `joint.series.multiscale`.
+- Export bundles now preserve `runs/<run_id>/` under `metadata/runs/`, so the
+  Figure Manifest remains available beside copied figures and data.
+- Focused MainWindow, Workbench, worker, export-context, and contract matrix:
+  37 passed. Structured verifier, quality gate (282 passed), and preprocessing
+  gate (103 passed) also passed.
+
+Remaining: Joint scientific conflict/provenance review, AI-off/failure and
+fallback behavior, real-data and restarted-GUI visual acceptance, and release
+boundary review. The legacy PNG/CSV compatibility path is intentionally kept.
