@@ -868,6 +868,12 @@
   checkpoint remain pending. The repository still lacks a registered NMR
   vendor/real regression source, so this is not scientific real-data
   acceptance. See `docs/agent/tasks/2026-07-25-nmr-real-eval-bridge.md`.
+- History restore now rehydrates the manifest-only Gallery after restoring a
+  run's `output_dir`; a real IR FigurePipeline manifest is visible with its run
+  and figure IDs after restore. Focused history/persistence/editor matrix passed
+  (`32 passed`); task-scoped verifier passed with quality gate `282` and
+  preprocessing gate `103`. Atomic checkpoint is still pending. See
+  `docs/agent/tasks/2026-07-25-history-gallery-restore.md`.
 - AI preprocessing mainline is active on `codex/ai-preprocess-mainline-v2` from
   `main@4437bc90`. Foundation, semantic intents, DSC/IR/WAXS, and SAXS/NMR
   adapters are present; the current safety checkpoint adds scoped experience

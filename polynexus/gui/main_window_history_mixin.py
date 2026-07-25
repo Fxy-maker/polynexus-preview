@@ -572,6 +572,9 @@ class MainWindowHistoryMixin:
             self._output_dir = output_dir
             if hasattr(self, "_output_input"):
                 self._output_input.setText(output_dir)
+            populate_plots = getattr(self, "_populate_plots", None)
+            if callable(populate_plots):
+                populate_plots()
 
         if parameters:
             self._apply_best_config(parameters)

@@ -14,6 +14,11 @@ from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox
 
+import numpy as np
+
+from polynexus.core.figures.pipeline import FigurePipeline
+from polynexus.core.ir_engine.core import IRResult
+from polynexus.core.ir_engine.figure_provider import build_ir_figure_definitions
 from polynexus.gui.main_window import AITuneWorker, AnalysisWorker, MainWindow, JointHubWorker, SideTuningReportDialog, _data_file_dialog_filter
 from polynexus.gui.i18n import get_language, set_language, tr
 from polynexus.gui.widgets.chart_editor import ChartEditor
@@ -4324,6 +4329,47 @@ def test_joint_history_restore_rehydrates_report_workbench(tmp_path):
     assert window._joint_report == report
     assert window._results_panel.profile.key == "joint"
     assert window._current_results_table_model.kind == "joint"
+
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_history_restore_rehydrates_active_manifest_gallery(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    output_root = tmp_path / "ir-output"
+    data_file = tmp_path / "sample.spa"
+    data_file.write_text("placeholder", encoding="utf-8")
+    definition = build_ir_figure_definitions(
+        (
+            IRResult(
+                label="history-ir",
+                wavenumber=np.array([1800.0, 1700.0, 1600.0]),
+                absorbance=np.array([0.1, 0.4, 0.2]),
+            ),
+        )
+    )[0]
+    manifest = FigurePipeline().run(
+        output_root=output_root,
+        run_id="history-ir-run",
+        technique="ir",
+        definitions=(definition,),
+    )
+    record = {
+        "id": "history-ir-run",
+        "technique": "ir",
+        "submodule": "ir.standard",
+        "created_at": "2026-07-25T10:00:00Z",
+        "output_dir": str(output_root),
+        "parameters": {},
+        "results_summary": {"data_file": str(data_file), "figure_run_id": manifest.run_id},
+    }
+
+    window = MainWindow()
+    with patch.object(window, "_display_results"):
+        assert window._restore_history_record(record)
+
+    assert window._chart_gallery.figure_ids() == [definition.figure_id]
+    assert window._chart_gallery.current_entry().run_id == manifest.run_id
 
     window.deleteLater()
     app.processEvents()
