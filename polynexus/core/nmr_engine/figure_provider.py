@@ -49,6 +49,7 @@ def _build_spectrum(result: NMRResult, index: int) -> FigureDefinition:
         technique="nmr",
         scope="frame",
         category="per_frame",
+        publication_role="main",
         title=f"NMR Spectrum - {result.label}",
         layout=_spectrum_layout(result.nucleus, show_legend=False),
         data_sources=(
@@ -84,6 +85,7 @@ def _build_deconvolution(result: NMRResult, index: int) -> FigureDefinition:
         technique="nmr",
         scope="frame",
         category="diagnostic",
+        publication_role="diagnostic",
         title=f"NMR Peak Deconvolution - {result.label}",
         layout=_spectrum_layout(result.nucleus, show_legend=True),
         data_sources=(

@@ -71,6 +71,16 @@
   commit remain pending. Vendor reader, real fixture, fallback/AI gates, and
   restarted-GUI acceptance are intentionally open.
 
+## NMR/Joint published-run provenance matrix - in progress 2026-07-25
+
+- NMR spectrum/deconvolution publication roles are now explicit (`main` and
+  `diagnostic`) instead of inheriting `si`.
+- Synthetic NMR and Joint runs now have focused evidence for Manifest-only
+  active Gallery discovery, object-editing documents, run-relative data sources,
+  and visible diagnostic generation failures.
+- Real-data/restarted-GUI review, export bundle inspection, AI-off/failure/
+  fallback scientific acceptance, and final release review remain open.
+
 ## Results Workbench profile platform - Phase 1 completed 2026-07-25
 
 - Added the typed profile registry at `polynexus/gui/results_workbench_profiles.py`.

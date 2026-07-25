@@ -200,6 +200,11 @@ title: Current PolyNexus repository state
   band meaning. Evidence is in
   `docs/acceptance/2026-07-25-ir-mapping-roi-checkpoint.md`; real reader/fixture
   and visual/fallback acceptance remain open.
+- NMR/Joint published-run provenance now has a focused synthetic matrix:
+  NMR Main/diagnostic roles are explicit, both NMR and Joint active Gallery
+  entries resolve run-relative documents/data, and failed diagnostic entries
+  remain visible in the Manifest. Real-data, export-bundle, AI/fallback, and
+  restarted-GUI release acceptance remain open.
 - Joint hub rows now have a shared FigureDefinition provider and Coordinator
   publication entrypoint for crystallinity, multiscale, and evidence-coverage
   figures; `JointHubWorker` attaches Manifest context to real GUI run reports.
