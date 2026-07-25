@@ -14,7 +14,7 @@ from ..figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
-from .dataset import JointBatchRow
+from .dataset import JointBatchRow, build_joint_run_provenance
 
 
 _XC_TECHNIQUES = ("dsc", "waxs", "saxs", "ir", "nmr")
@@ -258,6 +258,7 @@ def _recipe(kind: str, rows: Sequence[JointBatchRow]) -> dict[str, Any]:
         "function": "build_joint_figure_definitions",
         "inputs": {"batch_ids": [row.batch_id for row in rows]},
         "parameters": {"figure_kind": kind},
+        "run_provenance": [build_joint_run_provenance(row) for row in rows],
         "v2_adapter": "joint",
     }
 

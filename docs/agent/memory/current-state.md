@@ -213,6 +213,11 @@ title: Current PolyNexus repository state
   against a real run, scientific conflict provenance, fallback/AI-off paths,
   and visual/release acceptance remain open. Evidence is in
   `docs/acceptance/2026-07-25-joint-figure-provider-checkpoint.md`.
+- Joint validation conflicts now carry source-run and evidence-weight
+  provenance, and all Joint figure recipes preserve the same batch-level run
+  provenance. This is recorded in
+  `docs/acceptance/2026-07-25-joint-conflict-provenance.md`; it does not replace
+  the remaining real-data, visual, export, or AI/fallback release gates.
 - NMR liquid/solid H/C profiles and shared FigureDefinition/export behavior are
   covered by a focused 29-test checkpoint; assignment-limited solid-state Xc
   remains provisional. Real partition visual and full provenance/release

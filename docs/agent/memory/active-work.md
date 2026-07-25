@@ -41,6 +41,16 @@
   provenance and AI-off/failure/fallback tests, then real-data and restarted-
   GUI review. Do not call Joint complete yet.
 
+## Joint conflict provenance - code checkpoint in progress 2026-07-25
+
+- Joint validation rows now preserve exact source run IDs, submodules, evidence
+  status/weight/reasons, and missing-source state for each cross-tech check.
+- Joint Main/SI/diagnostic figure recipes carry the same batch-level run
+  provenance for Gallery/Editor/export traceability.
+- Focused Joint/NMR provenance matrix is `14 passed`; task verifier,
+  changed/type verifier, and checkpoint commit remain pending. This does not
+  close real-data, restarted-GUI, export-bundle, or AI/fallback acceptance.
+
 ## IR temperature-2D Figure lifecycle checkpoint - code completed 2026-07-25
 
 - `IREngine.build_figure_definitions()` now passes the existing

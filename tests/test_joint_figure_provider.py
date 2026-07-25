@@ -47,6 +47,11 @@ def test_joint_provider_emits_custom_manifest_definitions():
     assert definitions[0].publication_role == "main"
     assert definitions[1].publication_role == "si"
     for definition in definitions:
+        provenance = definition.recipe["run_provenance"]
+        assert provenance[0]["batch_id"] == "batch-a"
+        assert provenance[0]["sources"]["dsc"]["run_id"] == "dsc-a"
+        assert provenance[1]["sources"]["saxs"]["run_id"] == "saxs-b"
+    for definition in definitions:
         validate_figure_definition(definition)
 
 

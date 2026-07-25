@@ -319,6 +319,61 @@ def _run_evidence_context(run: JointRunRecord | None) -> dict[str, Any]:
     return {"status": status or "ok", "weight": weight, "reasons": reasons}
 
 
+def build_joint_run_provenance(
+    row: JointBatchRow,
+    techniques: Iterable[str] = TECHNIQUES,
+) -> dict[str, Any]:
+    """Serialize the exact Joint source runs and their evidence weights."""
+
+    sources: dict[str, dict[str, Any]] = {}
+    for raw_technique in techniques:
+        technique = _normalise_technique(raw_technique)
+        if technique in sources:
+            continue
+        run = row.run(technique)
+        if run is None:
+            sources[technique] = {
+                "available": False,
+                "run_id": "",
+                "technique": technique,
+                "submodule": "",
+                "created_at": "",
+                "evidence_status": "missing",
+                "evidence_weight": 0.0,
+                "evidence_reasons": ["run_missing"],
+            }
+            continue
+        evidence = _run_evidence_context(run)
+        sources[technique] = {
+            "available": True,
+            "run_id": str(run.run_id or ""),
+            "technique": str(run.technique or technique),
+            "submodule": str(run.submodule or ""),
+            "created_at": str(run.created_at or ""),
+            "evidence_status": str(evidence["status"]),
+            "evidence_weight": float(evidence["weight"]),
+            "evidence_reasons": [str(item) for item in evidence["reasons"]],
+        }
+    return {
+        "sample_id": str(row.sample_id or ""),
+        "sample": str(row.sample_name or ""),
+        "batch_id": str(row.batch_id or ""),
+        "batch": str(row.batch_label or ""),
+        "sources": sources,
+    }
+
+
+def _validation_source_techniques(check_name: object) -> tuple[str, ...]:
+    key = str(check_name or "").strip().lower()
+    if "phi_c" in key:
+        return ("dsc", "waxs", "saxs")
+    if "tm_gt" in key or "/tm_" in key:
+        return ("dsc", "saxs")
+    if "l_consistency" in key:
+        return ("saxs",)
+    return TECHNIQUES
+
+
 def detect_joint_opportunities(row: JointBatchRow) -> list[str]:
     """Return user-facing analysis opportunities for one row."""
     opportunities = []
@@ -390,6 +445,13 @@ def validate_joint_row(row: JointBatchRow) -> list[dict[str, Any]]:
                 "passed": item.passed,
                 "message": item.message,
                 "details": item.details,
+                "provenance": {
+                    "check": str(item.check_name),
+                    **build_joint_run_provenance(
+                        row,
+                        _validation_source_techniques(item.check_name),
+                    ),
+                },
             }
         )
     return output

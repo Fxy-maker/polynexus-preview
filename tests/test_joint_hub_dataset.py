@@ -91,6 +91,41 @@ def test_joint_hub_report_builds_cross_tech_ai_context(tmp_path):
     assert any("phi_c" in item or "L_consistency" in item or "Tm" in item for item in context["highlights"])
 
 
+def test_joint_conflict_rows_keep_source_run_and_evidence_provenance(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "conflict")
+    db.create_analysis_run(
+        batch_id,
+        "dsc",
+        results_summary={"Xc_pct": 80.0},
+        analysis_evidence={"constraint_summary": {"status": "ok"}},
+    )
+    db.create_analysis_run(
+        batch_id,
+        "waxs",
+        results_summary={"Xc_pct": 20.0},
+        analysis_evidence={"constraint_summary": {"status": "soft_warn"}},
+    )
+    db.create_analysis_run(
+        batch_id,
+        "saxs",
+        results_summary={"L_nm": 12.0, "lc_nm": 6.0},
+        analysis_evidence={"constraint_summary": {"status": "ok"}},
+    )
+
+    rows = collect_joint_dataset(db)
+    report = build_joint_hub_report(rows)
+    conflict = next(item for item in report["validations"] if "phi_c" in item["check"])
+    sources = conflict["provenance"]["sources"]
+
+    assert sources["dsc"]["run_id"] == rows[0].run("dsc").run_id
+    assert sources["dsc"]["evidence_status"] == "ok"
+    assert sources["waxs"]["run_id"] == rows[0].run("waxs").run_id
+    assert sources["waxs"]["evidence_weight"] == pytest.approx(0.45)
+    assert sources["saxs"]["run_id"] == rows[0].run("saxs").run_id
+
+
 def test_joint_hub_report_surfaces_technique_evidence_status(tmp_path):
     db = SampleDB(tmp_path / "samples.db")
     sample_id = db.create_sample("PA6")
