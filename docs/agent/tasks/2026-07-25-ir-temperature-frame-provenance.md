@@ -42,3 +42,9 @@ $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_ir_temperature_frame_verify'
 python -m pytest tests/test_ir_complete_figure_provider.py tests/test_ir_temperature.py tests/test_ir_figure_provider.py -q
 python scripts/verify.py --task docs/agent/tasks/2026-07-25-ir-temperature-frame-provenance.md --changed --types
 ```
+
+## Checkpoint
+
+- Focused IR matrix: 15 passed.
+- Structured verifier: passed with quality gate 282 and preprocessing gate 103.
+- Atomic checkpoint: `02f0b56`.

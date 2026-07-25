@@ -40,3 +40,9 @@ $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_export_figure_runs_verify'
 python -m pytest tests/test_export_context_service.py tests/test_main_window_persistence.py::test_export_results_creates_structured_bundle_with_manifest -q
 python scripts/verify.py --task docs/agent/tasks/2026-07-25-export-figure-run-provenance.md --changed --types
 ```
+
+## Checkpoint
+
+- Focused matrix: 15 passed.
+- Structured verifier: passed with quality gate 282 and preprocessing gate 103.
+- Atomic checkpoint: `254b849`.

@@ -37,6 +37,12 @@ python -m ruff check tests/eval/runner.py tests/eval/test_runner_real_nmr.py
 python scripts/verify.py --task docs/agent/tasks/2026-07-25-nmr-real-eval-bridge.md --changed --types
 ```
 
+## Checkpoint
+
+- Focused matrix: 12 passed.
+- Structured verifier: passed with quality gate 282 and preprocessing gate 103.
+- Atomic checkpoint: `4721b16`.
+
 ## Known limitation
 
 仓库目前没有已登记的 NMR vendor/real regression source；本卡的 real bridge

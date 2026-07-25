@@ -40,3 +40,9 @@ $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_history_gallery_verify'
 python -m pytest tests/test_main_window_persistence.py::test_history_restore_rehydrates_active_manifest_gallery -q
 python scripts/verify.py --task docs/agent/tasks/2026-07-25-history-gallery-restore.md --changed --types
 ```
+
+## Checkpoint
+
+- Focused matrix: 32 passed.
+- Structured verifier: passed with quality gate 282 and preprocessing gate 103.
+- Atomic checkpoint: `5ad3ac9`.
