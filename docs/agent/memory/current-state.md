@@ -250,3 +250,9 @@ title: Current PolyNexus repository state
 - The overall goal remains active. IR vendor mapping semantics, per-mode real
   export/Editor/restart walkthroughs, AI-off/failure/fallback scientific
   review, and human release approval remain open acceptance boundaries.
+
+- Ordinary DSC, WAXS, and IR engine analysis now attach shared
+  `AnalysisEvidence` through `analysis_evidence_handoff`, with a representative
+  typed result plus scalar series metadata. Existing richer evidence remains
+  authoritative; focused coverage is recorded in
+  `docs/acceptance/2026-07-25-unified-engine-evidence-handoff.md`.

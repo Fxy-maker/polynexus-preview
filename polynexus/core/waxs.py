@@ -8,6 +8,7 @@ import numpy as np
 from typing import Dict, Any, List, Optional
 
 from .engine import BaseEngine, EngineCategory, register_technique
+from .analysis_evidence_handoff import refresh_analysis_evidence
 from .submodule_registry import SubModuleSpec, register_submodule
 from .waxs_engine import (
     WAXSConfig, WAXSDataset, WAXSResult,
@@ -129,10 +130,14 @@ class WAXSEngine(BaseEngine):
             self._waxs_config.do_sector_integration = True
             strains = self._sequence_values("strain", default_start=0.0, default_step=10.0)
             result = self.analyze_strain(strains)
+            if result is not None:
+                refresh_analysis_evidence(self)
             return result is not None
         elif sub == 'waxs.temperature':
             temps = self._sequence_values("temperature", default_start=25.0, default_step=10.0)
             result = self.analyze_temperature(temps)
+            if result is not None:
+                refresh_analysis_evidence(self)
             return result is not None
         if not self._dataset or not self._dataset.scans:
             self.log("No preprocessed data")
@@ -153,6 +158,7 @@ class WAXSEngine(BaseEngine):
             if len(r0.two_theta) > 0 and len(r0.I) > 0:
                 self.result.raw_data["two_theta"] = r0.two_theta
                 self.result.raw_data["I"] = r0.I
+        refresh_analysis_evidence(self)
         return True
 
     def build_figure_definitions(self):

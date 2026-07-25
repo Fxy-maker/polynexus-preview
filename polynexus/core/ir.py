@@ -20,6 +20,7 @@ import numpy as np
 from typing import Dict, Any, List, Optional
 
 from .engine import BaseEngine, EngineCategory, register_technique
+from .analysis_evidence_handoff import refresh_analysis_evidence
 from .submodule_registry import SubModuleSpec, register_submodule
 from .ir_engine import (
     IRConfig,
@@ -187,6 +188,7 @@ class IREngine(BaseEngine):
             self.result.raw_data["temperature_C"] = np.asarray(temp_result.temperatures, dtype=float)
             self.result.parameters = dict(temp_result.parameters)
             self.result.analysis_evidence = {}
+            refresh_analysis_evidence(self)
             return True
 
         for spec in self._spectra:
@@ -208,6 +210,7 @@ class IREngine(BaseEngine):
             self.result.raw_data["absorbance"] = np.asarray(spec.absorbance, dtype=float)
             self.result.raw_data["label"] = spec.label or "IR"
         self.result.parameters = dict(self.get_parameters())
+        refresh_analysis_evidence(self)
         return True
 
     def build_figure_definitions(self):

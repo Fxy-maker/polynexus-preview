@@ -1,5 +1,17 @@
 # Active Work
 
+## Unified engine evidence handoff - code completed 2026-07-25
+
+- Ordinary DSC, WAXS, and IR analysis now attach the shared
+  `AnalysisEvidence` payload to `AnalysisResult` through one core helper,
+  without overwriting richer SAXS/NMR/mapping payloads.
+- Focused engine/evidence matrix: 44 passed. Task card:
+  `docs/agent/tasks/2026-07-25-unified-engine-evidence-handoff.md`; acceptance:
+  `docs/acceptance/2026-07-25-unified-engine-evidence-handoff.md`.
+- This is a code-level handoff only. Real mode-by-mode GUI restart, Editor/
+  export inspection, AI/fallback scientific review, IR mapping semantics, and
+  release approval remain open in the full-software goal.
+
 ## NMR evidence persistence - code completed 2026-07-25
 
 - Ordinary `NMREngine.analyze()` now builds the shared NMR `AnalysisEvidence`

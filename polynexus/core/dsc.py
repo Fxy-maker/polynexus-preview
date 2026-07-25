@@ -20,6 +20,7 @@ from typing import Dict, Any, List
 
 from .submodule_registry import SubModuleSpec, register_submodule
 from .engine import BaseEngine, EngineCategory, register_technique
+from .analysis_evidence_handoff import refresh_analysis_evidence
 from .dsc_engine import (
     DSCConfig,
     DSCScan,
@@ -205,6 +206,8 @@ class DSCEngine(BaseEngine):
             self.run_kinetics(mode='non_isothermal')
 
         self._populate_diagnostic_raw_data()
+
+        refresh_analysis_evidence(self)
 
         return True
 
