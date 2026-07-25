@@ -15,6 +15,16 @@
   生产 provider 改动。
 - Next action: checkpoint 后为拉伸 SAXS 单独创建设计/计划，不与本阶段混改。
 
+## SAXS other modules polish - strain slice in progress 2026-07-25
+
+- Design/plan: `docs/superpowers/specs/2026-07-25-saxs-strain-other-panels-design.md`、
+  `docs/superpowers/plans/2026-07-25-saxs-strain-other-panels.md`。
+- Provider contract is covered by a strain order/role regression; the GUI review
+  hint now accepts `saxs.strain` and the red-green test is passing. Static tests
+  are isolated in `tests/test_saxs_static_figure_panels.py` for the next checkpoint.
+- Next action: run strain-slice verification and create its allowlisted checkpoint,
+  then verify the static slice independently.
+
 ## Unified LegendGeometry persistence boundary - completed 2026-07-24
 
 - Completed the final migration layer for the Origin-style legend object.

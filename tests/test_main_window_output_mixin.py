@@ -103,6 +103,26 @@ def test_saxs_temperature_summary_updates_results_review_hint_recorder():
     assert window._results_panel.clear_review_hint_calls == 1
 
 
+def test_saxs_strain_summary_updates_results_review_hint_recorder():
+    window = _ResultsHintWindow("saxs", "saxs.strain")
+
+    MainWindowOutputMixin._update_results_review_hint(
+        window,
+        summary="strain summary complete",
+        risk_text="2 frames need review",
+        next_text="review the evolution panel first",
+    )
+
+    assert len(window._results_panel.review_hint_calls) == 1
+    call = window._results_panel.review_hint_calls[0]
+    assert call["title"] == "strain summary complete"
+    assert call["detail"] == "2 frames need review"
+    assert call["next_text"] == "review the evolution panel first"
+    assert call["status"] == "review"
+    assert call["action_text"]
+    assert callable(call["action"])
+
+
 def test_saxs_temperature_review_hint_falls_back_to_localized_title():
     window = _ResultsHintWindow("saxs", "temperature")
 

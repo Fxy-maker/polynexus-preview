@@ -79,7 +79,7 @@ class MainWindowOutputMixin:
         submodule_id = str(getattr(self, "_current_submodule_id", "") or "").strip().lower()
         if (
             technique != "saxs"
-            or submodule_id not in {"temperature", "saxs.temperature"}
+            or submodule_id not in {"temperature", "saxs.temperature", "saxs.strain"}
             or not any((summary_text, risk_text_value, next_text_value))
         ):
             panel.clear_review_hint()

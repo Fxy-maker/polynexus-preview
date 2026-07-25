@@ -108,3 +108,28 @@ def test_strain_pack_uses_1d_fallback_and_keeps_correlation_out_of_main() -> Non
         if "correlation" in item.figure_id
     )
     assert all("detector" not in str(item.recipe).lower() for item in definitions)
+
+
+def test_strain_pack_orders_main_support_and_diagnostic_panels() -> None:
+    engine = _static_engine(3)
+    engine._condition_type = "strain"
+    engine.cfg.experiment_type = "strain"
+    engine._strain_result = SimpleNamespace(strains=np.asarray([0.0, 25.0, 50.0]))
+
+    definitions = build_strain_figure_definitions(engine)
+
+    assert [item.figure_id for item in definitions] == [
+        "saxs.strain.evolution.1d",
+        "saxs.strain.sequence.1d",
+        "saxs.strain.invariant",
+        "saxs.strain.correlation",
+        "saxs.strain.low-q.diagnostic",
+    ]
+    assert [item.display_order for item in definitions] == [10, 100, 105, 110, 220]
+    assert [item.publication_role for item in definitions] == [
+        "main",
+        "si",
+        "si",
+        "si",
+        "diagnostic",
+    ]

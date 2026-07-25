@@ -10,7 +10,9 @@ title: Current PolyNexus repository state
 - SAXS other-modules polishing is an active goal on the current development
   worktree. The first temperature slice is contract-only: provider regressions
   lock evolution/Avrami/waterfall/selected-evidence ordering and fallback
-  roles; strain and static slices remain separate follow-up sub-projects.
+  roles. The strain slice now also routes its existing review summary/risk/
+  next-step text through the shared review hint; static remains a separate
+  follow-up sub-project.
 
 - The dedicated local `main` worktree is at merge commit `583709ad`, which
   includes the Origin editor menu, run-root source-path fixes, visible native
