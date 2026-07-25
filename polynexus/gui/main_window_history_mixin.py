@@ -546,13 +546,16 @@ class MainWindowHistoryMixin:
         if not technique:
             return False
 
-        if technique:
+        is_joint = technique.strip().lower() == "joint"
+        if is_joint:
+            self._on_joint_selected(submodule or "joint.compare")
+        else:
             self._on_technique_selected(technique)
             btn = self._nav_buttons.get(technique)
             if btn:
                 btn.setChecked(True)
 
-        if submodule:
+        if submodule and not is_joint:
             btn = self._nav_buttons.get(submodule)
             if btn:
                 btn.setChecked(True)
@@ -598,7 +601,13 @@ class MainWindowHistoryMixin:
                 status="complete",
                 run_id=self._last_persisted_run_id,
             )
-        self._display_results(parameters, restored_payload or record)
+        joint_report = summary.get("result") if is_joint and isinstance(summary.get("result"), dict) else None
+        if joint_report is not None:
+            self._joint_report = joint_report
+            self._results["joint"] = joint_report
+            self._display_joint_report(joint_report)
+        else:
+            self._display_results(parameters, restored_payload or record)
 
         self._update_workspace_context()
         self._update_work_memory_panel()

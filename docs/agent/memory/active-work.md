@@ -21,10 +21,11 @@
   and attach Manifest context to the report. `JointHubWorker` calls this
   service, so a real `joint.compare` run produces the new entries. Workbench
   IDs are `joint.series.crystallinity` and `joint.series.multiscale`.
-- Joint completion now persists through History, uses a typed custom Workbench
-  presentation, and preserves `runs/<run_id>/` under `metadata/runs/` in export
-  bundles. Evidence: `docs/acceptance/2026-07-25-joint-figure-provider-checkpoint.md`;
-  focused integration/contract matrix 37 passed.
+- Joint completion now persists through History, History restore rehydrates the
+  Joint report, the typed custom Workbench presentation is used, and export
+  bundles preserve `runs/<run_id>/` under `metadata/runs/`. Evidence:
+  `docs/acceptance/2026-07-25-joint-figure-provider-checkpoint.md`; focused
+  integration/contract matrix 37 passed plus restore regression 7 passed.
 - Remaining: active Gallery selection against a real published run, conflict
   provenance and AI-off/failure/fallback tests, then real-data and restarted-
   GUI review. Do not call Joint complete yet.

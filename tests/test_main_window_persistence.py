@@ -4302,6 +4302,33 @@ def test_joint_report_uses_custom_workbench_profile_and_figure_links():
     app.processEvents()
 
 
+def test_joint_history_restore_rehydrates_report_workbench(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    window = MainWindow()
+    report = {
+        "summary": "Restored cross-technique review",
+        "rows": [{"sample": "PA6", "batch": "b1", "alerts": 0}],
+        "validations": [],
+    }
+    record = {
+        "id": "joint-run-1",
+        "technique": "joint",
+        "submodule": "joint.compare",
+        "output_dir": str(tmp_path / "joint-output"),
+        "parameters": {},
+        "results_summary": {"result": report, "history_context": {}},
+    }
+
+    assert window._restore_history_record(record)
+    assert window._joint_report == report
+    assert window._results_panel.profile.key == "joint"
+    assert window._current_results_table_model.kind == "joint"
+
+    window.deleteLater()
+    app.processEvents()
+
+
 def test_joint_hub_artifacts_include_condition_values_and_timeline(tmp_path):
     app = QApplication.instance() or QApplication([])
 

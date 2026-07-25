@@ -39,6 +39,9 @@ first two logical IDs.
 
 - Joint completion now persists the report through the shared analysis-run
   history path after the worker publishes its Manifest context.
+- History restore now rehydrates the persisted Joint report into the Joint
+  workspace and custom Workbench profile instead of treating it as a generic
+  parameter table.
 - Joint reports now use the custom `joint` Results Workbench presentation,
   including typed primary/detail/diagnostic sections, summary metrics, and
   figure links for `joint.series.crystallinity` and
