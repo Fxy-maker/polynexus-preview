@@ -234,3 +234,19 @@ title: Current PolyNexus repository state
   regression-covered. The focused checkpoint is recorded in
   `docs/acceptance/2026-07-25-ir-three-mode-vertical-slice.md`; real reader,
   AI/fallback, export-bundle, and restarted-GUI release gates remain open.
+
+## Latest audit (2026-07-25)
+
+- `d0142d6` adds ordinary NMR `AnalysisResult` evidence persistence and a Joint
+  publish-to-History-to-active-Gallery Qt regression; `4d5c14a` checkpoints the
+  recent task cards; `1dee259` records the four-partition real NMR engine smoke.
+- Focused NMR/evidence/persistence tests: 20 passed. Joint/Manifest/GUI restore
+  slice: 8 passed. The default `python scripts/verify.py --changed --types`
+  passed with quality gate 282 and preprocessing gate 103.
+- The full `python scripts/verify.py --changed --types --full --boundary`
+  command was run with an external basetemp and timed out after 364 seconds
+  (exit 124) without a failure summary; this is a verification limitation,
+  not a pass.
+- The overall goal remains active. IR vendor mapping semantics, per-mode real
+  export/Editor/restart walkthroughs, AI-off/failure/fallback scientific
+  review, and human release approval remain open acceptance boundaries.

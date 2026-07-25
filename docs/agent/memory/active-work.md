@@ -35,6 +35,16 @@
   and AI-failure coverage, restarted-GUI visual review, and release approval
   open.
 
+## Full-software audit - 2026-07-25
+
+- Default `python scripts/verify.py --changed --types` passed with quality gate
+  282 and preprocessing gate 103.
+- The prescribed `--full --boundary` variant was run with an external
+  basetemp but timed out after 364 seconds (exit 124) without a failure
+  summary. Treat it as incomplete verification, not as a pass.
+- The goal remains active until the explicit scientific, real-run, restarted-
+  GUI, AI/fallback, and human release gates are closed.
+
 ## NMR Workbench/Figure checkpoint - verified 2026-07-25
 
 - Liquid H/C and solid H/C profiles are customized; the shared NMR provider
