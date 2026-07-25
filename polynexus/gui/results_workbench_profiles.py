@@ -31,6 +31,11 @@ class WorkbenchFigureLink:
     key: str
     label_key: str
     role: str
+    alternatives: tuple[str, ...] = ()
+
+    @property
+    def candidates(self) -> tuple[str, ...]:
+        return (self.key, *self.alternatives)
 
     def label_for(self, language: str) -> str:
         return tr_for_language(self.label_key, language)
@@ -108,7 +113,12 @@ _PROFILES = {
             "RESULTS_WORKBENCH_SAXS_STATIC_DIAGNOSTICS",
         ),
         figures=(
-            ("saxs.static.comparison", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+            (
+                "saxs.static.comparison",
+                "RESULTS_WORKBENCH_FIGURE_MAIN",
+                "main",
+                ("saxs.series.static.waterfall",),
+            ),
             ("saxs.static.correlation.support", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
         ),
     ),
@@ -122,7 +132,15 @@ _PROFILES = {
             "RESULTS_WORKBENCH_SAXS_TEMPERATURE_DIAGNOSTICS",
         ),
         figures=(
-            ("saxs.temperature.evolution", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+            (
+                "saxs.temperature.evolution",
+                "RESULTS_WORKBENCH_FIGURE_MAIN",
+                "main",
+                (
+                    "saxs.temperature.waterfall",
+                    "saxs.series.temperature.parameters",
+                ),
+            ),
             ("saxs.temperature.waterfall", "RESULTS_WORKBENCH_FIGURE_SELECTED", "selected"),
         ),
     ),
@@ -136,7 +154,12 @@ _PROFILES = {
             "RESULTS_WORKBENCH_SAXS_STRAIN_DIAGNOSTICS",
         ),
         figures=(
-            ("saxs.strain.invariant", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+            (
+                "saxs.strain.evolution.1d",
+                "RESULTS_WORKBENCH_FIGURE_MAIN",
+                "main",
+                ("saxs.series.strain.waterfall",),
+            ),
             ("saxs.strain.phase-evidence", "RESULTS_WORKBENCH_FIGURE_SELECTED", "selected"),
         ),
     ),

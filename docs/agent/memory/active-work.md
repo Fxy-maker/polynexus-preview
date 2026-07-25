@@ -13,6 +13,17 @@
 - Next action: complete the SAXS three-mode vertical slice against real/Golden
   fixtures, including Gallery/Editor/export and fallback/AI-off acceptance.
 
+## SAXS three-mode vertical slice - code checkpoint completed 2026-07-25
+
+- Profile Figure links now use real static/temperature/strain Manifest IDs and
+  fallback candidates; Gallery exposes logical ID selection for this route.
+- Evidence/provider, figure lifecycle, export, gallery, main-window, and real
+  SAXS evaluation regressions are green. Acceptance note:
+  `docs/acceptance/2026-07-25-saxs-full-vertical-slice.md`.
+- Release claim remains blocked on restarted-GUI visual/scientific review and
+  the final cross-module AI-off/failure/fallback matrix.
+- Next action: build the DSC three-mode profile/Workbench vertical slice.
+
 ## PolyNexus full software vertical delivery - active 2026-07-25
 
 - Overall goal: complete the shared platform, customized Results Workbench,

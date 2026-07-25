@@ -174,3 +174,6 @@ title: Current PolyNexus repository state
 - This does not mark any technique vertical slice complete; SAXS still needs
   end-to-end Figure Pack, Gallery/Editor/export, fallback, AI-off, and human
   visual/scientific acceptance.
+- The SAXS code checkpoint is now implemented: real Manifest ID routing,
+  fallback candidate selection, and figure/gallery regression evidence are
+  recorded in `docs/acceptance/2026-07-25-saxs-full-vertical-slice.md`.

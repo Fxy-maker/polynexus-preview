@@ -1258,6 +1258,10 @@ class ChartGallery(QWidget):
     def figure_paths(self):
         return list(self._figure_paths)
 
+    def figure_ids(self):
+        """Return manifest/logical IDs currently available for direct selection."""
+        return [entry.figure_id for entry in self._all_entries]
+
     def select_figure(self, filepath, emit=True):
         lookup = str(filepath or "")
         entry = self._entry_by_figure_id.get(lookup)

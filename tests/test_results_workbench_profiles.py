@@ -33,7 +33,7 @@ def app() -> QApplication:
             "saxs.strain",
             "SAXS / Strain evolution",
             ("Morphology evolution", "Orientation & phase", "Sequence diagnostics"),
-            ("saxs.strain.invariant", "saxs.strain.phase-evidence"),
+            ("saxs.strain.evolution.1d", "saxs.strain.phase-evidence"),
         ),
     ],
 )
@@ -116,10 +116,10 @@ def test_panel_renders_profile_narrative_figure_links_and_empty_state(app: QAppl
         "Sequence diagnostics",
     ]
     assert panel.workbench_state.text() == panel.profile.empty_state
-    link = panel.findChild(type(panel.workbench_review_action), "results_figure_link_saxs_strain_invariant")
+    link = panel.findChild(type(panel.workbench_review_action), "results_figure_link_saxs_strain_evolution_1d")
     assert link is not None
     link.click()
-    assert requested == ["saxs.strain.invariant"]
+    assert requested == ["saxs.strain.evolution.1d"]
 
     panel.set_content(
         heroes=(),

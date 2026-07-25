@@ -52,10 +52,10 @@
 - Test: existing SAXS provider, evidence, result table and figure lifecycle tests
 - Create: `docs/acceptance/2026-07-25-saxs-full-vertical-slice.md`
 
-- [ ] Static: comparison/sample Main, structure support, correlation/IDF support and per-frame diagnostics.
-- [ ] Temperature: evolution Main, transition/Avrami support, condition review and selected evidence.
-- [ ] Strain: evolution Main, morphology/orientation/phase support, full sequence and low-q/excluded diagnostics.
-- [ ] Connect each mode to its Workbench Profile, Manifest, Gallery, Editor, data export and publication export.
+- [x] Static: comparison/sample Main, structure support, correlation/IDF support and per-frame diagnostics.
+- [x] Temperature: evolution Main, transition/Avrami support, condition review and selected evidence.
+- [x] Strain: evolution Main, morphology/orientation/phase support, full sequence and low-q/excluded diagnostics.
+- [x] Connect each mode to its Workbench Profile, Manifest, Gallery, Editor, data export and publication export.
 - [ ] Cover normal, fallback, missing condition, low-confidence, invalid evidence and AI-off paths.
 - [ ] Run real/Golden SAXS fixtures and restarted-GUI visual inspection; checkpoint the complete slice.
 

@@ -73,7 +73,21 @@ class MainWindowOutputMixin:
             jump_to_tab(3)
         gallery = getattr(self, "_chart_gallery", None)
         if gallery is not None and hasattr(gallery, "select_figure"):
-            gallery.select_figure(str(figure_key or ""))
+            requested = str(figure_key or "")
+            target = requested
+            profile = getattr(getattr(self, "_results_panel", None), "profile", None)
+            links = getattr(profile, "figure_links", ())
+            link = next((item for item in links if item.key == requested), None)
+            available_ids = None
+            figure_ids = getattr(gallery, "figure_ids", None)
+            if callable(figure_ids):
+                available_ids = set(figure_ids())
+            if link is not None and available_ids is not None:
+                target = next(
+                    (candidate for candidate in link.candidates if candidate in available_ids),
+                    requested,
+                )
+            gallery.select_figure(target)
 
     def _on_results_profile_action(self, _action_key: str) -> None:
         """Keep profile review actions inside the existing results workflow."""
