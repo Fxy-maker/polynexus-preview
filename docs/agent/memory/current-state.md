@@ -194,3 +194,8 @@ title: Current PolyNexus repository state
   reports. MainWindow-level Gallery/history/export regression remains open;
   evidence is in
   `docs/acceptance/2026-07-25-joint-figure-provider-checkpoint.md`.
+- NMR liquid/solid H/C profiles and shared FigureDefinition/export behavior are
+  covered by a focused 29-test checkpoint; assignment-limited solid-state Xc
+  remains provisional. Real partition visual and full provenance/release
+  acceptance remain open. Evidence is in
+  `docs/acceptance/2026-07-25-nmr-workbench-checkpoint.md`.

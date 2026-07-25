@@ -1,5 +1,16 @@
 # Active Work
 
+## NMR Workbench/Figure checkpoint - verified 2026-07-25
+
+- Liquid H/C and solid H/C profiles are customized; the shared NMR provider
+  covers spectrum, deconvolution, comparison, region-integral, and
+  assignment-gated crystallinity definitions. `NMREngine.plot()` preserves
+  parameters/peaks CSV exports after the unified publisher migration.
+- Focused NMR engine/provider/document/preprocessing/profile matrix: 29 passed.
+  Acceptance note: `docs/acceptance/2026-07-25-nmr-workbench-checkpoint.md`.
+- Remaining: real four-partition visual review, Gallery/Editor/export bundle,
+  provenance/history, AI-off/failure/fallback, and release acceptance.
+
 ## Joint Figure provider checkpoint - code completed 2026-07-25
 
 - Added `polynexus/core/joint/figure_provider.py` over the existing

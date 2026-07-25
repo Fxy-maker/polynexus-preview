@@ -118,6 +118,13 @@ IR acceptance chain remain open; see
 - [ ] SNR, overlap, broad-line, solvent and weak-assignment diagnostics.
 - [ ] Ensure unsupported Xc/phase claims remain provisional or diagnostic.
 
+Current checkpoint (2026-07-25): the four NMR partitions have customized
+Workbench profiles and a shared FigureDefinition/export contract, including
+assignment-gated solid-state crystallinity and restored CSV compatibility.
+Real-data visual, Gallery/Editor, provenance, fallback, and release acceptance
+remain open; see
+`docs/acceptance/2026-07-25-nmr-workbench-checkpoint.md`.
+
 ### Phase 7: Joint cross-technique vertical slice
 
 **Files:**
