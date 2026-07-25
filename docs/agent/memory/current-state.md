@@ -180,3 +180,6 @@ title: Current PolyNexus repository state
 - DSC standard/isothermal/non-isothermal now have mode-specific Workbench tabs
   and publication-provider Manifest ID contracts; evidence is recorded in
   `docs/acceptance/2026-07-25-dsc-workbench-checkpoint.md`.
+- WAXS static/temperature/strain now have mode-specific Workbench tabs and
+  provider Manifest ID contracts, including 2D strain routing; evidence is in
+  `docs/acceptance/2026-07-25-waxs-workbench-checkpoint.md`.

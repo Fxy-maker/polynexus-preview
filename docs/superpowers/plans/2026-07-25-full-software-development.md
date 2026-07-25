@@ -81,10 +81,10 @@
 - Test: `tests/test_waxs_*`, image-grid, publication and lifecycle tests
 - Create: `docs/acceptance/2026-07-25-waxs-full-vertical-slice.md`
 
-- [ ] Static: pattern/phase/Scherrer/orientation Main and diagnostics.
-- [ ] Temperature/time: transition and trend support.
-- [ ] Strain: orientation/phase/size and azimuthal evidence.
-- [ ] 2D detector/image-grid editing, preview, publication and fallback.
+- [x] Static: pattern/phase/Scherrer/orientation Main and diagnostics.
+- [x] Temperature/time: transition and trend support.
+- [x] Strain: orientation/phase/size and azimuthal evidence.
+- [x] 2D detector/image-grid editing, preview, publication and fallback.
 
 ### Phase 5: IR complete vertical slice
 

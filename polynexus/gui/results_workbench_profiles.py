@@ -196,6 +196,18 @@ _TECHNIQUE_FIGURES = {
         ("dsc.nonisothermal.conversion", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
         ("dsc.nonisothermal.kissinger", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
     ),
+    "waxs.static": (
+        ("waxs.static.profile", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("waxs.static.fit.si", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "waxs.temperature": (
+        ("waxs.temperature.evolution", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("waxs.temperature.full-series.si", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
+    "waxs.strain": (
+        ("waxs.strain.evolution", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
+        ("waxs.strain.full-series.si", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
+    ),
 }
 
 _TECHNIQUE_TABS = {
@@ -213,6 +225,21 @@ _TECHNIQUE_TABS = {
         "RESULTS_WORKBENCH_DSC_NONISOTHERMAL_PRIMARY",
         "RESULTS_WORKBENCH_DSC_NONISOTHERMAL_SUPPORT",
         "RESULTS_WORKBENCH_DSC_NONISOTHERMAL_DIAGNOSTICS",
+    ),
+    "waxs.static": (
+        "RESULTS_WORKBENCH_WAXS_STATIC_PRIMARY",
+        "RESULTS_WORKBENCH_WAXS_STATIC_SUPPORT",
+        "RESULTS_WORKBENCH_WAXS_STATIC_DIAGNOSTICS",
+    ),
+    "waxs.temperature": (
+        "RESULTS_WORKBENCH_WAXS_TEMPERATURE_PRIMARY",
+        "RESULTS_WORKBENCH_WAXS_TEMPERATURE_SUPPORT",
+        "RESULTS_WORKBENCH_WAXS_TEMPERATURE_DIAGNOSTICS",
+    ),
+    "waxs.strain": (
+        "RESULTS_WORKBENCH_WAXS_STRAIN_PRIMARY",
+        "RESULTS_WORKBENCH_WAXS_STRAIN_SUPPORT",
+        "RESULTS_WORKBENCH_WAXS_STRAIN_DIAGNOSTICS",
     ),
 }
 

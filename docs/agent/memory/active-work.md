@@ -34,6 +34,15 @@
 - Release visual/scientific review and cross-module AI-off/failure/fallback
   audit remain pending. Next action: WAXS profile and figure-contract slice.
 
+## WAXS three-mode Workbench checkpoint - code completed 2026-07-25
+
+- WAXS static/temperature/strain profiles now use mode-specific tabs and real
+  provider Manifest IDs, including the 2D strain figure route.
+- Evidence: `docs/acceptance/2026-07-25-waxs-workbench-checkpoint.md`;
+  focused WAXS provider/evaluation matrix 33 passed.
+- Next action: IR standard/temperature-2D/mapping profile and figure-contract
+  slice; release visual/scientific and AI failure gates remain pending.
+
 ## PolyNexus full software vertical delivery - active 2026-07-25
 
 - Overall goal: complete the shared platform, customized Results Workbench,
