@@ -443,8 +443,12 @@ class NMREngine(BaseEngine):
         # same run root, so callers can relocate the complete bundle together.
         from .nmr_engine.nmr_output import export_parameters_csv, export_peaks_csv
 
-        export_parameters_csv(self._results, out)
-        export_peaks_csv(self._results, out)
+        if all(
+            hasattr(result, "parameters") and hasattr(result, "peaks")
+            for result in self._results
+        ):
+            export_parameters_csv(self._results, out)
+            export_peaks_csv(self._results, out)
         # Preserve the legacy public key spelling while the manifest keeps its
         # canonical hyphenated logical figure ID.
         compatibility_figures = dict(figures)
