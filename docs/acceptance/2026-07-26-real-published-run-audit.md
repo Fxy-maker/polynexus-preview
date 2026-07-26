@@ -11,6 +11,7 @@ publication boundary; it is not a scientific sign-off.
 | DSC standard | repository PA6 standard DSC text | pipeline completed; Manifest published; two validation warnings | `C:\Temp\PolyNexus_release_walkthrough_20260726\dsc_standard_real` |
 | DSC isothermal | repository PA6 isothermal DSC text | pipeline completed; Avrami/series Manifest published; validation warnings retained; shared walkthrough passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\dsc_isothermal_real` |
 | DSC non-isothermal | repository non-isothermal DSC XLS | pipeline completed; conversion is SI and kinetics are diagnostic because only one valid conversion curve was available; shared walkthrough passed using the SI entry | `C:\Temp\PolyNexus_release_walkthrough_20260726\dsc_nonisothermal_real` |
+| SAXS static | one repository PAD8 EDF frame used as a real static input | pipeline completed; validation passed; shared Gallery/Editor/export/History walkthrough passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\saxs_static_real` |
 | WAXS static | repository PA6 `.raw` | pipeline completed; Manifest published; validation passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\waxs_static_real` |
 | WAXS temperature | repository PA6 EDF directory | pipeline completed; Manifest published; validation passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\waxs_temperature_real` |
 | IR standard | repository PA6 `YL.SPA` | pipeline completed; Manifest published; validation passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\ir_standard_real` |

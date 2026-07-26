@@ -39,6 +39,9 @@
   shared walkthrough manually. The non-isothermal fixture correctly retains
   its conversion as SI (only one valid curve) and keeps kinetics in diagnostic
   roles; it is not promoted to Main.
+- A real PAD8 SAXS EDF frame also completed the static engine and the same
+  shared walkthrough; the run published six figures and restored six Gallery
+  entries with the static Main figure selected.
 - Two-frame real smoke runs for WAXS strain/2D and IR temperature-2D also
   completed the same shared walkthrough; full directories remain bounded
   timeout/scientific-review items. Acceptance details are in
