@@ -6,6 +6,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractButton,
+    QAbstractSpinBox,
     QAbstractItemView,
     QCheckBox,
     QColorDialog,
@@ -1002,6 +1004,22 @@ class ChartEditor(
         self._btn_export_preset_run.clicked.connect(self._export_with_preset)
         form.addRow(self._btn_export_preset_run)
         self._build_origin_export_control(form)
+
+        # Nested form rows otherwise keep the size hints of long labels and
+        # action buttons, which defeats the responsive QScrollArea shell.
+        # Allow the controls and their row containers to shrink so the form
+        # can wrap without ever requiring a horizontal scrollbar.
+        responsive_controls = (QAbstractButton, QAbstractSpinBox, QComboBox, QLineEdit, QSlider)
+        for page in self._inspector_scroll_pages:
+            panel = page.widget()
+            panel.setMinimumWidth(0)
+            panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+            for widget in panel.findChildren(QWidget):
+                if widget.layout() is None and not isinstance(widget, responsive_controls):
+                    continue
+                policy = widget.sizePolicy()
+                widget.setMinimumWidth(0)
+                widget.setSizePolicy(QSizePolicy.Ignored, policy.verticalPolicy())
 
         self._form = object_form
         self._btn_bg = btn_bg

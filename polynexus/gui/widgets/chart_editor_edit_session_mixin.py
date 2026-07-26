@@ -14,20 +14,6 @@ from .chart_editor_interaction_controller import EditorTool
 class ChartEditorEditSessionMixin:
     """Route widget proposals through the shared, undoable edit session."""
 
-    def _sync_annotation_property_controls(self, annotation_id=""):
-        """Keep static annotation selection feedback on the shared status label."""
-        self._clear_editor_cancel_status()
-        super()._sync_annotation_property_controls(annotation_id)
-        if not getattr(self, "_static_file_mode", False):
-            return
-        canvas = getattr(self, "_annotation_canvas", None)
-        annotation = canvas.selected_annotation() if canvas is not None else None
-        if isinstance(annotation, dict):
-            label = self._object_list_label(annotation)
-            self._set_editor_selection_hint(annotation.get("type", ""), label)
-        else:
-            self._clear_generated_selection_status()
-
     def set_tool(self, tool):
         tool = str(tool or "select").strip().lower()
         self._clear_editor_cancel_status()

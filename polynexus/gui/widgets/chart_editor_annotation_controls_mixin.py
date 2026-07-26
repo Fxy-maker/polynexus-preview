@@ -397,6 +397,7 @@ class ChartEditorAnnotationControlsMixin:
         self._sync_editor_toolbar()
 
     def _sync_annotation_property_controls(self, _annotation_id=""):
+        self._clear_editor_cancel_status()
         if self._annotation_canvas is None:
             return
         self._refresh_object_list(_annotation_id)
@@ -404,6 +405,7 @@ class ChartEditorAnnotationControlsMixin:
         if not annotation:
             self._clear_annotation_property_controls()
             self._sync_context_style_bar()
+            self._sync_static_annotation_selection_status()
             return
         self._reveal_inspector_for_selection()
         session = self._edit_session_for_adapter()
@@ -492,6 +494,19 @@ class ChartEditorAnnotationControlsMixin:
         self._annotation_marker_combo.blockSignals(False)
         self._set_control_value_silently(self._annotation_marker_size_spin, 6.0)
         self._sync_context_style_bar()
+        self._sync_static_annotation_selection_status()
+
+    def _sync_static_annotation_selection_status(self):
+        """Keep static annotation selection feedback on the shared status label."""
+        if not getattr(self, "_static_file_mode", False):
+            return
+        canvas = getattr(self, "_annotation_canvas", None)
+        annotation = canvas.selected_annotation() if canvas is not None else None
+        if isinstance(annotation, dict):
+            label = self._object_list_label(annotation)
+            self._set_editor_selection_hint(annotation.get("type", ""), label)
+        else:
+            self._clear_generated_selection_status()
 
     def _on_annotation_canvas_changed(self):
         if self._annotation_canvas is None:

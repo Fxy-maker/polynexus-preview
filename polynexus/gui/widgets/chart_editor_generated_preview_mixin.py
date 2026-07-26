@@ -411,6 +411,21 @@ class ChartEditorGeneratedPreviewMixin:
         if object_type != "text":
             self._update_generated_drag_handle_artists(object_id, geometry, object_type)
             self._update_generated_selection_frame(object_id, geometry, object_type)
+        else:
+            canvas = getattr(self, "_canvas", None)
+            axis = self._generated_preview_axis()
+            if canvas is not None and axis is not None:
+                try:
+                    canvas.draw()
+                    renderer = canvas.get_renderer()
+                except (AttributeError, RuntimeError):
+                    renderer = None
+                if renderer is not None:
+                    self._figure_render_adapter.synchronize_text_selection_overlays(
+                        axis,
+                        object_id,
+                        renderer=renderer,
+                    )
         self._sync_generated_drag_preview_controls(
             geometry, object_type, style_updates=style_updates
         )

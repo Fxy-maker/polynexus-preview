@@ -201,7 +201,19 @@ class FigureRenderAdapter:
                     handle_points.append((control_x, control_y))
                     handle_indices.append(2)
         elif object_type == "text":
-            bbox = self.rendered_text_selection_bbox(object_id)
+            padding_px = TEXT_SELECTION_PADDING_PX if is_axes_text_box(figure_object) else 0.0
+            bbox = self.rendered_text_selection_bbox(object_id, padding_px=padding_px)
+            if bbox is not None:
+                bbox = self._text_overlay_bbox(ax, figure_object, bbox)
+            else:
+                box = Box.from_payload(figure_object)
+                if box is not None and box.width > 0 and box.height > 0:
+                    bbox = SimpleNamespace(
+                        x0=box.x,
+                        y0=box.y,
+                        x1=box.x + box.width,
+                        y1=box.y + box.height,
+                    )
             if bbox is not None:
                 handle_points.extend(
                     [
@@ -279,8 +291,10 @@ class FigureRenderAdapter:
             linewidths=2.0,
             zorder=10_000,
             transform=(
-                IdentityTransform()
-                if object_type in {"text", "legend"}
+                self._text_overlay_transform(ax, figure_object)
+                if object_type == "text"
+                else IdentityTransform()
+                if object_type == "legend"
                 else (ax.transAxes if is_axes_text_box(figure_object) else ax.transData)
             ),
             clip_on=False if object_type in {"text", "legend"} else True,
@@ -340,6 +354,42 @@ class FigureRenderAdapter:
                 overlay_artists.append(current_handle)
         return overlay_artists
 
+    def synchronize_text_selection_overlays(self, ax, object_id, renderer=None):
+        """Refresh an existing text frame and handles after a live preview edit."""
+
+        if ax is None:
+            return False
+        object_id = str(object_id or "")
+        frame = next(
+            (
+                artist
+                for artist in ax.patches
+                if artist.get_gid() == f"pn-selection-frame:{object_id}"
+            ),
+            None,
+        )
+        handles = next(
+            (
+                artist
+                for artist in ax.collections
+                if artist.get_gid() == f"pn-selection-handles:{object_id}"
+            ),
+            None,
+        )
+        if frame is None or handles is None:
+            return False
+        if renderer is None:
+            renderer = self._renderer_for_artist(handles)
+        if renderer is None:
+            return False
+        self._synchronize_text_selection_overlays(
+            object_id,
+            frame,
+            handles,
+            renderer,
+        )
+        return True
+
     def _synchronize_legend_selection_overlays(self, ax, frame, handles, renderer):
         bbox = self.rendered_legend_selection_bbox(ax, renderer=renderer)
         if bbox is None:
@@ -398,9 +448,23 @@ class FigureRenderAdapter:
             )
             ax.add_line(frame)
         elif object_type == "text":
-            bbox = self.rendered_text_selection_bbox(object_id)
-            if bbox is None:
-                return []
+            padding_px = TEXT_SELECTION_PADDING_PX if is_axes_text_box(figure_object) else 0.0
+            bbox = self.rendered_text_selection_bbox(object_id, padding_px=padding_px)
+            transform = self._text_overlay_transform(ax, figure_object)
+            if bbox is not None:
+                bbox = self._text_overlay_bbox(ax, figure_object, bbox)
+            else:
+                box = Box.from_payload(figure_object)
+                if box is None or box.width <= 0 or box.height <= 0:
+                    return []
+                bbox = SimpleNamespace(
+                    x0=box.x,
+                    y0=box.y,
+                    x1=box.x + box.width,
+                    y1=box.y + box.height,
+                    width=box.width,
+                    height=box.height,
+                )
             frame = Rectangle(
                 (float(bbox.x0), float(bbox.y0)),
                 float(bbox.width),
@@ -410,9 +474,11 @@ class FigureRenderAdapter:
                 linestyle=frame_kwargs["linestyle"],
                 linewidth=frame_kwargs["linewidth"],
                 zorder=frame_kwargs["zorder"],
-                transform=IdentityTransform(),
+                transform=transform,
                 clip_on=False,
             )
+            setattr(frame, "_pn_text_overlay_transform", transform)
+            setattr(frame, "_pn_text_overlay_padding_px", padding_px)
             ax.add_patch(frame)
         elif object_type == "legend":
             bbox = self.legend_selection_bbox(ax, figure_object)
@@ -464,6 +530,27 @@ class FigureRenderAdapter:
 
         frame.set_gid(f"pn-selection-frame:{object_id}")
         return [frame]
+
+    def _text_overlay_transform(self, ax, figure_object):
+        """Return the coordinate system used by a text selection overlay."""
+
+        if is_axes_text_box(figure_object):
+            return IdentityTransform()
+        for artist in self.artists_for_object_id(figure_object.get("id", "")):
+            if isinstance(artist, Text):
+                transform = artist.get_transform()
+                if transform is not None:
+                    return transform
+        return ax.transData
+
+    def _text_overlay_bbox(self, ax, figure_object, bbox):
+        """Convert a rendered display bbox to the overlay coordinate system."""
+
+        transform = self._text_overlay_transform(ax, figure_object)
+        try:
+            return transform.inverted().transform_bbox(bbox)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return bbox
 
     def _artist_selection_frame(self, ax, object_id: str, figure_object: dict, frame_kwargs: dict):
         for artist in self.artists_for_object_id(object_id):
@@ -543,9 +630,24 @@ class FigureRenderAdapter:
             return None
 
     def _synchronize_text_selection_overlays(self, object_id, frame, handles, renderer):
-        bbox = self.rendered_text_selection_bbox(object_id, renderer=renderer)
+        padding_px = getattr(
+            frame,
+            "_pn_text_overlay_padding_px",
+            TEXT_SELECTION_PADDING_PX,
+        )
+        bbox = self.rendered_text_selection_bbox(
+            object_id,
+            padding_px=padding_px,
+            renderer=renderer,
+        )
         if bbox is None:
             return
+        transform = getattr(frame, "_pn_text_overlay_transform", None)
+        if transform is not None:
+            try:
+                bbox = transform.inverted().transform_bbox(bbox)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
         frame.set_bounds(
             float(bbox.x0),
             float(bbox.y0),

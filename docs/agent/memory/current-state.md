@@ -182,6 +182,28 @@ title: Current PolyNexus repository state
 
 ## Latest full-software checkpoint
 
+### Runtime/editor regression checkpoint (2026-07-26)
+
+- The first Qt runtime shard exposed two ChartEditor regressions: mixin MRO
+  ownership of `_sync_annotation_property_controls` and nested inspector
+  controls retaining wide size hints. The fixes restore annotation-controls
+  ownership and make nested responsive controls shrink without horizontal
+  scrolling.
+- `FigureRenderAdapter` now preserves legacy text persisted-geometry/data-space
+  fallback while retaining display-space rendered extents for explicit axes
+  text. Live text preview moves synchronize the existing frame and handles
+  immediately. GUI-created `PolyNexusLogger` state is restored between tests so
+  fallback warnings remain observable to `caplog`.
+- Focused runtime evidence is recorded in
+  `docs/agent/tasks/2026-07-26-full-suite-runtime-investigation.md`.
+- The task-scoped verifier passed with quality gate 282 and preprocessing gate
+  103. The full verifier passed: 2587 tests, 8 warnings, 1042.86 seconds, and
+  the boundary audit passed. The 8 warnings are the existing tight-layout and
+  Arial glyph warnings listed in the verifier output.
+- Automated release gates are green, but restarted canonical GUI visual
+  review, publication-role review, IR vendor mapping/ROI semantics, and
+  assignment-limited NMR/Joint scientific sign-off remain human gates.
+
 - The requirement-by-requirement baseline ledger is recorded in
   `docs/acceptance/2026-07-25-full-software-baseline.md`. Core matrices pass
   with external basetemps (SAXS 210, DSC 64, WAXS 46, IR 30, NMR 24, Joint

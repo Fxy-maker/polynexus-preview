@@ -1,5 +1,6 @@
 """Test bootstrap helpers for PySide6 import stability."""
 
+import logging
 from dataclasses import replace
 
 # Preload the scientific stack before any test imports PySide6.
@@ -14,6 +15,7 @@ import pandas  # noqa: F401
 import pytest
 import six.moves._thread  # noqa: F401
 
+
 from polynexus.core.figures.contracts import (
     AxisDefinition,
     DataColumnDefinition,
@@ -22,6 +24,16 @@ from polynexus.core.figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
+
+
+@pytest.fixture(autouse=True)
+def restore_polynexus_logger_propagation():
+    """Prevent GUI logger setup from leaking into caplog-based tests."""
+
+    logger = logging.getLogger("polynexus")
+    previous_propagate = logger.propagate
+    yield
+    logger.propagate = previous_propagate
 
 
 @pytest.fixture

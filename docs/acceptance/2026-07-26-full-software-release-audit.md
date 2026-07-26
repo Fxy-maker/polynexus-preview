@@ -2,11 +2,13 @@
 
 ## Current result
 
-The automated shared platform and technique slices are substantially closed:
-Results Workbench profiles, FigureDefinition/Manifest/Gallery/Editor/export
-contracts, History restore, SAXS/DSC/WAXS/IR/NMR/Joint lifecycle regressions,
-AI-off/failure/fallback safety matrices, and MainWindow persistence are covered
-by focused evidence. This is not yet a release approval.
+The automated shared platform and technique slices are closed through the
+repository's release verifier: Results Workbench profiles,
+FigureDefinition/Manifest/Gallery/Editor/export contracts, History restore,
+SAXS/DSC/WAXS/IR/NMR/Joint lifecycle regressions, AI-off/failure/fallback
+safety matrices, and MainWindow persistence are covered by focused and full
+evidence. This is not yet a release approval because visual and human
+scientific gates remain open.
 
 ## Fresh evidence
 
@@ -25,10 +27,18 @@ python -m pytest --basetemp=C:\Temp\PolyNexus_joint_lifecycle_checkpoint tests/t
 
 python -m pytest --basetemp=C:\Temp\PolyNexus_nmr_plot_cutover tests/test_engine_figure_production_cutover.py -q
 5 passed in 1.77s
+
+python scripts/verify.py --task docs/agent/tasks/2026-07-26-full-suite-runtime-investigation.md --changed --types
+quality gate: 282 passed; preprocessing gate: 103 passed
+
+python scripts/verify.py --task docs/agent/tasks/2026-07-26-full-suite-runtime-investigation.md --changed --types --full --boundary
+all-tests: 2587 passed, 8 warnings in 1042.86s (0:17:22)
+boundary audit: passed; verify exit code 0
 ```
 
-The full/boundary verifier ran for 15 minutes and exited 124 without a final
-summary. It must not be represented as passing.
+The earlier 15-minute run was incomplete because the single-process suite
+needs about 17 minutes, dominated by real NMR lifecycle tests; the complete
+run above passed with a 30-minute allowance.
 
 ## Open release gates
 
@@ -37,4 +47,4 @@ summary. It must not be represented as passing.
 - Restarted canonical GUI visual walkthrough and publication-role review.
 - Human scientific confirmation of IR mapping/ROI vendor semantics and
   assignment-limited NMR/Joint conclusions.
-- Full-suite runtime investigation and final boundary/release decision.
+- Final release decision after the visual and scientific gates above.

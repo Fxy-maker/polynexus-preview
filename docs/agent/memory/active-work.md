@@ -8,9 +8,24 @@
 - Fresh lifecycle evidence includes MainWindow persistence 197, ChartEditor +
   DSC 251, Joint closure 1, and NMR cutover 5. The broader matrices are
   recorded in their task/acceptance notes.
-- The full/boundary verifier was allowed 15 minutes and exited 124 without a
-  final summary. Treat it as incomplete, not as a pass. Real published-run,
-  restarted-GUI visual, human scientific, and final release gates remain open.
+- The full/boundary verifier now passes with a 30-minute allowance:
+  `2587 passed, 8 warnings in 1042.86s`; the boundary audit also passes. The
+  earlier 15-minute exit was an insufficient runtime budget, not a test hang.
+  Real published-run, restarted-GUI visual, human scientific, and final
+  release gates remain open.
+
+## Runtime/editor regression checkpoint - automated complete 2026-07-26
+
+- Fixed ChartEditor annotation mixin MRO ownership and compact inspector
+  nested size hints; restored legacy text selection geometry fallback while
+  retaining explicit axes display-space overlays; synchronized live text
+  preview selection frame/handles immediately; and isolated GUI logger
+  propagation in `tests/conftest.py` so fallback warnings remain caplog-visible.
+- Focused changed-file tests, task verifier, full `pytest -q` (2587), and the
+  boundary audit all pass. Task card:
+  `docs/agent/tasks/2026-07-26-full-suite-runtime-investigation.md`.
+- No verifier implementation change was needed. The remaining blocker is
+  product/scientific acceptance, not automated test execution.
 
 ## Qt lifecycle stability - focused boundary verified 2026-07-26
 
