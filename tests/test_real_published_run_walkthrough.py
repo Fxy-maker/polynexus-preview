@@ -40,6 +40,15 @@ def _real_cases() -> tuple[tuple[str, str, Path], ...]:
     repository_root = Path(__file__).resolve().parents[1]
     data_root = repository_root / "\u6d4b\u8bd5\u6570\u636e"
     dsc_source = next((data_root / "dsc").rglob("FXY-PA6.txt"))
+    dsc_isothermal_source = next(
+        (data_root / "dsc").rglob("PA6-DWJJ.txt")
+    )
+    dsc_nonisothermal_source = next(
+        (data_root / "dsc").rglob("FDW-SLM-80%-30-10.xls")
+    )
+    saxs_static_source = next(
+        (data_root / "saxs").rglob("8-000-s_0_00000_with_mask.edf")
+    )
     waxs_static_source = next((data_root / "waxs").rglob("PA6.raw"))
     waxs_temperature_source = next(
         path.parent
@@ -49,6 +58,9 @@ def _real_cases() -> tuple[tuple[str, str, Path], ...]:
     nmr_root = data_root / "NMR"
     return (
         ("dsc", "dsc.standard", dsc_source),
+        ("dsc", "dsc.isothermal", dsc_isothermal_source),
+        ("dsc", "dsc.nonisothermal", dsc_nonisothermal_source),
+        ("saxs", "saxs.static", saxs_static_source),
         ("waxs", "waxs.static", waxs_static_source),
         ("waxs", "waxs.temperature", waxs_temperature_source),
         ("ir", "ir.standard", ir_standard_source),
@@ -94,7 +106,11 @@ def _full_2d_real_cases() -> tuple[tuple[str, str, Path], ...]:
     )
 
 
-@pytest.mark.parametrize("technique,mode,source", _real_cases())
+@pytest.mark.parametrize(
+    "technique,mode,source",
+    _real_cases(),
+    ids=[case[1] for case in _real_cases()],
+)
 def test_real_published_run_preserves_shared_lifecycle(
     tmp_path: Path,
     technique: str,
@@ -120,7 +136,26 @@ def test_real_published_run_preserves_shared_lifecycle(
     entries = build_active_manifest_gallery_entries(output_root)
     assert entries
     assert {entry.run_id for entry in entries} == {run_id}
-    selected = next(entry for entry in entries if entry.publication_role == "main")
+    # A real fixture may be valid software input while its scientific result
+    # is intentionally SI/diagnostic-only (for example, one valid
+    # non-isothermal conversion curve).  Exercise the lifecycle on Main when
+    # available, otherwise use the first ready SI entry without promoting it.
+    selected = next(
+        (
+            entry
+            for entry in entries
+            if entry.publication_role == "main"
+        ),
+        next(
+            (
+                entry
+                for entry in entries
+                if entry.publication_role == "si"
+            ),
+            None,
+        ),
+    )
+    assert selected is not None
 
     document = load_figure_document(selected.document_path)
     project = FigureProjectService(output_root)
@@ -187,7 +222,11 @@ def test_real_published_run_preserves_shared_lifecycle(
     assert window._current_submodule_id == mode
 
 
-@pytest.mark.parametrize("technique,mode,source", _full_2d_real_cases())
+@pytest.mark.parametrize(
+    "technique,mode,source",
+    _full_2d_real_cases(),
+    ids=[case[1] for case in _full_2d_real_cases()],
+)
 def test_full_2d_real_published_run_preserves_shared_lifecycle(
     tmp_path: Path,
     technique: str,

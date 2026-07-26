@@ -10,9 +10,15 @@
 - Focused provider/document/renderer matrix: `23 passed`; focused IR
   provider/temperature/lifecycle matrix: `20 passed`.
 - The complete real 2D shared-lifecycle walkthrough passed `2` cases in
-  `101.39s`; the final combined real published-run matrix passed `10` cases
-  in `244.46s`. Evidence and external output roots are recorded in
-  `docs/acceptance/2026-07-26-real-published-run-audit.md`.
+  `101.39s`; the expanded real published-run matrix passed `13` cases in
+  `287.09s`, including DSC isothermal/non-isothermal and SAXS static. The
+  non-isothermal fixture uses its existing SI conversion entry and keeps
+  kinetics diagnostic-only. Evidence and external output roots are recorded
+  in `docs/acceptance/2026-07-26-real-published-run-audit.md`.
+- Review follow-up now keeps generic IR frame figures when an incomplete
+  temperature-2D payload produces no valid series definitions, and adds
+  regression coverage for fallback availability, raw WAXS array preservation,
+  and correlation snapshot value preservation.
 - Remaining gates are restarted canonical-GUI visual review, publication-role
   review, IR mapping/ROI vendor semantics, and scientific sign-off; the
   performance fix does not promote diagnostic or warning results to Main.
@@ -265,11 +271,12 @@
 - Evidence: `docs/acceptance/2026-07-25-ir-temperature-2d-workbench-checkpoint.md`;
   focused provider/lifecycle/profile matrix 7 passed; changed/type verifier,
   quality gate 282, and preprocessing gate 103 passed.
-- Remaining: IR mapping/ROI provider and complete standard/temperature/mapping
-  Figure Pack, Gallery/Editor/export, fallback, real/Golden, and visual
-  acceptance. Next action: add the IR mapping/ROI FigureDefinition boundary.
+- IR mapping/ROI provider and the complete standard/temperature/mapping Figure
+  Pack are now covered by the shared contract; vendor input semantics,
+  real/Golden data, fallback/AI, and restarted-GUI visual acceptance remain
+  release gates.
 
-## IR mapping/ROI contract checkpoint - in progress 2026-07-25
+## IR mapping/ROI contract checkpoint - completed 2026-07-25
 
 - Added `IRMappingResult`/`IRMappingROISpectrum` with explicit map geometry,
   invalid-pixel mask, ROI spectra, metric label, and provenance source id.
@@ -278,11 +285,11 @@
   `ir.mapping.invalid-pixels` through the shared FigurePipeline.
 - Mapping Workbench now links all three logical IDs. Masked NaN heatmap cells
   remain visible as masked cells instead of being imputed.
-- Focused implementation tests are green; structured verifier and checkpoint
-  commit remain pending. Vendor reader, real fixture, fallback/AI gates, and
+- Focused implementation tests are green; task verifier passed and checkpoint
+  `863ec3a` was created. Vendor reader, real fixture, fallback/AI gates, and
   restarted-GUI acceptance are intentionally open.
 
-## IR three-mode vertical slice - code checkpoint in progress 2026-07-25
+## IR three-mode vertical slice - code checkpoint completed 2026-07-25
 
 - Standard IR now assigns an explicit Main role to the first spectrum and the
   crystallinity overview, SI to subsequent spectra and peak fits, and
@@ -291,11 +298,11 @@
   tested; mapping provenance and invalid-pixel evidence remain unchanged.
 - The shared FigurePipeline sibling-failure behavior is covered: one
   `generation_failed` entry does not hide ready siblings.
-- Focused matrix is `26 passed`; task-scoped verifier and auto-commit are
-  pending. Real reader/fixture, AI/fallback, export-bundle, and restarted-GUI
-  acceptance remain open.
+- Focused matrix is `26 passed`; task-scoped verifier and allowlist checkpoint
+  `349bbae` passed. Real reader/fixture, AI/fallback, export-bundle, and
+  restarted-GUI acceptance remain open.
 
-## NMR/Joint published-run provenance matrix - in progress 2026-07-25
+## NMR/Joint published-run provenance matrix - code checkpoint completed 2026-07-25
 
 - NMR spectrum/deconvolution publication roles are now explicit (`main` and
   `diagnostic`) instead of inheriting `si`.
@@ -305,7 +312,7 @@
 - Real-data/restarted-GUI review, export bundle inspection, AI-off/failure/
   fallback scientific acceptance, and final release review remain open.
 
-## Preprocessing fallback safety matrix - code checkpoint in progress 2026-07-25
+## Preprocessing fallback safety matrix - code checkpoint completed 2026-07-25
 
 - `PreprocessEvidence` now records normalized fallback state/reason and the
   shared decision guard fails closed for fallback-active candidates across DSC,
@@ -313,8 +320,8 @@
 - The cross-technique matrix covers AI-off shadow defaults, failed runs, and
   fallback-derived evidence; Joint is explicitly preprocessing N/A.
 - Focused matrix is `42 passed`; task-scoped verifier passed with quality 282
-  and preprocessing 103. Checkpoint commit and final changed/type verification
-  remain pending; real/Golden and GUI/scientific review remain open.
+  and preprocessing 103; checkpoint `6bafcaa` is present. Real/Golden and
+  GUI/scientific review remain release gates.
 
 ## Results Workbench profile platform - Phase 1 completed 2026-07-25
 

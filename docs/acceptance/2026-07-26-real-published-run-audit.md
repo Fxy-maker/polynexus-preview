@@ -36,9 +36,14 @@ publication boundary; it is not a scientific sign-off.
   measured about 3.7 seconds for analysis and 40.3 seconds for publication.
 - The full 2D shared-lifecycle test passed `2` cases in `101.39s`:
   `python -m pytest --basetemp=C:\Temp\PolyNexus_full_2d_walkthrough tests/test_real_published_run_walkthrough.py -k full_2d -q`.
-- The final complete real published-run matrix passed `10` cases in `244.46s`:
+- The complete real published-run matrix now passes `13` cases in `287.09s`:
   `python -m pytest tests/test_real_published_run_walkthrough.py -q`, with
-  pytest basetemp redirected to `C:\Temp\PolyNexus_real_walkthrough_final_20260726`.
+  pytest basetemp redirected to
+  `C:\Temp\PolyNexus_real_walkthrough_13_final`.
+- The expanded matrix adds automated SAXS static and DSC
+  isothermal/non-isothermal coverage. The non-isothermal run selects its
+  existing SI conversion figure for lifecycle exercise because the fixture
+  has only one valid conversion curve; kinetics remain diagnostic-only.
 
 ## Runs not accepted as scientific sign-off
 

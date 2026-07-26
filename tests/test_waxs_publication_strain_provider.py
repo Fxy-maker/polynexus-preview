@@ -70,8 +70,10 @@ def test_valid_2d_patterns_add_editable_grid() -> None:
 
 def test_2d_pattern_snapshot_is_bounded_for_publication() -> None:
     engine = _strain_engine(with_images=True)
+    original_images = []
     for scan in engine._dataset.scans:
         scan.image = np.arange(513 * 517, dtype=float).reshape(513, 517)
+        original_images.append(scan.image.copy())
 
     main = _definition(build_strain_waxs_figure_definitions(engine), "waxs.strain.evolution")
     source = next(item for item in main.data_sources if item.source_id == "waxs-strain-image-grid")
@@ -87,6 +89,8 @@ def test_2d_pattern_snapshot_is_bounded_for_publication() -> None:
         ]
         assert sum(mask) <= 256 * 256
     assert len(source.values["pixel_x"]) == len(source.values["intensity"])
+    for scan, original in zip(engine._dataset.scans, original_images):
+        np.testing.assert_array_equal(scan.image, original)
 
 
 def test_invalid_orientation_is_not_main_response() -> None:

@@ -33,11 +33,18 @@ def build_ir_figure_definitions(
     """Build the complete set of available semantic IR figures."""
 
     definitions: list[FigureDefinition] = []
+    temperature_definitions = (
+        build_ir_temperature_2d_figure_definitions(temperature_2d_result)
+        if temperature_2d_result is not None
+        else ()
+    )
     # Temperature-2D already exposes the sequence through one heatmap, band
     # series, and correlation figures.  Re-publishing every frame's generic
     # spectrum and peak-fit documents creates a large duplicate gallery and
-    # makes a full sequence publication unnecessarily expensive.
-    frame_results = () if temperature_2d_result is not None else tuple(results)
+    # makes a full sequence publication unnecessarily expensive.  If the
+    # temperature payload is incomplete, keep the generic frame figures as a
+    # safe publication fallback instead of publishing an empty set.
+    frame_results = () if temperature_definitions else tuple(results)
     spectrum_by_index = {
         int(item.recipe["parameters"]["frame_index"]): item
         for item in build_ir_spectrum_definitions(frame_results)
@@ -64,8 +71,7 @@ def build_ir_figure_definitions(
     crystallinity = _build_crystallinity_definition(results)
     if crystallinity is not None:
         definitions.append(crystallinity)
-    if temperature_2d_result is not None:
-        definitions.extend(build_ir_temperature_2d_figure_definitions(temperature_2d_result))
+    definitions.extend(temperature_definitions)
     if mapping_result is not None:
         definitions.extend(build_ir_mapping_figure_definitions(mapping_result))
     return tuple(definitions)

@@ -139,6 +139,23 @@ def test_temperature_2d_engine_handoff_does_not_publish_duplicate_frame_figures(
     ]
 
 
+def test_incomplete_temperature_2d_keeps_generic_frame_fallback(ir_complete_results):
+    incomplete = IRTemp2DResult(
+        frames=[IRTempFrame(label="H100", temperature_C=100)],
+        wavenumber=np.array([1000.0, 1100.0, 1200.0]),
+        absorbance_matrix=np.array([[0.1, 0.2]]),
+    )
+
+    definitions = build_ir_figure_definitions(
+        ir_complete_results,
+        temperature_2d_result=incomplete,
+    )
+
+    assert definitions
+    assert any(item.figure_id == "ir.frame.spectrum.001" for item in definitions)
+    assert not any(item.figure_id == "ir.temperature_2d.heatmap" for item in definitions)
+
+
 def test_ir_temperature_2d_provider_assigns_main_support_and_diagnostic_roles():
     engine = IREngine()
     engine._temperature_2d_result = IRTemp2DResult(
@@ -167,12 +184,13 @@ def test_ir_temperature_2d_provider_assigns_main_support_and_diagnostic_roles():
 
 def test_ir_temperature_2d_correlation_snapshot_is_bounded():
     wavenumber = np.arange(500.0)
+    correlation = np.arange(500 * 500, dtype=float).reshape(500, 500)
     result = IRTemp2DResult(
         frames=[IRTempFrame(label="H100", temperature_C=100)],
         wavenumber=wavenumber,
         absorbance_matrix=np.ones((1, len(wavenumber))),
-        sync_corr=np.ones((len(wavenumber), len(wavenumber))),
-        async_corr=np.ones((len(wavenumber), len(wavenumber))),
+        sync_corr=correlation.copy(),
+        async_corr=correlation.copy(),
     )
 
     definitions = build_ir_temperature_2d_figure_definitions(result)
@@ -182,6 +200,11 @@ def test_ir_temperature_2d_correlation_snapshot_is_bounded():
         assert len(source.values["correlation"]) <= 420 * 420
         assert len(set(source.values["wavenumber_x_cm1"])) <= 420
         assert len(set(source.values["wavenumber_y_cm1"])) <= 420
+        assert source.values["correlation"][0] == 0.0
+        assert source.values["correlation"][-1] == 249999.0
+
+    assert result.sync_corr[0, 0] == 0.0
+    assert result.sync_corr[-1, -1] == 249999.0
 
 
 def test_ir_temperature_2d_definitions_preserve_frame_condition_metadata():

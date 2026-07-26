@@ -17,12 +17,12 @@
 - Test: `tests/test_waxs_publication_strain_provider.py`
 - Create: `docs/agent/tasks/2026-07-26-2d-publication-render-performance.md`
 
-- [ ] **Step 1: Write the failing regression** asserting each image-grid frame is at most 256×256 while preserving the image-grid columns and selected frame count.
-- [ ] **Step 2: Run the focused regression and verify it fails because the provider currently serializes the full detector image.**
-- [ ] **Step 3: Implement vectorized bounded sampling at the figure-definition boundary.**
-- [ ] **Step 4: Run the focused provider/document/renderer matrix and verify it passes.**
-- [ ] **Step 5: Run the real WAXS strain pipeline and measure analysis versus publication time.**
-- [ ] **Step 6: Run the structured verifier and create one allowlist checkpoint commit.**
+- [x] **Step 1: Write the failing regression** asserting each image-grid frame is at most 256×256 while preserving the image-grid columns and selected frame count.
+- [x] **Step 2: Run the focused regression and verify it fails because the provider currently serializes the full detector image.**
+- [x] **Step 3: Implement vectorized bounded sampling at the figure-definition boundary.**
+- [x] **Step 4: Run the focused provider/document/renderer matrix and verify it passes.**
+- [x] **Step 5: Run the real WAXS strain pipeline and measure analysis versus publication time.**
+- [x] **Step 6: Run the structured verifier and create one allowlist checkpoint commit.**
 
 ### Task 2: Bound IR temperature-2D publication snapshots
 
