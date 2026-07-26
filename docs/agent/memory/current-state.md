@@ -204,6 +204,18 @@ title: Current PolyNexus repository state
   review, publication-role review, IR vendor mapping/ROI semantics, and
   assignment-limited NMR/Joint scientific sign-off remain human gates.
 
+- A fresh real-fixture audit on 2026-07-26 completed DSC standard, WAXS
+  static/temperature, IR standard, and SAXS temperature engine publication
+  runs. SAXS temperature retained a validation error for contaminated Q* and
+  diagnostic-only lamellar evidence; it is not a normal-science release pass.
+  WAXS strain and IR temperature-2D exceeded the bounded real-run diagnostic
+  timeout. Evidence is in
+  `docs/acceptance/2026-07-26-real-published-run-audit.md`.
+- Figure SCI audit now ignores only Matplotlib colorbar auxiliary axes after
+  the real SAXS heatmap exposed false `missing_axis_label` and
+  `non_standard_axis_label` errors. Focused coverage is in
+  `docs/agent/tasks/2026-07-26-colorbar-audit-regression.md`.
+
 - The requirement-by-requirement baseline ledger is recorded in
   `docs/acceptance/2026-07-25-full-software-baseline.md`. Core matrices pass
   with external basetemps (SAXS 210, DSC 64, WAXS 46, IR 30, NMR 24, Joint

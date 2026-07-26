@@ -67,3 +67,27 @@ def test_sci_figure_audit_reports_submission_checklist_violations(tmp_path) -> N
     assert "annotation_overlaps_data" in issue_codes
 
     plt.close(fig)
+
+
+@mpl.rc_context()
+def test_sci_figure_audit_ignores_colorbar_axes(tmp_path) -> None:
+    set_sci_style()
+    fig, ax = plt.subplots(figsize=(3.35, 2.56))
+    image = ax.pcolormesh(
+        [0.0, 1.0],
+        [10.0, 20.0],
+        [[1.0]],
+        shading="auto",
+        cmap="viridis",
+    )
+    fig.colorbar(image, ax=ax, label="I(q)")
+    ax.set_xlabel(AXIS_LABELS["q"])
+    ax.set_ylabel(AXIS_LABELS["T"])
+
+    report = audit_figure_sci(
+        fig,
+        exported_paths=[tmp_path / "figure.pdf", tmp_path / "figure.png"],
+    )
+
+    assert report.passed, report.issue_summary()
+    plt.close(fig)

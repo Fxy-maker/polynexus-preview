@@ -94,6 +94,8 @@ def audit_figure_sci(
     _audit_panel_labels(fig, report, expected_panel_count)
 
     for ax in fig.axes:
+        if getattr(ax, "_colorbar", None) is not None:
+            continue
         _audit_axis_labels(ax, report, standard_labels)
         _audit_line_styles(ax, report, allowed_colors, min_line_width_pt)
         _audit_annotation_placement(ax, report)

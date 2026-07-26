@@ -14,6 +14,21 @@
   Real published-run, restarted-GUI visual, human scientific, and final
   release gates remain open.
 
+## Real-fixture publication audit - updated 2026-07-26
+
+- Fresh real runs completed for DSC standard, WAXS static/temperature, IR
+  standard, and SAXS temperature. The per-run paths, outcomes, and bounded
+  timeout results are recorded in
+  `docs/acceptance/2026-07-26-real-published-run-audit.md`.
+- SAXS temperature exposed a shared colorbar-axis audit bug. The correction is
+  covered by 20 focused tests in task card
+  `docs/agent/tasks/2026-07-26-colorbar-audit-regression.md`; it does not
+  override the real run's scientific validation failure.
+- WAXS strain and IR temperature-2D real directories exceeded the bounded
+  diagnostic runtime. Real Gallery/Editor/export/History walkthroughs,
+  restarted-GUI visual review, vendor semantics, and scientific sign-off
+  remain open.
+
 ## Runtime/editor regression checkpoint - automated complete 2026-07-26
 
 - Fixed ChartEditor annotation mixin MRO ownership and compact inspector

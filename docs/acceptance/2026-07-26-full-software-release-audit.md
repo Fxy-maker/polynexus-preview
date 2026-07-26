@@ -40,6 +40,21 @@ The earlier 15-minute run was incomplete because the single-process suite
 needs about 17 minutes, dominated by real NMR lifecycle tests; the complete
 run above passed with a 30-minute allowance.
 
+## Real-fixture follow-up
+
+The real-fixture audit is recorded in
+`docs/acceptance/2026-07-26-real-published-run-audit.md`. DSC standard, WAXS
+static/temperature, IR standard, and SAXS temperature produced fresh output
+under `C:\Temp\PolyNexus_release_walkthrough_20260726`. The SAXS temperature
+run preserves a scientific validation failure (`Q*` contamination and
+diagnostic-only lamellar rows) while still exposing ready Figure Manifest
+siblings; it is not a scientific release pass. WAXS strain and IR
+temperature-2D exceeded the bounded 244-second diagnostic run and remain open.
+
+The same run exposed and fixed a shared figure-audit defect: Matplotlib
+colorbar axes were incorrectly checked as data axes. The focused correction is
+tracked by `docs/agent/tasks/2026-07-26-colorbar-audit-regression.md`.
+
 ## Open release gates
 
 - Real published-run inspection for every mode: active Gallery selection,
