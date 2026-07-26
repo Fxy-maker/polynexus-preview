@@ -127,6 +127,15 @@ title: Current PolyNexus repository state
   pre-existing Ruff baseline in the monolithic `main_window.py`; changed behavior
   was validated with focused pytest and `py_compile` checks.
 
+- The 2026-07-26 Qt lifecycle slice adds parent-owned preview timers, a
+  collision-free MainWindow workspace summary label, and ChartEditor teardown
+  isolation. Its focused evidence is viewer/lifecycle 23, ChartEditor + DSC
+  lifecycle 251, workspace/AI context 11, and MainWindow persistence 197.
+  The changed/type verifier still stops at the same pre-existing
+  `main_window.py` Ruff baseline (150 errors at `HEAD`); this is recorded as a
+  separate cleanup decision rather than hidden by a broad noqa or import
+  rewrite.
+
 - The final workflow-focused matrix passes (`118`, four known Matplotlib
   tight-layout warnings), along with the structured task verifier, quality
   gate (`282`), preprocessing optimization gate (`103`), and GUI launcher
@@ -218,6 +227,12 @@ title: Current PolyNexus repository state
   provenance. This is recorded in
   `docs/acceptance/2026-07-25-joint-conflict-provenance.md`; it does not replace
   the remaining real-data, visual, export, or AI/fallback release gates.
+- Joint's automated lifecycle is now independently closed by
+  `tests/test_joint_lifecycle_closure.py`: one run ID survives publication,
+  active Gallery selection, Editor working/published revision, export
+  `metadata/runs/` and active pointer, and History restore. Evidence is in
+  `docs/acceptance/2026-07-25-joint-lifecycle-closure.md`. This does not close
+  real-data, restarted-GUI, or human scientific release review.
 - NMR liquid/solid H/C profiles and shared FigureDefinition/export behavior are
   covered by a focused 29-test checkpoint; assignment-limited solid-state Xc
   remains provisional. Real partition visual and full provenance/release
@@ -225,9 +240,11 @@ title: Current PolyNexus repository state
   `docs/acceptance/2026-07-25-nmr-workbench-checkpoint.md`.
 - Shared AI preprocessing now carries normalized fallback state/reason and
   rejects fallback-active candidates before scoring for DSC, IR, WAXS, SAXS,
-  and NMR. Joint remains report-level AI review only. Evidence is in
-  `docs/acceptance/2026-07-25-preprocess-fallback-safety-matrix.md`; real/Golden
-  and GUI/scientific acceptance remain open.
+  and NMR. The AI-off/failure/fallback contract matrix is covered by
+  `tests/test_preprocess_cross_technique_matrix.py`,
+  `tests/test_preprocess_ai_off_compat.py`, and
+  `tests/test_preprocess_fault_injection.py`. Joint remains report-level AI
+  review only; real/Golden and GUI/scientific acceptance remain open.
 - IR standard now has explicit conservative Main/SI/diagnostic roles for
   spectra, fits, computed comparison, and crystallinity; temperature-2D and
   mapping/ROI role matrices plus sibling-safe Manifest failure visibility are

@@ -31,6 +31,7 @@ from rag.prompt_builder import PromptBuilder
 
 @pytest.fixture(autouse=True)
 def _cleanup_qt_widgets_between_tests():
+    QApplication.instance() or QApplication([])
     yield
     app = QApplication.instance()
     if app is None:
@@ -4491,6 +4492,7 @@ def test_finished_logs_saxs_mask_diagnostics():
             },
         )()
 
+        window._start_run_lifecycle()
         with patch.object(window, "_display_results"):
             with patch.object(window, "_populate_plots"):
                 with patch.object(window, "_persist_analysis_run"):
@@ -4529,6 +4531,7 @@ def test_finished_shows_saxs_mask_summary_in_results_label():
             },
         )()
 
+        window._start_run_lifecycle()
         with patch.object(window, "_populate_plots"):
             with patch.object(window, "_persist_analysis_run"):
                 window._on_finished(result)
@@ -4570,6 +4573,7 @@ def test_finished_shows_saxs_quality_flag_summary_when_only_quality_flag_is_pres
             },
         )()
 
+        window._start_run_lifecycle()
         with patch.object(window, "_populate_plots"):
             with patch.object(window, "_persist_analysis_run"):
                 window._on_finished(result)
@@ -4772,6 +4776,7 @@ def test_finished_shows_saxs_no_extra_risk_summary_when_only_status_is_present()
             },
         )()
 
+        window._start_run_lifecycle()
         with patch.object(window, "_populate_plots"):
             with patch.object(window, "_persist_analysis_run"):
                 window._on_finished(result)
@@ -5281,6 +5286,7 @@ def test_finished_logs_sequence_completion_summary():
             },
         )()
 
+        window._start_run_lifecycle()
         with patch.object(window, "_display_results"):
             with patch.object(window, "_populate_plots"):
                 with patch.object(window, "_persist_analysis_run"):
@@ -5317,6 +5323,7 @@ def test_finished_logs_directory_completion_fallback_summary():
             },
         )()
 
+        window._start_run_lifecycle()
         with patch.object(window, "_display_results"):
             with patch.object(window, "_populate_plots"):
                 with patch.object(window, "_persist_analysis_run"):
@@ -5524,6 +5531,7 @@ def test_results_default_order_restores_original_batch_row_order():
         set_language("en")
         window = MainWindow()
 
+        window._start_run_lifecycle()
         window._on_batch_finished(
             [
                 {"file": "a.csv", "params": {"custom_note": "annealed", "Xc_pct": 43.5, "L_nm": 12.3}},
@@ -5558,6 +5566,7 @@ def test_copy_results_table_uses_current_sorted_batch_order():
         set_language("en")
         window = MainWindow()
 
+        window._start_run_lifecycle()
         window._on_batch_finished(
             [
                 {"file": "a.csv", "params": {"custom_note": "annealed", "Xc_pct": 43.5, "L_nm": 12.3}},
@@ -5588,6 +5597,7 @@ def test_copy_results_table_prefers_selected_rows_over_full_table():
         set_language("en")
         window = MainWindow()
 
+        window._start_run_lifecycle()
         window._on_batch_finished(
             [
                 {"file": "a.csv", "params": {"custom_note": "annealed", "Xc_pct": 43.5, "L_nm": 12.3}},
@@ -5619,6 +5629,7 @@ def test_results_table_copy_shortcut_copies_selected_rows():
         set_language("en")
         window = MainWindow()
 
+        window._start_run_lifecycle()
         window._on_batch_finished(
             [
                 {"file": "a.csv", "params": {"custom_note": "annealed", "Xc_pct": 43.5, "L_nm": 12.3}},
@@ -5650,6 +5661,7 @@ def test_export_results_table_uses_current_selected_sorted_batch_rows(tmp_path):
         window = MainWindow()
 
         export_path = tmp_path / "selected_rows.csv"
+        window._start_run_lifecycle()
         window._on_batch_finished(
             [
                 {"file": "a.csv", "params": {"custom_note": "annealed", "Xc_pct": 43.5, "L_nm": 12.3}},
@@ -5686,6 +5698,7 @@ def test_on_batch_finished_sets_batch_results_summary():
         window = MainWindow()
         window._current_filepath = "C:/data/generic_batch"
 
+        window._start_run_lifecycle()
         window._on_batch_finished(
             [
                 {"file": "a.csv", "params": {"custom_note": "annealed", "Xc_pct": 43.5, "L_nm": 12.3}},
@@ -7186,6 +7199,7 @@ def test_finished_shows_waxs_risk_summary_when_physical_support_is_limited():
             },
         )()
 
+        window._start_run_lifecycle()
         with patch.object(window, "_populate_plots"):
             with patch.object(window, "_persist_analysis_run"):
                 window._on_finished(result)

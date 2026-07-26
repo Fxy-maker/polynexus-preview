@@ -158,7 +158,11 @@ class MainWindowWorkspaceMixin:
 
         self._workspace_subtitle.setText(f"{detail}  |  {filename}")
 
-        context_summary = getattr(self, "_workspace_context_summary", None)
+        context_summary = getattr(self, "_workspace_context_summary_label", None)
+        if context_summary is None:
+            legacy_context_summary = getattr(self, "_workspace_context_summary", None)
+            if not callable(legacy_context_summary):
+                context_summary = legacy_context_summary
         if context_summary is not None:
             context_summary.setText(self._workspace_context_summary_text(self._workspace_context))
 

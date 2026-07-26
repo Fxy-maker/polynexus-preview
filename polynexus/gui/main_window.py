@@ -2286,17 +2286,17 @@ class MainWindow(
 
         self._workspace_subtitle.setObjectName("workspace_subtitle")
 
-        self._workspace_context_summary = QLabel()
+        self._workspace_context_summary_label = QLabel()
 
-        self._workspace_context_summary.setObjectName("workspace_context_summary")
+        self._workspace_context_summary_label.setObjectName("workspace_context_summary")
 
-        self._workspace_context_summary.setWordWrap(True)
+        self._workspace_context_summary_label.setWordWrap(True)
 
         title_box.addWidget(self._workspace_title)
 
         title_box.addWidget(self._workspace_subtitle)
 
-        title_box.addWidget(self._workspace_context_summary)
+        title_box.addWidget(self._workspace_context_summary_label)
 
         header_layout.addLayout(title_box, 1)
 

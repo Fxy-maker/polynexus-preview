@@ -25,6 +25,45 @@ from polynexus.core.figures.contracts import (
 
 
 @pytest.fixture
+def cleanup_chart_editor_test_windows():
+    """Keep ChartEditor instances from leaking across Qt test modules.
+
+    ChartEditor intentionally prompts when a user closes a dirty document. A
+    test-created top-level editor must not leave that interactive prompt for a
+    later module's generic Qt cleanup, especially under the offscreen plugin.
+    """
+
+    yield
+
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QApplication
+
+    from polynexus.gui.widgets.chart_editor import ChartEditor
+
+    app = QApplication.instance()
+    if app is None:
+        return
+    for widget in list(QApplication.topLevelWidgets()):
+        if not isinstance(widget, ChartEditor):
+            continue
+        widget._set_editor_dirty(False)
+        widget.close()
+        widget.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
+
+
+def pytest_collection_modifyitems(session, config, items):
+    del session, config
+    marker = pytest.mark.usefixtures("cleanup_chart_editor_test_windows")
+    for item in items:
+        if "test_chart_editor" in str(item.fspath):
+            item.add_marker(marker)
+            if "cleanup_chart_editor_test_windows" not in item.fixturenames:
+                item.fixturenames.append("cleanup_chart_editor_test_windows")
+
+
+@pytest.fixture
 def ir_definition():
     return FigureDefinition(
         figure_id="ir.frame.spectrum.001",

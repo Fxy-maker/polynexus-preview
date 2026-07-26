@@ -1,5 +1,20 @@
 # Active Work
 
+## Qt lifecycle stability - focused boundary verified 2026-07-26
+
+- Deferred `FigureFilePreview` fit callbacks now use parent-owned timers;
+  MainWindow workspace context uses a distinct QLabel attribute with a legacy
+  fake-compatible fallback; and ChartEditor test teardown clears dirty
+  windows before deferred deletion.
+- Focused evidence: viewer/lifecycle 23 passed, ChartEditor + DSC lifecycle
+  251 passed, workspace/AI context 11 passed, and the complete MainWindow
+  persistence file 197 passed in an external basetemp.
+- The structured verifier stops at Ruff because the monolithic
+  `polynexus/gui/main_window.py` has a pre-existing 150-error baseline at
+  `HEAD` (151 with the scoped rename). Full/boundary release verification and
+  the checkpoint remain open; no unrelated import cleanup was folded into
+  this task.
+
 ## NMR real-data lifecycle closure - automated boundary completed 2026-07-25
 
 - Added `tests/test_nmr_lifecycle_closure.py` across repository liquid 1H/C and
@@ -73,13 +88,18 @@
   retained. This proves core/publication behavior, not GUI restart or human
   scientific acceptance.
 
-## Joint published-run restore - acceptance regression added 2026-07-25
+## Joint lifecycle closure - automated boundary completed 2026-07-25
 
-- A Qt regression now covers Joint publish -> History restore -> custom
-  Workbench -> active Manifest Gallery, with all three figure IDs and the run
-  ID asserted. Export bundle provenance is covered by the existing export
-  contract test.
-- Real-data, AI/fallback, and restarted-GUI release review remain open.
+- Added `tests/test_joint_lifecycle_closure.py`, which verifies one fixed Joint
+  run ID across hub publication, active Manifest Gallery, Editor working and
+  published revisions, export `metadata/runs/` plus active pointer, and
+  MainWindow History restore with the custom Joint Workbench.
+- Focused regression: `1 passed in 4.39s`. No production code was needed; the
+  existing shared contracts already form the complete automated path.
+- Evidence: `docs/acceptance/2026-07-25-joint-lifecycle-closure.md` and task
+  card `docs/agent/tasks/2026-07-25-joint-lifecycle-closure.md`.
+- Real-data, AI/fallback, restarted-GUI, and human scientific release review
+  remain open and are not implied by this contract test.
 
 ## Full-software baseline inventory - verified 2026-07-25
 
@@ -91,6 +111,18 @@
   mapping/ROI semantics, real-run Gallery/Editor/export verification, fallback
   and AI-failure coverage, restarted-GUI visual review, and release approval
   open.
+
+## Cross-technique AI safety matrix - contract boundary verified 2026-07-25
+
+- `tests/test_preprocess_cross_technique_matrix.py` covers AI-off registration,
+  engine failure, and fallback rejection for DSC, IR, WAXS, SAXS, and NMR.
+- `tests/test_preprocess_ai_off_compat.py` covers deterministic AI-off output
+  and clean report metadata; `tests/test_preprocess_fault_injection.py`
+  covers invalid intent, timeout, engine failure/exception, audit failure, and
+  config-hash rollback.
+- Joint is explicitly report-level AI review and remains outside single-
+  technique preprocessing. This is automated safety evidence, not a human
+  scientific release sign-off.
 
 ## Full-software audit - 2026-07-25
 

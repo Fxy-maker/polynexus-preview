@@ -307,6 +307,12 @@ class FigureFilePreview(QWidget):
         self._pixmap_item = None
         self._fit_mode = True
         self._zoom = 1.0
+        self._fit_now_timer = QTimer(self)
+        self._fit_now_timer.setSingleShot(True)
+        self._fit_now_timer.timeout.connect(self.fit_to_window)
+        self._fit_late_timer = QTimer(self)
+        self._fit_late_timer.setSingleShot(True)
+        self._fit_late_timer.timeout.connect(self.fit_to_window)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -471,14 +477,16 @@ class FigureFilePreview(QWidget):
         )
         self._set_controls_enabled(True)
         self.fit_to_window()
-        QTimer.singleShot(0, self.fit_to_window)
-        QTimer.singleShot(80, self.fit_to_window)
+        self._schedule_fit(0)
+        self._schedule_fit(80)
 
     def refresh(self):
         if self._filepath:
             self.load_figure(self._filepath)
 
     def clear(self):
+        self._fit_now_timer.stop()
+        self._fit_late_timer.stop()
         self._scene.clear()
         self._pixmap_item = None
         self._set_controls_enabled(False)
@@ -494,6 +502,10 @@ class FigureFilePreview(QWidget):
         self._view.fitInView(rect, Qt.KeepAspectRatio)
         self._fit_mode = True
         self._zoom = 1.0
+
+    def _schedule_fit(self, delay_ms: int) -> None:
+        timer = self._fit_now_timer if int(delay_ms) <= 0 else self._fit_late_timer
+        timer.start(max(0, int(delay_ms)))
 
     def actual_size(self):
         if self._pixmap_item is None:
@@ -518,7 +530,7 @@ class FigureFilePreview(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         if self._fit_mode and self._pixmap_item is not None:
-            QTimer.singleShot(0, self.fit_to_window)
+            self._schedule_fit(0)
 
     def _set_controls_enabled(self, enabled):
         for btn in (
