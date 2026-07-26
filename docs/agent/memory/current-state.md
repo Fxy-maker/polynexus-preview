@@ -215,6 +215,14 @@ title: Current PolyNexus repository state
   the real SAXS heatmap exposed false `missing_axis_label` and
   `non_standard_axis_label` errors. Focused coverage is in
   `docs/agent/tasks/2026-07-26-colorbar-audit-regression.md`.
+- The real published-run walkthrough matrix now covers ten cases across DSC
+  standard/isothermal/non-isothermal, WAXS static/temperature, IR standard,
+  and NMR liquid/solid H/C;
+  the shared run ID survives Gallery, Editor revisions, export provenance, and
+  History restore. Bounded real two-frame smoke evidence covers WAXS strain/2D
+  and IR temperature-2D. Full-mode and visual/scientific acceptance remain
+  open. Evidence is in
+  `docs/acceptance/2026-07-26-real-published-run-audit.md`.
 
 - The requirement-by-requirement baseline ledger is recorded in
   `docs/acceptance/2026-07-25-full-software-baseline.md`. Core matrices pass

@@ -29,6 +29,21 @@
   restarted-GUI visual review, vendor semantics, and scientific sign-off
   remain open.
 
+## Real published-run walkthrough matrix - updated 2026-07-26
+
+- Added `tests/test_real_published_run_walkthrough.py`. Eight real cases now
+  preserve one run ID through active Manifest Gallery selection, Main Editor
+  working/published revision, export `metadata/runs/` plus active pointer, and
+  MainWindow History restore. The matrix passed `8` tests in `145.03s`.
+- Fresh DSC isothermal and non-isothermal engine runs also completed the
+  shared walkthrough manually. The non-isothermal fixture correctly retains
+  its conversion as SI (only one valid curve) and keeps kinetics in diagnostic
+  roles; it is not promoted to Main.
+- Two-frame real smoke runs for WAXS strain/2D and IR temperature-2D also
+  completed the same shared walkthrough; full directories remain bounded
+  timeout/scientific-review items. Acceptance details are in
+  `docs/acceptance/2026-07-26-real-published-run-audit.md`.
+
 ## Runtime/editor regression checkpoint - automated complete 2026-07-26
 
 - Fixed ChartEditor annotation mixin MRO ownership and compact inspector

@@ -55,6 +55,13 @@ The same run exposed and fixed a shared figure-audit defect: Matplotlib
 colorbar axes were incorrectly checked as data axes. The focused correction is
 tracked by `docs/agent/tasks/2026-07-26-colorbar-audit-regression.md`.
 
+The new real walkthrough matrix covers ten cases (DSC standard/isothermal/
+non-isothermal, WAXS static/temperature, IR standard, and NMR liquid/solid H/C) through active
+Gallery selection, Editor working/published revisions, export provenance, and
+History restore. Bounded two-frame smoke runs also cover WAXS strain/2D and IR
+temperature-2D. Evidence and limitations are recorded in
+`docs/acceptance/2026-07-26-real-published-run-audit.md`.
+
 ## Open release gates
 
 - Real published-run inspection for every mode: active Gallery selection,
