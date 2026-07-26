@@ -146,6 +146,27 @@ def test_real_published_run_preserves_shared_lifecycle(
     entries = build_active_manifest_gallery_entries(output_root)
     assert entries
     assert {entry.run_id for entry in entries} == {run_id}
+    figure_ids = {entry.figure_id for entry in entries}
+    if mode == "saxs.temperature":
+        assert {
+            "saxs.temperature.waterfall",
+            "saxs.series.temperature.parameters",
+            "saxs.series.temperature.heatmap",
+        } <= figure_ids
+        assert all(
+            entry.figure_id.startswith(
+                ("saxs.temperature.", "saxs.series.temperature.")
+            )
+            for entry in entries
+        )
+        assert {entry.publication_role for entry in entries} == {"si", "diagnostic"}
+    elif mode == "saxs.strain":
+        assert {
+            "saxs.strain.invariant",
+            "saxs.strain.sequence.diagnostic",
+        } <= figure_ids
+        assert all(entry.figure_id.startswith("saxs.strain.") for entry in entries)
+        assert {entry.publication_role for entry in entries} == {"diagnostic"}
     # A real fixture may be valid software input while its scientific result
     # is intentionally SI/diagnostic-only (for example, one valid
     # non-isothermal conversion curve or a strain run with only diagnostic

@@ -24,6 +24,11 @@
 - Remaining gates are restarted canonical-GUI visual review, publication-role
   review, IR mapping/ROI vendor semantics, and scientific sign-off; the
   performance fix does not promote diagnostic or warning results to Main.
+- Review follow-up for the real published-run matrix now asserts the SAXS
+  temperature/strain Manifest ID namespaces and exact role sets (`si` plus
+  `diagnostic` for temperature; `diagnostic` only for strain). The matrix
+  remains 15 cases in `276.15s`; the SAXS role slice passed 2 cases in
+  `31.78s`.
 
 ## Full-software audit and verifier unblock - updated 2026-07-26
 

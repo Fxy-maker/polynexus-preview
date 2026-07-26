@@ -76,7 +76,7 @@ title: Current PolyNexus repository state
 - The complete real WAXS strain and IR temperature-2D shared lifecycle passed
   2 cases in 101.39s; the expanded real published-run matrix now covers 15
   cases
-  in 287.09s through Manifest/Gallery, Editor revisions, export provenance,
+  in 276.15s through Manifest/Gallery, Editor revisions, export provenance,
   and History restore. DSC non-isothermal correctly remains SI/diagnostic-only
   where the fixture has one valid conversion curve. Task card:
   `docs/agent/tasks/2026-07-26-2d-publication-render-performance.md`.

@@ -37,6 +37,9 @@ revision -> export bundle -> MainWindow History restore.
   non-isothermal fixture has no Main figure, the lifecycle uses its existing
   SI conversion entry; when the SAXS strain fixture is diagnostic-only, the
   lifecycle uses a diagnostic entry. Both roles remain unchanged.
+- [x] SAXS temperature and strain cases assert mode-specific Manifest figure
+  IDs and publication-role sets, so a static or Main-only fallback cannot pass
+  the real lifecycle matrix by accident.
 - [x] Focused test and task-scoped verifier pass.
 
 ## Implementation plan
