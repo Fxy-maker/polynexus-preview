@@ -11,7 +11,7 @@
   provider/temperature/lifecycle matrix: `20 passed`.
 - The complete real 2D shared-lifecycle walkthrough passed `2` cases in
   `101.39s`; the expanded real published-run matrix passed 15 cases in
-  `276.15s`, including SAXS temperature/strain and DSC
+  historical `276.15s` record, including SAXS temperature/strain and DSC
   isothermal/non-isothermal. The
   non-isothermal fixture uses its existing SI conversion entry and the SAXS
   strain fixture uses a diagnostic entry; both roles remain unchanged.
