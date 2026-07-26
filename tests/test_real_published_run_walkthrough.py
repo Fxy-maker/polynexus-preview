@@ -49,6 +49,14 @@ def _real_cases() -> tuple[tuple[str, str, Path], ...]:
     saxs_static_source = next(
         (data_root / "saxs").rglob("8-000-s_0_00000_with_mask.edf")
     )
+    saxs_temperature_source = next(
+        path.parent
+        for path in (data_root / "saxs").rglob("PA6-250-170-S_0_00000.edf")
+    )
+    saxs_strain_source = next(
+        path.parent
+        for path in (data_root / "saxs").rglob("8-000-s_0_00000_with_mask.edf")
+    )
     waxs_static_source = next((data_root / "waxs").rglob("PA6.raw"))
     waxs_temperature_source = next(
         path.parent
@@ -61,6 +69,8 @@ def _real_cases() -> tuple[tuple[str, str, Path], ...]:
         ("dsc", "dsc.isothermal", dsc_isothermal_source),
         ("dsc", "dsc.nonisothermal", dsc_nonisothermal_source),
         ("saxs", "saxs.static", saxs_static_source),
+        ("saxs", "saxs.temperature", saxs_temperature_source),
+        ("saxs", "saxs.strain", saxs_strain_source),
         ("waxs", "waxs.static", waxs_static_source),
         ("waxs", "waxs.temperature", waxs_temperature_source),
         ("ir", "ir.standard", ir_standard_source),
@@ -138,22 +148,17 @@ def test_real_published_run_preserves_shared_lifecycle(
     assert {entry.run_id for entry in entries} == {run_id}
     # A real fixture may be valid software input while its scientific result
     # is intentionally SI/diagnostic-only (for example, one valid
-    # non-isothermal conversion curve).  Exercise the lifecycle on Main when
-    # available, otherwise use the first ready SI entry without promoting it.
+    # non-isothermal conversion curve or a strain run with only diagnostic
+    # evidence). Exercise the lifecycle on the highest available role without
+    # promoting the selected entry.
     selected = next(
         (
             entry
+            for role in ("main", "si", "diagnostic")
             for entry in entries
-            if entry.publication_role == "main"
+            if entry.publication_role == role
         ),
-        next(
-            (
-                entry
-                for entry in entries
-                if entry.publication_role == "si"
-            ),
-            None,
-        ),
+        None,
     )
     assert selected is not None
 
@@ -174,6 +179,7 @@ def test_real_published_run_preserves_shared_lifecycle(
         if entry.figure_id == selected.figure_id
     )
     assert refreshed.run_id == run_id
+    assert refreshed.publication_role == selected.publication_role
     assert refreshed.working_revision == saved.entry.working_revision
     assert refreshed.published_revision == published.entry.published_revision
 

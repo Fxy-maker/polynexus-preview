@@ -15,7 +15,8 @@ publication boundary; it is not a scientific sign-off.
 | WAXS static | repository PA6 `.raw` | pipeline completed; Manifest published; validation passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\waxs_static_real` |
 | WAXS temperature | repository PA6 EDF directory | pipeline completed; Manifest published; validation passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\waxs_temperature_real` |
 | IR standard | repository PA6 `YL.SPA` | pipeline completed; Manifest published; validation passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\ir_standard_real` |
-| SAXS temperature | repository PA6 EDF directory | eight Manifest entries are `ready`; scientific validation is false because Q* is contaminated and lamellar evidence is diagnostic-only | `C:\Temp\PolyNexus_release_walkthrough_20260726\saxs_temperature_real_after_colorbar_fix` |
+| SAXS temperature | repository PA6 EDF directory | eight Manifest entries are `ready`; scientific validation is false because Q* is contaminated and lamellar evidence is diagnostic-only; shared Gallery/Editor/export/History walkthrough passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\saxs_temperature_real_after_colorbar_fix` |
+| SAXS strain | repository five-frame PAD8 EDF directory | analysis and Manifest completed; available figures are diagnostic-only and retain that role; shared Gallery/Editor/export/History walkthrough passed | `C:\Temp\PolyNexus_real_saxs_modes2\test_real_published_run_preser1\output` |
 | NMR liquid/solid H/C | repository NMR fixtures | covered by the real-data lifecycle matrix | `tests/test_nmr_lifecycle_closure.py` |
 | WAXS strain/2D bounded subset | two repository EDF frames (0% and 400%) copied to external temp | pipeline completed; validation passed; shared Gallery/Editor/export/History walkthrough passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\waxs_strain_subset_real` |
 | IR temperature-2D bounded subset | two repository temperature CSV frames copied to external temp | pipeline completed; two expected temperature/2D-COS warnings retained; shared Gallery/Editor/export/History walkthrough passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\ir_temperature_2d_subset_real` |
@@ -36,14 +37,13 @@ publication boundary; it is not a scientific sign-off.
   measured about 3.7 seconds for analysis and 40.3 seconds for publication.
 - The full 2D shared-lifecycle test passed `2` cases in `101.39s`:
   `python -m pytest --basetemp=C:\Temp\PolyNexus_full_2d_walkthrough tests/test_real_published_run_walkthrough.py -k full_2d -q`.
-- The complete real published-run matrix now passes `13` cases in `287.09s`:
+- The complete real published-run matrix passes `15` cases in `276.15s`:
   `python -m pytest tests/test_real_published_run_walkthrough.py -q`, with
   pytest basetemp redirected to
-  `C:\Temp\PolyNexus_real_walkthrough_13_final`.
-- The expanded matrix adds automated SAXS static and DSC
-  isothermal/non-isothermal coverage. The non-isothermal run selects its
-  existing SI conversion figure for lifecycle exercise because the fixture
-  has only one valid conversion curve; kinetics remain diagnostic-only.
+  `C:\Temp\PolyNexus_real_walkthrough_15_final`. The expanded
+  matrix adds SAXS temperature/strain; the non-isothermal run selects its SI
+  conversion figure and the SAXS strain run selects a diagnostic figure,
+  preserving both publication roles.
 
 ## Runs not accepted as scientific sign-off
 

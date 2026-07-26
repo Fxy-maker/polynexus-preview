@@ -10,10 +10,12 @@
 - Focused provider/document/renderer matrix: `23 passed`; focused IR
   provider/temperature/lifecycle matrix: `20 passed`.
 - The complete real 2D shared-lifecycle walkthrough passed `2` cases in
-  `101.39s`; the expanded real published-run matrix passed `13` cases in
-  `287.09s`, including DSC isothermal/non-isothermal and SAXS static. The
-  non-isothermal fixture uses its existing SI conversion entry and keeps
-  kinetics diagnostic-only. Evidence and external output roots are recorded
+  `101.39s`; the expanded real published-run matrix passed 15 cases in
+  `276.15s`, including SAXS temperature/strain and DSC
+  isothermal/non-isothermal. The
+  non-isothermal fixture uses its existing SI conversion entry and the SAXS
+  strain fixture uses a diagnostic entry; both roles remain unchanged.
+  Evidence and external output roots are recorded
   in `docs/acceptance/2026-07-26-real-published-run-audit.md`.
 - Review follow-up now keeps generic IR frame figures when an incomplete
   temperature-2D payload produces no valid series definitions, and adds
@@ -55,10 +57,12 @@
 
 ## Real published-run walkthrough matrix - updated 2026-07-26
 
-- Added `tests/test_real_published_run_walkthrough.py`. Eight real cases now
-  preserve one run ID through active Manifest Gallery selection, Main Editor
+- Added `tests/test_real_published_run_walkthrough.py`. The real-case matrix
+  now covers all automated SAXS/DSC/WAXS/IR/NMR modes, including full 2D cases;
+  the latest SAXS temperature/strain addition passed both cases. Each case
+  preserves one run ID through active Manifest Gallery selection, Main Editor
   working/published revision, export `metadata/runs/` plus active pointer, and
-  MainWindow History restore. The matrix passed `8` tests in `145.03s`.
+  MainWindow History restore.
 - Fresh DSC isothermal and non-isothermal engine runs also completed the
   shared walkthrough manually. The non-isothermal fixture correctly retains
   its conversion as SI (only one valid curve) and keeps kinetics in diagnostic

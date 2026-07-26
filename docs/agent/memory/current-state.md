@@ -74,7 +74,8 @@ title: Current PolyNexus repository state
   series is present. Raw analysis arrays and scientific roles are unchanged.
   Focused WAXS matrix: 23 passed; focused IR matrix: 20 passed.
 - The complete real WAXS strain and IR temperature-2D shared lifecycle passed
-  2 cases in 101.39s; the expanded real published-run matrix passed 13 cases
+  2 cases in 101.39s; the expanded real published-run matrix now covers 15
+  cases
   in 287.09s through Manifest/Gallery, Editor revisions, export provenance,
   and History restore. DSC non-isothermal correctly remains SI/diagnostic-only
   where the fixture has one valid conversion curve. Task card:
@@ -228,10 +229,10 @@ title: Current PolyNexus repository state
   the real SAXS heatmap exposed false `missing_axis_label` and
   `non_standard_axis_label` errors. Focused coverage is in
   `docs/agent/tasks/2026-07-26-colorbar-audit-regression.md`.
-- The real published-run walkthrough matrix now covers thirteen cases across
-  SAXS static, DSC standard/isothermal/non-isothermal, WAXS
-  static/temperature, IR standard, and NMR liquid/solid H/C, with the
-  non-isothermal lifecycle selecting its existing SI conversion entry;
+- The real published-run walkthrough matrix now covers fifteen cases across
+  SAXS static/temperature/strain, DSC standard/isothermal/non-isothermal,
+  WAXS static/temperature/strain/2D, IR standard/temperature-2D, and NMR
+  liquid/solid H/C, with non-isothermal and diagnostic-only roles preserved;
   the shared run ID survives Gallery, Editor revisions, export provenance, and
   History restore. Bounded real two-frame smoke evidence covers WAXS strain/2D
   and IR temperature-2D. Full-mode and visual/scientific acceptance remain

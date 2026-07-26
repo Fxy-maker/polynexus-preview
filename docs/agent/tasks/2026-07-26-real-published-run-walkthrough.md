@@ -25,16 +25,18 @@ revision -> export bundle -> MainWindow History restore.
 
 ## Acceptance criteria
 
-- [x] DSC standard/isothermal/non-isothermal, SAXS static, WAXS
-  static/temperature, IR standard, and NMR liquid/solid H/C each complete the
-  shared walkthrough against a real fixture.
-- [x] The selected Main entry preserves its run ID through working save,
+- [x] DSC standard/isothermal/non-isothermal, SAXS static/temperature/strain,
+  WAXS static/temperature/strain/2D, IR standard/temperature-2D, and NMR
+  liquid/solid H/C each complete the shared walkthrough against a real
+  fixture.
+- [x] The selected highest-available publication entry preserves its run ID through working save,
   published revision, export `metadata/runs/`, active pointer, and History
   restore.
 - [x] Scientific validation state remains observable; the test does not assert
   that warnings or diagnostic-only results are publishable science. When the
   non-isothermal fixture has no Main figure, the lifecycle uses its existing
-  SI conversion entry and preserves that role.
+  SI conversion entry; when the SAXS strain fixture is diagnostic-only, the
+  lifecycle uses a diagnostic entry. Both roles remain unchanged.
 - [x] Focused test and task-scoped verifier pass.
 
 ## Implementation plan
