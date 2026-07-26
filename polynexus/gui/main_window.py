@@ -43,23 +43,20 @@ Layout (matching the PolyNexus interface design):
 
 
 import logging
-logger = logging.getLogger(__name__)
 
-import os, sys, json, threading, traceback
-import math
+import os  # noqa: F401
+import json
+import traceback  # noqa: F401
 
 from datetime import datetime
-import csv
 
 from pathlib import Path
 
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 
 
 from PySide6.QtWidgets import (
-
-    QSizePolicy,
 
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 
@@ -71,21 +68,21 @@ from PySide6.QtWidgets import (
 
     QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView,
 
-    QMessageBox, QScrollArea, QListWidget, QListWidgetItem,
+    QMessageBox, QScrollArea, QListWidget, QFormLayout, QLayout,
 
-    QCheckBox, QSpinBox, QDoubleSpinBox, QFormLayout, QLayout,
-
-    QToolButton, QMenu, QGridLayout, QAbstractItemView,
-    QDialog, QDialogButtonBox, QProgressDialog, QRadioButton,
-    QFileDialog,
+    QToolButton, QAbstractItemView,
+    QDialog, QDialogButtonBox, QProgressDialog,  # noqa: F401
+    QRadioButton,
+    QFileDialog,  # noqa: F401
 
 )
 
-from PySide6.QtCore import QObject, QRunnable, Qt, QThread, QThreadPool, Signal, QSettings, QTimer
+from PySide6.QtCore import Qt, QSettings, QThreadPool, QTimer  # noqa: F401
 
 from PySide6.QtGui import (
 
-    QAction, QColor, QFont, QDragEnterEvent, QDropEvent, QIcon, QKeySequence, QShortcut,
+    QAction,  # noqa: F401
+    QKeySequence, QShortcut,
 
 )
 
@@ -103,71 +100,39 @@ from .theme import (
 
 from .effects import (
     ScientificBackdrop,
-    animate_width,
+    animate_width,  # noqa: F401
     fade_in,
     start_busy_pulse,
-    start_progress_animation,
+    start_progress_animation,  # noqa: F401
     stop_busy_pulse,
-    stop_progress_animation,
+    stop_progress_animation,  # noqa: F401
 )
 
 from .shortcuts import bind_shortcuts
 from .figure_window_service import open_convergence_viewer
-
-from .widgets.settings_dialog import SettingsDialog
+from .widgets.settings_dialog import SettingsDialog  # noqa: F401
 from .analysis_run_service import (
-    AnalysisRunPersistenceContext,
-    persist_analysis_run as persist_gui_analysis_run,
-    result_payload as analysis_run_result_payload,
-    extract_result_r2 as analysis_run_result_r2,
+    AnalysisRunPersistenceContext,  # noqa: F401
+    persist_analysis_run as persist_gui_analysis_run,  # noqa: F401
+    result_payload as analysis_run_result_payload,  # noqa: F401
+    extract_result_r2 as analysis_run_result_r2,  # noqa: F401
 )
+
 from .analysis_history_service import (
     ai_tuning_change_summary_text,
-    ai_tuning_chain_summary,
-    ai_tuning_benchmark_delta_text,
-    ai_tuning_benchmark_rate_text,
     ai_tuning_goal_recommendation,
-    ai_tuning_previous_round_summary_text,
-    ai_tuning_chain_stats,
     ai_tuning_remaining_risks_text,
-    ai_tuning_report_context as build_ai_tuning_report_context,
-    ai_tuning_tunable_summary_text,
-    batch_fallback_summary_parts,
-    current_result_history_context as resolve_current_result_history_context,
-    current_result_origin as resolve_current_result_origin,
-    current_result_tuning_context as resolve_current_result_tuning_context,
-    current_results_payload as build_current_results_payload,
-    current_results_record as build_current_results_record,
-    find_analysis_evidence,
-    format_history_timestamp as format_history_timestamp_value,
-    gui_coerce_summary_float,
     gui_display_text,
-    gui_display_text_value,
     gui_format_score_value,
-    has_condition_axis_risk as build_has_condition_axis_risk,
-    has_fallback_conflict_risk as build_has_fallback_conflict_risk,
-    history_compare_state_translation_key,
-    history_context_line_parts,
-    build_history_context_snapshot_from_window,
-    history_record_analysis_evidence,
-    history_record_confirmed,
-    history_result_origin,
-    history_result_metrics,
-    history_validation_summary_text,
-    measured_result_metric_parts,
-    result_origin_translation_key,
-    result_review_metric_summary,
-    result_source_summary_text as build_result_source_summary_text,
-    result_to_jsonable,
-    saxs_lc_status_summary_parts,
-    saxs_lc_status_text as build_saxs_lc_status_text,
-    saxs_strain_evidence_snapshot as build_saxs_strain_evidence_snapshot,
-    saxs_strain_next_step_text as build_saxs_strain_next_step_text,
-    saxs_strain_risk_summary_text as build_saxs_strain_risk_summary_text,
-    saxs_strain_summary_text as build_saxs_strain_summary_text,
+    build_history_context_snapshot_from_window,  # noqa: F401
+    history_context_line_parts,  # noqa: F401
+    history_result_origin,  # noqa: F401
+    result_to_jsonable,  # noqa: F401
     result_mask_summary_text as build_result_mask_summary_text,
 )
 from .window_text_helpers import read_warning_count
+from .results_table_service import build_batch_results_table_model  # noqa: F401
+from .table_export_service import write_table_export  # noqa: F401
 from .results_review_service import (
     ai_tuning_report_benchmark_text as build_ai_tuning_report_benchmark_text,
     ai_tuning_report_decision_text as build_ai_tuning_report_decision_text,
@@ -175,25 +140,19 @@ from .results_review_service import (
     build_result_review_summary_text_from_window,
     result_review_analysis_evidence_card_text as build_result_review_analysis_evidence_card_text,
     result_review_constraint_summary_text as build_result_review_constraint_summary_text,
-    result_review_dsc_support_block_text as build_result_review_dsc_support_block_text,
     result_review_ir_support_block_text as build_result_review_ir_support_block_text,
     result_review_round_core_summary_text as build_result_review_round_core_summary_text,
     result_review_round_support_summary_text as build_result_review_round_support_summary_text,
     result_review_stability_summary_text as build_result_review_stability_summary_text,
-    result_review_saxs_semantic_lines as build_result_review_saxs_semantic_lines,
-    result_review_waxs_core_text,
-    result_review_waxs_support_text,
 )
-from .results_table_service import build_batch_results_table_model
-from .table_export_service import write_table_export
 from .preprocess_decision_service import build_preprocess_ui_decision
 
-from .i18n import tr, set_language, get_language
+from .i18n import tr, get_language
 from .workspace_mode import WorkspaceMode
 from .workspace_context import WorkspaceContext
 from .run_state_service import RunState
 from .window_text_helpers import (
-    data_file_dialog_filter as _data_file_dialog_filter,
+    data_file_dialog_filter as _data_file_dialog_filter,  # noqa: F401
     format_import_suggestion_reason as _shared_format_import_suggestion_reason,
     ir_conclusion_state_display as _ir_conclusion_state_display,
     is_default_project_label as _is_default_project_label,
@@ -219,23 +178,26 @@ from .main_window_navigation_mixin import MainWindowNavigationMixin
 from .main_window_result_semantics_mixin import MainWindowResultSemanticsMixin
 from .main_window_sample_hub_mixin import MainWindowSampleHubMixin
 from .main_window_workers import (
-    AITuneSignals,
-    AITuneWorker,
-    AnalysisWorker,
-    BatchWorker,
-    JointHubWorker,
+    AITuneSignals,  # noqa: F401
+    AITuneWorker,  # noqa: F401
+    AnalysisWorker,  # noqa: F401
+    BatchWorker,  # noqa: F401
+    JointHubWorker,  # noqa: F401
 )
 
-from ..utils import (
-    delete_config_preset,
-    detect_polymer_type,
-    list_config_presets,
-    load_config_preset,
-    load_defaults,
-    save_config_preset,
-)
 from ..utils.logger import PolyNexusLogger
-from llm.config import load_ai_settings
+from ..utils import (
+    delete_config_preset,  # noqa: F401
+    detect_polymer_type,  # noqa: F401
+    list_config_presets,  # noqa: F401
+    load_config_preset,  # noqa: F401
+    load_defaults,  # noqa: F401
+    save_config_preset,  # noqa: F401
+)
+from llm.config import load_ai_settings  # noqa: F401
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_engine(*args, **kwargs):
@@ -1496,7 +1458,6 @@ class MainWindow(
 
         """
 
-        from ..utils.logger import PolyNexusLogger
 
         PolyNexusLogger.get().disable_console()
 
