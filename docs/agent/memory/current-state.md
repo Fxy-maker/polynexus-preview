@@ -136,6 +136,13 @@ title: Current PolyNexus repository state
   separate cleanup decision rather than hidden by a broad noqa or import
   rewrite.
 
+- On 2026-07-26 the MainWindow import baseline was repaired without broad
+  file-level suppression: symbols consumed through `main_window_module.*`
+  remain explicit compatibility exports, and dead imports were removed. The
+  complete MainWindow persistence file passes (197); checkpoint `cbb3077`.
+  Default changed/type verification passes with quality 282 and preprocessing
+  103. The full/boundary variant timed out after 15 minutes without a summary.
+
 - The final workflow-focused matrix passes (`118`, four known Matplotlib
   tight-layout warnings), along with the structured task verifier, quality
   gate (`282`), preprocessing optimization gate (`103`), and GUI launcher

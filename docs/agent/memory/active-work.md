@@ -1,5 +1,17 @@
 # Active Work
 
+## Full-software audit and verifier unblock - updated 2026-07-26
+
+- MainWindow's intentional dynamic compatibility exports are now explicit;
+  checkpoint `cbb3077` makes `python scripts/verify.py --changed --types`
+  pass with quality 282 and preprocessing 103.
+- Fresh lifecycle evidence includes MainWindow persistence 197, ChartEditor +
+  DSC 251, Joint closure 1, and NMR cutover 5. The broader matrices are
+  recorded in their task/acceptance notes.
+- The full/boundary verifier was allowed 15 minutes and exited 124 without a
+  final summary. Treat it as incomplete, not as a pass. Real published-run,
+  restarted-GUI visual, human scientific, and final release gates remain open.
+
 ## Qt lifecycle stability - focused boundary verified 2026-07-26
 
 - Deferred `FigureFilePreview` fit callbacks now use parent-owned timers;

@@ -31,7 +31,7 @@ when the entire vertical definition in the full-software task card is proven.
 | WAXS strain/2D | orientation/phase/size and image-grid contracts | strain/2D provider IDs | customized tabs/profile | existing export/history contracts | release audit open |
 | IR standard | spectrum/peak/band/evidence result | standard provider IDs | customized profile | existing export/history contracts | mapping-independent release audit open |
 | IR temperature-2D | matrix, transition bands, 2D-COS evidence | heatmap/tracking/indices/COS IDs | customized profile | existing export/history contracts | release audit open |
-| IR mapping/ROI | registry/template only; no agreed map/ROI input contract | no mapping provider | profile only | not proven | blocked on scientific data contract |
+| IR mapping/ROI | typed map/ROI DTO, invalid-pixel mask, ROI spectra, metric/provenance handoff | Main/SI/diagnostic provider IDs and Manifest roles | profile links all three logical IDs | automated contract covered | vendor input semantics, real data, and visual/scientific audit open |
 | NMR liquid H/C | peak, assignment, solvent and quality evidence | spectrum/deconvolution/comparison IDs | four partition profiles | CSV/API compatibility restored; real engine smoke passed | GUI/visual/release audit open |
 | NMR solid H/C | assignment-gated phase/Xc evidence | assignment-gated provider IDs | four partition profiles | CSV/API compatibility restored; real engine smoke passed | GUI/visual/release audit open |
 | Joint | cross-technique rows, validations and provenance context | crystallinity/multiscale/coverage IDs | custom typed report Workbench | completion + restore + export context covered | conflict/fallback/real/visual audit open |
@@ -55,8 +55,9 @@ definition. A mixed GUI suite previously hit Windows Qt cleanup failure in
 
 ## Open acceptance gates
 
-1. Define and implement IR mapping/ROI input, invalid-pixel, ROI spectra, and
-   map provenance contracts without guessing instrument semantics.
+1. Obtain scientific/user confirmation of the IR mapping/ROI vendor input,
+   coordinate, and metric semantics; the typed contract and provider boundary
+   are implemented without guessing those semantics.
 2. Exercise every mode through a real published run: active Manifest, Gallery
    selection, Editor entry, export bundle, and restored History.
 3. Add or verify AI-off, AI-failure, fallback, low-confidence, invalid-evidence,
@@ -64,3 +65,15 @@ definition. A mixed GUI suite previously hit Windows Qt cleanup failure in
 4. Run restarted-GUI visual walkthrough and human scientific review for each
    Workbench and publication role.
 5. Run the full boundary/release verifier and record the release decision.
+
+## Verification update: 2026-07-26
+
+- `python scripts/verify.py --changed --types` passed with an external
+  basetemp: compile/type baseline, memory, Ruff, quality gate 282, and
+  preprocessing gate 103 all passed.
+- `python scripts/verify.py --changed --types --full --boundary` was allowed
+  to run for 15 minutes and exited 124 without a failure summary. It remains
+  incomplete evidence, not a release pass; the long-running full suite needs
+  a separate runtime investigation.
+- MainWindow dynamic compatibility exports were restored and linted in
+  checkpoint `cbb3077`; this removes the previous changed-file Ruff blocker.

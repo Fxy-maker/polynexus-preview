@@ -119,6 +119,16 @@ Windows pytest 的仓库 `.pytest_tmp` 若被既有 scratch 锁定，使用仓�
 
 ## Completion evidence
 
+## Current audit (2026-07-26)
+
+Automated shared/platform and mode lifecycle boundaries are covered by the
+recorded focused matrices and the default changed/type verifier now passes.
+The full/boundary verifier ran for 15 minutes and timed out without a final
+summary, so this overall task remains active. Real published-run inspection,
+restarted-GUI visual review, human scientific sign-off, and the final release
+decision remain open; IR mapping/ROI is no longer blocked at the typed DTO and
+provider-contract layer, but vendor semantics still require confirmation.
+
 - Overall design: `docs/superpowers/specs/2026-07-25-full-software-development-architecture-design.md`。
 - Overall plan: `docs/superpowers/plans/2026-07-25-full-software-development.md`。
 - 每阶段在本任务卡、`docs/agent/memory/active-work.md` 和 acceptance notes 中
