@@ -1,5 +1,22 @@
 # Active Work
 
+## Complete 2D publication performance - updated 2026-07-26
+
+- WAXS strain publication image grids now use vectorized, bounded 256×256
+  snapshots while raw detector arrays remain available to analysis. IR
+  temperature-2D publication skips duplicate generic per-frame figures and
+  caps correlation snapshots at 420×420; full analysis matrices are retained
+  in the result object.
+- Focused provider/document/renderer matrix: `23 passed`; focused IR
+  provider/temperature/lifecycle matrix: `20 passed`.
+- The complete real 2D shared-lifecycle walkthrough passed `2` cases in
+  `101.39s`; the final combined real published-run matrix passed `10` cases
+  in `244.46s`. Evidence and external output roots are recorded in
+  `docs/acceptance/2026-07-26-real-published-run-audit.md`.
+- Remaining gates are restarted canonical-GUI visual review, publication-role
+  review, IR mapping/ROI vendor semantics, and scientific sign-off; the
+  performance fix does not promote diagnostic or warning results to Main.
+
 ## Full-software audit and verifier unblock - updated 2026-07-26
 
 - MainWindow's intentional dynamic compatibility exports are now explicit;
@@ -24,8 +41,9 @@
   covered by 20 focused tests in task card
   `docs/agent/tasks/2026-07-26-colorbar-audit-regression.md`; it does not
   override the real run's scientific validation failure.
-- WAXS strain and IR temperature-2D real directories exceeded the bounded
-  diagnostic runtime. Real Gallery/Editor/export/History walkthroughs,
+- WAXS strain and IR temperature-2D real directories initially exceeded the
+  bounded diagnostic runtime; the publication snapshot fix is recorded in
+  the active 2D performance task. Their complete shared lifecycle now passes;
   restarted-GUI visual review, vendor semantics, and scientific sign-off
   remain open.
 

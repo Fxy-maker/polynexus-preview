@@ -21,6 +21,9 @@ from .ir_mapping import IRMappingResult, build_ir_mapping_figure_definitions
 from .ir_temperature import IRTemp2DResult
 
 
+_CORRELATION_RENDER_MAX_POINTS = 420
+
+
 def build_ir_figure_definitions(
     results: Sequence[IRResult],
     *,
@@ -30,11 +33,16 @@ def build_ir_figure_definitions(
     """Build the complete set of available semantic IR figures."""
 
     definitions: list[FigureDefinition] = []
+    # Temperature-2D already exposes the sequence through one heatmap, band
+    # series, and correlation figures.  Re-publishing every frame's generic
+    # spectrum and peak-fit documents creates a large duplicate gallery and
+    # makes a full sequence publication unnecessarily expensive.
+    frame_results = () if temperature_2d_result is not None else tuple(results)
     spectrum_by_index = {
         int(item.recipe["parameters"]["frame_index"]): item
-        for item in build_ir_spectrum_definitions(results)
+        for item in build_ir_spectrum_definitions(frame_results)
     }
-    for index, result in enumerate(results, start=1):
+    for index, result in enumerate(frame_results, start=1):
         spectrum = spectrum_by_index.get(index)
         if spectrum is not None:
             definitions.append(spectrum)
@@ -281,6 +289,11 @@ def _temperature_2d_correlation_definition(
     wavenumber = _finite_values(result.wavenumber)
     if matrix.shape != (len(wavenumber), len(wavenumber)) or not np.isfinite(matrix).all():
         return None
+    render_wavenumber, render_matrix = _downsample_square(
+        wavenumber,
+        matrix,
+        max_points=_CORRELATION_RENDER_MAX_POINTS,
+    )
     source_id = f"ir-temperature-2d-{kind}-correlation"
     source = FigureDataSourceDefinition(
         source_id=source_id,
@@ -290,11 +303,17 @@ def _temperature_2d_correlation_definition(
             DataColumnDefinition("correlation", "a.u."),
         ),
         values={
-            "wavenumber_x_cm1": tuple(float(value) for value in np.tile(wavenumber, len(wavenumber))),
-            "wavenumber_y_cm1": tuple(float(value) for value in np.repeat(wavenumber, len(wavenumber))),
-            "correlation": tuple(float(value) for value in matrix.reshape(-1)),
+            "wavenumber_x_cm1": tuple(float(value) for value in np.tile(render_wavenumber, len(render_wavenumber))),
+            "wavenumber_y_cm1": tuple(float(value) for value in np.repeat(render_wavenumber, len(render_wavenumber))),
+            "correlation": tuple(float(value) for value in render_matrix.reshape(-1)),
         },
     )
+    recipe = _temperature_2d_recipe(result, f"{kind}_correlation")
+    recipe["parameters"] = {
+        **dict(recipe.get("parameters", {})),
+        "correlation_render_max_points": _CORRELATION_RENDER_MAX_POINTS,
+        "correlation_render_points": len(render_wavenumber),
+    }
     return FigureDefinition(
         figure_id=f"ir.temperature_2d.{kind}-correlation",
         technique="ir",
@@ -323,7 +342,7 @@ def _temperature_2d_correlation_definition(
                 "style": {"cmap": "RdBu_r", "colorbar_label": "Correlation"},
             },
         ),
-        recipe=_temperature_2d_recipe(result, f"{kind}_correlation"),
+        recipe=recipe,
         style_profile="sci_default",
         display_order=display_order,
     )
@@ -424,6 +443,20 @@ def _finite_values(values: object) -> np.ndarray:
     if array.ndim != 1 or not np.isfinite(array).all():
         return np.array([], dtype=float)
     return array
+
+
+def _downsample_square(
+    wavenumber: np.ndarray,
+    matrix: np.ndarray,
+    *,
+    max_points: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Bound a square publication snapshot while retaining full analysis data."""
+
+    if matrix.shape[0] <= max_points:
+        return wavenumber, matrix
+    indices = np.linspace(0, len(wavenumber) - 1, max_points, dtype=int)
+    return wavenumber[indices], matrix[np.ix_(indices, indices)]
 
 
 def build_ir_spectrum_definitions(

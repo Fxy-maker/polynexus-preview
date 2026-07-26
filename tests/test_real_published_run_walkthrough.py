@@ -79,6 +79,21 @@ def _real_cases() -> tuple[tuple[str, str, Path], ...]:
     )
 
 
+def _full_2d_real_cases() -> tuple[tuple[str, str, Path], ...]:
+    repository_root = Path(__file__).resolve().parents[1]
+    data_root = repository_root / "\u6d4b\u8bd5\u6570\u636e"
+    waxs_strain_source = next(
+        path.parent for path in (data_root / "waxs").rglob("8-000-W_0_00000.edf")
+    )
+    ir_temperature_source = next(
+        path.parent for path in (data_root / "IR").rglob("PA6-JW-30.csv")
+    )
+    return (
+        ("waxs", "waxs.strain", waxs_strain_source),
+        ("ir", "ir.temperature_2d", ir_temperature_source),
+    )
+
+
 @pytest.mark.parametrize("technique,mode,source", _real_cases())
 def test_real_published_run_preserves_shared_lifecycle(
     tmp_path: Path,
@@ -170,3 +185,20 @@ def test_real_published_run_preserves_shared_lifecycle(
     }
     assert {entry.run_id for entry in restored_entries} == {run_id}
     assert window._current_submodule_id == mode
+
+
+@pytest.mark.parametrize("technique,mode,source", _full_2d_real_cases())
+def test_full_2d_real_published_run_preserves_shared_lifecycle(
+    tmp_path: Path,
+    technique: str,
+    mode: str,
+    source: Path,
+) -> None:
+    """Run the complete 2D directories through the same shared lifecycle."""
+
+    test_real_published_run_preserves_shared_lifecycle(
+        tmp_path,
+        technique,
+        mode,
+        source,
+    )

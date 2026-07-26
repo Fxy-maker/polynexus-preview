@@ -67,6 +67,18 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- The 2026-07-26 complete 2D publication performance slice is implemented:
+  WAXS strain image-grid snapshots are vectorized and capped at 256×256 per
+  frame, while IR temperature-2D correlation snapshots are capped at 420×420
+  and duplicate generic per-frame figures are omitted when the temperature
+  series is present. Raw analysis arrays and scientific roles are unchanged.
+  Focused WAXS matrix: 23 passed; focused IR matrix: 20 passed.
+- The complete real WAXS strain and IR temperature-2D shared lifecycle passed
+  2 cases in 101.39s; the combined real published-run matrix passed 10 cases
+  in 244.46s through Manifest/Gallery, Editor revisions, export provenance,
+  and History restore. Task card:
+  `docs/agent/tasks/2026-07-26-2d-publication-render-performance.md`.
+
 - The 2026-07-20 editor interaction reliability slice adds stable static body
   drag/resize transactions, generated text/rectangle body dragging, visible
   distance-aware curve bends, line endpoint-preserving body movement, fixed

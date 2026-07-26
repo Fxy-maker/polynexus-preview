@@ -19,15 +19,31 @@ publication boundary; it is not a scientific sign-off.
 | NMR liquid/solid H/C | repository NMR fixtures | covered by the real-data lifecycle matrix | `tests/test_nmr_lifecycle_closure.py` |
 | WAXS strain/2D bounded subset | two repository EDF frames (0% and 400%) copied to external temp | pipeline completed; validation passed; shared Gallery/Editor/export/History walkthrough passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\waxs_strain_subset_real` |
 | IR temperature-2D bounded subset | two repository temperature CSV frames copied to external temp | pipeline completed; two expected temperature/2D-COS warnings retained; shared Gallery/Editor/export/History walkthrough passed | `C:\Temp\PolyNexus_release_walkthrough_20260726\ir_temperature_2d_subset_real` |
+| WAXS strain complete 2D | repository five-frame EDF directory | 3 ready Manifest figures; complete Gallery/Editor/export/History walkthrough passed after bounded image-grid snapshot; validation passed | `C:\Temp\PolyNexus_full_2d_walkthrough\test_full_2d_real_published_ru0\output` |
+| IR temperature-2D complete directory | repository 48-frame temperature CSV directory | 6 ready Manifest figures; complete Gallery/Editor/export/History walkthrough passed after bounded correlation snapshots and duplicate-frame suppression; expected 2D warnings retained | `C:\Temp\PolyNexus_full_2d_walkthrough\test_full_2d_real_published_ru1\output` |
 
-## Runs not accepted as pass
+## Performance correction
 
-- WAXS strain real 2D directory exceeded the 244-second diagnostic timeout.
-- IR temperature-2D real directory exceeded the 244-second diagnostic
-  timeout.
-- The WAXS strain and IR temperature-2D subset runs are bounded smoke
-  evidence, not substitutes for the complete five-frame / full-directory
-  scientific review.
+- WAXS strain publication image-grid snapshots now use vectorized sampling
+  capped at 256×256 pixels per frame. Raw detector arrays remain unchanged
+  for analysis. The complete real run measured about 13.5 seconds for
+  analysis and 57.2 seconds for publication in the external performance
+  probe.
+- IR temperature-2D publication no longer emits duplicate generic per-frame
+  spectrum/peak-fit figures when the temperature-series figures are present.
+  Correlation figure snapshots use the existing 420×420 legacy-render limit;
+  full analysis matrices remain on the result object. The complete real run
+  measured about 3.7 seconds for analysis and 40.3 seconds for publication.
+- The full 2D shared-lifecycle test passed `2` cases in `101.39s`:
+  `python -m pytest --basetemp=C:\Temp\PolyNexus_full_2d_walkthrough tests/test_real_published_run_walkthrough.py -k full_2d -q`.
+- The final complete real published-run matrix passed `10` cases in `244.46s`:
+  `python -m pytest tests/test_real_published_run_walkthrough.py -q`, with
+  pytest basetemp redirected to `C:\Temp\PolyNexus_real_walkthrough_final_20260726`.
+
+## Runs not accepted as scientific sign-off
+
+- The WAXS strain and IR temperature-2D runs now complete the shared software
+  lifecycle, but this is not a human scientific publication sign-off.
 - SAXS temperature is intentionally not a normal-science pass: the engine
   retains the run and figures while reporting `ERROR:qstar_contaminated` and
   diagnostic-only lamellar rows.

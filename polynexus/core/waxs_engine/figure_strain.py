@@ -21,6 +21,7 @@ RESPONSE_ID = "waxs.strain.response"
 SERIES_SI_ID = "waxs.strain.full-series.si"
 DIAGNOSTIC_ID = "waxs.strain.sequence.diagnostic"
 _COLORS = ("#000000", "#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00")
+_MAX_IMAGE_GRID_SIDE = 256
 
 
 def _source(source_id: str, columns: Sequence[tuple[str, str, str]], values: Mapping[str, Sequence[Any]], *, role: str = "plot_data") -> FigureDataSourceDefinition:
@@ -77,20 +78,35 @@ def _image_grid_source(scans: Sequence[Any], indices: Sequence[int]) -> FigureDa
     shape = images[0].shape
     if any(image.shape != shape for image in images):
         return None
-    grid_column: list[int] = []
-    grid_row: list[int] = []
-    pixel_x: list[float] = []
-    pixel_y: list[float] = []
-    intensity: list[float] = []
+
+    # Keep analysis on the original detector arrays, but bound the editable
+    # publication snapshot.  A full 2048x2048 image-grid would otherwise
+    # create millions of CSV rows and make the shared renderer repeatedly scan
+    # those rows for each tiled cell.
+    row_indices = np.linspace(
+        0, shape[0] - 1, min(shape[0], _MAX_IMAGE_GRID_SIDE), dtype=int
+    )
+    column_indices = np.linspace(
+        0, shape[1] - 1, min(shape[1], _MAX_IMAGE_GRID_SIDE), dtype=int
+    )
+    pixel_x_grid, pixel_y_grid = np.meshgrid(column_indices, row_indices)
+    flat_pixel_x = pixel_x_grid.reshape(-1).astype(float)
+    flat_pixel_y = pixel_y_grid.reshape(-1).astype(float)
+    grid_columns: list[np.ndarray] = []
+    grid_rows: list[np.ndarray] = []
+    intensities: list[np.ndarray] = []
     for cell, image in enumerate(images):
         row, column = divmod(cell, 3)
-        for y in range(shape[0]):
-            for x in range(shape[1]):
-                grid_column.append(column)
-                grid_row.append(row)
-                pixel_x.append(float(x))
-                pixel_y.append(float(y))
-                intensity.append(float(image[y, x]))
+        sampled = np.asarray(image, dtype=float)[np.ix_(row_indices, column_indices)]
+        grid_columns.append(np.full(sampled.size, column, dtype=np.int64))
+        grid_rows.append(np.full(sampled.size, row, dtype=np.int64))
+        intensities.append(sampled.reshape(-1))
+
+    grid_column = np.concatenate(grid_columns).tolist()
+    grid_row = np.concatenate(grid_rows).tolist()
+    pixel_x = np.tile(flat_pixel_x, len(images)).tolist()
+    pixel_y = np.tile(flat_pixel_y, len(images)).tolist()
+    intensity = np.concatenate(intensities).tolist()
     return _source(
         "waxs-strain-image-grid",
         (("grid_column", "", "int64"), ("grid_row", "", "int64"), ("pixel_x", "px", "float64"), ("pixel_y", "px", "float64"), ("intensity", "a.u.", "float64")),

@@ -115,6 +115,30 @@ def test_ir_engine_handoff_includes_temperature_2d_definitions():
     ]
 
 
+def test_temperature_2d_engine_handoff_does_not_publish_duplicate_frame_figures():
+    engine = IREngine()
+    engine._results = [
+        IRResult(
+            label=f"frame-{index}",
+            wavenumber=np.array([1800.0, 1700.0, 1600.0]),
+            absorbance=np.array([0.1, 0.4, 0.2]),
+        )
+        for index in range(48)
+    ]
+    engine._temperature_2d_result = IRTemp2DResult(
+        frames=[IRTempFrame(label="H100", temperature_C=100)],
+        wavenumber=np.array([1000.0, 1100.0]),
+        absorbance_matrix=np.array([[0.1, 0.2]]),
+    )
+
+    definitions = engine.build_figure_definitions()
+
+    assert all(item.scope != "frame" for item in definitions)
+    assert [item.figure_id for item in definitions] == [
+        "ir.temperature_2d.heatmap",
+    ]
+
+
 def test_ir_temperature_2d_provider_assigns_main_support_and_diagnostic_roles():
     engine = IREngine()
     engine._temperature_2d_result = IRTemp2DResult(
@@ -139,6 +163,25 @@ def test_ir_temperature_2d_provider_assigns_main_support_and_diagnostic_roles():
         "diagnostic",
         "diagnostic",
     ]
+
+
+def test_ir_temperature_2d_correlation_snapshot_is_bounded():
+    wavenumber = np.arange(500.0)
+    result = IRTemp2DResult(
+        frames=[IRTempFrame(label="H100", temperature_C=100)],
+        wavenumber=wavenumber,
+        absorbance_matrix=np.ones((1, len(wavenumber))),
+        sync_corr=np.ones((len(wavenumber), len(wavenumber))),
+        async_corr=np.ones((len(wavenumber), len(wavenumber))),
+    )
+
+    definitions = build_ir_temperature_2d_figure_definitions(result)
+
+    for definition in definitions[-2:]:
+        source = definition.data_sources[0]
+        assert len(source.values["correlation"]) <= 420 * 420
+        assert len(set(source.values["wavenumber_x_cm1"])) <= 420
+        assert len(set(source.values["wavenumber_y_cm1"])) <= 420
 
 
 def test_ir_temperature_2d_definitions_preserve_frame_condition_metadata():

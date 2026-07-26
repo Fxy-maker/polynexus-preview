@@ -68,6 +68,27 @@ def test_valid_2d_patterns_add_editable_grid() -> None:
     assert pattern_panel.y_axis.label == AXIS_LABELS["detector_y"]
 
 
+def test_2d_pattern_snapshot_is_bounded_for_publication() -> None:
+    engine = _strain_engine(with_images=True)
+    for scan in engine._dataset.scans:
+        scan.image = np.arange(513 * 517, dtype=float).reshape(513, 517)
+
+    main = _definition(build_strain_waxs_figure_definitions(engine), "waxs.strain.evolution")
+    source = next(item for item in main.data_sources if item.source_id == "waxs-strain-image-grid")
+
+    frame_cells = sorted(set(zip(source.values["grid_column"], source.values["grid_row"])))
+    assert len(frame_cells) == 3
+    for column, row in frame_cells:
+        mask = [
+            current_column == column and current_row == row
+            for current_column, current_row in zip(
+                source.values["grid_column"], source.values["grid_row"]
+            )
+        ]
+        assert sum(mask) <= 256 * 256
+    assert len(source.values["pixel_x"]) == len(source.values["intensity"])
+
+
 def test_invalid_orientation_is_not_main_response() -> None:
     definitions = build_strain_waxs_figure_definitions(_strain_engine(with_images=False, orientation=np.nan))
     assert "waxs.strain.orientation" not in {item.figure_id for item in definitions if item.publication_role == "main"}
