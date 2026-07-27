@@ -190,6 +190,7 @@ class SAXSEngine(BaseEngine):
         self._I_merid_list: List[np.ndarray | None] = []
         self._I_equat_list: List[np.ndarray | None] = []
         self._sector_data_list: List[Dict[str, Any] | None] = []
+        self._detector_quality_reports: List[Dict[str, Any] | None] = []
         self._q_pyfai_list: List[np.ndarray] = []
         self._I_pyfai_list: List[np.ndarray] = []
         self._conditions: List[float] = []
@@ -405,6 +406,7 @@ class SAXSEngine(BaseEngine):
         self._I_merid_list = []
         self._I_equat_list = []
         self._sector_data_list = []
+        self._detector_quality_reports = []
         self._q_pyfai_list = []
         self._I_pyfai_list = []
         self._file_list = []
@@ -432,12 +434,18 @@ class SAXSEngine(BaseEngine):
                         q, I, _ = read_1d_profile(str(filepath))
                         pp = {"q": q, "Iq": I, "Iq_smooth": I}
                         I_merid, I_equat = None, None
+                        detector_quality_report = None
                     else:
-                        pp = preprocess_pipeline(img, cfg_copy)
+                        pp = preprocess_pipeline(
+                            img,
+                            cfg_copy,
+                            **({"detector_header": header} if header else {}),
+                        )
                         q = pp["q"]
                         I = pp["Iq_smooth"]
                         I_merid = pp.get("Iq_merid_smooth")
                         I_equat = pp.get("Iq_equat_smooth")
+                        detector_quality_report = pp.get("detector_quality_report")
                     sector_data = pp.get("sector_data") if img is not None else None
                     if not isinstance(sector_data, dict):
                         sector_data = None
@@ -447,6 +455,11 @@ class SAXSEngine(BaseEngine):
                     self._I_merid_list.append(I_merid)
                     self._I_equat_list.append(I_equat)
                     self._sector_data_list.append(sector_data)
+                    self._detector_quality_reports.append(
+                        detector_quality_report
+                        if isinstance(detector_quality_report, dict)
+                        else None
+                    )
                     profile = self._processed_profile_from_payload(
                         pp, source="directory_load", filepath=str(filepath)
                     )
@@ -492,6 +505,7 @@ class SAXSEngine(BaseEngine):
                 self._I_merid_list = []
                 self._I_equat_list = []
                 self._sector_data_list = []
+                self._detector_quality_reports = []
                 self._file_list = []
                 self._conditions = []
                 self._condition_keys = []
@@ -507,7 +521,11 @@ class SAXSEngine(BaseEngine):
                         img, header = read_image(edf)
                         cfg_copy = extract_geometry_from_header(header, self.cfg)
                         if img is not None:
-                            pp = preprocess_pipeline(img, cfg_copy)
+                            pp = preprocess_pipeline(
+                                img,
+                                cfg_copy,
+                                **({"detector_header": header} if header else {}),
+                            )
                             self._q_list.append(pp["q"])
                             self._I_list.append(pp["Iq_smooth"])
                             self._I_merid_list.append(pp.get("Iq_merid_smooth"))
@@ -515,6 +533,12 @@ class SAXSEngine(BaseEngine):
                             sector_data = pp.get("sector_data")
                             self._sector_data_list.append(
                                 sector_data if isinstance(sector_data, dict) else None
+                            )
+                            detector_quality_report = pp.get("detector_quality_report")
+                            self._detector_quality_reports.append(
+                                detector_quality_report
+                                if isinstance(detector_quality_report, dict)
+                                else None
                             )
                             q_pf, I_pf = _integrate_pyfai_shadow(img, cfg_copy)
                             self._q_pyfai_list.append(q_pf if len(q_pf) > 0 else np.array([]))
@@ -527,6 +551,7 @@ class SAXSEngine(BaseEngine):
                             self._I_merid_list.append(None)
                             self._I_equat_list.append(None)
                             self._sector_data_list.append(None)
+                            self._detector_quality_reports.append(None)
                             self._q_pyfai_list.append(np.array([]))
                             self._I_pyfai_list.append(np.array([]))
                         profile = self._processed_profile_from_payload(
@@ -675,7 +700,11 @@ class SAXSEngine(BaseEngine):
                     setattr(self.cfg, attr, getattr(sc, attr))
         self._apply_submodule_defaults()
 
-        pp = preprocess_pipeline(self._img, self.cfg)
+        pp = preprocess_pipeline(
+            self._img,
+            self.cfg,
+            **({"detector_header": self._header} if self._header else {}),
+        )
         self._q = pp["q"]
         self._I = pp["Iq"]
         self._I_smooth = pp.get("Iq_smooth", self._I)
@@ -686,6 +715,9 @@ class SAXSEngine(BaseEngine):
         self.result.raw_data["I_smooth"] = self._I_smooth
         self.result.raw_data["img"] = self._img
         self.result.raw_data["sector_data"] = pp.get("sector_data", {})
+        self.result.raw_data["detector_quality_report"] = pp.get(
+            "detector_quality_report"
+        )
         self.result.metadata.update(pp.get("metadata", {}))
         self._publish_processed_profile(
             self._processed_profile_from_payload(pp, source="static_image_preprocess")
@@ -1087,6 +1119,11 @@ class SAXSEngine(BaseEngine):
         for i in range(len(self._q_list)):
             try:
                 analysis = analyze_single(self._q_list[i], self._I_list[i], self.cfg, q_anchor=_prev_q_star)
+                analysis.raw_detector_quality_report = (
+                    self._detector_quality_reports[i]
+                    if i < len(self._detector_quality_reports)
+                    else None
+                )
                 analysis.condition_value = self._conditions[i] if i < len(self._conditions) else np.nan
                 lp = analysis.long_period
                 if lp is not None and np.isfinite(lp.L_best) and lp.L_best > 0:
@@ -1111,6 +1148,11 @@ class SAXSEngine(BaseEngine):
                 q_list=self._q_list,
                 I_list=self._I_list,
                 cfg=self.cfg,
+                **(
+                    {"detector_quality_reports": self._detector_quality_reports}
+                    if self._detector_quality_reports
+                    else {}
+                ),
             )
         except Exception as exc:
             self.log(f"Temperature window analysis skipped: {exc}")
@@ -1351,6 +1393,11 @@ class SAXSEngine(BaseEngine):
                     I_list=I_use,
                     sector_data_list=self._sector_data_list,
                     cfg=replace(strain_cfg),
+                    **(
+                        {"detector_quality_reports": self._detector_quality_reports}
+                        if self._detector_quality_reports
+                        else {}
+                    ),
                 )
         except Exception:
             logger.warning("Failed to derive tensile SAXS strain-series evidence.", exc_info=True)
@@ -1363,6 +1410,11 @@ class SAXSEngine(BaseEngine):
                     self._q_list[i], I_use[i], strain_cfg, q_anchor=_prev_q_star,
                     q_pyfai=(q_pf if len(q_pf) > 0 else None),
                     I_pyfai=(I_pf if len(I_pf) > 0 else None),
+                )
+                analysis.raw_detector_quality_report = (
+                    self._detector_quality_reports[i]
+                    if i < len(self._detector_quality_reports)
+                    else None
                 )
                 analysis.condition_value = self._conditions[i] if i < len(self._conditions) else np.nan
                 lp = analysis.long_period
@@ -1580,6 +1632,11 @@ class SAXSEngine(BaseEngine):
                         q_pyfai=(q_pf_s if len(q_pf_s) > 0 else None),
                         I_pyfai=(I_pf_s if len(I_pf_s) > 0 else None),
                     )
+                    analysis.raw_detector_quality_report = (
+                        self._detector_quality_reports[i]
+                        if i < len(self._detector_quality_reports)
+                        else None
+                    )
                     analysis.condition_value = self._conditions[i] if i < len(self._conditions) else np.nan
                     self._batch_results.append(analysis)
                     sp = analysis.structure
@@ -1686,6 +1743,9 @@ class SAXSEngine(BaseEngine):
             return False
 
         self._analysis = analyze_single(self._q, self._I, self.cfg)
+        self._analysis.raw_detector_quality_report = self.result.raw_data.get(
+            "detector_quality_report"
+        )
         self._batch_results = [self._analysis]
         self.result.raw_data["q"] = self._analysis.q
         self.result.raw_data["I"] = self._analysis.I
@@ -1697,7 +1757,17 @@ class SAXSEngine(BaseEngine):
         if not self._q_list:
             self.log("No data loaded for temperature analysis")
             return None
-        result = analyze_temperature_series(temperatures=temperatures, q_list=self._q_list, I_list=self._I_list, cfg=self.cfg)
+        result = analyze_temperature_series(
+            temperatures=temperatures,
+            q_list=self._q_list,
+            I_list=self._I_list,
+            cfg=self.cfg,
+            **(
+                {"detector_quality_reports": self._detector_quality_reports}
+                if self._detector_quality_reports
+                else {}
+            ),
+        )
         self._temperature_result = result
         self._results = list(getattr(result, "temp_points", []))
         if output_dir:
@@ -1714,6 +1784,11 @@ class SAXSEngine(BaseEngine):
             I_list=self._I_list,
             sector_data_list=self._sector_data_list,
             cfg=self.cfg,
+            **(
+                {"detector_quality_reports": self._detector_quality_reports}
+                if self._detector_quality_reports
+                else {}
+            ),
         )
         self._strain_result = result
         self._results = list(getattr(result, "strain_points", []))
@@ -1758,7 +1833,11 @@ class SAXSEngine(BaseEngine):
             )
             if sequence_evidence is not None:
                 params["guinier_sequence_evidence"] = sequence_evidence
-            for field_name in ("detector_quality_report", "orientation_evidence"):
+            for field_name in (
+                "detector_quality_report",
+                "raw_detector_quality_report",
+                "orientation_evidence",
+            ):
                 copied = _saxs_batch_helpers.copy_saxs_quality_evidence(tr).get(field_name)
                 if copied is not None:
                     params[field_name] = copied
@@ -1794,7 +1873,11 @@ class SAXSEngine(BaseEngine):
             metric_evidence = _series_metric_evidence_payload(sr)
             if metric_evidence:
                 params["metric_evidence"] = metric_evidence
-            for field_name in ("detector_quality_report", "orientation_evidence"):
+            for field_name in (
+                "detector_quality_report",
+                "raw_detector_quality_report",
+                "orientation_evidence",
+            ):
                 copied = _saxs_batch_helpers.copy_saxs_quality_evidence(sr).get(field_name)
                 if copied is not None:
                     params[field_name] = copied

@@ -158,6 +158,7 @@ _QUALITY_FIELDS = (
     "guinier_evidence",
     "metric_evidence",
     "detector_quality_report",
+    "raw_detector_quality_report",
     "orientation_evidence",
     "guinier_sequence_evidence",
     "sequence_rescue_candidates",

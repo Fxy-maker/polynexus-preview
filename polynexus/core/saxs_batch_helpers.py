@@ -20,6 +20,7 @@ _QUALITY_EVIDENCE_FIELDS = (
     "guinier_evidence",
     "metric_evidence",
     "detector_quality_report",
+    "raw_detector_quality_report",
     "orientation_evidence",
     "guinier_sequence_evidence",
 )
@@ -110,10 +111,16 @@ def build_static_batch_2d_quality_evidence(analyses: Any) -> Dict[str, Dict[str,
         [frame.get("orientation_evidence") for frame in copied_frames],
         source_ref="saxs_static_batch.orientation_evidence",
     )
+    raw_detector = build_series_detector_quality_report(
+        [frame.get("raw_detector_quality_report") for frame in copied_frames],
+        source_ref="saxs_static_batch.raw_detector_quality_report",
+    )
     if detector is not None:
         payload["detector_quality_report"] = detector
     if orientation is not None:
         payload["orientation_evidence"] = orientation
+    if raw_detector is not None:
+        payload["raw_detector_quality_report"] = raw_detector
     return payload
 
 

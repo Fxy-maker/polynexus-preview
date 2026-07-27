@@ -31,6 +31,37 @@ _COMMON_EVIDENCE_FIELDS = (
     "physical_checks",
     "condition_axis",
 )
+_DETECTOR_EVIDENCE_FIELDS = (
+    "metric_name",
+    "level",
+    "applicable",
+    "value",
+    "unit",
+    "reason_codes",
+    "source_ref",
+    "source_kind",
+    "source_kinds",
+    "shape",
+    "pixel_count",
+    "finite_pixel_count",
+    "nonfinite_pixel_count",
+    "nonpositive_pixel_count",
+    "masked_pixel_count",
+    "saturated_pixel_count",
+    "valid_pixel_count",
+    "coverage_fraction",
+    "saturation_detection_available",
+    "beam_center_available",
+    "beam_center",
+    "frame_count",
+    "evidence_frame_count",
+    "missing_frame_count",
+    "usable_frame_count",
+    "diagnostic_frame_count",
+    "unusable_frame_count",
+    "evidence_frame_indices",
+    "missing_frame_indices",
+)
 _DATA_QUALITY_FIELDS = (
     "source_id",
     "raw_data_ref",
@@ -205,10 +236,21 @@ def _frame_record(
     )
     if guinier:
         record["guinier_evidence"] = guinier
-    for field in ("data_quality_report", "detector_quality_report", "orientation_evidence"):
+    for field in (
+        "data_quality_report",
+        "detector_quality_report",
+        "raw_detector_quality_report",
+        "orientation_evidence",
+    ):
         projected = _project_mapping(
             _first_frame_value(frame, field),
-            _DATA_QUALITY_FIELDS if field == "data_quality_report" else _COMMON_EVIDENCE_FIELDS,
+            (
+                _DATA_QUALITY_FIELDS
+                if field == "data_quality_report"
+                else _DETECTOR_EVIDENCE_FIELDS
+                if field in {"detector_quality_report", "raw_detector_quality_report"}
+                else _COMMON_EVIDENCE_FIELDS
+            ),
         )
         if projected:
             record[field] = projected
@@ -230,10 +272,16 @@ def _series_record(series: Any) -> dict[str, Any]:
     )
     if sequence:
         record["guinier_sequence_evidence"] = sequence
-    for field in ("detector_quality_report", "orientation_evidence"):
+    for field in (
+        "detector_quality_report",
+        "raw_detector_quality_report",
+        "orientation_evidence",
+    ):
         projected = _project_mapping(
             getattr(series, field, None),
-            _COMMON_EVIDENCE_FIELDS,
+            _DETECTOR_EVIDENCE_FIELDS
+            if field in {"detector_quality_report", "raw_detector_quality_report"}
+            else _COMMON_EVIDENCE_FIELDS,
         )
         if projected:
             record[field] = projected

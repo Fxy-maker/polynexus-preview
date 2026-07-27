@@ -13,12 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 from pathlib import Path
-from typing import Tuple, Optional, Callable, Dict, List
+from typing import Any, Mapping, Tuple, Optional, Callable, Dict, List
 from dataclasses import replace
 import numpy as np
 from scipy.signal import savgol_filter
 
 from .config import SAXSConfig
+from .saxs_quality_contracts import build_detector_quality_report
 
 
 # ---------------------------------------------------------------------------
@@ -575,6 +576,7 @@ def preprocess_pipeline(
     I_background: Optional[np.ndarray] = None,
     q_background: Optional[np.ndarray] = None,
     temperature: float = 25.0,
+    detector_header: Optional[Mapping[str, Any]] = None,
 ) -> dict:
     """Run the full preprocessing pipeline on a single 2D image.
 
@@ -667,6 +669,17 @@ def preprocess_pipeline(
         except Exception:
             logger.warning("SAXS azimuthal sector integration failed; orientation is unavailable.", exc_info=True)
     result["sector_data"] = sector_data
+    detector_report = build_detector_quality_report(
+        img,
+        mask=_build_mask(img, cfg),
+        saturation_value=_header_float(
+            detector_header,
+            ("saturation", "saturation_value", "saturationvalue"),
+        ),
+        source_kind="raw_detector",
+        beam_center=_header_beam_center(detector_header),
+    )
+    result["detector_quality_report"] = detector_report.to_dict()
 
     return result
 
@@ -680,6 +693,39 @@ def _build_mask(img: np.ndarray, cfg: SAXSConfig) -> Optional[np.ndarray]:
     if np.isnan(cfg.dummy_val):
         return None
     return np.abs(img - cfg.dummy_val) < cfg.ddummy
+
+
+def _header_float(
+    header: Optional[Mapping[str, Any]],
+    names: Tuple[str, ...],
+) -> float | None:
+    """Read one explicitly named finite numeric header field."""
+    if not isinstance(header, Mapping):
+        return None
+    normalized = {
+        str(key).strip().lower().replace("-", "_"): value
+        for key, value in header.items()
+    }
+    for name in names:
+        raw_value = normalized.get(str(name).strip().lower().replace("-", "_"))
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(value):
+            return float(value)
+    return None
+
+
+def _header_beam_center(
+    header: Optional[Mapping[str, Any]],
+) -> Tuple[float, float] | None:
+    """Return a header beam center only when both coordinates are explicit."""
+    x_value = _header_float(header, ("center_1", "center_x", "beam_center_x"))
+    y_value = _header_float(header, ("center_2", "center_y", "beam_center_y"))
+    if x_value is None or y_value is None:
+        return None
+    return x_value, y_value
 
 
 def detect_beamstop_edge(

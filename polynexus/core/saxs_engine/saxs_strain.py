@@ -78,6 +78,7 @@ class StrainPointResult:
     data_quality_report: Dict = None
     metric_evidence: Dict = None
     detector_quality_report: Dict = None
+    raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
     warnings: List[str] = field(default_factory=list)
 
@@ -99,6 +100,7 @@ class StrainSeriesResult:
     phi_void_array: np.ndarray = None
     metric_evidence: Dict = None
     detector_quality_report: Dict = None
+    raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
 
     def get_phase_transition(self) -> Dict:
@@ -417,6 +419,7 @@ def analyze_strain_series(
     sector_data_list: Optional[List[Dict]] = None,
     cfg: Optional[SAXSConfig] = None,
     verbose: bool = False,
+    detector_quality_reports: Optional[List[Dict]] = None,
 ) -> StrainSeriesResult:
     """Analyze a complete in-situ tensile SAXS experiment.
 
@@ -468,6 +471,8 @@ def analyze_strain_series(
         I = I_list[i]
 
         sp = StrainPointResult(strain_pct=float(strain))
+        if detector_quality_reports is not None and len(detector_quality_reports) == n_points:
+            sp.raw_detector_quality_report = detector_quality_reports[i]
 
         # ---- Core analysis (strain-aware) ----
         try:
@@ -557,6 +562,12 @@ def analyze_strain_series(
     )
     if detector_quality is not None:
         result.detector_quality_report = detector_quality
+    raw_detector_quality = build_series_detector_quality_report(
+        [point.raw_detector_quality_report for point in result.strain_points],
+        source_ref="saxs_strain.raw_detector_quality_report",
+    )
+    if raw_detector_quality is not None:
+        result.raw_detector_quality_report = raw_detector_quality
     if orientation is not None:
         result.orientation_evidence = orientation
     result.phase_boundaries = phase_boundaries
