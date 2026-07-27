@@ -80,7 +80,7 @@
   assignment, Joint scientific conflicts, and final release approval remain
   open. No production GUI or scientific semantics changed.
 
-## SAXS rescue-candidate Workbench visibility - ready for checkpoint - 2026-07-28
+## SAXS rescue-candidate Workbench visibility - checkpointed at e214d76 - 2026-07-28
 
 - The existing deterministic temperature sequence-rescue candidates are now
   copied into the public temperature parameters payload and rendered as
@@ -98,10 +98,10 @@
   `docs/agent/tasks/2026-07-28-saxs-rescue-candidate-workbench-visibility.md`,
   `docs/superpowers/specs/2026-07-28-saxs-rescue-candidate-workbench-visibility-design.md`,
   and `docs/superpowers/plans/2026-07-28-saxs-rescue-candidate-workbench-visibility.md`.
-- The explicit allowlist checkpoint is the next action; no push, merge,
-  deployment, or scientific/publication approval is implied.
+- The explicit allowlist implementation checkpoint is `e214d76`; no push,
+  merge, deployment, or scientific/publication approval is implied.
 
-## SAXS DataQualityReport Workbench visibility - ready for checkpoint - 2026-07-28
+## SAXS DataQualityReport Workbench visibility - checkpointed at fb76039 - 2026-07-28
 
 - The Results Workbench now presents the existing q/I `DataQualityReport` as
   read-only advisory context across static, temperature, and strain payloads.
@@ -120,7 +120,7 @@
   `docs/agent/tasks/2026-07-28-saxs-data-quality-workbench-visibility.md`,
   `docs/superpowers/specs/2026-07-28-saxs-data-quality-workbench-visibility-design.md`,
   and `docs/superpowers/plans/2026-07-28-saxs-data-quality-workbench-visibility.md`.
-- The explicit seven-file checkpoint is the next action; no push, merge,
+- The explicit implementation checkpoint is `fb76039`; no push, merge,
   release, or scientific/publication approval is implied.
 
 ## SAXS DataQualityReport DataFrame and CSV export - 2026-07-28

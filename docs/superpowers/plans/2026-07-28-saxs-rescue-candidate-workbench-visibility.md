@@ -56,7 +56,8 @@ the public payload. No algorithm or AI execution path changes.
 - [x] Run focused tests, exact SAXS matrix, task verifier, Ruff/compile, and
   `git diff --check`; record exact results and any full/boundary limitation.
 - [x] Update task/spec/plan status and durable memory with actual evidence.
-- [ ] Confirm only the explicit allowlist is staged and run:
+- [x] Confirm only the explicit allowlist was staged and checkpointed in
+  `e214d76`; no push was performed:
 
 ```powershell
 python scripts/auto_commit.py --message "feat(saxs): expose rescue candidates in workbench" --files <explicit-allowlist>

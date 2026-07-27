@@ -1,6 +1,6 @@
 # Task: SAXS data-quality review visibility in Workbench
 
-**Status:** complete; checkpoint pending
+**Status:** complete; checkpointed at `fb76039`
 
 ## Goal
 
@@ -66,6 +66,11 @@ Actual evidence on 2026-07-28:
   whitespace all passed.
 - No full/boundary verifier was run for this presentation-only slice; exact
   full SAXS coverage remains a follow-up beyond the task-scoped matrix.
+- The implementation and its explicit task/spec/plan allowlist were
+  checkpointed in `fb76039`; no push was performed.
+- A later documentation-only reconciliation verifier hit the pre-existing
+  `tests/_tmp_phase3` `.pyc` WinError 5 permission lock after task validation;
+  this does not invalidate the original task-scoped pass recorded above.
 
 ## Scientific limitation
 

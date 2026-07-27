@@ -49,6 +49,7 @@
   `docs/agent/tasks/2026-07-28-saxs-rescue-candidate-workbench-visibility.md`,
   `docs/superpowers/specs/2026-07-28-saxs-rescue-candidate-workbench-visibility-design.md`,
   and `docs/superpowers/plans/2026-07-28-saxs-rescue-candidate-workbench-visibility.md`.
+- Implementation checkpoint: `e214d76` (no push).
 
 ## SAXS DataQualityReport Workbench visibility (2026-07-28)
 
@@ -67,6 +68,7 @@
 - Task/spec/plan: `docs/agent/tasks/2026-07-28-saxs-data-quality-workbench-visibility.md`,
   `docs/superpowers/specs/2026-07-28-saxs-data-quality-workbench-visibility-design.md`,
   and `docs/superpowers/plans/2026-07-28-saxs-data-quality-workbench-visibility.md`.
+- Implementation checkpoint: `fb76039` (no push).
 
 ## SAXS DataQualityReport DataFrame and CSV export (2026-07-28)
 

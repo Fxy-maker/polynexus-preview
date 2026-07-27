@@ -1,6 +1,6 @@
 # Task: SAXS rescue-candidate visibility in Workbench
 
-**Status:** complete; checkpoint pending
+**Status:** complete; checkpointed at `e214d76`
 
 ## Goal
 
@@ -87,6 +87,8 @@ git diff --check
   Arial CJK glyph and EDF geometry-header warnings.
 - Full/boundary verification was not run for this presentation/transport
   slice; no full/boundary pass is claimed.
+- The implementation and its explicit task/spec/plan allowlist were
+  checkpointed in `e214d76`; no push was performed.
 
 ## Explicit changed-file allowlist
 

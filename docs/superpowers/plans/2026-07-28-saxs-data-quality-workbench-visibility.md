@@ -79,5 +79,5 @@ next text after detector text, preserving existing order for all other channels.
 - [x] **Step 1: Run focused Workbench tests, the exact SAXS matrix, task verifier,
   Ruff/compile, and `git diff --check`; record actual outcomes.**
 - [x] **Step 2: Confirm only the seven-file allowlist is staged.**
-- [ ] **Step 3: Run `scripts/auto_commit.py` with message
-  `feat(saxs): show data quality in workbench` and the explicit allowlist.**
+- [x] **Step 3: The explicit allowlist was checkpointed in `fb76039`; no push
+  was performed.**
