@@ -1,5 +1,23 @@
 ---
 
+## SAXS structure-parameter fail-closed guard (2026-07-28)
+
+- `compute_structure_params()` now initializes its existing `idf_is_artifact`
+  default before the tangent decision. Limited-q profiles with no tangent/IDF
+  artifact branch no longer raise `UnboundLocalError`; the existing structured
+  result and quality/evidence path is allowed to complete.
+- No numerical method, threshold, quality level, physical gate, rescue, AI,
+  or publication role changed. TDD RED was `1 failed`, focused GREEN was `21
+  passed`, and the exact SAXS matrix was `412 passed, 6 warnings`. The
+  external-D task verifier passed with quality `283`, preprocessing `106`,
+  Ruff, compile/type baseline, memory/task, and whitespace checks. The
+  explicit allowlist checkpoint was created locally; no push, merge, release,
+  or scientific publication approval is implied.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-structure-params-fail-closed.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-structure-params-fail-closed-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-structure-params-fail-closed.md`.
+
 ## SAXS 1D quality provenance source binding (2026-07-28)
 
 - The 1D `DataQualityReport` source fields are now bound at the analysis

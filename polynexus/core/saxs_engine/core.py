@@ -1115,6 +1115,7 @@ def compute_structure_params(
 
     # ── Decision logic: pick the most reliable thickness estimate ──
     thickness = np.nan  # raw thickness (may be lc or la depending on flag)
+    idf_is_artifact = False
 
     if np.isfinite(tangent_thickness) and tangent_thickness > 0.3:
         # Tangent method succeeded — use as primary.
@@ -1128,7 +1129,6 @@ def compute_structure_params(
         
         # Detect IDF artifact: peaks at perfectly regular intervals indicate
         # Fourier / SG-filter artifacts, not real structural peaks.
-        idf_is_artifact = False
         if idf_result and 'peak_positions' in idf_result:
             pp = idf_result['peak_positions']
             if isinstance(pp, list) and len(pp) >= 3:

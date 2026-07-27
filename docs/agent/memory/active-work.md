@@ -1,5 +1,18 @@
 # Active Work
 
+## SAXS structure-parameter fail-closed guard - checkpointed - 2026-07-28
+
+- Root-cause reproduction showed that a 24-point `q=0.02..0.6` profile raised
+  `UnboundLocalError` because `idf_is_artifact` was initialized only inside
+  the tangent-success branch. The minimal default initialization is now in
+  place; the existing artifact heuristic and confidence logic are unchanged.
+- TDD RED was `1 failed`, focused GREEN was `21 passed`, and the exact SAXS
+  matrix was `412 passed, 6 warnings`. The external-D structured verifier
+  passed with quality `283`, preprocessing `106`, task/memory, Ruff,
+  compile/type, and whitespace checks. The explicit allowlist checkpoint was
+  created locally; no push, merge, release, or scientific publication approval
+  is implied. Do not mix pre-existing GUI/editor/release/scratch files.
+
 ## SAXS 1D quality provenance source binding - checkpointed - 2026-07-28
 
 - `DataQualityReport` provenance is now bound through `analyze_single()`, the
