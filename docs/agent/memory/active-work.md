@@ -1,6 +1,6 @@
 # Active Work
 
-## SAXS temperature Guinier sequence evidence transport - implementation checkpoint pending 2026-07-27
+## SAXS temperature Guinier sequence evidence transport - checkpoint b7bad1c 2026-07-27
 
 - The existing observational `build_guinier_sequence_evidence()` contract now
   carries optional `frame_source_indices` without changing its level logic,
@@ -24,13 +24,17 @@
   exceeded the tool's `124` second window while still in the
   `verify.py -> quality_gate.py --all-tests -> pytest -q` chain. It was
   terminated without a final count, so no full/boundary pass is claimed for
-  this modification.
+  this modification. A process audit after termination found no remaining
+  verifier or pytest process.
 - Task/spec/plan: `docs/agent/tasks/2026-07-27-saxs-temperature-guinier-sequence-transport.md`,
   `docs/superpowers/specs/2026-07-27-saxs-temperature-guinier-sequence-evidence-design.md`,
   and `docs/superpowers/plans/2026-07-27-saxs-temperature-guinier-sequence-evidence.md`.
-- Next action is final allowlist review and checkpoint; real-data scientific
-  sign-off, AI execution/calibration, detector/geometry acceptance, and final
-  release review remain open.
+- Checkpoint `b7bad1c` contains the explicit implementation allowlist. Fresh
+  revalidation on 2026-07-27 passed the task-scoped verifier with quality
+  `282` and preprocessing `106`, the exact SAXS file matrix with `311 passed,
+  4 warnings`, and `git diff --check`. Real-data scientific sign-off, AI
+  execution/calibration, detector/geometry acceptance, and final release
+  review remain open.
 
 ## SAXS aligned-batch evidence mode resilience - implementation checkpoint 2026-07-27
 

@@ -7,8 +7,8 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
-- SAXS temperature Guinier sequence evidence transport is implemented in the
-  working tree: existing sequence evidence now retains optional original frame
+- SAXS temperature Guinier sequence evidence transport is checkpointed in
+  `b7bad1c`: existing sequence evidence now retains optional original frame
   indices, survives temperature sorting, reaches parameters/History/Export,
   and is rendered in Workbench as advisory diagnostics. No new physical
   threshold, interpolation, frame repair, AI action, or publication behavior

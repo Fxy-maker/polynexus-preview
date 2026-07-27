@@ -98,6 +98,30 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-temperature-gui
   `verify.py -> quality_gate.py --all-tests -> pytest -q` process chain was
   still running. It was terminated without a final test count; this task does
   not claim a full/boundary pass.
+- Fresh revalidation on 2026-07-27 found no remaining verifier or pytest
+  process, and reran the task-scoped verifier (`282` quality tests, `106`
+  preprocessing tests) plus the exact SAXS matrix (`311 passed, 4 warnings`).
+- Implementation checkpoint: `b7bad1c` (`feat(saxs): expose temperature
+  guinier sequence provenance`). This documentation update records the
+  checkpoint and its allowlist; it does not expand the implementation scope.
+
+## Changed-file allowlist for checkpoint b7bad1c
+
+- `polynexus/core/saxs.py`
+- `polynexus/core/saxs_batch_helpers.py`
+- `polynexus/core/saxs_engine/saxs_quality_contracts.py`
+- `polynexus/core/saxs_engine/saxs_temperature.py`
+- `polynexus/gui/saxs_results_table_service.py`
+- `tests/test_saxs_batch_parameters.py`
+- `tests/test_saxs_export_bundle.py`
+- `tests/test_saxs_guinier_sequence_evidence.py`
+- `tests/test_saxs_temperature_guinier_evidence.py`
+- `tests/test_saxs_workbench_series_evidence.py`
+- `docs/agent/memory/active-work.md`
+- `docs/agent/memory/current-state.md`
+- `docs/agent/tasks/2026-07-27-saxs-temperature-guinier-sequence-transport.md`
+- `docs/superpowers/plans/2026-07-27-saxs-temperature-guinier-sequence-evidence.md`
+- `docs/superpowers/specs/2026-07-27-saxs-temperature-guinier-sequence-evidence-design.md`
 
 ## Known limitations
 
