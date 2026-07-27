@@ -343,7 +343,7 @@
 - No verifier implementation change was needed. The remaining blocker is
   product/scientific acceptance, not automated test execution.
 
-## Qt lifecycle stability - focused boundary verified 2026-07-26
+## Qt lifecycle stability - checkpointed 2026-07-27
 
 - Deferred `FigureFilePreview` fit callbacks now use parent-owned timers;
   MainWindow workspace context uses a distinct QLabel attribute with a legacy
@@ -352,11 +352,13 @@
 - Focused evidence: viewer/lifecycle 23 passed, ChartEditor + DSC lifecycle
   251 passed, workspace/AI context 11 passed, and the complete MainWindow
   persistence file 197 passed in an external basetemp.
-- The structured verifier stops at Ruff because the monolithic
-  `polynexus/gui/main_window.py` has a pre-existing 150-error baseline at
-  `HEAD` (151 with the scoped rename). Full/boundary release verification and
-  the checkpoint remain open; no unrelated import cleanup was folded into
-  this task.
+- MainWindow lint baseline cleanup is separately checkpointed at `cbb3077`, so
+  the structured verifier now reaches its quality gates. Focused lifecycle
+  evidence is `274 passed`; quality/preprocessing gates are `282`/`106`; the
+  current full/boundary verifier passed `2671` tests with `10` known warnings
+  and a passing boundary audit. The lifecycle code checkpoint is `fbf22b6`.
+- Restarted-GUI visual review and human scientific/publication review remain
+  open in the full-software release ledger.
 
 ## NMR real-data lifecycle closure - automated boundary completed 2026-07-25
 

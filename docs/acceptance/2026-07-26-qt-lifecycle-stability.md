@@ -24,10 +24,9 @@ python -m pytest --basetemp=C:\Temp\PolyNexus_qt_persistence_full tests/test_mai
 
 ## Verification boundary
 
-The focused Qt matrices and the complete MainWindow persistence file pass.
-`python scripts/verify.py --task docs/agent/tasks/2026-07-26-qt-lifecycle-stability.md --changed --types`
-currently stops in the changed-file Ruff phase because the existing
-`polynexus/gui/main_window.py` baseline has 150 errors at `HEAD` (151 with the
-scoped rename). That import baseline is outside this lifecycle task and was
-left untouched. The allowlisted checkpoint is therefore pending until the
-baseline decision is resolved.
+The focused Qt matrices, MainWindow persistence file, structured verifier, and
+current full/boundary verifier are green. The full run completed with `2671
+passed, 10 warnings` in `1644.65s`; the boundary audit passed. The warnings are
+the existing Qt tight-layout, DSC polyfit-conditioning, and SAXS CJK glyph
+warnings. The lifecycle checkpoint is `fbf22b6`; GUI restart review and human
+scientific/publication review remain outside this automated note.

@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-26-qt-lifecycle-stability
 kind: gui-reliability
-status: in_progress
+status: completed
 ---
 
 # Qt lifecycle stability
@@ -31,12 +31,10 @@ ChartEditor test teardown safe across the full software suite.
 - [x] AI tuning workspace context calls the summary method successfully.
 - [x] Existing lightweight workspace fakes retain their label behavior.
 - [x] ChartEditor plus DSC lifecycle runs without Qt heap corruption.
-- [ ] Full repository verification completes with no unrelated failures. The
-  changed/type verifier is currently blocked before the quality gate by the
-  pre-existing monolithic `main_window.py` Ruff baseline (150 errors on
-  `HEAD`, 151 when the scoped rename is present); this task does not reformat
-  that unrelated file-wide import surface.
-- [ ] Allowlisted checkpoint commit is created.
+- [x] Full repository verification completes with no unrelated failures. The
+  current HEAD full/boundary verifier passes `2671` tests with the known
+  ten Qt/layout/scientific-font warnings and a passing boundary audit.
+- [x] Allowlisted checkpoint commit is created (`fbf22b6`).
 
 ## Implementation plan
 
@@ -56,6 +54,15 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-26-qt-lifecycle-stabili
 
 ## Known limitations
 
-The focused Qt and persistence matrices complete, but the repository verifier
-cannot reach its quality gate until the pre-existing `main_window.py` Ruff
-baseline is separately addressed. Full/boundary release evidence remains open.
+Focused Qt and persistence matrices remain green. The repository-wide
+automation gate is closed for this slice; restarted-GUI visual review and
+human scientific/publication review remain separate full-software release
+gates.
+
+## Checkpoint evidence
+
+- Focused lifecycle/editor matrix: `274 passed` on the current HEAD.
+- Structured verifier: quality gate `282 passed`; preprocessing gate `106
+  passed`.
+- Current-HEAD full/boundary verifier: `2671 passed, 10 warnings` in
+  `1644.65s`; boundary audit passed.

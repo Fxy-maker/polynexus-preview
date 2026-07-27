@@ -284,11 +284,12 @@ title: Current PolyNexus repository state
 - The 2026-07-26 Qt lifecycle slice adds parent-owned preview timers, a
   collision-free MainWindow workspace summary label, and ChartEditor teardown
   isolation. Its focused evidence is viewer/lifecycle 23, ChartEditor + DSC
-  lifecycle 251, workspace/AI context 11, and MainWindow persistence 197.
-  The changed/type verifier still stops at the same pre-existing
-  `main_window.py` Ruff baseline (150 errors at `HEAD`); this is recorded as a
-  separate cleanup decision rather than hidden by a broad noqa or import
-  rewrite.
+  lifecycle 251, workspace/AI context 11, and MainWindow persistence 197;
+  the current combined lifecycle/editor recheck is `274 passed`. The
+  MainWindow lint baseline is checkpointed separately at `cbb3077`, and the
+  current full/boundary verifier passes `2671` tests with `10` known warnings.
+  Lifecycle code checkpoint: `fbf22b6`; restarted-GUI and human release review
+  remain open.
 
 - On 2026-07-26 the MainWindow import baseline was repaired without broad
   file-level suppression: symbols consumed through `main_window_module.*`
