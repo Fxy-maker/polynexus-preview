@@ -196,23 +196,15 @@ $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\PolyNexus.pytest_tmp_release_full'
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-The latest D:-isolated current-working-tree result is **not a pass**:
-`2836 passed, 16 skipped, 12 warnings, 2 failed` in `1547.13s`; verifier exit
-code `1`. Both failures are real SAXS condition-recovery assertions, not a
-timeout or tool-level failure:
-
-- `test_recover_condition_axis_distinguishes_directory_and_filename_sources`
-  expected `path_directory` but received `unresolved`.
-- `test_scan_experiment_dir_preserves_condition_confidence_metadata` expected
-  `path_directory` but received `unresolved`.
-
-The selected compile, quality (`283`), preprocessing (`106`), Ruff/type
-baseline, whitespace, and boundary checks passed around those failures. The
-warnings are the existing Matplotlib tight-layout, DSC
-polynomial-conditioning, Arial glyph, and deleted-Qt-signal warnings listed in
-the run output. A focused recheck of both condition-recovery tests on the
-current checkout is green (`2 passed`), so the discrepancy remains a release
-audit follow-up rather than evidence to silently rewrite the full-run result.
+The latest D:-isolated current-working-tree result is green: the verifier
+exited `0`, and its all-tests quality phase returned `2845 passed, 16 skipped,
+12 warnings` in `1574.30s`. Compile, quality (`283`), preprocessing (`106`),
+Ruff/type baseline, whitespace, and boundary audit all passed. The earlier
+`2836 passed / 2 failed` condition-recovery result was not reproducible in the
+current checkout; the focused condition-recovery rerun and this full run both
+pass. It remains historical diagnostic evidence, not a current release
+failure. The warnings are the existing tight-layout, DSC polynomial
+conditioning, Arial glyph, and EDF geometry fallback warnings.
 
 ## GUI evidence
 

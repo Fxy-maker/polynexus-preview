@@ -116,15 +116,12 @@ limitation rather than pass.
   assignment and Joint scientific conflicts remain explicit human gates.
 - A combined lifecycle/real-run command exceeded the short 180-second tool
   window without a test summary; this is not a pass or a failure claim.
-- The latest D:-isolated full/boundary run is classified as a real test
-  failure, not a timeout: `2836 passed, 16 skipped, 12 warnings, 2 failed` in
-  `1547.13s`, verifier exit code `1`. Both failures are SAXS condition
-  recovery assertions (`path_directory` expected but `unresolved` returned)
-  in `tests/test_saxs_condition_recovery.py`. Compile, quality (`283`),
-  preprocessing (`106`), Ruff/type baseline, whitespace, and boundary audit
-  passed. A focused current-checkout rerun of those two tests returned
-  `2 passed`; the full-run failure remains recorded until its environment or
-  reproducibility discrepancy is resolved.
+- The latest D:-isolated full/boundary verifier exited `0`; its all-tests
+  quality phase returned `2845 passed, 16 skipped, 12 warnings` in `1574.30s`.
+  Compile, quality (`283`), preprocessing (`106`), Ruff/type baseline,
+  whitespace, and boundary audit passed. The earlier `2836 passed / 2 failed`
+  condition-recovery result was not reproducible in the current checkout;
+  focused condition recovery and the fresh full run are green.
 - The responsive-shell GUI task was checkpointed as `83083bc`; a fresh
   `scripts/launch_gui.py --diagnose` resolved the canonical `D:\PolyNexus`
   source root and that commit. All-route live visual review remains open.
@@ -238,9 +235,8 @@ python scripts/verify.py --changed --types --full --boundary
 
 ## Next action
 
-Automated release evidence is not yet fully green because the latest full
-boundary run has the two SAXS condition-recovery assertion failures recorded
-above. Remaining actions also include the restarted-GUI route walkthrough, IR
-vendor mapping/ROI semantics review, assignment-limited NMR/Joint scientific
-review, and final human release approval. Do not call the overall goal
-complete while these gates remain open.
+Automated release evidence is green for the current verifier run. Remaining
+actions include the restarted-GUI route walkthrough, IR vendor mapping/ROI
+semantics review, assignment-limited NMR/Joint scientific review, and final
+human release approval. Do not call the overall goal complete while these
+gates remain open.
