@@ -18,10 +18,12 @@
   Task-scoped verification passed task/memory, Ruff, compile/type baseline,
   quality `282`, preprocessing `106`, and whitespace checks. `git diff --check`
   passed.
-- Fresh full/boundary verification timed out with exit `124` after about 304
-  seconds; post-timeout process audit found no remaining Python/pytest process,
-  so no full/boundary pass is claimed. The explicit allowlist checkpoint was
-  created locally with no push.
+- Fresh full/boundary verification with an isolated basetemp timed out with
+  exit `124` after about 1204 seconds, without a test-failure summary. The
+  timeout left the verifier and pytest child processes alive; they were
+  identified as this run and terminated, then a post-stop audit found no
+  remaining verifier or pytest process. No full/boundary pass is claimed. The
+  explicit allowlist checkpoint is being recorded locally with no push.
 - Task/spec/plan: `docs/agent/tasks/2026-07-27-saxs-figure-evidence-binding.md`,
   `docs/superpowers/specs/2026-07-27-saxs-figure-evidence-binding-design.md`,
   and `docs/superpowers/plans/2026-07-27-saxs-figure-evidence-binding.md`.

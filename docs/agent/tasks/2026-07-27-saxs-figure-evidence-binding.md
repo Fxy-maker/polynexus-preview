@@ -73,10 +73,12 @@ Recorded evidence for this implementation:
 - Task-scoped verifier: task/memory checks, changed Ruff, compile/type
   baseline, quality `282`, preprocessing `106`, and whitespace all passed.
 - `git diff --check`: passed.
-- Fresh `python scripts/verify.py --changed --types --full --boundary` timed
-  out with exit `124` after about 304 seconds. A post-timeout process audit
-  found no remaining `python` or `pytest` process; no full/boundary pass is
-  claimed for this task.
+- Fresh `python scripts/verify.py --changed --types --full --boundary` was
+  run with an isolated basetemp and timed out with exit `124` after about
+  1204 seconds, without a test-failure summary. The timeout left the verifier
+  and pytest child processes alive; they were identified as this run and
+  terminated, then a post-stop audit found no remaining verifier or pytest
+  process. No full/boundary pass is claimed for this task.
 
 ## Known limitations
 

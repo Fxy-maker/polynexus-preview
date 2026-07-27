@@ -13,8 +13,10 @@ title: Current PolyNexus repository state
   preserving publication roles and the authoritative `quality_evidence.json`.
   Focused evidence is `33 passed`; the complete SAXS matrix is `317 passed, 4
   warnings`; task-scoped quality/preprocessing gates are `282`/`106`. Fresh
-  full/boundary verification timed out with exit `124` after about 304 seconds
-  and is not claimed as passed; no Python/pytest process remained afterward.
+  full/boundary verification with an isolated basetemp timed out with exit
+  `124` after about 1204 seconds without a test-failure summary; its verifier
+  and pytest children were then terminated and no such process remained. It
+  is not claimed as passed.
   Scientific role-gating review and real-data validation remain separate.
   Task card:
   `docs/agent/tasks/2026-07-27-saxs-figure-evidence-binding.md`.
