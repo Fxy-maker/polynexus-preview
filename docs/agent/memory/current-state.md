@@ -1,5 +1,16 @@
 ---
 
+## Native Windows Qt DSC route evidence (2026-07-28)
+
+- The current worktree's native Windows Qt visual capture passed
+  `1 passed in 5.93s` with external basetemp
+  `C:\Temp\PolyNexus_native_gui_route`. DSC Results, Gallery, History, and
+  Editor captures at 1600x1000 showed normal CJK glyphs and constructible
+  shared routes.
+- This is one native DSC route, not all-mode visual or export interaction
+  approval. The remaining all-route GUI and scientific/release gates stay
+  open.
+
 ## Fresh current full/boundary release verification (2026-07-27)
 
 - The current working tree completed

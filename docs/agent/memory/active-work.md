@@ -1,5 +1,17 @@
 # Active Work
 
+## Native Windows Qt DSC route capture - 2026-07-28
+
+- Ran the existing real-result GUI capture with
+  `QT_QPA_PLATFORM=windows` and external basetemp
+  `C:\Temp\PolyNexus_native_gui_route`: `1 passed in 5.93s`.
+- Inspected native captures for DSC Results, Gallery, History, and Editor at
+  1600x1000. CJK glyphs rendered normally and the shared route surfaces were
+  constructible. This closes live-font evidence for one DSC route only; it
+  does not close all-mode visual review or export interaction.
+- Evidence remains in the full release task/acceptance note; no production
+  code or scientific semantics changed.
+
 ## Fresh current full/boundary release verification - 2026-07-27
 
 - The current working tree completed

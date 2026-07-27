@@ -136,6 +136,15 @@ Additional route evidence collected on 2026-07-27:
   captures confirm route construction and rendering only; offscreen CJK glyphs
   render as square placeholders, so live-font and pixel-level approval remain
   open.
+- A native Windows Qt route capture was run against the current worktree with
+  `QT_QPA_PLATFORM=windows` and external basetemp
+  `C:\Temp\PolyNexus_native_gui_route`:
+  `tests/_tmp_phase3/test_visual_audit_capture.py` returned `1 passed in
+  5.93s`. At the test's 1600x1000 window size, the real DSC Results, Gallery,
+  History, and Editor captures were inspected. CJK labels rendered normally;
+  the main shell, sidebar, tabs, Gallery entry, History table, and Editor
+  inspector were constructible. This is native live-font evidence for one DSC
+  route, not all-mode visual approval; export was exposed but not clicked.
 - The first documentation-verifier attempt inherited the protected
   `D:\PolyNexus\.pytest_tmp` basetemp and produced 54 pytest setup errors with
   `WinError 5` while removing that pre-existing directory. Rerunning with

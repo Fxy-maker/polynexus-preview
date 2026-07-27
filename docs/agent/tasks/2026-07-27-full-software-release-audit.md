@@ -119,6 +119,12 @@ limitation rather than pass.
   Data/Config/Results/Plots/History tabs, and a fitting Data surface. The
   normal-size live capture is `C:\Temp\polynexus-live-window.png`; its
   narrow-width right edge remains a human visual-review item.
+- Native Windows Qt capture with `QT_QPA_PLATFORM=windows` and external
+  basetemp `C:\Temp\PolyNexus_native_gui_route` passed
+  `tests/_tmp_phase3/test_visual_audit_capture.py`: `1 passed in 5.93s`.
+  Native DSC Results/Gallery/History/Editor captures at 1600x1000 showed live
+  CJK glyphs and constructible shared routes. This covers one DSC route only;
+  export interaction and every other technique/mode remain open.
 - Offscreen route capture after scientific-stack preload produced
   `C:\Temp\polynexus-route-0.png` through `polynexus-route-4.png` and
   `C:\Temp\polynexus-route-editor.png`; all five tabs and the Editor were
