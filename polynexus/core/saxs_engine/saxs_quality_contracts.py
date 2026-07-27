@@ -374,10 +374,25 @@ class MetricEvidenceSummary:
     level_counts: Mapping[str, int] = field(default_factory=dict)
     reason_codes: tuple[str, ...] = ()
     source_ref: str = ""
+    evidence_frame_indices: tuple[int, ...] = ()
+    missing_frame_indices: tuple[int, ...] = ()
+    diagnostic_frame_indices: tuple[int, ...] = ()
+    unusable_frame_indices: tuple[int, ...] = ()
+    invalid_level_indices: tuple[int, ...] = ()
+    frame_source_indices: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "level_counts", _freeze(self.level_counts))
         object.__setattr__(self, "reason_codes", _string_tuple(self.reason_codes))
+        for field_name in (
+            "evidence_frame_indices",
+            "missing_frame_indices",
+            "diagnostic_frame_indices",
+            "unusable_frame_indices",
+            "invalid_level_indices",
+            "frame_source_indices",
+        ):
+            object.__setattr__(self, field_name, _int_tuple(getattr(self, field_name)))
 
     def to_dict(self) -> dict[str, Any]:
         return _contract_dict(self)
@@ -393,6 +408,15 @@ class MetricEvidenceSummary:
             if isinstance(raw_counts, Mapping)
             else {}
         )
+        for key in (
+            "evidence_frame_indices",
+            "missing_frame_indices",
+            "diagnostic_frame_indices",
+            "unusable_frame_indices",
+            "invalid_level_indices",
+            "frame_source_indices",
+        ):
+            data[key] = _int_tuple(data.get(key))
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -1545,10 +1569,16 @@ def build_series_metric_evidence(
     *,
     metric_names: Iterable[str] | None = None,
     source_ref: str = "",
+    frame_source_indices: Iterable[Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Summarize existing per-frame metric evidence without mutating it."""
 
     frames = list(frame_evidence or ())
+    source_indices_supplied = frame_source_indices is not None
+    source_indices = _int_tuple(frame_source_indices)
+    source_index_mapping_valid = not source_indices_supplied or len(source_indices) == len(frames)
+    if not source_index_mapping_valid:
+        source_indices = ()
     names = {str(name) for name in (metric_names or ()) if str(name)}
     if metric_names is None:
         for frame in frames:
@@ -1564,14 +1594,21 @@ def build_series_metric_evidence(
         diagnostic_frame_count = 0
         unusable_frame_count = 0
         missing_frame_count = 0
+        evidence_frame_indices: list[int] = []
+        missing_frame_indices: list[int] = []
+        diagnostic_frame_indices: list[int] = []
+        unusable_frame_indices: list[int] = []
+        invalid_level_indices: list[int] = []
 
-        for frame in frames:
+        for frame_index, frame in enumerate(frames):
             payload = frame.get(metric_name) if isinstance(frame, Mapping) else None
             if not isinstance(payload, Mapping):
                 missing_frame_count += 1
+                missing_frame_indices.append(frame_index)
                 continue
 
             evidence_frame_count += 1
+            evidence_frame_indices.append(frame_index)
             raw_level = payload.get("level")
             try:
                 level = raw_level if isinstance(raw_level, QualityLevel) else QualityLevel(str(raw_level))
@@ -1579,6 +1616,7 @@ def build_series_metric_evidence(
             except (TypeError, ValueError):
                 level = QualityLevel.UNUSABLE
                 valid_level = False
+                invalid_level_indices.append(frame_index)
                 if "series_metric_invalid_level" not in reasons:
                     reasons.append("series_metric_invalid_level")
 
@@ -1587,8 +1625,10 @@ def build_series_metric_evidence(
                 usable_frame_count += 1
             elif level is QualityLevel.DIAGNOSTIC:
                 diagnostic_frame_count += 1
+                diagnostic_frame_indices.append(frame_index)
             else:
                 unusable_frame_count += 1
+                unusable_frame_indices.append(frame_index)
 
             if not valid_level and "series_metric_unusable_frames" not in reasons:
                 reasons.append("series_metric_unusable_frames")
@@ -1603,6 +1643,8 @@ def build_series_metric_evidence(
             reasons.append("series_metric_diagnostic_frames")
         if unusable_frame_count and "series_metric_unusable_frames" not in reasons:
             reasons.append("series_metric_unusable_frames")
+        if not source_index_mapping_valid:
+            reasons.append("series_metric_source_index_mismatch")
 
         if frame_count == 0:
             reasons.append("series_no_frames")
@@ -1640,6 +1682,12 @@ def build_series_metric_evidence(
             level_counts=level_counts,
             reason_codes=tuple(dict.fromkeys(reasons)),
             source_ref=str(source_ref or ""),
+            evidence_frame_indices=tuple(evidence_frame_indices),
+            missing_frame_indices=tuple(missing_frame_indices),
+            diagnostic_frame_indices=tuple(diagnostic_frame_indices),
+            unusable_frame_indices=tuple(unusable_frame_indices),
+            invalid_level_indices=tuple(invalid_level_indices),
+            frame_source_indices=source_indices if source_index_mapping_valid else (),
         ).to_dict()
     return summaries
 

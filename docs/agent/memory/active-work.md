@@ -1,5 +1,30 @@
 # Active Work
 
+## SAXS series metric position evidence - implementation checkpoint blocked - 2026-07-27
+
+- Existing series `MetricEvidenceSummary` now records deterministic evidence,
+  missing, diagnostic, unusable, and invalid-level frame positions. A valid
+  optional source-index list is preserved without truncation; mismatched lists
+  are discarded with `series_metric_source_index_mismatch`.
+- Temperature metric summaries pass the existing sorted point order and
+  original `source_index` values. No numerical method, physical threshold,
+  interpolation, repair, AI action, or publication role changed.
+- TDD RED was `4 failed, 10 passed`; focused GREEN was `38 passed, 2
+  warnings`; the isolated complete SAXS matrix was `353 passed, 6 warnings`.
+  Direct quality/preprocessing equivalents passed `282`/`106`; allowlist Ruff,
+  compile, and whitespace checks passed.
+- The structured `--changed --types` verifier was blocked by pre-existing Ruff
+  findings in unrelated modified files (`config.py`, `saxs_anisotropy.py`, and
+  other shared-worktree paths); a non-changed verifier attempt hit the known
+  Windows `pytest` child launch `WinError 5`. No unrelated file was repaired.
+- Two explicit-allowlist `scripts/auto_commit.py` attempts were blocked before
+  staging by `D:/PolyNexus/.git/index.lock` permission denied. No checkpoint
+  commit hash exists; shared long-running Python/pytest processes and Git
+  permissions were left untouched.
+- Task/spec/plan: `docs/agent/tasks/2026-07-27-saxs-series-metric-position-evidence.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-series-metric-position-evidence-design.md`,
+  and `docs/superpowers/plans/2026-07-27-saxs-series-metric-position-evidence.md`.
+
 ## SAXS strain Herman orientation table - implementation ready for checkpoint - 2026-07-27
 
 - The existing 2D preprocessing `sector_data` is now retained per loaded frame,

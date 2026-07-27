@@ -72,3 +72,50 @@ def test_empty_series_is_unusable_and_has_no_nan_coverage():
     assert summary["coverage_fraction"] is None
     assert summary["applicable"] is False
     assert "series_no_frames" in summary["reason_codes"]
+
+
+def test_series_summary_records_positions_and_source_indices():
+    frames = [
+        {"porod": {"level": "Quantitative"}},
+        None,
+        {"porod": {"level": "Diagnostic"}},
+        {"porod": {"level": "Unusable"}},
+    ]
+
+    summary = build_series_metric_evidence(
+        frames,
+        metric_names=("porod",),
+        frame_source_indices=[7, 2, 5, 9],
+    )["porod"]
+
+    assert summary["evidence_frame_indices"] == [0, 2, 3]
+    assert summary["missing_frame_indices"] == [1]
+    assert summary["diagnostic_frame_indices"] == [2]
+    assert summary["unusable_frame_indices"] == [3]
+    assert summary["invalid_level_indices"] == []
+    assert summary["frame_source_indices"] == [7, 2, 5, 9]
+
+
+def test_series_summary_records_invalid_level_position_and_round_trips():
+    summary = build_series_metric_evidence(
+        [{"porod": {"level": "not-a-level"}}],
+        metric_names=("porod",),
+    )["porod"]
+
+    assert summary["evidence_frame_indices"] == [0]
+    assert summary["invalid_level_indices"] == [0]
+    assert summary["unusable_frame_indices"] == [0]
+    restored = MetricEvidenceSummary.from_dict(summary)
+    assert restored.invalid_level_indices == (0,)
+    json.dumps(restored.to_dict(), allow_nan=False, sort_keys=True)
+
+
+def test_series_summary_rejects_partial_source_mapping_without_invention():
+    summary = build_series_metric_evidence(
+        [{"porod": {"level": "Trend"}}, {"porod": {"level": "Trend"}}],
+        metric_names=("porod",),
+        frame_source_indices=[4],
+    )["porod"]
+
+    assert summary["frame_source_indices"] == []
+    assert "series_metric_source_index_mismatch" in summary["reason_codes"]

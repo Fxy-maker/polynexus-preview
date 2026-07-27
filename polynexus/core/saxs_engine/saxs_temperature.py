@@ -1004,6 +1004,7 @@ def analyze_temperature_series(
         frame_metric_evidence,
         metric_names=("guinier", "porod", "kratky", "invariant", "lamellar"),
         source_ref="saxs_temperature.metric_evidence",
+        frame_source_indices=[point.source_index for point in result.temp_points],
     )
     detector_quality = build_series_detector_quality_report(
         [point.detector_quality_report for point in result.temp_points],

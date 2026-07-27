@@ -191,6 +191,7 @@ def test_temperature_sequence_evidence_retains_original_source_indices_after_sor
     assert [point.temperature_C for point in result.temp_points] == [170.0, 180.0]
     assert [point.source_index for point in result.temp_points] == [1, 0]
     assert result.guinier_sequence_evidence["frame_source_indices"] == [1, 0]
+    assert result.metric_evidence["guinier"]["frame_source_indices"] == [1, 0]
     assert list(result.to_dataframe()["source_index"]) == [1, 0]
 
 

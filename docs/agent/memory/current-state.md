@@ -7,6 +7,19 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS series metric position evidence is implemented locally but its
+  checkpoint is blocked by shared Git index permissions: existing
+  summaries now expose deterministic frame positions for evidence/missing/
+  diagnostic/unusable/invalid-level states, and temperature summaries retain
+  sorted-to-original `source_index` mapping. This is read-only provenance; no
+  numerical algorithm, threshold, interpolation, repair, AI, or publication
+  behavior changed. Focused evidence is `38 passed`; isolated SAXS is `353
+  passed, 6 warnings`; direct quality/preprocessing equivalents are `282`/`106`.
+  The task-scoped changed verifier is limited by pre-existing Ruff findings in
+  unrelated shared-worktree files and the default quality child launch has the
+  known Windows permission limitation. Task card:
+  `docs/agent/tasks/2026-07-27-saxs-series-metric-position-evidence.md`.
+
 - SAXS in-situ strain Herman orientation transport is implemented in the
   working tree: directory-loaded sector maps remain aligned to frames, the
   existing strain engine receives them, and finite per-frame `f_Herman` values
