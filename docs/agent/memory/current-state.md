@@ -7,6 +7,27 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS in-situ strain Herman orientation transport is implemented in the
+  working tree: directory-loaded sector maps remain aligned to frames, the
+  existing strain engine receives them, and finite per-frame `f_Herman` values
+  now reach the existing structured result table. 1D or missing-sector frames
+  remain unavailable; no orientation algorithm or scientific threshold changed.
+  Focused core/table evidence is `66 passed`; the complete SAXS matrix is
+  `341 passed, 4 warnings`; task-scoped quality/preprocessing gates are
+  `282`/`106` using an external pytest basetemp. Task card:
+  `docs/agent/tasks/2026-07-27-saxs-strain-herman-table.md`.
+
+- The full-software release audit is in progress in
+  `docs/agent/tasks/2026-07-27-full-software-release-audit.md`. Fresh WAXS
+  publication/provider/workbench evidence is `30 passed`; the cross-technique
+  AI-off/failure/fallback contract matrix is `25 passed`. A combined
+  real/lifecycle attempt exceeded its 180-second tool window without a summary
+  and is not treated as pass or failure. The canonical GUI default shell was
+  visually captured, but restarted-GUI route coverage, real/lifecycle shards,
+  IR vendor mapping/ROI semantics, assignment-limited NMR/Joint review, and
+  final human release approval remain open. Acceptance note:
+  `docs/acceptance/2026-07-27-full-software-release-audit.md`.
+
 - SAXS AI confirmed-rerun safety is implemented and checkpointed locally; this
   documentation-only amend records the final state. The core adapter validates the
   existing candidate identity/hard guards and projects only existing physical

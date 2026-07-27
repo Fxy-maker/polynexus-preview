@@ -1,5 +1,48 @@
 # Active Work
 
+## SAXS strain Herman orientation table - implementation ready for checkpoint - 2026-07-27
+
+- The existing 2D preprocessing `sector_data` is now retained per loaded frame,
+  passed through both SAXS strain entry points, and used by the existing
+  `analyze_strain_series(sector_data_list=...)` contract. Per-frame
+  `StrainPointResult.f_herman` is published as `_batch_params["f_Herman"]`,
+  while missing 1D/sector frames remain `None` and render as unavailable.
+- No Herman algorithm, detector geometry, orientation threshold, GUI
+  recalculation, or generic 1D review behavior changed. The existing GUI table
+  field is reused.
+- Verification evidence: focused core/table matrix `66 passed`; complete SAXS
+  matrix `341 passed, 4 warnings`; structured verifier passed with external
+  basetemp, including quality `282`, preprocessing `106`, Ruff, compile/type
+  baseline, memory, task-card, and whitespace checks.
+- The repository `.pytest_tmp` lock caused setup errors only when the verifier
+  used its default temp path; the authoritative rerun used
+  `C:\Temp\PolyNexus_saxs_herman_verify` and passed. The locked directory was
+  left untouched.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-27-saxs-strain-herman-table.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-strain-herman-table-design.md`, and
+  `docs/superpowers/plans/2026-07-27-saxs-strain-herman-table.md`.
+
+## Full software release audit - in progress - 2026-07-27
+
+- A dedicated audit task/plan/acceptance note now separates automated evidence
+  from restarted-GUI and scientific-review gates:
+  `docs/agent/tasks/2026-07-27-full-software-release-audit.md`,
+  `docs/superpowers/plans/2026-07-27-full-software-release-audit.md`, and
+  `docs/acceptance/2026-07-27-full-software-release-audit.md`.
+- Fresh WAXS publication/provider/workbench recheck is `30 passed` with an
+  isolated basetemp. The prior full-suite WAXS failure remains a historical
+  full-run limitation until a fresh full verifier completes.
+- Fresh cross-technique AI-off/failure/fallback contract matrix is `25 passed`;
+  it does not prove model quality, calibration, or scientific approval.
+- The combined real/lifecycle command exceeded the 180-second tool window
+  without a summary and was explicitly terminated; it is recorded as a
+  bounded timeout, not a pass. Canonical GUI default-shell screenshot evidence
+  is in the acceptance note; full restarted-GUI walkthrough and final human
+  release approval remain open.
+- Next action: run real/lifecycle shards one at a time with dedicated
+  basetemps, then run the full verifier and reconcile the acceptance ledger.
+
 ## SAXS AI confirmed-rerun safety - local checkpoint - 2026-07-27
 
 - The current slice adds a core SAXS adapter for strict JSON-safe confirmed
