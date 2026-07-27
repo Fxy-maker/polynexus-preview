@@ -880,6 +880,7 @@ def analyze_temperature_series(
     if len(q_list) != n_points or len(I_list) != n_points:
         raise ValueError("temperatures, q_list, I_list must have same length")
     time_axis_length_mismatch = times is not None and len(times) != n_points
+    time_axis_invalid_values = False
 
     if n_points == 0:
         empty = np.asarray([], dtype=float)
@@ -935,7 +936,12 @@ def analyze_temperature_series(
         if time_axis_length_mismatch:
             times_arr = np.full(n_points, np.nan, dtype=float)
         else:
-            times_arr = np.array(times, dtype=float)[sort_idx]
+            time_values = np.asarray(
+                [_coerce_optional_float(value) for value in times],
+                dtype=float,
+            )
+            time_axis_invalid_values = bool(np.any(~np.isfinite(time_values)))
+            times_arr = time_values[sort_idx]
     else:
         times_arr = np.arange(n_points, dtype=float)
 
@@ -944,6 +950,11 @@ def analyze_temperature_series(
         result.avrami = {
             "valid": False,
             "reason": "temperature_time_axis_length_mismatch",
+        }
+    elif time_axis_invalid_values:
+        result.avrami = {
+            "valid": False,
+            "reason": "temperature_time_axis_invalid_values",
         }
     result.temperatures = temps_arr
     result.L_array = np.full(n_points, np.nan)
@@ -1200,6 +1211,7 @@ def analyze_temperature_series(
     # Avrami kinetics (for cooling/isothermal)
     if (
         not time_axis_length_mismatch
+        and not time_axis_invalid_values
         and exp_type in ("cooling", "isothermal")
         and len(times_arr) > 5
     ):

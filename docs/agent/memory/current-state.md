@@ -1,5 +1,27 @@
 ---
 
+## SAXS invalid temperature-time values fail-closed (2026-07-28)
+
+- `analyze_temperature_series()` now converts a correctly-sized supplied
+  `times` list elementwise through `_coerce_optional_float()`. Numeric strings
+  remain valid; malformed or non-finite values no longer abort the frame
+  analysis. All temperature frames and source indices remain aligned.
+- When any supplied time is invalid, Avrami is explicitly recorded as strict
+  JSON-safe `valid=False` with reason
+  `temperature_time_axis_invalid_values`, and fitting is skipped. The existing
+  `temperature_time_axis_length_mismatch` reason remains higher priority.
+- No interpolation, positional-index substitution, physical threshold,
+  rescue, AI, or publication-role behavior was introduced. RED was `1 failed`;
+  focused GREEN was `25 passed`; exact SAXS was `418 passed, 6 warnings`.
+- Structured verifier passed with quality gate `283`, preprocessing gate `106`,
+  Ruff, compile, memory/task, and whitespace checks. Explicit allowlist
+  checkpoint: `c07d49a`. Full/boundary verification is not claimed.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-temperature-invalid-time-values-fail-closed.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-temperature-invalid-time-values-fail-closed-design.md`,
+  and
+  `docs/superpowers/plans/2026-07-28-saxs-temperature-invalid-time-values-fail-closed.md`.
+
 ## SAXS mismatched temperature time axis fail-closed (2026-07-28)
 
 - `analyze_temperature_series()` now detects a supplied `times` length mismatch
@@ -80,13 +102,15 @@
 ## Full release-audit recheck (2026-07-28)
 
 - The latest D:-isolated `python scripts/verify.py --changed --types --full
-  --boundary` run is classified as a real test failure: `2836 passed, 16
-  skipped, 12 warnings, 2 failed` in `1547.13s`, verifier exit code `1`.
-- Both failures are SAXS condition-recovery assertions where
-  `path_directory` was expected but `unresolved` was returned. They are not a
-  timeout or tool-level failure. A focused current-checkout rerun of both
-  tests returned `2 passed`; the discrepancy remains open and must not be
-  silently converted into a full pass.
+  --boundary` run is green: `2845 passed, 16 skipped, 12 warnings` in
+  `1574.30s`, verifier exit code `0`. Compile, quality (`283`), preprocessing
+  (`106`), Ruff/type baseline, whitespace, and boundary audit also passed.
+- An earlier D:-isolated run returned `2836 passed, 16 skipped, 12 warnings, 2
+  failed` with verifier exit code `1`. Both failures were SAXS
+  condition-recovery assertions where `path_directory` was expected but
+  `unresolved` was returned. They were a real test result, not a timeout, but
+  the focused rerun (`2 passed`) and the fresh full run are green; retain that
+  result as historical diagnostic evidence rather than current release status.
 - Fresh command-level rechecks returned IR published-run `2 passed, 13
   deselected in 84.78s` and NMR solid-C lifecycle `1 passed, 3 deselected in
   126.89s`, both exit code `0`. The automated software routes pass these

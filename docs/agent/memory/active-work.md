@@ -1,5 +1,17 @@
 # Active Work
 
+## SAXS invalid temperature-time values fail-closed - checkpointed - 2026-07-28
+
+- Correctly-sized optional time values are now coerced elementwise. Invalid or
+  non-finite values preserve all temperature frames/source indices and disable
+  Avrami with `temperature_time_axis_invalid_values`; length mismatch remains
+  authoritative.
+- RED was `1 failed`; focused GREEN was `25 passed`; exact SAXS was `418
+  passed, 6 warnings`. Full/boundary verification is not claimed.
+- Structured verifier passed with quality `283`, preprocessing `106`, Ruff,
+  compile, memory/task, and whitespace checks. Explicit allowlist checkpoint:
+  `c07d49a`. Full/boundary verification is not claimed.
+
 ## SAXS mismatched temperature time axis fail-closed - checkpointed - 2026-07-28
 
 - A supplied time list with the wrong frame count now leaves temperature-frame
@@ -50,18 +62,19 @@
 
 ## Full release-audit recheck - open - 2026-07-28
 
-- Latest D:-isolated full/boundary result: `2836 passed, 16 skipped, 12
-  warnings, 2 failed` in `1547.13s`, verifier exit code `1`. Both failures
-  are SAXS condition-recovery assertions (`path_directory` expected,
-  `unresolved` returned), not a timeout. A focused rerun of the two tests is
-  green (`2 passed`), so the environment/reproducibility discrepancy remains
-  open.
+- Latest D:-isolated full/boundary result is green: `2845 passed, 16 skipped,
+  12 warnings` in `1574.30s`, verifier exit code `0`; compile, quality (`283`),
+  preprocessing (`106`), Ruff/type baseline, whitespace, and boundary audit
+  also passed. The earlier `2836 passed, 16 skipped, 12 warnings, 2 failed`
+  result (verifier exit `1`) is retained as historical diagnostic evidence;
+  its two SAXS condition-recovery failures were not reproduced by the focused
+  rerun or the fresh full run.
 - Fresh delegated-shard rechecks are green: IR published-run `2 passed, 13
   deselected in 84.78s`; NMR solid-C lifecycle `1 passed, 3 deselected in
   126.89s`; both exit code `0`.
-- Next action is to resolve the condition-recovery discrepancy before any
-  full-release pass is claimed. Restarted-GUI, scientific review, and final
-  release approval also remain open.
+- Automated full-release evidence is green for the fresh run. Restarted-GUI,
+  scientific review, and final release approval remain open; do not call the
+  overall goal complete while those human gates remain open.
 
 ## SAXS structure-parameter fail-closed guard - checkpointed - 2026-07-28
 
