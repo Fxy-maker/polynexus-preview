@@ -26,6 +26,13 @@ _QUALITY_EVIDENCE_FIELDS = (
     "sequence_rescue_candidates",
 )
 
+_AI_RESCUE_EVIDENCE_FIELDS = (
+    "saxs_ai_rescue_plan",
+    "saxs_ai_rescue_decision",
+    "saxs_ai_rescue_replay",
+    "saxs_confirmed_rerun_audit",
+)
+
 
 def batch_metric_evidence_scope(mode_or_experiment_type: Any) -> str:
     """Avoid relabeling a missing condition series as a static batch."""
@@ -52,6 +59,21 @@ def copy_saxs_quality_evidence(value: Any) -> Dict[str, Any]:
         item = getattr(value, field, None)
         if item is not None:
             payload[field] = deepcopy(item)
+    return payload
+
+
+def copy_saxs_ai_rescue_evidence(*sources: Any) -> Dict[str, Any]:
+    """Copy existing AI rescue audit fields without interpreting them."""
+
+    payload: Dict[str, Any] = {}
+    for field in _AI_RESCUE_EVIDENCE_FIELDS:
+        for source in sources:
+            if source is None:
+                continue
+            item = getattr(source, field, None)
+            if item is not None:
+                payload[field] = deepcopy(item)
+                break
     return payload
 
 

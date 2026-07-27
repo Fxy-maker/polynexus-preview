@@ -1021,6 +1021,84 @@ def _sequence_rescue_review_text(
     )
 
 
+def _saxs_ai_rescue_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Present existing AI rescue audit metadata as advisory evidence only."""
+
+    if not isinstance(payload, Mapping):
+        return "", ""
+
+    details: list[str] = []
+    plan = payload.get("saxs_ai_rescue_plan")
+    if isinstance(plan, Mapping):
+        candidates = plan.get("candidates")
+        candidate_ids = tuple(
+            str(item.get("candidate_id") or "").strip()
+            for item in candidates
+            if isinstance(item, Mapping) and str(item.get("candidate_id") or "").strip()
+        ) if isinstance(candidates, (list, tuple)) else ()
+        if candidate_ids:
+            details.append(
+                "AI rescue plan: candidates="
+                f"{len(candidate_ids)} [{','.join(candidate_ids[:5])}]"
+            )
+
+    decision = payload.get("saxs_ai_rescue_decision")
+    if isinstance(decision, Mapping):
+        decision_name = str(decision.get("decision") or "").strip()
+        if decision_name:
+            decision_parts = [f"decision={decision_name}"]
+            if "apply_allowed" in decision:
+                decision_parts.append(f"apply_allowed={bool(decision.get('apply_allowed'))}")
+            if decision.get("original_preserved") is True:
+                decision_parts.append("original_preserved=True")
+            details.append("AI rescue decision: " + ", ".join(decision_parts))
+
+    replay = payload.get("saxs_ai_rescue_replay")
+    if isinstance(replay, (list, tuple)):
+        replay_details: list[str] = []
+        for item in replay:
+            if not isinstance(item, Mapping):
+                continue
+            candidate_id = str(item.get("candidate_id") or "").strip()
+            run_status = str(item.get("run_status") or "").strip()
+            if not candidate_id or not run_status:
+                continue
+            replay_details.append(f"{candidate_id}:{run_status}")
+        if replay_details:
+            details.append("AI rescue replay: " + ", ".join(replay_details[:5]))
+
+    audit = payload.get("saxs_confirmed_rerun_audit")
+    if isinstance(audit, Mapping):
+        audit_parts: list[str] = []
+        for key in (
+            "mode",
+            "phase",
+            "physical_gate_status",
+            "quality_gate_status",
+            "rollback_reason",
+        ):
+            value = str(audit.get(key) or "").strip()
+            if value:
+                audit_parts.append(f"{key}={value}")
+        if audit_parts:
+            details.append("AI confirmed-rerun audit: " + ", ".join(audit_parts))
+
+    if not details:
+        return "", ""
+
+    detail = " | ".join(details)
+    next_instruction = (
+        "Review the existing SAXS physical and quality gates and perform deterministic validation before any rescue action; this AI evidence is advisory"
+    )
+    return tr_for_language("RESULTS_REVIEW_RISK", language, detail), tr_for_language(
+        "RESULTS_REVIEW_NEXT", language, next_instruction
+    )
+
+
 def _field_column(field: ResultFieldSpec, *, language: str) -> TableColumn:
     alignment = "right" if field.digits is not None or bool(field.unit) else "left"
     return TableColumn(
@@ -1362,6 +1440,10 @@ def build_saxs_results_presentation(
         payload,
         language=target_language,
     )
+    ai_risk, ai_next = _saxs_ai_rescue_review_text(
+        payload,
+        language=target_language,
+    )
     detector_risk, detector_next = _detector_evidence_review_text(
         payload,
         language=target_language,
@@ -1377,6 +1459,7 @@ def build_saxs_results_presentation(
             metric_risk,
             sequence_risk,
             rescue_risk,
+            ai_risk,
             detector_risk,
             data_quality_risk,
         )
@@ -1389,6 +1472,7 @@ def build_saxs_results_presentation(
             metric_next,
             sequence_next,
             rescue_next,
+            ai_next,
             detector_next,
             data_quality_next,
         )

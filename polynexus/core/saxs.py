@@ -1825,6 +1825,13 @@ class SAXSEngine(BaseEngine):
             lc_raw_vals = [float(v) for v in np.ravel(np.asarray(tr.lc_array, dtype=float)) if np.isfinite(v)]
             lc_effective_vals = [float(v) for v in np.ravel(np.asarray(tr.lc_effective_array, dtype=float)) if np.isfinite(v)]
             params: Dict[str, Any] = {"n_temperatures": len(tr.temperatures)}
+            params.update(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                    tr,
+                )
+            )
             metric_evidence = _series_metric_evidence_payload(tr)
             if metric_evidence:
                 params["metric_evidence"] = metric_evidence
@@ -1875,6 +1882,13 @@ class SAXSEngine(BaseEngine):
             sr = self._strain_result
             strains = [float(v) for v in np.asarray(sr.strains, dtype=float) if np.isfinite(v)]
             params: Dict[str, Any] = {"n_strains": len(sr.strains)}
+            params.update(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                    sr,
+                )
+            )
             metric_evidence = _series_metric_evidence_payload(sr)
             if metric_evidence:
                 params["metric_evidence"] = metric_evidence
@@ -2019,6 +2033,12 @@ class SAXSEngine(BaseEngine):
                         getattr(self.cfg, "experiment_type", "")
                     ),
                 }
+                base_params.update(
+                    _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                        self,
+                        getattr(self, "result", None),
+                    )
+                )
                 metric_evidence = _saxs_batch_helpers.build_static_batch_metric_evidence(
                     self._batch_results,
                 )
@@ -2043,10 +2063,22 @@ class SAXSEngine(BaseEngine):
                     base_params,
                     batch_params=aligned_rows,
                 )
-            return self._build_batch_parameters_payload()
+            return self._build_batch_parameters_payload(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                )
+            )
         if self._analysis is not None and self._analysis.structure is not None:
             sp = self._analysis.structure
             params: Dict[str, Any] = {}
+            params.update(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                    self._analysis,
+                )
+            )
             if np.isfinite(sp.L):
                 params["L_nm"] = round(float(sp.L), 2)
             if np.isfinite(sp.lc):
@@ -2063,6 +2095,13 @@ class SAXSEngine(BaseEngine):
             result = analyze_single(self._q, self._I, self.cfg)
             sp = result.structure
             params: Dict[str, Any] = {}
+            params.update(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                    result,
+                )
+            )
             if sp and np.isfinite(sp.L):
                 params["L_nm"] = round(float(sp.L), 2)
             if sp and np.isfinite(sp.lc):

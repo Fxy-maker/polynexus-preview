@@ -44,6 +44,65 @@ def _series_params() -> dict:
     }
 
 
+def test_saxs_workbench_reports_ai_rescue_audit_as_advisory_only() -> None:
+    params = {
+        **_series_params(),
+        "saxs_ai_rescue_plan": {
+            "policy_version": "saxs-v1",
+            "automation_state": "shadow",
+            "candidate_only": True,
+            "candidates": [{"candidate_id": "candidate-1"}],
+        },
+        "saxs_ai_rescue_decision": {
+            "decision": "request_confirmation",
+            "apply_allowed": True,
+            "original_preserved": True,
+        },
+        "saxs_ai_rescue_replay": [
+            {"candidate_id": "candidate-1", "run_status": "not_run", "apply_performed": False}
+        ],
+        "saxs_confirmed_rerun_audit": {
+            "phase": "rolled_back",
+            "physical_gate_status": "pass",
+            "quality_gate_status": "fail",
+            "rollback_reason": "quality_gate_failed",
+            "apply_performed": False,
+        },
+    }
+
+    presentation = build_saxs_results_presentation(
+        params,
+        submodule="temperature",
+        language="en",
+    )
+
+    assert "candidate-1" in presentation.risk_text
+    assert "request_confirmation" in presentation.risk_text
+    assert "rolled_back" in presentation.risk_text
+    assert "quality_gate_failed" in presentation.risk_text
+    assert "deterministic" in presentation.next_text.lower()
+    assert "physical" in presentation.next_text.lower()
+    assert "accepted" not in presentation.risk_text.lower()
+    assert "applied" not in presentation.risk_text.lower()
+    assert "physically valid" not in presentation.risk_text.lower()
+
+
+def test_saxs_workbench_ignores_empty_and_malformed_ai_rescue_evidence() -> None:
+    presentation = build_saxs_results_presentation(
+        {
+            **_series_params(),
+            "saxs_ai_rescue_plan": [],
+            "saxs_ai_rescue_decision": "request_confirmation",
+            "saxs_ai_rescue_replay": [{"run_status": "not_run"}, None],
+            "saxs_confirmed_rerun_audit": {"apply_performed": False},
+        },
+        submodule="temperature",
+        language="en",
+    )
+
+    assert "AI rescue" not in presentation.risk_text
+
+
 def test_workbench_renders_temperature_guinier_sequence_diagnostics():
     params = _series_params()
     params["guinier_sequence_evidence"] = {

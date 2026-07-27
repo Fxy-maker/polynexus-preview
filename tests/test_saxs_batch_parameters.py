@@ -5,12 +5,47 @@ import numpy as np
 from types import SimpleNamespace
 
 from polynexus.core.engine import get_engine
+import polynexus.core.saxs_batch_helpers as saxs_batch_helpers
 from polynexus.core.saxs_batch_helpers import (
     build_static_batch_metric_evidence,
     copy_saxs_quality_evidence,
 )
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.saxs_output import _result_to_params_dict
+
+
+def _ai_rescue_payload() -> dict[str, object]:
+    return {
+        "saxs_ai_rescue_plan": {
+            "policy_version": "saxs-v1",
+            "candidate_only": True,
+            "candidates": [{"candidate_id": "candidate-1"}],
+        },
+        "saxs_ai_rescue_decision": {
+            "decision": "request_confirmation",
+            "apply_allowed": True,
+            "original_preserved": True,
+        },
+        "saxs_ai_rescue_replay": [
+            {"candidate_id": "candidate-1", "run_status": "not_run", "apply_performed": False}
+        ],
+        "saxs_confirmed_rerun_audit": {
+            "phase": "rolled_back",
+            "apply_performed": False,
+            "rollback_reason": "quality_gate_failed",
+        },
+    }
+
+
+def test_copy_saxs_ai_rescue_evidence_deep_copies_existing_fields() -> None:
+    source = type("Source", (), _ai_rescue_payload())()
+
+    copied = saxs_batch_helpers.copy_saxs_ai_rescue_evidence(source)
+
+    assert copied == _ai_rescue_payload()
+    assert copied["saxs_ai_rescue_plan"] is not source.saxs_ai_rescue_plan
+    copied["saxs_ai_rescue_plan"]["candidates"][0]["candidate_id"] = "changed"  # type: ignore[index]
+    assert source.saxs_ai_rescue_plan["candidates"][0]["candidate_id"] == "candidate-1"
 
 
 def test_saxs_batch_get_parameters_returns_full_batch_payload() -> None:
@@ -259,6 +294,49 @@ def test_saxs_temperature_get_parameters_transports_detached_rescue_candidates()
     assert params["sequence_rescue_candidates"] is not candidates
     assert params["sequence_rescue_candidates"][0] is not candidates[0]
     assert candidates == before
+
+
+def test_saxs_temperature_get_parameters_transports_detached_ai_rescue_evidence() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
+
+    source = _ai_rescue_payload()
+    for key, value in source.items():
+        setattr(engine, key, value)
+    engine._temperature_result = TempSeriesResult(  # type: ignore[attr-defined]
+        temperatures=np.asarray([170.0, 180.0]),
+        lc_array=np.asarray([3.0, 3.1]),
+        lc_effective_array=np.asarray([3.0, 3.1]),
+    )
+
+    params = engine.get_parameters()
+
+    for key, value in source.items():
+        assert params[key] == value
+        assert params[key] is not value
+    params["saxs_ai_rescue_plan"]["candidates"][0]["candidate_id"] = "changed"  # type: ignore[index]
+    assert engine.saxs_ai_rescue_plan["candidates"][0]["candidate_id"] == "candidate-1"
+
+
+def test_saxs_static_get_parameters_transports_ai_rescue_evidence() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.core import SAXSResult, StructureParams
+
+    source = _ai_rescue_payload()
+    for key, value in source.items():
+        setattr(engine, key, value)
+    engine._analysis = SAXSResult(  # type: ignore[attr-defined]
+        structure=StructureParams(L=12.0),
+    )
+
+    params = engine.get_parameters()
+
+    assert params["saxs_ai_rescue_decision"] == source["saxs_ai_rescue_decision"]
+    assert params["saxs_ai_rescue_decision"] is not source["saxs_ai_rescue_decision"]
 
 
 def test_saxs_batch_export_row_keeps_status_fields() -> None:
