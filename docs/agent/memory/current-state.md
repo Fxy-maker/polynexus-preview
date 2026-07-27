@@ -12,8 +12,8 @@ title: Current PolyNexus repository state
   and the SAXS presentation surfaces coverage, Trend/Diagnostic/Unusable level,
   downgrade counts, and reason codes while Diagnostics retains the full JSON.
   History persistence, figure candidates, and Export provenance remain
-  unchanged. Focused Workbench/History/Figure/Export evidence is `23 passed`;
-  the full SAXS matrix is `281 passed, 4 existing warnings`; the task-scoped
+  unchanged. Focused Workbench/History/Figure/Export evidence is `24 passed`;
+  the full SAXS matrix is `282 passed, 4 existing warnings`; the task-scoped
   verifier passes quality `282` and preprocessing `106`. See
   `docs/agent/tasks/2026-07-27-saxs-workbench-series-evidence-visibility.md`.
 

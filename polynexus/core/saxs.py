@@ -86,7 +86,6 @@ def _series_metric_evidence_payload(series: Any) -> Dict[str, Any]:
     return {
         str(name): deepcopy(summary)
         for name, summary in evidence.items()
-        if isinstance(summary, dict)
     }
 
 

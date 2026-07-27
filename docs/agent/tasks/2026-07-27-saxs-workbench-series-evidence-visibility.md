@@ -70,8 +70,8 @@ git diff --check
 - TDD RED was observed: the initial seven-test slice produced six expected
   failures for missing parameter transport and missing Workbench review text;
   the pre-existing History persistence path already passed its assertion.
-- Workbench/History/Figure/Export focused matrix: `23 passed`.
-- Complete SAXS matrix: `281 passed, 4 existing font warnings`.
+- Workbench/History/Figure/Export focused matrix: `24 passed`.
+- Complete SAXS matrix: `282 passed, 4 existing font warnings`.
 - The task-scoped verifier passed task-card validation, memory validation,
   changed-file Ruff, compile, quality gate `282`, preprocessing gate `106`,
   whitespace, and the final selected-checks status. No changed file was in
@@ -81,6 +81,11 @@ git diff --check
 The touched legacy SAXS wrapper retains its public imports and single-letter
 intensity names; a module-scoped Ruff compatibility annotation covers only
 the pre-existing `F401`, `E741`, and `F841` baseline categories.
+
+The post-checkpoint code review reported no Critical or Important findings. A
+Minor finding about malformed non-dictionary evidence being dropped was fixed
+by preserving every existing evidence value through the transport payload; a
+new regression test covers that downgrade-safe behavior.
 
 ## Changed-file allowlist
 

@@ -96,6 +96,23 @@ def test_strain_get_parameters_transports_existing_series_evidence_without_mutat
     assert payload["metric_evidence"] is not summary
 
 
+def test_transport_preserves_malformed_evidence_for_diagnostics():
+    engine = SAXSEngine(SAXSConfig())
+    malformed = ["preserve", {"raw": "value"}]
+    summary = {"porod": _series_metric_summary(), "malformed": malformed}
+    engine._temperature_result = TempSeriesResult(
+        temperatures=np.array([20.0, 40.0]),
+        lc_array=np.array([3.0, 3.1]),
+        lc_effective_array=np.array([3.0, 3.1]),
+        metric_evidence=summary,
+    )
+
+    payload = engine.get_parameters()
+
+    assert payload["metric_evidence"]["malformed"] == malformed
+    assert payload["metric_evidence"]["malformed"] is not malformed
+
+
 def test_mixed_series_evidence_is_visible_as_downgraded_review_text():
     params = {
         "batch_frames": 3,

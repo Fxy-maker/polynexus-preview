@@ -11,10 +11,14 @@
   review channels. Complete series summaries remain Trend-capped; mixed or
   incomplete summaries become visible review risks. Diagnostics still exposes
   the full nested JSON and figure routing/Export contracts are unchanged.
-- Evidence: focused Workbench/History/Figure/Export matrix `23 passed`; full
-  SAXS matrix `281 passed, 4 existing font warnings`; task-scoped verifier
+- Evidence: focused Workbench/History/Figure/Export matrix `24 passed`; full
+  SAXS matrix `282 passed, 4 existing font warnings`; task-scoped verifier
   passed with quality `282`, preprocessing `106`, changed Ruff/compile,
   memory check, and whitespace check.
+- A post-checkpoint review identified and the follow-up fix now preserves
+  malformed/non-mapping evidence values for Diagnostics instead of filtering
+  them during parameter transport; review reported no Critical or Important
+  findings.
 - The wrapper's module-scoped Ruff compatibility annotation is limited to
   pre-existing `F401`, `E741`, and `F841` diagnostics caused by retained public
   imports and legacy intensity names. AI execution, publication promotion,
