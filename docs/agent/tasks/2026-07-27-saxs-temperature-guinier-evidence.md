@@ -47,6 +47,21 @@ $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_saxs_temperature_guinier_verif
 python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-temperature-guinier-evidence.md --changed --types
 ```
 
+## Verification evidence (2026-07-27)
+
+The Stage 1 implementation is verified locally. The Guinier, temperature, and
+quality focused matrix passed with `18 passed`; the extended temperature and
+physical-helper matrix passed with `36 passed`; and the complete
+`tests/test_saxs_*.py` matrix passed with `228 passed, 4 warnings` in `18.95s`
+using an external basetemp. Ruff, compileall, py_compile, and diff-check passed.
+
+The structured verifier passed with quality gate `282 passed`, preprocessing
+gate `103 passed`, and exit code 0. The default repository basetemp still
+reproduces the known Windows `WinError 5` cleanup lock; the external-basetemp
+rerun is the authoritative result. The added provenance regression confirms
+that `processed_data_ref` remains available through
+`MetricEvidence.data_quality_ref`.
+
 实际证据：Guinier/变温 focused tests `24 passed`；完整 SAXS 矩阵
 `227 passed`（4 个既有 Matplotlib 字体 warning）；quality gate `282
 passed`；preprocessing gate `103 passed`；结构化 verifier 通过。代码

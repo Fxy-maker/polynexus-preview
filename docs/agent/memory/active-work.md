@@ -16,6 +16,26 @@
   Code checkpoint: `17dcb0b`. Next action is to add sequence-level Guinier
   trend/continuity gates without fabricating missing temperature frames.
 
+## SAXS temperature Guinier evidence Stage 1 - verified, checkpoint pending 2026-07-27
+
+- Existing single-frame Guinier outputs now produce strict-JSON
+  `GuinierEvidence` with fit statistics, slope/Rg uncertainty, explicit
+  applicability, `qRg < 1.3`, and data-quality gates. `SAXSResult` carries the
+  quality/evidence payload, and `TemperaturePointResult` preserves each
+  frame's own evidence without interpolating failed frames.
+- The metric provenance chain now retains `processed_data_ref` when no raw
+  source ID is available. This is covered by a focused regression.
+- Focused evidence: Guinier/temperature/quality `18 passed`; extended SAXS
+  temperature/physical-helper matrix `36 passed`; full SAXS file matrix
+  `228 passed, 4 warnings` with external basetemp.
+- Structured verification passed: quality gate `282 passed`, preprocessing
+  gate `103 passed`, Ruff/compile/type/whitespace checks passed. The default
+  `.pytest_tmp` cleanup lock remains a Windows environment limitation; all
+  authoritative reruns use an external basetemp.
+- Next action: create the explicit Stage 1 atomic checkpoint, then keep
+  sequence-level trend classification, rescue/AI behavior, publication roles,
+  and real scientific/GUI acceptance as separate follow-up boundaries.
+
 ## SAXS quality contracts Stage 0 - in progress 2026-07-27
 
 - The first typed quality/evidence contracts are present in

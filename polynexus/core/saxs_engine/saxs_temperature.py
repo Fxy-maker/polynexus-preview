@@ -1,7 +1,4 @@
 
-import logging
-logger = logging.getLogger(__name__)
-
 """
 saxs_temperature.py — Module 4C: In-situ temperature SAXS analysis.
 
@@ -11,19 +8,16 @@ Avrami crystallization kinetics, thermal expansion correction.
 Reference: SAXS Design Document v1.0, Module 4C.
 """
 
+import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 import numpy as np
-from scipy.integrate import trapezoid
-from scipy.optimize import curve_fit
-from scipy.signal import find_peaks, savgol_filter
 from enum import Enum, auto
 
 from .config import SAXSConfig
 from .core import (
     bragg_long_period, scattering_invariant,
     analyze_single,
-    LongPeriodResult, StructureParams,
 )
 from .lc_path_selection import (
     LcCandidate,
@@ -31,6 +25,8 @@ from .lc_path_selection import (
     select_lc_sequence_path,
 )
 from .preprocess import apply_thermal_correction
+
+logger = logging.getLogger(__name__)
 
 
 class TempPhase(Enum):
@@ -799,7 +795,7 @@ def analyze_temperature_series(
     for i in range(n_points):
         T = temps_arr[i]
         q = q_sorted[i]
-        I = I_sorted[i]
+        I = I_sorted[i]  # noqa: E741
 
         tp = TemperaturePointResult(source_index=int(sort_idx[i]), temperature_C=float(T))
 

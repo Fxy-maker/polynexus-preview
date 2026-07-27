@@ -216,3 +216,12 @@ temporary directories.
   fit evidence, and data quality.
 - Missing frames and failed core analyses remain missing/diagnostic.
 - AI rescue is not introduced in this stage and cannot bypass these gates.
+
+## Execution status (2026-07-27)
+
+All implementation steps in this plan are complete. The continuation also
+added a regression for processed-data provenance and made behavior-preserving
+Ruff baseline corrections in `core.py` and `saxs_temperature.py` so the
+repository's changed-file verifier can inspect the complete Stage 1 boundary.
+The atomic checkpoint is created after the documented verification evidence is
+recorded in the task card.

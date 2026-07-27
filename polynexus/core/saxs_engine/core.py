@@ -9,6 +9,9 @@ sasmodels interface for model fitting.
 
 All numerical methods are designed for accuracy, not just speed.
 """
+# Legacy public intensity parameters intentionally use ``I`` throughout this
+# module; keep Ruff's ambiguous-name warning local to this compatibility file.
+# ruff: noqa: E741
 from typing import Tuple, Dict, Optional, List, Any
 from dataclasses import dataclass, field
 import numpy as np
@@ -1889,7 +1892,7 @@ _saxs_peak_region_fit_quality = _saxs_quality_helpers._saxs_peak_region_fit_qual
 _tangent_lc = _saxs_physical_helpers._tangent_lc
 _crystallinity_invariant = _saxs_physical_helpers._crystallinity_invariant
 _porod_constant = _saxs_physical_helpers._porod_constant
-guinier_analysis = _saxs_physical_helpers.guinier_analysis
-porod_analysis = _saxs_physical_helpers.porod_analysis
+guinier_analysis = _saxs_physical_helpers.guinier_analysis  # noqa: F811
+porod_analysis = _saxs_physical_helpers.porod_analysis  # noqa: F811
 _extrapolate_guinier = _saxs_extrapolation_helpers._extrapolate_guinier
 _extrapolate_porod = _saxs_extrapolation_helpers._extrapolate_porod
