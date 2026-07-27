@@ -125,6 +125,115 @@ def test_detector_quality_review_is_bilingual_and_absent_when_reports_are_missin
     assert "sector map" not in empty_text
 
 
+def test_detector_quality_review_shows_raw_geometry_and_mask_provenance() -> None:
+    params = {
+        "raw_detector_quality_report": {
+            "source_kind": "raw_detector",
+            "level": "Diagnostic",
+            "geometry_provenance": {
+                "source": "mixed",
+                "field_sources": {
+                    "wavelength_m": "header",
+                    "pixel_size_m": "header",
+                    "sdd_m": "config_default",
+                    "beam_center_x": "config_default",
+                    "beam_center_y": "invalid_header",
+                },
+                "validity": "not_assessed",
+            },
+            "mask_provenance": {
+                "source": "saxs_config.dummy_value",
+                "configured": True,
+                "shape": [128, 256],
+                "validity": "not_assessed",
+            },
+        }
+    }
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "geometry source=mixed" in review_text
+    assert "header=2" in review_text
+    assert "config_default=2" in review_text
+    assert "invalid_header=1" in review_text
+    assert "mask source=saxs_config.dummy_value" in review_text
+    assert "configured=True" in review_text
+    assert "shape=128x256" in review_text
+    assert "validity=not_assessed" in review_text
+    assert params == before
+
+
+def test_detector_quality_review_keeps_missing_and_unconfigured_provenance_explicit() -> None:
+    missing = _build(
+        {
+            "raw_detector_quality_report": {
+                "source_kind": "raw_detector",
+                "level": "Diagnostic",
+            }
+        },
+        language="en",
+    )
+    missing_text = f"{missing.risk_text} {missing.next_text}"
+    assert "geometry source=" not in missing_text
+    assert "mask source=" not in missing_text
+
+    unconfigured = _build(
+        {
+            "raw_detector_quality_report": {
+                "source_kind": "raw_detector",
+                "level": "Diagnostic",
+                "mask_provenance": {
+                    "source": "none",
+                    "configured": False,
+                    "shape": None,
+                    "validity": "not_assessed",
+                },
+            }
+        },
+        language="en",
+    )
+    unconfigured_text = f"{unconfigured.risk_text} {unconfigured.next_text}"
+    assert "mask source=none" in unconfigured_text
+    assert "configured=False" in unconfigured_text
+    assert "shape=Unavailable" in unconfigured_text
+    assert "validity=not_assessed" in unconfigured_text
+
+
+def test_detector_quality_review_localizes_provenance_and_keeps_sector_map_separate() -> None:
+    params = {
+        "raw_detector_quality_report": {
+            "source_kind": "raw_detector",
+            "level": "Diagnostic",
+            "geometry_provenance": {
+                "source": "header",
+                "field_sources": {"wavelength_m": "header"},
+                "validity": "not_assessed",
+            },
+            "mask_provenance": {
+                "source": "none",
+                "configured": False,
+                "shape": None,
+                "validity": "not_assessed",
+            },
+        },
+        "detector_quality_report": {
+            "source_kind": "sector_map",
+            "level": "Trend",
+            "geometry_provenance": {"source": "should-not-be-projected"},
+            "mask_provenance": {"source": "should-not-be-projected"},
+        },
+    }
+    chinese = _build(params, language="zh")
+    chinese_text = f"{chinese.risk_text} {chinese.next_text}"
+
+    assert "\u51e0\u4f55\u6765\u6e90=header" in chinese_text
+    assert "\u63a9\u819c\u6765\u6e90=none" in chinese_text
+    assert "geometry source=should-not-be-projected" not in chinese_text
+    assert "mask source=should-not-be-projected" not in chinese_text
+
+
 def test_temperature_primary_uses_effective_lc_source_status_and_unavailable_text() -> None:
     presentation = _build(
         {

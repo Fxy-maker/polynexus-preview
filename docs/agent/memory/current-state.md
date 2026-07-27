@@ -1,5 +1,17 @@
 ---
 
+## SAXS Workbench geometry and mask provenance visibility (2026-07-28)
+
+- Workbench review text now shows the existing raw-detector geometry source and
+  field-source counts, plus mask source/configuration/shape, without rerunning
+  analysis or changing quality semantics. The `not_assessed` marker remains a
+  human scientific limitation.
+- Raw and sector-map fields remain separate. Automated evidence is
+  Workbench/Export/Figure `67 passed`, exact SAXS `380 passed, 6 warnings`,
+  and task verifier exit `0` with quality `283` and preprocessing `106`.
+- See task card
+  `docs/agent/tasks/2026-07-28-saxs-workbench-geometry-mask-provenance.md`.
+
 ## SAXS raw detector geometry and mask provenance transport (2026-07-28)
 
 - The raw detector report now transports per-field geometry provenance and

@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS Workbench geometry and mask provenance visibility - 2026-07-28
+
+- Results Workbench now presents existing raw-detector geometry aggregate/source
+  counts and mask source/configured/shape facts as read-only review context.
+  `validity=not_assessed` remains explicit; no quality level, threshold,
+  scientific status, rescue, or publication role is inferred.
+- The formatter is raw-field-only: sector-map evidence remains separate and
+  cannot inherit raw geometry/mask claims. Input mappings are not mutated and
+  English/Chinese labels are deterministic.
+- TDD RED was `3 failed, 3 passed, 44 deselected`; GREEN was `6 passed, 44
+  deselected`; Workbench/Export/Figure consumers were `67 passed`. Focused
+  Ruff, compile, and diff checks passed. The exact SAXS matrix was `380 passed,
+  6 warnings`; the task verifier exited `0` with quality `283` and
+  preprocessing `106`.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-workbench-geometry-mask-provenance.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-workbench-geometry-mask-provenance-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-workbench-geometry-mask-provenance.md`.
+- Geometry calibration, beam-center interpretation, mask scientific validity,
+  saturation meaning, and human release/publication review remain open.
+
 ## SAXS raw detector geometry and mask provenance transport - 2026-07-28
 
 - Raw detector reports now carry read-only `geometry_provenance` and

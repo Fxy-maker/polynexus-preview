@@ -505,6 +505,77 @@ def _detector_evidence_review_text(
             return None
         return value if math.isfinite(value) else None
 
+    def _provenance_text(report: Mapping[str, Any]) -> str:
+        """Project raw-detector provenance without assessing scientific validity."""
+        geometry = report.get("geometry_provenance")
+        mask = report.get("mask_provenance")
+        if not isinstance(geometry, Mapping) and not isinstance(mask, Mapping):
+            return ""
+
+        if zh:
+            parts: list[str] = []
+            geometry_label = "几何来源"
+            field_label = "几何字段来源"
+            mask_label = "掩膜来源"
+            configured_label = "已配置"
+            shape_label = "形状"
+            validity_label = "证据状态"
+        else:
+            parts = []
+            geometry_label = "geometry source"
+            field_label = "geometry fields"
+            mask_label = "mask source"
+            configured_label = "configured"
+            shape_label = "shape"
+            validity_label = "validity"
+
+        if isinstance(geometry, Mapping):
+            source = str(geometry.get("source") or "").strip()
+            if source:
+                parts.append(f"{geometry_label}={source}")
+            field_sources = geometry.get("field_sources")
+            if isinstance(field_sources, Mapping):
+                counts = {
+                    name: 0
+                    for name in ("header", "config_default", "invalid_header")
+                }
+                for value in field_sources.values():
+                    name = str(value or "").strip()
+                    if name in counts:
+                        counts[name] += 1
+                count_text = ", ".join(
+                    f"{name}={counts[name]}"
+                    for name in ("header", "config_default", "invalid_header")
+                    if counts[name]
+                )
+                if count_text:
+                    parts.append(f"{field_label}={count_text}")
+            validity = str(geometry.get("validity") or "").strip()
+            if validity:
+                parts.append(f"{validity_label}={validity}")
+
+        if isinstance(mask, Mapping):
+            source = str(mask.get("source") or "").strip()
+            if source:
+                parts.append(f"{mask_label}={source}")
+            if "configured" in mask:
+                parts.append(f"{configured_label}={bool(mask.get('configured'))}")
+            shape = mask.get("shape")
+            if isinstance(shape, (list, tuple)) and len(shape) == 2:
+                try:
+                    shape_text = f"{int(shape[0])}x{int(shape[1])}"
+                except (TypeError, ValueError):
+                    shape_text = "Unavailable"
+            elif shape is None:
+                shape_text = "Unavailable"
+            else:
+                shape_text = str(shape)
+            parts.append(f"{shape_label}={shape_text}")
+            validity = str(mask.get("validity") or "").strip()
+            if validity:
+                parts.append(f"{validity_label}={validity}")
+        return ", ".join(parts)
+
     for field_name, default_source in (
         ("raw_detector_quality_report", "raw detector"),
         ("detector_quality_report", "sector map"),
@@ -549,6 +620,11 @@ def _detector_evidence_review_text(
         )
         if reason_text:
             parts.append(f"{'原因' if zh else 'reasons'}={reason_text[:240]}")
+
+        if field_name == "raw_detector_quality_report":
+            provenance_text = _provenance_text(report)
+            if provenance_text:
+                parts.append(provenance_text)
 
         incomplete = (
             evidence_count is not None
