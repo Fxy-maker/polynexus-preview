@@ -1745,6 +1745,38 @@ def analyze_single(
     I = sanitized.intensity
     result = SAXSResult(q=q, I=I)
 
+    if q.size == 0:
+        quality_report = build_data_quality_report(
+            original_q,
+            original_I,
+            source_id=source_id,
+            raw_data_ref=raw_data_ref,
+            processed_data_ref="saxs_result:I_smooth",
+            processing_config_ref="SAXSConfig",
+            actions=sanitized.actions,
+        )
+        condition_context = getattr(cfg, "condition_context", {}) or {}
+        applicability = (
+            condition_context.get("guinier_applicability", "unknown")
+            if isinstance(condition_context, dict)
+            else "unknown"
+        )
+        result.I_smooth = I
+        result.long_period = LongPeriodResult()
+        result.structure = StructureParams()
+        result.metric_evidence = {}
+        result.data_quality_report = quality_report.to_dict()
+        result.guinier_evidence = build_guinier_evidence(
+            q,
+            I,
+            rg_nm=np.nan,
+            i0=np.nan,
+            quality_report=quality_report,
+            applicability=str(applicability or "unknown"),
+            source_ref="saxs_engine.guinier_analysis",
+        ).to_dict()
+        return result
+
     # Smooth
     from .preprocess import smooth_profile
     I_smooth = smooth_profile(q, I, cfg)

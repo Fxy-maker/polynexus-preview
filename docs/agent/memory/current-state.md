@@ -1,5 +1,26 @@
 ---
 
+## SAXS empty-profile fail-closed boundary (2026-07-28)
+
+- `analyze_single()` now returns the existing structured `Unusable` contract
+  immediately when deterministic 1D sanitization leaves no q/I observations.
+  The branch reuses `build_data_quality_report()` and
+  `build_guinier_evidence()`, preserves source/action provenance, and returns
+  empty numeric DTO defaults without interpolation, padding, rescue, AI, or
+  new thresholds. Non-empty analysis is unchanged.
+- TDD RED reproduced the `lorentz_fit_long_period()` empty-array `IndexError`;
+  focused GREEN passed `17` tests and the exact SAXS matrix passed `413` tests
+  with `6` warnings. The structured verifier passed with quality `283`,
+  preprocessing `106`, Ruff, compile/type baseline, memory/task, and
+  whitespace checks; `git diff --check` passed.
+- Full/boundary repository verification was not run for this scoped task.
+  Checkpoint is local-only; no push, merge, rescue, AI, release, or scientific
+  publication approval is implied.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-empty-profile-fail-closed.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-empty-profile-fail-closed-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-empty-profile-fail-closed.md`.
+
 ## Full release-audit recheck (2026-07-28)
 
 - The latest D:-isolated `python scripts/verify.py --changed --types --full

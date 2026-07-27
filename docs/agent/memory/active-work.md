@@ -1,5 +1,19 @@
 # Active Work
 
+## SAXS empty-profile fail-closed boundary - checkpointed - 2026-07-28
+
+- The deterministic sanitizer can produce an empty profile for empty or
+  wholly invalid input. `analyze_single()` now stops at that boundary and
+  returns empty `LongPeriodResult`/`StructureParams` plus existing `Unusable`
+  quality and Guinier evidence, preserving source and actions.
+- TDD RED was `1 failed`; focused GREEN was `17 passed`; the exact SAXS
+  matrix was `413 passed, 6 warnings`. The task verifier passed with quality
+  `283`, preprocessing `106`, Ruff/compile/type/memory/task/whitespace, and
+  `git diff --check`.
+- Full/boundary repository verification was not run for this scoped task. The
+  explicit allowlist checkpoint is local-only; do not mix pre-existing
+  GUI/editor/release/scratch files or claim the full software goal complete.
+
 ## Full release-audit recheck - open - 2026-07-28
 
 - Latest D:-isolated full/boundary result: `2836 passed, 16 skipped, 12
