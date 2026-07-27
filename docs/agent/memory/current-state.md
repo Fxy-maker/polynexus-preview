@@ -1,5 +1,20 @@
 ---
 
+## Full release-audit recheck (2026-07-28)
+
+- The latest D:-isolated `python scripts/verify.py --changed --types --full
+  --boundary` run is classified as a real test failure: `2836 passed, 16
+  skipped, 12 warnings, 2 failed` in `1547.13s`, verifier exit code `1`.
+- Both failures are SAXS condition-recovery assertions where
+  `path_directory` was expected but `unresolved` was returned. They are not a
+  timeout or tool-level failure. A focused current-checkout rerun of both
+  tests returned `2 passed`; the discrepancy remains open and must not be
+  silently converted into a full pass.
+- Fresh command-level rechecks returned IR published-run `2 passed, 13
+  deselected in 84.78s` and NMR solid-C lifecycle `1 passed, 3 deselected in
+  126.89s`, both exit code `0`. The automated software routes pass these
+  shards, while human GUI/scientific/release gates remain open.
+
 ## SAXS structure-parameter fail-closed guard (2026-07-28)
 
 - `compute_structure_params()` now initializes its existing `idf_is_artifact`
@@ -51,9 +66,11 @@
   ordered `actions` field records actual alignment, filtering, sorting, and
   duplicate-retention operations.
 - TDD/consumer evidence: focused `20 passed`; exact SAXS `406 passed, 6
-  warnings`; fresh D:-isolated full/boundary `2838 passed, 16 skipped, 12
-  warnings`, quality `283`, preprocessing `106`, boundary passed. The first
-  C:-based full attempt hit `No space left on device` and is excluded.
+  warnings`. An earlier D:-isolated full/boundary run returned `2838 passed,
+  16 skipped, 12 warnings`; the later release-audit rerun is the current
+  authoritative result and has the two SAXS condition-recovery failures
+  recorded above. The first C:-based full attempt hit `No space left on
+  device` and is excluded.
 - Task/spec/plan:
   `docs/agent/tasks/2026-07-28-saxs-deterministic-1d-profile-sanitization.md`,
   `docs/superpowers/specs/2026-07-28-saxs-deterministic-1d-profile-sanitization-design.md`,

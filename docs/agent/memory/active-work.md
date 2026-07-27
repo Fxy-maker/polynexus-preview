@@ -1,5 +1,20 @@
 # Active Work
 
+## Full release-audit recheck - open - 2026-07-28
+
+- Latest D:-isolated full/boundary result: `2836 passed, 16 skipped, 12
+  warnings, 2 failed` in `1547.13s`, verifier exit code `1`. Both failures
+  are SAXS condition-recovery assertions (`path_directory` expected,
+  `unresolved` returned), not a timeout. A focused rerun of the two tests is
+  green (`2 passed`), so the environment/reproducibility discrepancy remains
+  open.
+- Fresh delegated-shard rechecks are green: IR published-run `2 passed, 13
+  deselected in 84.78s`; NMR solid-C lifecycle `1 passed, 3 deselected in
+  126.89s`; both exit code `0`.
+- Next action is to resolve the condition-recovery discrepancy before any
+  full-release pass is claimed. Restarted-GUI, scientific review, and final
+  release approval also remain open.
+
 ## SAXS structure-parameter fail-closed guard - checkpointed - 2026-07-28
 
 - Root-cause reproduction showed that a 24-point `q=0.02..0.6` profile raised
@@ -39,9 +54,11 @@
 - TDD RED was `4 failed, 11 passed`; GREEN focused evidence is `20 passed`.
   Exact SAXS evidence is `406 passed, 6 warnings`. The task verifier passed
   with quality `283` and preprocessing `106`.
-- Fresh D:-isolated full/boundary verification passed `2838 passed, 16
-  skipped, 12 warnings` in `1579.21s`, with boundary audit pass. The earlier
-  C:-based attempt failed from `No space left on device` and is not counted.
+- An earlier D:-isolated full/boundary verification passed `2838 passed, 16
+  skipped, 12 warnings` in `1579.21s`; the later release-audit rerun is now
+  authoritative and has the two SAXS condition-recovery failures recorded in
+  the release-audit section above. The earlier C:-based attempt failed from
+  `No space left on device` and is not counted.
 - The explicit allowlist checkpoint is local-only; no push. Existing
   GUI/editor/release drafts, scratch directories, and parallel changes remain
   untouched.
