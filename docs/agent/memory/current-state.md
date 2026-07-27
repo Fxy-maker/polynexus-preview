@@ -1,5 +1,23 @@
 ---
 
+## SAXS rescue-candidate Workbench visibility (2026-07-28)
+
+- Existing deterministic temperature `sequence_rescue_candidates` now travels
+  through the public temperature parameters payload as a detached nested list.
+  Results Workbench shows candidate ID, frame/source, proposed value/mode,
+  validation-required state, and existing reasons as advisory review text.
+- Malformed or empty candidates remain absent; no candidate is applied,
+  accepted, rerun, or promoted. Existing physical, quality, and sequence gates
+  remain authoritative, and static/strain paths are unchanged.
+- Fresh evidence: focused consumer matrix `97 passed`; exact SAXS file matrix
+  `393 passed, 6 warnings`; task verifier exit `0` with quality `283`,
+  preprocessing `106`, Ruff, compile/type, memory/task, and whitespace checks.
+  Full/boundary verification was not run for this slice.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-rescue-candidate-workbench-visibility.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-rescue-candidate-workbench-visibility-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-rescue-candidate-workbench-visibility.md`.
+
 ## SAXS DataQualityReport Workbench visibility (2026-07-28)
 
 - The Results Workbench now shows existing q/I `DataQualityReport` provenance

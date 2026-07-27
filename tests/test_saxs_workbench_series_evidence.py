@@ -69,6 +69,65 @@ def test_workbench_renders_temperature_guinier_sequence_diagnostics():
     assert "physical pass" not in review_text.lower()
 
 
+def test_workbench_renders_existing_rescue_candidates_as_candidate_only_review():
+    params = _series_params()
+    params["sequence_rescue_candidates"] = [
+        {
+            "candidate_id": "temperature-frame-1-lc-tangent",
+            "kind": "deterministic",
+            "parameters": {
+                "frame_index": 1,
+                "axis_name": "temperature",
+                "axis_value": 180.0,
+                "proposed_source": "tangent",
+                "proposed_value_nm": 3.2,
+                "apply_mode": "candidate_only",
+                "preserve_missing_frames": True,
+            },
+            "reason_codes": ["sequence_existing_alternative"],
+            "source": "saxs_temperature.select_lc_sequence_path",
+            "requires_validation": True,
+        }
+    ]
+    before = deepcopy(params)
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "rescue candidate" in review_text.lower()
+    assert "1" in review_text
+    assert "frame=1" in review_text
+    assert "source=tangent" in review_text
+    assert "candidate_only" in review_text
+    assert "requires validation" in review_text.lower()
+    assert "deterministic re-analysis" in review_text.lower()
+    assert "applied" not in review_text.lower()
+    assert "accepted" not in review_text.lower()
+    assert "physically valid" not in review_text.lower()
+    assert params == before
+
+
+def test_workbench_ignores_missing_or_malformed_rescue_candidates_and_localizes():
+    params = {
+        **_series_params(),
+        "sequence_rescue_candidates": [None, "malformed", {}],
+    }
+    before = deepcopy(params)
+
+    english = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+    chinese = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="zh"
+    )
+
+    assert "rescue candidate" not in (english.risk_text + english.next_text).lower()
+    assert "救援候选" not in (chinese.risk_text + chinese.next_text)
+    assert params == before
+
+
 def test_temperature_get_parameters_transports_existing_series_evidence_without_mutation():
     engine = SAXSEngine(SAXSConfig())
     summary = {"porod": _series_metric_summary()}

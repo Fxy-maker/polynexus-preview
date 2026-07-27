@@ -1833,6 +1833,11 @@ class SAXSEngine(BaseEngine):
             )
             if sequence_evidence is not None:
                 params["guinier_sequence_evidence"] = sequence_evidence
+            rescue_candidates = _saxs_batch_helpers.copy_saxs_quality_evidence(tr).get(
+                "sequence_rescue_candidates"
+            )
+            if rescue_candidates is not None:
+                params["sequence_rescue_candidates"] = rescue_candidates
             for field_name in (
                 "detector_quality_report",
                 "raw_detector_quality_report",

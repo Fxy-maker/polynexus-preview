@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import numpy as np
 from types import SimpleNamespace
 
@@ -221,6 +222,43 @@ def test_saxs_temperature_get_parameters_transports_sequence_evidence() -> None:
     params = engine.get_parameters()
 
     assert params["guinier_sequence_evidence"] == sequence
+
+
+def test_saxs_temperature_get_parameters_transports_detached_rescue_candidates() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
+
+    candidates = [
+        {
+            "candidate_id": "temperature-frame-1-lc-tangent",
+            "kind": "deterministic",
+            "parameters": {
+                "frame_index": 1,
+                "proposed_source": "tangent",
+                "apply_mode": "candidate_only",
+                "preserve_missing_frames": True,
+            },
+            "reason_codes": ["sequence_existing_alternative"],
+            "source": "saxs_temperature.select_lc_sequence_path",
+            "requires_validation": True,
+        }
+    ]
+    before = deepcopy(candidates)
+    engine._temperature_result = TempSeriesResult(  # type: ignore[attr-defined]
+        temperatures=np.asarray([170.0, 180.0]),
+        lc_array=np.asarray([3.0, np.nan]),
+        lc_effective_array=np.asarray([3.0, 3.2]),
+        sequence_rescue_candidates=candidates,
+    )
+
+    params = engine.get_parameters()
+
+    assert params["sequence_rescue_candidates"] == candidates
+    assert params["sequence_rescue_candidates"] is not candidates
+    assert params["sequence_rescue_candidates"][0] is not candidates[0]
+    assert candidates == before
 
 
 def test_saxs_batch_export_row_keeps_status_fields() -> None:

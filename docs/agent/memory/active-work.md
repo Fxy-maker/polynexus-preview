@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS rescue-candidate Workbench visibility - ready for checkpoint - 2026-07-28
+
+- The existing deterministic temperature sequence-rescue candidates are now
+  copied into the public temperature parameters payload and rendered as
+  read-only Workbench review evidence. The display is bounded to candidate
+  ID, frame/source, proposed value/mode, validation-required state, and reasons.
+- Candidate values remain advisory: no apply, rerun, acceptance, interpolation,
+  or physical interpretation was added. Malformed/empty candidates stay absent;
+  static and strain paths remain unchanged.
+- TDD RED was `2 failed, 1 passed`; GREEN was `3 passed`. Focused consumer
+  evidence is `97 passed`; exact SAXS evidence is `393 passed, 6 warnings`.
+  The task verifier exited `0` with quality `283`, preprocessing `106`,
+  task/memory, Ruff, compile/type baseline, and whitespace checks. Full/boundary
+  verification was not run for this slice.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-rescue-candidate-workbench-visibility.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-rescue-candidate-workbench-visibility-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-rescue-candidate-workbench-visibility.md`.
+- The explicit allowlist checkpoint is the next action; no push, merge,
+  deployment, or scientific/publication approval is implied.
+
 ## SAXS DataQualityReport Workbench visibility - ready for checkpoint - 2026-07-28
 
 - The Results Workbench now presents the existing q/I `DataQualityReport` as

@@ -940,6 +940,87 @@ def _guinier_sequence_review_text(
     return risk, next_text
 
 
+def _sequence_rescue_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Present existing sequence-rescue candidates without accepting them."""
+
+    if not isinstance(payload, Mapping):
+        return "", ""
+
+    raw_candidates = payload.get("sequence_rescue_candidates")
+    if not isinstance(raw_candidates, (list, tuple)):
+        return "", ""
+
+    zh = language == "zh"
+    details: list[str] = []
+    for raw_candidate in raw_candidates:
+        if not isinstance(raw_candidate, Mapping):
+            continue
+        parameters = raw_candidate.get("parameters")
+        if not isinstance(parameters, Mapping):
+            continue
+
+        candidate_id = str(raw_candidate.get("candidate_id") or "").strip()
+        if not candidate_id:
+            continue
+        candidate_id = candidate_id[:120]
+        frame_index = str(parameters.get("frame_index") or "").strip()
+        proposed_source = str(parameters.get("proposed_source") or "").strip()
+        proposed_value = str(parameters.get("proposed_value_nm") or "").strip()
+        apply_mode = str(parameters.get("apply_mode") or "").strip()
+        source = str(raw_candidate.get("source") or "").strip()
+        reasons = raw_candidate.get("reason_codes")
+        if isinstance(reasons, str):
+            reason_values = (reasons,)
+        elif isinstance(reasons, (list, tuple)):
+            reason_values = tuple(reasons)
+        else:
+            reason_values = ()
+        reason_text = ",".join(
+            str(reason).strip()[:80]
+            for reason in reason_values[:3]
+            if str(reason).strip()
+        )
+
+        parts = [
+            f"{'救援候选' if zh else 'Rescue candidate'}: {candidate_id}",
+        ]
+        if frame_index:
+            parts.append(f"{'帧' if zh else 'frame'}={frame_index[:32]}")
+        if proposed_source:
+            parts.append(f"{'候选来源' if zh else 'source'}={proposed_source[:80]}")
+        if proposed_value:
+            parts.append(f"{'候选值(nm)' if zh else 'proposed nm'}={proposed_value[:32]}")
+        if apply_mode:
+            parts.append(f"{'模式' if zh else 'mode'}={apply_mode[:40]}")
+        if "requires_validation" in raw_candidate:
+            parts.append(
+                f"{'需验证' if zh else 'requires validation'}="
+                f"{bool(raw_candidate.get('requires_validation'))}"
+            )
+        if source:
+            parts.append(f"{'证据来源' if zh else 'evidence source'}={source[:120]}")
+        if reason_text:
+            parts.append(f"{'原因' if zh else 'reasons'}={reason_text}")
+        details.append("; ".join(parts))
+
+    if not details:
+        return "", ""
+
+    detail = f"{'救援候选' if zh else 'Rescue candidates'}: {len(details)} | " + " | ".join(details[:5])
+    next_instruction = (
+        "请先对救援候选执行确定性重算，并复核现有物理、质量和序列门槛；候选值不会自动进入结果"
+        if zh
+        else "Perform deterministic re-analysis of rescue candidates and confirm existing physical, quality, and sequence gates before any action; candidate values remain advisory"
+    )
+    return tr_for_language("RESULTS_REVIEW_RISK", language, detail), tr_for_language(
+        "RESULTS_REVIEW_NEXT", language, next_instruction
+    )
+
+
 def _field_column(field: ResultFieldSpec, *, language: str) -> TableColumn:
     alignment = "right" if field.digits is not None or bool(field.unit) else "left"
     return TableColumn(
@@ -1277,6 +1358,10 @@ def build_saxs_results_presentation(
         payload,
         language=target_language,
     )
+    rescue_risk, rescue_next = _sequence_rescue_review_text(
+        payload,
+        language=target_language,
+    )
     detector_risk, detector_next = _detector_evidence_review_text(
         payload,
         language=target_language,
@@ -1291,6 +1376,7 @@ def build_saxs_results_presentation(
             axis_risk,
             metric_risk,
             sequence_risk,
+            rescue_risk,
             detector_risk,
             data_quality_risk,
         )
@@ -1302,6 +1388,7 @@ def build_saxs_results_presentation(
             axis_next,
             metric_next,
             sequence_next,
+            rescue_next,
             detector_next,
             data_quality_next,
         )

@@ -23,6 +23,7 @@ _QUALITY_EVIDENCE_FIELDS = (
     "raw_detector_quality_report",
     "orientation_evidence",
     "guinier_sequence_evidence",
+    "sequence_rescue_candidates",
 )
 
 
