@@ -1,7 +1,7 @@
 # Full Software Release Audit
 
-Status: in progress
-Date: 2026-07-27
+Status: automated evidence refreshed; release approval still open
+Date: 2026-07-28
 
 ## Goal
 
@@ -141,6 +141,22 @@ limitation rather than pass.
   Representative images show the routes constructible and live CJK labels;
   body contrast/activity in inactive `grab()` captures remained a human visual
   gate.
+- Fresh post-opacity-fix native rerun isolated all temporary output on D:
+  `15 passed, 1 deselected, 15 warnings in 398.02s`, exit code `0`. It covered
+  DSC `3`, SAXS `3`, WAXS `3`, IR `2`, and NMR `4`; every case restored the
+  populated Results Workbench, captured Results/Gallery/History/Editor, and
+  exercised the existing PackageExporter fallback. Representative screenshots
+  are under `D:\PolyNexus_native_all_routes_capture_20260728`.
+- The corresponding native synthetic Joint route passed `1 passed, 15
+  deselected in 8.92s`, exit code `0`, with the same Results/Gallery/History/
+  Editor/package route. This is report-level software evidence only.
+- A first all-mode retry using a C: basetemp was stopped by the actual
+  environment limit: `4 passed, 11 failed` after `OSError [Errno 28] No space
+  left on device` and SQLite `database or disk is full`. It is classified as
+  an environment failure, not a product assertion result, and was superseded
+  by the D:-isolated run above. Three unreferenced old diagnostic directories
+  were moved, recoverably, to `D:\PolyNexus_temp_archive_20260728` to restore
+  test capacity; no repository scratch or real data was deleted.
 - The native history fixture was corrected to restore each engine result's
   existing `parameters` and `to_dict()` payload instead of only its `data_file`.
   The harness now asserts that the Results model has a primary section and at

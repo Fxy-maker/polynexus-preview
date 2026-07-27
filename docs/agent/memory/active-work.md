@@ -1,5 +1,23 @@
 # Active Work
 
+## Native all-mode route evidence refreshed - 2026-07-28
+
+- After the shared Results opacity correction, the D:-isolated native harness
+  passed `15 passed, 1 deselected, 15 warnings in 398.02s`, exit code `0`,
+  covering every real DSC/SAXS/WAXS/IR/NMR mode. Each route restored a
+  populated Results Workbench, Gallery, History, Editor, and PackageExporter
+  fallback output. Synthetic Joint passed `1 passed, 15 deselected in 8.92s`.
+- Representative native captures are under
+  `D:\PolyNexus_native_all_routes_capture_20260728`; Results text is opaque
+  and live CJK labels render. NMR solid-C peak-label crowding remains a review
+  signal rather than an unverified production change.
+- The first C:-based run (`4 passed, 11 failed`) hit the actual full-volume
+  limit and is classified as environment failure. Old unreferenced diagnostic
+  directories were moved, not deleted, to
+  `D:\PolyNexus_temp_archive_20260728`.
+- Next action remains human restarted-GUI/scientific review and release
+  decision; this evidence does not close the active full-software goal.
+
 ## Results Workbench main-Tab opacity correction - checkpoint ready - 2026-07-28
 
 - The native pale-body diagnosis was isolated to the shared main-Tab fade:

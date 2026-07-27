@@ -145,6 +145,15 @@ probe (`1 passed, 15 deselected in 5.94s`, exit `0`) through the same surfaces
 and package fallback. This is not real-data Joint or scientific conflict
 sign-off.
 
+After the shared main-Tab opacity correction, the all-mode harness was rerun
+with D:-isolated `TEMP`, `TMP`, basetemp, and capture output. The authoritative
+result was `15 passed, 1 deselected, 15 warnings in 398.02s`, exit code `0`,
+covering DSC `3`, SAXS `3`, WAXS `3`, IR `2`, and NMR `4`. The synthetic Joint
+route then passed `1 passed, 15 deselected in 8.92s`, exit code `0`. The first
+C:-based attempt ended with `4 passed, 11 failed` due solely to the actual
+`database or disk is full`/`No space left on device` environment limit; it is
+not used as product-failure evidence.
+
 ### Task 5: Run the full verifier and close the audit record
 
 **Files:**

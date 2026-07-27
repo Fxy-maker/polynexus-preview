@@ -1,6 +1,6 @@
 # PolyNexus Full Software Release Audit
 
-Date: 2026-07-27
+Date: 2026-07-28
 Branch: `codex/origin-editor-usable-controls`
 Status: automated evidence complete; release not approved
 
@@ -20,7 +20,7 @@ Status: automated evidence complete; release not approved
 | Per-technique lifecycle closures | DSC `3`, WAXS `3`, IR `3` (including mapping), NMR `4`, Joint `1` passed | automated-pass |
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
 | Real-result GUI route capture | Temporary pytest capture `1 passed`; restored DSC run produced Results, Gallery, History, and Editor screenshots with one manifest gallery entry | structural-pass; offscreen CJK font boxes require live visual review |
-| Native Windows Qt real-route harness | Fresh post-fix shards: `DSC 3`, `SAXS 3`, `WAXS 3`, `IR 2`, `NMR 4` passed, all exit code `0`; each case restored actual `AnalysisResult` parameters/payload, asserted a non-empty Results table, and captured Results, Gallery, History, Editor, and package Export artifacts | automated route/package-export pass; inactive-grab body contrast/activity and installed Origin/COM remain human/optional-runtime gates |
+| Native Windows Qt real-route harness | Fresh D:-isolated post-opacity-fix rerun: `15 passed, 1 deselected, 15 warnings in 398.02s`, exit code `0`; DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR `4`. Each case restored actual `AnalysisResult` parameters/payload, asserted a non-empty Results table, captured Results/Gallery/History/Editor, and exercised package Export. Native synthetic Joint separately passed `1` in `8.92s`. | automated route/package-export pass; inactive-grab body contrast/activity, installed Origin/COM, and scientific gates remain human/optional-runtime gates |
 | Results Workbench Light-theme contrast | TDD regression plus theme-switch test `2 passed`; Light muted text now has `4.72:1` contrast against the light background, and the complete 15-mode native route matrix passed after the fix | automated contrast/route pass; restarted-GUI visual review remains open |
 | IR mapping/ROI contract and lifecycle | `11 passed`; geometry mismatch and invalid pixels are rejected, provenance/roles/handoff are preserved | automated structural-pass; vendor semantics intentionally not inferred |
 | NMR/Joint provenance and lifecycle | `4 passed`; NMR Main/diagnostic and Joint run provenance survive publication/history | automated provenance-pass; solid C assignment and Joint conflicts require scientific review |
@@ -143,6 +143,22 @@ fixture, restores `joint.compare`, captures the shared Results/Gallery/History/
 Editor surfaces, and creates the same package artifacts. It is software-route
 evidence only; it does not establish real-data Joint behavior or resolve
 cross-technique scientific conflicts.
+
+After the shared Main Tab opacity correction, the complete native route harness
+was rerun with `TEMP`, `TMP`, pytest basetemp, and capture output on D: to avoid
+the exhausted C: temporary volume. The authoritative result was `15 passed, 1
+deselected, 15 warnings in 398.02s`, exit code `0`; all five technique groups
+passed and produced the four route captures plus the package-export artifacts.
+The synthetic Joint route then passed `1 passed, 15 deselected in 8.92s`, exit
+code `0`. Representative captures are retained under
+`D:\PolyNexus_native_all_routes_capture_20260728` and were visually inspected
+for live CJK labels, opaque Results text, constructible Gallery cards, and an
+editable Editor surface. This is stronger native route evidence, not human
+scientific/release approval.
+
+The preceding C:-based attempt is recorded as an environment failure rather
+than a test failure: it ended with `4 passed, 11 failed` after `database or disk
+is full`/`No space left on device`. It was superseded by the D:-isolated run.
 
 The earlier combined native invocation exceeded the 180-second tool window
 without a pytest summary and is therefore a tool-level timeout, not a pass or

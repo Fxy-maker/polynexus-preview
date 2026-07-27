@@ -1,5 +1,24 @@
 ---
 
+## Native all-mode route evidence after opacity correction (2026-07-28)
+
+- The D:-isolated native Windows Qt rerun passed `15 passed, 1 deselected,
+  15 warnings in 398.02s`, exit code `0`, across DSC `3`, SAXS `3`, WAXS `3`,
+  IR `2`, and NMR `4`. Each mode restored populated Results, captured
+  Results/Gallery/History/Editor, and exercised the PackageExporter fallback.
+- The synthetic Joint route passed `1 passed, 15 deselected in 8.92s`, exit
+  code `0`. Captures are under `D:\PolyNexus_native_all_routes_capture_20260728`.
+  Visual inspection found live CJK labels and opaque Results text; crowded
+  NMR solid-C labels remain a scientific/visual review signal.
+- A preceding C:-based attempt ended with `4 passed, 11 failed` because the
+  volume was full. It is an environment failure, superseded by the D:-isolated
+  run. Three old unreferenced diagnostic directories were moved recoverably to
+  `D:\PolyNexus_temp_archive_20260728`; no repository scratch or real data was
+  deleted.
+- These results strengthen automated route evidence only. Restarted-GUI human
+  review, IR vendor mapping/ROI semantics, solid-C assignment, Joint conflicts,
+  and final release approval remain open.
+
 ## Results Workbench main-Tab opacity correction (2026-07-28)
 
 - Native route diagnosis showed the Light-theme pale Results appearance was
