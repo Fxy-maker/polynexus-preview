@@ -28,7 +28,8 @@ title: Current PolyNexus repository state
   shell was visually captured, but restarted-GUI route coverage,
   while 58 focused shell/workbench/gallery/editor route tests pass,
   and a real-result route capture passes structurally,
-  IR vendor mapping/ROI semantics, assignment-limited NMR/Joint review, and
+  IR mapping/ROI structural tests add `11 passed`, and NMR/Joint provenance
+  tests add `4 passed`; IR vendor mapping/ROI semantics, assignment-limited NMR/Joint review, and
   final human release approval remain open. Fresh full verification passed
   `2767` tests with `10` existing warnings and the boundary audit passed.
   Acceptance note:

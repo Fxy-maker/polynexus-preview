@@ -45,6 +45,10 @@
   Gallery, History, and Editor screenshots with one manifest entry. Offscreen
   CJK glyph boxes mean this is structural evidence only; live-font review stays
   open.
+- IR mapping/ROI plus lifecycle regression is `11 passed`; NMR/Joint provenance
+  plus lifecycle regression is `4 passed`. These are structural/provenance
+  contracts only; vendor semantics, assignment-limited NMR C, and Joint
+  scientific conflicts remain human gates.
 - The combined real/lifecycle command exceeded the 180-second tool window
   without a summary and was explicitly terminated; it is recorded as a
   bounded timeout, not a pass. Canonical GUI default-shell screenshot evidence

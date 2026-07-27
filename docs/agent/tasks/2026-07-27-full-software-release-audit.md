@@ -97,6 +97,11 @@ limitation rather than pass.
   run through Results, Gallery, History, and Editor, with four screenshots and
   one manifest gallery entry. Offscreen CJK glyphs render as square placeholders,
   so live-font and pixel-level review remains open.
+- IR mapping/ROI and lifecycle matrix passed `11` tests; it rejects mismatched
+  geometry/invalid pixels and preserves structural provenance without inferring
+  vendor format or band meaning.
+- NMR/Joint provenance and lifecycle matrix passed `4` tests; solid-state NMR C
+  assignment and Joint scientific conflicts remain explicit human gates.
 - A combined lifecycle/real-run command exceeded the short 180-second tool
   window without a test summary; this is not a pass or a failure claim.
 - A fresh dedicated full verifier completed with `2767 passed, 10 warnings` in
