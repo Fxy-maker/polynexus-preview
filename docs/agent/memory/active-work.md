@@ -1,5 +1,20 @@
 # Active Work
 
+## Real published-run walkthrough replay - verified 2026-07-27
+
+- Replayed `tests/test_real_published_run_walkthrough.py` on the current
+  branch with an external basetemp: **15 passed in 338.23s**, with 11 existing
+  warnings (DSC polyfit conditioning and missing CJK glyphs).
+- The replay covers SAXS static/temperature/strain, DSC standard/isothermal/
+  non-isothermal, WAXS static/temperature/strain/2D, IR standard/
+  temperature-2D, and NMR liquid/solid H/C. It preserves the shared run ID
+  through Manifest/Gallery, Editor working/published revisions, export
+  provenance, and History restore.
+- This strengthens automated real-lifecycle evidence only. Diagnostic-only or
+  validation-error results remain in their declared roles; restarted-GUI
+  visual review, human scientific sign-off, IR mapping semantics, and final
+  release policy remain open.
+
 ## SAXS temperature Guinier sequence evidence - checkpointed 2026-07-27
 
 - Stage 2 adds immutable `GuinierSequenceEvidence` and the pure

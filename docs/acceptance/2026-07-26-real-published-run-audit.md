@@ -37,13 +37,17 @@ publication boundary; it is not a scientific sign-off.
   measured about 3.7 seconds for analysis and 40.3 seconds for publication.
 - The full 2D shared-lifecycle test passed `2` cases in `101.39s`:
   `python -m pytest --basetemp=C:\Temp\PolyNexus_full_2d_walkthrough tests/test_real_published_run_walkthrough.py -k full_2d -q`.
-- A historical complete real published-run matrix passed `15` cases in
-  `276.15s` with `python -m pytest tests/test_real_published_run_walkthrough.py
-  -q`; its external pytest basetemp is no longer retained for independent
-  replay. The expanded matrix added SAXS temperature/strain; the
-  non-isothermal run selected its SI conversion figure and the SAXS strain run
-  selected a diagnostic figure, preserving both publication roles. The
-  currently retained SAXS strain output is listed in the table above.
+- A fresh complete real published-run matrix replay on 2026-07-27 passed
+  `15` cases in `338.23s` with
+  `python -m pytest --basetemp=C:\Temp\PolyNexus_real_walkthrough_20260727 tests/test_real_published_run_walkthrough.py -q`.
+  It revalidated the expanded SAXS temperature/strain matrix and full 2D
+  cases on the current branch. The run produced 11 existing warnings (DSC
+  polyfit conditioning and missing CJK glyphs); no test failed.
+- The earlier complete real published-run matrix passed `15` cases in
+  `276.15s`; the non-isothermal run selected its SI conversion figure and the
+  SAXS strain run selected a diagnostic figure, preserving both publication
+  roles. The currently retained SAXS strain output is listed in the table
+  above.
 
 ## Runs not accepted as scientific sign-off
 

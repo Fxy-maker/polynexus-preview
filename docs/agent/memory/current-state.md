@@ -67,6 +67,14 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- A fresh real published-run replay on 2026-07-27 passed `15` cases in
+  `338.23s` using an external basetemp. It covers all current automated SAXS,
+  DSC, WAXS, IR, and NMR mode rows through Manifest/Gallery, Editor revisions,
+  export provenance, and History restore. The 11 warnings are existing DSC
+  polyfit-conditioning and missing-CJK-glyph warnings. This is stronger
+  lifecycle evidence, not a scientific sign-off; restarted-GUI visual review,
+  IR mapping semantics, and final publication/release decisions remain open.
+
 - SAXS temperature Guinier Stage 2 sequence evidence is now implemented and
   verified: focused Guinier/temperature tests `11 passed`, full SAXS file
   matrix `237 passed, 4 warnings`, quality gate `282 passed`, preprocessing
