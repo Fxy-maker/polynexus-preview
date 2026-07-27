@@ -79,3 +79,38 @@ def test_export_saxs_bundle_returns_failed_status_if_manifest_fallback_also_fail
 
     assert bundle.status == "failed"
     assert any(error.startswith("export_failed:") for error in bundle.errors)
+
+
+def test_export_saxs_bundle_persists_quality_evidence_and_ai_audit(tmp_path) -> None:
+    engine = _engine()
+    engine._analysis = SimpleNamespace(
+        q=np.asarray([0.1, 0.2, 0.3]),
+        I=np.asarray([10.0, 8.0, 5.0]),
+        I_smooth=np.asarray([9.5, 7.5, 4.5]),
+        data_quality_report={"level": "Trend", "source_id": "frame-0"},
+        guinier_evidence={"level": "Diagnostic", "reason_codes": ["qrg_gate_failed"]},
+        metric_evidence={"porod": {"level": "Trend"}},
+        detector_quality_report={"source_kind": "sector_map", "level": "Diagnostic"},
+        orientation_evidence={"level": "Diagnostic", "metric_name": "Orientation"},
+    )
+    engine.saxs_ai_rescue_plan = {
+        "candidate_only": True,
+        "original_preserved": True,
+    }
+    engine.saxs_ai_rescue_decision = {
+        "decision": "keep_original",
+        "apply_allowed": False,
+    }
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "quality"))
+
+    root = tmp_path / "quality"
+    payload = json.loads((root / "quality_evidence.json").read_text(encoding="utf-8"))
+    manifest = json.loads((root / "bundle_manifest.json").read_text(encoding="utf-8"))
+
+    assert bundle.status == "ok"
+    assert manifest["files"]["quality_evidence"] == "quality_evidence.json"
+    assert payload["static"]["metric_evidence"]["porod"]["level"] == "Trend"
+    assert payload["static"]["orientation_evidence"]["level"] == "Diagnostic"
+    assert payload["ai_rescue"]["plan"]["candidate_only"] is True
+    assert payload["ai_rescue"]["decision"]["apply_allowed"] is False

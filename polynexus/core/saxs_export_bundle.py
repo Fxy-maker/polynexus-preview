@@ -148,6 +148,81 @@ def _parameter_payload(engine: Any, mode: str) -> dict[str, Any]:
     }
 
 
+_QUALITY_FIELDS = (
+    "data_quality_report",
+    "guinier_evidence",
+    "metric_evidence",
+    "detector_quality_report",
+    "orientation_evidence",
+    "guinier_sequence_evidence",
+    "sequence_rescue_candidates",
+    "analysis_evidence",
+)
+
+
+def _quality_object_payload(value: Any) -> dict[str, Any]:
+    """Read existing quality DTO fields without interpreting their levels."""
+
+    if value is None:
+        return {}
+    payload: dict[str, Any] = {}
+    for name in _QUALITY_FIELDS:
+        item = getattr(value, name, None)
+        if item is not None:
+            payload[name] = item
+    return _jsonable(payload)
+
+
+def _series_quality_payload(series: Any) -> dict[str, Any]:
+    payload = _quality_object_payload(series)
+    points = list(
+        getattr(series, "temp_points", None)
+        or getattr(series, "strain_points", None)
+        or ()
+    )
+    frames: list[dict[str, Any]] = []
+    for index, point in enumerate(points):
+        frame = _quality_object_payload(point)
+        if frame:
+            frame["frame_index"] = index
+            frames.append(frame)
+    if frames:
+        payload["frames"] = frames
+    return payload
+
+
+def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
+    """Collect quality provenance for export without creating new evidence."""
+
+    analysis = getattr(engine, "_analysis", None)
+    if analysis is None:
+        batch = list(getattr(engine, "_batch_results", ()) or ())
+        analysis = batch[0] if batch else None
+    temperature = getattr(engine, "_temperature_result", None)
+    strain = getattr(engine, "_strain_result", None)
+    ai_plan = getattr(engine, "saxs_ai_rescue_plan", None)
+    ai_decision = getattr(engine, "saxs_ai_rescue_decision", None)
+    if ai_plan is None and ai_decision is None:
+        result = getattr(engine, "result", None)
+        ai_plan = getattr(result, "saxs_ai_rescue_plan", None)
+        ai_decision = getattr(result, "saxs_ai_rescue_decision", None)
+
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "technique": "saxs",
+        "mode": mode,
+        "static": _quality_object_payload(analysis),
+        "temperature": _series_quality_payload(temperature),
+        "strain": _series_quality_payload(strain),
+    }
+    if ai_plan is not None or ai_decision is not None:
+        payload["ai_rescue"] = {
+            "plan": ai_plan,
+            "decision": ai_decision,
+        }
+    return _jsonable(payload)
+
+
 def _profile_items(engine: Any) -> list[dict[str, Any]]:
     processed = list(getattr(engine, "_processed_list", ()) or ())
     q_list = list(getattr(engine, "_q_list", ()) or ())
@@ -377,6 +452,11 @@ def export_saxs_bundle(engine: Any, output_dir: str) -> SAXSExportBundle:
         files["analysis_result"] = _write_json(root, "analysis_result.json", _result_payload(result))
         files["metadata"] = _write_json(root, "metadata.json", getattr(result, "metadata", {}))
         files["evidence"] = _write_json(root, "evidence.json", getattr(result, "analysis_evidence", {}))
+        files["quality_evidence"] = _write_json(
+            root,
+            "quality_evidence.json",
+            _quality_evidence_payload(engine, mode),
+        )
         files["config_snapshot"] = _write_json(root, "config_snapshot.json", saxs_config_snapshot(getattr(engine, "cfg", None)))
         parameter_payload = _parameter_payload(engine, mode)
         files["parameters"] = _write_json(root, "parameters.json", parameter_payload)

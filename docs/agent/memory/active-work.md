@@ -1,5 +1,15 @@
 # Active Work
 
+## SAXS quality export provenance - verification-ready 2026-07-27
+
+- Export bundles now write `quality_evidence.json` and register it in the
+  bundle manifest. The snapshot preserves static/temperature/strain quality,
+  sequence evidence/candidates, 2D evidence, and optional AI plan/decision as
+  audit-only JSON; it never applies candidates or changes publication roles.
+- Verification evidence: export/provider slice `27 passed, 4 warnings`; full
+  SAXS matrix `260 passed, 4 warnings`. Restarted GUI visual review, real-data
+  science sign-off, and final release policy remain open.
+
 ## SAXS AI rescue bridge - checkpointed 2026-07-27
 
 - Added `saxs_ai_rescue.py` as a strict bridge to the existing preprocessing

@@ -7,6 +7,13 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS Stage 8 export provenance is implemented locally: successful bundles
+  include `quality_evidence.json` in `bundle_manifest.files`, preserving
+  existing quality/sequence/2D/AI audit fields without changing results or
+  publication roles. Focused export/provider evidence is `27 passed` and the
+  full SAXS matrix is `260 passed` with four existing font warnings. Checkpoint
+  verification and final real/GUI/scientific release review remain open.
+
 - SAXS AI rescue Stage 7 is implemented locally as a contract bridge over the
   existing preprocessing optimizer. It validates untrusted SAXS intents,
   protects core physical features, emits candidate-only plans, and preserves
