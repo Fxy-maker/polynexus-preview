@@ -39,4 +39,4 @@ validator.
 - Update: task card and durable memory.
 
 - [x] Run the structured verifier and whitespace check.
-- [ ] Create the allowlist-only checkpoint with `scripts/auto_commit.py`.
+- [x] Create the allowlist-only checkpoint with `scripts/auto_commit.py`.
