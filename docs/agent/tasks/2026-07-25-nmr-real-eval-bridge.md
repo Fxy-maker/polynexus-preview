@@ -20,7 +20,7 @@
 - [x] 四个 NMR submodule 可被 `_uses_real_engine` 识别。
 - [x] real path 调用 `get_engine("nmr", submodule_id=...)`，并输出峰位与 provenance。
 - [x] AI/off 或缺省配置时仍走确定性 engine path，不依赖 AI。
-- [ ] focused eval、Ruff、结构化 verifier 均通过。
+- [x] focused eval、Ruff、结构化 verifier 均通过。
 
 ## Implementation plan
 
