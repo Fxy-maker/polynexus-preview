@@ -27,7 +27,11 @@ from .core import (
     lorentz_fit_long_period, analyze_single,
     LongPeriodResult, StructureParams, porod_analysis,
 )
-from .saxs_quality_contracts import build_series_metric_evidence
+from .saxs_quality_contracts import (
+    build_series_detector_quality_report,
+    build_series_metric_evidence,
+    build_series_orientation_evidence,
+)
 
 
 class StrainPhase(Enum):
@@ -73,6 +77,8 @@ class StrainPointResult:
     method: str = ""
     data_quality_report: Dict = None
     metric_evidence: Dict = None
+    detector_quality_report: Dict = None
+    orientation_evidence: Dict = None
     warnings: List[str] = field(default_factory=list)
 
 
@@ -92,6 +98,8 @@ class StrainSeriesResult:
     f_herman_array: np.ndarray = None
     phi_void_array: np.ndarray = None
     metric_evidence: Dict = None
+    detector_quality_report: Dict = None
+    orientation_evidence: Dict = None
 
     def get_phase_transition(self) -> Dict:
         """Return phase transition strains."""
@@ -446,6 +454,8 @@ def analyze_strain_series(
             sp.phi_c = struct.phi_c
             sp.data_quality_report = getattr(saxs_result, "data_quality_report", None)
             sp.metric_evidence = getattr(saxs_result, "metric_evidence", None)
+            sp.detector_quality_report = getattr(saxs_result, "detector_quality_report", None)
+            sp.orientation_evidence = getattr(saxs_result, "orientation_evidence", None)
         except Exception as e:
             sp.warnings.append(f"Core analysis: {e}")
             logger.warning("SAXS strain frame core analysis failed.", exc_info=True)
@@ -493,6 +503,18 @@ def analyze_strain_series(
         metric_names=("porod", "kratky", "invariant", "lamellar"),
         source_ref="saxs_strain.metric_evidence",
     )
+    detector_quality = build_series_detector_quality_report(
+        [point.detector_quality_report for point in result.strain_points],
+        source_ref="saxs_strain.detector_quality_report",
+    )
+    orientation = build_series_orientation_evidence(
+        [point.orientation_evidence for point in result.strain_points],
+        source_ref="saxs_strain.orientation_evidence",
+    )
+    if detector_quality is not None:
+        result.detector_quality_report = detector_quality
+    if orientation is not None:
+        result.orientation_evidence = orientation
     result.phase_boundaries = phase_boundaries
 
     if verbose:

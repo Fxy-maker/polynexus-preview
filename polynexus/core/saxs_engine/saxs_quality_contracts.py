@@ -1615,6 +1615,82 @@ def build_series_metric_evidence(
     return summaries
 
 
+def _build_series_2d_summary(
+    frame_payloads: Iterable[Mapping[str, Any] | None] | None,
+    *,
+    field_name: str,
+    metric_name: str,
+    source_ref: str,
+) -> dict[str, Any] | None:
+    """Aggregate one existing 2D evidence field without inventing frames."""
+
+    frames = list(frame_payloads or ())
+    if not any(isinstance(payload, Mapping) for payload in frames):
+        return None
+
+    wrapped = [
+        {field_name: dict(payload)} if isinstance(payload, Mapping) else None
+        for payload in frames
+    ]
+    summary = build_series_metric_evidence(
+        wrapped,
+        metric_names=(field_name,),
+        source_ref=source_ref,
+    ).get(field_name)
+    if not isinstance(summary, dict):
+        return None
+
+    summary["metric_name"] = metric_name
+    reason_codes = list(summary.get("reason_codes") or ())
+    source_kinds: set[str] = set()
+    for payload in frames:
+        if not isinstance(payload, Mapping):
+            continue
+        for reason in payload.get("reason_codes", ()) or ():
+            reason_text = str(reason).strip()
+            if reason_text and reason_text not in reason_codes:
+                reason_codes.append(reason_text)
+        source_kind = str(payload.get("source_kind") or "").strip().lower()
+        if source_kind:
+            source_kinds.add(source_kind)
+    summary["reason_codes"] = reason_codes
+    if field_name == "detector_quality_report":
+        summary["source_kinds"] = sorted(source_kinds)
+        if len(source_kinds) > 1:
+            summary["reason_codes"] = [*reason_codes, "series_detector_mixed_source_kinds"]
+    return summary
+
+
+def build_series_detector_quality_report(
+    frame_reports: Iterable[Mapping[str, Any] | None] | None,
+    *,
+    source_ref: str = "",
+) -> dict[str, Any] | None:
+    """Conservatively summarize supplied detector/sector-map reports."""
+
+    return _build_series_2d_summary(
+        frame_reports,
+        field_name="detector_quality_report",
+        metric_name="DetectorQuality",
+        source_ref=source_ref,
+    )
+
+
+def build_series_orientation_evidence(
+    frame_evidence: Iterable[Mapping[str, Any] | None] | None,
+    *,
+    source_ref: str = "",
+) -> dict[str, Any] | None:
+    """Conservatively summarize orientation evidence as its own field."""
+
+    return _build_series_2d_summary(
+        frame_evidence,
+        field_name="orientation_evidence",
+        metric_name="Orientation",
+        source_ref=source_ref,
+    )
+
+
 def contract_json(value: Any) -> str:
     """Return a stable strict-JSON representation for audit persistence."""
     payload = value.to_dict() if hasattr(value, "to_dict") else _jsonable(value)
@@ -1639,6 +1715,8 @@ __all__ = [
     "build_invariant_evidence",
     "build_lamellar_evidence",
     "build_series_metric_evidence",
+    "build_series_detector_quality_report",
+    "build_series_orientation_evidence",
     "build_detector_quality_report",
     "build_orientation_evidence",
     "contract_json",

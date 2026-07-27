@@ -104,6 +104,8 @@ class SAXSResult:
     data_quality_report: Dict[str, Any] = None
     guinier_evidence: Dict[str, Any] = None
     metric_evidence: Dict[str, Any] = None
+    detector_quality_report: Dict[str, Any] = None
+    orientation_evidence: Dict[str, Any] = None
     beam_stop_contaminated: bool = False # direct-beam pollution detected
     effective_q_min: float = 0.01        # q_min after beamstop-edge correction
     mask_truncated: bool = False         # effective q_min > 0.1 nm⁻¹

@@ -234,6 +234,26 @@
   detector geometry/mask propagation, orientation sequence semantics, figure
   publication, and scientific review remain separate gates.
 
+## SAXS 2D evidence mode propagation - verification-ready 2026-07-27
+
+- The shared SAXS quality transport now deep-copies detector and orientation
+  evidence alongside existing 1D fields. Static batches aggregate supplied
+  reports without creating a temperature/strain axis; temperature rows align
+  evidence by `source_index`; strain rows remain positional.
+- Mode summaries preserve coverage, missing counts, source reason codes, and
+  detector source kinds. No summary is emitted when no 2D evidence is supplied.
+  Orientation remains a separate Diagnostics payload and is not added to the
+  generic 1D metric review text.
+- Workbench Diagnostics, History persistence, and `quality_evidence.json`
+  retain mode/frame evidence. No raw-detector reader, new anisotropy algorithm,
+  AI apply, or scientific threshold was introduced.
+- Verification evidence: new propagation file `11 passed`; focused 2D/mode/
+  parameter/Workbench/Export matrix `53 passed`; full SAXS matrix `301 passed,
+  4 warnings`; structured verifier quality `282`/preprocessing `106`.
+- Task card: `docs/agent/tasks/2026-07-27-saxs-2d-evidence-propagation.md`.
+  The final atomic checkpoint is created in this task's allowlist; real
+  detector/geometry and human scientific review remain separate.
+
 ## SAXS mode evidence propagation Stage 4 - checkpointing 2026-07-27
 
 - Temperature and strain point DTOs now propagate frame-local

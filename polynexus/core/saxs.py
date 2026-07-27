@@ -1732,6 +1732,10 @@ class SAXSEngine(BaseEngine):
             metric_evidence = _series_metric_evidence_payload(tr)
             if metric_evidence:
                 params["metric_evidence"] = metric_evidence
+            for field_name in ("detector_quality_report", "orientation_evidence"):
+                copied = _saxs_batch_helpers.copy_saxs_quality_evidence(tr).get(field_name)
+                if copied is not None:
+                    params[field_name] = copied
             if temps:
                 params["T_range_C"] = f"{min(temps):.0f}-{max(temps):.0f}"
             if lc_raw_vals:
@@ -1751,7 +1755,12 @@ class SAXSEngine(BaseEngine):
                 params["Tm_inf_C"] = round(float(tr.gibbs_thomson.get("Tm_inf_C")), 1)
             if tr.avrami and tr.avrami.get("valid"):
                 params["Avrami_n"] = round(float(tr.avrami.get("n")), 2)
-            return self._build_batch_parameters_payload(params)
+            batch_rows = _saxs_batch_helpers.copy_saxs_series_quality_evidence(
+                self._batch_params,
+                getattr(tr, "temp_points", ()),
+                source_index_attr="source_index",
+            )
+            return self._build_batch_parameters_payload(params, batch_params=batch_rows)
         if self._strain_result is not None:
             sr = self._strain_result
             strains = [float(v) for v in np.asarray(sr.strains, dtype=float) if np.isfinite(v)]
@@ -1759,6 +1768,10 @@ class SAXSEngine(BaseEngine):
             metric_evidence = _series_metric_evidence_payload(sr)
             if metric_evidence:
                 params["metric_evidence"] = metric_evidence
+            for field_name in ("detector_quality_report", "orientation_evidence"):
+                copied = _saxs_batch_helpers.copy_saxs_quality_evidence(sr).get(field_name)
+                if copied is not None:
+                    params[field_name] = copied
             def _first_finite(*values):
                 for value in values:
                     try:
@@ -1876,7 +1889,11 @@ class SAXSEngine(BaseEngine):
                 and void_dominant_frame_count <= max(1, len(sr.strain_points) // 3)
             )
             params["paper_conclusion_ready"] = params["paper_conclusion_candidate"]
-            return self._build_batch_parameters_payload(params)
+            batch_rows = _saxs_batch_helpers.copy_saxs_series_quality_evidence(
+                self._batch_params,
+                getattr(sr, "strain_points", ()),
+            )
+            return self._build_batch_parameters_payload(params, batch_params=batch_rows)
         if self._batch_params:
             experiment_type = str(
                 getattr(self.cfg, "experiment_type", "") or ""
@@ -1897,6 +1914,11 @@ class SAXSEngine(BaseEngine):
                 )
                 if metric_evidence:
                     base_params["metric_evidence"] = metric_evidence
+                base_params.update(
+                    _saxs_batch_helpers.build_static_batch_2d_quality_evidence(
+                        self._batch_results,
+                    )
+                )
                 aligned_rows = []
                 for index, row in enumerate(self._batch_params):
                     aligned = dict(row)

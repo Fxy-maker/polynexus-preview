@@ -8,13 +8,19 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from .saxs_engine.saxs_quality_helpers import classify_single_frame_lc_reliability
-from .saxs_engine.saxs_quality_contracts import build_series_metric_evidence
+from .saxs_engine.saxs_quality_contracts import (
+    build_series_detector_quality_report,
+    build_series_metric_evidence,
+    build_series_orientation_evidence,
+)
 
 
 _QUALITY_EVIDENCE_FIELDS = (
     "data_quality_report",
     "guinier_evidence",
     "metric_evidence",
+    "detector_quality_report",
+    "orientation_evidence",
 )
 
 
@@ -31,6 +37,37 @@ def copy_saxs_quality_evidence(value: Any) -> Dict[str, Any]:
     return payload
 
 
+def copy_saxs_series_quality_evidence(
+    rows: Any,
+    points: Any,
+    *,
+    source_index_attr: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Attach point evidence to copied parameter rows without reordering them."""
+
+    copied_rows = [dict(row) for row in rows or () if isinstance(row, dict)]
+    point_list = list(points or ())
+    point_by_source: Dict[int, Any] = {}
+    if source_index_attr:
+        for point in point_list:
+            try:
+                source_index = int(getattr(point, source_index_attr))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            point_by_source[source_index] = point
+
+    output: List[Dict[str, Any]] = []
+    for index, row in enumerate(copied_rows):
+        point = (
+            point_by_source.get(index)
+            if source_index_attr
+            else (point_list[index] if index < len(point_list) else None)
+        )
+        row.update(copy_saxs_quality_evidence(point))
+        output.append(row)
+    return output
+
+
 def build_static_batch_metric_evidence(analyses: Any) -> Dict[str, Dict[str, Any]]:
     """Aggregate aligned static frame evidence without introducing an axis."""
 
@@ -42,6 +79,26 @@ def build_static_batch_metric_evidence(analyses: Any) -> Dict[str, Dict[str, Any
         frame_evidence,
         source_ref="saxs_static_batch.metric_evidence",
     )
+
+
+def build_static_batch_2d_quality_evidence(analyses: Any) -> Dict[str, Dict[str, Any]]:
+    """Aggregate existing static-frame 2D evidence without adding an axis."""
+
+    copied_frames = [copy_saxs_quality_evidence(analysis) for analysis in analyses or ()]
+    payload: Dict[str, Dict[str, Any]] = {}
+    detector = build_series_detector_quality_report(
+        [frame.get("detector_quality_report") for frame in copied_frames],
+        source_ref="saxs_static_batch.detector_quality_report",
+    )
+    orientation = build_series_orientation_evidence(
+        [frame.get("orientation_evidence") for frame in copied_frames],
+        source_ref="saxs_static_batch.orientation_evidence",
+    )
+    if detector is not None:
+        payload["detector_quality_report"] = detector
+    if orientation is not None:
+        payload["orientation_evidence"] = orientation
+    return payload
 
 
 def _build_batch_parameters_payload(batch_params, base_params: Optional[Dict[str, Any]] = None, *, experiment_type: str = "") -> Dict[str, Any]:

@@ -27,8 +27,10 @@ from .lc_path_selection import (
 )
 from .preprocess import apply_thermal_correction
 from .saxs_quality_contracts import (
+    build_series_detector_quality_report,
     build_guinier_sequence_evidence,
     build_series_metric_evidence,
+    build_series_orientation_evidence,
 )
 from .saxs_sequence_rescue import build_sequence_rescue_candidates
 
@@ -84,6 +86,8 @@ class TemperaturePointResult:
     data_quality_report: Dict = None
     guinier_evidence: Dict = None
     metric_evidence: Dict = None
+    detector_quality_report: Dict = None
+    orientation_evidence: Dict = None
     
     # Crystallization (if applicable)
     Xc_relative: float = np.nan  # relative crystallinity (0-1)
@@ -133,6 +137,8 @@ class TempSeriesResult:
     Rg_array: np.ndarray = None
     guinier_level_array: List[str] = field(default_factory=list)
     guinier_sequence_evidence: Dict = None
+    detector_quality_report: Dict = None
+    orientation_evidence: Dict = None
     metric_evidence: Dict = None
     melting_window_status_array: List[str] = field(default_factory=list)
     lc_reliability_status_array: List[str] = field(default_factory=list)
@@ -883,6 +889,8 @@ def analyze_temperature_series(
             tp.data_quality_report = getattr(saxs_result, "data_quality_report", None)
             tp.guinier_evidence = getattr(saxs_result, "guinier_evidence", None)
             tp.metric_evidence = getattr(saxs_result, "metric_evidence", None)
+            tp.detector_quality_report = getattr(saxs_result, "detector_quality_report", None)
+            tp.orientation_evidence = getattr(saxs_result, "orientation_evidence", None)
             if isinstance(tp.guinier_evidence, dict):
                 try:
                     rg_value = float(tp.guinier_evidence.get("rg_nm", np.nan))
@@ -948,6 +956,18 @@ def analyze_temperature_series(
         metric_names=("guinier", "porod", "kratky", "invariant", "lamellar"),
         source_ref="saxs_temperature.metric_evidence",
     )
+    detector_quality = build_series_detector_quality_report(
+        [point.detector_quality_report for point in result.temp_points],
+        source_ref="saxs_temperature.detector_quality_report",
+    )
+    orientation = build_series_orientation_evidence(
+        [point.orientation_evidence for point in result.temp_points],
+        source_ref="saxs_temperature.orientation_evidence",
+    )
+    if detector_quality is not None:
+        result.detector_quality_report = detector_quality
+    if orientation is not None:
+        result.orientation_evidence = orientation
     result.guinier_sequence_evidence = build_guinier_sequence_evidence(
         result.temperatures,
         [point.guinier_evidence for point in result.temp_points],

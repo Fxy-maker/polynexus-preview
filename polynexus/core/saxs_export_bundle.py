@@ -12,7 +12,10 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from .saxs_batch_helpers import build_static_batch_metric_evidence
+from .saxs_batch_helpers import (
+    build_static_batch_2d_quality_evidence,
+    build_static_batch_metric_evidence,
+)
 from .saxs_config_binding import saxs_config_snapshot
 
 
@@ -208,6 +211,7 @@ def _static_quality_payload(engine: Any) -> dict[str, Any]:
     metric_evidence = build_static_batch_metric_evidence(analyses)
     if metric_evidence:
         payload["metric_evidence"] = metric_evidence
+    payload.update(build_static_batch_2d_quality_evidence(analyses))
 
     frames: list[dict[str, Any]] = []
     for index, analysis in enumerate(analyses):

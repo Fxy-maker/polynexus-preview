@@ -203,14 +203,27 @@ title: Current PolyNexus repository state
   detector geometry/mask propagation, publication, and human scientific review
   remain open.
 
+- SAXS 2D detector/orientation evidence mode propagation is now implemented and
+  verified. Static, temperature, and strain frame/point DTOs deep-copy existing
+  `detector_quality_report` and `orientation_evidence`; static batches and
+  condition series retain missing-frame/source metadata and conservative
+  summaries, with temperature alignment keyed by `source_index`. Workbench
+  Diagnostics, History parameters, and `quality_evidence.json` preserve the
+  fields without folding orientation into generic 1D metric review. Focused
+  propagation tests pass (`11` new, `53` compatibility); the full SAXS matrix
+  passes `301` with four existing font warnings; structured verification passes
+  quality `282` and preprocessing `106`. No new 2D algorithm, raw-detector
+  inference, AI call, or scientific sign-off was enabled.
+
 - SAXS mode evidence propagation Stage 4 is implemented and verified:
   temperature/strain point results retain frame-local quality and 1D method
   evidence, failed frames remain absent, and both DataFrames expose compact
   metric-level summaries. Focused propagation evidence is `26 passed`; the
   exact 38-file SAXS matrix is `244 passed` with four existing font warnings;
-  structured verification passes quality `282`/preprocessing `103`. 2D detector
-  quality, orientation uncertainty, AI rescue, publication and human science
-  acceptance remain open.
+  structured verification passes quality `282`/preprocessing `103`. The
+  separate 2D detector/orientation transport closure is now complete; raw
+  detector quality, orientation uncertainty calibration, AI rescue, publication
+  and human science acceptance remain separate.
 
 - SAXS 1D method evidence Stage 3 is implemented and verified: conservative
   Porod/Kratky/Q*/lamellar `MetricEvidence` builders are attached to
