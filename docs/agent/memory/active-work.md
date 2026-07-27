@@ -1307,6 +1307,19 @@
 
 ## In progress
 
+- SAXS real static/temperature/strain Workbench acceptance is automated-green
+  on 2026-07-27. The current-HEAD full/boundary verifier passed `2662` tests
+  with `10` warnings, including quality `282`, preprocessing `103`, compile,
+  whitespace, and boundary checks. External real bundles remain outside the
+  repository and all three register `quality_evidence.json`. Rendered main
+  figures were inspected for basic rendering; the strain heatmap appears
+  close to saturation and the temperature bundle retains its validation error.
+  These are explicit scientific-review signals, not sign-off. The next action
+  is restarted-GUI review plus expert review of temperature/strain meaning;
+  AI model calls, candidate reruns, calibration, and publication authorization
+  remain disabled/open. See
+  `docs/agent/tasks/2026-07-27-saxs-real-workbench-acceptance.md`.
+
 - NMR real-engine evaluation bridge is implemented on the current worktree. The
   EvalRunner now recognizes `nmr.liquid_h`, `nmr.liquid_c`, `nmr.solid_h`, and
   `nmr.solid_c`, applies scoped config aliases, and emits peak shifts, peak

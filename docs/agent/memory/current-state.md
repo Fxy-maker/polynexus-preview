@@ -24,7 +24,11 @@ title: Current PolyNexus repository state
   acceptance is automated-green: lifecycle `3 passed`, Workbench `9 passed`,
   and three real bundles register `quality_evidence.json`. The temperature
   fixture's existing validation error remains preserved. Restarted-GUI visual
-  review and human scientific sign-off are still open.
+  review and human scientific sign-off are still open. Current-HEAD full /
+  boundary verification also passed `2662` tests with `10` warnings. Rendered
+  bundle figures were inspected for basic rendering; the strain heatmap is
+  close to saturation, which is retained as a scientific-review signal rather
+  than interpreted automatically.
 
 - SAXS Stage 8 export provenance is implemented locally: successful bundles
   include `quality_evidence.json` in `bundle_manifest.files`, preserving

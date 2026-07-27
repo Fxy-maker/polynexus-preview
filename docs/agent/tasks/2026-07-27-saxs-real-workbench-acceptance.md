@@ -64,6 +64,17 @@ strain modes after the quality-evidence and export-provenance checkpoints.
 - `python scripts/launch_gui.py --diagnose`: resolved source root
   `D:\PolyNexus`, package `D:\PolyNexus\polynexus\__init__.py`, and commit
   `41588a0`.
+- `python scripts/verify.py --changed --types --full --boundary`: passed
+  compile, changed/type baselines, focused quality gate (`282 passed`),
+  preprocessing gate (`103 passed`), repository suite (`2662 passed,
+  10 warnings`), whitespace, and boundary audit. The full suite took
+  `1579.66s`.
+- Rendered bundle figures were inspected from the external diagnostic root:
+  the static main figure, temperature waterfall, and strain evolution figure
+  all render with their expected panels and labels. The strain heatmap is
+  visually close to saturation and the temperature bundle still preserves its
+  existing validation error; both remain scientific-review signals rather
+  than acceptance failures.
 
 ## Known limitations
 
