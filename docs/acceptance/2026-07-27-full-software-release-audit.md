@@ -16,6 +16,7 @@ Status: automated evidence complete; release not approved
 | IR real published-run walkthrough | `2 passed` (`standard`, `temperature-2D`) | automated-pass; mapping lifecycle separately covered |
 | NMR real published-run walkthrough | `4 passed` (`liquid H/C`, `solid H/C`) | automated-pass; assignment-limited solid C remains provisional |
 | Joint publish/editor/export/history lifecycle | `1 passed` with synthetic cross-technique rows | automated-pass for lifecycle; scientific conflict review open |
+| Native Windows Qt Joint route | `1 passed, 15 deselected in 5.94s`, exit code `0`; synthetic Joint report restored through Results, Gallery, History, Editor, and package Export | automated synthetic route-pass; real-data Joint and scientific conflict review remain open |
 | Per-technique lifecycle closures | DSC `3`, WAXS `3`, IR `3` (including mapping), NMR `4`, Joint `1` passed | automated-pass |
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
 | Real-result GUI route capture | Temporary pytest capture `1 passed`; restored DSC run produced Results, Gallery, History, and Editor screenshots with one manifest gallery entry | structural-pass; offscreen CJK font boxes require live visual review |
@@ -100,6 +101,13 @@ and `import.ogs`. The test deliberately injects only the existing
 `PackageExporter` adapter so it cannot launch an installed Origin process or
 COM server. Installed OriginPro/COM behavior remains an optional-runtime
 manual gate, while the no-Origin fallback is now automated across all modes.
+
+The separate native Joint probe passed `1 passed, 15 deselected in 5.94s`,
+exit code `0`. It uses the existing synthetic `JointCoordinator` report-level
+fixture, restores `joint.compare`, captures the shared Results/Gallery/History/
+Editor surfaces, and creates the same package artifacts. It is software-route
+evidence only; it does not establish real-data Joint behavior or resolve
+cross-technique scientific conflicts.
 
 The earlier combined native invocation exceeded the 180-second tool window
 without a pytest summary and is therefore a tool-level timeout, not a pass or

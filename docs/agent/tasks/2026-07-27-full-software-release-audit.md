@@ -148,6 +148,11 @@ limitation rather than pass.
   produced `Origin_Export/figure_document.json`, `metadata.json`, and
   `import.ogs` under its external run output. Installed OriginPro/COM behavior
   is intentionally not launched and remains an optional-runtime gate.
+- A separate native synthetic Joint probe passed `1 passed, 15 deselected in
+  5.94s`, exit code `0`. It restored the existing `joint.compare` report-level
+  fixture through Results, Gallery, History, Editor, and package Export. This
+  closes the shared software route only; real-data Joint and scientific
+  conflict semantics remain human review gates.
 - The prior all-native command timed out at the 180-second tool boundary with
   no pytest summary and is classified as a tool-level timeout. The prior
   `-k waxs.strain` exit code `5` selected no tests because full-2D cases were

@@ -132,6 +132,11 @@ Chart Editor Export action with the existing `PackageExporter` fallback and
 created the expected Origin-compatible package artifacts. Installed
 OriginPro/COM behavior remains an optional-runtime gate.
 
+The existing synthetic Joint report also passed a native `joint.compare` route
+probe (`1 passed, 15 deselected in 5.94s`, exit `0`) through the same surfaces
+and package fallback. This is not real-data Joint or scientific conflict
+sign-off.
+
 ### Task 5: Run the full verifier and close the audit record
 
 **Files:**
