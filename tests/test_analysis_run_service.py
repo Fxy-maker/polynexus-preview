@@ -1,7 +1,6 @@
-from pathlib import Path
-
 from polynexus.data.sample_db import SampleDB
 from polynexus.gui.analysis_run_service import AnalysisRunPersistenceContext, persist_analysis_run
+from polynexus.core.saxs_engine.saxs_quality_contracts import MetricEvidenceSummary
 
 
 def test_persist_analysis_run_reuses_existing_sample_and_batch(tmp_path):
@@ -72,4 +71,44 @@ def test_persist_analysis_run_stores_evidence_flags_and_history_context(tmp_path
     assert run["results_summary"]["result_origin"] == "controlled_optimization_rerun"
     assert run["results_summary"]["history_context"] == history_context
     assert run["results_summary"]["r2"] == 0.9876
+    db.close()
+
+
+def test_persist_analysis_run_keeps_public_saxs_quality_dto_condition_axis(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    data_file = tmp_path / "temperature.csv"
+    data_file.write_text("temperature_C,L_nm\n20,12\n", encoding="utf-8")
+    axis = {
+        "condition_name": "temperature_C",
+        "condition_values": [20.0, None, 40.0],
+        "status": "diagnostic",
+        "invalid_positions": [1],
+        "duplicate_positions": [],
+        "non_monotonic_positions": [2],
+    }
+    summary = MetricEvidenceSummary(
+        metric_name="Porod",
+        frame_count=3,
+        level="Diagnostic",
+        condition_axis=axis,
+    )
+    params = {"metric_evidence": {"porod": summary}}
+    context = AnalysisRunPersistenceContext(
+        technique="saxs",
+        submodule="saxs.temperature",
+        data_file=str(data_file),
+        output_dir=str(tmp_path / "output"),
+        project_label="PA6",
+    )
+
+    run_id = persist_analysis_run(
+        db,
+        {"technique": "saxs", "parameters": params},
+        context,
+    )
+
+    run = db.get_analysis_run(run_id)
+    expected = summary.to_dict()
+    assert run["parameters"]["metric_evidence"]["porod"] == expected
+    assert run["results_summary"]["result"]["parameters"]["metric_evidence"]["porod"] == expected
     db.close()

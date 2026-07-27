@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS condition-axis Export/History boundary audit - implementation in progress - 2026-07-27
+
+- The cross-boundary audit added regressions for the existing nested
+  `metric_evidence[*].condition_axis` in `quality_evidence.json` and History.
+  Export already preserved the full axis, including diagnostic positions and
+  `None` values.
+- TDD RED was `1 failed, 1 passed`: History's generic `to_jsonable` converted a
+  public `MetricEvidenceSummary` DTO to text instead of using `to_dict()`, so
+  its axis was lost. The minimal fix is a `to_dict()`-aware normalization branch
+  in `polynexus/gui/analysis_run_service.py`.
+- GREEN focused matrix was `29 passed`; isolated SAXS was `362 passed, 4
+  warnings` (existing Arial CJK glyph warnings). The structured task verifier
+  passed quality `283`, preprocessing `106`, Ruff, compile/type baseline,
+  memory/task checks, and whitespace. The explicit allowlist checkpoint is the
+  checkpoint `fac9c8d` was created with the explicit allowlist; no push was
+  performed and no parallel GUI/scratch files were included.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-27-saxs-condition-axis-export-history-audit.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-condition-axis-export-history-audit-design.md`,
+  and `docs/superpowers/plans/2026-07-27-saxs-condition-axis-export-history-audit.md`.
+
 ## SAXS condition-axis Figure provenance - ready for checkpoint - 2026-07-27
 
 - Figure/Manifest evidence projection now preserves the existing public

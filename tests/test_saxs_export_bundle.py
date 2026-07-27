@@ -177,6 +177,39 @@ def test_export_saxs_bundle_preserves_series_and_frame_metric_evidence(tmp_path)
     assert frame == frame_before
 
 
+def test_export_saxs_bundle_preserves_series_condition_axis_provenance(tmp_path) -> None:
+    engine = _engine()
+    axis = {
+        "condition_name": "temperature_C",
+        "condition_values": [20.0, None, 40.0],
+        "status": "diagnostic",
+        "invalid_positions": [1],
+        "duplicate_positions": [],
+        "non_monotonic_positions": [2],
+    }
+    summary = {
+        "porod": {
+            "metric_name": "Porod",
+            "level": "Diagnostic",
+            "condition_axis": axis,
+        }
+    }
+    engine._temperature_result = SimpleNamespace(
+        metric_evidence=summary,
+        temp_points=[],
+    )
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "axis_quality"))
+
+    payload = json.loads(
+        (tmp_path / "axis_quality" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["temperature"]["metric_evidence"]["porod"]["condition_axis"] == axis
+
+
 def test_export_saxs_bundle_preserves_static_batch_frame_and_summary_evidence(tmp_path) -> None:
     engine = _engine()
     engine._batch_results = [

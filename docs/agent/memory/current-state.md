@@ -7,6 +7,19 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS condition-axis provenance now has an explicit Export/History boundary
+  regression. `quality_evidence.json` preserves the existing series axis, and
+  History preserves it in both parameters and nested result payloads. The
+  generic History JSON normalizer now honors public `to_dict()` DTO contracts,
+  preventing `MetricEvidenceSummary` from being stringified. No SAXS algorithm,
+  threshold, database schema, or rescue behavior changed. Current evidence is
+  focused `29 passed` and isolated SAXS `362 passed, 4 warnings`; task verifier
+  passed quality `283`, preprocessing `106`, and scoped checks. The checkpoint
+  for task
+  `docs/agent/tasks/2026-07-27-saxs-condition-axis-export-history-audit.md`
+  is checkpointed at `fac9c8d`; no push was performed and parallel GUI/scratch
+  files were intentionally left untouched.
+
 - SAXS condition-axis Figure/Manifest provenance is implemented in the working
   tree: the existing frame and series metric evidence projection now retains
   `condition_axis` with strict JSON-safe, detached values, including diagnostic

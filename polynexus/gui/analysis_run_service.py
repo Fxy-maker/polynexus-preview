@@ -34,6 +34,12 @@ def to_jsonable(value):
         return value
     if isinstance(value, Path):
         return str(value)
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        try:
+            return to_jsonable(to_dict())
+        except Exception:
+            pass
     if isinstance(value, dict):
         return {str(k): to_jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple, set)):
