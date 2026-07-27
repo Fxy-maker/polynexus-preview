@@ -15,7 +15,7 @@
 **Files:**
 - Create: `tests/test_saxs_series_metric_evidence.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add tests for the public builder:
 
@@ -83,7 +83,7 @@ def test_empty_or_unknown_series_is_unusable_without_nan():
     json.dumps(summaries, allow_nan=False)
 ```
 
-- [ ] **Step 2: Run the new tests and verify RED**
+- [x] **Step 2: Run the new tests and verify RED**
 
 Run:
 
@@ -100,7 +100,7 @@ Expected: collection fails because `MetricEvidenceSummary` and
 - Modify: `polynexus/core/saxs_engine/saxs_quality_contracts.py`
 - Modify: `polynexus/core/saxs_engine/__init__.py`
 
-- [ ] **Step 1: Add `MetricEvidenceSummary` beside `MetricEvidence`**
+- [x] **Step 1: Add `MetricEvidenceSummary` beside `MetricEvidence`**
 
 Implement the following fields and the existing contract conventions:
 
@@ -125,7 +125,7 @@ class MetricEvidenceSummary:
 Add `__post_init__`, `to_dict`, and `from_dict` using `_freeze`,
 `_quality_level`, and `_string_tuple`, with no raw arrays or file paths.
 
-- [ ] **Step 2: Implement `build_series_metric_evidence`**
+- [x] **Step 2: Implement `build_series_metric_evidence`**
 
 Use only existing frame mappings and this algorithm:
 
@@ -148,12 +148,12 @@ for each requested metric:
 Return a stable metric-name-sorted dictionary of `to_dict()` payloads. Do not
 modify any frame mapping.
 
-- [ ] **Step 3: Export the new contract**
+- [x] **Step 3: Export the new contract**
 
 Import and list `MetricEvidenceSummary` and `build_series_metric_evidence` in
 `polynexus/core/saxs_engine/__init__.py`.
 
-- [ ] **Step 4: Run the contract tests GREEN**
+- [x] **Step 4: Run the contract tests GREEN**
 
 Run:
 
@@ -170,7 +170,7 @@ Expected: all new contract tests pass with strict JSON serialization.
 - Modify: `polynexus/core/saxs_engine/saxs_strain.py`
 - Modify: `tests/test_saxs_mode_evidence_propagation.py`
 
-- [ ] **Step 1: Add failing propagation assertions**
+- [x] **Step 1: Add failing propagation assertions**
 
 Extend the existing temperature test with:
 
@@ -188,7 +188,7 @@ assert result.metric_evidence["porod"]["level"] == "Diagnostic"
 assert result.metric_evidence["porod"]["missing_frame_count"] == 1
 ```
 
-- [ ] **Step 2: Attach the summary after the existing frame loop**
+- [x] **Step 2: Attach the summary after the existing frame loop**
 
 Import `build_series_metric_evidence` and assign:
 
@@ -205,7 +205,7 @@ Use the analogous `strain_points` list and `saxs_strain.metric_evidence` source
 for strain. Leave existing `Metric_evidence_levels` DataFrame columns and all
 numeric arrays unchanged.
 
-- [ ] **Step 3: Run the mode propagation matrix**
+- [x] **Step 3: Run the mode propagation matrix**
 
 Run:
 
@@ -221,7 +221,7 @@ pass.
 **Files:**
 - Modify: `tests/test_saxs_export_bundle.py`
 
-- [ ] **Step 1: Add an export regression**
+- [x] **Step 1: Add an export regression**
 
 Construct a fake temperature series with a `metric_evidence` summary and one
 frame payload, export it, and assert:
@@ -235,7 +235,7 @@ assert quality["temperature"]["frames"][0]["metric_evidence"]["porod"]["level"] 
 The test must also assert that the original summary and frame dictionaries are
 not mutated by export.
 
-- [ ] **Step 2: Run Export and SAXS regression tests**
+- [x] **Step 2: Run Export and SAXS regression tests**
 
 Run:
 
@@ -254,7 +254,7 @@ candidate decision changes.
 - Modify: `docs/agent/memory/current-state.md`
 - Modify: `docs/superpowers/plans/2026-07-27-saxs-series-metric-evidence-rollup.md`
 
-- [ ] **Step 1: Run task-scoped verification**
+- [x] **Step 1: Run task-scoped verification**
 
 Run:
 
@@ -267,13 +267,13 @@ git diff --check
 Record exact quality/preprocessing counts and warnings. Do not record a timeout
 as a pass.
 
-- [ ] **Step 2: Run the applicable SAXS regression matrix**
+- [x] **Step 2: Run the applicable SAXS regression matrix**
 
 Run the three focused commands from Tasks 1, 3, and 4 plus the exact changed
 file SAXS matrix used by the repository verifier. Keep existing fixture and
 temporary directories untouched.
 
-- [ ] **Step 3: Update durable records and checkpoint**
+- [x] **Step 3: Update durable records and checkpoint**
 
 Mark only verified acceptance items, record known limitations (series summaries
 are Trend-capped and do not impute missing frames), and use:
@@ -299,5 +299,8 @@ No push, merge, deploy, or cleanup is part of this task.
 - Tasks 1–4 are implemented and their focused tests pass (`11 passed`); the
   complete SAXS test matrix passes (`274 passed, 4 existing warnings`).
 - The explicit SAXS-file Ruff/compile checks and repository quality gates pass.
-- Task-scoped `--changed` verification is blocked by the pre-existing GUI
-  `E731` described in the task card; it is not included in this SAXS change.
+- Current task-scoped verification passes task/memory checks, quality `282`,
+  preprocessing `106`, compile/type baseline, and whitespace. The complete
+  current SAXS matrix is `317 passed, 4 warnings`; the warnings are existing
+  Arial CJK glyph warnings. Full/boundary and human scientific review remain
+  separate release gates.

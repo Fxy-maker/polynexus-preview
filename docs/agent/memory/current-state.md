@@ -19,6 +19,15 @@ title: Current PolyNexus repository state
   Task card:
   `docs/agent/tasks/2026-07-27-saxs-figure-evidence-binding.md`.
 
+- SAXS series metric evidence rollup is now documentation-closed against the
+  current code: immutable summaries remain Trend-capped, missing/diagnostic
+  frames remain explicit, and frame/series evidence stays read-only through
+  Workbench and Export. Fresh focused verification is `14 passed`; the full
+  SAXS matrix is `317 passed, 4 warnings`; task-scoped quality/preprocessing
+  gates are `282`/`106`; and `git diff --check` passes. Full/boundary release
+  verification and human scientific review remain open. Task card:
+  `docs/agent/tasks/2026-07-27-saxs-series-metric-evidence-rollup.md`.
+
 - SAXS temperature Guinier sequence evidence transport is checkpointed in
   `b7bad1c`: existing sequence evidence now retains optional original frame
   indices, survives temperature sorting, reaches parameters/History/Export,

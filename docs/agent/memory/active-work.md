@@ -181,7 +181,7 @@
   Qt crop test. It passes alone, and the ChartEditor + DSC lifecycle matrix
   passes `251`. Full repository green status remains open.
 
-## SAXS series metric evidence rollup - implementation checkpoint 2026-07-27
+## SAXS series metric evidence rollup - checkpointed 2026-07-27
 
 - Added immutable `MetricEvidenceSummary` and
   `build_series_metric_evidence` in the SAXS quality contract layer. The
@@ -192,14 +192,15 @@
   retaining all existing frame fields, numeric arrays, DataFrame rows, and
   Export quality provenance. Focused contract/propagation/export evidence is
   `11 passed`; the full SAXS matrix is `274 passed, 4 existing warnings`.
-- Explicit task-file Ruff/compile checks and repository quality gates pass
-  (`282`/`106`). The task verifier's changed-file phase is blocked by a
-  pre-existing GUI `E731` lambda assignment at
-  `polynexus/gui/main_window_shell_mixin.py:154`; that GUI change was not
-  touched or included.
-- Next action is to create the SAXS code checkpoint with the known verifier
-  limitation recorded. A separate GUI lint task is required before claiming a
-  green repository-wide changed-file verifier.
+- Explicit task-scoped revalidation passes task/memory checks, changed Ruff,
+  compile/type baseline, quality `282`, preprocessing `106`, and whitespace.
+  The focused series/mode/export matrix is `14 passed`; the current complete
+  SAXS matrix is `317 passed, 4 existing Arial CJK glyph warnings`; and
+  `git diff --check` passes.
+- The code was already present in the current checkpoint history; this
+  documentation checkpoint closes the task card and records the fresh
+  verification. Full/boundary release verification and human scientific
+  review remain separate gates.
 
 ## SAXS candidate replay and calibration audit - checkpointed 2026-07-27
 
