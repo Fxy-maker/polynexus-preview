@@ -48,6 +48,9 @@ reason_codes: tuple[str, ...]
 source_ref: str
 ```
 
+The DTO provides `to_dict()`/`from_dict()` and uses the same enum normalization
+and strict JSON conversion as the existing quality contracts.
+
 并提供 `build_series_metric_evidence(frame_evidence, metric_names=None,
 source_ref="") -> dict[str, dict]`。输入只接受已有帧证据字典；不会接收或保存
 q/I 数组、文件路径或候选配置。
