@@ -42,3 +42,12 @@
 - [ ] Run the task-scoped verifier with an external basetemp, exact SAXS matrix, and `git diff --check`.
 - [ ] Record exact outcomes and known limitations.
 - [ ] Use `scripts/auto_commit.py` with only the changed-file allowlist; no push/merge/deploy.
+
+## Execution status (2026-07-27)
+
+Implementation and verification are complete. Temperature and strain point
+results now retain frame-local quality and method evidence without interpolation;
+the focused propagation matrix is `26 passed`, the exact SAXS matrix is `244
+passed` with four existing warnings, and the structured verifier passes quality
+`282`/preprocessing `103`. The atomic checkpoint follows the documented
+allowlist.

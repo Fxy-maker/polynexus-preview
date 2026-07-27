@@ -31,12 +31,12 @@
 
 ## Acceptance criteria
 
-- [ ] 变温成功帧保留自己的 `metric_evidence` 和 `data_quality_report`。
-- [ ] 应变成功帧保留自己的 `metric_evidence` 和 `data_quality_report`。
-- [ ] 任一核心失败帧保持 `None`/`Unusable`，不复制邻帧或改变帧数/顺序。
-- [ ] 变温仍只有温度序列 builder，应变不产生温度序列证据。
-- [ ] 两种 DataFrame 增加紧凑等级摘要，既有列和值兼容。
-- [ ] focused、完整 SAXS、结构化 verifier、两道质量 gate 和 checkpoint 均有
+- [x] 变温成功帧保留自己的 `metric_evidence` 和 `data_quality_report`。
+- [x] 应变成功帧保留自己的 `metric_evidence` 和 `data_quality_report`。
+- [x] 任一核心失败帧保持 `None`/`Unusable`，不复制邻帧或改变帧数/顺序。
+- [x] 变温仍只有温度序列 builder，应变不产生温度序列证据。
+- [x] 两种 DataFrame 增加紧凑等级摘要，既有列和值兼容。
+- [x] focused、完整 SAXS、结构化 verifier、两道质量 gate 和 checkpoint 均有
   实际证据。
 
 ## Verification
@@ -45,6 +45,18 @@
 $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_saxs_mode_propagation_verify'
 python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-mode-evidence-propagation.md --changed --types
 ```
+
+## Verification evidence (2026-07-27)
+
+- Mode propagation focused tests plus existing temperature/strain status and
+  evidence filtering tests: `26 passed`.
+- Exact 38-file `tests/test_saxs_*.py` matrix: `244 passed, 4 warnings` in
+  `21.48s`; warnings are the existing Arial CJK glyph warnings from SAXS figure
+  layout.
+- Structured verifier passed: quality gate `282 passed`, preprocessing gate
+  `103 passed`, Ruff, compile, memory, task-card, and whitespace checks passed.
+- Checkpoint is created with the explicit allowlist; no push, merge, deploy, or
+  generated-output changes were made.
 
 ## Known limitations
 

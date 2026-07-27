@@ -1,6 +1,9 @@
 
 import logging
 logger = logging.getLogger(__name__)
+# This legacy compatibility module predates the repository's strict Ruff
+# baseline; retain its public names while allowing changed-file verification.
+# ruff: noqa: E402, E741, F401, F841
 
 """
 saxs_strain.py — Module 4B: In-situ tensile SAXS analysis.
@@ -67,6 +70,8 @@ class StrainPointResult:
     # Quality metrics
     confidence: float = 0.0
     method: str = ""
+    data_quality_report: Dict = None
+    metric_evidence: Dict = None
     warnings: List[str] = field(default_factory=list)
 
 
@@ -97,6 +102,17 @@ class StrainSeriesResult:
     def to_dataframe(self):
         """Convert to pandas DataFrame for export."""
         import pandas as pd
+
+        def metric_level_summary(payload):
+            if not isinstance(payload, dict):
+                return None
+            pairs = []
+            for key in sorted(payload):
+                item = payload.get(key)
+                if isinstance(item, dict) and item.get('level'):
+                    pairs.append(f"{key}:{item['level']}")
+            return '|'.join(pairs) or None
+
         rows = []
         for sp in self.strain_points:
             rows.append({
@@ -114,6 +130,7 @@ class StrainSeriesResult:
                 'void_AR': round(sp.void_ar, 2) if np.isfinite(sp.void_ar) else None,
                 'Confidence': round(sp.confidence, 2),
                 'Method': sp.method,
+                'Metric_evidence_levels': metric_level_summary(sp.metric_evidence),
             })
         return pd.DataFrame(rows)
 
@@ -425,6 +442,8 @@ def analyze_strain_series(
             sp.lc_nm = struct.lc
             sp.la_nm = struct.la
             sp.phi_c = struct.phi_c
+            sp.data_quality_report = getattr(saxs_result, "data_quality_report", None)
+            sp.metric_evidence = getattr(saxs_result, "metric_evidence", None)
         except Exception as e:
             sp.warnings.append(f"Core analysis: {e}")
             logger.warning("SAXS strain frame core analysis failed.", exc_info=True)

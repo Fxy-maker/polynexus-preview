@@ -67,6 +67,15 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- SAXS mode evidence propagation Stage 4 is implemented and verified:
+  temperature/strain point results retain frame-local quality and 1D method
+  evidence, failed frames remain absent, and both DataFrames expose compact
+  metric-level summaries. Focused propagation evidence is `26 passed`; the
+  exact 38-file SAXS matrix is `244 passed` with four existing font warnings;
+  structured verification passes quality `282`/preprocessing `103`. 2D detector
+  quality, orientation uncertainty, AI rescue, publication and human science
+  acceptance remain open.
+
 - SAXS 1D method evidence Stage 3 is implemented and verified: conservative
   Porod/Kratky/Q*/lamellar `MetricEvidence` builders are attached to
   `SAXSResult.metric_evidence` while legacy outputs remain unchanged. Builder

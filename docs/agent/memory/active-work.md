@@ -1,5 +1,22 @@
 # Active Work
 
+## SAXS mode evidence propagation Stage 4 - checkpointing 2026-07-27
+
+- Temperature and strain point DTOs now propagate frame-local
+  `metric_evidence` and `data_quality_report` from successful `SAXSResult`
+  frames. Failed core frames remain `None`; no neighbor evidence is copied and
+  frame count/order remain unchanged. Both DataFrames expose a compact
+  `Metric_evidence_levels` column.
+- Temperature keeps its existing Guinier sequence evidence; strain does not
+  create temperature sequence state. Mode-specific Q*/phase/void/orientation
+  fields remain separate.
+- Verification evidence: mode propagation plus existing temperature/strain
+  regressions `26 passed`; exact SAXS matrix `244 passed, 4 warnings`;
+  structured verifier quality `282`/preprocessing `103`.
+- Task card: `docs/agent/tasks/2026-07-27-saxs-mode-evidence-propagation.md`.
+  Next action is the atomic checkpoint, then 2D detector/orientation quality
+  propagation remains a separate stage.
+
 ## SAXS 1D method evidence Stage 3 - verification-ready 2026-07-27
 
 - Existing Porod, Kratky, invariant (`Q*`), and lamellar outputs now have

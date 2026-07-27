@@ -66,6 +66,7 @@ class TemperaturePointResult:
     guinier_reason_codes: List[str] = field(default_factory=list)
     data_quality_report: Dict = None
     guinier_evidence: Dict = None
+    metric_evidence: Dict = None
     
     # Crystallization (if applicable)
     Xc_relative: float = np.nan  # relative crystallinity (0-1)
@@ -140,6 +141,17 @@ class TempSeriesResult:
             sequence_reasons = '|'.join(str(reason) for reason in sequence_reasons)
         else:
             sequence_reasons = str(sequence_reasons or '')
+
+        def metric_level_summary(payload):
+            if not isinstance(payload, dict):
+                return None
+            pairs = []
+            for key in sorted(payload):
+                item = payload.get(key)
+                if isinstance(item, dict) and item.get('level'):
+                    pairs.append(f"{key}:{item['level']}")
+            return '|'.join(pairs) or None
+
         rows = []
         for tp in self.temp_points:
             rows.append({
@@ -155,6 +167,7 @@ class TempSeriesResult:
                 'Rg_reason_codes': '|'.join(tp.guinier_reason_codes) if tp.guinier_reason_codes else None,
                 'Rg_sequence_level': sequence_level,
                 'Rg_sequence_reason_codes': sequence_reasons or None,
+                'Metric_evidence_levels': metric_level_summary(tp.metric_evidence),
                 'Xc_rel': round(tp.Xc_relative, 3) if np.isfinite(tp.Xc_relative) else None,
                 'Confidence': round(tp.confidence, 2),
                 'lc_confidence': round(tp.lc_confidence, 2) if np.isfinite(tp.lc_confidence) else None,
@@ -840,6 +853,7 @@ def analyze_temperature_series(
             tp.lc_gamma_min_nm = getattr(struct, "lc_gamma_min_nm", np.nan)
             tp.data_quality_report = getattr(saxs_result, "data_quality_report", None)
             tp.guinier_evidence = getattr(saxs_result, "guinier_evidence", None)
+            tp.metric_evidence = getattr(saxs_result, "metric_evidence", None)
             if isinstance(tp.guinier_evidence, dict):
                 try:
                     rg_value = float(tp.guinier_evidence.get("rg_nm", np.nan))
