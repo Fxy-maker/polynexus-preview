@@ -1725,6 +1725,9 @@ def analyze_single(
     q_anchor: float | None = None,
     q_pyfai: np.ndarray | None = None,
     I_pyfai: np.ndarray | None = None,
+    *,
+    source_id: str = "",
+    raw_data_ref: str = "",
 ) -> SAXSResult:
     """Run complete SAXS analysis for a single I(q) profile.
 
@@ -1797,6 +1800,8 @@ def analyze_single(
     quality_report = build_data_quality_report(
         original_q,
         original_I,
+        source_id=source_id,
+        raw_data_ref=raw_data_ref,
         processed_data_ref="saxs_result:I_smooth",
         processing_config_ref="SAXSConfig",
         low_q_truncated=bool(result.mask_truncated),

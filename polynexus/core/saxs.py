@@ -77,6 +77,22 @@ def _text_or_empty(value: Any) -> str:
     return "" if value is None else str(value)
 
 
+def _frame_quality_source_kwargs(
+    file_list: List[str], index: int, *, single_source: str = ""
+) -> Dict[str, str]:
+    """Bind a quality report only to an explicitly available frame source."""
+
+    if index < len(file_list):
+        raw_data_ref = str(file_list[index] or "")
+    elif index == 0:
+        raw_data_ref = str(single_source or "")
+    else:
+        raw_data_ref = ""
+    if not raw_data_ref:
+        return {}
+    return {"source_id": f"frame-{index}", "raw_data_ref": raw_data_ref}
+
+
 def _series_metric_evidence_payload(series: Any) -> Dict[str, Any]:
     """Copy an existing series evidence summary for view/persistence transport."""
 
@@ -185,6 +201,7 @@ class SAXSEngine(BaseEngine):
         self._strain_result: Optional[StrainSeriesResult] = None
 
         self._file_list: List[str] = []
+        self._source_path: str = ""
         self._q_list: List[np.ndarray] = []
         self._I_list: List[np.ndarray] = []
         self._I_merid_list: List[np.ndarray | None] = []
@@ -364,6 +381,9 @@ class SAXSEngine(BaseEngine):
         if os.path.isdir(filepath):
             return self._load_directory(filepath)
 
+        self._source_path = str(filepath)
+        self._file_list = []
+
         if filepath.lower().endswith(".edf"):
             self._img, self._header = read_image(filepath)
             if self._img is None:
@@ -394,6 +414,7 @@ class SAXSEngine(BaseEngine):
         return False
 
     def _load_directory(self, dirpath: str) -> bool:
+        self._source_path = ""
         conditions = scan_experiment_dir(dirpath, self.cfg)
         if not conditions:
             self.log("No supported files found in directory")
@@ -657,6 +678,30 @@ class SAXSEngine(BaseEngine):
             self._I = self._I_list[0]
             self._publish_processed_profile(self._processed_list[0] if self._processed_list else None)
         return len(self._q_list) > 0
+
+    def _quality_source_kwargs(self, index: int) -> Dict[str, str]:
+        return _frame_quality_source_kwargs(
+            self._file_list,
+            index,
+            single_source=self._source_path,
+        )
+
+    def _quality_source_lists(self) -> Dict[str, List[str]]:
+        count = len(self._q_list)
+        if count <= 0:
+            return {}
+        if len(self._file_list) == count:
+            refs = [str(path or "") for path in self._file_list]
+        elif count == 1 and self._source_path:
+            refs = [str(self._source_path)]
+        else:
+            return {}
+        if not any(refs):
+            return {}
+        return {
+            "source_ids": [f"frame-{index}" if ref else "" for index, ref in enumerate(refs)],
+            "raw_data_refs": refs,
+        }
 
     def _parse_strain_from_filename(self, filepath: str) -> float:
         import re
@@ -1118,7 +1163,13 @@ class SAXSEngine(BaseEngine):
 
         for i in range(len(self._q_list)):
             try:
-                analysis = analyze_single(self._q_list[i], self._I_list[i], self.cfg, q_anchor=_prev_q_star)
+                analysis = analyze_single(
+                    self._q_list[i],
+                    self._I_list[i],
+                    self.cfg,
+                    q_anchor=_prev_q_star,
+                    **self._quality_source_kwargs(i),
+                )
                 analysis.raw_detector_quality_report = (
                     self._detector_quality_reports[i]
                     if i < len(self._detector_quality_reports)
@@ -1153,6 +1204,7 @@ class SAXSEngine(BaseEngine):
                     if self._detector_quality_reports
                     else {}
                 ),
+                **self._quality_source_lists(),
             )
         except Exception as exc:
             self.log(f"Temperature window analysis skipped: {exc}")
@@ -1398,6 +1450,7 @@ class SAXSEngine(BaseEngine):
                         if self._detector_quality_reports
                         else {}
                     ),
+                    **self._quality_source_lists(),
                 )
         except Exception:
             logger.warning("Failed to derive tensile SAXS strain-series evidence.", exc_info=True)
@@ -1410,6 +1463,7 @@ class SAXSEngine(BaseEngine):
                     self._q_list[i], I_use[i], strain_cfg, q_anchor=_prev_q_star,
                     q_pyfai=(q_pf if len(q_pf) > 0 else None),
                     I_pyfai=(I_pf if len(I_pf) > 0 else None),
+                    **self._quality_source_kwargs(i),
                 )
                 analysis.raw_detector_quality_report = (
                     self._detector_quality_reports[i]
@@ -1631,6 +1685,7 @@ class SAXSEngine(BaseEngine):
                         self._q_list[i], self._I_list[i], self.cfg,
                         q_pyfai=(q_pf_s if len(q_pf_s) > 0 else None),
                         I_pyfai=(I_pf_s if len(I_pf_s) > 0 else None),
+                        **self._quality_source_kwargs(i),
                     )
                     analysis.raw_detector_quality_report = (
                         self._detector_quality_reports[i]
@@ -1742,7 +1797,12 @@ class SAXSEngine(BaseEngine):
         if self._q is None or self._I is None:
             return False
 
-        self._analysis = analyze_single(self._q, self._I, self.cfg)
+        self._analysis = analyze_single(
+            self._q,
+            self._I,
+            self.cfg,
+            **self._quality_source_kwargs(0),
+        )
         self._analysis.raw_detector_quality_report = self.result.raw_data.get(
             "detector_quality_report"
         )
@@ -1767,6 +1827,7 @@ class SAXSEngine(BaseEngine):
                 if self._detector_quality_reports
                 else {}
             ),
+            **self._quality_source_lists(),
         )
         self._temperature_result = result
         self._results = list(getattr(result, "temp_points", []))
@@ -1789,6 +1850,7 @@ class SAXSEngine(BaseEngine):
                 if self._detector_quality_reports
                 else {}
             ),
+            **self._quality_source_lists(),
         )
         self._strain_result = result
         self._results = list(getattr(result, "strain_points", []))
@@ -2092,7 +2154,12 @@ class SAXSEngine(BaseEngine):
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(self._analysis))
             return params
         if self._q is not None and self._I is not None:
-            result = analyze_single(self._q, self._I, self.cfg)
+            result = analyze_single(
+                self._q,
+                self._I,
+                self.cfg,
+                **self._quality_source_kwargs(0),
+            )
             sp = result.structure
             params: Dict[str, Any] = {}
             params.update(

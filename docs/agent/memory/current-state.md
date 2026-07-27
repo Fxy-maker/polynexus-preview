@@ -1,5 +1,27 @@
 ---
 
+## SAXS 1D quality provenance source binding (2026-07-28)
+
+- The 1D `DataQualityReport` source fields are now bound at the analysis
+  boundary when explicit metadata is available. `analyze_single()` accepts
+  optional `source_id`/`raw_data_ref`; temperature passes original source
+  indices after sorting, and strain remains positional.
+- The high-level SAXS engine derives `frame-{index}` plus the exact `_file_list`
+  path, and stores a single-file path separately. Missing or length-mismatched
+  metadata remains unbound; no source is guessed or copied.
+- Existing sanitization actions, quality levels, numerical algorithms,
+  thresholds, rescue, AI, publication roles, and consumer DTO projections are
+  unchanged. Focused GREEN is `27 passed`; exact SAXS matrix is `411 passed,
+  6 warnings`. The external-D task verifier passed with quality `283`,
+  preprocessing `106`, Ruff, compile/type baseline, memory, task-card, and
+  whitespace checks; `git diff --check` passed. An explicit allowlist
+  checkpoint was created locally with the explicit allowlist; no push, merge,
+  release, or scientific publication approval is implied.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-1d-quality-provenance-source-binding.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-1d-quality-provenance-source-binding-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-1d-quality-provenance-source-binding.md`.
+
 ## SAXS deterministic 1D profile sanitization (2026-07-28)
 
 - `analyze_single()` now receives a detached finite/positive q/I analysis copy

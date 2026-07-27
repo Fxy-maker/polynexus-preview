@@ -1,5 +1,22 @@
 # Active Work
 
+## SAXS 1D quality provenance source binding - checkpointed - 2026-07-28
+
+- `DataQualityReport` provenance is now bound through `analyze_single()`, the
+  temperature/strain series APIs, and the high-level static/temperature/strain
+  engine paths. Temperature retains original frame indices after sorting;
+  missing or mismatched sources stay empty.
+- TDD RED was `5 failed`; focused GREEN was `27 passed`; the exact SAXS matrix
+  is `411 passed, 6 warnings`. The only repair was a compatibility-only update
+  to an existing temperature test double so it accepts the new optional kwargs.
+- The first verifier attempt hit the existing `.pytest_tmp` Windows permission
+  lock; the external-D rerun passed with quality `283`, preprocessing `106`,
+  Ruff/compile/type/memory/task/whitespace checks green. Final focused tests
+  and diff check passed. The explicit allowlist checkpoint was created
+  locally; no push, merge, release, or scientific publication approval is
+  implied. Do not mix GUI/editor/release/scratch files or claim the full
+  software goal complete.
+
 ## SAXS deterministic 1D profile sanitization - checkpointed locally - 2026-07-28
 
 - The new `Sanitized1DProfile` contract gives SAXS 1D methods a detached

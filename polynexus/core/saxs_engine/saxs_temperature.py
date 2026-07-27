@@ -41,6 +41,31 @@ from .saxs_output_helpers import (
 logger = logging.getLogger(__name__)
 
 
+def _aligned_source_values(values: Optional[List[str]], count: int) -> tuple[str, ...]:
+    """Return source values only when the caller supplied one per frame."""
+
+    if values is None or len(values) != count:
+        return ()
+    return tuple(str(value or "") for value in values)
+
+
+def _source_kwargs(
+    source_ids: tuple[str, ...],
+    raw_data_refs: tuple[str, ...],
+    index: int,
+) -> dict[str, str]:
+    """Build explicit source kwargs without inventing an unbound source."""
+
+    if not source_ids and not raw_data_refs:
+        return {}
+    kwargs: dict[str, str] = {}
+    if source_ids:
+        kwargs["source_id"] = source_ids[index]
+    if raw_data_refs:
+        kwargs["raw_data_ref"] = raw_data_refs[index]
+    return {key: value for key, value in kwargs.items() if value}
+
+
 def _guinier_metric_frame_payload(point: "TemperaturePointResult") -> dict:
     """Copy existing frame Guinier metric evidence for series aggregation."""
 
@@ -820,6 +845,8 @@ def analyze_temperature_series(
     Tm_inf: Optional[float] = None,
     thermal_expansion_coeff: Optional[float] = None,
     detector_quality_reports: Optional[List[Dict]] = None,
+    source_ids: Optional[List[str]] = None,
+    raw_data_refs: Optional[List[str]] = None,
     verbose: bool = False,
 ) -> TempSeriesResult:
     """Analyze a complete in-situ temperature SAXS experiment.
@@ -852,6 +879,9 @@ def analyze_temperature_series(
     n_points = len(temperatures)
     if len(q_list) != n_points or len(I_list) != n_points:
         raise ValueError("temperatures, q_list, I_list must have same length")
+
+    source_ids_aligned = _aligned_source_values(source_ids, n_points)
+    raw_data_refs_aligned = _aligned_source_values(raw_data_refs, n_points)
 
     temps_arr = np.array(temperatures, dtype=float)
 
@@ -931,7 +961,12 @@ def analyze_temperature_series(
 
         # ---- Core analysis ----
         try:
-            saxs_result = analyze_single(q, I, cfg_corrected)
+            source_kwargs = _source_kwargs(
+                source_ids_aligned,
+                raw_data_refs_aligned,
+                int(sort_idx[i]),
+            )
+            saxs_result = analyze_single(q, I, cfg_corrected, **source_kwargs)
             lp = saxs_result.long_period
             struct = saxs_result.structure
             
