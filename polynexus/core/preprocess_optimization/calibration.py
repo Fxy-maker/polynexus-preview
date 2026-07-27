@@ -14,6 +14,17 @@ from .policy import PreprocessPolicy
 
 GENERATOR_VERSION = "1"
 CORE_MAJOR_VERSION = str(__version__).split(".", 1)[0]
+_SAXS_CASE_MODES = {"static", "temperature", "strain"}
+_SAXS_CASE_REQUIRED_FIELDS = {
+    "case_schema_version",
+    "case_id",
+    "mode",
+    "source_ref",
+    "original_config_hash",
+    "effective_config_hash",
+    "expert_accept",
+    "expert_reason",
+}
 
 
 class PolicyConfigError(ValueError):
@@ -54,6 +65,18 @@ def _percentile(values: Sequence[float], fraction: float) -> float:
     high = min(low + 1, len(ordered) - 1)
     weight = position - low
     return ordered[low] * (1.0 - weight) + ordered[high] * weight
+
+
+def _saxs_case_contract_invalid(case: Mapping[str, Any]) -> bool:
+    if not _SAXS_CASE_REQUIRED_FIELDS.issubset(case):
+        return True
+    if str(case.get("case_schema_version", "")) != SCHEMA_VERSION:
+        return True
+    if str(case.get("mode", "") or "").strip().lower() not in _SAXS_CASE_MODES:
+        return True
+    if not isinstance(case.get("expert_accept"), bool):
+        return True
+    return not bool(str(case.get("expert_reason", "") or "").strip())
 
 
 def calibrate_cases(
@@ -99,6 +122,10 @@ def calibrate_cases(
         blockers.append("insufficient_evidence_coverage")
     if expert_agreement < 0.90:
         blockers.append("insufficient_expert_agreement")
+    if policy.technique.upper() == "SAXS" and any(
+        _saxs_case_contract_invalid(item) for item in rows
+    ):
+        blockers.append("invalid_case_contract")
     percentiles = {
         name: {
             "p50": _percentile(values, 0.50),

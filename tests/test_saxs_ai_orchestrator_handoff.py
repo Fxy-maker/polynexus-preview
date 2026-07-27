@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass, replace
 from types import MethodType, SimpleNamespace
 from typing import Any
 
+import pytest
+
 from polynexus.core.preprocess_optimization import get_preprocess_policy
 from polynexus.core.saxs_export_bundle import _quality_evidence_payload
 from polynexus.orchestrator import ParameterOrchestrator
@@ -24,6 +26,7 @@ PROTECTED = [
 
 @dataclass
 class FakeSAXSConfig:
+    experiment_type: str = "static"
     smooth_method: str = "savgol"
     savgol_window: int = 7
     savgol_order: int = 2
@@ -36,8 +39,9 @@ class FakeSAXSConfig:
 
 
 class FakeSAXSEngine:
-    def __init__(self, config: FakeSAXSConfig | None = None) -> None:
+    def __init__(self, config: FakeSAXSConfig | None = None, *, fail: bool = False) -> None:
         self.cfg = deepcopy(config or FakeSAXSConfig())
+        self.fail = fail
         self.result = SimpleNamespace(parameters={}, metadata={})
         self.residual_pattern: dict[str, Any] = {}
 
@@ -64,6 +68,8 @@ class FakeSAXSEngine:
 
     def run_pipeline(self, _data_file: str, output_dir: str = "") -> Any:
         del output_dir
+        if self.fail:
+            raise RuntimeError("synthetic candidate failure")
         self.analyze()
         return self.result
 
@@ -85,7 +91,9 @@ def saxs_intent(**overrides: Any) -> dict[str, Any]:
     return payload
 
 
-def build_fake_saxs_orchestrator() -> ParameterOrchestrator:
+def build_fake_saxs_orchestrator(
+    *, experiment_type: str = "static", fail_trials: bool = False
+) -> ParameterOrchestrator:
     orchestrator = ParameterOrchestrator.__new__(ParameterOrchestrator)
     orchestrator.technique = "saxs"
     orchestrator.data_file = "fake-saxs.edf"
@@ -95,7 +103,7 @@ def build_fake_saxs_orchestrator() -> ParameterOrchestrator:
     }
     orchestrator.preprocess_policy = get_preprocess_policy("SAXS")
     orchestrator.created_trial_engines = []
-    engine = FakeSAXSEngine()
+    engine = FakeSAXSEngine(FakeSAXSConfig(experiment_type=experiment_type))
     engine.analyze()
     orchestrator._engine = engine
     orchestrator._best_config = deepcopy(engine.cfg)
@@ -129,7 +137,7 @@ def build_fake_saxs_orchestrator() -> ParameterOrchestrator:
     )
 
     def create_trial(self: ParameterOrchestrator, config: FakeSAXSConfig) -> FakeSAXSEngine:
-        trial = FakeSAXSEngine(config)
+        trial = FakeSAXSEngine(config, fail=fail_trials)
         self.created_trial_engines.append(trial)
         return trial
 
@@ -204,3 +212,25 @@ def test_saxs_audit_failure_synchronizes_report_and_engine_decisions() -> None:
     assert report["preprocess_decision"]["decision"] == "keep_original"
     assert report["saxs_ai_rescue_decision"] == report["preprocess_decision"]
     assert orchestrator._engine.saxs_ai_rescue_decision == report["preprocess_decision"]
+
+
+@pytest.mark.parametrize("experiment_type", ["static", "temperature", "strain"])
+def test_saxs_replay_records_the_existing_engine_mode(experiment_type: str) -> None:
+    orchestrator = build_fake_saxs_orchestrator(experiment_type=experiment_type)
+
+    report = orchestrator.run_preprocess_intent(saxs_intent())
+
+    assert report["saxs_ai_rescue_replay"]
+    assert {item["mode"] for item in report["saxs_ai_rescue_replay"]} == {experiment_type}
+
+
+def test_failed_saxs_replay_preserves_control_and_records_error() -> None:
+    orchestrator = build_fake_saxs_orchestrator(fail_trials=True)
+
+    report = orchestrator.run_preprocess_intent(saxs_intent())
+
+    assert report["saxs_ai_rescue_replay"]
+    assert all(item["run_status"] == "failed" for item in report["saxs_ai_rescue_replay"])
+    assert all("synthetic candidate failure" in item["error"] for item in report["saxs_ai_rescue_replay"])
+    assert all(item["apply_performed"] is False for item in report["saxs_ai_rescue_replay"])
+    assert orchestrator._engine.cfg.savgol_window == 7

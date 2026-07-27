@@ -15,6 +15,26 @@ from polynexus.core.preprocess_optimization.calibration import (
 )
 
 
+def _saxs_case(**overrides: object) -> dict[str, object]:
+    case: dict[str, object] = {
+        "case_schema_version": "1.0",
+        "case_id": "saxs-static-1",
+        "mode": "static",
+        "source_ref": "synthetic:saxs-noisy",
+        "original_config_hash": "original-hash",
+        "effective_config_hash": "candidate-hash",
+        "selected": True,
+        "hard_guard_violation": False,
+        "expert_accept": True,
+        "expert_reason": "Preserves the Guinier and peak evidence.",
+        "evidence_coverage": 1.0,
+        "confidence_band": "high",
+        "metric_drifts": {"peak_shift": 0.01},
+    }
+    case.update(overrides)
+    return case
+
+
 def test_calibration_report_cannot_promote_with_hard_guard_false_accept() -> None:
     report = calibrate_cases(
         [
@@ -127,3 +147,49 @@ def test_good_report_promotes_only_its_own_technique_and_versions() -> None:
     assert report.schema_version == "1.0"
     assert report.policy_version == "dsc-preprocess-v1"
     assert report.promotion_allowed is True
+
+
+def test_saxs_calibration_requires_a_versioned_expert_case_reason() -> None:
+    report = calibrate_cases(
+        [
+            {
+                "case_schema_version": "1.0",
+                "case_id": "saxs-static-1",
+                "mode": "static",
+                "source_ref": "synthetic:saxs-noisy",
+                "original_config_hash": "original-hash",
+                "effective_config_hash": "candidate-hash",
+                "selected": True,
+                "hard_guard_violation": False,
+                "expert_accept": True,
+                "evidence_coverage": 1.0,
+                "confidence_band": "high",
+                "metric_drifts": {"peak_shift": 0.01},
+            }
+        ],
+        policy=get_preprocess_policy("SAXS"),
+    )
+
+    assert report.promotion_allowed is False
+    assert "invalid_case_contract" in report.blockers
+
+
+def test_saxs_calibration_accepts_a_complete_expert_case() -> None:
+    report = calibrate_cases([_saxs_case()], policy=get_preprocess_policy("SAXS"))
+
+    assert report.promotion_allowed is True
+    assert report.blockers == ()
+
+
+def test_saxs_calibration_blocks_low_coverage_and_expert_disagreement() -> None:
+    report = calibrate_cases(
+        [
+            _saxs_case(evidence_coverage=0.5),
+            _saxs_case(case_id="saxs-static-2", selected=False, expert_accept=True),
+        ],
+        policy=get_preprocess_policy("SAXS"),
+    )
+
+    assert report.promotion_allowed is False
+    assert "insufficient_evidence_coverage" in report.blockers
+    assert "insufficient_expert_agreement" in report.blockers
