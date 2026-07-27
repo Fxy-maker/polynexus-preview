@@ -1,5 +1,20 @@
 # Active Work
 
+## SAXS temperature Guinier evidence Stage 1 - in progress 2026-07-27
+
+- Existing deterministic Guinier output now has a separate evidence builder
+  with R², slope uncertainty, Rg uncertainty, explicit applicability, and the
+  hard `qRg < 1.3` gate. `SAXSResult` and each temperature point retain the
+  data-quality report, evidence payload, Rg, level, and reason codes.
+- Focused evidence currently passes: Guinier/temperature propagation `24
+  passed`; the complete SAXS test matrix passes `227 passed` with four existing
+  Matplotlib font warnings. Structured verifier is pending because the legacy
+  `core.py`/`saxs_temperature.py` files expose pre-existing Ruff baseline
+  findings when they become changed files.
+- Stage task card: `docs/agent/tasks/2026-07-27-saxs-temperature-guinier-evidence.md`.
+  Next action is to checkpoint this vertical slice, then add sequence-level
+  trend gates without fabricating missing temperature frames.
+
 ## SAXS quality contracts Stage 0 - in progress 2026-07-27
 
 - The first typed quality/evidence contracts are present in

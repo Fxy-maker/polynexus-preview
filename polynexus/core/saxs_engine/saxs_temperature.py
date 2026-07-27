@@ -62,6 +62,13 @@ class TemperaturePointResult:
     
     # Invariant
     Q_star: float = np.nan
+
+    # Guinier evidence (kept separate from lamellar structure parameters)
+    Rg_nm: float = np.nan
+    guinier_level: str = "Unusable"
+    guinier_reason_codes: List[str] = field(default_factory=list)
+    data_quality_report: Dict = None
+    guinier_evidence: Dict = None
     
     # Crystallization (if applicable)
     Xc_relative: float = np.nan  # relative crystallinity (0-1)
@@ -108,6 +115,8 @@ class TempSeriesResult:
     lc_effective_array: np.ndarray = None
     Q_star_array: np.ndarray = None
     Xc_array: np.ndarray = None
+    Rg_array: np.ndarray = None
+    guinier_level_array: List[str] = field(default_factory=list)
     melting_window_status_array: List[str] = field(default_factory=list)
     lc_reliability_status_array: List[str] = field(default_factory=list)
     lc_path_status_array: List[str] = field(default_factory=list)
@@ -136,6 +145,9 @@ class TempSeriesResult:
                 'la(nm)': round(tp.la_nm, 2) if np.isfinite(tp.la_nm) else None,
                 'phi_c': round(tp.phi_c, 3) if np.isfinite(tp.phi_c) else None,
                 'Q_star': f"{tp.Q_star:.4e}" if np.isfinite(tp.Q_star) else None,
+                'Rg(nm)': round(tp.Rg_nm, 3) if np.isfinite(tp.Rg_nm) else None,
+                'Rg_level': tp.guinier_level or None,
+                'Rg_reason_codes': '|'.join(tp.guinier_reason_codes) if tp.guinier_reason_codes else None,
                 'Xc_rel': round(tp.Xc_relative, 3) if np.isfinite(tp.Xc_relative) else None,
                 'Confidence': round(tp.confidence, 2),
                 'lc_confidence': round(tp.lc_confidence, 2) if np.isfinite(tp.lc_confidence) else None,
@@ -773,6 +785,8 @@ def analyze_temperature_series(
     result.lc_array = np.full(n_points, np.nan)
     result.Q_star_array = np.full(n_points, np.nan)
     result.Xc_array = np.full(n_points, np.nan)
+    result.Rg_array = np.full(n_points, np.nan)
+    result.guinier_level_array = ["Unusable"] * n_points
 
     # Reference: lowest temperature point (solid state)
     ref_idx = 0
@@ -817,6 +831,20 @@ def analyze_temperature_series(
             tp.lc_tangent_nm = getattr(struct, "lc_tangent_nm", np.nan)
             tp.lc_idf_nm = getattr(struct, "lc_idf_nm", np.nan)
             tp.lc_gamma_min_nm = getattr(struct, "lc_gamma_min_nm", np.nan)
+            tp.data_quality_report = getattr(saxs_result, "data_quality_report", None)
+            tp.guinier_evidence = getattr(saxs_result, "guinier_evidence", None)
+            if isinstance(tp.guinier_evidence, dict):
+                try:
+                    rg_value = float(tp.guinier_evidence.get("rg_nm", np.nan))
+                except (TypeError, ValueError):
+                    rg_value = np.nan
+                tp.Rg_nm = rg_value if np.isfinite(rg_value) else np.nan
+                tp.guinier_level = str(tp.guinier_evidence.get("level", "Unusable") or "Unusable")
+                reason_codes = tp.guinier_evidence.get("reason_codes", [])
+                if isinstance(reason_codes, (list, tuple)):
+                    tp.guinier_reason_codes = [str(reason) for reason in reason_codes]
+            result.Rg_array[i] = tp.Rg_nm
+            result.guinier_level_array[i] = tp.guinier_level
 
             # Track Bragg peak intensity
             q_star = tp.q_star_nm1

@@ -13,6 +13,17 @@ Modules:
 """
 
 from .config import SAXSConfig, ExperimentCondition
+from .saxs_quality_contracts import (
+    DataQualityReport,
+    GuinierEvidence,
+    MetricEvidence,
+    QualityLevel,
+    RescueCandidate,
+    RescueValidationReport,
+    build_data_quality_report,
+    build_guinier_evidence,
+    contract_json,
+)
 from .processed_profile import ProcessedProfile
 from .io import (
     read_image, read_1d_profile, extract_geometry_from_header,
@@ -63,7 +74,9 @@ from .saxs_output import (
 __all__ = [
     "SAXSConfig", "ExperimentCondition", "DataQualityReport",
     "GuinierEvidence", "MetricEvidence", "QualityLevel", "RescueCandidate",
-    "RescueValidationReport", "build_data_quality_report", "ProcessedProfile",
+    "RescueValidationReport", "build_data_quality_report", "build_guinier_evidence",
+    "contract_json",
+    "ProcessedProfile",
     "read_image", "read_1d_profile", "extract_geometry_from_header",
     "scan_experiment_dir", "assemble_dataset", "recover_condition_axis",
     "build_integrator", "integrate_full", "integrate_sectors",

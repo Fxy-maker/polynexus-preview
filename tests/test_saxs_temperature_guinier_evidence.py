@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import numpy as np
+
+from polynexus.core.saxs_engine.config import SAXSConfig
+from polynexus.core.saxs_engine.core import LongPeriodResult, StructureParams
+from polynexus.core.saxs_engine.saxs_quality_contracts import (
+    build_data_quality_report,
+    build_guinier_evidence,
+)
+from polynexus.core.saxs_engine.saxs_temperature import analyze_temperature_series
+
+
+def _fake_frame_result(q, intensity):
+    quality = build_data_quality_report(q, intensity, source_id="frame")
+    evidence = build_guinier_evidence(
+        q[:12], np.log(intensity[:12]), rg_nm=4.0, i0=float(intensity[0]),
+        quality_report=quality, applicability="supported",
+    )
+    return SimpleNamespace(
+        long_period=LongPeriodResult(L_best=10.0, L_confidence=0.8, method_used="bragg"),
+        structure=StructureParams(L=10.0, lc=3.0, la=7.0, phi_c=0.3, confidence_lc=0.8),
+        guinier_evidence=evidence.to_dict(),
+        data_quality_report=quality.to_dict(),
+    )
+
+
+def test_temperature_frames_retain_individual_guinier_evidence(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_temperature as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    intensity = 120.0 * np.exp(-(q**2) * 4.0**2 / 3.0)
+    q_list = [q, q]
+    i_list = [intensity, intensity * 0.9]
+
+    monkeypatch.setattr(module, "analyze_single", lambda q_arr, i_arr, cfg: _fake_frame_result(q_arr, i_arr))
+    monkeypatch.setattr(module, "scattering_invariant", lambda q_arr, i_arr, cfg=None: 1.0)
+    monkeypatch.setattr(module, "bragg_long_period", lambda q_arr, i_arr: (10.0, 0.628, {}))
+
+    result = analyze_temperature_series([170.0, 180.0], q_list, i_list, cfg=SAXSConfig())
+
+    assert len(result.temp_points) == 2
+    assert [point.guinier_level for point in result.temp_points] == ["Quantitative", "Quantitative"]
+    assert all(point.guinier_evidence["metric"]["metric_name"] == "Rg" for point in result.temp_points)
+    assert all(point.Rg_nm == 4.0 for point in result.temp_points)
+
+
+def test_temperature_core_failure_does_not_fabricate_guinier_evidence(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_temperature as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    intensity = 120.0 * np.exp(-(q**2) * 4.0**2 / 3.0)
+    calls = {"count": 0}
+
+    def fake_analyze(q_arr, i_arr, cfg):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise RuntimeError("injected frame failure")
+        return _fake_frame_result(q_arr, i_arr)
+
+    monkeypatch.setattr(module, "analyze_single", fake_analyze)
+    monkeypatch.setattr(module, "scattering_invariant", lambda q_arr, i_arr, cfg=None: 1.0)
+    monkeypatch.setattr(module, "bragg_long_period", lambda q_arr, i_arr: (10.0, 0.628, {}))
+
+    result = analyze_temperature_series(
+        [170.0, 180.0], [q, q], [intensity, intensity], cfg=SAXSConfig()
+    )
+
+    assert result.temp_points[0].guinier_evidence is not None
+    assert result.temp_points[1].guinier_evidence is None
+    assert result.temp_points[1].guinier_level == "Unusable"

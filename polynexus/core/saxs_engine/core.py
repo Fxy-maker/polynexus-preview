@@ -9,15 +9,10 @@ sasmodels interface for model fitting.
 
 All numerical methods are designed for accuracy, not just speed.
 """
-import logging
-logger = logging.getLogger(__name__)
-
-
 from typing import Tuple, Dict, Optional, List, Any
 from dataclasses import dataclass, field
 import numpy as np
-from scipy.signal import find_peaks, argrelextrema, savgol_filter
-from scipy.interpolate import CubicSpline, interp1d
+from scipy.signal import find_peaks, savgol_filter
 from scipy.integrate import trapezoid
 
 from ..engine import logger
@@ -25,21 +20,7 @@ from .config import SAXSConfig
 from . import saxs_quality_helpers as _saxs_quality_helpers
 from . import saxs_physical_helpers as _saxs_physical_helpers
 from . import saxs_extrapolation_helpers as _saxs_extrapolation_helpers
-from .saxs_quality_helpers import (
-    _finite_float,
-    _fit_bragg_region,
-    _fit_guinier_region,
-    _saxs_peak_region_fit_quality,
-    _standardized_region_stats,
-    classify_single_frame_lc_reliability,
-)
-from .saxs_physical_helpers import (
-    _crystallinity_invariant,
-    _porod_constant,
-    _tangent_lc,
-    guinier_analysis,
-    porod_analysis,
-)
+from .saxs_quality_contracts import build_data_quality_report, build_guinier_evidence
 
 
 # ======================================================================
@@ -81,7 +62,7 @@ class SAXSResult:
     label: str = ""
     condition_value: float = np.nan   # temperature/strain/etc. for series
     q: np.ndarray = None
-    I: np.ndarray = None
+    I: np.ndarray = None  # noqa: E741
     I_smooth: np.ndarray = None
     long_period: LongPeriodResult = None
     structure: StructureParams = None
@@ -108,6 +89,8 @@ class SAXSResult:
     fit_regions: List[Dict] = None       # per-region residual diagnostics
     r_squared_method: str = ""           # describes the scoring window
     quality_score: float = np.nan        # PHYS score; distinct from curve-fit R²
+    data_quality_report: Dict[str, Any] = None
+    guinier_evidence: Dict[str, Any] = None
     beam_stop_contaminated: bool = False # direct-beam pollution detected
     effective_q_min: float = 0.01        # q_min after beamstop-edge correction
     mask_truncated: bool = False         # effective q_min > 0.1 nm⁻¹
@@ -1789,6 +1772,30 @@ def analyze_single(
 
     # Guinier
     Rg, I0, q_guinier, lnI_guinier = guinier_analysis(q, I_smooth, q_min=q_analysis_min)
+    quality_report = build_data_quality_report(
+        q,
+        I,
+        processed_data_ref="saxs_result:I_smooth",
+        processing_config_ref="SAXSConfig",
+        low_q_truncated=bool(result.mask_truncated),
+    )
+    condition_context = getattr(cfg, "condition_context", {}) or {}
+    applicability = (
+        condition_context.get("guinier_applicability", "unknown")
+        if isinstance(condition_context, dict)
+        else "unknown"
+    )
+    guinier_evidence = build_guinier_evidence(
+        q_guinier,
+        lnI_guinier,
+        rg_nm=Rg,
+        i0=I0,
+        quality_report=quality_report,
+        applicability=str(applicability or "unknown"),
+        source_ref="saxs_engine.guinier_analysis",
+    )
+    result.data_quality_report = quality_report.to_dict()
+    result.guinier_evidence = guinier_evidence.to_dict()
 
     # Multi-method ensemble long period (Bragg + Lorentz + correlation)
     # Guinier Rg measures different physics (particle size), not used here

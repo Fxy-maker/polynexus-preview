@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 
 from polynexus.core.saxs_engine.saxs_quality_contracts import (
     DataQualityReport,
@@ -105,8 +106,60 @@ def test_ai_candidate_cannot_be_marked_accepted_without_validation_gates():
     )
 
     assert report.effective_decision() == "rejected"
-    assert "hard_gate_failed" in report.rejection_reasons
-    assert "physical_gate_failed" in report.rejection_reasons
+    assert report.rejection_reasons == ()
+    serialized = report.to_dict()
+    assert "hard_gate_failed" in serialized["rejection_reasons"]
+    assert "physical_gate_failed" in serialized["rejection_reasons"]
+
+
+def test_rescue_serialization_remains_fail_closed_without_method_call():
+    report = RescueValidationReport(
+        candidate_id="candidate-serialized",
+        hard_gate_passed=False,
+        physical_gate_passed=False,
+        data_preserved=True,
+        decision="accepted",
+    )
+
+    payload = report.to_dict()
+
+    assert payload["decision"] == "rejected"
+    assert "hard_gate_failed" in payload["rejection_reasons"]
+    assert "physical_gate_failed" in payload["rejection_reasons"]
+
+
+def test_quality_report_rejects_nonpositive_q_as_unusable():
+    report = build_data_quality_report(
+        np.linspace(-0.20, -0.01, 12), np.ones(12), source_id="negative-q"
+    )
+
+    assert report.nonpositive_q_count == 12
+    assert report.level is QualityLevel.UNUSABLE
+    assert "q_nonpositive" in report.reason_codes
+
+
+def test_nested_contract_payloads_are_not_mutable_through_public_fields():
+    metric = MetricEvidence(
+        metric_name="Rg",
+        fit_evidence={"window": {"q_max": 0.12}},
+    )
+    candidate = RescueCandidate(
+        candidate_id="candidate-frozen",
+        parameters={"q_max": 0.12},
+    )
+
+    with pytest.raises(TypeError):
+        metric.fit_evidence["window"]["q_max"] = 0.20
+    with pytest.raises(TypeError):
+        candidate.parameters["q_max"] = 0.20
+
+
+def test_quality_contracts_are_available_from_saxs_engine_public_api():
+    from polynexus.core.saxs_engine import QualityLevel as ExportedQualityLevel
+    from polynexus.core.saxs_engine import contract_json as exported_contract_json
+
+    assert ExportedQualityLevel is QualityLevel
+    assert exported_contract_json(RescueCandidate(candidate_id="api"))
 
 
 def test_clean_synthetic_guinier_case_is_quantitative():
