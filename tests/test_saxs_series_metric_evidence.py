@@ -119,3 +119,60 @@ def test_series_summary_rejects_partial_source_mapping_without_invention():
 
     assert summary["frame_source_indices"] == []
     assert "series_metric_source_index_mismatch" in summary["reason_codes"]
+
+
+def test_series_summary_records_a_clean_condition_axis_without_changing_level():
+    summary = build_series_metric_evidence(
+        [{"porod": {"level": "Trend"}}] * 3,
+        metric_names=("porod",),
+        condition_name="temperature_C",
+        condition_values=[170.0, 180.0, 190.0],
+    )["porod"]
+
+    axis = summary["condition_axis"]
+    assert axis == {
+        "condition_name": "temperature_C",
+        "condition_values": [170.0, 180.0, 190.0],
+        "invalid_condition_indices": [],
+        "duplicate_condition_indices": [],
+        "nonmonotonic_condition_indices": [],
+        "status": "ordered",
+    }
+    assert summary["level"] == "Trend"
+    json.dumps(MetricEvidenceSummary.from_dict(summary).to_dict(), allow_nan=False)
+
+
+def test_series_summary_preserves_condition_axis_defects_by_position():
+    summary = build_series_metric_evidence(
+        [{"porod": {"level": "Trend"}}] * 4,
+        metric_names=("porod",),
+        condition_name="temperature_C",
+        condition_values=[170.0, 170.0, 160.0, float("nan")],
+    )["porod"]
+
+    axis = summary["condition_axis"]
+    assert axis["condition_values"] == [170.0, 170.0, 160.0, None]
+    assert axis["invalid_condition_indices"] == [3]
+    assert axis["duplicate_condition_indices"] == [0, 1]
+    assert axis["nonmonotonic_condition_indices"] == [1, 2]
+    assert axis["status"] == "diagnostic"
+    assert summary["level"] == "Trend"
+
+
+def test_series_summary_rejects_partial_condition_axis_without_invention():
+    summary = build_series_metric_evidence(
+        [{"porod": {"level": "Trend"}}] * 2,
+        metric_names=("porod",),
+        condition_name="temperature_C",
+        condition_values=[170.0],
+    )["porod"]
+
+    assert summary["condition_axis"] == {
+        "condition_name": "temperature_C",
+        "condition_values": [],
+        "invalid_condition_indices": [],
+        "duplicate_condition_indices": [],
+        "nonmonotonic_condition_indices": [],
+        "status": "diagnostic",
+    }
+    assert "series_metric_condition_axis_length_mismatch" in summary["reason_codes"]

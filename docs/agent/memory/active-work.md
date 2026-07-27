@@ -1,5 +1,33 @@
 # Active Work
 
+## SAXS temperature condition-axis evidence - ready for checkpoint - 2026-07-27
+
+- Temperature-series `MetricEvidenceSummary` records a frozen, strict-JSON
+  `condition_axis` for existing Porod, Kratky, invariant, lamellar, and
+  Guinier summaries. It preserves values by frame position, marks invalid
+  values as `null`, and reports duplicate/non-monotonic/mismatched axes as
+  diagnostic provenance. Existing metric levels, counts, physical gates,
+  interpolation/repair policy, AI behavior, and publication roles are
+  unchanged.
+- Temperature aggregation passes the existing sorted `result.temperatures`
+  as `temperature_C`; existing original-frame `source_index` mapping remains
+  separate and unchanged. Strain axes are intentionally out of scope.
+- TDD RED was `4 failed, 13 passed`; focused GREEN was `17 passed`; the
+  consumer matrix was `41 passed`; and the isolated full SAXS matrix was
+  `356 passed, 4 warnings`. Task-scoped verification with an isolated
+  basetemp passed quality `282`, preprocessing `106`, task/memory, Ruff,
+  compile/type, and whitespace checks.
+- The prescribed verifier without an isolated basetemp hit `229 passed, 53
+  errors`, all due to the pre-existing `.pytest_tmp` cleanup
+  `PermissionError: [WinError 5]`. A fresh isolated full/boundary verifier
+  exited `0`, reported selected checks passed, and passed the boundary audit;
+  its middle full-pytest count was truncated by the tool output and is not
+  inferred from historical evidence.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-27-saxs-temperature-condition-axis-evidence.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-temperature-condition-axis-evidence-design.md`,
+  and `docs/superpowers/plans/2026-07-27-saxs-temperature-condition-axis-evidence.md`.
+
 ## SAXS series metric position evidence - checkpoint bd7c3fd - 2026-07-27
 
 - Existing series `MetricEvidenceSummary` now records deterministic evidence,

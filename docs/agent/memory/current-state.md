@@ -7,6 +7,21 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS temperature condition-axis evidence is implemented in the working tree:
+  existing temperature-series metric summaries now carry a strict-JSON,
+  position-preserving `condition_axis` with condition name, finite values,
+  invalid/duplicate/non-monotonic positions, and ordered/diagnostic/empty
+  status. The existing sorted `temperature_C` values are passed through while
+  original `source_index` mapping remains separate. No metric levels/counts,
+  physical gates, interpolation, repair, AI, or publication behavior changed;
+  strain-axis semantics remain out of scope. Focused consumer evidence is
+  `41 passed`; the isolated SAXS matrix is `356 passed, 4 warnings`; and the
+  isolated task-scoped verifier passed quality `282` and preprocessing `106`.
+  Fresh isolated full/boundary verification exited `0` with selected checks
+  and boundary audit passing, but its middle full-pytest count was truncated
+  by tool output and is not reconstructed. Task card:
+  `docs/agent/tasks/2026-07-27-saxs-temperature-condition-axis-evidence.md`.
+
 - SAXS series metric position evidence is implemented and checkpointed at
   `bd7c3fd`: existing
   summaries now expose deterministic frame positions for evidence/missing/

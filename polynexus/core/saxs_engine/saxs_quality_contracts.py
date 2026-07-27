@@ -380,10 +380,12 @@ class MetricEvidenceSummary:
     unusable_frame_indices: tuple[int, ...] = ()
     invalid_level_indices: tuple[int, ...] = ()
     frame_source_indices: tuple[int, ...] = ()
+    condition_axis: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "level_counts", _freeze(self.level_counts))
         object.__setattr__(self, "reason_codes", _string_tuple(self.reason_codes))
+        object.__setattr__(self, "condition_axis", _freeze(self.condition_axis))
         for field_name in (
             "evidence_frame_indices",
             "missing_frame_indices",
@@ -417,6 +419,8 @@ class MetricEvidenceSummary:
             "frame_source_indices",
         ):
             data[key] = _int_tuple(data.get(key))
+        raw_axis = data.get("condition_axis")
+        data["condition_axis"] = raw_axis if isinstance(raw_axis, Mapping) else {}
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -1570,6 +1574,8 @@ def build_series_metric_evidence(
     metric_names: Iterable[str] | None = None,
     source_ref: str = "",
     frame_source_indices: Iterable[Any] | None = None,
+    condition_name: str = "",
+    condition_values: Iterable[Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Summarize existing per-frame metric evidence without mutating it."""
 
@@ -1579,6 +1585,82 @@ def build_series_metric_evidence(
     source_index_mapping_valid = not source_indices_supplied or len(source_indices) == len(frames)
     if not source_index_mapping_valid:
         source_indices = ()
+    condition_values_supplied = condition_values is not None
+    condition_axis: dict[str, Any] = {}
+    condition_axis_reason = ""
+    if condition_values_supplied:
+        try:
+            raw_conditions = list(condition_values)
+        except TypeError:
+            raw_conditions = []
+        condition_name_text = str(condition_name or "")
+        if len(raw_conditions) != len(frames):
+            condition_axis = {
+                "condition_name": condition_name_text,
+                "condition_values": [],
+                "invalid_condition_indices": [],
+                "duplicate_condition_indices": [],
+                "nonmonotonic_condition_indices": [],
+                "status": "diagnostic",
+            }
+            condition_axis_reason = "series_metric_condition_axis_length_mismatch"
+        else:
+            normalized_conditions: list[float | None] = []
+            invalid_condition_indices: list[int] = []
+            for position, raw_value in enumerate(raw_conditions):
+                try:
+                    value = float(raw_value)
+                except (TypeError, ValueError):
+                    value = np.nan
+                if not np.isfinite(value):
+                    normalized_conditions.append(None)
+                    invalid_condition_indices.append(position)
+                else:
+                    normalized_conditions.append(float(value))
+
+            duplicate_condition_indices: list[int] = []
+            for position, value in enumerate(normalized_conditions):
+                if value is None:
+                    continue
+                previous_positions = [
+                    previous
+                    for previous, previous_value in enumerate(normalized_conditions[:position])
+                    if previous_value is not None
+                    and np.isclose(previous_value, value, rtol=0.0, atol=1e-12)
+                ]
+                if previous_positions:
+                    duplicate_condition_indices.extend(previous_positions)
+                    duplicate_condition_indices.append(position)
+            duplicate_condition_indices = list(dict.fromkeys(duplicate_condition_indices))
+
+            nonmonotonic_condition_indices = [
+                position
+                for position in range(1, len(normalized_conditions))
+                if normalized_conditions[position] is not None
+                and normalized_conditions[position - 1] is not None
+                and normalized_conditions[position] <= normalized_conditions[position - 1]
+            ]
+            axis_defective = bool(
+                invalid_condition_indices
+                or duplicate_condition_indices
+                or nonmonotonic_condition_indices
+            )
+            condition_axis = {
+                "condition_name": condition_name_text,
+                "condition_values": normalized_conditions,
+                "invalid_condition_indices": invalid_condition_indices,
+                "duplicate_condition_indices": duplicate_condition_indices,
+                "nonmonotonic_condition_indices": nonmonotonic_condition_indices,
+                "status": (
+                    "empty"
+                    if not frames
+                    else "diagnostic"
+                    if axis_defective
+                    else "ordered"
+                ),
+            }
+            if axis_defective:
+                condition_axis_reason = "series_metric_condition_axis_invalid"
     names = {str(name) for name in (metric_names or ()) if str(name)}
     if metric_names is None:
         for frame in frames:
@@ -1645,6 +1727,8 @@ def build_series_metric_evidence(
             reasons.append("series_metric_unusable_frames")
         if not source_index_mapping_valid:
             reasons.append("series_metric_source_index_mismatch")
+        if condition_axis_reason:
+            reasons.append(condition_axis_reason)
 
         if frame_count == 0:
             reasons.append("series_no_frames")
@@ -1688,6 +1772,7 @@ def build_series_metric_evidence(
             unusable_frame_indices=tuple(unusable_frame_indices),
             invalid_level_indices=tuple(invalid_level_indices),
             frame_source_indices=source_indices if source_index_mapping_valid else (),
+            condition_axis=condition_axis,
         ).to_dict()
     return summaries
 
