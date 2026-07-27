@@ -82,10 +82,14 @@ from .saxs_sequence_rescue import (
     validate_sequence_rescue_candidate,
 )
 from .saxs_ai_rescue import (
+    SAXSConfirmedRerunAudit,
     SAXSAIRescueDecision,
     SAXSAIRescuePlan,
     assess_saxs_ai_candidate,
+    assess_saxs_confirmed_rerun,
+    build_saxs_confirmed_rerun_evidence,
     build_saxs_ai_rescue_plan,
+    validate_saxs_confirmation_report,
     validate_saxs_ai_intent,
 )
 from .saxs_output import (
@@ -131,6 +135,9 @@ __all__ = [
     "analyze_peak_widths", "analyze_anisotropy", "export_parameters_csv",
     "build_sequence_rescue_candidates", "validate_sequence_rescue_candidate",
     "SAXSAIRescueDecision", "SAXSAIRescuePlan",
-    "assess_saxs_ai_candidate", "build_saxs_ai_rescue_plan", "validate_saxs_ai_intent",
+    "SAXSConfirmedRerunAudit", "assess_saxs_ai_candidate",
+    "assess_saxs_confirmed_rerun", "build_saxs_confirmed_rerun_evidence",
+    "build_saxs_ai_rescue_plan", "validate_saxs_confirmation_report",
+    "validate_saxs_ai_intent",
     "export_1d_profile", "export_strain_series_csv", "export_temp_series_csv",
 ]

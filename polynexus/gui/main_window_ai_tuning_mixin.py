@@ -6,6 +6,10 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QLineEdit, QSpinBox
 
+from ..core.saxs_engine.saxs_ai_rescue import (
+    assess_saxs_confirmed_rerun,
+    validate_saxs_confirmation_report,
+)
 from .analysis_history_service import (
     ai_tuning_benchmark_delta_text,
     ai_tuning_benchmark_rate_text,
@@ -403,9 +407,70 @@ class MainWindowAITuningMixin:
         for key in selected_config:
             widget_lookup = getattr(self, "_config_widget_by_key", None)
             if callable(widget_lookup) and widget_lookup(key) is None:
+                engine = getattr(getattr(self, "_worker", None), "engine", None)
+                if engine is None:
+                    cache = getattr(self, "_engine_cache", {})
+                    engine = cache.get("saxs") if isinstance(cache, dict) else None
+                config = getattr(engine, "cfg", None)
+                if config is not None and hasattr(config, key):
+                    snapshot[key] = deepcopy(getattr(config, key))
                 continue
             snapshot[key] = deepcopy(self._config_value_by_key(key))
         return snapshot
+
+    def _saxs_preprocess_mode(self):
+        try:
+            value = self._config_value_by_key("experiment_type")
+        except Exception:
+            value = ""
+        value = str(value or "").strip().lower()
+        if value in {"temperature", "strain"}:
+            return value
+        cache = getattr(self, "_engine_cache", {})
+        cached_engine = cache.get("saxs") if isinstance(cache, dict) else None
+        for owner in (getattr(self, "_worker", None), cached_engine):
+            engine = getattr(owner, "engine", owner)
+            config = getattr(engine, "cfg", None)
+            candidate = str(getattr(config, "experiment_type", "") or "").strip().lower()
+            if candidate in {"temperature", "strain"}:
+                return candidate
+            candidate = str(getattr(engine, "_condition_type", "") or "").strip().lower()
+            if candidate in {"temperature", "strain"}:
+                return candidate
+        return "static"
+
+    def _record_preprocess_transaction_audit(self, audit):
+        if not isinstance(audit, dict):
+            return
+        self._last_preprocess_transaction_audit = deepcopy(audit)
+        technique = str(getattr(self, "_current_technique", "") or "").lower()
+        results = getattr(self, "_results", {})
+        result = results.get(technique) if isinstance(results, dict) else None
+        engine_cache = getattr(self, "_engine_cache", {})
+        engine = engine_cache.get(technique) if isinstance(engine_cache, dict) else None
+        for target in (result, engine):
+            if target is not None:
+                try:
+                    setattr(target, "saxs_confirmed_rerun_audit", deepcopy(audit))
+                except Exception:
+                    pass
+
+    def _assess_saxs_confirmed_rerun(self, result, *, mode):
+        """Resolve the mode DTO behind the generic worker result."""
+
+        engine = getattr(getattr(self, "_worker", None), "engine", None)
+        if engine is None:
+            cache = getattr(self, "_engine_cache", {})
+            technique = str(getattr(self, "_current_technique", "") or "").lower()
+            engine = cache.get(technique) if isinstance(cache, dict) else None
+        if engine is not None:
+            if mode == "temperature":
+                result = getattr(engine, "_temperature_result", None) or result
+            elif mode == "strain":
+                result = getattr(engine, "_strain_result", None) or result
+            else:
+                result = getattr(engine, "_analysis", None) or result
+        return assess_saxs_confirmed_rerun(result, mode=mode)
 
     def _preprocess_transaction_service(self, technique=None):
         service = getattr(self, "_preprocess_transaction", None)
@@ -432,6 +497,17 @@ class MainWindowAITuningMixin:
             rerun=self._run_analysis,
             persist_experience=self._persist_preprocess_experience_proposal,
             revoke_experience=self._revoke_preprocess_experience,
+            technique=current_technique.upper(),
+            mode_provider=self._saxs_preprocess_mode if current_technique == "saxs" else None,
+            validate_confirmation=(
+                validate_saxs_confirmation_report if current_technique == "saxs" else None
+            ),
+            validate_rerun=(
+                self._assess_saxs_confirmed_rerun if current_technique == "saxs" else None
+            ),
+            record_audit=(
+                self._record_preprocess_transaction_audit if current_technique == "saxs" else None
+            ),
         )
         self._preprocess_transaction = service
         return service
@@ -502,10 +578,11 @@ class MainWindowAITuningMixin:
         store = getattr(self, "preprocess_experience_store", None)
         return bool(store is not None and store.revoke(experience_id))
 
-    def _finalize_preprocess_apply_success(self):
+    def _finalize_preprocess_apply_success(self, result=None):
         service = getattr(self, "_preprocess_transaction", None)
         if service is not None:
-            service.finalize_success()
+            return service.finalize_success(result)
+        return True
 
     def _rollback_preprocess_apply_failure(self):
         service = getattr(self, "_preprocess_transaction", None)

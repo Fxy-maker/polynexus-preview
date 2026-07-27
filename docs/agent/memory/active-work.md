@@ -1,5 +1,37 @@
 # Active Work
 
+## SAXS AI confirmed-rerun safety - local checkpoint - 2026-07-27
+
+- The current slice adds a core SAXS adapter for strict JSON-safe confirmed
+  rerun evidence and candidate/hash/guard identity validation. It reuses the
+  existing static, temperature, and strain frame/series evidence; it does not
+  add thresholds, interpolation, frame repair, or automatic rescue.
+- The generic preprocessing transaction now keeps original config/result until
+  post-rerun gates pass, persists experience only after acceptance, records a
+  detached audit, and rolls back on missing/Diagnostic/Unusable evidence,
+  physical failure, config drift, or rerun exception. The GUI resolves the
+  generic worker result to the existing SAXS temperature/strain DTOs before
+  gating, and export carries the audit under `quality_evidence.json` AI
+  provenance.
+- Fresh evidence: RED collection failure due to missing adapter; focused GREEN
+  `33 passed`; complete SAXS matrix `338 passed, 4 warnings`; task-scoped
+  verifier passed task/memory, Ruff, compile/type baseline, quality `282`,
+  preprocessing `106`, and whitespace checks. Fresh full verification reached
+  `2763 passed, 1 failed, 10 warnings` after about 25:42; the unrelated
+  `tests/test_waxs_publication_cutover.py::test_waxs_engine_publishes_manifest_backed_assets`
+  failure stopped the chain before boundary audit. No full/boundary pass is
+  claimed and no child processes remain.
+- Task/plan/spec:
+  `docs/agent/tasks/2026-07-27-saxs-ai-confirmed-rerun-safety.md`,
+  `docs/superpowers/plans/2026-07-27-saxs-ai-confirmed-rerun-safety.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-ai-confirmed-rerun-safety-design.md`.
+- The explicit allowlist checkpoint was created locally; this documentation-only
+  amend records the final state. No push, merge, or deploy was performed.
+- A later doc-only verifier rerun without the dedicated basetemp hit the
+  pre-existing `.pytest_tmp` lock (`229 passed, 53 setup errors`); the earlier
+  dedicated task-scoped code verification remains the authoritative code
+  evidence, and the lock was not altered.
+
 ## SAXS Figure/Manifest evidence binding - local checkpoint - 2026-07-27
 
 - The new provider-side `figure_evidence` projection binds existing frame and

@@ -561,6 +561,21 @@ class MainWindowRunMixin:
         if hasattr(self, "_btn_cancel"):
             self._btn_cancel.setVisible(False)
 
+        transaction = getattr(self, "_preprocess_transaction", None)
+        finalize_preprocess = getattr(self, "_finalize_preprocess_apply_success", None)
+        transaction_pending = transaction is not None and getattr(
+            transaction.state, "phase", ""
+        ) in {"apply_pending", "undo_pending"}
+        if transaction_pending and callable(finalize_preprocess):
+            if not finalize_preprocess(result):
+                # The transaction restored the original result/config. Do not
+                # publish or persist the rejected candidate result.
+                self._populate_plots()
+                self._update_workspace_context()
+                self._update_results_compare_panel()
+                self._last_ai_tuned_run = False
+                return
+
         self._results[self._current_technique] = result
         if self._worker is not None and getattr(self._worker, "engine", None) is not None:
             self._engine_cache[self._current_technique] = self._worker.engine
@@ -588,9 +603,10 @@ class MainWindowRunMixin:
             )
         self._update_workspace_context()
         self._update_results_compare_panel()
-        finalize_preprocess = getattr(self, "_finalize_preprocess_apply_success", None)
-        if callable(finalize_preprocess):
-            finalize_preprocess()
+        if transaction_pending:
+            record_audit = getattr(self, "_record_preprocess_transaction_audit", None)
+            if callable(record_audit):
+                record_audit(getattr(transaction.state, "audit", {}))
         self._last_ai_tuned_run = False
 
     def _on_joint_hub_error(self, msg):

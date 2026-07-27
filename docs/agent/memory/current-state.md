@@ -7,6 +7,22 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS AI confirmed-rerun safety is implemented and checkpointed locally; this
+  documentation-only amend records the final state. The core adapter validates the
+  existing candidate identity/hard guards and projects only existing physical
+  and quality evidence for static, temperature, and strain. The shared
+  transaction service applies once, gates before persistence, rolls back on
+  unavailable/weak/failed evidence or hash drift, and records strict audit
+  provenance. GUI lifecycle resolution uses the existing temperature/strain
+  DTOs behind the generic worker result; `quality_evidence.json` remains the
+  authority. Focused evidence is `29 passed`; complete SAXS is `334 passed, 4
+  warnings`; task-scoped quality/preprocessing gates are `282`/`106`. Fresh
+  full verification reached `2763 passed, 1 failed, 10 warnings` after about
+  25:42, stopped by the unrelated WAXS publication-cutover test before
+  boundary audit; no full/boundary pass is claimed. Human scientific review
+  remains open. Task
+  card: `docs/agent/tasks/2026-07-27-saxs-ai-confirmed-rerun-safety.md`.
+
 - SAXS Figure/Manifest evidence binding is implemented and locally checkpointed
   without push. Figure providers attach detached,
   strict JSON-safe references to existing frame/series quality evidence while

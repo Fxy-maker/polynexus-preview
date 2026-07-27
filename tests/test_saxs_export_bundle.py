@@ -117,6 +117,28 @@ def test_export_saxs_bundle_persists_quality_evidence_and_ai_audit(tmp_path) -> 
     assert payload["ai_rescue"]["decision"]["apply_allowed"] is False
 
 
+def test_export_saxs_bundle_persists_confirmed_rerun_audit(tmp_path) -> None:
+    engine = _engine()
+    engine.saxs_confirmed_rerun_audit = {
+        "technique": "SAXS",
+        "mode": "temperature",
+        "phase": "rolled_back",
+        "apply_performed": False,
+        "rollback_reason": "post_rerun_gate_failed",
+    }
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "confirmed_rerun"))
+
+    payload = json.loads(
+        (tmp_path / "confirmed_rerun" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["ai_rescue"]["confirmed_rerun"]["apply_performed"] is False
+    assert payload["ai_rescue"]["confirmed_rerun"]["mode"] == "temperature"
+
+
 def test_export_saxs_bundle_preserves_series_and_frame_metric_evidence(tmp_path) -> None:
     engine = _engine()
     summary = {
