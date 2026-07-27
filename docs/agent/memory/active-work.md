@@ -1,5 +1,23 @@
 # Active Work
 
+## SAXS AI confirmation UI acceptance - route evidence added - 2026-07-27
+
+- The real offscreen `MainWindow` completion route now has focused regression
+  evidence for a SAXS `request_confirmation` report. The test constructs the
+  real `SideTuningReportDialog`, clicks its actual enabled Apply button, and
+  observes the existing `PreprocessTransactionService` enter one
+  `apply_pending` SAXS transaction. The reject path performs no apply or rerun.
+- TDD outcome: the new test passed immediately (`2 passed in 6.30s`), showing
+  that the automated route was already implemented. No production code or
+  scientific gate changed.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-27-saxs-ai-confirmation-ui-acceptance.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-ai-confirmation-ui-acceptance-design.md`,
+  and `docs/superpowers/plans/2026-07-27-saxs-ai-confirmation-ui-acceptance.md`.
+- Remaining release gates are restarted-GUI visual inspection, real-data
+  scientific meaning review, and human release approval. The route remains
+  subject to the existing SAXS physical/quality gates.
+
 ## SAXS condition-axis Export/History boundary audit - implementation in progress - 2026-07-27
 
 - The cross-boundary audit added regressions for the existing nested

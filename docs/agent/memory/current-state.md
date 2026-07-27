@@ -5,6 +5,18 @@ date: 2026-07-22
 title: Current PolyNexus repository state
 ---
 
+## Latest SAXS AI confirmation UI audit (2026-07-27)
+
+- The real offscreen `MainWindow` plus `SideTuningReportDialog` route is now
+  covered by `tests/test_saxs_ai_confirmation_gui_route.py`. Its Apply path
+  starts exactly one existing `apply_pending` SAXS transaction; its reject path
+  leaves the candidate unapplied. The focused route test returned `2 passed in
+  6.30s`.
+- The test passed against the existing code, so no production code, SAXS
+  threshold, physical gate, or quality gate changed. Automated confirmation is
+  now evidenced at the GUI-route boundary; restarted-GUI visual inspection,
+  real-data scientific review, and human release approval remain open.
+
 ## Mainline snapshot
 
 - SAXS condition-axis provenance now has an explicit Export/History boundary
