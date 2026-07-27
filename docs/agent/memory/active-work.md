@@ -1,5 +1,31 @@
 # Active Work
 
+## SAXS raw detector geometry and mask provenance transport - 2026-07-28
+
+- Raw detector reports now carry read-only `geometry_provenance` and
+  `mask_provenance`. Geometry records per-field header/default/invalid source
+  plus effective config values; mask records only the existing dummy-value
+  configuration and aligned shape. Both explicitly use `validity=not_assessed`.
+- Figure evidence transports the two fields only through the semantic
+  `raw_detector_quality_report` allowlist. Sector-map `detector_quality_report`
+  remains separate and cannot acquire raw geometry/mask claims.
+- TDD RED was `4 failed, 5 passed`; GREEN focused raw transport was `9 passed,
+  2 warnings`. Consumer matrix was `64 passed`; exact SAXS matrix was `377
+  passed, 6 warnings` under external basetemp.
+- The task-scoped verifier initially hit the pre-existing repository
+  `.pytest_tmp` Windows permission lock (`229 passed, 54 errors`) while
+  unrelated GUI/IR Python processes were alive. Rerun with external basetemp
+  exited `0`: quality `283`, preprocessing `106`, Ruff/compile/type, memory,
+  task check, and whitespace passed. No unrelated process or scratch file was
+  changed.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-raw-detector-provenance.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-raw-detector-provenance-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-raw-detector-provenance.md`.
+- Detector geometry calibration, beam-center interpretation, mask scientific
+  validity, saturation meaning, rescue/publication approval, and human release
+  review remain open.
+
 ## SAXS Workbench detector evidence visibility - 2026-07-28
 
 - The Results Workbench now projects the existing `raw_detector_quality_report`

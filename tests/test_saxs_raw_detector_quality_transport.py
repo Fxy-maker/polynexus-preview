@@ -62,6 +62,94 @@ def test_preprocess_pipeline_does_not_guess_missing_detector_evidence(monkeypatc
     assert "beam_center_missing" in report["reason_codes"]
 
 
+def test_raw_report_transports_complete_geometry_and_mask_provenance(monkeypatch):
+    from polynexus.core.saxs_engine import preprocess as preprocess_module
+    from polynexus.core.saxs_engine.io import extract_geometry_from_header
+
+    monkeypatch.setattr(preprocess_module, "build_integrator", lambda _cfg: None)
+    header = {
+        "WaveLength": "1.54e-10",
+        "PixelSize": "75e-6",
+        "SampleDistance": "0.45",
+        "Center_1": "1",
+        "Center_2": "1",
+    }
+    cfg = extract_geometry_from_header(header, _config())
+    processed = preprocess_module.preprocess_pipeline(
+        np.asarray([[1.0, 2.0], [-1.5, 9.0]]),
+        cfg,
+        detector_header=header,
+    )
+
+    report = processed["detector_quality_report"]
+    geometry = report["geometry_provenance"]
+    assert geometry["source"] == "header"
+    assert set(geometry["field_sources"].values()) == {"header"}
+    assert geometry["values"] == {
+        "wavelength_m": 1.54e-10,
+        "pixel_size_m": 75e-6,
+        "sdd_m": 0.45,
+        "beam_center_x": 1.0,
+        "beam_center_y": 1.0,
+    }
+    assert geometry["validity"] == "not_assessed"
+    assert report["mask_provenance"] == {
+        "source": "saxs_config.dummy_value",
+        "configured": True,
+        "shape": [2, 2],
+        "validity": "not_assessed",
+    }
+    json.dumps(report, allow_nan=False)
+
+
+def test_raw_report_distinguishes_mixed_and_invalid_geometry_without_gate_changes(
+    monkeypatch,
+):
+    from polynexus.core.saxs_engine import preprocess as preprocess_module
+    from polynexus.core.saxs_engine.io import extract_geometry_from_header
+
+    monkeypatch.setattr(preprocess_module, "build_integrator", lambda _cfg: None)
+    header = {"WaveLength": "1.54e-10", "PixelSize": "not-a-number"}
+    cfg = extract_geometry_from_header(header, _config())
+    processed = preprocess_module.preprocess_pipeline(
+        np.asarray([[1.0, 2.0], [3.0, 8.0]]),
+        cfg,
+        detector_header=header,
+    )
+
+    report = processed["detector_quality_report"]
+    geometry = report["geometry_provenance"]
+    assert geometry["source"] == "invalid_header"
+    assert geometry["field_sources"] == {
+        "wavelength_m": "header",
+        "pixel_size_m": "invalid_header",
+        "sdd_m": "config_default",
+        "beam_center_x": "config_default",
+        "beam_center_y": "config_default",
+    }
+    assert geometry["validity"] == "not_assessed"
+    assert report["level"] == "Diagnostic"
+    assert "beam_center_missing" in report["reason_codes"]
+
+
+def test_raw_report_marks_unconfigured_mask_without_inference(monkeypatch):
+    from polynexus.core.saxs_engine import preprocess as preprocess_module
+
+    monkeypatch.setattr(preprocess_module, "build_integrator", lambda _cfg: None)
+    cfg = _config()
+    cfg.dummy_val = np.nan
+    processed = preprocess_module.preprocess_pipeline(
+        np.asarray([[1.0, 2.0], [3.0, 8.0]]), cfg, detector_header={}
+    )
+
+    assert processed["detector_quality_report"]["mask_provenance"] == {
+        "source": "none",
+        "configured": False,
+        "shape": None,
+        "validity": "not_assessed",
+    }
+
+
 def test_directory_load_retains_one_raw_report_per_image_frame(tmp_path, monkeypatch):
     from polynexus.core import saxs as saxs_module
     from polynexus.core.saxs_engine.config import ExperimentCondition
@@ -205,6 +293,18 @@ def test_raw_report_survives_existing_figure_and_export_evidence_boundaries():
         "level": "Diagnostic",
         "reason_codes": ["detector_saturation_unknown"],
         "coverage_fraction": 0.75,
+        "geometry_provenance": {
+            "source": "mixed",
+            "field_sources": {"sdd_m": "config_default"},
+            "values": {"sdd_m": 0.45},
+            "validity": "not_assessed",
+        },
+        "mask_provenance": {
+            "source": "none",
+            "configured": False,
+            "shape": None,
+            "validity": "not_assessed",
+        },
     }
     analysis = SimpleNamespace(raw_detector_quality_report=report)
     frame = SAXSFrameView(
@@ -233,4 +333,36 @@ def test_raw_report_survives_existing_figure_and_export_evidence_boundaries():
         figure_payload["series_record"]["raw_detector_quality_report"]["source_kind"]
         == "raw_detector"
     )
+    assert (
+        figure_payload["frame_records"][0]["raw_detector_quality_report"][
+            "geometry_provenance"
+        ]["source"]
+        == "mixed"
+    )
+    assert (
+        figure_payload["series_record"]["raw_detector_quality_report"][
+            "mask_provenance"
+        ]["source"]
+        == "none"
+    )
+
+    sector_report = {
+        "source_kind": "sector_map",
+        "level": "Diagnostic",
+        "geometry_provenance": {"source": "should-not-be-present"},
+        "mask_provenance": {"source": "should-not-be-present"},
+    }
+    sector_frame = SAXSFrameView(
+        index=1,
+        label="sector-frame",
+        condition=0.0,
+        q=np.asarray([0.1, 0.2]),
+        intensity=np.asarray([1.0, 2.0]),
+        analysis=SimpleNamespace(detector_quality_report=sector_report),
+        parameters={},
+    )
+    sector_payload = build_saxs_figure_evidence([sector_frame], mode="static")
+    projected_sector = sector_payload["frame_records"][0]["detector_quality_report"]
+    assert "geometry_provenance" not in projected_sector
+    assert "mask_provenance" not in projected_sector
     json.dumps(figure_payload, allow_nan=False)

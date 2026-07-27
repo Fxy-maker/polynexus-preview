@@ -669,15 +669,18 @@ def preprocess_pipeline(
         except Exception:
             logger.warning("SAXS azimuthal sector integration failed; orientation is unavailable.", exc_info=True)
     result["sector_data"] = sector_data
+    detector_mask = _build_mask(img, cfg)
     detector_report = build_detector_quality_report(
         img,
-        mask=_build_mask(img, cfg),
+        mask=detector_mask,
         saturation_value=_header_float(
             detector_header,
             ("saturation", "saturation_value", "saturationvalue"),
         ),
         source_kind="raw_detector",
         beam_center=_header_beam_center(detector_header),
+        geometry_provenance=_geometry_provenance(detector_header, cfg),
+        mask_provenance=_mask_provenance(img, detector_mask),
     )
     result["detector_quality_report"] = detector_report.to_dict()
 
@@ -726,6 +729,117 @@ def _header_beam_center(
     if x_value is None or y_value is None:
         return None
     return x_value, y_value
+
+
+def _normalized_header(header: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    """Normalize known EDF header spellings without interpreting unknown keys."""
+    if not isinstance(header, Mapping):
+        return {}
+    return {
+        str(key).strip().lower().replace("-", "_").replace(" ", "_"): value
+        for key, value in header.items()
+    }
+
+
+def _geometry_field_source(
+    header: Optional[Mapping[str, Any]],
+    names: Tuple[str, ...],
+) -> str:
+    """Classify only explicit, finite, positive geometry header values."""
+    normalized = _normalized_header(header)
+    present = False
+    for name in names:
+        key = str(name).strip().lower().replace("-", "_").replace(" ", "_")
+        if key not in normalized:
+            continue
+        present = True
+        try:
+            value = float(normalized[key])
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(value) and value > 0:
+            return "header"
+    return "invalid_header" if present else "config_default"
+
+
+def _finite_config_value(value: Any) -> float | None:
+    """Return an effective geometry value as a strict-JSON-safe float."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return float(number) if np.isfinite(number) else None
+
+
+def _geometry_provenance(
+    header: Optional[Mapping[str, Any]],
+    cfg: SAXSConfig,
+) -> dict[str, Any]:
+    """Record geometry origins without assessing calibration validity."""
+    field_sources = {
+        "wavelength_m": _geometry_field_source(
+            header, ("wavelength", "wave_length")
+        ),
+        "pixel_size_m": _geometry_field_source(
+            header, ("pixelsize", "pixel_size", "psize_1")
+        ),
+        "sdd_m": _geometry_field_source(
+            header, ("sampledistance", "sample_distance", "detector_distance")
+        ),
+        "beam_center_x": _geometry_field_source(
+            header, ("center_1", "center_x", "beam_center_x")
+        ),
+        "beam_center_y": _geometry_field_source(
+            header, ("center_2", "center_y", "beam_center_y")
+        ),
+    }
+    statuses = set(field_sources.values())
+    if statuses == {"header"}:
+        source = "header"
+    elif statuses == {"config_default"}:
+        source = "config_default"
+    elif "invalid_header" in statuses:
+        source = "invalid_header"
+    else:
+        source = "mixed"
+    return {
+        "source": source,
+        "field_sources": field_sources,
+        "values": {
+            "wavelength_m": _finite_config_value(getattr(cfg, "wavelength_m", None)),
+            "pixel_size_m": _finite_config_value(getattr(cfg, "pixel_size_m", None)),
+            "sdd_m": _finite_config_value(getattr(cfg, "sdd_m", None)),
+            "beam_center_x": _finite_config_value(getattr(cfg, "beam_center_x", None)),
+            "beam_center_y": _finite_config_value(getattr(cfg, "beam_center_y", None)),
+        },
+        "validity": "not_assessed",
+    }
+
+
+def _mask_provenance(
+    img: Any,
+    mask: Any,
+) -> dict[str, Any]:
+    """Record only the configured mask origin and aligned image shape."""
+    if mask is None:
+        return {
+            "source": "none",
+            "configured": False,
+            "shape": None,
+            "validity": "not_assessed",
+        }
+    shape = getattr(mask, "shape", ())
+    image_shape = getattr(img, "shape", ())
+    if len(shape) == 2 and tuple(shape) == tuple(image_shape):
+        serialized_shape = [int(item) for item in shape]
+    else:
+        serialized_shape = None
+    return {
+        "source": "saxs_config.dummy_value",
+        "configured": True,
+        "shape": serialized_shape,
+        "validity": "not_assessed",
+    }
 
 
 def detect_beamstop_edge(

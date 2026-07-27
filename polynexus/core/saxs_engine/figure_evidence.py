@@ -53,6 +53,8 @@ _DETECTOR_EVIDENCE_FIELDS = (
     "saturation_detection_available",
     "beam_center_available",
     "beam_center",
+    "geometry_provenance",
+    "mask_provenance",
     "frame_count",
     "evidence_frame_count",
     "missing_frame_count",
@@ -178,6 +180,20 @@ def _project_metric_collection(payload: Any) -> dict[str, dict[str, Any]]:
     return projected
 
 
+def _detector_evidence_fields(
+    field: str,
+    payload: Any,
+) -> Sequence[str]:
+    """Keep raw-only provenance out of the sector-map detector contract."""
+    if field == "raw_detector_quality_report":
+        return _DETECTOR_EVIDENCE_FIELDS
+    return tuple(
+        name
+        for name in _DETECTOR_EVIDENCE_FIELDS
+        if name not in {"geometry_provenance", "mask_provenance"}
+    )
+
+
 def _first_frame_value(frame: SAXSFrameView, field: str) -> Any:
     sources: list[Mapping[str, Any]] = []
     if isinstance(frame.parameters, Mapping):
@@ -242,16 +258,14 @@ def _frame_record(
         "raw_detector_quality_report",
         "orientation_evidence",
     ):
-        projected = _project_mapping(
-            _first_frame_value(frame, field),
-            (
-                _DATA_QUALITY_FIELDS
-                if field == "data_quality_report"
-                else _DETECTOR_EVIDENCE_FIELDS
-                if field in {"detector_quality_report", "raw_detector_quality_report"}
-                else _COMMON_EVIDENCE_FIELDS
-            ),
-        )
+        value = _first_frame_value(frame, field)
+        if field == "data_quality_report":
+            fields = _DATA_QUALITY_FIELDS
+        elif field in {"detector_quality_report", "raw_detector_quality_report"}:
+            fields = _detector_evidence_fields(field, value)
+        else:
+            fields = _COMMON_EVIDENCE_FIELDS
+        projected = _project_mapping(value, fields)
         if projected:
             record[field] = projected
     return record
@@ -279,7 +293,7 @@ def _series_record(series: Any) -> dict[str, Any]:
     ):
         projected = _project_mapping(
             getattr(series, field, None),
-            _DETECTOR_EVIDENCE_FIELDS
+            _detector_evidence_fields(field, getattr(series, field, None))
             if field in {"detector_quality_report", "raw_detector_quality_report"}
             else _COMMON_EVIDENCE_FIELDS,
         )

@@ -1,5 +1,23 @@
 ---
 
+## SAXS raw detector geometry and mask provenance transport (2026-07-28)
+
+- The raw detector report now transports per-field geometry provenance and
+  existing dummy-mask provenance as strict JSON-safe nested mappings. The
+  payload records origin only; `validity=not_assessed` preserves the human
+  scientific boundary.
+- Figure frame/series evidence keeps these fields only on
+  `raw_detector_quality_report`; sector-map `detector_quality_report` remains
+  source-separated. No threshold, quality level, physical gate, rescue, or
+  publication role changed.
+- Fresh evidence: raw focused `9 passed, 2 warnings`, consumer matrix `64
+  passed`, exact SAXS matrix `377 passed, 6 warnings`, task verifier exit `0`
+  with quality `283` and preprocessing `106`. The first verifier attempt was
+  blocked by a pre-existing `.pytest_tmp` Windows permission lock; the external
+  basetemp rerun is the authoritative task-scoped evidence.
+- See task card
+  `docs/agent/tasks/2026-07-28-saxs-raw-detector-provenance.md`.
+
 ## SAXS Workbench detector evidence visibility (2026-07-28)
 
 - Existing raw-detector and sector-map quality reports are now visible as

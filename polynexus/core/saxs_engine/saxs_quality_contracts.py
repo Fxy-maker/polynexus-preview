@@ -171,6 +171,8 @@ class DetectorQualityReport:
     saturation_detection_available: bool = False
     beam_center_available: bool = False
     beam_center: tuple[float, float] | None = None
+    geometry_provenance: Mapping[str, Any] | None = None
+    mask_provenance: Mapping[str, Any] | None = None
     reason_codes: tuple[str, ...] = ()
     level: QualityLevel = QualityLevel.UNUSABLE
 
@@ -199,6 +201,8 @@ def build_detector_quality_report(
     saturation_value: Any = None,
     source_kind: str = "unknown",
     beam_center: Any = None,
+    geometry_provenance: Mapping[str, Any] | None = None,
+    mask_provenance: Mapping[str, Any] | None = None,
 ) -> DetectorQualityReport:
     """Build a strict, read-only quality report for a 2D intensity input."""
 
@@ -320,6 +324,8 @@ def build_detector_quality_report(
         saturation_detection_available=saturation_available,
         beam_center_available=center is not None,
         beam_center=center,
+        geometry_provenance=geometry_provenance,
+        mask_provenance=mask_provenance,
         reason_codes=tuple(dict.fromkeys(reasons)),
         level=level,
     )
