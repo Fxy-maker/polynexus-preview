@@ -1568,28 +1568,28 @@
   `nmr.solid_c`, applies scoped config aliases, and emits peak shifts, peak
   counts, SNR, Xc/assignment status, fit quality, and engine/submodule
   provenance. The bridge regression and the existing IR/DSC/SAXS/WAXS eval /
-  publication matrix pass (`12 passed`); task-scoped verifier and atomic
-  checkpoint remain pending. The repository still lacks a registered NMR
+  publication matrix pass (`12 passed`); task-scoped verifier passed and the
+  atomic checkpoint is `4721b16`. The repository still lacks a registered NMR
   vendor/real regression source, so this is not scientific real-data
   acceptance. See `docs/agent/tasks/2026-07-25-nmr-real-eval-bridge.md`.
 - History restore now rehydrates the manifest-only Gallery after restoring a
   run's `output_dir`; a real IR FigurePipeline manifest is visible with its run
   and figure IDs after restore. Focused history/persistence/editor matrix passed
   (`32 passed`); task-scoped verifier passed with quality gate `282` and
-  preprocessing gate `103`. Atomic checkpoint is still pending. See
+  preprocessing gate `103`. Atomic checkpoint is `5ad3ac9`. See
   `docs/agent/tasks/2026-07-25-history-gallery-restore.md`.
 - Export bundles now declare `figure_runs: metadata/runs` and
   `active_figure_run: metadata/active_run.json`; the source active pointer is
   copied when present and README names the manifest-backed run section. Focused
   export/GUI matrix passed (`15 passed`); task verifier passed with quality gate
-  `282` and preprocessing gate `103`. Atomic checkpoint is still pending. See
+  `282` and preprocessing gate `103`. Atomic checkpoint is `254b849`. See
   `docs/agent/tasks/2026-07-25-export-figure-run-provenance.md`.
 - IR temperature-2D figure data now preserves numeric `temperature_C` and
   `time_min` columns and recipe-level label/stage/estimated-time/order-source
   metadata; missing numeric conditions remain NaN and no axis or role semantics
   changed. The 15-test IR provider/temperature matrix and task verifier passed
   with quality gate `282` and preprocessing gate `103`. Atomic checkpoint is
-  still pending. See
+  `02f0b56`. See
   `docs/agent/tasks/2026-07-25-ir-temperature-frame-provenance.md`.
 - AI preprocessing mainline is active on `codex/ai-preprocess-mainline-v2` from
   `main@4437bc90`. Foundation, semantic intents, DSC/IR/WAXS, and SAXS/NMR
