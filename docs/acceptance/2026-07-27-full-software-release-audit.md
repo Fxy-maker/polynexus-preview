@@ -17,6 +17,7 @@ Status: automated evidence complete; release not approved
 | NMR real published-run walkthrough | `4 passed` (`liquid H/C`, `solid H/C`) | automated-pass; assignment-limited solid C remains provisional |
 | Joint publish/editor/export/history lifecycle | `1 passed` with synthetic cross-technique rows | automated-pass for lifecycle; scientific conflict review open |
 | Per-technique lifecycle closures | DSC `3`, WAXS `3`, IR `3` (including mapping), NMR `4`, Joint `1` passed | automated-pass |
+| GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
 | Combined lifecycle/real-fixture attempt | 180-second tool window expired without a summary; replaced for evidence purposes by the successful per-technique shards below | historical bounded-timeout |
 | Full repository verifier | Fresh dedicated run: `2767 passed, 10 warnings` in `24:13`; compile, quality, whitespace, and boundary audit passed | automated-pass with known warnings |

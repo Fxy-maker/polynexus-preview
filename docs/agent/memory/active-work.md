@@ -39,6 +39,8 @@
   cases: DSC `3` (11 existing warnings), WAXS `3`, SAXS `3`, IR `2`, and NMR
   `4`. Separate lifecycle closures passed DSC `3`, WAXS `3`, IR `3`, NMR `4`,
   and Joint `1`; solid-state NMR C assignment remains provisional.
+- GUI shell/workbench/gallery/editor route contracts add `58 passed`; pixel-level
+  restarted-GUI review remains a human gate.
 - The combined real/lifecycle command exceeded the 180-second tool window
   without a summary and was explicitly terminated; it is recorded as a
   bounded timeout, not a pass. Canonical GUI default-shell screenshot evidence

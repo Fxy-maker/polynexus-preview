@@ -91,6 +91,8 @@ limitation rather than pass.
 - Lifecycle closure shards: DSC `3`, WAXS `3`, IR `3`, NMR `4`, and Joint `1`
   passed. IR's three modes include mapping; NMR's solid C assignment remains
   provisional.
+- GUI shell/workbench/gallery/editor route contracts passed `58` focused tests;
+  this does not replace the restarted-GUI pixel-level walkthrough.
 - A combined lifecycle/real-run command exceeded the short 180-second tool
   window without a test summary; this is not a pass or a failure claim.
 - A fresh dedicated full verifier completed with `2767 passed, 10 warnings` in
