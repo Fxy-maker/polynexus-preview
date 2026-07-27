@@ -32,13 +32,13 @@
 
 ## Acceptance criteria
 
-- [ ] 现有 Guinier 拟合输出可生成严格 JSON-safe 的 `GuinierEvidence`。
-- [ ] `Quantitative` 必须同时满足数据质量、显式适用性、拟合质量和
+- [x] 现有 Guinier 拟合输出可生成严格 JSON-safe 的 `GuinierEvidence`。
+- [x] `Quantitative` 必须同时满足数据质量、显式适用性、拟合质量和
   `qRg < 1.3`；适用性未知/不支持时最高为 `Diagnostic`。
-- [ ] `Rg` 不确定度在自由度和斜率有效时可追溯；否则显式降级。
-- [ ] 变温每帧保留自己的数据质量、证据、等级和 reason code。
-- [ ] core 失败或输入缺失时不伪造温度帧或曲线。
-- [ ] focused tests、结构化 verifier 和原子 checkpoint 有实际证据。
+- [x] `Rg` 不确定度在自由度和斜率有效时可追溯；否则显式降级。
+- [x] 变温每帧保留自己的数据质量、证据、等级和 reason code。
+- [x] core 失败或输入缺失时不伪造温度帧或曲线。
+- [x] focused tests、结构化 verifier 和原子 checkpoint 有实际证据。
 
 ## Verification
 
@@ -46,6 +46,12 @@
 $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_saxs_temperature_guinier_verify'
 python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-temperature-guinier-evidence.md --changed --types
 ```
+
+实际证据：Guinier/变温 focused tests `24 passed`；完整 SAXS 矩阵
+`227 passed`（4 个既有 Matplotlib 字体 warning）；quality gate `282
+passed`；preprocessing gate `103 passed`；结构化 verifier 通过。代码
+checkpoint 为 `17dcb0b`。`core.py` 和 `saxs_temperature.py` 的历史 Ruff
+baseline findings 与本阶段科学行为分开记录，未将其误报为新回归。
 
 ## Known limitations
 

@@ -67,12 +67,14 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
-- SAXS temperature Guinier Stage 1 is in progress. The new deterministic
-  evidence path has focused propagation evidence (`24 passed`) and the complete
-  SAXS matrix passes (`227 passed`, four existing font warnings). It is not yet
-  a completed checkpoint: core/temperature legacy Ruff findings must be kept
-  separate from the new scientific behavior and the structured verifier must
-  be rerun after the atomic checkpoint.
+- SAXS temperature Guinier Stage 1 is checkpointed at `17dcb0b`. The new
+  deterministic evidence path has focused propagation evidence (`24 passed`),
+  complete SAXS matrix evidence (`227 passed`, four existing font warnings),
+  quality gate evidence (`282 passed`), preprocessing gate evidence (`103
+  passed`), and a passing structured verifier. Core/temperature legacy Ruff
+  baseline findings remain a separate known limitation and are not evidence of
+  a scientific regression. The next active slice is sequence-level Guinier
+  trend/continuity grading without fabricating missing temperature frames.
 
 - SAXS quality-contract Stage 0 is now isolated as a typed, strict-JSON
   contract layer for data defects, metric evidence, and rescue validation.
