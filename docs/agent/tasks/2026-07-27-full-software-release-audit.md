@@ -148,6 +148,13 @@ limitation rather than pass.
   DSC `3` in `23.13s`, SAXS `3` in `48.91s`, WAXS `3` in `85.25s`, IR `2` in
   `65.91s`, and NMR `4` in `111.49s`. Representative Results captures now
   represent populated tables; inactive-grab contrast remains a human gate.
+- The native visual review identified a real Light-theme defect in the shared
+  Results Workbench: inline labels retained dark-only colors. Results labels
+  now reapply active `ThemeTokens` on construction and theme switches, and the
+  Light `text_muted` token is `#667085` for `4.72:1` contrast against the Light
+  background. TDD/theme focus passed `24` tests, and the complete non-Joint
+  native matrix passed `15` tests after the change. This closes the code-level
+  contrast defect; activated/restarted-GUI review remains open.
 - The native harness now triggers the real Chart Editor Export `QAction` for
   every mode using only the existing `PackageExporter` fallback. A second
   native matrix passed with exit code `0`: DSC `3` (24.25s), SAXS `3` (49.85s),

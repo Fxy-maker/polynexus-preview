@@ -180,7 +180,9 @@ LIGHT_TOKENS = ThemeTokens(
     # Text
     text_primary="#172033",
     text_secondary="#4e5b6e",
-    text_muted="#8792a3",
+    # Keep muted review/context text readable on the light background; this
+    # token is used for body labels, not only decorative captions.
+    text_muted="#667085",
     text_on_accent="#ffffff",
     # Accents — slightly muted for light background readability
     accent_saxs="#168e9f",

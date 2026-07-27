@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtWidgets import QApplication
+
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
 from polynexus.gui.main_window_workspace_mixin import MainWindowWorkspaceMixin
+from polynexus.gui.theme import DARK_TOKENS, LIGHT_TOKENS, ThemeEngine
 from polynexus.gui.workspace_context import WorkspaceContext, WorkspaceResultStatus
 
 
@@ -45,6 +49,43 @@ def test_main_window_reuses_result_context_helpers_from_results_mixin() -> None:
     assert MainWindow._result_origin_label is MainWindowResultsMixin._result_origin_label
     assert MainWindow._build_results_tab is MainWindowResultsMixin._build_results_tab
     assert MainWindow._build_joint_metric_label is MainWindowResultsMixin._build_joint_metric_label
+
+
+def test_results_text_uses_active_light_theme_tokens() -> None:
+    QApplication.instance() or QApplication([])
+    theme = ThemeEngine.instance()
+    previous_theme = theme.current
+    theme.switch("light")
+    window = MainWindow()
+    try:
+        assert LIGHT_TOKENS.text_primary in window._results_summary_label.styleSheet()
+        assert LIGHT_TOKENS.text_muted in window._results_summary_risk_label.styleSheet()
+        assert LIGHT_TOKENS.text_primary in window._results_review_title.styleSheet()
+        theme.switch("dark")
+        assert DARK_TOKENS.text_primary in window._results_summary_label.styleSheet()
+        assert DARK_TOKENS.text_muted in window._results_summary_risk_label.styleSheet()
+    finally:
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        theme.switch(previous_theme)
+
+
+def test_light_theme_muted_text_meets_body_contrast() -> None:
+    def relative_luminance(value: str) -> float:
+        channels = [int(value[index : index + 2], 16) / 255.0 for index in (1, 3, 5)]
+        linear = [
+            channel / 12.92
+            if channel <= 0.04045
+            else ((channel + 0.055) / 1.055) ** 2.4
+            for channel in channels
+        ]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    background = relative_luminance(LIGHT_TOKENS.bg_deep)
+    muted = relative_luminance(LIGHT_TOKENS.text_muted)
+    lighter, darker = max(background, muted), min(background, muted)
+
+    assert (lighter + 0.05) / (darker + 0.05) >= 4.5
 
 
 class _StaleResultsWindow(MainWindowResultsMixin, MainWindowWorkspaceMixin):

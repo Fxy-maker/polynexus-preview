@@ -42,6 +42,7 @@ from .results_review_service import (
     build_result_review_panel_texts_from_window,
 )
 from .styles import C_TEXT_MUTED, C_TEXT_PRIMARY
+from .theme import ThemeEngine
 from ..core.engine import logger
 
 
@@ -139,6 +140,45 @@ class MainWindowResultsMixin:
         if translation_key:
             return tr(translation_key)
         return key or "Unknown"
+
+    def _refresh_results_text_theme(self, _theme_name: str = "") -> None:
+        """Keep Results Workbench inline label styles aligned with active QSS."""
+        tokens = ThemeEngine.instance().tokens
+        primary = f"color: {tokens.text_primary}; font-weight: 600;"
+        muted = f"color: {tokens.text_muted};"
+        muted_emphasis = f"color: {tokens.text_muted}; font-weight: 600;"
+
+        for name in (
+            "_results_summary_label",
+            "_results_review_title",
+            "_results_compare_desc",
+            "_results_confirm_desc",
+        ):
+            widget = getattr(self, name, None)
+            if widget is not None:
+                widget.setStyleSheet(primary)
+        for name in (
+            "_results_summary_risk_label",
+            "_results_summary_next_label",
+            "_results_review_meta",
+            "_results_review_benchmark",
+            "_results_review_chain",
+            "_results_review_trend",
+            "_results_review_boundary",
+            "_results_review_joint",
+            "_results_review_risk",
+            "_results_review_next",
+            "_results_compare_current",
+            "_results_compare_baseline",
+            "_results_compare_hint",
+            "_results_confirm_status",
+        ):
+            widget = getattr(self, name, None)
+            if widget is not None:
+                widget.setStyleSheet(muted)
+        widget = getattr(self, "_results_compare_selector_label", None)
+        if widget is not None:
+            widget.setStyleSheet(muted_emphasis)
 
     def _build_results_tab(self):
 
@@ -421,6 +461,10 @@ class MainWindowResultsMixin:
         self._btn_ai_tune.clicked.connect(self.on_ai_tune_clicked)
         action_row.addWidget(self._btn_ai_tune)
         layout.addLayout(action_row)
+
+        theme = ThemeEngine.instance()
+        theme.theme_changed.connect(self._refresh_results_text_theme)
+        self._refresh_results_text_theme(theme.current)
 
         return w
 

@@ -163,6 +163,13 @@ restarted-GUI release review remain open. See
 - [ ] Perform restarted-GUI visual walkthrough for every Workbench mode, Gallery card, Editor entry and export bundle.
 - [ ] Record human scientific review, known limitations and release decision.
 
+Current GUI evidence (2026-07-28): a real Light-theme Results contrast defect
+was fixed in the shared Workbench boundary. Inline Results labels now follow
+active theme tokens, Light muted text meets `4.72:1` body contrast, and the
+complete non-Joint native route matrix passes after the change. This is a
+code-level correction only; the restarted-GUI walkthrough and human release
+decision remain required.
+
 ### Checkpoint protocol for every phase
 
 - [ ] Write failing tests before production behavior changes.

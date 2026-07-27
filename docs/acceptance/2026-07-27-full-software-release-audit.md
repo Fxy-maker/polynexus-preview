@@ -21,6 +21,7 @@ Status: automated evidence complete; release not approved
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
 | Real-result GUI route capture | Temporary pytest capture `1 passed`; restored DSC run produced Results, Gallery, History, and Editor screenshots with one manifest gallery entry | structural-pass; offscreen CJK font boxes require live visual review |
 | Native Windows Qt real-route harness | Fresh post-fix shards: `DSC 3`, `SAXS 3`, `WAXS 3`, `IR 2`, `NMR 4` passed, all exit code `0`; each case restored actual `AnalysisResult` parameters/payload, asserted a non-empty Results table, and captured Results, Gallery, History, Editor, and package Export artifacts | automated route/package-export pass; inactive-grab body contrast/activity and installed Origin/COM remain human/optional-runtime gates |
+| Results Workbench Light-theme contrast | TDD regression plus theme-switch test `2 passed`; Light muted text now has `4.72:1` contrast against the light background, and the complete 15-mode native route matrix passed after the fix | automated contrast/route pass; restarted-GUI visual review remains open |
 | IR mapping/ROI contract and lifecycle | `11 passed`; geometry mismatch and invalid pixels are rejected, provenance/roles/handoff are preserved | automated structural-pass; vendor semantics intentionally not inferred |
 | NMR/Joint provenance and lifecycle | `4 passed`; NMR Main/diagnostic and Joint run provenance survive publication/history | automated provenance-pass; solid C assignment and Joint conflicts require scientific review |
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
@@ -119,6 +120,15 @@ NMR `4 passed, 12 deselected in 111.49s`; every command exited `0`. A
 representative native Results capture now corresponds to a non-empty table,
 but its inactive `grab()` body text remains visually pale and therefore stays
 an explicit human contrast/activity gate.
+
+The native visual review then exposed a real Light-theme issue: Results labels
+were retaining old dark-only inline colors while the active background was
+light. `MainWindowResultsMixin` now reapplies the active `ThemeTokens` on
+construction and live theme switches, and Light `text_muted` is `#667085`
+(`4.72:1` against `#f7f9fc`). The focused Results/theme matrix passed `24`
+tests; the complete non-Joint native route matrix passed `15` tests after the
+change. This closes the code-level contrast defect, but does not substitute
+for a reviewer inspecting an activated/restarted GUI window.
 
 The separate native Joint probe passed `1 passed, 15 deselected in 5.94s`,
 exit code `0`. It uses the existing synthetic `JointCoordinator` report-level

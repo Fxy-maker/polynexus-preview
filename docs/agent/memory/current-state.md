@@ -1,5 +1,18 @@
 ---
 
+## Results Workbench Light-theme contrast correction (2026-07-28)
+
+- Results Workbench inline labels now use the active `ThemeTokens` at build time
+  and after live theme switches; old dark-only `styles.py` colors no longer
+  leak into the Light surface.
+- Light `text_muted` is now `#667085`, giving `4.72:1` contrast against the
+  Light background `#f7f9fc`. Focused Results/theme evidence is `24 passed`;
+  the complete non-Joint native route matrix is `15 passed` after the fix.
+- This closes the code-level contrast defect. Activated/restarted-GUI visual
+  review, IR vendor mapping/ROI semantics, solid-C NMR assignment, Joint
+  scientific conflicts, Origin/COM optional runtime, and final release
+  approval remain open.
+
 ## Native Results restore acceptance correction (2026-07-28)
 
 - The native real-route harness now restores each engine run with its existing

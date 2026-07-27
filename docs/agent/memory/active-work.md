@@ -1,5 +1,21 @@
 # Active Work
 
+## Results Workbench Light-theme contrast correction - ready for checkpoint - 2026-07-28
+
+- Reproduced the native pale-body issue as a production defect: Results labels
+  used dark-only inline colors while the active Light background was pale.
+  `MainWindowResultsMixin` now reapplies active `ThemeTokens` during creation
+  and live theme changes; Light `text_muted` is `#667085` with `4.72:1` body
+  contrast against `#f7f9fc`.
+- TDD RED: the Light-theme label assertion failed with `#e8eaf0`, and the
+  contrast assertion failed at `2.98:1`. GREEN: Results/theme focus `24 passed`.
+  Native representative route passed `1` case; the full non-Joint native matrix
+  passed `15` cases with exit `0` after the fix.
+- Remaining work is activated/restarted-GUI visual review and the existing
+  scientific/release gates; no scientific threshold or result semantics changed.
+- The explicit allowlist checkpoint is the next action; no push, merge,
+  deployment, or release approval is implied.
+
 ## Native Results restore acceptance correction - evidence refreshed - 2026-07-28
 
 - The native GUI route harness now restores the actual engine result payload
