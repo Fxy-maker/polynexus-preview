@@ -7,8 +7,8 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
-- SAXS series metric position evidence is implemented locally but its
-  checkpoint is blocked by shared Git index permissions: existing
+- SAXS series metric position evidence is implemented and checkpointed at
+  `bd7c3fd`: existing
   summaries now expose deterministic frame positions for evidence/missing/
   diagnostic/unusable/invalid-level states, and temperature summaries retain
   sorted-to-original `source_index` mapping. This is read-only provenance; no

@@ -140,7 +140,7 @@ Use an isolated basetemp if the repository's pre-existing temp directories
 are locked, and report the exact result rather than treating a timeout as a
 pass.
 
-- [ ] **Step 3: Create one explicit-allowlist checkpoint**
+- [x] **Step 3: Create one explicit-allowlist checkpoint**
 
 After all checks pass, run `scripts/auto_commit.py` with exactly the changed
   files listed in the task card. Do not stage or clean unrelated workspace
@@ -155,6 +155,7 @@ After all checks pass, run `scripts/auto_commit.py` with exactly the changed
 - Allowlist Ruff, `py_compile`, and `git diff --check` passed.
 - Structured `--changed --types` is blocked by pre-existing Ruff findings in
   unrelated modified files; the task does not change or repair those files.
+- Allowlist checkpoint created as `bd7c3fd`; no push, merge, or deploy.
 
 ## Plan self-review
 

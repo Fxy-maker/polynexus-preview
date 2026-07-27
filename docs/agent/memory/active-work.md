@@ -1,6 +1,6 @@
 # Active Work
 
-## SAXS series metric position evidence - implementation checkpoint blocked - 2026-07-27
+## SAXS series metric position evidence - checkpoint bd7c3fd - 2026-07-27
 
 - Existing series `MetricEvidenceSummary` now records deterministic evidence,
   missing, diagnostic, unusable, and invalid-level frame positions. A valid
@@ -17,10 +17,10 @@
   findings in unrelated modified files (`config.py`, `saxs_anisotropy.py`, and
   other shared-worktree paths); a non-changed verifier attempt hit the known
   Windows `pytest` child launch `WinError 5`. No unrelated file was repaired.
-- Two explicit-allowlist `scripts/auto_commit.py` attempts were blocked before
-  staging by `D:/PolyNexus/.git/index.lock` permission denied. No checkpoint
-  commit hash exists; shared long-running Python/pytest processes and Git
-  permissions were left untouched.
+- Two initial `scripts/auto_commit.py` attempts were blocked by transient
+  `D:/PolyNexus/.git/index.lock` permission denied; after the shared Git
+  process state cleared, the exact allowlist checkpoint `bd7c3fd` was created.
+  No push or unrelated cleanup was performed.
 - Task/spec/plan: `docs/agent/tasks/2026-07-27-saxs-series-metric-position-evidence.md`,
   `docs/superpowers/specs/2026-07-27-saxs-series-metric-position-evidence-design.md`,
   and `docs/superpowers/plans/2026-07-27-saxs-series-metric-position-evidence.md`.

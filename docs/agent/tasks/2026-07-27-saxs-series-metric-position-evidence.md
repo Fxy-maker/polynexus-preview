@@ -39,9 +39,8 @@ guessing from frame payloads.
   pass.
 - [x] The exact structured `--changed --types` verifier was attempted and its
   unrelated shared-worktree/environment limitation is recorded below.
-- [ ] The explicit-allowlist checkpoint is pending because
-  `scripts/auto_commit.py` cannot create `.git/index.lock` in the shared
-  workspace (`Permission denied`).
+- [x] Explicit-allowlist checkpoint `bd7c3fd` was created with
+  `scripts/auto_commit.py`; no push was performed.
 
 ## Implementation plan
 
@@ -93,7 +92,8 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-series-metric-p
   and shared-worktree limitations, not claims of a structured verifier pass.
 - Two attempts to run `scripts/auto_commit.py` with the exact allowlist failed
   before staging with `Unable to create 'D:/PolyNexus/.git/index.lock':
-  Permission denied`; no commit hash exists and no lock file was deleted.
+  Permission denied`; the later retry succeeded after the shared Git process
+  state cleared. Checkpoint: `bd7c3fd`.
 
 ## Known limitations
 
