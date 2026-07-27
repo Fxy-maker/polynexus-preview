@@ -67,3 +67,36 @@ def test_results_figure_link_routes_to_first_available_manifest_candidate() -> N
 
     assert window.tabs == [3]
     assert window._chart_gallery.selected == ["saxs.series.temperature.parameters"]
+
+
+def test_results_figure_link_routes_frame_indexed_diagnostic_from_active_gallery() -> None:
+    class Gallery:
+        def __init__(self) -> None:
+            self.ids = {"nmr.frame.deconvolution.003"}
+            self.selected: list[str] = []
+
+        def figure_ids(self):
+            return self.ids
+
+        def select_figure(self, key: str, *, emit: bool = True):
+            if key in self.ids:
+                self.selected.append(key)
+
+    class Window(MainWindowOutputMixin):
+        def __init__(self) -> None:
+            self.tabs: list[int] = []
+            self._chart_gallery = Gallery()
+            self._results_panel = type(
+                "Panel",
+                (),
+                {"profile": profile_for("nmr.liquid_h")},
+            )()
+
+        def _jump_to_tab(self, index: int) -> None:
+            self.tabs.append(index)
+
+    window = Window()
+    window._on_results_figure_link("nmr.frame.deconvolution.001")
+
+    assert window.tabs == [3]
+    assert window._chart_gallery.selected == ["nmr.frame.deconvolution.003"]

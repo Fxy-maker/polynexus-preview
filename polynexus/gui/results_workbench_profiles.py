@@ -32,10 +32,23 @@ class WorkbenchFigureLink:
     label_key: str
     role: str
     alternatives: tuple[str, ...] = ()
+    prefixes: tuple[str, ...] = ()
 
     @property
     def candidates(self) -> tuple[str, ...]:
         return (self.key, *self.alternatives)
+
+    def resolve(self, available_ids: set[str] | frozenset[str]) -> str:
+        """Resolve this link against IDs already loaded by the active Gallery."""
+        available = {str(item) for item in available_ids}
+        for candidate in self.candidates:
+            if candidate in available:
+                return candidate
+        for prefix in self.prefixes:
+            matches = sorted(item for item in available if item.startswith(prefix))
+            if matches:
+                return matches[0]
+        return self.key
 
     def label_for(self, language: str) -> str:
         return tr_for_language(self.label_key, language)
@@ -89,14 +102,25 @@ def _profile(
     tabs: tuple[str, str, str],
     figures: tuple[tuple[str, str, str], ...],
     action: str = "RESULTS_WORKBENCH_REVIEW_ACTION",
+    diagnostic: tuple[str, str, str, tuple[str, ...]] | None = None,
 ) -> ResultsWorkbenchProfile:
+    figure_links = [WorkbenchFigureLink(*figure) for figure in figures]
+    if diagnostic is not None:
+        figure_links.append(
+            WorkbenchFigureLink(
+                diagnostic[0],
+                diagnostic[1],
+                diagnostic[2],
+                prefixes=diagnostic[3],
+            )
+        )
     return ResultsWorkbenchProfile(
         key=key,
         title_key=title,
         subtitle_key=subtitle,
         tab_keys=tabs,
         review_action=WorkbenchActionSpec(f"{key}.review", action),
-        figure_links=tuple(WorkbenchFigureLink(*figure) for figure in figures),
+        figure_links=tuple(figure_links),
         empty_state_key="RESULTS_WORKBENCH_EMPTY",
         error_state_key="RESULTS_WORKBENCH_ERROR",
     )
@@ -121,6 +145,12 @@ _PROFILES = {
             ),
             ("saxs.static.correlation.support", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
         ),
+        diagnostic=(
+            "saxs.static.frame.000.correlation",
+            "RESULTS_WORKBENCH_FIGURE_DIAGNOSTIC",
+            "diagnostic",
+            ("saxs.static.frame.",),
+        ),
     ),
     "saxs.temperature": _profile(
         "saxs.temperature",
@@ -143,6 +173,12 @@ _PROFILES = {
             ),
             ("saxs.temperature.waterfall", "RESULTS_WORKBENCH_FIGURE_SELECTED", "selected"),
         ),
+        diagnostic=(
+            "saxs.temperature.evidence.000",
+            "RESULTS_WORKBENCH_FIGURE_DIAGNOSTIC",
+            "diagnostic",
+            ("saxs.temperature.evidence.",),
+        ),
     ),
     "saxs.strain": _profile(
         "saxs.strain",
@@ -161,6 +197,12 @@ _PROFILES = {
                 ("saxs.series.strain.waterfall",),
             ),
             ("saxs.strain.phase-evidence", "RESULTS_WORKBENCH_FIGURE_SELECTED", "selected"),
+        ),
+        diagnostic=(
+            "saxs.strain.low-q.diagnostic",
+            "RESULTS_WORKBENCH_FIGURE_DIAGNOSTIC",
+            "diagnostic",
+            (),
         ),
     ),
 }
@@ -241,6 +283,22 @@ _TECHNIQUE_FIGURES = {
         ("nmr.frame.spectrum.001", "RESULTS_WORKBENCH_FIGURE_MAIN", "main"),
         ("nmr.series.crystallinity", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
     ),
+}
+
+_DIAGNOSTIC_FIGURES = {
+    "dsc.standard": ("dsc.standard.integration.diagnostic", ()),
+    "dsc.isothermal": ("dsc.isothermal.fit.diagnostic", ()),
+    "dsc.nonisothermal": ("dsc.nonisothermal.kinetics.diagnostic", ()),
+    "waxs.static": ("waxs.static.fit.diagnostic", ()),
+    "waxs.temperature": ("waxs.temperature.sequence.diagnostic", ()),
+    "waxs.strain": ("waxs.strain.sequence.diagnostic", ()),
+    "ir.standard": ("ir.frame.comparison.001", ("ir.frame.comparison.",)),
+    "ir.temperature_2d": ("ir.temperature_2d.synchronous-correlation", ()),
+    "nmr.liquid_h": ("nmr.frame.deconvolution.001", ("nmr.frame.deconvolution.",)),
+    "nmr.liquid_c": ("nmr.frame.deconvolution.001", ("nmr.frame.deconvolution.",)),
+    "nmr.solid_h": ("nmr.frame.deconvolution.001", ("nmr.frame.deconvolution.",)),
+    "nmr.solid_c": ("nmr.frame.deconvolution.001", ("nmr.frame.deconvolution.",)),
+    "joint": ("joint.series.coverage", ()),
 }
 
 _TECHNIQUE_TABS = {
@@ -336,6 +394,14 @@ for _key, (_title, _subtitle) in _GENERIC_NARRATIVES.items():
                 (f"{_key}.support", "RESULTS_WORKBENCH_FIGURE_SUPPORT", "support"),
             ),
         ),
+        diagnostic=(
+            _DIAGNOSTIC_FIGURES[_key][0],
+            "RESULTS_WORKBENCH_FIGURE_DIAGNOSTIC",
+            "diagnostic",
+            _DIAGNOSTIC_FIGURES[_key][1],
+        )
+        if _key in _DIAGNOSTIC_FIGURES
+        else None,
     )
 
 

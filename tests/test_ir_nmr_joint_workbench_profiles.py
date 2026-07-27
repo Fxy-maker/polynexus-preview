@@ -4,11 +4,11 @@ from polynexus.gui.results_workbench_profiles import profile_for
 
 
 def test_ir_profiles_expose_mode_specific_narratives_and_known_figure_entrypoints() -> None:
-    assert tuple(link.key for link in profile_for("ir.standard").figure_links) == (
+    assert tuple(link.key for link in profile_for("ir.standard").figure_links[:2]) == (
         "ir.frame.spectrum.001",
         "ir.series.crystallinity",
     )
-    assert tuple(link.key for link in profile_for("ir.temperature_2d").figure_links) == (
+    assert tuple(link.key for link in profile_for("ir.temperature_2d").figure_links[:2]) == (
         "ir.temperature_2d.heatmap",
         "ir.temperature_2d.band-tracking",
     )
@@ -32,7 +32,7 @@ def test_nmr_and_joint_profiles_are_customized() -> None:
     )
     assert profile_for("nmr.liquid_c").tab_labels == profile_for("nmr.liquid_h").tab_labels
     assert profile_for("nmr.solid_h").tab_labels == profile_for("nmr.solid_c").tab_labels
-    assert tuple(link.key for link in profile_for("joint").figure_links) == (
+    assert tuple(link.key for link in profile_for("joint").figure_links[:2]) == (
         "joint.series.crystallinity",
         "joint.series.multiscale",
     )

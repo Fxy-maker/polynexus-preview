@@ -77,16 +77,17 @@ class MainWindowOutputMixin:
             target = requested
             profile = getattr(getattr(self, "_results_panel", None), "profile", None)
             links = getattr(profile, "figure_links", ())
-            link = next((item for item in links if item.key == requested), None)
+            matching_links = [item for item in links if item.key == requested]
+            link = next(
+                (item for item in matching_links if item.role == "diagnostic"),
+                matching_links[0] if matching_links else None,
+            )
             available_ids = None
             figure_ids = getattr(gallery, "figure_ids", None)
             if callable(figure_ids):
                 available_ids = set(figure_ids())
             if link is not None and available_ids is not None:
-                target = next(
-                    (candidate for candidate in link.candidates if candidate in available_ids),
-                    requested,
-                )
+                target = link.resolve(available_ids)
             gallery.select_figure(target)
 
     def _on_results_profile_action(self, _action_key: str) -> None:
