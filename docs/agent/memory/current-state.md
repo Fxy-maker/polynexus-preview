@@ -1,5 +1,23 @@
 ---
 
+## SAXS invalid temperature-axis fail-closed boundary (2026-07-28)
+
+- `analyze_temperature_series()` now converts each temperature through the
+  existing `_coerce_optional_float()` helper. Numeric strings remain numeric;
+  invalid or non-finite values become NaN while their frames/source indices
+  remain present for existing sequence evidence to mark the axis invalid.
+- No condition inference, interpolation, frame deletion, new threshold,
+  physical gate, rescue, AI, or non-invalid path change was introduced. RED was
+  `1 failed`; focused GREEN was `23 passed`; exact SAXS was `416 passed, 6
+  warnings`.
+- The separate mismatched-`times` `IndexError` is a known next boundary.
+  Structured verifier and checkpoint remain to be recorded after the final
+  documentation update; full/boundary verification is not claimed.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-temperature-invalid-axis-fail-closed.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-temperature-invalid-axis-fail-closed-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-temperature-invalid-axis-fail-closed.md`.
+
 ## SAXS empty temperature series fail-closed boundary (2026-07-28)
 
 - `analyze_temperature_series()` now returns an explicit empty

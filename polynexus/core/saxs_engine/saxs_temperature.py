@@ -908,7 +908,10 @@ def analyze_temperature_series(
     source_ids_aligned = _aligned_source_values(source_ids, n_points)
     raw_data_refs_aligned = _aligned_source_values(raw_data_refs, n_points)
 
-    temps_arr = np.array(temperatures, dtype=float)
+    temps_arr = np.asarray(
+        [_coerce_optional_float(value) for value in temperatures],
+        dtype=float,
+    )
 
     # Sort by temperature
     sort_idx = np.argsort(temps_arr)

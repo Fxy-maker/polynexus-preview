@@ -1,5 +1,16 @@
 # Active Work
 
+## SAXS invalid temperature-axis fail-closed boundary - checkpointed - 2026-07-28
+
+- Invalid/non-finite temperature elements now become explicit NaN axis values
+  through the existing coercion helper; frames and source indices remain
+  visible and sequence evidence remains conservative.
+- RED was `1 failed`; focused GREEN was `23 passed`; exact SAXS was `416
+  passed, 6 warnings`. The separate mismatched-`times` `IndexError` is the
+  next isolated boundary; no full/boundary pass is claimed.
+- Structured verifier and explicit allowlist checkpoint passed locally; keep
+  unrelated release/GUI/editor/scratch changes out of scope.
+
 ## SAXS empty temperature series fail-closed boundary - checkpointed - 2026-07-28
 
 - Empty `temperatures/q_list/I_list` now returns a structured empty
