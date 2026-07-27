@@ -4,19 +4,36 @@ from .i18n import tr
 
 
 class MainWindowShellMixin:
+    _COMPACT_CONTENT_WIDTH = 1500
+
+    def _responsive_content_width(self):
+        content = getattr(self, "_content", None)
+        width_getter = getattr(content, "width", None)
+        if callable(width_getter):
+            try:
+                return int(width_getter())
+            except (TypeError, ValueError):
+                pass
+        width_getter = getattr(self, "width", None)
+        return int(width_getter()) if callable(width_getter) else 0
+
     def _apply_responsive_shell(self):
-        narrow = self.width() < 1120 if hasattr(self, "width") else False
-        for attr in ("_workflow_metric_tech", "_workflow_metric_data"):
+        compact = self._responsive_content_width() < self._COMPACT_CONTENT_WIDTH
+        for attr in (
+            "_workflow_metric_tech",
+            "_workflow_metric_data",
+            "_workflow_metric_state",
+        ):
             widget = getattr(self, attr, None)
             if widget is not None:
-                widget.setVisible(not narrow)
+                widget.setVisible(not compact)
         for attr in ("_btn_replot", "_btn_export_current"):
             widget = getattr(self, attr, None)
             if widget is not None:
-                widget.setVisible(not narrow)
+                widget.setVisible(not compact)
         project_export = getattr(self, "_btn_export", None)
         if project_export is not None:
-            project_export.setVisible(not narrow)
+            project_export.setVisible(not compact)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -134,7 +151,9 @@ class MainWindowShellMixin:
         sidebar = getattr(self, "_sidebar", None) or self.findChild(main_window_module.QWidget, "sidebar")
         if sidebar:
             if sidebar.isVisible():
-                anim_done = lambda: sidebar.setVisible(False)
+                def anim_done():
+                    sidebar.setVisible(False)
+
                 main_window_module.animate_width(sidebar, 0)
                 getattr(sidebar, "_pn_width_anim", None).finished.connect(anim_done)
             else:

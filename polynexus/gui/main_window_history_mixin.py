@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -301,7 +304,23 @@ class MainWindowHistoryMixin:
         toolbar.addWidget(self._history_compare_btn)
 
         toolbar.addStretch()
-        layout.addLayout(toolbar)
+
+        toolbar_content = QWidget()
+        toolbar_content.setObjectName("history_toolbar_content")
+        toolbar_content.setMinimumWidth(0)
+        toolbar_content.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        toolbar_content.setLayout(toolbar)
+
+        toolbar_scroll = QScrollArea()
+        toolbar_scroll.setObjectName("history_toolbar_scroll")
+        toolbar_scroll.setFrameShape(QScrollArea.NoFrame)
+        toolbar_scroll.setWidgetResizable(False)
+        toolbar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        toolbar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        toolbar_scroll.setMinimumWidth(0)
+        toolbar_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        toolbar_scroll.setWidget(toolbar_content)
+        layout.addWidget(toolbar_scroll)
 
         self._history_table = QTableWidget()
         self._history_table.setColumnCount(7)

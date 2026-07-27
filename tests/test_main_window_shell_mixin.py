@@ -351,3 +351,44 @@ def test_main_window_shell_mixin_on_quit_calls_close() -> None:
     window._on_quit()
 
     assert window.closed is True
+
+
+def test_responsive_shell_uses_content_width_to_collapse_optional_controls() -> None:
+    module = importlib.import_module("polynexus.gui.main_window_shell_mixin")
+
+    class _Widget:
+        def __init__(self):
+            self.visible = True
+
+        def setVisible(self, value):
+            self.visible = bool(value)
+
+    class _Content:
+        def width(self):
+            return 980
+
+    class _Window(module.MainWindowShellMixin):
+        def __init__(self):
+            self._content = _Content()
+            self._workflow_metric_tech = _Widget()
+            self._workflow_metric_data = _Widget()
+            self._workflow_metric_state = _Widget()
+            self._workflow_task_box = _Widget()
+            self._btn_replot = _Widget()
+            self._btn_export_current = _Widget()
+            self._btn_export = _Widget()
+
+        def width(self):
+            return 1600
+
+    window = _Window()
+
+    window._apply_responsive_shell()
+
+    assert window._workflow_metric_tech.visible is False
+    assert window._workflow_metric_data.visible is False
+    assert window._workflow_metric_state.visible is False
+    assert window._workflow_task_box.visible is True
+    assert window._btn_replot.visible is False
+    assert window._btn_export_current.visible is False
+    assert window._btn_export.visible is False

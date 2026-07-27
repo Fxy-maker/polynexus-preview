@@ -1513,7 +1513,11 @@ class MainWindow(
 
         bar = QWidget()
 
+        self._topbar = bar
+
         bar.setObjectName("topbar")
+
+        bar.setMinimumWidth(0)
 
         layout = QHBoxLayout(bar)
         self._topbar_layout = layout
@@ -2253,6 +2257,14 @@ class MainWindow(
 
         self._workspace_context_summary_label.setWordWrap(True)
 
+        for label in (
+            self._workspace_title,
+            self._workspace_subtitle,
+            self._workspace_context_summary_label,
+        ):
+            label.setMinimumWidth(0)
+            label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+
         title_box.addWidget(self._workspace_title)
 
         title_box.addWidget(self._workspace_subtitle)
@@ -2263,6 +2275,8 @@ class MainWindow(
 
         self._workflow_task_box = QFrame()
         self._workflow_task_box.setObjectName("workflow_task_box")
+        self._workflow_task_box.setMinimumWidth(0)
+        self._workflow_task_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         task_layout = QVBoxLayout(self._workflow_task_box)
         task_layout.setContentsMargins(12, 8, 12, 8)
         task_layout.setSpacing(2)
@@ -2273,10 +2287,13 @@ class MainWindow(
 
         self._workflow_task_title = QLabel(tr("WORKFLOW_TASK_DEFAULT_TITLE"))
         self._workflow_task_title.setObjectName("workflow_task_title")
+        self._workflow_task_title.setMinimumWidth(0)
+        self._workflow_task_title.setWordWrap(True)
         task_layout.addWidget(self._workflow_task_title)
 
         self._workflow_task_detail = QLabel(tr("WORKFLOW_TASK_DEFAULT_DETAIL"))
         self._workflow_task_detail.setObjectName("workflow_task_detail")
+        self._workflow_task_detail.setMinimumWidth(0)
         self._workflow_task_detail.setWordWrap(True)
         task_layout.addWidget(self._workflow_task_detail)
 
@@ -2285,18 +2302,24 @@ class MainWindow(
         self._workflow_metric_tech = QLabel(tr("WORKSPACE_TITLE_DEFAULT"))
 
         self._workflow_metric_tech.setObjectName("workflow_metric")
+        self._workflow_metric_tech.setMinimumWidth(0)
+        self._workflow_metric_tech.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
         header_layout.addWidget(self._workflow_metric_tech)
 
         self._workflow_metric_data = QLabel(tr("WORKFLOW_NO_DATA"))
 
         self._workflow_metric_data.setObjectName("workflow_metric")
+        self._workflow_metric_data.setMinimumWidth(0)
+        self._workflow_metric_data.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
         header_layout.addWidget(self._workflow_metric_data)
 
         self._workflow_metric_state = QLabel(tr("WORKFLOW_READY"))
 
         self._workflow_metric_state.setObjectName("workflow_metric")
+        self._workflow_metric_state.setMinimumWidth(0)
+        self._workflow_metric_state.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
         header_layout.addWidget(self._workflow_metric_state)
 

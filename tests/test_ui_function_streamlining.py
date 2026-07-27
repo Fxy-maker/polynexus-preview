@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QSizePolicy
 
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_navigation_mixin import MainWindowNavigationMixin
@@ -154,6 +154,33 @@ def test_main_window_keeps_minimum_supported_size():
 
     assert window.minimumSize().width() >= 960
     assert window.minimumSize().height() >= 600
+
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_workflow_header_title_labels_can_shrink_for_the_task_card():
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+
+    for name in (
+        "_workspace_title",
+        "_workspace_subtitle",
+        "_workspace_context_summary_label",
+    ):
+        label = getattr(window, name)
+        assert label.minimumWidth() == 0
+        assert label.sizePolicy().horizontalPolicy() == QSizePolicy.Ignored
+
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_history_toolbar_does_not_force_workbench_minimum_width():
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+
+    assert window._tabs.widget(4).minimumSizeHint().width() <= 1046
 
     window.deleteLater()
     app.processEvents()
