@@ -24,6 +24,7 @@ from .experience import (
 from .peak_metrics import PeakComparison, compare_peak_sets
 from .snapshot import AnalysisSnapshot
 from .adapters import TechniquePreprocessAdapter, get_preprocess_adapter
+from .replay import PreprocessReplayAudit, build_preprocess_replay_audit
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -55,4 +56,6 @@ __all__ = [
     "stable_config_hash",
     "compare_peak_sets",
     "parse_preprocess_intent",
+    "PreprocessReplayAudit",
+    "build_preprocess_replay_audit",
 ]
