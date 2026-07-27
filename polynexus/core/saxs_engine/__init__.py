@@ -35,6 +35,8 @@ from .saxs_quality_contracts import (
     build_series_orientation_evidence,
     build_detector_quality_report,
     build_orientation_evidence,
+    Sanitized1DProfile,
+    sanitize_1d_profile,
     contract_json,
 )
 from .processed_profile import ProcessedProfile
@@ -109,6 +111,7 @@ __all__ = [
     "build_series_metric_evidence", "build_series_detector_quality_report",
     "build_series_orientation_evidence",
     "build_detector_quality_report", "build_orientation_evidence",
+    "Sanitized1DProfile", "sanitize_1d_profile",
     "contract_json",
     "ProcessedProfile",
     "read_image", "read_1d_profile", "extract_geometry_from_header",

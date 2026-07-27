@@ -602,6 +602,77 @@ def _as_1d_float_array(values: Any) -> np.ndarray:
         return np.asarray([], dtype=float)
 
 
+@dataclass(frozen=True)
+class Sanitized1DProfile:
+    """Detached, deterministic q/I profile used by 1D analysis."""
+
+    q: np.ndarray
+    intensity: np.ndarray
+    original_point_count: int = 0
+    aligned_point_count: int = 0
+    usable_point_count: int = 0
+    actions: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        q_array = np.asarray(self.q, dtype=float).reshape(-1).copy()
+        intensity_array = np.asarray(self.intensity, dtype=float).reshape(-1).copy()
+        q_array.setflags(write=False)
+        intensity_array.setflags(write=False)
+        object.__setattr__(self, "q", q_array)
+        object.__setattr__(self, "intensity", intensity_array)
+        object.__setattr__(self, "actions", tuple(dict.fromkeys(_string_tuple(self.actions))))
+
+
+def sanitize_1d_profile(q: Any, intensity: Any) -> Sanitized1DProfile:
+    """Build a finite, positive, stably ordered analysis copy of q/I.
+
+    The caller-owned arrays are never modified. Invalid pairs are excluded,
+    surviving observations are stably sorted by q, and exact duplicate q
+    observations are retained because no measurement-error model is available
+    for a scientifically justified aggregation.
+    """
+
+    q_array = _as_1d_float_array(q)
+    intensity_array = _as_1d_float_array(intensity)
+    original_count = max(q_array.size, intensity_array.size)
+    aligned_count = min(q_array.size, intensity_array.size)
+    actions: list[str] = []
+
+    if q_array.size != intensity_array.size:
+        actions.append("axis_length_aligned")
+
+    q_pair = q_array[:aligned_count]
+    intensity_pair = intensity_array[:aligned_count]
+    valid = (
+        np.isfinite(q_pair)
+        & np.isfinite(intensity_pair)
+        & (q_pair > 0)
+        & (intensity_pair > 0)
+    )
+    if int(np.count_nonzero(valid)) != aligned_count:
+        actions.append("invalid_pairs_dropped")
+
+    q_valid = q_pair[valid].copy()
+    intensity_valid = intensity_pair[valid].copy()
+    if q_valid.size > 1 and np.any(np.diff(q_valid) < 0):
+        order = np.argsort(q_valid, kind="stable")
+        q_valid = q_valid[order]
+        intensity_valid = intensity_valid[order]
+        actions.append("q_sorted")
+
+    if q_valid.size > 1 and np.any(np.diff(q_valid) == 0):
+        actions.append("duplicate_q_retained")
+
+    return Sanitized1DProfile(
+        q=q_valid,
+        intensity=intensity_valid,
+        original_point_count=int(original_count),
+        aligned_point_count=int(aligned_count),
+        usable_point_count=int(q_valid.size),
+        actions=tuple(actions),
+    )
+
+
 def build_data_quality_report(
     q: Any,
     intensity: Any,
@@ -684,7 +755,7 @@ def build_data_quality_report(
         nonpositive_intensity_count=nonpositive_i_count,
         duplicate_q_count=duplicate_q_count,
         nonmonotonic_q=nonmonotonic_q,
-        actions=_string_tuple(actions),
+        actions=tuple(dict.fromkeys(_string_tuple(actions))),
         reason_codes=tuple(dict.fromkeys(reasons)),
         level=level,
     )

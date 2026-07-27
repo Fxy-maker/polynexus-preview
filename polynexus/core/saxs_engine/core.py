@@ -32,6 +32,7 @@ from .saxs_quality_contracts import (
     build_kratky_evidence,
     build_invariant_evidence,
     build_lamellar_evidence,
+    sanitize_1d_profile,
 )
 
 
@@ -1734,6 +1735,11 @@ def analyze_single(
       - Phase 4: automated validation
       - Phase 5: weighted composite confidence
     """
+    original_q = q
+    original_I = I
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
     result = SAXSResult(q=q, I=I)
 
     # Smooth
@@ -1789,11 +1795,12 @@ def analyze_single(
     # Guinier
     Rg, I0, q_guinier, lnI_guinier = guinier_analysis(q, I_smooth, q_min=q_analysis_min)
     quality_report = build_data_quality_report(
-        q,
-        I,
+        original_q,
+        original_I,
         processed_data_ref="saxs_result:I_smooth",
         processing_config_ref="SAXSConfig",
         low_q_truncated=bool(result.mask_truncated),
+        actions=sanitized.actions,
     )
     condition_context = getattr(cfg, "condition_context", {}) or {}
     applicability = (

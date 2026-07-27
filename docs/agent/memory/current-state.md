@@ -1,5 +1,26 @@
 ---
 
+## SAXS deterministic 1D profile sanitization (2026-07-28)
+
+- `analyze_single()` now receives a detached finite/positive q/I analysis copy
+  built by `sanitize_1d_profile()`. Invalid pairs are dropped, surviving q
+  values are stably sorted, and duplicate q observations are retained rather
+  than averaged because no measurement-error model is available.
+- The original caller-owned q/I arrays remain unchanged. Existing
+  `DataQualityReport` counts and quality levels are preserved, while its
+  ordered `actions` field records actual alignment, filtering, sorting, and
+  duplicate-retention operations.
+- TDD/consumer evidence: focused `20 passed`; exact SAXS `406 passed, 6
+  warnings`; fresh D:-isolated full/boundary `2838 passed, 16 skipped, 12
+  warnings`, quality `283`, preprocessing `106`, boundary passed. The first
+  C:-based full attempt hit `No space left on device` and is excluded.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-deterministic-1d-profile-sanitization.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-deterministic-1d-profile-sanitization-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-deterministic-1d-profile-sanitization.md`.
+- Explicit allowlist checkpoint created locally; no push, merge, release, or
+  scientific publication approval is implied.
+
 ## Native all-mode route evidence after opacity correction (2026-07-28)
 
 - The D:-isolated native Windows Qt rerun passed `15 passed, 1 deselected,

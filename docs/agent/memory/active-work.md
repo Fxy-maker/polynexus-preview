@@ -1,5 +1,21 @@
 # Active Work
 
+## SAXS deterministic 1D profile sanitization - checkpointed locally - 2026-07-28
+
+- The new `Sanitized1DProfile` contract gives SAXS 1D methods a detached
+  finite/positive q/I copy. Invalid pairs are removed and q is stably sorted;
+  exact duplicate q observations remain in order and are explicitly marked,
+  with no interpolation, averaging, frame fabrication, or new threshold.
+- TDD RED was `4 failed, 11 passed`; GREEN focused evidence is `20 passed`.
+  Exact SAXS evidence is `406 passed, 6 warnings`. The task verifier passed
+  with quality `283` and preprocessing `106`.
+- Fresh D:-isolated full/boundary verification passed `2838 passed, 16
+  skipped, 12 warnings` in `1579.21s`, with boundary audit pass. The earlier
+  C:-based attempt failed from `No space left on device` and is not counted.
+- The explicit allowlist checkpoint is local-only; no push. Existing
+  GUI/editor/release drafts, scratch directories, and parallel changes remain
+  untouched.
+
 ## Native all-mode route evidence refreshed - 2026-07-28
 
 - After the shared Results opacity correction, the D:-isolated native harness
