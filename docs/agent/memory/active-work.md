@@ -1,5 +1,28 @@
 # Active Work
 
+## SAXS Workbench detector evidence visibility - 2026-07-28
+
+- The Results Workbench now projects the existing `raw_detector_quality_report`
+  and `detector_quality_report` separately into advisory risk/next-step text.
+  The projection uses only existing source kind, level, frame coverage,
+  coverage fraction, and reason codes; it does not recompute detector quality,
+  infer geometry/mask validity, change levels, or authorize rescue/publication.
+- TDD evidence: RED `3 failed, 44 deselected`; GREEN `3 passed, 44 deselected`.
+  The Workbench/Export/Figure consumer matrix passed `64`; the exact SAXS
+  matrix passed `374` with `5` existing warnings under external basetemp
+  `C:\Temp\PolyNexus_saxs_workbench_detector_saxs_matrix`.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-workbench-detector-evidence-visibility.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-workbench-detector-evidence-visibility-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-workbench-detector-evidence-visibility.md`.
+- Structured verifier exited `0` with task/memory, Ruff, compile/type baseline,
+  quality `283`, preprocessing `106`, and whitespace checks passed using
+  external basetemp `C:\Temp\PolyNexus_saxs_workbench_detector_verify_final`.
+  The explicit allowlist checkpoint was created with `scripts/auto_commit.py`;
+  no push was performed. Human review of detector geometry, beam-center
+  meaning, mask validity, saturation interpretation, and publication
+  eligibility remains open.
+
 ## Native Windows Qt DSC route capture - 2026-07-28
 
 - Ran the existing real-result GUI capture with

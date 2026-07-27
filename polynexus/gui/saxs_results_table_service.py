@@ -470,6 +470,109 @@ def _series_metric_review_text(
     return "", tr_for_language("RESULTS_REVIEW_NEXT", language, detail)
 
 
+def _detector_evidence_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Present existing raw/sector detector evidence without interpreting it."""
+
+    if not isinstance(payload, Mapping):
+        return "", ""
+
+    zh = language == "zh"
+    level_labels = {
+        "Quantitative": "定量" if zh else "Quantitative",
+        "Trend": "趋势" if zh else "Trend",
+        "Diagnostic": "诊断" if zh else "Diagnostic",
+        "Unusable": "不可用" if zh else "Unusable",
+    }
+    details: list[str] = []
+    needs_review = False
+
+    def _count(report: Mapping[str, Any], key: str) -> int | None:
+        if key not in report:
+            return None
+        try:
+            return max(0, int(report.get(key) or 0))
+        except (TypeError, ValueError):
+            return None
+
+    def _fraction(report: Mapping[str, Any]) -> float | None:
+        try:
+            value = float(report.get("coverage_fraction"))
+        except (TypeError, ValueError):
+            return None
+        return value if math.isfinite(value) else None
+
+    for field_name, default_source in (
+        ("raw_detector_quality_report", "raw detector"),
+        ("detector_quality_report", "sector map"),
+    ):
+        report = payload.get(field_name)
+        if not isinstance(report, Mapping):
+            continue
+
+        level = str(report.get("level") or "Unusable").strip() or "Unusable"
+        source_kind = str(report.get("source_kind") or "").strip().lower()
+        source = (
+            "raw detector"
+            if source_kind == "raw_detector" or field_name.startswith("raw_")
+            else "sector map"
+            if source_kind == "sector_map"
+            else default_source
+        )
+        if zh:
+            source = "原始探测器" if source == "raw detector" else "扇区图"
+
+        parts = [f"{source}: {level_labels.get(level, level)}"]
+        evidence_count = _count(report, "evidence_frame_count")
+        frame_count = _count(report, "frame_count")
+        coverage_text = ""
+        if evidence_count is not None and frame_count is not None:
+            coverage_text = f"{'覆盖' if zh else 'coverage'}={evidence_count}/{frame_count}"
+        coverage = _fraction(report)
+        if coverage is not None:
+            coverage_text += f" ({coverage * 100:.0f}%)" if coverage_text else f"{coverage * 100:.0f}%"
+        if coverage_text:
+            parts.append(coverage_text)
+
+        raw_reasons = report.get("reason_codes")
+        if isinstance(raw_reasons, str):
+            reasons = (raw_reasons,)
+        elif isinstance(raw_reasons, (list, tuple)):
+            reasons = tuple(raw_reasons)
+        else:
+            reasons = ()
+        reason_text = ",".join(
+            str(reason).strip() for reason in reasons[:3] if str(reason).strip()
+        )
+        if reason_text:
+            parts.append(f"{'原因' if zh else 'reasons'}={reason_text[:240]}")
+
+        incomplete = (
+            evidence_count is not None
+            and frame_count is not None
+            and evidence_count < frame_count
+        )
+        needs_review = needs_review or level in {"Diagnostic", "Unusable"} or bool(reason_text) or incomplete
+        details.append("; ".join(parts))
+
+    if not details:
+        return "", ""
+    detail = " | ".join(details)
+    if needs_review:
+        next_instruction = (
+            "在使用 detector evidence 前先复核来源、缺失帧和原因；几何与 mask 有效性仍需人工确认"
+            if zh
+            else "Review detector evidence sources, missing frames, and reasons before use; geometry and mask validity still require human confirmation"
+        )
+        return tr_for_language("RESULTS_REVIEW_RISK", language, detail), tr_for_language(
+            "RESULTS_REVIEW_NEXT", language, next_instruction
+        )
+    return "", tr_for_language("RESULTS_REVIEW_NEXT", language, detail)
+
+
 def _condition_axis_review_text(
     payload: Mapping[str, Any],
     *,
@@ -970,8 +1073,16 @@ def build_saxs_results_presentation(
         payload,
         language=target_language,
     )
-    risk_text = " ".join(text for text in (axis_risk, metric_risk, sequence_risk) if text)
-    next_text = " ".join(text for text in (axis_next, metric_next, sequence_next) if text)
+    detector_risk, detector_next = _detector_evidence_review_text(
+        payload,
+        language=target_language,
+    )
+    risk_text = " ".join(
+        text for text in (axis_risk, metric_risk, sequence_risk, detector_risk) if text
+    )
+    next_text = " ".join(
+        text for text in (axis_next, metric_next, sequence_next, detector_next) if text
+    )
 
     row_count = len(rows)
     has_rows = row_count > 0

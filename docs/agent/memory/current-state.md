@@ -1,5 +1,19 @@
 ---
 
+## SAXS Workbench detector evidence visibility (2026-07-28)
+
+- Existing raw-detector and sector-map quality reports are now visible as
+  separate, read-only Workbench review context. The formatter shows source,
+  level, available frame coverage, coverage fraction, and existing reasons;
+  full evidence remains in Diagnostics, History, Figure, and Export payloads.
+- Focused Workbench/Export/Figure evidence is `64 passed`; exact SAXS file
+  matrix is `374 passed, 5 warnings`. This slice adds no detector threshold,
+  geometry/mask inference, quality promotion, rescue, or publication role.
+- Geometry calibration, beam-center interpretation, mask scientific validity,
+  saturation meaning, restarted-GUI review, and human release approval remain
+  open. See task card
+  `docs/agent/tasks/2026-07-28-saxs-workbench-detector-evidence-visibility.md`.
+
 ## Native Windows Qt DSC route evidence (2026-07-28)
 
 - The current worktree's native Windows Qt visual capture passed

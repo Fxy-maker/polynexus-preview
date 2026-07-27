@@ -44,6 +44,87 @@ def _cell(section, row: int, key: str):
     return section.rows[row][_column_index(section, key)]
 
 
+def test_detector_quality_review_shows_raw_source_level_coverage_and_reasons() -> None:
+    params = {
+        "raw_detector_quality_report": {
+            "metric_name": "DetectorQuality",
+            "source_kind": "raw_detector",
+            "level": "Unusable",
+            "frame_count": 5,
+            "evidence_frame_count": 5,
+            "coverage_fraction": 0.8,
+            "reason_codes": ["detector_saturation_unknown", "beam_center_missing"],
+        }
+    }
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, submodule="saxs.temperature", language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "raw detector" in review_text
+    assert "Unusable" in review_text
+    assert "5/5" in review_text
+    assert "detector_saturation_unknown" in review_text
+    assert "beam_center_missing" in review_text
+    assert params == before
+
+
+def test_detector_quality_review_keeps_raw_and_sector_sources_separate() -> None:
+    presentation = _build(
+        {
+            "raw_detector_quality_report": {
+                "source_kind": "raw_detector",
+                "level": "Diagnostic",
+                "frame_count": 2,
+                "evidence_frame_count": 1,
+                "reason_codes": ["beam_center_missing"],
+            },
+            "detector_quality_report": {
+                "source_kind": "sector_map",
+                "level": "Trend",
+                "frame_count": 2,
+                "evidence_frame_count": 2,
+                "coverage_fraction": 1.0,
+                "reason_codes": [],
+            },
+        },
+        submodule="saxs.strain",
+        language="en",
+    )
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "raw detector" in review_text
+    assert "sector map" in review_text
+    assert "beam_center_missing" in review_text
+    assert "1/2" in review_text
+
+
+def test_detector_quality_review_is_bilingual_and_absent_when_reports_are_missing() -> None:
+    chinese = _build(
+        {
+            "detector_quality_report": {
+                "source_kind": "sector_map",
+                "level": "Diagnostic",
+                "frame_count": 3,
+                "evidence_frame_count": 2,
+                "reason_codes": ["nonpositive_pixels"],
+            }
+        },
+        language="zh",
+    )
+    chinese_text = f"{chinese.risk_text} {chinese.next_text}"
+
+    assert "sector map" not in chinese_text
+    assert "Diagnostic" not in chinese_text
+    assert "nonpositive_pixels" in chinese_text
+    assert "2/3" in chinese_text
+
+    empty = _build({"L_nm": 12.0}, language="en")
+    empty_text = f"{empty.risk_text} {empty.next_text}"
+    assert "raw detector" not in empty_text
+    assert "sector map" not in empty_text
+
+
 def test_temperature_primary_uses_effective_lc_source_status_and_unavailable_text() -> None:
     presentation = _build(
         {
