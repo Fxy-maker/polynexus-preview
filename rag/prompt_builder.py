@@ -190,8 +190,8 @@ class PromptBuilder:
             "",
             "[USER]",
             "## 当前状态",
-            f"- 技术类别: IR",
-            f"- 子模块: 原位变温二维 IR",
+            "- 技术类别: IR",
+            "- 子模块: 原位变温二维 IR",
             f"- 当前 r²: {r_squared:.4f}",
             f"- 当前帧数: {current_frames}",
             f"- 温度范围: {current_range}",
@@ -288,7 +288,7 @@ class PromptBuilder:
             "",
             "[USER]",
             "## 当前状态",
-            f"- 技术类型：DSC",
+            "- 技术类型：DSC",
             f"- 聚合物：{polymer_name}",
             f"- 当前 r²：{r_squared:.4f}",
             f"- 当前 Tm：{current_tm} °C",
@@ -385,7 +385,7 @@ class PromptBuilder:
             "",
             "[USER]",
             "## 当前状态",
-            f"- 技术类型：SAXS",
+            "- 技术类型：SAXS",
             f"- 聚合物：{polymer_name}",
             f"- 当前 r²：{r_squared:.4f}",
             f"- 当前长周期 L：{current_l} nm",
@@ -483,7 +483,7 @@ class PromptBuilder:
             "",
             "[USER]",
             "## 当前状态",
-            f"- 技术类型：IR",
+            "- 技术类型：IR",
             f"- 聚合物：{polymer_name}",
             f"- 当前 r²：{current_r2:.4f}",
             f"- 检测峰数：{current_n_peaks}",
@@ -571,7 +571,7 @@ class PromptBuilder:
             "",
             "[USER]",
             "## 当前状态",
-            f"- 技术类型：NMR",
+            "- 技术类型：NMR",
             f"- 聚合物：{polymer_name}",
             f"- 当前 r²：{r_squared:.4f}",
             f"- 峰数：{current_n_peaks}",
@@ -1076,7 +1076,6 @@ class PromptBuilder:
             "wavenumber_max": "IR 波数上限。",
             "normalization_method": "IR 归一化方式。",
             "lineshape": "IR 峰形函数。",
-            "peak_function": "IR 峰形函数别名。",
             "baseline_order": "NMR 基线多项式阶数。",
             "apodization": "NMR 加窗方式。",
             "lb_Hz": "NMR 线宽。",
@@ -1323,6 +1322,12 @@ class PromptBuilder:
         if preprocessing_requested:
             technique = str(current_sample.get("technique", "") or "").strip().upper()
             policy = get_preprocess_policy(technique)
+            protected_features = self._json_dumps(list(policy.allowed_protected_features))
+            protection_instruction = (
+                "For SAXS, include every listed protected feature; omitting one is invalid."
+                if technique == "SAXS"
+                else "Include protected features from this policy list."
+            )
             contract.extend(
                 [
                     "",
@@ -1336,13 +1341,14 @@ class PromptBuilder:
                     f'    "target": "{" | ".join(policy.allowed_targets)}",',
                     f'    "direction": "{" | ".join(policy.allowed_directions)}",',
                     f'    "desired_effect": "{" | ".join(policy.allowed_effects)}",',
-                    '    "protected_features": ["policy-approved feature names"],',
+                    f'    "protected_features": {protected_features},',
                     '    "target_symptoms": ["observed Core symptom names"],',
                     '    "rationale_code": "short stable code",',
                     '    "human_summary": "short explanation"',
                     "  }",
                     "}",
                     "desired_effect is qualitative; Core maps it to bounded numeric candidates.",
+                    protection_instruction,
                     "Do not place baseline or smoothing parameters in changes; keep those changes empty.",
                 ]
             )

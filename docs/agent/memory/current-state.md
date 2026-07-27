@@ -7,6 +7,11 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS AI Stage 7c now tells the model the full policy-protected feature list
+  and explicitly requires all seven SAXS features before an intent can be
+  accepted. Prompt regression evidence is `20 passed`; core validation still
+  fails closed for incomplete output.
+
 - SAXS AI Stage 7b is wired through the shared preprocessing orchestrator:
   SAXS protected-field validation runs before candidate generation, and valid
   reports/source engines retain JSON-safe candidate-only plan/decision audit

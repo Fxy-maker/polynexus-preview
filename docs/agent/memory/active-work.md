@@ -1,5 +1,13 @@
 # Active Work
 
+## SAXS AI prompt protection contract - verification-ready 2026-07-27
+
+- The preprocessing prompt now renders the active policy's protected-feature
+  list and explicitly requires every listed feature for SAXS. The core
+  validator remains authoritative and fail-closed.
+- Prompt regressions pass (`20`); the touched prompt-builder file is now Ruff
+  clean after seven mechanical pre-existing lint blockers were removed.
+
 ## SAXS AI orchestrator handoff - verification-ready 2026-07-27
 
 - The shared preprocessing orchestrator now validates SAXS intents through the
