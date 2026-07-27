@@ -135,6 +135,11 @@
   deselected in 84.78s` and NMR solid-C lifecycle `1 passed, 3 deselected in
   126.89s`, both exit code `0`. The automated software routes pass these
   shards, while human GUI/scientific/release gates remain open.
+- A later independent recheck captured complete output for the delegated
+  commands: IR walkthrough `2 passed, 13 deselected in 88.67s`; NMR walkthrough
+  `4 passed, 11 deselected in 132.02s`; and NMR solid-C lifecycle `1 passed, 3
+  deselected in 138.00s`. All three returned exit code `0`; process exit without
+  a pytest summary is not treated as evidence.
 - A fresh four-partition NMR published-run walkthrough also returned `4
   passed, 11 deselected in 108.37s`, exit code `0`; solid-C assignment remains
   provisional.

@@ -11,6 +11,7 @@ import os
 import time
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -19,6 +20,12 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 from polynexus.core.engine import get_engine
+from polynexus.core.figures.production import FigureProductionPublisher
+from polynexus.core.ir_engine.ir_mapping import (
+    IRMappingROISpectrum,
+    IRMappingResult,
+    build_ir_mapping_figure_definitions,
+)
 from polynexus.core.joint.coordinator import JointCoordinator
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.plot_gallery_service import build_active_manifest_gallery_entries
@@ -62,6 +69,31 @@ def _capture_root(tmp_path: Path) -> Path:
 
 def _mode_slug(mode: str) -> str:
     return mode.replace(".", "_").replace("-", "_")
+
+
+def _synthetic_ir_mapping_result() -> IRMappingResult:
+    return IRMappingResult(
+        label="native synthetic mapping",
+        map_values=np.array([[0.10, 0.20], [0.30, np.nan]]),
+        row_coordinates=np.array([10.0, 20.0]),
+        column_coordinates=np.array([1000.0, 1100.0]),
+        invalid_pixel_mask=np.array([[False, False], [False, True]]),
+        map_metric="explicit test absorbance",
+        roi_spectra=(
+            IRMappingROISpectrum(
+                roi_id="roi-center",
+                label="center ROI",
+                wavenumber=np.array([1800.0, 1700.0, 1600.0]),
+                absorbance=np.array([0.10, 0.20, 0.15]),
+                valid_pixel_count=3,
+                assignments=("explicit test band",),
+            ),
+        ),
+        provenance={
+            "source_kind": "explicit_mapping_payload",
+            "source_id": "native-synthetic-map.json",
+        },
+    )
 
 
 def _assert_package_export(editor, app, mode: str) -> Path:
@@ -231,3 +263,95 @@ def test_native_windows_gui_joint_synthetic_route(tmp_path: Path) -> None:
     assert editor.grab().save(str(capture_root / "joint_compare_editor.png"))
     _assert_package_export(editor, app, "joint.compare")
     print(f"NATIVE_GUI_ROUTE joint.compare run=native-joint-route captures={capture_root}")
+
+
+def test_native_windows_gui_synthetic_ir_mapping_route(tmp_path: Path) -> None:
+    mapping_result = _synthetic_ir_mapping_result()
+    source = tmp_path / "native-synthetic-map.json"
+    source.write_text("explicit mapping payload\n", encoding="utf-8")
+    output_root = tmp_path / "ir-mapping-output"
+    publication = FigureProductionPublisher().publish(
+        output_root=output_root,
+        technique="ir",
+        definitions=build_ir_mapping_figure_definitions(mapping_result),
+        profile_id="paper_complete",
+    )
+    entries = build_active_manifest_gallery_entries(output_root)
+    assert {entry.figure_id for entry in entries} == {
+        "ir.mapping.roi",
+        "ir.mapping.spectra",
+        "ir.mapping.invalid-pixels",
+    }
+
+    evidence = mapping_result.to_evidence()["feature_evidence"]["mapping_evidence"]
+    result_payload = {
+        "submodule_id": "ir.mapping",
+        "sample": "native synthetic mapping",
+        "material_match": "not_assessed",
+        "peak_count": 1,
+        "band_hit_count": 1,
+        "assignment_confidence": "review_required",
+        "status": "review_required",
+        "map_shape": list(mapping_result.map_shape),
+        "pixel_valid_ratio": mapping_result.valid_pixel_ratio,
+        "analysis_evidence": evidence,
+        "validation_passed": True,
+        "validation_summary": "structural mapping payload",
+    }
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window.finish_deferred_startup()
+    assert window._restore_history_record(
+        {
+            "id": "native-ir-mapping-route",
+            "technique": "ir",
+            "submodule": "ir.mapping",
+            "created_at": "2026-07-28 00:00:00",
+            "output_dir": str(output_root),
+            "parameters": result_payload,
+            "results_summary": {
+                "data_file": str(source),
+                "result": result_payload,
+                "figure_run_id": publication.run_id,
+                "validation_passed": True,
+                "validation_summary": "structural mapping payload",
+            },
+        }
+    )
+    window._populate_plots()
+    window.resize(1600, 1000)
+    window.show()
+    window.raise_()
+    window.activateWindow()
+    app.processEvents()
+
+    assert window._current_submodule_id == "ir.mapping"
+    assert window._tabs.count() >= 5
+    assert window._current_results_table_model is not None
+    assert window._current_results_table_model.primary_section is not None
+    assert window._results_table.rowCount() > 0
+    assert window._chart_gallery._entries
+
+    capture_root = _capture_root(tmp_path)
+    for index, surface in ((2, "results"), (3, "gallery"), (4, "history")):
+        window._tabs.setCurrentIndex(index)
+        app.processEvents()
+        assert window.grab().save(str(capture_root / f"ir_mapping_{surface}.png"))
+
+    window._tabs.setCurrentIndex(3)
+    app.processEvents()
+    entry = window._chart_gallery.current_entry()
+    assert entry is not None
+    window._open_selected_chart_editor(entry)
+    app.processEvents()
+    editor = getattr(window, "_chart_editor", None)
+    assert editor is not None
+    editor.resize(1500, 950)
+    editor.show()
+    editor.raise_()
+    editor.activateWindow()
+    app.processEvents()
+    assert editor.grab().save(str(capture_root / "ir_mapping_editor.png"))
+    _assert_package_export(editor, app, "ir.mapping")
+    print(f"NATIVE_GUI_ROUTE ir.mapping run={publication.run_id} captures={capture_root}")

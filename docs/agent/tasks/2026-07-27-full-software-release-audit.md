@@ -97,6 +97,11 @@ limitation rather than pass.
   84.78s`, exit code `0`; NMR solid-C lifecycle `1 passed, 3 deselected in
   126.89s`, exit code `0`. These fresh results are distinct from the full
   verifier result below.
+- A later independent process-exit recheck captured complete command output:
+  IR walkthrough `2 passed, 13 deselected in 88.67s`, NMR walkthrough `4
+  passed, 11 deselected in 132.02s`, and the exact NMR solid-C lifecycle
+  selector `1 passed, 3 deselected in 138.00s`; all three commands returned
+  exit code `0`. No result is inferred from process termination alone.
 - A fresh four-partition NMR published-run walkthrough returned `4 passed, 11
   deselected in 108.37s`, exit code `0`; this covers liquid H/C and solid H/C
   and retains the assignment-limited solid-C boundary.
@@ -203,18 +208,18 @@ limitation rather than pass.
   `-k waxs.strain` exit code `5` selected no tests because full-2D cases were
   not imported; it was a harness selection error, superseded by the WAXS/IR
   native shards above.
-- A fresh current-checkout native run in a new pytest process returned `16
-  passed, 15 warnings in 391.86s`, exit code `0`. It covered the 15 real
-  fixture cases (DSC 3, SAXS 3, WAXS 3, IR 2, NMR 4) plus synthetic Joint,
-  captured four surfaces per case, and exercised PackageExporter fallback.
-  Captures are under
-  `D:\PolyNexus_native_all_routes_capture_20260728_recheck`. This harness does
-  not contain a real IR mapping or WAXS 2D detector case, so those boundaries
-  remain open.
+- A fresh current-checkout native run in a new pytest process returned `17
+  passed, 15 warnings in 363.16s`, exit code `0`. It covered the 15 real
+  fixture cases (DSC 3, SAXS 3, WAXS 3 including full-2D strain, IR 2, NMR
+  4), plus synthetic Joint and synthetic IR mapping. It captured four
+  surfaces per case and exercised PackageExporter fallback. Captures are
+  under `D:\PolyNexus_native_all_routes_capture_20260728_with_ir_mapping`.
+  Vendor-native IR mapping input/coordinate/ROI semantics remain open.
 - Fresh capture inspection confirms live CJK rendering and opaque Results
-  text; NMR solid-C peak labels remain crowded, and the synthetic Joint
-  fixture presents diagnostics while its header says `No project` / `No data
-  loaded`. Both are review signals, not silently altered production semantics.
+  text; the synthetic IR mapping heatmap/ROI/editor route is constructible.
+  NMR solid-C peak labels remain crowded, and the synthetic Joint fixture
+  presents diagnostics while its header says `No project` / `No data loaded`.
+  These are review signals, not silently altered production semantics.
 - Offscreen route capture after scientific-stack preload produced
   `C:\Temp\polynexus-route-0.png` through `polynexus-route-4.png` and
   `C:\Temp\polynexus-route-editor.png`; all five tabs and the Editor were

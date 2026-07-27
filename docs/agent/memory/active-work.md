@@ -85,6 +85,10 @@
 - Fresh delegated-shard rechecks are green: IR published-run `2 passed, 13
   deselected in 84.78s`; NMR solid-C lifecycle `1 passed, 3 deselected in
   126.89s`; both exit code `0`.
+- The later independent recheck captured full output rather than relying on
+  process exit: IR walkthrough `2 passed, 13 deselected in 88.67s`; NMR
+  walkthrough `4 passed, 11 deselected in 132.02s`; exact NMR solid-C lifecycle
+  `1 passed, 3 deselected in 138.00s`; all exit code `0`.
 - Automated full-release evidence is green for the fresh run. Restarted-GUI,
   scientific review, and final release approval remain open; do not call the
   overall goal complete while those human gates remain open.
