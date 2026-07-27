@@ -139,6 +139,8 @@ def test_native_windows_gui_real_route_capture(
     window._populate_plots()
     window.resize(1600, 1000)
     window.show()
+    window.raise_()
+    window.activateWindow()
     app.processEvents()
 
     assert window._current_submodule_id == mode
@@ -165,6 +167,8 @@ def test_native_windows_gui_real_route_capture(
     assert editor is not None
     editor.resize(1500, 950)
     editor.show()
+    editor.raise_()
+    editor.activateWindow()
     app.processEvents()
     assert editor.grab().save(str(capture_root / f"{slug}_editor.png"))
 
@@ -200,6 +204,8 @@ def test_native_windows_gui_joint_synthetic_route(tmp_path: Path) -> None:
     window._populate_plots()
     window.resize(1600, 1000)
     window.show()
+    window.raise_()
+    window.activateWindow()
     app.processEvents()
 
     assert window._current_submodule_id == "joint.compare"
@@ -219,6 +225,8 @@ def test_native_windows_gui_joint_synthetic_route(tmp_path: Path) -> None:
     assert editor is not None
     editor.resize(1500, 950)
     editor.show()
+    editor.raise_()
+    editor.activateWindow()
     app.processEvents()
     assert editor.grab().save(str(capture_root / "joint_compare_editor.png"))
     _assert_package_export(editor, app, "joint.compare")

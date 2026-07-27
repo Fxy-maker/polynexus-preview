@@ -13,6 +13,10 @@
   passed `15` cases with exit `0` after the fix.
 - Remaining work is activated/restarted-GUI visual review and the existing
   scientific/release gates; no scientific threshold or result semantics changed.
+- The native harness now raises and activates the window before each capture.
+  A fresh DSC probe passed `1` case in `6.90s` without deprecated Qt activation
+  warnings, but Gallery body text remained pale; no additional production
+  Gallery color change is justified by this screenshot alone.
 - The explicit allowlist checkpoint is the next action; no push, merge,
   deployment, or release approval is implied.
 

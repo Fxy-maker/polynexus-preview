@@ -12,6 +12,10 @@
   review, IR vendor mapping/ROI semantics, solid-C NMR assignment, Joint
   scientific conflicts, Origin/COM optional runtime, and final release
   approval remain open.
+- Native captures explicitly call `raise_()` and `activateWindow()` first; a
+  fresh DSC activation probe passed `1` case in `6.90s` with no deprecated Qt
+  activation warning. Gallery text remained pale in the capture, so this is
+  still a human visual-review item rather than a basis for another color edit.
 
 ## Native Results restore acceptance correction (2026-07-28)
 

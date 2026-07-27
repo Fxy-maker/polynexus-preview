@@ -155,6 +155,11 @@ limitation rather than pass.
   background. TDD/theme focus passed `24` tests, and the complete non-Joint
   native matrix passed `15` tests after the change. This closes the code-level
   contrast defect; activated/restarted-GUI review remains open.
+- The native harness now calls `raise_()` and `activateWindow()` before each
+  surface capture. A fresh DSC activation probe passed `1 passed, 15 deselected
+  in 6.90s`, exit code `0`, without deprecated Qt activation warnings. Gallery
+  body text remained pale in the capture, so it stays a human visual-review
+  item and no unsupported Gallery color change was made.
 - The native harness now triggers the real Chart Editor Export `QAction` for
   every mode using only the existing `PackageExporter` fallback. A second
   native matrix passed with exit code `0`: DSC `3` (24.25s), SAXS `3` (49.85s),

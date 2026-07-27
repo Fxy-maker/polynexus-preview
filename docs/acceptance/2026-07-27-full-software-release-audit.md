@@ -130,6 +130,13 @@ tests; the complete non-Joint native route matrix passed `15` tests after the
 change. This closes the code-level contrast defect, but does not substitute
 for a reviewer inspecting an activated/restarted GUI window.
 
+The native harness also calls `raise_()` and `activateWindow()` before Results,
+Gallery, History, and Editor captures. A fresh DSC probe with that activation
+path passed `1 passed, 15 deselected in 6.90s`, exit code `0`, without the
+deprecated `setActiveWindow` warning. Gallery body text remained visually pale
+in the capture, so it remains a human visual-review item rather than evidence
+for an additional production color change.
+
 The separate native Joint probe passed `1 passed, 15 deselected in 5.94s`,
 exit code `0`. It uses the existing synthetic `JointCoordinator` report-level
 fixture, restores `joint.compare`, captures the shared Results/Gallery/History/
