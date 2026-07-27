@@ -1,5 +1,24 @@
 # Active Work
 
+## Qt font runtime acceptance - 2026-07-27
+
+- Real Windows Qt diagnostics resolved `QApplication.font()` and
+  `QFontInfo` to `Microsoft YaHei UI` with a 399-family database; all tested
+  Chinese GUI characters had glyph coverage. The existing theme fallback
+  chain is therefore present in the production runtime.
+- The same diagnostic under `QT_QPA_PLATFORM=offscreen` returned zero font
+  families and no glyph coverage. Offscreen square CJK placeholders are an
+  environment limitation, not a reason to change the GUI font chain or the
+  Matplotlib publication font.
+- Task evidence is recorded in
+  `docs/agent/tasks/2026-07-27-qt-font-runtime-acceptance.md` and
+  `docs/acceptance/2026-07-27-qt-font-runtime-acceptance.md`.
+- The task-scoped verifier passed task/memory, Ruff, compile/type, quality
+  `283`, preprocessing `106`, and whitespace checks with exit code `0` using
+  external basetemp `C:\Temp\PolyNexus_qt_font_runtime_verify`.
+- Automated evidence is complete; restarted-GUI pixel-level review and final
+  human release approval remain open.
+
 ## SAXS quality and analysis program route audit - 2026-07-27
 
 - The route-level task card now records the automated contract acceptance

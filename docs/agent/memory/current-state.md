@@ -1,5 +1,20 @@
 ---
 
+## Qt font runtime acceptance (2026-07-27)
+
+- The real Windows Qt runtime has 399 font families and resolves the
+  application font to `Microsoft YaHei UI`; representative Chinese GUI glyphs
+  are covered. The declared theme fallback chain is not missing in production.
+- Under `QT_QPA_PLATFORM=offscreen`, Qt exposes zero font families and no
+  Chinese glyph coverage, so offscreen CJK square placeholders cannot close or
+  fail live font acceptance. No production font or Matplotlib style change was
+  made.
+- Human restarted-GUI, pixel-level, and final release review remain open. See
+  `docs/agent/tasks/2026-07-27-qt-font-runtime-acceptance.md`.
+- The task-scoped verifier passed task/memory, Ruff, compile/type, quality
+  `283`, preprocessing `106`, and whitespace checks with exit code `0` using
+  external basetemp `C:\Temp\PolyNexus_qt_font_runtime_verify`.
+
 ## Latest SAXS real Workbench acceptance refresh (2026-07-27)
 
 - Current-head launcher diagnosis resolved `D:\PolyNexus`, package under the
