@@ -126,6 +126,17 @@
 
 ## Native all-mode route evidence refreshed - 2026-07-28
 
+- Fresh current-checkout native rerun returned `16 passed, 15 warnings in
+  391.86s`, exit code `0`, in a new pytest process with D:-isolated temp and
+  capture roots. It covered the 15 real fixture routes plus synthetic Joint,
+  captured Results/Gallery/History/Editor, and exercised PackageExporter
+  fallback. Captures are under
+  `D:\PolyNexus_native_all_routes_capture_20260728_recheck`.
+- Visual inspection confirms live CJK and opaque Results text. Solid-C
+  peak-label crowding and the synthetic Joint `No project`/`No data loaded`
+  header alongside diagnostics remain review signals. Real IR mapping and
+  WAXS 2D detector routes are not in this harness; human visual/scientific
+  review and final release approval remain open.
 - After the shared Results opacity correction, the D:-isolated native harness
   passed `15 passed, 1 deselected, 15 warnings in 398.02s`, exit code `0`,
   covering every real DSC/SAXS/WAXS/IR/NMR mode. Each route restored a

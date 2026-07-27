@@ -203,6 +203,18 @@ limitation rather than pass.
   `-k waxs.strain` exit code `5` selected no tests because full-2D cases were
   not imported; it was a harness selection error, superseded by the WAXS/IR
   native shards above.
+- A fresh current-checkout native run in a new pytest process returned `16
+  passed, 15 warnings in 391.86s`, exit code `0`. It covered the 15 real
+  fixture cases (DSC 3, SAXS 3, WAXS 3, IR 2, NMR 4) plus synthetic Joint,
+  captured four surfaces per case, and exercised PackageExporter fallback.
+  Captures are under
+  `D:\PolyNexus_native_all_routes_capture_20260728_recheck`. This harness does
+  not contain a real IR mapping or WAXS 2D detector case, so those boundaries
+  remain open.
+- Fresh capture inspection confirms live CJK rendering and opaque Results
+  text; NMR solid-C peak labels remain crowded, and the synthetic Joint
+  fixture presents diagnostics while its header says `No project` / `No data
+  loaded`. Both are review signals, not silently altered production semantics.
 - Offscreen route capture after scientific-stack preload produced
   `C:\Temp\polynexus-route-0.png` through `polynexus-route-4.png` and
   `C:\Temp\polynexus-route-editor.png`; all five tabs and the Editor were

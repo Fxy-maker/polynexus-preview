@@ -180,6 +180,35 @@ selection error, not a WAXS test failure. The harness now includes both
 `waxs.strain` and `ir.temperature_2d`, and the fresh shards above are the
 authoritative native results.
 
+A fresh current-checkout native Windows Qt run was then executed in a new
+pytest process with all temporary state and captures isolated on D:. The
+authoritative command was:
+
+```powershell
+$env:QT_QPA_PLATFORM='windows'
+$env:POLYNEXUS_NATIVE_GUI_CAPTURE_DIR='D:\PolyNexus_native_all_routes_capture_20260728_recheck'
+$env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus_native_all_routes_recheck_basetemp'
+python -m pytest -q tests/test_native_gui_real_route_capture.py
+```
+
+It returned `16 passed, 15 warnings in 391.86s`, exit code `0`. The 15
+real-fixture cases cover DSC (3), SAXS (3), WAXS (3), IR (2), and NMR (4);
+the sixteenth case is the synthetic Joint route. Each case captured Results,
+Gallery, History, and Editor and exercised the existing PackageExporter
+fallback, producing 64 captures under
+`D:\PolyNexus_native_all_routes_capture_20260728_recheck`. The run does not
+cover a real IR mapping fixture or WAXS 2D detector route because those cases
+are not present in this harness; those boundaries remain open.
+
+Visual inspection of the fresh captures confirmed live CJK rendering, opaque
+Results text, constructible Gallery/History surfaces, and an editable Editor
+surface. The NMR solid-C Editor still shows crowded peak labels and requires
+scientific/visual judgment about label policy. The synthetic Joint capture
+shows diagnostic rows while its synthetic restore header says `No project` /
+`No data loaded`; this is recorded as a fixture/route review signal, not
+silently changed in production. These observations do not constitute final
+scientific or publication approval.
+
 ### Combined lifecycle attempt
 
 The combined command containing the real walkthrough, all five technique

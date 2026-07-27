@@ -184,6 +184,18 @@
 
 ## Native all-mode route evidence after opacity correction (2026-07-28)
 
+- A fresh current-checkout native Windows Qt process returned `16 passed, 15
+  warnings in 391.86s`, exit code `0`, with D:-isolated basetemp and capture
+  output. It covered the 15 real fixture cases (DSC 3, SAXS 3, WAXS 3, IR 2,
+  NMR 4) plus synthetic Joint; every case captured Results/Gallery/History/
+  Editor and exercised PackageExporter fallback. Captures are under
+  `D:\PolyNexus_native_all_routes_capture_20260728_recheck`.
+- Fresh visual inspection confirms live CJK rendering and opaque Results text.
+  NMR solid-C peak-label crowding remains a scientific/visual review signal;
+  the synthetic Joint fixture shows diagnostics while its header says `No
+  project` / `No data loaded`. The harness still lacks real IR mapping and
+  WAXS 2D detector cases, so this does not close those boundaries or final
+  restarted-GUI/scientific approval.
 - The D:-isolated native Windows Qt rerun passed `15 passed, 1 deselected,
   15 warnings in 398.02s`, exit code `0`, across DSC `3`, SAXS `3`, WAXS `3`,
   IR `2`, and NMR `4`. Each mode restored populated Results, captured
