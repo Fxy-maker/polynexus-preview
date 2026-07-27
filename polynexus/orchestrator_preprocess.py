@@ -28,6 +28,12 @@ from polynexus.core.preprocess_optimization import (
 )
 from polynexus.core.preprocess_optimization.contracts import SCHEMA_VERSION
 from polynexus.core.preprocess_optimization.policy import PolicyValidationError
+from polynexus.core.saxs_engine.saxs_ai_rescue import (
+    SAXSAIRescueDecision,
+    SAXSAIRescuePlan,
+    assess_saxs_ai_candidate,
+    validate_saxs_ai_intent,
+)
 
 
 def _metadata_complete(self: Any) -> bool:
@@ -571,9 +577,14 @@ def _run_preprocess_intent(
     control_config_object = deepcopy(self._engine_config(engine))
     control_config = self._config_to_dict(control_config_object)
     original_hash = stable_config_hash(control_config)
+    saxs_intent = None
     try:
-        intent = parse_preprocess_intent(intent_payload)
-        policy.validate_intent(intent)
+        if technique == "SAXS":
+            saxs_intent = validate_saxs_ai_intent(intent_payload, policy=policy)
+            intent = saxs_intent
+        else:
+            intent = parse_preprocess_intent(intent_payload)
+            policy.validate_intent(intent)
     except (ContractValidationError, PolicyValidationError) as exc:
         report = _invalid_report(intent_payload, str(exc), policy)
         report["best_config"] = control_config
@@ -587,6 +598,7 @@ def _run_preprocess_intent(
     candidate_rows: list[dict[str, Any]] = []
     evidence_rows: list[dict[str, Any]] = []
     trials: list[dict[str, Any]] = []
+    saxs_candidates: list[PreprocessCandidate] = []
     control_recorded = False
 
     def run_stage(stage_target: str, stage_engine: Any) -> list[dict[str, Any]]:
@@ -602,6 +614,8 @@ def _run_preprocess_intent(
                 deepcopy(record.config_delta) for record in experience_records
             ),
         )
+        if saxs_intent is not None:
+            saxs_candidates.extend(generated)
         stage_trials: list[dict[str, Any]] = []
         for candidate in generated:
             stage = candidate.generation_reason
@@ -669,6 +683,22 @@ def _run_preprocess_intent(
     )
     selected["decision"] = selected_decision
 
+    saxs_plan = None
+    saxs_decision = None
+    if saxs_intent is not None:
+        saxs_plan = SAXSAIRescuePlan(
+            intent=saxs_intent,
+            candidates=tuple(saxs_candidates),
+            policy_version=policy.policy_version,
+            automation_state=policy.automation_state,
+        )
+        saxs_decision = assess_saxs_ai_candidate(
+            selected["evidence"],
+            candidate_margin=max(0.0, margin),
+            metadata_complete=_metadata_complete(self),
+            policy=policy,
+        )
+
     self._preprocess_trials = {
         item["candidate"].candidate_id: item for item in trials
     }
@@ -687,7 +717,9 @@ def _run_preprocess_intent(
         },
         "preprocess_candidates": candidate_rows,
         "preprocess_evidence": evidence_rows,
-        "preprocess_decision": selected_decision.to_dict(),
+        "preprocess_decision": (
+            saxs_decision.to_dict() if saxs_decision is not None else selected_decision.to_dict()
+        ),
         "selected_candidate_id": selected["candidate"].candidate_id,
         "selected_preprocess_config": selected_config,
         "pending_preprocess_config": pending_config,
@@ -696,12 +728,20 @@ def _run_preprocess_intent(
         "preprocess_experience": experience_context,
         "error": commit_error,
     }
+    if saxs_plan is not None and saxs_decision is not None:
+        report["saxs_ai_rescue_plan"] = saxs_plan.to_dict()
+        report["saxs_ai_rescue_decision"] = saxs_decision.to_dict()
+        engine.saxs_ai_rescue_plan = report["saxs_ai_rescue_plan"]
+        engine.saxs_ai_rescue_decision = report["saxs_ai_rescue_decision"]
     audited = _append_decision_audit(
         self,
         report,
         original_hash=original_hash,
         prompt=prompt,
     )
+    if saxs_intent is not None and not audited:
+        report["saxs_ai_rescue_decision"] = deepcopy(report["preprocess_decision"])
+        engine.saxs_ai_rescue_decision = report["saxs_ai_rescue_decision"]
     if audited and report["preprocess_decision"]["decision"] == "auto_accept":
         committed, commit_error = self._commit_preprocess_candidate(
             engine,
@@ -717,7 +757,16 @@ def _run_preprocess_intent(
                     dict.fromkeys((*selected_decision.reason_codes, commit_error))
                 ),
             )
-            report["preprocess_decision"] = selected_decision.to_dict()
+            if saxs_intent is not None:
+                saxs_decision = SAXSAIRescueDecision(
+                    outcome=selected_decision,
+                    apply_allowed=False,
+                )
+                report["preprocess_decision"] = saxs_decision.to_dict()
+                report["saxs_ai_rescue_decision"] = saxs_decision.to_dict()
+                engine.saxs_ai_rescue_decision = report["saxs_ai_rescue_decision"]
+            else:
+                report["preprocess_decision"] = selected_decision.to_dict()
             report["error"] = commit_error
             _append_decision_audit(
                 self,

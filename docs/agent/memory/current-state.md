@@ -7,6 +7,14 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS AI Stage 7b is wired through the shared preprocessing orchestrator:
+  SAXS protected-field validation runs before candidate generation, and valid
+  reports/source engines retain JSON-safe candidate-only plan/decision audit
+  fields consumed by export. Focused bridge/handoff tests pass (`8`); the
+  combined SAXS/orchestrator/preprocess matrix passes (`383`, four existing
+  font warnings). Model calls, confirmed real reruns, calibration, and human
+  scientific publication review remain open.
+
 - SAXS real static/temperature/strain replay and external export provenance
   acceptance is automated-green: lifecycle `3 passed`, Workbench `9 passed`,
   and three real bundles register `quality_evidence.json`. The temperature

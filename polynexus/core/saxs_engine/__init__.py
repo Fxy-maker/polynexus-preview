@@ -82,6 +82,7 @@ from .saxs_ai_rescue import (
     SAXSAIRescuePlan,
     assess_saxs_ai_candidate,
     build_saxs_ai_rescue_plan,
+    validate_saxs_ai_intent,
 )
 from .saxs_output import (
     export_parameters_csv,
@@ -124,6 +125,6 @@ __all__ = [
     "analyze_peak_widths", "analyze_anisotropy", "export_parameters_csv",
     "build_sequence_rescue_candidates", "validate_sequence_rescue_candidate",
     "SAXSAIRescueDecision", "SAXSAIRescuePlan",
-    "assess_saxs_ai_candidate", "build_saxs_ai_rescue_plan",
+    "assess_saxs_ai_candidate", "build_saxs_ai_rescue_plan", "validate_saxs_ai_intent",
     "export_1d_profile", "export_strain_series_csv", "export_temp_series_csv",
 ]

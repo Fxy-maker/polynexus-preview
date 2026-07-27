@@ -14,6 +14,7 @@ from polynexus.core.preprocess_optimization.intent_schema import ContractValidat
 from polynexus.core.saxs_engine.saxs_ai_rescue import (
     build_saxs_ai_rescue_plan,
     assess_saxs_ai_candidate,
+    validate_saxs_ai_intent,
 )
 
 
@@ -70,6 +71,13 @@ def test_ai_intent_must_be_saxs_and_protect_physical_features():
         build_saxs_ai_rescue_plan(_intent(technique="IR"), {})
     with pytest.raises(ContractValidationError):
         build_saxs_ai_rescue_plan(_intent(protected_features=PROTECTED[:-1]), {})
+
+
+def test_public_validator_returns_a_saxs_intent_without_generating_candidates():
+    intent = validate_saxs_ai_intent(_intent())
+
+    assert intent.technique == "SAXS"
+    assert intent.protected_features == tuple(PROTECTED)
 
 
 def test_valid_intent_generates_bounded_candidate_only_plan():

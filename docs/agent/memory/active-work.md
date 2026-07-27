@@ -1,5 +1,19 @@
 # Active Work
 
+## SAXS AI orchestrator handoff - verification-ready 2026-07-27
+
+- The shared preprocessing orchestrator now validates SAXS intents through the
+  SAXS bridge before candidate generation, requiring all protected physical
+  features.
+- Valid runs carry the exact generated candidates in a JSON-safe
+  `saxs_ai_rescue_plan` and wrap the shared evidence decision in
+  `saxs_ai_rescue_decision`; the source engine carries both for existing export
+  audit. Shadow remains `keep_original` with `apply_allowed=false`.
+- Focused bridge/handoff tests pass (`8`); SAXS/orchestrator/preprocess matrix
+  passes (`383`, with four existing font warnings). Model provider calls,
+  user-confirmed real reruns, calibration, and scientific publication review
+  remain separate gates.
+
 ## SAXS real data and Workbench acceptance - automated slice 2026-07-27
 
 - Real static, temperature, and strain lifecycle replay passed (`3 passed,

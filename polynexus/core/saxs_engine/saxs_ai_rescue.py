@@ -128,6 +128,19 @@ def _validated_intent(payload: Mapping[str, Any], policy: PreprocessPolicy) -> P
     return intent
 
 
+def validate_saxs_ai_intent(
+    intent_payload: Mapping[str, Any],
+    *,
+    policy: PreprocessPolicy | None = None,
+) -> PreprocessIntent:
+    """Validate a SAXS intent without generating or executing candidates."""
+
+    selected_policy = policy or get_preprocess_policy("SAXS")
+    if selected_policy.technique.upper() != "SAXS":
+        raise PolicyValidationError("SAXS rescue requires the SAXS preprocessing policy")
+    return _validated_intent(intent_payload, selected_policy)
+
+
 def build_saxs_ai_rescue_plan(
     intent_payload: Mapping[str, Any],
     base_config: Mapping[str, Any],
@@ -138,9 +151,7 @@ def build_saxs_ai_rescue_plan(
     """Validate an AI intent and generate bounded SAXS candidates only."""
 
     selected_policy = policy or get_preprocess_policy("SAXS")
-    if selected_policy.technique.upper() != "SAXS":
-        raise ContractValidationError("SAXS rescue requires the SAXS preprocessing policy")
-    intent = _validated_intent(intent_payload, selected_policy)
+    intent = validate_saxs_ai_intent(intent_payload, policy=selected_policy)
     candidates = generate_preprocess_candidates(
         intent,
         dict(base_config),
@@ -194,4 +205,5 @@ __all__ = [
     "SAXSAIRescuePlan",
     "assess_saxs_ai_candidate",
     "build_saxs_ai_rescue_plan",
+    "validate_saxs_ai_intent",
 ]
