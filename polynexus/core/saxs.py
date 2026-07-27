@@ -1048,9 +1048,14 @@ class SAXSEngine(BaseEngine):
             phase_ambiguous,
         )
 
-    def _build_batch_parameters_payload(self, base_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _build_batch_parameters_payload(
+        self,
+        base_params: Optional[Dict[str, Any]] = None,
+        *,
+        batch_params: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         return _saxs_batch_helpers._build_batch_parameters_payload(
-            getattr(self, "_batch_params", []),
+            getattr(self, "_batch_params", []) if batch_params is None else batch_params,
             base_params=base_params,
             experiment_type=str(getattr(self.cfg, "experiment_type", "") or ""),
         )
@@ -1653,6 +1658,7 @@ class SAXSEngine(BaseEngine):
                     "sasmodels_R2": round(float(sas_r2), 4) if np.isfinite(sas_r2) else None,
                     **self._condition_row_metadata(i),
                 }
+                row.update(_saxs_batch_helpers.copy_saxs_quality_evidence(analysis))
                 if lc_cal is None and method != "sasmodels":
                     row["calibration_skipped_reason"] = skip_reason
                 self._batch_params.append(row)
@@ -1872,6 +1878,39 @@ class SAXSEngine(BaseEngine):
             params["paper_conclusion_ready"] = params["paper_conclusion_candidate"]
             return self._build_batch_parameters_payload(params)
         if self._batch_params:
+            experiment_type = str(
+                getattr(self.cfg, "experiment_type", "") or ""
+            ).strip().lower()
+            static_mode = experiment_type not in {
+                "temperature",
+                "cooling",
+                "heating",
+                "isothermal",
+                "strain",
+            }
+            if len(self._batch_params) > 1 and static_mode:
+                base_params: Dict[str, Any] = {
+                    "metric_evidence_scope": "static_batch",
+                }
+                metric_evidence = _saxs_batch_helpers.build_static_batch_metric_evidence(
+                    self._batch_results,
+                )
+                if metric_evidence:
+                    base_params["metric_evidence"] = metric_evidence
+                aligned_rows = []
+                for index, row in enumerate(self._batch_params):
+                    aligned = dict(row)
+                    if index < len(self._batch_results):
+                        aligned.update(
+                            _saxs_batch_helpers.copy_saxs_quality_evidence(
+                                self._batch_results[index],
+                            )
+                        )
+                    aligned_rows.append(aligned)
+                return self._build_batch_parameters_payload(
+                    base_params,
+                    batch_params=aligned_rows,
+                )
             return self._build_batch_parameters_payload()
         if self._analysis is not None and self._analysis.structure is not None:
             sp = self._analysis.structure
@@ -1886,6 +1925,7 @@ class SAXSEngine(BaseEngine):
                 params["phi_c"] = round(float(sp.phi_c), 3)
             if np.isfinite(sp.Q_invariant):
                 params["Q_star"] = round(float(sp.Q_invariant), 4)
+            params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(self._analysis))
             return params
         if self._q is not None and self._I is not None:
             result = analyze_single(self._q, self._I, self.cfg)
@@ -1899,6 +1939,7 @@ class SAXSEngine(BaseEngine):
                 params["la_nm"] = round(float(sp.la), 2)
             if sp and np.isfinite(sp.phi_c):
                 params["phi_c"] = round(float(sp.phi_c), 3)
+            params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(result))
             return params
         return {}
 

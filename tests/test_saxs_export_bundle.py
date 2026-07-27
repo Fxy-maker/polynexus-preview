@@ -153,3 +153,34 @@ def test_export_saxs_bundle_preserves_series_and_frame_metric_evidence(tmp_path)
     assert payload["temperature"]["frames"][0]["metric_evidence"]["porod"]["level"] == "Trend"
     assert summary == summary_before
     assert frame == frame_before
+
+
+def test_export_saxs_bundle_preserves_static_batch_frame_and_summary_evidence(tmp_path) -> None:
+    engine = _engine()
+    engine._batch_results = [
+        SimpleNamespace(
+            metric_evidence={"porod": {"metric_name": "Porod", "level": "Trend"}},
+            data_quality_report={"level": "Trend", "source_id": "frame-0"},
+        ),
+        None,
+        SimpleNamespace(
+            metric_evidence={"porod": {"metric_name": "Porod", "level": "Diagnostic"}},
+            data_quality_report={"level": "Diagnostic", "source_id": "frame-2"},
+        ),
+    ]
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "static_batch_quality"))
+
+    root = tmp_path / "static_batch_quality"
+    payload = json.loads((root / "quality_evidence.json").read_text(encoding="utf-8"))
+    static = payload["static"]
+
+    assert bundle.status == "ok"
+    assert static["metric_evidence_scope"] == "static_batch"
+    assert static["metric_evidence"]["porod"]["frame_count"] == 3
+    assert static["metric_evidence"]["porod"]["missing_frame_count"] == 1
+    assert [frame["frame_index"] for frame in static["frames"]] == [0, 2]
+    assert static["frames"][0]["metric_evidence"]["porod"]["level"] == "Trend"
+    quality_text = (root / "quality_evidence.json").read_text(encoding="utf-8")
+    assert "NaN" not in quality_text
+    assert "Infinity" not in quality_text

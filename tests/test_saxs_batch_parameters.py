@@ -4,6 +4,10 @@ import numpy as np
 from types import SimpleNamespace
 
 from polynexus.core.engine import get_engine
+from polynexus.core.saxs_batch_helpers import (
+    build_static_batch_metric_evidence,
+    copy_saxs_quality_evidence,
+)
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.saxs_output import _result_to_params_dict
 
@@ -53,6 +57,100 @@ def test_saxs_batch_get_parameters_returns_full_batch_payload() -> None:
     assert params["condition_source"] == "header"
     assert params["condition_confidence"] == 0.9
     assert params["condition_continuity_score"] == 1.0
+
+
+def test_copy_saxs_quality_evidence_copies_only_present_contract_fields() -> None:
+    source = SimpleNamespace(
+        data_quality_report={"level": "Diagnostic"},
+        guinier_evidence={"metric": {"level": "Trend"}},
+        metric_evidence={"porod": {"level": "Trend"}},
+        quality_flag="WARN",
+    )
+
+    copied = copy_saxs_quality_evidence(source)
+
+    assert copied == {
+        "data_quality_report": {"level": "Diagnostic"},
+        "guinier_evidence": {"metric": {"level": "Trend"}},
+        "metric_evidence": {"porod": {"level": "Trend"}},
+    }
+    assert copied["metric_evidence"] is not source.metric_evidence
+
+
+def test_build_static_batch_metric_evidence_keeps_missing_frame_counts() -> None:
+    analyses = [
+        SimpleNamespace(metric_evidence={"porod": {"level": "Trend"}}),
+        None,
+        SimpleNamespace(metric_evidence={"porod": {"level": "Diagnostic"}}),
+    ]
+
+    summary = build_static_batch_metric_evidence(analyses)
+
+    assert summary["porod"]["frame_count"] == 3
+    assert summary["porod"]["evidence_frame_count"] == 2
+    assert summary["porod"]["missing_frame_count"] == 1
+    assert summary["porod"]["level"] == "Diagnostic"
+    assert "series_metric_missing_frames" in summary["porod"]["reason_codes"]
+    assert summary["porod"]["source_ref"] == "saxs_static_batch.metric_evidence"
+
+
+def test_saxs_static_single_get_parameters_transports_existing_evidence() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.core import SAXSResult, StructureParams
+
+    evidence = {"porod": {"level": "Trend", "value": 1.2}}
+    result = SAXSResult(
+        structure=StructureParams(L=12.0, lc=4.0, la=8.0, phi_c=1 / 3),
+        data_quality_report={"level": "Trend"},
+        guinier_evidence={"metric": {"level": "Trend", "rg_nm": 5.0}},
+        metric_evidence=evidence,
+    )
+    engine._analysis = result  # type: ignore[attr-defined]
+    before = result.metric_evidence.copy()
+
+    params = engine.get_parameters()
+
+    assert params["L_nm"] == 12.0
+    assert params["data_quality_report"] == {"level": "Trend"}
+    assert params["guinier_evidence"]["metric"]["rg_nm"] == 5.0
+    assert params["metric_evidence"] == evidence
+    assert params["metric_evidence"] is not evidence
+    assert result.metric_evidence == before
+
+
+def test_saxs_static_batch_get_parameters_preserves_aligned_frame_evidence() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.core import SAXSResult, StructureParams
+
+    first = SAXSResult(
+        structure=StructureParams(L=12.0),
+        metric_evidence={"porod": {"level": "Trend", "value": 1.0}},
+    )
+    third = SAXSResult(
+        structure=StructureParams(L=13.0),
+        metric_evidence={"porod": {"level": "Diagnostic", "value": 0.5}},
+    )
+    engine._batch_results = [first, None, third]  # type: ignore[attr-defined]
+    engine._batch_params = [  # type: ignore[attr-defined]
+        {"file": "frame_001.dat", "L_nm": 12.0},
+        {"file": "frame_002.dat", "L_nm": None},
+        {"file": "frame_003.dat", "L_nm": 13.0},
+    ]
+
+    params = engine.get_parameters()
+
+    rows = params["_batch_data"]
+    assert rows[0]["metric_evidence"]["porod"]["value"] == 1.0
+    assert "metric_evidence" not in rows[1]
+    assert rows[2]["metric_evidence"]["porod"]["level"] == "Diagnostic"
+    assert params["metric_evidence_scope"] == "static_batch"
+    assert params["metric_evidence"]["porod"]["frame_count"] == 3
+    assert params["metric_evidence"]["porod"]["missing_frame_count"] == 1
+    assert params["metric_evidence"]["porod"]["level"] == "Diagnostic"
 
 
 def test_saxs_batch_export_row_keeps_status_fields() -> None:

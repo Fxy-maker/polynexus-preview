@@ -2,11 +2,46 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from .saxs_engine.saxs_quality_helpers import classify_single_frame_lc_reliability
+from .saxs_engine.saxs_quality_contracts import build_series_metric_evidence
+
+
+_QUALITY_EVIDENCE_FIELDS = (
+    "data_quality_report",
+    "guinier_evidence",
+    "metric_evidence",
+)
+
+
+def copy_saxs_quality_evidence(value: Any) -> Dict[str, Any]:
+    """Copy existing static 1D quality DTOs without interpreting them."""
+
+    if value is None:
+        return {}
+    payload: Dict[str, Any] = {}
+    for field in _QUALITY_EVIDENCE_FIELDS:
+        item = getattr(value, field, None)
+        if item is not None:
+            payload[field] = deepcopy(item)
+    return payload
+
+
+def build_static_batch_metric_evidence(analyses: Any) -> Dict[str, Dict[str, Any]]:
+    """Aggregate aligned static frame evidence without introducing an axis."""
+
+    frame_evidence = []
+    for analysis in analyses or ():
+        copied = copy_saxs_quality_evidence(analysis)
+        frame_evidence.append(copied.get("metric_evidence"))
+    return build_series_metric_evidence(
+        frame_evidence,
+        source_ref="saxs_static_batch.metric_evidence",
+    )
 
 
 def _build_batch_parameters_payload(batch_params, base_params: Optional[Dict[str, Any]] = None, *, experiment_type: str = "") -> Dict[str, Any]:

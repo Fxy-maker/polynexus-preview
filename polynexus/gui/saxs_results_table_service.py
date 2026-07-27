@@ -432,8 +432,21 @@ def _series_metric_review_text(
     if not metric_lines:
         return "", ""
     detail = " | ".join(metric_lines)
+    static_batch = str(payload.get("metric_evidence_scope") or "").strip().lower() == "static_batch"
+    if static_batch:
+        scope_label = "Batch quality" if not zh else "\u6279\u6b21\u8d28\u91cf"
+        detail = f"{scope_label}: {detail}"
     if downgraded:
         risk = tr_for_language("RESULTS_REVIEW_RISK", language, detail)
+        if static_batch:
+            next_text = tr_for_language(
+                "RESULTS_REVIEW_NEXT",
+                language,
+                "在使用静态批次质量摘要前，先复核缺失帧和诊断帧"
+                if zh
+                else "Review missing and diagnostic frames before using the static batch quality summary",
+            )
+            return risk, next_text
         next_text = tr_for_language(
             "RESULTS_REVIEW_NEXT",
             language,

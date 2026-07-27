@@ -7,6 +7,19 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS static 1D evidence transport is implemented locally: static single
+  parameters now carry existing frame quality DTOs, static multi-file rows
+  preserve aligned frame evidence, and the batch payload exposes a conservative
+  `metric_evidence` summary with `metric_evidence_scope=static_batch`. The
+  Workbench labels this as batch quality rather than a condition trend, History
+  round-trips the payload, and static `quality_evidence.json` includes aligned
+  frame snapshots plus the summary. No SAXS physical calculation, threshold,
+  figure role, or AI execution policy changed. Focused evidence/Workbench/
+  History/Export verification is `77 passed`; the SAXS matrix is `290 passed,
+  4 existing font warnings`; task verifier quality/preprocessing gates are
+  `282`/`106`. Scientific review of batch interpretation remains required.
+  See `docs/agent/tasks/2026-07-27-saxs-static-1d-evidence.md`.
+
 - SAXS temperature Guinier closure is implemented locally: existing frame
   `guinier_evidence["metric"]` now contributes to the common series
   `metric_evidence["guinier"]` summary, while detailed sequence evidence stays

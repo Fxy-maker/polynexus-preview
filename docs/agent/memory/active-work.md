@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS static 1D evidence - implementation checkpoint 2026-07-27
+
+- Static single-frame `get_parameters()` now transports existing
+  `data_quality_report`, `guinier_evidence`, and `metric_evidence` mappings
+  without mutating the `SAXSResult`.
+- Static multi-file parameters carry aligned per-frame evidence and preserve
+  missing/failed rows as missing. The top-level summary reuses the existing
+  conservative metric aggregation and declares `metric_evidence_scope` as
+  `static_batch`; it is not a temperature or strain trend.
+- Workbench review text uses batch-quality wording while Diagnostics retains
+  nested evidence. Existing History persistence carries the same payload.
+- Static Export now includes the summary and only analyzable frame snapshots in
+  `quality_evidence.json`; strict JSON sanitization remains unchanged.
+- Evidence: focused matrix `77 passed`, complete SAXS matrix `290 passed, 4
+  existing font warnings`, task verifier quality/preprocessing gates `282`/`106`,
+  and `git diff --check` passed. Atomic checkpoint is pending in this working
+  tree; scientific/data-contract review remains open.
+- Task card: `docs/agent/tasks/2026-07-27-saxs-static-1d-evidence.md`.
+
 ## SAXS temperature Guinier metric evidence - implementation checkpoint 2026-07-27
 
 - Existing `TemperaturePointResult.guinier_evidence["metric"]` is now copied

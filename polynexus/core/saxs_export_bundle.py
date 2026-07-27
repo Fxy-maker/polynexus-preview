@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from .saxs_batch_helpers import build_static_batch_metric_evidence
 from .saxs_config_binding import saxs_config_snapshot
 
 
@@ -191,13 +192,37 @@ def _series_quality_payload(series: Any) -> dict[str, Any]:
     return payload
 
 
+def _static_quality_payload(engine: Any) -> dict[str, Any]:
+    """Collect static frame evidence while preserving the single-frame shape."""
+
+    analyses = list(getattr(engine, "_batch_results", ()) or ())
+    if len(analyses) <= 1:
+        analysis = getattr(engine, "_analysis", None)
+        if analysis is None and analyses:
+            analysis = analyses[0]
+        return _quality_object_payload(analysis)
+
+    payload: dict[str, Any] = {
+        "metric_evidence_scope": "static_batch",
+    }
+    metric_evidence = build_static_batch_metric_evidence(analyses)
+    if metric_evidence:
+        payload["metric_evidence"] = metric_evidence
+
+    frames: list[dict[str, Any]] = []
+    for index, analysis in enumerate(analyses):
+        frame = _quality_object_payload(analysis)
+        if frame:
+            frame["frame_index"] = index
+            frames.append(frame)
+    if frames:
+        payload["frames"] = frames
+    return payload
+
+
 def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
     """Collect quality provenance for export without creating new evidence."""
 
-    analysis = getattr(engine, "_analysis", None)
-    if analysis is None:
-        batch = list(getattr(engine, "_batch_results", ()) or ())
-        analysis = batch[0] if batch else None
     temperature = getattr(engine, "_temperature_result", None)
     strain = getattr(engine, "_strain_result", None)
     ai_plan = getattr(engine, "saxs_ai_rescue_plan", None)
@@ -213,7 +238,7 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
         "schema_version": 1,
         "technique": "saxs",
         "mode": mode,
-        "static": _quality_object_payload(analysis),
+        "static": _static_quality_payload(engine),
         "temperature": _series_quality_payload(temperature),
         "strain": _series_quality_payload(strain),
     }

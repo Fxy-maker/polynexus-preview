@@ -166,6 +166,55 @@ def test_complete_series_evidence_is_trend_capped_in_review_text():
     assert not presentation.risk_text
 
 
+def test_static_batch_evidence_uses_batch_quality_wording_and_keeps_diagnostics():
+    params = {
+        "batch_frames": 3,
+        "metric_evidence_scope": "static_batch",
+        "_batch_data": [
+            {"file": "frame_001.dat"},
+            {"file": "frame_002.dat"},
+            {"file": "frame_003.dat"},
+        ],
+        "metric_evidence": {
+            "porod": {
+                "metric_name": "Porod",
+                "frame_count": 3,
+                "evidence_frame_count": 2,
+                "usable_frame_count": 1,
+                "diagnostic_frame_count": 1,
+                "unusable_frame_count": 0,
+                "missing_frame_count": 1,
+                "coverage_fraction": 2 / 3,
+                "level": "Diagnostic",
+                "applicable": False,
+                "reason_codes": [
+                    "series_metric_missing_frames",
+                    "series_metric_diagnostic_frames",
+                ],
+            }
+        },
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.static", language="en"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "Batch quality" in review_text
+    assert "2/3" in review_text
+    assert "Diagnostic" in review_text
+    assert "series_metric_missing_frames" in review_text
+    assert "temperature trend" not in review_text.lower()
+    assert "strain trend" not in review_text.lower()
+
+    metric_column = next(
+        index
+        for index, column in enumerate(presentation.diagnostics.columns)
+        if column.key == "metric_evidence"
+    )
+    assert "series_metric_missing_frames" in presentation.diagnostics.rows[-1][metric_column].display
+
+
 def test_guinier_series_evidence_uses_rg_label_in_review_text():
     params = _series_params()
     params["metric_evidence"]["guinier"] = {
@@ -253,6 +302,58 @@ def test_history_persistence_retains_series_evidence_in_parameters(tmp_path):
 
     run = db.get_analysis_run(run_id)
     assert run["parameters"]["metric_evidence"] == params["metric_evidence"]
+    assert run["results_summary"]["result"]["parameters"]["metric_evidence"] == params["metric_evidence"]
+    assert params == before
+    db.close()
+
+
+def test_history_persistence_retains_static_batch_evidence_scope_and_rows(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    data_file = tmp_path / "static_batch.csv"
+    data_file.write_text("file,L_nm\nframe_001.dat,12\n", encoding="utf-8")
+    params = {
+        "batch_frames": 2,
+        "metric_evidence_scope": "static_batch",
+        "metric_evidence": {
+            "porod": {
+                "metric_name": "Porod",
+                "frame_count": 2,
+                "evidence_frame_count": 1,
+                "usable_frame_count": 1,
+                "diagnostic_frame_count": 0,
+                "unusable_frame_count": 0,
+                "missing_frame_count": 1,
+                "coverage_fraction": 0.5,
+                "level": "Diagnostic",
+                "reason_codes": ["series_metric_missing_frames"],
+            }
+        },
+        "_batch_data": [
+            {
+                "file": "frame_001.dat",
+                "metric_evidence": {"porod": {"level": "Trend"}},
+            },
+            {"file": "frame_002.dat"},
+        ],
+    }
+    before = deepcopy(params)
+    context = AnalysisRunPersistenceContext(
+        technique="saxs",
+        submodule="saxs.static",
+        data_file=str(data_file),
+        output_dir=str(tmp_path / "output"),
+        project_label="PA6",
+    )
+
+    run_id = persist_analysis_run(
+        db,
+        {"technique": "saxs", "parameters": params},
+        context,
+    )
+
+    run = db.get_analysis_run(run_id)
+    assert run["parameters"]["metric_evidence_scope"] == "static_batch"
+    assert run["parameters"]["_batch_data"][0]["metric_evidence"]["porod"]["level"] == "Trend"
     assert run["results_summary"]["result"]["parameters"]["metric_evidence"] == params["metric_evidence"]
     assert params == before
     db.close()
