@@ -1,5 +1,24 @@
 # Active Work
 
+## Full release GUI route evidence - structural/live captures - 2026-07-27
+
+- A live `PrintWindow` capture of the existing canonical GUI process was
+  obtained at normal and maximized sizes. The maximized shell shows the
+  sidebar plus Data/Config/Results/Plots/History and fits its Data surface;
+  the normal-size right edge remains open for human visual review.
+- An offscreen capture, using the scientific-stack preload order from
+  `tests/conftest.py`, constructed all five tabs and the Chart Editor from a
+  restored real DSC figure. It produced one active manifest Gallery entry and
+  six structural screenshots under `C:\Temp\polynexus-route-*`.
+- These are not publication or visual sign-off: offscreen CJK glyphs are
+  square placeholders, and live interaction was limited by the Windows lock
+  screen. The release task remains in progress.
+- The first docs-only verifier attempt hit 54 pytest setup errors because the
+  default `D:\PolyNexus\.pytest_tmp` is an existing protected directory.
+  Rerun with external basetemp
+  `C:\Temp\PolyNexus_release_gui_route_verify_20260727` passed quality `283`,
+  preprocessing `106`, Ruff, compile/type, task/memory, and whitespace.
+
 ## SAXS AI confirmation UI acceptance - route evidence added - 2026-07-27
 
 - The real offscreen `MainWindow` completion route now has focused regression

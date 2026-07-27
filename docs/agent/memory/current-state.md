@@ -17,6 +17,18 @@ title: Current PolyNexus repository state
   now evidenced at the GUI-route boundary; restarted-GUI visual inspection,
   real-data scientific review, and human release approval remain open.
 
+## Latest GUI route evidence (2026-07-27)
+
+- A live canonical-window capture at maximum size shows the sidebar and
+  Data/Config/Results/Plots/History shell fitting the Data surface. A
+  normal-size capture still leaves a narrow-width right-edge visual review
+  item.
+- An offscreen restored-real-DSC capture constructed all five tabs and the
+  Chart Editor and found one active manifest Gallery entry. The screenshots
+  are structural only because offscreen CJK glyphs render as square
+  placeholders; live-font, pixel-level, and all-route interaction review are
+  not closed.
+
 ## Mainline snapshot
 
 - SAXS condition-axis provenance now has an explicit Export/History boundary

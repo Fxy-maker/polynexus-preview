@@ -115,6 +115,23 @@ limitation rather than pass.
 - Canonical GUI default-shell screenshot: `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-gui-default.png`.
   It shows the SAXS empty state, workspace summary, mode navigation, and the
   Data/Config/Results/Plots shell. It is visual evidence only.
+- Additional live-window capture at maximum size:
+  `C:\Temp\polynexus-live-window-max.png`. It shows the canonical sidebar,
+  Data/Config/Results/Plots/History tabs, and a fitting Data surface. The
+  normal-size live capture is `C:\Temp\polynexus-live-window.png`; its
+  narrow-width right edge remains a human visual-review item.
+- Offscreen route capture after scientific-stack preload produced
+  `C:\Temp\polynexus-route-0.png` through `polynexus-route-4.png` and
+  `C:\Temp\polynexus-route-editor.png`; all five tabs and the Editor were
+  constructed, and the active Gallery contained one manifest entry. This is
+  structural evidence only because CJK glyphs render as squares offscreen.
+- Documentation verifier rerun with external basetemp
+  `C:\Temp\PolyNexus_release_gui_route_verify_20260727` passed task/memory
+  checks, Ruff, compile/type baseline, quality `283`, preprocessing `106`,
+  and whitespace. The first run against the pre-existing protected
+  `D:\PolyNexus\.pytest_tmp` stopped with 54 setup errors (`WinError 5`) while
+  pytest cleaned that directory; it was not a test assertion failure and was
+  not used as final evidence.
 
 ## Verification commands
 

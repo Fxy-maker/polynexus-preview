@@ -113,10 +113,13 @@ Save screenshots only under the OS temp directory. Record the path and the
 inspected state; screenshots are evidence for human review and do not replace
 scientific approval.
 
-- [ ] **Step 3: Record unresolved visual gates**
+- [x] **Step 3: Record unresolved visual gates**
 
-If a route cannot be exercised without real input or a user decision, record
-the exact missing prerequisite rather than marking it passed.
+The live window was captured through the Windows `PrintWindow` path because
+the desktop was behind the lock-screen backstop. The maximized shell and
+offscreen route construction are recorded, while the normal-size right edge,
+live fonts, all-route interaction, and publication-role visual review remain
+explicit human gates.
 
 ### Task 5: Run the full verifier and close the audit record
 
@@ -133,8 +136,9 @@ $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\PolyNexus.pytest_tmp_release_full'
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-Record exact output. The fresh run completed with `2773 passed, 10 warnings`
-in `1451.67s`; the selected boundary audit passed.
+Record exact output. The current-head retry completed with `2790 passed, 10
+warnings` in `1454.97s`; the selected boundary audit passed. The earlier
+`2773` run remains historical evidence only.
 
 - [x] **Step 2: Reconcile durable state**
 

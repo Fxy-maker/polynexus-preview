@@ -119,6 +119,31 @@ Chinese glyphs as square placeholders. These screenshots are therefore
 structural diagnostics only; they do not close live-font, spacing, or
 publication-role visual approval.
 
+Additional route evidence collected on 2026-07-27:
+
+- A canonical live-window `PrintWindow` capture was taken from the existing
+  `PolyNexus v2.0` process. The maximized capture
+  `C:\Temp\polynexus-live-window-max.png` shows the restarted shell with the
+  sidebar, Data/Config/Results/Plots/History tabs, and a fitting Data surface.
+  The normal-size capture `C:\Temp\polynexus-live-window.png` still shows a
+  narrow-width right-edge area that needs human visual review; maximizing the
+  window is not a substitute for that review.
+- An offscreen route capture, after preloading the scientific stack in the
+  same order as `tests/conftest.py`, produced five tab captures
+  (`C:\Temp\polynexus-route-0.png` through `polynexus-route-4.png`) and an
+  Editor capture (`C:\Temp\polynexus-route-editor.png`). The run restored one
+  real DSC figure and the active Gallery contained one manifest entry. These
+  captures confirm route construction and rendering only; offscreen CJK glyphs
+  render as square placeholders, so live-font and pixel-level approval remain
+  open.
+- The first documentation-verifier attempt inherited the protected
+  `D:\PolyNexus\.pytest_tmp` basetemp and produced 54 pytest setup errors with
+  `WinError 5` while removing that pre-existing directory. Rerunning with
+  external basetemp `C:\Temp\PolyNexus_release_gui_route_verify_20260727`
+  passed task/memory checks, Ruff, compile/type baseline, quality `283`,
+  preprocessing `106`, and whitespace. This environment issue is recorded as
+  a verifier limitation, not a product test failure.
+
 ## Open release gates
 
 - Complete restarted-GUI visual review for all requested routes.
