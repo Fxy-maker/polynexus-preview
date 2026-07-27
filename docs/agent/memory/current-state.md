@@ -1,5 +1,20 @@
 ---
 
+## Native Results restore acceptance correction (2026-07-28)
+
+- The native real-route harness now restores each engine run with its existing
+  `AnalysisResult.parameters` and `AnalysisResult.to_dict()` payload. The old
+  fixture supplied only `data_file` and empty parameters, so Gallery was valid
+  while the Results table was empty.
+- A regression assertion requires a primary Results section and at least one
+  rendered table row. Fresh native Windows Qt shards passed: DSC `3` in
+  `23.13s`, SAXS `3` in `48.91s`, WAXS `3` in `85.25s`, IR `2` in `65.91s`,
+  and NMR `4` in `111.49s`; every shard exited `0`.
+- This is route/harness evidence, not a production GUI contrast fix. Inactive
+  `grab()` captures still show pale Results/Gallery body text and require
+  restarted-GUI visual review; IR vendor semantics, solid-C NMR assignment,
+  Joint scientific conflicts, and final release approval remain open.
+
 ## SAXS rescue-candidate Workbench visibility (2026-07-28)
 
 - Existing deterministic temperature `sequence_rescue_candidates` now travels

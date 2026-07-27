@@ -112,6 +112,7 @@ def test_native_windows_gui_real_route_capture(
     run_id = str(result.metadata.get("figure_run_id") or "")
     entries = build_active_manifest_gallery_entries(output_root)
     assert run_id and entries
+    result_payload = result.to_dict()
 
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
@@ -123,8 +124,16 @@ def test_native_windows_gui_real_route_capture(
             "submodule": mode,
             "created_at": "2026-07-28 00:00:00",
             "output_dir": str(output_root),
-            "parameters": {},
-            "results_summary": {"data_file": str(source)},
+            "parameters": result.parameters,
+            "results_summary": {
+                "data_file": str(source),
+                "result": result_payload,
+                "figure_run_id": run_id,
+                "validation_passed": result.validation_passed,
+                "validation_summary": result.validation_summary,
+                "validation_warnings": result.validation_warnings,
+                "quality_flags": result.quality_flags,
+            },
         }
     )
     window._populate_plots()
@@ -134,6 +143,9 @@ def test_native_windows_gui_real_route_capture(
 
     assert window._current_submodule_id == mode
     assert window._tabs.count() >= 5
+    assert window._current_results_table_model is not None
+    assert window._current_results_table_model.primary_section is not None
+    assert window._results_table.rowCount() > 0
     assert window._chart_gallery._entries
 
     capture_root = _capture_root(tmp_path)

@@ -88,8 +88,8 @@ limitation rather than pass.
 - Real published-run walkthrough shards: DSC `3 passed` (11 existing warnings),
   WAXS `3 passed`, SAXS `3 passed`, IR `2 passed`, NMR `4 passed`; all 15
   single-technique cases passed.
-- Fresh IR walkthrough rerun: `2 passed, 13 deselected in 71.34s`, exit code
-  `0`; fresh NMR walkthrough rerun: `4 passed, 11 deselected in 112.23s`,
+- Fresh IR walkthrough rerun: `2 passed, 13 deselected in 70.19s`, exit code
+  `0`; fresh NMR walkthrough rerun: `4 passed, 11 deselected in 105.59s`,
   exit code `0`. Their real validation warnings remain recorded and do not
   promote IR 2D or solid-C NMR semantics.
 - Lifecycle closure shards: DSC `3`, WAXS `3`, IR `3`, NMR `4`, and Joint `1`
@@ -141,6 +141,13 @@ limitation rather than pass.
   Representative images show the routes constructible and live CJK labels;
   body contrast/activity in inactive `grab()` captures remained a human visual
   gate.
+- The native history fixture was corrected to restore each engine result's
+  existing `parameters` and `to_dict()` payload instead of only its `data_file`.
+  The harness now asserts that the Results model has a primary section and at
+  least one table row. Fresh post-fix native shards passed with exit code `0`:
+  DSC `3` in `23.13s`, SAXS `3` in `48.91s`, WAXS `3` in `85.25s`, IR `2` in
+  `65.91s`, and NMR `4` in `111.49s`. Representative Results captures now
+  represent populated tables; inactive-grab contrast remains a human gate.
 - The native harness now triggers the real Chart Editor Export `QAction` for
   every mode using only the existing `PackageExporter` fallback. A second
   native matrix passed with exit code `0`: DSC `3` (24.25s), SAXS `3` (49.85s),

@@ -1,5 +1,22 @@
 # Active Work
 
+## Native Results restore acceptance correction - evidence refreshed - 2026-07-28
+
+- The native GUI route harness now restores the actual engine result payload
+  (`parameters` plus `AnalysisResult.to_dict()`) instead of an empty result
+  record. A regression assertion requires a primary Results section and at
+  least one rendered Results row, preventing a Gallery-only false positive.
+- TDD RED was the DSC native route failing at `assert 0 > 0`; GREEN was the
+  same route passing. Fresh technique shards passed with exit code `0`: DSC
+  `3`/`23.13s`, SAXS `3`/`48.91s`, WAXS `3`/`85.25s`, IR `2`/`65.91s`, and NMR
+  `4`/`111.49s`. Independent real walkthrough refreshes also passed: IR `2`
+  in `70.19s` and NMR `4` in `105.59s`, both exit `0`.
+- Representative native Results captures now correspond to populated tables,
+  but body text remains pale in inactive `grab()` captures. Restarted-GUI
+  contrast/activity review, IR vendor mapping/ROI semantics, solid-C NMR
+  assignment, Joint scientific conflicts, and final release approval remain
+  open. No production GUI or scientific semantics changed.
+
 ## SAXS rescue-candidate Workbench visibility - ready for checkpoint - 2026-07-28
 
 - The existing deterministic temperature sequence-rescue candidates are now

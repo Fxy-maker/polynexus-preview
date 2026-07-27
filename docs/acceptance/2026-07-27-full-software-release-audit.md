@@ -20,7 +20,7 @@ Status: automated evidence complete; release not approved
 | Per-technique lifecycle closures | DSC `3`, WAXS `3`, IR `3` (including mapping), NMR `4`, Joint `1` passed | automated-pass |
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
 | Real-result GUI route capture | Temporary pytest capture `1 passed`; restored DSC run produced Results, Gallery, History, and Editor screenshots with one manifest gallery entry | structural-pass; offscreen CJK font boxes require live visual review |
-| Native Windows Qt real-route harness | `15 passed` in five technique shards (`DSC 3`, `SAXS 3`, `WAXS 3`, `IR 2`, `NMR 4`), all exit code `0`; each case captured Results, Gallery, History, Editor, and package Export artifacts | automated route/package-export pass; live contrast/activity and installed Origin/COM remain human/optional-runtime gates |
+| Native Windows Qt real-route harness | Fresh post-fix shards: `DSC 3`, `SAXS 3`, `WAXS 3`, `IR 2`, `NMR 4` passed, all exit code `0`; each case restored actual `AnalysisResult` parameters/payload, asserted a non-empty Results table, and captured Results, Gallery, History, Editor, and package Export artifacts | automated route/package-export pass; inactive-grab body contrast/activity and installed Origin/COM remain human/optional-runtime gates |
 | IR mapping/ROI contract and lifecycle | `11 passed`; geometry mismatch and invalid pixels are rejected, provenance/roles/handoff are preserved | automated structural-pass; vendor semantics intentionally not inferred |
 | NMR/Joint provenance and lifecycle | `4 passed`; NMR Main/diagnostic and Joint run provenance survive publication/history | automated provenance-pass; solid C assignment and Joint conflicts require scientific review |
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
@@ -68,6 +68,15 @@ These runs verified the real engine -> manifest -> Gallery -> Editor revision
 -> export bundle -> History restore route. They do not close human scientific
 role review, and the solid-state NMR C assignment remains provisional.
 
+The fresh IR and NMR commands were run independently after the native harness
+Results check was added: IR `2 passed, 13 deselected in 70.19s`, exit code `0`;
+NMR `4 passed, 11 deselected in 105.59s`, exit code `0`. The native harness
+previously restored only `data_file` with empty parameters, which made the
+Results table empty despite a valid Gallery. It now restores the existing
+`AnalysisResult.parameters` and `AnalysisResult.to_dict()` payload and asserts
+that the shared Results model and table contain rows. This is a test-harness
+acceptance correction; no production GUI or scientific behavior changed.
+
 The separate lifecycle closure shards also passed: DSC `3`, WAXS `3`, IR `3`
 (standard/temperature-2D/mapping), NMR `4`, and Joint `1`.
 
@@ -101,6 +110,15 @@ and `import.ogs`. The test deliberately injects only the existing
 `PackageExporter` adapter so it cannot launch an installed Origin process or
 COM server. Installed OriginPro/COM behavior remains an optional-runtime
 manual gate, while the no-Origin fallback is now automated across all modes.
+
+After correcting the history fixture to carry the actual engine result, the
+native Results assertion was rerun in fresh technique shards: DSC `3 passed,
+13 deselected in 23.13s`, SAXS `3 passed, 13 deselected in 48.91s`, WAXS `3
+passed, 13 deselected in 85.25s`, IR `2 passed, 14 deselected in 65.91s`, and
+NMR `4 passed, 12 deselected in 111.49s`; every command exited `0`. A
+representative native Results capture now corresponds to a non-empty table,
+but its inactive `grab()` body text remains visually pale and therefore stays
+an explicit human contrast/activity gate.
 
 The separate native Joint probe passed `1 passed, 15 deselected in 5.94s`,
 exit code `0`. It uses the existing synthetic `JointCoordinator` report-level

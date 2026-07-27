@@ -132,6 +132,14 @@ Chart Editor Export action with the existing `PackageExporter` fallback and
 created the expected Origin-compatible package artifacts. Installed
 OriginPro/COM behavior remains an optional-runtime gate.
 
+The harness history fixture now carries each engine result's existing
+`parameters` and `to_dict()` payload and asserts a non-empty Results table;
+the previous empty-parameter fixture could exercise Gallery while leaving
+Results blank. Fresh post-fix native shards passed with exit code `0`: DSC
+`3`/`23.13s`, SAXS `3`/`48.91s`, WAXS `3`/`85.25s`, IR `2`/`65.91s`, and NMR
+`4`/`111.49s`. This is acceptance-harness evidence only and does not close
+the inactive-capture contrast or scientific review gates.
+
 The existing synthetic Joint report also passed a native `joint.compare` route
 probe (`1 passed, 15 deselected in 5.94s`, exit `0`) through the same surfaces
 and package fallback. This is not real-data Joint or scientific conflict
