@@ -19,6 +19,7 @@ Status: automated evidence complete; release not approved
 | Per-technique lifecycle closures | DSC `3`, WAXS `3`, IR `3` (including mapping), NMR `4`, Joint `1` passed | automated-pass |
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
 | Real-result GUI route capture | Temporary pytest capture `1 passed`; restored DSC run produced Results, Gallery, History, and Editor screenshots with one manifest gallery entry | structural-pass; offscreen CJK font boxes require live visual review |
+| Native Windows Qt real-route harness | `15 passed` in five technique shards (`DSC 3`, `SAXS 3`, `WAXS 3`, `IR 2`, `NMR 4`), all exit code `0`; each case captured Results, Gallery, History, and Editor | automated route-pass; captured body contrast/activity and Export click remain human visual gates |
 | IR mapping/ROI contract and lifecycle | `11 passed`; geometry mismatch and invalid pixels are rejected, provenance/roles/handoff are preserved | automated structural-pass; vendor semantics intentionally not inferred |
 | NMR/Joint provenance and lifecycle | `4 passed`; NMR Main/diagnostic and Joint run provenance survive publication/history | automated provenance-pass; solid C assignment and Joint conflicts require scientific review |
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
@@ -55,8 +56,12 @@ were run one technique at a time with dedicated basetemps:
 - DSC: `3 passed, 11 warnings in 25.00s`.
 - WAXS: `3 passed in 82.93s` (includes strain/2D).
 - SAXS: `3 passed in 54.68s`.
-- IR: `2 passed in 67.93s` (standard and temperature-2D).
-- NMR: `4 passed in 97.25s` (liquid/solid H/C).
+- IR: fresh rerun `2 passed, 13 deselected in 71.34s`, exit code `0`
+  (standard and temperature-2D); `temperature_2d/neg_fraction = WARN` remains
+  in the real output.
+- NMR: fresh rerun `4 passed, 11 deselected in 112.23s`, exit code `0`
+  (liquid/solid H/C); liquid C, solid H, and solid C validation warnings remain
+  in the real output, including `Xc_NMR_assignment = WARN` for solid C.
 
 These runs verified the real engine -> manifest -> Gallery -> Editor revision
 -> export bundle -> History restore route. They do not close human scientific
@@ -64,6 +69,31 @@ role review, and the solid-state NMR C assignment remains provisional.
 
 The separate lifecycle closure shards also passed: DSC `3`, WAXS `3`, IR `3`
 (standard/temperature-2D/mapping), NMR `4`, and Joint `1`.
+
+The native Windows Qt route harness was then run in bounded technique shards
+with `QT_QPA_PLATFORM=windows`, external basetemps, and exit codes printed by
+the PowerShell wrapper:
+
+- DSC: `3 passed, 12 deselected, 15 warnings in 25.44s`, exit code `0`.
+- SAXS: `3 passed, 12 deselected in 49.93s`, exit code `0`; the temperature
+  route retained its expected validation error state while the shared GUI route
+  itself passed.
+- WAXS: `3 passed, 12 deselected in 86.35s`, exit code `0` (static,
+  temperature, strain).
+- IR: `2 passed, 13 deselected in 66.72s`, exit code `0`; the temperature-2D
+  route retained `neg_fraction = WARN`.
+- NMR: `4 passed, 11 deselected in 114.85s`, exit code `0`; solid C retained
+  `NMR_fit_R2 = WARN` and `Xc_NMR_assignment = WARN`.
+
+The earlier combined native invocation exceeded the 180-second tool window
+without a pytest summary and is therefore a tool-level timeout, not a pass or
+failure. Its follow-up `-k nmr.solid_c` command did have a real summary:
+`1 passed, 12 deselected in 16.66s`, exit code `0`. The earlier `-k
+waxs.strain` command had `13 deselected, 0 selected`, exit code `5` because
+the harness had not yet imported the full-2D case list; this was a harness
+selection error, not a WAXS test failure. The harness now includes both
+`waxs.strain` and `ir.temperature_2d`, and the fresh shards above are the
+authoritative native results.
 
 ### Combined lifecycle attempt
 
@@ -145,6 +175,20 @@ Additional route evidence collected on 2026-07-27:
   the main shell, sidebar, tabs, Gallery entry, History table, and Editor
   inspector were constructible. This is native live-font evidence for one DSC
   route, not all-mode visual approval; export was exposed but not clicked.
+- The reusable harness for extending this evidence is
+  `tests/test_native_gui_real_route_capture.py`; it is explicitly skipped in
+  offscreen CI and parameterizes all real walkthrough modes for native Qt
+  capture.
+- The completed native harness saved captures under
+  `C:\Temp\PolyNexus_native_gui_dsc_verified`,
+  `C:\Temp\PolyNexus_native_gui_saxs_verified`,
+  `C:\Temp\PolyNexus_native_gui_waxs_verified`,
+  `C:\Temp\PolyNexus_native_gui_ir_verified`, and
+  `C:\Temp\PolyNexus_native_gui_nmr_verified`. Representative Results,
+  Gallery, and Editor images show the native shell, tabs, plots, and CJK labels
+  constructible; Results/Gallery body text is visually pale in these inactive
+  `grab()` captures, so contrast/activity and live-window export interaction
+  remain human review items rather than automated approval.
 - The first documentation-verifier attempt inherited the protected
   `D:\PolyNexus\.pytest_tmp` basetemp and produced 54 pytest setup errors with
   `WinError 5` while removing that pre-existing directory. Rerunning with

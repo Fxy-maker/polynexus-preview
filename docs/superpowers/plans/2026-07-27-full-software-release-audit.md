@@ -121,6 +121,14 @@ offscreen route construction are recorded, while the normal-size right edge,
 live fonts, all-route interaction, and publication-role visual review remain
 explicit human gates.
 
+- [x] **Step 4: Exercise the native all-mode route harness**
+
+The corrected `tests/test_native_gui_real_route_capture.py` merges the regular
+and full-2D real case lists. Native Windows Qt technique shards passed all 15
+modes with exit code `0`: DSC `3`, SAXS `3`, WAXS `3`, IR `2`, and NMR `4`.
+Captures are structural/live-font evidence; body contrast in inactive grabs
+and Export interaction remain human review gates.
+
 ### Task 5: Run the full verifier and close the audit record
 
 **Files:**
@@ -136,9 +144,9 @@ $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\PolyNexus.pytest_tmp_release_full'
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-Record exact output. The current-head retry completed with `2790 passed, 10
-warnings` in `1454.97s`; the selected boundary audit passed. The earlier
-`2773` run remains historical evidence only.
+Record exact output. The current-head retry completed with `2793 passed, 10
+warnings` in `1607.00s`; the selected boundary audit passed. The older `2790`
+and `2773` runs remain historical evidence only.
 
 - [x] **Step 2: Reconcile durable state**
 

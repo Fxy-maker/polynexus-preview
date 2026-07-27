@@ -43,6 +43,23 @@
   approval. The remaining all-route GUI and scientific/release gates stay
   open.
 
+## Native Windows Qt all-route evidence (2026-07-28)
+
+- `tests/test_native_gui_real_route_capture.py` now includes the regular and
+  full-2D real case lists. Native Windows Qt shards passed all 15 modes with
+  exit code `0`: DSC `3`, SAXS `3`, WAXS `3`, IR `2`, and NMR `4`.
+- The shard durations were DSC `25.44s`, SAXS `49.93s`, WAXS `86.35s`, IR
+  `66.72s`, and NMR `114.85s`; each mode captured Results, Gallery, History,
+  and Editor under external temp folders. This is automated route evidence,
+  not final pixel or Export approval.
+- Representative captures show native CJK labels and constructible plots and
+  Editor controls, while Results/Gallery body contrast in inactive `grab()`
+  captures remains a human review item. IR temperature `neg_fraction` and NMR
+  solid-C assignment warnings remain scientific limitations.
+- The earlier all-native invocation had a tool-level timeout with no pytest
+  summary. The old `waxs.strain` filter returned exit `5` only because the
+  harness omitted full-2D cases; it is superseded by the fresh WAXS/IR shards.
+
 ## Fresh current full/boundary release verification (2026-07-27)
 
 - The current working tree completed

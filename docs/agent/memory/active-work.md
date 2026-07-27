@@ -61,6 +61,24 @@
 - Evidence remains in the full release task/acceptance note; no production
   code or scientific semantics changed.
 
+## Native Windows Qt all-route capture - 2026-07-28
+
+- The reusable `tests/test_native_gui_real_route_capture.py` harness now merges
+  `_real_cases()` with `_full_2d_real_cases()`, covering all 15 real modes,
+  including `waxs.strain` and `ir.temperature_2d`.
+- Fresh native Windows Qt shards passed with exit code `0`: DSC `3` in
+  `25.44s`, SAXS `3` in `49.93s`, WAXS `3` in `86.35s`, IR `2` in `66.72s`,
+  and NMR `4` in `114.85s`. Each case captured Results, Gallery, History, and
+  Editor under external `C:\Temp\PolyNexus_native_gui_*_verified` folders.
+- Representative native captures show constructible shared routes, plots,
+  Editor controls, and live CJK labels. Results/Gallery body contrast in
+  inactive `grab()` captures and Export button interaction remain human visual
+  gates; no production code or scientific semantics changed.
+- The earlier combined native invocation is recorded as a tool-level timeout
+  without a pytest summary. Its old `waxs.strain` filter exit code `5` was a
+  harness-selection error before full-2D imports were added, not a product
+  failure. See `docs/acceptance/2026-07-27-full-software-release-audit.md`.
+
 ## Fresh current full/boundary release verification - 2026-07-27
 
 - The current working tree completed

@@ -88,6 +88,10 @@ limitation rather than pass.
 - Real published-run walkthrough shards: DSC `3 passed` (11 existing warnings),
   WAXS `3 passed`, SAXS `3 passed`, IR `2 passed`, NMR `4 passed`; all 15
   single-technique cases passed.
+- Fresh IR walkthrough rerun: `2 passed, 13 deselected in 71.34s`, exit code
+  `0`; fresh NMR walkthrough rerun: `4 passed, 11 deselected in 112.23s`,
+  exit code `0`. Their real validation warnings remain recorded and do not
+  promote IR 2D or solid-C NMR semantics.
 - Lifecycle closure shards: DSC `3`, WAXS `3`, IR `3`, NMR `4`, and Joint `1`
   passed. IR's three modes include mapping; NMR's solid C assignment remains
   provisional.
@@ -125,6 +129,23 @@ limitation rather than pass.
   Native DSC Results/Gallery/History/Editor captures at 1600x1000 showed live
   CJK glyphs and constructible shared routes. This covers one DSC route only;
   export interaction and every other technique/mode remain open.
+- A reusable native acceptance harness is now present at
+  `tests/test_native_gui_real_route_capture.py`. It is skipped under the
+  default offscreen test environment and parameterizes all real walkthrough
+  modes when explicitly run with `QT_QPA_PLATFORM=windows`. The corrected
+  harness now imports both `_real_cases()` and `_full_2d_real_cases()`.
+- Native Windows Qt route shards passed all 15 cases with exit code `0`:
+  DSC `3` (25.44s), SAXS `3` (49.93s), WAXS `3` (86.35s), IR `2` (66.72s),
+  and NMR `4` (114.85s). Each case captured Results, Gallery, History, and
+  Editor under external `C:\Temp\PolyNexus_native_gui_*_verified` folders.
+  Representative images show the routes constructible and live CJK labels;
+  body contrast/activity in inactive `grab()` captures and Export interaction
+  remain human visual gates.
+- The prior all-native command timed out at the 180-second tool boundary with
+  no pytest summary and is classified as a tool-level timeout. The prior
+  `-k waxs.strain` exit code `5` selected no tests because full-2D cases were
+  not imported; it was a harness selection error, superseded by the WAXS/IR
+  native shards above.
 - Offscreen route capture after scientific-stack preload produced
   `C:\Temp\polynexus-route-0.png` through `polynexus-route-4.png` and
   `C:\Temp\polynexus-route-editor.png`; all five tabs and the Editor were
