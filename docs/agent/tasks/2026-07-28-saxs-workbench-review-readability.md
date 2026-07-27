@@ -88,9 +88,9 @@ git diff --check
 - Focused Workbench consumer matrix: `104 passed`.
 - Exact SAXS matrix: `419 passed, 6 warnings` in 37.27s. Warnings are the
   existing Arial glyph and missing-geometry warnings.
-- The prior current-tree full/boundary result (`2850 passed, 16 skipped,
-  12 warnings`) predates this presentation-only change and is not claimed as
-  post-change full verification.
+- Post-change full/boundary verification passed: `2851 passed, 17 skipped,
+  12 warnings` in 1567.25s. Quality `283`, preprocessing `106`, compile,
+  whitespace, and boundary audit all passed.
 - Structured verifier:
   `python scripts/verify.py --task docs/agent/tasks/2026-07-28-saxs-workbench-review-readability.md --changed --types`
   passed with quality gate `283`, preprocessing gate `106`, Ruff, compile,

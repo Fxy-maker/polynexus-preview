@@ -323,6 +323,26 @@ Additional route evidence collected on 2026-07-27:
   preprocessing `106`, and whitespace. This environment issue is recorded as
   a verifier limitation, not a product test failure.
 
+### Native capture review update (2026-07-28 continuation)
+
+The 68-capture D:-isolated native matrix was re-inspected for the remaining
+route signals. `ir_mapping_results.png` shows the typed mapping payload and
+non-empty Results review, while `ir_mapping_editor.png` shows the map heatmap,
+color scale, editable figure surface, and Editor Inspector. These confirm the
+synthetic mapping route only; they do not establish vendor file, coordinate, or
+ROI conventions. `nmr_solid_c_editor.png` is editable and renders the real
+spectrum, but its dense peak labels remain a scientific/visual label-policy
+decision. `joint_compare_results.png` shows the diagnostic rows and conflicts,
+while the synthetic restore header still says `No project` / `No data loaded`;
+this remains a fixture/route review signal rather than a production change.
+
+The direct OS capture attempt against the currently running GUI handle produced
+the desktop wallpaper instead of the window content, so it is explicitly not
+counted as restarted-GUI evidence. The existing valid live-window captures
+(`C:\Temp\polynexus-live-window-max.png` and
+`C:\Temp\polynexus-live-window.png`) remain shell/default-state evidence only;
+the all-route restarted-GUI gate is still open.
+
 ## Open release gates
 
 - Complete restarted-GUI visual review for all requested routes.

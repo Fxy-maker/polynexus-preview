@@ -19,10 +19,10 @@
 - Inspect: `polynexus/gui/results_table_service.py`, `polynexus/gui/result_table_templates.py`, `polynexus/gui/widgets/results_table_panel.py`
 - Create: `docs/acceptance/2026-07-25-full-software-baseline.md`
 
-- [ ] Inventory every technique/mode, current provider, result template, workbench consumer, figure lifecycle, export path, focused tests and real/Golden fixture.
-- [ ] Record stale/active/merged status from memory without treating historical entries as current truth.
-- [ ] Run `python scripts/verify.py --changed --types` with external basetemp if required and record the baseline.
-- [ ] Define per-phase changed-file allowlists before implementation.
+- [x] Inventory every technique/mode, current provider, result template, workbench consumer, figure lifecycle, export path, focused tests and real/Golden fixture.
+- [x] Record stale/active/merged status from memory without treating historical entries as current truth.
+- [x] Run `python scripts/verify.py --changed --types` with external basetemp if required and record the baseline.
+- [x] Define per-phase changed-file allowlists before implementation.
 
 ### Phase 1: Shared contracts and Results Workbench platform
 
@@ -40,7 +40,7 @@
 - [x] Make tab labels, empty states, evidence status and action routing profile-driven.
 - [x] Add Qt-independent presentation tests plus focused offscreen Qt tests.
 - [x] Verify mode switching, retranslation, no-result, low-confidence and diagnostic-only states.
-- [ ] Checkpoint only after focused tests, Ruff, compile, `git diff --check`, and `python scripts/verify.py --changed --types` pass.
+- [x] Checkpoint only after focused tests, Ruff, compile, `git diff --check`, and `python scripts/verify.py --changed --types` pass.
 
 ### Phase 2: SAXS complete vertical slice
 
@@ -56,8 +56,9 @@
 - [x] Temperature: evolution Main, transition/Avrami support, condition review and selected evidence.
 - [x] Strain: evolution Main, morphology/orientation/phase support, full sequence and low-q/excluded diagnostics.
 - [x] Connect each mode to its Workbench Profile, Manifest, Gallery, Editor, data export and publication export.
-- [ ] Cover normal, fallback, missing condition, low-confidence, invalid evidence and AI-off paths.
-- [ ] Run real/Golden SAXS fixtures and restarted-GUI visual inspection; checkpoint the complete slice.
+- [x] Cover normal, fallback, missing condition, low-confidence, invalid evidence and AI-off paths.
+- [x] Run real/Golden SAXS fixtures and checkpoint the automated complete slice.
+- [ ] Complete restarted-GUI visual inspection for the SAXS modes.
 
 ### Phase 3: DSC complete vertical slice
 
@@ -94,10 +95,10 @@
 - Test: `tests/test_ir_*`, result review, mapping and lifecycle tests
 - Create: `docs/acceptance/2026-07-25-ir-full-vertical-slice.md`
 
-- [ ] Standard spectrum/band assignment/baseline quality.
-- [ ] Temperature-2D spectral evolution, transition bands and sequence validity.
-- [ ] Mapping/ROI map, spectra and invalid-pixel diagnostics.
-- [ ] Connect Workbench, Figure Pack, Manifest/Gallery/Editor/export and visual fixtures.
+- [x] Standard spectrum/band assignment/baseline quality.
+- [x] Temperature-2D spectral evolution, transition bands and sequence validity.
+- [x] Mapping/ROI map, spectra and invalid-pixel diagnostics at the typed structural boundary.
+- [x] Connect Workbench, Figure Pack, Manifest/Gallery/Editor/export and synthetic visual fixtures.
 
 Current checkpoint (2026-07-25): IR standard already has a shared provider;
 temperature-2D now has Manifest-backed FigureDefinitions for its heatmap, band
@@ -113,10 +114,10 @@ IR acceptance chain remain open; see
 - Test: `tests/test_nmr_*`, evidence, workbench and lifecycle tests
 - Create: `docs/acceptance/2026-07-25-nmr-full-vertical-slice.md`
 
-- [ ] Liquid H/C peak and assignment workbench.
-- [ ] Solid H/C phase, crystallinity and assignment-coverage workbench.
-- [ ] SNR, overlap, broad-line, solvent and weak-assignment diagnostics.
-- [ ] Ensure unsupported Xc/phase claims remain provisional or diagnostic.
+- [x] Liquid H/C peak and assignment workbench.
+- [x] Solid H/C phase, crystallinity and assignment-coverage workbench.
+- [x] SNR, overlap, broad-line, solvent and weak-assignment diagnostics.
+- [x] Ensure unsupported Xc/phase claims remain provisional or diagnostic.
 
 Current checkpoint (2026-07-25): the four NMR partitions have customized
 Workbench profiles and a shared FigureDefinition/export contract, including
@@ -134,8 +135,8 @@ remain open; see
 - Test: `tests/test_joint_*`, cross-technique evidence and export tests
 - Create: `docs/acceptance/2026-07-25-joint-full-vertical-slice.md`
 
-- [ ] Add consistency checks for DSC/WAXS/SAXS crystallinity, Tm/L/lc, SAXS/WAXS multiscale, and IR/NMR assignment/calibration.
-- [ ] Present conflicts as review evidence with provenance, never as silent correction.
+- [x] Add consistency checks for DSC/WAXS/SAXS crystallinity, Tm/L/lc, SAXS/WAXS multiscale, and IR/NMR assignment/calibration.
+- [x] Present conflicts as review evidence with provenance, never as silent correction.
 - [x] Add Joint report, Workbench, figure/export context and history linkage.
 
 Current checkpoint (reconciled 2026-07-27): the existing Joint hub rows use a

@@ -37,6 +37,6 @@ newline separation, empty-section omission, and input immutability.
 - Exact SAXS matrix: `419 passed, 6 warnings`.
 - The task verifier passed with quality `283`, preprocessing `106`, Ruff,
   compile, memory/task, and whitespace checks; `git diff --check` passed. The
-  explicit allowlist checkpoint: `8e09f23`. Full/boundary verification is not
-  claimed post-change; the prior `2850 passed, 16 skipped,
-  12 warnings` run predates this presentation-only change.
+  explicit allowlist checkpoint is `8e09f23`. Post-change full/boundary
+  verification also passed: `2851 passed, 17 skipped, 12 warnings` in
+  1567.25s, with compile, whitespace, and boundary audit passing.

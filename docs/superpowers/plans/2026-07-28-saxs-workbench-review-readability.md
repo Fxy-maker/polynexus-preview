@@ -70,8 +70,9 @@ memory/task, and whitespace checks. `git diff --check` passed.
 
 - [x] **Step 2: Update task/spec/plan and durable memory with actual evidence**
 
-The prior full/boundary result remains explicitly historical because this task
-is presentation-only and has not rerun the 26-minute release command.
+Post-change full/boundary verification passed: `2851 passed, 17 skipped, 12
+warnings` in 1567.25s; quality `283`, preprocessing `106`, compile,
+whitespace, and boundary audit passed.
 
 - [x] **Step 3: Create one explicit allowlist checkpoint**
 

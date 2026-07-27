@@ -232,6 +232,13 @@ limitation rather than pass.
   `D:\PolyNexus\.pytest_tmp` stopped with 54 setup errors (`WinError 5`) while
   pytest cleaned that directory; it was not a test assertion failure and was
   not used as final evidence.
+- Continuation visual review inspected the D:-isolated 68-capture matrix:
+  synthetic IR mapping Results/Editor are structurally usable; NMR solid-C
+  remains label-crowded; and synthetic Joint diagnostics coexist with a
+  `No project` / `No data loaded` restore header. The direct OS capture of the
+  currently running window returned desktop wallpaper and is not counted as
+  restarted-GUI evidence. Vendor mapping semantics and human scientific
+  decisions remain open.
 
 ## Verification commands
 

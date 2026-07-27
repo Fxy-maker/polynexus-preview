@@ -10,11 +10,11 @@
   physical gates, AI/rescue behavior, persistence, Figure/Manifest/Export, and
   input immutability are unchanged. RED was `1 failed`; focused consumers were
   `104 passed`; exact SAXS was `419 passed, 6 warnings`.
-- The prior current-tree full/boundary result (`2850 passed, 16 skipped,
-  12 warnings`) predates this task; post-change full/boundary verification is
-  not claimed. Task verifier passed with quality `283`, preprocessing `106`,
-  Ruff, compile, memory/task, and whitespace checks. Explicit allowlist
-  checkpoint: `8e09f23`.
+- Post-change full/boundary verification passed: `2851 passed, 17 skipped,
+  12 warnings` in 1567.25s. Quality `283`, preprocessing `106`, compile,
+  whitespace, and boundary audit passed. Task verifier also passed with Ruff,
+  memory/task, and whitespace checks; explicit allowlist checkpoint:
+  `8e09f23`.
 - Task/spec/plan:
   `docs/agent/tasks/2026-07-28-saxs-workbench-review-readability.md`,
   `docs/superpowers/specs/2026-07-28-saxs-workbench-review-readability-design.md`,
@@ -140,6 +140,13 @@
   `4 passed, 11 deselected in 132.02s`; and NMR solid-C lifecycle `1 passed, 3
   deselected in 138.00s`. All three returned exit code `0`; process exit without
   a pytest summary is not treated as evidence.
+- The D:-isolated 68-capture native matrix was re-inspected: synthetic IR
+  mapping Results/Editor are structurally usable, NMR solid-C labels remain a
+  scientific/visual policy question, and synthetic Joint diagnostics coexist
+  with a `No project` / `No data loaded` header. A direct OS capture of the
+  current stale GUI handle returned wallpaper, so it is not restarted-GUI
+  evidence. The full development plan now records the automated slices as
+  complete while retaining the human gates.
 - A fresh four-partition NMR published-run walkthrough also returned `4
   passed, 11 deselected in 108.37s`, exit code `0`; solid-C assignment remains
   provisional.

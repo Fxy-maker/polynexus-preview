@@ -6,8 +6,9 @@
   paragraphs instead of one space-joined paragraph. No evidence, physical,
   rescue, AI, or publication semantics changed.
 - RED was `1 failed`; focused Workbench consumers were `104 passed`; exact SAXS
-  matrix was `419 passed, 6 warnings`. The previous full/boundary result is
-  historical because it predates this change.
+  matrix was `419 passed, 6 warnings`. Post-change full/boundary passed with
+  `2851 passed, 17 skipped, 12 warnings` in 1567.25s; quality `283`,
+  preprocessing `106`, compile, whitespace, and boundary audit passed.
 - Task verifier passed with quality `283`, preprocessing `106`, Ruff, compile,
   memory/task, and whitespace checks. Explicit allowlist checkpoint:
   `8e09f23`. Keep the modified native GUI harness and all scratch/release files
@@ -89,6 +90,13 @@
   process exit: IR walkthrough `2 passed, 13 deselected in 88.67s`; NMR
   walkthrough `4 passed, 11 deselected in 132.02s`; exact NMR solid-C lifecycle
   `1 passed, 3 deselected in 138.00s`; all exit code `0`.
+- Continuation visual review re-inspected the D:-isolated 68-capture native
+  matrix. Synthetic IR mapping Results/Editor are structurally usable; NMR
+  solid-C peak labels remain crowded; and synthetic Joint diagnostics retain a
+  `No project` / `No data loaded` restore header. A direct OS capture of the
+  stale running window returned wallpaper and is not counted as restarted-GUI
+  evidence. The full plan now separates automated completion from the open
+  restarted-GUI and human-scientific gates.
 - Automated full-release evidence is green for the fresh run. Restarted-GUI,
   scientific review, and final release approval remain open; do not call the
   overall goal complete while those human gates remain open.
