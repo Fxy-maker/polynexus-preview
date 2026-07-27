@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS real 2D detector evidence transport - 2026-07-27
+
+- Real PAD8 EDF replay exposed a transport gap: geometry was read from the
+  header for all five frames (`confidence=0.95`), and orientation evidence
+  contained a sector-map detector report, but strain point/series detector
+  fields were `None`.
+- The minimal TDD fix now returns the existing report from
+  `herman_from_sector_data` and copies it into `StrainPointResult` before the
+  existing series rollup. It does not infer raw-detector mask, saturation, or
+  geometry validity and does not change any threshold or publication role.
+- Evidence: RED `1 failed, 11 passed`; GREEN focused `12 passed`; exact SAXS
+  matrix `365 passed, 4 warnings`; structured verifier quality `283`,
+  preprocessing `106`; real replay now transports five `sector_map` reports
+  and retains conservative series `Unusable` reasons.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-27-saxs-real-2d-evidence-transport.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-real-2d-evidence-transport-design.md`,
+  `docs/superpowers/plans/2026-07-27-saxs-real-2d-evidence-transport.md`.
+
 ## Qt font runtime acceptance - 2026-07-27
 
 - Real Windows Qt diagnostics resolved `QApplication.font()` and

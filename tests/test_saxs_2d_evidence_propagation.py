@@ -156,6 +156,49 @@ def test_strain_points_and_summary_propagate_2d_evidence(monkeypatch):
     json.dumps(result.orientation_evidence, allow_nan=False)
 
 
+def test_real_sector_map_detector_evidence_reaches_strain_series_summary(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_strain as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    chi = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    I_2d = (1.0 + 0.4 * np.cos(2.0 * chi))[:, None] * np.ones((1, q.size))
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi,
+        "q": q,
+        "I_full": np.mean(I_2d, axis=0),
+    }
+    intensity = 120.0 * np.exp(-q**2 * 4.0**2 / 3.0)
+
+    monkeypatch.setattr(
+        module,
+        "analyze_single",
+        lambda q_arr, i_arr, cfg: SimpleNamespace(
+            long_period=SimpleNamespace(L_best=10.0, L_confidence=0.8, method_used="bragg"),
+            structure=SimpleNamespace(lc=3.0, la=7.0, phi_c=0.3),
+            data_quality_report={"level": "Trend"},
+            metric_evidence={},
+        ),
+    )
+    monkeypatch.setattr(module, "scattering_invariant", lambda *args, **kwargs: 1.0)
+
+    result = analyze_strain_series(
+        [0.0, 10.0],
+        [q, q],
+        [intensity, intensity],
+        sector_data_list=[sector_data, sector_data],
+        cfg=SAXSConfig(),
+    )
+
+    point_report = result.strain_points[0].detector_quality_report
+    assert point_report["source_kind"] == "sector_map"
+    assert result.detector_quality_report["evidence_frame_count"] == 2
+    assert result.detector_quality_report["source_kinds"] == ["sector_map"]
+    json.dumps(point_report, allow_nan=False)
+    json.dumps(result.detector_quality_report, allow_nan=False)
+
+
 def test_temperature_parameters_align_2d_frame_evidence_by_source_index():
     engine = SAXSEngine(SAXSConfig())
     series = TempSeriesResult(

@@ -34,6 +34,20 @@ date: 2026-07-22
 title: Current PolyNexus repository state
 ---
 
+## SAXS real 2D detector evidence transport (2026-07-27)
+
+- The real PAD8 strain route now carries the existing sector-map detector
+  report from `herman_from_sector_data` into every strain point and the series
+  summary. The report remains `Unusable`/Diagnostic in the real case because
+  saturation and beam-center provenance are unavailable and nonpositive pixels
+  are present; no raw-detector or Quantitative claim was added.
+- Current evidence: focused transport `12 passed`, exact SAXS matrix `365
+  passed, 4 warnings`, structured verifier quality `283` and preprocessing
+  `106`, and external real replay `validation_passed=True` with five
+  `source_kind=sector_map` reports.
+- Raw detector mask propagation, geometry/scientific validity review, GUI
+  visual review, and final human release approval remain open.
+
 ## SAXS quality-analysis route audit (2026-07-27)
 
 - The route-level implementation plan is now recorded at

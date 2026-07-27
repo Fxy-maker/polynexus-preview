@@ -314,6 +314,9 @@ def herman_from_sector_data(
                 "f_eq": float(getattr(orientation, "f_herman_eq", np.nan)),
                 "cos2_avg": (2.0 * f_value + 1.0) / 3.0 if np.isfinite(f_value) else np.nan,
                 "method": "analyze_anisotropy",
+                "detector_quality_report": getattr(
+                    orientation, "detector_quality_report", None
+                ),
                 "orientation_evidence": getattr(orientation, "orientation_evidence", None),
                 "orientation_axis_deg": getattr(orientation, "orientation_axis_deg", np.nan),
                 "orientation_axis_source": getattr(orientation, "orientation_axis_source", "unavailable"),
@@ -528,6 +531,8 @@ def analyze_strain_series(
                 sp.f_herman = herman.get('f', np.nan)
                 sp.f_herman_sub = herman.get('f_sub', np.nan)
                 sp.f_herman_eq = herman.get('f_eq', np.nan)
+                if herman.get("detector_quality_report") is not None:
+                    sp.detector_quality_report = herman["detector_quality_report"]
                 if herman.get("orientation_evidence") is not None:
                     sp.orientation_evidence = herman["orientation_evidence"]
                 result.f_herman_array[i] = sp.f_herman
