@@ -42,7 +42,7 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-sequence-rescue
 
 ## Verification evidence (2026-07-27)
 
-- `python -m pytest tests/test_saxs_sequence_rescue.py -q`: **4 passed**.
+- `python -m pytest tests/test_saxs_sequence_rescue.py tests/test_saxs_temperature_guinier_evidence.py -q`: **8 passed**.
 - Temperature/Guinier/mode propagation regressions: **26 passed**.
 - Complete PowerShell-expanded SAXS matrix: **255 passed, 4 warnings**. The
   warnings are the existing Arial CJK glyph warnings from SAXS figure layout.
@@ -62,6 +62,7 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-sequence-rescue
 - `polynexus/core/saxs_engine/saxs_temperature.py`
 - `polynexus/core/saxs_engine/__init__.py`
 - `tests/test_saxs_sequence_rescue.py`
+- `tests/test_saxs_temperature_guinier_evidence.py`
 - this task card
 - `docs/superpowers/specs/2026-07-27-saxs-sequence-rescue-design.md`
 - `docs/superpowers/plans/2026-07-27-saxs-sequence-rescue.md`

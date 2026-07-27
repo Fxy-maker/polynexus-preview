@@ -10,7 +10,7 @@ title: Current PolyNexus repository state
 - SAXS sequence rescue Stage 6 is implemented locally: existing deterministic
   non-primary `lc` paths are exposed as candidate-only evidence, missing frames
   are never fabricated, and accepted decisions require explicit hard,
-  physical, data-preservation, and sequence gates. Focused evidence is `4`
+  physical, data-preservation, and sequence gates. Focused evidence is `8`
   passed, the complete SAXS matrix is `255 passed` with four existing font
   warnings, and the task verifier passes quality `282`/preprocessing `103`.
   Candidate reanalysis, AI shadow/confirm, publication propagation, and human

@@ -93,3 +93,38 @@ def test_temperature_series_attaches_sequence_guinier_evidence(monkeypatch):
     frame_table = result.to_dataframe()
     assert "Rg_sequence_level" in frame_table.columns
     assert set(frame_table["Rg_sequence_level"]) == {"Trend"}
+
+
+def test_temperature_series_exposes_existing_lc_alternative_as_candidate_only(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_temperature as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    intensity = 120.0 * np.exp(-(q**2) * 4.0**2 / 3.0)
+
+    monkeypatch.setattr(module, "analyze_single", lambda q_arr, i_arr, cfg: _fake_frame_result(q_arr, i_arr))
+    monkeypatch.setattr(module, "scattering_invariant", lambda q_arr, i_arr, cfg=None: 1.0)
+    monkeypatch.setattr(module, "bragg_long_period", lambda q_arr, i_arr: (10.0, 0.628, {}))
+
+    def fake_select(points):
+        return [None for _ in points]
+
+    def fake_apply(points, decisions):
+        del decisions
+        points[0].lc_effective_nm = 3.2
+        points[0].lc_effective_source = "tangent"
+        points[0].lc_path_status = "low_confidence"
+        points[0].lc_path_reason = "selected=tangent|selection_margin=0.2"
+
+    monkeypatch.setattr(module, "select_lc_sequence_path", fake_select)
+    monkeypatch.setattr(module, "apply_lc_path_decisions", fake_apply)
+
+    result = analyze_temperature_series(
+        [170.0, 180.0], [q, q], [intensity, intensity], cfg=SAXSConfig()
+    )
+
+    assert len(result.sequence_rescue_candidates) == 1
+    candidate = result.sequence_rescue_candidates[0]
+    assert candidate["parameters"]["apply_mode"] == "candidate_only"
+    assert candidate["parameters"]["preserve_missing_frames"] is True
+    assert result.temp_points[0].lc_nm == 3.0
+    assert result.to_dataframe().loc[0, "sequence_rescue_candidate"] == candidate["candidate_id"]
