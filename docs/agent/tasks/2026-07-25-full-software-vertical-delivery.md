@@ -44,8 +44,8 @@ Provider-only、字段模板-only、单元测试-only 都只能标记为 foundat
 
 ## Acceptance criteria
 
-- [ ] Each technique mode has a typed result/evidence presentation and a customized Results Workbench profile.
-- [ ] Main/SI/diagnostic figures publish through FigureDefinition and RunFigureManifest, appear in the active Gallery, and route to Editor/export with provenance.
+- [x] Each technique mode has a typed result/evidence presentation and a customized Results Workbench profile.
+- [x] Main/SI/diagnostic figures publish through FigureDefinition and RunFigureManifest, appear in the active Gallery, and route to Editor/export with provenance.
 - [ ] History, persistence, export, AI-off/failure/fallback, Golden/real-data, and restarted-GUI checks are recorded for every released mode.
 - [ ] Scientific, schema, and unresolved mapping/ROI decisions remain explicitly marked for human review instead of being guessed.
 
