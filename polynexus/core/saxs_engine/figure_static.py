@@ -21,6 +21,7 @@ from .figure_common import (
     frame_views_from_engine,
     polish_saxs_publication_definitions,
 )
+from .figure_evidence import attach_saxs_figure_evidence
 from .figure_eligibility import (
     classify_frame_eligibility,
     crystallinity_panel_eligible,
@@ -897,8 +898,13 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
             ),
         )
     )
-    return polish_saxs_publication_definitions(
+    polished = polish_saxs_publication_definitions(
         tuple(_ensure_display_order(item) for item in ordered)
+    )
+    return attach_saxs_figure_evidence(
+        polished,
+        frames,
+        mode="static",
     )
 
 

@@ -1,5 +1,31 @@
 # Active Work
 
+## SAXS Figure/Manifest evidence binding - local checkpoint - 2026-07-27
+
+- The new provider-side `figure_evidence` projection binds existing frame and
+  completed-series quality evidence to `FigureDefinition.recipe["evidence"]`
+  under `quality_provenance`. It is detached and strict JSON-safe, maps
+  non-finite values to `null`, preserves existing role/omission evidence, and
+  references the authoritative `quality_evidence.json`.
+- Static, temperature, strain, and compatibility figure providers now attach
+  the projection. Temperature retains provider frame indices and matched
+  existing `source_index` values; sequence evidence stays at series level.
+  Strain keeps detector/orientation evidence separate from 1D metric evidence.
+  No analysis, threshold, role, interpolation, repair, or AI rescue behavior
+  changed.
+- TDD evidence: focused Figure/Manifest/provider matrix `33 passed`; complete
+  SAXS matrix `317 passed, 4 warnings` (existing Arial CJK glyph warnings).
+  Task-scoped verification passed task/memory, Ruff, compile/type baseline,
+  quality `282`, preprocessing `106`, and whitespace checks. `git diff --check`
+  passed.
+- Fresh full/boundary verification timed out with exit `124` after about 304
+  seconds; post-timeout process audit found no remaining Python/pytest process,
+  so no full/boundary pass is claimed. The explicit allowlist checkpoint was
+  created locally with no push.
+- Task/spec/plan: `docs/agent/tasks/2026-07-27-saxs-figure-evidence-binding.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-figure-evidence-binding-design.md`,
+  and `docs/superpowers/plans/2026-07-27-saxs-figure-evidence-binding.md`.
+
 ## SAXS temperature Guinier sequence evidence transport - checkpoint b7bad1c 2026-07-27
 
 - The existing observational `build_guinier_sequence_evidence()` contract now

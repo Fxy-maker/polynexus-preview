@@ -7,6 +7,18 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS Figure/Manifest evidence binding is implemented and locally checkpointed
+  without push. Figure providers attach detached,
+  strict JSON-safe references to existing frame/series quality evidence while
+  preserving publication roles and the authoritative `quality_evidence.json`.
+  Focused evidence is `33 passed`; the complete SAXS matrix is `317 passed, 4
+  warnings`; task-scoped quality/preprocessing gates are `282`/`106`. Fresh
+  full/boundary verification timed out with exit `124` after about 304 seconds
+  and is not claimed as passed; no Python/pytest process remained afterward.
+  Scientific role-gating review and real-data validation remain separate.
+  Task card:
+  `docs/agent/tasks/2026-07-27-saxs-figure-evidence-binding.md`.
+
 - SAXS temperature Guinier sequence evidence transport is checkpointed in
   `b7bad1c`: existing sequence evidence now retains optional original frame
   indices, survives temperature sorting, reaches parameters/History/Export,

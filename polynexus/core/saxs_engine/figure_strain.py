@@ -22,6 +22,7 @@ from ..figures.contracts import (
     PanelDefinition,
 )
 from .figure_common import SAXSFrameView, frame_views_from_engine
+from .figure_evidence import attach_saxs_figure_evidence
 from .figure_eligibility import (
     FigureEligibilityDecision,
     classify_frame_eligibility,
@@ -1638,7 +1639,13 @@ def build_strain_figure_definitions(
             definitions.append(definition)
 
     ordered = tuple(sorted(definitions, key=lambda item: (item.display_order, item.figure_id)))
-    return tuple(_ensure_display_order(item) for item in ordered)
+    final_definitions = tuple(_ensure_display_order(item) for item in ordered)
+    return attach_saxs_figure_evidence(
+        final_definitions,
+        frames,
+        mode="strain",
+        series=getattr(engine, "_strain_result", None),
+    )
 
 
 def _ensure_display_order(definition: FigureDefinition) -> FigureDefinition:

@@ -18,6 +18,7 @@ from ..figures.contracts import (
     PanelDefinition,
 )
 from .figure_common import SAXSFrameView, frame_views_from_engine
+from .figure_evidence import attach_saxs_figure_evidence
 from .figure_eligibility import (
     classify_frame_eligibility,
     crystallinity_panel_eligible,
@@ -1008,7 +1009,13 @@ def build_temperature_figure_definitions(
         if evidence is not None:
             definitions.append(evidence)
     ordered = tuple(sorted(definitions, key=lambda item: (item.display_order, item.figure_id)))
-    return tuple(_ensure_display_order(item) for item in ordered)
+    final_definitions = tuple(_ensure_display_order(item) for item in ordered)
+    return attach_saxs_figure_evidence(
+        final_definitions,
+        frames,
+        mode="temperature",
+        series=getattr(engine, "_temperature_result", None),
+    )
 
 
 def _ensure_display_order(definition: FigureDefinition) -> FigureDefinition:

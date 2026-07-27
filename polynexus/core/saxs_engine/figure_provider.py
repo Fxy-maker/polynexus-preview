@@ -20,6 +20,7 @@ from polynexus.plotting.sci_style import AXIS_LABELS, WONG_COLORS
 
 from .saxs_temperature import TempSeriesResult
 from .figure_common import SAXSFrameView, frame_views_from_engine
+from .figure_evidence import attach_saxs_figure_evidence
 from .figure_eligibility import classify_frame_eligibility
 from .figure_selection import resolve_saxs_figure_mode
 
@@ -159,8 +160,14 @@ def _temperature_summary_fallback(
         )
     if not fallback:
         return tuple(definitions)
-    return _polish_publication_definitions(
+    combined = _polish_publication_definitions(
         tuple(definitions) + tuple(fallback)
+    )
+    return attach_saxs_figure_evidence(
+        combined,
+        frame_views_from_engine(engine_state),
+        mode="temperature",
+        series=result,
     )
 
 
@@ -305,7 +312,20 @@ def _apply_publication_roles(
         annotated.append(
             replace(definition, publication_role=role, recipe=recipe)
         )
-    return tuple(annotated)
+    mode_name = str(getattr(engine_state, "_condition_type", "static") or "static")
+    mode_name = "strain" if mode_name.lower() == "strain" else (
+        "temperature" if mode_name.lower() == "temperature" else "static"
+    )
+    return attach_saxs_figure_evidence(
+        tuple(annotated),
+        views,
+        mode=mode_name,
+        series=getattr(engine_state, "_temperature_result", None)
+        if mode_name == "temperature"
+        else getattr(engine_state, "_strain_result", None)
+        if mode_name == "strain"
+        else None,
+    )
 
 
 def _aggregate_publication_role(roles: Sequence[str]) -> str:
@@ -412,7 +432,12 @@ def build_saxs_temperature_definitions(
                 evidence=evidence,
             )
         )
-    return tuple(definitions)
+    return attach_saxs_figure_evidence(
+        tuple(definitions),
+        evidence_frames,
+        mode="temperature",
+        series=result,
+    )
 
 
 def _non_temperature_frames(
