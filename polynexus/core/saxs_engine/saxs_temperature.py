@@ -10,6 +10,7 @@ Reference: SAXS Design Document v1.0, Module 4C.
 
 import logging
 from dataclasses import dataclass, field
+from collections.abc import Mapping
 from typing import Dict, List, Optional
 import numpy as np
 from enum import Enum, auto
@@ -32,6 +33,18 @@ from .saxs_quality_contracts import (
 from .saxs_sequence_rescue import build_sequence_rescue_candidates
 
 logger = logging.getLogger(__name__)
+
+
+def _guinier_metric_frame_payload(point: "TemperaturePointResult") -> dict:
+    """Copy existing frame Guinier metric evidence for series aggregation."""
+
+    evidence = getattr(point, "guinier_evidence", None)
+    if not isinstance(evidence, Mapping):
+        return {}
+    metric = evidence.get("metric")
+    if not isinstance(metric, Mapping):
+        return {}
+    return {"guinier": dict(metric)}
 
 
 class TempPhase(Enum):
@@ -921,9 +934,18 @@ def analyze_temperature_series(
         result.L_array[i] = tp.L_nm
         result.lc_array[i] = tp.lc_nm
 
+    frame_metric_evidence = []
+    for point in result.temp_points:
+        frame_metrics = (
+            dict(point.metric_evidence)
+            if isinstance(point.metric_evidence, Mapping)
+            else {}
+        )
+        frame_metrics.update(_guinier_metric_frame_payload(point))
+        frame_metric_evidence.append(frame_metrics)
     result.metric_evidence = build_series_metric_evidence(
-        [point.metric_evidence for point in result.temp_points],
-        metric_names=("porod", "kratky", "invariant", "lamellar"),
+        frame_metric_evidence,
+        metric_names=("guinier", "porod", "kratky", "invariant", "lamellar"),
         source_ref="saxs_temperature.metric_evidence",
     )
     result.guinier_sequence_evidence = build_guinier_sequence_evidence(

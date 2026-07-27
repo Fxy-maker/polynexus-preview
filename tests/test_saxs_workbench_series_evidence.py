@@ -166,6 +166,20 @@ def test_complete_series_evidence_is_trend_capped_in_review_text():
     assert not presentation.risk_text
 
 
+def test_guinier_series_evidence_uses_rg_label_in_review_text():
+    params = _series_params()
+    params["metric_evidence"]["guinier"] = {
+        **_series_metric_summary(),
+        "metric_name": "guinier",
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+
+    assert "Rg" in (presentation.risk_text + presentation.next_text)
+
+
 def test_series_evidence_review_text_is_localized():
     presentation = build_saxs_results_presentation(
         {

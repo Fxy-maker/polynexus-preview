@@ -1,5 +1,28 @@
 # Active Work
 
+## SAXS temperature Guinier metric evidence - implementation checkpoint 2026-07-27
+
+- Existing `TemperaturePointResult.guinier_evidence["metric"]` is now copied
+  into a derived per-frame mapping and included as
+  `TempSeriesResult.metric_evidence["guinier"]` through the existing immutable
+  series builder. Missing or failed frames remain missing; the original frame
+  and sequence evidence are not mutated.
+- The Workbench labels the common `guinier` key as `Rg` while retaining the
+  existing level, coverage, counts, and reason-code display contract. History,
+  Export provenance, and figure roles use their existing pass-through paths.
+- TDD evidence: RED observed for missing common Guinier summaries and for the
+  missing `Rg` review label; focused implementation evidence is `7 passed` and
+  the consumer matrix is `22 passed` in isolated basetemps.
+- The task-scoped verifier passes with quality `282`, preprocessing `106`,
+  Ruff, compile/type, memory, and whitespace checks when an isolated basetemp
+  is supplied. The repository's configured `.pytest_tmp` is pre-existing and
+  locked, so the default verifier path reports WinError 5 during pytest cleanup.
+- Final full SAXS matrix is `283 passed, 4 existing font glyph warnings`; the
+  task verifier and `git diff --check` pass with an isolated basetemp. Atomic
+  checkpoint `3324b2e` was created with the explicit allowlist. Real-data
+  scientific review and later Porod/Kratky/invariant/lamellar vertical routes
+  remain open.
+
 ## SAXS Workbench series evidence visibility - checkpoint 2026-07-27
 
 - Temperature and strain `SAXSEngine.get_parameters()` now transport a deep
@@ -43,6 +66,10 @@
   `polynexus/core/saxs.py` changes with 24 lint findings; those changes remain
   intentionally untouched and outside this GUI task's allowlist. Real-data
   science, all-mode GUI walkthrough, and final release approval remain open.
+- The prescribed full suite completed `2685 passed, 1 failed, 10 warnings` in
+  `1558.50s`; the failure was the known order-sensitive ChartEditor/Matplotlib
+  Qt crop test. It passes alone, and the ChartEditor + DSC lifecycle matrix
+  passes `251`. Full repository green status remains open.
 
 ## SAXS series metric evidence rollup - implementation checkpoint 2026-07-27
 

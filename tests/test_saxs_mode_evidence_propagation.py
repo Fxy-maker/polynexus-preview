@@ -25,7 +25,12 @@ def _fake_saxs_result(frame_id: str = "frame") -> SimpleNamespace:
             L=10.0, lc=3.0, la=7.0, phi_c=0.3, confidence_lc=0.8
         ),
         data_quality_report={"level": "Quantitative", "source_id": frame_id},
-        guinier_evidence={"rg_nm": 4.0, "level": "Trend", "reason_codes": []},
+        guinier_evidence={
+            "rg_nm": 4.0,
+            "level": "Trend",
+            "reason_codes": [],
+            "metric": {"metric_name": "Rg", "level": "Trend"},
+        },
         metric_evidence=_metric_payload(frame_id),
     )
 
@@ -53,6 +58,7 @@ def test_temperature_propagates_frame_specific_evidence_and_keeps_failure_missin
 
     assert len(result.temp_points) == 3
     assert result.temp_points[0].metric_evidence["porod"]["source"] == "temperature-1"
+    assert result.temp_points[0].guinier_evidence["metric"]["metric_name"] == "Rg"
     assert result.temp_points[1].metric_evidence is None
     assert result.temp_points[1].data_quality_report is None
     assert result.metric_evidence["porod"]["level"] == "Diagnostic"

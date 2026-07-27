@@ -16,7 +16,7 @@
 - Modify: `D:\PolyNexus\tests\test_saxs_temperature_guinier_evidence.py`
 - Modify: `D:\PolyNexus\tests\test_saxs_mode_evidence_propagation.py`
 
-- [ ] **Step 1: Write the failing assertions**
+- [x] **Step 1: Write the failing assertions**
 
 Extend the existing successful temperature-series test with:
 
@@ -39,7 +39,7 @@ Add an assertion to the mode propagation fixture that a temperature frame's
 existing `metric_evidence` remains unchanged and that its separate
 `guinier_evidence` still contains the nested `metric` payload.
 
-- [ ] **Step 2: Run the focused tests to observe RED**
+- [x] **Step 2: Run the focused tests to observe RED**
 
 Run:
 
@@ -57,7 +57,7 @@ lamellar entries.
 - Modify: `D:\PolyNexus\polynexus\core\saxs_engine\saxs_temperature.py`
 - Test: `D:\PolyNexus\tests\test_saxs_temperature_guinier_evidence.py`
 
-- [ ] **Step 1: Add a read-only extraction helper**
+- [x] **Step 1: Add a read-only extraction helper**
 
 Near the temperature-series analysis helpers, add a private function with this
 behavior:
@@ -74,7 +74,7 @@ def _guinier_metric_frame_payload(point):
 The helper must not mutate `point.guinier_evidence` and must return an empty
 mapping for missing or malformed nested evidence.
 
-- [ ] **Step 2: Include the extracted metric in the existing series builder**
+- [x] **Step 2: Include the extracted metric in the existing series builder**
 
 Immediately before the existing `build_series_metric_evidence` call, create
 one derived mapping per temperature point by copying each point's existing
@@ -84,7 +84,7 @@ present. Then call the existing builder with `metric_names=("guinier", "porod", 
 Do not alter `point.metric_evidence`; the derived list is only an input to the
 summary builder. Keep the existing sequence builder call unchanged.
 
-- [ ] **Step 3: Run the temperature evidence tests GREEN**
+- [x] **Step 3: Run the temperature evidence tests GREEN**
 
 Run:
 
@@ -99,16 +99,19 @@ metric without receiving copied evidence.
 
 **Files:**
 - Test: `D:\PolyNexus\tests\test_saxs_workbench_series_evidence.py`
+- Modify: `D:\PolyNexus\polynexus\gui\saxs_results_table_service.py`
 - Test: `D:\PolyNexus\tests\test_saxs_export_bundle.py`
 
-- [ ] **Step 1: Add propagation assertions**
+- [x] **Step 1: Add propagation assertions**
 
 Use an existing temperature result fixture and assert the parameter payload
 contains `metric_evidence["guinier"]`, while `guinier_sequence_evidence`
 remains present in the quality export payload. Assert figure IDs and roles are
-unchanged by reusing the existing temperature profile contract test.
+unchanged by reusing the existing temperature profile contract test. The
+Workbench formatter labels the common `guinier` key as `Rg` while preserving
+all contract levels and counts.
 
-- [ ] **Step 2: Run the consumer slice**
+- [x] **Step 2: Run the consumer slice**
 
 Run:
 
@@ -126,7 +129,7 @@ Expected: all existing and new assertions pass; no publication role changes.
 - Modify: `D:\PolyNexus\docs\agent\memory\current-state.md`
 - Modify: this plan
 
-- [ ] **Step 1: Run the required verifier and whitespace check**
+- [x] **Step 1: Run the required verifier and whitespace check**
 
 Run:
 
@@ -138,17 +141,17 @@ git diff --check
 Record exact results. A pre-existing finding in an unrelated modified GUI
 file must remain explicitly outside this task's allowlist.
 
-- [ ] **Step 2: Run the focused SAXS matrix**
+- [x] **Step 2: Run the focused SAXS matrix**
 
 Run the focused consumer slice from Task 3 plus the temperature/strain quality
 tests. Do not report a full repository pass unless the full command completes.
 
-- [ ] **Step 3: Create one atomic local checkpoint**
+- [x] **Step 3: Create one atomic local checkpoint**
 
 After verification, run:
 
 ```powershell
-python scripts/auto_commit.py --message "feat(saxs): add temperature guinier series evidence" --files polynexus/core/saxs_engine/saxs_temperature.py tests/test_saxs_temperature_guinier_evidence.py tests/test_saxs_mode_evidence_propagation.py tests/test_saxs_workbench_series_evidence.py tests/test_saxs_export_bundle.py docs/agent/tasks/2026-07-27-saxs-temperature-guinier-metric-evidence.md docs/superpowers/specs/2026-07-27-saxs-temperature-guinier-metric-evidence-design.md docs/superpowers/plans/2026-07-27-saxs-temperature-guinier-metric-evidence.md docs/agent/memory/active-work.md docs/agent/memory/current-state.md
+python scripts/auto_commit.py --message "feat(saxs): add temperature guinier series evidence" --files polynexus/core/saxs_engine/saxs_temperature.py polynexus/gui/saxs_results_table_service.py tests/test_saxs_temperature_guinier_evidence.py tests/test_saxs_mode_evidence_propagation.py tests/test_saxs_workbench_series_evidence.py tests/test_saxs_export_bundle.py docs/agent/tasks/2026-07-27-saxs-temperature-guinier-metric-evidence.md docs/superpowers/specs/2026-07-27-saxs-temperature-guinier-metric-evidence-design.md docs/superpowers/plans/2026-07-27-saxs-temperature-guinier-metric-evidence.md docs/agent/memory/active-work.md docs/agent/memory/current-state.md
 ```
 
 Do not stage or alter unrelated pre-existing workspace files.
@@ -156,7 +159,8 @@ Do not stage or alter unrelated pre-existing workspace files.
 ## Plan self-review
 
 - The spec's common-summary and detailed-sequence contracts are both covered.
-- All code changes are confined to existing temperature aggregation and tests.
+- Code changes are confined to existing temperature aggregation, Workbench
+  label presentation, and focused regression/docs files.
 - Missing, malformed, diagnostic, and complete frame behavior is explicitly
   covered.
 - No scientific threshold, GUI decision, rescue execution, or publication role

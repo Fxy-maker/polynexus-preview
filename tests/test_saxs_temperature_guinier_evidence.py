@@ -71,6 +71,9 @@ def test_temperature_core_failure_does_not_fabricate_guinier_evidence(monkeypatc
     assert result.temp_points[0].guinier_evidence is not None
     assert result.temp_points[1].guinier_evidence is None
     assert result.temp_points[1].guinier_level == "Unusable"
+    assert result.metric_evidence["guinier"]["missing_frame_count"] == 1
+    assert result.metric_evidence["guinier"]["evidence_frame_count"] == 1
+    assert result.metric_evidence["guinier"]["level"] == "Diagnostic"
 
 
 def test_temperature_series_attaches_sequence_guinier_evidence(monkeypatch):
@@ -90,6 +93,10 @@ def test_temperature_series_attaches_sequence_guinier_evidence(monkeypatch):
     assert len(result.temp_points) == 3
     assert result.guinier_sequence_evidence["level"] == "Trend"
     assert result.guinier_sequence_evidence["valid_frame_count"] == 3
+    assert result.metric_evidence["guinier"]["metric_name"] == "guinier"
+    assert result.metric_evidence["guinier"]["frame_count"] == 3
+    assert result.metric_evidence["guinier"]["evidence_frame_count"] == 3
+    assert result.metric_evidence["guinier"]["level"] == "Trend"
     frame_table = result.to_dataframe()
     assert "Rg_sequence_level" in frame_table.columns
     assert set(frame_table["Rg_sequence_level"]) == {"Trend"}

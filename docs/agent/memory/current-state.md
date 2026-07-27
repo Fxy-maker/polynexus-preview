@@ -7,6 +7,16 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS temperature Guinier closure is implemented locally: existing frame
+  `guinier_evidence["metric"]` now contributes to the common series
+  `metric_evidence["guinier"]` summary, while detailed sequence evidence stays
+  separate. Workbench displays the common metric as `Rg`; no physical gates,
+  frame values, figure roles, or Export semantics changed. Focused and full
+  SAXS verification results are being finalized under
+  `283 passed, 4 warnings` in the SAXS matrix; the task verifier passes with
+  quality `282` and preprocessing `106` under an isolated basetemp. See
+  `docs/agent/tasks/2026-07-27-saxs-temperature-guinier-metric-evidence.md`.
+
 - SAXS Workbench series evidence visibility is checkpointed locally: temperature
   and strain parameter payloads now carry existing series `metric_evidence`,
   and the SAXS presentation surfaces coverage, Trend/Diagnostic/Unusable level,

@@ -389,6 +389,8 @@ def _series_metric_review_text(
             continue
         name = str(raw_name)
         metric_name = str(summary.get("metric_name") or name).strip() or name
+        if name.strip().lower() == "guinier" or metric_name.lower() == "guinier":
+            metric_name = "Rg"
         level = str(summary.get("level") or "Unusable").strip() or "Unusable"
         evidence_frames = _count(summary, "evidence_frame_count")
         frame_count = _count(summary, "frame_count")
