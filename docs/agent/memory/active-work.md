@@ -1,5 +1,21 @@
 # Active Work
 
+## SAXS 2D detector/orientation evidence - checkpointed 2026-07-27
+
+- Added strict JSON-safe `DetectorQualityReport` and conservative orientation
+  `MetricEvidence` around the existing anisotropy output. Explicit masks,
+  saturation values, source kind, beam-center availability, coverage, and
+  invalid-pixel counts are preserved; missing metadata never becomes a guessed
+  raw-detector claim.
+- `AnisotropyResult` keeps all legacy numeric fields and now exposes optional
+  detector/orientation dictionaries, including the empty-input path. Unknown
+  applicability is at most `Diagnostic`; complete supported evidence is capped
+  at `Trend`.
+- Verification evidence: focused `6 passed`; full SAXS matrix `250 passed, 4
+  warnings`; structured verifier quality `282`/preprocessing `103`. Real raw
+  detector geometry/mask propagation, orientation sequence semantics, figure
+  publication, and scientific review remain separate gates.
+
 ## SAXS mode evidence propagation Stage 4 - checkpointing 2026-07-27
 
 - Temperature and strain point DTOs now propagate frame-local

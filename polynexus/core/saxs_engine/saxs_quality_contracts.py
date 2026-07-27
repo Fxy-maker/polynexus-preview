@@ -150,6 +150,182 @@ class DataQualityReport:
 
 
 @dataclass(frozen=True)
+class DetectorQualityReport:
+    """Non-mutating quality inventory for a 2D detector or sector map.
+
+    Saturation is counted only when the caller supplies an explicit detector
+    limit.  A sector-integrated map is intentionally reported as such rather
+    than being presented as raw detector evidence.
+    """
+
+    shape: tuple[int, ...] = ()
+    pixel_count: int = 0
+    finite_pixel_count: int = 0
+    nonfinite_pixel_count: int = 0
+    nonpositive_pixel_count: int = 0
+    masked_pixel_count: int = 0
+    saturated_pixel_count: int = 0
+    valid_pixel_count: int = 0
+    coverage_fraction: float | None = None
+    source_kind: str = "unknown"
+    saturation_detection_available: bool = False
+    beam_center_available: bool = False
+    beam_center: tuple[float, float] | None = None
+    reason_codes: tuple[str, ...] = ()
+    level: QualityLevel = QualityLevel.UNUSABLE
+
+    def to_dict(self) -> dict[str, Any]:
+        return _contract_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "DetectorQualityReport":
+        data = dict(payload)
+        data["shape"] = _int_tuple(data.get("shape"))
+        data["reason_codes"] = _string_tuple(data.get("reason_codes"))
+        data["level"] = _quality_level(data.get("level"))
+        center = data.get("beam_center")
+        if center is not None:
+            try:
+                data["beam_center"] = (float(center[0]), float(center[1]))
+            except (IndexError, TypeError, ValueError):
+                data["beam_center"] = None
+        return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
+
+
+def build_detector_quality_report(
+    image: Any,
+    *,
+    mask: Any = None,
+    saturation_value: Any = None,
+    source_kind: str = "unknown",
+    beam_center: Any = None,
+) -> DetectorQualityReport:
+    """Build a strict, read-only quality report for a 2D intensity input."""
+
+    reasons: list[str] = []
+    normalized_source = str(source_kind or "unknown").strip().lower()
+    if normalized_source not in {"raw_detector", "sector_map", "unknown"}:
+        normalized_source = "unknown"
+        reasons.append("source_kind_unknown")
+
+    try:
+        array = np.asarray(image, dtype=float)
+    except (TypeError, ValueError):
+        array = np.asarray([], dtype=float)
+        reasons.append("detector_input_invalid")
+
+    shape = tuple(int(item) for item in array.shape)
+    pixel_count = int(array.size) if array.ndim == 2 else 0
+    if array.ndim != 2:
+        reasons.append("detector_input_not_2d")
+    if pixel_count == 0:
+        reasons.append("detector_input_empty")
+
+    if array.ndim == 2:
+        finite = np.isfinite(array)
+        finite_count = int(np.count_nonzero(finite))
+        nonfinite_count = int(array.size - finite_count)
+        nonpositive_count = int(np.count_nonzero(finite & (array <= 0)))
+    else:
+        finite = np.zeros(array.shape, dtype=bool)
+        finite_count = 0
+        nonfinite_count = 0
+        nonpositive_count = 0
+
+    if mask is None:
+        mask_array = np.zeros(array.shape, dtype=bool)
+    else:
+        try:
+            candidate_mask = np.asarray(mask, dtype=bool)
+        except (TypeError, ValueError):
+            candidate_mask = np.asarray([], dtype=bool)
+        if candidate_mask.shape == array.shape:
+            mask_array = candidate_mask
+        else:
+            mask_array = np.zeros(array.shape, dtype=bool)
+            reasons.append("mask_shape_mismatch")
+    masked_count = int(np.count_nonzero(mask_array)) if array.ndim == 2 else 0
+
+    saturation_available = False
+    saturated = np.zeros(array.shape, dtype=bool)
+    try:
+        saturation = float(saturation_value) if saturation_value is not None else None
+    except (TypeError, ValueError):
+        saturation = None
+        if saturation_value is not None:
+            reasons.append("saturation_value_invalid")
+    if saturation is not None and np.isfinite(saturation) and array.ndim == 2:
+        saturation_available = True
+        saturated = finite & (array == saturation)
+    elif saturation_value is None:
+        reasons.append("detector_saturation_unknown")
+    else:
+        reasons.append("detector_saturation_unknown")
+    saturated_count = int(np.count_nonzero(saturated))
+
+    center: tuple[float, float] | None = None
+    if beam_center is not None:
+        try:
+            x_center = float(beam_center[0])
+            y_center = float(beam_center[1])
+            if np.isfinite(x_center) and np.isfinite(y_center):
+                center = (x_center, y_center)
+            else:
+                reasons.append("beam_center_invalid")
+        except (IndexError, TypeError, ValueError):
+            reasons.append("beam_center_invalid")
+    if center is None:
+        reasons.append("beam_center_missing")
+
+    valid = finite & (array > 0) & ~mask_array & ~saturated if array.ndim == 2 else finite
+    valid_count = int(np.count_nonzero(valid))
+    coverage = float(valid_count / pixel_count) if pixel_count else None
+
+    if nonfinite_count:
+        reasons.append("nonfinite_pixels")
+    if nonpositive_count:
+        reasons.append("nonpositive_pixels")
+    if masked_count:
+        reasons.append("masked_pixels")
+    if saturated_count:
+        reasons.append("saturated_pixels")
+    if normalized_source == "unknown":
+        reasons.append("source_kind_unknown")
+
+    defect_reasons = {
+        "detector_input_invalid", "detector_input_not_2d", "detector_input_empty",
+        "mask_shape_mismatch", "saturation_value_invalid", "nonfinite_pixels",
+        "nonpositive_pixels", "masked_pixels", "saturated_pixels", "beam_center_invalid",
+    }
+    if pixel_count == 0 or valid_count == 0:
+        level = QualityLevel.UNUSABLE
+    elif any(reason in defect_reasons for reason in reasons):
+        level = QualityLevel.DIAGNOSTIC
+    elif normalized_source == "raw_detector" and center is not None:
+        level = QualityLevel.TREND
+    else:
+        level = QualityLevel.DIAGNOSTIC
+
+    return DetectorQualityReport(
+        shape=shape,
+        pixel_count=pixel_count,
+        finite_pixel_count=finite_count,
+        nonfinite_pixel_count=nonfinite_count,
+        nonpositive_pixel_count=nonpositive_count,
+        masked_pixel_count=masked_count,
+        saturated_pixel_count=saturated_count,
+        valid_pixel_count=valid_count,
+        coverage_fraction=coverage,
+        source_kind=normalized_source,
+        saturation_detection_available=saturation_available,
+        beam_center_available=center is not None,
+        beam_center=center,
+        reason_codes=tuple(dict.fromkeys(reasons)),
+        level=level,
+    )
+
+
+@dataclass(frozen=True)
 class MetricEvidence:
     """Evidence bundle for one physical metric."""
 
@@ -1221,6 +1397,81 @@ def build_lamellar_evidence(
     )
 
 
+def build_orientation_evidence(
+    anisotropy_payload: Mapping[str, Any] | None,
+    detector_quality: DetectorQualityReport,
+    *,
+    applicability: str = "unknown",
+    source_ref: str = "",
+) -> MetricEvidence:
+    """Wrap existing anisotropy outputs in conservative orientation evidence.
+
+    This builder reports whether the current evidence is usable; it does not
+    add orientation thresholds or reinterpret a pattern label as a material
+    mechanism.
+    """
+
+    payload = anisotropy_payload if isinstance(anisotropy_payload, Mapping) else {}
+    numeric_fields = (
+        "f_herman", "P2", "P4", "anisotropy_ratio", "anisotropy_index", "confidence"
+    )
+    fit_evidence: dict[str, Any] = {}
+    for key in numeric_fields:
+        value = _finite_or_none(payload.get(key))
+        if value is not None:
+            fit_evidence[key] = value
+    pattern_type = payload.get("pattern_type")
+    if isinstance(pattern_type, str) and pattern_type.strip() and pattern_type != "unknown":
+        fit_evidence["pattern_type"] = pattern_type
+    metrics_present = bool(fit_evidence)
+
+    normalized_applicability = str(applicability or "unknown").strip().lower()
+    supported = normalized_applicability == "supported"
+    reasons: list[str] = []
+    if not metrics_present:
+        reasons.append("orientation_metrics_missing")
+    if normalized_applicability == "unknown":
+        reasons.append("applicability_unresolved")
+    elif not supported:
+        reasons.append("orientation_applicability_unsupported")
+    if detector_quality.level is QualityLevel.UNUSABLE:
+        reasons.append("detector_quality_unusable")
+    elif detector_quality.level is QualityLevel.DIAGNOSTIC:
+        reasons.append("detector_quality_diagnostic")
+
+    physical_checks = {
+        "detector_source_kind": detector_quality.source_kind,
+        "detector_quality_level": detector_quality.level,
+        "detector_coverage_fraction": detector_quality.coverage_fraction,
+        "detector_saturation_detection_available": detector_quality.saturation_detection_available,
+        "detector_beam_center_available": detector_quality.beam_center_available,
+        "detector_quality_report": detector_quality.to_dict(),
+        "applicability_supported": supported,
+        "orientation_metrics_present": metrics_present,
+    }
+    if not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
+        level = QualityLevel.UNUSABLE
+    elif not supported or detector_quality.level is QualityLevel.DIAGNOSTIC:
+        level = QualityLevel.DIAGNOSTIC
+    else:
+        # Orientation remains a Trend claim until calibrated physical gates
+        # are explicitly defined and validated on real detector data.
+        level = QualityLevel.TREND
+
+    return MetricEvidence(
+        metric_name="Orientation",
+        value=dict(fit_evidence),
+        unit="",
+        level=level,
+        applicable=bool(level is QualityLevel.TREND and supported and metrics_present),
+        fit_evidence=fit_evidence,
+        physical_checks=physical_checks,
+        reason_codes=tuple(dict.fromkeys(reasons)),
+        source_ref=str(source_ref or ""),
+        data_quality_ref="detector_quality_report",
+    )
+
+
 def contract_json(value: Any) -> str:
     """Return a stable strict-JSON representation for audit persistence."""
     payload = value.to_dict() if hasattr(value, "to_dict") else _jsonable(value)
@@ -1229,6 +1480,7 @@ def contract_json(value: Any) -> str:
 
 __all__ = [
     "DataQualityReport",
+    "DetectorQualityReport",
     "GuinierEvidence",
     "GuinierSequenceEvidence",
     "MetricEvidence",
@@ -1242,5 +1494,7 @@ __all__ = [
     "build_kratky_evidence",
     "build_invariant_evidence",
     "build_lamellar_evidence",
+    "build_detector_quality_report",
+    "build_orientation_evidence",
     "contract_json",
 ]

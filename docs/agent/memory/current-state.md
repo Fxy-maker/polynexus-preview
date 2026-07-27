@@ -67,6 +67,13 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- SAXS 2D detector/orientation evidence is implemented and verified: focused
+  tests `6 passed`, full SAXS matrix `250 passed, 4 warnings`, structured
+  verifier quality `282` and preprocessing `103`. The new contracts preserve
+  source/metadata limitations and cap orientation claims at `Trend`; real raw
+  detector geometry/mask propagation, publication, and human scientific review
+  remain open.
+
 - SAXS mode evidence propagation Stage 4 is implemented and verified:
   temperature/strain point results retain frame-local quality and 1D method
   evidence, failed frames remain absent, and both DataFrames expose compact

@@ -15,9 +15,9 @@
 **Files:**
 - Create: `tests/test_saxs_2d_detector_orientation_evidence.py`
 
-- [ ] Test a fully finite raw detector with explicit mask and saturation value, a sector map without saturation, and an unknown source.
-- [ ] Test empty/invalid detector input, missing orientation metrics, unknown applicability, and strict `contract_json` round-trip.
-- [ ] Run `pytest tests/test_saxs_2d_detector_orientation_evidence.py -q`; confirm RED because the DTO/builders are absent.
+- [x] Test a fully finite raw detector with explicit mask and saturation value, a sector map without saturation, and an unknown source.
+- [x] Test empty/invalid detector input, missing orientation metrics, unknown applicability, and strict `contract_json` round-trip.
+- [x] Run `pytest tests/test_saxs_2d_detector_orientation_evidence.py -q`; the initial RED was followed by the GREEN implementation.
 
 ### Task 2: Implement detector and orientation contracts
 
@@ -26,10 +26,10 @@
 - Modify: `polynexus/core/saxs_engine/saxs_anisotropy.py`
 - Modify: `polynexus/core/saxs_engine/__init__.py`
 
-- [ ] Implement `DetectorQualityReport` and `build_detector_quality_report(image, mask=None, saturation_value=None, source_kind="unknown", beam_center=None)` with explicit saturation-only counting and no input mutation.
-- [ ] Implement `build_orientation_evidence(anisotropy_payload, detector_quality, applicability="unknown", source_ref="")` using existing orientation fields and the detector report reference, capped at `Trend`.
-- [ ] Add optional `detector_quality_report`/`orientation_evidence` fields to `AnisotropyResult` and attach strict dictionaries in `analyze_anisotropy` before returning, including early/empty returns.
-- [ ] Export public contracts and run focused tests.
+- [x] Implement `DetectorQualityReport` and `build_detector_quality_report(image, mask=None, saturation_value=None, source_kind="unknown", beam_center=None)` with explicit saturation-only counting and no input mutation.
+- [x] Implement `build_orientation_evidence(anisotropy_payload, detector_quality, applicability="unknown", source_ref="")` using existing orientation fields and the detector report reference, capped at `Trend`.
+- [x] Add optional `detector_quality_report`/`orientation_evidence` fields to `AnisotropyResult` and attach strict dictionaries in `analyze_anisotropy` before returning, including early/empty returns.
+- [x] Export public contracts and run focused tests.
 
 ### Task 3: Verify and checkpoint
 
@@ -39,6 +39,6 @@
 - Modify: `docs/agent/memory/current-state.md`
 - Modify: `docs/superpowers/plans/2026-07-27-saxs-2d-detector-orientation-evidence.md`
 
-- [ ] Run the task-scoped verifier, exact SAXS matrix, and `git diff --check`.
-- [ ] Record exact outcomes and known limitations.
-- [ ] Use `scripts/auto_commit.py` with only the changed-file allowlist; no push/merge/deploy.
+- [x] Run the task-scoped verifier, exact SAXS matrix, and `git diff --check`.
+- [x] Record exact outcomes and known limitations.
+- [x] Use `scripts/auto_commit.py` with only the changed-file allowlist; no push/merge/deploy.

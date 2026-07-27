@@ -31,12 +31,12 @@
 
 ## Acceptance criteria
 
-- [ ] detector report 记录 shape、覆盖率、无效/掩膜/显式饱和计数和来源。
-- [ ] 未提供 saturation value 时不生成饱和判断。
-- [ ] orientation evidence 引用 detector report，未知适用性最高 Diagnostic，
+- [x] detector report 记录 shape、覆盖率、无效/掩膜/显式饱和计数和来源。
+- [x] 未提供 saturation value 时不生成饱和判断。
+- [x] orientation evidence 引用 detector report，未知适用性最高 Diagnostic，
   缺失取向指标 Unusable，完整证据最高 Trend。
-- [ ] `AnisotropyResult` 兼容现有调用方，空图仍返回可用对象且不伪造证据。
-- [ ] focused、完整 SAXS、结构化 verifier、两道质量 gate 和 checkpoint 有
+- [x] `AnisotropyResult` 兼容现有调用方，空图仍返回可用对象且不伪造证据。
+- [x] focused、完整 SAXS、结构化 verifier、两道质量 gate 和 checkpoint 有
   实际证据。
 
 ## Verification
@@ -45,6 +45,17 @@
 $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_saxs_2d_detector_verify'
 python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-2d-detector-orientation-evidence.md --changed --types
 ```
+
+## Verification evidence (2026-07-27)
+
+- `python -m pytest tests/test_saxs_2d_detector_orientation_evidence.py -q`:
+  **6 passed**.
+- The complete SAXS file matrix (`test_saxs_*.py`, PowerShell-expanded) passed
+  **250 tests, 4 warnings**. The warnings are the existing Arial CJK glyph
+  warnings from SAXS figure layout.
+- `python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-2d-detector-orientation-evidence.md --changed --types` passed; quality gate **282 passed**, preprocessing gate **103 passed**, task-card/memory/Ruff/compile/type/whitespace checks passed.
+- The atomic checkpoint is created with the changed-file allowlist below; no
+  generated outputs or pre-existing temporary diagnostics are included.
 
 ## Known limitations
 

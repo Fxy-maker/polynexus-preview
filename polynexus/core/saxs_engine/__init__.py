@@ -15,6 +15,7 @@ Modules:
 from .config import SAXSConfig, ExperimentCondition
 from .saxs_quality_contracts import (
     DataQualityReport,
+    DetectorQualityReport,
     GuinierEvidence,
     GuinierSequenceEvidence,
     MetricEvidence,
@@ -28,6 +29,8 @@ from .saxs_quality_contracts import (
     build_kratky_evidence,
     build_invariant_evidence,
     build_lamellar_evidence,
+    build_detector_quality_report,
+    build_orientation_evidence,
     contract_json,
 )
 from .processed_profile import ProcessedProfile
@@ -78,12 +81,13 @@ from .saxs_output import (
 )
 
 __all__ = [
-    "SAXSConfig", "ExperimentCondition", "DataQualityReport",
+    "SAXSConfig", "ExperimentCondition", "DataQualityReport", "DetectorQualityReport",
     "GuinierEvidence", "GuinierSequenceEvidence", "MetricEvidence", "QualityLevel", "RescueCandidate",
     "RescueValidationReport", "build_data_quality_report", "build_guinier_evidence",
     "build_guinier_sequence_evidence",
     "build_porod_evidence", "build_kratky_evidence",
     "build_invariant_evidence", "build_lamellar_evidence",
+    "build_detector_quality_report", "build_orientation_evidence",
     "contract_json",
     "ProcessedProfile",
     "read_image", "read_1d_profile", "extract_geometry_from_header",

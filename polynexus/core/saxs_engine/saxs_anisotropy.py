@@ -1,7 +1,4 @@
 
-import logging
-logger = logging.getLogger(__name__)
-
 """
 saxs_anisotropy.py — Module 5: Anisotropy analysis.
 
@@ -11,15 +8,20 @@ Azimuthal intensity profiles, full Herman orientation factor,
 Reference: SAXS Design Document v1.0, Module 5.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 from scipy.integrate import trapezoid
 from scipy.signal import find_peaks
-from scipy.optimize import curve_fit
-from scipy.interpolate import interp1d
 
 from .config import SAXSConfig
+from .saxs_quality_contracts import (
+    build_detector_quality_report,
+    build_orientation_evidence,
+)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,6 +57,34 @@ class AnisotropyResult:
     
     # Quality
     confidence: float = 0.0
+
+    # JSON-safe 2D evidence contracts.  Legacy numeric fields above remain
+    # authoritative for backwards-compatible callers.
+    detector_quality_report: dict = None
+    orientation_evidence: dict = None
+
+
+def _attach_orientation_evidence(result: AnisotropyResult, I_2d: np.ndarray) -> None:
+    """Attach evidence for the sector-map input consumed by this module."""
+
+    detector = build_detector_quality_report(I_2d, source_kind="sector_map")
+    payload = {
+        "f_herman": result.f_herman,
+        "P2": result.P2,
+        "P4": result.P4,
+        "pattern_type": result.pattern_type,
+        "anisotropy_ratio": result.anisotropy_ratio,
+        "anisotropy_index": result.anisotropy_index,
+        "confidence": result.confidence,
+    }
+    evidence = build_orientation_evidence(
+        payload,
+        detector,
+        applicability="unknown",
+        source_ref="saxs_anisotropy.analyze_anisotropy",
+    )
+    result.detector_quality_report = detector.to_dict()
+    result.orientation_evidence = evidence.to_dict()
 
 
 # ======================================================================
@@ -107,7 +137,7 @@ def extract_azimuthal_profile(
 
 def extract_azimuthal_at_peaks(
     q: np.ndarray,
-    I: np.ndarray,  # 1D azimuthally-averaged
+    I: np.ndarray,  # noqa: E741  # 1D azimuthally-averaged
     I_2d: np.ndarray,
     chi: np.ndarray,
     min_peaks: int = 1,
@@ -292,12 +322,7 @@ def classify_2d_pattern(
 
     # Normalize
     I_norm = (I_chi - np.min(I_chi)) / (np.max(I_chi) - np.min(I_chi) + 1e-12)
-    I_mean = np.mean(I_norm)
     I_std = np.std(I_norm)
-
-    # Anisotropy ratio
-    I_max = np.max(I_norm)
-    I_min = np.min(I_chi) / (np.max(I_chi) + 1e-12)
 
     # Check for peaks
     peaks, props = find_peaks(I_norm, prominence=0.1, distance=3)
@@ -307,7 +332,6 @@ def classify_2d_pattern(
 
     # Get peak angles
     peak_angles = chi[peaks]
-    peak_angles_deg = np.degrees(peak_angles)
 
     if len(peaks) == 2:
         # Check if diametrically opposite (~180 deg apart)
@@ -427,8 +451,9 @@ def analyze_anisotropy(
     """
     result = AnisotropyResult()
 
-    if len(chi) < 5 or I_2d is None:
+    if I_2d is None or chi is None or len(chi) < 5:
         result.confidence = 0.0
+        _attach_orientation_evidence(result, I_2d)
         return result
 
     # 1. Azimuthal profile at Bragg peak position
@@ -497,4 +522,5 @@ def analyze_anisotropy(
         if result.pattern_type != "unknown":
             result.confidence += 0.15
 
+    _attach_orientation_evidence(result, I_2d)
     return result
