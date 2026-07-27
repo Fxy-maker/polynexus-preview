@@ -2130,12 +2130,11 @@ class MainWindow(
 
 
     def _on_tab_changed(self, index):
-
-        widget = self._tabs.widget(index) if hasattr(self, "_tabs") else None
-
-        if widget is not None:
-
-            fade_in(widget, duration=170, start=0.35)
+        # Main pages contain dense scientific text and figures. Applying an
+        # opacity effect to the whole page makes the active route appear
+        # washed out during native capture and can leave child content with
+        # misleadingly low contrast. Keep transitions local to explicit
+        # transient surfaces such as the drop banner.
         self._update_context_suggestions()
 
 

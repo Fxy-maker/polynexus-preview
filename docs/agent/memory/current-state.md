@@ -1,5 +1,22 @@
 ---
 
+## Results Workbench main-Tab opacity correction (2026-07-28)
+
+- Native route diagnosis showed the Light-theme pale Results appearance was
+  caused by `MainWindow._on_tab_changed()` installing a full-page
+  `QGraphicsOpacityEffect`; the labels already had the correct active theme
+  colors.
+- The main Tab route now updates context suggestions without applying a page-
+  wide opacity effect. Local transient surfaces, including the drop banner,
+  retain their explicit animations. This changes presentation timing only;
+  Results data, evidence, figures, and scientific semantics are untouched.
+- Evidence: focused MainWindow/ResultsTablePanel `23 passed`; native SAXS
+  static/temperature/strain route capture `3 passed` in `44.10s`; task-scoped
+  verifier passed with quality `283`, preprocessing `106`, Ruff, compile/type,
+  memory/task, and whitespace checks using an external basetemp.
+- Human restarted-GUI visual review across all techniques and final scientific/
+  release approval remain open.
+
 ## SAXS parameter quality-evidence reference (2026-07-28)
 
 - Bundle parameter artifacts now reference the authoritative

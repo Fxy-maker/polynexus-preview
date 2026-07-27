@@ -1,5 +1,24 @@
 # Active Work
 
+## Results Workbench main-Tab opacity correction - checkpoint ready - 2026-07-28
+
+- The native pale-body diagnosis was isolated to the shared main-Tab fade:
+  `_on_tab_changed()` applied `QGraphicsOpacityEffect` to the whole scientific
+  page. It now leaves main Tab pages opaque and keeps only local transient
+  animations.
+- TDD RED was the new Tab-route assertion failing on the installed effect;
+  GREEN is `23 passed` across the focused Results/MainWindow matrix. Native
+  SAXS static/temperature/strain capture passed `3` cases in `44.10s`, and the
+  fixed Results screenshots were inspected under
+  `C:\Temp\polynexus_native_saxs_visual_20260728_fixed`.
+- The task verifier passed with external basetemp, including quality `283`,
+  preprocessing `106`, Ruff, compile/type, memory/task, and whitespace. The
+  initial in-repository verifier attempt hit the known `.pytest_tmp` Windows
+  permission lock and is excluded; no scratch cleanup was performed.
+- Next action: create the explicit allowlist checkpoint. Restarted-GUI visual
+  review for all techniques, scientific review, and release approval remain
+  open. Task card: `docs/agent/tasks/2026-07-28-results-workbench-tab-opacity.md`.
+
 ## SAXS parameter quality-evidence reference - checkpointed at 1608643 - 2026-07-28
 
 - SAXS bundle `parameters.json` now points to the authoritative

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QCoreApplication, QEvent
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QTabWidget, QWidget
 
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
@@ -49,6 +49,26 @@ def test_main_window_reuses_result_context_helpers_from_results_mixin() -> None:
     assert MainWindow._result_origin_label is MainWindowResultsMixin._result_origin_label
     assert MainWindow._build_results_tab is MainWindowResultsMixin._build_results_tab
     assert MainWindow._build_joint_metric_label is MainWindowResultsMixin._build_joint_metric_label
+
+
+def test_main_tab_route_does_not_apply_full_page_opacity_effect() -> None:
+    QApplication.instance() or QApplication([])
+
+    class _FakeTabWindow:
+        def __init__(self) -> None:
+            self._tabs = QTabWidget()
+            self._tabs.addTab(QWidget(), "Results")
+            self.context_updates = 0
+
+        def _update_context_suggestions(self) -> None:
+            self.context_updates += 1
+
+    window = _FakeTabWindow()
+
+    MainWindow._on_tab_changed(window, 0)
+
+    assert window._tabs.widget(0).graphicsEffect() is None
+    assert window.context_updates == 1
 
 
 def test_results_text_uses_active_light_theme_tokens() -> None:
