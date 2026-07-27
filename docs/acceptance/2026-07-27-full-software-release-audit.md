@@ -65,6 +65,12 @@ were run one technique at a time with dedicated basetemps:
   (liquid/solid H/C); liquid C, solid H, and solid C validation warnings remain
   in the real output, including `Xc_NMR_assignment = WARN` for solid C.
 
+The later command-level recheck of the two delegated shards also completed
+with real pytest summaries: IR published-run walkthrough `2 passed, 13
+deselected in 84.78s`, exit code `0`; NMR solid-C lifecycle `1 passed, 3
+deselected in 126.89s`, exit code `0`. These are fresh automated rechecks and
+do not change the scientific/release boundaries above.
+
 These runs verified the real engine -> manifest -> Gallery -> Editor revision
 -> export bundle -> History restore route. They do not close human scientific
 role review, and the solid-state NMR C assignment remains provisional.
@@ -186,11 +192,23 @@ $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\PolyNexus.pytest_tmp_release_full'
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-Fresh current-working-tree result: `2793 passed, 10 warnings in 1607.00s
-(0:26:46)`. The selected compile, quality (`283`), preprocessing (`106`),
-Ruff/type baseline, whitespace, and boundary checks all passed. The warnings
-are the existing Matplotlib tight-layout,
-DSC polynomial-conditioning, and Arial glyph warnings listed in stdout.
+The latest D:-isolated current-working-tree result is **not a pass**:
+`2836 passed, 16 skipped, 12 warnings, 2 failed` in `1547.13s`; verifier exit
+code `1`. Both failures are real SAXS condition-recovery assertions, not a
+timeout or tool-level failure:
+
+- `test_recover_condition_axis_distinguishes_directory_and_filename_sources`
+  expected `path_directory` but received `unresolved`.
+- `test_scan_experiment_dir_preserves_condition_confidence_metadata` expected
+  `path_directory` but received `unresolved`.
+
+The selected compile, quality (`283`), preprocessing (`106`), Ruff/type
+baseline, whitespace, and boundary checks passed around those failures. The
+warnings are the existing Matplotlib tight-layout, DSC
+polynomial-conditioning, Arial glyph, and deleted-Qt-signal warnings listed in
+the run output. A focused recheck of both condition-recovery tests on the
+current checkout is green (`2 passed`), so the discrepancy remains a release
+audit follow-up rather than evidence to silently rewrite the full-run result.
 
 ## GUI evidence
 
