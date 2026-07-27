@@ -139,8 +139,15 @@ limitation rather than pass.
   and NMR `4` (114.85s). Each case captured Results, Gallery, History, and
   Editor under external `C:\Temp\PolyNexus_native_gui_*_verified` folders.
   Representative images show the routes constructible and live CJK labels;
-  body contrast/activity in inactive `grab()` captures and Export interaction
-  remain human visual gates.
+  body contrast/activity in inactive `grab()` captures remained a human visual
+  gate.
+- The native harness now triggers the real Chart Editor Export `QAction` for
+  every mode using only the existing `PackageExporter` fallback. A second
+  native matrix passed with exit code `0`: DSC `3` (24.25s), SAXS `3` (49.85s),
+  WAXS `3` (87.35s), IR `2` (67.19s), and NMR `4` (117.75s). Each mode
+  produced `Origin_Export/figure_document.json`, `metadata.json`, and
+  `import.ogs` under its external run output. Installed OriginPro/COM behavior
+  is intentionally not launched and remains an optional-runtime gate.
 - The prior all-native command timed out at the 180-second tool boundary with
   no pytest summary and is classified as a tool-level timeout. The prior
   `-k waxs.strain` exit code `5` selected no tests because full-2D cases were

@@ -87,6 +87,19 @@
   summary. The old `waxs.strain` filter returned exit `5` only because the
   harness omitted full-2D cases; it is superseded by the fresh WAXS/IR shards.
 
+## Native Windows Qt all-route package Export evidence (2026-07-28)
+
+- The native harness triggers the actual Chart Editor Export `QAction` for all
+  15 real modes and asserts the fallback package artifacts. The matrix passed
+  with exit code `0`: DSC `3`, SAXS `3`, WAXS `3`, IR `2`, and NMR `4`.
+- Each mode produced `Origin_Export/figure_document.json`, `metadata.json`,
+  and `import.ogs` under an external run output. The test injects only the
+  existing `PackageExporter`, so it verifies the no-Origin production fallback
+  without launching Origin/COM.
+- Installed OriginPro/COM behavior remains an optional-runtime/manual gate;
+  native screenshot body contrast in inactive grabs remains a visual review
+  item. Scientific warnings for IR 2D and solid-C NMR are unchanged.
+
 ## Fresh current full/boundary release verification (2026-07-27)
 
 - The current working tree completed

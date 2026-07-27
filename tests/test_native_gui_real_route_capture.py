@@ -8,6 +8,7 @@ font/route capture is required.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,8 @@ from PySide6.QtWidgets import QApplication
 from polynexus.core.engine import get_engine
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.plot_gallery_service import build_active_manifest_gallery_entries
+from polynexus.origin.package_exporter import PackageExporter
+from polynexus.origin.service import OriginExportService
 from tests.test_real_published_run_walkthrough import (
     _full_2d_real_cases,
     _real_cases,
@@ -126,4 +129,25 @@ def test_native_windows_gui_real_route_capture(
     editor.show()
     app.processEvents()
     assert editor.grab().save(str(capture_root / f"{slug}_editor.png"))
+
+    # Native acceptance must not launch a user's installed Origin process. It
+    # still exercises the real Editor menu, worker thread, and package output.
+    editor._origin_export_service = OriginExportService((PackageExporter(),))
+    export_action = editor._header_export_actions["origin"]
+    assert export_action.isEnabled()
+    # Trigger the QAction exposed by the real Export popup. Opening a native
+    # QMenu with QTest.mouseClick can block on Windows window activation.
+    export_action.trigger()
+    deadline = time.monotonic() + 20.0
+    while getattr(editor, "_origin_export_thread", None) is not None:
+        app.processEvents()
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.02)
+    assert editor._origin_export_thread is None
+    export_root = Path(editor._default_origin_output_root()) / "Origin_Export"
+    assert (export_root / "figure_document.json").is_file()
+    assert (export_root / "metadata.json").is_file()
+    assert (export_root / "import.ogs").is_file()
+    print(f"NATIVE_GUI_EXPORT {mode} root={export_root}")
     print(f"NATIVE_GUI_ROUTE {mode} run={run_id} captures={capture_root}")

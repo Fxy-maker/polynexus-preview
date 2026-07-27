@@ -121,6 +121,19 @@
   harness-selection error before full-2D imports were added, not a product
   failure. See `docs/acceptance/2026-07-27-full-software-release-audit.md`.
 
+## Native all-route package Export interaction - 2026-07-28
+
+- The native harness now triggers the real Chart Editor Export `QAction` after
+  opening each real mode's Editor. It injects only the existing `PackageExporter`
+  adapter so the test cannot start an installed Origin/COM process.
+- The export matrix passed with exit code `0`: DSC `3` in `24.25s`, SAXS `3`
+  in `49.85s`, WAXS `3` in `87.35s`, IR `2` in `67.19s`, and NMR `4` in
+  `117.75s`. Every case produced `Origin_Export/figure_document.json`,
+  `metadata.json`, and `import.ogs` in its external run output.
+- This closes automated package-fallback Export coverage across all modes. The
+  installed OriginPro/COM adapter path remains optional-runtime/manual review;
+  inactive native screenshot body contrast also remains a human visual gate.
+
 ## Fresh current full/boundary release verification - 2026-07-27
 
 - The current working tree completed

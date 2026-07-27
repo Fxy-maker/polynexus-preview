@@ -19,7 +19,7 @@ Status: automated evidence complete; release not approved
 | Per-technique lifecycle closures | DSC `3`, WAXS `3`, IR `3` (including mapping), NMR `4`, Joint `1` passed | automated-pass |
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
 | Real-result GUI route capture | Temporary pytest capture `1 passed`; restored DSC run produced Results, Gallery, History, and Editor screenshots with one manifest gallery entry | structural-pass; offscreen CJK font boxes require live visual review |
-| Native Windows Qt real-route harness | `15 passed` in five technique shards (`DSC 3`, `SAXS 3`, `WAXS 3`, `IR 2`, `NMR 4`), all exit code `0`; each case captured Results, Gallery, History, and Editor | automated route-pass; captured body contrast/activity and Export click remain human visual gates |
+| Native Windows Qt real-route harness | `15 passed` in five technique shards (`DSC 3`, `SAXS 3`, `WAXS 3`, `IR 2`, `NMR 4`), all exit code `0`; each case captured Results, Gallery, History, Editor, and package Export artifacts | automated route/package-export pass; live contrast/activity and installed Origin/COM remain human/optional-runtime gates |
 | IR mapping/ROI contract and lifecycle | `11 passed`; geometry mismatch and invalid pixels are rejected, provenance/roles/handoff are preserved | automated structural-pass; vendor semantics intentionally not inferred |
 | NMR/Joint provenance and lifecycle | `4 passed`; NMR Main/diagnostic and Joint run provenance survive publication/history | automated provenance-pass; solid C assignment and Joint conflicts require scientific review |
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
@@ -84,6 +84,22 @@ the PowerShell wrapper:
   route retained `neg_fraction = WARN`.
 - NMR: `4 passed, 11 deselected in 114.85s`, exit code `0`; solid C retained
   `NMR_fit_R2 = WARN` and `Xc_NMR_assignment = WARN`.
+
+The same five native shards were rerun with the Editor Export action enabled
+and the external-runtime-free `PackageExporter` selected explicitly:
+
+- DSC: `3 passed, 12 deselected, 15 warnings in 24.25s`, exit code `0`.
+- SAXS: `3 passed, 12 deselected in 49.85s`, exit code `0`.
+- WAXS: `3 passed, 12 deselected in 87.35s`, exit code `0`.
+- IR: `2 passed, 13 deselected in 67.19s`, exit code `0`.
+- NMR: `4 passed, 11 deselected in 117.75s`, exit code `0`.
+
+Every mode triggered the real Chart Editor Export `QAction` and produced an
+`Origin_Export` package containing `figure_document.json`, `metadata.json`,
+and `import.ogs`. The test deliberately injects only the existing
+`PackageExporter` adapter so it cannot launch an installed Origin process or
+COM server. Installed OriginPro/COM behavior remains an optional-runtime
+manual gate, while the no-Origin fallback is now automated across all modes.
 
 The earlier combined native invocation exceeded the 180-second tool window
 without a pytest summary and is therefore a tool-level timeout, not a pass or
@@ -187,8 +203,9 @@ Additional route evidence collected on 2026-07-27:
   `C:\Temp\PolyNexus_native_gui_nmr_verified`. Representative Results,
   Gallery, and Editor images show the native shell, tabs, plots, and CJK labels
   constructible; Results/Gallery body text is visually pale in these inactive
-  `grab()` captures, so contrast/activity and live-window export interaction
-  remain human review items rather than automated approval.
+  `grab()` captures, so contrast/activity remains a human review item. The
+  package Export action is automated across all modes; installed Origin/COM
+  interaction is intentionally not launched by the acceptance harness.
 - The first documentation-verifier attempt inherited the protected
   `D:\PolyNexus\.pytest_tmp` basetemp and produced 54 pytest setup errors with
   `WinError 5` while removing that pre-existing directory. Rerunning with

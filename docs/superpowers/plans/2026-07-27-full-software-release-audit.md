@@ -127,7 +127,10 @@ The corrected `tests/test_native_gui_real_route_capture.py` merges the regular
 and full-2D real case lists. Native Windows Qt technique shards passed all 15
 modes with exit code `0`: DSC `3`, SAXS `3`, WAXS `3`, IR `2`, and NMR `4`.
 Captures are structural/live-font evidence; body contrast in inactive grabs
-and Export interaction remain human review gates.
+remains a human review gate. The same 15-mode matrix also triggered the real
+Chart Editor Export action with the existing `PackageExporter` fallback and
+created the expected Origin-compatible package artifacts. Installed
+OriginPro/COM behavior remains an optional-runtime gate.
 
 ### Task 5: Run the full verifier and close the audit record
 
