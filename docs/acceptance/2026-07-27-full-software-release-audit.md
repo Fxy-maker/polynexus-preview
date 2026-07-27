@@ -18,6 +18,7 @@ Status: automated evidence complete; release not approved
 | Joint publish/editor/export/history lifecycle | `1 passed` with synthetic cross-technique rows | automated-pass for lifecycle; scientific conflict review open |
 | Per-technique lifecycle closures | DSC `3`, WAXS `3`, IR `3` (including mapping), NMR `4`, Joint `1` passed | automated-pass |
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
+| Real-result GUI route capture | Temporary pytest capture `1 passed`; restored DSC run produced Results, Gallery, History, and Editor screenshots with one manifest gallery entry | structural-pass; offscreen CJK font boxes require live visual review |
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
 | Combined lifecycle/real-fixture attempt | 180-second tool window expired without a summary; replaced for evidence purposes by the successful per-technique shards below | historical bounded-timeout |
 | Full repository verifier | Fresh dedicated run: `2767 passed, 10 warnings` in `24:13`; compile, quality, whitespace, and boundary audit passed | automated-pass with known warnings |
@@ -95,6 +96,18 @@ workspace/run status, SAXS static/temperature/strain navigation, and the
 Data/Config/Results/Plots shell. This is visual evidence for a reviewer. A
 complete restarted-GUI walkthrough of all modes, Gallery, Editor, Export, and
 History is still open.
+
+The temporary real-result capture also saved:
+
+- `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-real-results.png`
+- `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-real-gallery.png`
+- `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-real-history.png`
+- `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-real-editor.png`
+
+The route structure and Editor canvas render, but the offscreen capture renders
+Chinese glyphs as square placeholders. These screenshots are therefore
+structural diagnostics only; they do not close live-font, spacing, or
+publication-role visual approval.
 
 ## Open release gates
 

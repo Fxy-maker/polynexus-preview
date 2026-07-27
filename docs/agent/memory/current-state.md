@@ -27,6 +27,7 @@ title: Current PolyNexus repository state
   IR `3`, NMR `4`, Joint `1` lifecycle closures. The canonical GUI default
   shell was visually captured, but restarted-GUI route coverage,
   while 58 focused shell/workbench/gallery/editor route tests pass,
+  and a real-result route capture passes structurally,
   IR vendor mapping/ROI semantics, assignment-limited NMR/Joint review, and
   final human release approval remain open. Fresh full verification passed
   `2767` tests with `10` existing warnings and the boundary audit passed.

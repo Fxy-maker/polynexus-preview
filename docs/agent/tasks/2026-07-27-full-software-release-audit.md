@@ -93,6 +93,10 @@ limitation rather than pass.
   provisional.
 - GUI shell/workbench/gallery/editor route contracts passed `58` focused tests;
   this does not replace the restarted-GUI pixel-level walkthrough.
+- A temporary pytest visual capture passed `1` case and restored a real DSC
+  run through Results, Gallery, History, and Editor, with four screenshots and
+  one manifest gallery entry. Offscreen CJK glyphs render as square placeholders,
+  so live-font and pixel-level review remains open.
 - A combined lifecycle/real-run command exceeded the short 180-second tool
   window without a test summary; this is not a pass or a failure claim.
 - A fresh dedicated full verifier completed with `2767 passed, 10 warnings` in

@@ -41,6 +41,10 @@
   and Joint `1`; solid-state NMR C assignment remains provisional.
 - GUI shell/workbench/gallery/editor route contracts add `58 passed`; pixel-level
   restarted-GUI review remains a human gate.
+- A temporary real-result GUI capture passed `1` case and produced Results,
+  Gallery, History, and Editor screenshots with one manifest entry. Offscreen
+  CJK glyph boxes mean this is structural evidence only; live-font review stays
+  open.
 - The combined real/lifecycle command exceeded the 180-second tool window
   without a summary and was explicitly terminated; it is recorded as a
   bounded timeout, not a pass. Canonical GUI default-shell screenshot evidence
