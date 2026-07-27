@@ -1,5 +1,25 @@
 ---
 
+## SAXS Workbench review evidence readability (2026-07-28)
+
+- `build_saxs_results_presentation()` now keeps the existing risk and next-step
+  section order but joins non-empty sections with newlines instead of spaces.
+  This makes metric, Guinier, detector, data-quality, rescue, and condition
+  evidence separately auditable while preserving the string consumer contract.
+- The change is presentation-only: evidence content/reason codes, levels,
+  physical gates, AI/rescue behavior, persistence, Figure/Manifest/Export, and
+  input immutability are unchanged. RED was `1 failed`; focused consumers were
+  `104 passed`; exact SAXS was `419 passed, 6 warnings`.
+- The prior current-tree full/boundary result (`2850 passed, 16 skipped,
+  12 warnings`) predates this task; post-change full/boundary verification is
+  not claimed. Task verifier passed with quality `283`, preprocessing `106`,
+  Ruff, compile, memory/task, and whitespace checks. Explicit allowlist
+  checkpoint: `8e09f23`.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-workbench-review-readability.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-workbench-review-readability-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-workbench-review-readability.md`.
+
 ## SAXS invalid temperature-time values fail-closed (2026-07-28)
 
 - `analyze_temperature_series()` now converts a correctly-sized supplied
@@ -184,18 +204,19 @@
 
 ## Native all-mode route evidence after opacity correction (2026-07-28)
 
-- A fresh current-checkout native Windows Qt process returned `16 passed, 15
-  warnings in 391.86s`, exit code `0`, with D:-isolated basetemp and capture
-  output. It covered the 15 real fixture cases (DSC 3, SAXS 3, WAXS 3, IR 2,
-  NMR 4) plus synthetic Joint; every case captured Results/Gallery/History/
-  Editor and exercised PackageExporter fallback. Captures are under
-  `D:\PolyNexus_native_all_routes_capture_20260728_recheck`.
+- A fresh current-checkout native Windows Qt process returned `17 passed, 15
+  warnings in 363.16s`, exit code `0`, with D:-isolated basetemp and capture
+  output. It covered the 15 real fixture cases (DSC 3, SAXS 3, WAXS 3 including
+  full-2D strain, IR 2, NMR 4) plus synthetic Joint and synthetic IR mapping;
+  every case captured Results/Gallery/History/Editor and exercised
+  PackageExporter fallback. Captures are under
+  `D:\PolyNexus_native_all_routes_capture_20260728_with_ir_mapping`.
 - Fresh visual inspection confirms live CJK rendering and opaque Results text.
-  NMR solid-C peak-label crowding remains a scientific/visual review signal;
-  the synthetic Joint fixture shows diagnostics while its header says `No
-  project` / `No data loaded`. The harness still lacks real IR mapping and
-  WAXS 2D detector cases, so this does not close those boundaries or final
-  restarted-GUI/scientific approval.
+  The synthetic IR mapping heatmap/ROI/editor route is constructible but does
+  not validate vendor-native mapping semantics. NMR solid-C peak-label
+  crowding remains a scientific/visual review signal; the synthetic Joint
+  fixture shows diagnostics while its header says `No project` / `No data
+  loaded`. Final restarted-GUI/scientific approval remains open.
 - The D:-isolated native Windows Qt rerun passed `15 passed, 1 deselected,
   15 warnings in 398.02s`, exit code `0`, across DSC `3`, SAXS `3`, WAXS `3`,
   IR `2`, and NMR `4`. Each mode restored populated Results, captured

@@ -1,5 +1,18 @@
 # Active Work
 
+## SAXS Workbench review evidence readability - verification pending - 2026-07-28
+
+- Existing advisory risk/next-step sections now render as ordered newline
+  paragraphs instead of one space-joined paragraph. No evidence, physical,
+  rescue, AI, or publication semantics changed.
+- RED was `1 failed`; focused Workbench consumers were `104 passed`; exact SAXS
+  matrix was `419 passed, 6 warnings`. The previous full/boundary result is
+  historical because it predates this change.
+- Task verifier passed with quality `283`, preprocessing `106`, Ruff, compile,
+  memory/task, and whitespace checks. Explicit allowlist checkpoint:
+  `8e09f23`. Keep the modified native GUI harness and all scratch/release files
+  outside this task.
+
 ## SAXS invalid temperature-time values fail-closed - checkpointed - 2026-07-28
 
 - Correctly-sized optional time values are now coerced elementwise. Invalid or
@@ -126,17 +139,18 @@
 
 ## Native all-mode route evidence refreshed - 2026-07-28
 
-- Fresh current-checkout native rerun returned `16 passed, 15 warnings in
-  391.86s`, exit code `0`, in a new pytest process with D:-isolated temp and
-  capture roots. It covered the 15 real fixture routes plus synthetic Joint,
-  captured Results/Gallery/History/Editor, and exercised PackageExporter
-  fallback. Captures are under
-  `D:\PolyNexus_native_all_routes_capture_20260728_recheck`.
-- Visual inspection confirms live CJK and opaque Results text. Solid-C
-  peak-label crowding and the synthetic Joint `No project`/`No data loaded`
-  header alongside diagnostics remain review signals. Real IR mapping and
-  WAXS 2D detector routes are not in this harness; human visual/scientific
-  review and final release approval remain open.
+- Fresh current-checkout native rerun returned `17 passed, 15 warnings in
+  363.16s`, exit code `0`, in a new pytest process with D:-isolated temp and
+  capture roots. It covered the 15 real fixture routes (including WAXS
+  full-2D strain), synthetic Joint, and synthetic IR mapping; all four shared
+  surfaces and PackageExporter fallback were exercised. Captures are under
+  `D:\PolyNexus_native_all_routes_capture_20260728_with_ir_mapping`.
+- Visual inspection confirms live CJK and opaque Results text. The synthetic
+  IR mapping heatmap/ROI/editor route is constructible but does not validate
+  vendor-native semantics. Solid-C peak-label crowding and the synthetic
+  Joint `No project`/`No data loaded` header alongside diagnostics remain
+  review signals; human scientific review and final release approval remain
+  open.
 - After the shared Results opacity correction, the D:-isolated native harness
   passed `15 passed, 1 deselected, 15 warnings in 398.02s`, exit code `0`,
   covering every real DSC/SAXS/WAXS/IR/NMR mode. Each route restored a

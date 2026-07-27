@@ -1452,32 +1452,26 @@ def build_saxs_results_presentation(
         payload,
         language=target_language,
     )
-    risk_text = " ".join(
-        text
-        for text in (
-            axis_risk,
-            metric_risk,
-            sequence_risk,
-            rescue_risk,
-            ai_risk,
-            detector_risk,
-            data_quality_risk,
-        )
-        if text
+    risk_sections = (
+        axis_risk,
+        metric_risk,
+        sequence_risk,
+        rescue_risk,
+        ai_risk,
+        detector_risk,
+        data_quality_risk,
     )
-    next_text = " ".join(
-        text
-        for text in (
-            axis_next,
-            metric_next,
-            sequence_next,
-            rescue_next,
-            ai_next,
-            detector_next,
-            data_quality_next,
-        )
-        if text
+    next_sections = (
+        axis_next,
+        metric_next,
+        sequence_next,
+        rescue_next,
+        ai_next,
+        detector_next,
+        data_quality_next,
     )
+    risk_text = "\n".join(text for text in risk_sections if text)
+    next_text = "\n".join(text for text in next_sections if text)
 
     row_count = len(rows)
     has_rows = row_count > 0
