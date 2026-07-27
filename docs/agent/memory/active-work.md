@@ -168,10 +168,13 @@
   bounded timeout, not a pass. Canonical GUI default-shell screenshot evidence
   is in the acceptance note; full restarted-GUI walkthrough and final human
   release approval remain open.
-- Fresh full verifier now passed: `2773 passed, 10 warnings` in `1451.67s`
-  (`24:11`); the selected compile/quality/preprocessing/Ruff/type/whitespace
-  and boundary checks all passed. The GUI responsive-shell task is checkpointed
-  as `83083bc`, and a fresh canonical launcher diagnose resolved that commit.
+- Fresh current-head full verification retry at `2af4baf` passed: `2790 passed,
+  10 warnings` in `1454.97s` (`24:14`); selected compile/quality (`283`),
+  preprocessing (`106`), Ruff/type/whitespace, and boundary checks all passed.
+  The first same-turn attempt had one transient focused maintenance-cleanup
+  failure and was rerun; it is not treated as the final result. The GUI
+  responsive-shell task is checkpointed as `83083bc`, and a fresh canonical
+  launcher diagnose resolved that commit.
   Remaining work is all-route live GUI review, IR vendor mapping/ROI semantics,
   assignment-limited NMR/Joint scientific review, and final human release
   approval.

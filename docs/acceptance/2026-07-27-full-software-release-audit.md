@@ -23,7 +23,7 @@ Status: automated evidence complete; release not approved
 | NMR/Joint provenance and lifecycle | `4 passed`; NMR Main/diagnostic and Joint run provenance survive publication/history | automated provenance-pass; solid C assignment and Joint conflicts require scientific review |
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
 | Combined lifecycle/real-fixture attempt | 180-second tool window expired without a summary; replaced for evidence purposes by the successful per-technique shards below | historical bounded-timeout |
-| Full repository verifier | Fresh dedicated run: `2773 passed, 10 warnings` in `24:11`; compile, quality, whitespace, and boundary audit passed | automated-pass with known warnings |
+| Full repository verifier | Current-head retry at `2af4baf`: `2790 passed, 10 warnings` in `24:14`; compile, quality, whitespace, and boundary audit passed | automated-pass with known warnings |
 
 ## Automated commands and results
 
@@ -81,9 +81,10 @@ $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\PolyNexus.pytest_tmp_release_full'
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-Result: `2773 passed, 10 warnings in 1451.67s (0:24:11)`. The selected
-compile, quality, preprocessing, Ruff/type baseline, whitespace, and boundary
-checks all passed. The warnings are the existing Matplotlib tight-layout,
+Result at current HEAD `2af4baf`: `2790 passed, 10 warnings in 1454.97s
+(0:24:14)`. The selected compile, quality (`283`), preprocessing (`106`),
+Ruff/type baseline, whitespace, and boundary checks all passed. The warnings
+are the existing Matplotlib tight-layout,
 DSC polynomial-conditioning, and Arial glyph warnings listed in stdout.
 
 ## GUI evidence
