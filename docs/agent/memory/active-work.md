@@ -1,5 +1,17 @@
 # Active Work
 
+## SAXS empty temperature series fail-closed boundary - checkpointed - 2026-07-28
+
+- Empty `temperatures/q_list/I_list` now returns a structured empty
+  `TempSeriesResult` with existing `Unusable` sequence/metric evidence; the
+  existing length mismatch `ValueError` remains unchanged.
+- RED was `1 failed, 1 passed`; focused GREEN was `22 passed`; exact SAXS was
+  `415 passed, 6 warnings`. No interpolation, frame fabrication, transition
+  inference, rescue, AI, or non-empty path change was introduced.
+- Structured verifier and checkpoint passed locally. Full/boundary repository
+  verification is not claimed; keep unrelated release/GUI/editor/scratch
+  changes outside the allowlist.
+
 ## SAXS empty-profile fail-closed boundary - checkpointed - 2026-07-28
 
 - The deterministic sanitizer can produce an empty profile for empty or

@@ -880,6 +880,31 @@ def analyze_temperature_series(
     if len(q_list) != n_points or len(I_list) != n_points:
         raise ValueError("temperatures, q_list, I_list must have same length")
 
+    if n_points == 0:
+        empty = np.asarray([], dtype=float)
+        result = TempSeriesResult(experiment_type=exp_type)
+        result.temperatures = empty.copy()
+        result.L_array = empty.copy()
+        result.lc_array = empty.copy()
+        result.lc_effective_array = empty.copy()
+        result.Q_star_array = empty.copy()
+        result.Xc_array = empty.copy()
+        result.Rg_array = empty.copy()
+        result.lc_candidate_selected_score_array = empty.copy()
+        result.guinier_sequence_evidence = build_guinier_sequence_evidence(
+            [], [], source_indices=[],
+            source_ref="saxs_temperature.guinier_sequence",
+        ).to_dict()
+        result.metric_evidence = build_series_metric_evidence(
+            [],
+            metric_names=("guinier", "porod", "kratky", "invariant", "lamellar"),
+            source_ref="saxs_temperature.metric_evidence",
+            frame_source_indices=[],
+            condition_name="temperature_C",
+            condition_values=[],
+        )
+        return result
+
     source_ids_aligned = _aligned_source_values(source_ids, n_points)
     raw_data_refs_aligned = _aligned_source_values(raw_data_refs, n_points)
 

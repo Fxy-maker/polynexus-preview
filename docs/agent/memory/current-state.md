@@ -1,5 +1,24 @@
 ---
 
+## SAXS empty temperature series fail-closed boundary (2026-07-28)
+
+- `analyze_temperature_series()` now returns an explicit empty
+  `TempSeriesResult` after existing length validation when no temperature
+  frames are supplied. It initializes empty numeric/status tracks and reuses
+  the existing sequence/metric builders, yielding `Unusable` evidence with
+  `guinier_sequence_no_valid_frames` and `series_no_frames`.
+- No interpolation, frame fabrication, transition inference, rescue, AI,
+  threshold, physical-gate, or non-empty path change was introduced. RED was
+  `1 failed, 1 passed`; focused GREEN was `22 passed`; exact SAXS was `415
+  passed, 6 warnings`.
+- Structured verifier and explicit checkpoint remain to be recorded after the
+  final documentation update. Full/boundary repository verification is not
+  claimed for this scoped task.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-temperature-empty-series-fail-closed.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-temperature-empty-series-fail-closed-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-temperature-empty-series-fail-closed.md`.
+
 ## SAXS empty-profile fail-closed boundary (2026-07-28)
 
 - `analyze_single()` now returns the existing structured `Unusable` contract
