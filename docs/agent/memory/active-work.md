@@ -1,5 +1,19 @@
 # Active Work
 
+## NMR release evidence reconciliation - automated boundary recorded - 2026-07-28
+
+- Fresh NMR provider/provenance/eval/profile evidence passed `26` tests with
+  an external basetemp. The real liquid/solid H/C published-run walkthrough
+  passed `4` selected cases with `11` deselected.
+- The evidence is recorded in
+  `docs/acceptance/2026-07-28-nmr-release-evidence-reconciliation.md` and the
+  task card
+  `docs/agent/tasks/2026-07-28-nmr-release-evidence-reconciliation.md`.
+- This closes only the automated NMR software lifecycle boundary. Solid-C Xc
+  remains assignment-limited/provisional; vendor semantics, restarted-GUI
+  visual review, human scientific review, and final release approval remain
+  open.
+
 ## IR release evidence reconciliation - automated boundary recorded - 2026-07-28
 
 - The focused current-head IR provider/mapping/lifecycle matrix passed `31`
