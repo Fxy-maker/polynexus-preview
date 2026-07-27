@@ -3,6 +3,7 @@ from __future__ import annotations
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_output_mixin import MainWindowOutputMixin
 from polynexus.gui.i18n import tr
+from polynexus.gui.results_workbench_profiles import profile_for
 
 
 class _ResultsPanelRecorder:
@@ -101,6 +102,27 @@ def test_saxs_temperature_summary_updates_results_review_hint_recorder():
 
     assert len(window._results_panel.review_hint_calls) == 1
     assert window._results_panel.clear_review_hint_calls == 1
+
+
+def test_structured_non_saxs_summary_updates_profile_review_hint_recorder():
+    window = _ResultsHintWindow("dsc", "dsc.standard")
+    window._results_panel.profile = profile_for("dsc.standard", language="en")
+
+    MainWindowOutputMixin._update_results_review_hint(
+        window,
+        summary="thermal summary",
+        risk_text="baseline needs review",
+        next_text="inspect the thermal diagnostics",
+    )
+
+    assert len(window._results_panel.review_hint_calls) == 1
+    call = window._results_panel.review_hint_calls[0]
+    assert call["title"] == "thermal summary"
+    assert call["detail"] == "baseline needs review"
+    assert call["next_text"] == "inspect the thermal diagnostics"
+    assert call["status"] == "review"
+    assert call["action_text"] == profile_for("dsc.standard", language="en").review_action.label
+    assert callable(call["action"])
 
 
 def test_saxs_strain_summary_updates_results_review_hint_recorder():

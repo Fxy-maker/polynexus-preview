@@ -385,12 +385,13 @@ class ResultsTablePanel(QWidget):
         self._review_hint_action = action if callable(action) else None
         self._review_hint_action_text_key = None
         if self._review_hint_action is not None:
-            action_key = "SAXS_RESULTS_REVIEW_HINT_ACTION"
-            if action_text_value in {
-                tr_for_language(action_key, "zh"),
-                tr_for_language(action_key, "en"),
-            }:
-                self._review_hint_action_text_key = action_key
+            for action_key in ("SAXS_RESULTS_REVIEW_HINT_ACTION", "RESULTS_WORKBENCH_REVIEW_ACTION"):
+                if action_text_value in {
+                    tr_for_language(action_key, "zh"),
+                    tr_for_language(action_key, "en"),
+                }:
+                    self._review_hint_action_text_key = action_key
+                    break
         has_action = bool(action_text_value and self._review_hint_action is not None)
         self.review_hint_action.setVisible(has_action)
         self.review_hint_action.setEnabled(has_action)

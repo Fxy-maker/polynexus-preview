@@ -285,6 +285,31 @@ def test_review_hint_retranslate_refreshes_localized_action_and_status(
         i18n.set_language(previous_language)
 
 
+def test_review_hint_retranslate_refreshes_shared_workbench_action(
+    app: QApplication,
+) -> None:
+    ResultsTablePanel, _ = _panel_types()
+    previous_language = i18n.get_language()
+    try:
+        i18n.set_language("en")
+        panel = ResultsTablePanel()
+        panel.set_review_hint(
+            title="summary",
+            detail="risk",
+            next_text="next",
+            status="review",
+            action_text=i18n.tr("RESULTS_WORKBENCH_REVIEW_ACTION"),
+            action=lambda: None,
+        )
+
+        i18n.set_language("zh")
+        panel.retranslate()
+
+        assert panel.review_hint_action.text() == i18n.tr("RESULTS_WORKBENCH_REVIEW_ACTION")
+    finally:
+        i18n.set_language(previous_language)
+
+
 def test_review_hint_replaces_action_without_stale_callback(app: QApplication) -> None:
     ResultsTablePanel, _ = _panel_types()
     panel = ResultsTablePanel()

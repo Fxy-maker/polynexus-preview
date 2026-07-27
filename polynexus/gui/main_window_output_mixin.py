@@ -107,9 +107,19 @@ class MainWindowOutputMixin:
 
         technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
         submodule_id = str(getattr(self, "_current_submodule_id", "") or "").strip().lower()
-        if (
-            technique != "saxs"
-            or submodule_id not in {"temperature", "saxs.temperature", "saxs.strain"}
+        is_saxs_evolution = technique == "saxs" and submodule_id in {
+            "temperature",
+            "saxs.temperature",
+            "saxs.strain",
+        }
+        if is_saxs_evolution and not any((summary_text, risk_text_value, next_text_value)):
+            panel.clear_review_hint()
+            return
+
+        profile = getattr(panel, "profile", None)
+        if not is_saxs_evolution and (
+            profile is None
+            or str(getattr(profile, "key", "") or "") == "generic"
             or not any((summary_text, risk_text_value, next_text_value))
         ):
             panel.clear_review_hint()
@@ -124,12 +134,18 @@ class MainWindowOutputMixin:
             if tabs is not None and hasattr(tabs, "setCurrentIndex"):
                 tabs.setCurrentIndex(2)
 
+        if is_saxs_evolution:
+            title = summary_text or tr("SAXS_RESULTS_REVIEW_HINT_TITLE")
+            action_text = tr("SAXS_RESULTS_REVIEW_HINT_ACTION")
+        else:
+            title = summary_text or str(getattr(profile, "title", "") or "")
+            action_text = str(getattr(getattr(profile, "review_action", None), "label", "") or "")
         panel.set_review_hint(
-            title=summary_text or tr("SAXS_RESULTS_REVIEW_HINT_TITLE"),
+            title=title,
             detail=risk_text_value,
             next_text=next_text_value,
             status="review" if risk_text_value else "neutral",
-            action_text=tr("SAXS_RESULTS_REVIEW_HINT_ACTION"),
+            action_text=action_text,
             action=jump_to_results_tab,
         )
 
