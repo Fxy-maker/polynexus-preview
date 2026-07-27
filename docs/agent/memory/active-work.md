@@ -1,5 +1,22 @@
 # Active Work
 
+## SAXS quality contracts Stage 0 - in progress 2026-07-27
+
+- The first typed quality/evidence contracts are present in
+  `polynexus/core/saxs_engine/saxs_quality_contracts.py` with seven focused
+  regressions and in-memory fault fixtures in `tests/test_saxs_quality_contracts.py`
+  and `tests/fixtures/saxs_quality_cases.py`.
+- The contract layer is non-mutating and strict-JSON serializable; it records
+  data defects, metric evidence, and rescue validation state without changing
+  SAXS calculations or publication roles.
+- Focused evidence currently passes: contract `7 passed`, SAXS regression `37
+  passed`, quality gate `282 passed`, and preprocessing gate `103 passed`;
+  scoped Ruff is clean. The structured
+  checkpoint is ready under
+  `docs/agent/tasks/2026-07-27-saxs-quality-contracts-stage0.md`.
+- Next action: wire the contract into the temperature 1D Guinier evidence path
+  only after a separate Stage 1 task card and physical acceptance tests exist.
+
 ## Complete 2D publication performance - updated 2026-07-26
 
 - WAXS strain publication image grids now use vectorized, bounded 256×256

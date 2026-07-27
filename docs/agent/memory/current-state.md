@@ -67,6 +67,13 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- SAXS quality-contract Stage 0 is now isolated as a typed, strict-JSON
+  contract layer for data defects, metric evidence, and rescue validation.
+  Focused tests pass (`7`), the SAXS regression matrix passes (`37`), and the
+  implementation deliberately has no
+  temperature/strain/static analysis or AI rescue side effects yet. Task card:
+  `docs/agent/tasks/2026-07-27-saxs-quality-contracts-stage0.md`.
+
 - The 2026-07-26 complete 2D publication performance slice is implemented:
   WAXS strain image-grid snapshots are vectorized and capped at 256×256 per
   frame, while IR temperature-2D correlation snapshots are capped at 420×420
