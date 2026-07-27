@@ -14,7 +14,7 @@
   12 warnings` in 1567.25s. Quality `283`, preprocessing `106`, compile,
   whitespace, and boundary audit passed. Task verifier also passed with Ruff,
   memory/task, and whitespace checks; explicit allowlist checkpoint:
-  `8e09f23`.
+  `6fe3128`.
 - Task/spec/plan:
   `docs/agent/tasks/2026-07-28-saxs-workbench-review-readability.md`,
   `docs/superpowers/specs/2026-07-28-saxs-workbench-review-readability-design.md`,

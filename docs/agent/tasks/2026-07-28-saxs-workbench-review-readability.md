@@ -1,6 +1,6 @@
 # Task: SAXS Workbench review evidence readability
 
-**Status:** checkpointed locally in `8e09f23`
+**Status:** checkpointed locally in `6fe3128`
 
 ## Goal
 

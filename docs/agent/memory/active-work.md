@@ -11,7 +11,7 @@
   preprocessing `106`, compile, whitespace, and boundary audit passed.
 - Task verifier passed with quality `283`, preprocessing `106`, Ruff, compile,
   memory/task, and whitespace checks. Explicit allowlist checkpoint:
-  `8e09f23`. Keep the modified native GUI harness and all scratch/release files
+  `6fe3128`. Keep the modified native GUI harness and all scratch/release files
   outside this task.
 
 ## SAXS invalid temperature-time values fail-closed - checkpointed - 2026-07-28
