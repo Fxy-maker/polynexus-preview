@@ -35,6 +35,9 @@ title: Current PolyNexus repository state
   at default and maximized sizes with the task card visible. The task-scoped
   changed-file Ruff command is still obstructed by 24 pre-existing findings in
   modified `polynexus/core/saxs.py`, which remains outside the GUI allowlist.
+  The prescribed full suite completed `2685 passed, 1 failed, 10 warnings`;
+  the lone order-sensitive ChartEditor/Matplotlib-Qt failure passes in
+  isolation and the focused ChartEditor/DSC matrix is `251 passed`.
   See `docs/agent/tasks/2026-07-27-gui-responsive-shell.md` and
   `docs/acceptance/2026-07-27-gui-responsive-shell.md`.
 
