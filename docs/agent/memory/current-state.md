@@ -22,10 +22,14 @@ title: Current PolyNexus repository state
   publication/provider/workbench evidence is `30 passed`; the cross-technique
   AI-off/failure/fallback contract matrix is `25 passed`. A combined
   real/lifecycle attempt exceeded its 180-second tool window without a summary
-  and is not treated as pass or failure. The canonical GUI default shell was
-  visually captured, but restarted-GUI route coverage, real/lifecycle shards,
+  and is not treated as pass or failure; replacement per-technique shards
+  passed all 15 single-technique real walkthrough cases and DSC `3`, WAXS `3`,
+  IR `3`, NMR `4`, Joint `1` lifecycle closures. The canonical GUI default
+  shell was visually captured, but restarted-GUI route coverage,
   IR vendor mapping/ROI semantics, assignment-limited NMR/Joint review, and
-  final human release approval remain open. Acceptance note:
+  final human release approval remain open. Fresh full verification passed
+  `2767` tests with `10` existing warnings and the boundary audit passed.
+  Acceptance note:
   `docs/acceptance/2026-07-27-full-software-release-audit.md`.
 
 - SAXS AI confirmed-rerun safety is implemented and checkpointed locally; this

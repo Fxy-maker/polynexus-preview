@@ -36,12 +36,12 @@ focused-test evidence as a complete module release.
    a dedicated basetemp.
 - [x] The cross-technique AI safety matrix records exact pass/fail evidence for
    DSC, IR, WAXS, SAXS, and NMR, with Joint explicitly report-level.
-- [ ] Each lifecycle mode has either fresh automated evidence or an explicit
+- [x] Each lifecycle mode has either fresh automated evidence or an explicit
    limitation naming the missing real fixture, timeout, or visual/scientific
    gate.
 - [x] The canonical GUI is restarted from `D:\PolyNexus`, its default shell is
    captured, and visual checks are not represented as automated sign-off.
-- [ ] The full verifier is run with a dedicated basetemp when practical; any
+- [x] The full verifier is run with a dedicated basetemp when practical; any
    failure or timeout is recorded verbatim and never relabeled as pass.
 - [x] The task card, implementation plan, acceptance note, and durable memory
    agree on the same status and next action.
@@ -85,12 +85,19 @@ limitation rather than pass.
   basetemp on 2026-07-27.
 - Cross-technique AI-off/failure/fallback matrix: `25 passed` using an isolated
   basetemp on 2026-07-27.
+- Real published-run walkthrough shards: DSC `3 passed` (11 existing warnings),
+  WAXS `3 passed`, SAXS `3 passed`, IR `2 passed`, NMR `4 passed`; all 15
+  single-technique cases passed.
+- Lifecycle closure shards: DSC `3`, WAXS `3`, IR `3`, NMR `4`, and Joint `1`
+  passed. IR's three modes include mapping; NMR's solid C assignment remains
+  provisional.
 - A combined lifecycle/real-run command exceeded the short 180-second tool
   window without a test summary; this is not a pass or a failure claim.
-- The prior fresh full verifier reached `2763 passed, 1 failed, 10 warnings`;
-  the failure was `tests/test_waxs_publication_cutover.py::test_waxs_engine_publishes_manifest_backed_assets`, and boundary audit did not
-  run. The focused WAXS recheck above currently passes, so a fresh full run is
-  still required before changing that limitation.
+- A fresh dedicated full verifier completed with `2767 passed, 10 warnings` in
+  `1453.05s`; compile, quality, preprocessing, Ruff/type baseline, whitespace,
+  and boundary audit all passed. The earlier `2763 passed, 1 failed` result is
+  retained as historical evidence only; the WAXS focused recheck and fresh
+  full run now pass.
 - Canonical GUI default-shell screenshot: `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-gui-default.png`.
   It shows the SAXS empty state, workspace summary, mode navigation, and the
   Data/Config/Results/Plots shell. It is visual evidence only.
@@ -114,8 +121,7 @@ python scripts/verify.py --changed --types --full --boundary
 
 ## Next action
 
-Run the remaining real-run/lifecycle shards with independently bounded
-basetemps, then update the acceptance note and durable memory with exact
-results. Do not call the overall goal complete while restarted-GUI visual
-review, IR vendor mapping/ROI semantics, assignment-limited NMR/Joint review,
-or final human release approval remain open.
+Automated release evidence is now complete. The remaining actions are the
+restarted-GUI route walkthrough, IR vendor mapping/ROI semantics review,
+assignment-limited NMR/Joint scientific review, and final human release
+approval. Do not call the overall goal complete while those gates remain open.

@@ -71,19 +71,19 @@ sign-off is inferred from these contract tests.
 - Read: `tests/test_joint_lifecycle_closure.py`
 - Create: `docs/acceptance/2026-07-27-full-software-release-audit.md`
 
-- [ ] **Step 1: Run one bounded shard at a time**
+- [x] **Step 1: Run one bounded shard at a time**
 
 Use a different dedicated `--basetemp` for each shard. Run the real walkthrough
 and lifecycle files separately so a slow scientific engine is attributable to
 one mode and cannot be mistaken for a green combined command.
 
-- [ ] **Step 2: Classify each result**
+- [x] **Step 2: Classify each result**
 
 For each mode, record one of `automated-pass`, `diagnostic-only`, `fixture-
 missing`, `bounded-timeout`, or `human-review`. Preserve the exact test count,
 failure name, and timeout duration.
 
-- [ ] **Step 3: Inspect the acceptance note**
+- [x] **Step 3: Inspect the acceptance note**
 
 Confirm that every objective mode appears exactly once and that diagnostic-only
 or assignment-limited output is not promoted to a normal-science release role.
@@ -126,23 +126,23 @@ the exact missing prerequisite rather than marking it passed.
 - Modify: `docs/agent/memory/active-work.md`
 - Modify: `docs/agent/tasks/2026-07-27-full-software-release-audit.md`
 
-- [ ] **Step 1: Run the repository verifier with a dedicated basetemp**
+- [x] **Step 1: Run the repository verifier with a dedicated basetemp**
 
 ```powershell
 $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\PolyNexus.pytest_tmp_release_full'
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-Record exact output. A timeout, existing failure, or skipped boundary remains a
-limitation.
+Record exact output. The fresh run completed with `2767 passed, 10 warnings`
+and the selected boundary audit passed.
 
-- [ ] **Step 2: Reconcile durable state**
+- [x] **Step 2: Reconcile durable state**
 
 Update the task card, plan, acceptance note, and memory with the same counts,
 limitations, and next action. Do not delete unrelated scratch files or fold
 them into the allowlist.
 
-- [ ] **Step 3: Create an allowlisted checkpoint**
+- [x] **Step 3: Create an allowlisted checkpoint**
 
 After the documentation verifier passes, use:
 

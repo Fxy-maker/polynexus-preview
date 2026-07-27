@@ -35,13 +35,22 @@
   full-run limitation until a fresh full verifier completes.
 - Fresh cross-technique AI-off/failure/fallback contract matrix is `25 passed`;
   it does not prove model quality, calibration, or scientific approval.
+- Fresh real published-run walkthrough shards passed all 15 single-technique
+  cases: DSC `3` (11 existing warnings), WAXS `3`, SAXS `3`, IR `2`, and NMR
+  `4`. Separate lifecycle closures passed DSC `3`, WAXS `3`, IR `3`, NMR `4`,
+  and Joint `1`; solid-state NMR C assignment remains provisional.
 - The combined real/lifecycle command exceeded the 180-second tool window
   without a summary and was explicitly terminated; it is recorded as a
   bounded timeout, not a pass. Canonical GUI default-shell screenshot evidence
   is in the acceptance note; full restarted-GUI walkthrough and final human
   release approval remain open.
-- Next action: run real/lifecycle shards one at a time with dedicated
-  basetemps, then run the full verifier and reconcile the acceptance ledger.
+- Next action: run the full verifier with a dedicated basetemp and reconcile
+  the acceptance ledger with its exact result.
+- Fresh full verifier now passed: `2767 passed, 10 warnings` in `24:13`; the
+  selected compile/quality/preprocessing/Ruff/type/whitespace and boundary
+  checks all passed. Remaining work is restarted-GUI route review, IR vendor
+  mapping/ROI semantics, assignment-limited NMR/Joint scientific review, and
+  final human release approval.
 
 ## SAXS AI confirmed-rerun safety - local checkpoint - 2026-07-27
 
