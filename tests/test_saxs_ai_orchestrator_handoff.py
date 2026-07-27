@@ -160,21 +160,30 @@ def test_valid_saxs_shadow_report_and_engine_carry_json_safe_rescue_audit() -> N
 
     plan = report["saxs_ai_rescue_plan"]
     decision = report["saxs_ai_rescue_decision"]
+    replay = report["saxs_ai_rescue_replay"]
     assert plan["candidate_only"] is True
     assert plan["original_preserved"] is True
     assert plan["intent"]["technique"] == "SAXS"
     assert plan["candidates"]
     assert decision["decision"] == "keep_original"
     assert decision["apply_allowed"] is False
+    assert replay
+    assert all(item["technique"] == "SAXS" for item in replay)
+    assert all(item["original_preserved"] is True for item in replay)
+    assert all(item["apply_performed"] is False for item in replay)
+    assert all("original_config_hash" in item for item in replay)
     assert report["preprocess_decision"]["decision"] == "keep_original"
     assert orchestrator._engine.saxs_ai_rescue_plan == plan
     assert orchestrator._engine.saxs_ai_rescue_decision == decision
+    assert orchestrator._engine.saxs_ai_rescue_replay == replay
     json.dumps(plan, allow_nan=False)
     json.dumps(decision, allow_nan=False)
+    json.dumps(replay, allow_nan=False)
 
     export_quality = _quality_evidence_payload(orchestrator._engine, "static")
     assert export_quality["ai_rescue"]["plan"] == plan
     assert export_quality["ai_rescue"]["decision"] == decision
+    assert export_quality["ai_rescue"]["replay"] == replay
 
 
 def test_saxs_audit_failure_synchronizes_report_and_engine_decisions() -> None:

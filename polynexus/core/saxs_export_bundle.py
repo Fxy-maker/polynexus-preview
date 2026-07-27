@@ -202,10 +202,12 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
     strain = getattr(engine, "_strain_result", None)
     ai_plan = getattr(engine, "saxs_ai_rescue_plan", None)
     ai_decision = getattr(engine, "saxs_ai_rescue_decision", None)
+    ai_replay = getattr(engine, "saxs_ai_rescue_replay", None)
     if ai_plan is None and ai_decision is None:
         result = getattr(engine, "result", None)
         ai_plan = getattr(result, "saxs_ai_rescue_plan", None)
         ai_decision = getattr(result, "saxs_ai_rescue_decision", None)
+        ai_replay = getattr(result, "saxs_ai_rescue_replay", None)
 
     payload: dict[str, Any] = {
         "schema_version": 1,
@@ -215,10 +217,11 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
         "temperature": _series_quality_payload(temperature),
         "strain": _series_quality_payload(strain),
     }
-    if ai_plan is not None or ai_decision is not None:
+    if ai_plan is not None or ai_decision is not None or ai_replay is not None:
         payload["ai_rescue"] = {
             "plan": ai_plan,
             "decision": ai_decision,
+            "replay": ai_replay,
         }
     return _jsonable(payload)
 

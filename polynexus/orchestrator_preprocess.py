@@ -19,6 +19,7 @@ from polynexus.core.preprocess_optimization import (
     ExperienceKey,
     PreprocessCandidate,
     PreprocessEvidence,
+    build_preprocess_replay_audit,
     decide_preprocess_candidate,
     generate_preprocess_candidates,
     get_preprocess_adapter,
@@ -42,6 +43,31 @@ def _metadata_complete(self: Any) -> bool:
         str(context.get("instrument_fingerprint", "") or "").strip()
         and str(context.get("sample_family", "") or "").strip()
     )
+
+
+def _saxs_replay_mode(engine: Any) -> str:
+    if getattr(engine, "_temperature_result", None) is not None:
+        return "temperature"
+    if getattr(engine, "_strain_result", None) is not None:
+        return "strain"
+    experiment_type = str(
+        getattr(getattr(engine, "cfg", None), "experiment_type", "") or ""
+    ).strip().lower()
+    if experiment_type in {"temperature", "cooling", "heating", "isothermal"}:
+        return "temperature"
+    if experiment_type == "strain":
+        return "strain"
+    return "static"
+
+
+def _saxs_replay_context(self: Any) -> dict[str, Any]:
+    workspace = self.workspace_context if isinstance(self.workspace_context, dict) else {}
+    allowed = ("condition_context", "condition_values", "sample", "batch")
+    return {
+        key: deepcopy(workspace[key])
+        for key in allowed
+        if key in workspace and workspace[key] not in (None, "", {}, [])
+    }
 
 
 def _core_major_version() -> str:
@@ -587,6 +613,9 @@ def _run_preprocess_intent(
             policy.validate_intent(intent)
     except (ContractValidationError, PolicyValidationError) as exc:
         report = _invalid_report(intent_payload, str(exc), policy)
+        if technique == "SAXS":
+            report["saxs_ai_rescue_replay"] = []
+            engine.saxs_ai_rescue_replay = []
         report["best_config"] = control_config
         report["original_preprocess_config"] = deepcopy(control_config)
         report["preprocess_experience"], _ = _experience_context(self, technique)
@@ -599,6 +628,7 @@ def _run_preprocess_intent(
     evidence_rows: list[dict[str, Any]] = []
     trials: list[dict[str, Any]] = []
     saxs_candidates: list[PreprocessCandidate] = []
+    replay_inputs: list[dict[str, Any]] = []
     control_recorded = False
 
     def run_stage(stage_target: str, stage_engine: Any) -> list[dict[str, Any]]:
@@ -645,6 +675,15 @@ def _run_preprocess_intent(
             )
             candidate_rows.append(row)
             evidence_rows.append(trial["evidence"].to_dict())
+            if saxs_intent is not None:
+                replay_inputs.append(
+                    {
+                        "candidate": candidate,
+                        "source_config": deepcopy(stage_config),
+                        "trial": trial,
+                        "mode": _saxs_replay_mode(stage_engine),
+                    }
+                )
         return stage_trials
 
     if intent.target == "both":
@@ -664,6 +703,9 @@ def _run_preprocess_intent(
     if not trials:
         report = _invalid_report(intent.to_dict(), "no_valid_candidates", policy)
         report["preprocess_candidates"] = candidate_rows
+        if saxs_intent is not None:
+            report["saxs_ai_rescue_replay"] = []
+            engine.saxs_ai_rescue_replay = []
         report["best_config"] = control_config
         report["original_preprocess_config"] = deepcopy(control_config)
         report["preprocess_experience"] = experience_context
@@ -742,6 +784,35 @@ def _run_preprocess_intent(
     if saxs_intent is not None and not audited:
         report["saxs_ai_rescue_decision"] = deepcopy(report["preprocess_decision"])
         engine.saxs_ai_rescue_decision = report["saxs_ai_rescue_decision"]
+
+    if saxs_intent is not None:
+        replay_rows: list[dict[str, Any]] = []
+        for item in replay_inputs:
+            trial = item["trial"]
+            candidate = item["candidate"]
+            if candidate.candidate_id == selected["candidate"].candidate_id:
+                decision_payload = report["saxs_ai_rescue_decision"]
+            else:
+                decision_payload = trial["decision"].to_dict()
+            replay_rows.append(
+                build_preprocess_replay_audit(
+                    candidate=candidate,
+                    source_config=item["source_config"],
+                    effective_config=(
+                        trial["effective_config"]
+                        if trial.get("effective_config_object") is not None
+                        else None
+                    ),
+                    mode=item["mode"],
+                    source_context=_saxs_replay_context(self),
+                    evidence=trial["evidence"],
+                    decision=decision_payload,
+                    trial_engine_created=trial.get("engine") is not None,
+                    error=trial.get("error", ""),
+                ).to_dict()
+            )
+        report["saxs_ai_rescue_replay"] = replay_rows
+        engine.saxs_ai_rescue_replay = replay_rows
     if audited and report["preprocess_decision"]["decision"] == "auto_accept":
         committed, commit_error = self._commit_preprocess_candidate(
             engine,
