@@ -1,5 +1,26 @@
 # Active Work
 
+## Joint route plan reconciliation - 2026-07-27
+
+- The old Phase 7 wording that `joint.compare` still lacked the shared figure
+  entrypoint was stale. `JointHubWorker` currently calls
+  `JointCoordinator.publish_hub_report()`, and the Joint lifecycle restores
+  the custom Workbench plus Manifest-backed Gallery after Editor/export/
+  History operations.
+- Current provider/coordinator/lifecycle/Workbench focused evidence is
+  `14 passed` using external basetemp
+  `C:\Temp\PolyNexus_joint_current_audit`.
+- The final task-scoped verifier passed task/memory, Ruff, compile/type,
+  quality `283`, preprocessing `106`, and whitespace with exit code `0` using
+  external basetemp `C:\Temp\PolyNexus_joint_route_verify`.
+- The full plan now marks automated Joint report/Workbench/figure/export/
+  History linkage complete. Scientific consistency/conflict semantics,
+  real-data behavior, restarted-GUI review, and final release approval remain
+  open.
+- Task and acceptance evidence:
+  `docs/agent/tasks/2026-07-27-joint-route-plan-reconciliation.md` and
+  `docs/acceptance/2026-07-27-joint-route-plan-reconciliation.md`.
+
 ## SAXS real 2D detector evidence transport - 2026-07-27
 
 - Real PAD8 EDF replay exposed a transport gap: geometry was read from the

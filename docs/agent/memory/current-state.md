@@ -1,5 +1,18 @@
 ---
 
+## Joint route plan reconciliation (2026-07-27)
+
+- `joint.compare` now has current code and lifecycle evidence through
+  `JointHubWorker` → `JointCoordinator.publish_hub_report()` → shared
+  FigureDefinition/Manifest, with custom Workbench and History restore.
+- The focused Joint provider/coordinator/lifecycle/Workbench matrix is
+  `14 passed`. The full-software Phase 7 plan was corrected to mark only this
+  automated route complete; scientific conflict semantics and real/live
+  release review remain open.
+- The final task-scoped verifier passed task/memory, Ruff, compile/type,
+  quality `283`, preprocessing `106`, and whitespace with exit code `0`.
+- See `docs/agent/tasks/2026-07-27-joint-route-plan-reconciliation.md`.
+
 ## Qt font runtime acceptance (2026-07-27)
 
 - The real Windows Qt runtime has 399 font families and resolves the
