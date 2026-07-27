@@ -7,6 +7,17 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS condition-axis Figure/Manifest provenance is implemented in the working
+  tree: the existing frame and series metric evidence projection now retains
+  `condition_axis` with strict JSON-safe, detached values, including diagnostic
+  positions and `null` non-finite values. No Figure role, orientation boundary,
+  analysis, History, Export, or scientific interpretation changed. Focused
+  Figure/Document evidence is `25 passed`; the Figure/provider matrix is `45
+  passed`; and the isolated SAXS matrix is `361 passed, 4 warnings`. The
+  isolated task verifier passed quality `282` and preprocessing `106`. Task
+  card:
+  `docs/agent/tasks/2026-07-27-saxs-condition-axis-figure-provenance.md`.
+
 - SAXS condition-axis Workbench visibility is implemented in the working tree:
   existing `metric_evidence[*].condition_axis` defects now appear as advisory
   review hints with metric/axis names, defect counts, and representative frame

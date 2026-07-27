@@ -1,5 +1,23 @@
 # Active Work
 
+## SAXS condition-axis Figure provenance - ready for checkpoint - 2026-07-27
+
+- Figure/Manifest evidence projection now preserves the existing public
+  `metric_evidence[*].condition_axis` mapping for both frame records and
+  series records. The change is one explicit `_COMMON_EVIDENCE_FIELDS`
+  allowlist entry; existing strict JSON conversion, detached copies,
+  non-finite-to-`null` handling, figure roles, and orientation separation are
+  unchanged.
+- TDD RED was `2 failed, 23 passed, 4 warnings`; GREEN Figure/Document was
+  `25 passed, 4 warnings`; the Figure/provider consumer matrix was `45 passed,
+  4 warnings`; and the complete isolated SAXS matrix was `361 passed, 4
+  warnings`. Task-scoped verification passed quality `282`, preprocessing
+  `106`, task/memory, Ruff, compile/type, and whitespace checks.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-27-saxs-condition-axis-figure-provenance.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-condition-axis-figure-provenance-design.md`,
+  and `docs/superpowers/plans/2026-07-27-saxs-condition-axis-figure-provenance.md`.
+
 ## SAXS condition-axis Workbench visibility - ready for checkpoint - 2026-07-27
 
 - The SAXS Workbench now consumes existing nested

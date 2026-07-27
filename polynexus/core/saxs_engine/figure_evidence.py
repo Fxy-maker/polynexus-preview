@@ -29,6 +29,7 @@ _COMMON_EVIDENCE_FIELDS = (
     "processing_ref",
     "fit_evidence",
     "physical_checks",
+    "condition_axis",
 )
 _DATA_QUALITY_FIELDS = (
     "source_id",

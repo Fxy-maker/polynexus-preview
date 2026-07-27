@@ -202,6 +202,65 @@ def test_projection_is_detached_and_strict_json_safe() -> None:
     assert payload["frame_records"][0]["metric_evidence"]["porod"]["level"] == "Trend"
 
 
+def test_frame_projection_preserves_condition_axis_and_strict_json() -> None:
+    axis = {
+        "condition_name": "temperature_C",
+        "condition_values": [20.0, float("nan"), 18.0],
+        "invalid_condition_indices": [1],
+        "duplicate_condition_indices": [0, 2],
+        "nonmonotonic_condition_indices": [2],
+        "status": "diagnostic",
+    }
+    metric = {
+        "metric_name": "Porod",
+        "level": "Diagnostic",
+        "condition_axis": axis,
+    }
+    frame = _frame(metric_evidence={"porod": metric})
+
+    payload = build_saxs_figure_evidence((frame,), mode="temperature")
+
+    json.dumps(payload, allow_nan=False)
+    projected = payload["frame_records"][0]["metric_evidence"]["porod"]
+    assert projected["condition_axis"] == {
+        **axis,
+        "condition_values": [20.0, None, 18.0],
+    }
+    axis["condition_values"][0] = 999.0
+    assert projected["condition_axis"]["condition_values"][0] == 20.0
+
+
+def test_temperature_series_projection_preserves_condition_axis_and_sequence_source():
+    engine = _temperature_engine()
+    source_axis = {
+        "condition_name": "temperature_C",
+        "condition_values": [20.0, 30.0],
+        "invalid_condition_indices": [],
+        "duplicate_condition_indices": [],
+        "nonmonotonic_condition_indices": [],
+        "status": "ordered",
+    }
+    engine._temperature_result.metric_evidence["guinier"]["condition_axis"] = source_axis
+
+    definition = build_temperature_figure_definitions(engine)[0]
+    provenance = definition.recipe["evidence"]["quality_provenance"]
+
+    json.dumps(provenance, allow_nan=False)
+    assert provenance["series_record"]["metric_evidence"]["guinier"][
+        "condition_axis"
+    ] == source_axis
+    assert provenance["series_record"]["guinier_sequence_evidence"][
+        "frame_source_indices"
+    ] == [1, 0]
+    source_axis["condition_values"][0] = 999.0
+    assert (
+        provenance["series_record"]["metric_evidence"]["guinier"][
+            "condition_axis"
+        ]["condition_values"][0]
+        == 20.0
+    )
+
+
 def test_static_provider_binds_frame_evidence_without_changing_roles() -> None:
     definitions = build_static_saxs_figure_definitions(_static_engine())
 
