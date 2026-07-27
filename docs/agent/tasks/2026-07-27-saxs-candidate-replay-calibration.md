@@ -17,6 +17,9 @@ promotion until expert-labelled evidence is available.
 ## Affected boundaries
 
 - `polynexus/orchestrator_preprocess.py` and the shared preprocessing contracts.
+- `polynexus/core/preprocess_optimization/replay.py` and its public package
+  export.
+- `polynexus/core/saxs_export_bundle.py` for read-only replay provenance.
 - `polynexus/core/saxs_engine/saxs_ai_rescue.py` only if a bridge DTO needs a
   replay field.
 - `polynexus/core/preprocess_optimization/calibration.py` only for missing
@@ -63,8 +66,11 @@ python scripts/verify.py --changed --types --full --boundary
 ## Changed-file allowlist
 
 - `polynexus/orchestrator_preprocess.py`
+- `polynexus/core/preprocess_optimization/replay.py`
+- `polynexus/core/preprocess_optimization/__init__.py`
 - `polynexus/core/saxs_engine/saxs_ai_rescue.py`
 - `polynexus/core/preprocess_optimization/calibration.py`
+- `polynexus/core/saxs_export_bundle.py`
 - focused test files for replay/calibration
 - this task card
 - `docs/superpowers/specs/2026-07-27-saxs-candidate-replay-calibration-design.md`
