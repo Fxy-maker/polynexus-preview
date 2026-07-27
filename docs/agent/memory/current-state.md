@@ -7,6 +7,12 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS real static/temperature/strain replay and external export provenance
+  acceptance is automated-green: lifecycle `3 passed`, Workbench `9 passed`,
+  and three real bundles register `quality_evidence.json`. The temperature
+  fixture's existing validation error remains preserved. Restarted-GUI visual
+  review and human scientific sign-off are still open.
+
 - SAXS Stage 8 export provenance is implemented locally: successful bundles
   include `quality_evidence.json` in `bundle_manifest.files`, preserving
   existing quality/sequence/2D/AI audit fields without changing results or

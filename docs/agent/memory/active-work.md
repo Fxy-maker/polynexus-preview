@@ -1,5 +1,18 @@
 # Active Work
 
+## SAXS real data and Workbench acceptance - automated slice 2026-07-27
+
+- Real static, temperature, and strain lifecycle replay passed (`3 passed,
+  12 deselected`) without writing to the source fixture directories.
+- External real exports all returned `ok` and registered `quality_evidence.json`
+  in their manifests. Mode-scoped evidence was preserved; the temperature
+  validation error remained a visible gate.
+- SAXS Workbench contracts passed (`9 passed`). Launcher diagnostics resolved
+  `D:\PolyNexus` and commit `41588a0`.
+- Human restarted-GUI visual review and scientific sign-off remain open. See
+  task `docs/agent/tasks/2026-07-27-saxs-real-workbench-acceptance.md` and
+  acceptance note `docs/acceptance/2026-07-27-saxs-real-workbench-acceptance.md`.
+
 ## SAXS quality export provenance - verification-ready 2026-07-27
 
 - Export bundles now write `quality_evidence.json` and register it in the
