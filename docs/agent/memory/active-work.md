@@ -1,5 +1,25 @@
 # Active Work
 
+## SAXS quality and analysis program route audit - 2026-07-27
+
+- The route-level task card now records the automated contract acceptance
+  criteria as satisfied and links the new implementation plan
+  `docs/superpowers/plans/2026-07-26-saxs-quality-analysis-program.md`.
+- The plan maps Stage 0 through Stage 7 to the existing SAXS task/spec/plan
+  slices and preserves the conservative boundary: deterministic evidence and
+  existing physical/quality gates are authoritative; AI remains
+  candidate/replay/confirm-only; missing frames are never interpolated or
+  fabricated.
+- Current-head evidence indexed by the route audit is the exact SAXS matrix
+  `364 passed, 4 warnings in 31.08s`, real SAXS walkthrough `3 passed, 12
+  deselected`, and Workbench/figure profiles `29 passed`. These are automated
+  evidence, not human scientific or release approval.
+- Remaining gates are restarted-GUI interaction/visual review, real
+  temperature/strain scientific meaning review, raw 2D detector/geometry and
+  mask-propagation acceptance, and final publication approval. The older
+  `2026-07-12-saxs-temperature-strain-production-cutover.md` card remains a
+  historical record and is not silently rewritten by this audit.
+
 ## SAXS real Workbench acceptance current-head refresh - 2026-07-27
 
 - Fresh current-head evidence: real SAXS walkthrough `3 passed, 12

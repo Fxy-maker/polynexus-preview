@@ -19,6 +19,20 @@ date: 2026-07-22
 title: Current PolyNexus repository state
 ---
 
+## SAXS quality-analysis route audit (2026-07-27)
+
+- The route-level implementation plan is now recorded at
+  `docs/superpowers/plans/2026-07-26-saxs-quality-analysis-program.md` and
+  maps the existing Stage 0-7 task/spec/plan evidence without changing SAXS
+  production behavior.
+- Current-head evidence remains `364 passed, 4 warnings` for the exact SAXS
+  file matrix, `3 passed, 12 deselected` for the real SAXS walkthrough, and
+  `29 passed` for the Workbench/figure profile matrix.
+- Automated evidence closure does not close restarted-GUI visual review,
+  real-data scientific review, raw 2D detector/geometry acceptance, or human
+  release/publication approval. The conservative real-bundle levels and
+  missing-frame policy remain authoritative.
+
 ## Latest SAXS AI confirmation UI audit (2026-07-27)
 
 - The real offscreen `MainWindow` plus `SideTuningReportDialog` route is now
