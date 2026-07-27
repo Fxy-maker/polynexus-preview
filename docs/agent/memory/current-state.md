@@ -1,4 +1,18 @@
 ---
+
+## Latest SAXS real Workbench acceptance refresh (2026-07-27)
+
+- Current-head launcher diagnosis resolved `D:\PolyNexus`, package under the
+  same root, branch `codex/origin-editor-usable-controls`, commit `9fa7b82`.
+- Fresh real SAXS walkthrough passed `3` selected cases with `12` deselected;
+  the Workbench/figure profile matrix passed `29` cases. External bundle
+  reinspection retained the conservative evidence states: static 1D methods
+  remain Diagnostic, temperature sequence Guinier is Unusable with no valid
+  frames, and strain retains five Trend frame records.
+- The strain heatmap saturation and temperature end-of-axis truncation remain
+  explicit scientific-review signals. Human restarted-GUI interaction and
+  release approval remain open; no scientific threshold or publication role
+  was changed.
 kind: state
 status: active
 date: 2026-07-22

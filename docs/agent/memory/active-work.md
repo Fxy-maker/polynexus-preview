@@ -1,5 +1,21 @@
 # Active Work
 
+## SAXS real Workbench acceptance current-head refresh - 2026-07-27
+
+- Fresh current-head evidence: real SAXS walkthrough `3 passed, 12
+  deselected in 53.40s`; Workbench/figure profile matrix `29 passed in 0.29s`;
+  launcher diagnosis resolved `D:\PolyNexus`, package under the same root,
+  branch `codex/origin-editor-usable-controls`, commit `9fa7b82`.
+- Reinspection of the external real bundle preserved the conservative quality
+  boundary: static quality `Trend` but Guinier/Porod/Kratky/invariant/lamellar
+  `Diagnostic`; temperature four `Quantitative` plus one `Diagnostic` frame and
+  `Unusable` sequence Guinier evidence; strain five `Trend` frames. Near-
+  saturated strain heatmap and temperature end-of-axis truncation remain
+  scientific-review signals.
+- No production code, threshold, evidence level, publication role, or export
+  behavior changed. Human restarted-GUI interaction and scientific release
+  approval remain open.
+
 ## Full release GUI route evidence - structural/live captures - 2026-07-27
 
 - A live `PrintWindow` capture of the existing canonical GUI process was

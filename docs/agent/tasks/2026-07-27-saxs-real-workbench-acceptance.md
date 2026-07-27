@@ -44,8 +44,8 @@ strain modes after the quality-evidence and export-provenance checkpoints.
   not fabricated or promoted.
 - [x] SAXS Workbench profile and figure-link regression tests pass for all
   three modes.
-- [x] Restart-boundary diagnosis resolves `D:\PolyNexus`, branch
-  `codex/origin-editor-usable-controls`, commit `41588a0`, and the package
+- [x] Current-head restart-boundary diagnosis resolves `D:\PolyNexus`, branch
+  `codex/origin-editor-usable-controls`, commit `9fa7b82`, and the package
   under that same worktree.
 - [ ] A human reviews the rendered GUI and real-data scientific meaning before
   any release or automatic publication claim.
@@ -76,13 +76,35 @@ strain modes after the quality-evidence and export-provenance checkpoints.
   existing validation error; both remain scientific-review signals rather
   than acceptance failures.
 
+## Current-head refresh (2026-07-27)
+
+- `python -m pytest tests/test_real_published_run_walkthrough.py -k 'saxs' -q`:
+  **3 passed, 12 deselected in 53.40s**.
+- `python -m pytest tests/test_saxs_workbench_figure_contracts.py tests/test_results_workbench_profiles.py -q`:
+  **29 passed in 0.29s**.
+- `python scripts/launch_gui.py --diagnose` resolved source root
+  `D:\PolyNexus`, package `D:\PolyNexus\polynexus\__init__.py`, branch
+  `codex/origin-editor-usable-controls`, and current commit `9fa7b82`.
+- Reinspection of the existing external bundle shows the authoritative
+  evidence remains conservative: static quality is `Trend` while Guinier,
+  Porod, Kratky, invariant, and lamellar evidence are all `Diagnostic`;
+  temperature has four `Quantitative` and one `Diagnostic` frame, while its
+  sequence Guinier evidence is `Unusable` with
+  `guinier_sequence_no_valid_frames`; strain retains five `Trend` frames.
+  These are evidence states, not scientific publication approval.
+- The static, temperature-waterfall, and strain-evolution PNGs render. The
+  strain heatmap's near-saturation and the temperature waterfall's end-of-axis
+  truncation remain explicit expert-review signals; no threshold or figure
+  role was changed to hide them.
+
 ## Known limitations
 
-The automated checks do not constitute scientific sign-off. A restarted GUI
-visual inspection and expert review of the real temperature/strain trends,
-quality downgrades, and publication roles remain required. The temperature
-fixture currently reports validation errors; this is preserved as a visible
-gate rather than hidden by export.
+The automated checks and this agent-side artifact reinspection do not
+constitute human scientific sign-off. A user must still restart the GUI and
+review Workbench/gallery/export interaction, real temperature/strain trends,
+quality downgrades, and publication roles. The temperature fixture currently
+reports validation errors; this is preserved as a visible gate rather than
+hidden by export.
 
 ## Verification
 
