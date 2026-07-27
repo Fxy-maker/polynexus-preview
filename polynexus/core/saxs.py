@@ -4,10 +4,15 @@ This module keeps the technique registry and BaseEngine-facing entry point
 thin, while delegating real analysis work to `polynexus.core.saxs_engine`.
 """
 
+# This compatibility wrapper intentionally retains legacy re-exports and
+# single-letter intensity names; keep those baseline diagnostics scoped here.
+# ruff: noqa: E741, F401, F841
+
 from __future__ import annotations
 
 import logging
 import os
+from copy import deepcopy
 from dataclasses import replace
 from typing import Any, Dict, List, Optional
 
@@ -70,6 +75,19 @@ def _float_or_none(value: Any) -> float | None:
 
 def _text_or_empty(value: Any) -> str:
     return "" if value is None else str(value)
+
+
+def _series_metric_evidence_payload(series: Any) -> Dict[str, Any]:
+    """Copy an existing series evidence summary for view/persistence transport."""
+
+    evidence = getattr(series, "metric_evidence", None)
+    if not isinstance(evidence, dict) or not evidence:
+        return {}
+    return {
+        str(name): deepcopy(summary)
+        for name, summary in evidence.items()
+        if isinstance(summary, dict)
+    }
 
 
 @register_technique("saxs")
@@ -1706,6 +1724,9 @@ class SAXSEngine(BaseEngine):
             lc_raw_vals = [float(v) for v in np.ravel(np.asarray(tr.lc_array, dtype=float)) if np.isfinite(v)]
             lc_effective_vals = [float(v) for v in np.ravel(np.asarray(tr.lc_effective_array, dtype=float)) if np.isfinite(v)]
             params: Dict[str, Any] = {"n_temperatures": len(tr.temperatures)}
+            metric_evidence = _series_metric_evidence_payload(tr)
+            if metric_evidence:
+                params["metric_evidence"] = metric_evidence
             if temps:
                 params["T_range_C"] = f"{min(temps):.0f}-{max(temps):.0f}"
             if lc_raw_vals:
@@ -1730,6 +1751,9 @@ class SAXSEngine(BaseEngine):
             sr = self._strain_result
             strains = [float(v) for v in np.asarray(sr.strains, dtype=float) if np.isfinite(v)]
             params: Dict[str, Any] = {"n_strains": len(sr.strains)}
+            metric_evidence = _series_metric_evidence_payload(sr)
+            if metric_evidence:
+                params["metric_evidence"] = metric_evidence
             def _first_finite(*values):
                 for value in values:
                     try:

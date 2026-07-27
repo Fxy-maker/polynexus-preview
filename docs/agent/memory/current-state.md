@@ -7,6 +7,27 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS Workbench series evidence visibility is checkpointed locally: temperature
+  and strain parameter payloads now carry existing series `metric_evidence`,
+  and the SAXS presentation surfaces coverage, Trend/Diagnostic/Unusable level,
+  downgrade counts, and reason codes while Diagnostics retains the full JSON.
+  History persistence, figure candidates, and Export provenance remain
+  unchanged. Focused Workbench/History/Figure/Export evidence is `23 passed`;
+  the full SAXS matrix is `281 passed, 4 existing warnings`; the task-scoped
+  verifier passes quality `282` and preprocessing `106`. See
+  `docs/agent/tasks/2026-07-27-saxs-workbench-series-evidence-visibility.md`.
+
+- GUI responsive shell acceptance is implemented locally: compact policy now
+  uses actual content width, header labels are compressible, optional shell
+  actions collapse without removing menu routes, and the History toolbar has
+  an internal horizontal scroll container. Focused GUI evidence is `18
+  passed`; complete deferred-startup Qt grabs show content fitting its viewport
+  at default and maximized sizes with the task card visible. The task-scoped
+  changed-file Ruff command is still obstructed by 24 pre-existing findings in
+  modified `polynexus/core/saxs.py`, which remains outside the GUI allowlist.
+  See `docs/agent/tasks/2026-07-27-gui-responsive-shell.md` and
+  `docs/acceptance/2026-07-27-gui-responsive-shell.md`.
+
 - SAXS Stage 7e series metric evidence is implemented locally: temperature and
   strain results now carry conservative per-metric summaries with coverage,
   frame-level counts, explicit missing/diagnostic/unusable reasons, and a

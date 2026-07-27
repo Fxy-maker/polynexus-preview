@@ -357,6 +357,90 @@ def _formatted(
     )
 
 
+def _series_metric_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Format existing series evidence for the Workbench review channels."""
+
+    evidence = payload.get("metric_evidence") if isinstance(payload, Mapping) else None
+    if not isinstance(evidence, Mapping):
+        return "", ""
+
+    zh = language == "zh"
+    level_labels = {
+        "Quantitative": "定量" if zh else "Quantitative",
+        "Trend": "趋势" if zh else "Trend",
+        "Diagnostic": "诊断" if zh else "Diagnostic",
+        "Unusable": "不可用" if zh else "Unusable",
+    }
+    metric_lines: list[str] = []
+    downgraded = False
+
+    def _count(summary: Mapping[str, Any], key: str) -> int:
+        try:
+            return max(0, int(summary.get(key, 0) or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    for raw_name, summary in sorted(evidence.items(), key=lambda item: str(item[0])):
+        if not isinstance(summary, Mapping):
+            continue
+        name = str(raw_name)
+        metric_name = str(summary.get("metric_name") or name).strip() or name
+        level = str(summary.get("level") or "Unusable").strip() or "Unusable"
+        evidence_frames = _count(summary, "evidence_frame_count")
+        frame_count = _count(summary, "frame_count")
+        coverage = summary.get("coverage_fraction")
+        coverage_text = f"{evidence_frames}/{frame_count}"
+        try:
+            coverage_number = float(coverage)
+        except (TypeError, ValueError):
+            coverage_number = None
+        if coverage_number is not None and math.isfinite(coverage_number):
+            coverage_text += f" ({coverage_number * 100:.0f}%)"
+
+        parts = [
+            f"{metric_name}: {level_labels.get(level, level)}",
+            f"{'覆盖' if zh else 'coverage'}={coverage_text}",
+        ]
+        diagnostic_count = _count(summary, "diagnostic_frame_count")
+        unusable_count = _count(summary, "unusable_frame_count")
+        missing_count = _count(summary, "missing_frame_count")
+        if diagnostic_count:
+            parts.append(f"{'诊断帧' if zh else 'diagnostic frames'}={diagnostic_count}")
+        if unusable_count:
+            parts.append(f"{'不可用帧' if zh else 'unusable frames'}={unusable_count}")
+        if missing_count:
+            parts.append(f"{'缺帧' if zh else 'missing frames'}={missing_count}")
+
+        reason_codes = summary.get("reason_codes")
+        if isinstance(reason_codes, str):
+            reason_codes = (reason_codes,)
+        elif not isinstance(reason_codes, (list, tuple)):
+            reason_codes = ()
+        reasons = [str(reason).strip() for reason in reason_codes if str(reason).strip()]
+        if level in {"Diagnostic", "Unusable"} or diagnostic_count or unusable_count or missing_count:
+            downgraded = True
+            if reasons:
+                parts.append(f"{'原因' if zh else 'reasons'}=" + ",".join(reasons[:3]))
+        metric_lines.append("; ".join(parts))
+
+    if not metric_lines:
+        return "", ""
+    detail = " | ".join(metric_lines)
+    if downgraded:
+        risk = tr_for_language("RESULTS_REVIEW_RISK", language, detail)
+        next_text = tr_for_language(
+            "RESULTS_REVIEW_NEXT",
+            language,
+            "先复核缺帧和诊断帧" if zh else "Review missing and diagnostic frames before using the series trend",
+        )
+        return risk, next_text
+    return "", tr_for_language("RESULTS_REVIEW_NEXT", language, detail)
+
+
 def _field_column(field: ResultFieldSpec, *, language: str) -> TableColumn:
     alignment = "right" if field.digits is not None or bool(field.unit) else "left"
     return TableColumn(
@@ -682,6 +766,10 @@ def build_saxs_results_presentation(
         template,
         language=target_language,
     )
+    risk_text, next_text = _series_metric_review_text(
+        payload,
+        language=target_language,
+    )
 
     row_count = len(rows)
     has_rows = row_count > 0
@@ -691,6 +779,8 @@ def build_saxs_results_presentation(
         detail=detail,
         diagnostics=diagnostics,
         hero_metrics=heroes,
+        risk_text=risk_text,
+        next_text=next_text,
         summary_count=row_count,
         sortable=row_count > 1,
         copy_enabled=has_rows,

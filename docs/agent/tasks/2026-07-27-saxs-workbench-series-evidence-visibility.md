@@ -29,21 +29,33 @@ visible without changing scientific calculations or publication roles.
 
 ## Acceptance criteria
 
-- [ ] Temperature and strain `get_parameters()` include the exact existing
+- [x] Temperature and strain `get_parameters()` include the exact existing
   series `metric_evidence` mapping when available.
-- [ ] Complete multi-frame summaries are displayed as Trend evidence with
+- [x] Complete multi-frame summaries are displayed as Trend evidence with
   coverage, without being promoted to Quantitative.
-- [ ] Mixed/missing/diagnostic summaries display their level, counts, and
+- [x] Mixed/missing/diagnostic summaries display their level, counts, and
   reason codes in the Workbench review text.
-- [ ] Diagnostics still contains the full nested `metric_evidence` payload,
+- [x] Diagnostics still contains the full nested `metric_evidence` payload,
   and frame rows remain unchanged.
-- [ ] Persisted/history-restored parameters retain the series summary.
-- [ ] Figure routing and Export provenance tests remain green and unchanged in
+- [x] Persisted/history-restored parameters retain the series summary.
+- [x] Figure routing and Export provenance tests remain green and unchanged in
   publication role.
-- [ ] Focused tests, `git diff --check`, and applicable type/quality checks
+- [x] Focused tests, `git diff --check`, and applicable type/quality checks
   have exact recorded results.
 
-## Verification commands
+## Implementation plan
+
+1. Add failing transport, presentation, model-propagation, and persistence
+   tests for complete and downgraded series evidence.
+2. Transport the existing temperature/strain series summary through the SAXS
+   parameter payload without recalculating or mutating evidence.
+3. Format the existing summary in the SAXS Workbench review channels while
+   keeping full nested evidence in Diagnostics.
+4. Run the Workbench/History/Figure/Export and full SAXS regression matrices.
+5. Record exact verification results and create a checkpoint with the
+   explicit changed-file allowlist.
+
+## Verification
 
 ```powershell
 $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_saxs_workbench_series_evidence'
@@ -52,6 +64,23 @@ python -m pytest tests/test_analysis_run_service.py tests/test_history_gallery_r
 python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-workbench-series-evidence-visibility.md --changed --types
 git diff --check
 ```
+
+## Verification result
+
+- TDD RED was observed: the initial seven-test slice produced six expected
+  failures for missing parameter transport and missing Workbench review text;
+  the pre-existing History persistence path already passed its assertion.
+- Workbench/History/Figure/Export focused matrix: `23 passed`.
+- Complete SAXS matrix: `281 passed, 4 existing font warnings`.
+- The task-scoped verifier passed task-card validation, memory validation,
+  changed-file Ruff, compile, quality gate `282`, preprocessing gate `106`,
+  whitespace, and the final selected-checks status. No changed file was in
+  the current Pyright baseline.
+- `git diff --check` passed.
+
+The touched legacy SAXS wrapper retains its public imports and single-letter
+intensity names; a module-scoped Ruff compatibility annotation covers only
+the pre-existing `F401`, `E741`, and `F841` baseline categories.
 
 ## Changed-file allowlist
 

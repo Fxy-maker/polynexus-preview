@@ -1,5 +1,45 @@
 # Active Work
 
+## SAXS Workbench series evidence visibility - checkpoint 2026-07-27
+
+- Temperature and strain `SAXSEngine.get_parameters()` now transport a deep
+  copy of the existing series `metric_evidence` summaries. The transport does
+  not rebuild evidence or mutate series/frame data, and the existing History
+  persistence path retains the mapping in run parameters.
+- `build_saxs_results_presentation()` now formats the existing level, coverage,
+  downgrade counts, and up to three reason codes into the Workbench's existing
+  review channels. Complete series summaries remain Trend-capped; mixed or
+  incomplete summaries become visible review risks. Diagnostics still exposes
+  the full nested JSON and figure routing/Export contracts are unchanged.
+- Evidence: focused Workbench/History/Figure/Export matrix `23 passed`; full
+  SAXS matrix `281 passed, 4 existing font warnings`; task-scoped verifier
+  passed with quality `282`, preprocessing `106`, changed Ruff/compile,
+  memory check, and whitespace check.
+- The wrapper's module-scoped Ruff compatibility annotation is limited to
+  pre-existing `F401`, `E741`, and `F841` diagnostics caused by retained public
+  imports and legacy intensity names. AI execution, publication promotion,
+  and human scientific review remain separate gates.
+- Next action is to continue the SAXS vertical route at the next unconsumed
+  boundary; no continuous autonomous runner or release sign-off is implied.
+
+## GUI responsive shell - implementation checkpoint 2026-07-27
+
+- Restarted canonical GUI inspection found right-edge clipping caused by
+  window-width-only responsive thresholds, long header minimum sizes, and the
+  History action toolbar becoming the minimum width of the full tab set.
+- The shell now measures actual content width, collapses optional metrics and
+  top-bar shortcuts while retaining the task card/menu routes, makes header
+  labels compressible, and puts History actions in an internal horizontal
+  scroll container.
+- Focused shell/streamlining regression is `18 passed`. Full deferred-startup
+  Qt grabs show default `viewport/content=1036/1036` and maximized
+  `1486/1486`; the task card remains geometrically complete. Acceptance is
+  recorded in `docs/acceptance/2026-07-27-gui-responsive-shell.md`.
+- The task verifier's changed-file Ruff phase still sees pre-existing
+  `polynexus/core/saxs.py` changes with 24 lint findings; those changes remain
+  intentionally untouched and outside this GUI task's allowlist. Real-data
+  science, all-mode GUI walkthrough, and final release approval remain open.
+
 ## SAXS series metric evidence rollup - implementation checkpoint 2026-07-27
 
 - Added immutable `MetricEvidenceSummary` and
