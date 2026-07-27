@@ -133,8 +133,8 @@ $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\PolyNexus.pytest_tmp_release_full'
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-Record exact output. The fresh run completed with `2767 passed, 10 warnings`
-and the selected boundary audit passed.
+Record exact output. The fresh run completed with `2773 passed, 10 warnings`
+in `1451.67s`; the selected boundary audit passed.
 
 - [x] **Step 2: Reconcile durable state**
 

@@ -23,7 +23,7 @@ Status: automated evidence complete; release not approved
 | NMR/Joint provenance and lifecycle | `4 passed`; NMR Main/diagnostic and Joint run provenance survive publication/history | automated provenance-pass; solid C assignment and Joint conflicts require scientific review |
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
 | Combined lifecycle/real-fixture attempt | 180-second tool window expired without a summary; replaced for evidence purposes by the successful per-technique shards below | historical bounded-timeout |
-| Full repository verifier | Fresh dedicated run: `2767 passed, 10 warnings` in `24:13`; compile, quality, whitespace, and boundary audit passed | automated-pass with known warnings |
+| Full repository verifier | Fresh dedicated run: `2773 passed, 10 warnings` in `24:11`; compile, quality, whitespace, and boundary audit passed | automated-pass with known warnings |
 
 ## Automated commands and results
 
@@ -81,7 +81,7 @@ $env:PYTEST_ADDOPTS='--basetemp=D:\PolyNexus\PolyNexus.pytest_tmp_release_full'
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-Result: `2767 passed, 10 warnings in 1453.05s (0:24:13)`. The selected
+Result: `2773 passed, 10 warnings in 1451.67s (0:24:11)`. The selected
 compile, quality, preprocessing, Ruff/type baseline, whitespace, and boundary
 checks all passed. The warnings are the existing Matplotlib tight-layout,
 DSC polynomial-conditioning, and Arial glyph warnings listed in stdout.
@@ -98,6 +98,13 @@ workspace/run status, SAXS static/temperature/strain navigation, and the
 Data/Config/Results/Plots shell. This is visual evidence for a reviewer. A
 complete restarted-GUI walkthrough of all modes, Gallery, Editor, Export, and
 History is still open.
+
+The canonical launcher was freshly revalidated after the GUI acceptance
+checkpoint: `scripts/launch_gui.py --diagnose` resolved `D:\PolyNexus`, branch
+`codex/origin-editor-usable-controls`, commit `83083bc`, and the local
+`polynexus` package. The responsive-shell checkpoint covers content-width
+clipping at default and maximized sizes; it does not replace the all-route live
+visual review.
 
 The temporary real-result capture also saved:
 

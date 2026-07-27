@@ -79,13 +79,13 @@
   bounded timeout, not a pass. Canonical GUI default-shell screenshot evidence
   is in the acceptance note; full restarted-GUI walkthrough and final human
   release approval remain open.
-- Next action: run the full verifier with a dedicated basetemp and reconcile
-  the acceptance ledger with its exact result.
-- Fresh full verifier now passed: `2767 passed, 10 warnings` in `24:13`; the
-  selected compile/quality/preprocessing/Ruff/type/whitespace and boundary
-  checks all passed. Remaining work is restarted-GUI route review, IR vendor
-  mapping/ROI semantics, assignment-limited NMR/Joint scientific review, and
-  final human release approval.
+- Fresh full verifier now passed: `2773 passed, 10 warnings` in `1451.67s`
+  (`24:11`); the selected compile/quality/preprocessing/Ruff/type/whitespace
+  and boundary checks all passed. The GUI responsive-shell task is checkpointed
+  as `83083bc`, and a fresh canonical launcher diagnose resolved that commit.
+  Remaining work is all-route live GUI review, IR vendor mapping/ROI semantics,
+  assignment-limited NMR/Joint scientific review, and final human release
+  approval.
 
 ## SAXS AI confirmed-rerun safety - local checkpoint - 2026-07-27
 

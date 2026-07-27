@@ -104,11 +104,13 @@ limitation rather than pass.
   assignment and Joint scientific conflicts remain explicit human gates.
 - A combined lifecycle/real-run command exceeded the short 180-second tool
   window without a test summary; this is not a pass or a failure claim.
-- A fresh dedicated full verifier completed with `2767 passed, 10 warnings` in
-  `1453.05s`; compile, quality, preprocessing, Ruff/type baseline, whitespace,
-  and boundary audit all passed. The earlier `2763 passed, 1 failed` result is
-  retained as historical evidence only; the WAXS focused recheck and fresh
-  full run now pass.
+- The current fresh dedicated full verifier completed with `2773 passed, 10
+  warnings` in `1451.67s`; compile, quality, preprocessing, Ruff/type baseline,
+  whitespace, and boundary audit all passed. The earlier `2767` run and the
+  `2763 passed, 1 failed` run remain historical evidence only.
+- The responsive-shell GUI task was checkpointed as `83083bc`; a fresh
+  `scripts/launch_gui.py --diagnose` resolved the canonical `D:\PolyNexus`
+  source root and that commit. All-route live visual review remains open.
 - Canonical GUI default-shell screenshot: `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-gui-default.png`.
   It shows the SAXS empty state, workspace summary, mode navigation, and the
   Data/Config/Results/Plots shell. It is visual evidence only.

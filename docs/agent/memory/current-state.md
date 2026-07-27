@@ -44,7 +44,9 @@ title: Current PolyNexus repository state
   IR mapping/ROI structural tests add `11 passed`, and NMR/Joint provenance
   tests add `4 passed`; IR vendor mapping/ROI semantics, assignment-limited NMR/Joint review, and
   final human release approval remain open. Fresh full verification passed
-  `2767` tests with `10` existing warnings and the boundary audit passed.
+  `2773` tests with `10` existing warnings in `1451.67s` and the boundary audit
+  passed. The GUI responsive-shell checkpoint is `83083bc`; a fresh canonical
+  launcher diagnose resolves `D:\PolyNexus` at that commit.
   Acceptance note:
   `docs/acceptance/2026-07-27-full-software-release-audit.md`.
 
