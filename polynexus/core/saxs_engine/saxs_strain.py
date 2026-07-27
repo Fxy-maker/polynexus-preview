@@ -278,6 +278,7 @@ def herman_orientation_factor(
 def herman_from_sector_data(
     sector_data: Dict[str, Dict],
     q_range: Tuple[float, float] = None,
+    cfg: Optional[SAXSConfig] = None,
 ) -> Dict:
     """Compute Herman factor from sector-integrated data dictionary.
 
@@ -298,7 +299,14 @@ def herman_from_sector_data(
                 sector_data.get("I_full", np.nanmean(I_2d, axis=0)),
                 dtype=float,
             )
-            orientation = analyze_anisotropy(I_2d, q_2d, chi_rad, q_1d, I_1d)
+            orientation = analyze_anisotropy(
+                I_2d,
+                q_2d,
+                chi_rad,
+                q_1d,
+                I_1d,
+                cfg=cfg,
+            )
             f_value = float(getattr(orientation, "f_herman", np.nan))
             return {
                 "f": f_value,
@@ -307,6 +315,10 @@ def herman_from_sector_data(
                 "cos2_avg": (2.0 * f_value + 1.0) / 3.0 if np.isfinite(f_value) else np.nan,
                 "method": "analyze_anisotropy",
                 "orientation_evidence": getattr(orientation, "orientation_evidence", None),
+                "orientation_axis_deg": getattr(orientation, "orientation_axis_deg", np.nan),
+                "orientation_axis_source": getattr(orientation, "orientation_axis_source", "unavailable"),
+                "orientation_axis_strength": getattr(orientation, "orientation_axis_strength", np.nan),
+                "orientation_axis_confidence": getattr(orientation, "orientation_axis_confidence", 0.0),
             }
         except Exception:
             logger.warning("Canonical SAXS orientation payload analysis failed.", exc_info=True)
@@ -512,7 +524,7 @@ def analyze_strain_series(
         if sector_data_list is not None and i < len(sector_data_list):
             sd = sector_data_list[i]
             if sd is not None:
-                herman = herman_from_sector_data(sd)
+                herman = herman_from_sector_data(sd, cfg=cfg)
                 sp.f_herman = herman.get('f', np.nan)
                 sp.f_herman_sub = herman.get('f_sub', np.nan)
                 sp.f_herman_eq = herman.get('f_eq', np.nan)

@@ -1,16 +1,14 @@
-import os
 """
 saxs.config -- SAXSConfig dataclass with all analysis parameters.
 
 Ports domain-specific defaults from the MATLAB PolyChar Toolbox,
 extended with pyFAI / fabio / sasmodels / lmfit integration fields.
 """
+import os
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Tuple, Optional, List, Callable
+from typing import Any, Dict, Tuple, Optional, List
 import numpy as np
-import re as _re
-import warnings
 
 
 @dataclass
@@ -191,6 +189,12 @@ class SAXSConfig:
     chi_merid_range: Tuple[float, float] = (75, 105)
     chi_equat_range: Tuple[float, float] = (-15, 15)
     n_chi_sectors: int = 36
+    # ---- Orientation axis resolution ----
+    # A finite value is an explicit detector-plane reference axis (degrees).
+    # None enables conservative second-harmonic auto-detection at q*.
+    orientation_axis_deg: Optional[float] = None
+    orientation_auto_min_strength: float = 0.08
+    orientation_auto_min_bins: int = 12
 
     # ---- Masking ----
     dummy_val: float = -1.5

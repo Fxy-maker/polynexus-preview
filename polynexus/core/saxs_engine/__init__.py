@@ -75,7 +75,7 @@ from .saxs_anisotropy import (
     extract_azimuthal_profile, extract_azimuthal_at_peaks,
     herman_from_azimuthal, herman_multi_q,
     classify_2d_pattern, analyze_peak_widths,
-    analyze_anisotropy,
+    analyze_anisotropy, detect_in_plane_orientation_axis,
 )
 from .saxs_sequence_rescue import (
     build_sequence_rescue_candidates,
@@ -132,7 +132,7 @@ __all__ = [
     "detect_melting_from_saxs", "analyze_temperature_series", "AnisotropyResult",
     "extract_azimuthal_profile", "extract_azimuthal_at_peaks",
     "herman_from_azimuthal", "herman_multi_q", "classify_2d_pattern",
-    "analyze_peak_widths", "analyze_anisotropy", "export_parameters_csv",
+    "analyze_peak_widths", "analyze_anisotropy", "detect_in_plane_orientation_axis", "export_parameters_csv",
     "build_sequence_rescue_candidates", "validate_sequence_rescue_candidate",
     "SAXSAIRescueDecision", "SAXSAIRescuePlan",
     "SAXSConfirmedRerunAudit", "assess_saxs_ai_candidate",

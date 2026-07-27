@@ -58,6 +58,13 @@ class AnisotropyResult:
     # Quality
     confidence: float = 0.0
 
+    # Detector-plane reference-axis provenance
+    orientation_axis_deg: float = np.nan
+    orientation_axis_source: str = "unavailable"
+    orientation_axis_strength: float = np.nan
+    orientation_axis_confidence: float = 0.0
+    orientation_axis_reason: str = ""
+
     # JSON-safe 2D evidence contracts.  Legacy numeric fields above remain
     # authoritative for backwards-compatible callers.
     detector_quality_report: dict = None
@@ -76,6 +83,11 @@ def _attach_orientation_evidence(result: AnisotropyResult, I_2d: np.ndarray) -> 
         "anisotropy_ratio": result.anisotropy_ratio,
         "anisotropy_index": result.anisotropy_index,
         "confidence": result.confidence,
+        "orientation_axis_deg": result.orientation_axis_deg,
+        "orientation_axis_source": result.orientation_axis_source,
+        "orientation_axis_strength": result.orientation_axis_strength,
+        "orientation_axis_confidence": result.orientation_axis_confidence,
+        "orientation_axis_reason": result.orientation_axis_reason,
     }
     evidence = build_orientation_evidence(
         payload,
@@ -84,7 +96,31 @@ def _attach_orientation_evidence(result: AnisotropyResult, I_2d: np.ndarray) -> 
         source_ref="saxs_anisotropy.analyze_anisotropy",
     )
     result.detector_quality_report = detector.to_dict()
-    result.orientation_evidence = evidence.to_dict()
+    evidence_dict = evidence.to_dict()
+    axis_evidence = evidence_dict.setdefault("fit_evidence", {})
+    axis_evidence.update(
+        {
+            "orientation_axis_deg": (
+                float(result.orientation_axis_deg)
+                if np.isfinite(result.orientation_axis_deg)
+                else None
+            ),
+            "orientation_axis_source": result.orientation_axis_source,
+            "orientation_axis_strength": (
+                float(result.orientation_axis_strength)
+                if np.isfinite(result.orientation_axis_strength)
+                else None
+            ),
+            "orientation_axis_confidence": float(result.orientation_axis_confidence),
+            "orientation_axis_reason": result.orientation_axis_reason or None,
+        }
+    )
+    if result.orientation_axis_reason:
+        evidence_dict["reason_codes"] = tuple(
+            list(evidence_dict.get("reason_codes", ()))
+            + [result.orientation_axis_reason]
+        )
+    result.orientation_evidence = evidence_dict
 
 
 # ======================================================================
@@ -190,10 +226,77 @@ def extract_azimuthal_at_peaks(
 #  Herman orientation factor (full implementation)
 # ======================================================================
 
+
+def _azimuthal_weights(
+    chi: np.ndarray,
+    I_chi: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Return sorted finite azimuths and baseline-subtracted weights."""
+
+    chi_arr = np.asarray(chi, dtype=float)
+    intensity = np.asarray(I_chi, dtype=float)
+    valid = np.isfinite(chi_arr) & np.isfinite(intensity) & (intensity >= 0)
+    if np.sum(valid) < 1:
+        return np.array([]), np.array([])
+
+    order = np.argsort(chi_arr[valid])
+    chi_arr = chi_arr[valid][order]
+    intensity = intensity[valid][order]
+    floor = float(np.nanpercentile(intensity, 10))
+    weights = np.clip(intensity - floor, 0.0, None)
+    if not np.isfinite(np.trapezoid(weights, chi_arr)) or np.sum(weights) <= 1e-12:
+        weights = intensity
+    return chi_arr, weights
+
+
+def detect_in_plane_orientation_axis(
+    chi: np.ndarray,
+    I_chi: np.ndarray,
+    *,
+    min_strength: float = 0.08,
+    min_bins: int = 12,
+) -> Dict:
+    """Detect the dominant 180-degree-periodic detector-plane axis.
+
+    The second harmonic is invariant under the detector's 180-degree axis
+    ambiguity.  It reports a principal scattering axis only; it does not
+    identify a three-dimensional tensile or chain direction.
+    """
+
+    result = {
+        "axis_deg": np.nan,
+        "strength": np.nan,
+        "confidence": 0.0,
+        "source": "unavailable",
+        "reason": "orientation_axis_insufficient_bins",
+    }
+    chi_arr, weights = _azimuthal_weights(chi, I_chi)
+    if len(chi_arr) < max(int(min_bins), 5):
+        return result
+
+    denominator = float(np.trapezoid(weights, chi_arr))
+    if denominator <= 1e-12 or not np.isfinite(denominator):
+        result["reason"] = "orientation_axis_zero_weight"
+        return result
+
+    z2 = np.trapezoid(weights * np.exp(2j * chi_arr), chi_arr) / denominator
+    strength = float(np.abs(z2))
+    result["strength"] = strength
+    if not np.isfinite(strength) or strength < float(min_strength):
+        result["reason"] = "orientation_axis_low_strength"
+        return result
+
+    result["axis_deg"] = float((np.degrees(0.5 * np.angle(z2)) + 180.0) % 180.0)
+    result["confidence"] = float(np.clip(strength, 0.0, 1.0))
+    result["source"] = "auto_detected"
+    result["reason"] = ""
+    return result
+
 def herman_from_azimuthal(
     chi: np.ndarray,
     I_chi: np.ndarray,
     chi_range: Tuple[float, float] = None,
+    reference_axis_deg: float = 0.0,
 ) -> Dict:
     """Compute Herman orientation factor from azimuthal I(chi) profile.
 
@@ -201,10 +304,12 @@ def herman_from_azimuthal(
 
     For lamellar stacks in stretched polymers:
     - f → 1: lamellae perfectly aligned along stretch
-    - f → 0: random orientation
+    - f → 0.25: uniform random orientation in a 2D detector azimuth
     - f → -0.5: lamellae perpendicular to stretch
 
-    Integration: <cos^2(chi)> = integral(I*cos^2*sin(chi) dchi) / integral(I*sin(chi) dchi)
+    The detector-plane profile is integrated directly over azimuth.  The
+    polar-angle ``sin(chi)`` factor is intentionally not applied here because
+    ``chi`` is an in-plane detector azimuth, not a 3D polar angle.
     """
     result = {
         'f': np.nan,
@@ -229,27 +334,20 @@ def herman_from_azimuthal(
     if len(chi_sel) < 5:
         return result
 
-    # Ensure positive intensity
-    I_min = np.min(I_sel)
-    if I_min < 0:
-        I_sel = I_sel - I_min
+    chi_sel, weights = _azimuthal_weights(chi_sel, I_sel)
+    if len(chi_sel) < 5:
+        return result
 
-    # <cos^2(chi)>
-    sin_chi = np.abs(np.sin(chi_sel))
-    cos_chi = np.cos(chi_sel)
-    cos2_chi = cos_chi ** 2
-
-    # Handle potential zeros in sin(chi)
-    sin_chi = np.clip(sin_chi, 1e-10, None)
-
-    num = trapezoid(I_sel * cos2_chi * sin_chi, chi_sel)
-    den = trapezoid(I_sel * sin_chi, chi_sel)
+    phi = np.angle(np.exp(1j * (chi_sel - np.deg2rad(reference_axis_deg))))
+    cos2_phi = np.cos(phi) ** 2
+    num = trapezoid(weights * cos2_phi, chi_sel)
+    den = trapezoid(weights, chi_sel)
 
     if den <= 0:
         return result
 
     cos2_avg = num / den
-    f = (3 * cos2_avg - 1) / 2
+    f = float(np.clip((3 * cos2_avg - 1) / 2, -0.5, 1.0))
     result['cos2_avg'] = float(cos2_avg)
     result['f'] = float(f)
 
@@ -257,8 +355,8 @@ def herman_from_azimuthal(
     result['P2'] = float(f)
 
     # P4: <P4> = (35<cos^4> - 30<cos^2> + 3) / 8
-    cos4_chi = cos_chi ** 4
-    num4 = trapezoid(I_sel * cos4_chi * sin_chi, chi_sel)
+    cos4_phi = np.cos(phi) ** 4
+    num4 = trapezoid(weights * cos4_phi, chi_sel)
     cos4_avg = num4 / den if den > 0 else np.nan
     result['P4'] = float((35 * cos4_avg - 30 * cos2_avg + 3) / 8) if np.isfinite(cos4_avg) else np.nan
 
@@ -450,6 +548,8 @@ def analyze_anisotropy(
     AnisotropyResult
     """
     result = AnisotropyResult()
+    if cfg is None:
+        cfg = SAXSConfig()
 
     if I_2d is None or chi is None or len(chi) < 5:
         result.confidence = 0.0
@@ -470,11 +570,42 @@ def analyze_anisotropy(
         result.azimuthal_I = I_prof
         result.azimuthal_q = float(q_star)
 
-        # 2. Herman factor
-        herman = herman_from_azimuthal(chi_prof, I_prof)
-        result.f_herman = herman.get('f', np.nan)
-        result.P2 = herman.get('P2', np.nan)
-        result.P4 = herman.get('P4', np.nan)
+        # 2. Resolve the detector-plane reference axis and Herman factor.
+        configured_axis = getattr(cfg, "orientation_axis_deg", None)
+        if configured_axis is not None and np.isfinite(configured_axis):
+            axis_info = detect_in_plane_orientation_axis(
+                chi_prof,
+                I_prof,
+                min_strength=0.0,
+                min_bins=getattr(cfg, "orientation_auto_min_bins", 12),
+            )
+            result.orientation_axis_deg = float(configured_axis % 180.0)
+            result.orientation_axis_source = "configured"
+            result.orientation_axis_strength = axis_info.get("strength", np.nan)
+            result.orientation_axis_confidence = 1.0
+            result.orientation_axis_reason = ""
+        else:
+            axis_info = detect_in_plane_orientation_axis(
+                chi_prof,
+                I_prof,
+                min_strength=getattr(cfg, "orientation_auto_min_strength", 0.08),
+                min_bins=getattr(cfg, "orientation_auto_min_bins", 12),
+            )
+            result.orientation_axis_deg = axis_info.get("axis_deg", np.nan)
+            result.orientation_axis_source = axis_info.get("source", "unavailable")
+            result.orientation_axis_strength = axis_info.get("strength", np.nan)
+            result.orientation_axis_confidence = axis_info.get("confidence", 0.0)
+            result.orientation_axis_reason = axis_info.get("reason", "")
+
+        if np.isfinite(result.orientation_axis_deg):
+            herman = herman_from_azimuthal(
+                chi_prof,
+                I_prof,
+                reference_axis_deg=result.orientation_axis_deg,
+            )
+            result.f_herman = herman.get('f', np.nan)
+            result.P2 = herman.get('P2', np.nan)
+            result.P4 = herman.get('P4', np.nan)
 
         # 3. Herman from sector regions
         # Meridional: chi ~ 0
@@ -483,11 +614,19 @@ def analyze_anisotropy(
         result.f_herman_sub = np.nan
         result.f_herman_eq = np.nan
 
-        if np.sum(mer_mask) > 3:
-            h_mer = herman_from_azimuthal(chi_prof[mer_mask], I_prof[mer_mask])
+        if np.sum(mer_mask) > 3 and np.isfinite(result.orientation_axis_deg):
+            h_mer = herman_from_azimuthal(
+                chi_prof[mer_mask],
+                I_prof[mer_mask],
+                reference_axis_deg=result.orientation_axis_deg,
+            )
             result.f_herman_sub = h_mer.get('f', np.nan)
-        if np.sum(eq_mask) > 3:
-            h_eq = herman_from_azimuthal(chi_prof[eq_mask], I_prof[eq_mask])
+        if np.sum(eq_mask) > 3 and np.isfinite(result.orientation_axis_deg):
+            h_eq = herman_from_azimuthal(
+                chi_prof[eq_mask],
+                I_prof[eq_mask],
+                reference_axis_deg=result.orientation_axis_deg,
+            )
             result.f_herman_eq = h_eq.get('f', np.nan)
 
         # 4. Pattern classification

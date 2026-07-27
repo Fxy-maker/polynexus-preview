@@ -11,6 +11,7 @@ from polynexus.core.saxs_engine.saxs_quality_contracts import (
     contract_json,
 )
 from polynexus.core.saxs_engine.saxs_anisotropy import analyze_anisotropy
+from polynexus.core.saxs_engine.config import SAXSConfig
 
 
 def _orientation_payload() -> dict:
@@ -117,3 +118,60 @@ def test_anisotropy_result_keeps_legacy_empty_path_and_attaches_json_evidence():
     assert result.orientation_evidence["level"] == QualityLevel.UNUSABLE.value
     json.dumps(result.detector_quality_report, allow_nan=False)
     json.dumps(result.orientation_evidence, allow_nan=False)
+
+
+def _synthetic_azimuthal_input(axis_deg: float) -> tuple[np.ndarray, ...]:
+    q = np.linspace(0.3, 1.0, 120)
+    q_profile = 0.1 + np.exp(-((q - 0.55) / 0.025) ** 2)
+    chi = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    axis = np.deg2rad(axis_deg)
+    angular = 1.0 + 8.0 * np.cos(chi - axis) ** 2
+    return np.outer(angular, q_profile), q, chi, q, q_profile
+
+
+def test_anisotropy_prefers_explicit_axis_and_uses_detector_plane_weighting():
+    payload = _synthetic_azimuthal_input(90.0)
+    result = analyze_anisotropy(*payload, cfg=SAXSConfig(orientation_axis_deg=90.0))
+
+    assert result.orientation_axis_source == "configured"
+    assert result.orientation_axis_deg == 90.0
+    assert result.f_herman > 0.5
+    assert result.orientation_evidence["fit_evidence"]["orientation_axis_source"] == "configured"
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
+def test_anisotropy_auto_detects_arbitrary_in_plane_axis():
+    payload = _synthetic_azimuthal_input(37.0)
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(
+            orientation_axis_deg=None,
+            orientation_auto_min_strength=0.05,
+        ),
+    )
+
+    assert result.orientation_axis_source == "auto_detected"
+    assert abs(((result.orientation_axis_deg - 37.0 + 90.0) % 180.0) - 90.0) < 5.0
+    assert result.orientation_axis_strength > 0.05
+    assert result.f_herman > 0.5
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
+def test_anisotropy_auto_detection_fails_closed_for_isotropic_profile():
+    q = np.linspace(0.3, 1.0, 120)
+    q_profile = 0.1 + np.exp(-((q - 0.55) / 0.025) ** 2)
+    chi = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    I_2d = np.outer(np.ones_like(chi), q_profile)
+
+    result = analyze_anisotropy(
+        I_2d,
+        q,
+        chi,
+        q,
+        q_profile,
+        cfg=SAXSConfig(orientation_axis_deg=None),
+    )
+
+    assert result.orientation_axis_source == "unavailable"
+    assert not np.isfinite(result.f_herman)
+    assert "orientation_axis_low_strength" in result.orientation_evidence["reason_codes"]
