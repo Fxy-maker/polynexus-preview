@@ -1,5 +1,20 @@
 # Active Work
 
+## IR release evidence reconciliation - automated boundary recorded - 2026-07-28
+
+- The focused current-head IR provider/mapping/lifecycle matrix passed `31`
+  tests with an external basetemp. The real standard and temperature-2D
+  published-run walkthrough passed `2` selected cases with `13` deselected.
+- The evidence is recorded in
+  `docs/acceptance/2026-07-28-ir-release-evidence-reconciliation.md` and the
+  task card
+  `docs/agent/tasks/2026-07-28-ir-release-evidence-reconciliation.md`.
+- This closes only the automated IR software-lifecycle/evidence boundary.
+  Vendor mapping/ROI semantics, restarted-GUI visual review, and human
+  scientific/release approval remain open. The task-scoped changed/type
+  verifier passed with quality `283` and preprocessing `106`; unrelated
+  untracked SAXS work remains outside this checkpoint.
+
 ## Results Workbench Light-theme contrast correction - ready for checkpoint - 2026-07-28
 
 - Reproduced the native pale-body issue as a production defect: Results labels
