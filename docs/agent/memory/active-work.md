@@ -1,5 +1,19 @@
 # Active Work
 
+## Joint evidence-weighted conflict severity - completed 2026-07-28
+
+- Joint Tm/Gibson-Thompson conflicts now inherit the minimum DSC/SAXS evidence
+  weight at the dataset boundary. A failed conflict with weight `< 0.5` is a
+  visible `WARN` rather than a hard `ERROR`; numeric details and `passed=False`
+  remain unchanged. Fully evidenced conflicts remain `ERROR`.
+- TDD RED exposed the diagnostic-only SAXS case as an `ERROR`; GREEN plus the
+  Joint component/lifecycle/provenance matrix passed `23` tests. The task
+  verifier passed quality `283` and preprocessing `106`.
+- See `docs/acceptance/2026-07-28-joint-evidence-weighted-conflicts.md` and
+  `docs/agent/tasks/2026-07-28-joint-evidence-weighted-conflicts.md`.
+  Real Joint inputs, IR/NMR calibration semantics, restarted-GUI review, and
+  human scientific approval remain open.
+
 ## NMR release evidence reconciliation - automated boundary recorded - 2026-07-28
 
 - Fresh NMR provider/provenance/eval/profile evidence passed `26` tests with

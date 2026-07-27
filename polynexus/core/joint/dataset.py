@@ -420,6 +420,7 @@ def validate_joint_row(row: JointBatchRow) -> list[dict[str, Any]]:
         tech: _run_evidence_context(row.run(tech))["weight"]
         for tech in ("dsc", "waxs", "saxs")
     }
+    tm_evidence_weight = min(phi_c_weights.get("dsc", 1.0), phi_c_weights.get("saxs", 1.0))
 
     results = run_all_cross_validations(
         sample_id=f"{row.sample_name}/{row.batch_label}",
@@ -434,6 +435,10 @@ def validate_joint_row(row: JointBatchRow) -> list[dict[str, Any]]:
         L_corr=l_corr,
         polymer_family=row.sample_name,
     )
+    for item in results.get("tm", []):
+        item.details["evidence_weight"] = float(tm_evidence_weight)
+        if not item.passed and tm_evidence_weight < 0.5:
+            item.severity = "WARN"
     output = []
     for item in results.get("all", []):
         output.append(

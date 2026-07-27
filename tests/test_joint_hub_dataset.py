@@ -208,6 +208,34 @@ def test_joint_low_confidence_saxs_xc_conflict_is_warn_not_error(tmp_path):
     )
 
 
+def test_joint_low_confidence_saxs_tm_conflict_is_warn_not_error(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "melt-window")
+    db.create_analysis_run(
+        batch_id,
+        "dsc",
+        results_summary={"Tm_peak_C": 220.0, "Xc_pct": 44.0},
+    )
+    db.create_analysis_run(
+        batch_id,
+        "saxs",
+        results_summary={"L_nm": 12.0, "lc_nm": 1.0},
+        analysis_evidence={
+            "constraint_summary": {"status": "soft_warn"},
+            "structure_evidence": {"lc_reliability_status": "diagnostic_only"},
+        },
+    )
+
+    report = build_joint_hub_report(collect_joint_dataset(db))
+
+    tm_conflict = next(item for item in report["validations"] if "Tm_GT" in item["check"])
+    assert tm_conflict["passed"] is False
+    assert tm_conflict["severity"] == "WARN"
+    assert tm_conflict["details"]["evidence_weight"] == pytest.approx(0.25)
+    assert report["ai_context"]["error_count"] == 0
+
+
 def test_joint_hub_consumes_persisted_analysis_evidence(tmp_path):
     db = SampleDB(tmp_path / "samples.db")
     sample_id = db.create_sample("PA6")
