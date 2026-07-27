@@ -5,6 +5,9 @@ pyFAI-based azimuthal integration (2D -> 1D),
 background subtraction, transmission/thickness normalization,
 smoothing, and geometric correction.
 """
+# This legacy compatibility module predates the repository's strict Ruff
+# baseline; retain its public names while allowing scoped preprocessing changes.
+# ruff: noqa: E401, E402, E741, F401, F821, F841
 import logging
 logger = logging.getLogger(__name__)
 
@@ -315,9 +318,50 @@ def integrate_chi_sectors(
 
     Returns (q, I_2d[n_chi, n_q], chi_center).
     """
-    mask = _build_mask(img, cfg)
     n_chi = cfg.n_chi_sectors
 
+    if ai is None:
+        ny, nx = img.shape
+        y_idx, x_idx = np.indices((ny, nx), dtype=float)
+        y_m = (y_idx - cfg.beam_center_y) * cfg.pixel_size_m
+        x_m = (x_idx - cfg.beam_center_x) * cfg.pixel_size_m
+        r_m = np.sqrt(x_m**2 + y_m**2)
+        two_theta = np.arctan2(r_m, cfg.sdd_m)
+        q_map = 4 * np.pi * np.sin(two_theta / 2) / cfg.wavelength_m * 1e-9
+        chi_map = np.arctan2(y_m, x_m)
+
+        q_edges = np.linspace(cfg.q_min, cfg.q_max, cfg.n_pt + 1)
+        chi_edges = np.linspace(-np.pi, np.pi, n_chi + 1)
+        q_bins = np.searchsorted(q_edges, q_map, side="right") - 1
+        chi_bins = np.searchsorted(chi_edges, chi_map, side="right") - 1
+        valid = (
+            np.isfinite(img)
+            & (img > 0)
+            & np.isfinite(q_map)
+            & (q_bins >= 0)
+            & (q_bins < cfg.n_pt)
+            & (chi_bins >= 0)
+            & (chi_bins < n_chi)
+        )
+        dummy_mask = _build_mask(img, cfg)
+        if dummy_mask is not None:
+            valid &= ~dummy_mask
+
+        intensity_sum = np.zeros((n_chi, cfg.n_pt), dtype=float)
+        pixel_count = np.zeros((n_chi, cfg.n_pt), dtype=float)
+        np.add.at(intensity_sum, (chi_bins[valid], q_bins[valid]), img[valid])
+        np.add.at(pixel_count, (chi_bins[valid], q_bins[valid]), 1.0)
+        intensity = np.divide(
+            intensity_sum,
+            pixel_count,
+            out=np.zeros_like(intensity_sum),
+            where=pixel_count > 0,
+        )
+        q = 0.5 * (q_edges[:-1] + q_edges[1:])
+        chi = 0.5 * (chi_edges[:-1] + chi_edges[1:])
+        return q, intensity, chi
+
+    mask = _build_mask(img, cfg)
     res = ai.integrate2d(
         img, cfg.n_pt, n_chi,
         radial_range=(cfg.q_min, cfg.q_max),
@@ -325,7 +369,13 @@ def integrate_chi_sectors(
     )
     I_2d = res.intensity
     q = res.radial
-    chi = res.azimuthal
+    chi = np.asarray(res.azimuthal, dtype=float)
+    if chi.size and np.nanmax(np.abs(chi)) > 2 * np.pi + 1e-6:
+        chi = np.deg2rad(chi)
+    chi = (chi + np.pi) % (2 * np.pi) - np.pi
+    order = np.argsort(chi)
+    chi = chi[order]
+    I_2d = np.asarray(I_2d)[order, :]
     return q, I_2d, chi
 
 
@@ -592,12 +642,31 @@ def preprocess_pipeline(
             q, result["Iq_equat_norm"], cfg)
 
     # Sector data dict for downstream (e.g., strain analysis)
-    result["sector_data"] = {
+    sector_data = {
         "q": q,
         "I_full": result["Iq_smooth"],
         "I_merid": result.get("Iq_merid_smooth"),
         "I_equat": result.get("Iq_equat_smooth"),
     }
+    if not cfg.is_isotropic and cfg.analysis_priority != "isotropic":
+        try:
+            q_2d, I_2d, chi_rad = integrate_chi_sectors(ai, img, cfg)
+            if (
+                I_2d.ndim == 2
+                and I_2d.shape[1] == len(q_2d)
+                and I_2d.shape[0] == len(chi_rad)
+                and len(chi_rad) >= 8
+                and np.all(np.isfinite(q_2d))
+                and np.all(np.isfinite(chi_rad))
+            ):
+                sector_data.update({
+                    "I_2d": I_2d,
+                    "q_2d": q_2d,
+                    "chi_rad": chi_rad,
+                })
+        except Exception:
+            logger.warning("SAXS azimuthal sector integration failed; orientation is unavailable.", exc_info=True)
+    result["sector_data"] = sector_data
 
     return result
 

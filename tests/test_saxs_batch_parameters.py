@@ -661,6 +661,29 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
     assert captured["sector_data_list"] is sector_data
 
 
+def test_saxs_strain_series_consumes_canonical_2d_sector_payload() -> None:
+    from polynexus.core.saxs_engine.config import SAXSConfig
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.1, 1.0, 120)
+    peak = np.exp(-((q - 0.45) / 0.025) ** 2)
+    intensity = 0.1 + peak
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    I_2d = np.outer(1.0 + 3.0 * np.cos(chi_rad) ** 2, intensity)
+    sector_data = {"I_2d": I_2d, "q_2d": q, "chi_rad": chi_rad, "I_full": intensity}
+
+    result = analyze_strain_series(
+        strains=[0.0, 5.0],
+        q_list=[q, q],
+        I_list=[intensity, intensity],
+        sector_data_list=[sector_data, sector_data],
+        cfg=SAXSConfig(smooth_method="none"),
+    )
+
+    assert np.isfinite(result.strain_points[0].f_herman)
+    assert result.strain_points[0].f_herman > 0.0
+
+
 def test_saxs_strain_batch_payload_exposes_raw_and_effective_layers() -> None:
     engine = get_engine("saxs")
     assert engine is not None
