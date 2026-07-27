@@ -1,6 +1,6 @@
 # Active Work
 
-## SAXS AI rescue bridge - verification-ready 2026-07-27
+## SAXS AI rescue bridge - checkpointed 2026-07-27
 
 - Added `saxs_ai_rescue.py` as a strict bridge to the existing preprocessing
   contracts. AI intent payloads must be SAXS and protect weak peaks, area,
@@ -12,6 +12,8 @@
 - Verification evidence: focused `4 passed`, preprocessing integration `48
   passed`, full SAXS `259 passed, 4 warnings`. Model calls, candidate execution,
   user confirmation UI, calibration and publication remain open.
+- Code checkpoint: `2eb3c49`; the bridge is contract-only and does not apply
+  candidate configurations.
 
 ## SAXS sequence rescue - checkpointed 2026-07-27
 

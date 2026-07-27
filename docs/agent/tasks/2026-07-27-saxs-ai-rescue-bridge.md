@@ -48,6 +48,7 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-ai-rescue-bridg
   warnings are the existing Arial CJK glyph warnings from SAXS figure layout.
 - The bridge keeps default shadow decisions at `keep_original`; calibrated
   tiered-auto can expose `apply_allowed` only after the shared hard guards pass.
+- Code checkpoint: `2eb3c49`; no push, merge or deploy was performed.
 
 ## Known limitations
 

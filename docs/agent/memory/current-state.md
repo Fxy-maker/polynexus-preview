@@ -14,6 +14,7 @@ title: Current PolyNexus repository state
   passed, preprocessing integration is `48 passed`, and the complete SAXS
   matrix is `259 passed` with four existing font warnings. Candidate execution,
   model calls, calibration, UI confirmation, and publication audit remain open.
+  Code checkpoint: `2eb3c49`.
 
 - SAXS sequence rescue Stage 6 is implemented locally: existing deterministic
   non-primary `lc` paths are exposed as candidate-only evidence, missing frames

@@ -37,4 +37,4 @@
 - Modify: task card, plan, memory files.
 
 - [x] 运行 focused、preprocessing、完整 SAXS、task verifier 和 `git diff --check`。
-- [ ] 记录限制并按 allowlist 创建 checkpoint；不 push/merge/deploy。
+- [x] 记录限制并按 allowlist 创建 checkpoint；不 push/merge/deploy。
