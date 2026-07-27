@@ -1,5 +1,20 @@
 ---
 
+## SAXS detector provenance DataFrame and CSV export (2026-07-28)
+
+- Temperature/strain DataFrames and static parameter CSV projections now expose
+  the existing raw-detector source, quality, reasons, geometry provenance, and
+  mask provenance as stable flat fields. Missing reports remain empty and
+  `not_assessed` remains a scientific limitation; no analysis, threshold,
+  quality, rescue, or publication semantics changed.
+- Fresh evidence: focused `21 passed`, exact SAXS matrix `383 passed, 6
+  warnings` in four isolated shards, and task verifier exit `0` with quality
+  `283`, preprocessing `106`, Ruff, compile/type, memory/task, and whitespace
+  checks. The incomplete first unsplit matrix run is explicitly excluded.
+- The explicit checkpoint is `4d09085` (no push). Detector calibration,
+  beam-center meaning, mask validity, saturation interpretation, and human
+  scientific/release approval remain open.
+
 ## SAXS Workbench geometry and mask provenance visibility (2026-07-28)
 
 - Workbench review text now shows the existing raw-detector geometry source and

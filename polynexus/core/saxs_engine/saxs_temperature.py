@@ -33,6 +33,7 @@ from .saxs_quality_contracts import (
     build_series_orientation_evidence,
 )
 from .saxs_sequence_rescue import build_sequence_rescue_candidates
+from .saxs_output_helpers import _detector_provenance_csv_fields
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +191,7 @@ class TempSeriesResult:
         for tp in self.temp_points:
             frame_index = len(rows)
             rescue = rescue_by_frame.get(frame_index)
-            rows.append({
+            row = {
                 'Temperature(C)': tp.temperature_C,
                 'source_index': int(tp.source_index) if int(tp.source_index) >= 0 else None,
                 'Phase': tp.phase.name,
@@ -217,7 +218,11 @@ class TempSeriesResult:
                 'melting_window_status': tp.melting_window_status or None,
                 'lc_reliability_status': tp.lc_reliability_status or None,
                 'lc_reliability_reason': tp.lc_reliability_reason or None,
-            })
+            }
+            row.update(
+                _detector_provenance_csv_fields(tp.raw_detector_quality_report)
+            )
+            rows.append(row)
         return pd.DataFrame(rows)
 
 

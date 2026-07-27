@@ -32,6 +32,7 @@ from .saxs_quality_contracts import (
     build_series_metric_evidence,
     build_series_orientation_evidence,
 )
+from .saxs_output_helpers import _detector_provenance_csv_fields
 
 
 class StrainPhase(Enum):
@@ -127,7 +128,7 @@ class StrainSeriesResult:
 
         rows = []
         for sp in self.strain_points:
-            rows.append({
+            row = {
                 'Strain(%)': sp.strain_pct,
                 'Phase': sp.phase.name,
                 'L(nm)': round(sp.L_nm, 2) if np.isfinite(sp.L_nm) else None,
@@ -143,7 +144,11 @@ class StrainSeriesResult:
                 'Confidence': round(sp.confidence, 2),
                 'Method': sp.method,
                 'Metric_evidence_levels': metric_level_summary(sp.metric_evidence),
-            })
+            }
+            row.update(
+                _detector_provenance_csv_fields(sp.raw_detector_quality_report)
+            )
+            rows.append(row)
         return pd.DataFrame(rows)
 
 

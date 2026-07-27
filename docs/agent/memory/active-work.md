@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS detector provenance DataFrame and CSV export - 2026-07-28
+
+- The existing raw-detector provenance is now projected into temperature and
+  strain DataFrame rows plus static parameter CSV dictionaries through one
+  fixed ten-column helper. Field-source ordering is deterministic, mask shape
+  is `heightxwidth`, missing reports remain empty, and `not_assessed` is copied
+  literally. No nested evidence, quality level, physical gate, rescue, or
+  publication role changed.
+- Focused GREEN passed `21`; the exact SAXS matrix passed `383` with `6`
+  existing warnings; structured verification exited `0` with quality `283`,
+  preprocessing `106`, Ruff, compile/type, memory/task, and whitespace checks.
+  The first unsplit matrix invocation was incomplete and is not counted;
+  four fresh isolated shards are the authoritative matrix evidence.
+- Status is checkpointed at `4d09085` with the explicit allowlist; no push was
+  performed. Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-detector-provenance-dataframe-export.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-detector-provenance-dataframe-export-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-detector-provenance-dataframe-export.md`.
+- Detector calibration, beam-center interpretation, mask validity, saturation
+  meaning, and human scientific/publication approval remain open.
+
 ## SAXS Workbench geometry and mask provenance visibility - 2026-07-28
 
 - Results Workbench now presents existing raw-detector geometry aggregate/source

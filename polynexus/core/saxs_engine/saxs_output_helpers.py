@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from collections.abc import Mapping
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -28,6 +29,62 @@ def _json_number(value) -> Optional[float]:
     if not np.isfinite(number):
         return None
     return number
+
+
+def _detector_provenance_csv_fields(report: Any) -> dict[str, Any]:
+    """Flatten existing detector provenance for table/CSV consumers only."""
+    fields: dict[str, Any] = {
+        "Detector_source_kind": None,
+        "Detector_quality_level": None,
+        "Detector_reason_codes": None,
+        "Geometry_provenance_source": None,
+        "Geometry_field_sources": None,
+        "Geometry_provenance_validity": None,
+        "Mask_provenance_source": None,
+        "Mask_configured": None,
+        "Mask_shape": None,
+        "Mask_provenance_validity": None,
+    }
+    if not isinstance(report, Mapping):
+        return fields
+
+    for output_key, report_key in (
+        ("Detector_source_kind", "source_kind"),
+        ("Detector_quality_level", "level"),
+    ):
+        value = report.get(report_key)
+        fields[output_key] = getattr(value, "value", value)
+
+    reasons = report.get("reason_codes")
+    if isinstance(reasons, str):
+        fields["Detector_reason_codes"] = reasons
+    elif isinstance(reasons, (list, tuple)):
+        fields["Detector_reason_codes"] = "|".join(str(item) for item in reasons)
+
+    geometry = report.get("geometry_provenance")
+    if isinstance(geometry, Mapping):
+        fields["Geometry_provenance_source"] = geometry.get("source")
+        fields["Geometry_provenance_validity"] = geometry.get("validity")
+        source_fields = geometry.get("field_sources")
+        if isinstance(source_fields, Mapping):
+            fields["Geometry_field_sources"] = "|".join(
+                f"{key}:{source_fields[key]}"
+                for key in sorted(source_fields, key=str)
+            ) or None
+
+    mask = report.get("mask_provenance")
+    if isinstance(mask, Mapping):
+        fields["Mask_provenance_source"] = mask.get("source")
+        configured = mask.get("configured")
+        fields["Mask_configured"] = configured if isinstance(configured, bool) else None
+        fields["Mask_provenance_validity"] = mask.get("validity")
+        shape = mask.get("shape")
+        if isinstance(shape, (list, tuple, np.ndarray)) and len(shape) == 2:
+            try:
+                fields["Mask_shape"] = f"{int(shape[0])}x{int(shape[1])}"
+            except (TypeError, ValueError):
+                fields["Mask_shape"] = None
+    return fields
 
 
 def _result_effective_lc_value(result) -> float:
@@ -67,7 +124,7 @@ def export_parameters_csv(
 
 def export_1d_profile(
     q: np.ndarray,
-    I: np.ndarray,
+    I: np.ndarray,  # noqa: E741 - preserve the public SAXS intensity parameter name
     output_dir: str,
     filename: str = "saxs_1d_profile.csv",
     I_smooth: Optional[np.ndarray] = None,
@@ -203,6 +260,11 @@ def _result_to_params_dict(result) -> Dict:
             value = getattr(result, field, None)
             if value not in (None, "") and field not in d:
                 d[field] = value
+        d.update(
+            _detector_provenance_csv_fields(
+                getattr(result, "raw_detector_quality_report", None)
+            )
+        )
         return d
 
     d = {
@@ -236,4 +298,9 @@ def _result_to_params_dict(result) -> Dict:
         value = getattr(result, field, None)
         if value not in (None, "") and field not in d:
             d[field] = value
+    d.update(
+        _detector_provenance_csv_fields(
+            getattr(result, "raw_detector_quality_report", None)
+        )
+    )
     return d
