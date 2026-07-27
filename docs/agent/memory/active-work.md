@@ -13,6 +13,10 @@
   passes (`383`, with four existing font warnings). Model provider calls,
   user-confirmed real reruns, calibration, and scientific publication review
   remain separate gates.
+- A fresh full/boundary verifier attempt timed out after 20 minutes with exit
+  `124` before producing a summary; focused and structured verification remain
+  the current evidence. The orphaned child processes were identified as that
+  run and terminated.
 
 ## SAXS real data and Workbench acceptance - automated slice 2026-07-27
 

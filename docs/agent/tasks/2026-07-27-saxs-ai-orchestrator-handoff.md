@@ -64,6 +64,10 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-ai-orchestrator
 - A first export-focused retry hit the pre-existing repository `.pytest_tmp`
   Windows permission cleanup issue; the same export suite was rerun with an
   external basetemp and passed **6 tests**.
+- A fresh `python scripts/verify.py --changed --types --full --boundary`
+  attempt reached the 20-minute command limit with exit **124** and emitted no
+  final pass/fail summary. Its verified child processes were terminated after
+  the timeout; this is recorded as incomplete evidence, not as a pass.
 
 ## Known limitations
 
