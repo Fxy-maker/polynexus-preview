@@ -470,6 +470,105 @@ def _series_metric_review_text(
     return "", tr_for_language("RESULTS_REVIEW_NEXT", language, detail)
 
 
+def _condition_axis_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Present existing condition-axis defects as advisory review text."""
+
+    evidence = payload.get("metric_evidence") if isinstance(payload, Mapping) else None
+    if not isinstance(evidence, Mapping):
+        return "", ""
+
+    zh = language == "zh"
+    axis_lines: list[str] = []
+
+    def _items(axis: Mapping[str, Any], key: str) -> list[Any]:
+        value = axis.get(key)
+        return list(value) if isinstance(value, (list, tuple)) else []
+
+    def _positions_text(position_groups: list[list[Any]]) -> str:
+        positions: list[str] = []
+        for group in position_groups:
+            for item in group:
+                rendered = str(item).strip()
+                if rendered and rendered not in positions:
+                    positions.append(rendered)
+        def _sort_key(item: str) -> tuple[int, float | str]:
+            try:
+                return 0, float(item)
+            except ValueError:
+                return 1, item
+
+        positions.sort(key=_sort_key)
+        suffix = ", ..." if len(positions) > 8 else ""
+        return "[" + ", ".join(positions[:8]) + suffix + "]"
+
+    for raw_name, summary in sorted(evidence.items(), key=lambda item: str(item[0])):
+        if not isinstance(summary, Mapping):
+            continue
+        axis = summary.get("condition_axis")
+        if not isinstance(axis, Mapping):
+            continue
+        status = str(axis.get("status") or "").strip().lower()
+        if status not in {"diagnostic", "empty"}:
+            continue
+
+        name = str(raw_name)
+        metric_name = str(summary.get("metric_name") or name).strip() or name
+        if name.lower() == "guinier" or metric_name.lower() == "guinier":
+            metric_name = "Rg"
+        condition_name = str(axis.get("condition_name") or "condition").strip()
+        invalid = _items(axis, "invalid_condition_indices")
+        duplicate = _items(axis, "duplicate_condition_indices")
+        nonmonotonic = _items(axis, "nonmonotonic_condition_indices")
+        positions_text = _positions_text([invalid, duplicate, nonmonotonic])
+        raw_reasons = summary.get("reason_codes")
+        if isinstance(raw_reasons, str):
+            reason_values = (raw_reasons,)
+        elif isinstance(raw_reasons, (list, tuple)):
+            reason_values = raw_reasons
+        else:
+            reason_values = ()
+        axis_reasons = [
+            str(reason).strip()
+            for reason in reason_values
+            if str(reason).strip().startswith("series_metric_condition_axis")
+        ]
+        if zh:
+            detail = (
+                f"{metric_name}: 条件轴 {condition_name} {status}；"
+                f"无效={len(invalid)}；重复={len(duplicate)}；"
+                f"非单调={len(nonmonotonic)}；位置={positions_text}"
+            )
+            reason_label = "原因"
+            next_instruction = (
+                "在解释序列趋势前先复核条件轴诊断；完整位置和值仍在 Diagnostics"
+            )
+        else:
+            detail = (
+                f"{metric_name}: condition axis {condition_name} {status}; "
+                f"invalid={len(invalid)}; duplicate={len(duplicate)}; "
+                f"non-monotonic={len(nonmonotonic)}; positions={positions_text}"
+            )
+            reason_label = "reasons"
+            next_instruction = (
+                "Review condition-axis diagnostics before interpreting sequence trends; "
+                "full positions and values remain in Diagnostics"
+            )
+        if axis_reasons:
+            detail += f"; {reason_label}=" + ",".join(axis_reasons[:3])
+        axis_lines.append(detail)
+
+    if not axis_lines:
+        return "", ""
+    detail = " | ".join(axis_lines)
+    risk = tr_for_language("RESULTS_REVIEW_RISK", language, detail)
+    next_text = tr_for_language("RESULTS_REVIEW_NEXT", language, next_instruction)
+    return risk, next_text
+
+
 def _guinier_sequence_review_text(
     payload: Mapping[str, Any],
     *,
@@ -863,12 +962,16 @@ def build_saxs_results_presentation(
         payload,
         language=target_language,
     )
+    axis_risk, axis_next = _condition_axis_review_text(
+        payload,
+        language=target_language,
+    )
     sequence_risk, sequence_next = _guinier_sequence_review_text(
         payload,
         language=target_language,
     )
-    risk_text = " ".join(text for text in (metric_risk, sequence_risk) if text)
-    next_text = " ".join(text for text in (metric_next, sequence_next) if text)
+    risk_text = " ".join(text for text in (axis_risk, metric_risk, sequence_risk) if text)
+    next_text = " ".join(text for text in (axis_next, metric_next, sequence_next) if text)
 
     row_count = len(rows)
     has_rows = row_count > 0

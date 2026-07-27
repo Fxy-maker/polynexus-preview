@@ -7,6 +7,18 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS condition-axis Workbench visibility is implemented in the working tree:
+  existing `metric_evidence[*].condition_axis` defects now appear as advisory
+  review hints with metric/axis names, defect counts, and representative frame
+  positions. Full nested axis values remain in Diagnostics and existing
+  parameter/History/Export payloads are untouched. Ordered axes add no risk
+  text; no new threshold, physical interpretation, or strain ordering rule was
+  added. Focused Workbench evidence is `16 passed`, consumer evidence is `56
+  passed`, and the isolated SAXS matrix is `359 passed, 4 warnings`. The
+  isolated task verifier passed quality `282` and preprocessing `106`. Task
+  card:
+  `docs/agent/tasks/2026-07-27-saxs-condition-axis-workbench-visibility.md`.
+
 - SAXS temperature condition-axis evidence is implemented in the working tree:
   existing temperature-series metric summaries now carry a strict-JSON,
   position-preserving `condition_axis` with condition name, finite values,

@@ -191,6 +191,84 @@ def test_complete_series_evidence_is_trend_capped_in_review_text():
     assert not presentation.risk_text
 
 
+def test_condition_axis_defects_are_visible_without_replacing_full_diagnostics():
+    params = _series_params()
+    params["metric_evidence"]["porod"] = {
+        **_series_metric_summary(frame_count=4),
+        "condition_axis": {
+            "condition_name": "temperature_C",
+            "condition_values": [20.0, 20.0, 19.0, None],
+            "invalid_condition_indices": [3],
+            "duplicate_condition_indices": [0, 1],
+            "nonmonotonic_condition_indices": [1, 2],
+            "status": "diagnostic",
+        },
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "Porod" in review_text
+    assert "temperature_C" in review_text
+    assert "condition axis" in review_text
+    assert "invalid=1" in review_text
+    assert "duplicate=2" in review_text
+    assert "non-monotonic=2" in review_text
+    assert "positions=[0, 1, 2, 3]" in review_text
+    assert "physical pass" not in review_text.lower()
+    metric_column = next(
+        index
+        for index, column in enumerate(presentation.diagnostics.columns)
+        if column.key == "metric_evidence"
+    )
+    diagnostics = presentation.diagnostics.rows[-1][metric_column].display
+    assert "condition_values" in diagnostics
+    assert "invalid_condition_indices" in diagnostics
+    assert "nonmonotonic_condition_indices" in diagnostics
+
+
+def test_ordered_condition_axis_does_not_add_workbench_risk():
+    params = _series_params()
+    params["metric_evidence"]["porod"]["condition_axis"] = {
+        "condition_name": "temperature_C",
+        "condition_values": [20.0, 40.0],
+        "invalid_condition_indices": [],
+        "duplicate_condition_indices": [],
+        "nonmonotonic_condition_indices": [],
+        "status": "ordered",
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+
+    assert presentation.risk_text == ""
+    assert "condition axis" not in presentation.next_text.lower()
+
+
+def test_condition_axis_review_text_is_localized():
+    params = _series_params()
+    params["metric_evidence"]["porod"]["condition_axis"] = {
+        "condition_name": "temperature_C",
+        "condition_values": [],
+        "invalid_condition_indices": [],
+        "duplicate_condition_indices": [],
+        "nonmonotonic_condition_indices": [],
+        "status": "empty",
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="zh"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "条件轴" in review_text
+    assert "诊断" in review_text
+    assert "temperature_C" in review_text
+
+
 def test_static_batch_evidence_uses_batch_quality_wording_and_keeps_diagnostics():
     params = {
         "batch_frames": 3,

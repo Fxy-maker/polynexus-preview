@@ -1,5 +1,27 @@
 # Active Work
 
+## SAXS condition-axis Workbench visibility - ready for checkpoint - 2026-07-27
+
+- The SAXS Workbench now consumes existing nested
+  `metric_evidence[*].condition_axis` mappings and emits advisory review text
+  only for `diagnostic`/`empty` axes. It reports the metric, condition name,
+  invalid/duplicate/non-monotonic counts, and bounded representative
+  positions; the complete values and position arrays remain in Diagnostics.
+- Clean `ordered` axes do not add risk text. The formatter does not sort source
+  data, add thresholds, alter metric levels/counts, infer physical
+  transitions, or apply temperature ordering semantics to strain axes.
+- TDD RED was `2 failed, 12 passed, 2 errors` under the default locked temp
+  path; the failures were expected missing-hint assertions and the errors were
+  pre-existing `.pytest_tmp` `WinError 5` cleanup failures. Isolated GREEN was
+  `16 passed`; the consumer matrix was `56 passed`; and the complete SAXS
+  matrix was `359 passed, 4 warnings`. The isolated task verifier passed
+  quality `282`, preprocessing `106`, task/memory, Ruff, compile/type, and
+  whitespace checks.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-27-saxs-condition-axis-workbench-visibility.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-condition-axis-workbench-visibility-design.md`,
+  and `docs/superpowers/plans/2026-07-27-saxs-condition-axis-workbench-visibility.md`.
+
 ## SAXS temperature condition-axis evidence - ready for checkpoint - 2026-07-27
 
 - Temperature-series `MetricEvidenceSummary` records a frozen, strict-JSON
