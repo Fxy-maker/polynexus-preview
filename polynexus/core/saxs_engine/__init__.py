@@ -24,6 +24,10 @@ from .saxs_quality_contracts import (
     build_data_quality_report,
     build_guinier_evidence,
     build_guinier_sequence_evidence,
+    build_porod_evidence,
+    build_kratky_evidence,
+    build_invariant_evidence,
+    build_lamellar_evidence,
     contract_json,
 )
 from .processed_profile import ProcessedProfile
@@ -78,6 +82,8 @@ __all__ = [
     "GuinierEvidence", "GuinierSequenceEvidence", "MetricEvidence", "QualityLevel", "RescueCandidate",
     "RescueValidationReport", "build_data_quality_report", "build_guinier_evidence",
     "build_guinier_sequence_evidence",
+    "build_porod_evidence", "build_kratky_evidence",
+    "build_invariant_evidence", "build_lamellar_evidence",
     "contract_json",
     "ProcessedProfile",
     "read_image", "read_1d_profile", "extract_geometry_from_header",

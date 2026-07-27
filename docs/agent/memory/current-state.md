@@ -67,6 +67,15 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- SAXS 1D method evidence Stage 3 is implemented and verified: conservative
+  Porod/Kratky/Q*/lamellar `MetricEvidence` builders are attached to
+  `SAXSResult.metric_evidence` while legacy outputs remain unchanged. Builder
+  focused tests pass (`5`), the combined SAXS evidence matrix passes (`34`),
+  and the exact 37-file SAXS matrix passes (`242`, four existing Arial CJK font
+  warnings). Structured verification passes quality `282` and preprocessing
+  `103`. Method-specific quantitative cutoffs, sequence propagation to all
+  modes, AI rescue, publication, and human scientific acceptance remain open.
+
 - A fresh real published-run replay on 2026-07-27 passed `15` cases in
   `338.23s` using an external basetemp. It covers all current automated SAXS,
   DSC, WAXS, IR, and NMR mode rows through Manifest/Gallery, Editor revisions,

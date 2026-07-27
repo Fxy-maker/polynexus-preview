@@ -23,7 +23,16 @@ from .config import SAXSConfig
 from . import saxs_quality_helpers as _saxs_quality_helpers
 from . import saxs_physical_helpers as _saxs_physical_helpers
 from . import saxs_extrapolation_helpers as _saxs_extrapolation_helpers
-from .saxs_quality_contracts import build_data_quality_report, build_guinier_evidence
+from .saxs_quality_contracts import (
+    MetricEvidence,
+    QualityLevel,
+    build_data_quality_report,
+    build_guinier_evidence,
+    build_porod_evidence,
+    build_kratky_evidence,
+    build_invariant_evidence,
+    build_lamellar_evidence,
+)
 
 
 # ======================================================================
@@ -94,6 +103,7 @@ class SAXSResult:
     quality_score: float = np.nan        # PHYS score; distinct from curve-fit R²
     data_quality_report: Dict[str, Any] = None
     guinier_evidence: Dict[str, Any] = None
+    metric_evidence: Dict[str, Any] = None
     beam_stop_contaminated: bool = False # direct-beam pollution detected
     effective_q_min: float = 0.01        # q_min after beamstop-edge correction
     mask_truncated: bool = False         # effective q_min > 0.1 nm⁻¹
@@ -1843,6 +1853,63 @@ def analyze_single(
 
     # ---- Phase 4: Automated validation ----
     result = validate_saxs_results(result, cfg)
+
+    # Unified 1D method evidence.  These builders are observational and are
+    # deliberately isolated from the legacy numeric result payloads.
+    metric_context = condition_context if isinstance(condition_context, dict) else {}
+    metric_builders = {
+        "porod": (
+            build_porod_evidence,
+            (result.porod,),
+            "porod_applicability",
+            "Porod",
+        ),
+        "kratky": (
+            build_kratky_evidence,
+            (result.kratky,),
+            "kratky_applicability",
+            "Kratky",
+        ),
+        "invariant": (
+            build_invariant_evidence,
+            (getattr(result.structure, "Q_invariant", np.nan),),
+            "invariant_applicability",
+            "Q_star",
+        ),
+        "lamellar": (
+            build_lamellar_evidence,
+            (result.long_period, result.structure),
+            "lamellar_applicability",
+            "Lamellar",
+        ),
+    }
+    result.metric_evidence = {}
+    for key, (builder, args, applicability_key, metric_name) in metric_builders.items():
+        try:
+            evidence = builder(
+                *args,
+                quality_report=quality_report,
+                applicability=str(metric_context.get(applicability_key, "unknown") or "unknown"),
+                valid=bool(result.Q_star_valid),
+                beam_stop_contaminated=bool(result.beam_stop_contaminated),
+                source_ref=f"saxs_engine.{key}",
+            ) if key == "invariant" else builder(
+                *args,
+                quality_report=quality_report,
+                applicability=str(metric_context.get(applicability_key, "unknown") or "unknown"),
+                source_ref=f"saxs_engine.{key}",
+            )
+        except Exception:
+            logger.warning("SAXS %s evidence construction failed.", key, exc_info=True)
+            evidence = MetricEvidence(
+                metric_name=metric_name,
+                level=QualityLevel.DIAGNOSTIC,
+                applicable=False,
+                reason_codes=("metric_evidence_build_failed",),
+                source_ref=f"saxs_engine.{key}",
+                data_quality_ref=str(quality_report.source_id or ""),
+            )
+        result.metric_evidence[key] = evidence.to_dict()
 
     # ---- pyFAI shadow channel (cross-validation only) ----
     if q_pyfai is not None and len(q_pyfai) >= 20 and I_pyfai is not None:

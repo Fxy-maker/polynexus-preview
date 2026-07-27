@@ -971,6 +971,256 @@ def build_guinier_sequence_evidence(
     )
 
 
+def _method_applicability(applicability: str, method_name: str, reasons: list[str]) -> bool:
+    normalized = str(applicability or "unknown").strip().lower()
+    if normalized == "unknown":
+        reasons.append(f"{method_name}_applicability_unresolved")
+    elif normalized != "supported":
+        reasons.append(f"{method_name}_applicability_unsupported")
+    return normalized == "supported"
+
+
+def _finish_method_metric(
+    *,
+    method_name: str,
+    value: Any,
+    unit: str,
+    quality_report: DataQualityReport | None,
+    applicability: str,
+    physical_gate_passed: bool,
+    reasons: list[str],
+    fit_evidence: Mapping[str, Any],
+    physical_checks: Mapping[str, Any],
+    uncertainty: Any = None,
+    source_ref: str = "",
+) -> MetricEvidence:
+    supported = _method_applicability(applicability, method_name.lower(), reasons)
+    if quality_report is None or quality_report.level is QualityLevel.UNUSABLE:
+        reasons.append("data_quality_unusable")
+        level = QualityLevel.UNUSABLE
+    elif not physical_gate_passed or not supported:
+        level = QualityLevel.DIAGNOSTIC
+    else:
+        # Method-specific quantitative cutoffs are intentionally deferred until
+        # real-data calibration; this stage only establishes Trend evidence.
+        level = QualityLevel.TREND
+    unique_reasons = tuple(dict.fromkeys(reasons))
+    checks = dict(physical_checks)
+    checks["applicability_supported"] = supported
+    checks["method_gate_passed"] = bool(physical_gate_passed)
+    return MetricEvidence(
+        metric_name=method_name,
+        value=_finite_or_none(value),
+        unit=unit,
+        level=level,
+        applicable=bool(supported and physical_gate_passed and level is not QualityLevel.UNUSABLE),
+        uncertainty=_finite_or_none(uncertainty),
+        fit_evidence=dict(fit_evidence),
+        physical_checks=checks,
+        reason_codes=unique_reasons,
+        source_ref=str(source_ref or ""),
+        data_quality_ref=str(
+            quality_report.source_id
+            if quality_report is not None and quality_report.source_id
+            else source_ref or ""
+        ),
+    )
+
+
+def build_porod_evidence(
+    porod: Mapping[str, Any] | None,
+    *,
+    quality_report: DataQualityReport,
+    applicability: str = "unknown",
+    source_ref: str = "",
+) -> MetricEvidence:
+    """Build conservative evidence from the existing Porod result payload."""
+    reasons: list[str] = []
+    payload = porod if isinstance(porod, Mapping) else {}
+    if not payload:
+        reasons.append("porod_payload_missing")
+    q_arr = _as_1d_float_array(payload.get("q_porod"))
+    iq4_arr = _as_1d_float_array(payload.get("Iq4", payload.get("Iq4_porod")))
+    pair_count = min(q_arr.size, iq4_arr.size)
+    finite = np.isfinite(q_arr[:pair_count]) & np.isfinite(iq4_arr[:pair_count])
+    q_fit = q_arr[:pair_count][finite]
+    iq4_fit = iq4_arr[:pair_count][finite]
+    if q_fit.size < 10:
+        reasons.append("porod_insufficient_points")
+    kp = _finite_or_none(payload.get("Kp"))
+    if not (isinstance(kp, (int, float)) and np.isfinite(kp) and kp > 0):
+        reasons.append("porod_kp_missing")
+        kp = None
+    slope = _finite_or_none(payload.get("slope"))
+    if slope is None:
+        reasons.append("porod_slope_missing")
+    iq4_median = float(np.median(iq4_fit)) if iq4_fit.size else None
+    iq4_cv = (
+        float(np.std(iq4_fit) / max(abs(iq4_median), 1e-12))
+        if iq4_fit.size and iq4_median is not None
+        else None
+    )
+    slope_deviation = abs(float(slope) + 4.0) if isinstance(slope, (int, float)) else None
+    if slope_deviation is not None and slope_deviation > 0:
+        reasons.append("porod_slope_deviation_observed")
+    return _finish_method_metric(
+        method_name="Porod",
+        value=kp,
+        unit="a.u.",
+        quality_report=quality_report,
+        applicability=applicability,
+        physical_gate_passed=bool(q_fit.size >= 10 and kp is not None and slope is not None),
+        reasons=reasons,
+        fit_evidence={
+            "point_count": int(q_fit.size),
+            "q_min_nm1": float(np.min(q_fit)) if q_fit.size else None,
+            "q_max_nm1": float(np.max(q_fit)) if q_fit.size else None,
+            "slope": slope,
+            "slope_reference": -4.0,
+            "slope_deviation": slope_deviation,
+            "iq4_plateau_median": iq4_median,
+            "iq4_plateau_cv": iq4_cv,
+        },
+        physical_checks={"Kp_positive": kp is not None, "Sv": _finite_or_none(payload.get("Sv"))},
+        source_ref=source_ref or "saxs_engine.porod_analysis",
+    )
+
+
+def build_kratky_evidence(
+    kratky: Mapping[str, Any] | None,
+    *,
+    quality_report: DataQualityReport,
+    applicability: str = "unknown",
+    source_ref: str = "",
+) -> MetricEvidence:
+    """Build conservative evidence from the existing Kratky payload."""
+    reasons: list[str] = []
+    payload = kratky if isinstance(kratky, Mapping) else {}
+    if not payload:
+        reasons.append("kratky_payload_missing")
+    q_arr = _as_1d_float_array(payload.get("q"))
+    k_arr = _as_1d_float_array(payload.get("kratky"))
+    pair_count = min(q_arr.size, k_arr.size)
+    finite = np.isfinite(q_arr[:pair_count]) & np.isfinite(k_arr[:pair_count])
+    q_fit = q_arr[:pair_count][finite]
+    k_fit = k_arr[:pair_count][finite]
+    q_peak = _finite_or_none(payload.get("q_peak_kratky"))
+    peak_value = float(np.max(k_fit)) if k_fit.size else None
+    if q_fit.size < 5:
+        reasons.append("kratky_insufficient_points")
+    if q_peak is None or not (isinstance(q_peak, (int, float)) and q_peak > 0):
+        reasons.append("kratky_peak_missing")
+        q_peak = None
+    return _finish_method_metric(
+        method_name="Kratky",
+        value=q_peak,
+        unit="nm^-1",
+        quality_report=quality_report,
+        applicability=applicability,
+        physical_gate_passed=bool(q_fit.size >= 5 and q_peak is not None),
+        reasons=reasons,
+        fit_evidence={
+            "point_count": int(q_fit.size),
+            "q_min_nm1": float(np.min(q_fit)) if q_fit.size else None,
+            "q_max_nm1": float(np.max(q_fit)) if q_fit.size else None,
+            "q_peak_nm1": q_peak,
+            "peak_value": peak_value,
+            "peak_present": bool(q_peak is not None),
+        },
+        physical_checks={"peak_present": bool(q_peak is not None)},
+        source_ref=source_ref or "saxs_engine.kratky_analysis",
+    )
+
+
+def build_invariant_evidence(
+    q_star: Any,
+    *,
+    quality_report: DataQualityReport,
+    valid: bool = True,
+    beam_stop_contaminated: bool = False,
+    applicability: str = "unknown",
+    source_ref: str = "",
+) -> MetricEvidence:
+    """Build evidence for the existing Porod invariant value."""
+    reasons: list[str] = []
+    value = _finite_or_none(q_star)
+    if value is None or not (isinstance(value, (int, float)) and value > 0):
+        reasons.append("invariant_value_invalid")
+        value = None
+    if not valid:
+        reasons.append("invariant_quality_flag_failed")
+    if beam_stop_contaminated:
+        reasons.append("invariant_beamstop_contaminated")
+    return _finish_method_metric(
+        method_name="Q_star",
+        value=value,
+        unit="a.u.",
+        quality_report=quality_report,
+        applicability=applicability,
+        physical_gate_passed=bool(value is not None and valid and not beam_stop_contaminated),
+        reasons=reasons,
+        fit_evidence={"finite_positive": bool(value is not None)},
+        physical_checks={
+            "valid": bool(valid),
+            "beam_stop_contaminated": bool(beam_stop_contaminated),
+        },
+        source_ref=source_ref or "saxs_engine.scattering_invariant",
+    )
+
+
+def build_lamellar_evidence(
+    long_period: Any,
+    structure: Any,
+    *,
+    quality_report: DataQualityReport,
+    applicability: str = "unknown",
+    source_ref: str = "",
+) -> MetricEvidence:
+    """Build evidence from existing ensemble and structure DTOs."""
+    reasons: list[str] = []
+    L = _finite_or_none(getattr(long_period, "L_best", np.nan)) if long_period is not None else None
+    lc = _finite_or_none(getattr(structure, "lc", np.nan)) if structure is not None else None
+    la = _finite_or_none(getattr(structure, "la", np.nan)) if structure is not None else None
+    phi_c = _finite_or_none(getattr(structure, "phi_c", np.nan)) if structure is not None else None
+    confidence = _finite_or_none(getattr(structure, "confidence_lc", np.nan)) if structure is not None else None
+    if L is None or not (isinstance(L, (int, float)) and L > 0):
+        reasons.append("lamellar_long_period_missing")
+        L = None
+    if lc is None or not (isinstance(lc, (int, float)) and lc > 0):
+        reasons.append("lamellar_lc_missing")
+        lc = None
+    if la is None or not (isinstance(la, (int, float)) and la > 0):
+        reasons.append("lamellar_la_missing")
+        la = None
+    phi_valid = isinstance(phi_c, (int, float)) and np.isfinite(phi_c) and 0 < phi_c <= 1
+    if not phi_valid:
+        reasons.append("lamellar_phi_c_invalid")
+        phi_c = None
+    structure_gate = bool(L is not None and lc is not None and la is not None and phi_valid)
+    return _finish_method_metric(
+        method_name="Lamellar",
+        value=L,
+        unit="nm",
+        quality_report=quality_report,
+        applicability=applicability,
+        physical_gate_passed=structure_gate,
+        reasons=reasons,
+        fit_evidence={
+            "L_nm": L,
+            "lc_nm": lc,
+            "la_nm": la,
+            "phi_c": phi_c,
+            "confidence_lc": confidence,
+            "method_used": getattr(long_period, "method_used", "") if long_period is not None else "",
+        },
+        physical_checks={
+            "positive_dimensions": bool(L is not None and lc is not None and la is not None),
+            "phi_c_in_range": bool(phi_valid),
+        },
+        source_ref=source_ref or "saxs_engine.compute_structure_params",
+    )
+
+
 def contract_json(value: Any) -> str:
     """Return a stable strict-JSON representation for audit persistence."""
     payload = value.to_dict() if hasattr(value, "to_dict") else _jsonable(value)
@@ -988,5 +1238,9 @@ __all__ = [
     "build_data_quality_report",
     "build_guinier_evidence",
     "build_guinier_sequence_evidence",
+    "build_porod_evidence",
+    "build_kratky_evidence",
+    "build_invariant_evidence",
+    "build_lamellar_evidence",
     "contract_json",
 ]

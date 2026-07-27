@@ -62,3 +62,12 @@ def build_lamellar_evidence(long_period: Any, structure: Any, *, quality_report:
 - [ ] Run the task-scoped verifier with an external basetemp and `git diff --check`.
 - [ ] Record exact focused/full/quality/preprocessing results and known limitations.
 - [ ] Use `scripts/auto_commit.py` with the explicit allowlist and no push/merge/deploy.
+
+## Execution status (2026-07-27)
+
+Implementation and verification are complete. The four conservative builders
+are attached to `SAXSResult.metric_evidence`; focused method coverage is `5`,
+the combined evidence/regression matrix is `34`, and the exact 37-file SAXS
+matrix is `242 passed` with four existing font warnings. The structured
+verifier passes quality `282` and preprocessing `103`; the atomic checkpoint is
+created after the task card and project memory record the evidence.

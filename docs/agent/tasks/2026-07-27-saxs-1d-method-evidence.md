@@ -32,15 +32,15 @@
 
 ## Acceptance criteria
 
-- [ ] 四个方法均输出严格 JSON-safe 的 `MetricEvidence` 字典，含来源、数值、
+- [x] 四个方法均输出严格 JSON-safe 的 `MetricEvidence` 字典，含来源、数值、
   点数/拟合证据、物理检查、风险码和等级。
-- [ ] `supported` 且证据充分时最高为 `Trend`；unknown/unsupported 最高为
+- [x] `supported` 且证据充分时最高为 `Trend`；unknown/unsupported 最高为
   `Diagnostic`；不可用输入为 `Unusable`。
-- [ ] Porod 斜率偏差、Kratky 峰/形状、invariant beamstop、层片方法缺失或
+- [x] Porod 斜率偏差、Kratky 峰/形状、invariant beamstop、层片方法缺失或
   不一致均被记录，不被静默吞掉，也不引入新硬阈值。
-- [ ] `SAXSResult` 保留原有 `porod`/`kratky`/`structure`，新增映射不破坏
+- [x] `SAXSResult` 保留原有 `porod`/`kratky`/`structure`，新增映射不破坏
   现有消费者。
-- [ ] focused、完整 SAXS、结构化 verifier、两道质量 gate 和原子 checkpoint
+- [x] focused、完整 SAXS、结构化 verifier、两道质量 gate 和原子 checkpoint
   均有实际证据。
 
 ## Verification
@@ -49,6 +49,17 @@
 $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_saxs_1d_method_verify'
 python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-1d-method-evidence.md --changed --types
 ```
+
+## Verification evidence (2026-07-27)
+
+- 方法 builder focused tests：`5 passed`；方法/Guinier/变温/评分/物理 helper/
+  质量契约/结果契约回归：`34 passed`。
+- 精确收集的 37 个 `tests/test_saxs_*.py` 文件：`242 passed, 4 warnings`
+  in `21.05s`；warning 仍是既有 SAXS figure Arial CJK glyph warning。
+- 结构化 verifier 通过：quality gate `282 passed`，preprocessing gate
+  `103 passed`，Ruff、compile、memory、task-card 和 whitespace checks 均通过。
+- 本阶段 checkpoint 使用显式 changed-file allowlist 创建，未 push、merge 或
+  deploy。
 
 ## Known limitations
 

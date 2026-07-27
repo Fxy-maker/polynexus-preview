@@ -1,5 +1,23 @@
 # Active Work
 
+## SAXS 1D method evidence Stage 3 - verification-ready 2026-07-27
+
+- Existing Porod, Kratky, invariant (`Q*`), and lamellar outputs now have
+  conservative read-only `MetricEvidence` builders. `SAXSResult` retains the
+  legacy payloads and adds JSON-safe `metric_evidence` entries for all four
+  methods; builder failures become diagnostic evidence without dropping the
+  legacy result.
+- Method evidence uses existing data-quality checks and explicit applicability;
+  it is capped at `Trend`. Porod slope deviation, Kratky peak evidence,
+  beamstop/invariant state, and lamellar missing/range fields are recorded as
+  evidence, not new unreviewed hard cutoffs.
+- Evidence: builder focused `5 passed`; combined method/Guinier/temperature/
+  physical/helper/result matrix `34 passed`; exact SAXS file matrix `242
+  passed, 4 warnings`; structured verifier quality `282`/preprocessing `103`.
+- Task card: `docs/agent/tasks/2026-07-27-saxs-1d-method-evidence.md`. Next
+  action is the atomic checkpoint, then propagation to temperature/strain and
+  Results Workbench remains a separate boundary.
+
 ## Real published-run walkthrough replay - verified 2026-07-27
 
 - Replayed `tests/test_real_published_run_walkthrough.py` on the current
