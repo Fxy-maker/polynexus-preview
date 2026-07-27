@@ -25,7 +25,10 @@ from .lc_path_selection import (
     select_lc_sequence_path,
 )
 from .preprocess import apply_thermal_correction
-from .saxs_quality_contracts import build_guinier_sequence_evidence
+from .saxs_quality_contracts import (
+    build_guinier_sequence_evidence,
+    build_series_metric_evidence,
+)
 from .saxs_sequence_rescue import build_sequence_rescue_candidates
 
 logger = logging.getLogger(__name__)
@@ -117,6 +120,7 @@ class TempSeriesResult:
     Rg_array: np.ndarray = None
     guinier_level_array: List[str] = field(default_factory=list)
     guinier_sequence_evidence: Dict = None
+    metric_evidence: Dict = None
     melting_window_status_array: List[str] = field(default_factory=list)
     lc_reliability_status_array: List[str] = field(default_factory=list)
     lc_path_status_array: List[str] = field(default_factory=list)
@@ -917,6 +921,11 @@ def analyze_temperature_series(
         result.L_array[i] = tp.L_nm
         result.lc_array[i] = tp.lc_nm
 
+    result.metric_evidence = build_series_metric_evidence(
+        [point.metric_evidence for point in result.temp_points],
+        metric_names=("porod", "kratky", "invariant", "lamellar"),
+        source_ref="saxs_temperature.metric_evidence",
+    )
     result.guinier_sequence_evidence = build_guinier_sequence_evidence(
         result.temperatures,
         [point.guinier_evidence for point in result.temp_points],

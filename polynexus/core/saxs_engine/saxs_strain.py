@@ -27,6 +27,7 @@ from .core import (
     lorentz_fit_long_period, analyze_single,
     LongPeriodResult, StructureParams, porod_analysis,
 )
+from .saxs_quality_contracts import build_series_metric_evidence
 
 
 class StrainPhase(Enum):
@@ -90,6 +91,7 @@ class StrainSeriesResult:
     Q_star_rel_array: np.ndarray = None
     f_herman_array: np.ndarray = None
     phi_void_array: np.ndarray = None
+    metric_evidence: Dict = None
 
     def get_phase_transition(self) -> Dict:
         """Return phase transition strains."""
@@ -486,6 +488,11 @@ def analyze_strain_series(
         result.lc_array[i] = sp.lc_nm
         result.la_array[i] = sp.la_nm
 
+    result.metric_evidence = build_series_metric_evidence(
+        [point.metric_evidence for point in result.strain_points],
+        metric_names=("porod", "kratky", "invariant", "lamellar"),
+        source_ref="saxs_strain.metric_evidence",
+    )
     result.phase_boundaries = phase_boundaries
 
     if verbose:

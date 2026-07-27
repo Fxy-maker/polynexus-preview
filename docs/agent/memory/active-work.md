@@ -1,5 +1,25 @@
 # Active Work
 
+## SAXS series metric evidence rollup - implementation checkpoint 2026-07-27
+
+- Added immutable `MetricEvidenceSummary` and
+  `build_series_metric_evidence` in the SAXS quality contract layer. The
+  builder summarizes only existing per-frame mappings, preserves missing and
+  invalid frames, caps complete series at `Trend`, and never mutates q/I or
+  frame evidence.
+- Temperature and strain series now expose `metric_evidence` summaries while
+  retaining all existing frame fields, numeric arrays, DataFrame rows, and
+  Export quality provenance. Focused contract/propagation/export evidence is
+  `11 passed`; the full SAXS matrix is `274 passed, 4 existing warnings`.
+- Explicit task-file Ruff/compile checks and repository quality gates pass
+  (`282`/`106`). The task verifier's changed-file phase is blocked by a
+  pre-existing GUI `E731` lambda assignment at
+  `polynexus/gui/main_window_shell_mixin.py:154`; that GUI change was not
+  touched or included.
+- Next action is to create the SAXS code checkpoint with the known verifier
+  limitation recorded. A separate GUI lint task is required before claiming a
+  green repository-wide changed-file verifier.
+
 ## SAXS candidate replay and calibration audit - checkpointed 2026-07-27
 
 - Every bounded SAXS preprocessing candidate now produces a JSON-safe,

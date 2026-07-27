@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import copy
 import json
 from types import SimpleNamespace
 
@@ -114,3 +115,41 @@ def test_export_saxs_bundle_persists_quality_evidence_and_ai_audit(tmp_path) -> 
     assert payload["static"]["orientation_evidence"]["level"] == "Diagnostic"
     assert payload["ai_rescue"]["plan"]["candidate_only"] is True
     assert payload["ai_rescue"]["decision"]["apply_allowed"] is False
+
+
+def test_export_saxs_bundle_preserves_series_and_frame_metric_evidence(tmp_path) -> None:
+    engine = _engine()
+    summary = {
+        "porod": {
+            "metric_name": "porod",
+            "frame_count": 2,
+            "evidence_frame_count": 1,
+            "usable_frame_count": 1,
+            "diagnostic_frame_count": 0,
+            "unusable_frame_count": 0,
+            "missing_frame_count": 1,
+            "coverage_fraction": 0.5,
+            "level": "Diagnostic",
+            "applicable": False,
+            "level_counts": {"Quantitative": 0, "Trend": 1, "Diagnostic": 0, "Unusable": 0},
+            "reason_codes": ["series_metric_missing_frames"],
+            "source_ref": "temperature.metric_evidence",
+        }
+    }
+    frame = {"porod": {"metric_name": "Porod", "level": "Trend", "source": "frame-0"}}
+    summary_before = copy.deepcopy(summary)
+    frame_before = copy.deepcopy(frame)
+    engine._temperature_result = SimpleNamespace(
+        metric_evidence=summary,
+        temp_points=[SimpleNamespace(metric_evidence=frame)],
+    )
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "series_quality"))
+
+    root = tmp_path / "series_quality"
+    payload = json.loads((root / "quality_evidence.json").read_text(encoding="utf-8"))
+    assert bundle.status == "ok"
+    assert payload["temperature"]["metric_evidence"]["porod"]["level"] == "Diagnostic"
+    assert payload["temperature"]["frames"][0]["metric_evidence"]["porod"]["level"] == "Trend"
+    assert summary == summary_before
+    assert frame == frame_before

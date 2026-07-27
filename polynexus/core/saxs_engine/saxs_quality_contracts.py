@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields, is_dataclass
 from enum import Enum
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from types import MappingProxyType
 from typing import Any
 
@@ -354,6 +354,45 @@ class MetricEvidence:
         data = dict(payload)
         data["level"] = _quality_level(data.get("level"))
         data["reason_codes"] = _string_tuple(data.get("reason_codes"))
+        return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
+
+
+@dataclass(frozen=True)
+class MetricEvidenceSummary:
+    """Conservative aggregation of one metric across a SAXS series."""
+
+    metric_name: str
+    frame_count: int = 0
+    evidence_frame_count: int = 0
+    usable_frame_count: int = 0
+    diagnostic_frame_count: int = 0
+    unusable_frame_count: int = 0
+    missing_frame_count: int = 0
+    coverage_fraction: float | None = None
+    level: QualityLevel = QualityLevel.UNUSABLE
+    applicable: bool = False
+    level_counts: Mapping[str, int] = field(default_factory=dict)
+    reason_codes: tuple[str, ...] = ()
+    source_ref: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "level_counts", _freeze(self.level_counts))
+        object.__setattr__(self, "reason_codes", _string_tuple(self.reason_codes))
+
+    def to_dict(self) -> dict[str, Any]:
+        return _contract_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "MetricEvidenceSummary":
+        data = dict(payload)
+        data["level"] = _quality_level(data.get("level"))
+        data["reason_codes"] = _string_tuple(data.get("reason_codes"))
+        raw_counts = data.get("level_counts")
+        data["level_counts"] = (
+            {str(key): int(value) for key, value in raw_counts.items()}
+            if isinstance(raw_counts, Mapping)
+            else {}
+        )
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -1472,6 +1511,110 @@ def build_orientation_evidence(
     )
 
 
+def build_series_metric_evidence(
+    frame_evidence: Iterable[Mapping[str, Any] | None] | None,
+    *,
+    metric_names: Iterable[str] | None = None,
+    source_ref: str = "",
+) -> dict[str, dict[str, Any]]:
+    """Summarize existing per-frame metric evidence without mutating it."""
+
+    frames = list(frame_evidence or ())
+    names = {str(name) for name in (metric_names or ()) if str(name)}
+    if metric_names is None:
+        for frame in frames:
+            if isinstance(frame, Mapping):
+                names.update(str(name) for name in frame if str(name))
+
+    summaries: dict[str, dict[str, Any]] = {}
+    for metric_name in sorted(names):
+        level_counts = {level.value: 0 for level in QualityLevel}
+        reasons: list[str] = []
+        evidence_frame_count = 0
+        usable_frame_count = 0
+        diagnostic_frame_count = 0
+        unusable_frame_count = 0
+        missing_frame_count = 0
+
+        for frame in frames:
+            payload = frame.get(metric_name) if isinstance(frame, Mapping) else None
+            if not isinstance(payload, Mapping):
+                missing_frame_count += 1
+                continue
+
+            evidence_frame_count += 1
+            raw_level = payload.get("level")
+            try:
+                level = raw_level if isinstance(raw_level, QualityLevel) else QualityLevel(str(raw_level))
+                valid_level = True
+            except (TypeError, ValueError):
+                level = QualityLevel.UNUSABLE
+                valid_level = False
+                if "series_metric_invalid_level" not in reasons:
+                    reasons.append("series_metric_invalid_level")
+
+            level_counts[level.value] += 1
+            if level in {QualityLevel.QUANTITATIVE, QualityLevel.TREND}:
+                usable_frame_count += 1
+            elif level is QualityLevel.DIAGNOSTIC:
+                diagnostic_frame_count += 1
+            else:
+                unusable_frame_count += 1
+
+            if not valid_level and "series_metric_unusable_frames" not in reasons:
+                reasons.append("series_metric_unusable_frames")
+
+        frame_count = len(frames)
+        coverage_fraction = (
+            float(evidence_frame_count / frame_count) if frame_count else None
+        )
+        if missing_frame_count:
+            reasons.append("series_metric_missing_frames")
+        if diagnostic_frame_count:
+            reasons.append("series_metric_diagnostic_frames")
+        if unusable_frame_count and "series_metric_unusable_frames" not in reasons:
+            reasons.append("series_metric_unusable_frames")
+
+        if frame_count == 0:
+            reasons.append("series_no_frames")
+            level = QualityLevel.UNUSABLE
+        elif evidence_frame_count == 0:
+            reasons.append("series_metric_missing_all_frames")
+            level = QualityLevel.UNUSABLE
+        elif usable_frame_count == 0:
+            level = QualityLevel.UNUSABLE
+        elif (
+            missing_frame_count
+            or diagnostic_frame_count
+            or unusable_frame_count
+            or frame_count < 2
+        ):
+            level = QualityLevel.DIAGNOSTIC
+            if frame_count < 2:
+                reasons.append("series_requires_multiple_frames")
+        else:
+            level = QualityLevel.TREND
+            if level_counts[QualityLevel.QUANTITATIVE.value]:
+                reasons.append("series_level_capped_at_trend")
+
+        summaries[metric_name] = MetricEvidenceSummary(
+            metric_name=metric_name,
+            frame_count=frame_count,
+            evidence_frame_count=evidence_frame_count,
+            usable_frame_count=usable_frame_count,
+            diagnostic_frame_count=diagnostic_frame_count,
+            unusable_frame_count=unusable_frame_count,
+            missing_frame_count=missing_frame_count,
+            coverage_fraction=coverage_fraction,
+            level=level,
+            applicable=bool(level is QualityLevel.TREND and coverage_fraction == 1.0),
+            level_counts=level_counts,
+            reason_codes=tuple(dict.fromkeys(reasons)),
+            source_ref=str(source_ref or ""),
+        ).to_dict()
+    return summaries
+
+
 def contract_json(value: Any) -> str:
     """Return a stable strict-JSON representation for audit persistence."""
     payload = value.to_dict() if hasattr(value, "to_dict") else _jsonable(value)
@@ -1484,6 +1627,7 @@ __all__ = [
     "GuinierEvidence",
     "GuinierSequenceEvidence",
     "MetricEvidence",
+    "MetricEvidenceSummary",
     "QualityLevel",
     "RescueCandidate",
     "RescueValidationReport",
@@ -1494,6 +1638,7 @@ __all__ = [
     "build_kratky_evidence",
     "build_invariant_evidence",
     "build_lamellar_evidence",
+    "build_series_metric_evidence",
     "build_detector_quality_report",
     "build_orientation_evidence",
     "contract_json",

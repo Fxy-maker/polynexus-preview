@@ -55,6 +55,9 @@ def test_temperature_propagates_frame_specific_evidence_and_keeps_failure_missin
     assert result.temp_points[0].metric_evidence["porod"]["source"] == "temperature-1"
     assert result.temp_points[1].metric_evidence is None
     assert result.temp_points[1].data_quality_report is None
+    assert result.metric_evidence["porod"]["level"] == "Diagnostic"
+    assert result.metric_evidence["porod"]["missing_frame_count"] == 1
+    assert result.metric_evidence["porod"]["applicable"] is False
     table = result.to_dataframe()
     assert "Metric_evidence_levels" in table.columns
     assert table.iloc[0]["Metric_evidence_levels"] == "invariant:Trend|kratky:Diagnostic|lamellar:Trend|porod:Trend"
@@ -86,5 +89,7 @@ def test_strain_propagates_evidence_without_creating_temperature_sequence_state(
     assert result.strain_points[0].metric_evidence["lamellar"]["source"] == "strain-1"
     assert result.strain_points[1].metric_evidence is None
     assert result.strain_points[0].data_quality_report["source_id"] == "strain-1"
+    assert result.metric_evidence["porod"]["level"] == "Diagnostic"
+    assert result.metric_evidence["porod"]["missing_frame_count"] == 1
     assert not hasattr(result, "guinier_sequence_evidence")
     assert "Metric_evidence_levels" in result.to_dataframe().columns

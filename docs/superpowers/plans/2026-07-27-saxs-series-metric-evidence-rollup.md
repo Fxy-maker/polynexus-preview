@@ -176,7 +176,7 @@ Extend the existing temperature test with:
 
 ```python
 assert result.metric_evidence["porod"]["level"] == "Diagnostic"
-assert result.metric_evidence["porod"]["missing_frame_count"] == 2
+assert result.metric_evidence["porod"]["missing_frame_count"] == 1
 assert result.metric_evidence["porod"]["applicable"] is False
 ```
 
@@ -293,3 +293,11 @@ No push, merge, deploy, or cleanup is part of this task.
   read-only.
 - The only planned source of series evidence is the existing frame payload, so
   missing frames cannot be fabricated.
+
+## Execution status
+
+- Tasks 1–4 are implemented and their focused tests pass (`11 passed`); the
+  complete SAXS test matrix passes (`274 passed, 4 existing warnings`).
+- The explicit SAXS-file Ruff/compile checks and repository quality gates pass.
+- Task-scoped `--changed` verification is blocked by the pre-existing GUI
+  `E731` described in the task card; it is not included in this SAXS change.

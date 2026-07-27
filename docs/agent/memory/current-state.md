@@ -7,6 +7,17 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS Stage 7e series metric evidence is implemented locally: temperature and
+  strain results now carry conservative per-metric summaries with coverage,
+  frame-level counts, explicit missing/diagnostic/unusable reasons, and a
+  Trend cap. Export keeps both series and frame evidence as read-only quality
+  provenance. Focused evidence is `11 passed`; the complete SAXS matrix is
+  `274 passed, 4 existing warnings`; quality/preprocessing gates are
+  `282`/`106`. The task-scoped changed-file verifier is blocked by the
+  pre-existing GUI `E731` at
+  `polynexus/gui/main_window_shell_mixin.py:154`, which remains untouched.
+  See `docs/agent/tasks/2026-07-27-saxs-series-metric-evidence-rollup.md`.
+
 - SAXS AI Stage 7d candidate replay/calibration is checkpointed: the shared
   orchestrator records JSON-safe static/temperature/strain candidate trials,
   preserves the control engine, and exports replay rows as audit-only quality
