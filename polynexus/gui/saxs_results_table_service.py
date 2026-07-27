@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -649,6 +650,133 @@ def _detector_evidence_review_text(
     return "", tr_for_language("RESULTS_REVIEW_NEXT", language, detail)
 
 
+def _data_quality_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Present existing q/I data-quality reports without reclassification."""
+
+    if not isinstance(payload, Mapping):
+        return "", ""
+
+    zh = language == "zh"
+    level_labels = {
+        "Quantitative": "定量",
+        "Trend": "趋势",
+        "Diagnostic": "诊断",
+        "Unusable": "不可用",
+    }
+
+    def _items(value: Any) -> tuple[str, ...]:
+        if isinstance(value, str):
+            values = (value,)
+        elif isinstance(value, (list, tuple)):
+            values = tuple(value)
+        else:
+            values = ()
+        return tuple(str(item).strip() for item in values if str(item).strip())
+
+    def _ordered_unique(values: list[str]) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(value for value in values if value))
+
+    reports: list[Mapping[str, Any]] = []
+    top_report = payload.get("data_quality_report")
+    if isinstance(top_report, Mapping):
+        reports.append(top_report)
+
+    batch_data = payload.get("_batch_data")
+    batch_rows = (
+        tuple(batch_data)
+        if isinstance(batch_data, (list, tuple))
+        else ()
+    )
+    batch_reports = tuple(
+        row["data_quality_report"]
+        for row in batch_rows
+        if isinstance(row, Mapping) and isinstance(row.get("data_quality_report"), Mapping)
+    )
+    if not reports and not batch_reports:
+        return "", ""
+
+    lines: list[str] = []
+    needs_review = False
+    for report in reports:
+        level = str(report.get("level") or "Unusable").strip() or "Unusable"
+        level_text = level_labels.get(level, level) if zh else level
+        parts = [f"{'数据质量' if zh else 'Data quality'}: {level_text}"]
+        source_id = str(report.get("source_id") or "").strip()
+        if source_id:
+            parts.append(f"{'来源' if zh else 'source'}={source_id}")
+        for ref_key, label in (
+            ("raw_data_ref", "原始引用" if zh else "raw ref"),
+            ("processed_data_ref", "处理后引用" if zh else "processed ref"),
+            ("processing_config_ref", "处理配置引用" if zh else "config ref"),
+        ):
+            ref = str(report.get(ref_key) or "").strip()
+            if ref:
+                parts.append(f"{label}={ref}")
+
+        try:
+            original_count = int(report.get("original_point_count"))
+            usable_count = int(report.get("usable_point_count"))
+            invalid_count = int(report.get("invalid_point_count"))
+        except (TypeError, ValueError):
+            original_count = usable_count = invalid_count = None
+        if original_count is not None and usable_count is not None:
+            parts.append(
+                f"{'可用点' if zh else 'usable points'}={usable_count}/{original_count}"
+            )
+        if invalid_count is not None:
+            parts.append(f"{'无效点' if zh else 'invalid'}={invalid_count}")
+
+        reasons = _items(report.get("reason_codes"))
+        actions = _items(report.get("actions"))
+        if reasons:
+            parts.append(f"{'原因' if zh else 'reasons'}=" + ",".join(reasons[:5]))
+        if actions:
+            parts.append(f"{'动作' if zh else 'actions'}=" + ",".join(actions[:5]))
+        lines.append("; ".join(parts))
+        needs_review = needs_review or level in {"Diagnostic", "Unusable"} or bool(reasons)
+
+    if batch_data is not None and batch_rows:
+        level_counts = Counter(
+            str(report.get("level") or "Unusable").strip() or "Unusable"
+            for report in batch_reports
+        )
+        batch_reasons = _ordered_unique(
+            [reason for report in batch_reports for reason in _items(report.get("reason_codes"))]
+        )
+        batch_actions = _ordered_unique(
+            [action for report in batch_reports for action in _items(report.get("actions"))]
+        )
+        coverage = f"{len(batch_reports)}/{len(batch_rows)}"
+        level_text = ", ".join(
+            f"{level_labels.get(level, level) if zh else level}={count}"
+            for level, count in level_counts.items()
+        )
+        batch_line = f"{'数据质量帧' if zh else 'Data-quality frames'}: {coverage}"
+        if level_text:
+            batch_line += f"; {'等级' if zh else 'levels'}={level_text}"
+        if batch_reasons:
+            batch_line += f"; {'原因' if zh else 'reasons'}=" + ",".join(batch_reasons[:5])
+        if batch_actions:
+            batch_line += f"; {'动作' if zh else 'actions'}=" + ",".join(batch_actions[:5])
+        lines.append(batch_line)
+        needs_review = needs_review or len(batch_reports) < len(batch_rows) or bool(batch_reasons)
+
+    detail = " | ".join(lines)
+    risk = tr_for_language("RESULTS_REVIEW_RISK", language, detail) if needs_review else ""
+    next_text = tr_for_language(
+        "RESULTS_REVIEW_NEXT",
+        language,
+        "Review q/I data quality sources, reasons, and actions before interpretation; existing SAXS physical gates remain authoritative"
+        if not zh
+        else "解释前请先复核 q/I 数据质量来源、原因和处理动作；现有 SAXS 物理门槛仍然有效",
+    )
+    return risk, next_text
+
+
 def _condition_axis_review_text(
     payload: Mapping[str, Any],
     *,
@@ -1153,11 +1281,31 @@ def build_saxs_results_presentation(
         payload,
         language=target_language,
     )
+    data_quality_risk, data_quality_next = _data_quality_review_text(
+        payload,
+        language=target_language,
+    )
     risk_text = " ".join(
-        text for text in (axis_risk, metric_risk, sequence_risk, detector_risk) if text
+        text
+        for text in (
+            axis_risk,
+            metric_risk,
+            sequence_risk,
+            detector_risk,
+            data_quality_risk,
+        )
+        if text
     )
     next_text = " ".join(
-        text for text in (axis_next, metric_next, sequence_next, detector_next) if text
+        text
+        for text in (
+            axis_next,
+            metric_next,
+            sequence_next,
+            detector_next,
+            data_quality_next,
+        )
+        if text
     )
 
     row_count = len(rows)

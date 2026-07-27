@@ -1,5 +1,27 @@
 # Active Work
 
+## SAXS DataQualityReport Workbench visibility - ready for checkpoint - 2026-07-28
+
+- The Results Workbench now presents the existing q/I `DataQualityReport` as
+  read-only advisory context across static, temperature, and strain payloads.
+  Top-level reports show existing level, source/data refs, point counts,
+  reasons, and actions. Batch payloads show only reported-frame coverage,
+  emitted level counts, and first-seen reason/action summaries.
+- Malformed or missing reports remain absent; one frame's report is never
+  copied to another row. Presentation is non-mutating and does not alter q/I
+  cleaning, thresholds, physical gates, rescue, AI, or publication roles.
+- TDD RED covered missing batch-summary boundaries and the raw-reference field;
+  GREEN/focused evidence is `59 passed`. The task-scoped verifier with external
+  basetemp exited `0`: quality `283`, preprocessing `106`, task/memory, Ruff,
+  compile/type baseline, and whitespace checks passed. Full/boundary coverage
+  was not run for this slice.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-data-quality-workbench-visibility.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-data-quality-workbench-visibility-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-data-quality-workbench-visibility.md`.
+- The explicit seven-file checkpoint is the next action; no push, merge,
+  release, or scientific/publication approval is implied.
+
 ## SAXS DataQualityReport DataFrame and CSV export - 2026-07-28
 
 - The existing q/I `DataQualityReport` is now projected into temperature and

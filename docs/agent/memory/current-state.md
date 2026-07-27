@@ -1,5 +1,23 @@
 ---
 
+## SAXS DataQualityReport Workbench visibility (2026-07-28)
+
+- The Results Workbench now shows existing q/I `DataQualityReport` provenance
+  as read-only review context for static, temperature, and strain payloads.
+  Top-level reports expose level, source and data refs, counts, reasons, and
+  actions; batch payloads expose reported-frame coverage, emitted level counts,
+  and ordered reason/action summaries.
+- Missing or malformed reports remain absent; batch rows are never copied into
+  top-level detail, and the presentation does not mutate payloads or change
+  cleaning, thresholds, physical gates, rescue, AI, or publication semantics.
+- Fresh evidence: focused Workbench/SAXS matrix `59 passed`; the structured
+  verifier exited `0` with quality `283`, preprocessing `106`, Ruff,
+  compile/type baseline, memory/task, and whitespace checks. Full/boundary
+  verification was not run for this slice.
+- Task/spec/plan: `docs/agent/tasks/2026-07-28-saxs-data-quality-workbench-visibility.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-data-quality-workbench-visibility-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-data-quality-workbench-visibility.md`.
+
 ## SAXS DataQualityReport DataFrame and CSV export (2026-07-28)
 
 - Temperature/strain tables and static parameter CSV projections now expose

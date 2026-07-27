@@ -234,6 +234,116 @@ def test_detector_quality_review_localizes_provenance_and_keeps_sector_map_separ
     assert "mask source=should-not-be-projected" not in chinese_text
 
 
+def test_data_quality_review_shows_top_level_report() -> None:
+    params = {
+        "data_quality_report": {
+            "source_id": "frame-7",
+            "raw_data_ref": "raw/frame-7.edf",
+            "level": "Trend",
+            "original_point_count": 24,
+            "usable_point_count": 18,
+            "invalid_point_count": 6,
+            "reason_codes": ["q_duplicate", "low_q_truncated"],
+            "actions": ["drop_nonfinite", "truncate_low_q"],
+        }
+    }
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, submodule="saxs.static", language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "data quality" in review_text.lower()
+    assert "Trend" in review_text
+    assert "frame-7" in review_text
+    assert "raw/frame-7.edf" in review_text
+    assert "18/24" in review_text
+    assert "invalid=6" in review_text
+    assert "q_duplicate" in review_text
+    assert "drop_nonfinite" in review_text
+    assert "Review q/I data quality" in review_text
+    assert params == before
+
+
+def test_data_quality_review_shows_batch_coverage_and_missing_rows() -> None:
+    params = {
+        "_batch_data": [
+            {
+                "source_index": 4,
+                "data_quality_report": {
+                    "source_id": "frame-4",
+                    "level": "Diagnostic",
+                    "original_point_count": 12,
+                    "usable_point_count": 8,
+                    "invalid_point_count": 4,
+                    "reason_codes": ["q_nonmonotonic"],
+                    "actions": ["sort_for_analysis"],
+                },
+            },
+            {"source_index": 9},
+        ]
+    }
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, submodule="saxs.temperature", language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "1/2" in review_text
+    assert "Diagnostic" in review_text
+    assert "q_nonmonotonic" in review_text
+    assert "sort_for_analysis" in review_text
+    assert "source_index=9" not in review_text
+    assert params == before
+
+
+def test_data_quality_review_summarizes_batch_once_when_top_level_report_is_malformed() -> None:
+    params = {
+        "data_quality_report": "not-a-report",
+        "_batch_data": [
+            {
+                "data_quality_report": {
+                    "source_id": "frame-4",
+                    "level": "Diagnostic",
+                    "reason_codes": ["q_nonmonotonic"],
+                    "actions": ["sort_for_analysis"],
+                },
+            },
+            {},
+        ],
+    }
+
+    presentation = _build(params, submodule="saxs.temperature", language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "Data-quality frames: 1/2" in review_text
+    assert "levels=Diagnostic=1" in review_text
+    assert "q_nonmonotonic" in review_text
+    assert "sort_for_analysis" in review_text
+    assert "Data quality: Diagnostic" not in review_text
+
+
+def test_data_quality_review_localizes_without_mutating_payload() -> None:
+    params = {
+        "data_quality_report": {
+            "source_id": "frame-1",
+            "level": "Unusable",
+            "original_point_count": 4,
+            "usable_point_count": 2,
+            "invalid_point_count": 2,
+            "reason_codes": ["insufficient_points"],
+            "actions": [],
+        }
+    }
+    before = copy.deepcopy(params)
+
+    chinese = _build(params, language="zh")
+    chinese_text = f"{chinese.risk_text} {chinese.next_text}"
+
+    assert "insufficient_points" in chinese_text
+    assert "Data quality" not in chinese_text
+    assert "Unusable" not in chinese_text
+    assert params == before
+
+
 def test_temperature_primary_uses_effective_lc_source_status_and_unavailable_text() -> None:
     presentation = _build(
         {
