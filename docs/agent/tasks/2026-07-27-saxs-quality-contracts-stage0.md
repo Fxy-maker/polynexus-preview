@@ -67,6 +67,13 @@ scientific acceptance. Those remain separate stages under
 - `polynexus/core/saxs_engine/saxs_quality_contracts.py`
 - `tests/test_saxs_quality_contracts.py`
 - `tests/fixtures/saxs_quality_cases.py`
+- `tests/fixtures/__init__.py`
 - this task card
+- `docs/superpowers/plans/2026-07-26-saxs-quality-contracts.md`
 - `docs/agent/memory/active-work.md`
 - `docs/agent/memory/current-state.md`
+
+## Checkpoint
+
+- Atomic implementation checkpoint already present at `556f006`:
+  `feat(saxs): add quality evidence contracts`.
