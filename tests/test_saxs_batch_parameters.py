@@ -198,6 +198,31 @@ def test_saxs_batch_without_series_result_uses_aligned_batch_scope() -> None:
     assert params["metric_evidence_scope"] == "aligned_batch"
 
 
+def test_saxs_temperature_get_parameters_transports_sequence_evidence() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
+
+    sequence = {
+        "frame_count": 2,
+        "valid_frame_count": 2,
+        "frame_source_indices": [1, 0],
+        "level": "Trend",
+        "reason_codes": [],
+    }
+    engine._temperature_result = TempSeriesResult(  # type: ignore[attr-defined]
+        temperatures=np.asarray([170.0, 180.0]),
+        lc_array=np.asarray([3.0, 3.1]),
+        lc_effective_array=np.asarray([3.0, 3.1]),
+        guinier_sequence_evidence=sequence,
+    )
+
+    params = engine.get_parameters()
+
+    assert params["guinier_sequence_evidence"] == sequence
+
+
 def test_saxs_batch_export_row_keeps_status_fields() -> None:
     result = SimpleNamespace(
         label="frame_001",

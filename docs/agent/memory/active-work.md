@@ -1,5 +1,37 @@
 # Active Work
 
+## SAXS temperature Guinier sequence evidence transport - implementation checkpoint pending 2026-07-27
+
+- The existing observational `build_guinier_sequence_evidence()` contract now
+  carries optional `frame_source_indices` without changing its level logic,
+  q-based frame evidence, or interpolation/repair policy. A mismatched source
+  list remains explicitly Diagnostic with a reason code.
+- Temperature analysis passes the existing sorted point order plus each
+  `TemperaturePointResult.source_index`; the DataFrame exposes `source_index`.
+  Temperature `get_parameters()` and the existing quality-copy path now retain
+  detailed sequence evidence. Export already had the pass-through field, and a
+  regression locks its source mapping.
+- Workbench review now shows sequence level, valid/total counts,
+  missing/diagnostic counts, source indices, and reason codes as advisory
+  diagnostic evidence. It explicitly asks users to confirm frame-level SAXS
+  physical indicators and quality gates; it does not enable rescue or promote
+  evidence.
+- TDD evidence: RED was `5 failed, 51 passed`; GREEN/focused post-change was
+  `56 passed`. Complete SAXS matrix was `311 passed, 4 warnings`. Isolated
+  task-scoped verification passed task/memory, Ruff, compile/type baseline,
+  quality `282`, preprocessing `106`, and whitespace checks.
+- A fresh full/boundary verifier was started with an isolated basetemp but
+  exceeded the tool's `124` second window while still in the
+  `verify.py -> quality_gate.py --all-tests -> pytest -q` chain. It was
+  terminated without a final count, so no full/boundary pass is claimed for
+  this modification.
+- Task/spec/plan: `docs/agent/tasks/2026-07-27-saxs-temperature-guinier-sequence-transport.md`,
+  `docs/superpowers/specs/2026-07-27-saxs-temperature-guinier-sequence-evidence-design.md`,
+  and `docs/superpowers/plans/2026-07-27-saxs-temperature-guinier-sequence-evidence.md`.
+- Next action is final allowlist review and checkpoint; real-data scientific
+  sign-off, AI execution/calibration, detector/geometry acceptance, and final
+  release review remain open.
+
 ## SAXS aligned-batch evidence mode resilience - implementation checkpoint 2026-07-27
 
 - Generic aligned `_batch_results` serialization now preserves existing

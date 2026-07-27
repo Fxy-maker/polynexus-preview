@@ -190,6 +190,7 @@ class TempSeriesResult:
             rescue = rescue_by_frame.get(frame_index)
             rows.append({
                 'Temperature(C)': tp.temperature_C,
+                'source_index': int(tp.source_index) if int(tp.source_index) >= 0 else None,
                 'Phase': tp.phase.name,
                 'L(nm)': round(tp.L_nm, 2) if np.isfinite(tp.L_nm) else None,
                 'lc(nm)': round(tp.lc_nm, 2) if np.isfinite(tp.lc_nm) else None,
@@ -971,6 +972,7 @@ def analyze_temperature_series(
     result.guinier_sequence_evidence = build_guinier_sequence_evidence(
         result.temperatures,
         [point.guinier_evidence for point in result.temp_points],
+        source_indices=[point.source_index for point in result.temp_points],
         source_ref="saxs_temperature.guinier_sequence",
     ).to_dict()
 

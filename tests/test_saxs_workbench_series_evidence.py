@@ -44,6 +44,31 @@ def _series_params() -> dict:
     }
 
 
+def test_workbench_renders_temperature_guinier_sequence_diagnostics():
+    params = _series_params()
+    params["guinier_sequence_evidence"] = {
+        "frame_count": 3,
+        "valid_frame_count": 2,
+        "missing_frame_indices": [1],
+        "diagnostic_frame_indices": [],
+        "frame_source_indices": [4, 7, 9],
+        "level": "Diagnostic",
+        "reason_codes": ["guinier_sequence_missing_frames"],
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "Rg sequence" in review_text
+    assert "Diagnostic" in review_text
+    assert "2/3" in review_text
+    assert "source indices" in review_text
+    assert "guinier_sequence_missing_frames" in review_text
+    assert "physical pass" not in review_text.lower()
+
+
 def test_temperature_get_parameters_transports_existing_series_evidence_without_mutation():
     engine = SAXSEngine(SAXSConfig())
     summary = {"porod": _series_metric_summary()}

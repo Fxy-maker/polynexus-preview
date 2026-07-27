@@ -102,6 +102,26 @@ def test_temperature_series_attaches_sequence_guinier_evidence(monkeypatch):
     assert set(frame_table["Rg_sequence_level"]) == {"Trend"}
 
 
+def test_temperature_sequence_evidence_retains_original_source_indices_after_sort(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_temperature as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    intensity = 120.0 * np.exp(-(q**2) * 4.0**2 / 3.0)
+
+    monkeypatch.setattr(module, "analyze_single", lambda q_arr, i_arr, cfg: _fake_frame_result(q_arr, i_arr))
+    monkeypatch.setattr(module, "scattering_invariant", lambda q_arr, i_arr, cfg=None: 1.0)
+    monkeypatch.setattr(module, "bragg_long_period", lambda q_arr, i_arr: (10.0, 0.628, {}))
+
+    result = analyze_temperature_series(
+        [180.0, 170.0], [q, q], [intensity, intensity], cfg=SAXSConfig()
+    )
+
+    assert [point.temperature_C for point in result.temp_points] == [170.0, 180.0]
+    assert [point.source_index for point in result.temp_points] == [1, 0]
+    assert result.guinier_sequence_evidence["frame_source_indices"] == [1, 0]
+    assert list(result.to_dataframe()["source_index"]) == [1, 0]
+
+
 def test_temperature_series_exposes_existing_lc_alternative_as_candidate_only(monkeypatch):
     import polynexus.core.saxs_engine.saxs_temperature as module
 

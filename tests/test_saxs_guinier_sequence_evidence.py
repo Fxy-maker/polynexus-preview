@@ -110,3 +110,27 @@ def test_sequence_evidence_round_trips_from_json_safe_payload():
     assert restored.valid_frame_count == evidence.valid_frame_count
     assert restored.metric is not None
     assert restored.metric.metric_name == "Rg_sequence"
+
+
+def test_sequence_evidence_preserves_frame_source_indices_through_json_round_trip():
+    evidence = build_guinier_sequence_evidence(
+        [170.0, 180.0],
+        [_frame(4.0), _frame(4.2)],
+        source_indices=[7, 3],
+    )
+
+    assert evidence.frame_source_indices == (7, 3)
+    restored = GuinierSequenceEvidence.from_dict(evidence.to_dict())
+    assert restored.frame_source_indices == (7, 3)
+
+
+def test_sequence_evidence_source_index_length_mismatch_is_diagnostic():
+    evidence = build_guinier_sequence_evidence(
+        [170.0, 180.0],
+        [_frame(4.0), _frame(4.2)],
+        source_indices=[7],
+    )
+
+    assert evidence.frame_source_indices == (7,)
+    assert evidence.level is QualityLevel.DIAGNOSTIC
+    assert "guinier_sequence_source_index_mismatch" in evidence.reason_codes

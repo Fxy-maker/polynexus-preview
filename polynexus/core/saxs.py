@@ -1732,6 +1732,11 @@ class SAXSEngine(BaseEngine):
             metric_evidence = _series_metric_evidence_payload(tr)
             if metric_evidence:
                 params["metric_evidence"] = metric_evidence
+            sequence_evidence = _saxs_batch_helpers.copy_saxs_quality_evidence(tr).get(
+                "guinier_sequence_evidence"
+            )
+            if sequence_evidence is not None:
+                params["guinier_sequence_evidence"] = sequence_evidence
             for field_name in ("detector_quality_report", "orientation_evidence"):
                 copied = _saxs_batch_helpers.copy_saxs_quality_evidence(tr).get(field_name)
                 if copied is not None:

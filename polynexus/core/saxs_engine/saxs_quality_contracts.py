@@ -441,6 +441,7 @@ class GuinierSequenceEvidence:
     duplicate_temperature_indices: tuple[int, ...] = ()
     nonmonotonic_temperature_indices: tuple[int, ...] = ()
     continuity_break_indices: tuple[int, ...] = ()
+    frame_source_indices: tuple[int, ...] = ()
     temperature_min_C: float | None = None
     temperature_max_C: float | None = None
     rg_min_nm: float | None = None
@@ -458,6 +459,7 @@ class GuinierSequenceEvidence:
         object.__setattr__(self, "duplicate_temperature_indices", _int_tuple(self.duplicate_temperature_indices))
         object.__setattr__(self, "nonmonotonic_temperature_indices", _int_tuple(self.nonmonotonic_temperature_indices))
         object.__setattr__(self, "continuity_break_indices", _int_tuple(self.continuity_break_indices))
+        object.__setattr__(self, "frame_source_indices", _int_tuple(self.frame_source_indices))
         object.__setattr__(self, "relative_change_stats", _freeze(self.relative_change_stats))
 
     def to_dict(self) -> dict[str, Any]:
@@ -473,6 +475,7 @@ class GuinierSequenceEvidence:
             "duplicate_temperature_indices",
             "nonmonotonic_temperature_indices",
             "continuity_break_indices",
+            "frame_source_indices",
         ):
             data[key] = _int_tuple(data.get(key))
         data["level"] = _quality_level(data.get("level"))
@@ -1012,6 +1015,7 @@ def build_guinier_sequence_evidence(
     temperatures: Any,
     frame_evidence: Any,
     *,
+    source_indices: Any = None,
     source_ref: str = "",
 ) -> GuinierSequenceEvidence:
     """Summarize Rg evidence across observed temperature frames.
@@ -1027,6 +1031,10 @@ def build_guinier_sequence_evidence(
     except TypeError:
         frames = []
     frame_count = max(int(temperature_arr.size), len(frames))
+    frame_source_indices = _int_tuple(source_indices)
+    source_index_mapping_mismatch = (
+        source_indices is not None and len(frame_source_indices) != frame_count
+    )
 
     reasons: list[str] = []
     missing_indices: list[int] = []
@@ -1043,6 +1051,8 @@ def build_guinier_sequence_evidence(
         frame_count = max(int(temperature_arr.size), len(frames))
     if temperature_arr.size != len(frames):
         reasons.append("guinier_sequence_length_mismatch")
+    if source_index_mapping_mismatch:
+        reasons.append("guinier_sequence_source_index_mismatch")
 
     for index in range(frame_count):
         temperature = float(temperature_arr[index]) if index < temperature_arr.size else np.nan
@@ -1121,7 +1131,13 @@ def build_guinier_sequence_evidence(
 
     if not valid_indices:
         level = QualityLevel.UNUSABLE
-    elif len(valid_indices) < 2 or invalid_temperature_indices or duplicate_temperature_indices or nonmonotonic_temperature_indices:
+    elif (
+        len(valid_indices) < 2
+        or invalid_temperature_indices
+        or duplicate_temperature_indices
+        or nonmonotonic_temperature_indices
+        or source_index_mapping_mismatch
+    ):
         level = QualityLevel.DIAGNOSTIC
     else:
         level = QualityLevel.TREND
@@ -1137,6 +1153,17 @@ def build_guinier_sequence_evidence(
         "max_absolute_relative_change": float(max(relative_changes)) if relative_changes else 0.0,
         "relative_changes": tuple(relative_changes),
         "pair_indices": tuple(zip(valid_indices, valid_indices[1:])),
+        "frame_source_indices": frame_source_indices,
+        "pair_source_indices": (
+            tuple(
+                zip(
+                    [frame_source_indices[index] for index in valid_indices],
+                    [frame_source_indices[index] for index in valid_indices[1:]],
+                )
+            )
+            if len(frame_source_indices) == frame_count
+            else ()
+        ),
         "local_deviation_median": _finite_or_none(baseline),
         "local_deviation_mad": _finite_or_none(mad),
         "local_deviation_threshold": _finite_or_none(threshold),
@@ -1157,6 +1184,7 @@ def build_guinier_sequence_evidence(
             "temperature_axis_valid": not bool(
                 invalid_temperature_indices or duplicate_temperature_indices or nonmonotonic_temperature_indices
             ),
+            "source_index_mapping_valid": not source_index_mapping_mismatch,
             "interpolation_used": False,
             "continuity_break_count": len(continuity_break_indices),
         },
@@ -1174,6 +1202,7 @@ def build_guinier_sequence_evidence(
         duplicate_temperature_indices=tuple(sorted(set(duplicate_temperature_indices))),
         nonmonotonic_temperature_indices=tuple(nonmonotonic_temperature_indices),
         continuity_break_indices=tuple(continuity_break_indices),
+        frame_source_indices=frame_source_indices,
         temperature_min_C=float(min(temperature_values)) if temperature_values else None,
         temperature_max_C=float(max(temperature_values)) if temperature_values else None,
         rg_min_nm=float(min(rg_values)) if rg_values else None,

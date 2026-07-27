@@ -7,6 +7,17 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS temperature Guinier sequence evidence transport is implemented in the
+  working tree: existing sequence evidence now retains optional original frame
+  indices, survives temperature sorting, reaches parameters/History/Export,
+  and is rendered in Workbench as advisory diagnostics. No new physical
+  threshold, interpolation, frame repair, AI action, or publication behavior
+  was added. Focused evidence is `56 passed`; the complete SAXS matrix is `311
+  passed, 4 warnings`; task-scoped quality/preprocessing gates are `282`/`106`.
+  The fresh full/boundary run timed out before a final count and is not claimed
+  as passed. Task card:
+  `docs/agent/tasks/2026-07-27-saxs-temperature-guinier-sequence-transport.md`.
+
 - SAXS aligned-batch evidence resilience is implemented in the working tree:
   when a generic multi-frame payload has a non-static temperature/strain label
   but no dedicated series result, existing frame evidence is preserved and the

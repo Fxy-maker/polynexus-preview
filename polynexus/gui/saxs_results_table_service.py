@@ -470,6 +470,70 @@ def _series_metric_review_text(
     return "", tr_for_language("RESULTS_REVIEW_NEXT", language, detail)
 
 
+def _guinier_sequence_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Present existing temperature Guinier sequence evidence as advisory review."""
+
+    sequence = payload.get("guinier_sequence_evidence") if isinstance(payload, Mapping) else None
+    if not isinstance(sequence, Mapping):
+        return "", ""
+
+    zh = language == "zh"
+    level = str(sequence.get("level") or "Unusable").strip() or "Unusable"
+
+    def _count(key: str) -> int:
+        try:
+            return max(0, int(sequence.get(key, 0) or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    frame_count = _count("frame_count")
+    valid_count = _count("valid_frame_count")
+    missing = sequence.get("missing_frame_indices")
+    diagnostic = sequence.get("diagnostic_frame_indices")
+    source_indices = sequence.get("frame_source_indices")
+    missing_count = len(missing) if isinstance(missing, (list, tuple)) else 0
+    diagnostic_count = len(diagnostic) if isinstance(diagnostic, (list, tuple)) else 0
+    source_text = (
+        ",".join(str(item) for item in source_indices)
+        if isinstance(source_indices, (list, tuple))
+        else "unavailable"
+    )
+    reasons = sequence.get("reason_codes")
+    if isinstance(reasons, str):
+        reasons = (reasons,)
+    elif not isinstance(reasons, (list, tuple)):
+        reasons = ()
+    reason_text = ",".join(str(reason) for reason in reasons if str(reason).strip())
+    detail = (
+        f"{'Rg sequence' if not zh else 'Rg序列'}: {level} ({valid_count}/{frame_count}); "
+        f"{'missing' if not zh else '缺帧'}={missing_count}; "
+        f"{'diagnostic' if not zh else '诊断帧'}={diagnostic_count}; "
+        f"{'source indices' if not zh else '来源索引'}=[{source_text}]"
+    )
+    if reason_text:
+        detail += f"; {'reasons' if not zh else '原因'}={reason_text}"
+
+    needs_review = bool(
+        level in {"Diagnostic", "Unusable"}
+        or missing_count
+        or diagnostic_count
+        or reason_text
+    )
+    risk = tr_for_language("RESULTS_REVIEW_RISK", language, detail) if needs_review else ""
+    next_text = tr_for_language(
+        "RESULTS_REVIEW_NEXT",
+        language,
+        "Use Rg sequence evidence only as an advisory diagnostic; confirm frame-level SAXS physical and quality gates before interpretation"
+        if not zh
+        else "Rg序列证据仅作诊断性趋势提示；解释前须复核逐帧SAXS物理指标和质量门槛",
+    )
+    return risk, next_text
+
+
 def _field_column(field: ResultFieldSpec, *, language: str) -> TableColumn:
     alignment = "right" if field.digits is not None or bool(field.unit) else "left"
     return TableColumn(
@@ -795,10 +859,16 @@ def build_saxs_results_presentation(
         template,
         language=target_language,
     )
-    risk_text, next_text = _series_metric_review_text(
+    metric_risk, metric_next = _series_metric_review_text(
         payload,
         language=target_language,
     )
+    sequence_risk, sequence_next = _guinier_sequence_review_text(
+        payload,
+        language=target_language,
+    )
+    risk_text = " ".join(text for text in (metric_risk, sequence_risk) if text)
+    next_text = " ".join(text for text in (metric_next, sequence_next) if text)
 
     row_count = len(rows)
     has_rows = row_count > 0

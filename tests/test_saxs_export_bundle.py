@@ -203,3 +203,26 @@ def test_export_saxs_bundle_marks_missing_temperature_series_as_aligned_batch(tm
     )
     assert bundle.status == "ok"
     assert payload["static"]["metric_evidence_scope"] == "aligned_batch"
+
+
+def test_export_saxs_bundle_preserves_temperature_guinier_sequence_source_indices(tmp_path) -> None:
+    engine = _engine()
+    engine._temperature_result = SimpleNamespace(
+        guinier_sequence_evidence={
+            "frame_count": 2,
+            "valid_frame_count": 2,
+            "frame_source_indices": [1, 0],
+            "level": "Trend",
+        },
+        temp_points=[],
+    )
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "temperature_sequence"))
+
+    payload = json.loads(
+        (tmp_path / "temperature_sequence" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["temperature"]["guinier_sequence_evidence"]["frame_source_indices"] == [1, 0]

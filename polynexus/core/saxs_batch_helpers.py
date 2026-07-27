@@ -21,6 +21,7 @@ _QUALITY_EVIDENCE_FIELDS = (
     "metric_evidence",
     "detector_quality_report",
     "orientation_evidence",
+    "guinier_sequence_evidence",
 )
 
 
