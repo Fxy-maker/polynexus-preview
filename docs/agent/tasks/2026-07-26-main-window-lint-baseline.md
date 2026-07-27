@@ -28,7 +28,7 @@ module access.
 - [x] Ruff reports no errors for `main_window.py` without broad noqa suppression.
 - [x] MainWindow-focused regression remains green.
 - [x] Structured verifier reaches and passes its quality/preprocessing gates.
-- [ ] An allowlisted checkpoint is created.
+- [x] An allowlisted checkpoint is created.
 
 ## Implementation plan
 
@@ -52,3 +52,7 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-26-main-window-lint-bas
 - `tests/test_main_window_persistence.py`: 197 passed.
 - Structured verifier: quality gate 282 passed; preprocessing gate 103
   passed; Ruff, compile, type baseline, memory, and whitespace checks passed.
+
+## Checkpoint
+
+- Atomic checkpoint: `cbb3077`.
