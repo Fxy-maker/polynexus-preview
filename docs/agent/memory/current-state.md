@@ -7,6 +7,16 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS AI Stage 7d candidate replay/calibration is checkpointed: the shared
+  orchestrator records JSON-safe static/temperature/strain candidate trials,
+  preserves the control engine, and exports replay rows as audit-only quality
+  provenance. Calibration blockers cover incomplete expert cases, coverage,
+  hard-guard false accepts, and expert disagreement. Focused replay evidence
+  is `31 passed`; current-HEAD full/boundary evidence is `2671 passed, 10
+  warnings` with boundary audit passed. Real model calls, confirmed reruns,
+  expert-labelled promotion, and human scientific/GUI release review remain
+  open.
+
 - SAXS AI Stage 7c now tells the model the full policy-protected feature list
   and explicitly requires all seven SAXS features before an intent can be
   accepted. Prompt regression evidence is `20 passed`; core validation still

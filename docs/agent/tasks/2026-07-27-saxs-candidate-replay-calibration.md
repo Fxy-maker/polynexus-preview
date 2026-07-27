@@ -29,17 +29,17 @@ promotion until expert-labelled evidence is available.
 
 ## Acceptance criteria
 
-- [ ] Every SAXS candidate trial has a JSON-safe replay audit row containing
+- [x] Every SAXS candidate trial has a JSON-safe replay audit row containing
   candidate identity, mode, config hashes, run status, existing evidence,
   decision, and explicit application flags.
-- [ ] Static, temperature, and strain success/failure paths preserve the
+- [x] Static, temperature, and strain success/failure paths preserve the
   control engine and never fabricate absent frame/sequence evidence.
-- [ ] Default shadow and confirm-only behavior remains unchanged; replay rows
+- [x] Default shadow and confirm-only behavior remains unchanged; replay rows
   cannot authorize application.
-- [ ] Calibration cases and report validation reject no-case, low-coverage,
+- [x] Calibration cases and report validation reject no-case, low-coverage,
   false-accept, disagreement, version-mismatch, and hash-mismatch promotion.
-- [ ] Existing SAXS physical/quality gates remain the only acceptance basis.
-- [ ] Task verifier and the full current-HEAD verifier pass after the change.
+- [x] Existing SAXS physical/quality gates remain the only acceptance basis.
+- [x] Task verifier and the full current-HEAD verifier pass after the change.
 
 ## Implementation plan
 
@@ -77,3 +77,26 @@ python scripts/verify.py --changed --types --full --boundary
 - `docs/superpowers/plans/2026-07-27-saxs-candidate-replay-calibration.md`
 - `docs/agent/memory/active-work.md`
 - `docs/agent/memory/current-state.md`
+
+## Verification result
+
+- Focused replay/orchestrator/export/calibration matrix: `31 passed`.
+- Structured verifier: quality gate `282 passed`; preprocessing gate `106
+  passed`; Ruff, compile, type baseline, memory, and whitespace checks passed.
+- Current-HEAD full/boundary verifier: `2671 passed, 10 warnings` in
+  `1644.65s` (`0:27:24`); boundary audit passed. Warnings remain the known
+  Qt tight-layout, DSC polyfit-conditioning, and SAXS CJK glyph warnings.
+
+## Checkpoint
+
+- DTO checkpoint: `b23e6c4`.
+- Orchestrator/export checkpoint: `320774a`.
+- Mode/calibration checkpoint: `8caf4f7`.
+- Final task-card/memory checkpoint: this allowlisted documentation checkpoint.
+
+## Known release boundary
+
+Replay rows remain candidate-only and `apply_performed=false`. External model
+calls, confirmed real reruns, expert-labelled calibration promotion, user
+confirmation UI, restarted-GUI review, and human scientific publication
+approval remain open gates.

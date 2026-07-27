@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS candidate replay and calibration audit - checkpointed 2026-07-27
+
+- Every bounded SAXS preprocessing candidate now produces a JSON-safe,
+  mode-aware replay row for static, temperature, and strain paths. Rows carry
+  candidate identity, config hashes, run status, existing evidence/decision,
+  bounded source context, and explicit `original_preserved`/
+  `apply_performed=false` flags; export preserves them as audit-only
+  `quality_evidence.json` provenance.
+- Calibration validation now blocks incomplete SAXS expert-case contracts,
+  low evidence coverage, hard-guard false accepts, and insufficient expert
+  agreement. It does not enable tiered-auto or change physical thresholds.
+- Focused replay/orchestrator/export/calibration evidence is `31 passed`;
+  structured gates are quality `282` and preprocessing `106`. Current-HEAD
+  full/boundary verification passed `2671` tests with `10` known warnings and
+  a passing boundary audit.
+- External model calls, confirmed real candidate reruns, expert-labelled
+  promotion, user confirmation UI, restarted-GUI review, and human scientific
+  publication approval remain open.
+
 ## SAXS AI prompt protection contract - verification-ready 2026-07-27
 
 - The preprocessing prompt now renders the active policy's protected-feature
