@@ -1,5 +1,18 @@
 # Active Work
 
+## SAXS AI rescue bridge - verification-ready 2026-07-27
+
+- Added `saxs_ai_rescue.py` as a strict bridge to the existing preprocessing
+  contracts. AI intent payloads must be SAXS and protect weak peaks, area,
+  Guinier, beamstop boundaries, peak position/width, and physical parameters.
+- Candidate plans are candidate-only and preserve the original configuration;
+  decisions reuse the shared evidence hard guards. Default shadow keeps the
+  original, confirm-only requests confirmation, and calibrated tiered-auto is
+  the only state that can expose `apply_allowed` after all guards pass.
+- Verification evidence: focused `4 passed`, preprocessing integration `48
+  passed`, full SAXS `259 passed, 4 warnings`. Model calls, candidate execution,
+  user confirmation UI, calibration and publication remain open.
+
 ## SAXS sequence rescue - checkpointed 2026-07-27
 
 - Added an evidence-only adapter around the existing temperature `lc` path:

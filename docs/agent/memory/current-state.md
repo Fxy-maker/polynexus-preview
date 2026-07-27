@@ -7,6 +7,14 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS AI rescue Stage 7 is implemented locally as a contract bridge over the
+  existing preprocessing optimizer. It validates untrusted SAXS intents,
+  protects core physical features, emits candidate-only plans, and preserves
+  shadow/confirm/calibrated tiered-auto semantics. Focused evidence is `4`
+  passed, preprocessing integration is `48 passed`, and the complete SAXS
+  matrix is `259 passed` with four existing font warnings. Candidate execution,
+  model calls, calibration, UI confirmation, and publication audit remain open.
+
 - SAXS sequence rescue Stage 6 is implemented locally: existing deterministic
   non-primary `lc` paths are exposed as candidate-only evidence, missing frames
   are never fabricated, and accepted decisions require explicit hard,

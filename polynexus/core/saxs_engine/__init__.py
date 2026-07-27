@@ -77,6 +77,12 @@ from .saxs_sequence_rescue import (
     build_sequence_rescue_candidates,
     validate_sequence_rescue_candidate,
 )
+from .saxs_ai_rescue import (
+    SAXSAIRescueDecision,
+    SAXSAIRescuePlan,
+    assess_saxs_ai_candidate,
+    build_saxs_ai_rescue_plan,
+)
 from .saxs_output import (
     export_parameters_csv,
     export_1d_profile,
@@ -117,5 +123,7 @@ __all__ = [
     "herman_from_azimuthal", "herman_multi_q", "classify_2d_pattern",
     "analyze_peak_widths", "analyze_anisotropy", "export_parameters_csv",
     "build_sequence_rescue_candidates", "validate_sequence_rescue_candidate",
+    "SAXSAIRescueDecision", "SAXSAIRescuePlan",
+    "assess_saxs_ai_candidate", "build_saxs_ai_rescue_plan",
     "export_1d_profile", "export_strain_series_csv", "export_temp_series_csv",
 ]
