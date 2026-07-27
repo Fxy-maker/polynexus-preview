@@ -1,5 +1,14 @@
 ---
 
+## SAXS parameter quality-evidence reference (2026-07-28)
+
+- Bundle parameter artifacts now reference the authoritative
+  `quality_evidence.json` without copying AI rescue or quality payloads into
+  CSV. `parameters.json` uses `quality_evidence_file`; each
+  `data/parameters.csv` row uses the relative `quality_evidence_ref`.
+- Implementation checkpoint: `1608643` (no push). This remains provenance
+  traceability, not scientific validity or rescue acceptance.
+
 ## Results Workbench Light-theme contrast correction (2026-07-28)
 
 - Results Workbench inline labels now use the active `ThemeTokens` at build time

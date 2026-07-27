@@ -1,5 +1,18 @@
 # Active Work
 
+## SAXS parameter quality-evidence reference - checkpointed at 1608643 - 2026-07-28
+
+- SAXS bundle `parameters.json` now points to the authoritative
+  `quality_evidence.json`, and each `data/parameters.csv` row carries the
+  relative `quality_evidence_ref`; AI/quality payloads are not duplicated into
+  CSV.
+- TDD RED/GREEN, focused History/Export `14 passed`, exact SAXS `402 passed,
+  6 warnings`, task verifier, and fresh full/boundary `2832 passed,
+  16 skipped, 12 warnings` with boundary audit pass are recorded in the task
+  card. Checkpoint `1608643` was local-only; no push.
+- This is traceability only: it does not promote evidence, accept rescue
+  candidates, or authorize scientific/publication claims.
+
 ## Joint evidence-weighted conflict severity - completed 2026-07-28
 
 - Joint Tm/Gibson-Thompson conflicts now inherit the minimum DSC/SAXS evidence
