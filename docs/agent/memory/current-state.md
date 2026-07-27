@@ -1,5 +1,15 @@
 ---
 
+## Fresh current full/boundary release verification (2026-07-27)
+
+- The current working tree completed
+  `python scripts/verify.py --changed --types --full --boundary` with an
+  external basetemp: `2793 passed, 10 warnings in 1607.00s (0:26:46)` and
+  exit code `0`.
+- Compile, quality `283`, preprocessing `106`, Ruff/type, whitespace, and the
+  boundary audit passed. This supersedes the older `2790` current-head count;
+  live GUI, scientific review, and final human release approval remain open.
+
 ## Joint route plan reconciliation (2026-07-27)
 
 - `joint.compare` now has current code and lifecycle evidence through

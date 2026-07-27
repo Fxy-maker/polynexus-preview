@@ -1,5 +1,19 @@
 # Active Work
 
+## Fresh current full/boundary release verification - 2026-07-27
+
+- The current working tree completed
+  `python scripts/verify.py --changed --types --full --boundary` with an
+  external basetemp. The full pytest portion returned `2793 passed, 10
+  warnings in 1607.00s (0:26:46)` and exit code `0`.
+- Compile, quality `283`, preprocessing `106`, Ruff/type, whitespace, and
+  boundary audit all passed. Existing warnings are tight-layout,
+  DSC polynomial-conditioning, and Arial CJK glyph warnings.
+- This supersedes the older `2af4baf`/`2790` count for current-state
+  reporting. Restarted-GUI visual review, IR vendor mapping/ROI semantics,
+  assignment-limited NMR/Joint review, and final human release approval remain
+  open.
+
 ## Joint route plan reconciliation - 2026-07-27
 
 - The old Phase 7 wording that `joint.compare` still lacked the shared figure

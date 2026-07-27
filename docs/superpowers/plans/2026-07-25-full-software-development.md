@@ -156,10 +156,10 @@ restarted-GUI release review remain open. See
 - Test: preprocessing Golden, AI-off, fault-injection, quality, boundary and full-suite tests
 - Create: `docs/acceptance/2026-07-25-full-software-release.md`
 
-- [ ] Verify deterministic output is valid without AI.
-- [ ] Verify AI suggestions are scoped, auditable, hash-checked, reversible and never silently applied.
-- [ ] Run `python scripts/verify.py --changed --types --full --boundary`.
-- [ ] Run full relevant pytest matrix with an external basetemp.
+- [x] Verify deterministic output is valid without AI.
+- [x] Verify AI suggestions are scoped, auditable, hash-checked, reversible and never silently applied.
+- [x] Run `python scripts/verify.py --changed --types --full --boundary`.
+- [x] Run full relevant pytest matrix with an external basetemp.
 - [ ] Perform restarted-GUI visual walkthrough for every Workbench mode, Gallery card, Editor entry and export bundle.
 - [ ] Record human scientific review, known limitations and release decision.
 

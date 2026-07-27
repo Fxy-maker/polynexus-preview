@@ -104,11 +104,10 @@ limitation rather than pass.
   assignment and Joint scientific conflicts remain explicit human gates.
 - A combined lifecycle/real-run command exceeded the short 180-second tool
   window without a test summary; this is not a pass or a failure claim.
-- The current-head retry at `2af4baf` completed with `2790 passed, 10
-  warnings` in `1454.97s`; compile, quality (`283`), preprocessing (`106`),
-  Ruff/type baseline, whitespace, and boundary audit all passed. An earlier
-  same-turn attempt had one transient focused maintenance-cleanup failure and
-  was rerun; it is not used as evidence of failure or pass.
+- A fresh current-working-tree run completed with `2793 passed, 10 warnings`
+  in `1607.00s`; compile, quality (`283`), preprocessing (`106`), Ruff/type
+  baseline, whitespace, and boundary audit all passed. This supersedes the
+  older `2af4baf` evidence of `2790 passed`.
 - The responsive-shell GUI task was checkpointed as `83083bc`; a fresh
   `scripts/launch_gui.py --diagnose` resolved the canonical `D:\PolyNexus`
   source root and that commit. All-route live visual review remains open.
