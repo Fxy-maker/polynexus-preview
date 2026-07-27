@@ -67,6 +67,12 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- Current-HEAD full/boundary verification after the SAXS detector/orientation
+  checkpoint passed `2647 tests, 10 warnings in 1389.67s (23:09)` with a
+  passing boundary audit. Automated release evidence is green; restarted-GUI
+  visual review, human scientific sign-off, IR mapping semantics, and final
+  release policy remain open.
+
 - SAXS 2D detector/orientation evidence is implemented and verified: focused
   tests `6 passed`, full SAXS matrix `250 passed, 4 warnings`, structured
   verifier quality `282` and preprocessing `103`. The new contracts preserve

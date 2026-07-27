@@ -119,15 +119,16 @@ Windows pytest 的仓库 `.pytest_tmp` 若被既有 scratch 锁定，使用仓�
 
 ## Completion evidence
 
-## Current audit (2026-07-26)
+## Current audit (2026-07-27)
 
 Automated shared/platform and mode lifecycle boundaries are covered by the
-recorded focused matrices, and the full/boundary verifier now passes with
-2587 tests in 1042.86 seconds. A fresh real-fixture audit completed DSC
-standard, WAXS static/temperature, IR standard, and SAXS temperature engine
-publication runs; WAXS strain and IR temperature-2D exceeded the bounded
-diagnostic runtime, and the SAXS temperature fixture remains scientific
-validation-error/diagnostic-only. Evidence is in
+recorded focused matrices, and the current full/boundary verifier now passes
+with 2647 tests and 10 warnings in 1389.67 seconds; the boundary audit also
+passes. A fresh 15-case real published-run replay covers every currently
+automated SAXS/DSC/WAXS/IR/NMR mode through Manifest/Gallery, Editor, export
+provenance, and History restore. The SAXS temperature fixture remains
+scientific validation-error/diagnostic-only, and non-isothermal DSC remains
+SI/diagnostic-only where the fixture has one valid conversion curve. Evidence is in
 `docs/acceptance/2026-07-26-real-published-run-audit.md`.
 
 This overall task remains active. Real published-run Gallery/Editor/export/

@@ -31,14 +31,15 @@ python -m pytest --basetemp=C:\Temp\PolyNexus_nmr_plot_cutover tests/test_engine
 python scripts/verify.py --task docs/agent/tasks/2026-07-26-full-suite-runtime-investigation.md --changed --types
 quality gate: 282 passed; preprocessing gate: 103 passed
 
-python scripts/verify.py --task docs/agent/tasks/2026-07-26-full-suite-runtime-investigation.md --changed --types --full --boundary
-all-tests: 2587 passed, 8 warnings in 1042.86s (0:17:22)
+python scripts/verify.py --changed --types --full --boundary
+all-tests: 2647 passed, 10 warnings in 1389.67s (0:23:09)
 boundary audit: passed; verify exit code 0
 ```
 
-The earlier 15-minute run was incomplete because the single-process suite
-needs about 17 minutes, dominated by real NMR lifecycle tests; the complete
-run above passed with a 30-minute allowance.
+The single-process suite is dominated by real NMR and Qt lifecycle tests; the
+fresh run above completed with a 35-minute allowance. The warnings are existing
+Qt tight-layout, DSC polyfit-conditioning, and CJK glyph warnings; no warning
+was a test failure.
 
 ## Real-fixture follow-up
 
@@ -55,11 +56,11 @@ The same run exposed and fixed a shared figure-audit defect: Matplotlib
 colorbar axes were incorrectly checked as data axes. The focused correction is
 tracked by `docs/agent/tasks/2026-07-26-colorbar-audit-regression.md`.
 
-The new real walkthrough matrix covers eleven cases (SAXS static, DSC
-standard/isothermal/non-isothermal, WAXS static/temperature, IR standard, and NMR liquid/solid H/C) through active
-Gallery selection, Editor working/published revisions, export provenance, and
-History restore. Bounded two-frame smoke runs also cover WAXS strain/2D and IR
-temperature-2D. Evidence and limitations are recorded in
+The real walkthrough matrix now covers fifteen cases (SAXS
+static/temperature/strain, DSC standard/isothermal/non-isothermal, WAXS
+static/temperature/strain/2D, IR standard/temperature-2D, and NMR liquid/solid
+H/C) through active Gallery selection, Editor working/published revisions, export provenance, and
+History restore. Evidence and limitations are recorded in
 `docs/acceptance/2026-07-26-real-published-run-audit.md`.
 
 ## Open release gates

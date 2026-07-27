@@ -1,5 +1,15 @@
 # Active Work
 
+## Full boundary/release verifier after SAXS orientation checkpoint - passed 2026-07-27
+
+- Re-ran `python scripts/verify.py --changed --types --full --boundary` on
+  the current HEAD after the SAXS detector/orientation checkpoint: **2647
+  passed, 10 warnings in 1389.67s (23:09)**, with a passing boundary audit.
+- The warnings are existing Qt tight-layout, DSC polyfit-conditioning, and
+  SAXS CJK glyph warnings. This closes the current automated regression
+  evidence only; restarted-GUI visual review, human scientific sign-off, IR
+  mapping semantics, and final release policy remain open.
+
 ## SAXS 2D detector/orientation evidence - checkpointed 2026-07-27
 
 - Added strict JSON-safe `DetectorQualityReport` and conservative orientation
