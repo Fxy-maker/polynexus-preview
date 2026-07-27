@@ -67,6 +67,16 @@ title: Current PolyNexus repository state
 
 ## Verification evidence
 
+- SAXS temperature Guinier Stage 2 sequence evidence is now implemented and
+  verified: focused Guinier/temperature tests `11 passed`, full SAXS file
+  matrix `237 passed, 4 warnings`, quality gate `282 passed`, preprocessing
+  gate `103 passed`, plus task-card/memory/Ruff/compile/whitespace checks.
+  `GuinierSequenceEvidence` is capped at sequence-level `Trend`; it preserves
+  missing/failed/invalid/duplicate positions and reports continuity breaks as
+  diagnostic evidence without interpolation or `Rg` mutation. Real-data
+  threshold calibration, AI shadow/rescue, publication, and human scientific
+  or GUI acceptance remain open.
+
 - SAXS temperature Guinier Stage 1 is checkpointed at `17dcb0b`. The new
   deterministic evidence path has focused propagation evidence (`24 passed`),
   complete SAXS matrix evidence (`227 passed`, four existing font warnings),

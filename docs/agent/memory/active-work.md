@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS temperature Guinier sequence evidence - checkpointed 2026-07-27
+
+- Stage 2 adds immutable `GuinierSequenceEvidence` and the pure
+  `build_guinier_sequence_evidence` builder. It preserves missing/diagnostic
+  frame positions, invalid and duplicate temperature positions, and failed
+  frame evidence without interpolation, deletion, or `Rg` rewriting.
+- Sequence classification is capped at `Trend`; empty sequences are
+  `Unusable`, insufficient or defective sequences are `Diagnostic`, and
+  isolated continuity breaks remain diagnostic evidence rather than an
+  automatic downgrade or phase-change decision.
+- `TempSeriesResult` now carries the strict JSON-safe sequence summary and
+  compatible `Rg_sequence_level`/`Rg_sequence_reason_codes` table columns.
+- Verification evidence: focused Guinier/temperature tests `11 passed`; full
+  `tests/test_saxs_*.py` matrix `237 passed, 4 warnings`; structured verifier
+  passed with quality gate `282` and preprocessing gate `103`. The existing
+  Arial CJK glyph warnings remain limited to SAXS figure layout.
+- The checkpoint uses the explicit task allowlist in
+  `docs/agent/tasks/2026-07-27-saxs-guinier-sequence-evidence.md`. Real
+  experimental-data thresholds, phase-change semantics, AI shadow/rescue, and
+  human scientific/GUI acceptance remain outside this stage.
+
 ## SAXS temperature Guinier evidence Stage 1 - checkpointed 2026-07-27
 
 - Existing deterministic Guinier output now has a separate evidence builder

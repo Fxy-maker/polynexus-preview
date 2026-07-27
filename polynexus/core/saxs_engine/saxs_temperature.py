@@ -25,6 +25,7 @@ from .lc_path_selection import (
     select_lc_sequence_path,
 )
 from .preprocess import apply_thermal_correction
+from .saxs_quality_contracts import build_guinier_sequence_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,7 @@ class TempSeriesResult:
     Xc_array: np.ndarray = None
     Rg_array: np.ndarray = None
     guinier_level_array: List[str] = field(default_factory=list)
+    guinier_sequence_evidence: Dict = None
     melting_window_status_array: List[str] = field(default_factory=list)
     lc_reliability_status_array: List[str] = field(default_factory=list)
     lc_path_status_array: List[str] = field(default_factory=list)
@@ -131,6 +133,13 @@ class TempSeriesResult:
     def to_dataframe(self):
         """Convert to pandas DataFrame."""
         import pandas as pd
+        sequence_payload = self.guinier_sequence_evidence or {}
+        sequence_level = sequence_payload.get('level')
+        sequence_reasons = sequence_payload.get('reason_codes', [])
+        if isinstance(sequence_reasons, (list, tuple)):
+            sequence_reasons = '|'.join(str(reason) for reason in sequence_reasons)
+        else:
+            sequence_reasons = str(sequence_reasons or '')
         rows = []
         for tp in self.temp_points:
             rows.append({
@@ -144,6 +153,8 @@ class TempSeriesResult:
                 'Rg(nm)': round(tp.Rg_nm, 3) if np.isfinite(tp.Rg_nm) else None,
                 'Rg_level': tp.guinier_level or None,
                 'Rg_reason_codes': '|'.join(tp.guinier_reason_codes) if tp.guinier_reason_codes else None,
+                'Rg_sequence_level': sequence_level,
+                'Rg_sequence_reason_codes': sequence_reasons or None,
                 'Xc_rel': round(tp.Xc_relative, 3) if np.isfinite(tp.Xc_relative) else None,
                 'Confidence': round(tp.confidence, 2),
                 'lc_confidence': round(tp.lc_confidence, 2) if np.isfinite(tp.lc_confidence) else None,
@@ -879,6 +890,12 @@ def analyze_temperature_series(
         result.temp_points.append(tp)
         result.L_array[i] = tp.L_nm
         result.lc_array[i] = tp.lc_nm
+
+    result.guinier_sequence_evidence = build_guinier_sequence_evidence(
+        result.temperatures,
+        [point.guinier_evidence for point in result.temp_points],
+        source_ref="saxs_temperature.guinier_sequence",
+    ).to_dict()
 
     # ---- Post-analysis ----
 

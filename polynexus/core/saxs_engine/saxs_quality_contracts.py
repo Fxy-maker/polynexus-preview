@@ -96,6 +96,24 @@ def _string_tuple(value: Any) -> tuple[str, ...]:
     return tuple(str(item) for item in value)
 
 
+def _int_tuple(value: Any) -> tuple[int, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (int, np.integer)):
+        return (int(value),)
+    if isinstance(value, (str, bytes)):
+        value = (value,)
+    try:
+        items = iter(value)
+    except TypeError:
+        return ()
+    result: list[int] = []
+    for item in items:
+        try:
+            result.append(int(item))
+        except (TypeError, ValueError):
+            continue
+    return tuple(result)
 @dataclass(frozen=True)
 class DataQualityReport:
     """Deterministic, non-mutating inventory of a 1D q-I input pair."""
@@ -188,6 +206,60 @@ class GuinierEvidence:
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "GuinierEvidence":
         data = dict(payload)
+        data["level"] = _quality_level(data.get("level"))
+        data["reason_codes"] = _string_tuple(data.get("reason_codes"))
+        metric = data.get("metric")
+        data["metric"] = MetricEvidence.from_dict(metric) if isinstance(metric, Mapping) else None
+        return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
+
+
+@dataclass(frozen=True)
+class GuinierSequenceEvidence:
+    """Evidence for whether a temperature sequence supports an Rg trend."""
+
+    frame_count: int = 0
+    finite_temperature_count: int = 0
+    valid_frame_count: int = 0
+    missing_frame_indices: tuple[int, ...] = ()
+    diagnostic_frame_indices: tuple[int, ...] = ()
+    invalid_temperature_indices: tuple[int, ...] = ()
+    duplicate_temperature_indices: tuple[int, ...] = ()
+    nonmonotonic_temperature_indices: tuple[int, ...] = ()
+    continuity_break_indices: tuple[int, ...] = ()
+    temperature_min_C: float | None = None
+    temperature_max_C: float | None = None
+    rg_min_nm: float | None = None
+    rg_max_nm: float | None = None
+    relative_change_stats: Mapping[str, Any] = field(default_factory=dict)
+    level: QualityLevel = QualityLevel.UNUSABLE
+    reason_codes: tuple[str, ...] = ()
+    metric: MetricEvidence | None = None
+    source_ref: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "missing_frame_indices", _int_tuple(self.missing_frame_indices))
+        object.__setattr__(self, "diagnostic_frame_indices", _int_tuple(self.diagnostic_frame_indices))
+        object.__setattr__(self, "invalid_temperature_indices", _int_tuple(self.invalid_temperature_indices))
+        object.__setattr__(self, "duplicate_temperature_indices", _int_tuple(self.duplicate_temperature_indices))
+        object.__setattr__(self, "nonmonotonic_temperature_indices", _int_tuple(self.nonmonotonic_temperature_indices))
+        object.__setattr__(self, "continuity_break_indices", _int_tuple(self.continuity_break_indices))
+        object.__setattr__(self, "relative_change_stats", _freeze(self.relative_change_stats))
+
+    def to_dict(self) -> dict[str, Any]:
+        return _contract_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "GuinierSequenceEvidence":
+        data = dict(payload)
+        for key in (
+            "missing_frame_indices",
+            "diagnostic_frame_indices",
+            "invalid_temperature_indices",
+            "duplicate_temperature_indices",
+            "nonmonotonic_temperature_indices",
+            "continuity_break_indices",
+        ):
+            data[key] = _int_tuple(data.get(key))
         data["level"] = _quality_level(data.get("level"))
         data["reason_codes"] = _string_tuple(data.get("reason_codes"))
         metric = data.get("metric")
@@ -537,6 +609,368 @@ def build_guinier_evidence(
     )
 
 
+def _legacy_build_guinier_sequence_evidence(
+    temperatures: Any,
+    frame_evidence: Any,
+    *,
+    source_ref: str = "",
+) -> GuinierSequenceEvidence:
+    """Legacy sequence summary retained only for diff-local recovery.
+
+    Only finite positive ``Rg`` values from quantitative or trend-level frame
+    evidence are eligible for sequence diagnostics. Missing and diagnostic
+    frames stay at their original positions, and sequence evidence is never
+    promoted to a quantitative claim.
+    """
+    temperature_arr = _as_1d_float_array(temperatures)
+    if frame_evidence is None:
+        frame_items: list[Any] = []
+    elif isinstance(frame_evidence, Mapping):
+        frame_items = [frame_evidence]
+    else:
+        try:
+            frame_items = list(frame_evidence)
+        except TypeError:
+            frame_items = []
+
+    frame_count = max(int(temperature_arr.size), len(frame_items))
+    finite_temperatures = np.isfinite(temperature_arr)
+    finite_temperature_count = int(np.count_nonzero(finite_temperatures))
+    invalid_temperature_indices = tuple(
+        index
+        for index in range(frame_count)
+        if index >= temperature_arr.size or not finite_temperatures[index]
+    )
+
+    duplicate_indices: set[int] = set()
+    for index in range(temperature_arr.size):
+        if not finite_temperatures[index]:
+            continue
+        for previous in range(index):
+            if finite_temperatures[previous] and np.isclose(
+                temperature_arr[index], temperature_arr[previous], rtol=0.0, atol=1e-9
+            ):
+                duplicate_indices.update((previous, index))
+                break
+
+    missing_indices: list[int] = []
+    diagnostic_indices: list[int] = []
+    valid_indices: list[int] = []
+    valid_rg: list[float] = []
+    for index in range(frame_count):
+        item = frame_items[index] if index < len(frame_items) else None
+        if item is None:
+            missing_indices.append(index)
+            continue
+        if hasattr(item, "to_dict"):
+            item = item.to_dict()
+        if not isinstance(item, Mapping):
+            diagnostic_indices.append(index)
+            continue
+        level = _quality_level(item.get("level"))
+        rg_value = _finite_or_none(item.get("rg_nm"))
+        if (
+            index < temperature_arr.size
+            and np.isfinite(temperature_arr[index])
+            and isinstance(rg_value, (int, float))
+            and np.isfinite(rg_value)
+            and rg_value > 0
+            and level in {QualityLevel.QUANTITATIVE, QualityLevel.TREND}
+        ):
+            valid_indices.append(index)
+            valid_rg.append(float(rg_value))
+        else:
+            diagnostic_indices.append(index)
+
+    pair_indices: list[tuple[int, int]] = []
+    relative_changes: list[float] = []
+    for previous_index, current_index in zip(valid_indices, valid_indices[1:]):
+        previous_rg = valid_rg[valid_indices.index(previous_index)]
+        current_rg = valid_rg[valid_indices.index(current_index)]
+        denominator = max(abs(previous_rg), 1e-12)
+        pair_indices.append((previous_index, current_index))
+        relative_changes.append(float((current_rg - previous_rg) / denominator))
+
+    if relative_changes:
+        median_change = float(np.median(relative_changes))
+        mad_change = float(np.median(np.abs(np.asarray(relative_changes) - median_change)))
+        max_absolute_change = float(np.max(np.abs(relative_changes)))
+    else:
+        median_change = 0.0
+        mad_change = 0.0
+        max_absolute_change = 0.0
+
+    continuity_break_indices: list[int] = []
+    continuity_threshold = max(0.25, 1.5 * mad_change)
+    if len(valid_indices) >= 4:
+        for (previous_index, current_index), change in zip(pair_indices, relative_changes):
+            deviation = abs(change - median_change)
+            same_direction = median_change != 0 and change * median_change > 0
+            if deviation > continuity_threshold and not same_direction:
+                continuity_break_indices.append(current_index)
+
+    reason_codes: list[str] = []
+    if frame_count != len(frame_items) or frame_count != int(temperature_arr.size):
+        reason_codes.append("guinier_sequence_length_mismatch")
+    if missing_indices:
+        reason_codes.append("guinier_sequence_missing_frames")
+    if diagnostic_indices:
+        reason_codes.append("guinier_sequence_diagnostic_frames")
+    if invalid_temperature_indices or duplicate_indices:
+        reason_codes.append("guinier_sequence_temperature_axis_invalid")
+    if continuity_break_indices:
+        reason_codes.append("guinier_sequence_continuity_break")
+    if not valid_indices:
+        reason_codes.append("guinier_sequence_no_valid_frames")
+    elif len(valid_indices) < 2:
+        reason_codes.append("guinier_sequence_insufficient_frames")
+
+    axis_valid = not invalid_temperature_indices and not duplicate_indices and frame_count == len(frame_items)
+    if not valid_indices:
+        level = QualityLevel.UNUSABLE
+    elif len(valid_indices) < 2 or not axis_valid:
+        level = QualityLevel.DIAGNOSTIC
+    else:
+        level = QualityLevel.TREND
+
+    finite_temperature_values = temperature_arr[finite_temperatures]
+    relative_stats = {
+        "pair_count": int(len(relative_changes)),
+        "median_relative_change": median_change,
+        "mad_relative_change": mad_change,
+        "max_absolute_relative_change": max_absolute_change,
+        "continuity_threshold": continuity_threshold,
+        "relative_changes": tuple(relative_changes),
+        "pair_indices": tuple(pair_indices),
+    }
+    metric = MetricEvidence(
+        metric_name="Rg_sequence",
+        value=int(len(valid_indices)),
+        unit="frames",
+        level=level,
+        applicable=bool(len(valid_indices) >= 2 and axis_valid),
+        fit_evidence=relative_stats,
+        physical_checks={
+            "temperature_axis_valid": axis_valid,
+            "continuity_break_count": len(continuity_break_indices),
+            "valid_frame_count": len(valid_indices),
+        },
+        reason_codes=tuple(dict.fromkeys(reason_codes)),
+        source_ref=str(source_ref or ""),
+        data_quality_ref=str(source_ref or ""),
+    )
+    return GuinierSequenceEvidence(
+        frame_count=frame_count,
+        finite_temperature_count=finite_temperature_count,
+        valid_frame_count=len(valid_indices),
+        missing_frame_indices=tuple(missing_indices),
+        diagnostic_frame_indices=tuple(diagnostic_indices),
+        invalid_temperature_indices=invalid_temperature_indices,
+        duplicate_temperature_indices=tuple(sorted(duplicate_indices)),
+        continuity_break_indices=tuple(continuity_break_indices),
+        temperature_min_C=(float(np.min(finite_temperature_values)) if finite_temperature_values.size else None),
+        temperature_max_C=(float(np.max(finite_temperature_values)) if finite_temperature_values.size else None),
+        rg_min_nm=(float(np.min(valid_rg)) if valid_rg else None),
+        rg_max_nm=(float(np.max(valid_rg)) if valid_rg else None),
+        relative_change_stats=relative_stats,
+        level=level,
+        reason_codes=tuple(dict.fromkeys(reason_codes)),
+        metric=metric,
+    )
+
+
+def _sequence_frame_payload(frame: Any) -> tuple[float | None, QualityLevel, bool]:
+    if frame is None:
+        return None, QualityLevel.UNUSABLE, False
+    if isinstance(frame, GuinierEvidence):
+        return _finite_or_none(frame.rg_nm), frame.level, True
+    if hasattr(frame, "to_dict"):
+        frame = frame.to_dict()
+    if not isinstance(frame, Mapping):
+        return None, QualityLevel.UNUSABLE, True
+    rg_value = _finite_or_none(frame.get("rg_nm"))
+    level = _quality_level(frame.get("level"))
+    return rg_value if isinstance(rg_value, (int, float)) else None, level, True
+
+
+def build_guinier_sequence_evidence(
+    temperatures: Any,
+    frame_evidence: Any,
+    *,
+    source_ref: str = "",
+) -> GuinierSequenceEvidence:
+    """Summarize Rg evidence across observed temperature frames.
+
+    The builder is deliberately observational: it never sorts, interpolates,
+    smooths, deletes, or rewrites a frame.  A sequence-level ``Trend`` is only
+    a statement that at least two eligible observations share a valid axis; it
+    never upgrades a frame or creates a sequence-level quantitative claim.
+    """
+    temperature_arr = _as_1d_float_array(temperatures)
+    try:
+        frames = list(frame_evidence) if frame_evidence is not None else []
+    except TypeError:
+        frames = []
+    frame_count = max(int(temperature_arr.size), len(frames))
+
+    reasons: list[str] = []
+    missing_indices: list[int] = []
+    diagnostic_indices: list[int] = []
+    invalid_temperature_indices: list[int] = []
+    duplicate_temperature_indices: list[int] = []
+    nonmonotonic_temperature_indices: list[int] = []
+    valid_indices: list[int] = []
+    valid_rg: list[float] = []
+    finite_temperature_count = 0
+
+    if isinstance(frame_evidence, Mapping) or isinstance(frame_evidence, GuinierEvidence):
+        frames = [frame_evidence]
+        frame_count = max(int(temperature_arr.size), len(frames))
+    if temperature_arr.size != len(frames):
+        reasons.append("guinier_sequence_length_mismatch")
+
+    for index in range(frame_count):
+        temperature = float(temperature_arr[index]) if index < temperature_arr.size else np.nan
+        temperature_is_valid = bool(np.isfinite(temperature))
+        if temperature_is_valid:
+            finite_temperature_count += 1
+        else:
+            invalid_temperature_indices.append(index)
+
+        rg_value, level, has_payload = _sequence_frame_payload(
+            frames[index] if index < len(frames) else None
+        )
+        eligible = bool(
+            has_payload
+            and level in {QualityLevel.QUANTITATIVE, QualityLevel.TREND}
+            and isinstance(rg_value, (int, float))
+            and np.isfinite(rg_value)
+            and rg_value > 0
+        )
+        if not has_payload:
+            missing_indices.append(index)
+        elif not eligible or not temperature_is_valid:
+            diagnostic_indices.append(index)
+        if eligible and temperature_is_valid:
+            valid_indices.append(index)
+            valid_rg.append(float(rg_value))
+
+    for position, temperature in enumerate(temperature_arr):
+        if not np.isfinite(temperature):
+            continue
+        previous = temperature_arr[:position]
+        duplicate_positions = np.flatnonzero(
+            np.isclose(previous, temperature, rtol=0.0, atol=1e-12, equal_nan=False)
+        )
+        if duplicate_positions.size:
+            duplicate_temperature_indices.extend(int(item) for item in duplicate_positions)
+            duplicate_temperature_indices.append(position)
+        if position and np.isfinite(temperature_arr[position - 1]) and temperature <= temperature_arr[position - 1]:
+            nonmonotonic_temperature_indices.append(position)
+
+    if invalid_temperature_indices or duplicate_temperature_indices or nonmonotonic_temperature_indices:
+        reasons.append("guinier_sequence_temperature_axis_invalid")
+    if missing_indices:
+        reasons.append("guinier_sequence_missing_frames")
+    if diagnostic_indices:
+        reasons.append("guinier_sequence_diagnostic_frames")
+    if not valid_indices:
+        reasons.append("guinier_sequence_no_valid_frames")
+    elif len(valid_indices) < 2:
+        reasons.append("guinier_sequence_insufficient_frames")
+
+    relative_changes: list[float] = []
+    for previous, current in zip(valid_rg, valid_rg[1:]):
+        denominator = max(abs(previous), 1e-12)
+        relative_changes.append(float(abs(current - previous) / denominator))
+
+    continuity_break_indices: list[int] = []
+    local_deviations: list[float] = []
+    if len(valid_rg) >= 4:
+        for position in range(1, len(valid_rg) - 1):
+            neighbor_mean = (valid_rg[position - 1] + valid_rg[position + 1]) / 2.0
+            denominator = max(abs(neighbor_mean), 1e-12)
+            local_deviations.append(float(abs(valid_rg[position] - neighbor_mean) / denominator))
+        baseline = float(np.median(local_deviations))
+        mad = float(np.median(np.abs(np.asarray(local_deviations) - baseline)))
+        threshold = max(0.5, 3.0 * mad)
+        for position, deviation in enumerate(local_deviations, start=1):
+            if deviation > threshold:
+                continuity_break_indices.append(valid_indices[position])
+    else:
+        baseline = mad = 0.0
+        threshold = np.nan
+
+    if continuity_break_indices:
+        reasons.append("guinier_sequence_continuity_break")
+
+    if not valid_indices:
+        level = QualityLevel.UNUSABLE
+    elif len(valid_indices) < 2 or invalid_temperature_indices or duplicate_temperature_indices or nonmonotonic_temperature_indices:
+        level = QualityLevel.DIAGNOSTIC
+    else:
+        level = QualityLevel.TREND
+
+    relative_stats = {
+        "sample_count": len(relative_changes),
+        "pair_count": len(relative_changes),
+        "relative_change_median": float(np.median(relative_changes)) if relative_changes else 0.0,
+        "relative_change_mad": float(np.median(np.abs(np.asarray(relative_changes) - np.median(relative_changes)))) if relative_changes else 0.0,
+        "relative_change_max": float(max(relative_changes)) if relative_changes else 0.0,
+        "median_relative_change": float(np.median(relative_changes)) if relative_changes else 0.0,
+        "mad_relative_change": float(np.median(np.abs(np.asarray(relative_changes) - np.median(relative_changes)))) if relative_changes else 0.0,
+        "max_absolute_relative_change": float(max(relative_changes)) if relative_changes else 0.0,
+        "relative_changes": tuple(relative_changes),
+        "pair_indices": tuple(zip(valid_indices, valid_indices[1:])),
+        "local_deviation_median": _finite_or_none(baseline),
+        "local_deviation_mad": _finite_or_none(mad),
+        "local_deviation_threshold": _finite_or_none(threshold),
+    }
+    temperature_values = [float(value) for value in temperature_arr if np.isfinite(value)]
+    rg_values = valid_rg
+    metric = MetricEvidence(
+        metric_name="Rg_sequence",
+        value=int(len(valid_indices)),
+        unit="frames",
+        level=level,
+        applicable=level is QualityLevel.TREND,
+        fit_evidence=relative_stats,
+        physical_checks={
+            "sequence_axis_valid": not bool(
+                invalid_temperature_indices or duplicate_temperature_indices or nonmonotonic_temperature_indices
+            ),
+            "temperature_axis_valid": not bool(
+                invalid_temperature_indices or duplicate_temperature_indices or nonmonotonic_temperature_indices
+            ),
+            "interpolation_used": False,
+            "continuity_break_count": len(continuity_break_indices),
+        },
+        reason_codes=tuple(dict.fromkeys(reasons)),
+        source_ref=str(source_ref or ""),
+        data_quality_ref=str(source_ref or ""),
+    )
+    return GuinierSequenceEvidence(
+        frame_count=frame_count,
+        finite_temperature_count=finite_temperature_count,
+        valid_frame_count=len(valid_indices),
+        missing_frame_indices=tuple(missing_indices),
+        diagnostic_frame_indices=tuple(diagnostic_indices),
+        invalid_temperature_indices=tuple(invalid_temperature_indices),
+        duplicate_temperature_indices=tuple(sorted(set(duplicate_temperature_indices))),
+        nonmonotonic_temperature_indices=tuple(nonmonotonic_temperature_indices),
+        continuity_break_indices=tuple(continuity_break_indices),
+        temperature_min_C=float(min(temperature_values)) if temperature_values else None,
+        temperature_max_C=float(max(temperature_values)) if temperature_values else None,
+        rg_min_nm=float(min(rg_values)) if rg_values else None,
+        rg_max_nm=float(max(rg_values)) if rg_values else None,
+        relative_change_stats=relative_stats,
+        level=level,
+        reason_codes=tuple(dict.fromkeys(reasons)),
+        metric=metric,
+        source_ref=str(source_ref or ""),
+    )
+
+
 def contract_json(value: Any) -> str:
     """Return a stable strict-JSON representation for audit persistence."""
     payload = value.to_dict() if hasattr(value, "to_dict") else _jsonable(value)
@@ -546,11 +980,13 @@ def contract_json(value: Any) -> str:
 __all__ = [
     "DataQualityReport",
     "GuinierEvidence",
+    "GuinierSequenceEvidence",
     "MetricEvidence",
     "QualityLevel",
     "RescueCandidate",
     "RescueValidationReport",
     "build_data_quality_report",
     "build_guinier_evidence",
+    "build_guinier_sequence_evidence",
     "contract_json",
 ]

@@ -34,15 +34,15 @@
 
 ## Acceptance criteria
 
-- [ ] 序列 DTO 严格 JSON-safe，且能从帧证据恢复。
-- [ ] 空/单帧/全失败序列分别得到 `Unusable` 或 `Diagnostic`，不伪造 Rg。
-- [ ] 至少两个有效帧且温度轴有效时得到 `Trend`；序列级不产生
+- [x] 序列 DTO 严格 JSON-safe，且能从帧证据恢复。
+- [x] 空/单帧/全失败序列分别得到 `Unusable` 或 `Diagnostic`，不伪造 Rg。
+- [x] 至少两个有效帧且温度轴有效时得到 `Trend`；序列级不产生
   `Quantitative`。
-- [ ] 缺失、失败、无效温度、重复温度均保留原位置和 reason code。
-- [ ] 连续真实变化不因序列统计被删除或自动降级；孤立变化只形成可解释
+- [x] 缺失、失败、无效温度、重复温度均保留原位置和 reason code。
+- [x] 连续真实变化不因序列统计被删除或自动降级；孤立变化只形成可解释
   诊断证据。
-- [ ] `TempSeriesResult` 保留序列摘要，现有逐帧结果和 DataFrame 列兼容。
-- [ ] focused tests、完整 SAXS 回归、结构化 verifier 和原子 checkpoint 有
+- [x] `TempSeriesResult` 保留序列摘要，现有逐帧结果和 DataFrame 列兼容。
+- [x] focused tests、完整 SAXS 回归、结构化 verifier 和原子 checkpoint 有
   实际命令输出。
 
 ## Verification
@@ -51,6 +51,13 @@
 $env:PYTEST_ADDOPTS='--basetemp=C:\Temp\PolyNexus_saxs_guinier_sequence_verify'
 python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-guinier-sequence-evidence.md --changed --types
 ```
+
+## Verification evidence (2026-07-27)
+
+- `python -m pytest tests/test_saxs_guinier_sequence_evidence.py tests/test_saxs_temperature_guinier_evidence.py -q`: **11 passed**.
+- `python -m pytest tests/test_saxs_*.py -q` (PowerShell-expanded file list): **237 passed, 4 warnings**. The warnings are the existing Arial CJK glyph warnings from SAXS figure layout.
+- `python scripts/verify.py --task docs/agent/tasks/2026-07-27-saxs-guinier-sequence-evidence.md --changed --types`: passed; quality gate **282 passed**, preprocessing gate **103 passed**, Ruff, compile, memory, task-card, and whitespace checks passed.
+- Checkpoint is created with `scripts/auto_commit.py` using the changed-file allowlist below; no generated outputs or pre-existing temporary diagnostics are included.
 
 ## Known limitations
 

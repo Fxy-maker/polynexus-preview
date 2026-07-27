@@ -71,3 +71,25 @@ def test_temperature_core_failure_does_not_fabricate_guinier_evidence(monkeypatc
     assert result.temp_points[0].guinier_evidence is not None
     assert result.temp_points[1].guinier_evidence is None
     assert result.temp_points[1].guinier_level == "Unusable"
+
+
+def test_temperature_series_attaches_sequence_guinier_evidence(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_temperature as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    intensity = 120.0 * np.exp(-(q**2) * 4.0**2 / 3.0)
+
+    monkeypatch.setattr(module, "analyze_single", lambda q_arr, i_arr, cfg: _fake_frame_result(q_arr, i_arr))
+    monkeypatch.setattr(module, "scattering_invariant", lambda q_arr, i_arr, cfg=None: 1.0)
+    monkeypatch.setattr(module, "bragg_long_period", lambda q_arr, i_arr: (10.0, 0.628, {}))
+
+    result = analyze_temperature_series(
+        [170.0, 180.0, 190.0], [q, q, q], [intensity, intensity, intensity], cfg=SAXSConfig()
+    )
+
+    assert len(result.temp_points) == 3
+    assert result.guinier_sequence_evidence["level"] == "Trend"
+    assert result.guinier_sequence_evidence["valid_frame_count"] == 3
+    frame_table = result.to_dataframe()
+    assert "Rg_sequence_level" in frame_table.columns
+    assert set(frame_table["Rg_sequence_level"]) == {"Trend"}
