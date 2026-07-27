@@ -177,6 +177,23 @@ def test_strain_primary_contains_only_strain_template_columns() -> None:
     assert "temperature_C" not in {column.key for column in presentation.primary.columns}
 
 
+def test_strain_herman_mixed_frames_keep_unavailable_cells_explicit() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [
+                {"strain_pct": 0.0, "f_Herman": None},
+                {"strain_pct": 8.0, "f_Herman": 0.25},
+            ]
+        },
+        submodule="saxs.strain",
+    )
+
+    assert _cell(presentation.primary, 0, "f_Herman").display == "—"
+    assert _cell(presentation.primary, 0, "f_Herman").status == "neutral"
+    assert _cell(presentation.primary, 1, "f_Herman").display == "0.2500"
+    assert _cell(presentation.primary, 1, "f_Herman").status == "neutral"
+
+
 def test_empty_payload_builds_empty_sections_and_disabled_actions() -> None:
     presentation = _build({}, submodule="saxs.temperature")
 

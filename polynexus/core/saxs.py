@@ -189,6 +189,7 @@ class SAXSEngine(BaseEngine):
         self._I_list: List[np.ndarray] = []
         self._I_merid_list: List[np.ndarray | None] = []
         self._I_equat_list: List[np.ndarray | None] = []
+        self._sector_data_list: List[Dict[str, Any] | None] = []
         self._q_pyfai_list: List[np.ndarray] = []
         self._I_pyfai_list: List[np.ndarray] = []
         self._conditions: List[float] = []
@@ -403,6 +404,7 @@ class SAXSEngine(BaseEngine):
         self._I_list = []
         self._I_merid_list = []
         self._I_equat_list = []
+        self._sector_data_list = []
         self._q_pyfai_list = []
         self._I_pyfai_list = []
         self._file_list = []
@@ -436,11 +438,15 @@ class SAXSEngine(BaseEngine):
                         I = pp["Iq_smooth"]
                         I_merid = pp.get("Iq_merid_smooth")
                         I_equat = pp.get("Iq_equat_smooth")
+                    sector_data = pp.get("sector_data") if img is not None else None
+                    if not isinstance(sector_data, dict):
+                        sector_data = None
 
                     self._q_list.append(q)
                     self._I_list.append(I)
                     self._I_merid_list.append(I_merid)
                     self._I_equat_list.append(I_equat)
+                    self._sector_data_list.append(sector_data)
                     profile = self._processed_profile_from_payload(
                         pp, source="directory_load", filepath=str(filepath)
                     )
@@ -485,6 +491,7 @@ class SAXSEngine(BaseEngine):
                 self._I_list = []
                 self._I_merid_list = []
                 self._I_equat_list = []
+                self._sector_data_list = []
                 self._file_list = []
                 self._conditions = []
                 self._condition_keys = []
@@ -505,6 +512,10 @@ class SAXSEngine(BaseEngine):
                             self._I_list.append(pp["Iq_smooth"])
                             self._I_merid_list.append(pp.get("Iq_merid_smooth"))
                             self._I_equat_list.append(pp.get("Iq_equat_smooth"))
+                            sector_data = pp.get("sector_data")
+                            self._sector_data_list.append(
+                                sector_data if isinstance(sector_data, dict) else None
+                            )
                             q_pf, I_pf = _integrate_pyfai_shadow(img, cfg_copy)
                             self._q_pyfai_list.append(q_pf if len(q_pf) > 0 else np.array([]))
                             self._I_pyfai_list.append(I_pf if len(q_pf) > 0 else np.array([]))
@@ -515,6 +526,7 @@ class SAXSEngine(BaseEngine):
                             self._I_list.append(I)
                             self._I_merid_list.append(None)
                             self._I_equat_list.append(None)
+                            self._sector_data_list.append(None)
                             self._q_pyfai_list.append(np.array([]))
                             self._I_pyfai_list.append(np.array([]))
                         profile = self._processed_profile_from_payload(
@@ -1337,6 +1349,7 @@ class SAXSEngine(BaseEngine):
                     strains=list(self._conditions),
                     q_list=self._q_list,
                     I_list=I_use,
+                    sector_data_list=self._sector_data_list,
                     cfg=replace(strain_cfg),
                 )
         except Exception:
@@ -1435,6 +1448,7 @@ class SAXSEngine(BaseEngine):
                 strain_point = None
                 if self._strain_result is not None and i < len(getattr(self._strain_result, "strain_points", [])):
                     strain_point = self._strain_result.strain_points[i]
+                f_herman = _float_or_none(getattr(strain_point, "f_herman", np.nan))
                 phase_name = str(getattr(getattr(strain_point, "phase", None), "name", "") or "").strip().upper()
                 if not phase_name:
                     phase_name = "ELASTIC"
@@ -1478,6 +1492,7 @@ class SAXSEngine(BaseEngine):
                     "Xc": phi_c,
                     "Q_star": round(float(Q_raw), 3) if np.isfinite(Q_raw) else None,
                     "Q_rel": Q_rel,
+                    "f_Herman": round(f_herman, 4) if f_herman is not None else None,
                     "lc_nm_effective": lc,
                     "la_nm_effective": la,
                     "Xc_effective": phi_c,
@@ -1693,7 +1708,13 @@ class SAXSEngine(BaseEngine):
         if not self._q_list:
             self.log("No data loaded for strain analysis")
             return None
-        result = analyze_strain_series(strains=strains, q_list=self._q_list, I_list=self._I_list, cfg=self.cfg)
+        result = analyze_strain_series(
+            strains=strains,
+            q_list=self._q_list,
+            I_list=self._I_list,
+            sector_data_list=self._sector_data_list,
+            cfg=self.cfg,
+        )
         self._strain_result = result
         self._results = list(getattr(result, "strain_points", []))
         if output_dir:

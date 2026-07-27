@@ -536,6 +536,131 @@ def test_saxs_apply_batch_params_keeps_failed_frame_alignment() -> None:
     assert params["_batch_data"][1]["raw_snapshot"]["structure"]["lc"] == 3.3
 
 
+def test_saxs_strain_directory_retains_aligned_sector_data(tmp_path, monkeypatch) -> None:
+    from polynexus.core import saxs as saxs_module
+    from polynexus.core.saxs_engine.config import ExperimentCondition
+
+    image_path = str(tmp_path / "frame-000-S_.edf")
+    profile_path = str(tmp_path / "frame-008-S_.edf")
+    sector_map = {
+        "meridional": {"chi": np.asarray([0.0, 1.0]), "I": np.asarray([2.0, 1.0])},
+        "equatorial": {"chi": np.asarray([0.0, 1.0]), "I": np.asarray([1.0, 2.0])},
+    }
+
+    monkeypatch.setattr(
+        saxs_module,
+        "scan_experiment_dir",
+        lambda _path, _cfg: [
+            ExperimentCondition(value=0.0, files=[image_path]),
+            ExperimentCondition(value=8.0, files=[profile_path]),
+        ],
+    )
+
+    def fake_read_image(path):
+        if path == image_path:
+            return np.ones((2, 2)), {}
+        return None, {}
+
+    monkeypatch.setattr(saxs_module, "read_image", fake_read_image)
+    monkeypatch.setattr(
+        saxs_module,
+        "read_1d_profile",
+        lambda _path: (np.linspace(0.1, 0.5, 8), np.ones(8), {}),
+    )
+    monkeypatch.setattr(saxs_module, "extract_geometry_from_header", lambda header, cfg: cfg)
+    monkeypatch.setattr(
+        saxs_module,
+        "preprocess_pipeline",
+        lambda _img, _cfg: {
+            "q": np.linspace(0.1, 0.5, 8),
+            "Iq": np.ones(8),
+            "Iq_smooth": np.ones(8),
+            "sector_data": sector_map,
+        },
+    )
+    monkeypatch.setattr(saxs_module, "_integrate_pyfai_shadow", lambda _img, _cfg: (np.array([]), np.array([])))
+
+    engine = saxs_module.SAXSEngine(config=saxs_module.SAXSConfig(experiment_type="strain"))
+
+    assert engine.load(str(tmp_path)) is True
+    assert engine._sector_data_list == [sector_map, None]  # type: ignore[attr-defined]
+
+
+def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatch) -> None:
+    from polynexus.core import saxs as saxs_module
+    from polynexus.core.saxs_engine.core import LongPeriodResult, SAXSResult, StructureParams
+    from polynexus.core.saxs_engine.saxs_strain import StrainPhase, StrainPointResult, StrainSeriesResult
+
+    q = np.linspace(0.1, 0.5, 24)
+    intensity = np.ones_like(q)
+    sector_data = [{"frame": 0}, None]
+    captured = {}
+
+    def fake_strain_series(*, strains, q_list, I_list, sector_data_list=None, cfg=None, **_kwargs):
+        captured["sector_data_list"] = sector_data_list
+        return StrainSeriesResult(
+            strain_points=[
+                StrainPointResult(
+                    strain_pct=float(strains[0]),
+                    phase=StrainPhase.ELASTIC,
+                    Q_star_rel=1.0,
+                    Q_star_normalized=1.0,
+                    f_herman=0.25,
+                    confidence=0.8,
+                ),
+                StrainPointResult(
+                    strain_pct=float(strains[1]),
+                    phase=StrainPhase.ELASTIC,
+                    Q_star_rel=1.0,
+                    Q_star_normalized=1.0,
+                    confidence=0.8,
+                ),
+            ],
+            strains=np.asarray(strains, dtype=float),
+            L_array=np.asarray([12.0, 12.0], dtype=float),
+            lc_array=np.asarray([3.0, 3.0], dtype=float),
+            la_array=np.asarray([9.0, 9.0], dtype=float),
+            Q_star_array=np.asarray([10.0, 10.0], dtype=float),
+            Q_star_rel_array=np.asarray([1.0, 1.0], dtype=float),
+            f_herman_array=np.asarray([0.25, np.nan], dtype=float),
+            phi_void_array=np.asarray([np.nan, np.nan], dtype=float),
+        )
+
+    def fake_single(*_args, **_kwargs):
+        return SAXSResult(
+            long_period=LongPeriodResult(L_best=12.0, L_bragg=12.0),
+            structure=StructureParams(L=12.0, lc=3.0, la=9.0, phi_c=0.25, confidence_lc=0.6),
+            porod={"slope": -4.0},
+        )
+
+    monkeypatch.setattr(saxs_module, "analyze_strain_series", fake_strain_series)
+    monkeypatch.setattr(saxs_module, "analyze_single", fake_single)
+
+    engine = saxs_module.SAXSEngine(config=saxs_module.SAXSConfig(experiment_type="strain"))
+    engine._q_list = [q, q]  # type: ignore[attr-defined]
+    engine._I_list = [intensity, intensity]  # type: ignore[attr-defined]
+    engine._I_equat_list = [None, None]  # type: ignore[attr-defined]
+    engine._q_pyfai_list = [np.array([]), np.array([])]  # type: ignore[attr-defined]
+    engine._I_pyfai_list = [np.array([]), np.array([])]  # type: ignore[attr-defined]
+    engine._conditions = [0.0, 8.0]  # type: ignore[attr-defined]
+    engine._condition_confidences = [1.0, 1.0]  # type: ignore[attr-defined]
+    engine._file_list = ["frame-000-S_.edf", "frame-008-S_.edf"]  # type: ignore[attr-defined]
+    engine._sector_data_list = sector_data  # type: ignore[attr-defined]
+
+    assert engine._run_strain_pipeline() is True  # type: ignore[attr-defined]
+    assert captured["sector_data_list"] is sector_data
+    assert engine._batch_params[0]["f_Herman"] == 0.25  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["f_Herman"] is None  # type: ignore[attr-defined]
+
+    params = engine.get_parameters()
+    assert params["f_Herman_mean"] == 0.25
+    assert params["f_Herman_span"] == 0.0
+    assert params["f_Herman_range"] == "0.2500-0.2500"
+
+    assert engine.analyze_strain([0.0, 8.0]) is not None
+    assert captured["sector_data_list"] is sector_data
+
+
 def test_saxs_strain_batch_payload_exposes_raw_and_effective_layers() -> None:
     engine = get_engine("saxs")
     assert engine is not None
@@ -659,6 +784,9 @@ def test_saxs_strain_get_parameters_surfaces_phase_and_reliability_summary() -> 
     assert params["effective_param_ratio"] >= 0.0
     assert "paper_figure_candidate" in params
     assert "paper_conclusion_candidate" in params
+    assert "f_Herman_mean" not in params
+    assert "f_Herman_span" not in params
+    assert "f_Herman_range" not in params
 
 
 def test_saxs_strain_series_result_exposes_q_star_rel() -> None:
