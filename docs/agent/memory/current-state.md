@@ -76,7 +76,8 @@ title: Current PolyNexus repository state
   a scientific regression. The next active slice is sequence-level Guinier
   trend/continuity grading without fabricating missing temperature frames.
 
-- SAXS temperature Guinier evidence Stage 1 is implemented and verified:
+- SAXS temperature Guinier evidence Stage 1 is implemented and freshly
+  re-verified (main code checkpoint `17dcb0b`):
   existing per-frame Guinier fits now carry strict-JSON fit/uncertainty,
   applicability, qRg, and data-quality evidence into `SAXSResult` and
   `TemperaturePointResult`; failed frames remain missing rather than being

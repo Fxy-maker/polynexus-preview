@@ -219,9 +219,9 @@ temporary directories.
 
 ## Execution status (2026-07-27)
 
-All implementation steps in this plan are complete. The continuation also
-added a regression for processed-data provenance and made behavior-preserving
-Ruff baseline corrections in `core.py` and `saxs_temperature.py` so the
-repository's changed-file verifier can inspect the complete Stage 1 boundary.
-The atomic checkpoint is created after the documented verification evidence is
-recorded in the task card.
+All implementation steps in this plan are complete. The main Stage 1 code
+checkpoint is `17dcb0b`; the continuation added a processed-data provenance
+regression and made behavior-preserving Ruff baseline corrections in `core.py`
+and `saxs_temperature.py` so the repository's changed-file verifier can
+inspect the complete Stage 1 boundary. The follow-up verification/documentation
+checkpoint is created after the evidence recorded in the task card.
