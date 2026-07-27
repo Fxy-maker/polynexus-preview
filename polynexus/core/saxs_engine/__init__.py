@@ -73,6 +73,10 @@ from .saxs_anisotropy import (
     classify_2d_pattern, analyze_peak_widths,
     analyze_anisotropy,
 )
+from .saxs_sequence_rescue import (
+    build_sequence_rescue_candidates,
+    validate_sequence_rescue_candidate,
+)
 from .saxs_output import (
     export_parameters_csv,
     export_1d_profile,
@@ -112,5 +116,6 @@ __all__ = [
     "extract_azimuthal_profile", "extract_azimuthal_at_peaks",
     "herman_from_azimuthal", "herman_multi_q", "classify_2d_pattern",
     "analyze_peak_widths", "analyze_anisotropy", "export_parameters_csv",
+    "build_sequence_rescue_candidates", "validate_sequence_rescue_candidate",
     "export_1d_profile", "export_strain_series_csv", "export_temp_series_csv",
 ]

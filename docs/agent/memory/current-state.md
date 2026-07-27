@@ -7,6 +7,15 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS sequence rescue Stage 6 is implemented locally: existing deterministic
+  non-primary `lc` paths are exposed as candidate-only evidence, missing frames
+  are never fabricated, and accepted decisions require explicit hard,
+  physical, data-preservation, and sequence gates. Focused evidence is `4`
+  passed, the complete SAXS matrix is `255 passed` with four existing font
+  warnings, and the task verifier passes quality `282`/preprocessing `103`.
+  Candidate reanalysis, AI shadow/confirm, publication propagation, and human
+  scientific review remain open.
+
 - A new full-software vertical-delivery goal is active. It explicitly treats
   Results Workbench customization as a first-class product phase and requires
   each SAXS/DSC/WAXS/IR/NMR/Joint mode to complete analysis, evidence,
@@ -66,6 +75,13 @@ title: Current PolyNexus repository state
   native boundary, and all plots still reuse one Graph.
 
 ## Verification evidence
+
+- SAXS sequence rescue candidate evidence is implemented and verified: focused
+  tests `8 passed`, full SAXS matrix `255 passed, 4 warnings`, structured
+  verifier quality `282` and preprocessing `103`. Candidates remain
+  candidate-only and preserve original/missing frames; re-analysis, AI
+  shadow/confirm-only, real-data, publication, and scientific review remain
+  open.
 
 - Current-HEAD full/boundary verification after the SAXS detector/orientation
   checkpoint passed `2647 tests, 10 warnings in 1389.67s (23:09)` with a

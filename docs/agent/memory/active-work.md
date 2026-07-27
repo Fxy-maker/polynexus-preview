@@ -1,5 +1,20 @@
 # Active Work
 
+## SAXS sequence rescue - checkpointed 2026-07-27
+
+- Added an evidence-only adapter around the existing temperature `lc` path:
+  non-primary deterministic alternatives become JSON-safe `RescueCandidate`
+  records with frame/axis/original/proposed values and
+  `preserve_missing_frames=True`.
+- Added all-gates `validate_sequence_rescue_candidate`; hard, physical, data
+  preservation and sequence gates are explicit, and one failed gate rejects
+  regardless of soft score. `TempSeriesResult` retains candidate dictionaries
+  and exposes candidate IDs in its DataFrame without rewriting legacy values.
+- Verification evidence: focused `8 passed`; temperature/Guinier/mode
+  propagation `26 passed`; full SAXS matrix `255 passed, 4 warnings`; task
+  verifier quality `282`/preprocessing `103`. Candidate reanalysis, calibrated
+  phase-transition thresholds, AI shadow/confirm, and publication remain open.
+
 ## Full boundary/release verifier after SAXS orientation checkpoint - passed 2026-07-27
 
 - Re-ran `python scripts/verify.py --changed --types --full --boundary` on

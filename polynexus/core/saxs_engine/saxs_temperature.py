@@ -26,6 +26,7 @@ from .lc_path_selection import (
 )
 from .preprocess import apply_thermal_correction
 from .saxs_quality_contracts import build_guinier_sequence_evidence
+from .saxs_sequence_rescue import build_sequence_rescue_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,7 @@ class TempSeriesResult:
     lc_path_reason_array: List[str] = field(default_factory=list)
     lc_candidate_selected_source_array: List[str] = field(default_factory=list)
     lc_candidate_selected_score_array: np.ndarray = None
+    sequence_rescue_candidates: List[Dict] = field(default_factory=list)
     
     # Phase transition temperatures
     Tm_onset: float = np.nan
@@ -153,7 +155,16 @@ class TempSeriesResult:
             return '|'.join(pairs) or None
 
         rows = []
+        rescue_by_frame = {
+            int(item.get('parameters', {}).get('frame_index')): item
+            for item in self.sequence_rescue_candidates
+            if isinstance(item, dict)
+            and isinstance(item.get('parameters'), dict)
+            and item.get('parameters', {}).get('frame_index') is not None
+        }
         for tp in self.temp_points:
+            frame_index = len(rows)
+            rescue = rescue_by_frame.get(frame_index)
             rows.append({
                 'Temperature(C)': tp.temperature_C,
                 'Phase': tp.phase.name,
@@ -176,6 +187,7 @@ class TempSeriesResult:
                 'lc_path_reason': tp.lc_path_reason or None,
                 'lc_candidate_source': tp.lc_candidate_selected_source or None,
                 'lc_candidate_score': round(tp.lc_candidate_selected_score, 3) if np.isfinite(tp.lc_candidate_selected_score) else None,
+                'sequence_rescue_candidate': rescue.get('candidate_id') if rescue else None,
                 'melting_window_status': tp.melting_window_status or None,
                 'lc_reliability_status': tp.lc_reliability_status or None,
                 'lc_reliability_reason': tp.lc_reliability_reason or None,
@@ -959,6 +971,13 @@ def analyze_temperature_series(
         [float(tp.lc_candidate_selected_score) if np.isfinite(tp.lc_candidate_selected_score) else np.nan for tp in result.temp_points],
         dtype=float,
     )
+    result.sequence_rescue_candidates = [
+        candidate.to_dict()
+        for candidate in build_sequence_rescue_candidates(
+            result.temp_points,
+            axis_name="temperature",
+        )
+    ]
 
     lc_for_gibbs_thomson = result.lc_effective_array
     if not np.any(np.isfinite(lc_for_gibbs_thomson)):
