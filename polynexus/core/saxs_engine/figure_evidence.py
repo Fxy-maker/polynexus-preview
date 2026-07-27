@@ -111,6 +111,43 @@ _SEQUENCE_FIELDS = (
     "metric",
     "source_ref",
 )
+_AI_PLAN_FIELDS = (
+    "policy_version",
+    "automation_state",
+    "candidate_only",
+    "original_preserved",
+    "physical_validation_required",
+    "reason_codes",
+)
+_AI_DECISION_FIELDS = (
+    "decision",
+    "simulated_decision",
+    "confidence_band",
+    "apply_allowed",
+    "original_preserved",
+    "physical_validation_required",
+    "hard_guard_results",
+    "reason_codes",
+)
+_AI_REPLAY_FIELDS = (
+    "candidate_id",
+    "mode",
+    "run_status",
+    "decision",
+    "apply_performed",
+    "reason_codes",
+)
+_AI_RERUN_FIELDS = (
+    "candidate_id",
+    "mode",
+    "phase",
+    "apply_performed",
+    "physical_gate_status",
+    "quality_gate_status",
+    "rollback_reason",
+    "before_config_hash",
+    "after_config_hash",
+)
 _MISSING = object()
 
 
@@ -302,11 +339,66 @@ def _series_record(series: Any) -> dict[str, Any]:
     return record
 
 
+def _project_ai_rescue_evidence(payload: Any) -> dict[str, Any]:
+    """Project only compact, non-executable AI audit metadata."""
+
+    if not isinstance(payload, Mapping):
+        return {}
+    projected: dict[str, Any] = {}
+
+    plan = payload.get("saxs_ai_rescue_plan")
+    if isinstance(plan, Mapping):
+        plan_record = _project_mapping(plan, _AI_PLAN_FIELDS)
+        candidates = plan.get("candidates")
+        candidate_ids = [
+            str(item.get("candidate_id")).strip()
+            for item in candidates
+            if isinstance(item, Mapping) and str(item.get("candidate_id") or "").strip()
+        ] if isinstance(candidates, (list, tuple)) else []
+        if candidate_ids:
+            plan_record["candidate_count"] = len(candidate_ids)
+            plan_record["candidate_ids"] = candidate_ids
+        if plan_record:
+            projected["plan"] = plan_record
+
+    decision = payload.get("saxs_ai_rescue_decision")
+    if isinstance(decision, Mapping):
+        decision_record = _project_mapping(decision, _AI_DECISION_FIELDS)
+        if decision_record:
+            projected["decision"] = decision_record
+
+    replay_rows: list[dict[str, Any]] = []
+    replay = payload.get("saxs_ai_rescue_replay")
+    if isinstance(replay, (list, tuple)):
+        for item in replay:
+            if not isinstance(item, Mapping):
+                continue
+            if not str(item.get("candidate_id") or "").strip():
+                continue
+            row = _project_mapping(item, _AI_REPLAY_FIELDS)
+            if row:
+                replay_rows.append(row)
+    if replay_rows:
+        projected["replay"] = replay_rows
+
+    rerun = payload.get("saxs_confirmed_rerun_audit")
+    if isinstance(rerun, Mapping):
+        rerun_record = _project_mapping(rerun, _AI_RERUN_FIELDS)
+        if rerun_record and any(
+            key in rerun_record
+            for key in ("candidate_id", "mode", "phase", "rollback_reason")
+        ):
+            projected["confirmed_rerun"] = rerun_record
+
+    return projected
+
+
 def build_saxs_figure_evidence(
     frames: Sequence[SAXSFrameView],
     *,
     mode: str,
     series: Any = None,
+    ai_rescue: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build detached provenance for existing SAXS frame/series evidence."""
 
@@ -334,6 +426,9 @@ def build_saxs_figure_evidence(
     series_record = _series_record(series)
     if series_record:
         payload["series_record"] = series_record
+    ai_record = _project_ai_rescue_evidence(ai_rescue)
+    if ai_record:
+        payload["ai_rescue"] = ai_record
     return _json_safe(payload)
 
 
@@ -343,11 +438,17 @@ def attach_saxs_figure_evidence(
     *,
     mode: str,
     series: Any = None,
+    ai_rescue: Mapping[str, Any] | None = None,
 ) -> tuple[FigureDefinition, ...]:
     """Merge quality provenance into recipes without changing figure roles."""
 
     try:
-        provenance = build_saxs_figure_evidence(frames, mode=mode, series=series)
+        provenance = build_saxs_figure_evidence(
+            frames,
+            mode=mode,
+            series=series,
+            ai_rescue=ai_rescue,
+        )
     except Exception:
         provenance = {
             "schema_version": 1,

@@ -22,6 +22,7 @@ from .figure_common import (
     polish_saxs_publication_definitions,
 )
 from .figure_evidence import attach_saxs_figure_evidence
+from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from .figure_eligibility import (
     classify_frame_eligibility,
     crystallinity_panel_eligible,
@@ -904,7 +905,11 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
     return attach_saxs_figure_evidence(
         polished,
         frames,
-        mode="static",
+            mode="static",
+            ai_rescue=copy_saxs_ai_rescue_evidence(
+                engine_state,
+                getattr(engine_state, "result", None),
+            ),
     )
 
 

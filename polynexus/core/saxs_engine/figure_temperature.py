@@ -19,6 +19,7 @@ from ..figures.contracts import (
 )
 from .figure_common import SAXSFrameView, frame_views_from_engine
 from .figure_evidence import attach_saxs_figure_evidence
+from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from .figure_eligibility import (
     classify_frame_eligibility,
     crystallinity_panel_eligible,
@@ -1015,6 +1016,10 @@ def build_temperature_figure_definitions(
         frames,
         mode="temperature",
         series=getattr(engine, "_temperature_result", None),
+        ai_rescue=copy_saxs_ai_rescue_evidence(
+            engine,
+            getattr(engine, "result", None),
+        ),
     )
 
 

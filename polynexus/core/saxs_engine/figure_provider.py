@@ -17,6 +17,7 @@ from polynexus.core.figures.contracts import (
     PanelDefinition,
 )
 from polynexus.plotting.sci_style import AXIS_LABELS, WONG_COLORS
+from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 
 from .saxs_temperature import TempSeriesResult
 from .figure_common import SAXSFrameView, frame_views_from_engine
@@ -130,6 +131,10 @@ def _temperature_summary_fallback(
             tuple(getattr(engine_state, "_q_list", ()) or ()),
             tuple(getattr(engine_state, "_I_list", ()) or ()),
             evidence_frames=frame_views_from_engine(engine_state),
+            ai_rescue=copy_saxs_ai_rescue_evidence(
+                engine_state,
+                getattr(engine_state, "result", None),
+            ),
         )
     except (TypeError, ValueError):
         return tuple(definitions)
@@ -168,6 +173,10 @@ def _temperature_summary_fallback(
         frame_views_from_engine(engine_state),
         mode="temperature",
         series=result,
+        ai_rescue=copy_saxs_ai_rescue_evidence(
+            engine_state,
+            getattr(engine_state, "result", None),
+        ),
     )
 
 
@@ -221,6 +230,10 @@ def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
             tuple(getattr(engine_state, "_q_list", ())),
             tuple(getattr(engine_state, "_I_list", ())),
             evidence_frames=evidence_frames,
+            ai_rescue=copy_saxs_ai_rescue_evidence(
+                engine_state,
+                getattr(engine_state, "result", None),
+            ),
         )
         return _apply_publication_roles(
             engine_state,
@@ -325,6 +338,10 @@ def _apply_publication_roles(
         else getattr(engine_state, "_strain_result", None)
         if mode_name == "strain"
         else None,
+        ai_rescue=copy_saxs_ai_rescue_evidence(
+            engine_state,
+            getattr(engine_state, "result", None),
+        ),
     )
 
 
@@ -371,6 +388,7 @@ def build_saxs_temperature_definitions(
     intensities: Sequence[np.ndarray],
     *,
     evidence_frames: Sequence[SAXSFrameView] = (),
+    ai_rescue: object = None,
 ) -> tuple[FigureDefinition, ...]:
     """Describe SAXS temperature figures without publishing artifacts."""
 
@@ -437,6 +455,7 @@ def build_saxs_temperature_definitions(
         evidence_frames,
         mode="temperature",
         series=result,
+        ai_rescue=ai_rescue,
     )
 
 

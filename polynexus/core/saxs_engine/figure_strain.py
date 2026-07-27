@@ -23,6 +23,7 @@ from ..figures.contracts import (
 )
 from .figure_common import SAXSFrameView, frame_views_from_engine
 from .figure_evidence import attach_saxs_figure_evidence
+from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from .figure_eligibility import (
     FigureEligibilityDecision,
     classify_frame_eligibility,
@@ -1645,6 +1646,10 @@ def build_strain_figure_definitions(
         frames,
         mode="strain",
         series=getattr(engine, "_strain_result", None),
+        ai_rescue=copy_saxs_ai_rescue_evidence(
+            engine,
+            getattr(engine, "result", None),
+        ),
     )
 
 
