@@ -97,6 +97,10 @@
   stale running window returned wallpaper and is not counted as restarted-GUI
   evidence. The full plan now separates automated completion from the open
   restarted-GUI and human-scientific gates.
+- A new GUI process (`PID 39700`) was started and closed gracefully after
+  Qt-native captures of the default shell and SAXS static-to-temperature
+  switch. This is fresh restarted-shell evidence, not completion of the
+  all-mode real-data/Gallery/Editor/export or human release gates.
 - Automated full-release evidence is green for the fresh run. Restarted-GUI,
   scientific review, and final release approval remain open; do not call the
   overall goal complete while those human gates remain open.

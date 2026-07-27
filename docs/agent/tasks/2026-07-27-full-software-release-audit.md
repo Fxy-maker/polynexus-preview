@@ -239,6 +239,13 @@ limitation rather than pass.
   currently running window returned desktop wallpaper and is not counted as
   restarted-GUI evidence. Vendor mapping semantics and human scientific
   decisions remain open.
+- A fresh `python -m polynexus --gui` process (`PID 39700`) was started from
+  the current worktree, captured with Qt-native `QScreen.grabWindow()`,
+  switched from SAXS static to SAXS temperature through a real window message,
+  and then closed gracefully. Fresh shell and temperature-route captures are
+  under `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-restarted-*20260729.png`.
+  This strengthens restarted-shell/mode-switch evidence only; it does not
+  close all-mode real-data, Gallery/Editor/export, or human release gates.
 
 ## Verification commands
 

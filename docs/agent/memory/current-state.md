@@ -147,6 +147,11 @@
   current stale GUI handle returned wallpaper, so it is not restarted-GUI
   evidence. The full development plan now records the automated slices as
   complete while retaining the human gates.
+- A fresh GUI process (`PID 39700`) was started from the current worktree and
+  captured through Qt-native `QScreen.grabWindow()`. Its default shell and
+  SAXS static-to-temperature mode switch are valid fresh-window evidence; the
+  process was closed gracefully afterward. All-mode real-data route and human
+  release gates remain open.
 - A fresh four-partition NMR published-run walkthrough also returned `4
   passed, 11 deselected in 108.37s`, exit code `0`; solid-C assignment remains
   provisional.

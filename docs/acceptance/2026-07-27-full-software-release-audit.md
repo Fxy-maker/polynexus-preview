@@ -343,6 +343,17 @@ counted as restarted-GUI evidence. The existing valid live-window captures
 `C:\Temp\polynexus-live-window.png`) remain shell/default-state evidence only;
 the all-route restarted-GUI gate is still open.
 
+On 2026-07-29 a new `python -m polynexus --gui` process was started from the
+current worktree (`PID 39700`) and closed gracefully after capture. Qt-native
+window grabs are valid for the fresh process: `C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-restarted-shell-20260729.png`
+shows the default shell, and
+`C:\Users\Fan Xuyi\AppData\Local\Temp\polynexus-restarted-temperature-saxs-post2-20260729.png`
+shows a fresh SAXS temperature route after a real window-message click. The
+same fresh process also reached SAXS static before the temperature route.
+These captures close only the restarted shell/mode-switch evidence; the
+all-mode real-data route, Gallery/Editor/export walkthrough and human release
+decision remain open.
+
 ## Open release gates
 
 - Complete restarted-GUI visual review for all requested routes.
