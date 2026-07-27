@@ -131,10 +131,12 @@ git diff --check
 
 Record exact counts and limitations; do not reuse an older full/boundary run.
 
-- [ ] **Step 3: Create the explicit allowlist checkpoint**
+- [x] **Step 3: Create the explicit allowlist checkpoint**
 
 ```powershell
 python scripts/auto_commit.py --message "feat(gui): expose diagnostic figure navigation" --files polynexus/gui/results_workbench_profiles.py polynexus/gui/main_window_output_mixin.py tests/test_results_workbench_profiles.py tests/test_ir_nmr_joint_workbench_profiles.py tests/test_saxs_workbench_figure_contracts.py tests/test_waxs_workbench_figure_contracts.py tests/test_dsc_workbench_figure_contracts.py docs/agent/tasks/2026-07-27-results-workbench-diagnostic-navigation.md docs/superpowers/specs/2026-07-27-results-workbench-diagnostic-navigation-design.md docs/superpowers/plans/2026-07-27-results-workbench-diagnostic-navigation.md docs/agent/memory/current-state.md docs/agent/memory/active-work.md
 ```
 
 The command must not include pre-existing scratch or unrelated untracked files.
+
+Checkpoint created: `b3c5d80` (`feat(gui): expose diagnostic figure navigation`).

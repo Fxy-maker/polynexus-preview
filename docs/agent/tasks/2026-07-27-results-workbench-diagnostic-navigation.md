@@ -72,8 +72,8 @@ Results Workbench profile and route links through the active manifest Gallery.
 
 ## Checkpoint
 
-The explicit allowlist checkpoint is created after the verification evidence
-above. Pre-existing `.pytest_tmp*`, `.superpowers`, `tests/_tmp_phase3`, and
+The explicit allowlist checkpoint is `b3c5d80`
+(`feat(gui): expose diagnostic figure navigation`). Pre-existing `.pytest_tmp*`, `.superpowers`, `tests/_tmp_phase3`, and
 other untracked scratch/history files remain untouched and outside the task.
 
 ## Verification commands
