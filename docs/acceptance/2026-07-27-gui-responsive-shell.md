@@ -26,6 +26,13 @@ internal horizontal scroll container.
   `D:\PolyNexus\polynexus\__init__.py`.
 - Task-scoped quality/preprocessing evidence after the GUI-only lint fix:
   quality `282 passed`; preprocessing `106 passed`.
+- Fresh focused GUI rerun: `18 passed in 6.50s`.
+- Fresh task-scoped verifier with an isolated basetemp passed task/memory,
+  Ruff, compile/type baseline, quality `282`, preprocessing `106`, and
+  whitespace checks.
+- Fresh full/boundary verifier passed `2773 passed, 10 warnings in 1451.67s`;
+  the boundary audit also passed. Existing warnings were tight-layout,
+  DSC polynomial-conditioning, and Arial CJK glyph warnings.
 - The prescribed full suite completed with `2685 passed, 1 failed, 10
   warnings` in `1558.50s`; the single failure was the known order-sensitive
   ChartEditor/Matplotlib-Qt crop test. The same test passed alone and the
@@ -39,8 +46,9 @@ baseline lint findings. That file and the related pre-existing SAXS evidence
 changes were intentionally left outside this GUI task's allowlist. Direct
 Ruff/compile checks for the GUI files and the focused GUI tests pass.
 
-The full-suite failure is retained as an unresolved repository-level Qt
-stability limitation; it is not treated as a GUI shell acceptance pass.
+The older full-suite failure is retained as historical evidence only. The
+fresh full/boundary run above is the current repository-level result and
+passed; it supersedes that order-sensitive failure for this acceptance.
 
 ## Remaining release gates
 

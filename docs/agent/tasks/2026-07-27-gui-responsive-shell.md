@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-27-gui-responsive-shell
 kind: gui-acceptance
-status: in_progress
+status: completed
 ---
 
 # GUI responsive shell
@@ -48,9 +48,22 @@ usable without right-edge clipping at default and maximized sizes.
   order when their layout overflows.
 - [x] Focused regression tests cover compact and wide shell states.
 - [x] Restarted canonical GUI/Qt-grab inspection shows no right-edge clipping.
-- [ ] Structured verifier and the full/boundary verifier pass, with any
+- [x] Structured verifier and the full/boundary verifier pass, with any
   pre-existing warnings recorded rather than hidden.
-- [ ] One allowlisted checkpoint commit is created by `scripts/auto_commit.py`.
+- [x] One allowlisted checkpoint commit is created by `scripts/auto_commit.py`.
+
+## Verification result
+
+- Fresh focused GUI matrix: `18 passed in 6.50s`.
+- Fresh task-scoped verifier with an isolated basetemp: task/memory checks,
+  Ruff, compile/type baseline, quality `282`, preprocessing `106`, and
+  whitespace all passed.
+- Fresh full/boundary verifier with an isolated basetemp: `2773 passed, 10
+  warnings in 1451.67s`; compile, quality, preprocessing, Ruff/type,
+  whitespace, and boundary checks passed. Warnings were the existing
+  tight-layout, DSC polynomial-conditioning, and Arial CJK glyph warnings.
+- The GUI allowlist checkpoint was created locally with `scripts/auto_commit.py`;
+  no push, merge, deploy, or scratch cleanup was performed.
 
 ## Verification
 

@@ -71,5 +71,14 @@ header controls compressible; no technique-specific code changes.
 - [x] Run the full/boundary verifier and record exact counts and warnings.
 - [x] Restart the canonical GUI, run `--diagnose`, maximize the window, and
   capture a fresh screenshot proving the header and top-bar are inside bounds.
-- [ ] Create one checkpoint with `scripts/auto_commit.py` using the explicit
+- [x] Create one checkpoint with `scripts/auto_commit.py` using the explicit
   allowlist, leaving pre-existing scratch untouched.
+
+### Final verification evidence
+
+- Focused GUI matrix: `18 passed in 6.50s`.
+- Task-scoped verifier: task/memory, Ruff, compile/type, quality `282`,
+  preprocessing `106`, and whitespace passed with an isolated basetemp.
+- Full/boundary verifier: `2773 passed, 10 warnings in 1451.67s`; all selected
+  gates and the boundary audit passed. Existing warnings were recorded in the
+  task card and acceptance note.

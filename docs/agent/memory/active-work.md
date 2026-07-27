@@ -280,7 +280,7 @@
 - Next action is to continue the SAXS vertical route at the next unconsumed
   boundary; no continuous autonomous runner or release sign-off is implied.
 
-## GUI responsive shell - implementation checkpoint 2026-07-27
+## GUI responsive shell - checkpointed 2026-07-27
 
 - Restarted canonical GUI inspection found right-edge clipping caused by
   window-width-only responsive thresholds, long header minimum sizes, and the
@@ -293,14 +293,13 @@
   Qt grabs show default `viewport/content=1036/1036` and maximized
   `1486/1486`; the task card remains geometrically complete. Acceptance is
   recorded in `docs/acceptance/2026-07-27-gui-responsive-shell.md`.
-- The task verifier's changed-file Ruff phase still sees pre-existing
-  `polynexus/core/saxs.py` changes with 24 lint findings; those changes remain
-  intentionally untouched and outside this GUI task's allowlist. Real-data
-  science, all-mode GUI walkthrough, and final release approval remain open.
-- The prescribed full suite completed `2685 passed, 1 failed, 10 warnings` in
-  `1558.50s`; the failure was the known order-sensitive ChartEditor/Matplotlib
-  Qt crop test. It passes alone, and the ChartEditor + DSC lifecycle matrix
-  passes `251`. Full repository green status remains open.
+- Fresh task-scoped verification passed task/memory, Ruff, compile/type,
+  quality `282`, preprocessing `106`, and whitespace checks with an isolated
+  basetemp. Fresh full/boundary verification passed `2773` tests with `10`
+  existing warnings in `1451.67s`; the boundary audit passed as well. The
+  older order-sensitive full-suite failure is retained as historical evidence
+  only. Real-data science, all-mode live GUI walkthrough, and final release
+  approval remain open.
 
 ## SAXS series metric evidence rollup - checkpointed 2026-07-27
 

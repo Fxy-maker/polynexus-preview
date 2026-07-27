@@ -139,17 +139,17 @@ title: Current PolyNexus repository state
   verifier passes quality `282` and preprocessing `106`. See
   `docs/agent/tasks/2026-07-27-saxs-workbench-series-evidence-visibility.md`.
 
-- GUI responsive shell acceptance is implemented locally: compact policy now
+- GUI responsive shell acceptance is checkpointed locally: compact policy now
   uses actual content width, header labels are compressible, optional shell
   actions collapse without removing menu routes, and the History toolbar has
   an internal horizontal scroll container. Focused GUI evidence is `18
   passed`; complete deferred-startup Qt grabs show content fitting its viewport
-  at default and maximized sizes with the task card visible. The task-scoped
-  changed-file Ruff command is still obstructed by 24 pre-existing findings in
-  modified `polynexus/core/saxs.py`, which remains outside the GUI allowlist.
-  The prescribed full suite completed `2685 passed, 1 failed, 10 warnings`;
-  the lone order-sensitive ChartEditor/Matplotlib-Qt failure passes in
-  isolation and the focused ChartEditor/DSC matrix is `251 passed`.
+  at default and maximized sizes with the task card visible. Fresh task-scoped
+  verification passed task/memory, Ruff, compile/type, quality `282`,
+  preprocessing `106`, and whitespace. Fresh full/boundary verification passed
+  `2773 passed, 10 warnings` in `1451.67s`, including the boundary audit. The
+  older order-sensitive full-suite failure is historical evidence only. The
+  explicit GUI allowlist checkpoint was created locally without push.
   See `docs/agent/tasks/2026-07-27-gui-responsive-shell.md` and
   `docs/acceptance/2026-07-27-gui-responsive-shell.md`.
 
