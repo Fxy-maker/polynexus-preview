@@ -76,6 +76,78 @@ def test_temperature_core_failure_does_not_fabricate_guinier_evidence(monkeypatc
     assert result.metric_evidence["guinier"]["level"] == "Diagnostic"
 
 
+def test_temperature_invariant_failure_isolated_to_middle_frame(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_temperature as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    intensity = 120.0 * np.exp(-(q**2) * 4.0**2 / 3.0)
+    invariant_calls = {"count": 0}
+
+    def flaky_invariant(q_arr, i_arr, cfg=None):
+        del q_arr, i_arr, cfg
+        invariant_calls["count"] += 1
+        if invariant_calls["count"] == 3:
+            raise RuntimeError("injected middle-frame invariant failure")
+        return 1.0
+
+    monkeypatch.setattr(module, "analyze_single", lambda q_arr, i_arr, cfg: _fake_frame_result(q_arr, i_arr))
+    monkeypatch.setattr(module, "scattering_invariant", flaky_invariant)
+    monkeypatch.setattr(module, "bragg_long_period", lambda q_arr, i_arr: (10.0, 0.628, {}))
+
+    result = analyze_temperature_series(
+        [170.0, 180.0, 190.0],
+        [q, q, q],
+        [intensity, intensity, intensity],
+        cfg=SAXSConfig(),
+    )
+
+    assert len(result.temp_points) == 3
+    assert np.isfinite(result.temp_points[0].Q_star)
+    assert not np.isfinite(result.temp_points[1].Q_star)
+    assert "temperature_frame_invariant_unavailable" in result.temp_points[1].warnings
+    assert np.isfinite(result.temp_points[2].Q_star)
+    assert result.temp_points[2].guinier_evidence is not None
+
+
+def test_temperature_reference_failures_do_not_abort_later_frames(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_temperature as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    intensity = 120.0 * np.exp(-(q**2) * 4.0**2 / 3.0)
+
+    def failing_reference_invariant(q_arr, i_arr, cfg=None):
+        del q_arr, i_arr, cfg
+        if not hasattr(failing_reference_invariant, "calls"):
+            failing_reference_invariant.calls = 0
+        failing_reference_invariant.calls += 1
+        if failing_reference_invariant.calls == 1:
+            raise RuntimeError("injected reference invariant failure")
+        return 1.0
+
+    def failing_reference_long_period(q_arr, i_arr):
+        del q_arr, i_arr
+        raise RuntimeError("injected reference long-period failure")
+
+    monkeypatch.setattr(module, "analyze_single", lambda q_arr, i_arr, cfg: _fake_frame_result(q_arr, i_arr))
+    monkeypatch.setattr(module, "scattering_invariant", failing_reference_invariant)
+    monkeypatch.setattr(module, "bragg_long_period", failing_reference_long_period)
+
+    result = analyze_temperature_series(
+        [170.0, 180.0, 190.0],
+        [q, q, q],
+        [intensity, intensity, intensity],
+        cfg=SAXSConfig(),
+    )
+
+    assert len(result.temp_points) == 3
+    assert result.temp_points[1].guinier_evidence is not None
+    assert result.temp_points[2].guinier_evidence is not None
+    assert all(np.isfinite(point.Q_star) for point in result.temp_points)
+    assert not any(np.isfinite(point.Xc_relative) for point in result.temp_points)
+    assert "temperature_reference_invariant_unavailable" in result.temp_points[0].warnings
+    assert "temperature_reference_long_period_unavailable" in result.temp_points[0].warnings
+
+
 def test_temperature_series_attaches_sequence_guinier_evidence(monkeypatch):
     import polynexus.core.saxs_engine.saxs_temperature as module
 

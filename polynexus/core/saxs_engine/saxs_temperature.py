@@ -230,6 +230,25 @@ def _temperature_window_margin(temperatures: np.ndarray) -> float:
     return max(3.0, float(np.median(positive)) * 0.5)
 
 
+def _safe_temperature_invariant(
+    q: np.ndarray,
+    intensity: np.ndarray,
+    cfg: SAXSConfig,
+    *,
+    warning_code: str,
+) -> tuple[float, str | None]:
+    """Calculate one temperature-frame invariant without aborting the series."""
+    try:
+        value = float(scattering_invariant(q, intensity, cfg=cfg))
+    except Exception:
+        logger.warning("SAXS temperature invariant calculation failed: %s", warning_code, exc_info=True)
+        return np.nan, warning_code
+    if not np.isfinite(value):
+        logger.warning("SAXS temperature invariant calculation was non-finite: %s", warning_code)
+        return np.nan, warning_code
+    return value, None
+
+
 def _expected_melt_soft_margin(expected_melt_C: float, temperature_margin: float) -> float:
     if not np.isfinite(expected_melt_C):
         return float(max(temperature_margin, 10.0))
@@ -846,8 +865,26 @@ def analyze_temperature_series(
 
     # Reference: lowest temperature point (solid state)
     ref_idx = 0
-    Q_solid = scattering_invariant(q_sorted[ref_idx], I_sorted[ref_idx], cfg=cfg)
-    L_solid, _, _ = bragg_long_period(q_sorted[ref_idx], I_sorted[ref_idx])
+    Q_solid, reference_invariant_warning = _safe_temperature_invariant(
+        q_sorted[ref_idx],
+        I_sorted[ref_idx],
+        cfg,
+        warning_code="temperature_reference_invariant_unavailable",
+    )
+    reference_long_period_warning = None
+    try:
+        L_solid, _, _ = bragg_long_period(q_sorted[ref_idx], I_sorted[ref_idx])
+        L_solid = float(L_solid)
+        if not np.isfinite(L_solid):
+            reference_long_period_warning = "temperature_reference_long_period_unavailable"
+            L_solid = np.nan
+    except Exception:
+        logger.warning(
+            "SAXS temperature reference long-period calculation failed.",
+            exc_info=True,
+        )
+        reference_long_period_warning = "temperature_reference_long_period_unavailable"
+        L_solid = np.nan
 
     # Track Bragg peak intensity for melting detection
     I_peak_tracking = np.full(n_points, np.nan)
@@ -858,6 +895,10 @@ def analyze_temperature_series(
         I = I_sorted[i]  # noqa: E741
 
         tp = TemperaturePointResult(source_index=int(sort_idx[i]), temperature_C=float(T))
+        if i == ref_idx:
+            for warning_code in (reference_invariant_warning, reference_long_period_warning):
+                if warning_code:
+                    tp.warnings.append(warning_code)
 
         # Apply thermal expansion correction
         if thermal_expansion_coeff is not None and np.isfinite(thermal_expansion_coeff):
@@ -915,8 +956,15 @@ def analyze_temperature_series(
             logger.warning("SAXS temperature frame core analysis failed.", exc_info=True)
 
         # ---- Invariant ----
-        Q_star = scattering_invariant(q, I, cfg=cfg_corrected)
+        Q_star, invariant_warning = _safe_temperature_invariant(
+            q,
+            I,
+            cfg_corrected,
+            warning_code="temperature_frame_invariant_unavailable",
+        )
         tp.Q_star = Q_star
+        if invariant_warning:
+            tp.warnings.append(invariant_warning)
         result.Q_star_array[i] = Q_star
 
         # ---- Relative crystallinity ----
