@@ -1,5 +1,16 @@
 ---
 
+## SAXS DataQualityReport DataFrame and CSV export (2026-07-28)
+
+- Temperature/strain tables and static parameter CSV projections now expose
+  the existing q/I report's source refs, level, ordered reasons/actions, defect
+  counts, and boolean flags. Missing reports stay empty and nested evidence
+  remains authoritative; no quality or physical semantics changed.
+- Fresh evidence is focused `21 passed`, exact SAXS `383 passed, 6 warnings`,
+  and structured verifier exit `0` with quality `283` and preprocessing `106`.
+- The explicit checkpoint is `b0c63d7` (no push). Scientific claim review,
+  detector calibration, rescue approval, and publication release remain open.
+
 ## SAXS detector provenance DataFrame and CSV export (2026-07-28)
 
 - Temperature/strain DataFrames and static parameter CSV projections now expose
@@ -99,6 +110,14 @@
 - Installed OriginPro/COM behavior remains an optional-runtime/manual gate;
   native screenshot body contrast in inactive grabs remains a visual review
   item. Scientific warnings for IR 2D and solid-C NMR are unchanged.
+
+## Native synthetic Joint route evidence (2026-07-28)
+
+- The existing synthetic `JointCoordinator` report now has a native GUI route
+  probe: `1 passed, 15 deselected in 5.94s`, exit code `0`.
+- The probe restores `joint.compare`, captures Results/Gallery/History/Editor,
+  and verifies package Export artifacts. It remains report-level software
+  evidence; real-data Joint behavior and conflict semantics are not closed.
 
 ## Fresh current full/boundary release verification (2026-07-27)
 

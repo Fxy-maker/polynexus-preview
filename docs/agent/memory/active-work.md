@@ -1,5 +1,25 @@
 # Active Work
 
+## SAXS DataQualityReport DataFrame and CSV export - 2026-07-28
+
+- The existing q/I `DataQualityReport` is now projected into temperature and
+  strain DataFrame rows plus static parameter CSV fields. The projection keeps
+  source/reference fields, level, ordered reasons/actions, defect counts, and
+  emitted boolean flags; missing reports remain empty. No cleaning, fitting,
+  threshold, physical gate, rescue, AI, or publication behavior changed.
+- TDD RED was `3 failed, 18 passed`; GREEN was `21 passed`. The exact SAXS
+  matrix was `383 passed, 6 warnings`; the structured verifier exited `0` with
+  quality `283`, preprocessing `106`, Ruff, compile/type, memory/task, and
+  whitespace checks.
+- Status is checkpointed at `b0c63d7` with the explicit allowlist; no push was
+  performed. Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-data-quality-dataframe-export.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-data-quality-dataframe-export-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-data-quality-dataframe-export.md`.
+- Scientific review of whether dirty-data reports support a particular claim,
+  detector calibration, rescue approval, and publication eligibility remain
+  separate gates.
+
 ## SAXS detector provenance DataFrame and CSV export - 2026-07-28
 
 - The existing raw-detector provenance is now projected into temperature and
@@ -133,6 +153,15 @@
 - This closes automated package-fallback Export coverage across all modes. The
   installed OriginPro/COM adapter path remains optional-runtime/manual review;
   inactive native screenshot body contrast also remains a human visual gate.
+
+## Native synthetic Joint route - 2026-07-28
+
+- A native synthetic Joint probe passed `1 passed, 15 deselected in 5.94s`,
+  exit code `0`. It restores the existing `JointCoordinator` report through
+  `joint.compare`, captures Results/Gallery/History/Editor, and verifies the
+  package Export artifacts.
+- This is shared GUI/export route evidence only. No real-data Joint fixture or
+  scientific conflict interpretation is inferred; those remain human review.
 
 ## Fresh current full/boundary release verification - 2026-07-27
 

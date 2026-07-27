@@ -33,7 +33,10 @@ from .saxs_quality_contracts import (
     build_series_orientation_evidence,
 )
 from .saxs_sequence_rescue import build_sequence_rescue_candidates
-from .saxs_output_helpers import _detector_provenance_csv_fields
+from .saxs_output_helpers import (
+    _data_quality_csv_fields,
+    _detector_provenance_csv_fields,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +225,7 @@ class TempSeriesResult:
             row.update(
                 _detector_provenance_csv_fields(tp.raw_detector_quality_report)
             )
+            row.update(_data_quality_csv_fields(tp.data_quality_report))
             rows.append(row)
         return pd.DataFrame(rows)
 

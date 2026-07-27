@@ -87,6 +87,58 @@ def _detector_provenance_csv_fields(report: Any) -> dict[str, Any]:
     return fields
 
 
+_DATA_QUALITY_CSV_FIELDS = (
+    ("Data_quality_source_id", "source_id"),
+    ("Data_quality_raw_data_ref", "raw_data_ref"),
+    ("Data_quality_processed_data_ref", "processed_data_ref"),
+    ("Data_quality_processing_config_ref", "processing_config_ref"),
+    ("Data_quality_level", "level"),
+    ("Data_quality_reason_codes", "reason_codes"),
+    ("Data_quality_actions", "actions"),
+    ("Data_quality_low_q_truncated", "low_q_truncated"),
+    ("Data_quality_original_point_count", "original_point_count"),
+    ("Data_quality_finite_point_count", "finite_point_count"),
+    ("Data_quality_usable_point_count", "usable_point_count"),
+    ("Data_quality_invalid_point_count", "invalid_point_count"),
+    ("Data_quality_nonfinite_q_count", "nonfinite_q_count"),
+    ("Data_quality_nonpositive_q_count", "nonpositive_q_count"),
+    ("Data_quality_nonfinite_intensity_count", "nonfinite_intensity_count"),
+    ("Data_quality_nonpositive_intensity_count", "nonpositive_intensity_count"),
+    ("Data_quality_duplicate_q_count", "duplicate_q_count"),
+    ("Data_quality_nonmonotonic_q", "nonmonotonic_q"),
+)
+_DATA_QUALITY_LIST_FIELDS = {
+    "Data_quality_reason_codes",
+    "Data_quality_actions",
+}
+_DATA_QUALITY_BOOL_FIELDS = {
+    "Data_quality_low_q_truncated",
+    "Data_quality_nonmonotonic_q",
+}
+
+
+def _data_quality_csv_fields(report: Any) -> dict[str, Any]:
+    """Flatten an existing q/I quality report for table/CSV consumers only."""
+    fields: dict[str, Any] = {
+        output_key: None for output_key, _ in _DATA_QUALITY_CSV_FIELDS
+    }
+    if not isinstance(report, Mapping):
+        return fields
+
+    for output_key, report_key in _DATA_QUALITY_CSV_FIELDS:
+        value = report.get(report_key)
+        if output_key in _DATA_QUALITY_LIST_FIELDS:
+            if isinstance(value, str):
+                fields[output_key] = value
+            elif isinstance(value, (list, tuple)):
+                fields[output_key] = "|".join(str(item) for item in value)
+        elif output_key in _DATA_QUALITY_BOOL_FIELDS:
+            fields[output_key] = value if isinstance(value, bool) else None
+        else:
+            fields[output_key] = getattr(value, "value", value)
+    return fields
+
+
 def _result_effective_lc_value(result) -> float:
     """Return the effective lc value for plotting when batch metadata provides one."""
     final = getattr(result, "final_parameters", None)
@@ -265,6 +317,9 @@ def _result_to_params_dict(result) -> Dict:
                 getattr(result, "raw_detector_quality_report", None)
             )
         )
+        d.update(
+            _data_quality_csv_fields(getattr(result, "data_quality_report", None))
+        )
         return d
 
     d = {
@@ -303,4 +358,5 @@ def _result_to_params_dict(result) -> Dict:
             getattr(result, "raw_detector_quality_report", None)
         )
     )
+    d.update(_data_quality_csv_fields(getattr(result, "data_quality_report", None)))
     return d

@@ -32,7 +32,10 @@ from .saxs_quality_contracts import (
     build_series_metric_evidence,
     build_series_orientation_evidence,
 )
-from .saxs_output_helpers import _detector_provenance_csv_fields
+from .saxs_output_helpers import (
+    _data_quality_csv_fields,
+    _detector_provenance_csv_fields,
+)
 
 
 class StrainPhase(Enum):
@@ -148,6 +151,7 @@ class StrainSeriesResult:
             row.update(
                 _detector_provenance_csv_fields(sp.raw_detector_quality_report)
             )
+            row.update(_data_quality_csv_fields(sp.data_quality_report))
             rows.append(row)
         return pd.DataFrame(rows)
 
