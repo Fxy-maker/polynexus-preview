@@ -236,7 +236,7 @@ with replay rows added as an audit-only field.
 - [ ] **Step 4: Commit the export slice**
 
 ```powershell
-python scripts/auto_commit.py --message "feat(saxs): export replay audit provenance" --files polynexus/core/saxs_export_bundle.py tests/test_saxs_ai_orchestrator_handoff.py tests/test_saxs_export_bundle.py tests/test_saxs_export_provenance.py
+python scripts/auto_commit.py --message "feat(saxs): export replay audit provenance" --files polynexus/core/saxs_export_bundle.py tests/test_saxs_ai_orchestrator_handoff.py tests/test_saxs_export_bundle.py
 ```
 
 ### Task 4: Cover all SAXS modes and calibration blockers
