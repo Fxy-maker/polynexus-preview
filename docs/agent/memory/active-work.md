@@ -1,5 +1,16 @@
 # Active Work
 
+## SAXS mismatched temperature time axis fail-closed - checkpointed - 2026-07-28
+
+- A supplied time list with the wrong frame count now leaves temperature-frame
+  analysis intact and marks Avrami unavailable with
+  `temperature_time_axis_length_mismatch`; no synthetic time axis is used.
+- RED was `1 failed`; focused GREEN was `24 passed`; exact SAXS was `417
+  passed, 6 warnings`. Invalid time elements are a separate next boundary;
+  full/boundary verification is not claimed.
+- Structured verifier and explicit allowlist checkpoint passed locally; keep
+  unrelated release/GUI/editor/scratch changes out of scope.
+
 ## SAXS invalid temperature-axis fail-closed boundary - checkpointed - 2026-07-28
 
 - Invalid/non-finite temperature elements now become explicit NaN axis values

@@ -1,5 +1,24 @@
 ---
 
+## SAXS mismatched temperature time axis fail-closed (2026-07-28)
+
+- `analyze_temperature_series()` now detects a supplied `times` length mismatch
+  before sorting. It keeps all temperature frames, uses an all-NaN internal
+  time alignment only to prevent indexing errors, and records strict JSON-safe
+  Avrami status `valid=False` with reason
+  `temperature_time_axis_length_mismatch`. Positional frame indices are never
+  treated as synthetic time values.
+- Absent/correctly-sized time paths and temperature/Guinier analysis remain
+  unchanged. RED was `1 failed`; focused GREEN was `24 passed`; exact SAXS was
+  `417 passed, 6 warnings`.
+- Invalid time elements and full/boundary repository verification remain open;
+  structured verifier and checkpoint are to be recorded after the final docs
+  update.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-temperature-time-axis-fail-closed.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-temperature-time-axis-fail-closed-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-temperature-time-axis-fail-closed.md`.
+
 ## SAXS invalid temperature-axis fail-closed boundary (2026-07-28)
 
 - `analyze_temperature_series()` now converts each temperature through the
