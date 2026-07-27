@@ -503,17 +503,23 @@ def export_saxs_bundle(engine: Any, output_dir: str) -> SAXSExportBundle:
         )
         files["config_snapshot"] = _write_json(root, "config_snapshot.json", saxs_config_snapshot(getattr(engine, "cfg", None)))
         parameter_payload = _parameter_payload(engine, mode)
+        parameter_payload["quality_evidence_file"] = files["quality_evidence"]
         files["parameters"] = _write_json(root, "parameters.json", parameter_payload)
         files["parameters_csv"] = "data/parameters.csv"
         parameter_rows = parameter_payload.get("rows", []) or [parameter_payload.get("summary", {})]
         parameters_path = root / files["parameters_csv"]
         parameters_path.parent.mkdir(parents=True, exist_ok=True)
-        keys = sorted({str(key) for row in parameter_rows if isinstance(row, Mapping) for key in row})
+        quality_evidence_ref = f"../{files['quality_evidence']}"
+        csv_rows = []
+        for row in parameter_rows:
+            data = dict(row) if isinstance(row, Mapping) else {}
+            data["quality_evidence_ref"] = quality_evidence_ref
+            csv_rows.append(data)
+        keys = sorted({str(key) for row in csv_rows for key in row})
         with parameters_path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=keys or ["status"])
             writer.writeheader()
-            for row in parameter_rows:
-                data = row if isinstance(row, Mapping) else {}
+            for data in csv_rows:
                 writer.writerow({key: _jsonable(data.get(key, "")) for key in writer.fieldnames})
 
         profile_files, profile_provenance = _write_profiles(root, profile_items)

@@ -68,7 +68,10 @@ def test_export_saxs_bundle_defends_non_mapping_parameter_rows(tmp_path, monkeyp
     with (tmp_path / "mixed_rows" / "data" / "parameters.csv").open(
         newline="", encoding="utf-8"
     ) as handle:
-        assert list(csv.DictReader(handle)) == [{"L_nm": ""}, {"L_nm": "12.4"}]
+        assert list(csv.DictReader(handle)) == [
+            {"L_nm": "", "quality_evidence_ref": "../quality_evidence.json"},
+            {"L_nm": "12.4", "quality_evidence_ref": "../quality_evidence.json"},
+        ]
 
 
 def test_export_saxs_bundle_returns_failed_status_if_manifest_fallback_also_fails(
@@ -115,6 +118,31 @@ def test_export_saxs_bundle_persists_quality_evidence_and_ai_audit(tmp_path) -> 
     assert payload["static"]["orientation_evidence"]["level"] == "Diagnostic"
     assert payload["ai_rescue"]["plan"]["candidate_only"] is True
     assert payload["ai_rescue"]["decision"]["apply_allowed"] is False
+
+
+def test_export_saxs_bundle_adds_quality_evidence_reference_to_parameters(tmp_path) -> None:
+    engine = _engine()
+    engine.saxs_ai_rescue_plan = {
+        "candidate_only": True,
+        "candidates": [{"candidate_id": "candidate-secret", "config": {"q_min": 0.01}}],
+    }
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "quality_reference"))
+
+    root = tmp_path / "quality_reference"
+    parameters = json.loads((root / "parameters.json").read_text(encoding="utf-8"))
+    with (root / "data" / "parameters.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert bundle.status == "ok"
+    assert parameters["quality_evidence_file"] == "quality_evidence.json"
+    assert rows
+    assert all(row["quality_evidence_ref"] == "../quality_evidence.json" for row in rows)
+    csv_text = (root / "data" / "parameters.csv").read_text(encoding="utf-8")
+    assert "candidate-secret" not in csv_text
+    assert "q_min" not in csv_text
 
 
 def test_export_saxs_bundle_persists_confirmed_rerun_audit(tmp_path) -> None:
