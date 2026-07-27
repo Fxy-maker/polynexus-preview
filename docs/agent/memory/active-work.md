@@ -1,5 +1,34 @@
 # Active Work
 
+## SAXS aligned-batch evidence mode resilience - implementation checkpoint 2026-07-27
+
+- Generic aligned `_batch_results` serialization now preserves existing
+  per-frame evidence even when `cfg.experiment_type` carries a stale or
+  non-static label and the dedicated temperature/strain result is absent.
+  The shared scope helper emits `static_batch` only for static mode and
+  `aligned_batch` for temperature/cooling/heating/isothermal/strain labels.
+- Export uses the same scope contract. Workbench review text says
+  “Aligned batch quality” and asks for missing/diagnostic-frame review; it does
+  not describe the payload as a static batch or a series trend.
+- TDD evidence recorded by the implementation pass: the deterministic scope
+  regression was RED in parameters, Export, and Workbench, then GREEN; the
+  adjacent matrix passed `51` tests and the complete SAXS matrix passed `305`
+  tests with `4` warnings. A separate independent full/boundary verifier
+  rerun reported `2707 passed, 10 warnings`, quality `282`, preprocessing
+  `106`, and a passing boundary audit.
+- Fresh task-scoped verification with an isolated basetemp passed quality
+  `282`, preprocessing `106`, changed Ruff/compile/type, task/memory, and
+  whitespace checks; the focused SAXS matrix passed `37`. The default verifier
+  path remains environmentally blocked by the pre-existing `.pytest_tmp`
+  lock (`229 passed, 53 setup errors`). An independent full/boundary rerun
+  reported `2707 passed, 10 warnings` and a passing boundary audit.
+- Checkpoint `5984bd3` has been created and committed with the explicit
+  allowlist for this atomic slice. Scientific review of real
+  temperature/strain meaning, restarted-GUI
+  review, AI model calls/candidate reruns, expert calibration, and raw
+  detector/geometry acceptance remain open.
+- Task card: `docs/agent/tasks/2026-07-27-saxs-batch-evidence-mode-resilience.md`.
+
 ## SAXS static 1D evidence - implementation checkpoint 2026-07-27
 
 - Static single-frame `get_parameters()` now transports existing

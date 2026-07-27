@@ -215,6 +215,34 @@ def test_static_batch_evidence_uses_batch_quality_wording_and_keeps_diagnostics(
     assert "series_metric_missing_frames" in presentation.diagnostics.rows[-1][metric_column].display
 
 
+def test_aligned_batch_evidence_does_not_claim_static_or_series_trend():
+    params = {
+        "batch_frames": 2,
+        "metric_evidence_scope": "aligned_batch",
+        "_batch_data": [{"file": "frame-0"}, {"file": "frame-1"}],
+        "metric_evidence": {
+            "porod": {
+                **_series_metric_summary(level="Diagnostic"),
+                "evidence_frame_count": 1,
+                "usable_frame_count": 1,
+                "missing_frame_count": 1,
+                "coverage_fraction": 0.5,
+                "applicable": False,
+                "reason_codes": ["series_metric_missing_frames"],
+            }
+        },
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "Aligned batch quality" in review_text
+    assert "static batch" not in review_text.lower()
+    assert "series trend" not in review_text.lower()
+
+
 def test_guinier_series_evidence_uses_rg_label_in_review_text():
     params = _series_params()
     params["metric_evidence"]["guinier"] = {

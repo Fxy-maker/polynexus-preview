@@ -153,6 +153,51 @@ def test_saxs_static_batch_get_parameters_preserves_aligned_frame_evidence() -> 
     assert params["metric_evidence"]["porod"]["level"] == "Diagnostic"
 
 
+def test_saxs_batch_frame_evidence_survives_missing_series_result() -> None:
+    """Generic aligned batches must not drop evidence based on a mode label."""
+
+    engine = get_engine("saxs")
+    assert engine is not None
+    engine.cfg.experiment_type = "temperature"  # type: ignore[attr-defined]
+
+    from polynexus.core.saxs_engine.core import SAXSResult, StructureParams
+
+    result = SAXSResult(
+        structure=StructureParams(L=12.0),
+        metric_evidence={"porod": {"level": "Trend", "value": 1.0}},
+    )
+    engine._batch_results = [result, None]  # type: ignore[attr-defined]
+    engine._batch_params = [  # type: ignore[attr-defined]
+        {"file": "frame_001.dat", "L_nm": 12.0},
+        {"file": "frame_002.dat", "L_nm": None},
+    ]
+
+    params = engine.get_parameters()
+
+    assert params["_batch_data"][0]["metric_evidence"]["porod"]["value"] == 1.0
+    assert "metric_evidence" not in params["_batch_data"][1]
+
+
+def test_saxs_batch_without_series_result_uses_aligned_batch_scope() -> None:
+    """Missing condition-series state must not be relabeled as static."""
+
+    engine = get_engine("saxs")
+    assert engine is not None
+    engine.cfg.experiment_type = "temperature"  # type: ignore[attr-defined]
+    engine._batch_results = [  # type: ignore[attr-defined]
+        SimpleNamespace(metric_evidence={"porod": {"level": "Trend"}}),
+        None,
+    ]
+    engine._batch_params = [  # type: ignore[attr-defined]
+        {"file": "frame_001.dat", "temperature_C": 170.0},
+        {"file": "frame_002.dat", "temperature_C": 180.0},
+    ]
+
+    params = engine.get_parameters()
+
+    assert params["metric_evidence_scope"] == "aligned_batch"
+
+
 def test_saxs_batch_export_row_keeps_status_fields() -> None:
     result = SimpleNamespace(
         label="frame_001",

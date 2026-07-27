@@ -13,6 +13,7 @@ from typing import Any, Mapping
 import numpy as np
 
 from .saxs_batch_helpers import (
+    batch_metric_evidence_scope,
     build_static_batch_2d_quality_evidence,
     build_static_batch_metric_evidence,
 )
@@ -195,7 +196,7 @@ def _series_quality_payload(series: Any) -> dict[str, Any]:
     return payload
 
 
-def _static_quality_payload(engine: Any) -> dict[str, Any]:
+def _static_quality_payload(engine: Any, *, mode: str = "") -> dict[str, Any]:
     """Collect static frame evidence while preserving the single-frame shape."""
 
     analyses = list(getattr(engine, "_batch_results", ()) or ())
@@ -206,7 +207,7 @@ def _static_quality_payload(engine: Any) -> dict[str, Any]:
         return _quality_object_payload(analysis)
 
     payload: dict[str, Any] = {
-        "metric_evidence_scope": "static_batch",
+        "metric_evidence_scope": batch_metric_evidence_scope(mode),
     }
     metric_evidence = build_static_batch_metric_evidence(analyses)
     if metric_evidence:
@@ -242,7 +243,7 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
         "schema_version": 1,
         "technique": "saxs",
         "mode": mode,
-        "static": _static_quality_payload(engine),
+        "static": _static_quality_payload(engine, mode=mode),
         "temperature": _series_quality_payload(temperature),
         "strain": _series_quality_payload(strain),
     }

@@ -184,3 +184,22 @@ def test_export_saxs_bundle_preserves_static_batch_frame_and_summary_evidence(tm
     quality_text = (root / "quality_evidence.json").read_text(encoding="utf-8")
     assert "NaN" not in quality_text
     assert "Infinity" not in quality_text
+
+
+def test_export_saxs_bundle_marks_missing_temperature_series_as_aligned_batch(tmp_path) -> None:
+    engine = _engine()
+    engine.cfg.experiment_type = "temperature"
+    engine._batch_results = [
+        SimpleNamespace(metric_evidence={"porod": {"metric_name": "Porod", "level": "Trend"}}),
+        None,
+    ]
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "aligned_batch_quality"))
+
+    payload = json.loads(
+        (tmp_path / "aligned_batch_quality" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["static"]["metric_evidence_scope"] == "aligned_batch"

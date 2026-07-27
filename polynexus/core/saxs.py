@@ -1895,19 +1895,15 @@ class SAXSEngine(BaseEngine):
             )
             return self._build_batch_parameters_payload(params, batch_params=batch_rows)
         if self._batch_params:
-            experiment_type = str(
-                getattr(self.cfg, "experiment_type", "") or ""
-            ).strip().lower()
-            static_mode = experiment_type not in {
-                "temperature",
-                "cooling",
-                "heating",
-                "isothermal",
-                "strain",
-            }
-            if len(self._batch_params) > 1 and static_mode:
+            # Temperature/strain results have dedicated branches above.  If
+            # neither series result exists, the aligned batch rows are the
+            # only surviving transport boundary; do not let a stale mode
+            # label discard frame-level evidence from those results.
+            if len(self._batch_params) > 1:
                 base_params: Dict[str, Any] = {
-                    "metric_evidence_scope": "static_batch",
+                    "metric_evidence_scope": _saxs_batch_helpers.batch_metric_evidence_scope(
+                        getattr(self.cfg, "experiment_type", "")
+                    ),
                 }
                 metric_evidence = _saxs_batch_helpers.build_static_batch_metric_evidence(
                     self._batch_results,

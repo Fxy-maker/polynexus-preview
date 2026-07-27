@@ -7,6 +7,14 @@ title: Current PolyNexus repository state
 
 ## Mainline snapshot
 
+- SAXS aligned-batch evidence resilience is implemented in the working tree:
+  when a generic multi-frame payload has a non-static temperature/strain label
+  but no dedicated series result, existing frame evidence is preserved and the
+  scope is explicitly `aligned_batch`. Workbench wording calls this aligned
+  batch quality, while missing-series state remains Diagnostic; no thresholds,
+  frame ordering, scientific interpretation, or AI apply behavior changed.
+  Task card: `docs/agent/tasks/2026-07-27-saxs-batch-evidence-mode-resilience.md`.
+
 - SAXS static 1D evidence transport is implemented locally: static single
   parameters now carry existing frame quality DTOs, static multi-file rows
   preserve aligned frame evidence, and the batch payload exposes a conservative

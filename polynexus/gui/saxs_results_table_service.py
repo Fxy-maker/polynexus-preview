@@ -432,9 +432,14 @@ def _series_metric_review_text(
     if not metric_lines:
         return "", ""
     detail = " | ".join(metric_lines)
-    static_batch = str(payload.get("metric_evidence_scope") or "").strip().lower() == "static_batch"
+    scope = str(payload.get("metric_evidence_scope") or "").strip().lower()
+    static_batch = scope == "static_batch"
+    aligned_batch = scope == "aligned_batch"
     if static_batch:
         scope_label = "Batch quality" if not zh else "\u6279\u6b21\u8d28\u91cf"
+        detail = f"{scope_label}: {detail}"
+    elif aligned_batch:
+        scope_label = "Aligned batch quality" if not zh else "\u5bf9\u9f50\u6279\u6b21\u8d28\u91cf"
         detail = f"{scope_label}: {detail}"
     if downgraded:
         risk = tr_for_language("RESULTS_REVIEW_RISK", language, detail)
@@ -445,6 +450,15 @@ def _series_metric_review_text(
                 "在使用静态批次质量摘要前，先复核缺失帧和诊断帧"
                 if zh
                 else "Review missing and diagnostic frames before using the static batch quality summary",
+            )
+            return risk, next_text
+        if aligned_batch:
+            next_text = tr_for_language(
+                "RESULTS_REVIEW_NEXT",
+                language,
+                "\u5728\u4f7f\u7528\u5bf9\u9f50\u6279\u6b21\u8d28\u91cf\u6458\u8981\u524d\uff0c\u5148\u590d\u6838\u7f3a\u5931\u5e27\u548c\u8bca\u65ad\u5e27"
+                if zh
+                else "Review missing and diagnostic frames before using the aligned batch quality summary",
             )
             return risk, next_text
         next_text = tr_for_language(

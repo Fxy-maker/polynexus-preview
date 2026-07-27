@@ -24,6 +24,21 @@ _QUALITY_EVIDENCE_FIELDS = (
 )
 
 
+def batch_metric_evidence_scope(mode_or_experiment_type: Any) -> str:
+    """Avoid relabeling a missing condition series as a static batch."""
+
+    normalized = str(mode_or_experiment_type or "").strip().lower()
+    if normalized in {
+        "temperature",
+        "cooling",
+        "heating",
+        "isothermal",
+        "strain",
+    }:
+        return "aligned_batch"
+    return "static_batch"
+
+
 def copy_saxs_quality_evidence(value: Any) -> Dict[str, Any]:
     """Copy existing static 1D quality DTOs without interpreting them."""
 
