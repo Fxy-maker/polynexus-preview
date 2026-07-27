@@ -97,6 +97,9 @@ limitation rather than pass.
   84.78s`, exit code `0`; NMR solid-C lifecycle `1 passed, 3 deselected in
   126.89s`, exit code `0`. These fresh results are distinct from the full
   verifier result below.
+- A fresh four-partition NMR published-run walkthrough returned `4 passed, 11
+  deselected in 108.37s`, exit code `0`; this covers liquid H/C and solid H/C
+  and retains the assignment-limited solid-C boundary.
 - Lifecycle closure shards: DSC `3`, WAXS `3`, IR `3`, NMR `4`, and Joint `1`
   passed. IR's three modes include mapping; NMR's solid C assignment remains
   provisional.

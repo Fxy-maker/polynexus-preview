@@ -71,6 +71,10 @@ deselected in 84.78s`, exit code `0`; NMR solid-C lifecycle `1 passed, 3
 deselected in 126.89s`, exit code `0`. These are fresh automated rechecks and
 do not change the scientific/release boundaries above.
 
+A fresh four-partition NMR published-run walkthrough then returned `4 passed,
+11 deselected in 108.37s`, exit code `0` (`liquid_h`, `liquid_c`, `solid_h`,
+`solid_c`).
+
 These runs verified the real engine -> manifest -> Gallery -> Editor revision
 -> export bundle -> History restore route. They do not close human scientific
 role review, and the solid-state NMR C assignment remains provisional.

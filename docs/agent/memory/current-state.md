@@ -35,6 +35,9 @@
   deselected in 84.78s` and NMR solid-C lifecycle `1 passed, 3 deselected in
   126.89s`, both exit code `0`. The automated software routes pass these
   shards, while human GUI/scientific/release gates remain open.
+- A fresh four-partition NMR published-run walkthrough also returned `4
+  passed, 11 deselected in 108.37s`, exit code `0`; solid-C assignment remains
+  provisional.
 
 ## SAXS structure-parameter fail-closed guard (2026-07-28)
 
