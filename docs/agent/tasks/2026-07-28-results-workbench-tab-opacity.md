@@ -29,11 +29,11 @@
 
 ## Acceptance criteria
 
-- [ ] 主 Tab 切换不会给 Tab page 安装 `QGraphicsOpacityEffect`。
-- [ ] Results Workbench 的现有内容和路由测试继续通过。
-- [ ] native Windows SAXS static/temperature/strain capture 通过，且 Results
+- [x] 主 Tab 切换不会给 Tab page 安装 `QGraphicsOpacityEffect`。
+- [x] Results Workbench 的现有内容和路由测试继续通过。
+- [x] native Windows SAXS static/temperature/strain capture 通过，且 Results
   正文不再因整页透明效果而被压淡。
-- [ ] `python scripts/verify.py --task docs/agent/tasks/2026-07-28-results-workbench-tab-opacity.md --changed --types` 通过。
+- [x] `python scripts/verify.py --task docs/agent/tasks/2026-07-28-results-workbench-tab-opacity.md --changed --types` 通过。
 
 ## Verification result
 
@@ -54,6 +54,16 @@ The first verifier attempt is excluded from acceptance because the pre-existing
 repository `.pytest_tmp` was Windows-permission locked; it produced fixture
 cleanup errors rather than product test failures. No scratch directory was
 deleted or modified.
+
+Fresh follow-up on 2026-07-30 returned `23 passed in 5.42s` for the focused
+Results/MainWindow selection and `3 passed, 14 deselected in 57.98s`, exit code
+`0`, for the native Windows SAXS route with external D: capture/basetemp.
+
+## Follow-up documentation checkpoint allowlist
+
+- `docs/agent/tasks/2026-07-28-results-workbench-tab-opacity.md`
+- `docs/acceptance/2026-07-30-results-workbench-tab-opacity.md`
+- `docs/agent/memory/active-work.md`
 
 ## Changed-file allowlist
 

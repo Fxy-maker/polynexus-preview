@@ -581,7 +581,7 @@
 - Next action remains human restarted-GUI/scientific review and release
   decision; this evidence does not close the active full-software goal.
 
-## Results Workbench main-Tab opacity correction - checkpoint ready - 2026-07-28
+## Results Workbench main-Tab opacity correction - checkpointed - 2026-07-28
 
 - The native pale-body diagnosis was isolated to the shared main-Tab fade:
   `_on_tab_changed()` applied `QGraphicsOpacityEffect` to the whole scientific
@@ -596,9 +596,12 @@
   preprocessing `106`, Ruff, compile/type, memory/task, and whitespace. The
   initial in-repository verifier attempt hit the known `.pytest_tmp` Windows
   permission lock and is excluded; no scratch cleanup was performed.
-- Next action: create the explicit allowlist checkpoint. Restarted-GUI visual
-  review for all techniques, scientific review, and release approval remain
-  open. Task card: `docs/agent/tasks/2026-07-28-results-workbench-tab-opacity.md`.
+- Fresh 2026-07-30 follow-up returned focused `23 passed in 5.42s` and native
+  SAXS `3 passed, 14 deselected in 57.98s`, exit code `0`, with D: isolation.
+- The documentation checkpoint is allowlisted in the task card and acceptance
+  note. Restarted-GUI visual review for all techniques, scientific review, and
+  release approval remain open. Task card:
+  `docs/agent/tasks/2026-07-28-results-workbench-tab-opacity.md`.
 
 ## SAXS parameter quality-evidence reference - checkpointed at 1608643 - 2026-07-28
 
