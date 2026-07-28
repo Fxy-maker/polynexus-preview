@@ -47,6 +47,7 @@ def _build_spectrum(result: NMRResult, index: int) -> FigureDefinition:
         _series("series-spectrum", source_id, "intensity", "Spectrum", "#222222")
     ]
     objects.extend(_peak_objects(result.peaks))
+    objects.extend(_assignment_objects(result.peaks))
     return FigureDefinition(
         figure_id=f"nmr.frame.spectrum.{index:03d}",
         technique="nmr",
@@ -54,7 +55,11 @@ def _build_spectrum(result: NMRResult, index: int) -> FigureDefinition:
         category="per_frame",
         publication_role="main",
         title=f"NMR Spectrum - {result.label}",
-        layout=_spectrum_layout(result.nucleus, show_legend=False),
+        layout=_spectrum_layout(
+            result.nucleus,
+            show_legend=False,
+            assignment_column=True,
+        ),
         data_sources=(
             FigureDataSourceDefinition(
                 source_id=source_id,
@@ -279,15 +284,10 @@ def _build_crystallinity(
 
 
 def _peak_objects(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]:
-    ranked = sorted(
-        peaks,
-        key=lambda item: float(item.get("prominence", item.get("height", 0.0)) or 0.0),
-        reverse=True,
-    )[:16]
+    ranked = _rank_peaks(peaks)
     objects: list[dict[str, object]] = []
     for peak_index, peak in enumerate(ranked, start=1):
         ppm = float(peak["ppm"])
-        assignment = str(peak.get("assignment") or "")
         label_y = _PEAK_LABEL_LANES[(peak_index - 1) % len(_PEAK_LABEL_LANES)]
         objects.extend(
             [
@@ -303,7 +303,7 @@ def _peak_objects(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]
                     "id": f"text-peak-{peak_index}",
                     "type": "text",
                     "panel_id": "main",
-                    "text": f"{ppm:.1f}" + (f"\n{assignment}" if assignment else ""),
+                    "text": f"{ppm:.1f}",
                     "x": ppm,
                     "y": label_y,
                     "coordinate_space": "xdata_yaxes",
@@ -313,6 +313,40 @@ def _peak_objects(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]
             ]
         )
     return objects
+
+
+def _assignment_objects(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]:
+    objects: list[dict[str, object]] = []
+    row_index = 0
+    for peak_index, peak in enumerate(_rank_peaks(peaks), start=1):
+        assignment = str(peak.get("assignment") or "").strip()
+        if not assignment:
+            continue
+        ppm = float(peak["ppm"])
+        objects.append(
+            {
+                "id": f"text-peak-assignment-{peak_index}",
+                "type": "text",
+                "panel_id": "main",
+                "text": f"{ppm:.1f} — {assignment}",
+                "coordinate_space": "axes",
+                "x": 1.02,
+                "y": 0.98 - row_index * 0.055,
+                "horizontal_alignment": "left",
+                "vertical_alignment": "top",
+                "style": {"color": "#0072B2", "font_size": 6},
+            }
+        )
+        row_index += 1
+    return objects
+
+
+def _rank_peaks(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]:
+    return sorted(
+        peaks,
+        key=lambda item: float(item.get("prominence", item.get("height", 0.0)) or 0.0),
+        reverse=True,
+    )[:16]
 
 
 def _series(
@@ -334,9 +368,14 @@ def _series(
     }
 
 
-def _spectrum_layout(nucleus: str, *, show_legend: bool) -> FigureLayoutDefinition:
+def _spectrum_layout(
+    nucleus: str,
+    *,
+    show_legend: bool,
+    assignment_column: bool = False,
+) -> FigureLayoutDefinition:
     return FigureLayoutDefinition(
-        width_in=7.0,
+        width_in=9.5 if assignment_column else 7.0,
         height_in=4.0,
         rows=1,
         columns=1,

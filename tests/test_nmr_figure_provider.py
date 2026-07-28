@@ -90,15 +90,30 @@ def test_nmr_peak_labels_preserve_assignments_and_cycle_through_lanes(nmr_result
     ]
 
     definition = build_nmr_figure_definitions(nmr_results)[0]
-    labels = [item for item in definition.objects if item["type"] == "text"]
+    labels = [
+        item
+        for item in definition.objects
+        if item["type"] == "text" and item.get("coordinate_space") == "xdata_yaxes"
+    ]
+    assignment_rows = [
+        item
+        for item in definition.objects
+        if item["type"] == "text" and item.get("coordinate_space") == "axes"
+    ]
 
     assert [item["text"] for item in labels] == [
-        f"{180.0 - index * 10.0:.1f}\nlong-assignment-name-{index}"
+        f"{180.0 - index * 10.0:.1f}"
         for index in range(7)
     ]
-    assert [item["coordinate_space"] for item in labels] == [
-        "xdata_yaxes"
-    ] * 7
+    assert [item["text"] for item in assignment_rows] == [
+        f"{180.0 - index * 10.0:.1f} — long-assignment-name-{index}"
+        for index in range(7)
+    ]
+    assert [item["x"] for item in assignment_rows] == pytest.approx([1.02] * 7)
+    assert [item["y"] for item in assignment_rows] == pytest.approx(
+        [0.98 - index * 0.055 for index in range(7)]
+    )
     assert [item["y"] for item in labels] == pytest.approx(
         [0.96, 0.84, 0.72, 0.60, 0.48, 0.96, 0.84]
     )
+    assert definition.layout.width_in == pytest.approx(9.5)
