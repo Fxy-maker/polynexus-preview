@@ -390,7 +390,7 @@
   allowlisted checkpoint is the current task commit. Scientific DSC review and
   restarted-GUI release gates remain separate.
 
-## SAXS strain dirty-frame post-processing - checkpoint pending - 2026-07-28
+## SAXS strain dirty-frame post-processing - checkpointed at 777eaef - 2026-07-28
 
 - Strain 1D post-processing now reuses the deterministic sanitizer for
   reference/per-frame invariant, phase, and void consumers while preserving
@@ -398,8 +398,9 @@
 - Focused matrix passed `9`; exact SAXS passed `428 passed, 6 warnings`.
   Fresh full/boundary passed `2869 passed, 17 skipped, 12 warnings` in
   `1686.81s`, exit code `0`; boundary audit passed.
-- Only the explicit strain allowlist checkpoint remains. Orientation/geometry
-  and scientific publication review remain separate gates.
+- The implementation checkpoint is `777eaef`; the acceptance reconciliation is
+  recorded in `docs/acceptance/2026-07-28-saxs-strain-dirty-frame-postprocessing.md`.
+  Orientation/geometry and scientific publication review remain separate gates.
 
 ## SAXS temperature dirty-frame post-processing - checkpoint created - 2026-07-28
 
