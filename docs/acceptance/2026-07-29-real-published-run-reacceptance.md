@@ -17,17 +17,16 @@ IR standard and temperature-2D; and NMR liquid H/C and solid H/C. Each case
 exercises the shared publication, Manifest/Gallery, Editor/project export, and
 History restore lifecycle.
 
-The no-`--changed` task verifier also passed task/memory checks, Pyright with
-zero diagnostics, quality `287`, preprocessing `106`, and whitespace. The
-prescribed changed-file verifier was attempted but stopped at three Ruff
-`E741` findings in the pre-existing SAXS changes
-`polynexus/core/saxs_engine/saxs_physical_helpers.py` and
-`polynexus/core/saxs_engine/core.py`; no tests were run by that invocation and
-those files were excluded from this task's allowlist.
+The no-`--changed` task verifier passed task/memory checks, Pyright with zero
+diagnostics, quality `287`, preprocessing `106`, and whitespace. The current
+scoped changed-file verifier also passed with exit code `0`; Ruff reports no
+finding in the SAXS files. An earlier attempt stopped at three `E741` findings
+before the current checkout was rechecked and is retained only as historical
+evidence.
 
-Fresh no-`--changed` recheck on 2026-07-30 returned exit code `0`: task and
-memory checks, Pyright `0 errors`, quality `287`, preprocessing `106`, compile,
-and whitespace all passed.
+Fresh scoped changed-file recheck on 2026-07-30 returned exit code `0`: task
+and memory checks, Ruff, compile, type baseline, quality `287`, preprocessing
+`106`, and whitespace all passed.
 
 ## Boundaries
 

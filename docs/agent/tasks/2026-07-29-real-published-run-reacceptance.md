@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-29-real-published-run-reacceptance
 kind: real-data-lifecycle-recheck
-status: verification-limited
+status: completed
 ---
 
 # Real published-run reacceptance
@@ -44,9 +44,9 @@ published-run mode after the NMR solid-C assignment-column change.
 - [x] Warnings and scientific diagnostic-only boundaries remain recorded.
 - [x] Task card/memory, Pyright, quality/preprocessing, and whitespace checks
       pass when scoped without unrelated changed-file lint.
-- [ ] The prescribed `--changed` verifier is fully green; it is currently
-      stopped by three pre-existing Ruff `E741` findings in
-      `polynexus/core/saxs_engine/saxs_physical_helpers.py`.
+- [x] The prescribed `--changed` verifier is fully green on the current
+      checkout; the earlier three Ruff `E741` findings were stale evidence from
+      the pre-existing worktree state and are not present now.
 - [x] Allowlisted documentation checkpoint is created after recording the
       unrelated-worktree limitation.
 
@@ -56,8 +56,8 @@ published-run mode after the NMR solid-C assignment-column change.
 - `docs/acceptance/2026-07-29-real-published-run-reacceptance.md`
 - `docs/agent/memory/active-work.md`
 
-The changed-file verifier limitation is intentional: the existing SAXS
-`E741` findings are outside this task and are not included in the checkpoint.
+The earlier changed-file verifier limitation is retained below as historical
+evidence only; the current checkpoint includes no SAXS source changes.
 
 ## Verification
 
@@ -69,13 +69,11 @@ python -m pytest -q tests/test_real_published_run_walkthrough.py -vv
 python scripts/verify.py --task docs/agent/tasks/2026-07-29-real-published-run-reacceptance.md --changed --types
 ```
 
-The prescribed changed-file verifier was attempted and stopped before tests
-at Ruff `E741` in the pre-existing SAXS files
-`polynexus/core/saxs_engine/saxs_physical_helpers.py` and
-`polynexus/core/saxs_engine/core.py`. Those changes are intentionally outside
-this task's allowlist and were not repaired or committed here. The same task
-verifier without `--changed` passed task/memory, Pyright, quality `287`,
-preprocessing `106`, and whitespace checks.
+The earlier changed-file verifier attempt stopped before tests at Ruff `E741`
+in the pre-existing SAXS files; that historical result is not attributed to
+this task. The current scoped command completed with exit code `0`, including
+task/memory checks, Ruff, compile, type baseline, quality `287`, preprocessing
+`106`, and whitespace.
 
 ## Known limitations
 
