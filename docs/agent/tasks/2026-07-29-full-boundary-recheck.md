@@ -54,6 +54,25 @@ bounded process observation: parent/pytest exited within 60 seconds after the
 wrapper timeout; no command summary became available
 ```
 
+## Later independent-process observation (2026-07-30)
+
+During a later goal continuation, an independent full/boundary invocation was
+found still running as a real process tree:
+
+- parent: `scripts/verify.py --changed --types --full --boundary` (PID `4200`)
+- quality child: `scripts/quality_gate.py --root D:\PolyNexus --all-tests` (PID `24396`)
+- pytest child: `pytest -q` (PID `46772`)
+
+No terminal summary or exit code is available yet. This does not change the
+classification above and must not be treated as a pass, failure, or reason to
+delete protected test artifacts.
+
+## Documentation checkpoint allowlist
+
+- `docs/agent/tasks/2026-07-29-full-boundary-recheck.md`
+- `docs/acceptance/2026-07-29-full-boundary-recheck.md`
+- `docs/agent/memory/active-work.md`
+
 ## Known limitations
 
 This task provides no full/boundary pass evidence. The latest positive evidence

@@ -1,5 +1,16 @@
 # Active Work
 
+## Full/boundary continuation observation - open - 2026-07-30
+
+- A later independent `scripts/verify.py --changed --types --full --boundary`
+  process tree is still active: parent PID `4200`, quality child PID `24396`,
+  pytest PID `46772`, and worker PID `26732`.
+- No command stdout/stderr summary or exit code is available. This is neither
+  a pass nor a failure and does not replace the separate timeout classification
+  in `docs/agent/tasks/2026-07-29-full-boundary-recheck.md`.
+- While this process is active, the test-storage policy correctly protects all
+  externally discovered artifacts; no cleanup or migration is authorized.
+
 ## SAXS 1D physical-helper dirty-input guard - completed 2026-07-28
 
 - The invariant, Porod, and Kratky helper boundaries now reuse the existing

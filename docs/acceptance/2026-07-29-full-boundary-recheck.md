@@ -26,3 +26,11 @@ evidence remains the fresh native all-mode route (`17 passed, 15 warnings`, 68
 captures) and the task-scoped verifiers (`287` quality, `106` preprocessing).
 IR vendor semantics, Joint scientific interpretation, solid-C assignment
 review, and final human release approval remain open as well.
+
+## Later independent-process observation (2026-07-30)
+
+A later continuation found a separate full/boundary invocation still running:
+`scripts/verify.py --changed --types --full --boundary` (parent PID `4200`,
+pytest PID `46772`). No terminal summary or exit code is available. This is
+not evidence of a pass or failure and does not alter the timeout classification
+above.
