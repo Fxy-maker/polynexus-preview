@@ -1,5 +1,22 @@
 # Active Work
 
+## SAXS Avrami dirty-input guard - completed 2026-07-28
+
+- `avrami_kinetics()` now uses the existing `_as_1d_float_array()` coercion and
+  common-prefix alignment before its unchanged finite/positive-time mask, Xc
+  range selection, and fit. Malformed numeric tokens and mismatched lengths no
+  longer raise; no observations are fabricated or sorted.
+- TDD RED was `2 failed, 1 passed`; focused GREEN was `3 passed`; the
+  temperature matrix returned `48 passed`; and the exact SAXS matrix returned
+  `503 passed, 6 warnings in 265.09s`, exit code `0`. Structured verification
+  exited `0` with quality `287`, preprocessing `106`, Ruff/compile/type
+  baseline, task/memory, and whitespace checks passing. `git diff --check`
+  passed.
+- Test-storage report and cleanup dry-run found `522` artifacts, `26` eligible,
+  `496` protected, and `0` removed. No full/boundary result is attributed to
+  this atomic task. The explicit allowlist checkpoint hash is reported in the
+  handoff. Evidence: `docs/acceptance/2026-07-28-saxs-avrami-dirty-input-guard.md`.
+
 ## SAXS Gibbs-Thomson dirty-input guard - completed 2026-07-28
 
 - `gibbs_thomson_analysis()` now uses the existing `_as_1d_float_array()`

@@ -743,6 +743,12 @@ def avrami_kinetics(
         'fit_range': None,
     }
 
+    times = _as_1d_float_array(times)
+    Xc_relative = _as_1d_float_array(Xc_relative)
+    aligned_count = min(times.size, Xc_relative.size)
+    times = times[:aligned_count]
+    Xc_relative = Xc_relative[:aligned_count]
+
     valid = np.isfinite(Xc_relative) & np.isfinite(times) & (times > 0)
     if np.sum(valid) < 5:
         return result
