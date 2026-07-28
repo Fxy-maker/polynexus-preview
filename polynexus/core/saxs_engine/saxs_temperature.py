@@ -817,12 +817,29 @@ def avrami_from_temp_series(
 
     For isothermal crystallization data embedded in cooling runs.
     """
-    mask = np.abs(temp_array - Tc_target) <= tolerance
+    time_values = _as_1d_float_array(time_array)
+    temperature_values = _as_1d_float_array(temp_array)
+    xc_values = _as_1d_float_array(Xc_array)
+    aligned_count = min(
+        time_values.size,
+        temperature_values.size,
+        xc_values.size,
+    )
+    time_values = time_values[:aligned_count]
+    temperature_values = temperature_values[:aligned_count]
+    xc_values = xc_values[:aligned_count]
+
+    mask = (
+        np.isfinite(temperature_values)
+        & (np.abs(temperature_values - Tc_target) <= tolerance)
+        & np.isfinite(time_values)
+        & np.isfinite(xc_values)
+    )
     if np.sum(mask) < 5:
         return {'valid': False, 'n': np.nan, 'k_sn': np.nan}
 
-    t_iso = time_array[mask] - time_array[mask][0]  # relative time
-    Xc_iso = Xc_array[mask]
+    t_iso = time_values[mask] - time_values[mask][0]  # relative time
+    Xc_iso = xc_values[mask]
 
     return avrami_kinetics(t_iso, Xc_iso)
 

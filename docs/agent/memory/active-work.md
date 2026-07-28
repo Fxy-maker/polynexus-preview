@@ -1,5 +1,25 @@
 # Active Work
 
+## SAXS Avrami temperature-series dirty-input guard - completed 2026-07-28
+
+- `avrami_from_temp_series()` now reuses `_as_1d_float_array()` for time,
+  temperature, and Xc, aligns a detached common prefix, filters only
+  non-finite observations and the existing `Tc_target ± tolerance` selection,
+  preserves source order, and delegates to the unchanged Avrami fit. No
+  interpolation, padding, sorting, fabricated data, AI rescue, or new physics
+  gate was introduced.
+- TDD RED was `4 failed, 1 passed`; focused GREEN was `5 passed in 0.10s`;
+  temperature returned `48 passed`; exact SAXS returned `508 passed, 6
+  warnings in 194.16s`, exit code `0`. Structured verification exited `0`
+  with quality `287`, preprocessing `106`, Ruff/compile/type baseline,
+  task/memory, and whitespace passing; `git diff --check` passed.
+- Storage dry-run found `524` artifacts, `29` eligible, and `495` protected.
+  The requested apply removed five eligible legacy directories before stopping
+  at `D:\PolyNexus\PolyNexusPolyNexus.pytest_tmp_metric_position_full` with
+  `WinError 5` access denied; follow-up found `518` artifacts and `24`
+  eligible remaining. No permission escalation or manual deletion was used.
+- Evidence: `docs/acceptance/2026-07-28-saxs-avrami-temp-series-dirty-input-guard.md`.
+
 ## SAXS Avrami dirty-input guard - completed 2026-07-28
 
 - `avrami_kinetics()` now uses the existing `_as_1d_float_array()` coercion and
