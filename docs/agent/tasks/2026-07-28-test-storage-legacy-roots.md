@@ -69,6 +69,17 @@ released approximately `6.87 GiB`. The final report contains `441` artifacts
 C: and `191.42 GB` free on D:. No source, real dataset, worktree, or pytest
 process was targeted.
 
+## Additional cleanup (2026-07-29)
+
+After a fresh dry-run confirmed the 24-hour cutoff and no active pytest
+reference, `clean --older-than-hours 24 --apply --json` exited `0` and removed
+9 additional eligible legacy directories from `C:\TempPolyNexus*`, releasing
+`103,719` bytes. The final report contains `431` artifacts totaling about
+`148.64 GiB`; `eligible=0`, and all remaining artifacts are younger than the
+retention window. The final drive check showed approximately `110.79 GiB` free
+on C: and `191.42 GiB` free on D:. The large C:/D: test runs remain protected
+by the 24-hour rule.
+
 ## Known limitations
 
 The automatic legacy scan is intentionally restricted to exact historical
