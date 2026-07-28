@@ -1,5 +1,20 @@
 # Active Work
 
+## Windows-native all-route capture retry - automated pass, science gates open - 2026-07-29
+
+- Fresh `tests/test_native_gui_real_route_capture.py` returned `17 passed, 15
+  warnings in 370.95s`, explicit exit code `0`, with `68` PNG captures under
+  `D:\PolyNexus_native_all_routes_capture_20260729_retry`.
+- The route covers DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR `4`, synthetic
+  Joint `1`, and synthetic IR mapping `1`; each exercises Results/Gallery/
+  History/Editor and no-Origin fallback Export.
+- Inspected boundary states remain explicit: SAXS temperature diagnostic-only,
+  IR mapping `Not confirmed yet`, dense NMR solid-C labels, and Joint PA6-A with
+  2 errors/2 warnings. This is native capture evidence only; human scientific,
+  unlocked desktop, and release approval remain open. No data was deleted or
+  migrated. Evidence: `docs/agent/tasks/2026-07-29-native-route-capture-retry.md`
+  and `docs/acceptance/2026-07-29-native-route-capture-retry.md`.
+
 ## Test-storage dry-run audit - no deletion - 2026-07-29
 
 - With no Python/pytest process active, `scripts/test_storage.py report --json`
