@@ -1,5 +1,27 @@
 ---
 
+## Legacy test-storage roots (2026-07-28)
+
+- `scripts/test_storage.py` now includes the exact historical Windows
+  `TempPolyNexus*` and malformed `UsersFANXUY~1AppDataLocalTemp*` prefixes on
+  the system drive, plus explicit `POLYNEXUS_LEGACY_TEST_ROOTS` and
+  `--legacy-root` configuration.
+- External legacy directories remain protected while pytest is active; the
+  cleanup command is still dry-run by default and retains the 24-hour
+  cooldown. The new pytest storage root remains on D:.
+- Focused regression evidence is pending task-scoped verification.
+
+## SAXS strain dirty-frame post-processing (2026-07-28)
+
+- `analyze_strain_series()` now routes only the reference/per-frame 1D
+  invariant, strain phase, and void consumers through detached
+  `sanitize_1d_profile()` survivors; original q/I still reach `analyze_single()`
+  and retain raw quality actions.
+- Focused strain/method matrix passed `9` tests; exact SAXS passed `428 passed,
+  6 warnings`; task-scoped verification passed with quality `283` and
+  preprocessing `106`. The fresh full/boundary result passed `2869 passed, 17
+  skipped, 12 warnings` in `1686.81s`, exit code `0`; boundary audit passed.
+
 ## SAXS temperature dirty-frame post-processing (2026-07-28)
 
 - `analyze_temperature_series()` now uses the existing deterministic sanitized

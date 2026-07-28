@@ -31,6 +31,7 @@ from .saxs_quality_contracts import (
     build_series_detector_quality_report,
     build_series_metric_evidence,
     build_series_orientation_evidence,
+    sanitize_1d_profile,
 )
 from .saxs_output_helpers import (
     _data_quality_csv_fields,
@@ -488,9 +489,18 @@ def analyze_strain_series(
 
     # Normalize strains
     strains_arr = np.array(strains, dtype=float)
+    sanitized_profiles = [
+        sanitize_1d_profile(q_values, intensity_values)
+        for q_values, intensity_values in zip(q_list, I_list)
+    ]
 
     # Reference: first point (unstretched)
-    Q_ref = scattering_invariant(q_list[0], I_list[0], cfg=cfg)
+    reference_profile = sanitized_profiles[0]
+    Q_ref = scattering_invariant(
+        reference_profile.q,
+        reference_profile.intensity,
+        cfg=cfg,
+    )
 
     result = StrainSeriesResult()
     result.strains = strains_arr
@@ -508,6 +518,7 @@ def analyze_strain_series(
         strain = strains_arr[i]
         q = q_list[i]
         I = I_list[i]
+        profile = sanitized_profiles[i]
 
         sp = StrainPointResult(strain_pct=float(strain))
         if detector_quality_reports is not None and len(detector_quality_reports) == n_points:
@@ -546,7 +557,11 @@ def analyze_strain_series(
             logger.warning("SAXS strain frame core analysis failed.", exc_info=True)
 
         # ---- Invariant ----
-        Q_star = scattering_invariant(q, I, cfg=cfg)
+        Q_star = scattering_invariant(
+            profile.q,
+            profile.intensity,
+            cfg=cfg,
+        )
         sp.Q_star = Q_star
         sp.Q_star_rel = Q_star / Q_ref if Q_ref > 0 else 1.0
         sp.Q_star_normalized = sp.Q_star_rel
@@ -554,7 +569,14 @@ def analyze_strain_series(
         result.Q_star_rel_array[i] = sp.Q_star_rel
 
         # ---- Phase detection ----
-        phase = detect_strain_phase(strain, Q_star, Q_ref, q, I, cfg)
+        phase = detect_strain_phase(
+            strain,
+            Q_star,
+            Q_ref,
+            profile.q,
+            profile.intensity,
+            cfg,
+        )
         sp.phase = phase
 
         # Track phase boundaries
@@ -562,7 +584,7 @@ def analyze_strain_series(
             phase_boundaries[phase] = strain
 
         # ---- Void analysis ----
-        void = detect_voids(q, I, cfg)
+        void = detect_voids(profile.q, profile.intensity, cfg)
         sp.has_voids = void['has_voids']
         sp.phi_void = void['phi_void']
         sp.void_ar = void['void_ar']
