@@ -23,15 +23,15 @@ harness.
 
 ## Acceptance criteria
 
-- [ ] Long risk and next-step text does not make the Results summary group's
+- [x] Long risk and next-step text does not make the Results summary group's
   minimum size expand to the text's unbounded single-line width.
-- [ ] Summary and review evidence labels use a horizontally shrinkable policy and
+- [x] Summary and review evidence labels use a horizontally shrinkable policy and
   retain word wrapping.
-- [ ] The exact text supplied by `_set_results_summary()` remains available from
+- [x] The exact text supplied by `_set_results_summary()` remains available from
   the labels; no display-only text rewrite is introduced in this task.
-- [ ] Existing MainWindow persistence, Results Workbench, and SAXS tests remain
+- [x] Existing MainWindow persistence, Results Workbench, and SAXS tests remain
   green.
-- [ ] Verification uses the repository-managed external test storage and records
+- [x] Verification uses the repository-managed external test storage and records
   the exact command outcomes before checkpointing.
 
 ## Implementation plan
@@ -85,6 +85,14 @@ The commands above include the task-scoped verifier invocation:
   checkpoint files. The Results surface shows ordered risk/next lines within
   the bounded layout; reason-code runs remain intentionally unrewritten.
 - `git diff --check` passed with no output.
+- Fresh follow-up on 2026-07-30 returned `36 passed in 4.28s` for the focused
+  SAXS/Results selection, exit code `0`, with an external D: basetemp.
+
+## Follow-up documentation checkpoint allowlist
+
+- `docs/agent/tasks/2026-07-28-saxs-results-evidence-layout.md`
+- `docs/acceptance/2026-07-30-saxs-results-evidence-layout.md`
+- `docs/agent/memory/active-work.md`
 - Test-storage report remained dry-run only: `468` discovered artifacts and
   `83` eligible candidates were reported; no data was deleted or moved. The
   separate dry-run cleanup probe exceeded its 34-second tool limit while the

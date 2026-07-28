@@ -398,7 +398,7 @@
 - Human GUI restart, scientific interpretation, and final publication/release
   approval remain open; no claim of scientific publication approval is implied.
 
-## SAXS Workbench review evidence readability - verification pending - 2026-07-28
+## SAXS Workbench review evidence readability - checkpointed - 2026-07-28
 
 - Existing advisory risk/next-step sections now render as ordered newline
   paragraphs instead of one space-joined paragraph. No evidence, physical,
@@ -411,6 +411,9 @@
   memory/task, and whitespace checks. Explicit allowlist checkpoint:
   `6fe3128`. Keep the modified native GUI harness and all scratch/release files
   outside this task.
+- Fresh 2026-07-30 focused recheck returned `36 passed in 4.28s` with external
+  D: basetemp. The follow-up documentation allowlist is recorded in the task
+  card and acceptance note; scientific and restarted-GUI review remain open.
 
 ## SAXS invalid temperature-time values fail-closed - checkpointed - 2026-07-28
 
