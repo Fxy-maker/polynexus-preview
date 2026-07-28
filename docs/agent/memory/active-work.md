@@ -1,5 +1,16 @@
 # Active Work
 
+## Preprocessing Golden data audit - automated pass - 2026-07-29
+
+- Fresh D:-isolated `tests/eval/preprocess/test_preprocess_golden.py` returned
+  `3 passed in 0.13s`, explicit exit code `0`, using
+  `D:\PolyNexus_preprocess_golden_20260729`.
+- Golden fixtures were not modified. This complements real-data and
+  AI-off/failure/fallback evidence but does not close scientific, restarted-GUI,
+  or final release gates. No test data was deleted or migrated. Evidence:
+  `docs/agent/tasks/2026-07-29-preprocess-golden-audit.md` and
+  `docs/acceptance/2026-07-29-preprocess-golden-audit.md`.
+
 ## Results Workbench and Figure contract matrix - automated pass - 2026-07-29
 
 - Fresh D:-isolated matrix across shared Workbench profiles, SAXS series/Figure
