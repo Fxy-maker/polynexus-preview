@@ -1,6 +1,6 @@
 ---
 kind: task
-status: active
+status: completed
 date: 2026-07-19
 title: Undoable batch alignment and grouping
 ---
@@ -49,4 +49,16 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-19-batch-alignment-and-
 
 ## Evidence
 
-- Focused batch/core/layout suite: `31 passed`.
+- Focused batch/core action regression: `8 passed in 0.59s`, exit code `0`.
+- Task-scoped verifier:
+  `python scripts/verify.py --task docs/agent/tasks/2026-07-19-batch-alignment-and-grouping.md --changed --types`
+  exited `0`; task/memory, Ruff, compile, type baseline, quality (`287
+  passed`), preprocessing (`106 passed`), and whitespace checks passed.
+- The implementation checkpoint is `721e032`; this documentation-only
+  closure preserves that existing production checkpoint.
+
+## Boundary
+
+This task closes the editor command/selection contract only. It does not
+change scientific analysis or establish the separate restarted-GUI visual
+release gate.
