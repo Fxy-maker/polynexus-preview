@@ -61,6 +61,7 @@ git diff --check
 - `docs/agent/tasks/2026-07-29-results-review-prefix-deduplication.md`
 - `docs/superpowers/specs/2026-07-29-results-review-prefix-deduplication-design.md`
 - `docs/superpowers/plans/2026-07-29-results-review-prefix-deduplication.md`
+- `docs/acceptance/2026-07-29-results-review-prefix-deduplication.md`
 - `docs/agent/memory/active-work.md`
 
 ## Verification evidence

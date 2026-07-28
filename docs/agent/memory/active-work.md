@@ -230,7 +230,7 @@
 - Full/boundary verification, detector scientific validity, restarted-GUI
   review, and final publication/release approval remain open.
 
-## Results Review prefix deduplication - checkpoint pending - 2026-07-29
+## Results Review prefix deduplication - checkpointed - 2026-07-29
 
 - The shared Results Review boundary now strips repeated leading English or
   Chinese `Risk note`/`风险提示` and `Next step`/`下一步` decoration before
@@ -241,6 +241,10 @@
   and the persistence review subset passed `67`.
 - Structured verification exited `0`: quality `287`, preprocessing `106`,
   Ruff, compile, type baseline, memory/task, and whitespace checks passed.
+- Fresh focused recheck returned `45 passed, 187 deselected in 27.99s`.
+- The task's explicit allowlist checkpoint is the documentation checkpoint for
+  this atomic slice; the pre-existing `current-state.md` edit remains outside
+  it.
 - Task card and plan:
   `docs/agent/tasks/2026-07-29-results-review-prefix-deduplication.md` and
   `docs/superpowers/plans/2026-07-29-results-review-prefix-deduplication.md`.
