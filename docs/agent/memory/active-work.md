@@ -1,5 +1,27 @@
 # Active Work
 
+## SAXS Static publication gate binding - checkpoint pending - 2026-07-28
+
+- Static eligibility now requires the existing explicit
+  `paper_figure_candidate=True` when assigning `main`; implicit
+  `quality_flag="OK"` promotion is removed only from the Static provider path.
+  Temperature and strain classifier behavior remains unchanged.
+- TDD evidence: RED `1 failed, 2 passed` for the first gate and a second RED
+  for reliability-only authorization; focused Static/provider/figure matrix
+  `29 passed, 1 warning`; fresh SAXS matrix `423 passed, 8 warnings`.
+- Fresh real SAXS walkthrough: `3 passed, 12 deselected, 2 warnings`; the
+  generated Static Manifest has no Main, retains SI/Diagnostic entries, and
+  persists `no_publication_ready_figure` with reason
+  `static_frame_publication_authorization_missing`.
+- Final structured verifier passed via the repository Python runtime after the
+  reliability-only ordering correction with quality `283 passed, 2 warnings`,
+  preprocessing `106 passed, 2 warnings`, Ruff, compile/type, memory, and
+  whitespace checks passed. Full/boundary verification is not claimed for
+  this focused task. Checkpoint is the next action after the final allowlist
+  diff review.
+- Human GUI restart, scientific interpretation, and final publication/release
+  approval remain open; no claim of scientific publication approval is implied.
+
 ## SAXS Workbench review evidence readability - verification pending - 2026-07-28
 
 - Existing advisory risk/next-step sections now render as ordered newline

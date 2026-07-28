@@ -19,6 +19,8 @@ def _static_engine() -> SimpleNamespace:
             "Q_rel": 1.0,
             "Q_star_valid": True,
             "lc_confidence": 0.8,
+            "paper_figure_candidate": True,
+            "paper_conclusion_candidate": True,
         }
         for index in range(2)
     ]

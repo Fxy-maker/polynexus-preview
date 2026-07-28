@@ -1,5 +1,27 @@
 ---
 
+## SAXS Static publication gate binding (2026-07-28)
+
+- Static `main` role assignment now consumes the existing explicit
+  `paper_figure_candidate` gate. Missing authorization is SI; explicit
+  rejection or analysis error remains Diagnostic. This strict parameter is
+  Static-only so temperature/strain role behavior is unchanged.
+- When Static has no Main definition, the provider preserves measured profile
+  and diagnostic figures and records
+  `no_publication_ready_figure=True` with reason
+  `static_frame_publication_authorization_missing` in recipe parameters.
+- Evidence: TDD RED covered missing and reliability-only authorization;
+  focused `29 passed, 1 warning`; SAXS `423 passed, 8 warnings`; real
+  walkthrough `3 passed, 12 deselected, 2 warnings`; final structured quality
+  `283` and preprocessing `106` passed after the reliability-only ordering
+  correction, with Ruff/compile/type/memory/whitespace checks passed.
+  Full/boundary is not claimed for this focused slice.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-static-publication-gate.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-static-publication-gate-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-static-publication-gate.md`.
+
+
 ## SAXS Workbench review evidence readability (2026-07-28)
 
 - `build_saxs_results_presentation()` now keeps the existing risk and next-step

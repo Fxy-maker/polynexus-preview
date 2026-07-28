@@ -50,7 +50,11 @@ def _explicit_bool(values: Sequence[Any]) -> bool | None:
     return None
 
 
-def classify_frame_eligibility(frame: SAXSFrameView) -> FigureEligibilityDecision:
+def classify_frame_eligibility(
+    frame: SAXSFrameView,
+    *,
+    require_explicit_publication_candidate: bool = False,
+) -> FigureEligibilityDecision:
     """Classify one frame without deriving or repairing analysis evidence."""
 
     quality_tokens = tuple(
@@ -72,6 +76,12 @@ def classify_frame_eligibility(frame: SAXSFrameView) -> FigureEligibilityDecisio
         )
     if paper_candidate is True:
         return FigureEligibilityDecision("main", ("analysis_approved_paper_figure",))
+
+    if require_explicit_publication_candidate:
+        return FigureEligibilityDecision(
+            "si",
+            ("publication_authorization_missing",),
+        )
 
     reliability_values = tuple(
         str(value or "").strip().lower()

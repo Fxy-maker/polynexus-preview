@@ -35,6 +35,13 @@ _COLORS = ("#4477AA", "#EE6677", "#228833", "#CCBB44", "#66CCEE", "#AA3377")
 _DIAGNOSTIC_METHODS = ("correlation", "idf", "porod", "guinier", "kratky")
 
 
+def _static_eligibility(frame: SAXSFrameView):
+    return classify_frame_eligibility(
+        frame,
+        require_explicit_publication_candidate=True,
+    )
+
+
 def _finite_number(value: Any) -> bool:
     try:
         return bool(np.isfinite(float(value)))
@@ -636,7 +643,7 @@ def _supported_lc(frame: SAXSFrameView) -> Any:
 
 
 def _promotable(frame: SAXSFrameView) -> bool:
-    if classify_frame_eligibility(frame).highest_role != "main":
+    if _static_eligibility(frame).highest_role != "main":
         return False
     status = _text_parameter(
         frame,
@@ -662,7 +669,7 @@ def _build_correlation_support(frames: Sequence[SAXSFrameView]) -> FigureDefinit
         (
             frame
             for frame in sorted(frames, key=lambda item: item.index)
-            if classify_frame_eligibility(frame).highest_role != "diagnostic"
+            if _static_eligibility(frame).highest_role != "diagnostic"
             and (_correlation_pairs(frame) is not None or _idf_pairs(frame) is not None)
         ),
         None,
@@ -882,6 +889,27 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
                     display_order=20,
                 )
             )
+    elif frames:
+        # A frame without publication authorization still remains reviewable.
+        # Preserve its measured profile as SI rather than dropping the entire
+        # Static evidence pack when no diagnostic transform is available.
+        profile_frame = next(
+            (frame for frame in frames if _profile_pairs(frame) is not None),
+            None,
+        )
+        if profile_frame is not None:
+            profile = _build_sample(profile_frame)
+            if profile is not None:
+                definitions.append(
+                    replace(
+                        profile,
+                        figure_id="saxs.static.profile.si",
+                        category="supplementary",
+                        publication_role="si",
+                        title=f"Static SAXS supplementary profile: {profile_frame.label}",
+                        display_order=20,
+                    )
+                )
     for frame in frames:
         for method in _DIAGNOSTIC_METHODS:
             diagnostic = _build_diagnostic(frame, method)
@@ -899,6 +927,22 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
             ),
         )
     )
+    if ordered and not any(item.publication_role == "main" for item in ordered):
+        downgraded: list[FigureDefinition] = []
+        for item in ordered:
+            recipe = dict(item.recipe)
+            parameters = dict(recipe.get("parameters", {}))
+            parameters.update(
+                {
+                    "no_publication_ready_figure": True,
+                    "no_publication_ready_reason": (
+                        "static_frame_publication_authorization_missing"
+                    ),
+                }
+            )
+            recipe["parameters"] = parameters
+            downgraded.append(replace(item, recipe=recipe))
+        ordered = tuple(downgraded)
     polished = polish_saxs_publication_definitions(
         tuple(_ensure_display_order(item) for item in ordered)
     )
