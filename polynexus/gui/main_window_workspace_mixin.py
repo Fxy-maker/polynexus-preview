@@ -72,6 +72,13 @@ class MainWindowWorkspaceMixin:
 
     def _workspace_context_summary_text(self, context) -> str:
         source = os.path.basename(context.source_path.rstrip("/\\")) if context.source_path else tr("WORKFLOW_NO_DATA")
+        if str(getattr(context, "technique", "") or "").strip().lower() == "joint":
+            joint_source = resolve_joint_history_project_label(
+                "",
+                getattr(self, "_joint_report", None),
+            )
+            if joint_source:
+                source = joint_source
         run_id = context.run_id or tr("WORKSPACE_RUN_NOT_PERSISTED")
         return tr(
             "WORKSPACE_CONTEXT_SUMMARY",

@@ -38,6 +38,22 @@
 - Task card, design, plan, and acceptance note:
   `docs/agent/tasks/2026-07-29-joint-workflow-task-identity.md`.
 
+## Joint workspace context identity - completed 2026-07-29
+
+- Native Joint review showed the task card identity was corrected but the
+  compact workspace context line still used `No data loaded`. The follow-up
+  now reuses the same existing display-only resolver for that line; the Joint
+  report and persistence payload remain unchanged.
+- TDD RED was `1 failed`; the focused regression GREEN was `1 passed in
+  0.63s`. The focused matrix returned `42 passed, 177 deselected in 38.36s`;
+  structured verification exited `0` with quality `287` and preprocessing
+  `106`; diff check passed. Native Joint route returned `1 passed, 16
+  deselected in 9.20s`, and the fresh capture shows `PA6-A` in both header
+  locations.
+- The explicit allowlist checkpoint is the task's only commit action.
+- Task card, design, plan, and acceptance note:
+  `docs/agent/tasks/2026-07-29-joint-workspace-context-identity.md`.
+
 ## SAXS acceptance audit surfaces - completed 2026-07-28
 
 - Existing `scientific_acceptance_audit` snapshots now reach the Workbench as

@@ -117,3 +117,14 @@ def test_joint_workflow_task_uses_report_identity_instead_of_no_data():
     task = window._workflow_task_context()
 
     assert task["source"] == "PA6-A"
+
+
+def test_joint_workspace_context_uses_report_identity_instead_of_no_data():
+    window = _FakeWorkspaceWindow(technique="joint", submodule="joint.compare", run_id="joint-1")
+    window._joint_report = {"rows": [{"sample": "PA6-A", "batch": "annealed"}]}
+    context = window._workspace_context_snapshot()
+
+    summary = window._workspace_context_summary_text(context)
+
+    assert "PA6-A" in summary
+    assert "No data loaded" not in summary
