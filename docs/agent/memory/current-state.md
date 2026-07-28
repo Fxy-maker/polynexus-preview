@@ -1,5 +1,20 @@
 ---
 
+## Fresh native all-mode route acceptance (2026-07-29)
+
+- The current checkout passed the Windows-native Qt route harness with `17
+  passed, 15 warnings in 312.55s`, exit code `0`. It covered DSC `3`, SAXS `3`,
+  WAXS `3`, IR `2`, NMR `4`, synthetic Joint `1`, and synthetic IR mapping `1`.
+- The fresh capture directory
+  `D:\PolyNexus_native_all_routes_capture_20260729` contains 68 images (four
+  surfaces per case). Each case exercised the real Editor Export action with
+  the no-Origin PackageExporter fallback.
+- Representative images show native Results/Gallery/History/Editor routes and
+  live labels. Crowded NMR solid-C labels, the synthetic Joint `No project` /
+  `No data loaded` restore header, synthetic IR mapping, and SAXS diagnostic /
+  validation states remain explicit review limitations. Human visual,
+  scientific, and final release gates remain open.
+
 ## Joint real-data transport acceptance (2026-07-29)
 
 - Real DSC standard, SAXS static, and WAXS static engine outputs now have a

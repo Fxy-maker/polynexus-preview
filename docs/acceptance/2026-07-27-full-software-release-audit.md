@@ -22,6 +22,7 @@ Status: automated evidence complete; release not approved
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
 | Real-result GUI route capture | Temporary pytest capture `1 passed`; restored DSC run produced Results, Gallery, History, and Editor screenshots with one manifest gallery entry | structural-pass; offscreen CJK font boxes require live visual review |
 | Native Windows Qt real-route harness | Fresh D:-isolated post-opacity-fix rerun: `15 passed, 1 deselected, 15 warnings in 398.02s`, exit code `0`; DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR `4`. Each case restored actual `AnalysisResult` parameters/payload, asserted a non-empty Results table, captured Results/Gallery/History/Editor, and exercised package Export. Native synthetic Joint separately passed `1` in `8.92s`. | automated route/package-export pass; inactive-grab body contrast/activity, installed Origin/COM, and scientific gates remain human/optional-runtime gates |
+| Fresh native all-mode route harness | Current-checkout Windows-native rerun: `17 passed, 15 warnings in 312.55s`, exit code `0`; 68 captures cover DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR `4`, synthetic Joint `1`, and synthetic IR mapping `1` | automated route/capture/export pass; human visual review, IR vendor semantics, NMR solid-C label policy, Joint conflict interpretation, and release approval remain open |
 | Results Workbench Light-theme contrast | TDD regression plus theme-switch test `2 passed`; Light muted text now has `4.72:1` contrast against the light background, and the complete 15-mode native route matrix passed after the fix | automated contrast/route pass; restarted-GUI visual review remains open |
 | IR mapping/ROI contract and lifecycle | `11 passed`; geometry mismatch and invalid pixels are rejected, provenance/roles/handoff are preserved | automated structural-pass; vendor semantics intentionally not inferred |
 | NMR/Joint provenance and lifecycle | `4 passed`; NMR Main/diagnostic and Joint run provenance survive publication/history | automated provenance-pass; solid C assignment and Joint conflicts require scientific review |
@@ -44,6 +45,26 @@ passed, 2 warnings`), no changed type-baseline targets were selected, and
 `git diff --check` passed. This is transport and publication-provenance
 evidence only; it does not establish scientific agreement among the real
 values or final Joint publication approval.
+
+### Fresh native all-mode route acceptance
+
+The current checkout was exercised in a fresh Windows-native Qt process with
+the existing route harness and D:-isolated diagnostics. The command returned
+`17 passed, 15 warnings in 312.55s`, exit code `0`. The selected cases were DSC
+`3`, SAXS `3`, WAXS `3`, IR `2`, NMR `4`, synthetic Joint `1`, and synthetic IR
+mapping `1`. The capture directory
+`D:\PolyNexus_native_all_routes_capture_20260729` contains 68 images: Results,
+Gallery, History, and Editor for each case. Every case also exercised the
+existing no-Origin `PackageExporter` fallback and created its package files.
+
+Representative fresh images show a constructible native Results surface with
+live labels, a five-figure SAXS Gallery, an editable NMR solid-C spectrum, an
+editable IR mapping heatmap, and visible Joint diagnostic rows. The images also
+retain the review signals: solid-C peak labels are crowded, the synthetic Joint
+restore header says `No project` / `No data loaded`, IR mapping is synthetic,
+and SAXS temperature retains diagnostic/validation evidence. This closes
+automated native route evidence only; it does not close human visual or
+scientific release gates.
 
 ## Automated commands and results
 
