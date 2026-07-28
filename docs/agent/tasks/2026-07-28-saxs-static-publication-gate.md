@@ -58,6 +58,10 @@ alone. Preserve all curves and diagnostic figures when the gate fails.
   external basetemp.
 - [x] Structured verification and `scripts/auto_commit.py` use an explicit
   allowlist; unrelated GUI/editor/release/scratch files remain untouched.
+- [x] Fresh full/boundary verification passes in a writable isolated runtime
+  environment: `2856 passed, 17 skipped, 14 warnings` in `1365.15s`, with
+  quality `283`, preprocessing `106`, Ruff/compile/type, whitespace, and
+  boundary audit passing.
 
 ## Verification
 
@@ -69,13 +73,22 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-28-saxs-static-publicat
 git diff --check
 ```
 
+The fresh full/boundary command was run with the repository Python runtime,
+its `Scripts` directory injected into the verifier process for Ruff/Pyright,
+and writable isolated values for `APPDATA`, `LOCALAPPDATA`, `USERPROFILE`,
+`POLYNEXUS_USER_CONFIG_DIR`, and `PYTEST_ADDOPTS=--basetemp
+D:\PolyNexus\PolyNexus_full_boundary_fresh_env_20260729\pytest_base`.
+
 ## Known limitations
 
 The fresh real SAXS walkthrough now produces no Static Main figure when the
 existing data has no explicit publication candidate; its SI/Diagnostic
 Manifest entries carry `no_publication_ready_figure`. Human GUI restart and
-scientific publication review remain separate release gates. Full repository
-`--full --boundary` verification is not claimed for this focused task.
+scientific publication review remain separate release gates. An initial
+unisolated full run reached `2854 passed, 17 skipped, 2 failed, 15 warnings`
+because two unrelated tests attempted to write to the sandbox's protected
+user directories; the two tests passed in the writable isolated probe, and the
+fresh full/boundary rerun completed green as recorded above.
 
 ## Changed-file allowlist
 

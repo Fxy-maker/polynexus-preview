@@ -58,6 +58,9 @@
 - [x] Run the focused Static/provider/figure matrix with an external basetemp.
 - [x] Run all `tests/test_saxs*.py` with a fresh external basetemp.
 - [x] Run `python scripts/verify.py --task docs/agent/tasks/2026-07-28-saxs-static-publication-gate.md --changed --types` and `git diff --check`.
-- [x] Review the cumulative diff and create one `scripts/auto_commit.py`
-  checkpoint using only the explicit allowlist.
-- [ ] Record the exact results and keep GUI/scientific human approval open.
+- [x] Run fresh `--full --boundary` verification in a writable isolated
+  runtime environment: `2856 passed, 17 skipped, 14 warnings` in `1365.15s`;
+  quality `283`, preprocessing `106`, and boundary audit passed.
+- [x] Review the cumulative diff and keep the implementation checkpoint
+  `63059d5` limited to the explicit allowlist.
+- [x] Record the exact results and keep GUI/scientific human approval open.

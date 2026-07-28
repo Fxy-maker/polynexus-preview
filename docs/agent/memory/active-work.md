@@ -30,7 +30,7 @@
   `docs/agent/tasks/2026-07-29-joint-real-data-lifecycle.md` and
   `docs/superpowers/plans/2026-07-29-joint-real-data-lifecycle.md`.
 
-## SAXS Static publication gate binding - checkpoint pending - 2026-07-28
+## SAXS Static publication gate binding - checkpointed - 2026-07-28
 
 - Static eligibility now requires the existing explicit
   `paper_figure_candidate=True` when assigning `main`; implicit
@@ -46,9 +46,11 @@
 - Final structured verifier passed via the repository Python runtime after the
   reliability-only ordering correction with quality `283 passed, 2 warnings`,
   preprocessing `106 passed, 2 warnings`, Ruff, compile/type, memory, and
-  whitespace checks passed. Full/boundary verification is not claimed for
-  this focused task. Checkpoint is the next action after the final allowlist
-  diff review.
+  whitespace checks passed. A fresh isolated full/boundary rerun then passed
+  `2856 passed, 17 skipped, 14 warnings` in `1365.15s`; boundary audit also
+  passed. The initial unisolated run's two user-directory permission failures
+  were reproduced as `2 passed` in a writable environment and are retained as
+  environmental diagnostics only. Implementation checkpoint: `63059d5`.
 - Human GUI restart, scientific interpretation, and final publication/release
   approval remain open; no claim of scientific publication approval is implied.
 

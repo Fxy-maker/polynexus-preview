@@ -44,8 +44,10 @@
   focused `29 passed, 1 warning`; SAXS `423 passed, 8 warnings`; real
   walkthrough `3 passed, 12 deselected, 2 warnings`; final structured quality
   `283` and preprocessing `106` passed after the reliability-only ordering
-  correction, with Ruff/compile/type/memory/whitespace checks passed.
-  Full/boundary is not claimed for this focused slice.
+  correction, with Ruff/compile/type/memory/whitespace checks passed. Fresh
+  isolated full/boundary verification passed `2856 passed, 17 skipped, 14
+  warnings` in `1365.15s`; quality `283`, preprocessing `106`, and boundary
+  audit also passed. Implementation checkpoint is `63059d5`.
 - Task/spec/plan:
   `docs/agent/tasks/2026-07-28-saxs-static-publication-gate.md`,
   `docs/superpowers/specs/2026-07-28-saxs-static-publication-gate-design.md`,
