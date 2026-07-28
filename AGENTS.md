@@ -85,7 +85,11 @@ or files without actual changes. It never pushes.
 Test storage defaults are managed by `conftest.py`: ordinary pytest runs use a
 unique external basetemp under `D:\PolyNexus-test-runs` (or the path in
 `POLYNEXUS_TEST_ROOT`). Explicit `--basetemp <path>` remains supported for a
-specialized run. Inspect and clean test artifacts with:
+specialized run. The storage tool also discovers historical Windows test
+directories named `C:\TempPolyNexus*` and the old malformed
+`C:\UsersFANXUY~1AppDataLocalTemp*` pattern. Override the external legacy
+roots with `POLYNEXUS_LEGACY_TEST_ROOTS` (`;`-separated on Windows), or add
+one with `--legacy-root <path>`. Inspect and clean test artifacts with:
 
 ```powershell
 python scripts/test_storage.py report --json
@@ -94,8 +98,10 @@ python scripts/test_storage.py clean --older-than-hours 24 --apply
 ```
 
 The cleanup command is dry-run by default. It skips young, Git-tracked,
-protected, and active-process-referenced directories. Never put real datasets
-or source files under the managed test-storage root.
+protected, and active-process-referenced directories. While any pytest
+process is active, all externally discovered legacy test directories remain
+protected. Never put real datasets or source files under the managed
+test-storage root.
 
 ## 6. Superpowers integration
 

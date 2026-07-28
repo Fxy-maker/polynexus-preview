@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,7 +9,9 @@ from scripts.test_storage import (
     TestArtifact,
     build_cleanup_plan,
     create_run_basetemp,
+    discover_artifacts,
     is_path_referenced,
+    resolve_legacy_test_roots,
     resolve_test_root,
 )
 
@@ -23,6 +26,32 @@ def test_resolve_test_root_defaults_to_project_drive(tmp_path: Path):
     expected = Path(tmp_path.anchor) / "PolyNexus-test-runs"
 
     assert resolve_test_root(tmp_path, {}) == expected.resolve()
+
+
+def test_resolve_legacy_test_roots_accepts_path_list_override(tmp_path: Path):
+    first = tmp_path / "legacy-one"
+    second = tmp_path / "legacy-two"
+    value = f"{first}{os.pathsep}{second}"
+
+    roots = resolve_legacy_test_roots(tmp_path, {"POLYNEXUS_LEGACY_TEST_ROOTS": value})
+
+    assert roots == [tmp_path.resolve(), first.resolve(), second.resolve()]
+
+
+def test_discover_artifacts_includes_external_legacy_test_root(tmp_path: Path):
+    legacy_root = tmp_path / "external"
+    artifact = legacy_root / "TempPolyNexus_old-run"
+    artifact.mkdir(parents=True)
+    (artifact / "result.bin").write_bytes(b"test")
+
+    artifacts = discover_artifacts(
+        tmp_path,
+        test_root=tmp_path / "managed",
+        legacy_roots=[legacy_root],
+    )
+
+    assert [item.path for item in artifacts] == [artifact.resolve()]
+    assert artifacts[0].kind == "legacy-external"
 
 
 def test_create_run_basetemp_is_unique_and_external(tmp_path: Path):
@@ -84,3 +113,21 @@ def test_cleanup_plan_skips_young_active_tracked_and_protected_artifacts(tmp_pat
     assert plan[active].reason == "referenced by a running process"
     assert plan[tracked].reason == "tracked by Git"
     assert plan[protected].reason == "protected path"
+
+
+def test_cleanup_plan_protects_external_legacy_artifacts_while_pytest_runs(tmp_path: Path):
+    artifact = TestArtifact(
+        tmp_path / "TempPolyNexus_old-run",
+        "legacy-external",
+        100,
+        datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc) - timedelta(hours=48),
+    )
+
+    plan = build_cleanup_plan(
+        [artifact],
+        now=datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc),
+        older_than=timedelta(hours=24),
+        active_command_lines=["python -m pytest tests/test_test_storage.py"],
+    )
+
+    assert plan[artifact].reason == "referenced by a running process"

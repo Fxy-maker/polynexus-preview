@@ -15,6 +15,8 @@ from typing import Iterable, Mapping
 
 
 TEST_ROOT_ENV = "POLYNEXUS_TEST_ROOT"
+LEGACY_TEST_ROOTS_ENV = "POLYNEXUS_LEGACY_TEST_ROOTS"
+EXTERNAL_LEGACY_PATTERNS = ("temppolynexus", "usersfanxuy~1appdatalocaltemp")
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,41 @@ def resolve_test_root(project_root: Path, environ: Mapping[str, str] | None = No
         return Path(override).expanduser().resolve()
     anchor = Path(project_root).resolve().anchor
     return (Path(anchor) / "PolyNexus-test-runs").resolve()
+
+
+def resolve_legacy_test_roots(
+    project_root: Path,
+    environ: Mapping[str, str] | None = None,
+    *,
+    extra_roots: Iterable[str | Path] = (),
+) -> list[Path]:
+    """Resolve roots that may contain legacy test output directories.
+
+    The repository root is always included. On Windows, the system drive is
+    also scanned for the historical ``TempPolyNexus*`` naming convention.
+    ``POLYNEXUS_LEGACY_TEST_ROOTS`` can replace that automatic external-root
+    choice, and CLI-supplied roots are appended explicitly.
+    """
+
+    values = os.environ if environ is None else environ
+    roots: list[Path] = [Path(project_root).resolve()]
+    configured = values.get(LEGACY_TEST_ROOTS_ENV, "").strip()
+    if configured:
+        roots.extend(Path(value).expanduser() for value in configured.split(os.pathsep) if value.strip())
+    elif os.name == "nt":
+        system_drive = values.get("SystemDrive", "C:").strip() or "C:"
+        roots.append(Path(system_drive.rstrip("\\/") + "\\"))
+    roots.extend(Path(value).expanduser() for value in extra_roots)
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        resolved = root.resolve()
+        key = str(resolved).casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(resolved)
+    return unique
 
 
 def create_run_basetemp(
@@ -103,6 +140,8 @@ def build_cleanup_plan(
             reason = "tracked by Git"
             eligible = False
         elif is_path_referenced(path, commands) or (
+            artifact.kind == "legacy-external" and pytest_active
+        ) or (
             artifact.kind == "legacy" and path.name == ".pytest_tmp" and pytest_active
         ):
             reason = "referenced by a running process"
@@ -132,17 +171,41 @@ def _modified_at(path: Path) -> datetime:
     return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
 
 
-def discover_artifacts(project_root: Path, test_root: Path | None = None) -> list[TestArtifact]:
-    """Find legacy repository basetemps and managed per-run basetemps."""
+def discover_artifacts(
+    project_root: Path,
+    test_root: Path | None = None,
+    *,
+    legacy_roots: Iterable[Path] | None = None,
+) -> list[TestArtifact]:
+    """Find legacy basetemps and managed per-run basetemps.
+
+    ``legacy_roots`` is explicit for library callers. The CLI supplies the
+    repository root plus configured/system-drive roots so old C-drive test
+    output is visible without scanning arbitrary user directories.
+    """
 
     root = project_root.resolve()
     artifacts: list[TestArtifact] = []
-    for path in root.iterdir():
-        if not path.is_dir():
+    roots = [root] if legacy_roots is None else [Path(path).resolve() for path in legacy_roots]
+    seen: set[str] = set()
+    for legacy_root in roots:
+        key = str(legacy_root).casefold()
+        if key in seen or not legacy_root.is_dir():
             continue
-        lowered = path.name.lower()
-        if "pytest_tmp" in lowered or "tmp_pytest" in lowered:
-            artifacts.append(TestArtifact(path, "legacy", _directory_size(path), _modified_at(path)))
+        seen.add(key)
+        try:
+            candidates = list(legacy_root.iterdir())
+        except OSError:
+            continue
+        for path in candidates:
+            if not path.is_dir():
+                continue
+            lowered = path.name.lower()
+            is_project_legacy = "pytest_tmp" in lowered or "tmp_pytest" in lowered
+            is_external_legacy = any(lowered.startswith(prefix) for prefix in EXTERNAL_LEGACY_PATTERNS)
+            if (legacy_root == root and is_project_legacy) or (legacy_root != root and is_external_legacy):
+                kind = "legacy" if legacy_root == root else "legacy-external"
+                artifacts.append(TestArtifact(path, kind, _directory_size(path), _modified_at(path)))
 
     managed_root = (test_root or resolve_test_root(root)) / "pytest"
     if managed_root.is_dir():
@@ -217,7 +280,11 @@ def _protected_paths(project_root: Path) -> list[Path]:
 def _build_plan(args: argparse.Namespace) -> tuple[Path, dict[TestArtifact, CleanupDecision]]:
     project_root = Path(args.root).resolve()
     test_root = Path(args.test_root).resolve() if args.test_root else resolve_test_root(project_root)
-    artifacts = discover_artifacts(project_root, test_root)
+    artifacts = discover_artifacts(
+        project_root,
+        test_root,
+        legacy_roots=resolve_legacy_test_roots(project_root, extra_roots=args.legacy_root),
+    )
     plan = build_cleanup_plan(
         artifacts,
         now=datetime.now(timezone.utc),
@@ -275,6 +342,12 @@ def main(argv: list[str] | None = None) -> int:
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--root", default=".")
         subparser.add_argument("--test-root")
+        subparser.add_argument(
+            "--legacy-root",
+            action="append",
+            default=[],
+            help="Additional root containing legacy TempPolyNexus test directories",
+        )
         subparser.add_argument("--older-than-hours", type=float, default=24.0)
         subparser.add_argument("--json", action="store_true", dest="as_json")
         if name == "clean":
