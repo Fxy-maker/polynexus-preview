@@ -31,9 +31,12 @@ decision, physical gate, or scientific validity promotion is introduced.
   checks passed.
 - Exact SAXS file matrix: `455 passed, 6 warnings in 240.01s`.
 - `git diff --check` passed.
-- Test-storage report exited `0` in dry-run mode; no artifacts were removed.
+- The latest test-storage report exited `0` in dry-run mode: `468` artifacts,
+  `75` eligible, `393` protected, `38013194773` eligible bytes, and `0`
+  removed. No artifacts were removed.
 - The explicit allowlist checkpoint is the only commit action for this slice.
 
-A separately started full/boundary verifier was still running at checkpoint
-time and had no pytest summary. It is not counted as a pass for this slice;
-its eventual result must be classified independently.
+A separately started full/boundary verifier reached the tool-level timeout:
+exit `124`, about `1804s` elapsed, and no pytest summary was produced. A
+post-timeout process check found no residual Python/pytest process, so this
+run is neither a test pass nor a test-failure result.

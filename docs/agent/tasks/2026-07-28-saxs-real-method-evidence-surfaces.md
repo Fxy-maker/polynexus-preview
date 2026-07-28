@@ -89,12 +89,13 @@ slice. It must have a real pytest summary before being reported as a pass.
   passed.
 - Exact SAXS file matrix: `455 passed, 6 warnings in 240.01s`.
 - `git diff --check`: passed.
-- `python scripts/test_storage.py report --json`: exit `0`, dry-run; active
-  and retained test directories were protected and no files were removed.
-- A separately started full/boundary verifier (`PID 22808`, command
-  `python scripts/verify.py --changed --types --full --boundary`) was still
-  running when this task checkpoint was prepared. Its result is intentionally
-  not counted as evidence for this task; no pytest summary was observed.
+- `python scripts/test_storage.py report --json`: exit `0`, dry-run; latest
+  report listed `468` artifacts, `75` eligible, `393` protected,
+  `38013194773` eligible bytes, and `0` removed.
+- The separately started full/boundary verifier reached a tool-level timeout
+  with exit `124` after about `1804s`; no pytest summary was produced. A
+  post-timeout process check found no residual Python/pytest process. This
+  result is neither a test pass nor a test-failure result.
 
 ## Explicit changed-file allowlist
 

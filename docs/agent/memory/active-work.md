@@ -17,9 +17,13 @@
   `docs/superpowers/specs/2026-07-28-saxs-real-method-evidence-surfaces-design.md`,
   `docs/superpowers/plans/2026-07-28-saxs-real-method-evidence-surfaces.md`,
   `docs/acceptance/2026-07-28-saxs-real-method-evidence-surfaces.md`.
-- The explicit allowlist checkpoint is prepared. A separately started
-  full/boundary verifier had no pytest summary at checkpoint time and is not
-  counted as a pass.
+- The explicit allowlist checkpoint is prepared. The separately started
+  full/boundary verifier ended at the tool-level timeout with exit `124` after
+  about `1804s`, without a pytest summary; a post-timeout process check found
+  no residual Python/pytest process. It is not counted as a pass or failure.
+- The latest storage report exited `0` in dry-run mode: `468` artifacts,
+  `75` eligible, `393` protected, `38013194773` eligible bytes, and `0`
+  removed. No test artifacts were deleted or moved.
 
 ## SAXS acceptance audit surfaces - completed 2026-07-28
 
