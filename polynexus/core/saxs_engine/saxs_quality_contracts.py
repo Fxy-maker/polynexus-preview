@@ -2043,6 +2043,14 @@ def build_saxs_scientific_acceptance_audit(
             for metric_name, report in metrics.items():
                 if isinstance(report, Mapping):
                     inspect_report(f"metric:{metric_name}", report)
+        sequence = node.get("guinier_sequence_evidence")
+        if isinstance(sequence, Mapping):
+            level = _quality_level(sequence.get("level"))
+            if sequence.get("level") is not None:
+                levels = evidence_levels.setdefault("guinier_sequence_evidence", [])
+                append_unique(levels, level.value)
+            for reason in sequence.get("reason_codes", ()) or ():
+                append_unique(existing_reasons, reason)
 
     reliability_status = str(source.get("strain_reliability_status") or "").strip()
     reliability_reason = str(source.get("strain_reliability_reason") or "").strip()

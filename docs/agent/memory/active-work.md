@@ -1,5 +1,15 @@
 # Active Work
 
+## SAXS acceptance audit Guinier sequence evidence - completed 2026-07-28
+
+- The existing scientific acceptance audit now includes the existing Guinier
+  sequence level and reason codes, including the real PA6
+  `guinier_sequence_no_valid_frames` boundary. No Guinier calculation, frame
+  repair, threshold, rescue, AI, publication, or export behavior changed.
+- Focused tests passed (`2`); exact SAXS matrix passed (`441 passed, 6
+  warnings`). Task-scoped verifier and explicit allowlist checkpoint remain to
+  be finalized for this atomic task.
+
 ## SAXS acceptance audit lifecycle consistency - completed 2026-07-28
 
 - `SAXSEngine._validate_results()` now refreshes an already-attached
@@ -10,8 +20,8 @@
   `guinier_sequence_no_valid_frames` is retained. No physical threshold,
   Guinier calculation, rescue, AI, publication, or static behavior changed.
 - Focused lifecycle tests passed (`2`); exact SAXS matrix passed (`439 passed,
-  6 warnings`). Task-scoped verifier and explicit allowlist checkpoint remain
-  to be finalized for this atomic task.
+  6 warnings`). Structured verifier passed and the explicit allowlist checkpoint
+  is `e83bef7`.
 
 ## SAXS temperature scientific acceptance audit - completed 2026-07-28
 
