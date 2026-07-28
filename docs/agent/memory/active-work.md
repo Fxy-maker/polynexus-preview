@@ -19,6 +19,26 @@
   `current-state.md` edit, and historical test/scratch files remain outside
   this checkpoint.
 
+## SAXS 2D input shape fail-closed - checkpointed - 2026-07-28
+
+- `analyze_anisotropy()` now converts array-like inputs into detached numeric
+  arrays and rejects invalid or incompatible matrix/q/χ/1D-axis shapes before
+  boolean indexing. The existing detector/orientation evidence path returns
+  `Unusable` with `orientation_input_invalid` or
+  `orientation_input_shape_mismatch`; no reshape, interpolation, geometry
+  inference, or physical threshold was added.
+- TDD RED was `9 passed, 1 failed`; focused GREEN was `10 passed`; exact SAXS
+  was `431 passed, 6 warnings`. Structured verification exited `0` with
+  quality `287`, preprocessing `106`, and Ruff/compile/type/memory/task/
+  whitespace all passing.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-2d-input-shape-fail-closed.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-2d-input-shape-fail-closed-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-2d-input-shape-fail-closed.md`.
+- Full/boundary verification and real detector scientific approval remain
+  separate gates. The shared `current-state.md` and other parallel scratch
+  files remain outside this checkpoint.
+
 ## Results Review prefix deduplication - checkpoint pending - 2026-07-29
 
 - The shared Results Review boundary now strips repeated leading English or
@@ -94,7 +114,7 @@
   `docs/agent/tasks/2026-07-29-joint-history-project-identity.md` and
   `docs/superpowers/plans/2026-07-29-joint-history-project-identity.md`.
 
-## Fresh native all-mode route acceptance - checkpoint pending - 2026-07-29
+## Fresh native all-mode route acceptance - checkpointed - 2026-07-29
 
 - Current-checkout post-Joint-fix Windows-native Qt matrix: `17 passed, 15
   warnings in 358.71s`, exit code `0`; cases are DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR
@@ -105,6 +125,12 @@
   Joint now shows `PA6-A` in the project badge while retaining synthetic `No data loaded`
   context. Crowded NMR solid-C labels, synthetic IR mapping, and SAXS diagnostic /
   validation signals. Human visual/scientific/release review remains open.
+- After the shared Results Review prefix fix, the current checkout reran the
+  same matrix with `17 passed, 15 warnings in 320.08s`, exit code `0`. Fresh
+  captures are under
+  `D:\PolyNexus_native_all_routes_capture_20260729_post_prefix` and again
+  contain 68 images. Results panels show one shared risk/next wrapper; the
+  remaining IR/NMR/Joint items are explicitly scientific-review boundaries.
 - Task card and plan:
   `docs/agent/tasks/2026-07-29-native-all-mode-route-acceptance.md` and
   `docs/superpowers/plans/2026-07-29-native-all-mode-route-acceptance.md`.

@@ -120,6 +120,22 @@ def test_anisotropy_result_keeps_legacy_empty_path_and_attaches_json_evidence():
     json.dumps(result.orientation_evidence, allow_nan=False)
 
 
+def test_anisotropy_mismatched_q_axis_fails_closed_with_unusable_evidence():
+    I_2d = np.ones((72, 5))
+    q = np.linspace(0.1, 1.0, 10)
+    chi = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    q_1d = np.linspace(0.1, 1.0, 10)
+    I_1d = np.ones(10)
+
+    result = analyze_anisotropy(I_2d, q, chi, q_1d, I_1d)
+
+    assert not np.isfinite(result.f_herman)
+    assert result.orientation_evidence["level"] == QualityLevel.UNUSABLE.value
+    assert "orientation_input_shape_mismatch" in result.orientation_evidence["reason_codes"]
+    json.dumps(result.detector_quality_report, allow_nan=False)
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
 def _synthetic_azimuthal_input(axis_deg: float) -> tuple[np.ndarray, ...]:
     q = np.linspace(0.3, 1.0, 120)
     q_profile = 0.1 + np.exp(-((q - 0.55) / 0.025) ** 2)

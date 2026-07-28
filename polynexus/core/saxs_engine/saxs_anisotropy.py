@@ -71,28 +71,37 @@ class AnisotropyResult:
     orientation_evidence: dict = None
 
 
-def _attach_orientation_evidence(result: AnisotropyResult, I_2d: np.ndarray) -> None:
+def _attach_orientation_evidence(
+    result: AnisotropyResult,
+    I_2d: np.ndarray,
+    *,
+    invalid_reason: str | None = None,
+) -> None:
     """Attach evidence for the sector-map input consumed by this module."""
 
     detector = build_detector_quality_report(I_2d, source_kind="sector_map")
-    payload = {
-        "f_herman": result.f_herman,
-        "P2": result.P2,
-        "P4": result.P4,
-        "pattern_type": result.pattern_type,
-        "anisotropy_ratio": result.anisotropy_ratio,
-        "anisotropy_index": result.anisotropy_index,
-        "confidence": result.confidence,
-        "orientation_axis_deg": result.orientation_axis_deg,
-        "orientation_axis_source": result.orientation_axis_source,
-        "orientation_axis_strength": result.orientation_axis_strength,
-        "orientation_axis_confidence": result.orientation_axis_confidence,
-        "orientation_axis_reason": result.orientation_axis_reason,
-    }
+    payload = (
+        {}
+        if invalid_reason
+        else {
+            "f_herman": result.f_herman,
+            "P2": result.P2,
+            "P4": result.P4,
+            "pattern_type": result.pattern_type,
+            "anisotropy_ratio": result.anisotropy_ratio,
+            "anisotropy_index": result.anisotropy_index,
+            "confidence": result.confidence,
+            "orientation_axis_deg": result.orientation_axis_deg,
+            "orientation_axis_source": result.orientation_axis_source,
+            "orientation_axis_strength": result.orientation_axis_strength,
+            "orientation_axis_confidence": result.orientation_axis_confidence,
+            "orientation_axis_reason": result.orientation_axis_reason,
+        }
+    )
     evidence = build_orientation_evidence(
         payload,
         detector,
-        applicability="unknown",
+        applicability="supported" if invalid_reason else "unknown",
         source_ref="saxs_anisotropy.analyze_anisotropy",
     )
     result.detector_quality_report = detector.to_dict()
@@ -120,7 +129,49 @@ def _attach_orientation_evidence(result: AnisotropyResult, I_2d: np.ndarray) -> 
             list(evidence_dict.get("reason_codes", ()))
             + [result.orientation_axis_reason]
         )
+    if invalid_reason:
+        evidence_dict["reason_codes"] = tuple(
+            dict.fromkeys(
+                list(evidence_dict.get("reason_codes", ())) + [invalid_reason]
+            )
+        )
+        evidence_dict.setdefault("physical_checks", {})[
+            "input_validation_reason"
+        ] = invalid_reason
     result.orientation_evidence = evidence_dict
+
+
+def _normalize_anisotropy_inputs(
+    I_2d: object,
+    q: object,
+    chi: object,
+    q_1d: object,
+    I_1d: object,
+) -> tuple[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None, str | None]:
+    """Return detached numeric inputs or an explicit structural failure reason."""
+
+    try:
+        image = np.asarray(I_2d, dtype=float)
+        q_axis = np.asarray(q, dtype=float)
+        chi_axis = np.asarray(chi, dtype=float)
+        q_1d_axis = np.asarray(q_1d, dtype=float)
+        intensity_1d = np.asarray(I_1d, dtype=float)
+    except (TypeError, ValueError):
+        return None, "orientation_input_invalid"
+
+    if any(array.ndim != 1 for array in (q_axis, chi_axis, q_1d_axis, intensity_1d)):
+        return None, "orientation_input_shape_mismatch"
+    if image.ndim != 2:
+        return None, "orientation_input_shape_mismatch"
+    if image.size == 0 or chi_axis.size < 5:
+        return None, "orientation_input_shape_mismatch"
+    if image.shape != (chi_axis.size, q_axis.size):
+        return None, "orientation_input_shape_mismatch"
+    if q_1d_axis.size != intensity_1d.size:
+        return None, "orientation_input_shape_mismatch"
+    if q_1d_axis.size == 0:
+        return None, "orientation_input_shape_mismatch"
+    return (image, q_axis, chi_axis, q_1d_axis, intensity_1d), None
 
 
 # ======================================================================
@@ -551,10 +602,18 @@ def analyze_anisotropy(
     if cfg is None:
         cfg = SAXSConfig()
 
-    if I_2d is None or chi is None or len(chi) < 5:
+    normalized, invalid_reason = _normalize_anisotropy_inputs(
+        I_2d, q, chi, q_1d, I_1d
+    )
+    if invalid_reason:
         result.confidence = 0.0
-        _attach_orientation_evidence(result, I_2d)
+        _attach_orientation_evidence(
+            result,
+            I_2d,
+            invalid_reason=invalid_reason,
+        )
         return result
+    I_2d, q, chi, q_1d, I_1d = normalized
 
     # 1. Azimuthal profile at Bragg peak position
     from .core import bragg_long_period
