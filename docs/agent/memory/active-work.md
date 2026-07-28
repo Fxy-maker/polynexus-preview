@@ -1,5 +1,17 @@
 # Active Work
 
+## SAXS strain sector fail-closed - checkpointed - 2026-07-28
+
+- Malformed nested sector payloads are downgraded to strict JSON-safe Unusable
+  orientation evidence with `strain_sector_data_invalid`; the strain frame and
+  existing 1D analysis remain present, while valid sector payloads retain their
+  behavior.
+- Fresh 2026-07-30 focused 2D/strain/batch recheck returned `69 passed in
+  1.12s`, exit code `0`, using external D: basetemp. The follow-up acceptance
+  record is `docs/acceptance/2026-07-30-saxs-strain-sector-fail-closed.md`.
+- No complete SAXS/full-boundary result is attributed to this slice; scientific
+  orientation interpretation and final release review remain open.
+
 ## Full/boundary continuation observation - open - 2026-07-30
 
 - A later independent `scripts/verify.py --changed --types --full --boundary`

@@ -25,14 +25,14 @@ series, while exposing an explicit Unusable orientation evidence record.
 
 ## Acceptance criteria
 
-- [ ] Malformed nested sector mappings do not raise from
+- [x] Malformed nested sector mappings do not raise from
   `herman_from_sector_data()`.
-- [ ] The malformed frame gets a strict JSON-safe Unusable orientation
+- [x] The malformed frame gets a strict JSON-safe Unusable orientation
   evidence record containing `strain_sector_data_invalid`.
-- [ ] The surrounding strain series retains the frame and all existing 1D
+- [x] The surrounding strain series retains the frame and all existing 1D
   analysis results; only the affected orientation evidence is downgraded.
-- [ ] Valid sector payloads retain the existing orientation behavior.
-- [ ] Focused consumer tests, structured verifier, and diff check pass; the
+- [x] Valid sector payloads retain the existing orientation behavior.
+- [x] Focused consumer tests, structured verifier, and diff check pass; the
   exact full SAXS matrix is reported honestly if bounded execution times out.
 
 ## Implementation plan
@@ -82,3 +82,12 @@ outside the checkpoint.
   eligible candidates; no data was deleted or moved.
 - `git diff --check` passed. The complete SAXS matrix is not claimed for this
   task; the preceding 458-test bounded run timed out without a pytest summary.
+
+Fresh follow-up on 2026-07-30 returned `69 passed in 1.12s`, exit code `0`, for
+the focused 2D/strain/batch matrix with an external D: basetemp.
+
+## Follow-up documentation checkpoint allowlist
+
+- `docs/agent/tasks/2026-07-28-saxs-strain-sector-fail-closed.md`
+- `docs/acceptance/2026-07-30-saxs-strain-sector-fail-closed.md`
+- `docs/agent/memory/active-work.md`
