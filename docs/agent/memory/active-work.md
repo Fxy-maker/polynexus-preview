@@ -37,6 +37,26 @@
   `docs/superpowers/plans/2026-07-28-saxs-guinier-dirty-input-guard.md`, and
   `docs/acceptance/2026-07-28-saxs-guinier-dirty-input-guard.md`.
 
+## SAXS long-period helper dirty-input guard - completed 2026-07-28
+
+- `bragg_long_period()`, `lorentz_fit_long_period()`, and
+  `correlation_function()` now reuse detached `sanitize_1d_profile()` survivors
+  and return stable empty diagnostics before indexing an empty q profile.
+  Existing windows, fit behavior, extrapolation, and physical gates are
+  unchanged; no interpolation, rescue, AI, or publication behavior was added.
+- TDD RED was `3 failed in 0.54s`; focused GREEN returned `3 passed in 0.19s`.
+  The exact SAXS matrix returned `490 passed, 6 warnings in 239.12s`, exit code
+  `0`, using `D:\PolyNexus_saxs_long_period_dirty_matrix`.
+- Structured verification exited `0`: task/memory checks, Ruff, compile, type
+  baseline, quality (`287 passed`), preprocessing (`106 passed`), and
+  whitespace passed; `git diff --check` also passed. The explicit allowlist
+  checkpoint was closed with a doc-only amend; its final hash is reported in
+  the handoff. Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-28-saxs-long-period-dirty-input-guard.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-long-period-dirty-input-guard-design.md`,
+  `docs/superpowers/plans/2026-07-28-saxs-long-period-dirty-input-guard.md`,
+  and `docs/acceptance/2026-07-28-saxs-long-period-dirty-input-guard.md`.
+
 ## SAXS strain sector fail-closed - checkpointed - 2026-07-28
 
 - Malformed nested sector payloads are downgraded to strict JSON-safe Unusable

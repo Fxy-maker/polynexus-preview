@@ -140,12 +140,21 @@ def bragg_long_period(
         "candidate_peaks": [],
     }
 
-    mask = (q >= q_min) & (q <= q_max) & np.isfinite(q) & np.isfinite(I) & (I > 0)
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
+    mask = (
+        (q >= q_min)
+        & (q <= q_max)
+        & np.isfinite(q)
+        & np.isfinite(intensity)
+        & (intensity > 0)
+    )
     if np.sum(mask) < 5:
         return np.nan, np.nan, info
 
     q_sel = q[mask]
-    I_sel = I[mask]
+    I_sel = intensity[mask]
     I_lorentz = I_sel * q_sel ** 2
 
     I_range = np.max(I_lorentz) - np.min(I_lorentz)
@@ -341,14 +350,27 @@ def lorentz_fit_long_period(
 
     Returns (L_nm, fit_quality_r2, fit_result_dict).
     """
-    try:
-        from lmfit.models import LorentzianModel, ConstantModel
-    except ImportError:
-        return _lorentz_fallback(q, I, cfg, q_min=q_min, q_max=q_max)
-
     q_corr_min = cfg.q_corr_min
     if q_min is not None:
         q_corr_min = max(q_corr_min, float(q_min))
+
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
+    if q.size == 0:
+        q_corr_max = cfg.q_corr_max
+        if q_max is not None:
+            q_corr_max = min(q_corr_max, float(q_max))
+        return np.nan, 0.0, {
+            'q_corr_min': q_corr_min,
+            'q_corr_max': q_corr_max,
+        }
+
+    try:
+        from lmfit.models import LorentzianModel, ConstantModel
+    except ImportError:
+        return _lorentz_fallback(q, intensity, cfg, q_min=q_min, q_max=q_max)
+
     q_corr_max = min(cfg.q_corr_max, q[-1])
     if q_max is not None:
         q_corr_max = min(q_corr_max, float(q_max))
@@ -358,7 +380,7 @@ def lorentz_fit_long_period(
         return np.nan, 0.0, {'q_corr_min': q_corr_min, 'q_corr_max': q_corr_max}
 
     q_sel = q[mask]
-    I_sel = I[mask]
+    I_sel = intensity[mask]
     Iq2 = I_sel * q_sel ** 2
 
     # First find Bragg peak to narrow search range
@@ -672,12 +694,26 @@ def correlation_function(
     q_corr_min = cfg.q_corr_min
     if q_min is not None:
         q_corr_min = max(q_corr_min, float(q_min))
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
+    if q.size == 0:
+        q_corr_max = cfg.q_corr_max
+        if q_max is not None:
+            q_corr_max = min(q_corr_max, float(q_max))
+        return {
+            'r': np.array([]),
+            'gamma': np.array([]),
+            'Q_invariant': np.nan,
+            'q_corr_min': q_corr_min,
+            'q_corr_max': q_corr_max,
+        }
     q_corr_max = min(cfg.q_corr_max, q[-1])
     if q_max is not None:
         q_corr_max = min(q_corr_max, float(q_max))
     mask = (q >= q_corr_min) & (q <= q_corr_max)
     q_sel = q[mask]
-    I_sel = I[mask]
+    I_sel = intensity[mask]
 
     if len(q_sel) < 20:
         return {
@@ -802,7 +838,7 @@ def correlation_function(
         'q_corr_min': q_corr_min,
         'q_corr_max': q_corr_max,
         'q_ext': q_ext, 'I_ext': I_ext,
-        'q_raw': q, 'I_raw': I,
+        'q_raw': q, 'I_raw': intensity,
     }
 
 
