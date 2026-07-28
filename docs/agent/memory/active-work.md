@@ -1,5 +1,27 @@
 # Active Work
 
+## SAXS Guinier helper dirty-input guard - completed 2026-07-28
+
+- The public low-level `guinier_analysis()` boundary now reuses the existing
+  detached `sanitize_1d_profile()` survivors before its unchanged fit. String,
+  non-finite, non-positive, and unsorted q/I observations no longer raise or
+  enter the fit in invalid order; clean output and the existing NaN/empty
+  insufficient-point contract remain unchanged.
+- TDD RED was `2 failed, 1 passed`; focused GREEN was `3 passed`. The exact
+  SAXS matrix returned `487 passed, 6 warnings in 260.77s`, exit code `0`.
+  Structured verification exited `0` with quality `287`, preprocessing `106`,
+  Ruff/compile/type baseline, task/memory, and whitespace checks passing; diff
+  check passed.
+- No new threshold, interpolation, rescue, AI action, or publication change
+  was introduced. No full/boundary result is attributed to this slice; the
+  independent process had no readable terminal summary or exit code.
+- Explicit allowlist checkpoint: `c4c78a7`; no push or merge was performed.
+- Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-28-saxs-guinier-dirty-input-guard.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-guinier-dirty-input-guard-design.md`,
+  `docs/superpowers/plans/2026-07-28-saxs-guinier-dirty-input-guard.md`, and
+  `docs/acceptance/2026-07-28-saxs-guinier-dirty-input-guard.md`.
+
 ## SAXS strain sector fail-closed - checkpointed - 2026-07-28
 
 - Malformed nested sector payloads are downgraded to strict JSON-safe Unusable

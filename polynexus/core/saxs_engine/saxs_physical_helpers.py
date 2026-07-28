@@ -113,11 +113,15 @@ def guinier_analysis(
     """Guinier analysis: ln(I) vs q^2 in the low-q region."""
     del q_max_factor
 
-    mask = np.isfinite(q) & np.isfinite(I)
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
+
+    mask = np.isfinite(q) & np.isfinite(intensity)
     if q_min is not None:
         mask &= q >= float(q_min)
     q_valid = q[mask]
-    I_valid = I[mask]
+    I_valid = intensity[mask]
 
     if len(q_valid) < 10:
         return np.nan, np.nan, np.array([]), np.array([])
