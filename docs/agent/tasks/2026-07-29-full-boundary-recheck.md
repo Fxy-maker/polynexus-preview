@@ -57,15 +57,17 @@ wrapper timeout; no command summary became available
 ## Later independent-process observation (2026-07-30)
 
 During a later goal continuation, an independent full/boundary invocation was
-found still running as a real process tree:
+found running as a real process tree:
 
 - parent: `scripts/verify.py --changed --types --full --boundary` (PID `4200`)
 - quality child: `scripts/quality_gate.py --root D:\PolyNexus --all-tests` (PID `24396`)
 - pytest child: `pytest -q` (PID `46772`)
 
-No terminal summary or exit code is available yet. This does not change the
-classification above and must not be treated as a pass, failure, or reason to
-delete protected test artifacts.
+The process tree later exited during the same bounded observation window
+(observed at 2026-07-28 19:25 +08:00), but no terminal summary or exit code was
+available before or after exit. This does not change the classification above:
+it remains a tool-level timeout/unverified result, not a pass or test failure,
+and it is not a reason to delete protected test artifacts.
 
 ## Documentation checkpoint allowlist
 

@@ -12,16 +12,18 @@
 - No complete SAXS/full-boundary result is attributed to this slice; scientific
   orientation interpretation and final release review remain open.
 
-## Full/boundary continuation observation - open - 2026-07-30
+## Full/boundary continuation observation - unverified timeout - 2026-07-30
 
 - A later independent `scripts/verify.py --changed --types --full --boundary`
-  process tree is still active: parent PID `4200`, quality child PID `24396`,
-  pytest PID `46772`, and worker PID `26732`.
-- No command stdout/stderr summary or exit code is available. This is neither
-  a pass nor a failure and does not replace the separate timeout classification
-  in `docs/agent/tasks/2026-07-29-full-boundary-recheck.md`.
-- While this process is active, the test-storage policy correctly protects all
-  externally discovered artifacts; no cleanup or migration is authorized.
+  process tree was observed with parent PID `4200`, quality child PID `24396`,
+  pytest PID `46772`, and worker PID `26732`; the tree later exited during the
+  bounded observation at 2026-07-28 19:25 +08:00.
+- No command stdout/stderr summary or exit code became available before or
+  after exit. This remains neither a pass nor a failure and does not replace
+  the separate timeout classification in
+  `docs/agent/tasks/2026-07-29-full-boundary-recheck.md`.
+- The test-storage policy protected externally discovered artifacts while the
+  process was active; no cleanup or migration was performed.
 
 ## SAXS 1D physical-helper dirty-input guard - completed 2026-07-28
 

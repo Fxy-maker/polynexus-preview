@@ -29,8 +29,9 @@ review, and final human release approval remain open as well.
 
 ## Later independent-process observation (2026-07-30)
 
-A later continuation found a separate full/boundary invocation still running:
+A later continuation found a separate full/boundary invocation running:
 `scripts/verify.py --changed --types --full --boundary` (parent PID `4200`,
-pytest PID `46772`). No terminal summary or exit code is available. This is
-not evidence of a pass or failure and does not alter the timeout classification
-above.
+pytest PID `46772`). The process tree later exited during the same bounded
+observation window (observed at 2026-07-28 19:25 +08:00), but no terminal
+summary or exit code was available before or after exit. This is not evidence
+of a pass or failure and does not alter the timeout classification above.
