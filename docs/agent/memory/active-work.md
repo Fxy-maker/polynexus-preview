@@ -39,6 +39,26 @@
   separate gates. The shared `current-state.md` and other parallel scratch
   files remain outside this checkpoint.
 
+## SAXS real 2D scientific acceptance audit - checkpoint ready - 2026-07-28
+
+- Added the read-only `scientific_acceptance_audit` to SAXS strain-series
+  parameters. It reports existing validation, publication flags, quality
+  levels, raw geometry/mask validity, reliability, and reason codes without
+  changing any physical gate or publication decision.
+- Fresh PAD8 evidence: `validation_passed=True` but audit status
+  `diagnostic_only`; five raw detector reports remain Diagnostic, geometry/mask
+  validity remains `not_assessed`, and the existing paper flags remain false.
+- TDD focused GREEN was `4 passed`; exact SAXS was `435 passed, 6 warnings`;
+  structured verifier passed with quality `287`, preprocessing `106`, Ruff,
+  compile/type, memory/task, and whitespace checks.
+- Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-28-saxs-real-2d-scientific-acceptance.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-real-2d-scientific-acceptance-design.md`,
+  `docs/superpowers/plans/2026-07-28-saxs-real-2d-scientific-acceptance.md`,
+  and `docs/acceptance/2026-07-28-saxs-real-2d-scientific-acceptance.md`.
+- Full/boundary verification, detector scientific validity, restarted-GUI
+  review, and final publication/release approval remain open.
+
 ## Results Review prefix deduplication - checkpoint pending - 2026-07-29
 
 - The shared Results Review boundary now strips repeated leading English or

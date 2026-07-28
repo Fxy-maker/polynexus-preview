@@ -54,6 +54,7 @@ from .saxs_engine import (
     export_1d_profile,
     export_strain_series_csv,
     export_temp_series_csv,
+    build_saxs_scientific_acceptance_audit,
 )
 from . import saxs_batch_helpers as _saxs_batch_helpers
 from .saxs_sequence_qa import build_sequence_qa_summary
@@ -2083,7 +2084,12 @@ class SAXSEngine(BaseEngine):
                 self._batch_params,
                 getattr(sr, "strain_points", ()),
             )
-            return self._build_batch_parameters_payload(params, batch_params=batch_rows)
+            payload = self._build_batch_parameters_payload(params, batch_params=batch_rows)
+            payload["scientific_acceptance_audit"] = build_saxs_scientific_acceptance_audit(
+                getattr(getattr(self, "result", None), "validation_passed", None),
+                payload,
+            )
+            return payload
         if self._batch_params:
             # Temperature/strain results have dedicated branches above.  If
             # neither series result exists, the aligned batch rows are the

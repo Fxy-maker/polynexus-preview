@@ -1952,6 +1952,162 @@ def build_series_orientation_evidence(
     )
 
 
+def _audit_optional_bool(value: Any) -> bool | None:
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    if value is None:
+        return None
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes"}:
+            return True
+        if normalized in {"false", "0", "no"}:
+            return False
+    return None
+
+
+def _audit_mapping_tree(value: Any) -> Iterable[Mapping[str, Any]]:
+    if isinstance(value, Mapping):
+        yield value
+        for child in value.values():
+            yield from _audit_mapping_tree(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from _audit_mapping_tree(child)
+
+
+def build_saxs_scientific_acceptance_audit(
+    validation_passed: Any,
+    parameters: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Summarize existing SAXS scientific/publication boundaries read-only.
+
+    This audit deliberately has no accepted/publication status.  It exposes
+    existing gate fields and evidence levels so a successful software
+    validation cannot be mistaken for scientific approval.
+    """
+
+    source = parameters if isinstance(parameters, Mapping) else {}
+    publication_names = (
+        "paper_figure_candidate",
+        "paper_conclusion_candidate",
+        "paper_conclusion_ready",
+    )
+    publication_gate = {
+        name: _audit_optional_bool(source.get(name)) for name in publication_names
+    }
+    validation = _audit_optional_bool(validation_passed)
+    evidence_levels: dict[str, list[str]] = {}
+    provenance_validity: dict[str, list[str]] = {}
+    existing_reasons: list[str] = []
+    provenance_blockers: list[str] = []
+
+    def append_unique(items: list[str], value: Any) -> None:
+        text = str(value or "").strip()
+        if text and text not in items:
+            items.append(text)
+
+    def inspect_report(label: str, report: Mapping[str, Any]) -> None:
+        level = _quality_level(report.get("level"))
+        if report.get("level") is not None:
+            levels = evidence_levels.setdefault(label, [])
+            append_unique(levels, level.value)
+        for reason in report.get("reason_codes", ()) or ():
+            append_unique(existing_reasons, reason)
+        for provenance_name in ("geometry_provenance", "mask_provenance"):
+            provenance = report.get(provenance_name)
+            if not isinstance(provenance, Mapping):
+                continue
+            validity = provenance.get("validity")
+            if validity is not None:
+                values = provenance_validity.setdefault(provenance_name, [])
+                append_unique(values, validity)
+                if validity == "not_assessed" and label == "raw_detector_quality_report":
+                    short_name = provenance_name.removesuffix("_provenance")
+                    append_unique(
+                        provenance_blockers,
+                        f"raw_{short_name}_validity_not_assessed",
+                    )
+
+    for node in _audit_mapping_tree(source):
+        for field_name in (
+            "raw_detector_quality_report",
+            "detector_quality_report",
+            "orientation_evidence",
+        ):
+            report = node.get(field_name)
+            if isinstance(report, Mapping):
+                inspect_report(field_name, report)
+        metrics = node.get("metric_evidence")
+        if isinstance(metrics, Mapping):
+            for metric_name, report in metrics.items():
+                if isinstance(report, Mapping):
+                    inspect_report(f"metric:{metric_name}", report)
+
+    reliability_status = str(source.get("strain_reliability_status") or "").strip()
+    reliability_reason = str(source.get("strain_reliability_reason") or "").strip()
+    if reliability_reason:
+        for reason in reliability_reason.split("|"):
+            append_unique(existing_reasons, reason)
+
+    reason_codes: list[str] = []
+    has_evidence = bool(
+        validation is not None
+        or any(value is not None for value in publication_gate.values())
+        or evidence_levels
+        or provenance_validity
+        or reliability_status
+    )
+    if not has_evidence:
+        status = "not_assessed"
+        reason_codes.append("acceptance_evidence_missing")
+    else:
+        if validation is False:
+            reason_codes.append("automated_validation_failed")
+        if any(value is False for value in publication_gate.values()):
+            reason_codes.append("existing_publication_gate_not_ready")
+        if any(
+            level in {QualityLevel.DIAGNOSTIC.value, QualityLevel.UNUSABLE.value}
+            for levels in evidence_levels.values()
+            for level in levels
+        ):
+            reason_codes.append("existing_evidence_not_quantitative")
+        if any(
+            validity == "not_assessed"
+            for values in provenance_validity.values()
+            for validity in values
+        ):
+            reason_codes.append("provenance_validity_not_assessed")
+            for reason in provenance_blockers:
+                append_unique(reason_codes, reason)
+        if reliability_status and reliability_status.lower() != "usable":
+            reason_codes.append("existing_reliability_not_usable")
+        if reason_codes:
+            status = "diagnostic_only"
+        else:
+            status = "review_required"
+            reason_codes.append("human_scientific_review_required")
+
+    for reason in existing_reasons:
+        append_unique(reason_codes, reason)
+    return _contract_dict(
+        {
+            "status": status,
+            "automated_validation_passed": validation,
+            "existing_publication_gate": publication_gate,
+            "evidence_levels": evidence_levels,
+            "provenance_validity": provenance_validity,
+            "reliability": {
+                "status": reliability_status or None,
+                "reason": reliability_reason or None,
+            },
+            "reason_codes": reason_codes,
+            "audit_scope": "existing_gates_only",
+            "publication_decision_changed": False,
+        }
+    )
+
+
 def contract_json(value: Any) -> str:
     """Return a stable strict-JSON representation for audit persistence."""
     payload = value.to_dict() if hasattr(value, "to_dict") else _jsonable(value)
@@ -1980,5 +2136,6 @@ __all__ = [
     "build_series_orientation_evidence",
     "build_detector_quality_report",
     "build_orientation_evidence",
+    "build_saxs_scientific_acceptance_audit",
     "contract_json",
 ]
