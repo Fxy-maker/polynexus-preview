@@ -1,7 +1,7 @@
 ---
 id: 2026-07-22-viewport-text-box-refactor
 title: Refactor generated text boxes to viewport-anchored interaction
-status: verification-ready
+status: completed
 scope: architecture, GUI interaction, document compatibility
 ---
 
@@ -65,11 +65,14 @@ python scripts/verify.py --changed --types
 - Axes-relative text creation, rendering, selection overlays, log-axis body
   movement, one-command commit/undo, Inspector edits, legacy save conversion,
   and renderer export behavior are covered by the focused matrix.
-- Expanded focused matrix: `106 passed` with four pre-existing Matplotlib tight-layout
+- Current focused matrix: `132 passed, 4 warnings in 18.27s` with the same
+  pre-existing Matplotlib tight-layout
   warnings from legacy log-axis tests.
-- Structured verifier: passed, including Ruff, compile, memory checks, quality
-  gate `282 passed`, preprocessing gate `103 passed`, and whitespace checks.
-- Default verifier: passed with the same quality and preprocessing gate counts.
+- Structured verifier recheck exited `0`, including Ruff, compile, memory
+  checks, quality gate `287 passed`, preprocessing gate `106 passed`, type
+  baseline, and whitespace checks.
+- The implementation checkpoint is `93c17c4`; this documentation-only closure
+  preserves that existing production checkpoint.
 
 ## Known limitations
 
