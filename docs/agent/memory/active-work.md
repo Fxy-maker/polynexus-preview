@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS real method-evidence surfaces - completed 2026-07-28
+
+- The real Static/Temperature/Strain evidence-surface contract now has a
+  focused regression and a minimal Figure binding fix. Fresh RED reproduced
+  two production mismatches; fresh GREEN returned `3 passed in 41.92s`.
+- Root cause and fix: Figure frame-level `metric_evidence` previously preferred
+  preliminary `_batch_results`. It now consumes the already-emitted
+  Temperature series point by `source_index` and the Strain series point by
+  frame order, with the existing fallback retained.
+- Task verifier passed with quality `287` and preprocessing `106`; the exact
+  SAXS matrix returned `455 passed, 6 warnings in 240.01s`; diff check passed;
+  storage report was dry-run only. Keep `current-state.md` and parallel
+  scratch untouched. Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-28-saxs-real-method-evidence-surfaces.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-real-method-evidence-surfaces-design.md`,
+  `docs/superpowers/plans/2026-07-28-saxs-real-method-evidence-surfaces.md`,
+  `docs/acceptance/2026-07-28-saxs-real-method-evidence-surfaces.md`.
+- The explicit allowlist checkpoint is prepared. A separately started
+  full/boundary verifier had no pytest summary at checkpoint time and is not
+  counted as a pass.
+
 ## SAXS acceptance audit surfaces - completed 2026-07-28
 
 - Existing `scientific_acceptance_audit` snapshots now reach the Workbench as

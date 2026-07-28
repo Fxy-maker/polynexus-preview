@@ -245,6 +245,46 @@ def _first_frame_value(frame: SAXSFrameView, field: str) -> Any:
     return getattr(frame.analysis, field, None)
 
 
+def _series_frame_metric_evidence(
+    frame: SAXSFrameView,
+    *,
+    mode: str,
+    series: Any,
+) -> Any:
+    """Read emitted series-point metric evidence for the matching frame.
+
+    Temperature points are condition-sorted and therefore bind through their
+    existing source index. Strain points retain the engine's frame order and
+    bind positionally. No metric is recalculated or inferred here.
+    """
+
+    if series is None or mode not in {"temperature", "strain"}:
+        return None
+    points = (
+        getattr(series, "temp_points", ())
+        if mode == "temperature"
+        else getattr(series, "strain_points", ())
+    )
+    if not isinstance(points, Sequence) or isinstance(points, (str, bytes)):
+        return None
+    point = None
+    if mode == "temperature":
+        for candidate in points:
+            try:
+                source_index = int(getattr(candidate, "source_index"))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if source_index == int(frame.index):
+                point = candidate
+                break
+    elif 0 <= int(frame.index) < len(points):
+        point = points[int(frame.index)]
+    value = getattr(point, "metric_evidence", None) if point is not None else None
+    if value not in ({}, None, ()):
+        return value
+    return None
+
+
 def _temperature_source_index(
     frame_index: int,
     series: Any,
@@ -270,12 +310,19 @@ def _frame_record(
     mode: str,
     series: Any,
 ) -> dict[str, Any]:
+    metric_evidence = _series_frame_metric_evidence(
+        frame,
+        mode=mode,
+        series=series,
+    )
+    if metric_evidence in ({}, None, ()):
+        metric_evidence = _first_frame_value(frame, "metric_evidence")
     record: dict[str, Any] = {
         "frame_index": int(frame.index),
         "condition": _json_safe(frame.condition),
         "source_path": str(frame.source_path or ""),
         "metric_evidence": _project_metric_collection(
-            _first_frame_value(frame, "metric_evidence")
+            metric_evidence
         ),
     }
     if mode == "temperature":
