@@ -130,6 +130,7 @@ def test_joint_publish_editor_export_and_history_restore_are_one_run(tmp_path: P
     }
     assert window._restore_history_record(record)
     assert window._joint_report == report
+    assert window._project_label.text() == "PA6-A"
     assert window._results_panel.profile.key == "joint"
     restored_entries = build_active_manifest_gallery_entries(window._output_dir)
     assert {entry.figure_id for entry in restored_entries} == {

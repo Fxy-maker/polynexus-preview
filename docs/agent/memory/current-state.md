@@ -1350,3 +1350,15 @@ title: Current PolyNexus repository state
   still provisional. Evidence is in
   `docs/acceptance/2026-07-25-nmr-lifecycle-closure.md`; restarted-GUI,
   scientific sign-off, and AI/fallback review remain open.
+
+## Latest task update (2026-07-29)
+
+Joint history restore now derives a display-only project badge from the
+persisted label or report sample rows. Single-sample reports show the sample,
+multi-sample reports show the translated Joint workspace title, and empty
+reports retain the default label. The focused identity/lifecycle slice passed
+`5` tests and the complete MainWindow persistence slice passed `197` tests.
+Task card:
+`docs/agent/tasks/2026-07-29-joint-history-project-identity.md`. Task-scoped
+verification passed; the atomic checkpoint is the allowlisted commit for this
+task.

@@ -1,5 +1,18 @@
 # Active Work
 
+## Joint history identity - checkpoint ready - 2026-07-29
+
+- History restore now projects a Joint report's persisted/sample identity into
+  the display-only project badge. Single-sample, multi-sample, empty-report,
+  explicit-label, and persistence cases are covered by a focused matrix with
+  `5 passed`; the complete MainWindow persistence slice also passed `197`.
+- Task-scoped verification passed; the allowlist is ready for one atomic
+  checkpoint. Scientific Joint conflict interpretation and the restarted-GUI
+  release gate remain open.
+- Task card and plan:
+  `docs/agent/tasks/2026-07-29-joint-history-project-identity.md` and
+  `docs/superpowers/plans/2026-07-29-joint-history-project-identity.md`.
+
 ## Fresh native all-mode route acceptance - checkpoint pending - 2026-07-29
 
 - Current-checkout Windows-native Qt matrix: `17 passed, 15 warnings in

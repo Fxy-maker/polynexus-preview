@@ -60,7 +60,31 @@ from .table_clipboard_service import (
     extract_table_text_matrix,
 )
 from .i18n import get_language, tr
+from .window_text_helpers import is_default_project_label
 from ..core.engine import logger
+
+
+def resolve_joint_history_project_label(current_label, report) -> str:
+    """Resolve display-only identity for a Joint run without inventing data."""
+
+    label = str(current_label or "").strip()
+    if label and not is_default_project_label(label):
+        return label
+    rows = report.get("rows") if isinstance(report, dict) else None
+    if not isinstance(rows, list):
+        return label
+    samples = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        sample = str(row.get("sample") or "").strip()
+        if sample and sample not in samples:
+            samples.append(sample)
+    if len(samples) == 1:
+        return samples[0]
+    if len(samples) > 1:
+        return tr("WORKFLOW_TASK_JOINT_TITLE")
+    return label
 
 
 class MainWindowHistoryMixin:
@@ -359,12 +383,17 @@ class MainWindowHistoryMixin:
     def _persist_analysis_run(self, result):
         try:
             db = self._ensure_sample_db()
+            project_label = self._project_label.text().strip()
+            if str(getattr(self, "_current_technique", "") or "").strip().lower() == "joint":
+                display_project_label = resolve_joint_history_project_label(project_label, result)
+                if display_project_label and hasattr(self, "_project_label"):
+                    self._project_label.setText(display_project_label)
             context = self._analysis_run_persistence_context_class()(
                 technique=str(getattr(self, "_current_technique", "") or ""),
                 submodule=str(getattr(self, "_current_submodule_id", "") or ""),
                 data_file=str(getattr(self, "_current_filepath", "") or ""),
                 output_dir=str(getattr(self, "_output_dir", "") or ""),
-                project_label=self._project_label.text().strip(),
+                project_label=project_label,
                 current_sample_name=str(getattr(self, "_current_sample_name", "") or ""),
                 current_sample_id=str(getattr(self, "_current_sample_id", "") or ""),
                 current_batch_id=str(getattr(self, "_current_batch_id", "") or ""),
@@ -625,6 +654,12 @@ class MainWindowHistoryMixin:
             )
         joint_report = summary.get("result") if is_joint and isinstance(summary.get("result"), dict) else None
         if joint_report is not None:
+            project_label = resolve_joint_history_project_label(
+                summary.get("project_label"),
+                joint_report,
+            )
+            if project_label and hasattr(self, "_project_label"):
+                self._project_label.setText(project_label)
             self._joint_report = joint_report
             self._results["joint"] = joint_report
             self._display_joint_report(joint_report)

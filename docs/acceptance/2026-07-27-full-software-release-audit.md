@@ -392,6 +392,18 @@ These captures close only the restarted shell/mode-switch evidence; the
 all-mode real-data route, Gallery/Editor/export walkthrough and human release
 decision remain open.
 
+### Joint history identity follow-up (2026-07-29)
+
+History restore now projects a Joint report's persisted/sample identity into
+the display-only project badge: an explicit non-default label wins, one report
+sample supplies its name, multiple samples use the translated Joint workspace
+label, and empty reports retain `No project`. The Joint identity/lifecycle
+slice passed `5` tests and the complete MainWindow persistence slice passed
+`197` tests; together they confirmed existing Joint values, provenance,
+manifests, and run identity remain unchanged. This is a UI persistence fix
+only; it does not close scientific conflict review or restarted-GUI release
+approval.
+
 ## Open release gates
 
 - Complete restarted-GUI visual review for all requested routes.
