@@ -3,19 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
 from .analysis_history_service import (
     ControlledOptimizationReviewParts,
     controlled_optimization_review_parts,
-    ai_tuning_constraint_summary_parts,
     ai_tuning_chain_summary,
-    ai_tuning_stability_summary_parts,
-    batch_fallback_summary_parts,
     gui_coerce_summary_float,
-    gui_display_text,
     gui_display_text_value,
-    gui_format_score_value,
     has_condition_axis_risk,
     has_fallback_conflict_risk,
     quality_flag_summary_text,
@@ -32,22 +27,17 @@ from .analysis_history_service import (
     saxs_strain_summary_text,
     result_review_metric_summary,
 )
-from .i18n import get_language, tr
+from .i18n import get_language, tr, tr_for_language
 from .window_text_helpers import ir_conclusion_state_display as _ir_conclusion_state_display
 from .results_review_text_helpers import (
     _batch_fallback_summary_text,
     _constraint_summary_text,
     _dsc_conclusion_state_display,
     _display_text,
-    _display_text_value,
     _empty_value_text,
     _format_score_value,
     _ir_basis_label_text,
     _stability_summary_text,
-    _waxs_core_summary_text,
-    _waxs_structure_evidence,
-    _waxs_support_snapshot,
-    _waxs_support_summary_text,
     _waxs_temperature_trend_evidence,
     ai_tuning_report_benchmark_text,
     ai_tuning_report_decision_text,
@@ -56,9 +46,16 @@ from .results_review_text_helpers import (
     result_review_constraint_summary_text,
     result_review_ir_temperature_2d_user_summary_lines,
     result_review_stability_summary_text,
-    result_review_waxs_core_text,
-    result_review_waxs_support_text,
 )
+
+__all__ = [
+    "ai_tuning_report_benchmark_text",
+    "ai_tuning_report_decision_text",
+    "ai_tuning_report_summary_text",
+    "result_review_constraint_summary_text",
+    "result_review_stability_summary_text",
+]
+
 def _dsc_support_block_text(analysis_evidence: dict[str, Any] | None, *, include_measurement: bool) -> str:
     feature = analysis_evidence.get("feature_evidence", {}) if isinstance(analysis_evidence, dict) else {}
     if not isinstance(feature, dict):
@@ -1158,13 +1155,40 @@ def _panel_joint_text(
     return tr("RESULTS_REVIEW_JOINT", " | ".join(joint_parts)), True
 
 
+def _strip_leading_panel_prefix(text: str, key: str, *, language: str) -> str:
+    """Remove repeated localized panel decoration while preserving the body."""
+    value = str(text or "").strip()
+    if not value:
+        return ""
+
+    language_code = "zh" if str(language or "").strip().lower().startswith("zh") else "en"
+    prefix_languages = (language_code, "en" if language_code == "zh" else "zh")
+    prefixes = tuple(
+        tr_for_language(key, prefix_language, "").rstrip()
+        for prefix_language in prefix_languages
+    )
+    while value:
+        for prefix in prefixes:
+            if prefix and value.startswith(prefix):
+                value = value[len(prefix) :].lstrip()
+                break
+        else:
+            break
+    return value
+
+
 def _panel_risk_text(
     validation_summary: str,
     history_context,
     *,
     is_controlled_rerun: bool,
+    language: str,
 ) -> str:
-    risk_text = str(validation_summary or "").strip() or tr("RESULTS_REVIEW_NO_RISK")
+    risk_text = _strip_leading_panel_prefix(
+        validation_summary,
+        "RESULTS_REVIEW_RISK",
+        language=language,
+    ) or tr("RESULTS_REVIEW_NO_RISK")
     history = history_context if isinstance(history_context, dict) else {}
     if is_controlled_rerun and history:
         risk_bits = []
@@ -1188,6 +1212,7 @@ def _panel_next_text(
     *,
     fallback_next_text: str,
     is_controlled_rerun: bool,
+    language: str,
 ) -> str:
     tuning = tuning_context if isinstance(tuning_context, dict) else {}
     history = history_context if isinstance(history_context, dict) else {}
@@ -1198,6 +1223,11 @@ def _panel_next_text(
             next_step = str(history.get("next_goal") or "").strip()
     if not next_step:
         next_step = str(fallback_next_text or "").strip()
+    next_step = _strip_leading_panel_prefix(
+        next_step,
+        "RESULTS_REVIEW_NEXT",
+        language=language,
+    )
     if not next_step:
         next_step = tr("RESULTS_REVIEW_NO_NEXT")
     return tr("RESULTS_REVIEW_NEXT", next_step)
@@ -1223,7 +1253,6 @@ def result_review_panel_texts(
     current_confirmed_label = str(snapshot.get("current_confirmed_label") or "").strip()
     measured_text = str(snapshot.get("measured_text") or "").strip()
     validation_summary = str(snapshot.get("validation_summary") or "").strip()
-    current_metrics = snapshot.get("current_metrics") if isinstance(snapshot.get("current_metrics"), dict) else {}
     analysis_evidence = snapshot.get("analysis_evidence") if isinstance(snapshot.get("analysis_evidence"), dict) else {}
     history_context = snapshot.get("history_context") if isinstance(snapshot.get("history_context"), dict) else {}
     tuning_context = snapshot.get("tuning_context") if isinstance(snapshot.get("tuning_context"), dict) else {}
@@ -1296,6 +1325,7 @@ def result_review_panel_texts(
         validation_summary,
         history_context,
         is_controlled_rerun=is_controlled_rerun,
+        language=language,
     )
 
     next_text = _panel_next_text(
@@ -1303,6 +1333,7 @@ def result_review_panel_texts(
         history_context,
         fallback_next_text=fallback_next_text,
         is_controlled_rerun=is_controlled_rerun,
+        language=language,
     )
 
     title_text = tr("RESULTS_REVIEW_TITLE_CONFIRMED") if current_confirmed_label == tr("RESULTS_REVIEW_CONFIRMED") else tr("RESULTS_REVIEW_TITLE")

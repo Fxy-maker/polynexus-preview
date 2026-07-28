@@ -795,6 +795,71 @@ def test_result_review_panel_texts_compose_controlled_rerun_sections():
         set_language(previous)
 
 
+@pytest.mark.parametrize(
+    ("language", "risk_input", "next_input", "risk_body", "next_body"),
+    [
+        (
+            "en",
+            "Risk note | Risk note | WAXS diagnostic",
+            "Next step | Next step | inspect plots",
+            "WAXS diagnostic",
+            "inspect plots",
+        ),
+        (
+            "zh",
+            "风险提示 | 风险提示 | WAXS 诊断",
+            "下一步 | 下一步 | 查看图",
+            "WAXS 诊断",
+            "查看图",
+        ),
+    ],
+)
+def test_result_review_panel_texts_deduplicate_localized_prefixes(
+    language, risk_input, next_input, risk_body, next_body
+):
+    previous = get_language()
+    set_language(language)
+    try:
+        parts = result_review_panel_texts(
+            {
+                "current": {"results_summary": {}},
+                "validation_summary": risk_input,
+                "fallback_next_text": next_input,
+            },
+            language=language,
+        )
+
+        risk_prefix = tr("RESULTS_REVIEW_RISK", "")
+        next_prefix = tr("RESULTS_REVIEW_NEXT", "")
+        assert parts.risk_text == f"{risk_prefix}{risk_body}"
+        assert parts.next_text == f"{next_prefix}{next_body}"
+        assert parts.risk_text.count(risk_prefix.rstrip()) == 1
+        assert parts.next_text.count(next_prefix.rstrip()) == 1
+    finally:
+        set_language(previous)
+
+
+def test_result_review_panel_texts_preserve_unprefixed_text_and_embedded_labels():
+    previous = get_language()
+    set_language("en")
+    try:
+        parts = result_review_panel_texts(
+            {
+                "current": {"results_summary": {}},
+                "validation_summary": "Evidence says Risk note | keep this detail",
+                "fallback_next_text": "inspect plots",
+            },
+            language="en",
+        )
+
+        assert parts.risk_text == (
+            "Risk note | Evidence says Risk note | keep this detail"
+        )
+        assert parts.next_text == "Next step | inspect plots"
+    finally:
+        set_language(previous)
+
+
 def test_result_review_summary_text_appends_controlled_optimization_tail():
     previous = get_language()
     set_language("en")
@@ -940,6 +1005,70 @@ def test_build_result_review_panel_texts_from_window_uses_window_state():
         assert "Measured result | Sample A" in parts.benchmark_text
         assert "Risk label" in parts.risk_text
         assert "history next" in parts.next_text
+    finally:
+        set_language(previous)
+
+
+def test_build_result_review_panel_texts_from_window_deduplicates_formatted_fallbacks():
+    previous = get_language()
+    set_language("en")
+    try:
+        class _Label:
+            def __init__(self, text):
+                self._text = text
+
+            def text(self):
+                return self._text
+
+        class _FormattedFallbackWindow:
+            _current_technique = "waxs"
+            _results_summary_risk_label = _Label(
+                "Risk note | Risk note | WAXS diagnostic"
+            )
+            _results_summary_next_label = _Label(
+                "Next step | Next step | inspect plots"
+            )
+
+            def _current_results_record(self):
+                return {"parameters": {}, "results_summary": {}}
+
+            def _current_analysis_evidence(self):
+                return {}
+
+            def _current_result_history_context(self, current):
+                return {}
+
+            def _waxs_temperature_trend_text(self, analysis_evidence):
+                return ""
+
+            def _current_result_tuning_context(self, current):
+                return {}
+
+            def _joint_ai_context(self):
+                return {}
+
+            def _current_result_origin(self):
+                return "manual"
+
+            def _current_result_label_for_confirmation(self):
+                return "Sample A"
+
+            def _current_result_origin_label(self):
+                return "Manual run"
+
+            def _measured_result_summary_text(self, current):
+                return "Measured result | Sample A"
+
+            def _is_current_result_confirmed(self):
+                return False
+
+            def _responsibility_boundary_summary(self):
+                return ""
+
+        parts = build_result_review_panel_texts_from_window(_FormattedFallbackWindow())
+
+        assert parts.risk_text == "Risk note | WAXS diagnostic"
+        assert parts.next_text == "Next step | inspect plots"
     finally:
         set_language(previous)
 

@@ -1,5 +1,23 @@
 # Active Work
 
+## Results Review prefix deduplication - checkpoint pending - 2026-07-29
+
+- The shared Results Review boundary now strips repeated leading English or
+  Chinese `Risk note`/`风险提示` and `Next step`/`下一步` decoration before
+  applying the existing localized formatter once. Evidence text after the
+  prefix and embedded labels remain unchanged.
+- TDD RED captured `3` expected failures; focused GREEN passed `6`, the full
+  Results Review service passed `28`, the Results/MainWindow slice passed `35`,
+  and the persistence review subset passed `67`.
+- Structured verification exited `0`: quality `287`, preprocessing `106`,
+  Ruff, compile, type baseline, memory/task, and whitespace checks passed.
+- Task card and plan:
+  `docs/agent/tasks/2026-07-29-results-review-prefix-deduplication.md` and
+  `docs/superpowers/plans/2026-07-29-results-review-prefix-deduplication.md`.
+- The existing uncommitted `current-state.md` legacy-storage edit remains
+  intentionally outside this checkpoint. Restarted-GUI visual review and
+  scientific/release approval remain open for the overall goal.
+
 ## DSC non-isothermal no-fabricated method curves - checkpointed - 2026-07-29
 
 - The non-isothermal provider now requires finite authoritative method x/y
