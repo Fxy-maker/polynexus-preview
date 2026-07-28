@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from types import SimpleNamespace
 
 import numpy as np
@@ -10,7 +11,25 @@ from polynexus.core.saxs_engine.saxs_quality_contracts import (
     build_data_quality_report,
     build_guinier_evidence,
 )
-from polynexus.core.saxs_engine.saxs_temperature import analyze_temperature_series
+from polynexus.core.saxs_engine.saxs_temperature import (
+    TempSeriesResult,
+    TemperaturePointResult,
+    analyze_temperature_series,
+)
+
+
+_SEQUENCE_INTEGRITY_COLUMNS = (
+    "Rg_sequence_frame_source_indices",
+    "Rg_sequence_missing_frame_indices",
+    "Rg_sequence_diagnostic_frame_indices",
+    "Rg_sequence_invalid_temperature_indices",
+    "Rg_sequence_duplicate_temperature_indices",
+    "Rg_sequence_nonmonotonic_temperature_indices",
+    "Rg_sequence_continuity_break_indices",
+    "Rg_sequence_duplicate_source_index_indices",
+    "Rg_sequence_invalid_source_index_indices",
+    "Rg_sequence_source_index_order_reordered",
+)
 
 
 def _fake_frame_result(q, intensity):
@@ -25,6 +44,54 @@ def _fake_frame_result(q, intensity):
         guinier_evidence=evidence.to_dict(),
         data_quality_report=quality.to_dict(),
     )
+
+
+def test_temperature_dataframe_projects_existing_guinier_sequence_integrity_without_mutation():
+    sequence = {
+        "level": "Diagnostic",
+        "reason_codes": ["guinier_sequence_source_index_duplicate"],
+        "frame_source_indices": [2, 0, 1],
+        "missing_frame_indices": [1],
+        "diagnostic_frame_indices": [1, 2],
+        "invalid_temperature_indices": [2],
+        "duplicate_temperature_indices": [0, 1],
+        "nonmonotonic_temperature_indices": [1],
+        "continuity_break_indices": [2],
+        "duplicate_source_index_indices": [0, 2],
+        "invalid_source_index_indices": [1],
+        "source_index_order_reordered": True,
+    }
+    before = copy.deepcopy(sequence)
+    result = TempSeriesResult(
+        temp_points=[TemperaturePointResult(source_index=2, temperature_C=170.0)],
+        guinier_sequence_evidence=sequence,
+    )
+
+    table = result.to_dataframe()
+    row = table.iloc[0]
+
+    assert row["Rg_sequence_frame_source_indices"] == "2|0|1"
+    assert row["Rg_sequence_missing_frame_indices"] == "1"
+    assert row["Rg_sequence_diagnostic_frame_indices"] == "1|2"
+    assert row["Rg_sequence_invalid_temperature_indices"] == "2"
+    assert row["Rg_sequence_duplicate_temperature_indices"] == "0|1"
+    assert row["Rg_sequence_nonmonotonic_temperature_indices"] == "1"
+    assert row["Rg_sequence_continuity_break_indices"] == "2"
+    assert row["Rg_sequence_duplicate_source_index_indices"] == "0|2"
+    assert row["Rg_sequence_invalid_source_index_indices"] == "1"
+    assert bool(row["Rg_sequence_source_index_order_reordered"]) is True
+    assert sequence == before
+
+
+def test_temperature_dataframe_keeps_rows_and_empty_sequence_integrity_fields_missing():
+    table = TempSeriesResult(
+        temp_points=[TemperaturePointResult(source_index=4, temperature_C=190.0)]
+    ).to_dataframe()
+
+    assert len(table) == 1
+    for column in _SEQUENCE_INTEGRITY_COLUMNS:
+        assert column in table.columns
+        assert table[column].isna().all()
 
 
 def test_temperature_frames_retain_individual_guinier_evidence(monkeypatch):

@@ -79,6 +79,43 @@ def _guinier_metric_frame_payload(point: "TemperaturePointResult") -> dict:
     return {"guinier": dict(metric)}
 
 
+_GUINIER_SEQUENCE_INDEX_FIELDS = {
+    "frame_source_indices": "Rg_sequence_frame_source_indices",
+    "missing_frame_indices": "Rg_sequence_missing_frame_indices",
+    "diagnostic_frame_indices": "Rg_sequence_diagnostic_frame_indices",
+    "invalid_temperature_indices": "Rg_sequence_invalid_temperature_indices",
+    "duplicate_temperature_indices": "Rg_sequence_duplicate_temperature_indices",
+    "nonmonotonic_temperature_indices": "Rg_sequence_nonmonotonic_temperature_indices",
+    "continuity_break_indices": "Rg_sequence_continuity_break_indices",
+    "duplicate_source_index_indices": "Rg_sequence_duplicate_source_index_indices",
+    "invalid_source_index_indices": "Rg_sequence_invalid_source_index_indices",
+}
+
+
+def _sequence_indices_csv_value(value: object) -> str | None:
+    """Format an emitted sequence index collection without deriving values."""
+
+    if not isinstance(value, (list, tuple)) or not value:
+        return None
+    return "|".join(str(item) for item in value)
+
+
+def _guinier_sequence_csv_fields(payload: object) -> dict[str, object]:
+    """Project existing sequence integrity facts into stable flat fields."""
+
+    fields: dict[str, object] = {column: None for column in _GUINIER_SEQUENCE_INDEX_FIELDS.values()}
+    fields["Rg_sequence_source_index_order_reordered"] = None
+    if not isinstance(payload, Mapping):
+        return fields
+
+    for source_field, output_field in _GUINIER_SEQUENCE_INDEX_FIELDS.items():
+        fields[output_field] = _sequence_indices_csv_value(payload.get(source_field))
+    reordered = payload.get("source_index_order_reordered")
+    if isinstance(reordered, (bool, np.bool_)):
+        fields["Rg_sequence_source_index_order_reordered"] = bool(reordered)
+    return fields
+
+
 class TempPhase(Enum):
     """Thermal process phases."""
     HEATING_SOLID = auto()       # below melting
@@ -248,6 +285,7 @@ class TempSeriesResult:
                 'lc_reliability_status': tp.lc_reliability_status or None,
                 'lc_reliability_reason': tp.lc_reliability_reason or None,
             }
+            row.update(_guinier_sequence_csv_fields(sequence_payload))
             row.update(
                 _detector_provenance_csv_fields(tp.raw_detector_quality_report)
             )

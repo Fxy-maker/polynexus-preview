@@ -1,5 +1,25 @@
 # Active Work
 
+## SAXS Guinier sequence DataFrame integrity - completed 2026-07-28
+
+- The temperature `TempSeriesResult.to_dataframe()` projection now exposes
+  existing Guinier sequence frame/source, missing, diagnostic, invalid,
+  duplicate, continuity, and source-order facts as deterministic flat fields.
+  It preserves explicit `source_index_order_reordered` and leaves the nested
+  evidence payload unchanged; no new threshold, sorting, interpolation, or
+  rescue behavior was introduced.
+- TDD RED was `2 failed, 7 deselected`; focused GREEN/compatibility was `14
+  passed in 0.34s`; the exact SAXS matrix was `481 passed, 6 warnings in
+  260.61s`. The task-scoped verifier exited `0` with quality `287` and
+  preprocessing `106`, plus Ruff, compile, type baseline, memory/task, and
+  whitespace checks. `git diff --check` exited `0`.
+- A fresh full/boundary result is intentionally not claimed: the pre-existing
+  verifier process was kept untouched and has no attribution to this slice.
+  The task card, design, and implementation plan are
+  `docs/agent/tasks/2026-07-28-saxs-guinier-sequence-dataframe-integrity.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-guinier-sequence-dataframe-integrity-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-guinier-sequence-dataframe-integrity.md`.
+
 ## SAXS real method-evidence surfaces - completed 2026-07-28
 
 - The real Static/Temperature/Strain evidence-surface contract now has a
