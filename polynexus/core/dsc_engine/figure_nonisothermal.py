@@ -159,6 +159,28 @@ def _method_parameters(name: str, result: Any) -> tuple[float, ...]:
     return ()
 
 
+def _method_parameter_payload(name: str, result: Any) -> dict[str, Any]:
+    if name == "kissinger":
+        return {"kissinger_Ea_kJmol": _finite(_attr(result, "kissinger_Ea_kJmol"))}
+    if name == "ozawa":
+        return {
+            "ozawa_n": _finite(_attr(result, "ozawa_n")),
+            "ozawa_K_T": _finite(_attr(result, "ozawa_K_T")),
+        }
+    if name == "mo":
+        return {
+            "mo_F_T": _finite(_attr(result, "mo_F_T")),
+            "mo_a": _finite(_attr(result, "mo_a")),
+        }
+    friedman = _attr(result, "friedman_Ea", {})
+    if isinstance(friedman, Mapping):
+        return {
+            str(key): _finite(value)
+            for key, value in friedman.items()
+        }
+    return {}
+
+
 def _method_points(result: Any) -> tuple[tuple[float, ...], tuple[float, ...]]:
     x = _array(result, "x", "x_data", "rates", "rate_K_per_min")
     y = _array(result, "y", "y_data", "Ea", "activation_energy")
@@ -174,6 +196,8 @@ def _method_gate(name: str, result: Any) -> tuple[bool, str]:
     flags = tuple(str(flag).strip().lower() for flag in (_attr(result, "quality_flags", ()) or ()))
     if flags:
         return False, "quality_flags"
+    if len(_method_points(result)[0]) < 2:
+        return False, "missing_method_plot_data"
     r_squared = _finite(_attr(result, "r_squared"))
     rates = _array(result, "rates", "heating_rates", "cooling_rates")
     if rates.size < 3:
@@ -188,22 +212,40 @@ def _method_gate(name: str, result: Any) -> tuple[bool, str]:
 def _method_definition(name: str, result: Any, *, role: str, order: int, reason: str) -> FigureDefinition:
     x, y = _method_points(result)
     if not x:
-        rates = _array(result, "rates", "heating_rates", "cooling_rates")
-        x = tuple(float(value) for value in rates if np.isfinite(value))
-        value = next((item for item in _method_parameters(name, result) if np.isfinite(item)), np.nan)
-        y = tuple(float(value) for _ in x)
+        role = "diagnostic"
+        reason = "missing_method_plot_data"
     source_id = f"dsc-nonisothermal-{name}-evidence"
     source = _source(source_id, (("rate", "K/min", "float64"), ("response", "", "float64")), {"rate": x, "response": y}, role="kinetics_evidence")
+    objects = () if not x else (
+        _plot(
+            f"{name}-evidence",
+            "kinetics",
+            source_id,
+            "rate",
+            "response",
+            name=name.title(),
+            color="#0072B2",
+            marker="o",
+            chart_kind="scatter",
+        ),
+    )
     return _definition(
         figure_id=METHOD_IDS[name],
         role=role,
         title=f"{name.title()} non-isothermal kinetics",
         panel=_panel("kinetics", x_label=AXIS_LABELS["rate"], x_unit="", y_label=AXIS_LABELS["kinetics_response"], y_unit="", legend=True),
         source=(source,),
-        objects=(_plot(f"{name}-evidence", "kinetics", source_id, "rate", "response", name=name.title(), color="#0072B2", marker="o", chart_kind="scatter"),),
+        objects=objects,
         category="supplementary" if role == "si" else "diagnostic",
         order=order,
-        parameters={"method": name, "gate": reason, "r_squared": _finite(_attr(result, "r_squared"))},
+        parameters={
+            "method": name,
+            "gate": reason,
+            "reason": reason,
+            "r_squared": _finite(_attr(result, "r_squared")),
+            "plot_point_count": len(x),
+            "reported_parameters": _method_parameter_payload(name, result),
+        },
     )
 
 

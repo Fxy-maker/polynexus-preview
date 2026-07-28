@@ -1,5 +1,23 @@
 # Active Work
 
+## DSC non-isothermal no-fabricated method curves - checkpointed - 2026-07-29
+
+- The non-isothermal provider now requires finite authoritative method x/y
+  points. Rates-only fit metadata becomes a diagnostic definition with no plot
+  objects; method parameters, r², point count, and `missing_method_plot_data`
+  remain in recipe metadata. Explicit-point qualified methods remain Main.
+- TDD RED was `1 failed`; selected GREEN was `2 passed`. The DSC
+  provider/lifecycle/eval matrix passed `13`, and the complete DSC plus real
+  publication matrix passed `70`.
+- Task card and plan:
+  `docs/agent/tasks/2026-07-29-dsc-nonisothermal-no-fabricated-method-curves.md`
+  and
+  `docs/superpowers/plans/2026-07-29-dsc-nonisothermal-no-fabricated-method-curves.md`.
+- Structured verifier exited `0`: quality `283`, preprocessing `106`, Ruff,
+  compile, type baseline, memory/task, and whitespace checks passed. The
+  allowlisted checkpoint is the current task commit. Scientific DSC review and
+  restarted-GUI release gates remain separate.
+
 ## SAXS strain dirty-frame post-processing - checkpoint pending - 2026-07-28
 
 - Strain 1D post-processing now reuses the deterministic sanitizer for

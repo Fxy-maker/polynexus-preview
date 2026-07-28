@@ -57,7 +57,14 @@ def test_isothermal_and_nonisothermal_completed_evidence_publish(tmp_path: Path)
         SimpleNamespace(label="2 K/min", T_xt_C=np.arange(5.0) + 1.0, Xt=np.linspace(0.1, 0.9, 5)),
     ]
     series = SimpleNamespace(curves=curves)
-    kissinger = SimpleNamespace(rates=[1.0, 2.0, 5.0], r_squared=0.96, kissinger_Ea_kJmol=120.0, quality_flags=[])
+    kissinger = SimpleNamespace(
+        rates=[1.0, 2.0, 5.0],
+        x=[1.0, 2.0, 5.0],
+        y=[121.0, 120.0, 119.0],
+        r_squared=0.96,
+        kissinger_Ea_kJmol=120.0,
+        quality_flags=[],
+    )
     non_engine = SimpleNamespace(active_submodule="dsc.nonisothermal", _results=[], _kinetics_data={"non_isothermal": series, "kissinger": kissinger})
     non_defs = build_dsc_figure_definitions(non_engine)
     non = FigureProductionPublisher().publish(output_root=tmp_path / "nonisothermal", technique="dsc", definitions=non_defs, profile_id="dsc_publication")
