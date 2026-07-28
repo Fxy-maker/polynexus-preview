@@ -171,6 +171,10 @@ def _normalize_anisotropy_inputs(
         return None, "orientation_input_shape_mismatch"
     if q_1d_axis.size == 0:
         return None, "orientation_input_shape_mismatch"
+    if any(not np.all(np.isfinite(array)) for array in (
+        image, q_axis, chi_axis, q_1d_axis, intensity_1d
+    )):
+        return None, "orientation_input_nonfinite"
     return (image, q_axis, chi_axis, q_1d_axis, intensity_1d), None
 
 

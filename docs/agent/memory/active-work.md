@@ -2728,6 +2728,22 @@
 
 ## In progress
 
+- SAXS anisotropy non-finite input fail-closed is verified and ready for its
+  local checkpoint on 2026-07-28. The
+  normalization boundary now rejects non-finite values in `I_2d`, `q`, `chi`,
+  `q_1d`, or `I_1d` with `orientation_input_nonfinite`; no repair, inference,
+  or rescue is performed, and the existing orientation evidence path degrades
+  to strict JSON-safe `Unusable`. TDD RED reproduced `15 failed, 10
+  deselected`; GREEN passed `15 passed, 10 deselected`. The focused 2D/strain/
+  batch matrix passed `69 passed`. Structured verification passed with quality
+  `287` and preprocessing `106`; Ruff, compile, type baseline, whitespace, and
+  task checks also passed. Storage dry-run reported `484` artifacts, `100`
+  eligible, `384` protected, and `0` removed. The exact SAXS matrix timed out
+  after `124` seconds without a pytest summary and is not claimed as passed.
+  The explicit allowlist checkpoint contains only this task's source, test,
+  task, spec, plan, and active-work files. See
+  `docs/agent/tasks/2026-07-28-saxs-anisotropy-nonfinite-fail-closed.md`.
+
 - SAXS real Static/Temperature/Strain acceptance-audit surface consistency is
   checkpointed. The Figure/Manifest provenance audit is refreshed from the
   final validation audit, while the Temperature validation failure remains

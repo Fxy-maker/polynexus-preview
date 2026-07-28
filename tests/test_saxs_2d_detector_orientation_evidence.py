@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 
 from polynexus.core.saxs_engine.saxs_quality_contracts import (
     QualityLevel,
@@ -143,6 +144,23 @@ def _synthetic_azimuthal_input(axis_deg: float) -> tuple[np.ndarray, ...]:
     axis = np.deg2rad(axis_deg)
     angular = 1.0 + 8.0 * np.cos(chi - axis) ** 2
     return np.outer(angular, q_profile), q, chi, q, q_profile
+
+
+@pytest.mark.parametrize("input_index", range(5))
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_anisotropy_nonfinite_required_input_fails_closed(input_index, bad_value):
+    payload = list(_synthetic_azimuthal_input(37.0))
+    payload[input_index] = np.array(payload[input_index], copy=True)
+    payload[input_index].flat[0] = bad_value
+
+    result = analyze_anisotropy(*payload)
+
+    assert result.confidence == 0.0
+    assert not np.isfinite(result.f_herman)
+    assert result.orientation_evidence["level"] == QualityLevel.UNUSABLE.value
+    assert "orientation_input_nonfinite" in result.orientation_evidence["reason_codes"]
+    json.dumps(result.detector_quality_report, allow_nan=False)
+    json.dumps(result.orientation_evidence, allow_nan=False)
 
 
 def test_anisotropy_prefers_explicit_axis_and_uses_detector_plane_weighting():
