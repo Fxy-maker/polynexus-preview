@@ -76,3 +76,29 @@ def test_nmr_engine_exposes_complete_definitions(nmr_results):
         "nmr.frame.spectrum.001",
         "nmr.series.crystallinity",
     }
+
+
+def test_nmr_peak_labels_preserve_assignments_and_cycle_through_lanes(nmr_results):
+    nmr_results[0].peaks = [
+        {
+            "ppm": 180.0 - index * 10.0,
+            "height": 0.8 - index * 0.01,
+            "prominence": 7 - index,
+            "assignment": f"long-assignment-name-{index}",
+        }
+        for index in range(7)
+    ]
+
+    definition = build_nmr_figure_definitions(nmr_results)[0]
+    labels = [item for item in definition.objects if item["type"] == "text"]
+
+    assert [item["text"] for item in labels] == [
+        f"{180.0 - index * 10.0:.1f}\nlong-assignment-name-{index}"
+        for index in range(7)
+    ]
+    assert [item["coordinate_space"] for item in labels] == [
+        "xdata_yaxes"
+    ] * 7
+    assert [item["y"] for item in labels] == pytest.approx(
+        [0.96, 0.84, 0.72, 0.60, 0.48, 0.96, 0.84]
+    )

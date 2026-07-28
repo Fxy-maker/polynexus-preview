@@ -488,12 +488,15 @@ class MatplotlibFigureRenderer:
             horizontal_alignment=horizontal_alignment,
             vertical_alignment=vertical_alignment,
         )
+        coordinate_space = str(figure_object.get("coordinate_space") or "").lower()
         is_axes_label = is_axes_text_box(figure_object)
         text_kwargs = {
             "wrap": True,
             "clip_on": True,
         } if has_box and not is_axes_label else {}
-        if is_axes_label:
+        if coordinate_space == "xdata_yaxes":
+            text_kwargs["transform"] = axis.get_xaxis_transform()
+        elif is_axes_label:
             text_kwargs["transform"] = axis.transAxes
         return [axis.text(
             x,

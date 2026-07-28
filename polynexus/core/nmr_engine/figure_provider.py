@@ -17,6 +17,9 @@ from polynexus.core.figures.contracts import (
 from .core import NMRResult
 
 
+_PEAK_LABEL_LANES = (0.96, 0.84, 0.72, 0.60, 0.48)
+
+
 def build_nmr_figure_definitions(
     results: Sequence[NMRResult],
 ) -> tuple[FigureDefinition, ...]:
@@ -284,8 +287,8 @@ def _peak_objects(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]
     objects: list[dict[str, object]] = []
     for peak_index, peak in enumerate(ranked, start=1):
         ppm = float(peak["ppm"])
-        height = float(peak.get("height", 0.0) or 0.0)
-        assignment = str(peak.get("assignment") or "")[:15]
+        assignment = str(peak.get("assignment") or "")
+        label_y = _PEAK_LABEL_LANES[(peak_index - 1) % len(_PEAK_LABEL_LANES)]
         objects.extend(
             [
                 {
@@ -302,7 +305,8 @@ def _peak_objects(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]
                     "panel_id": "main",
                     "text": f"{ppm:.1f}" + (f"\n{assignment}" if assignment else ""),
                     "x": ppm,
-                    "y": height,
+                    "y": label_y,
+                    "coordinate_space": "xdata_yaxes",
                     "rotation": 90.0,
                     "style": {"color": "#0072B2", "font_size": 6},
                 },

@@ -288,6 +288,34 @@ def test_renderer_keeps_axes_text_in_viewport_coordinate_space(built_ir_document
     assert text_artist.get_position() == pytest.approx((0.2, 0.4))
 
 
+def test_renderer_uses_data_x_axes_transform_for_mixed_text(built_ir_document):
+    run_root, document_path, document = built_ir_document
+    document["objects"].append(
+        {
+            "id": "mixed-coordinate-text",
+            "type": "text",
+            "panel_id": "main",
+            "coordinate_space": "xdata_yaxes",
+            "text": "Peak assignment",
+            "x": 1700.0,
+            "y": 0.84,
+            "rotation": 90.0,
+            "style": {"font_size": 6},
+        }
+    )
+    plan = FigureRenderPlanBuilder(run_root).build(document_path, document)
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+    text_artist = next(
+        text
+        for text in figure.axes[0].texts
+        if text.get_text() == "Peak assignment"
+    )
+
+    assert text_artist.get_transform() == figure.axes[0].get_xaxis_transform()
+    assert text_artist.get_position() == pytest.approx((1700.0, 0.84))
+
+
 def test_renderer_supports_arrow_and_rectangle_annotations(built_ir_document):
     run_root, document_path, document = built_ir_document
     document["objects"].extend(
