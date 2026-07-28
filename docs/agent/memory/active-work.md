@@ -454,6 +454,26 @@
   `docs/agent/tasks/2026-07-29-real-published-run-reacceptance.md` and
   `docs/acceptance/2026-07-29-real-published-run-reacceptance.md`.
 
+## Results Review Hint long-token layout - checkpointed - 2026-07-30
+
+- The shared `WrappedEvidenceLabel` now serves MainWindow Results Summary/
+  Review and ResultsTablePanel Review Hint detail/next labels. Review Hint
+  labels use ignored horizontal size policies so long evidence does not widen
+  the Results Workbench.
+- RED reproduced a `1188` px ResultsTablePanel size hint before the follow-up
+  policy bound; focused widget/GUI coverage passed `26` tests.
+- Real SAXS temperature restore geometry returned panel width `557`, review-hint
+  detail/next widths `375`/`374`, and workspace content width `1188` against a
+  `1356` viewport. Native single-route capture passed `1` test with `16`
+  deselected in `17.09s`.
+- The structured verifier returned exit code `0`, with quality `287`,
+  preprocessing `106`, Ruff, compile, type-baseline, memory/task, and whitespace
+  checks passing. The explicit allowlist checkpoint is local-only; no push,
+  merge, deploy, or data cleanup was performed.
+- Human visual/scientific/release gates remain open. Task card and acceptance:
+  `docs/agent/tasks/2026-07-30-results-review-hint-long-token-layout.md` and
+  `docs/acceptance/2026-07-30-results-review-hint-long-token-layout.md`.
+
 ## Results Summary long-token layout - checkpointed - 2026-07-30
 
 - Results Summary and Result Review evidence labels now preserve their exact

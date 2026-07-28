@@ -38,27 +38,13 @@ from .analysis_history_service import (
 )
 from .i18n import tr
 from .widgets.results_table_panel import ResultsTablePanel
+from .widgets.wrapped_evidence_label import WrappedEvidenceLabel
 from .results_review_service import (
     build_result_review_panel_texts_from_window,
 )
 from .styles import C_TEXT_MUTED, C_TEXT_PRIMARY
 from .theme import ThemeEngine
 from ..core.engine import logger
-
-
-class _WrappedEvidenceLabel(QLabel):
-    """Keep evidence text exact while allowing long tokens to wrap visually."""
-
-    def __init__(self, *args, **kwargs):
-        self._source_text = ""
-        super().__init__(*args, **kwargs)
-
-    def setText(self, text):
-        self._source_text = "" if text is None else str(text)
-        super().setText("\u200b".join(self._source_text))
-
-    def text(self):
-        return self._source_text
 
 
 class MainWindowResultsMixin:
@@ -269,17 +255,17 @@ class MainWindowResultsMixin:
         summary_layout.setContentsMargins(12, 10, 12, 10)
         summary_layout.setSpacing(4)
 
-        self._results_summary_label = _WrappedEvidenceLabel()
+        self._results_summary_label = WrappedEvidenceLabel()
         self._results_summary_label.setWordWrap(True)
         self._results_summary_label.setStyleSheet(f"color: {C_TEXT_PRIMARY}; font-weight: 600;")
         summary_layout.addWidget(self._results_summary_label)
 
-        self._results_summary_risk_label = _WrappedEvidenceLabel()
+        self._results_summary_risk_label = WrappedEvidenceLabel()
         self._results_summary_risk_label.setWordWrap(True)
         self._results_summary_risk_label.setStyleSheet(f"color: {C_TEXT_MUTED};")
         summary_layout.addWidget(self._results_summary_risk_label)
 
-        self._results_summary_next_label = _WrappedEvidenceLabel()
+        self._results_summary_next_label = WrappedEvidenceLabel()
         self._results_summary_next_label.setWordWrap(True)
         self._results_summary_next_label.setStyleSheet(f"color: {C_TEXT_MUTED};")
         summary_layout.addWidget(self._results_summary_next_label)
@@ -292,50 +278,50 @@ class MainWindowResultsMixin:
         review_layout.setContentsMargins(12, 10, 12, 10)
         review_layout.setSpacing(6)
 
-        self._results_review_title = _WrappedEvidenceLabel(tr("RESULTS_REVIEW_TITLE"))
+        self._results_review_title = WrappedEvidenceLabel(tr("RESULTS_REVIEW_TITLE"))
         self._results_review_title.setWordWrap(True)
         self._results_review_title.setStyleSheet(f"color: {C_TEXT_PRIMARY}; font-weight: 600;")
         review_layout.addWidget(self._results_review_title)
 
-        self._results_review_meta = _WrappedEvidenceLabel()
+        self._results_review_meta = WrappedEvidenceLabel()
         self._results_review_meta.setWordWrap(True)
         self._results_review_meta.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_meta)
 
-        self._results_review_benchmark = _WrappedEvidenceLabel()
+        self._results_review_benchmark = WrappedEvidenceLabel()
         self._results_review_benchmark.setWordWrap(True)
         self._results_review_benchmark.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_benchmark)
 
-        self._results_review_chain = _WrappedEvidenceLabel()
+        self._results_review_chain = WrappedEvidenceLabel()
         self._results_review_chain.setWordWrap(True)
         self._results_review_chain.setStyleSheet(f"color: {C_TEXT_MUTED};")
         self._results_review_chain.setVisible(False)
         review_layout.addWidget(self._results_review_chain)
 
-        self._results_review_trend = _WrappedEvidenceLabel()
+        self._results_review_trend = WrappedEvidenceLabel()
         self._results_review_trend.setWordWrap(True)
         self._results_review_trend.setStyleSheet(f"color: {C_TEXT_MUTED};")
         self._results_review_trend.setVisible(False)
         review_layout.addWidget(self._results_review_trend)
 
-        self._results_review_boundary = _WrappedEvidenceLabel()
+        self._results_review_boundary = WrappedEvidenceLabel()
         self._results_review_boundary.setWordWrap(True)
         self._results_review_boundary.setStyleSheet(f"color: {C_TEXT_MUTED};")
         self._results_review_boundary.setVisible(False)
         review_layout.addWidget(self._results_review_boundary)
 
-        self._results_review_joint = _WrappedEvidenceLabel()
+        self._results_review_joint = WrappedEvidenceLabel()
         self._results_review_joint.setWordWrap(True)
         self._results_review_joint.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_joint)
 
-        self._results_review_risk = _WrappedEvidenceLabel()
+        self._results_review_risk = WrappedEvidenceLabel()
         self._results_review_risk.setWordWrap(True)
         self._results_review_risk.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_risk)
 
-        self._results_review_next = _WrappedEvidenceLabel()
+        self._results_review_next = WrappedEvidenceLabel()
         self._results_review_next.setWordWrap(True)
         self._results_review_next.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_next)

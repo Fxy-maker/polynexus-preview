@@ -330,11 +330,26 @@ def test_review_hint_replaces_action_without_stale_callback(app: QApplication) -
     panel.review_hint_action.click()
     assert old_calls == []
     assert new_calls == ["new"]
-
     panel.clear_review_hint()
     panel._invoke_review_hint_action()
     assert old_calls == []
     assert new_calls == ["new"]
+
+
+def test_review_hint_long_detail_token_wraps_without_expanding_minimum_width(
+    app: QApplication,
+):
+    ResultsTablePanel, _ = _panel_types()
+    panel = ResultsTablePanel()
+    detail = "Risk note | reasons=" + ("automated_validation_failed," * 40)
+    panel.set_review_hint(title="summary", detail=detail)
+    app.processEvents()
+    assert panel.sizeHint().width() <= 1000
+    panel.review_hint_detail.setFixedWidth(640)
+    app.processEvents()
+
+    assert panel.review_hint_detail.text() == detail
+    assert panel.review_hint_detail.minimumSizeHint().width() <= 640
 
 
 def test_typed_item_sorts_finite_numeric_values_numerically(app: QApplication) -> None:
