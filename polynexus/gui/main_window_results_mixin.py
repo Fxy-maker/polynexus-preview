@@ -325,6 +325,23 @@ class MainWindowResultsMixin:
         self._results_review_next.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_next)
 
+        for evidence_label in (
+            self._results_summary_label,
+            self._results_summary_risk_label,
+            self._results_summary_next_label,
+            self._results_review_title,
+            self._results_review_meta,
+            self._results_review_benchmark,
+            self._results_review_chain,
+            self._results_review_trend,
+            self._results_review_boundary,
+            self._results_review_joint,
+            self._results_review_risk,
+            self._results_review_next,
+        ):
+            evidence_label.setMinimumWidth(0)
+            evidence_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+
         review_actions = QHBoxLayout()
         review_actions.setContentsMargins(0, 0, 0, 0)
         review_actions.setSpacing(8)
