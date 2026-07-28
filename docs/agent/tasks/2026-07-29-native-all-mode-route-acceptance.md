@@ -51,8 +51,8 @@ Editor, and the no-Origin PackageExporter route.
 - [x] Known limitations remain explicit: synthetic IR mapping, Joint's
   `PA6-A` identity with `No data loaded` synthetic context, crowded NMR
   solid-C labels, and open scientific/release gates.
-- [x] Task-scoped verifier passes; the allowlist checkpoint is the remaining
-  handoff action.
+- [x] Task-scoped verifier passes; the automated route evidence is checkpointed
+  while human visual/scientific/release gates remain open.
 
 ## Verification
 
@@ -90,6 +90,26 @@ diagnostic/validation signals that require scientific interpretation.
 - Task-scoped verifier: exit code `0`; task/memory checks, Ruff, compile,
   quality (`283 passed, 2 warnings`), preprocessing (`106 passed, 2 warnings`),
   no changed type-baseline targets, and whitespace all passed.
+
+## Post-prefix rerun evidence (2026-07-29)
+
+- The current checkout reran the same native matrix after the shared Results
+  Review prefix fix: `17 passed, 15 warnings in 320.08s`, exit code `0`.
+- Fresh captures are under
+  `D:\PolyNexus_native_all_routes_capture_20260729_post_prefix` and contain
+  68 PNGs. Results/Gallery/History/Editor were produced for all 17 routes and
+  the no-Origin PackageExporter fallback was exercised.
+- Representative Results captures show one shared `Risk note`/`Next step`
+  wrapper per panel. SAXS's multiple labeled lines are separate evidence
+  sections, not duplicate formatting. IR mapping remains synthetic, NMR
+  solid-C assignment remains provisional, and Joint retains the explicit
+  `PA6-A` badge plus synthetic `No data loaded` route context.
+
+## Follow-up checkpoint boundary
+
+This evidence update changes only the task/plan/memory records. The existing
+uncommitted `docs/agent/memory/current-state.md` legacy-storage edit is
+intentionally excluded from this follow-up checkpoint.
 
 ## Explicit changed-file allowlist
 
