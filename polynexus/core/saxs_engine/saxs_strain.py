@@ -772,12 +772,19 @@ def check_invariant_conservation(
         'max_dev_strain': np.nan,
     }
 
-    valid = np.isfinite(Q_star_array)
+    strain_values = _as_1d_float_array(strains)
+    q_values = _as_1d_float_array(Q_star_array)
+    aligned_count = min(strain_values.size, q_values.size)
+    strain_values = strain_values[:aligned_count]
+    q_values = q_values[:aligned_count]
+    tolerance_value = _coerce_strain_value(tolerance)
+
+    valid = np.isfinite(q_values) & np.isfinite(strain_values)
     if np.sum(valid) < 2:
         return result
 
-    Q_valid = Q_star_array[valid]
-    strains_valid = strains[valid]
+    Q_valid = q_values[valid]
+    strains_valid = strain_values[valid]
 
     Q_mean = np.mean(Q_valid)
     Q_std = np.std(Q_valid)
@@ -786,7 +793,7 @@ def check_invariant_conservation(
     result['Q_cv'] = Q_std / Q_mean if Q_mean > 0 else np.nan
 
     # Check if within tolerance
-    result['conserved'] = result['Q_cv'] < tolerance
+    result['conserved'] = result['Q_cv'] < tolerance_value
 
     # Find max deviation
     deviations = np.abs(Q_valid - Q_mean) / Q_mean

@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS invariant-conservation dirty-input guard - completed 2026-07-28
+
+- `check_invariant_conservation()` now uses detached `_as_1d_float_array()`
+  values, common-prefix alignment, finite strain/Q* pair selection, and
+  `_coerce_strain_value()` for tolerance. Existing equations, minimum-point
+  gate, result keys, finite negative-Q behavior, and physical semantics remain
+  unchanged; no repair, interpolation, AI/rescue, or publication behavior was
+  added.
+- TDD RED was `6 failed`; focused GREEN was `6 passed in 0.13s`; strain
+  returned `11 passed`; exact SAXS returned `524 passed, 6 warnings in
+  195.72s`, exit code `0`. Task verifier without changed-file lint exited `0`
+  with Pyright `0 errors`, quality `287`, preprocessing `106`, compile,
+  whitespace, memory/task, and diff checks passing; targeted Ruff/compile also
+  passed.
+- The prescribed `--changed --types` variant exited `1` only on ten unrelated
+  pre-existing Ruff findings in parallel-modified `saxs_engine/io.py`; that
+  file remains outside the task allowlist and untouched. Storage dry-run found
+  `530` artifacts, `202` eligible, `328` protected, and `0` removed. No fresh
+  full/boundary result is attributed to this slice. Evidence:
+  `docs/acceptance/2026-07-28-saxs-invariant-conservation-dirty-input-guard.md`.
+
 ## SAXS condition path-candidate recovery - completed 2026-07-28
 
 - `_parse_condition_detail()` now evaluates every path component for a
