@@ -1,5 +1,23 @@
 # Active Work
 
+## SAXS strain-helper dirty-input guard - completed 2026-07-28
+
+- `detect_strain_phase()` and `detect_voids()` now reuse detached
+  `sanitize_1d_profile()` survivors at their public 1D boundaries. Malformed
+  object q/I, non-finite values, non-positive intensities, unsorted q, and
+  mismatched lengths are handled by the existing aligned-prefix policy;
+  phase/void thresholds, windows, return keys, and scientific semantics remain
+  unchanged.
+- TDD RED was `2 failed, 1 passed`; focused GREEN was `3 passed`; the strain
+  matrix returned `11 passed`; and the exact SAXS matrix returned `497 passed,
+  6 warnings in 193.07s`, exit code `0`. Structured verification exited `0`
+  with quality `287`, preprocessing `106`, Ruff/compile/type baseline,
+  task/memory, and whitespace checks passing. `git diff --check` passed.
+- Test-storage report and cleanup dry-run found `505` artifacts, `175` eligible,
+  `330` protected, and `0` removed. No full/boundary result is attributed to
+  this atomic task. The explicit allowlist checkpoint hash is reported in the
+  handoff. Evidence: `docs/acceptance/2026-07-28-saxs-strain-helper-dirty-input-guard.md`.
+
 ## SAXS Herman helper dirty-input guard - completed 2026-07-28
 
 - The public `herman_orientation_factor()` boundary now uses detached,

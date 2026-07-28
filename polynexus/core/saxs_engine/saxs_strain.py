@@ -217,6 +217,9 @@ def detect_strain_phase(
 
     Returns the detected phase.
     """
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
     Q_norm = Q_star / Q_star_ref if Q_star_ref > 0 else 1.0
     
     # Check for excess low-q scattering (void indicator)
@@ -479,6 +482,9 @@ def detect_voids(
 
     Returns dict with void indicators.
     """
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
     result = {
         'has_voids': False,
         'phi_void': np.nan,
