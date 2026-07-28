@@ -296,7 +296,7 @@
   `1686.81s`, exit code `0`; boundary audit passed. Human scientific review
   remains open; the explicit task checkpoint is created for handoff.
 
-## Joint history identity - checkpoint ready - 2026-07-29
+## Joint history identity - checkpointed - 2026-07-29
 
 - History restore now projects a Joint report's persisted/sample identity into
   the display-only project badge. Single-sample, multi-sample, empty-report,
@@ -305,6 +305,9 @@
 - Task-scoped verification passed; the allowlist is ready for one atomic
   checkpoint. Scientific Joint conflict interpretation and the restarted-GUI
   release gate remain open.
+- Fresh recheck returned `4 passed, 194 deselected in 11.13s` for the focused
+  identity filter and `21 passed, 178 deselected in 39.10s` for the broader
+  Joint/history selection.
 - Task card and plan:
   `docs/agent/tasks/2026-07-29-joint-history-project-identity.md` and
   `docs/superpowers/plans/2026-07-29-joint-history-project-identity.md`.

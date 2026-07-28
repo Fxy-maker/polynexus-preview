@@ -58,6 +58,16 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-29-joint-history-projec
 git diff --check
 ```
 
+## Documentation checkpoint allowlist
+
+- `docs/agent/tasks/2026-07-29-joint-history-project-identity.md`
+- `docs/acceptance/2026-07-29-joint-history-project-identity.md`
+- `docs/agent/memory/active-work.md`
+
+The production/test implementation was previously checkpointed in commit
+`6d3b760`; this follow-up checkpoint contains only the durable acceptance
+records listed above.
+
 ## Known limitations
 
 This fixes the visible restore identity only. It does not resolve the separate
