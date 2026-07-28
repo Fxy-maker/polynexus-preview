@@ -27,6 +27,7 @@ from .lc_path_selection import (
 )
 from .preprocess import apply_thermal_correction
 from .saxs_quality_contracts import (
+    _as_1d_float_array,
     build_series_detector_quality_report,
     build_guinier_sequence_evidence,
     build_series_metric_evidence,
@@ -660,6 +661,12 @@ def gibbs_thomson_analysis(
         'R2': np.nan,
         'valid': False,
     }
+
+    temperatures = _as_1d_float_array(temperatures)
+    lc_array = _as_1d_float_array(lc_array)
+    aligned_count = min(temperatures.size, lc_array.size)
+    temperatures = temperatures[:aligned_count]
+    lc_array = lc_array[:aligned_count]
 
     # Filter valid points in melting region
     valid = np.isfinite(lc_array) & (lc_array > 0) & np.isfinite(temperatures)

@@ -1,5 +1,22 @@
 # Active Work
 
+## SAXS Gibbs-Thomson dirty-input guard - completed 2026-07-28
+
+- `gibbs_thomson_analysis()` now uses the existing `_as_1d_float_array()`
+  coercion and common-prefix alignment before its unchanged finite/positive
+  `lc` mask and Gibbs-Thomson fit. Malformed numeric tokens and mismatched
+  lengths no longer raise; no observations are fabricated or sorted.
+- TDD RED was `2 failed, 1 passed`; focused GREEN was `3 passed`; the
+  temperature matrix returned `48 passed`; and the exact SAXS matrix returned
+  `500 passed, 6 warnings in 231.46s`, exit code `0`. Structured verification
+  exited `0` with quality `287`, preprocessing `106`, Ruff/compile/type
+  baseline, task/memory, and whitespace checks passing. `git diff --check`
+  passed.
+- Test-storage report and cleanup dry-run found `520` artifacts, `179` eligible,
+  `341` protected, and `0` removed. No full/boundary result is attributed to
+  this atomic task. The explicit allowlist checkpoint hash is reported in the
+  handoff. Evidence: `docs/acceptance/2026-07-28-saxs-gibbs-thomson-dirty-input-guard.md`.
+
 ## SAXS strain-helper dirty-input guard - completed 2026-07-28
 
 - `detect_strain_phase()` and `detect_voids()` now reuse detached
@@ -496,7 +513,7 @@
   `docs/agent/tasks/2026-07-30-results-summary-long-token-layout.md` and
   `docs/acceptance/2026-07-30-results-summary-long-token-layout.md`.
 
-## Fresh native all-mode route acceptance - checkpoint pending - 2026-07-29
+## Fresh native all-mode route acceptance - checkpointed - 2026-07-29
 
 - Current-checkout post-Joint-fix Windows-native Qt matrix: `17 passed, 15
   warnings in 358.71s`, exit code `0`; cases are DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR
@@ -507,6 +524,10 @@
   Joint now shows `PA6-A` in the project badge while retaining synthetic `No data loaded`
   context. Crowded NMR solid-C labels, synthetic IR mapping, and SAXS diagnostic /
   validation signals. Human visual/scientific/release review remains open.
+- The dedicated acceptance reconciliation is recorded in
+  `docs/acceptance/2026-07-29-native-all-mode-route-acceptance.md`; the
+  automated checkpoint is already present in the current branch. This does not
+  close the human review gates.
 - Task card and plan:
   `docs/agent/tasks/2026-07-29-native-all-mode-route-acceptance.md` and
   `docs/superpowers/plans/2026-07-29-native-all-mode-route-acceptance.md`.
