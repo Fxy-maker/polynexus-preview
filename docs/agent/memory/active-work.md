@@ -1,5 +1,19 @@
 # Active Work
 
+## Restarted GUI visual audit attempt - locked desktop limitation - 2026-07-29
+
+- The canonical `scripts/launch_gui.py` started a live Qt child titled
+  `PolyNexus v2.0` with `Responding=True`.
+- Desktop and window-handle screenshot commands returned fresh paths, but both
+  images contained only the Windows lock screen. The application content was
+  not visible, so the restarted-GUI visual gate remains unverified; this is an
+  environment limitation, not a product pass/failure. The audit-started GUI
+  process was closed and no data was deleted or migrated.
+- A user-unlocked interactive session is required for the remaining all-route
+  visual walkthrough. Evidence:
+  `docs/agent/tasks/2026-07-29-restarted-gui-visual-audit.md` and
+  `docs/acceptance/2026-07-29-restarted-gui-visual-audit.md`.
+
 ## Real published-run lifecycle walkthrough - automated pass, scientific gates open - 2026-07-30
 
 - Fresh `tests/test_real_published_run_walkthrough.py` returned `15 passed, 11
