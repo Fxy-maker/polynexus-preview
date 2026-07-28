@@ -63,8 +63,7 @@ passed` and the preprocessing gate reported `106 passed`.
 
 The automatic legacy scan is intentionally restricted to exact historical
 test-output prefixes. It does not infer whether unrelated large directories
-are disposable. At verification time, two pytest processes were still active,
-so the dry-run correctly reported zero removable artifacts; a separate
-read-only inventory found 63 C-drive legacy directories older than 24 hours,
-totalling approximately 38.12 GB. They remain pending until those processes
-finish and a fresh dry-run confirms the same safety checks.
+are disposable. A later read-only inventory found 441 C-drive legacy
+directories, totalling approximately 164.42 GiB; they remain pending until
+all active pytest processes finish and a fresh dry-run confirms the same safety
+checks before explicit cleanup.
