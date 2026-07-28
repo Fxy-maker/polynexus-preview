@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS dirty numeric coercion - checkpointed - 2026-07-28
+
+- `_as_1d_float_array()` now preserves individually convertible q/I values when
+  a 1D input contains malformed numeric tokens. Conversion failures become
+  explicit NaN observations for the existing sanitizer and quality report;
+  no interpolation, padding, duplicate aggregation, threshold, rescue, or AI
+  behavior was added.
+- TDD RED was `4 passed, 2 failed`; focused GREEN was `6 passed`; exact SAXS
+  was `430 passed, 6 warnings`. Structured verification exited `0` with
+  quality `287`, preprocessing `106`, Ruff/compile/type/memory/task/
+  whitespace all passing.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-dirty-numeric-coercion.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-dirty-numeric-coercion-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-dirty-numeric-coercion.md`.
+- The unrelated Results Review prefix-deduplication changes,
+  `current-state.md` edit, and historical test/scratch files remain outside
+  this checkpoint.
+
 ## Results Review prefix deduplication - checkpoint pending - 2026-07-29
 
 - The shared Results Review boundary now strips repeated leading English or

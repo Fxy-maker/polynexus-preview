@@ -596,10 +596,32 @@ class RescueValidationReport:
 
 
 def _as_1d_float_array(values: Any) -> np.ndarray:
+    """Coerce a possibly dirty 1D axis without discarding valid neighbors."""
     try:
         return np.asarray(values, dtype=float).reshape(-1)
     except (TypeError, ValueError):
-        return np.asarray([], dtype=float)
+        pass
+
+    try:
+        raw_values = np.asarray(values, dtype=object)
+    except (TypeError, ValueError):
+        try:
+            raw_values = np.asarray(list(values), dtype=object)
+        except (TypeError, ValueError):
+            raw_values = np.asarray([values], dtype=object)
+
+    if raw_values.ndim == 0:
+        items = (raw_values.item(),)
+    else:
+        items = tuple(raw_values.reshape(-1).tolist())
+
+    coerced = np.full(len(items), np.nan, dtype=float)
+    for index, item in enumerate(items):
+        try:
+            coerced[index] = float(item)
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return coerced
 
 
 @dataclass(frozen=True)

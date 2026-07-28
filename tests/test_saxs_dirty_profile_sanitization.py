@@ -43,6 +43,36 @@ def test_sanitizer_aligns_length_mismatch_without_padding():
     assert sanitized.actions == ("axis_length_aligned",)
 
 
+def test_sanitizer_preserves_convertible_neighbors_around_malformed_tokens():
+    sanitizer = getattr(contracts, "sanitize_1d_profile", None)
+    assert callable(sanitizer)
+
+    sanitized = sanitizer(
+        [0.02, "not-a-q", 0.04, 0.05],
+        [1.0, 2.0, "not-an-intensity", 4.0],
+    )
+
+    assert sanitized.q.tolist() == [0.02, 0.05]
+    assert sanitized.intensity.tolist() == [1.0, 4.0]
+    assert sanitized.original_point_count == 4
+    assert sanitized.aligned_point_count == 4
+    assert sanitized.actions == ("invalid_pairs_dropped",)
+
+
+def test_quality_report_keeps_malformed_tokens_as_explicit_invalid_points():
+    report = contracts.build_data_quality_report(
+        [0.02, "not-a-q", 0.04],
+        [1.0, 2.0, "not-an-intensity"],
+    ).to_dict()
+
+    assert report["original_point_count"] == 3
+    assert report["invalid_point_count"] == 2
+    assert report["nonfinite_q_count"] == 1
+    assert report["nonfinite_intensity_count"] == 1
+    assert "q_nonfinite" in report["reason_codes"]
+    assert "intensity_nonfinite" in report["reason_codes"]
+
+
 def test_quality_actions_are_ordered_and_strict_json_safe():
     report = contracts.build_data_quality_report(
         [0.02, 0.01],
