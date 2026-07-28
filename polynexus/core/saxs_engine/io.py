@@ -569,48 +569,43 @@ def _parse_condition_detail(entry: Path, cfg: "SAXSConfig") -> dict[str, Any]:
             continue
 
         regex = pattern.regex
-        if pattern.search_path:
-            match = None
-            for part in entry.parts:
-                match = re.search(regex, part, re.IGNORECASE)
-                if match:
-                    break
-        else:
-            match = re.search(regex, entry.stem, re.IGNORECASE)
-        if not match:
-            continue
+        path_parts = entry.parts if pattern.search_path else (entry.stem,)
+        for part in path_parts:
+            match = re.search(regex, part, re.IGNORECASE)
+            if not match:
+                continue
 
-        captured = match.group(1)
-        if pattern.lookup_map:
-            lookup = getattr(cfg, pattern.lookup_map, {})
-            if captured in lookup:
-                value = lookup[captured]
+            captured = match.group(1)
+            if pattern.lookup_map:
+                lookup = getattr(cfg, pattern.lookup_map, {})
+                if captured in lookup:
+                    value = lookup[captured]
+                else:
+                    try:
+                        value = float(captured) if pattern.value_transform == "float" else int(captured)
+                    except ValueError:
+                        continue
             else:
                 try:
                     value = float(captured) if pattern.value_transform == "float" else int(captured)
                 except ValueError:
                     continue
-        else:
-            try:
-                value = float(captured) if pattern.value_transform == "float" else int(captured)
-            except ValueError:
-                continue
 
-        if pattern.validator_expr:
-            try:
-                x = value
-                if not eval(pattern.validator_expr, {"x": x, "__builtins__": {}}):
+            if pattern.validator_expr:
+                try:
+                    x = value
+                    if not eval(pattern.validator_expr, {"x": x, "__builtins__": {}}):
+                        continue
+                except Exception:
                     continue
-            except Exception:
-                continue
 
-        return {
-            "value": float(value),
-            "source": "path_directory" if pattern.search_path else "path_filename",
-            "source_key": pattern.name,
-            "source_text": entry.name,
-            "confidence": 0.72 if pattern.search_path else 0.64,
-        }
+            return {
+                "value": float(value),
+                "source": "path_directory" if pattern.search_path else "path_filename",
+                "source_key": pattern.name,
+                "source_text": entry.name,
+                "confidence": 0.72 if pattern.search_path else 0.64,
+            }
 
     return {
         "value": float("nan"),

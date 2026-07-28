@@ -1,5 +1,22 @@
 # Active Work
 
+## SAXS condition path-candidate recovery - completed 2026-07-28
+
+- `_parse_condition_detail()` now evaluates every path component for a
+  path-search pattern until conversion and validation succeed. An invalid
+  pytest basetemp token no longer shadows a later valid `temperature_180`
+  directory.
+- `recover_condition_axis()` and `scan_experiment_dir()` preserve the existing
+  `path_directory`, `temp_directory_label`, value `180.0`, and `0.72`
+  confidence metadata contract. Context/header precedence, filename parsing,
+  grouping, and unresolved keys are unchanged.
+- TDD RED was the two unresolved-source/metadata failures; focused GREEN was
+  `5 passed in 0.29s`. The fresh sorted exact SAXS matrix returned `518
+  passed, 6 warnings in 201.93s`, exit code `0`; warnings are the existing
+  Arial glyph and EDF geometry-header fallback warnings.
+- Evidence: `docs/acceptance/2026-07-28-saxs-condition-path-candidate-recovery.md`.
+- Test-storage cleanup remains dry-run only; no test data was deleted.
+
 ## SAXS temperature-phase dirty-input guard - completed 2026-07-28
 
 - `detect_temperature_phase()` now coerces Q*, solid Q*, L, and solid L with
