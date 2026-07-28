@@ -34,18 +34,19 @@
 - No complete SAXS/full-boundary result is attributed to this slice; scientific
   orientation interpretation and final release review remain open.
 
-## Full/boundary continuation observation - unverified timeout - 2026-07-30
+## Full/boundary verification - automated pass, human release gates open - 2026-07-30
 
-- A later independent `scripts/verify.py --changed --types --full --boundary`
-  process tree was observed with parent PID `4200`, quality child PID `24396`,
-  pytest PID `46772`, and worker PID `26732`; the tree later exited during the
-  bounded observation at 2026-07-28 19:25 +08:00.
-- No command stdout/stderr summary or exit code became available before or
-  after exit. This remains neither a pass nor a failure and does not replace
-  the separate timeout classification in
-  `docs/agent/tasks/2026-07-29-full-boundary-recheck.md`.
-- The test-storage policy protected externally discovered artifacts while the
-  process was active; no cleanup or migration was performed.
+- The captured rerun of `scripts/verify.py --changed --types --full --boundary`
+  returned `2940 passed, 17 skipped, 12 warnings` in `1951.18s`, wrapper exit
+  `0`, with quality `287`, preprocessing `106`, compile/Ruff/type/whitespace,
+  and boundary audit passing. Stdout/stderr/exit-code evidence is under
+  `D:\PolyNexus_full_boundary_capture_20260728_193018.*`.
+- The earlier process-exit-only observation remains classified separately as a
+  tool-level timeout; it was not retroactively treated as a pass.
+- Automated full/boundary verification is now green for the captured checkout.
+  Restarted-GUI visual review, IR vendor/ROI semantics, NMR solid-C assignment,
+  Joint conflict interpretation, and final human scientific/release approval
+  remain open. No test data cleanup or migration was performed.
 
 ## SAXS 1D physical-helper dirty-input guard - completed 2026-07-28
 

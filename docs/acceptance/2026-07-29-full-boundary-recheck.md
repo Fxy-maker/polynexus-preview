@@ -27,6 +27,25 @@ captures) and the task-scoped verifiers (`287` quality, `106` preprocessing).
 IR vendor semantics, Joint scientific interpretation, solid-C assignment
 review, and final human release approval remain open as well.
 
+## Fresh captured rerun (2026-07-28)
+
+A new full/boundary invocation captured its complete terminal streams on D:
+and returned a real result:
+
+```text
+pytest: 2940 passed, 17 skipped, 12 warnings in 1951.18s (0:32:31)
+quality: 287 passed
+preprocessing: 106 passed
+boundary audit: exit 0
+stderr: empty
+wrapper exit code: 0
+```
+
+The automated full/boundary gate is therefore green for this captured
+checkout. This remains separate from restarted-GUI visual acceptance, IR
+vendor/ROI semantics, NMR solid-C assignment interpretation, Joint conflict
+interpretation, and final human scientific/release approval.
+
 ## Later independent-process observation (2026-07-30)
 
 A later continuation found a separate full/boundary invocation running:

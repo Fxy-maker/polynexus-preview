@@ -69,6 +69,30 @@ available before or after exit. This does not change the classification above:
 it remains a tool-level timeout/unverified result, not a pass or test failure,
 and it is not a reason to delete protected test artifacts.
 
+## Fresh captured rerun (2026-07-28)
+
+A new invocation was launched with stdout, stderr, exit code, and pytest
+basetemp captured on D::
+
+```text
+python scripts/verify.py --changed --types --full --boundary
+pytest: 2940 passed, 17 skipped, 12 warnings in 1951.18s (0:32:31)
+quality: 287 passed
+preprocessing: 106 passed
+boundary audit: exit 0
+stderr: empty
+wrapper exit code: 0
+```
+
+This closes the automated full/boundary verification gate for the captured
+checkout. It does not close restarted-GUI visual review, IR vendor/ROI
+semantics, NMR solid-C assignment interpretation, Joint conflict interpretation,
+or final human scientific/release approval.
+
+Captured stdout/stderr/exit-code files are outside the repository at
+`D:\PolyNexus_full_boundary_capture_20260728_193018.*`; the pytest basetemp is
+`D:\PolyNexus\PolyNexus_full_boundary_capture_20260728_193018`.
+
 ## Documentation checkpoint allowlist
 
 - `docs/agent/tasks/2026-07-29-full-boundary-recheck.md`
