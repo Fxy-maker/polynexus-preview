@@ -1,5 +1,17 @@
 # Active Work
 
+## Test-storage dry-run audit - no deletion - 2026-07-29
+
+- With no Python/pytest process active, `scripts/test_storage.py report --json`
+  completed with empty stderr. Total: `556` artifacts, `236` eligible, `320`
+  protected, `90,330,056,419` eligible bytes, and `0` removed.
+- C: paths: `306` artifacts, `212` eligible, `94` protected,
+  `76,691,802,567` eligible bytes, and `0` removed. This remains a dry-run;
+  no `--apply`, delete, or migration was performed. Evidence:
+  `docs/agent/tasks/2026-07-29-test-storage-dry-run-audit.md`,
+  `docs/acceptance/2026-07-29-test-storage-dry-run-audit.md`, and
+  `D:\PolyNexus_storage_audit_20260729_run2.json`.
+
 ## Full-software goal requirements audit - automated evidence mapped, release gates open - 2026-07-29
 
 - A requirement-level matrix now maps shared platform, SAXS/DSC/WAXS/IR/NMR/
