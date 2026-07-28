@@ -1,5 +1,24 @@
 # Active Work
 
+## Latest full/boundary audit evidence - automated gates green, release review open - 2026-07-28
+
+- The current-checkout `scripts/verify.py --changed --types --full --boundary`
+  process completed with captured stdout at
+  `D:\PolyNexus_full_boundary_async_20260730_2\stdout.log` and an empty
+  `stderr.log`. The fresh all-tests summary is `2986 passed, 17 skipped, 12
+  warnings in 1907.60s (0:31:47)`; quality is `287 passed`, preprocessing is
+  `106 passed`, and verifier stdout ends with `all selected checks passed`.
+- The background launcher did not persist its wrapper exit code, so no wrapper
+  exit code is asserted. A fresh direct boundary audit from the same checkout
+  returned `BOUNDARY_EXIT_CODE=0`.
+- This closes the automated full/boundary evidence gate only. Restarted-GUI
+  visual review, IR vendor/ROI semantics, NMR solid-C assignment, Joint
+  conflict interpretation, and final human scientific/release approval remain
+  open. No test data was deleted or migrated.
+- Evidence task and acceptance note:
+  `docs/agent/tasks/2026-07-30-full-boundary-latest-evidence.md` and
+  `docs/acceptance/2026-07-30-full-boundary-latest-evidence.md`.
+
 ## SAXS melting-window status dirty-input guard - completed 2026-07-28
 
 - `classify_melting_window_status()` now reuses `_coerce_optional_float()` for
