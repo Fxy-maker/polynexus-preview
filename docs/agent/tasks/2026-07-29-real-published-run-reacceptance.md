@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-29-real-published-run-reacceptance
 kind: real-data-lifecycle-recheck
-status: in_progress
+status: verification-limited
 ---
 
 # Real published-run reacceptance
@@ -47,8 +47,17 @@ published-run mode after the NMR solid-C assignment-column change.
 - [ ] The prescribed `--changed` verifier is fully green; it is currently
       stopped by three pre-existing Ruff `E741` findings in
       `polynexus/core/saxs_engine/saxs_physical_helpers.py`.
-- [ ] Allowlisted documentation checkpoint is created after recording the
+- [x] Allowlisted documentation checkpoint is created after recording the
       unrelated-worktree limitation.
+
+## Documentation checkpoint allowlist
+
+- `docs/agent/tasks/2026-07-29-real-published-run-reacceptance.md`
+- `docs/acceptance/2026-07-29-real-published-run-reacceptance.md`
+- `docs/agent/memory/active-work.md`
+
+The changed-file verifier limitation is intentional: the existing SAXS
+`E741` findings are outside this task and are not included in the checkpoint.
 
 ## Verification
 

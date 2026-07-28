@@ -312,6 +312,29 @@
   `docs/agent/tasks/2026-07-29-joint-history-project-identity.md` and
   `docs/superpowers/plans/2026-07-29-joint-history-project-identity.md`.
 
+## Real published-run reacceptance - verification-limited checkpoint - 2026-07-30
+
+- The recorded 15-case real published-run walkthrough covers DSC standard /
+  isothermal / non-isothermal, SAXS static / temperature / strain, WAXS
+  static / temperature / strain / full-2D strain, IR standard / temperature-2D,
+  and NMR liquid / solid H/C. It exercises Manifest/Gallery, Editor/export,
+  and History restore. Existing warnings and diagnostic-only roles remain
+  explicit.
+- Fresh task verification without `--changed` passed: Pyright `0 errors`,
+  quality `287`, preprocessing `106`, compile, task/memory, and whitespace
+  checks all passed. The prescribed changed-file verifier remains
+  verification-limited by unrelated existing Ruff `E741` findings in
+  `polynexus/core/saxs_engine/saxs_physical_helpers.py` and
+  `polynexus/core/saxs_engine/core.py`; no tests were run by that blocked
+  invocation and those files remain outside this checkpoint.
+- The documentation checkpoint allowlist is the task card, acceptance note,
+  and this active-work entry. Full/boundary verification, human visual review,
+  IR vendor semantics, Joint conflict meaning, solid-C assignment review, and
+  final release approval remain open.
+- Task card and acceptance note:
+  `docs/agent/tasks/2026-07-29-real-published-run-reacceptance.md` and
+  `docs/acceptance/2026-07-29-real-published-run-reacceptance.md`.
+
 ## Fresh native all-mode route acceptance - checkpoint pending - 2026-07-29
 
 - Current-checkout post-Joint-fix Windows-native Qt matrix: `17 passed, 15

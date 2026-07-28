@@ -25,6 +25,10 @@ prescribed changed-file verifier was attempted but stopped at three Ruff
 `polynexus/core/saxs_engine/core.py`; no tests were run by that invocation and
 those files were excluded from this task's allowlist.
 
+Fresh no-`--changed` recheck on 2026-07-30 returned exit code `0`: task and
+memory checks, Pyright `0 errors`, quality `287`, preprocessing `106`, compile,
+and whitespace all passed.
+
 ## Boundaries
 
 The warnings are retained as evidence, including DSC polynomial conditioning
