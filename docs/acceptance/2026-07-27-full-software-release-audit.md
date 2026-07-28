@@ -16,6 +16,7 @@ Status: automated evidence complete; release not approved
 | IR real published-run walkthrough | `2 passed` (`standard`, `temperature-2D`) | automated-pass; mapping lifecycle separately covered |
 | NMR real published-run walkthrough | `4 passed` (`liquid H/C`, `solid H/C`) | automated-pass; assignment-limited solid C remains provisional |
 | Joint publish/editor/export/history lifecycle | `1 passed` with synthetic cross-technique rows | automated-pass for lifecycle; scientific conflict review open |
+| Joint real-data transport lifecycle | `1 passed` (`tests/test_joint_real_data_lifecycle.py`); real DSC standard, SAXS static, and WAXS static engines persisted through SampleDB and published three Joint figures with source-run provenance | automated transport-pass; real-value interpretation, conflict review, and publication approval remain open |
 | Native Windows Qt Joint route | `1 passed, 15 deselected in 5.94s`, exit code `0`; synthetic Joint report restored through Results, Gallery, History, Editor, and package Export | automated synthetic route-pass; real-data Joint and scientific conflict review remain open |
 | Per-technique lifecycle closures | DSC `3`, WAXS `3`, IR `3` (including mapping), NMR `4`, Joint `1` passed | automated-pass |
 | GUI shell/workbench/gallery/editor route contracts | `58 passed` across MainWindow shell, Results Workbench profiles, Gallery management, figure window, and figure mixin tests | automated-pass; pixel-level visual review open |
@@ -27,6 +28,22 @@ Status: automated evidence complete; release not approved
 | Canonical GUI default shell | Restarted canonical window screenshot shows SAXS empty state, workspace summary, mode navigation, and Data/Config/Results/Plots shell | human-review |
 | Combined lifecycle/real-fixture attempt | 180-second tool window expired without a summary; replaced for evidence purposes by the successful per-technique shards below | historical bounded-timeout |
 | Full repository verifier | Fresh current-working-tree run: `2793 passed, 10 warnings` in `1607.00s`; compile, quality, whitespace, and boundary audit passed | automated-pass with known warnings |
+
+### Joint real-data transport acceptance
+
+The new acceptance test uses the existing public contract: real DSC, SAXS, and
+WAXS engines write isolated outputs, `SampleDB` persists the completed runs,
+and `JointCoordinator` consumes those persisted runs rather than reading raw
+files. The fresh test returned `1 passed, 1 warning in 14.86s`, exit code `0`.
+
+The focused Joint/NMR matrix returned `23 passed, 2 warnings in 14.83s`, exit
+code `0`. The task-scoped verifier returned exit code `0`: task-card and memory
+checks passed, Ruff/compile passed for changed project Python files, quality
+gate passed (`283 passed, 2 warnings`), preprocessing gate passed (`106
+passed, 2 warnings`), no changed type-baseline targets were selected, and
+`git diff --check` passed. This is transport and publication-provenance
+evidence only; it does not establish scientific agreement among the real
+values or final Joint publication approval.
 
 ## Automated commands and results
 

@@ -1,5 +1,20 @@
 ---
 
+## Joint real-data transport acceptance (2026-07-29)
+
+- Real DSC standard, SAXS static, and WAXS static engine outputs now have a
+  focused acceptance test covering engine -> SampleDB -> Joint dataset/report
+  -> Figure Manifest publication. The fresh test returned `1 passed, 1 warning
+  in 14.86s`, exit code `0`.
+- The focused Joint/NMR matrix returned `23 passed, 2 warnings in 14.83s`, exit
+  code `0`. The task-scoped verifier returned exit code `0`, with quality `283`
+  and preprocessing `106` passing, Ruff/compile/memory/task/whitespace checks
+  passing, and no changed type-baseline targets selected.
+- This proves real-data transport and source-run provenance only. Joint value
+  interpretation, scientific conflict review, restarted-GUI review, and final
+  publication/release approval remain open. Task card:
+  `docs/agent/tasks/2026-07-29-joint-real-data-lifecycle.md`.
+
 ## SAXS Static publication gate binding (2026-07-28)
 
 - Static `main` role assignment now consumes the existing explicit
