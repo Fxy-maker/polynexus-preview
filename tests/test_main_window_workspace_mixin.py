@@ -26,6 +26,7 @@ class _FakeWorkspaceWindow(MainWindowWorkspaceMixin):
         self._last_persisted_run_id = run_id
         self._workspace_mode = "analysis"
         self._current_result_origin_value = "manual_run"
+        self._joint_report = {}
         self._workspace_title = _Label()
         self._workspace_subtitle = _Label()
         self._workspace_context_summary = _Label()
@@ -38,6 +39,9 @@ class _FakeWorkspaceWindow(MainWindowWorkspaceMixin):
 
     def _workspace_input_mode_text(self):
         return ""
+
+    def _is_native_directory_run_context(self):
+        return False
 
     def _history_submodule_text(self, submodule):
         return submodule
@@ -104,3 +108,12 @@ def test_switching_technique_marks_previous_result_as_stale():
 
     assert window._result_context_is_current("saxs") is False
     assert window._workspace_context.technique == "waxs"
+
+
+def test_joint_workflow_task_uses_report_identity_instead_of_no_data():
+    window = _FakeWorkspaceWindow(technique="joint", submodule="joint.compare")
+    window._joint_report = {"rows": [{"sample": "PA6-A", "batch": "annealed"}]}
+
+    task = window._workflow_task_context()
+
+    assert task["source"] == "PA6-A"

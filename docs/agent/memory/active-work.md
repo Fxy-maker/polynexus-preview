@@ -25,6 +25,19 @@
   `75` eligible, `393` protected, `38013194773` eligible bytes, and `0`
   removed. No test artifacts were deleted or moved.
 
+## Joint workflow task identity - completed 2026-07-29
+
+- The Joint Workbench task card now reads a single populated report row's
+  existing display-only sample identity, so `PA6-A` no longer appears with a
+  contradictory `No data loaded` task source. Empty/multi-sample behavior and
+  persisted identity still use the existing resolver contract.
+- TDD RED was `1 failed`; the focused Workspace/Joint/History/Persistence
+  matrix is `41 passed, 177 deselected in 56.97s`. Structured verification
+  exited `0` with quality `287` and preprocessing `106`; diff check passed.
+- The explicit allowlist checkpoint is the task's only commit action.
+- Task card, design, plan, and acceptance note:
+  `docs/agent/tasks/2026-07-29-joint-workflow-task-identity.md`.
+
 ## SAXS acceptance audit surfaces - completed 2026-07-28
 
 - Existing `scientific_acceptance_audit` snapshots now reach the Workbench as
