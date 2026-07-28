@@ -127,6 +127,13 @@ limitation rather than pass.
   whitespace, and boundary audit passed. The earlier `2836 passed / 2 failed`
   condition-recovery result was not reproducible in the current checkout;
   focused condition recovery and the fresh full run are green.
+- A fresh current-checkout full/boundary rerun after the Results Review and
+  SAXS 2D checkpoints exited `0`: `2883 passed, 17 skipped, 12 warnings` in
+  `1405.74s`. Quality passed `287`, preprocessing passed `106`, and compile,
+  Ruff/type baseline, whitespace, and boundary audit all passed. This is the
+  current automated release evidence; it still does not close restarted-GUI,
+  IR vendor mapping, NMR solid-C assignment, Joint conflict interpretation, or
+  final scientific/release approval.
 - The responsive-shell GUI task was checkpointed as `83083bc`; a fresh
   `scripts/launch_gui.py --diagnose` resolved the canonical `D:\PolyNexus`
   source root and that commit. All-route live visual review remains open.

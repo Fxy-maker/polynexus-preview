@@ -1,5 +1,17 @@
 # Active Work
 
+## Current full/boundary release recheck - automated green - 2026-07-29
+
+- The current checkout passed `python scripts/verify.py --changed --types
+  --full --boundary` with an isolated D: basetemp: `2883 passed, 17 skipped,
+  12 warnings in 1405.74s`, exit code `0`.
+- Quality passed `287`, preprocessing passed `106`, and compile, Ruff/type
+  baseline, whitespace, and boundary audit all passed. This supersedes the
+  older `2845 passed, 16 skipped` count as current automated evidence.
+- Restarted-GUI visual review, IR vendor mapping semantics, NMR solid-C
+  assignment semantics, Joint conflict interpretation, and final scientific/
+  release approval remain explicitly open.
+
 ## SAXS dirty numeric coercion - checkpointed - 2026-07-28
 
 - `_as_1d_float_array()` now preserves individually convertible q/I values when

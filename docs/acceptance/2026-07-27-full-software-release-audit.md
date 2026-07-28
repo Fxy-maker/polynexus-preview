@@ -281,6 +281,21 @@ pass. It remains historical diagnostic evidence, not a current release
 failure. The warnings are the existing tight-layout, DSC polynomial
 conditioning, Arial glyph, and EDF geometry fallback warnings.
 
+### Current-checkout full/boundary recheck (2026-07-29)
+
+The verifier was rerun with an isolated D: basetemp after the current Results
+Review and SAXS 2D checkpoints:
+
+```text
+2883 passed, 17 skipped, 12 warnings in 1405.74s (23:25), exit code 0
+```
+
+The quality gate passed `287`, preprocessing passed `106`, and compile, Ruff,
+type baseline, whitespace, and boundary audit all passed. This confirms the
+current automated contract only; restarted-GUI visual review, IR mapping
+vendor semantics, NMR solid-C assignment semantics, Joint conflict meaning,
+and final human release approval remain open.
+
 ## GUI evidence
 
 The canonical GUI was inspected from `D:\PolyNexus`. The temporary screenshot
