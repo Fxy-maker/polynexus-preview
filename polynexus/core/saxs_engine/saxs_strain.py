@@ -28,6 +28,8 @@ from .core import (
     LongPeriodResult, StructureParams, porod_analysis,
 )
 from .saxs_quality_contracts import (
+    build_detector_quality_report,
+    build_orientation_evidence,
     build_series_detector_quality_report,
     build_series_metric_evidence,
     build_series_orientation_evidence,
@@ -334,6 +336,9 @@ def herman_from_sector_data(
         'equatorial': {'chi': array, 'I': array, 'q': array},
     }
     """
+    if not isinstance(sector_data, dict):
+        return _invalid_sector_data_result()
+
     if all(key in sector_data for key in ("I_2d", "q_2d", "chi_rad")):
         try:
             from .saxs_anisotropy import analyze_anisotropy
@@ -375,6 +380,8 @@ def herman_from_sector_data(
 
     mer_data = sector_data.get('meridional', {})
     eq_data = sector_data.get('equatorial', {})
+    if not isinstance(mer_data, dict) or not isinstance(eq_data, dict):
+        return _invalid_sector_data_result()
 
     I_mer = mer_data.get('I', None)
     I_eq = eq_data.get('I', None)
@@ -389,6 +396,39 @@ def herman_from_sector_data(
             I_mer = np.array([np.mean(I_mer[:, mask], axis=1)]) if I_mer.ndim > 1 else I_mer[mask]
 
     return herman_orientation_factor(I_mer, I_eq, chi_mer, chi_eq)
+
+
+def _invalid_sector_data_result(
+    reason: str = "strain_sector_data_invalid",
+) -> Dict:
+    """Return explicit Unusable orientation evidence for malformed sectors."""
+
+    detector = build_detector_quality_report(
+        np.empty((0, 0), dtype=float),
+        source_kind="sector_map",
+    )
+    evidence = build_orientation_evidence(
+        {},
+        detector,
+        applicability="supported",
+        source_ref="saxs_strain.herman_from_sector_data",
+    ).to_dict()
+    reason_codes = list(evidence.get("reason_codes") or ())
+    reason_codes.append(reason)
+    evidence["reason_codes"] = tuple(dict.fromkeys(reason_codes))
+    physical_checks = dict(evidence.get("physical_checks") or {})
+    physical_checks["input_validation_reason"] = reason
+    evidence["physical_checks"] = physical_checks
+    return {
+        "f": np.nan,
+        "f_sub": np.nan,
+        "f_eq": np.nan,
+        "cos2_avg": np.nan,
+        "method": "unavailable",
+        "reason_codes": (reason,),
+        "detector_quality_report": detector.to_dict(),
+        "orientation_evidence": evidence,
+    }
 
 
 # ======================================================================
@@ -612,7 +652,14 @@ def analyze_strain_series(
         if sector_data_list is not None and i < len(sector_data_list):
             sd = sector_data_list[i]
             if sd is not None:
-                herman = herman_from_sector_data(sd, cfg=cfg)
+                try:
+                    herman = herman_from_sector_data(sd, cfg=cfg)
+                except Exception:
+                    logger.warning(
+                        "SAXS strain sector payload failed closed.",
+                        exc_info=True,
+                    )
+                    herman = _invalid_sector_data_result()
                 sp.f_herman = herman.get('f', np.nan)
                 sp.f_herman_sub = herman.get('f_sub', np.nan)
                 sp.f_herman_eq = herman.get('f_eq', np.nan)
