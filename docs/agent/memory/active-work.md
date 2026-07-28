@@ -2674,6 +2674,15 @@
 
 ## In progress
 
+- SAXS real Static/Temperature/Strain acceptance-audit surface consistency is
+  checkpointed. The Figure/Manifest provenance audit is refreshed from the
+  final validation audit, while the Temperature validation failure remains
+  diagnostic and unchanged. Current focused real replay is `3 passed`; the
+  structured verifier is green with quality `287` and preprocessing `106`.
+  Storage reporting remains dry-run only (`460` artifacts, `49` eligible,
+  `411` protected, `0` removed). See
+  `docs/agent/tasks/2026-07-28-saxs-real-acceptance-audit-surfaces.md`.
+
 - SAXS real static/temperature/strain Workbench acceptance is automated-green
   on 2026-07-27. The current-HEAD full/boundary verifier passed `2662` tests
   with `10` warnings, including quality `282`, preprocessing `103`, compile,

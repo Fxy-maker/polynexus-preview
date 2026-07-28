@@ -10,10 +10,12 @@ thin, while delegating real analysis work to `polynexus.core.saxs_engine`.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from copy import deepcopy
 from dataclasses import replace
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -305,7 +307,59 @@ class SAXSEngine(BaseEngine):
                 getattr(self.result, "validation_passed", None),
                 parameters,
             )
+            self._sync_scientific_acceptance_audit_to_figures(
+                parameters["scientific_acceptance_audit"]
+            )
         return bool(base_valid and self.result.validation_passed)
+
+    def _sync_scientific_acceptance_audit_to_figures(
+        self,
+        audit: Dict[str, Any],
+    ) -> None:
+        """Refresh generated Figure documents with the final validation audit."""
+
+        metadata = getattr(self.result, "metadata", None)
+        manifest_value = metadata.get("figure_manifest") if isinstance(metadata, dict) else None
+        if not manifest_value:
+            return
+
+        manifest_path = Path(str(manifest_value))
+        if not manifest_path.is_file():
+            logger.warning("SAXS figure manifest missing; audit sync skipped: %s", manifest_path)
+            return
+
+        document_paths = tuple((manifest_path.parent / "figures").glob("*/figure.pnfig.json"))
+        if not document_paths:
+            logger.warning("SAXS figure documents missing; audit sync skipped: %s", manifest_path)
+            return
+
+        for document_path in document_paths:
+            try:
+                document = json.loads(document_path.read_text(encoding="utf-8"))
+                recipe = document.get("recipe")
+                evidence = recipe.get("evidence") if isinstance(recipe, dict) else None
+                provenance = (
+                    evidence.get("quality_provenance")
+                    if isinstance(evidence, dict)
+                    else None
+                )
+                if not isinstance(provenance, dict):
+                    logger.warning(
+                        "SAXS figure audit provenance missing; audit sync skipped: %s",
+                        document_path,
+                    )
+                    continue
+                provenance["scientific_acceptance_audit"] = deepcopy(audit)
+                document_path.write_text(
+                    json.dumps(document, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            except (OSError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "SAXS figure audit sync failed for %s: %s",
+                    document_path,
+                    exc,
+                )
 
     def run_pipeline(
         self,
