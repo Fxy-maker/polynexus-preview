@@ -22,7 +22,7 @@ from ..figures.contracts import (
     PanelDefinition,
 )
 from .figure_common import SAXSFrameView, frame_views_from_engine
-from .figure_evidence import attach_saxs_figure_evidence
+from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
 from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from .figure_eligibility import (
     FigureEligibilityDecision,
@@ -1650,6 +1650,7 @@ def build_strain_figure_definitions(
             engine,
             getattr(engine, "result", None),
         ),
+        acceptance_audit=existing_saxs_acceptance_audit(engine),
     )
 
 

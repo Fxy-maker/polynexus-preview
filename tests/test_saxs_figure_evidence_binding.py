@@ -395,6 +395,31 @@ def test_ai_rescue_audit_reaches_temperature_and_strain_providers() -> None:
         )
 
 
+def test_scientific_acceptance_audit_reaches_all_production_providers() -> None:
+    audit = {
+        "status": "diagnostic_only",
+        "reason_codes": ["existing_evidence_not_quantitative"],
+        "audit_scope": "existing_gates_only",
+    }
+    for engine, builder in (
+        (_static_engine(), build_static_saxs_figure_definitions),
+        (_temperature_engine(), build_temperature_figure_definitions),
+        (_strain_engine(), build_strain_figure_definitions),
+    ):
+        engine.result = SimpleNamespace(parameters={"scientific_acceptance_audit": audit})
+
+        definitions = builder(engine)
+
+        assert definitions
+        assert all(
+            definition.recipe["evidence"]["quality_provenance"][
+                "scientific_acceptance_audit"
+            ]
+            == audit
+            for definition in definitions
+        )
+
+
 def test_missing_or_malformed_evidence_is_not_promoted_or_fatal() -> None:
     definitions = build_static_saxs_figure_definitions(
         _static_engine(with_evidence=False)

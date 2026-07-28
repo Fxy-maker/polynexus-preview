@@ -21,7 +21,7 @@ from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 
 from .saxs_temperature import TempSeriesResult
 from .figure_common import SAXSFrameView, frame_views_from_engine
-from .figure_evidence import attach_saxs_figure_evidence
+from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
 from .figure_eligibility import classify_frame_eligibility
 from .figure_selection import resolve_saxs_figure_mode
 
@@ -177,6 +177,7 @@ def _temperature_summary_fallback(
             engine_state,
             getattr(engine_state, "result", None),
         ),
+        acceptance_audit=existing_saxs_acceptance_audit(engine_state),
     )
 
 
@@ -342,6 +343,7 @@ def _apply_publication_roles(
             engine_state,
             getattr(engine_state, "result", None),
         ),
+        acceptance_audit=existing_saxs_acceptance_audit(engine_state),
     )
 
 
@@ -456,6 +458,7 @@ def build_saxs_temperature_definitions(
         mode="temperature",
         series=result,
         ai_rescue=ai_rescue,
+        acceptance_audit=existing_saxs_acceptance_audit(result),
     )
 
 

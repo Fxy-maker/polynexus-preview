@@ -1,5 +1,21 @@
 # Active Work
 
+## SAXS acceptance audit surfaces - completed 2026-07-28
+
+- Existing `scientific_acceptance_audit` snapshots now reach the Workbench as
+  advisory review text, Figure/Manifest `quality_provenance`, and the bundle
+  `quality_evidence.json` top level. Missing snapshots remain absent and all
+  source mappings are detached before serialization.
+- TDD RED was `3 failed, 1 passed`; focused GREEN was `4 passed`, and the
+  surface/provider matrix was `15 passed`. Exact SAXS was `449 passed, 6
+  warnings`; structured verifier passed with quality `287` and preprocessing
+  `106`; test-storage was dry-run only. Checkpoint is recorded in the task
+  acceptance note and final handoff. Scientific interpretation and publication
+  approval remain open.
+- Task card and plan:
+  `docs/agent/tasks/2026-07-28-saxs-acceptance-audit-surfaces.md` and
+  `docs/superpowers/plans/2026-07-28-saxs-acceptance-audit-surfaces.md`.
+
 ## SAXS Static scientific acceptance audit - completed 2026-07-28
 
 - Static SAXS single-profile, aligned-batch, and batch-fallback parameter

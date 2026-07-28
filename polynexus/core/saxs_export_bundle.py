@@ -252,6 +252,11 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
         "temperature": _series_quality_payload(temperature),
         "strain": _series_quality_payload(strain),
     }
+    result_parameters = getattr(getattr(engine, "result", None), "parameters", None)
+    if isinstance(result_parameters, Mapping):
+        acceptance_audit = result_parameters.get("scientific_acceptance_audit")
+        if isinstance(acceptance_audit, Mapping):
+            payload["scientific_acceptance_audit"] = _jsonable(acceptance_audit)
     if (
         ai_plan is not None
         or ai_decision is not None

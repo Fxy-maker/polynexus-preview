@@ -399,6 +399,7 @@ def build_saxs_figure_evidence(
     mode: str,
     series: Any = None,
     ai_rescue: Mapping[str, Any] | None = None,
+    acceptance_audit: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build detached provenance for existing SAXS frame/series evidence."""
 
@@ -429,6 +430,8 @@ def build_saxs_figure_evidence(
     ai_record = _project_ai_rescue_evidence(ai_rescue)
     if ai_record:
         payload["ai_rescue"] = ai_record
+    if isinstance(acceptance_audit, Mapping):
+        payload["scientific_acceptance_audit"] = _json_safe(acceptance_audit)
     return _json_safe(payload)
 
 
@@ -439,6 +442,7 @@ def attach_saxs_figure_evidence(
     mode: str,
     series: Any = None,
     ai_rescue: Mapping[str, Any] | None = None,
+    acceptance_audit: Mapping[str, Any] | None = None,
 ) -> tuple[FigureDefinition, ...]:
     """Merge quality provenance into recipes without changing figure roles."""
 
@@ -448,6 +452,7 @@ def attach_saxs_figure_evidence(
             mode=mode,
             series=series,
             ai_rescue=ai_rescue,
+            acceptance_audit=acceptance_audit,
         )
     except Exception:
         provenance = {
@@ -469,7 +474,22 @@ def attach_saxs_figure_evidence(
     return tuple(attached)
 
 
+def existing_saxs_acceptance_audit(source: Any) -> dict[str, Any] | None:
+    """Return a detached existing audit snapshot without recalculating it."""
+
+    result = getattr(source, "result", source)
+    parameters = getattr(result, "parameters", None)
+    if not isinstance(parameters, Mapping):
+        return None
+    audit = parameters.get("scientific_acceptance_audit")
+    if not isinstance(audit, Mapping):
+        return None
+    projected = _json_safe(audit)
+    return projected if isinstance(projected, dict) else None
+
+
 __all__ = [
     "attach_saxs_figure_evidence",
     "build_saxs_figure_evidence",
+    "existing_saxs_acceptance_audit",
 ]

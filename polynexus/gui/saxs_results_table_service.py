@@ -940,6 +940,45 @@ def _guinier_sequence_review_text(
     return risk, next_text
 
 
+def _scientific_acceptance_audit_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Present the existing acceptance audit as advisory review evidence."""
+
+    audit = payload.get("scientific_acceptance_audit")
+    if not isinstance(audit, Mapping):
+        return "", ""
+    status = str(audit.get("status") or "").strip()
+    if not status:
+        return "", ""
+    raw_reasons = audit.get("reason_codes")
+    if isinstance(raw_reasons, str):
+        reasons = (raw_reasons,)
+    elif isinstance(raw_reasons, (list, tuple)):
+        reasons = tuple(str(reason).strip() for reason in raw_reasons)
+    else:
+        reasons = ()
+    reason_text = ",".join(reason[:100] for reason in reasons if reason) or "none"
+    scope = str(audit.get("audit_scope") or "existing_gates_only").strip()
+    if language == "zh":
+        detail = f"科学验收审计：状态={status}；原因={reason_text}；范围={scope}"
+        next_instruction = "该审计仅汇总已有门槛；解释或发表前仍需复核逐帧 SAXS 物理指标、质量门槛和人工审查"
+    else:
+        detail = (
+            "Scientific acceptance audit: "
+            f"status={status}; reasons={reason_text}; scope={scope}"
+        )
+        next_instruction = (
+            "Use this existing gates audit as advisory evidence only; review "
+            "frame-level SAXS physical and quality gates before interpretation or publication"
+        )
+    return tr_for_language("RESULTS_REVIEW_RISK", language, detail), tr_for_language(
+        "RESULTS_REVIEW_NEXT", language, next_instruction
+    )
+
+
 def _sequence_rescue_review_text(
     payload: Mapping[str, Any],
     *,
@@ -1436,6 +1475,10 @@ def build_saxs_results_presentation(
         payload,
         language=target_language,
     )
+    audit_risk, audit_next = _scientific_acceptance_audit_review_text(
+        payload,
+        language=target_language,
+    )
     rescue_risk, rescue_next = _sequence_rescue_review_text(
         payload,
         language=target_language,
@@ -1453,6 +1496,7 @@ def build_saxs_results_presentation(
         language=target_language,
     )
     risk_sections = (
+        audit_risk,
         axis_risk,
         metric_risk,
         sequence_risk,
@@ -1462,6 +1506,7 @@ def build_saxs_results_presentation(
         data_quality_risk,
     )
     next_sections = (
+        audit_next,
         axis_next,
         metric_next,
         sequence_next,
