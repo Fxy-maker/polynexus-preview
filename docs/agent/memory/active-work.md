@@ -8,7 +8,7 @@
   repair, threshold, rescue, AI, publication, or export behavior changed.
 - Focused tests passed (`2`); exact SAXS matrix passed (`441 passed, 6
   warnings`). Task-scoped verifier and explicit allowlist checkpoint remain to
-  be finalized for this atomic task.
+  be finalized for this atomic task; checkpoint `b1470e7` is now created.
 
 ## SAXS acceptance audit lifecycle consistency - completed 2026-07-28
 
