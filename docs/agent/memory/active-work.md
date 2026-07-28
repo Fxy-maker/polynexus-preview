@@ -1,5 +1,21 @@
 # Active Work
 
+## Real published-run lifecycle walkthrough - automated pass, scientific gates open - 2026-07-30
+
+- Fresh `tests/test_real_published_run_walkthrough.py` returned `15 passed, 11
+  warnings in 361.98s (0:06:01)`, with explicit `WALKTHROUGH_EXIT_CODE=0`, using
+  `D:\PolyNexus_real_walkthrough_current_20260730` as the external basetemp.
+- Coverage is DSC `3`, SAXS `3`, WAXS `3` (including strain/2D), IR `2`, and
+  NMR `4`; the shared engine -> figure run manifest -> Gallery -> Editor ->
+  export/provenance lifecycle completed for the real fixtures.
+- This is lifecycle transport evidence only. Scientific interpretation,
+  unresolved IR vendor/ROI semantics, NMR solid-C assignment, Joint conflict
+  meaning, restarted-GUI visual review, and final release approval remain open;
+  no test data was deleted or migrated.
+- Evidence task and acceptance note:
+  `docs/agent/tasks/2026-07-30-real-published-run-walkthrough.md` and
+  `docs/acceptance/2026-07-30-real-published-run-walkthrough.md`.
+
 ## Latest full/boundary audit evidence - automated gates green, release review open - 2026-07-28
 
 - The current-checkout `scripts/verify.py --changed --types --full --boundary`
