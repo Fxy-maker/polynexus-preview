@@ -47,6 +47,16 @@ def _aligned_source_values(values: Optional[List[str]], count: int) -> tuple[str
     return tuple(str(value or "") for value in values)
 
 
+def _coerce_strain_value(value) -> float:
+    """Return one finite strain value or NaN without inventing an axis value."""
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return np.nan
+    return number if np.isfinite(number) else np.nan
+
+
 def _source_kwargs(
     source_ids: tuple[str, ...],
     raw_data_refs: tuple[str, ...],
@@ -488,19 +498,25 @@ def analyze_strain_series(
     raw_data_refs_aligned = _aligned_source_values(raw_data_refs, n_points)
 
     # Normalize strains
-    strains_arr = np.array(strains, dtype=float)
+    strains_arr = np.asarray(
+        [_coerce_strain_value(value) for value in strains],
+        dtype=float,
+    )
     sanitized_profiles = [
         sanitize_1d_profile(q_values, intensity_values)
         for q_values, intensity_values in zip(q_list, I_list)
     ]
 
     # Reference: first point (unstretched)
-    reference_profile = sanitized_profiles[0]
-    Q_ref = scattering_invariant(
-        reference_profile.q,
-        reference_profile.intensity,
-        cfg=cfg,
-    )
+    if sanitized_profiles:
+        reference_profile = sanitized_profiles[0]
+        Q_ref = scattering_invariant(
+            reference_profile.q,
+            reference_profile.intensity,
+            cfg=cfg,
+        )
+    else:
+        Q_ref = np.nan
 
     result = StrainSeriesResult()
     result.strains = strains_arr
@@ -521,6 +537,8 @@ def analyze_strain_series(
         profile = sanitized_profiles[i]
 
         sp = StrainPointResult(strain_pct=float(strain))
+        if not np.isfinite(strain):
+            sp.warnings.append("Invalid strain axis value; retained as NaN")
         if detector_quality_reports is not None and len(detector_quality_reports) == n_points:
             sp.raw_detector_quality_report = detector_quality_reports[i]
 
@@ -580,7 +598,7 @@ def analyze_strain_series(
         sp.phase = phase
 
         # Track phase boundaries
-        if phase not in phase_boundaries:
+        if np.isfinite(strain) and phase not in phase_boundaries:
             phase_boundaries[phase] = strain
 
         # ---- Void analysis ----
@@ -613,6 +631,8 @@ def analyze_strain_series(
         [point.metric_evidence for point in result.strain_points],
         metric_names=("porod", "kratky", "invariant", "lamellar"),
         source_ref="saxs_strain.metric_evidence",
+        condition_name="strain_pct",
+        condition_values=result.strains,
     )
     detector_quality = build_series_detector_quality_report(
         [point.detector_quality_report for point in result.strain_points],
