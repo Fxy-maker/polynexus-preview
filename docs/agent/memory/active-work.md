@@ -1,5 +1,17 @@
 # Active Work
 
+## Results Workbench and Figure contract matrix - automated pass - 2026-07-29
+
+- Fresh D:-isolated matrix across shared Workbench profiles, SAXS series/Figure
+  contracts, DSC/WAXS Figure contracts, IR/NMR/Joint profiles, and the shared
+  cross-technique figure pipeline returned `57 passed in 10.33s`, explicit exit
+  code `0`, using `D:\PolyNexus_workbench_contract_matrix_20260729`.
+- This is contract evidence only; scientific semantics, restarted-GUI visual
+  review, and final release approval remain open. No data was deleted or
+  migrated. Evidence:
+  `docs/agent/tasks/2026-07-29-workbench-contract-matrix.md` and
+  `docs/acceptance/2026-07-29-workbench-contract-matrix.md`.
+
 ## Cross-technique AI-off/failure/fallback matrix - automated pass - 2026-07-29
 
 - Fresh focused command across `test_preprocess_cross_technique_matrix.py`,
