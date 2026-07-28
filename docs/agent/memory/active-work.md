@@ -1,5 +1,20 @@
 # Active Work
 
+## SAXS temperature dirty-frame post-processing - checkpoint created - 2026-07-28
+
+- Temperature post-processing now reuses `sanitize_1d_profile()` for reference
+  invariant/Bragg, per-frame invariant, and Bragg peak tracking, while the
+  original q/I arrays still reach `analyze_single()` for complete quality
+  provenance. No interpolation, duplicate aggregation, new threshold, or
+  frame fabrication was added.
+- TDD RED was `1 failed, 3 warnings`; dirty/empty focused regression was `2
+  passed`; exact SAXS was `425 passed, 6 warnings`. Task-scoped verification
+  exited `0` with quality `283`, preprocessing `106`, Ruff/compile/type,
+  memory/task, and whitespace checks passing.
+- Fresh full/boundary passed `2869 passed, 17 skipped, 12 warnings` in
+  `1686.81s`, exit code `0`; boundary audit passed. Human scientific review
+  remains open; the explicit task checkpoint is created for handoff.
+
 ## Joint history identity - checkpoint ready - 2026-07-29
 
 - History restore now projects a Joint report's persisted/sample identity into

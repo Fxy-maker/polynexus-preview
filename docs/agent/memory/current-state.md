@@ -1,5 +1,18 @@
 ---
 
+## SAXS temperature dirty-frame post-processing (2026-07-28)
+
+- `analyze_temperature_series()` now uses the existing deterministic sanitized
+  q/I auxiliary profile for reference invariant/Bragg, per-frame invariant,
+  and peak-intensity tracking. `analyze_single()` still receives original
+  arrays, so `invalid_pairs_dropped`/`q_sorted` quality provenance remains
+  attached to the frame.
+- Focused dirty/empty regression is `2 passed`; exact SAXS is `425 passed, 6
+  warnings`; task-scoped quality/preprocessing gates are `283`/`106` with
+  Ruff/compile/type, memory/task, and whitespace passing. Fresh full/boundary
+  verification passed `2869 passed, 17 skipped, 12 warnings` in `1686.81s`,
+  exit code `0`; boundary audit passed.
+
 ## Fresh native all-mode route acceptance (2026-07-29)
 
 - The current checkout passed the Windows-native Qt route harness with `17

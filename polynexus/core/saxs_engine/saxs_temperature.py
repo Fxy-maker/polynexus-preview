@@ -31,6 +31,7 @@ from .saxs_quality_contracts import (
     build_guinier_sequence_evidence,
     build_series_metric_evidence,
     build_series_orientation_evidence,
+    sanitize_1d_profile,
 )
 from .saxs_sequence_rescue import build_sequence_rescue_candidates
 from .saxs_output_helpers import (
@@ -925,6 +926,10 @@ def analyze_temperature_series(
     temps_arr = temps_arr[sort_idx]
     q_sorted = [q_list[i] for i in sort_idx]
     I_sorted = [I_list[i] for i in sort_idx]
+    sanitized_sorted = [
+        sanitize_1d_profile(q_values, intensity_values)
+        for q_values, intensity_values in zip(q_sorted, I_sorted)
+    ]
     reports_sorted = (
         [detector_quality_reports[i] for i in sort_idx]
         if detector_quality_reports is not None
@@ -966,15 +971,19 @@ def analyze_temperature_series(
 
     # Reference: lowest temperature point (solid state)
     ref_idx = 0
+    reference_profile = sanitized_sorted[ref_idx]
     Q_solid, reference_invariant_warning = _safe_temperature_invariant(
-        q_sorted[ref_idx],
-        I_sorted[ref_idx],
+        reference_profile.q,
+        reference_profile.intensity,
         cfg,
         warning_code="temperature_reference_invariant_unavailable",
     )
     reference_long_period_warning = None
     try:
-        L_solid, _, _ = bragg_long_period(q_sorted[ref_idx], I_sorted[ref_idx])
+        L_solid, _, _ = bragg_long_period(
+            reference_profile.q,
+            reference_profile.intensity,
+        )
         L_solid = float(L_solid)
         if not np.isfinite(L_solid):
             reference_long_period_warning = "temperature_reference_long_period_unavailable"
@@ -994,6 +1003,7 @@ def analyze_temperature_series(
         T = temps_arr[i]
         q = q_sorted[i]
         I = I_sorted[i]  # noqa: E741
+        profile = sanitized_sorted[i]
 
         tp = TemperaturePointResult(source_index=int(sort_idx[i]), temperature_C=float(T))
         tp.raw_detector_quality_report = reports_sorted[i]
@@ -1055,17 +1065,21 @@ def analyze_temperature_series(
 
             # Track Bragg peak intensity
             q_star = tp.q_star_nm1
-            if np.isfinite(q_star):
-                idx = np.argmin(np.abs(q - q_star))
-                I_peak_tracking[i] = I[idx] if idx < len(I) else np.nan
+            if np.isfinite(q_star) and profile.q.size:
+                idx = np.argmin(np.abs(profile.q - q_star))
+                I_peak_tracking[i] = (
+                    profile.intensity[idx]
+                    if idx < len(profile.intensity)
+                    else np.nan
+                )
         except Exception as e:
             tp.warnings.append(f"Core analysis: {e}")
             logger.warning("SAXS temperature frame core analysis failed.", exc_info=True)
 
         # ---- Invariant ----
         Q_star, invariant_warning = _safe_temperature_invariant(
-            q,
-            I,
+            profile.q,
+            profile.intensity,
             cfg_corrected,
             warning_code="temperature_frame_invariant_unavailable",
         )
