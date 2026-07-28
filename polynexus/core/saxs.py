@@ -1940,7 +1940,12 @@ class SAXSEngine(BaseEngine):
                 getattr(tr, "temp_points", ()),
                 source_index_attr="source_index",
             )
-            return self._build_batch_parameters_payload(params, batch_params=batch_rows)
+            payload = self._build_batch_parameters_payload(params, batch_params=batch_rows)
+            payload["scientific_acceptance_audit"] = build_saxs_scientific_acceptance_audit(
+                getattr(getattr(self, "result", None), "validation_passed", None),
+                payload,
+            )
+            return payload
         if self._strain_result is not None:
             sr = self._strain_result
             strains = [float(v) for v in np.asarray(sr.strains, dtype=float) if np.isfinite(v)]

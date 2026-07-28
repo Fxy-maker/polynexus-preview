@@ -1,5 +1,23 @@
 # Active Work
 
+## SAXS temperature scientific acceptance audit - completed 2026-07-28
+
+- The existing read-only `build_saxs_scientific_acceptance_audit()` is now
+  attached to the SAXS temperature parameter payload only. No Guinier, Q*, mask,
+  physical threshold, quality level, rescue, AI, or publication behavior
+  changed.
+- The real PA6 temperature run remains diagnostic: five frames at 170--220 °C,
+  final `validation_passed=False`, existing Guinier sequence `Unusable` with
+  `guinier_sequence_no_valid_frames`, and audit status `diagnostic_only`.
+- Focused GREEN passed (`2`); exact SAXS matrix passed (`437 passed, 6
+  warnings`). Structured verifier passed with quality `287`, preprocessing
+  `106`, task/memory, Ruff, compile, type baseline, and whitespace green. The
+  explicit allowlist checkpoint is the remaining handoff action.
+- Known lifecycle limitation: the shared pipeline caches parameters before its
+  final validation hook, so the cached audit validation snapshot may precede the
+  final result flag. A separate lifecycle-consistency task is required if the
+  two snapshots must be refreshed together.
+
 ## Current full/boundary release recheck - automated green - 2026-07-29
 
 - The current checkout passed `python scripts/verify.py --changed --types
