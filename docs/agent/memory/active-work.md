@@ -114,7 +114,7 @@
   `docs/agent/tasks/2026-07-29-joint-history-project-identity.md` and
   `docs/superpowers/plans/2026-07-29-joint-history-project-identity.md`.
 
-## Fresh native all-mode route acceptance - checkpointed - 2026-07-29
+## Fresh native all-mode route acceptance - checkpoint pending - 2026-07-29
 
 - Current-checkout post-Joint-fix Windows-native Qt matrix: `17 passed, 15
   warnings in 358.71s`, exit code `0`; cases are DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR
@@ -125,12 +125,6 @@
   Joint now shows `PA6-A` in the project badge while retaining synthetic `No data loaded`
   context. Crowded NMR solid-C labels, synthetic IR mapping, and SAXS diagnostic /
   validation signals. Human visual/scientific/release review remains open.
-- After the shared Results Review prefix fix, the current checkout reran the
-  same matrix with `17 passed, 15 warnings in 320.08s`, exit code `0`. Fresh
-  captures are under
-  `D:\PolyNexus_native_all_routes_capture_20260729_post_prefix` and again
-  contain 68 images. Results panels show one shared risk/next wrapper; the
-  remaining IR/NMR/Joint items are explicitly scientific-review boundaries.
 - Task card and plan:
   `docs/agent/tasks/2026-07-29-native-all-mode-route-acceptance.md` and
   `docs/superpowers/plans/2026-07-29-native-all-mode-route-acceptance.md`.
