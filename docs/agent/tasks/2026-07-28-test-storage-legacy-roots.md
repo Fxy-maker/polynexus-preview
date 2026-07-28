@@ -59,11 +59,19 @@ Focused evidence: `10 passed` on 2026-07-29. Ruff, compile, whitespace, task
 card, and the changed/type verifier passed; the quality gate reported `283
 passed` and the preprocessing gate reported `106 passed`.
 
+## Apply follow-up (2026-07-29)
+
+After explicit user authorization, a fresh `--apply` run returned exit code
+`0`: it scanned `445` artifacts, removed `4` eligible directories, and
+released approximately `6.87 GiB`. The final report contains `441` artifacts
+(`154.15 GiB`); all are younger than the 24-hour retention window and
+`eligible=0`. The final drive check showed approximately `105.28 GB` free on
+C: and `191.42 GB` free on D:. No source, real dataset, worktree, or pytest
+process was targeted.
+
 ## Known limitations
 
 The automatic legacy scan is intentionally restricted to exact historical
 test-output prefixes. It does not infer whether unrelated large directories
-are disposable. A later read-only inventory found 441 C-drive legacy
-directories, totalling approximately 164.42 GiB; they remain pending until
-all active pytest processes finish and a fresh dry-run confirms the same safety
-checks before explicit cleanup.
+are disposable. Remaining artifacts stay protected until they exceed the
+24-hour retention window and a later cleanup is explicitly authorized.
