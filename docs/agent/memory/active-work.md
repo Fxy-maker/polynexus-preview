@@ -1,5 +1,28 @@
 # Active Work
 
+## SAXS melting-window status dirty-input guard - completed 2026-07-28
+
+- `classify_melting_window_status()` now reuses `_coerce_optional_float()` for
+  consumed temperature/Tm scalars and `_as_1d_float_array()` for the existing
+  temperature-window margin calculation. Invalid values follow the prior
+  unresolved/undetermined branches; clean status/reason behavior, margin
+  floors, expected-melt hints, thresholds, and publication semantics remain
+  unchanged. No interpolation, frame repair, sorting, AI/rescue, or
+  publication decision was added.
+- Focused TDD evidence: RED `4 failed, 1 passed`; GREEN `5 passed in 0.26s`.
+  Temperature matrix passed `53`; the independent exact SAXS retry passed
+  `529 passed, 6 warnings in 218.57s`. The first SAXS matrix invocation hit a
+  120-second tool timeout without a summary and is not counted.
+- Structured verifier passed with quality `287` and preprocessing `106`; the
+  targeted Ruff/compile and diff checks passed. Test-storage report/dry-run
+  found `532` artifacts, `206` eligible, and `0` removed; no `--apply` was
+  executed. No fresh full/boundary result is attributed to this slice.
+- Evidence: `docs/acceptance/2026-07-28-saxs-melting-window-status-dirty-input-guard.md`.
+- The explicit seven-file allowlist checkpoint was created and doc-only
+  amended after verification; its final hash is reported in the handoff.
+  Parallel `current-state.md`, `saxs_engine/io.py`, GUI/editor, and test-output
+  changes remain untouched.
+
 ## SAXS invariant-conservation dirty-input guard - completed 2026-07-28
 
 - `check_invariant_conservation()` now uses detached `_as_1d_float_array()`

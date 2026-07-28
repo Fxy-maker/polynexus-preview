@@ -296,7 +296,8 @@ class TempSeriesResult:
 
 
 def _temperature_window_margin(temperatures: np.ndarray) -> float:
-    finite = np.asarray([float(v) for v in np.asarray(temperatures, dtype=float) if np.isfinite(v)], dtype=float)
+    finite = _as_1d_float_array(temperatures)
+    finite = finite[np.isfinite(finite)]
     if finite.size < 2:
         return 5.0
     diffs = np.diff(np.sort(finite))
@@ -348,6 +349,11 @@ def classify_melting_window_status(
     expected_melt_C: float = np.nan,
 ) -> tuple[str, str]:
     """Classify where a frame sits relative to the sequence-derived melting window."""
+    temperature = _coerce_optional_float(temperature)
+    Tm_onset = _coerce_optional_float(Tm_onset)
+    Tm_peak = _coerce_optional_float(Tm_peak)
+    Tm_end = _coerce_optional_float(Tm_end)
+
     if not np.isfinite(temperature):
         return "undetermined", "temperature_unresolved"
 
