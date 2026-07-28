@@ -1,5 +1,20 @@
 # Active Work
 
+## Fresh native focused visual recheck - completed 2026-07-28
+
+- Current-checkout native shards passed Joint (`1 passed`), IR mapping (`1
+  passed`), and NMR solid-C (`1 passed`) using Windows Qt and D: basetemps.
+  Fresh captures are under `D:\PolyNexus_native_joint_recheck_20260730`,
+  `D:\PolyNexus_native_ir_mapping_recheck_20260730`, and
+  `D:\PolyNexus_native_nmr_solid_c_recheck_20260730`.
+- Joint identity is now visually consistent as `PA6-A` across header,
+  breadcrumb, Current task, and Review focus. IR mapping retains its explicit
+  structural/Not-confirmed boundary. NMR solid-C Editor exposes labels while
+  assignment correctness and label density remain scientific review items.
+- This does not close restarted-GUI all-mode approval, IR vendor/ROI meaning,
+  NMR solid-C assignment, Joint conflict interpretation, or final release
+  approval. Evidence: `docs/acceptance/2026-07-28-native-focused-visual-recheck.md`.
+
 ## SAXS Guinier helper dirty-input guard - completed 2026-07-28
 
 - The public low-level `guinier_analysis()` boundary now reuses the existing
