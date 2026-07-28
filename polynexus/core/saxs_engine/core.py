@@ -305,6 +305,10 @@ def scattering_invariant(
         if q_max is None:
             q_max = getattr(cfg, "q_max", None)
 
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
+
     if q_min is not None:
         mask = (q >= q_min)
     else:
@@ -1418,6 +1422,18 @@ def kratky_analysis(
     Shape reveals: folded chain (Gaussian peak), unfolded (plateau),
     compact globule (bell at low q).
     """
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
+    if q.size == 0:
+        empty = np.asarray([], dtype=float)
+        return {
+            'q': empty,
+            'kratky': empty,
+            'kratky_norm': empty,
+            'q_peak_kratky': np.nan,
+        }
+
     kratky = I * q ** 2
     # Normalize by maximum
     kratky_norm = kratky / np.max(kratky) if np.max(kratky) > 0 else kratky

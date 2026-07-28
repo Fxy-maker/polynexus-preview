@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS 1D physical-helper dirty-input guard - completed 2026-07-28
+
+- The invariant, Porod, and Kratky helper boundaries now reuse the existing
+  detached `sanitize_1d_profile()` survivors. Dirty non-finite, non-positive,
+  and unsorted pairs no longer pollute integration or method arrays; empty
+  Kratky input returns a stable empty payload instead of raising. Existing
+  windows, point gates, evidence levels, and physical semantics are unchanged.
+- TDD RED was `3 failed`; focused GREEN was `8 passed in 0.37s`; exact SAXS was
+  `484 passed, 6 warnings in 257.12s`. Final task verification exited `0` with
+  quality `287`, preprocessing `106`, Ruff, compile, type baseline, memory/task,
+  and whitespace checks passing. The first verifier attempt found only legacy
+  `E741` findings in the touched helper; the final narrow compatibility fix
+  preserved public parameter names and passed.
+- No fresh full/boundary result is attributed to this task; the separate audit
+  remains classified as a tool timeout. Task/spec/plan:
+  `docs/agent/tasks/2026-07-28-saxs-1d-method-dirty-input-guard.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-1d-method-dirty-input-guard-design.md`,
+  and `docs/superpowers/plans/2026-07-28-saxs-1d-method-dirty-input-guard.md`.
+
 ## SAXS Guinier sequence DataFrame integrity - completed 2026-07-28
 
 - The temperature `TempSeriesResult.to_dataframe()` projection now exposes
