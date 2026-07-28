@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-29-joint-real-data-lifecycle
 kind: scientific-cross-module
-status: in_progress
+status: completed
 ---
 
 # Joint real-data lifecycle acceptance
@@ -74,13 +74,11 @@ mapping conventions, NMR assignment semantics, or human scientific sign-off.
 
 ## Evidence before checkpoint
 
-- Fresh real-data lifecycle test: `1 passed, 1 warning in 14.86s`, exit code
-  `0`.
-- Focused Joint/NMR matrix: `23 passed, 2 warnings in 14.83s`, exit code `0`.
+- Fresh real-data lifecycle test: `1 passed in 23.91s`, exit code `0`.
+- Focused Joint/NMR matrix: `23 passed in 18.98s`, exit code `0`.
 - Task-scoped verifier: exit code `0`; task-card and memory checks, Ruff,
-  compile, quality (`283 passed, 2 warnings`), preprocessing (`106 passed, 2
-  warnings`), and whitespace passed. No changed type-baseline targets were
-  selected.
+  compile, quality (`287 passed`), preprocessing (`106 passed`), and
+  whitespace passed. No changed type-baseline targets were selected.
 - The final verifier used the bundled Python runtime with its `Scripts`
   directory added inside the same Python process because the desktop shell
   resets PATH for child interpreters; repository verifier code was unchanged.
@@ -90,6 +88,8 @@ mapping conventions, NMR assignment semantics, or human scientific sign-off.
 - `tests/test_joint_real_data_lifecycle.py`
 - `docs/agent/tasks/2026-07-29-joint-real-data-lifecycle.md`
 - `docs/superpowers/plans/2026-07-29-joint-real-data-lifecycle.md`
-- `docs/acceptance/2026-07-27-full-software-release-audit.md`
-- `docs/agent/memory/current-state.md`
 - `docs/agent/memory/active-work.md`
+
+The existing release-audit and `current-state.md` records already contain the
+transport evidence and are intentionally excluded from this checkpoint. The
+uncommitted `current-state.md` change is pre-existing work and is preserved.

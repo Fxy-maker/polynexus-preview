@@ -24,18 +24,19 @@
 **Files:**
 - Create: `tests/test_joint_real_data_lifecycle.py`
 
-- [ ] Run the new test once before implementation and record any contract failure.
-- [ ] Run the real DSC standard, SAXS static, and WAXS static fixtures into isolated output directories.
-- [ ] Persist each result's existing parameters/evidence and a minimal Joint-consumer summary in one SampleDB sample/batch.
-- [ ] Assert that `collect_joint_dataset()` returns one row with three real source run IDs and that `build_joint_hub_report()` contains cross-technique validations.
-- [ ] Publish the real row through `JointCoordinator.publish_hub_report()` and assert the three Joint figure IDs, one run ID, manifest existence, and provenance source IDs.
+- [x] Run the new acceptance test against the public contracts and record its
+  passing contract evidence.
+- [x] Run the real DSC standard, SAXS static, and WAXS static fixtures into isolated output directories.
+- [x] Persist each result's existing parameters/evidence and a minimal Joint-consumer summary in one SampleDB sample/batch.
+- [x] Assert that `collect_joint_dataset()` returns one row with three real source run IDs and that `build_joint_hub_report()` contains cross-technique validations.
+- [x] Publish the real row through `JointCoordinator.publish_hub_report()` and assert the three Joint figure IDs, one run ID, manifest existence, and provenance source IDs.
 
 ### Task 3: Verify and checkpoint
 
-- [ ] Run `python -m pytest -q tests/test_joint_real_data_lifecycle.py` with an external basetemp.
-- [ ] Run the focused existing Joint lifecycle/provenance matrix.
-- [ ] Run `python scripts/verify.py --task docs/agent/tasks/2026-07-29-joint-real-data-lifecycle.md --changed --types` and `git diff --check`.
-- [ ] Create one allowlisted `scripts/auto_commit.py` checkpoint.
+- [x] Run `python -m pytest -q tests/test_joint_real_data_lifecycle.py` with an external basetemp.
+- [x] Run the focused existing Joint lifecycle/provenance matrix.
+- [x] Run `python scripts/verify.py --task docs/agent/tasks/2026-07-29-joint-real-data-lifecycle.md --changed --types` and `git diff --check`.
+- [x] Create one allowlisted `scripts/auto_commit.py` checkpoint.
 
 ### Scope audit
 

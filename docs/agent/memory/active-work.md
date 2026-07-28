@@ -198,14 +198,13 @@
   `docs/agent/tasks/2026-07-29-native-all-mode-route-acceptance.md` and
   `docs/superpowers/plans/2026-07-29-native-all-mode-route-acceptance.md`.
 
-## Joint real-data transport acceptance - checkpoint pending - 2026-07-29
+## Joint real-data transport acceptance - checkpointed - 2026-07-29
 
 - Added `tests/test_joint_real_data_lifecycle.py` for real DSC standard, SAXS
   static, and WAXS static engine -> SampleDB -> Joint dataset/report -> Figure
-  Manifest transport. Fresh test: `1 passed, 1 warning in 14.86s`, exit code
-  `0`.
-- Focused Joint/NMR matrix: `23 passed, 2 warnings in 14.83s`, exit code `0`.
-  Task-scoped verifier: exit code `0`, quality `283`, preprocessing `106`,
+  Manifest transport. Fresh recheck: `1 passed in 23.91s`, exit code `0`.
+- Focused Joint/NMR matrix: `23 passed in 18.98s`, exit code `0`. Task-scoped
+  verifier: exit code `0`, quality `287`, preprocessing `106`,
   Ruff/compile/memory/task/whitespace passed; changed type baseline selected no
   targets. Scientific interpretation, conflict review, and final release
   approval remain open.
