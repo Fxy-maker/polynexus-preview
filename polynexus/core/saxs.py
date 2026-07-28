@@ -299,6 +299,12 @@ class SAXSEngine(BaseEngine):
         """Run generic validation and publish the SAXS result contract."""
         base_valid = super()._validate_results()
         publish_saxs_result_contract(self)
+        parameters = getattr(self.result, "parameters", None)
+        if isinstance(parameters, dict) and "scientific_acceptance_audit" in parameters:
+            parameters["scientific_acceptance_audit"] = build_saxs_scientific_acceptance_audit(
+                getattr(self.result, "validation_passed", None),
+                parameters,
+            )
         return bool(base_valid and self.result.validation_passed)
 
     def run_pipeline(

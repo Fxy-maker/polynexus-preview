@@ -1,5 +1,18 @@
 # Active Work
 
+## SAXS acceptance audit lifecycle consistency - completed 2026-07-28
+
+- `SAXSEngine._validate_results()` now refreshes an already-attached
+  `scientific_acceptance_audit` after the existing SAXS result contract is
+  published, so final `result.validation_passed` and audit validation agree.
+- Real PA6 temperature evidence remains conservative: final validation is
+  `False`, audit is `diagnostic_only`, and existing
+  `guinier_sequence_no_valid_frames` is retained. No physical threshold,
+  Guinier calculation, rescue, AI, publication, or static behavior changed.
+- Focused lifecycle tests passed (`2`); exact SAXS matrix passed (`439 passed,
+  6 warnings`). Task-scoped verifier and explicit allowlist checkpoint remain
+  to be finalized for this atomic task.
+
 ## SAXS temperature scientific acceptance audit - completed 2026-07-28
 
 - The existing read-only `build_saxs_scientific_acceptance_audit()` is now
@@ -12,11 +25,7 @@
 - Focused GREEN passed (`2`); exact SAXS matrix passed (`437 passed, 6
   warnings`). Structured verifier passed with quality `287`, preprocessing
   `106`, task/memory, Ruff, compile, type baseline, and whitespace green. The
-  explicit allowlist checkpoint is the remaining handoff action.
-- Known lifecycle limitation: the shared pipeline caches parameters before its
-  final validation hook, so the cached audit validation snapshot may precede the
-  final result flag. A separate lifecycle-consistency task is required if the
-  two snapshots must be refreshed together.
+  explicit allowlist checkpoint is `02cbc42`.
 
 ## Current full/boundary release recheck - automated green - 2026-07-29
 
