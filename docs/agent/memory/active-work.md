@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS Herman helper dirty-input guard - completed 2026-07-28
+
+- The public `herman_orientation_factor()` boundary now uses detached,
+  elementwise numeric angle/intensity coercion, finite-pair filtering, and
+  stable angle sorting. Finite negative intensities remain; the Herman formula,
+  angular windows, and evidence/publication semantics are unchanged.
+- TDD RED was `2 failed, 1 passed in 0.49s`; focused GREEN returned `3 passed in
+  0.18s`; the related strain/orientation matrix returned `36 passed in 0.82s`.
+  The exact SAXS matrix returned `494 passed, 6 warnings in 259.20s`, exit code
+  `0`, using `D:\PolyNexus_saxs_herman_dirty_matrix`.
+- Structured verification exited `0` with quality `287`, preprocessing `106`,
+  and task/memory, Ruff, compile/type, and whitespace checks passing. The
+  explicit allowlist checkpoint hash is reported in the handoff. Task/spec/
+  plan/acceptance:
+  `docs/agent/tasks/2026-07-28-saxs-herman-dirty-input-guard.md`,
+  `docs/superpowers/specs/2026-07-28-saxs-herman-dirty-input-guard-design.md`,
+  `docs/superpowers/plans/2026-07-28-saxs-herman-dirty-input-guard.md`, and
+  `docs/acceptance/2026-07-28-saxs-herman-dirty-input-guard.md`.
+
 ## Fresh native focused visual recheck - completed 2026-07-28
 
 - Current-checkout native shards passed Joint (`1 passed`), IR mapping (`1

@@ -28,6 +28,7 @@ from .core import (
     LongPeriodResult, StructureParams, porod_analysis,
 )
 from .saxs_quality_contracts import (
+    _as_1d_float_array,
     build_detector_quality_report,
     build_orientation_evidence,
     build_series_detector_quality_report,
@@ -274,17 +275,50 @@ def herman_orientation_factor(
     result = {'f': np.nan, 'f_sub': np.nan, 'f_eq': np.nan,
               'cos2_avg': np.nan, 'method': 'none'}
 
+    def prepare_profile(
+        intensity_values: object,
+        chi_values: object,
+        default_start: float,
+        default_end: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        if intensity_values is None:
+            return np.asarray([], dtype=float), np.asarray([], dtype=float)
+        intensity_array = _as_1d_float_array(intensity_values)
+        if chi_values is None:
+            chi_array = np.linspace(
+                default_start, default_end, intensity_array.size
+            )
+        else:
+            chi_array = _as_1d_float_array(chi_values)
+        count = min(intensity_array.size, chi_array.size)
+        if count == 0:
+            return np.asarray([], dtype=float), np.asarray([], dtype=float)
+        chi_pair = chi_array[:count].copy()
+        intensity_pair = intensity_array[:count].copy()
+        valid = np.isfinite(chi_pair) & np.isfinite(intensity_pair)
+        chi_pair = chi_pair[valid]
+        intensity_pair = intensity_pair[valid]
+        if chi_pair.size > 1 and np.any(np.diff(chi_pair) < 0):
+            order = np.argsort(chi_pair, kind="stable")
+            chi_pair = chi_pair[order]
+            intensity_pair = intensity_pair[order]
+        return intensity_pair, chi_pair
+
+    meridional_intensity, meridional_chi = prepare_profile(
+        I_meridional, chi_mer, -np.pi / 12, np.pi / 12
+    )
+    equatorial_intensity, equatorial_chi = prepare_profile(
+        I_equatorial, chi_eq, np.pi / 2 - np.pi / 12, np.pi / 2 + np.pi / 12
+    )
+
     # Meridional (along stretch) — sub-tropical region
-    if I_meridional is not None and len(I_meridional) > 5:
-        n = len(I_meridional)
-        if chi_mer is None:
-            chi_mer = np.linspace(-np.pi/12, np.pi/12, n)  # +/- 15 deg
+    if meridional_intensity.size > 5:
         
         # Filter chi to [-15, 15] degrees
-        mask = (np.abs(chi_mer) <= np.pi / 12)
+        mask = np.abs(meridional_chi) <= np.pi / 12
         if np.sum(mask) > 3:
-            chi_f = chi_mer[mask]
-            I_f = I_meridional[mask]
+            chi_f = meridional_chi[mask]
+            I_f = meridional_intensity[mask]
             
             cos2_chi = np.cos(chi_f) ** 2
             sin_abs = np.abs(np.sin(chi_f))
@@ -301,15 +335,12 @@ def herman_orientation_factor(
                 result['method'] = 'azimuthal_integral'
 
     # Equatorial (perpendicular to stretch)
-    if I_equatorial is not None and len(I_equatorial) > 5:
-        n = len(I_equatorial)
-        if chi_eq is None:
-            chi_eq = np.linspace(np.pi/2 - np.pi/12, np.pi/2 + np.pi/12, n)
+    if equatorial_intensity.size > 5:
         
-        mask = (np.abs(chi_eq - np.pi/2) <= np.pi / 12)
+        mask = np.abs(equatorial_chi - np.pi / 2) <= np.pi / 12
         if np.sum(mask) > 3:
-            chi_f = chi_eq[mask]
-            I_f = I_equatorial[mask]
+            chi_f = equatorial_chi[mask]
+            I_f = equatorial_intensity[mask]
             
             cos2_chi = np.cos(chi_f) ** 2
             sin_abs = np.abs(np.sin(chi_f))
