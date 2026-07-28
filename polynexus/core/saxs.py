@@ -1156,6 +1156,16 @@ class SAXSEngine(BaseEngine):
             experiment_type=str(getattr(self.cfg, "experiment_type", "") or ""),
         )
 
+    def _attach_scientific_acceptance_audit(
+        self,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        payload["scientific_acceptance_audit"] = build_saxs_scientific_acceptance_audit(
+            getattr(self.result, "validation_passed", None),
+            payload,
+        )
+        return payload
+
 
     def _run_temperature_pipeline(self) -> bool:
         temps_valid = [float(v) for v in self._conditions if np.isfinite(v)]
@@ -2138,14 +2148,18 @@ class SAXSEngine(BaseEngine):
                             )
                         )
                     aligned_rows.append(aligned)
-                return self._build_batch_parameters_payload(
-                    base_params,
-                    batch_params=aligned_rows,
+                return self._attach_scientific_acceptance_audit(
+                    self._build_batch_parameters_payload(
+                        base_params,
+                        batch_params=aligned_rows,
+                    )
                 )
-            return self._build_batch_parameters_payload(
-                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
-                    self,
-                    getattr(self, "result", None),
+            return self._attach_scientific_acceptance_audit(
+                self._build_batch_parameters_payload(
+                    _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                        self,
+                        getattr(self, "result", None),
+                    )
                 )
             )
         if self._analysis is not None and self._analysis.structure is not None:
@@ -2169,7 +2183,7 @@ class SAXSEngine(BaseEngine):
             if np.isfinite(sp.Q_invariant):
                 params["Q_star"] = round(float(sp.Q_invariant), 4)
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(self._analysis))
-            return params
+            return self._attach_scientific_acceptance_audit(params)
         if self._q is not None and self._I is not None:
             result = analyze_single(
                 self._q,
@@ -2195,7 +2209,7 @@ class SAXSEngine(BaseEngine):
             if sp and np.isfinite(sp.phi_c):
                 params["phi_c"] = round(float(sp.phi_c), 3)
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(result))
-            return params
+            return self._attach_scientific_acceptance_audit(params)
         return {}
 
     def export_bundle(self, output_dir: str) -> SAXSExportBundle:

@@ -1,5 +1,18 @@
 # Active Work
 
+## SAXS Static scientific acceptance audit - completed 2026-07-28
+
+- Static SAXS single-profile, aligned-batch, and batch-fallback parameter
+  payloads now expose the existing read-only `scientific_acceptance_audit`.
+  Publication flags remain `None` unless supplied by the existing publication
+  boundary, and `publication_decision_changed` remains `False`.
+- Focused TDD GREEN passed (`3`); exact SAXS matrix passed (`444 passed, 6
+  warnings`). The task-scoped verifier and explicit allowlist checkpoint are
+  recorded in `docs/acceptance/2026-07-28-saxs-static-acceptance-audit.md`.
+- No SAXS metric, physical threshold, rescue, AI, frame alignment, or
+  publication behavior changed. Scientific interpretation remains subject to
+  existing gates and human review.
+
 ## SAXS acceptance audit Guinier sequence evidence - completed 2026-07-28
 
 - The existing scientific acceptance audit now includes the existing Guinier
