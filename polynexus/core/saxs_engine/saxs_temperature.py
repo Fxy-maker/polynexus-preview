@@ -600,6 +600,11 @@ def detect_temperature_phase(
     - Bragg peak disappears → fully molten
     - Q* rises → crystallization
     """
+    Q_star = _coerce_optional_float(Q_star)
+    Q_star_solid = _coerce_optional_float(Q_star_solid)
+    L = _coerce_optional_float(L)
+    L_solid = _coerce_optional_float(L_solid)
+
     Q_norm = Q_star / Q_star_solid if Q_star_solid > 0 else 1.0
     
     if exp_type == "heating":

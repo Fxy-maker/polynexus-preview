@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS temperature-phase dirty-input guard - completed 2026-07-28
+
+- `detect_temperature_phase()` now coerces Q*, solid Q*, L, and solid L with
+  the existing `_coerce_optional_float()` policy before its unchanged phase
+  thresholds and enum branches. No phase inference, substitution,
+  interpolation, AI/rescue, or publication behavior was added.
+- TDD RED was `3 failed, 2 passed`; focused GREEN was `5 passed in 0.10s`;
+  temperature returned `53 passed`; exact SAXS returned `518 passed, 6
+  warnings in 256.45s`, exit code `0`. Task verifier without changed-file
+  lint exited `0` with Pyright `0 errors`, quality `287`, preprocessing `106`,
+  compile, whitespace, memory/task, and diff checks passing. Targeted Ruff and
+  compile for task files passed.
+- The prescribed `--changed --types` variant exited `1` only on ten unrelated
+  pre-existing Ruff findings in parallel-modified `saxs_engine/io.py`; that
+  file remains outside the task allowlist and untouched. Storage dry-run found
+  `526` artifacts, `192` eligible, `334` protected, and `0` removed. No fresh
+  full/boundary result is attributed to this slice. Evidence:
+  `docs/acceptance/2026-07-28-saxs-temperature-phase-dirty-input-guard.md`.
+
 ## SAXS melting-range dirty-input guard - completed 2026-07-28
 
 - `detect_melting_from_saxs()` now uses detached `_as_1d_float_array()` values,
