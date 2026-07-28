@@ -155,6 +155,21 @@ Run tests:
 pytest
 ```
 
+Pytest temporary files are stored outside the repository on the current project
+drive, normally under `D:\PolyNexus-test-runs`. Override this with the
+`POLYNEXUS_TEST_ROOT` environment variable, or pass an explicit
+`--basetemp <path>` for a specialized run. Review and clean stale test runs
+with the dry-run-first commands:
+
+```powershell
+python scripts/test_storage.py report --json
+python scripts/test_storage.py clean --older-than-hours 24
+python scripts/test_storage.py clean --older-than-hours 24 --apply
+```
+
+The cleanup command never removes test source, real datasets, worktrees, or
+directories referenced by a running test process.
+
 ## Notes
 
 - The repository currently contains real test data, generated outputs, and working drafts side by side with source code.
