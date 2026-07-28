@@ -868,12 +868,18 @@ def detect_melting_from_saxs(
         'melting_range_C': np.nan,
     }
 
-    valid = np.isfinite(I_peak_array) & np.isfinite(temperatures)
+    temperature_values = _as_1d_float_array(temperatures)
+    peak_intensity_values = _as_1d_float_array(I_peak_array)
+    aligned_count = min(temperature_values.size, peak_intensity_values.size)
+    temperature_values = temperature_values[:aligned_count]
+    peak_intensity_values = peak_intensity_values[:aligned_count]
+
+    valid = np.isfinite(peak_intensity_values) & np.isfinite(temperature_values)
     if np.sum(valid) < 3:
         return result
 
-    T = temperatures[valid]
-    I_pk = I_peak_array[valid]
+    T = temperature_values[valid]
+    I_pk = peak_intensity_values[valid]
     I_init = np.nanmedian(I_pk[:min(5, len(I_pk))])  # robust initial intensity
 
     if I_init <= 0:

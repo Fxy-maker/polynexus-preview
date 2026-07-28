@@ -1,5 +1,21 @@
 # Active Work
 
+## SAXS melting-range dirty-input guard - completed 2026-07-28
+
+- `detect_melting_from_saxs()` now uses detached `_as_1d_float_array()` values,
+  common-prefix alignment, and finite temperature/peak-intensity pair
+  selection before its unchanged initial-median and sustained-threshold logic.
+  The unused q* argument, finite negative intensities, physical thresholds,
+  result keys, and publication semantics remain unchanged.
+- TDD RED was `4 failed, 1 passed`; focused GREEN was `5 passed in 0.10s`;
+  temperature returned `48 passed`; exact SAXS returned `513 passed, 6
+  warnings in 238.42s`, exit code `0`. Structured verification exited `0`
+  with quality `287`, preprocessing `106`, Ruff/compile/type baseline,
+  task/memory, and whitespace passing; `git diff --check` passed.
+- Storage dry-run found `522` artifacts, `24` eligible, `498` protected, and
+  `0` removed. No full/boundary result is attributed to this slice. Evidence:
+  `docs/acceptance/2026-07-28-saxs-melting-dirty-input-guard.md`.
+
 ## SAXS Avrami temperature-series dirty-input guard - completed 2026-07-28
 
 - `avrami_from_temp_series()` now reuses `_as_1d_float_array()` for time,
