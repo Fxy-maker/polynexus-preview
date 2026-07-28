@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 
 from polynexus.core.saxs_engine.saxs_quality_contracts import (
     GuinierSequenceEvidence,
@@ -134,3 +135,41 @@ def test_sequence_evidence_source_index_length_mismatch_is_diagnostic():
     assert evidence.frame_source_indices == (7,)
     assert evidence.level is QualityLevel.DIAGNOSTIC
     assert "guinier_sequence_source_index_mismatch" in evidence.reason_codes
+
+
+def test_duplicate_source_indices_are_diagnostic_with_original_positions():
+    evidence = build_guinier_sequence_evidence(
+        [170.0, 180.0], [_frame(4.0), _frame(4.2)], source_indices=[7, 7]
+    )
+
+    assert evidence.duplicate_source_index_indices == (0, 1)
+    assert evidence.level is QualityLevel.DIAGNOSTIC
+    assert "guinier_sequence_source_index_duplicate" in evidence.reason_codes
+    assert evidence.metric.applicable is False
+    payload = json.loads(contract_json(evidence))
+    assert payload["duplicate_source_index_indices"] == [0, 1]
+
+
+@pytest.mark.parametrize("source_indices", [[-1, 2], [1.5, 2]])
+def test_invalid_source_indices_are_diagnostic_without_rewriting_values(source_indices):
+    original_source_indices = list(source_indices)
+    evidence = build_guinier_sequence_evidence(
+        [170.0, 180.0], [_frame(4.0), _frame(4.2)], source_indices=source_indices
+    )
+
+    assert source_indices == original_source_indices
+    assert evidence.invalid_source_index_indices == (0,)
+    assert evidence.level is QualityLevel.DIAGNOSTIC
+    assert "guinier_sequence_source_index_invalid" in evidence.reason_codes
+    payload = json.loads(contract_json(evidence))
+    assert payload["invalid_source_index_indices"] == [0]
+
+
+def test_reordered_source_indices_are_valid_provenance_after_temperature_sorting():
+    evidence = build_guinier_sequence_evidence(
+        [170.0, 180.0], [_frame(4.0), _frame(4.2)], source_indices=[1, 0]
+    )
+
+    assert evidence.level is QualityLevel.TREND
+    assert evidence.relative_change_stats["source_index_order_reordered"] is True
+    assert "guinier_sequence_source_index_duplicate" not in evidence.reason_codes

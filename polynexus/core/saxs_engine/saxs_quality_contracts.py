@@ -476,6 +476,9 @@ class GuinierSequenceEvidence:
     nonmonotonic_temperature_indices: tuple[int, ...] = ()
     continuity_break_indices: tuple[int, ...] = ()
     frame_source_indices: tuple[int, ...] = ()
+    duplicate_source_index_indices: tuple[int, ...] = ()
+    invalid_source_index_indices: tuple[int, ...] = ()
+    source_index_order_reordered: bool = False
     temperature_min_C: float | None = None
     temperature_max_C: float | None = None
     rg_min_nm: float | None = None
@@ -494,6 +497,9 @@ class GuinierSequenceEvidence:
         object.__setattr__(self, "nonmonotonic_temperature_indices", _int_tuple(self.nonmonotonic_temperature_indices))
         object.__setattr__(self, "continuity_break_indices", _int_tuple(self.continuity_break_indices))
         object.__setattr__(self, "frame_source_indices", _int_tuple(self.frame_source_indices))
+        object.__setattr__(self, "duplicate_source_index_indices", _int_tuple(self.duplicate_source_index_indices))
+        object.__setattr__(self, "invalid_source_index_indices", _int_tuple(self.invalid_source_index_indices))
+        object.__setattr__(self, "source_index_order_reordered", bool(self.source_index_order_reordered))
         object.__setattr__(self, "relative_change_stats", _freeze(self.relative_change_stats))
 
     def to_dict(self) -> dict[str, Any]:
@@ -510,6 +516,8 @@ class GuinierSequenceEvidence:
             "nonmonotonic_temperature_indices",
             "continuity_break_indices",
             "frame_source_indices",
+            "duplicate_source_index_indices",
+            "invalid_source_index_indices",
         ):
             data[key] = _int_tuple(data.get(key))
         data["level"] = _quality_level(data.get("level"))
@@ -1162,6 +1170,56 @@ def build_guinier_sequence_evidence(
     source_index_mapping_mismatch = (
         source_indices is not None and len(frame_source_indices) != frame_count
     )
+    raw_source_indices: list[Any] = []
+    if source_indices is not None:
+        if isinstance(source_indices, (str, bytes)):
+            raw_source_indices = [source_indices]
+        else:
+            try:
+                raw_source_indices = list(source_indices)
+            except TypeError:
+                raw_source_indices = [source_indices]
+    invalid_source_index_positions: list[int] = []
+    for position, raw_index in enumerate(raw_source_indices):
+        try:
+            numeric_index = float(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            invalid_source_index_positions.append(position)
+            continue
+        if (
+            isinstance(raw_index, (bool, np.bool_))
+            or not np.isfinite(numeric_index)
+            or numeric_index < 0
+            or not numeric_index.is_integer()
+        ):
+            invalid_source_index_positions.append(position)
+
+    duplicate_source_index_positions: list[int] = []
+    if source_indices is not None and not invalid_source_index_positions:
+        comparable_indices = list(frame_source_indices[:frame_count])
+        for position, source_index in enumerate(comparable_indices):
+            if source_index in comparable_indices[:position]:
+                duplicate_source_index_positions.append(position)
+                duplicate_source_index_positions.extend(
+                    previous
+                    for previous, previous_index in enumerate(comparable_indices[:position])
+                    if previous_index == source_index and previous not in duplicate_source_index_positions
+                )
+        duplicate_source_index_positions.sort()
+    source_index_mapping_invalid = bool(
+        source_index_mapping_mismatch
+        or invalid_source_index_positions
+        or duplicate_source_index_positions
+    )
+    source_index_order_reordered = bool(
+        source_indices is not None
+        and not source_index_mapping_invalid
+        and len(frame_source_indices) == frame_count
+        and any(
+            current < previous
+            for previous, current in zip(frame_source_indices, frame_source_indices[1:])
+        )
+    )
 
     reasons: list[str] = []
     missing_indices: list[int] = []
@@ -1180,6 +1238,10 @@ def build_guinier_sequence_evidence(
         reasons.append("guinier_sequence_length_mismatch")
     if source_index_mapping_mismatch:
         reasons.append("guinier_sequence_source_index_mismatch")
+    if duplicate_source_index_positions:
+        reasons.append("guinier_sequence_source_index_duplicate")
+    if invalid_source_index_positions:
+        reasons.append("guinier_sequence_source_index_invalid")
 
     for index in range(frame_count):
         temperature = float(temperature_arr[index]) if index < temperature_arr.size else np.nan
@@ -1263,7 +1325,7 @@ def build_guinier_sequence_evidence(
         or invalid_temperature_indices
         or duplicate_temperature_indices
         or nonmonotonic_temperature_indices
-        or source_index_mapping_mismatch
+        or source_index_mapping_invalid
     ):
         level = QualityLevel.DIAGNOSTIC
     else:
@@ -1291,6 +1353,7 @@ def build_guinier_sequence_evidence(
             if len(frame_source_indices) == frame_count
             else ()
         ),
+        "source_index_order_reordered": source_index_order_reordered,
         "local_deviation_median": _finite_or_none(baseline),
         "local_deviation_mad": _finite_or_none(mad),
         "local_deviation_threshold": _finite_or_none(threshold),
@@ -1311,7 +1374,8 @@ def build_guinier_sequence_evidence(
             "temperature_axis_valid": not bool(
                 invalid_temperature_indices or duplicate_temperature_indices or nonmonotonic_temperature_indices
             ),
-            "source_index_mapping_valid": not source_index_mapping_mismatch,
+            "source_index_mapping_valid": not source_index_mapping_invalid,
+            "source_index_order_reordered": source_index_order_reordered,
             "interpolation_used": False,
             "continuity_break_count": len(continuity_break_indices),
         },
@@ -1330,6 +1394,9 @@ def build_guinier_sequence_evidence(
         nonmonotonic_temperature_indices=tuple(nonmonotonic_temperature_indices),
         continuity_break_indices=tuple(continuity_break_indices),
         frame_source_indices=frame_source_indices,
+        duplicate_source_index_indices=tuple(sorted(set(duplicate_source_index_positions))),
+        invalid_source_index_indices=tuple(sorted(set(invalid_source_index_positions))),
+        source_index_order_reordered=source_index_order_reordered,
         temperature_min_C=float(min(temperature_values)) if temperature_values else None,
         temperature_max_C=float(max(temperature_values)) if temperature_values else None,
         rg_min_nm=float(min(rg_values)) if rg_values else None,

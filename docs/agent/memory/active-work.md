@@ -2728,6 +2728,18 @@
 
 ## In progress
 
+- SAXS Guinier source-index integrity is verified and ready for its local
+  checkpoint on 2026-07-28. Duplicate, negative, and non-integral source
+  mappings now remain explicit and force diagnostic sequence evidence; valid
+  temperature sorting such as `[1, 0]` remains Trend and records reordered
+  provenance. TDD RED was `4 failed`; the sequence/temperature propagation
+  matrix passed `25`. Structured verification passed with quality `287` and
+  preprocessing `106`; storage dry-run reported `490` artifacts, `0` eligible,
+  `490` protected, and `0` removed. The exact SAXS matrix timed out after `124`
+  seconds without a summary and is not claimed as passed. The pre-existing
+  full/boundary verifier was left untouched. See
+  `docs/agent/tasks/2026-07-28-saxs-guinier-source-index-integrity.md`.
+
 - SAXS anisotropy non-finite input fail-closed is verified and ready for its
   local checkpoint on 2026-07-28. The
   normalization boundary now rejects non-finite values in `I_2d`, `q`, `chi`,
