@@ -1,5 +1,17 @@
 # Active Work
 
+## Full-software goal requirements audit - automated evidence mapped, release gates open - 2026-07-29
+
+- A requirement-level matrix now maps shared platform, SAXS/DSC/WAXS/IR/NMR/
+  Joint modes, Manifest/Gallery/Editor/export/history, Golden, AI-off/failure/
+  fallback, full boundary, and visual/scientific gates to current evidence.
+- It confirms automated evidence but explicitly leaves restarted-GUI content
+  unverified because the session is locked, and leaves IR ROI semantics, NMR
+  solid-C assignment, Joint conflicts, and final release authorization open.
+- Evidence: `docs/agent/tasks/2026-07-29-full-goal-requirements-audit.md` and
+  `docs/acceptance/2026-07-29-full-goal-requirements-audit.md`. No data or
+  scratch cleanup was performed.
+
 ## Preprocessing Golden data audit - automated pass - 2026-07-29
 
 - Fresh D:-isolated `tests/eval/preprocess/test_preprocess_golden.py` returned
