@@ -436,6 +436,27 @@
   `docs/agent/tasks/2026-07-29-real-published-run-reacceptance.md` and
   `docs/acceptance/2026-07-29-real-published-run-reacceptance.md`.
 
+## Results Summary long-token layout - checkpointed - 2026-07-30
+
+- Results Summary and Result Review evidence labels now preserve their exact
+  source `.text()` while allowing Qt to wrap delimiter-free diagnostic tokens
+  through invisible display-only break opportunities.
+- TDD RED reproduced a `14664` px minimum width; focused layout/semantic,
+  Review-service, and Results/Persistence matrices passed `12`, `28`, and `52`
+  tests respectively.
+- Fresh native Windows Qt validation returned `17 passed, 15 warnings in
+  307.72s`, exit code `0`, with 68 captures under
+  `D:\PolyNexus_native_all_routes_long_token_wrap_20260730`.
+- The initial combined Qt command timed out at 180 seconds without a summary;
+  it is not counted as pass/fail. Split commands produced the evidence above.
+- The structured verifier returned exit code `0`, with quality `287`,
+  preprocessing `106`, Ruff, compile, type-baseline, memory/task, and whitespace
+  checks passing. The explicit allowlist checkpoint is local-only; no push,
+  merge, deploy, or data cleanup was performed.
+- Human visual/scientific/release gates remain open. Task card and acceptance:
+  `docs/agent/tasks/2026-07-30-results-summary-long-token-layout.md` and
+  `docs/acceptance/2026-07-30-results-summary-long-token-layout.md`.
+
 ## Fresh native all-mode route acceptance - checkpoint pending - 2026-07-29
 
 - Current-checkout post-Joint-fix Windows-native Qt matrix: `17 passed, 15

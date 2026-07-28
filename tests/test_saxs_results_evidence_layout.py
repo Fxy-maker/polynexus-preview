@@ -28,3 +28,23 @@ def test_long_results_evidence_uses_available_viewport_without_changing_text():
         window.close()
         window.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
+def test_long_results_evidence_breaks_delimiter_free_reason_tokens():
+    QApplication.instance() or QApplication([])
+    window = MainWindow()
+    risk_text = "Risk note | reasons=" + ("automated_validation_failed," * 40)
+    try:
+        window._set_results_summary("SAXS results", risk_text, "")
+        window.show()
+        window._results_summary_risk_label.setFixedWidth(640)
+        QApplication.processEvents()
+
+        label = window._results_summary_risk_label
+        assert label.text() == risk_text
+        assert label.minimumSizeHint().width() <= 640
+        assert label.heightForWidth(640) > label.fontMetrics().height()
+    finally:
+        window.close()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
