@@ -1,5 +1,18 @@
 # Active Work
 
+## Cross-technique AI-off/failure/fallback matrix - automated pass - 2026-07-29
+
+- Fresh focused command across `test_preprocess_cross_technique_matrix.py`,
+  `test_preprocess_ai_off_compat.py`, and `test_preprocess_fault_injection.py`
+  returned `25 passed in 0.23s`, explicit exit code `0`, with D: basetemp
+  `D:\PolyNexus_ai_fallback_matrix_20260729`.
+- This closes the deterministic safety-contract evidence only. Scientific
+  quality, calibration, IR mapping, NMR assignment, Joint conflicts,
+  restarted-GUI visuals, and release approval remain open; no data was deleted
+  or migrated. Evidence:
+  `docs/agent/tasks/2026-07-29-ai-fallback-matrix-audit.md` and
+  `docs/acceptance/2026-07-29-ai-fallback-matrix-audit.md`.
+
 ## Restarted GUI visual audit attempt - locked desktop limitation - 2026-07-29
 
 - The canonical `scripts/launch_gui.py` started a live Qt child titled
