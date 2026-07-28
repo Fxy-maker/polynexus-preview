@@ -30,14 +30,14 @@
 
 ## Fresh native all-mode route acceptance - checkpoint pending - 2026-07-29
 
-- Current-checkout Windows-native Qt matrix: `17 passed, 15 warnings in
-  312.55s`, exit code `0`; cases are DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR
+- Current-checkout post-Joint-fix Windows-native Qt matrix: `17 passed, 15
+  warnings in 358.71s`, exit code `0`; cases are DSC `3`, SAXS `3`, WAXS `3`, IR `2`, NMR
   `4`, synthetic Joint `1`, and synthetic IR mapping `1`.
-- D:-isolated captures contain 68 images (Results/Gallery/History/Editor for
-  every case), and every case exercised the no-Origin PackageExporter fallback.
+- D:-isolated post-fix captures contain 68 images (Results/Gallery/History/Editor
+  for every case), and every case exercised the no-Origin PackageExporter fallback.
 - Visual inspection confirms constructible native surfaces and live labels;
-  it also records crowded NMR solid-C labels, synthetic IR mapping, synthetic
-  Joint restore header `No project` / `No data loaded`, and SAXS diagnostic /
+  Joint now shows `PA6-A` in the project badge while retaining synthetic `No data loaded`
+  context. Crowded NMR solid-C labels, synthetic IR mapping, and SAXS diagnostic /
   validation signals. Human visual/scientific/release review remains open.
 - Task card and plan:
   `docs/agent/tasks/2026-07-29-native-all-mode-route-acceptance.md` and

@@ -47,7 +47,8 @@ code 0; warnings remain visible and are recorded rather than suppressed.
 - [x] Confirm native shell, live labels, Results, Gallery, History, and Editor
   surfaces are constructible in the fresh process.
 - [x] Confirm the NMR solid-C dense labels, synthetic IR mapping boundary, and
-  synthetic Joint restore header remain explicit review limitations.
+  Joint `PA6-A` identity with synthetic `No data loaded` context remain
+  explicit review limitations.
 - [x] Keep SAXS diagnostic/validation states visible in the evidence rather
   than treating them as scientific conclusions.
 

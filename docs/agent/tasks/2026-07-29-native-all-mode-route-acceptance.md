@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-29-native-all-mode-route-acceptance
 kind: gui-acceptance
-status: checkpointed locally
+status: completed
 ---
 
 # Native all-mode route acceptance
@@ -48,8 +48,9 @@ Editor, and the no-Origin PackageExporter route.
   PackageExporter fallback bundle for every case.
 - [x] Representative captures show constructible native Results/Gallery/
   History/Editor surfaces and live labels.
-- [x] Known limitations remain explicit: synthetic IR mapping, synthetic Joint
-  restore header, crowded NMR solid-C labels, and open scientific/release gates.
+- [x] Known limitations remain explicit: synthetic IR mapping, Joint's
+  `PA6-A` identity with `No data loaded` synthetic context, crowded NMR
+  solid-C labels, and open scientific/release gates.
 - [x] Task-scoped verifier passes; the allowlist checkpoint is the remaining
   handoff action.
 
@@ -70,20 +71,22 @@ git diff --check
 
 This is automated native route and capture evidence. It is not a human
 publication decision. The fresh images retain crowded solid-C peak labels,
-the synthetic Joint route displays `No project` / `No data loaded` in its
-restore header, and IR mapping uses an explicit synthetic payload rather than a
-vendor-native file. The SAXS temperature route retains diagnostic/validation
-signals that require scientific interpretation.
+the Joint route displays the restored `PA6-A` identity but retains synthetic
+`No data loaded` context, and IR mapping uses an explicit synthetic payload
+rather than a vendor-native file. The SAXS temperature route retains
+diagnostic/validation signals that require scientific interpretation.
 
 ## Evidence before checkpoint
 
-- Fresh native matrix: `17 passed, 15 warnings in 312.55s`, exit code `0`.
+- Fresh current-checkout native matrix: `17 passed, 15 warnings in 358.71s`,
+  exit code `0`.
 - Capture directory: 68 PNGs under
-  `D:\PolyNexus_native_all_routes_capture_20260729`, exactly four surfaces
+  `D:\PolyNexus_native_all_routes_capture_20260729_post_joint`, exactly four surfaces
   (Results/Gallery/History/Editor) for each of 17 cases.
 - Representative images were inspected for DSC Results, SAXS temperature
   Results, SAXS static Gallery, NMR solid-C Editor, IR mapping Editor, and Joint
-  Results. The observations and limitations above are preserved.
+  Results/History. Joint now shows `PA6-A` in the project badge while its
+  synthetic route still has `No data loaded` context.
 - Task-scoped verifier: exit code `0`; task/memory checks, Ruff, compile,
   quality (`283 passed, 2 warnings`), preprocessing (`106 passed, 2 warnings`),
   no changed type-baseline targets, and whitespace all passed.
