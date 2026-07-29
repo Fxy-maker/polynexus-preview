@@ -47,6 +47,14 @@ the responsible reviewer confirms the semantics.
 
 - The full software requirement audit maps all named modes and shared
   lifecycle evidence in `docs/agent/tasks/2026-07-29-full-goal-requirements-audit.md`.
+- Fresh automated recheck on the current checkout passed the Joint real-data
+  and synthetic lifecycle pair: `2 passed in 26.08s`, exit code `0`, using
+  `D:\PolyNexus_joint_real_data_audit_20260729` as the external basetemp.
+- Fresh cross-technique AI safety recheck passed the AI-off, failed-run, and
+  fallback matrix: `25 passed in 0.42s`, exit code `0`, using
+  `D:\PolyNexus_ai_safety_audit_20260729` as the external basetemp. Joint is
+  intentionally outside the single-technique preprocessing matrix because it
+  has report-level AI context rather than an independent preprocessing engine.
 - The fresh native route covers 17 cases and 68 captures. A live, unlocked
   canonical `D:\PolyNexus` session was subsequently inspected: Results and
   Result Review were visible, and Plots/History were selected through Windows
@@ -58,6 +66,11 @@ the responsible reviewer confirms the semantics.
   `assignment_limited`; no assignment truth set has been approved.
 - Joint preserves source/run provenance and reports conflicts; no scientific
   conflict precedence has been approved.
+- The current Qt window grab additionally showed Results Workbench, the
+  manifest-only Plots/Gallery empty state, and populated History controls.
+  The OS screenshot helper returned desktop wallpaper rather than the window,
+  so this is supplementary visual evidence and not a complete OS-level
+  restarted-GUI pass.
 
 ## Decision fields
 

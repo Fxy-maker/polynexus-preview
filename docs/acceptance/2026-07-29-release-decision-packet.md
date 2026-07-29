@@ -35,3 +35,19 @@ This records a live shell/workbench visual check, not an all-mode publication
 approval. The all-mode native route evidence remains the automated 17-case /
 68-capture matrix, and the IR, NMR solid-C, Joint, and final release decisions
 remain open below.
+
+## Current-checkout evidence recheck
+
+- Joint real-data transport plus the shared synthetic lifecycle passed as
+  `2 passed in 26.08s`, exit code `0`, with an external D: basetemp.
+- The cross-technique AI-off/failure/fallback matrix passed as `25 passed in
+  0.42s`, exit code `0`, with an external D: basetemp. This verifies safety
+  decisions only; it does not add Joint to the single-technique preprocessing
+  contract or establish scientific quality.
+- A Qt window capture showed the live Results Workbench, manifest-only
+  Plots/Gallery empty state, and History table/actions. The OS-level screenshot
+  helper captured desktop wallpaper instead of the application window, so the
+  visual result remains supplementary and the full restarted-GUI gate stays
+  open.
+- No reviewer record, scientific role, or release state changed during this
+  recheck.

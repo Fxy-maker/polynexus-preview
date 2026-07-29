@@ -1,5 +1,17 @@
 # Active Work
 
+## Release packet evidence recheck - awaiting human decision - 2026-07-30
+
+- Current-checkout Joint real-data plus synthetic lifecycle recheck passed
+  `2 passed in 26.08s`; cross-technique AI-off/failure/fallback recheck passed
+  `25 passed in 0.42s`, both with exit code `0` and external D: basetemps.
+- A live Qt capture showed Results, manifest-only Plots/Gallery, and History;
+  the OS screenshot helper returned wallpaper, so this remains supplementary
+  visual evidence rather than a complete restarted-GUI release pass.
+- The release packet was refreshed without changing scientific review records,
+  publication roles, or final release status. IR mapping, NMR solid-C, Joint
+  conflict policy, and final authorization remain reviewer-owned.
+
 ## Scientific review policy provenance - checkpointed - 2026-07-30
 
 - `review_decision_snapshot()` now preserves the existing record's exact
