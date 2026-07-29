@@ -11,6 +11,10 @@ from typing import Any
 import numpy as np
 
 from ..figures.contracts import FigureDefinition
+from ..scientific_review import (
+    promotion_decision,
+    review_record_from_payload,
+)
 from .figure_common import SAXSFrameView
 
 
@@ -149,6 +153,152 @@ _AI_RERUN_FIELDS = (
     "after_config_hash",
 )
 _MISSING = object()
+
+
+def _review_source_candidates(frame: SAXSFrameView) -> tuple[str, ...]:
+    """Return only already-emitted source references for one frame."""
+
+    candidates: list[str] = []
+    for value in (frame.source_path,):
+        text = str(value or "").strip()
+        if text and text not in candidates:
+            candidates.append(text)
+    report = _first_frame_value(frame, "data_quality_report")
+    if isinstance(report, Mapping):
+        for key in ("raw_data_ref", "source_id"):
+            text = str(report.get(key) or "").strip()
+            if text and text not in candidates:
+                candidates.append(text)
+    return tuple(candidates)
+
+
+def _review_frame_decision(
+    record: Any,
+    frame: SAXSFrameView,
+) -> dict[str, Any]:
+    candidates = _review_source_candidates(frame)
+    if not candidates:
+        decision = {
+            "allowed": False,
+            "reason": "source_mismatch",
+            "record_id": str(getattr(record, "record_id", "") or ""),
+            "scope": "saxs.1d",
+            "source_ref": "",
+        }
+    else:
+        decisions = [
+            promotion_decision(
+                record,
+                expected_scope="saxs.1d",
+                source_ref=source_ref,
+            )
+            for source_ref in candidates
+        ]
+        decision = next(
+            (
+                {
+                    "allowed": bool(item.allowed),
+                    "reason": str(item.reason),
+                    "record_id": str(item.record_id),
+                    "scope": str(item.scope or "saxs.1d"),
+                    "source_ref": candidates[index],
+                }
+                for index, item in enumerate(decisions)
+                if item.allowed
+            ),
+            {
+                "allowed": False,
+                "reason": str(decisions[0].reason),
+                "record_id": str(decisions[0].record_id),
+                "scope": str(decisions[0].scope or "saxs.1d"),
+                "source_ref": candidates[0],
+            },
+        )
+    decision["frame_index"] = int(frame.index)
+    decision["source_candidates"] = list(candidates)
+    return decision
+
+
+def build_saxs_1d_review_evidence(
+    review_payload: Any,
+    frames: Sequence[SAXSFrameView],
+) -> dict[str, Any]:
+    """Project an existing ``saxs.1d`` review onto all supplied frames."""
+
+    if not isinstance(review_payload, Mapping) or not review_payload:
+        return {
+            "allowed": False,
+            "reason": "review_missing",
+            "record_id": "",
+            "scope": "saxs.1d",
+            "policy_version": "",
+            "source_ref": "",
+            "source_refs": [],
+            "frame_decisions": [],
+        }
+    record = review_record_from_payload(review_payload)
+    if record is None:
+        return {
+            "allowed": False,
+            "reason": "review_missing",
+            "record_id": "",
+            "scope": "saxs.1d",
+            "policy_version": "",
+            "source_ref": "",
+            "source_refs": [],
+            "frame_decisions": [],
+        }
+
+    frame_decisions = [_review_frame_decision(record, frame) for frame in frames]
+    observed_refs = []
+    for decision in frame_decisions:
+        for source_ref in decision["source_candidates"]:
+            if source_ref not in observed_refs:
+                observed_refs.append(source_ref)
+    if not frame_decisions:
+        aggregate = promotion_decision(
+            record,
+            expected_scope="saxs.1d",
+            source_ref="",
+        )
+        reason = str(aggregate.reason)
+        allowed = False
+    else:
+        allowed = all(bool(item["allowed"]) for item in frame_decisions)
+        reason = "review_accepted" if allowed else str(
+            next(
+                item["reason"]
+                for item in frame_decisions
+                if item["reason"] != "review_accepted"
+            )
+        )
+    source_ref = (
+        frame_decisions[0]["source_ref"]
+        if len(frame_decisions) == 1
+        else ""
+    )
+    return _json_safe(
+        {
+            "allowed": allowed,
+            "reason": reason,
+            "record_id": str(record.record_id),
+            "scope": str(record.scope or "saxs.1d"),
+            "policy_version": str(record.policy_version or ""),
+            "source_ref": source_ref,
+            "source_refs": observed_refs,
+            "frame_decisions": frame_decisions,
+        }
+    )
+
+
+def configured_saxs_1d_review(source: Any) -> Any:
+    """Read the optional reviewer payload from an existing SAXS config."""
+
+    config = getattr(source, "cfg", source)
+    if not hasattr(config, "scientific_review"):
+        return None
+    payload = getattr(config, "scientific_review")
+    return payload if isinstance(payload, Mapping) else {}
 
 
 def _json_safe(value: Any) -> Any:
@@ -447,6 +597,7 @@ def build_saxs_figure_evidence(
     series: Any = None,
     ai_rescue: Mapping[str, Any] | None = None,
     acceptance_audit: Mapping[str, Any] | None = None,
+    scientific_review: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build detached provenance for existing SAXS frame/series evidence."""
 
@@ -479,6 +630,11 @@ def build_saxs_figure_evidence(
         payload["ai_rescue"] = ai_record
     if isinstance(acceptance_audit, Mapping):
         payload["scientific_acceptance_audit"] = _json_safe(acceptance_audit)
+    if isinstance(scientific_review, Mapping):
+        payload["scientific_review"] = build_saxs_1d_review_evidence(
+            scientific_review,
+            tuple(frame for frame in frames if isinstance(frame, SAXSFrameView)),
+        )
     return _json_safe(payload)
 
 
@@ -490,6 +646,7 @@ def attach_saxs_figure_evidence(
     series: Any = None,
     ai_rescue: Mapping[str, Any] | None = None,
     acceptance_audit: Mapping[str, Any] | None = None,
+    scientific_review: Mapping[str, Any] | None = None,
 ) -> tuple[FigureDefinition, ...]:
     """Merge quality provenance into recipes without changing figure roles."""
 
@@ -500,6 +657,7 @@ def attach_saxs_figure_evidence(
             series=series,
             ai_rescue=ai_rescue,
             acceptance_audit=acceptance_audit,
+            scientific_review=scientific_review,
         )
     except Exception:
         provenance = {
@@ -538,5 +696,7 @@ def existing_saxs_acceptance_audit(source: Any) -> dict[str, Any] | None:
 __all__ = [
     "attach_saxs_figure_evidence",
     "build_saxs_figure_evidence",
+    "build_saxs_1d_review_evidence",
+    "configured_saxs_1d_review",
     "existing_saxs_acceptance_audit",
 ]

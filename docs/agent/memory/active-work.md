@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS 1D reviewer evidence binding - checkpointed - 2026-07-29
+
+- Temperature SAXS Figure evidence now consumes only an explicit
+  `SAXSConfig.scientific_review` payload for the reviewer-owned `saxs.1d`
+  scope. It matches every existing frame using `source_path`,
+  `raw_data_ref`, or `source_id` and emits detached fail-closed reasons; it
+  does not change analysis, quality levels, physical gates, AI/rescue, or
+  publication roles.
+- TDD RED was `5 failed`; focused GREEN was `5 passed`, evidence/audit
+  regression was `38 passed`, and the broader review/temperature/Workbench
+  matrix was `82 passed`.
+- Fresh exact SAXS matrix passed `580 tests` with `6` known warnings in
+  `561.51s`; task verifier passed quality `290`, preprocessing `106`, Ruff,
+  compile, type baseline, memory/task, and whitespace checks.
+- Storage report/clean remained dry-run: `41` artifacts, `0` eligible bytes,
+  `0` removed. The unrelated shared full/boundary process was not used as
+  evidence and remains outside this task.
+- Task card: `docs/agent/tasks/2026-07-29-saxs-1d-review-evidence-binding.md`.
+  Static/strain/2D reviewer binding and human scientific sign-off remain
+  separate follow-up boundaries.
+
 ## Release packet evidence recheck - awaiting human decision - 2026-07-30
 
 - Current-checkout Joint real-data plus synthetic lifecycle recheck passed

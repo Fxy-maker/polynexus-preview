@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -25,7 +25,11 @@ from .figure_common import (
     _coerce_numeric_array,
     frame_views_from_engine,
 )
-from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
+from .figure_evidence import (
+    attach_saxs_figure_evidence,
+    configured_saxs_1d_review,
+    existing_saxs_acceptance_audit,
+)
 from .figure_eligibility import classify_frame_eligibility
 from .figure_selection import resolve_saxs_figure_mode
 
@@ -141,6 +145,7 @@ def _temperature_summary_fallback(
                 engine_state,
                 getattr(engine_state, "result", None),
             ),
+            scientific_review=configured_saxs_1d_review(engine_state),
         )
     except (TypeError, ValueError):
         return tuple(definitions)
@@ -184,6 +189,7 @@ def _temperature_summary_fallback(
             getattr(engine_state, "result", None),
         ),
         acceptance_audit=existing_saxs_acceptance_audit(engine_state),
+        scientific_review=configured_saxs_1d_review(engine_state),
     )
 
 
@@ -241,6 +247,7 @@ def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
                 engine_state,
                 getattr(engine_state, "result", None),
             ),
+            scientific_review=configured_saxs_1d_review(engine_state),
         )
         return _apply_publication_roles(
             engine_state,
@@ -397,6 +404,7 @@ def build_saxs_temperature_definitions(
     *,
     evidence_frames: Sequence[SAXSFrameView] = (),
     ai_rescue: object = None,
+    scientific_review: Mapping[str, Any] | None = None,
 ) -> tuple[FigureDefinition, ...]:
     """Describe SAXS temperature figures without publishing artifacts."""
 
@@ -480,6 +488,7 @@ def build_saxs_temperature_definitions(
         series=result,
         ai_rescue=ai_rescue,
         acceptance_audit=existing_saxs_acceptance_audit(result),
+        scientific_review=scientific_review,
     )
 
 

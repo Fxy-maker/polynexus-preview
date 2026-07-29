@@ -301,6 +301,11 @@ class SAXSConfig:
     # ---- Output ----
     output_dir: str = ""
 
+    # ---- Reviewer-owned scientific evidence ----
+    # Optional serialized ScientificReviewRecord payload.  Consumers must
+    # validate it through the shared fail-closed review contract.
+    scientific_review: Dict[str, Any] = field(default_factory=dict)
+
     # ---- Plotting ----
     save_figures: bool = True
     figure_format: str = "pdf"

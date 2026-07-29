@@ -22,7 +22,11 @@ from .figure_common import (
     _coerce_numeric_array,
     frame_views_from_engine,
 )
-from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
+from .figure_evidence import (
+    attach_saxs_figure_evidence,
+    configured_saxs_1d_review,
+    existing_saxs_acceptance_audit,
+)
 from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from .figure_detector import build_detector_evidence, detector_capable
 from .figure_eligibility import (
@@ -1238,6 +1242,7 @@ def build_temperature_figure_definitions(
             getattr(engine, "result", None),
         ),
         acceptance_audit=existing_saxs_acceptance_audit(engine),
+        scientific_review=configured_saxs_1d_review(engine),
     )
 
 
