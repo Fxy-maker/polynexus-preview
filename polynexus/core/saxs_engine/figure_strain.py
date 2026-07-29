@@ -21,7 +21,11 @@ from ..figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
-from .figure_common import SAXSFrameView, frame_views_from_engine
+from .figure_common import (
+    SAXSFrameView,
+    _coerce_numeric_array,
+    frame_views_from_engine,
+)
 from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
 from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from .figure_eligibility import (
@@ -272,11 +276,10 @@ def _profile_values(
     intensity: Any | None = None,
 ) -> tuple[tuple[float, ...], tuple[float, ...]]:
     try:
-        q = np.asarray(frame.q, dtype=float).reshape(-1)
-        values = np.asarray(
+        q = _coerce_numeric_array(frame.q)
+        values = _coerce_numeric_array(
             frame.intensity if intensity is None else intensity,
-            dtype=float,
-        ).reshape(-1)
+        )
     except (TypeError, ValueError):
         return (), ()
     count = min(q.size, values.size)
@@ -334,8 +337,8 @@ def _q_strain_source(
     curves: list[tuple[SAXSFrameView, np.ndarray, np.ndarray]] = []
     for frame in frames:
         try:
-            q = np.asarray(frame.q, dtype=float).reshape(-1)
-            intensity = np.asarray(frame.intensity, dtype=float).reshape(-1)
+            q = _coerce_numeric_array(frame.q)
+            intensity = _coerce_numeric_array(frame.intensity)
         except (TypeError, ValueError):
             return None, "unavailable"
         count = min(q.size, intensity.size)
@@ -1185,8 +1188,8 @@ def _analysis_trace(
     if not isinstance(payload, Mapping):
         return (), ()
     try:
-        x_values = np.asarray(payload.get(x_key, ()), dtype=float).reshape(-1)
-        y_values = np.asarray(payload.get(y_key, ()), dtype=float).reshape(-1)
+        x_values = _coerce_numeric_array(payload.get(x_key, ()))
+        y_values = _coerce_numeric_array(payload.get(y_key, ()))
     except (TypeError, ValueError):
         return (), ()
     count = min(x_values.size, y_values.size)

@@ -253,3 +253,29 @@ def test_saxs_provider_emits_strain_profiles_and_waterfall_from_loaded_frames():
     )
     for definition in definitions:
         validate_figure_definition(definition)
+
+
+def test_dirty_projection_legacy_temperature_frame_keeps_valid_pairs(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    q_values = list(q_values)
+    intensities = list(intensities)
+    q_values[0] = np.asarray(
+        ["0.1", "bad-q", "0.3", "0.4"],
+        dtype=object,
+    )
+    intensities[0] = np.asarray(
+        ["100.0", "80.0", "bad-intensity", "20.0"],
+        dtype=object,
+    )
+
+    definitions = build_saxs_temperature_definitions(
+        result,
+        q_values,
+        intensities,
+    )
+    source = definitions[0].data_sources[0]
+
+    assert source.values["q_nm1"] == (0.1, 0.4)
+    assert source.values["intensity_au"] == (100.0, 20.0)

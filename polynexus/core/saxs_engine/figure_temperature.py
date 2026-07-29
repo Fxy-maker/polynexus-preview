@@ -17,7 +17,11 @@ from ..figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
-from .figure_common import SAXSFrameView, frame_views_from_engine
+from .figure_common import (
+    SAXSFrameView,
+    _coerce_numeric_array,
+    frame_views_from_engine,
+)
 from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
 from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from .figure_eligibility import (
@@ -145,8 +149,8 @@ def _selection_recipe(
 
 def _positive_curve(frame: SAXSFrameView) -> tuple[np.ndarray, np.ndarray] | None:
     try:
-        q = np.asarray(frame.q, dtype=float).reshape(-1)
-        intensity = np.asarray(frame.intensity, dtype=float).reshape(-1)
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
     except (TypeError, ValueError):
         return None
     count = min(q.size, intensity.size)
@@ -828,8 +832,8 @@ def _mapping_curve(
     if not isinstance(payload, Mapping):
         return None
     try:
-        x = np.asarray(payload.get(x_key, ()), dtype=float).reshape(-1)
-        y = np.asarray(payload.get(y_key, ()), dtype=float).reshape(-1)
+        x = _coerce_numeric_array(payload.get(x_key, ()))
+        y = _coerce_numeric_array(payload.get(y_key, ()))
     except (TypeError, ValueError):
         return None
     count = min(x.size, y.size)

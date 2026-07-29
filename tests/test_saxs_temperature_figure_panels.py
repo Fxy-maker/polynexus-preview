@@ -120,3 +120,57 @@ def test_temperature_fallback_keeps_waterfall_and_adds_only_si_summary() -> None
         for definition in definitions
         if definition.figure_id.startswith("saxs.temperature.evidence.")
     )
+
+
+def test_dirty_projection_temperature_waterfall_keeps_valid_pairs() -> None:
+    engine = _temperature_engine()
+    engine._q_list[0] = np.asarray(
+        ["0.08", "bad-q", "0.18", "0.25"],
+        dtype=object,
+    )
+    engine._I_list[0] = np.asarray(
+        ["8.0", "6.0", "bad-intensity", "1.0"],
+        dtype=object,
+    )
+    q_before = engine._q_list[0].copy()
+    intensity_before = engine._I_list[0].copy()
+
+    definitions = build_temperature_figure_definitions(engine)
+    waterfall = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.temperature.waterfall"
+    )
+    source = next(
+        item
+        for item in waterfall.data_sources
+        if item.source_id == "saxs-temperature-waterfall-000"
+    )
+
+    assert source.values["q_nm1"] == (0.08, 0.25)
+    assert source.values["intensity_offset"] == (8.0, 1.0)
+    assert np.array_equal(engine._q_list[0], q_before)
+    assert np.array_equal(engine._I_list[0], intensity_before)
+
+
+def test_dirty_projection_temperature_trace_keeps_valid_pairs() -> None:
+    engine = _temperature_engine()
+    engine._batch_results[0].correlation = {
+        "r": np.asarray(["1.0", "bad-r", "3.0", "4.0"], dtype=object),
+        "gamma": np.asarray(["0.8", "0.5", "0.2", "bad-gamma"], dtype=object),
+    }
+
+    definitions = build_temperature_figure_definitions(engine)
+    evidence = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.temperature.evidence.000"
+    )
+    source = next(
+        item
+        for item in evidence.data_sources
+        if item.source_id == "saxs-temperature-correlation-000"
+    )
+
+    assert source.values["r_nm"] == (1.0, 3.0)
+    assert source.values["gamma"] == (0.8, 0.2)

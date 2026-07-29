@@ -18,6 +18,7 @@ from ..figures.contracts import (
 )
 from .figure_common import (
     SAXSFrameView,
+    _coerce_numeric_array,
     frame_views_from_engine,
     polish_saxs_publication_definitions,
 )
@@ -83,17 +84,6 @@ def _text_parameter(frame: SAXSFrameView, *keys: str) -> str:
     return ""
 
 
-def _elementwise_float_array(values: Any) -> np.ndarray:
-    source = np.asarray(values).reshape(-1)
-    projected = np.full(source.shape, np.nan, dtype=float)
-    for index, value in enumerate(source):
-        try:
-            projected[index] = float(value)
-        except (OverflowError, TypeError, ValueError):
-            continue
-    return projected
-
-
 def _numeric_pairs(
     x_values: Any,
     y_values: Any,
@@ -104,8 +94,8 @@ def _numeric_pairs(
     require_all_finite: bool = True,
 ) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
     try:
-        x = _elementwise_float_array(x_values)
-        y = _elementwise_float_array(y_values)
+        x = _coerce_numeric_array(x_values)
+        y = _coerce_numeric_array(y_values)
     except (TypeError, ValueError):
         return None
     if x.size != y.size or x.size < minimum:

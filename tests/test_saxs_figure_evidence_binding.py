@@ -474,3 +474,57 @@ def test_strain_binding_keeps_orientation_separate_and_survives_manifest_documen
         ]
         == "quality_evidence.json"
     )
+
+
+def test_dirty_projection_strain_keeps_profile_and_q_strain_sources() -> None:
+    engine = _strain_engine()
+    engine._q_list[0] = np.asarray(
+        ["0.1", "bad-q", "0.3", "0.4"],
+        dtype=object,
+    )
+    engine._I_list[0] = np.asarray(
+        ["2.0", "3.0", "4.0", "bad-intensity"],
+        dtype=object,
+    )
+
+    definitions = build_strain_figure_definitions(engine)
+    evolution = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.strain.evolution.1d"
+    )
+    profile = next(
+        item
+        for item in evolution.data_sources
+        if item.source_id == "representative-profile-000"
+    )
+    heatmap = next(
+        item
+        for item in evolution.data_sources
+        if item.source_id == "q-strain-heatmap"
+    )
+
+    assert profile.values["q_nm_inv"] == (0.1, 0.3)
+    assert profile.values["intensity"] == (2.0, 4.0)
+    assert len(heatmap.values["q_nm_inv"]) >= 2
+
+
+def test_dirty_projection_strain_trace_keeps_valid_pairs() -> None:
+    engine = _strain_engine()
+    engine._batch_results[0].correlation = {
+        "r": np.asarray(["1.0", "bad-r", "3.0", "4.0"], dtype=object),
+        "gamma": np.asarray(["0.8", "0.5", "0.2", "bad-gamma"], dtype=object),
+    }
+
+    definitions = build_strain_figure_definitions(engine)
+    correlation = next(
+        item for item in definitions if item.figure_id == "saxs.strain.correlation"
+    )
+    source = next(
+        item
+        for item in correlation.data_sources
+        if item.source_id == "correlation-trace-000"
+    )
+
+    assert source.values["x"] == (1.0, 3.0)
+    assert source.values["y"] == (0.8, 0.2)

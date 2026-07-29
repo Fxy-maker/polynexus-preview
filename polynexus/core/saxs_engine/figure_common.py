@@ -122,6 +122,19 @@ def polish_saxs_publication_definitions(
     return tuple(polished)
 
 
+def _coerce_numeric_array(values: Any) -> np.ndarray:
+    """Project numeric tokens elementwise without mutating the source."""
+
+    source = np.asarray(values).reshape(-1)
+    projected = np.full(source.shape, np.nan, dtype=float)
+    for index, value in enumerate(source):
+        try:
+            projected[index] = float(value)
+        except (OverflowError, TypeError, ValueError):
+            continue
+    return projected
+
+
 def _freeze_value(value: Any) -> Any:
     if isinstance(value, np.ndarray):
         frozen_array = np.array(value, copy=True)

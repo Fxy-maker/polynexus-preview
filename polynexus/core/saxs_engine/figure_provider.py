@@ -20,7 +20,11 @@ from polynexus.plotting.sci_style import AXIS_LABELS, WONG_COLORS
 from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 
 from .saxs_temperature import TempSeriesResult
-from .figure_common import SAXSFrameView, frame_views_from_engine
+from .figure_common import (
+    SAXSFrameView,
+    _coerce_numeric_array,
+    frame_views_from_engine,
+)
 from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
 from .figure_eligibility import classify_frame_eligibility
 from .figure_selection import resolve_saxs_figure_mode
@@ -1195,8 +1199,8 @@ def _clean_frame(
     intensities: np.ndarray,
     frame_index: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    q = np.ravel(np.asarray(q_values, dtype=float))
-    intensity = np.ravel(np.asarray(intensities, dtype=float))
+    q = _coerce_numeric_array(q_values)
+    intensity = _coerce_numeric_array(intensities)
     if len(q) != len(intensity):
         raise ValueError(f"temperature frame data lengths differ: {frame_index}")
     mask = np.isfinite(q) & np.isfinite(intensity) & (q > 0) & (intensity > 0)
