@@ -8,7 +8,7 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-from .figure_common import SAXSFrameView
+from .figure_common import SAXSFrameView, _coerce_numeric_array
 
 
 @dataclass(frozen=True)
@@ -133,8 +133,8 @@ def _display_q_star(frame: SAXSFrameView, long_period: float) -> float:
 
 def _intensity_features(frame: SAXSFrameView) -> tuple[float, float]:
     try:
-        q = np.asarray(frame.q, dtype=float).reshape(-1)
-        intensity = np.asarray(frame.intensity, dtype=float).reshape(-1)
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
     except (TypeError, ValueError):
         return np.nan, np.nan
 

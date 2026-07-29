@@ -1,5 +1,29 @@
 # Active Work
 
+## SAXS representative selection dirty-profile projection - checkpoint ready - 2026-07-30
+
+- `figure_selection._intensity_features()` now projects q and intensity tokens
+  elementwise through the existing numeric coercion boundary. Valid finite
+  pairs continue through the existing aligned-prefix, area, maximum, sorting,
+  and transition-feature logic; malformed tokens no longer erase the whole
+  frame's selection features.
+- No selection limits, condition ordering, manual override, frame index,
+  quality, physical, publication, AI, or rescue semantics changed.
+- TDD RED was `1 failed`; focused GREEN passed `9`. The fresh SAXS matrix passed
+  `594` tests with `6` existing warnings and exit code `0`.
+- Structured verification passed with quality `290` and preprocessing `106`;
+  task/memory, Ruff, compile, type baseline, whitespace, and `git diff --check`
+  also passed. Storage remained dry-run only (`54` artifacts,
+  `eligible_bytes=0`, `0` eligible clean bytes, `0` cleanup failures, `0`
+  removed); `test_storage.py --apply` was not run.
+- Task/acceptance/spec/plan:
+  `docs/agent/tasks/2026-07-30-saxs-representative-selection-dirty-profile.md`,
+  `docs/acceptance/2026-07-30-saxs-representative-selection-dirty-profile.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-representative-selection-dirty-profile-design.md`,
+  and `docs/superpowers/plans/2026-07-30-saxs-representative-selection-dirty-profile.md`.
+- The prior full/boundary attempt after `765bda3` remains a timeout without a
+  final summary and is not attributed to this task.
+
 ## SAXS 2D Figure malformed-token projection - checkpoint ready - 2026-07-30
 
 - Shared detector Figure projection and strain detector/azimuthal projections
