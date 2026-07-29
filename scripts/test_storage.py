@@ -74,6 +74,23 @@ class CleanupDecision:
     reason: str
 
 
+@dataclass(frozen=True)
+class CleanupFailure:
+    path: Path
+    error_type: str
+    message: str
+
+
+@dataclass(frozen=True)
+class CleanupApplyResult:
+    removed: tuple[Path, ...] = ()
+    failures: tuple[CleanupFailure, ...] = ()
+
+    @property
+    def success(self) -> bool:
+        return not self.failures
+
+
 def resolve_retention_profile(environ: Mapping[str, str] | None = None) -> str:
     """Resolve the requested run profile, failing closed to review."""
 
@@ -539,18 +556,19 @@ def tracked_paths(project_root: Path) -> list[Path]:
     return [(project_root / line).resolve() for line in completed.stdout.splitlines() if line.strip()]
 
 
-def apply_cleanup(
+def apply_cleanup_detailed(
     plan: Mapping[TestArtifact, CleanupDecision],
     *,
     apply: bool = False,
     approved_roots: Iterable[Path] | None = None,
-) -> list[Path]:
-    """Remove only eligible artifact directories when explicitly requested."""
+) -> CleanupApplyResult:
+    """Remove eligible directories independently and record deletion failures."""
 
     if not apply:
-        return []
+        return CleanupApplyResult()
     roots = [Path(root).resolve() for root in approved_roots or ()]
     removed: list[Path] = []
+    failures: list[CleanupFailure] = []
     for artifact, decision in plan.items():
         if not decision.eligible:
             continue
@@ -558,9 +576,36 @@ def apply_cleanup(
         resolved = path.resolve()
         if roots and (path.is_symlink() or not any(root == resolved or root in resolved.parents for root in roots)):
             continue
-        shutil.rmtree(path)
+        try:
+            shutil.rmtree(path)
+        except OSError as error:
+            failures.append(
+                CleanupFailure(
+                    path=artifact.path,
+                    error_type=type(error).__name__,
+                    message=str(error),
+                )
+            )
+            continue
         removed.append(artifact.path)
-    return removed
+    return CleanupApplyResult(tuple(removed), tuple(failures))
+
+
+def apply_cleanup(
+    plan: Mapping[TestArtifact, CleanupDecision],
+    *,
+    apply: bool = False,
+    approved_roots: Iterable[Path] | None = None,
+) -> list[Path]:
+    """Compatibility wrapper returning only successfully removed paths."""
+
+    return list(
+        apply_cleanup_detailed(
+            plan,
+            apply=apply,
+            approved_roots=approved_roots,
+        ).removed
+    )
 
 
 def _protected_paths(project_root: Path) -> list[Path]:
@@ -627,9 +672,11 @@ def _emit_report(
     *,
     mode: str,
     removed: Iterable[Path] = (),
+    failures: Iterable[CleanupFailure] = (),
     as_json: bool,
 ) -> None:
     removed_paths = {str(path.resolve()) for path in removed}
+    cleanup_failures = tuple(failures)
     summary = _report_summary(plan)
     if as_json:
         payload = {
@@ -653,6 +700,14 @@ def _emit_report(
                 }
                 for artifact, decision in plan.items()
             ],
+            "failures": [
+                {
+                    "path": str(failure.path),
+                    "error_type": failure.error_type,
+                    "message": failure.message,
+                }
+                for failure in cleanup_failures
+            ],
         }
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return
@@ -663,12 +718,18 @@ def _emit_report(
     print(f"Eligible: {summary['eligible_bytes']} bytes")
     print(f"By profile: {summary['by_profile']}")
     print(f"By reason: {summary['by_reason']}")
+    print(f"Cleanup failures: {len(cleanup_failures)}")
     for artifact, decision in plan.items():
         size_mb = artifact.size_bytes / (1024 * 1024)
         state = "eligible" if decision.eligible else decision.reason
         if str(artifact.path.resolve()) in removed_paths:
             state = "removed"
         print(f"- {artifact.path} [{artifact.kind}] {size_mb:.1f} MB - {state}")
+    for failure in cleanup_failures:
+        print(
+            f"! {failure.path} [{failure.error_type}] - {failure.message}",
+            file=sys.stderr,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -691,7 +752,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         project_root, plan, approved_roots = _build_plan(args)
-        removed = apply_cleanup(
+        apply_result = apply_cleanup_detailed(
             plan,
             apply=getattr(args, "apply", False),
             approved_roots=approved_roots,
@@ -700,10 +761,11 @@ def main(argv: list[str] | None = None) -> int:
             project_root,
             plan,
             mode="apply" if getattr(args, "apply", False) else "dry-run",
-            removed=removed,
+            removed=apply_result.removed,
+            failures=apply_result.failures,
             as_json=args.as_json,
         )
-        return 0
+        return 1 if apply_result.failures else 0
     except (OSError, RuntimeError, ValueError) as error:
         print(f"[test-storage] {error}", file=sys.stderr)
         return 1

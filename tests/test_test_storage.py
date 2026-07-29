@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import conftest
 import pytest
+import scripts.test_storage as test_storage
 
 from scripts.test_storage import (
     RunState,
@@ -146,6 +147,77 @@ def test_cleanup_rejects_path_outside_approved_root(tmp_path: Path):
 
     assert removed == []
     assert outside.exists()
+
+
+def test_detailed_cleanup_continues_after_one_deletion_failure(tmp_path: Path, monkeypatch):
+    locked = tmp_path / "locked"
+    removable = tmp_path / "removable"
+    locked.mkdir()
+    removable.mkdir()
+    first = TestArtifact(locked, "managed", 1, datetime.now(timezone.utc))
+    second = TestArtifact(removable, "managed", 1, datetime.now(timezone.utc))
+    plan = {
+        first: CleanupDecision(eligible=True, reason="test"),
+        second: CleanupDecision(eligible=True, reason="test"),
+    }
+    detailed = test_storage.apply_cleanup_detailed
+    original_rmtree = test_storage.shutil.rmtree
+
+    def fake_rmtree(path):
+        if Path(path) == locked:
+            raise PermissionError("locked")
+        original_rmtree(path)
+
+    monkeypatch.setattr(test_storage.shutil, "rmtree", fake_rmtree)
+    result = detailed(plan, apply=True, approved_roots=[tmp_path])
+
+    assert result.removed == (removable,)
+    assert len(result.failures) == 1
+    assert result.failures[0].path == locked
+    assert result.failures[0].error_type == "PermissionError"
+    assert not removable.exists()
+    assert locked.exists()
+
+
+def test_cli_reports_partial_apply_and_nonzero_status(tmp_path: Path, monkeypatch, capsys):
+    locked = tmp_path / "locked"
+    removable = tmp_path / "removable"
+    locked.mkdir()
+    removable.mkdir()
+    first = TestArtifact(locked, "managed", 1, datetime.now(timezone.utc))
+    second = TestArtifact(removable, "managed", 1, datetime.now(timezone.utc))
+    plan = {
+        first: CleanupDecision(eligible=True, reason="test"),
+        second: CleanupDecision(eligible=True, reason="test"),
+    }
+    monkeypatch.setattr(
+        test_storage,
+        "_build_plan",
+        lambda _args: (tmp_path, plan, [tmp_path]),
+    )
+    original_rmtree = test_storage.shutil.rmtree
+
+    def fake_rmtree(path):
+        if Path(path) == locked:
+            raise PermissionError("locked")
+        original_rmtree(path)
+
+    monkeypatch.setattr(test_storage.shutil, "rmtree", fake_rmtree)
+    exit_code = test_storage.main(
+        ["clean", "--root", str(tmp_path), "--apply", "--json"]
+    )
+
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["failures"] == [
+        {
+            "path": str(locked),
+            "error_type": "PermissionError",
+            "message": "locked",
+        }
+    ]
+    removed = next(item for item in payload["artifacts"] if item["path"] == str(removable))
+    assert removed["removed"] is True
 
 
 def test_emergency_mode_shortens_only_ephemeral_failure_deadline():
