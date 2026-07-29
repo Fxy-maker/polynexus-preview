@@ -7,6 +7,7 @@ from polynexus.gui.plot_gallery_service import (
     FIGURE_CATEGORY_SERIES_OVERVIEW,
     FIGURE_STATE_OBJECT,
     FIGURE_STATE_UNLINKED_EXPORT,
+    FigureGalleryEntry,
     build_plot_gallery_entries,
     build_active_manifest_gallery_entries,
     collect_plot_figure_paths,
@@ -284,6 +285,46 @@ def test_select_plot_gallery_entry_prefers_entry_containing_current_asset(tmp_pa
     assert selection.selected_path == str(png_path.resolve())
     assert selection.matched_preferred is True
     assert selection.emit_preview is True
+
+
+def test_select_plot_gallery_entry_skips_assetless_diagnostic_for_initial_selection(tmp_path):
+    preview = tmp_path / "ready.png"
+    preview.write_bytes(b"png")
+    empty_diagnostic = FigureGalleryEntry(
+        figure_id="failed-overview",
+        title="failed overview",
+        category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+        state="static_background",
+        preview_path="",
+        primary_path="",
+        editable_path="",
+        document_mode="",
+        asset_paths=(),
+        assets=(),
+        publication_role="diagnostic",
+        status="generation_failed",
+        display_order=0,
+    )
+    ready_entry = FigureGalleryEntry(
+        figure_id="ready-detail",
+        title="ready detail",
+        category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+        state="object_editing",
+        preview_path=str(preview.resolve()),
+        primary_path=str(preview.resolve()),
+        editable_path=str(preview.resolve()),
+        document_mode="object",
+        asset_paths=(str(preview.resolve()),),
+        assets=(),
+        publication_role="diagnostic",
+        status="ready",
+        display_order=1,
+    )
+
+    selection = select_plot_gallery_entry([empty_diagnostic, ready_entry])
+
+    assert selection.selected_figure_id == "ready-detail"
+    assert selection.selected_path == str(preview.resolve())
 
 
 def test_active_manifest_gallery_ignores_unrelated_historical_files(

@@ -382,13 +382,31 @@ def select_plot_gallery_entry(
                 emit_preview=bool(preview_visible),
             )
 
-    first = entry_list[0]
+    first = next(
+        (entry for entry in entry_list if _entry_selection_path(entry)),
+        entry_list[0],
+    )
     return PlotGallerySelection(
         selected_figure_id=first.figure_id,
-        selected_path=first.preview_path,
+        selected_path=_entry_selection_path(first),
         matched_preferred=False,
         emit_preview=bool(preview_visible),
     )
+
+
+def _entry_selection_path(entry: FigureGalleryEntry) -> str:
+    """Return the first usable asset path for Gallery selection."""
+
+    for candidate in (
+        entry.preview_path,
+        entry.primary_path,
+        entry.editable_path,
+        *entry.asset_paths,
+    ):
+        path = str(candidate or "").strip()
+        if path:
+            return path
+    return ""
 
 
 def select_plot_figure_path(
