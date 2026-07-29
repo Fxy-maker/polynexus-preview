@@ -1,5 +1,22 @@
 # Active Work
 
+## SAXS ProcessedProfile dirty-input guard - checkpointed - 2026-07-29
+
+- `ProcessedProfile` now coerces every q/intensity projection layer element by
+  element, preserves malformed positions as `NaN`, records
+  `diagnostics["invalid_numeric_values"]`, and reports `WARN` only when a
+  conversion failure is present. The SAXS payload adapter applies the same
+  behavior to q/raw; analysis algorithms, physical gates, and publication
+  roles are unchanged.
+- TDD RED reproduced `2 failed, 3 passed`; GREEN returned `5 passed`.
+  Focused Ruff and compile checks passed. The exact SAXS file matrix reached
+  the 184-second command timeout without a pytest summary and is not counted
+  as passed; its child process was confirmed gone afterward. Structured
+  verification passed and the explicit allowlist checkpoint was created; its
+  final commit hash is reported in the handoff.
+- Evidence: `docs/agent/tasks/2026-07-29-saxs-processed-profile-dirty-input-guard.md`
+  and `docs/acceptance/2026-07-29-saxs-processed-profile-dirty-input-guard.md`.
+
 ## Windows-native all-route capture retry - automated pass, science gates open - 2026-07-29
 
 - Fresh `tests/test_native_gui_real_route_capture.py` returned `17 passed, 15

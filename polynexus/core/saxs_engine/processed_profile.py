@@ -8,12 +8,25 @@ from typing import Any, Mapping
 import numpy as np
 
 
-def _array_or_none(value: Any) -> np.ndarray | None:
+def _coerce_numeric_array(value: Any) -> tuple[np.ndarray, int]:
+    source = np.asarray(value, dtype=object)
+    array = np.empty(source.shape, dtype=float)
+    invalid_count = 0
+    for index, item in np.ndenumerate(source):
+        try:
+            array[index] = float(item)
+        except (OverflowError, TypeError, ValueError):
+            array[index] = np.nan
+            invalid_count += 1
+    return array, invalid_count
+
+
+def _array_or_none(value: Any) -> tuple[np.ndarray | None, int]:
     if value is None:
-        return None
-    array = np.asarray(value, dtype=float).copy()
+        return None, 0
+    array, invalid_count = _coerce_numeric_array(value)
     array.setflags(write=False)
-    return array
+    return array, invalid_count
 
 
 @dataclass(frozen=True)
@@ -38,17 +51,31 @@ class ProcessedProfile:
     diagnostics: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        invalid_numeric_values: dict[str, int] = {}
         for name in (
             "q", "raw", "corrected", "normalized", "smoothed",
             "meridional_raw", "meridional_corrected", "meridional_normalized",
             "meridional_smoothed", "equatorial_raw", "equatorial_corrected",
             "equatorial_normalized", "equatorial_smoothed",
         ):
-            value = _array_or_none(getattr(self, name))
+            value, invalid_count = _array_or_none(getattr(self, name))
             if value is not None:
                 object.__setattr__(self, name, value)
+            if invalid_count:
+                invalid_numeric_values[name] = invalid_count
         object.__setattr__(self, "provenance", dict(self.provenance))
-        object.__setattr__(self, "diagnostics", dict(self.diagnostics))
+        diagnostics = dict(self.diagnostics)
+        if invalid_numeric_values:
+            existing_counts = diagnostics.get("invalid_numeric_values")
+            merged_counts = (
+                dict(existing_counts)
+                if isinstance(existing_counts, Mapping)
+                else {}
+            )
+            merged_counts.update(invalid_numeric_values)
+            diagnostics["invalid_numeric_values"] = merged_counts
+            object.__setattr__(self, "quality_status", "WARN")
+        object.__setattr__(self, "diagnostics", diagnostics)
 
     @property
     def analysis_intensity(self) -> np.ndarray:

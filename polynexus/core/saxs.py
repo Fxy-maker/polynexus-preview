@@ -62,7 +62,7 @@ from . import saxs_batch_helpers as _saxs_batch_helpers
 from .saxs_sequence_qa import build_sequence_qa_summary
 from .saxs_result_contract import publish_saxs_result_contract
 from .saxs_export_bundle import SAXSExportBundle, export_saxs_bundle
-from .saxs_engine.processed_profile import ProcessedProfile
+from .saxs_engine.processed_profile import ProcessedProfile, _coerce_numeric_array
 
 
 logger = logging.getLogger(__name__)
@@ -240,9 +240,18 @@ class SAXSEngine(BaseEngine):
         if q is None or raw is None:
             return None
 
-        q_array = np.atleast_1d(np.asarray(q, dtype=float))
-        raw_array = np.atleast_1d(np.asarray(raw, dtype=float))
+        q_array, q_invalid_count = _coerce_numeric_array(q)
+        raw_array, raw_invalid_count = _coerce_numeric_array(raw)
+        q_array = np.atleast_1d(q_array)
+        raw_array = np.atleast_1d(raw_array)
         diagnostics: Dict[str, Any] = {}
+        invalid_numeric_values = {
+            name: count
+            for name, count in (("q", q_invalid_count), ("raw", raw_invalid_count))
+            if count
+        }
+        if invalid_numeric_values:
+            diagnostics["invalid_numeric_values"] = invalid_numeric_values
         if len(q_array) != len(raw_array):
             diagnostics["length_mismatch"] = {
                 "q": len(q_array),
