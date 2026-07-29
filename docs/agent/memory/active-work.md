@@ -1,5 +1,17 @@
 # Active Work
 
+## User-authorized test-storage apply follow-up - partial cleanup - 2026-07-29
+
+- The explicit `python scripts/test_storage.py clean --older-than-hours 24
+  --apply` command removed two eligible C-drive legacy directories (`15,746`
+  bytes). It returned exit code `1` because six eligible repository-local
+  legacy directories were denied by Windows ACLs; no ACL bypass or manual
+  broad deletion was performed.
+- The post-apply report shows `16` discovered artifacts and `0` eligible
+  bytes. Ten external/managed entries remain protected by retention; the six
+  ACL-denied D-drive entries are zero-byte legacy directories and remain
+  present for a later authorized maintenance attempt.
+
 ## SAXS partial detector FigurePipeline rendering - verified, checkpointed - 2026-07-29
 
 - Static and temperature diagnostic detector heatmaps now opt into a narrowly
