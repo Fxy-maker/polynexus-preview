@@ -1,5 +1,20 @@
 # Active Work
 
+## SAXS export fallback dirty-provenance - checkpointed - 2026-07-29
+
+- Legacy analysis fallback profile export now has a RED regression: dirty q/raw
+  values previously produced empty cells without provenance counts. The new
+  task will merge elementwise conversion counts into a detached diagnostics map
+  and expose `WARN` only for an otherwise `OK`/unknown fallback profile.
+- TDD RED reproduced `1 failed, 12 deselected`; focused GREEN returned `2
+  passed, 11 deselected`, and the export/processed-profile consumer matrix
+  returned `18 passed`. Structured verification passed with quality `287` and
+  preprocessing `106`; exact SAXS returned `533 passed, 6 warnings` in
+  `295.48s`, exit code `0`. Storage dry-run reported `282` artifacts, `40`
+  eligible, `242` protected, and `0` removed. The explicit checkpoint was
+  created; its final commit hash is reported in the handoff.
+  Evidence: `docs/agent/tasks/2026-07-29-saxs-export-fallback-dirty-provenance.md`.
+
 ## SAXS export dirty-profile guard - checkpointed - 2026-07-29
 
 - The canonical `ProcessedProfile` now remains exportable when parallel q/I

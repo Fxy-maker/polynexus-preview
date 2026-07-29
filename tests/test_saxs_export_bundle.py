@@ -81,6 +81,31 @@ def test_dirty_profile_export_preserves_positions_and_diagnostics(tmp_path) -> N
     assert intensity.tolist() == ["10.0", "bad-i", "8.0"]
 
 
+def test_fallback_dirty_provenance_records_conversion_diagnostics(tmp_path) -> None:
+    engine = _engine()
+    q_values = np.asarray(["0.1", "bad-q", "0.3"], dtype=object)
+    intensity = np.asarray(["10.0", "bad-i", "8.0"], dtype=object)
+    engine._analysis = SimpleNamespace(
+        q=q_values,
+        I=intensity,
+        I_smooth=np.asarray([9.5, 7.5, 4.5]),
+        quality_flag="OK",
+    )
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "fallback_dirty_provenance"))
+
+    root = tmp_path / "fallback_dirty_provenance"
+    provenance = json.loads((root / "provenance.json").read_text(encoding="utf-8"))
+
+    assert bundle.status == "ok"
+    assert provenance["profiles"][0]["quality_status"] == "WARN"
+    assert provenance["profiles"][0]["diagnostics"] == {
+        "invalid_numeric_values": {"q": 1, "raw": 1}
+    }
+    assert q_values.tolist() == ["0.1", "bad-q", "0.3"]
+    assert intensity.tolist() == ["10.0", "bad-i", "8.0"]
+
+
 def test_export_saxs_bundle_defends_non_mapping_parameter_rows(tmp_path, monkeypatch) -> None:
     engine = _engine()
     engine._analysis = SimpleNamespace(final_parameters={"L_nm": 12.4})

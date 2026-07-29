@@ -353,7 +353,7 @@ def _write_profiles(
         relative = f"data/profiles/profile_{index:03d}.csv"
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        q_values, _ = _coerce_numeric_array(item["q"])
+        q_values, q_invalid_count = _coerce_numeric_array(item["q"])
         q_values = q_values.ravel()
         layers = {
             "I_raw_au": item.get("raw"),
@@ -362,12 +362,24 @@ def _write_profiles(
             "I_smooth_au": item.get("smoothed"),
         }
         arrays = {}
+        invalid_numeric_values: dict[str, int] = {}
+        if q_invalid_count:
+            invalid_numeric_values["q"] = q_invalid_count
         for key, value in layers.items():
             if value is None:
                 arrays[key] = None
                 continue
-            array, _ = _coerce_numeric_array(value)
+            array, invalid_count = _coerce_numeric_array(value)
             arrays[key] = array.ravel()
+            if invalid_count:
+                invalid_numeric_values[
+                    {
+                        "I_raw_au": "raw",
+                        "I_corrected_au": "corrected",
+                        "I_normalized_au": "normalized",
+                        "I_smooth_au": "smoothed",
+                    }[key]
+                ] = invalid_count
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=["q_nm_inv", *layers])
             writer.writeheader()
@@ -381,6 +393,21 @@ def _write_profiles(
                         row[key] = value if np.isfinite(value) else ""
                 writer.writerow(row)
         files[f"profile_{index:03d}"] = relative
+        diagnostics = dict(item.get("diagnostics", {})) if isinstance(
+            item.get("diagnostics", {}), Mapping
+        ) else {}
+        if invalid_numeric_values:
+            existing_counts = diagnostics.get("invalid_numeric_values")
+            merged_counts = (
+                dict(existing_counts)
+                if isinstance(existing_counts, Mapping)
+                else {}
+            )
+            merged_counts.update(invalid_numeric_values)
+            diagnostics["invalid_numeric_values"] = merged_counts
+        quality_status = item.get("quality_status", "unknown")
+        if invalid_numeric_values and quality_status in {None, "", "OK", "unknown"}:
+            quality_status = "WARN"
         provenance.append(
             {
                 "index": index,
@@ -397,9 +424,9 @@ def _write_profiles(
                     "available": item.get("corrected") is not None,
                     "source": "canonical.corrected",
                 },
-                "quality_status": item.get("quality_status", "unknown"),
+                "quality_status": quality_status,
                 "provenance": item.get("provenance", {}),
-                "diagnostics": item.get("diagnostics", {}),
+                "diagnostics": diagnostics,
             }
         )
     return files, provenance
