@@ -1819,6 +1819,7 @@ def build_strain_figure_definitions(
 
 def _ensure_display_order(definition: FigureDefinition) -> FigureDefinition:
     recipe = dict(definition.recipe)
+    recipe.setdefault("v2_adapter", "saxs_strain")
     parameters = dict(recipe.get("parameters", {}))
     parameters.setdefault("display_order", int(definition.display_order))
     recipe["parameters"] = parameters

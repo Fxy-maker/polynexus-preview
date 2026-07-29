@@ -502,6 +502,39 @@ def test_advanced_v2_pipeline_writes_manifest_sidecars(tmp_path) -> None:
         assert sidecar.is_file()
 
 
+def test_strain_v2_figures_are_v2_ready() -> None:
+    definitions = build_strain_figure_definitions(_strain_engine())
+
+    assert definitions
+    assert all(item.recipe["v2_adapter"] == "saxs_strain" for item in definitions)
+    assert all(
+        build_v2_definition_artifact(item).capability["v2_runtime"] == "ready"
+        for item in definitions
+    )
+
+
+def test_strain_v2_pipeline_writes_manifest_sidecar(tmp_path) -> None:
+    definition = build_strain_figure_definitions(_strain_engine())[0]
+
+    manifest = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="saxs-strain-v2",
+        technique="saxs",
+        definitions=(definition,),
+    )
+
+    entry = manifest.figures[0]
+    assert entry.status == "ready"
+    assert entry.capability_report["v2_runtime"] == "ready"
+    sidecar = (
+        tmp_path
+        / "runs"
+        / "saxs-strain-v2"
+        / entry.capability_report["v2_sidecar"]
+    )
+    assert sidecar.is_file()
+
+
 def test_strain_binding_keeps_orientation_separate_and_survives_manifest_document(
     tmp_path,
 ) -> None:
