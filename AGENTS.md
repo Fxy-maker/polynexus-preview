@@ -103,6 +103,25 @@ process is active, all externally discovered legacy test directories remain
 protected. Never put real datasets or source files under the managed
 test-storage root.
 
+New pytest runs use an explicit retention profile selected by
+`POLYNEXUS_TEST_RETENTION`:
+
+- `ephemeral` (default): successful agent-owned runs are removed immediately
+  after pytest releases them; failures and interruptions are retained for 24
+  hours.
+- `review`: passed and failed runs are retained for 7 days.
+- `evidence`: passed and failed runs are retained permanently.
+- `legacy`: existing directories without a manifest use the 24-hour janitor
+  cooldown and never receive an inferred pass/fail result.
+
+Unknown profile values fail closed to `review`. When the target volume has
+less than 10% free space, only failed or interrupted `ephemeral` runs may use
+a two-hour retention deadline; `review`, `evidence`, active, protected,
+tracked, and legacy paths keep their normal safety rules. Pytest's immediate
+cleanup is limited to the exact run directory it created and owns. The CLI
+can delete only after an explicit `clean --apply`; `report` and `clean`
+without `--apply` are non-destructive.
+
 ## 6. Superpowers integration
 
 If the current agent environment provides Superpowers skills, use:

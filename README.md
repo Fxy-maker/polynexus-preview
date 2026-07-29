@@ -174,6 +174,33 @@ datasets, worktrees, protected paths, or directories referenced by a running
 test process. Add `--legacy-root <path>` when an old test-output root needs to
 be inspected explicitly.
 
+### Test storage retention
+
+Ordinary pytest runs use the `ephemeral` profile and delete a successful
+agent-owned basetemp as soon as pytest has released it. Failed or interrupted
+ephemeral runs remain for 24 hours. Select a longer-lived profile per run when
+the output needs inspection:
+
+```powershell
+$env:POLYNEXUS_TEST_RETENTION="review"
+pytest tests/test_gui_route.py
+
+$env:POLYNEXUS_TEST_RETENTION="evidence"
+pytest tests/test_release_acceptance.py
+```
+
+`review` retains output for 7 days; `evidence` retains it permanently. Existing
+directories without a manifest are classified as `legacy`: their test result
+is never guessed from the directory name, and the janitor applies a 24-hour
+cooldown. If the target volume falls below 10% free space, only failed or
+interrupted ephemeral runs can be shortened to a two-hour deadline.
+
+The immediate deletion path is restricted to the exact run directory created
+by pytest. Scheduled deletion is always dry-run first and requires the
+explicit `--apply` flag. Do not use `--apply` for the first legacy migration
+until the concrete JSON inventory has been reviewed; source files, real data,
+worktrees, and evidence paths remain protected.
+
 ## Notes
 
 - The repository currently contains real test data, generated outputs, and working drafts side by side with source code.
