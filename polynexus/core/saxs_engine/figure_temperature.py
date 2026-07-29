@@ -692,6 +692,7 @@ def _build_evolution(
         "parameters": {
             "profile_projection_quality": dict(profile_projection_quality),
         },
+        "v2_adapter": "temperature_saxs",
     }
     return FigureDefinition(
         figure_id="saxs.temperature.evolution",
@@ -788,6 +789,7 @@ def _build_avrami(
             "avrami_projection_quality": avrami_projection_quality,
         },
         "gate": {"eligible": True, "reason": "valid_time_axis_avrami_parameters"},
+        "v2_adapter": "temperature_saxs",
     }
     return FigureDefinition(
         figure_id="saxs.temperature.avrami",
@@ -902,6 +904,7 @@ def _build_waterfall(
             "parameters": {
                 "profile_projection_quality": dict(projection_quality),
             },
+            "v2_adapter": "temperature_saxs",
         },
         style_profile="sci_default",
         display_order=100,
@@ -1172,6 +1175,7 @@ def _build_selected_evidence(
             "role_reason": (
                 "supports_main_parameter" if supports_main else "does_not_support_main_parameter"
             ),
+            "v2_adapter": "temperature_saxs",
         },
         style_profile="sci_default",
         display_order=display_order,

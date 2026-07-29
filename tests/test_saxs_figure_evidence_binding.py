@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from polynexus.core.figures.pipeline import FigurePipeline
+from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.saxs_engine.figure_evidence import (
     build_saxs_figure_evidence,
 )
@@ -443,6 +444,62 @@ def test_temperature_binding_keeps_frame_and_original_source_indices() -> None:
     assert provenance["series_record"]["guinier_sequence_evidence"][
         "frame_source_indices"
     ] == [1, 0]
+
+
+def test_advanced_v2_static_figures_are_v2_ready() -> None:
+    definitions = build_static_saxs_figure_definitions(_static_engine())
+
+    assert definitions
+    assert all(item.recipe["v2_adapter"] == "saxs_static" for item in definitions)
+    assert all(
+        build_v2_definition_artifact(item).capability["v2_runtime"] == "ready"
+        for item in definitions
+    )
+
+
+def test_advanced_v2_temperature_figures_are_v2_ready() -> None:
+    definitions = build_temperature_figure_definitions(_temperature_engine())
+
+    assert definitions
+    assert all(
+        item.recipe["v2_adapter"] == "temperature_saxs" for item in definitions
+    )
+    assert all(
+        build_v2_definition_artifact(item).capability["v2_runtime"] == "ready"
+        for item in definitions
+    )
+
+
+def test_advanced_v2_pipeline_writes_manifest_sidecars(tmp_path) -> None:
+    provider_cases = (
+        (
+            "static",
+            build_static_saxs_figure_definitions(_static_engine()),
+        ),
+        (
+            "temperature",
+            build_temperature_figure_definitions(_temperature_engine()),
+        ),
+    )
+
+    for mode, definitions in provider_cases:
+        run_id = f"saxs-advanced-v2-{mode}"
+        manifest = FigurePipeline().run(
+            output_root=tmp_path,
+            run_id=run_id,
+            technique="saxs",
+            definitions=(definitions[0],),
+        )
+        entry = manifest.figures[0]
+        assert entry.status == "ready"
+        assert entry.capability_report["v2_runtime"] == "ready"
+        sidecar = (
+            tmp_path
+            / "runs"
+            / run_id
+            / entry.capability_report["v2_sidecar"]
+        )
+        assert sidecar.is_file()
 
 
 def test_strain_binding_keeps_orientation_separate_and_survives_manifest_document(

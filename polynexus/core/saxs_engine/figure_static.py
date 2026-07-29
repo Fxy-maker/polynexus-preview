@@ -272,7 +272,7 @@ def _definition(
     height: float,
     recipe_inputs: Mapping[str, Any],
     recipe_parameters: Mapping[str, Any] | None = None,
-    v2_adapter: str = "",
+    v2_adapter: str = "saxs_static",
 ) -> FigureDefinition:
     parameters: dict[str, Any] = {
         "source": "completed_analysis",
