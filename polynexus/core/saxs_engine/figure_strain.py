@@ -691,11 +691,12 @@ def _orientation_source(
 
 def _downsample_detector(image: Any) -> _DetectorProjection | None:
     try:
-        array = np.asarray(image, dtype=float)
+        source = np.asarray(image, dtype=object)
     except (TypeError, ValueError):
         return None
-    if array.ndim != 2 or array.size == 0:
+    if source.ndim != 2 or source.size == 0:
         return None
+    array = _coerce_numeric_array(source).reshape(source.shape)
     row_count, column_count = array.shape
     row_indices = np.linspace(
         0,
@@ -1442,11 +1443,12 @@ def _azimuthal_definition(
     for ordinal, frame in enumerate(frames):
         anisotropy = getattr(frame.analysis, "anisotropy", None)
         try:
-            chi = np.asarray(getattr(anisotropy, "azimuthal_chi", ()), dtype=float).reshape(-1)
-            intensity = np.asarray(
-                getattr(anisotropy, "azimuthal_I", ()),
-                dtype=float,
-            ).reshape(-1)
+            chi = _coerce_numeric_array(
+                getattr(anisotropy, "azimuthal_chi", ())
+            )
+            intensity = _coerce_numeric_array(
+                getattr(anisotropy, "azimuthal_I", ())
+            )
         except (TypeError, ValueError):
             continue
         count = min(chi.size, intensity.size)

@@ -148,6 +148,34 @@ def test_static_detector_figure_projects_finite_pixels_and_counts(monkeypatch):
     json.dumps(definition.recipe, allow_nan=False)
 
 
+def test_static_detector_figure_projects_malformed_pixel_elementwise(monkeypatch):
+    engine = _static_engine(["static-0.edf"])
+    monkeypatch.setattr(
+        saxs_io,
+        "read_image",
+        lambda _path: (
+            np.asarray([[1.0, "bad-pixel"], [4.0, 16.0]], dtype=object),
+            {},
+        ),
+    )
+
+    definition = next(
+        item
+        for item in build_static_saxs_figure_definitions(engine)
+        if item.figure_id == "saxs.static.detector.2d"
+    )
+    source = definition.data_sources[0]
+
+    assert source.values["pixel_x"] == (0, 0, 1)
+    assert source.values["pixel_y"] == (0, 1, 1)
+    assert definition.recipe["parameters"]["detector_projection_quality"]["0"] == {
+        "sampled_pixel_count": 4,
+        "retained_pixel_count": 3,
+        "nonfinite_pixel_count": 1,
+        "status": "partial_nonfinite",
+    }
+
+
 def test_temperature_detector_figure_preserves_selected_frame_indices(monkeypatch):
     engine = _temperature_engine(
         ["temperature-0.edf", "temperature-1.edf", "temperature-2.edf"]

@@ -850,6 +850,40 @@ def test_clean_detector_projection_records_complete_provenance(monkeypatch) -> N
     }
 
 
+def test_malformed_detector_projection_keeps_finite_sampled_pixels(monkeypatch) -> None:
+    engine = _strain_engine()
+    engine._file_list = ["sample-0.edf", "sample-1.edf"]
+    image = np.asarray(
+        [[1.0, "bad-pixel", 10.0], [np.inf, 5.0, -2.0]],
+        dtype=object,
+    )
+    monkeypatch.setattr(
+        figure_strain_module,
+        "read_image",
+        lambda _path: (image, {}),
+    )
+
+    definition = next(
+        item
+        for item in build_strain_figure_definitions(engine)
+        if item.figure_id == "saxs.strain.evolution.2d"
+    )
+    detector = next(
+        item
+        for item in definition.data_sources
+        if item.source_id == "detector-image-000"
+    )
+
+    assert detector.values["pixel_x"] == (0, 2, 1, 2)
+    assert detector.values["pixel_y"] == (0, 0, 1, 1)
+    assert definition.recipe["parameters"]["detector_projection_quality"]["0"] == {
+        "sampled_pixel_count": 6,
+        "retained_pixel_count": 4,
+        "nonfinite_pixel_count": 2,
+        "status": "partial_nonfinite",
+    }
+
+
 def test_dirty_azimuthal_projection_records_pair_provenance() -> None:
     engine = _strain_engine()
     engine._file_list = ["sample-0.edf", "sample-1.edf"]
@@ -864,6 +898,32 @@ def test_dirty_azimuthal_projection_records_pair_provenance() -> None:
         if item.figure_id == "saxs.strain.azimuthal"
     )
 
+    assert definition.recipe["parameters"]["azimuthal_projection_quality"]["0"] == {
+        "input_pair_count": 3,
+        "retained_pair_count": 1,
+        "nonfinite_pair_count": 2,
+        "status": "partial_nonfinite",
+    }
+    json.dumps(definition.recipe, allow_nan=False)
+
+
+def test_malformed_azimuthal_projection_keeps_finite_pairs() -> None:
+    engine = _strain_engine()
+    engine._file_list = ["sample-0.edf", "sample-1.edf"]
+    engine._batch_results[0].anisotropy = SimpleNamespace(
+        azimuthal_chi=np.asarray([0.0, "bad-chi", 2.0], dtype=object),
+        azimuthal_I=np.asarray([1.0, 2.0, "bad-intensity"], dtype=object),
+    )
+
+    definition = next(
+        item
+        for item in build_strain_figure_definitions(engine)
+        if item.figure_id == "saxs.strain.azimuthal"
+    )
+    source = definition.data_sources[0]
+
+    assert source.values["chi_rad"] == (0.0,)
+    assert source.values["intensity"] == (1.0,)
     assert definition.recipe["parameters"]["azimuthal_projection_quality"]["0"] == {
         "input_pair_count": 3,
         "retained_pair_count": 1,

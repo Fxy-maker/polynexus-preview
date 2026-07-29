@@ -1,5 +1,31 @@
 # Active Work
 
+## SAXS 2D Figure malformed-token projection - checkpoint ready - 2026-07-30
+
+- Shared detector Figure projection and strain detector/azimuthal projections
+  now use the existing elementwise numeric coercion boundary. A malformed
+  pixel, chi, or intensity token becomes an explicit non-finite projection
+  entry; existing finite filtering retains all other pixels/pairs and keeps
+  their coordinates/order.
+- No raw analysis, anisotropy/orientation, quality level, physical metric,
+  publication role, AI/rescue, interpolation, sorting, or frame semantics
+  changed.
+- TDD RED was `3 failed, 5 passed, 33 deselected`; focused GREEN passed `41`.
+  The fresh SAXS matrix passed `593` tests with `6` existing warnings and exit
+  code `0`.
+- Structured verification passed with quality `290` and preprocessing `106`;
+  task/memory, Ruff, compile, type baseline, whitespace, and `git diff --check`
+  also passed. Storage remained dry-run only (`54` artifacts,
+  `eligible_bytes=0`, `0` eligible clean bytes, `0` cleanup failures, `0`
+  removed); `test_storage.py --apply` was not run.
+- Task/acceptance/spec/plan:
+  `docs/agent/tasks/2026-07-30-saxs-2d-figure-dirty-token-projection.md`,
+  `docs/acceptance/2026-07-30-saxs-2d-figure-dirty-token-projection.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-2d-figure-dirty-token-projection-design.md`,
+  and `docs/superpowers/plans/2026-07-30-saxs-2d-figure-dirty-token-projection.md`.
+- The latest post-`765bda3` full/boundary attempt remains a `1504.1s` timeout
+  without a final summary and is not attributed to this task.
+
 ## SAXS modern temperature Figure derived-array dirty-input guard - verified, ready for checkpoint - 2026-07-30
 
 - `_series_values()` now projects `L_array`, `lc_array`,

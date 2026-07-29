@@ -13,7 +13,7 @@ from ..figures.contracts import (
     FigureDataSourceDefinition,
 )
 from . import io as saxs_io
-from .figure_common import SAXSFrameView
+from .figure_common import SAXSFrameView, _coerce_numeric_array
 
 
 @dataclass(frozen=True)
@@ -60,11 +60,12 @@ def detector_capable(frames: Sequence[SAXSFrameView]) -> bool:
 
 def _downsample_detector(image: Any) -> DetectorProjection | None:
     try:
-        array = np.asarray(image, dtype=float)
+        source = np.asarray(image, dtype=object)
     except (TypeError, ValueError):
         return None
-    if array.ndim != 2 or array.size == 0:
+    if source.ndim != 2 or source.size == 0:
         return None
+    array = _coerce_numeric_array(source).reshape(source.shape)
 
     row_count, column_count = array.shape
     row_indices = np.linspace(0, row_count - 1, min(row_count, 256), dtype=int)
