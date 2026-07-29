@@ -1,5 +1,25 @@
 # Active Work
 
+## Full native visual reacceptance - automated acceptance complete, human gates open - 2026-07-30
+
+- Fresh current-checkout native Windows Qt selector returned `17 passed, 15
+  warnings in 443.92s (0:07:23)`, explicit exit code `0`.
+- Coverage was DSC standard/isothermal/non-isothermal; SAXS
+  static/temperature/strain; WAXS static/temperature/strain; IR
+  standard/temperature-2D; NMR liquid-H/liquid-C/solid-H/solid-C; synthetic
+  Joint; and synthetic IR mapping. Every selected route reached Results,
+  Gallery, History, Editor, and the no-Origin PackageExporter fallback.
+- Representative captures were inspected under
+  `D:\PolyNexus_full_native_visual_reacceptance_20260730_rerun`. The
+  assetless SAXS strain `generation_failed` diagnostic remains visible but is
+  skipped for initial Editor selection; IR mapping reports
+  `Review required | reason=review_missing`; NMR solid-C peak labels are dense;
+  synthetic Joint shows two errors and two warnings.
+- This is route/display evidence only. IR vendor semantics, NMR solid-C
+  assignment/Xc policy, Joint conflict policy, and final release authorization
+  remain human gates. Evidence: `docs/agent/tasks/2026-07-30-full-native-visual-reacceptance.md`
+  and `docs/acceptance/2026-07-30-full-native-visual-reacceptance.md`.
+
 ## Scientific Review native route recheck - verified, scientific gates open - 2026-07-30
 
 - Fresh current-checkout native Windows Qt selector passed `3 passed, 14
