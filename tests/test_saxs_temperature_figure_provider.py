@@ -405,3 +405,34 @@ def test_legacy_condition_axis_dirty_values_keep_frame_order():
         "SAXS Scattering - 25% strain",
     ]
     assert conditions == ["0", "bad-strain", "25"]
+
+
+def test_dirty_temperature_axis_preserves_frame_positions_and_marks_missing_condition(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    result.temperatures = np.asarray(["30", "bad-temperature"], dtype=object)
+
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+
+    assert [item.figure_id for item in definitions[:2]] == [
+        "saxs.frame.temperature.scattering.001",
+        "saxs.frame.temperature.scattering.002",
+    ]
+    assert definitions[1].title == "SAXS Scattering At Frame 2"
+    assert definitions[1].recipe["inputs"]["temperature_C"] is None
+
+    by_id = {item.figure_id: item for item in definitions}
+    parameter_values = by_id["saxs.series.temperature.parameters"].data_sources[0].values[
+        "temperature_C"
+    ]
+    heatmap_values = by_id["saxs.series.temperature.heatmap"].data_sources[0].values[
+        "temperature_C"
+    ]
+    assert parameter_values[0] == 30.0
+    assert np.isnan(parameter_values[1])
+    assert heatmap_values[:5] == (30.0,) * 5
+    assert all(np.isnan(value) for value in heatmap_values[5:])
+
+    for definition in definitions:
+        validate_figure_definition(definition)

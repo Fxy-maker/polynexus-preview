@@ -413,7 +413,7 @@ def build_saxs_temperature_definitions(
 ) -> tuple[FigureDefinition, ...]:
     """Describe SAXS temperature figures without publishing artifacts."""
 
-    temperatures = np.asarray(result.temperatures, dtype=float)
+    temperatures = _temperature_array(result.temperatures)
     if len(temperatures) != len(q_values) or len(q_values) != len(intensities):
         raise ValueError("temperature frame counts differ")
     definitions: list[FigureDefinition] = []
@@ -480,6 +480,7 @@ def build_saxs_temperature_definitions(
         definitions.extend(
             _build_temperature_summary_definitions(
                 result,
+                temperatures,
                 cleaned_frames,
                 included_indices=selected_indices,
                 publication_role=summary_role,
@@ -711,12 +712,13 @@ def _build_temperature_frame(
     intensity: np.ndarray,
 ) -> FigureDefinition:
     source_id = "scattering-data"
+    temperature_label = _temperature_label(temperature, index)
     return FigureDefinition(
         figure_id=f"saxs.frame.temperature.scattering.{index:03d}",
         technique="saxs",
         scope="frame",
         category="per_frame",
-        title=f"SAXS Scattering At {temperature:g} C",
+        title=f"SAXS Scattering At {temperature_label}",
         layout=_scattering_layout(show_legend=False),
         data_sources=(
             FigureDataSourceDefinition(
@@ -745,7 +747,7 @@ def _build_temperature_frame(
         recipe={
             "module": "polynexus.core.saxs_engine.figure_provider",
             "function": "build_saxs_temperature_definitions",
-            "inputs": {"temperature_C": temperature},
+            "inputs": {"temperature_C": _finite_float_or_none(temperature)},
             "parameters": {"frame_index": index, "figure_kind": "scattering"},
             "v2_adapter": "temperature_saxs",
         },
@@ -798,7 +800,7 @@ def _build_temperature_waterfall(
                 "id": f"series-frame-{frame_index + 1:03d}",
                 "type": "plot_series",
                 "panel_id": "main",
-                "name": f"{temperature:g} C",
+                "name": _temperature_label(temperature, frame_index + 1),
                 "data_ref": source_id,
                 "x_column": "q_nm1",
                 "y_column": "intensity_offset",
@@ -836,6 +838,7 @@ def _build_temperature_waterfall(
 
 def _build_temperature_summary_definitions(
     result: TempSeriesResult,
+    temperatures: np.ndarray,
     frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
     *,
     included_indices: Sequence[int],
@@ -845,12 +848,13 @@ def _build_temperature_summary_definitions(
     return (
         _build_temperature_parameters(
             result,
+            temperatures=temperatures,
             included_indices=included_indices,
             publication_role=publication_role,
             evidence=evidence,
         ),
         _build_temperature_heatmap(
-            np.asarray(result.temperatures, dtype=float),
+            temperatures,
             frames,
             included_indices=included_indices,
             publication_role=publication_role,
@@ -862,11 +866,16 @@ def _build_temperature_summary_definitions(
 def _build_temperature_parameters(
     result: TempSeriesResult,
     *,
+    temperatures: np.ndarray | None = None,
     included_indices: Sequence[int] | None = None,
     publication_role: str = "si",
     evidence: dict[str, object] | None = None,
 ) -> FigureDefinition:
-    all_temperatures = np.ravel(np.asarray(result.temperatures, dtype=float))
+    all_temperatures = (
+        _temperature_array(result.temperatures)
+        if temperatures is None
+        else np.asarray(temperatures, dtype=float).reshape(-1)
+    )
     count = len(all_temperatures)
     indices = tuple(range(count)) if included_indices is None else tuple(included_indices)
     temperatures = all_temperatures[list(indices)]
@@ -1285,3 +1294,22 @@ def _waterfall_indices(frame_count: int) -> tuple[int, ...]:
 
 def _float_values(values: np.ndarray) -> tuple[float, ...]:
     return tuple(float(value) for value in values)
+
+
+def _temperature_array(values: Any) -> np.ndarray:
+    projected = _coerce_numeric_array(values)
+    projected[~np.isfinite(projected)] = np.nan
+    return projected
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
+
+
+def _temperature_label(value: Any, frame_index: int) -> str:
+    number = _finite_float_or_none(value)
+    return f"{number:g} C" if number is not None else f"Frame {frame_index}"
