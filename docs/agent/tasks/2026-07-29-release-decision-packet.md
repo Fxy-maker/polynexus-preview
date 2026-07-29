@@ -47,9 +47,11 @@ the responsible reviewer confirms the semantics.
 
 - The full software requirement audit maps all named modes and shared
   lifecycle evidence in `docs/agent/tasks/2026-07-29-full-goal-requirements-audit.md`.
-- The fresh native route covers 17 cases and 68 captures, but the current
-  Windows session still exposes `LockApp`; those captures are automation and
-  structural evidence, not restarted-GUI approval.
+- The fresh native route covers 17 cases and 68 captures. A live, unlocked
+  canonical `D:\PolyNexus` session was subsequently inspected: Results and
+  Result Review were visible, and Plots/History were selected through Windows
+  UI Automation. This closes only the observed shell/workbench slice; it does
+  not replace the all-mode visual review or scientific decisions below.
 - IR mapping has structural map/ROI/provenance coverage, but no confirmed
   vendor-native coordinate convention.
 - NMR solid-C preserves complete labels and explicitly reports
@@ -108,7 +110,8 @@ the responsible reviewer confirms the semantics.
 - [x] Every remaining non-automatable gate has a named decision field.
 - [x] Existing automated evidence and its limitations are linked without
       relabeling structural evidence as scientific approval.
-- [ ] An unlocked desktop review is recorded.
+- [x] An unlocked desktop review is recorded for the canonical DSC shell,
+      Results/Result Review, Plots, and History surfaces.
 - [ ] IR mapping semantics are confirmed by the responsible reviewer.
 - [ ] NMR solid-C assignment policy is confirmed by the responsible reviewer.
 - [ ] Joint conflict interpretation is confirmed by the responsible reviewer.

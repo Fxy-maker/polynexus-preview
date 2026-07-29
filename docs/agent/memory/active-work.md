@@ -1,5 +1,19 @@
 # Active Work
 
+## Release decision packet - unlocked GUI slice rechecked - 2026-07-29
+
+- The prior locked-desktop observation is superseded for this review: the
+  canonical `D:\PolyNexus` GUI was live and responsive in the user's already
+  unlocked session.
+- Real GUI inspection covered DSC Results/Result Review, Plots, and History.
+  Plots showed the manifest-only gallery's empty state plus explicit
+  historical recovery; History showed the populated records table and
+  Restore/Rerun/Confirm/Compare actions.
+- This closes only the observed GUI shell/workbench slice. IR vendor
+  coordinate/ROI semantics, NMR solid-C assignment/Xc policy, Joint conflict
+  precedence, all-mode human visual review, and final release authorization
+  remain open. Evidence: `docs/acceptance/2026-07-29-release-decision-packet.md`.
+
 ## SAXS partial detector V2 binding - verified, checkpointed - 2026-07-29
 
 - Static and temperature diagnostic detector Figures now opt into their
