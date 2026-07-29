@@ -315,6 +315,34 @@ def _profile_values(
     return tuple(q[finite].tolist()), tuple(values[finite].tolist())
 
 
+def _profile_projection_quality(frame: SAXSFrameView) -> dict[str, Any] | None:
+    try:
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
+    except (TypeError, ValueError):
+        return None
+    count = min(q.size, intensity.size)
+    q = q[:count]
+    intensity = intensity[:count]
+    finite = np.isfinite(q) & np.isfinite(intensity)
+    retained = finite & (q > 0.0) & (intensity > 0.0)
+    finite_count = int(np.count_nonzero(finite))
+    retained_count = int(np.count_nonzero(retained))
+    nonfinite_count = int(count - finite_count)
+    nonpositive_count = int(finite_count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "nonpositive_pair_count": nonpositive_count,
+        "status": (
+            "complete"
+            if nonfinite_count == 0 and nonpositive_count == 0
+            else "partial_invalid"
+        ),
+    }
+
+
 def _engine_channel(engine: Any, frame: SAXSFrameView, attribute: str) -> Any | None:
     values = getattr(engine, attribute, ()) or ()
     if frame.index < len(values):
@@ -760,6 +788,7 @@ def _main_recipe(
     selection: RepresentativeFrameSelection,
     detector_failures: Mapping[str, str],
     detector_projection_quality: Mapping[str, Mapping[str, Any]],
+    profile_projection_quality: Mapping[str, Mapping[str, Any]],
     *,
     detector_capable: bool,
     heatmap_render_transform: str,
@@ -792,6 +821,11 @@ def _main_recipe(
             "heatmap_render_transform": heatmap_render_transform,
         },
     }
+    if not detector_capable:
+        recipe["parameters"]["profile_projection_quality"] = {
+            str(index): dict(quality)
+            for index, quality in profile_projection_quality.items()
+        }
     if detector_capable:
         recipe["selected_detector_source_paths"] = {
             str(index): frame_by_index[index].source_path
@@ -829,6 +863,7 @@ def _main_definition(
     panels: list[PanelDefinition] = []
     objects: list[dict[str, Any]] = []
     auxiliary: list[tuple[PanelDefinition, tuple[dict[str, Any], ...]]] = []
+    profile_projection_quality: dict[str, dict[str, Any]] = {}
 
     if detector_capable:
         for ordinal, item in enumerate(detector_evidence):
@@ -869,6 +904,9 @@ def _main_definition(
             )
             if source is None:
                 continue
+            quality = _profile_projection_quality(frame)
+            if quality is not None:
+                profile_projection_quality[str(frame.index)] = quality
             sources.append(source)
             profile_objects.append(
                 _series_object(
@@ -1126,6 +1164,7 @@ def _main_definition(
             selection,
             detector_failures,
             detector_projection_quality,
+            profile_projection_quality,
             detector_capable=detector_capable,
             heatmap_render_transform=heatmap_render_transform,
         ),
@@ -1144,6 +1183,7 @@ def _sequence_definition(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    profile_projection_quality: dict[str, dict[str, Any]] = {}
     for ordinal, frame in enumerate(frames):
         source = _profile_source(
             engine,
@@ -1154,6 +1194,9 @@ def _sequence_definition(
         )
         if source is None:
             continue
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            profile_projection_quality[str(frame.index)] = quality
         sources.append(source)
         objects.append(
             _series_object(
@@ -1191,6 +1234,16 @@ def _sequence_definition(
         if diagnostic
         else f"saxs.strain.sequence.{'2d' if detector_capable else '1d'}"
     )
+    parameters: dict[str, Any] = {
+        "included_frame_indices": [frame.index for frame in frames],
+        "eligibility_reasons": _eligibility_payload(frames, decisions),
+        **({"detector_images_loaded": False} if detector_capable else {}),
+    }
+    if not detector_capable:
+        parameters["profile_projection_quality"] = {
+            str(index): dict(quality)
+            for index, quality in profile_projection_quality.items()
+        }
     return FigureDefinition(
         figure_id=figure_id,
         technique="saxs",
@@ -1226,11 +1279,7 @@ def _sequence_definition(
             "module": _MODULE,
             "function": "build_strain_figure_definitions",
             "inputs": {"source_paths": [frame.source_path for frame in frames]},
-            "parameters": {
-                "included_frame_indices": [frame.index for frame in frames],
-                "eligibility_reasons": _eligibility_payload(frames, decisions),
-                **({"detector_images_loaded": False} if detector_capable else {}),
-            },
+            "parameters": parameters,
         },
         style_profile="sci_default",
         display_order=200 if diagnostic else 100,

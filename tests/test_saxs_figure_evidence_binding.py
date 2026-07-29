@@ -510,6 +510,42 @@ def test_dirty_projection_strain_keeps_profile_and_q_strain_sources() -> None:
     assert len(heatmap.values["q_nm_inv"]) >= 2
 
 
+def test_strain_profile_provenance_records_dirty_pairs_in_main_and_sequence() -> None:
+    engine = _strain_engine()
+    engine._q_list[0] = np.asarray([0.1, 0.0, np.nan, 0.4], dtype=float)
+    engine._I_list[0] = np.asarray([2.0, 3.0, 4.0, -1.0], dtype=float)
+
+    definitions = build_strain_figure_definitions(engine)
+    expected = {
+        "input_pair_count": 4,
+        "retained_pair_count": 1,
+        "nonfinite_pair_count": 1,
+        "nonpositive_pair_count": 2,
+        "status": "partial_invalid",
+    }
+
+    for figure_id in ("saxs.strain.evolution.1d", "saxs.strain.sequence.1d"):
+        definition = next(item for item in definitions if item.figure_id == figure_id)
+        assert definition.recipe["parameters"]["profile_projection_quality"]["0"] == expected
+        json.dumps(definition.recipe, allow_nan=False)
+
+
+def test_strain_profile_provenance_records_complete_pairs_in_main_and_sequence() -> None:
+    definitions = build_strain_figure_definitions(_strain_engine())
+    expected = {
+        "input_pair_count": 3,
+        "retained_pair_count": 3,
+        "nonfinite_pair_count": 0,
+        "nonpositive_pair_count": 0,
+        "status": "complete",
+    }
+
+    for figure_id in ("saxs.strain.evolution.1d", "saxs.strain.sequence.1d"):
+        definition = next(item for item in definitions if item.figure_id == figure_id)
+        assert definition.recipe["parameters"]["profile_projection_quality"]["0"] == expected
+        json.dumps(definition.recipe, allow_nan=False)
+
+
 def test_dirty_static_profile_records_pair_provenance() -> None:
     engine = _static_engine()
     engine._q_list[0] = np.asarray([0.1, np.nan, 0.3, 0.4], dtype=float)
