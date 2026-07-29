@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -151,6 +152,48 @@ def test_dirty_projection_temperature_waterfall_keeps_valid_pairs() -> None:
     assert source.values["intensity_offset"] == (8.0, 1.0)
     assert np.array_equal(engine._q_list[0], q_before)
     assert np.array_equal(engine._I_list[0], intensity_before)
+
+
+def test_dirty_temperature_profile_records_pair_provenance() -> None:
+    engine = _temperature_engine()
+    engine._q_list[0] = np.asarray([0.08, np.nan, 0.18, 0.25], dtype=float)
+    engine._I_list[0] = np.asarray([8.0, 6.0, np.inf, 1.0], dtype=float)
+
+    definitions = build_temperature_figure_definitions(engine)
+    evolution = next(
+        item for item in definitions if item.figure_id == "saxs.temperature.evolution"
+    )
+    waterfall = next(
+        item for item in definitions if item.figure_id == "saxs.temperature.waterfall"
+    )
+    expected = {
+        "input_pair_count": 4,
+        "retained_pair_count": 2,
+        "nonfinite_pair_count": 2,
+        "nonpositive_intensity_pair_count": 0,
+        "status": "partial_invalid",
+    }
+
+    assert evolution.recipe["parameters"]["profile_projection_quality"]["0"] == expected
+    assert waterfall.recipe["parameters"]["profile_projection_quality"]["0"] == expected
+    json.dumps(evolution.recipe, allow_nan=False)
+    json.dumps(waterfall.recipe, allow_nan=False)
+
+
+def test_clean_temperature_profile_records_complete_provenance() -> None:
+    definitions = build_temperature_figure_definitions(_temperature_engine())
+    expected = {
+        "input_pair_count": 4,
+        "retained_pair_count": 4,
+        "nonfinite_pair_count": 0,
+        "nonpositive_intensity_pair_count": 0,
+        "status": "complete",
+    }
+
+    for figure_id in ("saxs.temperature.evolution", "saxs.temperature.waterfall"):
+        definition = next(item for item in definitions if item.figure_id == figure_id)
+        assert definition.recipe["parameters"]["profile_projection_quality"]["0"] == expected
+        json.dumps(definition.recipe, allow_nan=False)
 
 
 def test_dirty_projection_temperature_trace_keeps_valid_pairs() -> None:

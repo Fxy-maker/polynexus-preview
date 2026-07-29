@@ -171,6 +171,34 @@ def _positive_curve(frame: SAXSFrameView) -> tuple[np.ndarray, np.ndarray] | Non
     return q, intensity
 
 
+def _profile_projection_quality(frame: SAXSFrameView) -> dict[str, Any] | None:
+    try:
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
+    except (TypeError, ValueError):
+        return None
+    count = min(q.size, intensity.size)
+    q = q[:count]
+    intensity = intensity[:count]
+    finite = np.isfinite(q) & np.isfinite(intensity)
+    retained = finite & (intensity > 0.0)
+    finite_count = int(np.count_nonzero(finite))
+    retained_count = int(np.count_nonzero(retained))
+    nonfinite_count = int(count - finite_count)
+    nonpositive_intensity_count = int(finite_count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "nonpositive_intensity_pair_count": nonpositive_intensity_count,
+        "status": (
+            "complete"
+            if nonfinite_count == 0 and nonpositive_intensity_count == 0
+            else "partial_invalid"
+        ),
+    }
+
+
 def _regular_heatmap_source(
     frames: Sequence[SAXSFrameView],
     axis: _ConditionAxis,
@@ -249,15 +277,23 @@ def _q_star_source(
 def _representative_profile_content(
     frames_by_index: Mapping[int, SAXSFrameView],
     selection: RepresentativeFrameSelection,
-) -> tuple[list[FigureDataSourceDefinition], list[dict[str, Any]]]:
+) -> tuple[
+    list[FigureDataSourceDefinition],
+    list[dict[str, Any]],
+    dict[str, dict[str, Any]],
+]:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    projection_quality: dict[str, dict[str, Any]] = {}
     colors = ("#0072B2", "#D55E00", "#009E73", "#E69F00", "#56B4E9", "#CC79A7")
     for order, index in enumerate(selection.indices):
         frame = frames_by_index[index]
         curve = _positive_curve(frame)
         if curve is None:
             continue
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            projection_quality[str(frame.index)] = quality
         source_id = f"saxs-temperature-profile-{index:03d}"
         sources.append(
             _source(
@@ -286,7 +322,7 @@ def _representative_profile_content(
                 },
             }
         )
-    return sources, objects
+    return sources, objects, projection_quality
 
 
 def _lamellar_metrics_content(
@@ -499,7 +535,7 @@ def _build_evolution(
     heatmap = _regular_heatmap_source(frames, axis)
     q_star = _q_star_source(frames, axis)
     frames_by_index = {frame.index: frame for frame in frames}
-    profile_sources, profile_objects = _representative_profile_content(
+    profile_sources, profile_objects, profile_projection_quality = _representative_profile_content(
         frames_by_index,
         selection,
     )
@@ -628,6 +664,9 @@ def _build_evolution(
             "crystallinity": crystallinity_gate,
             "avrami": dict(avrami_gate),
         },
+        "parameters": {
+            "profile_projection_quality": dict(profile_projection_quality),
+        },
     }
     return FigureDefinition(
         figure_id="saxs.temperature.evolution",
@@ -751,12 +790,16 @@ def _build_waterfall(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    projection_quality: dict[str, dict[str, Any]] = {}
     colors = ("#0072B2", "#56B4E9", "#009E73", "#E69F00", "#D55E00", "#CC79A7")
     ordered_frames = sorted(frames, key=lambda frame: (_condition_value(frame), frame.index))
     for order, frame in enumerate(ordered_frames):
         curve = _positive_curve(frame)
         if curve is None:
             continue
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            projection_quality[str(frame.index)] = quality
         source_id = f"saxs-temperature-waterfall-{frame.index:03d}"
         sources.append(
             _source(
@@ -818,6 +861,9 @@ def _build_waterfall(
             "function": "build_temperature_figure_definitions",
             **_selection_recipe(selection, axis),
             "includes_all_frames": True,
+            "parameters": {
+                "profile_projection_quality": dict(projection_quality),
+            },
         },
         style_profile="sci_default",
         display_order=100,
