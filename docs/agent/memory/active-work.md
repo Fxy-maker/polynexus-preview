@@ -1,5 +1,16 @@
 # Active Work
 
+## Shared scientific review record contract - planned - 2026-07-29
+
+- The approved scientific-release design now has an implementation plan and a
+  separate schema task for a technique-neutral, JSON-safe review record.
+- The first slice is intentionally shared-only: it validates scope/status/source
+  references and exposes a fail-closed promotion decision, without choosing IR,
+  NMR solid-C, Joint, or final release values.
+- Plan: `docs/superpowers/plans/2026-07-29-scientific-review-record-contract.md`.
+  Task: `docs/agent/tasks/2026-07-29-scientific-review-record-contract.md`.
+
+
 ## Scientific release confirmation boundaries - design recorded - 2026-07-29
 
 - User approved the high-level confirmation-table approach. The design records
