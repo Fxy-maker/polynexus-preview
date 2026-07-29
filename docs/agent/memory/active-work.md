@@ -1,5 +1,27 @@
 # Active Work
 
+## SAXS strain 1D Figure projection provenance - checkpointed - 2026-07-29
+
+- Strain evolution and ordinary/diagnostic sequence 1D Figure recipes now
+  expose detached frame-indexed q/I projection counts with strict-JSON-safe
+  `complete` or `partial_invalid` status; scientific analysis, heatmap, 2D,
+  orientation, phase, and publication behavior are unchanged.
+- Focused recheck passed `2 passed, 20 deselected`; the task verifier passed
+  with quality `287` and preprocessing `106`.
+- Checkpoint: `d9f4d6e`. Evidence:
+  `docs/agent/tasks/2026-07-29-saxs-strain-1d-figure-provenance.md`.
+
+## User-authorized test-storage apply - partial cleanup - 2026-07-30
+
+- The exact `python scripts/test_storage.py clean --older-than-hours 24
+  --apply` command ran after the process check. It removed 23 safe managed
+  entries (`499046` bytes) and returned exit code `1` because five eligible
+  repository-local legacy directories were denied by Windows ACLs.
+- Eight C-drive legacy directories remain protected because they are younger
+  than the 24-hour retention window; no ACL bypass, migration, or broad manual
+  deletion was performed. The post-apply report shows `278` artifacts and
+  `0` currently eligible bytes under the current retention/process state.
+
 ## Test-storage apply fail-soft - checkpointed - 2026-07-29
 
 - `scripts/test_storage.py` now exposes an immutable detailed apply result,
