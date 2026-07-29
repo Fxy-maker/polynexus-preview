@@ -1305,6 +1305,32 @@ def _analysis_trace(
     return tuple(x_values[:count][finite]), tuple(y_values[:count][finite])
 
 
+def _analysis_trace_projection_quality(
+    frame: SAXSFrameView,
+    attribute: str,
+    x_key: str,
+    y_key: str,
+) -> dict[str, Any] | None:
+    payload = getattr(frame.analysis, attribute, None)
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        x_values = _coerce_numeric_array(payload.get(x_key, ()))
+        y_values = _coerce_numeric_array(payload.get(y_key, ()))
+    except (TypeError, ValueError):
+        return None
+    count = min(x_values.size, y_values.size)
+    finite = np.isfinite(x_values[:count]) & np.isfinite(y_values[:count])
+    retained_count = int(np.count_nonzero(finite))
+    nonfinite_count = int(count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "status": "complete" if nonfinite_count == 0 else "partial_nonfinite",
+    }
+
+
 def _trace_definition(
     frames: Sequence[SAXSFrameView],
     decisions: Mapping[int, FigureEligibilityDecision],
@@ -1320,10 +1346,14 @@ def _trace_definition(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    trace_projection_quality: dict[str, dict[str, Any]] = {}
     for ordinal, frame in enumerate(frames):
         x_values, y_values = _analysis_trace(frame, attribute, x_key, y_key)
         if not x_values:
             continue
+        quality = _analysis_trace_projection_quality(frame, attribute, x_key, y_key)
+        if quality is not None:
+            trace_projection_quality[str(frame.index)] = quality
         source_id = f"{attribute}-trace-{frame.index:03d}"
         sources.append(
             _data_source(
@@ -1387,6 +1417,10 @@ def _trace_definition(
                     int(source.source_id.rsplit("-", 1)[1]) for source in sources
                 ],
                 "eligibility_reasons": _eligibility_payload(frames, decisions),
+                "trace_projection_quality": {
+                    str(index): dict(quality)
+                    for index, quality in trace_projection_quality.items()
+                },
             },
         },
         style_profile="sci_default",
@@ -1594,10 +1628,14 @@ def _low_q_definition(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    profile_projection_quality: dict[str, dict[str, Any]] = {}
     for ordinal, frame in enumerate(frames):
         q_values, intensity_values = _profile_values(frame)
         if len(q_values) < 3:
             continue
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            profile_projection_quality[str(frame.index)] = quality
         q_array = np.asarray(q_values)
         intensity_array = np.asarray(intensity_values)
         count = max(3, int(np.ceil(q_array.size * 0.25)))
@@ -1659,6 +1697,10 @@ def _low_q_definition(
                     int(source.source_id.rsplit("-", 1)[1]) for source in sources
                 ],
                 "eligibility_reasons": _eligibility_payload(frames, decisions),
+                "profile_projection_quality": {
+                    str(index): dict(quality)
+                    for index, quality in profile_projection_quality.items()
+                },
             },
         },
         style_profile="sci_default",

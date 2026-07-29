@@ -546,6 +546,79 @@ def test_strain_profile_provenance_records_complete_pairs_in_main_and_sequence()
         json.dumps(definition.recipe, allow_nan=False)
 
 
+def test_strain_auxiliary_provenance_records_dirty_low_q_and_traces() -> None:
+    engine = _strain_engine()
+    engine._q_list[0] = np.asarray([0.1, 0.2, 0.3, np.nan], dtype=float)
+    engine._I_list[0] = np.asarray([2.0, 4.0, 3.0, 5.0], dtype=float)
+    engine._batch_results[0].correlation = {
+        "r": np.asarray(["1.0", "bad-r", "3.0", "4.0"], dtype=object),
+        "gamma": np.asarray(["0.8", "0.5", "0.2", "bad-gamma"], dtype=object),
+    }
+    engine._batch_results[0].idf = {
+        "r_idf": np.asarray(["1.0", "bad-r", "3.0", "4.0"], dtype=object),
+        "idf": np.asarray(["0.2", "0.4", "0.3", "bad-idf"], dtype=object),
+    }
+
+    definitions = build_strain_figure_definitions(engine)
+    low_q = next(item for item in definitions if item.figure_id == "saxs.strain.low-q.diagnostic")
+    correlation = next(item for item in definitions if item.figure_id == "saxs.strain.correlation")
+    idf = next(item for item in definitions if item.figure_id == "saxs.strain.idf")
+
+    assert low_q.recipe["parameters"]["profile_projection_quality"]["0"] == {
+        "input_pair_count": 4,
+        "retained_pair_count": 3,
+        "nonfinite_pair_count": 1,
+        "nonpositive_pair_count": 0,
+        "status": "partial_invalid",
+    }
+    expected_trace = {
+        "input_pair_count": 4,
+        "retained_pair_count": 2,
+        "nonfinite_pair_count": 2,
+        "status": "partial_nonfinite",
+    }
+    assert correlation.recipe["parameters"]["trace_projection_quality"]["0"] == expected_trace
+    assert idf.recipe["parameters"]["trace_projection_quality"]["0"] == expected_trace
+    for definition in (low_q, correlation, idf):
+        json.dumps(definition.recipe, allow_nan=False)
+
+
+def test_strain_auxiliary_provenance_records_complete_low_q_and_traces() -> None:
+    engine = _strain_engine()
+    engine._q_list[0] = np.asarray([0.1, 0.2, 0.3, 0.4], dtype=float)
+    engine._I_list[0] = np.asarray([2.0, 4.0, 3.0, 1.0], dtype=float)
+    engine._batch_results[0].correlation = {
+        "r": np.asarray([1.0, 2.0, 3.0]),
+        "gamma": np.asarray([0.8, 0.5, 0.2]),
+    }
+    engine._batch_results[0].idf = {
+        "r_idf": np.asarray([1.0, 2.0, 3.0]),
+        "idf": np.asarray([0.2, 0.4, 0.3]),
+    }
+
+    definitions = build_strain_figure_definitions(engine)
+    low_q = next(item for item in definitions if item.figure_id == "saxs.strain.low-q.diagnostic")
+    expected_profile = {
+        "input_pair_count": 4,
+        "retained_pair_count": 4,
+        "nonfinite_pair_count": 0,
+        "nonpositive_pair_count": 0,
+        "status": "complete",
+    }
+    expected_trace = {
+        "input_pair_count": 3,
+        "retained_pair_count": 3,
+        "nonfinite_pair_count": 0,
+        "status": "complete",
+    }
+    assert low_q.recipe["parameters"]["profile_projection_quality"]["0"] == expected_profile
+    for figure_id in ("saxs.strain.correlation", "saxs.strain.idf"):
+        definition = next(item for item in definitions if item.figure_id == figure_id)
+        assert definition.recipe["parameters"]["trace_projection_quality"]["0"] == expected_trace
+        json.dumps(definition.recipe, allow_nan=False)
+    json.dumps(low_q.recipe, allow_nan=False)
+
+
 def test_dirty_static_profile_records_pair_provenance() -> None:
     engine = _static_engine()
     engine._q_list[0] = np.asarray([0.1, np.nan, 0.3, 0.4], dtype=float)
