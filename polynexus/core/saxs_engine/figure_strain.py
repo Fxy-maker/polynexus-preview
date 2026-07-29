@@ -636,7 +636,7 @@ def _downsample_detector(image: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray
         array = np.asarray(image, dtype=float)
     except (TypeError, ValueError):
         return None
-    if array.ndim != 2 or array.size == 0 or not np.all(np.isfinite(array)):
+    if array.ndim != 2 or array.size == 0:
         return None
     row_count, column_count = array.shape
     row_indices = np.linspace(
@@ -652,9 +652,17 @@ def _downsample_detector(image: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray
         dtype=int,
     )
     sampled = array[np.ix_(row_indices, column_indices)]
-    positive = np.clip(sampled, np.finfo(float).tiny, None)
     x_grid, y_grid = np.meshgrid(column_indices, row_indices)
-    return x_grid.reshape(-1), y_grid.reshape(-1), np.log10(positive).reshape(-1)
+    finite = np.isfinite(sampled).reshape(-1)
+    if not np.any(finite):
+        return None
+    sampled_values = sampled.reshape(-1)[finite]
+    positive = np.clip(sampled_values, np.finfo(float).tiny, None)
+    return (
+        x_grid.reshape(-1)[finite],
+        y_grid.reshape(-1)[finite],
+        np.log10(positive),
+    )
 
 
 def _detector_evidence(

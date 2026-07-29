@@ -9,6 +9,7 @@ from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.saxs_engine.figure_evidence import (
     build_saxs_figure_evidence,
 )
+import polynexus.core.saxs_engine.figure_strain as figure_strain_module
 from polynexus.core.saxs_engine.figure_static import (
     build_static_saxs_figure_definitions,
 )
@@ -528,3 +529,34 @@ def test_dirty_projection_strain_trace_keeps_valid_pairs() -> None:
 
     assert source.values["x"] == (1.0, 3.0)
     assert source.values["y"] == (0.8, 0.2)
+
+
+def test_dirty_detector_projection_keeps_finite_sampled_pixels(monkeypatch) -> None:
+    engine = _strain_engine()
+    engine._file_list = ["sample-0.edf", "sample-1.edf"]
+    image = np.asarray(
+        [[1.0, np.nan, 10.0], [np.inf, 5.0, -2.0]],
+        dtype=float,
+    )
+    monkeypatch.setattr(
+        figure_strain_module,
+        "read_image",
+        lambda _path: (image, {}),
+    )
+
+    definitions = build_strain_figure_definitions(engine)
+    evolution = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.strain.evolution.2d"
+    )
+    detector = next(
+        item
+        for item in evolution.data_sources
+        if item.source_id == "detector-image-000"
+    )
+
+    assert detector.values["pixel_x"] == (0, 2, 1, 2)
+    assert detector.values["pixel_y"] == (0, 0, 1, 1)
+    assert all(np.isfinite(detector.values["log_intensity"]))
+    assert len(detector.values["log_intensity"]) == 4
