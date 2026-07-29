@@ -9,6 +9,7 @@ import numpy as np
 
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.saxs_engine.config import SAXSConfig
+from polynexus.core.saxs_engine.processed_profile import ProcessedProfile
 import polynexus.core.saxs_export_bundle as export_module
 from polynexus.core.saxs_export_bundle import export_saxs_bundle
 
@@ -48,6 +49,36 @@ def test_export_saxs_bundle_writes_reproducible_core_artifacts(tmp_path) -> None
     assert (root / "provenance.json").exists()
     assert list((root / "data" / "profiles").glob("*.csv"))
     assert json.loads((root / "config_snapshot.json").read_text())["q_min"] == 0.12
+
+
+def test_dirty_profile_export_preserves_positions_and_diagnostics(tmp_path) -> None:
+    engine = _engine()
+    q_values = np.asarray(["0.1", "bad-q", "0.3"], dtype=object)
+    intensity = np.asarray(["10.0", "bad-i", "8.0"], dtype=object)
+    profile = ProcessedProfile(q=q_values, raw=intensity)
+    engine._q_list = [q_values]
+    engine._I_list = [intensity]
+    engine._processed_list = [profile]
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "dirty_profile_export"))
+
+    root = tmp_path / "dirty_profile_export"
+    assert bundle.status == "ok"
+    with (root / "data" / "profiles" / "profile_000.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+    provenance = json.loads((root / "provenance.json").read_text(encoding="utf-8"))
+
+    assert len(rows) == 3
+    assert rows[1]["q_nm_inv"] == ""
+    assert rows[1]["I_raw_au"] == ""
+    assert provenance["profiles"][0]["quality_status"] == "WARN"
+    assert provenance["profiles"][0]["diagnostics"] == {
+        "invalid_numeric_values": {"q": 1, "raw": 1}
+    }
+    assert q_values.tolist() == ["0.1", "bad-q", "0.3"]
+    assert intensity.tolist() == ["10.0", "bad-i", "8.0"]
 
 
 def test_export_saxs_bundle_defends_non_mapping_parameter_rows(tmp_path, monkeypatch) -> None:

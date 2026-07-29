@@ -18,6 +18,7 @@ from .saxs_batch_helpers import (
     build_static_batch_metric_evidence,
 )
 from .saxs_config_binding import saxs_config_snapshot
+from .saxs_engine.processed_profile import _coerce_numeric_array
 
 
 @dataclass(frozen=True)
@@ -282,6 +283,8 @@ def _profile_items(engine: Any) -> list[dict[str, Any]]:
     if q_list and intensity_list:
         for index, (q_values, intensity) in enumerate(zip(q_list, intensity_list)):
             profile = processed[index] if index < len(processed) else None
+            if profile is not None:
+                q_values = getattr(profile, "q", q_values)
             items.append(
                 {
                     "index": index,
@@ -350,17 +353,21 @@ def _write_profiles(
         relative = f"data/profiles/profile_{index:03d}.csv"
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        q_values = np.asarray(item["q"], dtype=float).ravel()
+        q_values, _ = _coerce_numeric_array(item["q"])
+        q_values = q_values.ravel()
         layers = {
             "I_raw_au": item.get("raw"),
             "I_corrected_au": item.get("corrected"),
             "I_normalized_au": item.get("normalized"),
             "I_smooth_au": item.get("smoothed"),
         }
-        arrays = {
-            key: (np.asarray(value, dtype=float).ravel() if value is not None else None)
-            for key, value in layers.items()
-        }
+        arrays = {}
+        for key, value in layers.items():
+            if value is None:
+                arrays[key] = None
+                continue
+            array, _ = _coerce_numeric_array(value)
+            arrays[key] = array.ravel()
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=["q_nm_inv", *layers])
             writer.writeheader()

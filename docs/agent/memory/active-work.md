@@ -1,5 +1,25 @@
 # Active Work
 
+## SAXS export dirty-profile guard - checkpointed - 2026-07-29
+
+- The canonical `ProcessedProfile` now remains exportable when parallel q/I
+  lists contain malformed tokens: bundle profile export prefers canonical q and
+  uses the existing elementwise coercion fallback for CSV layers. Invalid
+  positions remain empty cells and profile `WARN`/diagnostics stay in
+  `provenance.json`; no analysis or publication semantics changed.
+- TDD RED reproduced `1 failed, 11 deselected`; focused GREEN returned `1
+  passed, 11 deselected`, and the export/processed-profile consumer matrix
+  returned `17 passed`. Structured verification passed with quality `287` and
+  preprocessing `106`. Fresh real SAXS published-run replay returned `3
+  passed, 12 deselected in 81.40s` with exit code `0`; it covered static,
+  temperature, and strain lifecycle transport after the export change. The
+  replay remains transport evidence only.
+  The exact SAXS matrix timed out after `304s` without a
+  summary; storage dry-run reported `572` artifacts, `42` eligible, `530`
+  protected, and `0` removed. The explicit checkpoint was created; its final
+  commit hash is reported in the handoff.
+  Evidence: `docs/agent/tasks/2026-07-29-saxs-export-dirty-profile-guard.md`.
+
 ## SAXS ProcessedProfile dirty-input guard - checkpointed - 2026-07-29
 
 - `ProcessedProfile` now coerces every q/intensity projection layer element by
