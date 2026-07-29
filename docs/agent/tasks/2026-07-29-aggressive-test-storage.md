@@ -1,6 +1,6 @@
 ---
 kind: task
-status: in_progress
+status: completed
 date: 2026-07-29
 title: Automate aggressive pytest test-storage lifecycle
 ---
@@ -71,9 +71,9 @@ interrupted `ephemeral` runs may use a two-hour deadline.
   and outside-approved-root paths.
 - [x] CLI JSON and human reports include manifest metadata plus total bytes,
   eligible bytes, and profile/reason summaries.
-- [ ] Documentation and task checks pass.
-- [ ] The full storage matrix and repository verifier pass.
-- [ ] A real legacy inventory is recorded in dry-run mode without deletion.
+- [x] Documentation and task checks pass.
+- [x] The full storage matrix and repository verifier pass.
+- [x] A real legacy inventory is recorded in dry-run mode without deletion.
 
 ## Verification
 
@@ -116,3 +116,17 @@ artifacts. They must remain outside the atomic checkpoint.
 - `6d7290c`: pytest lifecycle registration and owned ephemeral cleanup.
 - `6ed7700`: safety gates, emergency pressure, and interruption reconciliation.
 - `a305d37`: discovery, profile-aware cleanup, approved roots, and reports.
+
+## Verification evidence
+
+- Storage regression: `26 passed, 1 skipped in 1.32s`.
+- Task check: valid task card, exit code `0`.
+- Structured verifier: exit code `0`; memory check passed, Ruff and compile
+  passed, quality gate `287 passed`, preprocessing gate `106 passed`, and
+  whitespace check passed.
+- Legacy report dry-run: `350` artifacts, `34,812,315,097` total bytes,
+  `19,128,640,281` eligible bytes before active-process revalidation.
+- Legacy clean dry-run: `350` artifacts, `34,812,315,097` total bytes,
+  `19,128,640,281` eligible bytes, `49` eligible artifacts, `9` active-process
+  references, and `removed: []`.
+- No `--apply` cleanup, migration, move, push, merge, or deployment was run.
