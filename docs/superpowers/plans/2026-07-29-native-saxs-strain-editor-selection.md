@@ -62,7 +62,7 @@
   `1 passed, 16 deselected`, plus a generated
   `saxs_strain_editor.png` capture.
 
-- [ ] **Step 2: Run the focused Gallery/editor matrix and changed-file verifier**
+- [x] **Step 2: Run the focused Gallery/editor matrix and changed-file verifier**
 
   Run:
 
@@ -72,8 +72,16 @@
   git diff --check
   ```
 
-- [ ] **Step 3: Create an explicit allowlist checkpoint**
+  The split focused matrix passed (`29` Gallery/FigureWindow tests and `7`
+  targeted MainWindow persistence tests). The combined three-file command
+  exceeded the bounded tool timeout without a pytest summary and is not
+  counted as a pass. The structured verifier passed with quality `290` and
+  preprocessing `106`.
+
+- [x] **Step 3: Create an explicit allowlist checkpoint**
 
   Use `scripts/auto_commit.py` with only the files listed in the task card.
   Do not include parallel memory edits, the full native visual acceptance
-  card, capture directories, or test-storage directories.
+  card, capture directories, or test-storage directories. Code/doc checkpoint
+  `941917e` was created; the subsequent doc-only status update is allowlisted
+  separately.

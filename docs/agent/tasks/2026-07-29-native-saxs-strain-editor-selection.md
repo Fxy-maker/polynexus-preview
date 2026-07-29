@@ -47,6 +47,12 @@ figure when the first manifest entry is an assetless diagnostic failure.
 - `python scripts/verify.py --task docs/agent/tasks/2026-07-29-native-saxs-strain-editor-selection.md --changed --types`
 - `git diff --check`
 
+Observed results: focused Gallery/FigureWindow matrix `29 passed`; targeted
+MainWindow persistence matrix `7 passed`; structured verifier passed with
+quality `290` and preprocessing `106`; `git diff --check` passed. The combined
+three-file matrix timed out after 184 seconds without a pytest summary and is
+not counted as a pass.
+
 ## TDD evidence
 
 - RED was observed before the shared fix: the native focused route failed at
@@ -87,4 +93,7 @@ directories, `.superpowers/`, and all test-storage directories.
 - [x] Root contract, README, and agent memory read.
 - [x] Failure reproduced from the prior native run.
 - [x] Focused native route green after the minimal Gallery selection fix.
-- [ ] Focused matrix, structured verifier, and checkpoint still pending.
+- [x] Focused matrix and structured verifier completed; the combined matrix
+  timeout is recorded as a limitation.
+- [x] Explicit allowlist checkpoint `941917e` created, followed by a doc-only
+  status checkpoint for this task card and plan.
