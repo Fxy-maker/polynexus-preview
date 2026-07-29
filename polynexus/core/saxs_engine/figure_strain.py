@@ -63,6 +63,32 @@ _STANDARD_AXIS_LABELS = {
 class _DetectorEvidence:
     frame: SAXSFrameView
     source: FigureDataSourceDefinition
+    sampled_pixel_count: int
+    retained_pixel_count: int
+    nonfinite_pixel_count: int
+
+    @property
+    def projection_quality(self) -> dict[str, Any]:
+        return {
+            "sampled_pixel_count": self.sampled_pixel_count,
+            "retained_pixel_count": self.retained_pixel_count,
+            "nonfinite_pixel_count": self.nonfinite_pixel_count,
+            "status": (
+                "partial_nonfinite"
+                if self.nonfinite_pixel_count
+                else "complete"
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class _DetectorProjection:
+    pixel_x: np.ndarray
+    pixel_y: np.ndarray
+    log_intensity: np.ndarray
+    sampled_pixel_count: int
+    retained_pixel_count: int
+    nonfinite_pixel_count: int
 
 
 def _finite_number(value: Any) -> float:
@@ -631,7 +657,7 @@ def _orientation_source(
     )
 
 
-def _downsample_detector(image: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+def _downsample_detector(image: Any) -> _DetectorProjection | None:
     try:
         array = np.asarray(image, dtype=float)
     except (TypeError, ValueError):
@@ -654,14 +680,20 @@ def _downsample_detector(image: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray
     sampled = array[np.ix_(row_indices, column_indices)]
     x_grid, y_grid = np.meshgrid(column_indices, row_indices)
     finite = np.isfinite(sampled).reshape(-1)
-    if not np.any(finite):
+    sampled_pixel_count = int(finite.size)
+    retained_pixel_count = int(np.count_nonzero(finite))
+    nonfinite_pixel_count = sampled_pixel_count - retained_pixel_count
+    if retained_pixel_count == 0:
         return None
     sampled_values = sampled.reshape(-1)[finite]
     positive = np.clip(sampled_values, np.finfo(float).tiny, None)
-    return (
-        x_grid.reshape(-1)[finite],
-        y_grid.reshape(-1)[finite],
-        np.log10(positive),
+    return _DetectorProjection(
+        pixel_x=x_grid.reshape(-1)[finite],
+        pixel_y=y_grid.reshape(-1)[finite],
+        log_intensity=np.log10(positive),
+        sampled_pixel_count=sampled_pixel_count,
+        retained_pixel_count=retained_pixel_count,
+        nonfinite_pixel_count=nonfinite_pixel_count,
     )
 
 
@@ -686,7 +718,9 @@ def _detector_evidence(
                 "detector image is empty, non-finite, or not two-dimensional"
             )
             continue
-        pixel_x, pixel_y, log_intensity = sampled
+        pixel_x = sampled.pixel_x
+        pixel_y = sampled.pixel_y
+        log_intensity = sampled.log_intensity
         source = _data_source(
             f"detector-image-{frame.index:03d}",
             (
@@ -701,7 +735,15 @@ def _detector_evidence(
             },
             role="detector_image",
         )
-        evidence.append(_DetectorEvidence(frame=frame, source=source))
+        evidence.append(
+            _DetectorEvidence(
+                frame=frame,
+                source=source,
+                sampled_pixel_count=sampled.sampled_pixel_count,
+                retained_pixel_count=sampled.retained_pixel_count,
+                nonfinite_pixel_count=sampled.nonfinite_pixel_count,
+            )
+        )
     return tuple(evidence), failures
 
 
@@ -717,6 +759,7 @@ def _main_recipe(
     decisions: Mapping[int, FigureEligibilityDecision],
     selection: RepresentativeFrameSelection,
     detector_failures: Mapping[str, str],
+    detector_projection_quality: Mapping[str, Mapping[str, Any]],
     *,
     detector_capable: bool,
     heatmap_render_transform: str,
@@ -755,6 +798,10 @@ def _main_recipe(
             for index in selection.indices
         }
         recipe["parameters"]["detector_failures"] = dict(detector_failures)
+        recipe["parameters"]["detector_projection_quality"] = {
+            str(index): dict(quality)
+            for index, quality in detector_projection_quality.items()
+        }
     return recipe
 
 
@@ -774,6 +821,9 @@ def _main_definition(
     detector_failures: dict[str, str] = {}
     if detector_capable:
         detector_evidence, detector_failures = _detector_evidence(selected_frames)
+    detector_projection_quality = {
+        str(item.frame.index): item.projection_quality for item in detector_evidence
+    }
 
     sources: list[FigureDataSourceDefinition] = []
     panels: list[PanelDefinition] = []
@@ -1075,6 +1125,7 @@ def _main_definition(
             decisions,
             selection,
             detector_failures,
+            detector_projection_quality,
             detector_capable=detector_capable,
             heatmap_render_transform=heatmap_render_transform,
         ),

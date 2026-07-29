@@ -560,3 +560,54 @@ def test_dirty_detector_projection_keeps_finite_sampled_pixels(monkeypatch) -> N
     assert detector.values["pixel_y"] == (0, 0, 1, 1)
     assert all(np.isfinite(detector.values["log_intensity"]))
     assert len(detector.values["log_intensity"]) == 4
+
+
+def test_dirty_detector_projection_records_sampled_pixel_provenance(monkeypatch) -> None:
+    engine = _strain_engine()
+    engine._file_list = ["sample-0.edf", "sample-1.edf"]
+    image = np.asarray(
+        [[1.0, np.nan, 10.0], [np.inf, 5.0, -2.0]],
+        dtype=float,
+    )
+    monkeypatch.setattr(
+        figure_strain_module,
+        "read_image",
+        lambda _path: (image, {}),
+    )
+
+    definition = next(
+        item
+        for item in build_strain_figure_definitions(engine)
+        if item.figure_id == "saxs.strain.evolution.2d"
+    )
+
+    assert definition.recipe["parameters"]["detector_projection_quality"]["0"] == {
+        "sampled_pixel_count": 6,
+        "retained_pixel_count": 4,
+        "nonfinite_pixel_count": 2,
+        "status": "partial_nonfinite",
+    }
+    json.dumps(definition.recipe, allow_nan=False)
+
+
+def test_clean_detector_projection_records_complete_provenance(monkeypatch) -> None:
+    engine = _strain_engine()
+    engine._file_list = ["sample-0.edf", "sample-1.edf"]
+    monkeypatch.setattr(
+        figure_strain_module,
+        "read_image",
+        lambda _path: (np.ones((2, 3), dtype=float), {}),
+    )
+
+    definition = next(
+        item
+        for item in build_strain_figure_definitions(engine)
+        if item.figure_id == "saxs.strain.evolution.2d"
+    )
+
+    assert definition.recipe["parameters"]["detector_projection_quality"]["0"] == {
+        "sampled_pixel_count": 6,
+        "retained_pixel_count": 6,
+        "nonfinite_pixel_count": 0,
+        "status": "complete",
+    }
