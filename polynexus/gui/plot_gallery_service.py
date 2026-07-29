@@ -404,8 +404,13 @@ def _entry_selection_path(entry: FigureGalleryEntry) -> str:
         *entry.asset_paths,
     ):
         path = str(candidate or "").strip()
-        if path:
-            return path
+        if not path:
+            continue
+        try:
+            if Path(path).exists():
+                return path
+        except OSError:
+            continue
     return ""
 
 

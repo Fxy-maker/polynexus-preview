@@ -327,6 +327,89 @@ def test_select_plot_gallery_entry_skips_assetless_diagnostic_for_initial_select
     assert selection.selected_path == str(preview.resolve())
 
 
+def test_select_plot_gallery_entry_skips_missing_asset_for_initial_selection(tmp_path):
+    ready_path = tmp_path / "ready.png"
+    ready_path.write_bytes(b"png")
+    missing_path = tmp_path / "missing.png"
+    missing_entry = FigureGalleryEntry(
+        figure_id="missing-overview",
+        title="missing overview",
+        category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+        state="static_background",
+        preview_path=str(missing_path),
+        primary_path="",
+        editable_path="",
+        document_mode="",
+        asset_paths=(str(missing_path),),
+        assets=(),
+        publication_role="diagnostic",
+        status="generation_failed",
+        display_order=0,
+    )
+    ready_entry = FigureGalleryEntry(
+        figure_id="ready-detail",
+        title="ready detail",
+        category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+        state="object_editing",
+        preview_path=str(ready_path.resolve()),
+        primary_path=str(ready_path.resolve()),
+        editable_path=str(ready_path.resolve()),
+        document_mode="object",
+        asset_paths=(str(ready_path.resolve()),),
+        assets=(),
+        publication_role="diagnostic",
+        status="ready",
+        display_order=1,
+    )
+
+    selection = select_plot_gallery_entry([missing_entry, ready_entry])
+
+    assert selection.selected_figure_id == "ready-detail"
+    assert selection.selected_path == str(ready_path.resolve())
+
+
+def test_select_plot_gallery_entry_returns_empty_path_when_all_assets_are_missing(tmp_path):
+    first_missing = tmp_path / "first-missing.png"
+    second_missing = tmp_path / "second-missing.png"
+    entries = [
+        FigureGalleryEntry(
+            figure_id="first-missing",
+            title="first missing",
+            category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+            state="static_background",
+            preview_path=str(first_missing),
+            primary_path="",
+            editable_path="",
+            document_mode="",
+            asset_paths=(str(first_missing),),
+            assets=(),
+            publication_role="diagnostic",
+            status="generation_failed",
+            display_order=0,
+        ),
+        FigureGalleryEntry(
+            figure_id="second-missing",
+            title="second missing",
+            category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+            state="static_background",
+            preview_path=str(second_missing),
+            primary_path="",
+            editable_path="",
+            document_mode="",
+            asset_paths=(str(second_missing),),
+            assets=(),
+            publication_role="diagnostic",
+            status="generation_failed",
+            display_order=1,
+        ),
+    ]
+
+    selection = select_plot_gallery_entry(entries)
+
+    assert selection.selected_figure_id == "first-missing"
+    assert selection.selected_path == ""
+
+
 def test_active_manifest_gallery_ignores_unrelated_historical_files(
     ir_definition,
     tmp_path,
