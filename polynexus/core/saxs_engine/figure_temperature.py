@@ -199,6 +199,30 @@ def _profile_projection_quality(frame: SAXSFrameView) -> dict[str, Any] | None:
     }
 
 
+def _trace_projection_quality(
+    payload: Any,
+    x_key: str,
+    y_key: str,
+) -> dict[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        x_values = _coerce_numeric_array(payload.get(x_key, ()))
+        y_values = _coerce_numeric_array(payload.get(y_key, ()))
+    except (TypeError, ValueError):
+        return None
+    count = min(x_values.size, y_values.size)
+    finite = np.isfinite(x_values[:count]) & np.isfinite(y_values[:count])
+    retained_count = int(np.count_nonzero(finite))
+    nonfinite_count = int(count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "status": "complete" if nonfinite_count == 0 else "partial_nonfinite",
+    }
+
+
 def _regular_heatmap_source(
     frames: Sequence[SAXSFrameView],
     axis: _ConditionAxis,
@@ -700,12 +724,24 @@ def _build_avrami(
 ) -> FigureDefinition:
     conditions: list[float] = []
     crystallinity: list[Any] = []
+    retained_pair_count = 0
     for frame in frames:
         condition = _condition_value(frame)
         value = _first_final_value(frame, "Xc_effective", "Xc")
         if np.isfinite(condition) and np.isfinite(_finite_float(value)):
+            retained_pair_count += 1
             conditions.append(condition)
             crystallinity.append(value)
+    input_pair_count = len(frames)
+    nonfinite_pair_count = input_pair_count - retained_pair_count
+    avrami_projection_quality = {
+        "input_pair_count": int(input_pair_count),
+        "retained_pair_count": int(retained_pair_count),
+        "nonfinite_pair_count": int(nonfinite_pair_count),
+        "status": (
+            "complete" if nonfinite_pair_count == 0 else "partial_nonfinite"
+        ),
+    }
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
     if len(conditions) >= 2:
@@ -748,6 +784,7 @@ def _build_avrami(
             "n": avrami["n"],
             "k_sn": avrami["k_sn"],
             "t_half_s": avrami["t_half_s"],
+            "avrami_projection_quality": avrami_projection_quality,
         },
         "gate": {"eligible": True, "reason": "valid_time_axis_avrami_parameters"},
     }
@@ -904,7 +941,13 @@ def _build_selected_evidence(
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
     panels: list[PanelDefinition] = []
+    trace_projection_quality: dict[str, dict[str, Any]] = {}
     if correlation is not None:
+        quality = _trace_projection_quality(
+            getattr(frame.analysis, "correlation", None), "r", "gamma"
+        )
+        if quality is not None:
+            trace_projection_quality["correlation"] = quality
         source_id = f"saxs-temperature-correlation-{frame.index:03d}"
         sources.append(
             _source(
@@ -938,6 +981,11 @@ def _build_selected_evidence(
             }
         )
     if idf is not None:
+        quality = _trace_projection_quality(
+            getattr(frame.analysis, "idf", None), "r_idf", "idf"
+        )
+        if quality is not None:
+            trace_projection_quality["idf"] = quality
         column = len(panels)
         source_id = f"saxs-temperature-idf-{frame.index:03d}"
         sources.append(
@@ -1009,6 +1057,9 @@ def _build_selected_evidence(
             "source_frame_index": frame.index,
             "selection_reason": selection.reasons[frame.index],
             "supported_main_parameters": supported_parameters,
+            "parameters": {
+                "trace_projection_quality": trace_projection_quality,
+            },
             "role_reason": (
                 "supports_main_parameter" if supports_main else "does_not_support_main_parameter"
             ),

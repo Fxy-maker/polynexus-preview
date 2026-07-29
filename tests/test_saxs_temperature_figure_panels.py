@@ -217,3 +217,94 @@ def test_dirty_projection_temperature_trace_keeps_valid_pairs() -> None:
 
     assert source.values["r_nm"] == (1.0, 3.0)
     assert source.values["gamma"] == (0.8, 0.2)
+
+
+def test_temperature_auxiliary_provenance_records_dirty_avrami_and_traces() -> None:
+    engine = _temperature_engine(
+        avrami={
+            "valid": True,
+            "n": 2.1,
+            "k_sn": 0.03,
+            "t_half_s": 4.0,
+        }
+    )
+    engine._conditions[1] = np.nan
+    engine._batch_results[1].final_parameters["Xc_effective"] = "bad-xc"
+    engine._batch_results[0].correlation = {
+        "r": np.asarray(["1.0", "bad-r", "3.0", "4.0"], dtype=object),
+        "gamma": np.asarray(["0.8", "0.5", "bad-gamma", "0.2"], dtype=object),
+    }
+    engine._batch_results[0].idf = {
+        "r_idf": np.asarray(["1.0", "2.0", "bad-r", "4.0"], dtype=object),
+        "idf": np.asarray(["0.2", "bad-idf", "0.3", "0.4"], dtype=object),
+    }
+
+    definitions = build_temperature_figure_definitions(engine)
+    avrami = next(
+        item for item in definitions if item.figure_id == "saxs.temperature.avrami"
+    )
+    evidence = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.temperature.evidence.000"
+    )
+
+    assert avrami.recipe["parameters"]["avrami_projection_quality"] == {
+        "input_pair_count": 3,
+        "retained_pair_count": 2,
+        "nonfinite_pair_count": 1,
+        "status": "partial_nonfinite",
+    }
+    expected_trace = {
+        "input_pair_count": 4,
+        "retained_pair_count": 2,
+        "nonfinite_pair_count": 2,
+        "status": "partial_nonfinite",
+    }
+    assert evidence.recipe["parameters"]["trace_projection_quality"] == {
+        "correlation": expected_trace,
+        "idf": expected_trace,
+    }
+    json.dumps(avrami.recipe, allow_nan=False)
+    json.dumps(evidence.recipe, allow_nan=False)
+
+
+def test_temperature_auxiliary_provenance_records_complete_avrami_and_traces() -> None:
+    definitions = build_temperature_figure_definitions(
+        _temperature_engine(
+            avrami={
+                "valid": True,
+                "n": 2.1,
+                "k_sn": 0.03,
+                "t_half_s": 4.0,
+            }
+        )
+    )
+    avrami = next(
+        item for item in definitions if item.figure_id == "saxs.temperature.avrami"
+    )
+    evidence = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.temperature.evidence.000"
+    )
+    expected_avrami = {
+        "input_pair_count": 3,
+        "retained_pair_count": 3,
+        "nonfinite_pair_count": 0,
+        "status": "complete",
+    }
+    expected_trace = {
+        "input_pair_count": 3,
+        "retained_pair_count": 3,
+        "nonfinite_pair_count": 0,
+        "status": "complete",
+    }
+
+    assert avrami.recipe["parameters"]["avrami_projection_quality"] == expected_avrami
+    assert evidence.recipe["parameters"]["trace_projection_quality"] == {
+        "correlation": expected_trace,
+        "idf": expected_trace,
+    }
+    json.dumps(avrami.recipe, allow_nan=False)
+    json.dumps(evidence.recipe, allow_nan=False)
