@@ -286,6 +286,9 @@ class MainWindowRetranslateMixin:
                         tr("HISTORY_COL_SUBMODULE"),
                         tr("HISTORY_COL_SCORE"),
                         tr("HISTORY_COL_STATUS"),
+                        tr("HISTORY_COL_SCIENTIFIC_REVIEW"),
+                        tr("HISTORY_COL_VALIDATION"),
+                        tr("HISTORY_COL_CONFIRMED"),
                     ]
                 )
 

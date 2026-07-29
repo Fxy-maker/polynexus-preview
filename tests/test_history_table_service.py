@@ -32,6 +32,7 @@ def test_build_history_table_rows_populates_display_values_and_tooltips():
         "saxs / static",
         "0.9123",
         "Completed | AI rerun",
+        "Scientific review: Not applicable | reason=not_applicable",
         "All checks passed",
         "Confirmed",
     ]
@@ -41,9 +42,43 @@ def test_build_history_table_rows_populates_display_values_and_tooltips():
         "saxs.static",
         "file=foo | L_nm=12.3",
         "Completed | AI rerun | file=foo | L_nm=12.3",
+        "Scientific review: Not applicable | reason=not_applicable",
         "All checks passed",
         "Confirmed",
     ]
+
+
+def test_build_history_table_rows_shows_review_state_for_solid_c():
+    rows = build_history_table_rows(
+        [
+            {
+                "technique": "nmr",
+                "submodule": "nmr.solid_c",
+                "results_summary": {
+                    "result": {
+                        "analysis_evidence": {
+                            "scientific_review": {
+                                "allowed": False,
+                                "reason": "review_missing",
+                                "record_id": "",
+                                "scope": "nmr.solid_c",
+                            }
+                        }
+                    }
+                },
+            }
+        ],
+        metrics_tooltip_fn=lambda run: "",
+        technique_text_fn=lambda technique: technique.upper(),
+        submodule_text_fn=lambda submodule: submodule,
+        status_text_fn=lambda run: "Completed",
+        validation_summary_fn=lambda run: "",
+        confirmation_label_fn=lambda run: "Pending",
+        has_source_fn=lambda run: True,
+    )
+
+    assert rows[0].values[5].startswith("Scientific review:")
+    assert "review_missing" in rows[0].tooltips[5]
 
 
 def test_write_history_export_table_defaults_to_tsv(tmp_path):

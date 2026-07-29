@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
 import numpy as np
+
+from .scientific_review_presentation import ScientificReviewDisplay
 
 
 TableScalar: TypeAlias = str | bytes | bool | int | float | complex | None
@@ -89,6 +91,7 @@ class ResultsTablePresentation:
     sortable: bool = False
     copy_enabled: bool = False
     export_enabled: bool = False
+    scientific_review: ScientificReviewDisplay = field(default_factory=ScientificReviewDisplay)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "hero_metrics", tuple(self.hero_metrics))

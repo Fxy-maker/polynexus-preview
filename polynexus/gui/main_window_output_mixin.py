@@ -330,6 +330,11 @@ class MainWindowOutputMixin:
             self._results_table.setSortingEnabled(table_model.sortable)
             self._set_results_export_control_visible(table_model.export_enabled)
             self._set_results_copy_control_visible(table_model.copy_enabled)
+            review_text = str(table_model.scientific_review.text or "").strip()
+            if review_text:
+                self._set_results_summary(
+                    " | ".join(part for part in [str(report.get("summary") or "").strip(), review_text] if part)
+                )
             return
 
         rows = report.get("rows", [])
@@ -399,6 +404,7 @@ class MainWindowOutputMixin:
             technique=dispatch_technique,
             submodule=current_submodule,
             language=get_language(),
+            review_source=result,
         )
         self._current_results_table_model = table_model
         self._current_results_table_source = {
@@ -427,6 +433,9 @@ class MainWindowOutputMixin:
                 summary_text = self._frame_results_summary_text(table_model.summary_count)
             else:
                 summary_text = self._single_results_summary_text(params)
+            review_text = str(table_model.scientific_review.text or "").strip()
+            if review_text:
+                summary_text = " | ".join(part for part in [summary_text, review_text] if part)
             risk_text = table_model.risk_text
             next_text = table_model.next_text
             if result is not None:

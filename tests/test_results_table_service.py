@@ -96,6 +96,32 @@ def test_build_results_table_model_handles_single_tables():
         set_language(previous)
 
 
+def test_structured_results_model_carries_scientific_review_from_live_result():
+    model = _build(
+        {"map_shape": [2, 2], "valid_pixel_ratio": 1.0},
+        technique="ir",
+        submodule="ir.mapping",
+        review_source={
+            "analysis_evidence": {
+                "feature_evidence": {
+                    "mapping_evidence": {
+                        "scientific_review": {
+                            "allowed": True,
+                            "reason": "review_accepted",
+                            "record_id": "review-ir-map-1",
+                            "scope": "ir.mapping",
+                            "source_ref": "map-a.json",
+                        }
+                    }
+                }
+            }
+        },
+    )
+
+    assert model.scientific_review.status == "accepted"
+    assert "review-ir-map-1" in model.scientific_review.text
+
+
 def test_build_batch_results_table_model_flattens_nested_params_and_keeps_file_first():
     previous = get_language()
     set_language("en")

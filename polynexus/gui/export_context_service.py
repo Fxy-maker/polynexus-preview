@@ -6,7 +6,8 @@ import json
 import shutil
 from pathlib import Path
 
-from .i18n import tr
+from .i18n import get_language, tr
+from .scientific_review_presentation import scientific_review_display
 
 
 def create_export_bundle_dirs(save_root) -> dict[str, Path]:
@@ -141,6 +142,12 @@ def build_export_context_payload(window, *, report_path: str = "", ir_summary_fn
     result_origin = window._current_result_origin()
     recommended = export_recommended_reading_order(primary_report)
     analysis_evidence = window._current_analysis_evidence()
+    scientific_review = scientific_review_display(
+        {"analysis_evidence": analysis_evidence, "result": current_result},
+        technique=current_technique,
+        submodule=current_submodule,
+        language=get_language(),
+    )
 
     ir_export_semantics = ""
     if current_technique == "ir" and callable(ir_summary_fn):
@@ -189,6 +196,8 @@ def build_export_context_payload(window, *, report_path: str = "", ir_summary_fn
         "work_memory_summary": str(window._work_memory_summary() or "").strip(),
         "responsibility_boundary": str(window._responsibility_boundary_summary() or "").strip(),
         "paper_figure_status": ir_export_semantics,
+        "scientific_review": scientific_review.to_dict(),
+        "scientific_review_text": scientific_review.text,
     }
 
 
@@ -208,6 +217,7 @@ def export_readme_text(
     technique_text = str(techniques or "").strip() or "None"
     source_data = str(source_data_path or "").strip() or "-"
     review_summary = str(context.get("review_summary") or "-").strip()
+    scientific_review_text = str(context.get("scientific_review_text") or "-").strip()
     if context.get("confirmed_result") and review_summary not in {"", "-"}:
         confirmed_text = str(confirmed_review_label or "").strip()
         if confirmed_text and not review_summary.startswith(confirmed_text):
@@ -240,6 +250,7 @@ def export_readme_text(
         f"Controlled optimization used: {'Yes' if context.get('used_controlled_optimization') else 'No'}",
         f"Comparison summary: {context.get('comparison_summary') or '-'}",
         f"Review summary: {review_summary}",
+        f"Scientific review: {scientific_review_text}",
         f"Validation chain: {validation_chain or benchmark_text or '-'}",
         f"Joint summary: {joint_detail or '-'}",
         f"Responsibility boundary: {context.get('responsibility_boundary') or '-'}",

@@ -55,6 +55,7 @@ from .history_compare_service import (
     history_compare_state_label,
 )
 from .history_table_service import build_history_table_rows, write_history_export_table
+from .scientific_review_presentation import scientific_review_display
 from .table_clipboard_service import (
     copy_table_selection_to_clipboard as copy_table_selection_text_to_clipboard,
     extract_table_text_matrix,
@@ -140,6 +141,14 @@ class MainWindowHistoryMixin:
 
     def _copy_table_selection_to_clipboard(self, table):
         copy_table_selection_text_to_clipboard(table)
+
+    def _scientific_review_text(self, record):
+        return scientific_review_display(
+            record,
+            technique=str(record.get("technique") or "") if isinstance(record, dict) else "",
+            submodule=str(record.get("submodule") or "") if isinstance(record, dict) else "",
+            language=get_language(),
+        ).text
 
     def _history_compare_record(self, record):
         if not isinstance(record, dict):
@@ -347,7 +356,7 @@ class MainWindowHistoryMixin:
         layout.addWidget(toolbar_scroll)
 
         self._history_table = QTableWidget()
-        self._history_table.setColumnCount(7)
+        self._history_table.setColumnCount(8)
         self._history_table.setHorizontalHeaderLabels(
             [
                 tr("HISTORY_COL_TIME"),
@@ -355,6 +364,7 @@ class MainWindowHistoryMixin:
                 tr("HISTORY_COL_SUBMODULE"),
                 tr("HISTORY_COL_SCORE"),
                 tr("HISTORY_COL_STATUS"),
+                tr("HISTORY_COL_SCIENTIFIC_REVIEW"),
                 tr("HISTORY_COL_VALIDATION"),
                 tr("HISTORY_COL_CONFIRMED"),
             ]
@@ -483,6 +493,7 @@ class MainWindowHistoryMixin:
                 technique_text_fn=self._history_technique_text,
                 submodule_text_fn=self._history_submodule_text,
                 status_text_fn=self._history_status_text,
+                scientific_review_text_fn=lambda run: self._scientific_review_text(run),
                 validation_summary_fn=self._history_validation_summary,
                 confirmation_label_fn=self._history_confirmation_label,
                 has_source_fn=history_has_available_source,

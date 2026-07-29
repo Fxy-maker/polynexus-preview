@@ -4849,6 +4849,40 @@ def test_display_results_surfaces_saxs_condition_axis_risk_summary():
         set_language(previous)
 
 
+def test_display_results_surfaces_scientific_review_in_results_workbench_summary():
+    app = QApplication.instance() or QApplication([])
+
+    previous = get_language()
+    try:
+        set_language("en")
+        window = MainWindow()
+        window._current_technique = "nmr"
+        window._current_submodule_id = "nmr.solid_c"
+        window._current_input_mode = "single"
+        window._current_filepath = "C:/data/solid-c.dx"
+
+        result = {
+            "parameters": {"Xc_pct": 0.42},
+            "analysis_evidence": {
+                "scientific_review": {
+                    "allowed": False,
+                    "reason": "review_missing",
+                    "scope": "nmr.solid_c",
+                }
+            },
+        }
+        window._display_results(result["parameters"], result)
+
+        summary = window._results_summary_label.text()
+        assert "Scientific review" in summary
+        assert "review_missing" in summary
+
+        window.deleteLater()
+        app.processEvents()
+    finally:
+        set_language(previous)
+
+
 def test_finished_updates_result_review_panel_with_context():
     app = QApplication.instance() or QApplication([])
 
@@ -7327,16 +7361,16 @@ def test_export_history_table_writes_current_history_rows(tmp_path):
 
         text = export_path.read_text(encoding="utf-8")
         lines = text.splitlines()
-        assert lines[0] == "Time\tTechnique\tSubmodule\tR2\tStatus\tValidation\tConfirmed\tResult origin\tAI tuned\tSource data\tOutput dir"
+        assert lines[0] == "Time\tTechnique\tSubmodule\tR2\tStatus\tScientific review\tValidation\tConfirmed\tResult origin\tAI tuned\tSource data\tOutput dir"
         assert any("\tSAXS\t" in line and ("\tStatic SAXS\t" in line or "\tstatic\t" in line) for line in lines[1:])
         assert any("Recommended-parameter rerun\tYes\t" in line for line in lines[1:])
         with export_path.open("r", encoding="utf-8", newline="") as fh:
             rows = list(csv.reader(fh, delimiter="\t"))
-        assert rows[1][6] == "Not confirmed"
-        assert rows[1][7] == "Recommended-parameter rerun"
-        assert rows[1][8] == "Yes"
-        assert rows[1][9] == str(data_file.resolve())
-        assert rows[1][10] == str(tmp_path / "output_b")
+        assert rows[1][7] == "Not confirmed"
+        assert rows[1][8] == "Recommended-parameter rerun"
+        assert rows[1][9] == "Yes"
+        assert rows[1][10] == str(data_file.resolve())
+        assert rows[1][11] == str(tmp_path / "output_b")
         assert f"Exported history list: {len(lines) - 1} rows ->" in window._log_panel.toPlainText()
 
         db.close()
@@ -7471,18 +7505,18 @@ def test_export_history_table_respects_active_filter(tmp_path):
 
         text = export_path.read_text(encoding="utf-8")
         lines = text.splitlines()
-        assert lines[0] == "Time,Technique,Submodule,R2,Status,Validation,Confirmed,Result origin,AI tuned,Source data,Output dir"
+        assert lines[0] == "Time,Technique,Submodule,R2,Status,Scientific review,Validation,Confirmed,Result origin,AI tuned,Source data,Output dir"
         assert len(lines) == 2
         assert ",WAXS,Static WAXS," in lines[1]
         assert ",Recommended-parameter rerun,Yes," in lines[1]
         with export_path.open("r", encoding="utf-8", newline="") as fh:
             rows = list(csv.reader(fh))
         assert rows[1][1] == "WAXS"
-        assert rows[1][5] == ""
-        assert rows[1][6] == "Not confirmed"
-        assert rows[1][7] == "Recommended-parameter rerun"
-        assert rows[1][8] == "Yes"
-        assert rows[1][10] == str(tmp_path / "output_waxs")
+        assert rows[1][6] == ""
+        assert rows[1][7] == "Not confirmed"
+        assert rows[1][8] == "Recommended-parameter rerun"
+        assert rows[1][9] == "Yes"
+        assert rows[1][11] == str(tmp_path / "output_waxs")
 
         db.close()
         window.deleteLater()

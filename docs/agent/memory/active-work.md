@@ -1,5 +1,22 @@
 # Active Work
 
+## Scientific review visibility - checkpointed - 2026-07-29
+
+- The existing fail-closed scientific-review decision snapshot is now rendered
+  through one GUI adapter in Results Workbench, History, and Export. Accepted,
+  pending/missing, conditional, rejected, stale, invalid, and blocked reasons
+  retain audit fields; missing review is required only for IR mapping, NMR
+  solid-C, and Joint.
+- Focused presentation/history/export/results tests passed `46`; the Qt
+  Results Workbench + History/export regression slice passed `28` with `216`
+  deselected. No scientific promotion rule or analysis output changed.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-29-scientific-review-visibility.md`,
+  `docs/superpowers/specs/2026-07-29-scientific-review-visibility-design.md`,
+  `docs/superpowers/plans/2026-07-29-scientific-review-visibility.md`.
+- Checkpoint: `56c2693`.
+
+
 ## Shared scientific review record contract - verified, checkpoint pending - 2026-07-29
 
 - The approved scientific-release design now has an implementation plan and a

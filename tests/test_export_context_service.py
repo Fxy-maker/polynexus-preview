@@ -341,8 +341,48 @@ def test_build_export_context_payload_packages_current_export_state():
         assert payload["work_memory_summary"] == "Work memory summary"
         assert payload["responsibility_boundary"] == "Boundary summary"
         assert payload["paper_figure_status"] == "IR summary | 2D temperature evidence"
+        assert payload["scientific_review"]["status"] == "not_applicable"
+        assert "not_applicable" in payload["scientific_review_text"]
     finally:
         set_language(previous)
+
+
+def test_export_context_carries_structured_scientific_review_and_readme_text():
+    window = _FakeWindow()
+    window._current_submodule_id = "ir.mapping"
+    window._history_submodule_text = lambda submodule: "Mapping"
+    window._current_analysis_evidence = lambda: {
+        "feature_evidence": {
+            "mapping_evidence": {
+                "scientific_review": {
+                    "allowed": True,
+                    "reason": "review_accepted",
+                    "record_id": "review-ir-map-1",
+                    "scope": "ir.mapping",
+                    "source_ref": "map-a.json",
+                }
+            }
+        }
+    }
+
+    context = build_export_context_payload(window)
+
+    assert context["scientific_review"]["status"] == "accepted"
+    assert context["scientific_review"]["record_id"] == "review-ir-map-1"
+    assert "review_accepted" in context["scientific_review_text"]
+
+    text = export_readme_text(
+        project_name="PA6",
+        generated_at="2026-07-06 12:00:00",
+        techniques="IR",
+        source_data_path="D:/data/map-a.json",
+        primary_report="",
+        export_context=context,
+        joint_detail="",
+        confirmed_review_label="Confirmed reference",
+    )
+    assert "Scientific review:" in text
+    assert "review-ir-map-1" in text
 
 
 def test_copy_export_bundle_sections_copies_available_sections(tmp_path):
