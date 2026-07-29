@@ -35,6 +35,16 @@ to record `review_missing` where a Figure review projection is attached.
 - Storage report and non-apply clean were run: `46` artifacts,
   `eligible_bytes=0`, `removed=0`; no storage deletion was part of this task.
 
+## Final evidence reconciliation
+
+The independent shared recheck is the canonical final numeric record for this
+task: the exact `tests/test_saxs_*.py` matrix completed with `588 passed, 6
+warnings in 594.35s`, exit code `0`. The task verifier recorded quality `290`
+and preprocessing `106`; storage remained non-destructive at `46` artifacts,
+`eligible_bytes=0`, and `removed=0`. This documentation update is captured in
+the follow-up explicit-allowlist checkpoint; it does not change scientific
+semantics or release authorization.
+
 ## Boundary
 
 No SAXS numerical analysis, quality level, physical gate, AI/rescue behavior,

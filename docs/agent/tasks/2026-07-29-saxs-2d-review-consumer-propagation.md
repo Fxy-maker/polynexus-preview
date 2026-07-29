@@ -84,10 +84,14 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-29-saxs-2d-review-consu
   exit code `0`.
 - [x] Added only a detached projection adapter and result/bundle handoff; no
   algorithm, quality, physical, AI, rescue, or publication behavior changed.
-- [x] Task-scoped verifier passed; exact SAXS matrix passed `588 tests` with
-  `6` warnings and exit code `0` in both this session (`591.42s`) and the
-  independent shared recheck (`594.35s`); storage report/clean remained
-  non-destructive; explicit allowlist checkpoint is recorded.
+- [x] Task-scoped verifier passed with quality `290` and preprocessing `106`;
+  Ruff, compile, memory, type-baseline, and whitespace checks were green. The
+  authoritative independent shared recheck of the exact SAXS matrix was
+  `588 passed, 6 warnings in 594.35s`, exit code `0` (the earlier local run
+  was `588 passed, 6 warnings in 591.42s`, exit code `0`). Storage
+  report/clean dry-run was `46 artifacts`, `eligible_bytes=0`, `removed=0`;
+  no deletion was performed. A unique explicit-allowlist reconciliation
+  checkpoint is recorded after this final evidence update.
 
 ## Scientific boundary
 
