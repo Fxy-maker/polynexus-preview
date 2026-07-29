@@ -552,7 +552,7 @@ def _frame_condition_values(
         values = getattr(strain_result, "strains", None)
     if values is None or np.asarray(values).size != frame_count:
         values = getattr(engine_state, "_conditions", ())
-    array = np.ravel(np.asarray(values, dtype=float))
+    array = _coerce_numeric_array(values)
     if len(array) != frame_count:
         return tuple(float("nan") for _index in range(frame_count))
     return tuple(float(value) for value in array)

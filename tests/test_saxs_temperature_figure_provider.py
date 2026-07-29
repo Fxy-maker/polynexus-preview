@@ -380,3 +380,28 @@ def test_legacy_temperature_provider_omits_unplottable_frame_with_evidence(
     assert evidence["included_frame_indices"] == [0]
     assert evidence["omitted_frame_indices"] == [1]
     assert evidence["omission_reasons"][1] == "figure_profile_unavailable"
+
+
+def test_legacy_condition_axis_dirty_values_keep_frame_order():
+    conditions = ["0", "bad-strain", "25"]
+    state = _saxs_provider_state(
+        _strain_result=SimpleNamespace(strains=None),
+        _q_list=[np.asarray([0.1, 0.2])] * 3,
+        _I_list=[np.asarray([10.0, 5.0])] * 3,
+        _conditions=conditions,
+    )
+
+    definitions = build_saxs_figure_definitions(state)
+
+    assert [item.figure_id for item in definitions] == [
+        "saxs.frame.strain.scattering.001",
+        "saxs.frame.strain.scattering.002",
+        "saxs.frame.strain.scattering.003",
+        "saxs.series.strain.waterfall",
+    ]
+    assert [item.title for item in definitions[:3]] == [
+        "SAXS Scattering - 0% strain",
+        "SAXS Scattering - Frame 2",
+        "SAXS Scattering - 25% strain",
+    ]
+    assert conditions == ["0", "bad-strain", "25"]
