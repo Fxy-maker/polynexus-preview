@@ -1,5 +1,31 @@
 # Active Work
 
+## SAXS azimuthal Figure projection provenance - checkpointed - 2026-07-29
+
+- The strain azimuthal Figure recipe now records detached per-frame aligned,
+  retained, and non-finite chi/I pair counts with `complete` or
+  `partial_nonfinite` status. Existing finite-pair projection, empty/all-
+  invalid omission, orientation analysis, and publication gates are unchanged.
+- TDD RED was recorded for the missing recipe field; the focused Figure/
+  detector/orientation/publication matrix passed `59` tests. The structured
+  verifier passed with quality `287` and preprocessing `106`. An independent
+  current-thread full SAXS recheck returned `545 passed, 6 warnings in
+  344.71s`, exit code `0`.
+- Checkpoint: `5b7a412`. Evidence:
+  `docs/agent/tasks/2026-07-29-saxs-azimuthal-figure-provenance.md`.
+
+## Aggressive pytest test-storage lifecycle - checkpointed - 2026-07-29
+
+- Managed pytest runs now carry retention-profile/run-state metadata, owned
+  ephemeral cleanup and interruption reconciliation; the janitor reports
+  profile/reason/byte summaries and protects evidence, invalid manifests,
+  active, tracked, protected, symlinked, and outside-root paths.
+- Storage regression passed `26 passed, 1 skipped`; the structured verifier
+  passed with quality `287` and preprocessing `106`. The real legacy report
+  and clean commands were dry-run only; no migration or deletion was run in
+  this task. Checkpoints: `f685908`, `6d7290c`, `6ed7700`, `a305d37`, and
+  `9080aa7`.
+
 ## SAXS detector Figure dirty projection - checkpointed - 2026-07-29
 
 - The strain Figure detector projection now retains finite sampled pixels from

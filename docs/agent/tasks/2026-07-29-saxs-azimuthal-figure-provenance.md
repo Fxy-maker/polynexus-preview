@@ -66,6 +66,8 @@ only a fresh pytest summary with exit code `0` counts as passing. Do not run
 - Structured verifier: quality `287 passed`, preprocessing `106 passed`;
   Ruff, compile, task/memory, and whitespace checks passed.
 - Fresh SAXS matrix: `545 passed, 6 warnings` in `289.88s`, exit code `0`.
+- Independent current-thread recheck with an external D: basetemp: `545
+  passed, 6 warnings in 344.71s`, exit code `0`.
 - Storage report/clean dry-run: `350 artifacts`; latest clean JSON reported
   `57 eligible`, `9 referenced by a running process`, and `284 younger than
   retention`; all artifacts had `removed=false`. No `--apply` command ran.
