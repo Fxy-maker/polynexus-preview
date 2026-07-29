@@ -4537,7 +4537,9 @@ def test_finished_shows_saxs_mask_summary_in_results_label():
                 window._on_finished(result)
 
         assert not window._results_summary_group.isHidden()
-        assert window._results_summary_label.text() == "Single-file results | 1 metrics"
+        assert window._results_summary_label.text() == (
+            "Single-file results | 1 metrics | Scientific review: Not applicable | reason=not_applicable"
+        )
         assert window._results_summary_risk_label.text() == tr(
             "RESULTS_SUMMARY_RISK_MASK_AND_BEAMSTOP",
             "0.123",
@@ -4782,7 +4784,10 @@ def test_finished_shows_saxs_no_extra_risk_summary_when_only_status_is_present()
                 window._on_finished(result)
 
         assert not window._results_summary_group.isHidden()
-        assert window._results_summary_label.text() == tr("RESULTS_SUMMARY_SINGLE", 1, "sample_a.dat")
+        assert window._results_summary_label.text() == (
+            f"{tr('RESULTS_SUMMARY_SINGLE', 1, 'sample_a.dat')} | "
+            "Scientific review: Not applicable | reason=not_applicable"
+        )
         assert window._results_summary_risk_label.text() == ""
         assert window._results_summary_next_label.text() == tr("RESULTS_SUMMARY_NEXT_SINGLE")
 

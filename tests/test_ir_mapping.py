@@ -157,6 +157,7 @@ def test_ir_mapping_without_review_is_fail_closed_and_traceable() -> None:
         "record_id": "",
         "scope": "ir.mapping",
         "source_ref": "map-a.json",
+        "policy_version": "",
     }
 
 

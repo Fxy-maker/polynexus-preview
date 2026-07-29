@@ -175,12 +175,12 @@ def test_real_published_run_preserves_shared_lifecycle(
     selected = next(
         (
             entry
-            for role in ("main", "si", "diagnostic")
-            for entry in entries
-            if entry.publication_role == role
-        ),
-        None,
-    )
+                for role in ("main", "si", "diagnostic")
+                for entry in entries
+                if entry.publication_role == role and entry.status == "ready"
+            ),
+            None,
+        )
     assert selected is not None
 
     document = load_figure_document(selected.document_path)

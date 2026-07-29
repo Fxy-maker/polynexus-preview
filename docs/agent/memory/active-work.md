@@ -1,5 +1,27 @@
 # Active Work
 
+## Current full-verifier regression repair - verified, checkpointed - 2026-07-30
+
+- Repaired four current-HEAD regressions without changing scientific policy:
+  the IR review snapshot expectation now includes the JSON-safe empty
+  `policy_version`, the two SAXS Results Workbench expectations include the
+  intentional non-applicable review suffix, and the real SAXS strain lifecycle
+  chooses a `ready` figure for Editor persistence while retaining visible
+  error-status diagnostic entries.
+- Focused regressions passed: IR mapping `13 passed`, affected MainWindow
+  tests `2 passed`, and SAXS strain lifecycle `1 passed, 12 deselected`.
+- Task-scoped verification passed with quality `290`, preprocessing `106`,
+  Ruff, compile, type baseline, memory, task, and whitespace checks.
+- Full pytest summary with the pre-existing untracked scratch test excluded:
+  `3091 passed, 18 skipped, 12 warnings in 1986.68s (0:33:06)`. The launcher
+  did not persist its wrapper exit code; this is recorded as a pytest summary,
+  not as an observed exit-code claim.
+- Task card and acceptance note:
+  `docs/agent/tasks/2026-07-30-full-verifier-regressions.md` and
+  `docs/acceptance/2026-07-30-full-verifier-regressions.md`.
+- The unrelated `current-state.md`, scratch/test directories, and external
+  test-storage artifacts remain intentionally untouched.
+
 ## SAXS 2D reviewer evidence binding - verified, checkpointed - 2026-07-30
 
 - The shared SAXS Figure evidence attachment now applies the existing
