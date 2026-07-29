@@ -37,6 +37,8 @@ confusing a process exit, a tool timeout, or an earlier run with this result.
 - [x] A direct boundary audit has a captured exit code.
 - [x] Missing wrapper exit-code persistence is stated instead of inferred.
 - [x] Human GUI/scientific/release gates and storage non-deletion are explicit.
+- [x] A fresh current-HEAD rerun classifies the pre-existing scratch failure
+      separately from the production test result.
 
 ## Verification evidence
 
@@ -60,6 +62,26 @@ BOUNDARY_EXIT_CODE=0
 
 The documentation task verifier exited `0`, including quality `287 passed`,
 preprocessing `106 passed`, and `git diff --check` exit `0`.
+
+## Fresh current-HEAD recheck
+
+The current checkout was rerun after the Gallery missing-asset checkpoint with
+an explicit external D: basetemp and the pre-existing untracked
+`tests/_tmp_phase3/test_visual_audit_capture.py` excluded:
+
+```text
+pytest: 3100 passed, 18 skipped, 12 warnings in 2280.40s (0:38:00)
+quality: 290 passed
+preprocessing: 106 passed
+wrapper exit: 0
+boundary audit: exit 0
+```
+
+The same command without the explicit scratch exclusion returned
+`3100 passed, 18 skipped, 12 warnings` plus one failure in that pre-existing
+scratch test because its historical capture directory was absent. That run is
+classified as a scratch/environment failure, not silently ignored. The
+production suite's stronger recheck is the explicit-exclusion result above.
 
 ## Verification
 

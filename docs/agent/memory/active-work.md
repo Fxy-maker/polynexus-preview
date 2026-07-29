@@ -1,5 +1,25 @@
 # Active Work
 
+## Fresh current-HEAD full/boundary recheck - automated gates green, human gates open - 2026-07-29
+
+- After checkpoint `863b8fb`, the fresh
+  `python scripts/verify.py --changed --types --full --boundary` rerun with
+  external D: basetemp and the pre-existing untracked
+  `tests/_tmp_phase3/test_visual_audit_capture.py` explicitly excluded
+  returned `3100 passed, 18 skipped, 12 warnings in 2280.40s`, wrapper exit
+  `0`, quality `290`, preprocessing `106`, and boundary audit exit `0`.
+- The default collection was also run and returned one failure in that
+  pre-existing scratch test because its historical capture directory was
+  absent. It is recorded as a scratch limitation, not a production failure
+  and not silently counted as a pass.
+- This closes the current automated full/boundary gate only. Restarted-GUI
+  visual review, real detector geometry/orientation meaning, IR vendor/ROI
+  semantics, NMR solid-C assignment, Joint conflict interpretation, and final
+  scientific/release approval remain open. No `test_storage.py --apply` or
+  data cleanup was performed.
+- Evidence: `docs/agent/tasks/2026-07-30-full-boundary-latest-evidence.md` and
+  `docs/acceptance/2026-07-30-full-boundary-latest-evidence.md`.
+
 ## Full native visual reacceptance - automated acceptance complete, human gates open - 2026-07-30
 
 - Fresh current-checkout native Windows Qt selector returned `17 passed, 15

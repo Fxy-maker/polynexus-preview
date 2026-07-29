@@ -21,3 +21,22 @@ Restarted-GUI visual review, IR vendor/ROI semantics, NMR solid-C assignment,
 Joint conflict interpretation, and final human scientific/release approval
 remain open. Test-storage cleanup remained dry-run only; no test data was
 deleted or migrated.
+
+## Current-HEAD recheck
+
+After the Gallery missing-asset checkpoint, a fresh D:-isolated rerun with the
+pre-existing untracked `tests/_tmp_phase3/test_visual_audit_capture.py`
+explicitly excluded returned:
+
+```text
+pytest: 3100 passed, 18 skipped, 12 warnings in 2280.40s (0:38:00)
+quality: 290 passed
+preprocessing: 106 passed
+wrapper exit: 0
+boundary audit exit: 0
+```
+
+The default collection was also run and returned one failure in that same
+pre-existing scratch test because its old capture directory was not present;
+it is retained as a limitation rather than hidden. No scratch, source, real
+dataset, or test-storage directory was modified or cleaned with `--apply`.
