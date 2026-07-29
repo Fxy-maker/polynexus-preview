@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from types import SimpleNamespace
 
+from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.figures.validation import validate_figure_definition
 from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.saxs import SAXSEngine
@@ -111,6 +112,76 @@ def test_saxs_engine_exposes_temperature_figure_definitions(
     assert definitions
     assert all(item.technique == "saxs" for item in definitions)
     assert "saxs.series.temperature.heatmap" in {item.figure_id for item in definitions}
+
+
+def test_legacy_v2_saxs_lifecycle_is_ready_for_all_modes(tmp_path) -> None:
+    cases = (
+        (
+            "static",
+            "saxs_static",
+            build_saxs_figure_definitions(
+                _saxs_provider_state(
+                    _batch_results=[
+                        _analyzed_saxs_frame("a", [0.1, 0.2], [10.0, 5.0]),
+                        _analyzed_saxs_frame("b", [0.1, 0.2], [9.0, 4.0]),
+                    ]
+                )
+            ),
+        ),
+        (
+            "strain",
+            "saxs_strain",
+            build_saxs_figure_definitions(
+                _saxs_provider_state(
+                    _strain_result=SimpleNamespace(
+                        strains=np.asarray([0.0, 25.0])
+                    ),
+                    _q_list=[np.asarray([0.1, 0.2]), np.asarray([0.1, 0.2])],
+                    _I_list=[np.asarray([10.0, 5.0]), np.asarray([9.0, 4.0])],
+                    _conditions=[0.0, 25.0],
+                )
+            ),
+        ),
+        (
+            "temperature",
+            "temperature_saxs",
+            build_saxs_temperature_definitions(
+                TempSeriesResult(
+                    temperatures=np.asarray([30.0, 60.0]),
+                    L_array=np.asarray([12.0, 11.0]),
+                    lc_array=np.asarray([4.0, 3.0]),
+                    lc_effective_array=np.asarray([4.0, 3.0]),
+                    Q_star_array=np.asarray([100.0, 90.0]),
+                    Xc_array=np.asarray([0.4, 0.42]),
+                ),
+                (np.asarray([0.1, 0.2, 0.3]),) * 2,
+                (np.asarray([10.0, 5.0, 2.0]),) * 2,
+            ),
+        ),
+    )
+
+    for mode, adapter, definitions in cases:
+        assert definitions
+        assert all(item.recipe["v2_adapter"] == adapter for item in definitions)
+        assert all(
+            build_v2_definition_artifact(item).capability["v2_runtime"] == "ready"
+            for item in definitions
+        )
+        manifest = FigurePipeline().run(
+            output_root=tmp_path,
+            run_id=f"legacy-saxs-v2-{mode}",
+            technique="saxs",
+            definitions=(definitions[0],),
+        )
+        entry = manifest.figures[0]
+        assert entry.status == "ready"
+        assert entry.capability_report["v2_runtime"] == "ready"
+        assert (
+            tmp_path
+            / "runs"
+            / f"legacy-saxs-v2-{mode}"
+            / entry.capability_report["v2_sidecar"]
+        ).is_file()
 
 
 def test_saxs_completed_temperature_series_keeps_summary_fallback_when_evolution_gate_fails():
