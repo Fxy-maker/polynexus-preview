@@ -1,5 +1,20 @@
 # Active Work
 
+## Scientific release confirmation boundaries - design recorded - 2026-07-29
+
+- User approved the high-level confirmation-table approach. The design records
+  reviewer-owned IR coordinate/ROI semantics, NMR solid-C assignment/Xc policy,
+  Joint conflict precedence, and final release authorization without inventing
+  values.
+- Conservative behavior is retained when the record is absent, malformed,
+  stale, or source-mismatched: diagnostic/assignment-limited/conditional roles
+  remain unchanged and AI/fallback paths cannot bypass review.
+- Design: `docs/superpowers/specs/2026-07-29-scientific-release-confirmation-boundaries-design.md`.
+  Task: `docs/agent/tasks/2026-07-29-scientific-release-confirmation-boundaries.md`.
+- Next action is reviewer entry of scientific values; implementation must then
+  be split into value-specific task cards with focused regression and lifecycle
+  verification.
+
 ## Release decision packet - unlocked GUI slice rechecked - 2026-07-29
 
 - The prior locked-desktop observation is superseded for this review: the
