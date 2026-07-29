@@ -12,7 +12,9 @@ from types import MappingProxyType
 from typing import Any
 
 
-REVIEW_SCOPES = frozenset({"ir.mapping", "nmr.solid_c", "joint", "release"})
+REVIEW_SCOPES = frozenset(
+    {"ir.mapping", "nmr.solid_c", "joint", "release", "saxs.1d", "saxs.2d"}
+)
 REVIEW_STATUSES = frozenset({"pending", "accepted", "conditional", "rejected", "stale"})
 
 _REQUIRED_DECISION_KEYS: dict[str, tuple[str, ...]] = {
@@ -33,6 +35,21 @@ _REQUIRED_DECISION_KEYS: dict[str, tuple[str, ...]] = {
         "unresolved_conflict_policy",
     ),
     "release": ("release_decision", "conditions_or_followups"),
+    "saxs.1d": (
+        "sequence_axis_policy",
+        "frame_identity_policy",
+        "missing_repeat_policy",
+        "metric_claim_scope",
+        "promotion_rule",
+    ),
+    "saxs.2d": (
+        "geometry_reference",
+        "beam_center_policy",
+        "mask_policy",
+        "saturation_policy",
+        "orientation_applicability",
+        "promotion_rule",
+    ),
 }
 
 

@@ -13,6 +13,29 @@
   explicit checkpoint is pending while preserving pre-existing SAXS scope edits.
 - Scientific values, restarted-GUI human review, and final release approval
   remain open.
+
+## SAXS scientific review scopes - checkpointed - 2026-07-29
+
+- User selected the two independent reviewer-owned scopes. The design, task
+  card, acceptance note, and implementation plan are recorded in
+  `docs/superpowers/specs/2026-07-29-saxs-scientific-review-scopes-design.md`,
+  `docs/agent/tasks/2026-07-29-saxs-scientific-review-scopes.md`, and
+  `docs/superpowers/plans/2026-07-29-saxs-scientific-review-scopes.md`.
+- `ScientificReviewRecord` now recognizes `saxs.1d` and `saxs.2d` with only
+  reviewer-owned required-key validation. No SAXS engine, quality gate,
+  publication role, GUI, AI, or rescue behavior consumes these scopes yet.
+- TDD RED was `5 failed, 10 passed`; GREEN is `15 passed in 0.13s`.
+- Task-scoped verifier exited `0` with quality `290`, preprocessing `106`,
+  Ruff, compile, memory/task checks, and whitespace green. Exact SAXS matrix
+  exited `0`: `575 passed, 6 warnings in 518.52s`; `git diff --check` exited
+  `0`.
+- Storage report/clean remained dry-run: `40` artifacts, `0` eligible bytes,
+  `6` eligible zero-byte legacy entries, `34` younger-than-retention entries,
+  and `0` removed. `test_storage.py --apply` was not run.
+- The explicit SAXS allowlist was selectively staged because same-file
+  policy/provenance edits remain in the worktree; existing `current-state.md`,
+  GUI changes, and test-storage/scratch paths remain outside this task.
+
 ## Scientific Review native reacceptance - checkpointed - 2026-07-30
 
 - After `e7209ee`, a fresh exact selector passed all three current native
