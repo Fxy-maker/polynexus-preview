@@ -62,6 +62,8 @@ class SAXSFrameView:
 
 def _sci_axis_label(label: str, *, y_axis: bool = False) -> str:
     text = str(label or "").lower()
+    if "detector" in text:
+        return AXIS_LABELS["detector_y" if "y" in text else "detector_x"]
     if "temperature" in text:
         return AXIS_LABELS["T"]
     if "strain" in text:

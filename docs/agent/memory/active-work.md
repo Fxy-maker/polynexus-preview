@@ -1,5 +1,23 @@
 # Active Work
 
+## SAXS static/temperature detector Figure projection - verified, checkpointed - 2026-07-29
+
+- Static and temperature Figure providers now expose a diagnostic-only 2D
+  detector Figure when existing supported source paths yield finite sampled
+  pixels. A shared read-only projection records sampled/retained/non-finite
+  counts and `complete`/`partial_nonfinite` status; unreadable, malformed, or
+  all-invalid images remain omitted. No analysis, geometry/orientation,
+  quality, physical, publication, AI, or rescue semantics changed.
+- TDD RED was `2 failed, 2 passed`; the focused Figure/2D/publication matrix
+  passed `81`; structured verification passed with quality `287` and
+  preprocessing `106`; the fresh exact SAXS matrix passed `563` with `6`
+  existing warnings. Storage report/clean remained dry-run with 14 legacy
+  artifacts, 15,746 eligible bytes, and 0 removed. The explicit allowlist
+  checkpoint is created by the task commit; its hash is reported in the
+  handoff.
+- Evidence: `docs/agent/tasks/2026-07-29-saxs-static-temperature-detector-figure.md`.
+
+
 ## SAXS strain 1D Figure projection provenance - checkpointed - 2026-07-29
 
 - Strain evolution and ordinary/diagnostic sequence 1D Figure recipes now

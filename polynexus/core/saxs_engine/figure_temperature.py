@@ -24,6 +24,7 @@ from .figure_common import (
 )
 from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
 from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
+from .figure_detector import build_detector_evidence, detector_capable
 from .figure_eligibility import (
     classify_frame_eligibility,
     crystallinity_panel_eligible,
@@ -907,6 +908,112 @@ def _build_waterfall(
     )
 
 
+def _build_detector_figure(
+    frames: Sequence[SAXSFrameView],
+    selection: RepresentativeFrameSelection,
+    axis: _ConditionAxis,
+) -> FigureDefinition | None:
+    if not frames or not detector_capable(frames):
+        return None
+    frame_by_index = {frame.index: frame for frame in frames}
+    selected_frames = tuple(frame_by_index[index] for index in selection.indices)
+    evidence, failures = build_detector_evidence(selected_frames)
+    if not evidence:
+        return None
+
+    panels: list[PanelDefinition] = []
+    objects: list[dict[str, Any]] = []
+    for ordinal, item in enumerate(evidence):
+        panel_id = f"detector-{item.frame.index:03d}"
+        condition = _condition_value(item.frame)
+        title = (
+            f"{condition:g} {axis.unit}"
+            if np.isfinite(condition)
+            else item.frame.label
+        )
+        panels.append(
+            PanelDefinition(
+                panel_id=panel_id,
+                row=0,
+                column=ordinal,
+                x_axis=AxisDefinition(
+                    f"{panel_id}-x",
+                    AXIS_LABELS["detector_x"],
+                    unit="pixel",
+                ),
+                y_axis=AxisDefinition(
+                    f"{panel_id}-y",
+                    AXIS_LABELS["detector_y"],
+                    unit="pixel",
+                    reversed=True,
+                ),
+                title=title,
+                panel_label=f"({chr(97 + ordinal)})",
+            )
+        )
+        objects.append(
+            {
+                "id": f"detector-pattern-{item.frame.index:03d}",
+                "type": "heatmap",
+                "panel_id": panel_id,
+                "data_ref": item.source.source_id,
+                "x_column": "pixel_x",
+                "y_column": "pixel_y",
+                "z_column": "log_intensity",
+                "style": {
+                    "cmap": "magma",
+                    "colorbar_label": "log10(counts)",
+                },
+            }
+        )
+
+    parameters = {
+        "source_capability": "detector_2d",
+        "included_frame_indices": [frame.index for frame in frames],
+        "representative_indices": list(selection.indices),
+        "representative_reasons": dict(selection.reasons),
+        "representative_selection_source": selection.source,
+        "source_path_by_frame": {
+            str(frame.index): frame.source_path for frame in frames
+        },
+        "selected_detector_source_paths": {
+            str(frame.index): frame.source_path for frame in selected_frames
+        },
+        "detector_failures": dict(failures),
+        "detector_projection_quality": {
+            str(item.frame.index): item.projection_quality for item in evidence
+        },
+    }
+    return FigureDefinition(
+        figure_id="saxs.temperature.detector.2d",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        publication_role="diagnostic",
+        title="Temperature SAXS detector evidence",
+        layout=FigureLayoutDefinition(
+            width_in=max(4.2, 3.2 * len(panels)),
+            height_in=3.2,
+            rows=1,
+            columns=len(panels),
+            panels=tuple(panels),
+        ),
+        data_sources=tuple(item.source for item in evidence),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_temperature",
+            "function": "build_temperature_figure_definitions",
+            "inputs": {
+                "source_paths": [frame.source_path for frame in frames],
+            },
+            **_selection_recipe(selection, axis),
+            "parameters": parameters,
+        },
+        style_profile="sci_default",
+        display_order=30,
+    )
+
+
 def _mapping_curve(
     payload: Any,
     x_key: str,
@@ -1086,6 +1193,9 @@ def build_temperature_figure_definitions(
     axis = _condition_axis(engine)
     avrami_gate, avrami = _avrami_gate(engine, axis)
     definitions: list[FigureDefinition] = []
+    detector = _build_detector_figure(frames, selection, axis)
+    if detector is not None:
+        definitions.append(detector)
     evolution = _build_evolution(
         engine,
         frames,

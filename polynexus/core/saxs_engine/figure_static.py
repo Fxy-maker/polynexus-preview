@@ -24,12 +24,15 @@ from .figure_common import (
 )
 from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
 from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
+from polynexus.plotting.sci_style import AXIS_LABELS
+from .figure_detector import build_detector_evidence, detector_capable
 from .figure_eligibility import (
     classify_frame_eligibility,
     crystallinity_panel_eligible,
     invariant_panel_eligible,
     trend_panel_eligible,
 )
+from .figure_selection import select_representative_frames
 
 
 _COLORS = ("#4477AA", "#EE6677", "#228833", "#CCBB44", "#66CCEE", "#AA3377")
@@ -894,6 +897,104 @@ def _build_diagnostic(frame: SAXSFrameView, method: str) -> FigureDefinition | N
     )
 
 
+def _detector_heatmap_object(
+    item: Any,
+    panel_id: str,
+) -> dict[str, Any]:
+    return {
+        "id": f"detector-pattern-{item.frame.index:03d}",
+        "type": "heatmap",
+        "panel_id": panel_id,
+        "data_ref": item.source.source_id,
+        "x_column": "pixel_x",
+        "y_column": "pixel_y",
+        "z_column": "log_intensity",
+        "style": {"cmap": "magma", "colorbar_label": "log10(counts)"},
+    }
+
+
+def _build_detector_figure(
+    frames: Sequence[SAXSFrameView],
+) -> FigureDefinition | None:
+    if not frames or not detector_capable(frames):
+        return None
+    selection = select_representative_frames(
+        frames,
+        maximum=3,
+        minimum_separation=2,
+    )
+    frame_by_index = {frame.index: frame for frame in frames}
+    selected_frames = tuple(frame_by_index[index] for index in selection.indices)
+    evidence, failures = build_detector_evidence(selected_frames)
+    if not evidence:
+        return None
+
+    panels: list[PanelDefinition] = []
+    objects: list[dict[str, Any]] = []
+    for ordinal, item in enumerate(evidence):
+        panel_id = f"detector-{item.frame.index:03d}"
+        panels.append(
+            PanelDefinition(
+                panel_id=panel_id,
+                row=0,
+                column=ordinal,
+                x_axis=AxisDefinition(
+                    f"{panel_id}-x",
+                    AXIS_LABELS["detector_x"],
+                    unit="pixel",
+                ),
+                y_axis=AxisDefinition(
+                    f"{panel_id}-y",
+                    AXIS_LABELS["detector_y"],
+                    unit="pixel",
+                    reversed=True,
+                ),
+                title="",
+                panel_label=f"({chr(97 + ordinal)})",
+            )
+        )
+        objects.append(_detector_heatmap_object(item, panel_id))
+
+    included_indices = [frame.index for frame in frames]
+    parameters = {
+        "source_capability": "detector_2d",
+        "included_frame_indices": included_indices,
+        "representative_indices": list(selection.indices),
+        "representative_reasons": dict(selection.reasons),
+        "representative_selection_source": selection.source,
+        "source_path_by_frame": {
+            str(frame.index): frame.source_path for frame in frames
+        },
+        "selected_detector_source_paths": {
+            str(frame.index): frame.source_path for frame in selected_frames
+        },
+        "detector_failures": dict(failures),
+        "detector_projection_quality": {
+            str(item.frame.index): item.projection_quality for item in evidence
+        },
+    }
+    return _definition(
+        figure_id="saxs.static.detector.2d",
+        scope="series" if len(frames) > 1 else "frame",
+        category="diagnostic",
+        role="diagnostic",
+        title="Static SAXS detector evidence",
+        display_order=30,
+        panels=panels,
+        sources=tuple(item.source for item in evidence),
+        objects=tuple(objects),
+        rows=1,
+        columns=len(panels),
+        width=max(4.2, 3.2 * len(panels)),
+        height=3.2,
+        recipe_inputs={
+            "source_paths": [frame.source_path for frame in frames],
+            "selected_frame_indices": list(selection.indices),
+        },
+        recipe_parameters=parameters,
+    )
+
+
 def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefinition, ...]:
     """Build deterministic static figures from immutable views of emitted data."""
 
@@ -953,6 +1054,9 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
                         display_order=20,
                     )
                 )
+    detector = _build_detector_figure(frames)
+    if detector is not None:
+        definitions.append(detector)
     for frame in frames:
         for method in _DIAGNOSTIC_METHODS:
             diagnostic = _build_diagnostic(frame, method)
