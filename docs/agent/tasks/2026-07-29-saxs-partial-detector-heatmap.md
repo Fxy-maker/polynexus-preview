@@ -109,5 +109,5 @@ be recorded here before the checkpoint.
 - Fresh SAXS matrix: 565 passed, 6 warnings in 332.26s, exit code 0.
 - Storage report and clean were non-mutating dry-runs: 16 artifacts, 15,746
   eligible bytes, 0 removed. No --apply was run.
-- git diff --check exited 0. Existing current-state, scratch, and unrelated
-  untracked files remain outside the allowlist.
+- git diff --check exited 0. Checkpoint: `2a6933b`. Existing current-state,
+  scratch, and unrelated untracked files remain outside the allowlist.
