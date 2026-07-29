@@ -73,3 +73,47 @@ def test_static_pack_orders_main_support_and_diagnostics() -> None:
     assert definitions[0].publication_role == "main"
     assert definitions[1].publication_role == "si"
     assert all(item.publication_role == "diagnostic" for item in definitions[2:])
+
+
+def test_dirty_projection_keeps_valid_static_pairs() -> None:
+    engine = _static_engine()
+    engine._q_list[0] = np.asarray(
+        ["0.10", "bad-q", "0.40", "0.80"],
+        dtype=object,
+    )
+    engine._I_list[0] = np.asarray(
+        ["100.0", "70.0", "bad-intensity", "8.0"],
+        dtype=object,
+    )
+    q_before = engine._q_list[0].copy()
+    intensity_before = engine._I_list[0].copy()
+
+    definitions = build_static_saxs_figure_definitions(engine)
+    comparison = next(
+        item for item in definitions if item.figure_id == "saxs.static.comparison"
+    )
+    profile = next(
+        source
+        for source in comparison.data_sources
+        if source.source_id == "static-frame-000-profile"
+    )
+
+    assert profile.values["q_nm_inv"] == (0.1, 0.8)
+    assert profile.values["intensity"] == (100.0, 8.0)
+    assert np.array_equal(engine._q_list[0], q_before)
+    assert np.array_equal(engine._I_list[0], intensity_before)
+
+
+def test_dirty_projection_all_invalid_static_profile_remains_fail_closed() -> None:
+    engine = _static_engine()
+    engine._q_list[0] = np.asarray(["bad-q", "also-bad"], dtype=object)
+    engine._I_list[0] = np.asarray(
+        ["bad-intensity", "also-bad"],
+        dtype=object,
+    )
+
+    definitions = build_static_saxs_figure_definitions(engine)
+
+    assert "saxs.static.comparison" not in {
+        item.figure_id for item in definitions
+    }

@@ -1,5 +1,23 @@
 # Active Work
 
+## SAXS static Figure dirty projection - checkpointed - 2026-07-29
+
+- The static Figure provider now converts q/intensity tokens elementwise at
+  `_numeric_pairs`; invalid elements remain explicit as `NaN` in a detached
+  projection and existing finite/positive/minimum checks decide whether a
+  profile is emitted. No interpolation, padding, inference, analysis change,
+  quality-level change, physical-threshold change, AI/rescue change, or
+  publication-role change was made.
+- TDD RED was `1 failed, 2 deselected`; GREEN was `2 passed, 1 deselected`,
+  and the complete static panel file returned `3 passed`. Structured
+  verification passed with quality `287` and preprocessing `106`; the exact
+  SAXS matrix returned `535 passed, 6 warnings in 340.57s`, exit code `0`.
+  Storage report/clean remained dry-run with `292` artifacts, `40` eligible,
+  `252` protected, and `0` removed. The explicit allowlist checkpoint hash is
+  reported in the handoff.
+- Evidence: `docs/agent/tasks/2026-07-29-saxs-static-figure-dirty-projection.md`
+  and `docs/acceptance/2026-07-29-saxs-static-figure-dirty-projection.md`.
+
 ## User-authorized test-storage apply - partial cleanup - 2026-07-30
 
 - After all pytest processes ended, `python scripts/test_storage.py clean
