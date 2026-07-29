@@ -1,5 +1,19 @@
 # Active Work
 
+## Scientific Review native route recheck - verified, scientific gates open - 2026-07-30
+
+- Fresh current-checkout native Windows Qt selector passed `3 passed, 14
+  deselected in 35.98s`, exit code `0`, covering NMR solid-C, synthetic Joint,
+  and synthetic IR mapping.
+- Results, Gallery, History, Editor, and PackageExporter fallback remained
+  constructible. Captures are under
+  `D:\PolyNexus_native_recheck_current_20260730`.
+- This recheck is route/display evidence only and does not approve IR vendor
+  semantics, NMR assignment/Xc policy, Joint conflict interpretation, or final
+  release authorization.
+- Evidence: `docs/agent/tasks/2026-07-30-scientific-review-native-reacceptance.md`
+  and `docs/acceptance/2026-07-30-scientific-review-native-reacceptance.md`.
+
 ## SAXS 2D reviewer consumer propagation - verified, checkpointed - 2026-07-30
 
 - The configured detached `saxs.2d` review projection now reaches result

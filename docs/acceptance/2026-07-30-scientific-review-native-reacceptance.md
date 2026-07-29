@@ -32,6 +32,25 @@ no-Origin PackageExporter fallback. Current Results captures visibly show
 and IR mapping. The Joint synthetic fixture shows an accepted snapshot; that
 is fixture provenance only and is not scientific conflict approval.
 
+## Current-checkout recheck
+
+A fresh rerun of the same selector passed:
+
+```text
+3 passed, 14 deselected in 35.98s, exit code 0
+```
+
+Command:
+
+```text
+python -m pytest -q tests/test_native_gui_real_route_capture.py -k "solid_c or native_windows_gui_joint_synthetic_route or native_windows_gui_synthetic_ir_mapping_route" -vv
+```
+
+Capture root: `D:\PolyNexus_native_recheck_current_20260730`.
+The routes and PackageExporter fallback remained constructible. This does not
+close IR vendor semantics, NMR solid-C assignment/Xc policy, Joint conflict
+interpretation, or final release authorization.
+
 ## Limitations
 
 The capture proves native route construction and display propagation only. IR

@@ -55,6 +55,16 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-30-scientific-review-na
 git diff --check
 ```
 
+## Current-checkout recheck
+
+- Fresh current-checkout selector passed `3 passed, 14 deselected in 35.98s`,
+  exit code `0`.
+- Capture root: `D:\PolyNexus_native_recheck_current_20260730`.
+- Selected routes were NMR solid-C, synthetic Joint, and synthetic IR mapping;
+  Results, Gallery, History, Editor, and PackageExporter fallback remained
+  constructible. This is route/display evidence only; scientific and release
+  gates remain open.
+
 ## Explicit changed-file allowlist
 
 - `docs/agent/tasks/2026-07-30-scientific-review-native-reacceptance.md`
