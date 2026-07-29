@@ -99,16 +99,14 @@ user-authorized storage maintenance apply is outside this checkpoint.
 - Temperature Figure provider/regression slice: `15 passed`.
 - Structured verifier: quality gate `287 passed`, preprocessing gate `106
   passed`; Ruff, compile, type baseline, and whitespace checks passed.
-- Fresh SAXS matrix: `549 passed, 6 warnings in 196.73s`, exit code `0`, using
+- Fresh SAXS matrix: `549 passed, 6 warnings in 239.55s`, exit code `0`, using
   a numeric-free dedicated base-temp path so the existing condition-axis
   recovery tests did not interpret a temporary-directory digit as a
   temperature value.
-- Storage safety: the final clean dry-run found `299 artifacts`; `8` eligible
-  zero-byte entries, `9` referenced by a running process, and `282` younger
-  than retention. It removed nothing. A separate user-authorized
-  `--apply` maintenance run removed 35 D-drive legacy directories
-  (`19,128,640,281` bytes) and preserved five permission-denied zero-byte
-  directories plus the protected repository `.pytest_tmp`.
+- Storage safety: the fresh report and clean dry-run found `298 artifacts`,
+  `9 eligible`, `289 younger than retention`, and `0 eligible bytes`; every
+  listed artifact remained `removed=false`. This turn did not run
+  `test_storage.py --apply`.
 - The final checkpoint allowlist is exactly the five files listed below; the
   pre-existing `docs/agent/memory/current-state.md`, scratch/runtime output,
   and all other parallel files are excluded.

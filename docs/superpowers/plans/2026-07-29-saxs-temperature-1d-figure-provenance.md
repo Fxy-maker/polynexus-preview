@@ -86,7 +86,7 @@ expect all selected tests to pass and strict JSON serialization to succeed.
 - GREEN: `2 passed, 4 deselected`; temperature panel/provider slice `15 passed`.
 - Structured verifier: quality `287 passed`, preprocessing `106 passed`, with
   Ruff, compile, type baseline, and whitespace checks passing.
-- Fresh SAXS matrix: `549 passed, 6 warnings in 204.99s`, exit code `0`.
-- Task-scoped storage report/clean were dry-run only; `removed_count=0`.
-  Separate user-authorized maintenance removed 35 D-drive legacy directories
-  (`19,128,640,281` bytes), leaving permission-denied zero-byte entries.
+- Fresh SAXS matrix: `549 passed, 6 warnings in 239.55s`, exit code `0`.
+- Task-scoped storage report/clean were dry-run only; the fresh report found
+  `298 artifacts`, `9 eligible`, `289 younger than retention`, and `0 eligible
+  bytes`, with no `--apply` invocation.
