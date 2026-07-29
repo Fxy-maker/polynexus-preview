@@ -9,6 +9,8 @@ from typing import Any, Mapping
 import numpy as np
 
 from .analysis_evidence import build_analysis_evidence
+from .saxs_engine.figure_common import frame_views_from_engine
+from .saxs_engine.figure_evidence import configured_saxs_review_evidence
 
 
 def _finite(value: Any) -> float | None:
@@ -163,6 +165,12 @@ def publish_saxs_result_contract(engine: Any) -> dict[str, Any]:
             "fallback_provenance": fallback_provenance,
         }
     )
+    review_evidence = configured_saxs_review_evidence(
+        engine,
+        frame_views_from_engine(engine),
+    )
+    if review_evidence is not None:
+        parameters["scientific_review"] = review_evidence
     _safe_setattr(result, "parameters", parameters, write_diagnostics)
     try:
         existing_quality_flags = getattr(result, "quality_flags", None)

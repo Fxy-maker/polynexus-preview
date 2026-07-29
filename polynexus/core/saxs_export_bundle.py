@@ -18,6 +18,8 @@ from .saxs_batch_helpers import (
     build_static_batch_metric_evidence,
 )
 from .saxs_config_binding import saxs_config_snapshot
+from .saxs_engine.figure_common import frame_views_from_engine
+from .saxs_engine.figure_evidence import configured_saxs_review_evidence
 from .saxs_engine.processed_profile import _coerce_numeric_array
 
 
@@ -253,6 +255,12 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
         "temperature": _series_quality_payload(temperature),
         "strain": _series_quality_payload(strain),
     }
+    review_evidence = configured_saxs_review_evidence(
+        engine,
+        frame_views_from_engine(engine),
+    )
+    if review_evidence is not None:
+        payload["scientific_review"] = review_evidence
     result_parameters = getattr(getattr(engine, "result", None), "parameters", None)
     if isinstance(result_parameters, Mapping):
         acceptance_audit = result_parameters.get("scientific_acceptance_audit")

@@ -341,6 +341,35 @@ def configured_saxs_1d_review(source: Any) -> Any:
     return payload if isinstance(payload, Mapping) else {}
 
 
+def configured_saxs_review_evidence(
+    source: Any,
+    frames: Sequence[SAXSFrameView],
+) -> dict[str, Any] | None:
+    """Project one configured SAXS review onto existing frame sources.
+
+    This is a consumer adapter only: it validates and source-matches the
+    existing reviewer record, then returns the same detached fail-closed shape
+    used by Figure provenance. Empty configuration remains absent so generic
+    SAXS consumers do not present a missing optional review as a new gate.
+    """
+
+    config = getattr(source, "cfg", source)
+    payload = getattr(config, "scientific_review", None)
+    if not isinstance(payload, Mapping) or not payload:
+        return None
+    declared_scope = str(payload.get("scope") or "").strip()
+    expected_scope = (
+        declared_scope
+        if declared_scope in {"saxs.1d", "saxs.2d"}
+        else "saxs.1d"
+    )
+    return build_saxs_review_evidence(
+        payload,
+        frames,
+        expected_scope=expected_scope,
+    )
+
+
 def _json_safe(value: Any) -> Any:
     """Return a detached value accepted by strict ``json.dumps``."""
 
@@ -778,5 +807,6 @@ __all__ = [
     "build_saxs_1d_review_evidence",
     "build_saxs_2d_review_evidence",
     "configured_saxs_1d_review",
+    "configured_saxs_review_evidence",
     "existing_saxs_acceptance_audit",
 ]

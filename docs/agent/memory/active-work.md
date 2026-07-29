@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS 2D reviewer consumer propagation - verified, checkpointed - 2026-07-30
+
+- The configured detached `saxs.2d` review projection now reaches result
+  parameters and authoritative `quality_evidence.json`; Figure document and
+  V2 sidecar carry the same snapshot. Empty optional review config remains
+  absent from generic non-gated result consumers, while attached Figure
+  evidence stays explicitly fail-closed with `review_missing`.
+- Focused GREEN passed `4`; adjacent 2D/1D/Figure/bundle/Workbench matrix
+  passed `70`, while the independent broader consumer recheck passed `160`.
+  Exact SAXS passed `588` with `6` warnings, exit code `0` in this session
+  (`591.42s`) and the independent shared recheck (`594.35s`).
+- Storage report/clean dry-run recorded `46` artifacts, `0` eligible bytes,
+  and `0` removed; no `--apply` was run for this task.
+- Task-scoped verifier passed quality `290` and preprocessing `106`, plus
+  Ruff, compile, memory, type baseline, and whitespace checks.
+- Task/acceptance/plan:
+  `docs/agent/tasks/2026-07-29-saxs-2d-review-consumer-propagation.md`,
+  `docs/acceptance/2026-07-29-saxs-2d-review-consumer-propagation.md`, and
+  `docs/superpowers/plans/2026-07-29-saxs-2d-review-consumer-propagation.md`.
+- An explicit allowlist checkpoint is recorded in the task commit.
+
 ## User-authorized test-storage cleanup - partially applied - 2026-07-30
 
 - Ran `python scripts/test_storage.py clean --older-than-hours 24 --apply`
