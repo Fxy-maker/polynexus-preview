@@ -9,7 +9,12 @@ from polynexus.core.saxs_engine.figure_common import SAXSFrameView
 from polynexus.core.saxs_engine.figure_temperature import (
     build_temperature_figure_definitions,
 )
+from polynexus.core.saxs_engine.figure_static import (
+    build_static_saxs_figure_definitions,
+)
+from polynexus.core.saxs_engine.figure_strain import build_strain_figure_definitions
 from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
+from tests.test_saxs_figure_evidence_binding import _static_engine, _strain_engine
 
 
 def _review_payload(*, source_refs: tuple[str, ...], scope: str = "saxs.1d") -> dict[str, object]:
@@ -154,3 +159,30 @@ def test_temperature_1d_review_wrong_scope_is_fail_closed() -> None:
 
     assert review["allowed"] is False
     assert review["reason"] == "scope_mismatch"
+
+
+def test_static_1d_review_binds_existing_sources_without_changing_roles() -> None:
+    engine = _static_engine()
+    engine.cfg.scientific_review = _review_payload(
+        source_refs=("sample-0.dat", "sample-1.dat")
+    )
+
+    definitions = build_static_saxs_figure_definitions(engine)
+    provenance = definitions[0].recipe["evidence"]["quality_provenance"]
+
+    review = provenance["scientific_review"]
+    assert review["allowed"] is True
+    assert review["reason"] == "review_accepted"
+    assert definitions[0].publication_role == "main"
+
+
+def test_strain_1d_review_missing_is_fail_closed() -> None:
+    engine = _strain_engine()
+    engine.cfg.scientific_review = {}
+
+    definitions = build_strain_figure_definitions(engine)
+    provenance = definitions[0].recipe["evidence"]["quality_provenance"]
+
+    review = provenance["scientific_review"]
+    assert review["allowed"] is False
+    assert review["reason"] == "review_missing"

@@ -22,7 +22,11 @@ from .figure_common import (
     frame_views_from_engine,
     polish_saxs_publication_definitions,
 )
-from .figure_evidence import attach_saxs_figure_evidence, existing_saxs_acceptance_audit
+from .figure_evidence import (
+    attach_saxs_figure_evidence,
+    configured_saxs_1d_review,
+    existing_saxs_acceptance_audit,
+)
 from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from polynexus.plotting.sci_style import AXIS_LABELS
 from .figure_detector import build_detector_evidence, detector_capable
@@ -1106,6 +1110,7 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
                 getattr(engine_state, "result", None),
             ),
             acceptance_audit=existing_saxs_acceptance_audit(engine_state),
+            scientific_review=configured_saxs_1d_review(engine_state),
     )
 
 

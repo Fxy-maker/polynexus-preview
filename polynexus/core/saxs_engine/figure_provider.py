@@ -357,6 +357,11 @@ def _apply_publication_roles(
             getattr(engine_state, "result", None),
         ),
         acceptance_audit=existing_saxs_acceptance_audit(engine_state),
+        scientific_review=(
+            configured_saxs_1d_review(engine_state)
+            if mode_name in {"static", "strain"}
+            else None
+        ),
     )
 
 

@@ -1,5 +1,33 @@
 # Active Work
 
+## SAXS 1D reviewer evidence binding for static and strain - verified, checkpointed - 2026-07-29
+
+- Static and strain Figure providers now pass the existing configured
+  `saxs.1d` reviewer payload through `configured_saxs_1d_review()` into the
+  shared detached evidence projection. The generic provider path consumes the
+  review only for static/strain modes; temperature keeps its specialized path
+  and 2D is not changed.
+- No analysis, quality level, physical gate, AI/rescue, publication role,
+  Workbench, Manifest, Export, source ordering, interpolation, frame repair,
+  or source inference behavior changed. Missing, invalid, pending,
+  wrong-scope, and partial-source records remain fail-closed.
+- TDD RED was `2 failed, 5 passed`; GREEN was `7 passed`. The focused matrix
+  passed `60 passed in 7.30s`.
+- Fresh task-scoped verification exited `0` with quality `290`, preprocessing
+  `106`, Ruff, compile, type baseline, memory/task, whitespace, and diff
+  checks passing. Fresh exact SAXS exited `0`: `582 passed, 6 warnings in
+  392.47s`.
+- Storage report/clean remained dry-run: `45` artifacts, `0` eligible bytes,
+  `0` removed. No `test_storage.py --apply` was run; old shared full/boundary
+  processes and all unrelated scratch/test paths remain untouched.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-29-saxs-1d-review-static-strain-binding.md`,
+  `docs/superpowers/specs/2026-07-29-saxs-1d-review-static-strain-binding-design.md`,
+  and `docs/superpowers/plans/2026-07-29-saxs-1d-review-static-strain-binding.md`.
+- An explicit changed-file allowlist checkpoint is recorded in this task
+  commit.
+
+
 ## SAXS 1D reviewer evidence binding - checkpointed - 2026-07-29
 
 - Temperature SAXS Figure evidence now consumes only an explicit
