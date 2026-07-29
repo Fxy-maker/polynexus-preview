@@ -5,22 +5,32 @@ from .engine import (
     register_technique, get_engine, list_techniques,
 )
 from .analysis_evidence import AnalysisEvidence, build_analysis_evidence
+from .scientific_review import (
+    REVIEW_SCOPES,
+    REVIEW_STATUSES,
+    ReviewPromotionDecision,
+    ScientificReviewRecord,
+    promotion_decision,
+    validate_review_record,
+)
 
 # Import all technique modules to trigger @register_technique decorators
-from . import saxs
-from . import waxs
-from . import dsc
-from . import ir
-from . import nmr
-from . import joint
+from . import saxs  # noqa: F401
+from . import waxs  # noqa: F401
+from . import dsc  # noqa: F401
+from . import ir  # noqa: F401
+from . import nmr  # noqa: F401
+from . import joint  # noqa: F401
 
 __all__ = [
     "BaseEngine", "AnalysisResult", "EngineCategory",
     "register_technique", "get_engine", "list_techniques",
     "AnalysisEvidence", "build_analysis_evidence",
+    "REVIEW_SCOPES", "REVIEW_STATUSES", "ReviewPromotionDecision",
+    "ScientificReviewRecord", "promotion_decision", "validate_review_record",
 ]
 
-from .report import generate_report, save_report
+from .report import generate_report, save_report  # noqa: F401
 
 # ── SubModule v2.0 exports ──
 from .submodule_registry import (

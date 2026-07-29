@@ -1,12 +1,15 @@
 # Active Work
 
-## Shared scientific review record contract - planned - 2026-07-29
+## Shared scientific review record contract - verified, checkpoint pending - 2026-07-29
 
 - The approved scientific-release design now has an implementation plan and a
   separate schema task for a technique-neutral, JSON-safe review record.
-- The first slice is intentionally shared-only: it validates scope/status/source
-  references and exposes a fail-closed promotion decision, without choosing IR,
+- The first slice is intentionally shared-only: `ScientificReviewRecord`
+  validates scope/status/source references, serializes JSON-safe detached
+  payloads, and exposes a fail-closed promotion decision without choosing IR,
   NMR solid-C, Joint, or final release values.
+- TDD RED was the expected missing-module collection error; GREEN was `7
+  passed` in `tests/test_scientific_review.py`.
 - Plan: `docs/superpowers/plans/2026-07-29-scientific-review-record-contract.md`.
   Task: `docs/agent/tasks/2026-07-29-scientific-review-record-contract.md`.
 

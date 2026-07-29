@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-29-scientific-review-record-contract
 kind: schema
-status: planned
+status: completed
 date: 2026-07-29
 title: Add shared scientific review record contract
 ---
@@ -47,16 +47,16 @@ promotion gate described by the approved scientific-release design.
 
 ## Acceptance criteria
 
-- [ ] Valid pending and accepted records round-trip through JSON with no NaN or
+- [x] Valid pending and accepted records round-trip through JSON with no NaN or
       infinity values.
-- [ ] Unknown scopes/statuses and incomplete non-pending records are rejected.
-- [ ] Missing, pending, conditional, rejected, stale, wrong-scope, and
+- [x] Unknown scopes/statuses and incomplete non-pending records are rejected.
+- [x] Missing, pending, conditional, rejected, stale, wrong-scope, and
       source-mismatched records all fail closed with stable reasons.
-- [ ] Only an accepted, complete, scope-matching, source-matching record can
+- [x] Only an accepted, complete, scope-matching, source-matching record can
       return an allowed promotion decision.
-- [ ] No technique-specific scientific result or publication role changes in
+- [x] No technique-specific scientific result or publication role changes in
       this slice.
-- [ ] The atomic checkpoint contains only the explicit changed-file allowlist.
+- [x] The atomic checkpoint contains only the explicit changed-file allowlist.
 
 ## Verification
 
