@@ -4,16 +4,22 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import conftest
+import pytest
 
 from scripts.test_storage import (
     RunState,
     TestArtifact,
+    CleanupDecision,
+    apply_cleanup,
     begin_run_state,
     build_cleanup_plan,
     create_run_basetemp,
     discover_artifacts,
+    emergency_pressure,
+    failure_deadline,
     finalize_run_state,
     is_path_referenced,
+    reconcile_run_state,
     read_run_state,
     resolve_legacy_test_roots,
     resolve_retention_profile,
@@ -103,6 +109,71 @@ def test_finalize_run_never_removes_evidence(tmp_path: Path):
     state = read_run_state(run.path)
     assert state is not None
     assert state.status == "passed"
+
+
+def test_cleanup_rejects_symlinked_artifact(tmp_path: Path):
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable")
+    artifact = TestArtifact(link, "managed", 1, datetime.now(timezone.utc))
+
+    removed = apply_cleanup(
+        {artifact: CleanupDecision(eligible=True, reason="test")},
+        apply=True,
+        approved_roots=[tmp_path],
+    )
+
+    assert removed == []
+    assert target.exists()
+
+
+def test_cleanup_rejects_path_outside_approved_root(tmp_path: Path):
+    outside = tmp_path.parent / f"outside-{tmp_path.name}"
+    outside.mkdir()
+    artifact = TestArtifact(outside, "managed", 1, datetime.now(timezone.utc))
+
+    removed = apply_cleanup(
+        {artifact: CleanupDecision(eligible=True, reason="test")},
+        apply=True,
+        approved_roots=[tmp_path],
+    )
+
+    assert removed == []
+    assert outside.exists()
+
+
+def test_emergency_mode_shortens_only_ephemeral_failure_deadline():
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+
+    assert failure_deadline("ephemeral", now, emergency=True) == now + timedelta(hours=2)
+
+
+def test_emergency_mode_never_removes_review_or_evidence():
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+
+    assert failure_deadline("review", now, emergency=True) == now + timedelta(days=7)
+    assert failure_deadline("evidence", now, emergency=True) is None
+
+
+def test_emergency_pressure_detects_low_volume(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(
+        "scripts.test_storage.shutil.disk_usage",
+        lambda path: SimpleNamespace(total=100, used=92, free=8),
+    )
+
+    assert emergency_pressure(tmp_path) is True
+
+
+def test_running_manifest_becomes_interrupted_only_after_process_exit(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    run = begin_run_state(tmp_path / "run-1", project_root=tmp_path, profile="ephemeral", now=now)
+
+    assert reconcile_run_state(run, process_active=True).status == "running"
+    assert reconcile_run_state(run, process_active=False).status == "interrupted"
 
 
 def test_resolve_legacy_test_roots_accepts_path_list_override(tmp_path: Path):

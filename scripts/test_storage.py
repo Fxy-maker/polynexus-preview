@@ -201,6 +201,22 @@ def _keep_until(profile: str, *, passed: bool, now: datetime) -> datetime | None
     return None if duration is None else now + duration
 
 
+def failure_deadline(profile: str, now: datetime, *, emergency: bool = False) -> datetime | None:
+    """Return the retention deadline for a failed or interrupted run."""
+
+    policy = RETENTION_POLICIES.get(profile, RETENTION_POLICIES["review"])
+    if emergency and profile == "ephemeral":
+        return now + timedelta(hours=2)
+    return None if policy.failure_after is None else now + policy.failure_after
+
+
+def emergency_pressure(path: Path, *, threshold: float = 0.10) -> bool:
+    """Return whether the volume containing ``path`` is below free-space threshold."""
+
+    usage = shutil.disk_usage(path.anchor or path)
+    return usage.total > 0 and usage.free / usage.total < threshold
+
+
 def finalize_run_state(
     state: RunState,
     *,
@@ -231,8 +247,37 @@ def finalize_run_state(
         keep_until=_keep_until(state.profile, passed=passed, now=finished_at),
     )
     write_run_state(updated)
-    if passed and state.profile == "ephemeral" and not process_active:
+    if passed and state.profile == "ephemeral" and not process_active and not state.path.is_symlink():
         shutil.rmtree(state.path)
+    return updated
+
+
+def reconcile_run_state(state: RunState, *, process_active: bool, now: datetime | None = None) -> RunState:
+    """Mark an abandoned running process as interrupted after it exits."""
+
+    if state.status != "running" or process_active:
+        return state
+    finished_at = now or datetime.now(timezone.utc)
+    updated = RunState(
+        schema_version=state.schema_version,
+        run_id=state.run_id,
+        path=state.path,
+        project_root=state.project_root,
+        git_head=state.git_head,
+        pid=state.pid,
+        process_started_at=state.process_started_at,
+        profile=state.profile,
+        status="interrupted",
+        exit_code=None,
+        created_at=state.created_at,
+        finished_at=finished_at,
+        keep_until=failure_deadline(
+            state.profile,
+            finished_at,
+            emergency=emergency_pressure(state.path),
+        ),
+    )
+    write_run_state(updated)
     return updated
 
 
@@ -456,16 +501,26 @@ def tracked_paths(project_root: Path) -> list[Path]:
     return [(project_root / line).resolve() for line in completed.stdout.splitlines() if line.strip()]
 
 
-def apply_cleanup(plan: Mapping[TestArtifact, CleanupDecision], *, apply: bool = False) -> list[Path]:
+def apply_cleanup(
+    plan: Mapping[TestArtifact, CleanupDecision],
+    *,
+    apply: bool = False,
+    approved_roots: Iterable[Path] | None = None,
+) -> list[Path]:
     """Remove only eligible artifact directories when explicitly requested."""
 
     if not apply:
         return []
+    roots = [Path(root).resolve() for root in approved_roots or ()]
     removed: list[Path] = []
     for artifact, decision in plan.items():
         if not decision.eligible:
             continue
-        shutil.rmtree(artifact.path)
+        path = artifact.path
+        resolved = path.resolve()
+        if roots and (path.is_symlink() or not any(root == resolved or root in resolved.parents for root in roots)):
+            continue
+        shutil.rmtree(path)
         removed.append(artifact.path)
     return removed
 
