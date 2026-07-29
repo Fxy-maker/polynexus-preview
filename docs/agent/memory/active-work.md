@@ -1,5 +1,20 @@
 # Active Work
 
+## Scientific Review native reacceptance - checkpointed - 2026-07-30
+
+- After `e7209ee`, a fresh exact selector passed all three current native
+  Windows routes: `3 passed, 14 deselected in 31.78s`, exit code `0`.
+  NMR solid-C, synthetic Joint, and synthetic IR mapping each produced
+  Results/Gallery/History/Editor captures and PackageExporter fallback output.
+- The new Scientific Review status is visible in current Results captures:
+  gated missing records show `review_missing`; the accepted Joint fixture is
+  explicitly fixture-only and does not close conflict interpretation.
+- Capture root:
+  `D:\PolyNexus_scientific_review_native_reacceptance_20260730`. Scientific
+  semantics, restarted-GUI all-mode human review, and final release approval
+  remain open.
+- Task: `docs/agent/tasks/2026-07-30-scientific-review-native-reacceptance.md`.
+
 ## Scientific review visibility - checkpointed - 2026-07-29
 
 - The existing fail-closed scientific-review decision snapshot is now rendered
