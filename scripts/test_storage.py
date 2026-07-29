@@ -146,6 +146,96 @@ def read_run_state(path: Path) -> RunState | None:
     )
 
 
+def _git_head(project_root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_root,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        return "unknown"
+    return completed.stdout.strip() if completed.returncode == 0 else "unknown"
+
+
+def begin_run_state(
+    path: Path,
+    *,
+    project_root: Path,
+    profile: str,
+    now: datetime | None = None,
+    pid: int | None = None,
+    git_head: str | None = None,
+) -> RunState:
+    """Create and persist a running manifest for an owned pytest directory."""
+
+    created_at = now or datetime.now(timezone.utc)
+    resolved_path = path.resolve()
+    resolved_path.mkdir(parents=True, exist_ok=True)
+    state = RunState(
+        schema_version=1,
+        run_id=resolved_path.name,
+        path=resolved_path,
+        project_root=Path(project_root).resolve(),
+        git_head=git_head or _git_head(Path(project_root).resolve()),
+        pid=pid or os.getpid(),
+        process_started_at=created_at,
+        profile=profile if profile in RETENTION_PROFILES else "review",
+        status="running",
+        exit_code=None,
+        created_at=created_at,
+        finished_at=None,
+        keep_until=None,
+    )
+    write_run_state(state)
+    return state
+
+
+def _keep_until(profile: str, *, passed: bool, now: datetime) -> datetime | None:
+    policy = RETENTION_POLICIES[profile]
+    duration = policy.success_after if passed else policy.failure_after
+    return None if duration is None else now + duration
+
+
+def finalize_run_state(
+    state: RunState,
+    *,
+    exit_code: int,
+    now: datetime | None = None,
+    process_active: bool = False,
+) -> RunState:
+    """Persist a terminal outcome and remove only owned ephemeral successes."""
+
+    finished_at = now or datetime.now(timezone.utc)
+    passed = exit_code == 0
+    status = "passed" if passed else "failed"
+    if process_active:
+        status = "cleanup_pending"
+    updated = RunState(
+        schema_version=state.schema_version,
+        run_id=state.run_id,
+        path=state.path,
+        project_root=state.project_root,
+        git_head=state.git_head,
+        pid=state.pid,
+        process_started_at=state.process_started_at,
+        profile=state.profile,
+        status=status,
+        exit_code=exit_code,
+        created_at=state.created_at,
+        finished_at=finished_at,
+        keep_until=_keep_until(state.profile, passed=passed, now=finished_at),
+    )
+    write_run_state(updated)
+    if passed and state.profile == "ephemeral" and not process_active:
+        shutil.rmtree(state.path)
+    return updated
+
+
 def resolve_test_root(project_root: Path, environ: Mapping[str, str] | None = None) -> Path:
     """Resolve the external test-storage root for one repository."""
 

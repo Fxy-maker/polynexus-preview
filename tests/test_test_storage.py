@@ -8,9 +8,11 @@ import conftest
 from scripts.test_storage import (
     RunState,
     TestArtifact,
+    begin_run_state,
     build_cleanup_plan,
     create_run_basetemp,
     discover_artifacts,
+    finalize_run_state,
     is_path_referenced,
     read_run_state,
     resolve_legacy_test_roots,
@@ -68,6 +70,39 @@ def test_run_state_round_trip(tmp_path: Path):
     write_run_state(state)
 
     assert read_run_state(run_path) == state
+
+
+def test_finalize_run_removes_owned_ephemeral_success(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    run = begin_run_state(tmp_path / "run-1", project_root=tmp_path, profile="ephemeral", now=now)
+
+    finalize_run_state(run, exit_code=0, now=now, process_active=False)
+
+    assert not run.path.exists()
+
+
+def test_finalize_run_keeps_ephemeral_failure_with_deadline(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    run = begin_run_state(tmp_path / "run-1", project_root=tmp_path, profile="ephemeral", now=now)
+
+    finalize_run_state(run, exit_code=1, now=now, process_active=False)
+
+    state = read_run_state(run.path)
+    assert state is not None
+    assert state.status == "failed"
+    assert state.keep_until == now + timedelta(hours=24)
+
+
+def test_finalize_run_never_removes_evidence(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    run = begin_run_state(tmp_path / "run-1", project_root=tmp_path, profile="evidence", now=now)
+
+    finalize_run_state(run, exit_code=0, now=now, process_active=False)
+
+    assert run.path.exists()
+    state = read_run_state(run.path)
+    assert state is not None
+    assert state.status == "passed"
 
 
 def test_resolve_legacy_test_roots_accepts_path_list_override(tmp_path: Path):
