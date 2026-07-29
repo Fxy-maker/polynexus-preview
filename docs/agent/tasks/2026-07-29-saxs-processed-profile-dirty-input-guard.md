@@ -53,7 +53,9 @@ python scripts/test_storage.py report --json
 ```
 
 The exact SAXS matrix uses an external basetemp and its result is recorded only
-when pytest provides a final summary and exit code.
+when pytest provides a final summary and exit code. The authoritative rerun
+used `D:\PolyNexus_saxs_processed_profile_dirty_saxs_matrix_current` and
+returned `531 passed, 6 warnings in 205.58s`, exit code `0`.
 
 ## Acceptance criteria
 
@@ -79,13 +81,18 @@ when pytest provides a final summary and exit code.
 - Structured verifier passed with exit code `0`: task/memory checks, Ruff,
   compile, type baseline, quality `287 passed in 6.55s`, preprocessing `106
   passed in 1.73s`, and whitespace all passed.
-- Exact SAXS matrix: the PowerShell-expanded `test_saxs_*.py` command reached
-  the `184` second tool timeout (`exit 124`) without a pytest final summary;
-  it is not claimed as passed. The child process was checked afterward and was
-  no longer running.
-- `python scripts/test_storage.py report --json`: dry-run, `562` artifacts,
-  `42` eligible, `520` protected, `0` removed. No test directory was deleted
-  or moved, and `--apply` was not run.
+- Earlier SAXS matrix attempt: the PowerShell-expanded `test_saxs_*.py`
+  command reached the `184` second tool timeout (`exit 124`) without a pytest
+  final summary; it is not counted as evidence. The child process was checked
+  afterward and was no longer running.
+- Authoritative SAXS matrix rerun: all `tests/test_saxs_*.py` files returned
+  `531 passed, 6 warnings in 205.58s`, exit code `0`, using the external
+  basetemp above.
+- Latest `python scripts/test_storage.py report --json`: dry-run, `566`
+  artifacts, `340` eligible, `226` protected, `0` removed; C: `306`
+  artifacts, `298` eligible, `108754786772` eligible bytes. The cleanup
+  command was also dry-run; no test directory was deleted or moved, and
+  `--apply` was not run.
 - `git diff --check` passed through the structured verifier. The explicit
   allowlist checkpoint was created; its final commit hash is reported in the
   handoff. No push or merge was performed.
@@ -94,10 +101,9 @@ when pytest provides a final summary and exit code.
 
 This change only hardens the read-only processed-profile projection. `NaN`
 observations remain explicit and are not repaired; downstream analysis and its
-existing physical/quality gates decide applicability. No full SAXS matrix pass
-is claimed because the bounded run produced no pytest summary. Scientific
-review, AI/rescue acceptance, publication authorization, and GUI review remain
-outside this task.
+existing physical/quality gates decide applicability. Scientific review,
+AI/rescue acceptance, publication authorization, and GUI review remain outside
+this task.
 
 ## Explicit changed-file allowlist
 

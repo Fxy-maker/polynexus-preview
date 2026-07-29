@@ -20,14 +20,14 @@ verification scripts.
 **Files:**
 - Modify: `tests/test_saxs_processed_profile.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add tests that construct a `ProcessedProfile` with one malformed token in each
 numeric layer, assert same-position `NaN`, per-layer counts, `WARN`, and input
 immutability. Add a payload-adapter test with malformed q/raw and one optional
 layer, plus clean-input coverage for `OK`.
 
-- [ ] **Step 2: Run the focused tests to verify RED**
+- [x] **Step 2: Run the focused tests to verify RED**
 
 Run:
 
@@ -45,23 +45,23 @@ dirty payload projection fail with the existing whole-array conversion error.
 - Modify: `polynexus/core/saxs_engine/processed_profile.py`
 - Modify: `polynexus/core/saxs.py`
 
-- [ ] **Step 1: Add elementwise coercion**
+- [x] **Step 1: Add elementwise coercion**
 
 Convert each element independently, placing `numpy.nan` on conversion failure;
 return the invalid count to the caller without mutating the source object.
 
-- [ ] **Step 2: Apply it to all projection layers**
+- [x] **Step 2: Apply it to all projection layers**
 
 Use the helper in `ProcessedProfile.__post_init__()`, merge nonzero counts into
 `diagnostics["invalid_numeric_values"]`, and force `quality_status="WARN"`
 when any count is nonzero.
 
-- [ ] **Step 3: Apply it to q/raw in the payload adapter**
+- [x] **Step 3: Apply it to q/raw in the payload adapter**
 
 Use the same helper before the existing q/raw length and optional-layer checks;
 preserve all existing mismatch diagnostics and provenance.
 
-- [ ] **Step 4: Run the focused tests to verify GREEN**
+- [x] **Step 4: Run the focused tests to verify GREEN**
 
 Run the same focused command and confirm the clean and dirty projection tests
 pass.
@@ -78,18 +78,18 @@ pass.
 - Modify: `docs/agent/memory/active-work.md`
 - Add: `docs/acceptance/2026-07-29-saxs-processed-profile-dirty-input-guard.md`
 
-- [ ] **Step 1: Run the focused and SAXS verification matrix**
+- [x] **Step 1: Run the focused and SAXS verification matrix**
 
 Run the focused projection tests, the exact SAXS test-file matrix with an
 external basetemp, and the structured verifier. Record timeout/no-summary as a
 limitation rather than a pass.
 
-- [ ] **Step 2: Review the scoped diff**
+- [x] **Step 2: Review the scoped diff**
 
 Run `git diff --check` and verify the explicit allowlist excludes all existing
 parallel changes and generated test output.
 
-- [ ] **Step 3: Update evidence and create the checkpoint**
+- [x] **Step 3: Update evidence and create the checkpoint**
 
 Record exact outcomes in the task card, acceptance note, and active work; then
 run `scripts/auto_commit.py` with only the explicit allowlist.

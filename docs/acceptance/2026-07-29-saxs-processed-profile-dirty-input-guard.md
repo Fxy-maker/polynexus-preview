@@ -19,10 +19,15 @@ unchanged.
 - Structured verification: exit code `0`; quality `287 passed`, preprocessing
   `106 passed`, task/memory, Ruff, compile, type baseline, and whitespace all
   passed.
-- Exact SAXS matrix: timeout after `184s` with no pytest final summary, so no
-  SAXS matrix pass is asserted.
-- Test storage: report-only dry-run with `562` artifacts, `42` eligible, `520`
-  protected, and `0` removed. No `--apply` was executed.
+- Earlier exact SAXS matrix attempt: timeout after `184s` with no pytest final
+  summary, so it is not counted as evidence.
+- Authoritative exact SAXS matrix rerun: all `tests/test_saxs_*.py` files
+  returned `531 passed, 6 warnings in 205.58s`, exit code `0`, using external
+  basetemp `D:\PolyNexus_saxs_processed_profile_dirty_saxs_matrix_current`.
+- Test storage: latest report and cleanup dry-run showed `566` artifacts,
+  `340` eligible, `226` protected, and `0` removed. C: had `306` artifacts,
+  `298` eligible, and `108754786772` eligible bytes. No `--apply` was
+  executed; no data was deleted or migrated.
 
 No scientific threshold, analysis route, AI/rescue path, Figure/Manifest/Export
 contract, or publication decision changed. The explicit allowlist checkpoint
