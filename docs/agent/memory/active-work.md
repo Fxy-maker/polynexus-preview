@@ -1,5 +1,22 @@
 # Active Work
 
+## Test-storage apply fail-soft - checkpointed - 2026-07-29
+
+- `scripts/test_storage.py` now exposes an immutable detailed apply result,
+  continues independent eligible deletions after an `OSError`, reports each
+  failure path/type/message, and returns CLI exit code `1` for partial apply.
+  The existing `apply_cleanup(...) -> list[Path]` compatibility wrapper and
+  all safety gates are unchanged.
+- TDD RED covered the missing detailed operation and the old CLI's false-zero
+  partial apply; GREEN was `2` focused tests and the full storage suite was
+  `28 passed, 1 skipped`. The task verifier passed quality `287` and
+  preprocessing `106`; storage report/clean dry-run remained non-mutating.
+- Checkpoint: `d314feb`. Evidence:
+  `docs/agent/tasks/2026-07-29-test-storage-apply-fail-soft.md`.
+- The earlier user-authorized real cleanup remains a separate maintenance
+  action; ACL-denied directories are still preserved and no ACL bypass was
+  added.
+
 ## SAXS temperature 1D Figure projection provenance - checkpointed - 2026-07-29
 
 - Temperature representative-profile and waterfall Figure recipes now expose
