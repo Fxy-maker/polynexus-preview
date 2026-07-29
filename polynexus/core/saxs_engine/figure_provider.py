@@ -404,16 +404,21 @@ def build_saxs_temperature_definitions(
     if len(temperatures) != len(q_values) or len(q_values) != len(intensities):
         raise ValueError("temperature frame counts differ")
     definitions: list[FigureDefinition] = []
-    cleaned_frames: list[tuple[np.ndarray, np.ndarray]] = []
+    cleaned_frames: list[tuple[np.ndarray, np.ndarray] | None] = []
+    unavailable_reasons: dict[int, str] = {}
     for index, (temperature, q, intensity) in enumerate(
         zip(temperatures, q_values, intensities),
-        start=1,
+        start=0,
     ):
-        clean_q, clean_intensity = _clean_frame(q, intensity, index)
-        cleaned_frames.append((clean_q, clean_intensity))
+        cleaned, reason = _try_clean_frame(q, intensity, index + 1)
+        cleaned_frames.append(cleaned)
+        if cleaned is None:
+            unavailable_reasons[index] = reason or "figure_profile_unavailable"
+            continue
+        clean_q, clean_intensity = cleaned
         definitions.append(
             _build_temperature_frame(
-                index,
+                index + 1,
                 float(temperature),
                 clean_q,
                 clean_intensity,
@@ -421,11 +426,20 @@ def build_saxs_temperature_definitions(
         )
     if definitions:
         frame_count = len(cleaned_frames)
+        available_indices = tuple(
+            index
+            for index, frame in enumerate(cleaned_frames)
+            if frame is not None
+        )
         _decisions, main_indices, omission_reasons = _evidence_plan(
             evidence_frames,
             frame_count,
         )
-        selected_indices = main_indices or tuple(range(frame_count))
+        main_indices = tuple(
+            index for index in main_indices if index in available_indices
+        )
+        omission_reasons.update(unavailable_reasons)
+        selected_indices = main_indices or available_indices
         evidence = {
             "included_frame_indices": list(selected_indices),
             "omitted_frame_indices": [
@@ -445,6 +459,7 @@ def build_saxs_temperature_definitions(
             _build_temperature_waterfall(
                 temperatures,
                 cleaned_frames,
+                available_indices=available_indices,
                 publication_role=waterfall_role,
                 evidence=evidence,
             )
@@ -726,16 +741,28 @@ def _build_temperature_frame(
 
 def _build_temperature_waterfall(
     temperatures: np.ndarray,
-    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
     *,
+    available_indices: Sequence[int] | None = None,
     publication_role: str = "si",
     evidence: dict[str, object] | None = None,
 ) -> FigureDefinition:
-    selected_indices = _waterfall_indices(len(frames))
+    source_indices = (
+        tuple(available_indices)
+        if available_indices is not None
+        else tuple(index for index, frame in enumerate(frames) if frame is not None)
+    )
+    selected_indices = tuple(
+        source_indices[position]
+        for position in _waterfall_indices(len(source_indices))
+    )
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, object]] = []
     for display_index, frame_index in enumerate(selected_indices):
-        q, intensity = frames[frame_index]
+        frame = frames[frame_index]
+        if frame is None:
+            continue
+        q, intensity = frame
         source_id = f"frame-{frame_index + 1:03d}-data"
         offset = np.log10(np.clip(intensity, np.finfo(float).tiny, None)) + display_index * 1.2
         sources.append(
@@ -795,7 +822,7 @@ def _build_temperature_waterfall(
 
 def _build_temperature_summary_definitions(
     result: TempSeriesResult,
-    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
     *,
     included_indices: Sequence[int],
     publication_role: str,
@@ -930,7 +957,7 @@ def _build_temperature_parameters(
 
 def _build_temperature_heatmap(
     temperatures: np.ndarray,
-    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
     *,
     included_indices: Sequence[int] | None = None,
     publication_role: str = "si",
@@ -941,8 +968,15 @@ def _build_temperature_heatmap(
         if included_indices is None
         else tuple(included_indices)
     )
-    selected_temperatures = temperatures[list(indices)]
-    selected_frames = tuple(frames[index] for index in indices)
+    valid_indices = tuple(
+        index for index in indices if frames[index] is not None
+    )
+    selected_temperatures = temperatures[list(valid_indices)]
+    selected_frames = tuple(
+        frames[index]
+        for index in valid_indices
+        if frames[index] is not None
+    )
     q_min = max(float(np.nanmin(q)) for q, _intensity in selected_frames)
     q_max = min(float(np.nanmax(q)) for q, _intensity in selected_frames)
     if not q_min < q_max:
@@ -1212,6 +1246,19 @@ def _clean_frame(
     intensity = intensity[mask]
     order = np.argsort(q)
     return q[order], intensity[order]
+
+
+def _try_clean_frame(
+    q_values: np.ndarray,
+    intensities: np.ndarray,
+    frame_index: int,
+) -> tuple[tuple[np.ndarray, np.ndarray] | None, str | None]:
+    """Project one legacy frame without aborting its containing series."""
+
+    try:
+        return _clean_frame(q_values, intensities, frame_index), None
+    except (TypeError, ValueError):
+        return None, "figure_profile_unavailable"
 
 
 def _waterfall_indices(frame_count: int) -> tuple[int, ...]:

@@ -350,3 +350,33 @@ def test_dirty_projection_legacy_temperature_frame_keeps_valid_pairs(
 
     assert source.values["q_nm1"] == (0.1, 0.4)
     assert source.values["intensity_au"] == (100.0, 20.0)
+
+
+def test_legacy_temperature_provider_omits_unplottable_frame_with_evidence(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    q_values = list(q_values)
+    intensities = list(intensities)
+    q_values[1] = np.asarray(["bad-q", "also-bad"], dtype=object)
+    intensities[1] = np.asarray(["bad-intensity", "still-bad"], dtype=object)
+
+    definitions = build_saxs_temperature_definitions(
+        result,
+        q_values,
+        intensities,
+    )
+
+    frame_ids = {item.figure_id for item in definitions}
+    assert "saxs.frame.temperature.scattering.001" in frame_ids
+    assert "saxs.frame.temperature.scattering.002" not in frame_ids
+    parameters = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.parameters"
+    )
+    assert parameters.data_sources[0].values["temperature_C"] == (30.0,)
+    evidence = parameters.recipe["evidence"]
+    assert evidence["included_frame_indices"] == [0]
+    assert evidence["omitted_frame_indices"] == [1]
+    assert evidence["omission_reasons"][1] == "figure_profile_unavailable"
