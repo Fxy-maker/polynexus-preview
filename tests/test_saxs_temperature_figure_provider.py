@@ -436,3 +436,37 @@ def test_dirty_temperature_axis_preserves_frame_positions_and_marks_missing_cond
 
     for definition in definitions:
         validate_figure_definition(definition)
+
+
+def test_dirty_temperature_derived_arrays_preserve_metric_positions_and_fallback(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    result.L_array = np.asarray(["12.0", "bad-long-period"], dtype=object)
+    result.lc_array = np.asarray(["4.0", "bad-raw-lc"], dtype=object)
+    result.lc_effective_array = np.asarray(["4.1", "bad-effective-lc"], dtype=object)
+    result.Q_star_array = np.asarray(["100.0", "bad-invariant"], dtype=object)
+    result.Xc_array = np.asarray(["0.4", "bad-crystallinity"], dtype=object)
+
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+
+    parameters = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.parameters"
+    )
+    values = parameters.data_sources[0].values
+
+    assert values["L_nm"][0] == 12.0
+    assert np.isnan(values["L_nm"][1])
+    assert values["lc_nm"][0] == 4.1
+    assert np.isnan(values["lc_nm"][1])
+    assert values["Q_star"][0] == 100.0
+    assert np.isnan(values["Q_star"][1])
+    assert values["crystallinity_fraction"][0] == 0.4
+    assert np.isnan(values["crystallinity_fraction"][1])
+    metric_keys = ("L_nm", "lc_nm", "la_nm", "Q_star", "crystallinity_fraction")
+    assert all(np.isnan(values[key][1]) for key in metric_keys)
+
+    for definition in definitions:
+        validate_figure_definition(definition)

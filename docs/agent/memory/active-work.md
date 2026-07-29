@@ -1,5 +1,27 @@
 # Active Work
 
+## SAXS modern temperature Figure derived-array dirty-input guard - verified, ready for checkpoint - 2026-07-30
+
+- `_series_values()` now projects `L_array`, `lc_array`,
+  `lc_effective_array`, `Q_star_array`, and `Xc_array` elementwise through
+  the existing numeric coercion boundary. Malformed or non-finite tokens stay
+  at their frame positions as explicit `NaN`; existing required/optional and
+  length-mismatch behavior remains unchanged.
+- TDD RED was `1 failed, 13 deselected`; focused GREEN passed `1`, the related
+  Figure/provider/evidence matrix passed `51`, and the exact SAXS matrix passed
+  `590` with `6` existing warnings and exit code `0`.
+- Structured verification passed with quality `290` and preprocessing `106`;
+  Ruff, compile, type baseline, memory, whitespace, and `git diff --check`
+  passed. Storage report/clean remained dry-run only (`54` artifacts,
+  `6` eligible, `0` removed); `test_storage.py --apply` was not run.
+- Task/acceptance/spec/plan:
+  `docs/agent/tasks/2026-07-30-saxs-modern-temperature-figure-derived-arrays-dirty-input.md`,
+  `docs/acceptance/2026-07-30-saxs-modern-temperature-figure-derived-arrays-dirty-input.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-modern-temperature-figure-derived-arrays-dirty-input-design.md`,
+  and `docs/superpowers/plans/2026-07-30-saxs-modern-temperature-figure-derived-arrays-dirty-input.md`.
+- A fresh full/boundary pass is not attributed to this task; the latest
+  post-`765bda3` full/boundary attempt is recorded as timeout `124`.
+
 ## SAXS modern temperature Figure axis dirty-input guard - verified, checkpointed - 2026-07-29
 
 - Modern temperature Figure construction now projects each temperature token

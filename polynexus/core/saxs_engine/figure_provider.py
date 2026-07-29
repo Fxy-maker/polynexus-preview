@@ -1190,7 +1190,7 @@ def _series_values(
         if missing_ok:
             return np.full(count, np.nan, dtype=float)
         raise ValueError(f"temperature result array is missing: {name}")
-    array = np.ravel(np.asarray(values, dtype=float))
+    array = _temperature_array(values)
     if len(array) != count:
         raise ValueError(f"temperature result array length differs: {name}")
     return array
