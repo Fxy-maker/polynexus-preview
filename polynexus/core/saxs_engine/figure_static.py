@@ -272,6 +272,7 @@ def _definition(
     height: float,
     recipe_inputs: Mapping[str, Any],
     recipe_parameters: Mapping[str, Any] | None = None,
+    v2_adapter: str = "",
 ) -> FigureDefinition:
     parameters: dict[str, Any] = {
         "source": "completed_analysis",
@@ -301,6 +302,7 @@ def _definition(
             "function": "build_static_saxs_figure_definitions",
             "inputs": dict(recipe_inputs),
             "parameters": parameters,
+            **({"v2_adapter": v2_adapter} if v2_adapter else {}),
         },
         style_profile="sci_default",
     )
@@ -993,6 +995,7 @@ def _build_detector_figure(
             "selected_frame_indices": list(selection.indices),
         },
         recipe_parameters=parameters,
+        v2_adapter="saxs_static",
     )
 
 

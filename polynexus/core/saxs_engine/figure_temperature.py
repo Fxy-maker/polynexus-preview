@@ -1009,6 +1009,7 @@ def _build_detector_figure(
             },
             **_selection_recipe(selection, axis),
             "parameters": parameters,
+            "v2_adapter": "temperature_saxs",
         },
         style_profile="sci_default",
         display_order=30,

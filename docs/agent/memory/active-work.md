@@ -1,5 +1,23 @@
 # Active Work
 
+## SAXS partial detector V2 binding - verified, checkpointed - 2026-07-29
+
+- Static and temperature diagnostic detector Figures now opt into their
+  existing reviewed V2 adapters.  Their sparse source rows still contain only
+  retained finite pixels; the reactive scene and V2 publication leave missing
+  pixels absent/blank.  Detector values, projection counts, quality/physical
+  gates, orientation, AI/rescue, and publication role did not change.
+- TDD RED was `2 failed, 7 deselected` at the expected `not_configured`
+  capability.  GREEN was `2 passed, 7 deselected`; detector/reactive matrix
+  passed `17`.  Structured verification passed with quality `287` and
+  preprocessing `106`; fresh SAXS matrix passed `567` with 6 existing
+  warnings in 416.22s, exit code 0.
+- Storage report/clean stayed dry-run: 18 artifacts, 0 eligible bytes, and 0
+  removed.  The one literal wildcard SAXS command was a PowerShell expansion
+  error and did not run tests; the recorded 567-pass matrix used an explicit
+  PowerShell file enumeration.  Evidence:
+  `docs/agent/tasks/2026-07-29-saxs-partial-detector-v2-binding.md`.
+
 ## User-authorized test-storage apply follow-up - partial cleanup - 2026-07-29
 
 - The explicit `python scripts/test_storage.py clean --older-than-hours 24

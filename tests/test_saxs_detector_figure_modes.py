@@ -8,6 +8,9 @@ import pytest
 
 from polynexus.core.saxs_engine import io as saxs_io
 from polynexus.core.figures.pipeline import FigurePipeline
+from polynexus.core.figures.reactive_project_service import (
+    ReactiveFigureProjectService,
+)
 from polynexus.core.saxs_engine.figure_static import (
     build_static_saxs_figure_definitions,
 )
@@ -15,6 +18,7 @@ from polynexus.core.saxs_engine.figure_temperature import (
     build_temperature_figure_definitions,
 )
 from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
+from polynexus.plot_runtime.matplotlib_renderer import PublicationProfile
 
 
 def _static_engine(paths: list[str]) -> SimpleNamespace:
@@ -229,6 +233,70 @@ def test_partial_detector_figure_reaches_ready_manifest_and_export(
     assert {"png", "svg"} <= set(entry.assets)
     document = tmp_path / "runs" / f"saxs-partial-{mode}" / entry.document
     persisted = json.loads(document.read_text(encoding="utf-8"))
+    assert (
+        persisted["recipe"]["parameters"]["detector_projection_quality"]["0"][
+            "status"
+        ]
+        == "partial_nonfinite"
+    )
+
+
+@pytest.mark.parametrize("mode", ["static", "temperature"])
+def test_partial_detector_figure_is_reactive_v2_ready_and_publishable(
+    monkeypatch, mode, tmp_path
+):
+    if mode == "static":
+        engine = _static_engine(["static-0.edf"])
+        builder = build_static_saxs_figure_definitions
+        figure_id = "saxs.static.detector.2d"
+    else:
+        engine = _temperature_engine(["temperature-0.edf"])
+        builder = build_temperature_figure_definitions
+        figure_id = "saxs.temperature.detector.2d"
+    monkeypatch.setattr(
+        saxs_io,
+        "read_image",
+        lambda _path: (
+            np.asarray([[1.0, np.nan], [4.0, 16.0]], dtype=float),
+            {},
+        ),
+    )
+
+    definition = next(item for item in builder(engine) if item.figure_id == figure_id)
+    run_id = f"saxs-partial-v2-{mode}"
+    manifest = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id=run_id,
+        technique="saxs",
+        definitions=(definition,),
+    )
+
+    entry = manifest.figures[0]
+    assert entry.status == "ready"
+    assert entry.capability_report["v2_runtime"] == "ready"
+    sidecar = (
+        tmp_path
+        / "runs"
+        / run_id
+        / entry.capability_report["v2_sidecar"]
+    )
+    assert sidecar.is_file()
+    assert entry.publication_role == "diagnostic"
+    service = ReactiveFigureProjectService(tmp_path)
+    handle = service.load(run_id=run_id, figure_id=figure_id)
+    node = handle.session.scene.node_by_id("detector-pattern-000")
+    assert len(node.rectangles) == 3
+    saved = service.save_working(handle)
+    published = service.publish(
+        handle,
+        profile=PublicationProfile(dpi=100, formats=("png",)),
+    )
+
+    assert saved.working_revision == 1
+    assert len(published.assets) == 1
+    assert published.assets[0].is_file()
+    assert published.assets[0].stat().st_size > 0
+    persisted = json.loads((tmp_path / "runs" / run_id / entry.document).read_text("utf-8"))
     assert (
         persisted["recipe"]["parameters"]["detector_projection_quality"]["0"][
             "status"
