@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS temperature 1D Figure projection provenance - checkpointed - 2026-07-29
+
+- Temperature representative-profile and waterfall Figure recipes now expose
+  detached, frame-indexed aligned/retained/non-finite/non-positive-intensity
+  q/I pair counts with `complete` or `partial_invalid` status. Existing
+  temperature sequence, heatmap interpolation, Figure roles, and fail-closed
+  behavior are unchanged.
+- TDD RED was `2 failed, 4 deselected`; focused GREEN was `2 passed, 4
+  deselected`; the temperature panel/provider slice passed `15` tests. The
+  task verifier passed with quality `287` and preprocessing `106`. The fresh
+  neutral-basetemp SAXS matrix passed `549` tests with `6` warnings and exit
+  code `0`. A basetemp containing `temperature_1` exposed an existing
+  condition-path regex collision; no IO change was made in this task.
+- Checkpoint: `e0c167d`. Evidence:
+  `docs/agent/tasks/2026-07-29-saxs-temperature-1d-figure-provenance.md`.
+- Separate user-authorized storage maintenance removed 35 eligible D-drive
+  legacy directories (`19,128,640,281` bytes); C-drive directories younger
+  than 24 hours and permission-denied zero-byte entries remain protected.
+
 ## SAXS azimuthal Figure projection provenance - checkpointed - 2026-07-29
 
 - The strain azimuthal Figure recipe now records detached per-frame aligned,
