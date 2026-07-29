@@ -1,5 +1,31 @@
 # Active Work
 
+## SAXS 2D reviewer evidence binding - verified, checkpointed - 2026-07-30
+
+- The shared SAXS Figure evidence attachment now applies the existing
+  reviewer record against the correct boundary: ordinary Figures expect
+  `saxs.1d`, while existing detector/2D/orientation Figure recipes expect
+  `saxs.2d`. The projection remains detached and strict-JSON-safe.
+- Source matching still uses only emitted `source_path`,
+  `data_quality_report.raw_data_ref`, and `data_quality_report.source_id`.
+  Missing, malformed, pending, wrong-scope, and partial-source records remain
+  fail-closed. No detector/orientation value, quality gate, role, AI/rescue,
+  Workbench, Manifest, or Export behavior changed.
+- TDD RED was `2 failed, 7 passed`; GREEN was `38 passed in 8.96s`. The
+  adjacent detector/2D/static/strain matrix passed `55 passed, 2 warnings in
+  24.83s`.
+- Fresh task-scoped verification exited `0` with quality `290`, preprocessing
+  `106`, Ruff, compile, type baseline, memory/task, and whitespace checks
+  passing. Fresh exact SAXS exited `0`: `584 passed, 6 warnings in 421.73s`.
+- Storage report/clean remained dry-run: `45` artifacts, `0` eligible bytes,
+  `0` removed. No `test_storage.py --apply` was run.
+- Task/spec/plan:
+  `docs/agent/tasks/2026-07-30-saxs-2d-review-evidence-binding.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-2d-review-evidence-binding-design.md`,
+  and `docs/superpowers/plans/2026-07-30-saxs-2d-review-evidence-binding.md`.
+- An explicit changed-file allowlist checkpoint is recorded in this task
+  commit.
+
 ## SAXS 1D reviewer evidence binding for static and strain - verified, checkpointed - 2026-07-29
 
 - Static and strain Figure providers now pass the existing configured
