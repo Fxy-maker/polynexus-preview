@@ -1,5 +1,19 @@
 # Active Work
 
+## User-authorized test-storage cleanup - partially applied - 2026-07-30
+
+- Ran `python scripts/test_storage.py clean --older-than-hours 24 --apply`
+  only after confirming no pytest command-line process was active.
+- Six old C: legacy test roots were removed successfully, releasing about
+  `13.94 GB`. The apply command returned exit code `1` because six old
+  zero-byte D:\PolyNexus legacy directories returned `WinError 5` access
+  denied. No ACL bypass or broad manual deletion was attempted.
+- Post-apply report: `41` artifacts remain, `35` are protected, and `0`
+  eligible bytes remain; the six remaining eligible paths are zero-byte
+  directories. C: reports `182.27 GB` free and D: reports `125.60 GB` free.
+- Evidence: `docs/agent/tasks/2026-07-30-test-storage-apply-attempt.md` and
+  `docs/acceptance/2026-07-30-test-storage-apply-attempt.md`.
+
 ## Current full-verifier regression repair - verified, checkpointed - 2026-07-30
 
 - Repaired four current-HEAD regressions without changing scientific policy:

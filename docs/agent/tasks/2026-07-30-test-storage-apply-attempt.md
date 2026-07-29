@@ -64,21 +64,31 @@ Before apply, the storage report showed `576` artifacts, `42` eligible, and
 python scripts/test_storage.py clean --older-than-hours 24 --apply
 ```
 
-It partially removed eligible artifacts, then stopped with exit code `1` at
-`D:\PolyNexus\PolyNexusPolyNexus.pytest_tmp_metric_position_full` with
-`WinError 5` (access denied). No ACL escalation was attempted.
+It partially removed eligible artifacts and returned exit code `1` after six
+old zero-byte D:\PolyNexus legacy directories reported `WinError 5` (access
+denied). No ACL escalation was attempted.
 
-The post-apply report (dry-run) showed `277` artifacts, `40` eligible,
-`237` protected, and `19128640281` eligible bytes. C: had `8` artifacts and
-`0` eligible entries. Because the apply command stopped before emitting its
-`removed` list, the exact removed-path list is unavailable; the post-report is
-the authoritative remaining-state evidence.
+Successfully removed by the same command:
+
+- `C:\TempPolyNexus_full_goal_recheck_20260730`
+- `C:\TempPolyNexus_full_goal_recheck_20260730_bg_pytest`
+- `C:\TempPolyNexus_pad8_acceptance_goal_recheck_20260730`
+- `C:\TempPolyNexus_real_saxs_goal_recheck_20260730`
+- `C:\TempPolyNexus_real_saxs_goal_recheck_20260730_bg_pytest`
+- `C:\TempPolyNexus_saxs_quality_program_task_verify_20260730_bg_pytest`
+
+The post-apply report (dry-run) showed `41` artifacts, `35` protected, and
+`0` eligible bytes. Six zero-byte D: legacy directories remain eligible by
+name but cannot release additional space; all non-zero artifacts are protected
+by retention or active status. C: has no remaining eligible artifacts. C: free
+space is `182.27 GB`; D: free space is `125.60 GB` at the time of recording.
 
 ## Known limitation
 
-The remaining eligible directories require a permission repair or explicit
-administrator-side cleanup before the managed command can finish. The current
-agent did not bypass ACLs or issue another delete command.
+The six remaining eligible directories require a permission repair or explicit
+administrator-side cleanup before they can be removed, but they are zero-byte
+directories and do not affect disk capacity. The current agent did not bypass
+ACLs or issue another delete command.
 
 ## Explicit changed-file allowlist
 
