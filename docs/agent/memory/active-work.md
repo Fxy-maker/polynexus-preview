@@ -1,5 +1,34 @@
 # Active Work
 
+## SAXS 1D Figure dirty projection - checkpoint pending - 2026-07-29
+
+- A shared detached `_coerce_numeric_array()` now represents malformed tokens
+  as position-preserving `NaN` and is used by static, temperature, strain, and
+  legacy 1D q/I or derived-trace Figure paths. Existing finite/positive,
+  minimum-point, sorting, overlap, fail-closed, quality, physical, AI/rescue,
+  and publication semantics remain unchanged.
+- TDD RED was `3 failed, 21 deselected` for q/I paths and `2 failed, 15
+  deselected` for derived traces after restoring their old conversions. GREEN
+  was `7 passed, 22 deselected`; related provider files returned `29 passed`.
+  Structured verification passed with quality `287` and preprocessing `106`;
+  exact SAXS returned `540 passed, 6 warnings in 315.38s`, exit code `0`.
+  Storage report/clean remained dry-run with `302` artifacts, `40` eligible,
+  `262` protected, and `0` removed. The explicit checkpoint hash is reported
+  in the handoff.
+- Evidence: `docs/agent/tasks/2026-07-29-saxs-figure-1d-dirty-projection.md`
+  and `docs/acceptance/2026-07-29-saxs-figure-1d-dirty-projection.md`.
+
+## Release decision packet - awaiting human input - 2026-07-29
+
+- The remaining release gates are now explicit in
+  `docs/agent/tasks/2026-07-29-release-decision-packet.md`: unlocked-GUI
+  visual review, IR vendor coordinate/ROI semantics, NMR solid-C assignment
+  policy, Joint conflict interpretation, and final release authorization.
+- Automated evidence remains separate from these decisions. The product keeps
+  unresolved IR/NMR/Joint outputs diagnostic or assignment-limited; no semantic
+  promotion was made. The current desktop still exposes `LockApp`, so the
+  packet awaits an unlocked session and responsible reviewer input.
+
 ## SAXS static Figure dirty projection - checkpointed - 2026-07-29
 
 - The static Figure provider now converts q/intensity tokens elementwise at
