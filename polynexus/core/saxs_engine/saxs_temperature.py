@@ -32,6 +32,7 @@ from .saxs_quality_contracts import (
     build_guinier_sequence_evidence,
     build_series_metric_evidence,
     build_series_orientation_evidence,
+    metric_evidence_dataframe_fields,
     sanitize_1d_profile,
 )
 from .saxs_sequence_rescue import build_sequence_rescue_candidates
@@ -286,6 +287,7 @@ class TempSeriesResult:
                 'lc_reliability_status': tp.lc_reliability_status or None,
                 'lc_reliability_reason': tp.lc_reliability_reason or None,
             }
+            row.update(metric_evidence_dataframe_fields(tp.metric_evidence))
             row.update(_guinier_sequence_csv_fields(sequence_payload))
             row.update(
                 _detector_provenance_csv_fields(tp.raw_detector_quality_report)

@@ -1943,6 +1943,63 @@ def build_series_metric_evidence(
     return summaries
 
 
+def metric_evidence_dataframe_fields(
+    payload: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Project existing per-frame metric evidence into table-safe fields.
+
+    This is a read-only presentation helper.  It deliberately copies only
+    fields already present in the evidence payload and never derives a level,
+    coverage value, or scientific result.
+    """
+
+    metric_labels = (
+        ("porod", "Porod"),
+        ("kratky", "Kratky"),
+        ("invariant", "Invariant"),
+        ("lamellar", "Lamellar"),
+    )
+    evidence = payload if isinstance(payload, Mapping) else {}
+    fields: dict[str, Any] = {}
+    for metric_name, label in metric_labels:
+        item = evidence.get(metric_name)
+        prefix = f"{label}_"
+        if not isinstance(item, Mapping):
+            fields[f"{prefix}level"] = None
+            fields[f"{prefix}coverage"] = None
+            fields[f"{prefix}reason_codes"] = None
+            continue
+
+        raw_level = item.get("level")
+        fields[f"{prefix}level"] = (
+            raw_level.value
+            if isinstance(raw_level, QualityLevel)
+            else None
+            if raw_level is None
+            else str(raw_level)
+        )
+
+        coverage = None
+        try:
+            candidate = float(item.get("coverage_fraction"))
+        except (TypeError, ValueError, OverflowError):
+            pass
+        else:
+            if np.isfinite(candidate):
+                coverage = candidate
+        fields[f"{prefix}coverage"] = coverage
+
+        raw_reasons = item.get("reason_codes")
+        if raw_reasons is None:
+            reasons = None
+        elif isinstance(raw_reasons, (list, tuple)):
+            reasons = "|".join(str(reason) for reason in raw_reasons)
+        else:
+            reasons = str(raw_reasons)
+        fields[f"{prefix}reason_codes"] = reasons
+    return fields
+
+
 def _build_series_2d_summary(
     frame_payloads: Iterable[Mapping[str, Any] | None] | None,
     *,
@@ -2207,6 +2264,7 @@ __all__ = [
     "build_invariant_evidence",
     "build_lamellar_evidence",
     "build_series_metric_evidence",
+    "metric_evidence_dataframe_fields",
     "build_series_detector_quality_report",
     "build_series_orientation_evidence",
     "build_detector_quality_report",

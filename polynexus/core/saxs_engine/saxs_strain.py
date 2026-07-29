@@ -34,6 +34,7 @@ from .saxs_quality_contracts import (
     build_series_detector_quality_report,
     build_series_metric_evidence,
     build_series_orientation_evidence,
+    metric_evidence_dataframe_fields,
     sanitize_1d_profile,
 )
 from .saxs_output_helpers import (
@@ -187,6 +188,7 @@ class StrainSeriesResult:
                 'Method': sp.method,
                 'Metric_evidence_levels': metric_level_summary(sp.metric_evidence),
             }
+            row.update(metric_evidence_dataframe_fields(sp.metric_evidence))
             row.update(
                 _detector_provenance_csv_fields(sp.raw_detector_quality_report)
             )
