@@ -1,5 +1,20 @@
 # Active Work
 
+## SAXS detector Figure dirty projection - checkpointed - 2026-07-29
+
+- The strain Figure detector projection now retains finite sampled pixels from
+  mixed finite/non-finite 2D images, preserves their sampled coordinates, and
+  records sampled/retained/non-finite pixel counts in Figure recipe
+  provenance. All-invalid and malformed detector inputs remain unavailable;
+  analysis, orientation, quality, and publication gates are unchanged.
+- TDD RED was `1 failed, 13 deselected`; the focused Figure/detector matrix
+  passed `55` tests. The structured verifier passed with quality `287` and
+  preprocessing `106`. The fresh SAXS matrix returned `541 passed, 6
+  warnings in 358.32s`, exit code `0`.
+- Checkpoints: `bf9674f` (finite detector projection) and `e929982`
+  (projection provenance). Evidence: `docs/agent/tasks/2026-07-29-saxs-detector-figure-dirty-projection.md`
+  and `docs/agent/tasks/2026-07-29-saxs-detector-figure-provenance.md`.
+
 ## SAXS 1D Figure dirty projection - checkpoint pending - 2026-07-29
 
 - A shared detached `_coerce_numeric_array()` now represents malformed tokens
