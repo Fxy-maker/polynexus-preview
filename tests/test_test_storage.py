@@ -6,13 +6,17 @@ from types import SimpleNamespace
 import conftest
 
 from scripts.test_storage import (
+    RunState,
     TestArtifact,
     build_cleanup_plan,
     create_run_basetemp,
     discover_artifacts,
     is_path_referenced,
+    read_run_state,
     resolve_legacy_test_roots,
+    resolve_retention_profile,
     resolve_test_root,
+    write_run_state,
 )
 
 
@@ -26,6 +30,44 @@ def test_resolve_test_root_defaults_to_project_drive(tmp_path: Path):
     expected = Path(tmp_path.anchor) / "PolyNexus-test-runs"
 
     assert resolve_test_root(tmp_path, {}) == expected.resolve()
+
+
+def test_resolve_retention_profile_defaults_to_ephemeral():
+    assert resolve_retention_profile({}) == "ephemeral"
+
+
+def test_resolve_retention_profile_accepts_review_and_evidence():
+    assert resolve_retention_profile({"POLYNEXUS_TEST_RETENTION": "review"}) == "review"
+    assert resolve_retention_profile({"POLYNEXUS_TEST_RETENTION": "evidence"}) == "evidence"
+
+
+def test_resolve_retention_profile_fails_closed_to_review():
+    assert resolve_retention_profile({"POLYNEXUS_TEST_RETENTION": "unknown"}) == "review"
+
+
+def test_run_state_round_trip(tmp_path: Path):
+    run_path = tmp_path / "run-1"
+    run_path.mkdir()
+    created_at = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    state = RunState(
+        schema_version=1,
+        run_id="run-1",
+        path=run_path,
+        project_root=tmp_path,
+        git_head="abc123",
+        pid=123,
+        process_started_at=created_at,
+        profile="ephemeral",
+        status="running",
+        exit_code=None,
+        created_at=created_at,
+        finished_at=None,
+        keep_until=None,
+    )
+
+    write_run_state(state)
+
+    assert read_run_state(run_path) == state
 
 
 def test_resolve_legacy_test_roots_accepts_path_list_override(tmp_path: Path):

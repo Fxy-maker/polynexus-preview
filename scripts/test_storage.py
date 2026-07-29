@@ -17,6 +17,40 @@ from typing import Iterable, Mapping
 TEST_ROOT_ENV = "POLYNEXUS_TEST_ROOT"
 LEGACY_TEST_ROOTS_ENV = "POLYNEXUS_LEGACY_TEST_ROOTS"
 EXTERNAL_LEGACY_PATTERNS = ("temppolynexus", "usersfanxuy~1appdatalocaltemp")
+RETENTION_ENV = "POLYNEXUS_TEST_RETENTION"
+RETENTION_PROFILES = {"ephemeral", "review", "evidence", "legacy"}
+
+
+@dataclass(frozen=True)
+class RetentionPolicy:
+    name: str
+    success_after: timedelta | None
+    failure_after: timedelta | None
+
+
+@dataclass(frozen=True)
+class RunState:
+    schema_version: int
+    run_id: str
+    path: Path
+    project_root: Path
+    git_head: str
+    pid: int
+    process_started_at: datetime
+    profile: str
+    status: str
+    exit_code: int | None
+    created_at: datetime
+    finished_at: datetime | None
+    keep_until: datetime | None
+
+
+RETENTION_POLICIES = {
+    "ephemeral": RetentionPolicy("ephemeral", None, timedelta(hours=24)),
+    "review": RetentionPolicy("review", timedelta(days=7), timedelta(days=7)),
+    "evidence": RetentionPolicy("evidence", None, None),
+    "legacy": RetentionPolicy("legacy", timedelta(hours=24), timedelta(hours=24)),
+}
 
 
 @dataclass(frozen=True)
@@ -33,6 +67,83 @@ class TestArtifact:
 class CleanupDecision:
     eligible: bool
     reason: str
+
+
+def resolve_retention_profile(environ: Mapping[str, str] | None = None) -> str:
+    """Resolve the requested run profile, failing closed to review."""
+
+    values = os.environ if environ is None else environ
+    requested = values.get(RETENTION_ENV, "").strip().lower()
+    if not requested:
+        return "ephemeral"
+    return requested if requested in RETENTION_PROFILES else "review"
+
+
+def run_state_path(path: Path) -> Path:
+    """Return the manifest path for one managed run directory."""
+
+    return path.resolve() / "run_state.json"
+
+
+def _datetime_to_json(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return normalized.astimezone(timezone.utc).isoformat()
+
+
+def _datetime_from_json(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    return datetime.fromisoformat(value).astimezone(timezone.utc)
+
+
+def write_run_state(state: RunState) -> None:
+    """Write operational run metadata without copying test artifacts."""
+
+    payload = {
+        "schema_version": state.schema_version,
+        "run_id": state.run_id,
+        "path": str(state.path.resolve()),
+        "project_root": str(state.project_root.resolve()),
+        "git_head": state.git_head,
+        "pid": state.pid,
+        "process_started_at": _datetime_to_json(state.process_started_at),
+        "profile": state.profile,
+        "status": state.status,
+        "exit_code": state.exit_code,
+        "created_at": _datetime_to_json(state.created_at),
+        "finished_at": _datetime_to_json(state.finished_at),
+        "keep_until": _datetime_to_json(state.keep_until),
+    }
+    run_state_path(state.path).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def read_run_state(path: Path) -> RunState | None:
+    """Read a run manifest, returning None when it does not exist."""
+
+    manifest = run_state_path(path)
+    if not manifest.is_file():
+        return None
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    return RunState(
+        schema_version=int(payload["schema_version"]),
+        run_id=str(payload["run_id"]),
+        path=Path(payload["path"]).resolve(),
+        project_root=Path(payload["project_root"]).resolve(),
+        git_head=str(payload["git_head"]),
+        pid=int(payload["pid"]),
+        process_started_at=_datetime_from_json(payload["process_started_at"]),
+        profile=str(payload["profile"]),
+        status=str(payload["status"]),
+        exit_code=None if payload["exit_code"] is None else int(payload["exit_code"]),
+        created_at=_datetime_from_json(payload["created_at"]),
+        finished_at=_datetime_from_json(payload["finished_at"]),
+        keep_until=_datetime_from_json(payload["keep_until"]),
+    )
 
 
 def resolve_test_root(project_root: Path, environ: Mapping[str, str] | None = None) -> Path:
