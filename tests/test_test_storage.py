@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ from scripts.test_storage import (
     failure_deadline,
     finalize_run_state,
     is_path_referenced,
+    main,
     reconcile_run_state,
     read_run_state,
     resolve_legacy_test_roots,
@@ -200,6 +202,81 @@ def test_discover_artifacts_includes_external_legacy_test_root(tmp_path: Path):
 
     assert [item.path for item in artifacts] == [artifact.resolve()]
     assert artifacts[0].kind == "legacy-external"
+
+
+def test_discover_managed_artifact_reads_run_state(tmp_path: Path):
+    test_root = tmp_path / "test-root"
+    run_path = test_root / "pytest" / "run-1"
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    run = begin_run_state(run_path, project_root=tmp_path, profile="review", now=now)
+    finalize_run_state(run, exit_code=1, now=now, process_active=False)
+
+    artifacts = discover_artifacts(tmp_path, test_root=test_root, legacy_roots=[tmp_path])
+
+    managed = [artifact for artifact in artifacts if artifact.path == run_path]
+    assert len(managed) == 1
+    assert managed[0].profile == "review"
+    assert managed[0].status == "failed"
+    assert managed[0].keep_until == now + timedelta(days=7)
+
+
+def test_cleanup_plan_protects_evidence_profile(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    artifact = TestArtifact(
+        tmp_path / "run-evidence",
+        "managed",
+        100,
+        now - timedelta(days=30),
+        profile="evidence",
+        status="passed",
+    )
+
+    plan = build_cleanup_plan(
+        [artifact],
+        now=now,
+        older_than=timedelta(hours=1),
+    )
+
+    assert plan[artifact].eligible is False
+    assert plan[artifact].reason == "evidence profile"
+
+
+def test_cleanup_plan_does_not_cli_delete_passed_ephemeral_run(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    artifact = TestArtifact(
+        tmp_path / "run-ephemeral",
+        "managed",
+        100,
+        now - timedelta(days=30),
+        profile="ephemeral",
+        status="passed",
+    )
+
+    plan = build_cleanup_plan(
+        [artifact],
+        now=now,
+        older_than=timedelta(hours=1),
+    )
+
+    assert plan[artifact].eligible is False
+    assert plan[artifact].reason == "owned terminal cleanup only"
+
+
+def test_report_json_includes_manifest_metadata(tmp_path: Path, monkeypatch, capsys):
+    test_root = tmp_path / "test-root"
+    run_path = test_root / "pytest" / "run-1"
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    run = begin_run_state(run_path, project_root=tmp_path, profile="review", now=now)
+    finalize_run_state(run, exit_code=1, now=now, process_active=False)
+    monkeypatch.setenv("POLYNEXUS_LEGACY_TEST_ROOTS", str(tmp_path))
+
+    assert main(["report", "--root", str(tmp_path), "--test-root", str(test_root), "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    artifact = next(item for item in payload["artifacts"] if item["path"] == str(run_path))
+    assert artifact["profile"] == "review"
+    assert artifact["status"] == "failed"
+    assert artifact["keep_until"] == (now + timedelta(days=7)).isoformat()
 
 
 def test_create_run_basetemp_is_unique_and_external(tmp_path: Path):

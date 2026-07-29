@@ -61,6 +61,11 @@ class TestArtifact:
     kind: str
     size_bytes: int
     modified_at: datetime
+    profile: str | None = None
+    status: str | None = None
+    exit_code: int | None = None
+    keep_until: datetime | None = None
+    manifest_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -392,6 +397,21 @@ def build_cleanup_plan(
         ):
             reason = "referenced by a running process"
             eligible = False
+        elif artifact.manifest_error == "invalid":
+            reason = "manifest-invalid"
+            eligible = False
+        elif artifact.profile == "evidence":
+            reason = "evidence profile"
+            eligible = False
+        elif artifact.profile == "ephemeral" and artifact.status == "passed":
+            reason = "owned terminal cleanup only"
+            eligible = False
+        elif artifact.keep_until is not None:
+            modified_at = artifact.keep_until
+            if modified_at.tzinfo is None:
+                modified_at = modified_at.replace(tzinfo=timezone.utc)
+            eligible = now >= modified_at
+            reason = "eligible" if eligible else "younger than retention"
         else:
             modified_at = artifact.modified_at
             if modified_at.tzinfo is None:
@@ -457,7 +477,25 @@ def discover_artifacts(
     if managed_root.is_dir():
         for path in managed_root.glob("run-*"):
             if path.is_dir():
-                artifacts.append(TestArtifact(path, "managed", _directory_size(path), _modified_at(path)))
+                state: RunState | None = None
+                manifest_error: str | None = None
+                try:
+                    state = read_run_state(path)
+                except (OSError, TypeError, ValueError, KeyError):
+                    manifest_error = "invalid"
+                artifacts.append(
+                    TestArtifact(
+                        path,
+                        "managed",
+                        _directory_size(path),
+                        _modified_at(path),
+                        profile=state.profile if state else "legacy",
+                        status=state.status if state else "manifest-invalid" if manifest_error else "legacy",
+                        exit_code=state.exit_code if state else None,
+                        keep_until=state.keep_until if state else None,
+                        manifest_error=manifest_error,
+                    )
+                )
     return sorted(artifacts, key=lambda item: str(item.path).lower())
 
 
@@ -533,13 +571,16 @@ def _protected_paths(project_root: Path) -> list[Path]:
     ]
 
 
-def _build_plan(args: argparse.Namespace) -> tuple[Path, dict[TestArtifact, CleanupDecision]]:
+def _build_plan(
+    args: argparse.Namespace,
+) -> tuple[Path, dict[TestArtifact, CleanupDecision], list[Path]]:
     project_root = Path(args.root).resolve()
     test_root = Path(args.test_root).resolve() if args.test_root else resolve_test_root(project_root)
+    legacy_roots = resolve_legacy_test_roots(project_root, extra_roots=args.legacy_root)
     artifacts = discover_artifacts(
         project_root,
         test_root,
-        legacy_roots=resolve_legacy_test_roots(project_root, extra_roots=args.legacy_root),
+        legacy_roots=legacy_roots,
     )
     plan = build_cleanup_plan(
         artifacts,
@@ -549,7 +590,35 @@ def _build_plan(args: argparse.Namespace) -> tuple[Path, dict[TestArtifact, Clea
         tracked_paths=tracked_paths(project_root),
         protected_paths=_protected_paths(project_root),
     )
-    return project_root, plan
+    approved_roots = [test_root / "pytest", *legacy_roots]
+    return project_root, plan, approved_roots
+
+
+def _json_datetime(value: datetime | None) -> str | None:
+    return None if value is None else value.isoformat()
+
+
+def _report_summary(
+    plan: Mapping[TestArtifact, CleanupDecision],
+) -> dict[str, object]:
+    by_profile: dict[str, int] = {}
+    by_reason: dict[str, int] = {}
+    total_bytes = 0
+    eligible_bytes = 0
+    for artifact, decision in plan.items():
+        total_bytes += artifact.size_bytes
+        if decision.eligible:
+            eligible_bytes += artifact.size_bytes
+        profile = artifact.profile or "legacy"
+        by_profile[profile] = by_profile.get(profile, 0) + 1
+        by_reason[decision.reason] = by_reason.get(decision.reason, 0) + 1
+    return {
+        "artifact_count": len(plan),
+        "total_bytes": total_bytes,
+        "eligible_bytes": eligible_bytes,
+        "by_profile": dict(sorted(by_profile.items())),
+        "by_reason": dict(sorted(by_reason.items())),
+    }
 
 
 def _emit_report(
@@ -561,16 +630,23 @@ def _emit_report(
     as_json: bool,
 ) -> None:
     removed_paths = {str(path.resolve()) for path in removed}
+    summary = _report_summary(plan)
     if as_json:
         payload = {
             "root": str(project_root),
             "mode": mode,
+            "summary": summary,
             "artifacts": [
                 {
                     "path": str(artifact.path),
                     "kind": artifact.kind,
                     "size_bytes": artifact.size_bytes,
                     "modified_at": artifact.modified_at.isoformat(),
+                    "profile": artifact.profile,
+                    "status": artifact.status,
+                    "exit_code": artifact.exit_code,
+                    "keep_until": _json_datetime(artifact.keep_until),
+                    "manifest_error": artifact.manifest_error,
                     "eligible": decision.eligible,
                     "reason": decision.reason,
                     "removed": str(artifact.path.resolve()) in removed_paths,
@@ -582,7 +658,11 @@ def _emit_report(
         return
     print(f"PolyNexus test storage ({mode})")
     print(f"Root: {project_root}")
-    print(f"Artifacts: {len(plan)}")
+    print(f"Artifacts: {summary['artifact_count']}")
+    print(f"Total: {summary['total_bytes']} bytes")
+    print(f"Eligible: {summary['eligible_bytes']} bytes")
+    print(f"By profile: {summary['by_profile']}")
+    print(f"By reason: {summary['by_reason']}")
     for artifact, decision in plan.items():
         size_mb = artifact.size_bytes / (1024 * 1024)
         state = "eligible" if decision.eligible else decision.reason
@@ -610,8 +690,12 @@ def main(argv: list[str] | None = None) -> int:
             subparser.add_argument("--apply", action="store_true")
     args = parser.parse_args(argv)
     try:
-        project_root, plan = _build_plan(args)
-        removed = apply_cleanup(plan, apply=getattr(args, "apply", False))
+        project_root, plan, approved_roots = _build_plan(args)
+        removed = apply_cleanup(
+            plan,
+            apply=getattr(args, "apply", False),
+            approved_roots=approved_roots,
+        )
         _emit_report(
             project_root,
             plan,
