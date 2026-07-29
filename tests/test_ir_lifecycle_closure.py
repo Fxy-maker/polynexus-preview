@@ -104,7 +104,26 @@ def _mapping_definitions():
                 assignments=("amide I",),
             ),
         ),
-        provenance={"source_kind": "explicit_mapping_payload", "source_id": "map-a.json"},
+        provenance={
+            "source_kind": "explicit_mapping_payload",
+            "source_id": "map-a.json",
+            "scientific_review": {
+                "record_id": "review-ir-map-lifecycle",
+                "scope": "ir.mapping",
+                "reviewer": "lifecycle-reviewer",
+                "reviewed_at": "2026-07-29T00:00:00Z",
+                "policy_version": "ir-map-v1",
+                "source_refs": ["map-a.json"],
+                "decisions": {
+                    "coordinate_convention": "consume supplied row/column coordinates",
+                    "roi_inclusion_policy": "explicit ROI only",
+                    "invalid_pixel_policy": "preserve mask; no interpolation",
+                    "promotion_rule": "accepted source-matching review",
+                },
+                "status": "accepted",
+                "conditions": [],
+            },
+        },
     )
     return build_ir_mapping_figure_definitions(result)
 

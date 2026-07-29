@@ -11,6 +11,8 @@ from .scientific_review import (
     ReviewPromotionDecision,
     ScientificReviewRecord,
     promotion_decision,
+    review_decision_snapshot,
+    review_record_from_payload,
     validate_review_record,
 )
 
@@ -27,7 +29,8 @@ __all__ = [
     "register_technique", "get_engine", "list_techniques",
     "AnalysisEvidence", "build_analysis_evidence",
     "REVIEW_SCOPES", "REVIEW_STATUSES", "ReviewPromotionDecision",
-    "ScientificReviewRecord", "promotion_decision", "validate_review_record",
+    "ScientificReviewRecord", "promotion_decision", "review_decision_snapshot",
+    "review_record_from_payload", "validate_review_record",
 ]
 
 from .report import generate_report, save_report  # noqa: F401

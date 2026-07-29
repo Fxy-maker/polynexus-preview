@@ -190,6 +190,7 @@ def promotion_decision(
         return ReviewPromotionDecision(False, "review_missing", scope=expected_scope)
     try:
         validate_review_record(record)
+        record.to_dict()
     except (TypeError, ValueError):
         return ReviewPromotionDecision(False, "review_invalid", record.record_id, expected_scope)
     if record.scope != expected_scope:
@@ -202,11 +203,72 @@ def promotion_decision(
     return ReviewPromotionDecision(False, f"review_{record.status}", record.record_id, record.scope)
 
 
+def review_record_from_payload(value: Any) -> ScientificReviewRecord | None:
+    """Restore one serialized review record without weakening validation.
+
+    A missing payload is represented by ``None`` so callers can use the
+    shared fail-closed ``promotion_decision`` contract.  Structurally present
+    but incomplete payloads are retained as invalid records, allowing the
+    decision reason to remain ``review_invalid``.
+    """
+
+    if isinstance(value, ScientificReviewRecord):
+        return value
+    if not isinstance(value, Mapping):
+        return None
+
+    source_refs = value.get("source_refs", ())
+    if isinstance(source_refs, str):
+        source_refs = (source_refs,)
+    conditions = value.get("conditions", ())
+    if isinstance(conditions, str):
+        conditions = (conditions,)
+    decisions = value.get("decisions", {})
+    try:
+        return ScientificReviewRecord(
+            record_id=str(value.get("record_id", "")),
+            scope=str(value.get("scope", "")),
+            reviewer=str(value.get("reviewer", "")),
+            reviewed_at=str(value.get("reviewed_at", "")),
+            policy_version=str(value.get("policy_version", "")),
+            source_refs=tuple(str(item) for item in source_refs),
+            decisions=decisions,
+            status=str(value.get("status", "pending")),
+            conditions=tuple(str(item) for item in conditions),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def review_decision_snapshot(
+    record: ScientificReviewRecord | None,
+    *,
+    expected_scope: str,
+    source_ref: str = "",
+) -> dict[str, Any]:
+    """Serialize one promotion decision for evidence and figure recipes."""
+
+    decision = promotion_decision(
+        record,
+        expected_scope=expected_scope,
+        source_ref=source_ref,
+    )
+    return {
+        "allowed": bool(decision.allowed),
+        "reason": decision.reason,
+        "record_id": decision.record_id,
+        "scope": decision.scope or expected_scope,
+        "source_ref": str(source_ref).strip(),
+    }
+
+
 __all__ = [
     "REVIEW_SCOPES",
     "REVIEW_STATUSES",
     "ReviewPromotionDecision",
     "ScientificReviewRecord",
     "promotion_decision",
+    "review_decision_snapshot",
+    "review_record_from_payload",
     "validate_review_record",
 ]

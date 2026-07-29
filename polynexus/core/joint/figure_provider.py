@@ -14,7 +14,11 @@ from ..figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
-from .dataset import JointBatchRow, build_joint_run_provenance
+from .dataset import (
+    JointBatchRow,
+    build_joint_run_provenance,
+    build_joint_scientific_review_snapshot,
+)
 
 
 _XC_TECHNIQUES = ("dsc", "waxs", "saxs", "ir", "nmr")
@@ -33,13 +37,14 @@ def build_joint_figure_definitions(
     """Build Joint figures from the existing validated hub rows."""
 
     definitions: list[FigureDefinition] = []
-    crystallinity = _crystallinity_definition(rows)
+    scientific_review = build_joint_scientific_review_snapshot(rows)
+    crystallinity = _crystallinity_definition(rows, scientific_review)
     if crystallinity is not None:
         definitions.append(crystallinity)
-    multiscale = _multiscale_definition(rows)
+    multiscale = _multiscale_definition(rows, scientific_review)
     if multiscale is not None:
         definitions.append(multiscale)
-    coverage = _coverage_definition(rows)
+    coverage = _coverage_definition(rows, scientific_review)
     if coverage is not None:
         definitions.append(coverage)
     return tuple(definitions)
@@ -47,6 +52,7 @@ def build_joint_figure_definitions(
 
 def _crystallinity_definition(
     rows: Sequence[JointBatchRow],
+    scientific_review: dict[str, Any],
 ) -> FigureDefinition | None:
     labels = _labels(rows)
     values = {
@@ -84,7 +90,7 @@ def _crystallinity_definition(
         technique="joint",
         scope="series",
         category="series_overview",
-        publication_role="main",
+        publication_role=("main" if scientific_review["allowed"] else "diagnostic"),
         title="Cross-Technique Crystallinity Comparison",
         layout=_layout(
             x_label="Sample / batch",
@@ -94,7 +100,7 @@ def _crystallinity_definition(
         ),
         data_sources=(source,),
         objects=objects,
-        recipe=_recipe("crystallinity", rows),
+        recipe=_recipe("crystallinity", rows, scientific_review),
         style_profile="sci_default",
         display_order=10,
     )
@@ -102,6 +108,7 @@ def _crystallinity_definition(
 
 def _multiscale_definition(
     rows: Sequence[JointBatchRow],
+    scientific_review: dict[str, Any],
 ) -> FigureDefinition | None:
     selected = [
         (label, _value(row, "saxs", ("L_nm", "long_period_nm", "L_best")),
@@ -128,7 +135,7 @@ def _multiscale_definition(
         technique="joint",
         scope="series",
         category="supplementary",
-        publication_role="si",
+        publication_role=("si" if scientific_review["allowed"] else "diagnostic"),
         title="SAXS-WAXS Multi-Scale Correlation",
         layout=_layout(
             x_label="SAXS long period",
@@ -150,13 +157,16 @@ def _multiscale_definition(
                 "style": {"color": "#2166AC", "marker_size": 30.0},
             },
         ),
-        recipe=_recipe("multiscale", rows),
+        recipe=_recipe("multiscale", rows, scientific_review),
         style_profile="sci_default",
         display_order=20,
     )
 
 
-def _coverage_definition(rows: Sequence[JointBatchRow]) -> FigureDefinition | None:
+def _coverage_definition(
+    rows: Sequence[JointBatchRow],
+    scientific_review: dict[str, Any],
+) -> FigureDefinition | None:
     if not rows:
         return None
     labels = _labels(rows)
@@ -198,7 +208,7 @@ def _coverage_definition(rows: Sequence[JointBatchRow]) -> FigureDefinition | No
                 "style": {"color": "#666666", "alpha": 0.85},
             },
         ),
-        recipe=_recipe("coverage", rows),
+        recipe=_recipe("coverage", rows, scientific_review),
         style_profile="sci_default",
         display_order=30,
     )
@@ -252,13 +262,18 @@ def _has_finite(values: Sequence[float]) -> bool:
     return any(math.isfinite(float(value)) for value in values)
 
 
-def _recipe(kind: str, rows: Sequence[JointBatchRow]) -> dict[str, Any]:
+def _recipe(
+    kind: str,
+    rows: Sequence[JointBatchRow],
+    scientific_review: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "module": "polynexus.core.joint.figure_provider",
         "function": "build_joint_figure_definitions",
         "inputs": {"batch_ids": [row.batch_id for row in rows]},
         "parameters": {"figure_kind": kind},
         "run_provenance": [build_joint_run_provenance(row) for row in rows],
+        "scientific_review": scientific_review,
         "v2_adapter": "joint",
     }
 

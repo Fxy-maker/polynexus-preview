@@ -15,6 +15,7 @@ Supports:
     - Gaussian / ORCA frequency output parsing
 """
 
+import json
 import logging
 import numpy as np
 from typing import Dict, Any, List, Optional
@@ -242,6 +243,13 @@ class IREngine(BaseEngine):
         }
         self.result.metadata["mapping_source_id"] = str(result.provenance["source_id"])
         self.result.analysis_evidence = result.to_evidence()
+        mapping_evidence = self.result.analysis_evidence["feature_evidence"]["mapping_evidence"]
+        self.result.metadata["mapping_review_decision"] = json.dumps(
+            mapping_evidence["scientific_review"],
+            ensure_ascii=False,
+            sort_keys=True,
+            allow_nan=False,
+        )
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         definitions = tuple(self.build_figure_definitions())

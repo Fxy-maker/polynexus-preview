@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 from polynexus.core.figures.contracts import (
     AxisDefinition,
@@ -15,6 +15,10 @@ from polynexus.core.figures.contracts import (
 )
 
 from .core import NMRResult
+from polynexus.core.scientific_review import (
+    review_decision_snapshot,
+    review_record_from_payload,
+)
 
 
 _PEAK_LABEL_LANES = (0.96, 0.84, 0.72, 0.60, 0.48)
@@ -25,23 +29,28 @@ def build_nmr_figure_definitions(
 ) -> tuple[FigureDefinition, ...]:
     definitions: list[FigureDefinition] = []
     for index, result in enumerate(results, start=1):
+        scientific_review = _result_scientific_review(result)
         if len(result.ppm) > 0 and len(result.intensity) == len(result.ppm):
-            definitions.append(_build_spectrum(result, index))
+            definitions.append(_build_spectrum(result, index, scientific_review))
             if len(result.intensity_fit) == len(result.ppm):
-                definitions.append(_build_deconvolution(result, index))
+                definitions.append(_build_deconvolution(result, index, scientific_review))
         if result.matches:
-            comparison = _build_comparison(result, index)
+            comparison = _build_comparison(result, index, scientific_review)
             if comparison is not None:
                 definitions.append(comparison)
         if result.region_integrals:
-            definitions.append(_build_region_integrals(result, index))
-    overview = _build_crystallinity(results)
+            definitions.append(_build_region_integrals(result, index, scientific_review))
+    overview = _build_crystallinity(results, _results_scientific_review(results))
     if overview is not None:
         definitions.append(overview)
     return tuple(definitions)
 
 
-def _build_spectrum(result: NMRResult, index: int) -> FigureDefinition:
+def _build_spectrum(
+    result: NMRResult,
+    index: int,
+    scientific_review: Mapping[str, Any],
+) -> FigureDefinition:
     source_id = "spectrum-data"
     objects: list[dict[str, object]] = [
         _series("series-spectrum", source_id, "intensity", "Spectrum", "#222222")
@@ -53,7 +62,7 @@ def _build_spectrum(result: NMRResult, index: int) -> FigureDefinition:
         technique="nmr",
         scope="frame",
         category="per_frame",
-        publication_role="main",
+        publication_role=("main" if scientific_review["allowed"] else "diagnostic"),
         title=f"NMR Spectrum - {result.label}",
         layout=_spectrum_layout(
             result.nucleus,
@@ -74,12 +83,16 @@ def _build_spectrum(result: NMRResult, index: int) -> FigureDefinition:
             ),
         ),
         objects=tuple(objects),
-        recipe=_recipe(result.label, index, "spectrum"),
+        recipe=_recipe(result, index, "spectrum", scientific_review),
         style_profile="sci_default",
     )
 
 
-def _build_deconvolution(result: NMRResult, index: int) -> FigureDefinition:
+def _build_deconvolution(
+    result: NMRResult,
+    index: int,
+    scientific_review: Mapping[str, Any],
+) -> FigureDefinition:
     source_id = "deconvolution-data"
     objects: list[dict[str, object]] = [
         _series("series-data", source_id, "intensity", "Data", "#222222"),
@@ -112,7 +125,7 @@ def _build_deconvolution(result: NMRResult, index: int) -> FigureDefinition:
             ),
         ),
         objects=tuple(objects),
-        recipe=_recipe(result.label, index, "deconvolution"),
+        recipe=_recipe(result, index, "deconvolution", scientific_review),
         style_profile="sci_default",
     )
 
@@ -120,6 +133,7 @@ def _build_deconvolution(result: NMRResult, index: int) -> FigureDefinition:
 def _build_comparison(
     result: NMRResult,
     index: int,
+    scientific_review: Mapping[str, Any],
 ) -> FigureDefinition | None:
     rows: list[tuple[float, float]] = []
     for match in result.matches:
@@ -180,12 +194,17 @@ def _build_comparison(
                 "style": {"color": "#666666", "line_width": 0.7, "line_style": "--"},
             },
         ),
-        recipe=_recipe(result.label, index, "comparison"),
+        publication_role=("si" if scientific_review["allowed"] else "diagnostic"),
+        recipe=_recipe(result, index, "comparison", scientific_review),
         style_profile="sci_default",
     )
 
 
-def _build_region_integrals(result: NMRResult, index: int) -> FigureDefinition:
+def _build_region_integrals(
+    result: NMRResult,
+    index: int,
+    scientific_review: Mapping[str, Any],
+) -> FigureDefinition:
     rows = [
         (str(label).replace("_", " "), float(value))
         for label, value in result.region_integrals.items()
@@ -224,13 +243,15 @@ def _build_region_integrals(result: NMRResult, index: int) -> FigureDefinition:
                 "style": {"color": "#009E73"},
             },
         ),
-        recipe=_recipe(result.label, index, "region_integrals"),
+        publication_role=("si" if scientific_review["allowed"] else "diagnostic"),
+        recipe=_recipe(result, index, "region_integrals", scientific_review),
         style_profile="sci_default",
     )
 
 
 def _build_crystallinity(
     results: Sequence[NMRResult],
+    scientific_review: Mapping[str, Any],
 ) -> FigureDefinition | None:
     rows = [
         (str(result.label), float(result.Xc_pct))
@@ -277,8 +298,10 @@ def _build_crystallinity(
             "function": "build_nmr_figure_definitions",
             "inputs": {"result_labels": [label for label, _value in rows]},
             "parameters": {"figure_kind": "crystallinity"},
+            "scientific_review": dict(scientific_review),
             "v2_adapter": "nmr",
         },
+        publication_role=("si" if scientific_review["allowed"] else "diagnostic"),
         style_profile="sci_default",
     )
 
@@ -443,14 +466,61 @@ def _category_layout(label: str, unit: str) -> FigureLayoutDefinition:
     )
 
 
-def _recipe(label: str, index: int, figure_kind: str) -> dict[str, object]:
+def _recipe(
+    result: NMRResult,
+    index: int,
+    figure_kind: str,
+    scientific_review: Mapping[str, Any] | None = None,
+) -> dict[str, object]:
+    review = dict(scientific_review or _result_scientific_review(result))
     return {
         "module": "polynexus.core.nmr_engine.figure_provider",
         "function": "build_nmr_figure_definitions",
-        "inputs": {"result_label": label},
+        "inputs": {"result_label": result.label},
         "parameters": {"frame_index": index, "figure_kind": figure_kind},
+        "scientific_review": review,
         "v2_adapter": "nmr",
     }
+
+
+def _is_solid_c(result: NMRResult) -> bool:
+    nucleus = str(result.nucleus or "").strip().upper().replace("¹", "1")
+    return nucleus in {"13C", "C", "13 C"} and str(result.sample_state or "").strip().lower() == "solid"
+
+
+def _result_scientific_review(result: NMRResult) -> dict[str, Any]:
+    source_ref = str(
+        result.metadata.get("source_id")
+        or result.metadata.get("filename")
+        or result.label
+        or ""
+    ).strip()
+    if not _is_solid_c(result):
+        return {
+            "allowed": True,
+            "reason": "not_applicable",
+            "record_id": "",
+            "scope": "nmr.solid_c",
+            "source_ref": source_ref,
+        }
+    return review_decision_snapshot(
+        review_record_from_payload(result.metadata.get("scientific_review")),
+        expected_scope="nmr.solid_c",
+        source_ref=source_ref,
+    )
+
+
+def _results_scientific_review(results: Sequence[NMRResult]) -> dict[str, Any]:
+    relevant = [_result_scientific_review(result) for result in results if _is_solid_c(result)]
+    if not relevant:
+        return {
+            "allowed": True,
+            "reason": "not_applicable",
+            "record_id": "",
+            "scope": "nmr.solid_c",
+            "source_ref": "",
+        }
+    return next((item for item in relevant if not item["allowed"]), relevant[0])
 
 
 def _float_values(values) -> tuple[float, ...]:

@@ -39,6 +39,25 @@ def _mapping_result() -> IRMappingResult:
     )
 
 
+def _accepted_review_payload(*, source_id: str = "map-a.json") -> dict:
+    return {
+        "record_id": "review-ir-map-1",
+        "scope": "ir.mapping",
+        "reviewer": "reviewer-a",
+        "reviewed_at": "2026-07-29T00:00:00Z",
+        "policy_version": "ir-map-v1",
+        "source_refs": [source_id],
+        "decisions": {
+            "coordinate_convention": "consume supplied row/column coordinates",
+            "roi_inclusion_policy": "explicit ROI only",
+            "invalid_pixel_policy": "preserve mask; no interpolation",
+            "promotion_rule": "accepted source-matching review",
+        },
+        "status": "accepted",
+        "conditions": [],
+    }
+
+
 def test_ir_mapping_contract_rejects_mismatched_geometry() -> None:
     result = _mapping_result()
     result.invalid_pixel_mask = np.zeros((1, 2), dtype=bool)
@@ -55,8 +74,8 @@ def test_ir_mapping_provider_emits_main_support_and_diagnostic_definitions() -> 
         "ir.mapping.spectra",
         "ir.mapping.invalid-pixels",
     )
-    assert definitions[0].publication_role == "main"
-    assert definitions[1].publication_role == "si"
+    assert definitions[0].publication_role == "diagnostic"
+    assert definitions[1].publication_role == "diagnostic"
     assert definitions[2].publication_role == "diagnostic"
     for definition in definitions:
         validate_figure_definition(definition)
@@ -123,6 +142,67 @@ def test_ir_mapping_result_exposes_structural_evidence_without_scientific_infere
     assert mapping["source_id"] == "map-a.json"
 
 
+def test_ir_mapping_without_review_is_fail_closed_and_traceable() -> None:
+    definitions = build_ir_mapping_figure_definitions(_mapping_result())
+
+    assert [item.publication_role for item in definitions] == [
+        "diagnostic",
+        "diagnostic",
+        "diagnostic",
+    ]
+    decision = definitions[0].recipe["scientific_review"]
+    assert decision == {
+        "allowed": False,
+        "reason": "review_missing",
+        "record_id": "",
+        "scope": "ir.mapping",
+        "source_ref": "map-a.json",
+    }
+
+
+def test_ir_mapping_accepted_matching_review_promotes_map_and_roi() -> None:
+    result = _mapping_result()
+    result.provenance = {
+        **result.provenance,
+        "scientific_review": _accepted_review_payload(),
+    }
+
+    definitions = build_ir_mapping_figure_definitions(result)
+
+    assert [item.publication_role for item in definitions] == ["main", "si", "diagnostic"]
+    assert definitions[0].recipe["scientific_review"]["reason"] == "review_accepted"
+    assert definitions[1].recipe["scientific_review"]["record_id"] == "review-ir-map-1"
+
+
+def test_ir_mapping_source_mismatch_remains_diagnostic() -> None:
+    result = _mapping_result()
+    result.provenance = {
+        **result.provenance,
+        "scientific_review": _accepted_review_payload(source_id="other-map.json"),
+    }
+
+    definitions = build_ir_mapping_figure_definitions(result)
+
+    assert definitions[0].publication_role == "diagnostic"
+    assert definitions[1].publication_role == "diagnostic"
+    assert definitions[0].recipe["scientific_review"]["reason"] == "source_mismatch"
+
+
+def test_ir_mapping_review_decision_survives_json_round_trip() -> None:
+    result = _mapping_result()
+    result.provenance = {
+        **result.provenance,
+        "scientific_review": _accepted_review_payload(),
+    }
+    definition = build_ir_mapping_figure_definitions(result)[0]
+
+    encoded = json.dumps(definition.recipe, ensure_ascii=False, allow_nan=False)
+    restored = json.loads(encoded)
+
+    assert restored["scientific_review"]["allowed"] is True
+    assert restored["scientific_review"]["source_ref"] == "map-a.json"
+
+
 def test_ir_engine_mapping_handoff_populates_analysis_result() -> None:
     engine = IREngine()
     engine.set_mapping_result(_mapping_result())
@@ -130,3 +210,16 @@ def test_ir_engine_mapping_handoff_populates_analysis_result() -> None:
     assert engine.result.parameters["map_shape"] == [2, 2]
     assert engine.result.analysis_evidence["submodule_id"] == "ir.mapping"
     assert engine.result.metadata["mapping_source_id"] == "map-a.json"
+
+
+def test_ir_engine_mapping_handoff_exposes_review_decision() -> None:
+    result = _mapping_result()
+    result.provenance = {
+        **result.provenance,
+        "scientific_review": _accepted_review_payload(),
+    }
+    engine = IREngine()
+    engine.set_mapping_result(result)
+
+    assert engine.result.analysis_evidence["feature_evidence"]["mapping_evidence"]["scientific_review"]["allowed"] is True
+    assert json.loads(engine.result.metadata["mapping_review_decision"])["record_id"] == "review-ir-map-1"

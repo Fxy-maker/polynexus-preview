@@ -7,6 +7,24 @@ from polynexus.core.joint.coordinator import JointCoordinator
 from polynexus.core.joint.figure_provider import build_joint_figure_definitions
 
 
+def _accepted_joint_review(batch_id: str) -> dict:
+    return {
+        "record_id": f"review-joint-{batch_id}",
+        "scope": "joint",
+        "reviewer": "reviewer-a",
+        "reviewed_at": "2026-07-29T00:00:00Z",
+        "policy_version": "joint-v1",
+        "source_refs": [batch_id],
+        "decisions": {
+            "conflict_precedence": "retain source-specific values and surface conflicts",
+            "minimum_evidence": "accepted technique evidence for selected batch",
+            "unresolved_conflict_policy": "diagnostic until human resolution",
+        },
+        "status": "accepted",
+        "conditions": [],
+    }
+
+
 def _rows() -> list[JointBatchRow]:
     return [
         JointBatchRow(
@@ -20,6 +38,7 @@ def _rows() -> list[JointBatchRow]:
                 "waxs": JointRunRecord("waxs-a", "waxs", results_summary={"Xc_pct": 39.0, "D_Scherrer_nm": 7.0}),
                 "saxs": JointRunRecord("saxs-a", "saxs", results_summary={"L_nm": 12.0, "lc_nm": 5.0}),
             },
+            scientific_review=_accepted_joint_review("batch-a"),
         ),
         JointBatchRow(
             sample_id="sample-b",
@@ -32,6 +51,7 @@ def _rows() -> list[JointBatchRow]:
                 "waxs": JointRunRecord("waxs-b", "waxs", results_summary={"Xc_pct": 26.0, "D_Scherrer_nm": 5.0}),
                 "saxs": JointRunRecord("saxs-b", "saxs", results_summary={"L_nm": 10.0, "lc_nm": 3.0}),
             },
+            scientific_review=_accepted_joint_review("batch-b"),
         ),
     ]
 
@@ -93,3 +113,25 @@ def test_joint_coordinator_attaches_manifest_context_to_hub_report(tmp_path):
     assert publication["run_id"] == "joint-hub"
     assert publication["manifest"].endswith("runs\\joint-hub\\figure_manifest.json")
     assert "joint.series.crystallinity" in publication["figure_ids"]
+
+
+def test_joint_without_review_is_diagnostic_only():
+    rows = _rows()
+    rows[0].scientific_review = {}
+
+    definitions = build_joint_figure_definitions(rows)
+
+    assert definitions[0].publication_role == "diagnostic"
+    assert definitions[1].publication_role == "diagnostic"
+    assert definitions[2].publication_role == "diagnostic"
+    assert definitions[0].recipe["scientific_review"]["reason"] == "review_missing"
+
+
+def test_joint_review_scope_and_source_are_traceable():
+    rows = _rows()
+    rows[0].scientific_review["source_refs"] = ["other-batch"]
+
+    definitions = build_joint_figure_definitions(rows)
+
+    assert all(item.publication_role == "diagnostic" for item in definitions)
+    assert definitions[0].recipe["scientific_review"]["reason"] == "source_mismatch"

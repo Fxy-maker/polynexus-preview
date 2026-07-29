@@ -22,6 +22,7 @@ def _nmr_engine() -> NMREngine:
         NMRResult(
             label="liquid-c",
             nucleus="13C",
+            sample_state="liquid",
             ppm=np.array([180.0, 100.0, 20.0]),
             intensity=np.array([0.1, 0.5, 0.15]),
             intensity_fit=np.array([0.11, 0.48, 0.16]),
@@ -32,6 +33,21 @@ def _nmr_engine() -> NMREngine:
 
 
 def _joint_rows() -> list[JointBatchRow]:
+    review = {
+        "record_id": "review-joint-provenance",
+        "scope": "joint",
+        "reviewer": "reviewer-a",
+        "reviewed_at": "2026-07-29T00:00:00Z",
+        "policy_version": "joint-v1",
+        "source_refs": ["batch-a"],
+        "decisions": {
+            "conflict_precedence": "retain source-specific values and surface conflicts",
+            "minimum_evidence": "accepted technique evidence for selected batch",
+            "unresolved_conflict_policy": "diagnostic until human resolution",
+        },
+        "status": "accepted",
+        "conditions": [],
+    }
     return [
         JointBatchRow(
             sample_id="sample-a",
@@ -44,6 +60,7 @@ def _joint_rows() -> list[JointBatchRow]:
                 "waxs": JointRunRecord("waxs-a", "waxs", results_summary={"Xc_pct": 39.0, "D_Scherrer_nm": 7.0}),
                 "saxs": JointRunRecord("saxs-a", "saxs", results_summary={"L_nm": 12.0, "lc_nm": 5.0}),
             },
+            scientific_review=review,
         )
     ]
 

@@ -37,6 +37,21 @@ def _cleanup_qt_widgets():
 
 
 def _rows() -> list[JointBatchRow]:
+    review = {
+        "record_id": "review-joint-lifecycle",
+        "scope": "joint",
+        "reviewer": "lifecycle-reviewer",
+        "reviewed_at": "2026-07-29T00:00:00Z",
+        "policy_version": "joint-v1",
+        "source_refs": ["batch-a"],
+        "decisions": {
+            "conflict_precedence": "retain source-specific values and surface conflicts",
+            "minimum_evidence": "accepted technique evidence for selected batch",
+            "unresolved_conflict_policy": "diagnostic until human resolution",
+        },
+        "status": "accepted",
+        "conditions": [],
+    }
     return [
         JointBatchRow(
             sample_id="sample-a",
@@ -57,6 +72,7 @@ def _rows() -> list[JointBatchRow]:
                     results_summary={"L_nm": 12.0, "lc_nm": 5.0},
                 ),
             },
+            scientific_review=review,
         )
     ]
 

@@ -29,6 +29,26 @@
   be split into value-specific task cards with focused regression and lifecycle
   verification.
 
+## Scientific review promotion gates - bounded verification complete - 2026-07-29
+
+- Shared JSON-safe review restoration/snapshots now gate the three remaining
+  scientific promotion boundaries. IR mapping preserves supplied coordinates,
+  explicit ROIs, and invalid masks; accepted source-matching review promotes
+  map Main and ROI SI, while the default is diagnostic-only. NMR solid-C
+  carries review state through result evidence and recipes; Joint requires an
+  accepted source-matching record for every selected batch row and persists the
+  aggregate decision in report/recipe provenance.
+- Focused IR/shared/NMR/Joint matrix passed `46`; real NMR solid-C lifecycle
+  passed `1 selected, 3 deselected` and asserted `review_missing` with no Main
+  entry. Task-scoped verification passed with quality `287` and preprocessing
+  `106`; boundary-only verification and boundary audit passed.
+- The requested full/boundary verifier reached the 364-second tool limit with
+  exit `124` and no complete pytest summary; it is explicitly not treated as a
+  pass. Human IR/NMR/Joint scientific records, all-mode visual/restarted-GUI
+  review, AI-off/failure/fallback release gates, and final release approval
+  remain open. Evidence:
+  `docs/acceptance/2026-07-29-scientific-review-promotion-gates.md`.
+
 ## Release decision packet - unlocked GUI slice rechecked - 2026-07-29
 
 - The prior locked-desktop observation is superseded for this review: the

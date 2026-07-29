@@ -8,6 +8,8 @@ import pytest
 from polynexus.core.scientific_review import (
     ScientificReviewRecord,
     promotion_decision,
+    review_decision_snapshot,
+    review_record_from_payload,
     validate_review_record,
 )
 
@@ -99,3 +101,46 @@ def test_non_pending_record_rejects_missing_required_decision_fields() -> None:
 
     with pytest.raises(ValueError, match="missing required decisions"):
         validate_review_record(incomplete)
+
+
+def test_review_payload_restores_and_serializes_a_decision_snapshot() -> None:
+    restored = review_record_from_payload(_accepted_ir_record().to_dict())
+
+    assert restored == _accepted_ir_record()
+    assert review_decision_snapshot(
+        restored,
+        expected_scope="ir.mapping",
+        source_ref="map-a.json",
+    ) == {
+        "allowed": True,
+        "reason": "review_accepted",
+        "record_id": "review-ir-1",
+        "scope": "ir.mapping",
+        "source_ref": "map-a.json",
+    }
+
+
+def test_invalid_present_review_payload_fails_closed_as_invalid() -> None:
+    restored = review_record_from_payload({"record_id": "broken", "scope": "ir.mapping", "status": "accepted"})
+
+    assert review_decision_snapshot(
+        restored,
+        expected_scope="ir.mapping",
+        source_ref="map-a.json",
+    )["reason"] == "review_invalid"
+
+
+def test_non_finite_review_payload_cannot_promote() -> None:
+    invalid = replace(
+        _accepted_ir_record(),
+        decisions={
+            **_accepted_ir_record().decisions,
+            "promotion_rule": float("nan"),
+        },
+    )
+
+    assert promotion_decision(
+        invalid,
+        expected_scope="ir.mapping",
+        source_ref="map-a.json",
+    ).reason == "review_invalid"

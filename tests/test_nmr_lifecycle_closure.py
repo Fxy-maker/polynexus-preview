@@ -59,13 +59,18 @@ def test_nmr_partitions_complete_real_data_lifecycle(tmp_path: Path, mode: str):
     assert result.metadata["submodule"] == mode
     if mode == "nmr.solid_c":
         assert str(result.parameters.get("Xc_assignment_status") or "").lower() not in {"supported", "ready"}
+        assert result.analysis_evidence["scientific_review"]["reason"] == "review_missing"
 
     entries = build_active_manifest_gallery_entries(output_root)
     assert entries
     assert all(entry.run_id for entry in entries)
-    assert any(entry.publication_role == "main" for entry in entries)
     assert any(entry.publication_role == "diagnostic" for entry in entries)
-    selected = next(entry for entry in entries if entry.publication_role == "main")
+    if mode == "nmr.solid_c":
+        assert not any(entry.publication_role == "main" for entry in entries)
+        selected = entries[0]
+    else:
+        assert any(entry.publication_role == "main" for entry in entries)
+        selected = next(entry for entry in entries if entry.publication_role == "main")
 
     document = json.loads(Path(selected.document_path).read_text(encoding="utf-8"))
     service = FigureProjectService(output_root)

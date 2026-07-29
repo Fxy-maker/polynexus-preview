@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import math
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 from .validation import run_all_cross_validations
+from ..scientific_review import review_decision_snapshot, review_record_from_payload
 
 
 TECHNIQUES = ("dsc", "saxs", "waxs", "ir", "nmr")
@@ -154,6 +155,7 @@ class JointBatchRow:
     condition_values: dict[str, Any] = field(default_factory=dict)
     created_at: str = ""
     runs: dict[str, JointRunRecord] = field(default_factory=dict)
+    scientific_review: dict[str, Any] = field(default_factory=dict)
 
     @property
     def technique_count(self) -> int:
@@ -239,6 +241,7 @@ def collect_joint_dataset(
                         condition_values=dict(batch.get("condition_values") or {}),
                         created_at=batch.get("created_at", "") or "",
                         runs=latest_by_technique,
+                        scientific_review=dict(batch.get("scientific_review") or {}),
                     )
                 )
     return rows
@@ -360,6 +363,37 @@ def build_joint_run_provenance(
         "batch_id": str(row.batch_id or ""),
         "batch": str(row.batch_label or ""),
         "sources": sources,
+    }
+
+
+def build_joint_scientific_review_snapshot(
+    rows: Sequence[JointBatchRow],
+) -> dict[str, Any]:
+    """Gate Joint promotion on accepted review records for every selected row."""
+
+    if not rows:
+        return review_decision_snapshot(
+            None,
+            expected_scope="joint",
+            source_ref="",
+        )
+    decisions = [
+        review_decision_snapshot(
+            review_record_from_payload(row.scientific_review or None),
+            expected_scope="joint",
+            source_ref=str(row.batch_id or ""),
+        )
+        for row in rows
+    ]
+    denied = next((item for item in decisions if not item["allowed"]), None)
+    if denied is not None:
+        return denied
+    return {
+        "allowed": True,
+        "reason": "review_accepted",
+        "record_id": "+".join(str(item["record_id"]) for item in decisions),
+        "scope": "joint",
+        "source_ref": ",".join(str(item["source_ref"]) for item in decisions),
     }
 
 
@@ -722,6 +756,7 @@ def build_joint_hub_report(rows: list[JointBatchRow]) -> dict[str, Any]:
         "name": "joint_analysis_hub",
         "rows": summary_rows,
         "validations": validation_rows,
+        "scientific_review": build_joint_scientific_review_snapshot(rows),
         "ai_context": _build_joint_ai_context(summary_rows, validation_rows),
         "summary": (
             f"{len(summary_rows)} batch rows, "

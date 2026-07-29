@@ -20,6 +20,10 @@ from polynexus.core.figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
+from polynexus.core.scientific_review import (
+    review_decision_snapshot,
+    review_record_from_payload,
+)
 
 
 @dataclass
@@ -67,6 +71,7 @@ class IRMappingResult:
         """Return structural evidence; no band or composition inference is made."""
 
         validate_ir_mapping_result(self)
+        scientific_review = _mapping_scientific_review_decision(self.provenance)
         return {
             "submodule_id": "ir.mapping",
             "feature_evidence": {
@@ -80,6 +85,7 @@ class IRMappingResult:
                     "assignment_roi_count": sum(bool(item.assignments) for item in self.roi_spectra),
                     "source_id": str(self.provenance["source_id"]),
                     "status": "review_required" if self.invalid_pixel_count else "ready_for_review",
+                    "scientific_review": scientific_review,
                 }
             },
         }
@@ -149,6 +155,8 @@ def build_ir_mapping_figure_definitions(
         "source_kind": str(result.provenance.get("source_kind", "explicit_mapping_payload")),
         "source_id": str(result.provenance["source_id"]),
     }
+    scientific_review = _mapping_scientific_review_decision(result.provenance)
+    promoted = bool(scientific_review["allowed"])
 
     map_source = FigureDataSourceDefinition(
         source_id="ir-mapping-map",
@@ -171,6 +179,7 @@ def build_ir_mapping_figure_definitions(
         "map_metric": result.map_metric,
         "valid_pixel_ratio": result.valid_pixel_ratio,
         "invalid_pixel_count": result.invalid_pixel_count,
+        "scientific_review": scientific_review,
         "v2_adapter": "ir",
     }
     definitions: list[FigureDefinition] = [
@@ -179,7 +188,7 @@ def build_ir_mapping_figure_definitions(
             technique="ir",
             scope="series",
             category="series_overview",
-            publication_role="main",
+            publication_role="main" if promoted else "diagnostic",
             title=f"IR Mapping — {result.map_metric}",
             layout=_mapping_layout("Column coordinate", "Row coordinate"),
             data_sources=(map_source,),
@@ -202,7 +211,14 @@ def build_ir_mapping_figure_definitions(
     ]
 
     if result.roi_spectra:
-        definitions.append(_roi_spectra_definition(result, provenance, recipe_base))
+        definitions.append(
+            _roi_spectra_definition(
+                result,
+                provenance,
+                recipe_base,
+                publication_role="si" if promoted else "diagnostic",
+            )
+        )
 
     invalid_source = FigureDataSourceDefinition(
         source_id="ir-mapping-invalid-pixels",
@@ -248,10 +264,30 @@ def build_ir_mapping_figure_definitions(
     return tuple(definitions)
 
 
+def _mapping_scientific_review_decision(
+    provenance: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the fail-closed mapping promotion decision as JSON-safe data."""
+
+    source_ref = str(provenance.get("source_id", ""))
+    review = _restore_mapping_review(provenance.get("scientific_review"))
+    return review_decision_snapshot(
+        review,
+        expected_scope="ir.mapping",
+        source_ref=source_ref,
+    )
+
+
+def _restore_mapping_review(value: Any):
+    return review_record_from_payload(value)
+
+
 def _roi_spectra_definition(
     result: IRMappingResult,
     provenance: Mapping[str, str],
     recipe_base: Mapping[str, Any],
+    *,
+    publication_role: str,
 ) -> FigureDefinition:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
@@ -291,7 +327,7 @@ def _roi_spectra_definition(
         technique="ir",
         scope="series",
         category="supplementary",
-        publication_role="si",
+        publication_role=publication_role,
         title="IR Mapping ROI Spectra",
         layout=_mapping_layout("Wavenumber", "Absorbance", x_reversed=True),
         data_sources=tuple(sources),

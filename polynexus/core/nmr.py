@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any, Dict, List
@@ -10,6 +11,7 @@ import numpy as np
 
 from .engine import BaseEngine, EngineCategory, register_technique
 from .submodule_registry import SubModuleSpec, register_submodule
+from .scientific_review import review_decision_snapshot, review_record_from_payload
 from .nmr_engine import (
     NMRConfig,
     NMRRelaxation,
@@ -247,6 +249,9 @@ class NMREngine(BaseEngine):
         self._computed: List[ComputedShift] = []
         self._relax: NMRRelaxation | None = None
         self._user_config_keys = set(config.keys()) if isinstance(config, dict) else set()
+        self._scientific_review_payload = (
+            config.get("scientific_review") if isinstance(config, dict) else None
+        )
         if isinstance(config, dict):
             self.set_config(**config)
 
@@ -378,6 +383,16 @@ class NMREngine(BaseEngine):
                 computed_shifts=self._computed if self._computed else None,
                 relaxation_data=self._relax,
             )
+            source_id = str(
+                spec.metadata.get("source_id")
+                or spec.metadata.get("filename")
+                or spec.label
+                or ""
+            ).strip()
+            result.metadata["source_id"] = source_id
+            result.metadata["submodule"] = getattr(self, "active_submodule", "") or "auto"
+            if self._scientific_review_payload is not None:
+                result.metadata["scientific_review"] = self._scientific_review_payload
             self._results.append(result)
             xc = f" Xc={result.Xc_pct:.1f}" if np.isfinite(result.Xc_pct) else ""
             snr = f" SNR={result.median_snr:.1f}" if np.isfinite(result.median_snr) else ""
@@ -421,7 +436,21 @@ class NMREngine(BaseEngine):
                     "spectra_count": len(self._results),
                 },
             )
-            self.result.set_analysis_evidence(evidence)
+            evidence_payload = evidence.to_dict() if hasattr(evidence, "to_dict") else dict(evidence)
+            if getattr(self, "active_submodule", "") == "nmr.solid_c":
+                source_id = str(first_result.metadata.get("source_id") or "")
+                evidence_payload["scientific_review"] = review_decision_snapshot(
+                    review_record_from_payload(first_result.metadata.get("scientific_review")),
+                    expected_scope="nmr.solid_c",
+                    source_ref=source_id,
+                )
+            self.result.set_analysis_evidence(evidence_payload)
+            if "scientific_review" in self.result.analysis_evidence:
+                self.result.metadata["scientific_review_decision"] = json.dumps(
+                    self.result.analysis_evidence["scientific_review"],
+                    sort_keys=True,
+                    allow_nan=False,
+                )
         return True
 
     def build_figure_definitions(self):
