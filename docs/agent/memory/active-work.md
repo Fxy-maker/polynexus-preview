@@ -1,5 +1,18 @@
 # Active Work
 
+## User-authorized test-storage apply - partial cleanup - 2026-07-30
+
+- After all pytest processes ended, `python scripts/test_storage.py clean
+  --older-than-hours 24 --apply` was executed on the user's explicit request.
+  It partially removed eligible artifacts but stopped with exit code `1` and
+  `WinError 5` at
+  `D:\PolyNexus\PolyNexusPolyNexus.pytest_tmp_metric_position_full`.
+- Post-apply dry-run reports `277` artifacts, `40` eligible,
+  `19128640281` eligible bytes, and `237` protected; C: has `8` artifacts and
+  `0` eligible. No ACL bypass or manual broad deletion was performed.
+- Evidence: `docs/agent/tasks/2026-07-30-test-storage-apply-attempt.md` and
+  `docs/acceptance/2026-07-30-test-storage-apply-attempt.md`.
+
 ## SAXS export fallback dirty-provenance - checkpointed - 2026-07-29
 
 - Legacy analysis fallback profile export now has a RED regression: dirty q/raw
