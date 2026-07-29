@@ -909,6 +909,7 @@ def _detector_heatmap_object(
         "x_column": "pixel_x",
         "y_column": "pixel_y",
         "z_column": "log_intensity",
+        "allow_partial_detector_grid": True,
         "style": {"cmap": "magma", "colorbar_label": "log10(counts)"},
     }
 

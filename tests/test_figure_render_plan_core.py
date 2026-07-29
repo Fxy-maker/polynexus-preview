@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+import numpy as np
 import pytest
 
 from polynexus.core.figures.render_plan import FigureRenderPlanBuilder
@@ -632,6 +633,71 @@ def test_renderer_supports_masked_regular_grid_heatmap(render_plan):
     figure = MatplotlibFigureRenderer().render(plan, dpi=100)
 
     assert len(figure.axes[0].collections) == 1
+
+
+def test_renderer_masks_missing_partial_detector_cells_when_explicitly_allowed(
+    render_plan,
+):
+    plan = replace(
+        render_plan,
+        objects=(
+            {
+                "id": "partial-detector",
+                "type": "heatmap",
+                "panel_id": "main",
+                "data_ref": "grid",
+                "x_column": "x",
+                "y_column": "y",
+                "z_column": "value",
+                "allow_partial_detector_grid": True,
+                "style": {"cmap": "magma", "colorbar_label": "log10(counts)"},
+            },
+        ),
+        data_tables={
+            "grid": {
+                "x": [0.0, 1.0, 0.0],
+                "y": [0.0, 0.0, 1.0],
+                "value": [1.0, 2.0, 3.0],
+            }
+        },
+    )
+
+    figure = MatplotlibFigureRenderer().render(plan, dpi=100)
+
+    image = figure.axes[0].collections[0]
+    assert np.ma.count_masked(image.get_array()) == 1
+
+
+def test_renderer_rejects_missing_grid_without_partial_detector_opt_in(
+    render_plan,
+):
+    plan = replace(
+        render_plan,
+        objects=(
+            {
+                "id": "partial-detector-without-opt-in",
+                "type": "heatmap",
+                "panel_id": "main",
+                "data_ref": "grid",
+                "x_column": "x",
+                "y_column": "y",
+                "z_column": "value",
+                "style": {},
+            },
+        ),
+        data_tables={
+            "grid": {
+                "x": [0.0, 1.0, 0.0],
+                "y": [0.0, 0.0, 1.0],
+                "value": [1.0, 2.0, 3.0],
+            }
+        },
+    )
+
+    with pytest.raises(
+        ValueError, match="heatmap data does not form a complete regular grid"
+    ):
+        MatplotlibFigureRenderer().render(plan, dpi=100)
 
 
 def test_renderer_tags_native_image_grid_artists_with_object_id(render_plan):

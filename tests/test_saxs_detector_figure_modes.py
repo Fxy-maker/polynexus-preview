@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from polynexus.core.saxs_engine import io as saxs_io
+from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.saxs_engine.figure_static import (
     build_static_saxs_figure_definitions,
 )
@@ -192,6 +193,48 @@ def test_detector_reader_failure_is_recorded_alongside_usable_source(monkeypatch
     assert definition.recipe["parameters"]["detector_projection_quality"]["0"][
         "status"
     ] == "complete"
+
+
+@pytest.mark.parametrize("mode", ["static", "temperature"])
+def test_partial_detector_figure_reaches_ready_manifest_and_export(
+    monkeypatch, mode, tmp_path
+):
+    if mode == "static":
+        engine = _static_engine(["static-0.edf"])
+        builder = build_static_saxs_figure_definitions
+        figure_id = "saxs.static.detector.2d"
+    else:
+        engine = _temperature_engine(["temperature-0.edf"])
+        builder = build_temperature_figure_definitions
+        figure_id = "saxs.temperature.detector.2d"
+    monkeypatch.setattr(
+        saxs_io,
+        "read_image",
+        lambda _path: (
+            np.asarray([[1.0, np.nan], [4.0, 16.0]], dtype=float),
+            {},
+        ),
+    )
+
+    definition = next(item for item in builder(engine) if item.figure_id == figure_id)
+    manifest = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id=f"saxs-partial-{mode}",
+        technique="saxs",
+        definitions=(definition,),
+    )
+
+    entry = manifest.figures[0]
+    assert entry.status == "ready"
+    assert {"png", "svg"} <= set(entry.assets)
+    document = tmp_path / "runs" / f"saxs-partial-{mode}" / entry.document
+    persisted = json.loads(document.read_text(encoding="utf-8"))
+    assert (
+        persisted["recipe"]["parameters"]["detector_projection_quality"]["0"][
+            "status"
+        ]
+        == "partial_nonfinite"
+    )
 
 
 @pytest.mark.parametrize("mode", ["static", "temperature"])

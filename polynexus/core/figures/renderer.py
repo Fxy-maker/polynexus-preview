@@ -338,7 +338,10 @@ class MatplotlibFigureRenderer:
                 raise ValueError("heatmap data contains duplicate grid cells")
             seen[row_index, column_index] = True
             matrix[row_index, column_index] = z_value
-        if not seen.all():
+        if (
+            not seen.all()
+            and figure_object.get("allow_partial_detector_grid") is not True
+        ):
             raise ValueError("heatmap data does not form a complete regular grid")
         style = self._style(figure_object)
         image = axis.pcolormesh(

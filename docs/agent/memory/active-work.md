@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS partial detector FigurePipeline rendering - verified, checkpoint pending - 2026-07-29
+
+- Static and temperature diagnostic detector heatmaps now opt into a narrowly
+  scoped partial-grid renderer path. Missing coordinate cells stay NaN/masked
+  and render blank; duplicate cells, empty data, and ordinary heatmaps retain
+  their existing strict errors. No detector values, frames, analysis, quality
+  levels, physical gates, orientation, publication role, AI, or rescue behavior
+  changed.
+- TDD RED was renderer 1 failed, 1 passed and pipeline 2 failed, with the
+  expected incomplete-grid error. GREEN focused Figure/Manifest/Export matrix
+  passed 68; structured verification passed with quality 287 and
+  preprocessing 106. Fresh exact SAXS matrix passed 565 with 6 existing
+  warnings in 332.26s, exit code 0.
+- Storage report and clean were dry-run only: 16 artifacts, 15,746 eligible
+  bytes, 0 removed. test_storage.py --apply was not run.
+- Evidence: docs/agent/tasks/2026-07-29-saxs-partial-detector-heatmap.md.
+  The explicit allowlist checkpoint is the next handoff action; existing
+  current-state and unrelated scratch/untracked files remain untouched.
+
 ## SAXS static/temperature detector Figure projection - verified, checkpointed - 2026-07-29
 
 - Static and temperature Figure providers now expose a diagnostic-only 2D
