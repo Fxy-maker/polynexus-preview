@@ -510,6 +510,44 @@ def test_dirty_projection_strain_keeps_profile_and_q_strain_sources() -> None:
     assert len(heatmap.values["q_nm_inv"]) >= 2
 
 
+def test_dirty_static_profile_records_pair_provenance() -> None:
+    engine = _static_engine()
+    engine._q_list[0] = np.asarray([0.1, np.nan, 0.3, 0.4], dtype=float)
+    engine._I_list[0] = np.asarray([2.0, 4.0, np.inf, 5.0], dtype=float)
+
+    definition = next(
+        item
+        for item in build_static_saxs_figure_definitions(engine)
+        if item.figure_id == "saxs.static.comparison"
+    )
+
+    assert definition.recipe["parameters"]["profile_projection_quality"]["0"] == {
+        "input_pair_count": 4,
+        "retained_pair_count": 2,
+        "nonfinite_pair_count": 2,
+        "nonpositive_pair_count": 0,
+        "status": "partial_invalid",
+    }
+    json.dumps(definition.recipe, allow_nan=False)
+
+
+def test_clean_static_profile_records_complete_provenance() -> None:
+    definition = next(
+        item
+        for item in build_static_saxs_figure_definitions(_static_engine())
+        if item.figure_id == "saxs.static.comparison"
+    )
+
+    assert definition.recipe["parameters"]["profile_projection_quality"]["0"] == {
+        "input_pair_count": 3,
+        "retained_pair_count": 3,
+        "nonfinite_pair_count": 0,
+        "nonpositive_pair_count": 0,
+        "status": "complete",
+    }
+    json.dumps(definition.recipe, allow_nan=False)
+
+
 def test_dirty_projection_strain_trace_keeps_valid_pairs() -> None:
     engine = _strain_engine()
     engine._batch_results[0].correlation = {

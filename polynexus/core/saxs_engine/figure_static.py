@@ -268,7 +268,14 @@ def _definition(
     width: float,
     height: float,
     recipe_inputs: Mapping[str, Any],
+    recipe_parameters: Mapping[str, Any] | None = None,
 ) -> FigureDefinition:
+    parameters: dict[str, Any] = {
+        "source": "completed_analysis",
+        "display_order": int(display_order),
+    }
+    if recipe_parameters:
+        parameters.update(dict(recipe_parameters))
     return FigureDefinition(
         figure_id=figure_id,
         technique="saxs",
@@ -290,13 +297,38 @@ def _definition(
             "module": "polynexus.core.saxs_engine.figure_static",
             "function": "build_static_saxs_figure_definitions",
             "inputs": dict(recipe_inputs),
-            "parameters": {
-                "source": "completed_analysis",
-                "display_order": int(display_order),
-            },
+            "parameters": parameters,
         },
         style_profile="sci_default",
     )
+
+
+def _profile_projection_quality(frame: SAXSFrameView) -> dict[str, Any] | None:
+    try:
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
+    except (TypeError, ValueError):
+        return None
+    count = min(q.size, intensity.size)
+    q = q[:count]
+    intensity = intensity[:count]
+    finite = np.isfinite(q) & np.isfinite(intensity)
+    retained = finite & (q > 0) & (intensity > 0)
+    finite_count = int(np.count_nonzero(finite))
+    retained_count = int(np.count_nonzero(retained))
+    nonfinite_count = int(count - finite_count)
+    nonpositive_count = int(finite_count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "nonpositive_pair_count": nonpositive_count,
+        "status": (
+            "complete"
+            if nonfinite_count == 0 and nonpositive_count == 0
+            else "partial_invalid"
+        ),
+    }
 
 
 def _append_profile_objects(
@@ -304,14 +336,22 @@ def _append_profile_objects(
     *,
     profile_panel: str,
     lorentz_panel: str,
-) -> tuple[list[FigureDataSourceDefinition], list[dict[str, Any]]]:
+) -> tuple[
+    list[FigureDataSourceDefinition],
+    list[dict[str, Any]],
+    dict[str, dict[str, Any]],
+]:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    projection_quality: dict[str, dict[str, Any]] = {}
     for order, frame in enumerate(frames):
         pairs = _profile_pairs(frame)
         if pairs is None:
             continue
         q, intensity = pairs
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            projection_quality[str(frame.index)] = quality
         source_id = f"static-frame-{frame.index:03d}-profile"
         color = _COLORS[order % len(_COLORS)]
         sources.append(
@@ -364,7 +404,7 @@ def _append_profile_objects(
                     color=color,
                 )
             )
-    return sources, objects
+    return sources, objects, projection_quality
 
 
 def _metric_values(frames: Sequence[SAXSFrameView]) -> dict[str, tuple[Any, ...]]:
@@ -382,7 +422,7 @@ def _build_comparison(frames: Sequence[SAXSFrameView]) -> FigureDefinition | Non
     profile_frames = tuple(frame for frame in frames if _profile_pairs(frame) is not None)
     if len(profile_frames) < 2:
         return None
-    sources, objects = _append_profile_objects(
+    sources, objects, projection_quality = _append_profile_objects(
         profile_frames,
         profile_panel="profiles",
         lorentz_panel="lorentz",
@@ -509,6 +549,7 @@ def _build_comparison(frames: Sequence[SAXSFrameView]) -> FigureDefinition | Non
         width=7.2,
         height=6.0,
         recipe_inputs={"frame_indices": [frame.index for frame in profile_frames]},
+        recipe_parameters={"profile_projection_quality": projection_quality},
     )
 
 
@@ -516,7 +557,7 @@ def _build_sample(frame: SAXSFrameView) -> FigureDefinition | None:
     pairs = _profile_pairs(frame)
     if pairs is None:
         return None
-    sources, objects = _append_profile_objects(
+    sources, objects, projection_quality = _append_profile_objects(
         (frame,),
         profile_panel="profile",
         lorentz_panel="lorentz",
@@ -615,6 +656,7 @@ def _build_sample(frame: SAXSFrameView) -> FigureDefinition | None:
         width=7.2,
         height=5.5,
         recipe_inputs={"frame_index": frame.index},
+        recipe_parameters={"profile_projection_quality": projection_quality},
     )
 
 
