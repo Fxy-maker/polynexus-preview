@@ -83,6 +83,23 @@ scratch test because its historical capture directory was absent. That run is
 classified as a scratch/environment failure, not silently ignored. The
 production suite's stronger recheck is the explicit-exclusion result above.
 
+## Follow-up after SAXS temperature-axis checkpoint `765bda3`
+
+A fresh invocation was started with the pre-existing scratch test excluded
+and a new external basetemp:
+
+```powershell
+$env:PYTEST_ADDOPTS='--ignore=tests/_tmp_phase3/test_visual_audit_capture.py --basetemp=D:\PolyNexus_full_boundary_after_temperature_axis_20260730'
+python scripts/verify.py --changed --types --full --boundary
+```
+
+The tool timed out after `1504.1s` with exit code `124`. It emitted no final
+pytest summary, quality/preprocessing summary, or boundary exit code. The
+wrapper left its own `verify.py -> quality_gate.py -> pytest` process tree
+alive; the exact verified PIDs were reaped afterward. This run is a timeout
+limitation, not a pass, and the earlier `3100 passed` evidence is not
+attributed to checkpoint `765bda3`.
+
 ## Verification
 
 ```powershell

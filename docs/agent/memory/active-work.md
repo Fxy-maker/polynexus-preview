@@ -47,6 +47,18 @@
 - Evidence: `docs/agent/tasks/2026-07-30-full-boundary-latest-evidence.md` and
   `docs/acceptance/2026-07-30-full-boundary-latest-evidence.md`.
 
+## Post-`765bda3` full/boundary recheck - timeout, not a pass - 2026-07-30
+
+- A fresh `python scripts/verify.py --changed --types --full --boundary` was
+  run with `tests/_tmp_phase3/test_visual_audit_capture.py` explicitly
+  excluded and an external D: basetemp.
+- The tool timed out after `1504.1s` with exit code `124` and no final pytest,
+  quality, preprocessing, or boundary summary. The exact child process tree
+  was reaped afterward; the GUI Python process was not touched.
+- The earlier `3100 passed, 18 skipped, 12 warnings` current-HEAD evidence is
+  not attributed to `765bda3`. Focused/related SAXS and exact SAXS evidence for
+  `765bda3` remains valid; a fresh complete full/boundary pass is still open.
+
 ## Full native visual reacceptance - automated acceptance complete, human gates open - 2026-07-30
 
 - Fresh current-checkout native Windows Qt selector returned `17 passed, 15

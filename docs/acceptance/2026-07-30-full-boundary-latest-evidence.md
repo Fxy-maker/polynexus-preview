@@ -40,3 +40,12 @@ The default collection was also run and returned one failure in that same
 pre-existing scratch test because its old capture directory was not present;
 it is retained as a limitation rather than hidden. No scratch, source, real
 dataset, or test-storage directory was modified or cleaned with `--apply`.
+
+## Follow-up after checkpoint `765bda3`
+
+The fresh command with the same scratch exclusion and a new external basetemp
+timed out after `1504.1s` with wrapper exit code `124`. No final pytest,
+quality, preprocessing, or boundary summary was emitted. The verification
+process tree was explicitly reaped after the timeout. This is not evidence of
+a pass; the previous complete current-HEAD result remains the last complete
+automated full/boundary evidence, but it predates `765bda3`.
