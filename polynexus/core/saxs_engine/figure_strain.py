@@ -1351,6 +1351,7 @@ def _azimuthal_definition(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    azimuthal_projection_quality: dict[str, dict[str, Any]] = {}
     for ordinal, frame in enumerate(frames):
         anisotropy = getattr(frame.analysis, "anisotropy", None)
         try:
@@ -1365,6 +1366,14 @@ def _azimuthal_definition(
         finite = np.isfinite(chi[:count]) & np.isfinite(intensity[:count])
         if not np.any(finite):
             continue
+        retained_count = int(np.count_nonzero(finite))
+        nonfinite_count = count - retained_count
+        azimuthal_projection_quality[str(frame.index)] = {
+            "input_pair_count": int(count),
+            "retained_pair_count": retained_count,
+            "nonfinite_pair_count": int(nonfinite_count),
+            "status": "partial_nonfinite" if nonfinite_count else "complete",
+        }
         source_id = f"azimuthal-trace-{frame.index:03d}"
         sources.append(
             _data_source(
@@ -1428,6 +1437,7 @@ def _azimuthal_definition(
                     int(source.source_id.rsplit("-", 1)[1]) for source in sources
                 ],
                 "eligibility_reasons": _eligibility_payload(frames, decisions),
+                "azimuthal_projection_quality": dict(azimuthal_projection_quality),
             },
         },
         style_profile="sci_default",

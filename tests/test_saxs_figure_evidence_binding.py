@@ -611,3 +611,49 @@ def test_clean_detector_projection_records_complete_provenance(monkeypatch) -> N
         "nonfinite_pixel_count": 0,
         "status": "complete",
     }
+
+
+def test_dirty_azimuthal_projection_records_pair_provenance() -> None:
+    engine = _strain_engine()
+    engine._file_list = ["sample-0.edf", "sample-1.edf"]
+    engine._batch_results[0].anisotropy = SimpleNamespace(
+        azimuthal_chi=np.asarray([0.0, np.nan, 2.0]),
+        azimuthal_I=np.asarray([1.0, 2.0, np.inf]),
+    )
+
+    definition = next(
+        item
+        for item in build_strain_figure_definitions(engine)
+        if item.figure_id == "saxs.strain.azimuthal"
+    )
+
+    assert definition.recipe["parameters"]["azimuthal_projection_quality"]["0"] == {
+        "input_pair_count": 3,
+        "retained_pair_count": 1,
+        "nonfinite_pair_count": 2,
+        "status": "partial_nonfinite",
+    }
+    json.dumps(definition.recipe, allow_nan=False)
+
+
+def test_clean_azimuthal_projection_records_complete_provenance() -> None:
+    engine = _strain_engine()
+    engine._file_list = ["sample-0.edf", "sample-1.edf"]
+    engine._batch_results[0].anisotropy = SimpleNamespace(
+        azimuthal_chi=np.asarray([0.0, 1.0, 2.0]),
+        azimuthal_I=np.asarray([1.0, 2.0, 3.0]),
+    )
+
+    definition = next(
+        item
+        for item in build_strain_figure_definitions(engine)
+        if item.figure_id == "saxs.strain.azimuthal"
+    )
+
+    assert definition.recipe["parameters"]["azimuthal_projection_quality"]["0"] == {
+        "input_pair_count": 3,
+        "retained_pair_count": 3,
+        "nonfinite_pair_count": 0,
+        "status": "complete",
+    }
+    json.dumps(definition.recipe, allow_nan=False)
