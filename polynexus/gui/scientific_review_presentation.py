@@ -33,6 +33,7 @@ class ScientificReviewDisplay:
     record_id: str = ""
     scope: str = ""
     source_ref: str = ""
+    policy_version: str = ""
     text: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -122,6 +123,7 @@ def scientific_review_display(
     record_id = str(review.get("record_id") or "").strip()
     scope = str(review.get("scope") or "").strip()
     source_ref = str(review.get("source_ref") or "").strip()
+    policy_version = str(review.get("policy_version") or "").strip()
     if reason == "review_missing":
         status = "required"
         allowed = False
@@ -145,6 +147,8 @@ def scientific_review_display(
         parts.append(f"scope={scope}")
     if source_ref:
         parts.append(f"source={source_ref}")
+    if policy_version:
+        parts.append(f"policy={policy_version}")
     return ScientificReviewDisplay(
         status=status,
         allowed=bool(allowed),
@@ -152,6 +156,7 @@ def scientific_review_display(
         record_id=record_id,
         scope=scope,
         source_ref=source_ref,
+        policy_version=policy_version,
         text=" | ".join(parts),
     )
 

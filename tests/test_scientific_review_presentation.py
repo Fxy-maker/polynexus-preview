@@ -16,6 +16,7 @@ def test_accepted_nested_review_snapshot_preserves_audit_fields():
                             "record_id": "review-ir-map-1",
                             "scope": "ir.mapping",
                             "source_ref": "map-a.json",
+                            "policy_version": "ir-map-v1",
                         }
                     }
                 }
@@ -32,6 +33,8 @@ def test_accepted_nested_review_snapshot_preserves_audit_fields():
     assert display.record_id == "review-ir-map-1"
     assert display.scope == "ir.mapping"
     assert display.source_ref == "map-a.json"
+    assert display.policy_version == "ir-map-v1"
+    assert "policy=ir-map-v1" in display.text
     assert "review_accepted" in display.text
 
 

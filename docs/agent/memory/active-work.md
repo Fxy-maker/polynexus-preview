@@ -1,5 +1,18 @@
 # Active Work
 
+## Scientific review policy provenance - checkpointed - 2026-07-30
+
+- `review_decision_snapshot()` now preserves the existing record's exact
+  `policy_version`; the shared GUI adapter displays it as `policy=...` when
+  available. No promotion rule, scientific result, or publication role changed.
+- Focused Results/History/Export consumer matrix passed `61` tests.
+- Task: `docs/agent/tasks/2026-07-30-scientific-review-policy-provenance.md`.
+  Acceptance: `docs/acceptance/2026-07-30-scientific-review-policy-provenance.md`.
+- Task-scoped verification passed with quality `290`, preprocessing `106`,
+  Ruff, compile, type-baseline, memory/task, whitespace, and diff checks green;
+  explicit checkpoint is pending while preserving pre-existing SAXS scope edits.
+- Scientific values, restarted-GUI human review, and final release approval
+  remain open.
 ## Scientific Review native reacceptance - checkpointed - 2026-07-30
 
 - After `e7209ee`, a fresh exact selector passed all three current native

@@ -253,11 +253,15 @@ def review_decision_snapshot(
         expected_scope=expected_scope,
         source_ref=source_ref,
     )
+    policy_version = ""
+    if record is not None and decision.reason != "review_invalid":
+        policy_version = str(record.policy_version or "").strip()
     return {
         "allowed": bool(decision.allowed),
         "reason": decision.reason,
         "record_id": decision.record_id,
         "scope": decision.scope or expected_scope,
+        "policy_version": policy_version,
         "source_ref": str(source_ref).strip(),
     }
 

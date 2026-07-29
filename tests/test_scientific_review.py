@@ -116,6 +116,7 @@ def test_review_payload_restores_and_serializes_a_decision_snapshot() -> None:
         "reason": "review_accepted",
         "record_id": "review-ir-1",
         "scope": "ir.mapping",
+        "policy_version": "ir-map-v1",
         "source_ref": "map-a.json",
     }
 
