@@ -74,6 +74,18 @@ git diff --check
   compile, memory/task, type baseline, and whitespace passed. Boundary audit
   and diff check also exited `0` before this final documentation update.
 
+## Post Joint display recheck
+
+- After the shared Joint Results display fix, the native selector was rerun
+  with `QT_QPA_PLATFORM=windows` and SAXS excluded.
+- Result: `14 passed, 3 deselected, 15 warnings in 378.12s`, exit `0`.
+- Fresh capture root:
+  `D:\PolyNexus_native_all_routes_current_nonsaxs_post_joint_display_20260730`.
+- The run again generated `56` PNGs and completed Results, Gallery, History,
+  Editor, and no-Origin export fallback for every selected route. The Joint
+  Results capture now visibly includes `blocked`, `allowed=false`, and
+  `reason=conflict_error` while retaining the separate review-record line.
+
 ## Explicit changed-file allowlist
 
 - `docs/agent/tasks/2026-07-30-current-head-native-nonsaxs-walkthrough.md`

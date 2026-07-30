@@ -32,3 +32,18 @@ The task verifier exited `0` with quality `292` and preprocessing `106`;
 Ruff, compile, memory/task, type baseline, whitespace, boundary audit, and
 diff checks passed. The explicit documentation checkpoint follows the final
 diff review.
+
+## Post Joint display recheck
+
+The shared Results review change was rechecked under native Windows Qt with
+SAXS excluded:
+
+`14 passed, 3 deselected, 15 warnings in 378.12s`, exit code `0`.
+
+The fresh capture root is
+`D:\PolyNexus_native_all_routes_current_nonsaxs_post_joint_display_20260730`.
+All 56 route captures were regenerated. The Joint Results capture visibly
+shows the fail-closed conclusion (`blocked`, `allowed=false`,
+`reason=conflict_error`) independently of the accepted synthetic review-record
+provenance. This confirms presentation routing only; scientific conflict
+interpretation and final release approval remain open.
