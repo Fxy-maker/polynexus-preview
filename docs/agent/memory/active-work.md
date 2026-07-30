@@ -28,7 +28,25 @@
   and final release/publication authorization.
 
 
-## NMR solid-C readiness projection - verified, checkpoint pending - 2026-07-30
+## Current HEAD non-SAXS recheck - verified, human gates remain open - 2026-07-30
+
+- The current checkout was re-run without SAXS source/test selection:
+  DSC/WAXS `118 passed in 63.02s`, IR `55 passed in 55.38s`, and NMR/Joint
+  `70 passed in 561.47s`; all three exited `0`.
+- Windows Qt native NMR route acceptance passed `4 passed, 13 deselected in
+  137.74s`, exit `0`. The current run produced Results, Gallery, History, and
+  Editor captures under
+  `D:\PolyNexus-test-runs-current-native\pytest\run-20260730T105557316506Z-51536\test_native_windows_gui_real_r3\native_gui_captures`.
+  The capture shows `Review required | reason=review_missing` for solid-C;
+  it is route evidence, not scientific approval.
+- Boundary audit emitted the current inventory with exit `0`; `git diff
+  --check` exited `0`. This strengthens automated non-SAXS evidence only.
+  SAXS, real data, and the pre-existing `current-state.md` modification were
+  not changed.
+- Evidence: `docs/agent/tasks/2026-07-30-current-head-nonsaxs-recheck.md` and
+  `docs/acceptance/2026-07-30-current-head-nonsaxs-recheck.md`.
+
+## NMR solid-C readiness projection - verified, checkpointed at fddb8c5 - 2026-07-30
 
 - Existing `Xc_assignment_status` is now projected into JSON-safe
   `assignment_readiness` with `supported`, `assignment_limited`, and
@@ -47,7 +65,7 @@
   pytest summary. This remains a tool-level timeout, not a full-suite pass.
   Task verifier passed with quality `292` and preprocessing `106`; boundary
   audit, Ruff, compile, memory/task, whitespace, and diff checks also exited
-  `0`. The explicit checkpoint is pending.
+  `0`. The explicit checkpoint is `fddb8c5`.
 - Evidence: `docs/agent/tasks/2026-07-30-nmr-solid-c-readiness.md`,
   `docs/acceptance/2026-07-30-nmr-solid-c-readiness.md`, and
   `docs/superpowers/plans/2026-07-30-nmr-solid-c-readiness.md`.
