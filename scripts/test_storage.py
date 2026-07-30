@@ -709,25 +709,35 @@ def _protected_paths(project_root: Path) -> list[Path]:
 
 def _build_plan(
     args: argparse.Namespace,
-) -> tuple[Path, dict[TestArtifact, CleanupDecision], list[Path]]:
+) -> tuple[Path, dict[TestArtifact, CleanupDecision], list[Path], bool]:
     project_root = Path(args.root).resolve()
     test_root = Path(args.test_root).resolve() if args.test_root else resolve_test_root(project_root)
-    legacy_roots = resolve_legacy_test_roots(project_root, extra_roots=args.legacy_root)
+    now = datetime.now(timezone.utc)
+    emergency = emergency_pressure(test_root)
+    legacy_roots = resolve_legacy_test_roots(
+        project_root,
+        extra_roots=args.legacy_root,
+        include_project_drive=True,
+    )
     artifacts = discover_artifacts(
         project_root,
         test_root,
         legacy_roots=legacy_roots,
+        active_pids=running_process_ids(),
+        now=now,
+        emergency=emergency,
     )
     plan = build_cleanup_plan(
         artifacts,
-        now=datetime.now(timezone.utc),
+        now=now,
         older_than=timedelta(hours=args.older_than_hours),
+        emergency=emergency,
         active_command_lines=running_process_command_lines(),
         tracked_paths=tracked_paths(project_root),
         protected_paths=_protected_paths(project_root),
     )
     approved_roots = [test_root / "pytest", *legacy_roots]
-    return project_root, plan, approved_roots
+    return project_root, plan, approved_roots, emergency
 
 
 def _json_datetime(value: datetime | None) -> str | None:
@@ -741,10 +751,15 @@ def _report_summary(
     by_reason: dict[str, int] = {}
     total_bytes = 0
     eligible_bytes = 0
+    emergency_eligible_bytes = 0
+    emergency_eligible_count = 0
     for artifact, decision in plan.items():
         total_bytes += artifact.size_bytes
         if decision.eligible:
             eligible_bytes += artifact.size_bytes
+        if decision.emergency:
+            emergency_eligible_bytes += artifact.size_bytes
+            emergency_eligible_count += 1
         profile = artifact.profile or "legacy"
         by_profile[profile] = by_profile.get(profile, 0) + 1
         by_reason[decision.reason] = by_reason.get(decision.reason, 0) + 1
@@ -752,6 +767,8 @@ def _report_summary(
         "artifact_count": len(plan),
         "total_bytes": total_bytes,
         "eligible_bytes": eligible_bytes,
+        "emergency_eligible_count": emergency_eligible_count,
+        "emergency_eligible_bytes": emergency_eligible_bytes,
         "by_profile": dict(sorted(by_profile.items())),
         "by_reason": dict(sorted(by_reason.items())),
     }
@@ -762,6 +779,7 @@ def _emit_report(
     plan: Mapping[TestArtifact, CleanupDecision],
     *,
     mode: str,
+    emergency: bool = False,
     removed: Iterable[Path] = (),
     failures: Iterable[CleanupFailure] = (),
     as_json: bool,
@@ -773,6 +791,7 @@ def _emit_report(
         payload = {
             "root": str(project_root),
             "mode": mode,
+            "emergency": emergency,
             "summary": summary,
             "artifacts": [
                 {
@@ -786,6 +805,7 @@ def _emit_report(
                     "keep_until": _json_datetime(artifact.keep_until),
                     "manifest_error": artifact.manifest_error,
                     "eligible": decision.eligible,
+                    "emergency": decision.emergency,
                     "reason": decision.reason,
                     "removed": str(artifact.path.resolve()) in removed_paths,
                 }
@@ -804,6 +824,7 @@ def _emit_report(
         return
     print(f"PolyNexus test storage ({mode})")
     print(f"Root: {project_root}")
+    print(f"Emergency pressure: {'yes' if emergency else 'no'}")
     print(f"Artifacts: {summary['artifact_count']}")
     print(f"Total: {summary['total_bytes']} bytes")
     print(f"Eligible: {summary['eligible_bytes']} bytes")
@@ -842,7 +863,7 @@ def main(argv: list[str] | None = None) -> int:
             subparser.add_argument("--apply", action="store_true")
     args = parser.parse_args(argv)
     try:
-        project_root, plan, approved_roots = _build_plan(args)
+        project_root, plan, approved_roots, emergency = _build_plan(args)
         apply_result = apply_cleanup_detailed(
             plan,
             apply=getattr(args, "apply", False),
@@ -852,6 +873,7 @@ def main(argv: list[str] | None = None) -> int:
             project_root,
             plan,
             mode="apply" if getattr(args, "apply", False) else "dry-run",
+            emergency=emergency,
             removed=apply_result.removed,
             failures=apply_result.failures,
             as_json=args.as_json,

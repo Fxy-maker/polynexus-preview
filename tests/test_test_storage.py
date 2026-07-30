@@ -193,7 +193,7 @@ def test_cli_reports_partial_apply_and_nonzero_status(tmp_path: Path, monkeypatc
     monkeypatch.setattr(
         test_storage,
         "_build_plan",
-        lambda _args: (tmp_path, plan, [tmp_path]),
+        lambda _args: (tmp_path, plan, [tmp_path], False),
     )
     original_rmtree = test_storage.shutil.rmtree
 
@@ -518,6 +518,42 @@ def test_report_json_includes_manifest_metadata(tmp_path: Path, monkeypatch, cap
     assert artifact["profile"] == "review"
     assert artifact["status"] == "failed"
     assert artifact["keep_until"] == (now + timedelta(days=7)).isoformat()
+
+
+def test_report_json_marks_emergency_eligibility(tmp_path: Path, monkeypatch, capsys):
+    test_root = tmp_path / "test-root"
+    run_path = test_root / "pytest" / "run-1"
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    run = begin_run_state(run_path, project_root=tmp_path, profile="ephemeral", now=now - timedelta(hours=3), pid=1234)
+    finalize_run_state(run, exit_code=1, now=now - timedelta(hours=3), process_active=False)
+    monkeypatch.setattr(test_storage, "emergency_pressure", lambda _path: False)
+    monkeypatch.setattr(test_storage, "running_process_ids", lambda: set())
+
+    assert main(["report", "--root", str(tmp_path), "--test-root", str(test_root), "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    artifact = next(item for item in payload["artifacts"] if item["path"] == str(run_path))
+    assert payload["emergency"] is False
+    assert payload["summary"]["emergency_eligible_bytes"] == 0
+    assert artifact["emergency"] is False
+
+
+def test_report_json_marks_emergency_for_old_failed_run(tmp_path: Path, monkeypatch, capsys):
+    test_root = tmp_path / "test-root"
+    run_path = test_root / "pytest" / "run-1"
+    finished = datetime(2026, 7, 29, 9, 0, tzinfo=timezone.utc)
+    run = begin_run_state(run_path, project_root=tmp_path, profile="ephemeral", now=finished, pid=1234)
+    finalize_run_state(run, exit_code=1, now=finished, process_active=False)
+    monkeypatch.setattr(test_storage, "emergency_pressure", lambda _path: True)
+    monkeypatch.setattr(test_storage, "running_process_ids", lambda: set())
+
+    assert main(["report", "--root", str(tmp_path), "--test-root", str(test_root), "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    artifact = next(item for item in payload["artifacts"] if item["path"] == str(run_path))
+    assert payload["emergency"] is True
+    assert artifact["emergency"] is True
+    assert artifact["reason"] == "eligible (emergency)"
 
 
 def test_create_run_basetemp_is_unique_and_external(tmp_path: Path):
