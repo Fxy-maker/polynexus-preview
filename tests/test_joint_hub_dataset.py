@@ -5,7 +5,25 @@ from polynexus.core.joint.dataset import (
     collect_joint_dataset,
     detect_joint_opportunities,
 )
+from polynexus.core.joint.conclusion import classify_joint_conclusion
 from polynexus.data.sample_db import SampleDB
+
+
+_JOINT_REVIEW = {
+    "record_id": "joint-review-1",
+    "scope": "joint",
+    "reviewer": "reviewer-a",
+    "reviewed_at": "2026-07-30T00:00:00Z",
+    "policy_version": "joint-v2",
+    "source_refs": ["batch-a"],
+    "decisions": {
+        "conflict_precedence": "retain source-specific values and surface conflicts",
+        "minimum_evidence": "accepted technique evidence for selected batch",
+        "unresolved_conflict_policy": "diagnostic until human resolution",
+    },
+    "status": "accepted",
+    "conditions": [],
+}
 
 
 def test_joint_hub_dataset_collects_latest_runs_and_reports(tmp_path):
@@ -52,6 +70,8 @@ def test_joint_hub_dataset_collects_latest_runs_and_reports(tmp_path):
     assert report["validations"]
     assert report["ai_context"]["issue_count"] == 0
     assert "Cross-tech checks passed" in report["ai_context"]["summary"]
+    assert report["joint_conclusion"]["class"] == "review_required"
+    assert report["joint_conclusion"]["allowed"] is False
     assert report["ai_context"]["ai_boundary"] == {
         "mode": "off",
         "provider_status": "not_configured",
@@ -101,6 +121,44 @@ def test_joint_hub_report_builds_cross_tech_ai_context(tmp_path):
         "fallback": "rule_based_report",
         "failure_policy": "preserve_source_evidence_and_diagnostic_status",
     }
+
+
+def test_joint_conclusion_preserves_policy_and_downgrades_existing_warning():
+    conclusion = classify_joint_conclusion(
+        review_records=[_JOINT_REVIEW],
+        review_snapshot={"allowed": True, "reason": "review_accepted", "scope": "joint"},
+        validation_rows=[{"severity": "WARN", "check": "batch-a/phi_c_dsc_vs_waxs"}],
+        technique_issue_rows=[],
+    )
+
+    assert conclusion["class"] == "conditional"
+    assert conclusion["allowed"] is False
+    assert conclusion["reason"] == "conflict_warning"
+    assert conclusion["review_records"][0]["decisions"] == _JOINT_REVIEW["decisions"]
+
+
+@pytest.mark.parametrize(
+    ("review_records", "review_snapshot", "issues", "expected_class", "expected_reason"),
+    [
+        ([], {"allowed": False, "reason": "review_missing", "scope": "joint"}, [], "review_required", "review_missing"),
+        ([_JOINT_REVIEW], {"allowed": True, "reason": "review_accepted", "scope": "joint"}, [{"severity": "ERROR"}], "blocked", "conflict_error"),
+        ([{**_JOINT_REVIEW, "status": "rejected"}], {"allowed": False, "reason": "review_rejected", "scope": "joint"}, [], "rejected", "review_rejected"),
+        ([_JOINT_REVIEW], {"allowed": True, "reason": "review_accepted", "scope": "joint"}, [], "accepted", "review_accepted"),
+    ],
+)
+def test_joint_conclusion_is_fail_closed_and_status_driven(
+    review_records, review_snapshot, issues, expected_class, expected_reason
+):
+    conclusion = classify_joint_conclusion(
+        review_records=review_records,
+        review_snapshot=review_snapshot,
+        validation_rows=issues,
+        technique_issue_rows=[],
+    )
+
+    assert conclusion["class"] == expected_class
+    assert conclusion["reason"] == expected_reason
+    assert conclusion["allowed"] is (expected_class == "accepted")
 
 
 def test_joint_conflict_rows_keep_source_run_and_evidence_provenance(tmp_path):

@@ -1,5 +1,28 @@
 # Active Work
 
+## Joint conclusion policy - verified, checkpoint ready - 2026-07-30
+
+- Joint reports now expose a fail-closed `joint_conclusion` classification at
+  report level and inside `ai_context`. It uses only existing review status
+  and existing WARN/ERROR severity: missing/invalid is `review_required`, an
+  ERROR is `blocked`, a WARN is `conditional`, and an accepted review with no
+  issue is `accepted`.
+- Reviewer-owned `conflict_precedence`, `minimum_evidence`, and
+  `unresolved_conflict_policy` strings are copied exactly as provenance; the
+  classifier does not interpret or invent scientific precedence. Existing
+  formulas, thresholds, evidence weights, promotion snapshots, and figure
+  roles are unchanged.
+- Focused classification tests passed `6` selected tests; the broader
+  Joint/NMR provenance/figure/lifecycle matrix passed `24`, both exit `0`.
+  Task verifier passed with quality `291` and preprocessing `106`; boundary
+  audit, Ruff, compile, type baseline, memory/task, whitespace, and diff
+  checks exited `0`. The explicit allowlist checkpoint is this task's commit.
+- This advances the software boundary only. IR sample mapping metadata, NMR
+  peak assignments, scientific Joint conflict interpretation, and final human
+  release approval remain open. SAXS remains out of scope.
+- Evidence: `docs/agent/tasks/2026-07-30-joint-conclusion-policy.md` and
+  `docs/acceptance/2026-07-30-joint-conclusion-policy.md`.
+
 ## Project release decision provenance - verified, checkpoint ready - 2026-07-30
 
 - The non-SAXS Results Workbench now records an append-only, batch-scoped

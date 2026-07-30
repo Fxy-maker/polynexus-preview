@@ -12,6 +12,7 @@ import math
 from typing import Any, Iterable, Sequence
 
 from .validation import run_all_cross_validations
+from .conclusion import classify_joint_conclusion
 from ..scientific_review import review_decision_snapshot, review_record_from_payload
 
 
@@ -761,12 +762,23 @@ def build_joint_hub_report(rows: list[JointBatchRow]) -> dict[str, Any]:
 
     issue_count = sum(v["severity"] == "ERROR" for v in validation_rows)
     warn_count = sum(v["severity"] == "WARN" for v in validation_rows)
+    scientific_review = build_joint_scientific_review_snapshot(rows)
+    technique_issue_rows = _joint_technique_issue_rows(summary_rows)
+    joint_conclusion = classify_joint_conclusion(
+        review_records=[row.scientific_review for row in rows],
+        review_snapshot=scientific_review,
+        validation_rows=validation_rows,
+        technique_issue_rows=technique_issue_rows,
+    )
+    ai_context = _build_joint_ai_context(summary_rows, validation_rows)
+    ai_context["joint_conclusion"] = joint_conclusion
     return {
         "name": "joint_analysis_hub",
         "rows": summary_rows,
         "validations": validation_rows,
-        "scientific_review": build_joint_scientific_review_snapshot(rows),
-        "ai_context": _build_joint_ai_context(summary_rows, validation_rows),
+        "scientific_review": scientific_review,
+        "joint_conclusion": joint_conclusion,
+        "ai_context": ai_context,
         "summary": (
             f"{len(summary_rows)} batch rows, "
             f"{len(validation_rows)} validation checks, "

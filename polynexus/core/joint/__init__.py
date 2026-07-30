@@ -7,6 +7,7 @@ Phase B: joint fitting models (future)
 """
 
 from .coordinator import JointCoordinator
+from .conclusion import classify_joint_conclusion
 from .figure_provider import build_joint_figure_definitions
 from .dataset import (
     JointBatchRow,
@@ -18,6 +19,7 @@ from .dataset import (
 
 __all__ = [
     "JointCoordinator",
+    "classify_joint_conclusion",
     "build_joint_figure_definitions",
     "JointBatchRow",
     "JointRunRecord",
