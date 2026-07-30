@@ -89,7 +89,7 @@ The exact SAXS matrix requires a complete pytest summary and exit code `0`.
   `test_storage.py --apply` was run.
 - `git diff --check` passed.
 
-The explicit allowlist checkpoint is the commit created after this final
+The explicit allowlist checkpoint is `b994a91`, created after this final
 allowlist audit. Full/boundary release verification, production temperature
 figure composition, human scientific review, restarted-GUI review, and final
 publication authorization remain open.

@@ -1,6 +1,6 @@
 # Active Work
 
-## SAXS temperature method evidence diagnostic Figure - verified, checkpoint pending (2026-07-30)
+## SAXS temperature method evidence diagnostic Figure - checkpointed (2026-07-30)
 
 - Added `saxs.series.temperature.method_evidence` to the portable temperature
   Figure provider. It projects only existing per-frame Porod, Kratky,
@@ -22,9 +22,8 @@
   `docs/superpowers/specs/2026-07-30-saxs-temperature-method-evidence-diagnostic-figure-design.md`,
   `docs/superpowers/plans/2026-07-30-saxs-temperature-method-evidence-diagnostic-figure.md`,
   and `docs/acceptance/2026-07-30-saxs-temperature-method-evidence-diagnostic-figure.md`.
-- Status: implementation and automated verification complete; the explicit
-  allowlist checkpoint is the next action. Full/boundary release and human
-  scientific / restarted-GUI review remain open.
+- The explicit allowlist checkpoint is `b994a91`; full/boundary release and
+  human scientific / restarted-GUI review remain open.
 
 ## SAXS temperature Guinier diagnostic Figure - checkpointed (2026-07-30)
 

@@ -27,6 +27,7 @@ scientific result.
   emergency pressure, and `removed=0`; both commands were non-destructive
   dry-runs and `test_storage.py --apply` was not run.
 - `git diff --check` passed.
+- Explicit allowlist checkpoint: `b994a91`; no push or merge was performed.
 
 ## Release Boundaries
 
