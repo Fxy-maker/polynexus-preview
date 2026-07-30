@@ -428,9 +428,23 @@ class NMREngine(BaseEngine):
             # spectrum count in metadata.
             from .analysis_evidence import build_analysis_evidence
 
+            output_parameters = dict(first_result.parameters)
+            axis_metadata = first_result.metadata
+            for key in (
+                "ppm_axis_source",
+                "ppm_axis_reason",
+                "ppm_axis_units",
+                "ppm_axis_calibrated",
+            ):
+                if key in axis_metadata:
+                    output_parameters[key] = axis_metadata[key]
+            axis_range = axis_metadata.get("ppm_range")
+            if isinstance(axis_range, (list, tuple)) and len(axis_range) == 2:
+                output_parameters["ppm_axis_range"] = [float(axis_range[0]), float(axis_range[1])]
+
             evidence = build_analysis_evidence(
                 "NMR",
-                output_parameters=first_result.parameters,
+                output_parameters=output_parameters,
                 validation_context={
                     "submodule_id": getattr(self, "active_submodule", "") or "",
                     "spectra_count": len(self._results),

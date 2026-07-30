@@ -10,6 +10,15 @@ from .analysis_evidence_nmr_constraints import (
 )
 from .analysis_evidence_utils import _clean_float, _non_empty_mapping, _safe_int
 
+__all__ = [
+    "_NMR_CONSTRAINT_NAMES",
+    "_evaluate_nmr_constraint",
+    "_nmr_analysis_bundle",
+    "_nmr_peak_rows",
+    "_nmr_symptom_bridge_lines",
+    "_nmr_symptoms_from_constraints",
+]
+
 
 def _nmr_peak_rows(output: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
@@ -121,6 +130,15 @@ def _nmr_analysis_bundle(output: dict[str, Any]) -> dict[str, Any]:
             ("phase_assignment_count", phase_assigned_count),
         ]
     )
+    axis_evidence = _non_empty_mapping(
+        [
+            ("source", str(output.get("ppm_axis_source") or "").strip() or None),
+            ("reason", str(output.get("ppm_axis_reason") or "").strip() or None),
+            ("units", str(output.get("ppm_axis_units") or "").strip() or None),
+            ("calibrated", output.get("ppm_axis_calibrated")),
+            ("range", output.get("ppm_axis_range")),
+        ]
+    )
     structure_evidence = _non_empty_mapping(
         [
             ("Xc_pct", _clean_float(output.get("Xc_pct"))),
@@ -138,6 +156,7 @@ def _nmr_analysis_bundle(output: dict[str, Any]) -> dict[str, Any]:
     feature_evidence["peak_evidence"] = peak_evidence
     feature_evidence["assignment_evidence"] = assignment_evidence
     feature_evidence["phase_evidence"] = phase_evidence
+    feature_evidence["axis_evidence"] = axis_evidence
     feature_evidence["structure_evidence"] = structure_evidence
 
     confidence_signals: list[dict[str, Any]] = []
@@ -151,6 +170,7 @@ def _nmr_analysis_bundle(output: dict[str, Any]) -> dict[str, Any]:
         "peak_evidence": peak_evidence,
         "assignment_evidence": assignment_evidence,
         "phase_evidence": phase_evidence,
+        "axis_evidence": axis_evidence,
         "structure_evidence": structure_evidence,
         "feature_evidence": feature_evidence,
         "confidence_signals": confidence_signals,

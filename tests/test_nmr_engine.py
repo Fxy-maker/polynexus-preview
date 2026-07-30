@@ -116,6 +116,13 @@ def test_nmr_engine_analysis_attaches_unified_evidence_for_history_persistence(m
         label="synthetic-c",
         nucleus="13C",
         sample_state="solid",
+        metadata={
+            "ppm_axis_source": "default_range",
+            "ppm_axis_reason": "jeol_metadata_units_unconfirmed",
+            "ppm_axis_units": "ppm",
+            "ppm_axis_calibrated": False,
+            "ppm_range": (240.0, -20.0),
+        },
         n_peaks=2,
         median_snr=12.0,
         mean_fwhm_ppm=1.2,
@@ -147,6 +154,13 @@ def test_nmr_engine_analysis_attaches_unified_evidence_for_history_persistence(m
     assert evidence["technique"] == "NMR"
     assert evidence["peak_evidence"]["peak_count"] == 2
     assert evidence["structure_evidence"]["Xc_assignment_status"] == "supported"
+    assert evidence["feature_evidence"]["axis_evidence"] == {
+        "source": "default_range",
+        "reason": "jeol_metadata_units_unconfirmed",
+        "units": "ppm",
+        "calibrated": False,
+        "range": [240.0, -20.0],
+    }
 
 
 def test_nmr_assignment_library_scores_phase_pair_support() -> None:
@@ -311,6 +325,19 @@ def test_jeol_liquid_c_ppm_axis_uses_jeol_metadata():
     assert 50 < span < 500, f"ppm span = {span}, expected 50-500 ppm for 13C"
     assert spec.metadata["display_mode"] == "jeol_fid_fft"
     assert spec.metadata["params"]["_data_mode"] == "liquid_fid_fft"
+
+
+def test_jeol_solid_c_exposes_raw_axis_fields_without_claiming_ppm_calibration():
+    path = _nmr_root() / "固体nmr碳谱" / "CXD_20250409_HC_cpmas-1-1.jdf"
+    spec = load_project(str(path), sample_state="solid", nucleus="13C")[0]
+
+    params = spec.metadata["params"]
+    assert params["SCANS"] is not None
+    assert np.isfinite(params["X_OFFSET"])
+    assert np.isfinite(params["X_SWEEP"])
+    assert spec.metadata["ppm_axis_source"] == "default_range"
+    assert spec.metadata["ppm_axis_reason"] == "jeol_metadata_units_unconfirmed"
+    assert spec.metadata["ppm_axis_calibrated"] is False
 
 
 def test_liquid_c_deconvolution_quality():

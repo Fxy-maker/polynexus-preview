@@ -1,5 +1,22 @@
 # Active Work
 
+## NMR JEOL axis provenance - verified, checkpoint pending - 2026-07-30
+
+- Real JEOL solid 13C files now expose raw `SCANS`, `X_OFFSET`, `X_SWEEP`, and
+  related record fields through the observed 64-byte layout.
+- Frequency-like vendor values are not treated as ppm. The reader retains the
+  safe default `240.0..-20.0` axis and records
+  `jeol_metadata_units_unconfirmed`, `ppm_axis_calibrated=false`.
+- The NMR run-level evidence projection and
+  `AnalysisEvidence.feature_evidence.axis_evidence` carry the source, reason,
+  units, calibration status, and range.
+- TDD RED reproduced the missing raw field (`SCANS is None`); focused GREEN
+  passed `2`, the full NMR engine suite passed `19`, and the real four-partition
+  lifecycle passed `4`.
+- No Xc, assignment, Joint, or review promotion rule changed. The explicit
+  allowlist checkpoint is the next action; no real test data was modified.
+- Evidence: `docs/acceptance/2026-07-30-nmr-jeol-axis-provenance.md`.
+
 ## IR Thermo/OMNIC mapping semantics - verified, checkpointed - 2026-07-30
 
 - The IR mapping contract now publishes the official Thermo Scientific OMNIC

@@ -413,8 +413,25 @@ def _read_jeol_record_value(blob: bytes, label: str) -> Optional[Any]:
     """
     key = label.encode("ascii")
     key_len = len(key)
-    # pad with nulls to 8 bytes for exact comparison
-    key_padded = key.ljust(8, b"\x00")
+
+    # Current JEOL exports use a four-byte record marker followed by a
+    # 28-byte field name. Integer values are stored at +44 and floating-point
+    # values at +48. Keep these values raw; their physical units are handled
+    # by the axis provenance guard below.
+    for offset in range(0, len(blob) - 63, 64):
+        field = blob[offset + 4:offset + 32].rstrip(b"\x00 ")
+        if field != key:
+            continue
+        try:
+            if label in {"SCANS", "TOTAL_SCANS", "X_POINTS"}:
+                int_value = struct.unpack("<i", blob[offset + 44:offset + 48])[0]
+                if int_value:
+                    return int(int_value)
+                return int(struct.unpack("<i", blob[offset + 48:offset + 52])[0])
+            return float(struct.unpack("<d", blob[offset + 48:offset + 56])[0])
+        except (struct.error, ValueError, TypeError):
+            logger.warning("NMR JEOL record value read failed.", exc_info=True)
+            return None
 
     for offset in range(0, len(blob) - 63, 64):
         record_label = blob[offset:offset + 8]
@@ -537,15 +554,42 @@ def _jeol_ppm_axis(n_points: int, nucleus: str, state: str,
     sweep = _safe_float_jeol(params.get("X_SWEEP_CLIPPED")) or _safe_float_jeol(params.get("X_SWEEP"))
     res = _safe_float_jeol(params.get("X_RESOLUTION"))
     x_points_raw = _safe_float_jeol(params.get("X_POINTS"))
-    actual_n = int(x_points_raw) if x_points_raw and x_points_raw > 0 else int(n_points)
+    actual_n = int(x_points_raw) if x_points_raw == int(n_points) else int(n_points)
 
-    if offset is not None and sweep is not None and sweep > 0:
+    params["_ppm_axis_units"] = "ppm"
+    params["_ppm_axis_calibrated"] = False
+
+    # Frequency-like JEOL values can be numerically valid but are not ppm.
+    # Require a plausible ppm span before using them as a chemical-shift axis.
+    if (
+        offset is not None
+        and sweep is not None
+        and sweep > 0
+        and abs(offset) <= 1000.0
+        and sweep <= 1000.0
+    ):
         params["_ppm_axis_source"] = "jeol_metadata"
+        params["_ppm_axis_reason"] = "jeol_metadata_ppm_range"
+        params["_ppm_axis_calibrated"] = True
         return np.linspace(offset, offset - sweep, actual_n)[:n_points]
-    if offset is not None and res is not None and res > 0 and actual_n:
+    if (
+        offset is not None
+        and res is not None
+        and res > 0
+        and abs(offset) <= 1000.0
+        and res * actual_n <= 1000.0
+        and actual_n
+    ):
         params["_ppm_axis_source"] = "jeol_resolution"
+        params["_ppm_axis_reason"] = "jeol_metadata_ppm_resolution"
+        params["_ppm_axis_calibrated"] = True
         return np.linspace(offset, offset - res * actual_n, actual_n)[:n_points]
     params["_ppm_axis_source"] = "default_range"
+    params["_ppm_axis_reason"] = (
+        "jeol_metadata_units_unconfirmed"
+        if any(params.get(key) is not None for key in ("X_OFFSET", "X_SWEEP", "X_SWEEP_CLIPPED", "X_RESOLUTION"))
+        else "jeol_metadata_missing"
+    )
     return _ppm_axis(n_points, nucleus, state)
 
 
@@ -612,6 +656,10 @@ def _load_jeol_jdf(filepath: str, sample_state: Optional[str] = None,
                 "phase0_deg": float(phase_deg),
                 "display_mode": "jeol_fid_fft",
                 "params": params,
+                "ppm_axis_source": params.get("_ppm_axis_source", "default_range"),
+                "ppm_axis_reason": params.get("_ppm_axis_reason", "jeol_metadata_missing"),
+                "ppm_axis_units": params.get("_ppm_axis_units", "ppm"),
+                "ppm_axis_calibrated": bool(params.get("_ppm_axis_calibrated", False)),
                 "ppm_range": (float(ppm[0]), float(ppm[-1])) if len(ppm) else default_ppm_range(nuc, state),
             },
         )
@@ -638,6 +686,10 @@ def _load_jeol_jdf(filepath: str, sample_state: Optional[str] = None,
             "data_end": int(end),
             "data_points": int(data.size),
             "params": params,
+            "ppm_axis_source": params.get("_ppm_axis_source", "default_range"),
+            "ppm_axis_reason": params.get("_ppm_axis_reason", "jeol_metadata_missing"),
+            "ppm_axis_units": params.get("_ppm_axis_units", "ppm"),
+            "ppm_axis_calibrated": bool(params.get("_ppm_axis_calibrated", False)),
             "ppm_range": (float(ppm[0]), float(ppm[-1])) if len(ppm) else default_ppm_range(nuc, state),
         },
     )
