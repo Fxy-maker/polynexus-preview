@@ -583,7 +583,7 @@
 - The explicit allowlist implementation checkpoint is `d480ac3`; no push or
   merge was performed.
 
-## SAXS modern temperature Figure derived-array dirty-input guard - verified, ready for checkpoint - 2026-07-30
+## SAXS modern temperature Figure derived-array dirty-input guard - verified, checkpointed - 2026-07-30
 
 - `_series_values()` now projects `L_array`, `lc_array`,
   `lc_effective_array`, `Q_star_array`, and `Xc_array` elementwise through
@@ -597,6 +597,8 @@
   Ruff, compile, type baseline, memory, whitespace, and `git diff --check`
   passed. Storage report/clean remained dry-run only (`54` artifacts,
   `6` eligible, `0` removed); `test_storage.py --apply` was not run.
+- The explicit allowlist implementation checkpoint is `bb0048c`; no push or
+  merge was performed.
 - Task/acceptance/spec/plan:
   `docs/agent/tasks/2026-07-30-saxs-modern-temperature-figure-derived-arrays-dirty-input.md`,
   `docs/acceptance/2026-07-30-saxs-modern-temperature-figure-derived-arrays-dirty-input.md`,

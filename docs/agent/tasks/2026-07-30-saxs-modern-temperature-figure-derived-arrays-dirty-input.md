@@ -65,6 +65,8 @@ without changing scientific interpretation or frame identity.
 - Storage report and clean were dry-run only: `54` artifacts, `6` eligible
   legacy entries, `48` retained, and `0` removed. No `test_storage.py --apply`
   was run.
+- Explicit allowlist implementation checkpoint: `bb0048c`; no push or merge
+  was performed.
 
 ## Known limitations
 

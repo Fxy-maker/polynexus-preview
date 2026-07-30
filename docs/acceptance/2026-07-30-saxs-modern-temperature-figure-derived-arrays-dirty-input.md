@@ -2,7 +2,7 @@
 
 Task: `docs/agent/tasks/2026-07-30-saxs-modern-temperature-figure-derived-arrays-dirty-input.md`
 
-Status: verified and ready for local checkpoint.
+Status: verified and checkpointed at `bb0048c`.
 
 The intended boundary is elementwise projection of malformed derived metric
 tokens to explicit missing values, while preserving frame positions and all
@@ -22,3 +22,5 @@ Evidence:
 
 No scientific metric, quality level, physical gate, publication role, AI
 decision, or rescue behavior was changed.
+
+No push or merge was performed.
