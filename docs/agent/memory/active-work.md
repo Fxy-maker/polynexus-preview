@@ -1858,7 +1858,7 @@
   separate gates. The shared `current-state.md` and other parallel scratch
   files remain outside this checkpoint.
 
-## SAXS real 2D scientific acceptance audit - checkpoint ready - 2026-07-28
+## SAXS real 2D scientific acceptance audit - checkpointed - 2026-07-28
 
 - Added the read-only `scientific_acceptance_audit` to SAXS strain-series
   parameters. It reports existing validation, publication flags, quality
@@ -1877,6 +1877,8 @@
   and `docs/acceptance/2026-07-28-saxs-real-2d-scientific-acceptance.md`.
 - Full/boundary verification, detector scientific validity, restarted-GUI
   review, and final publication/release approval remain open.
+- The explicit allowlist implementation checkpoint is `e377d6a`; no push or
+  merge was performed.
 
 ## Results Review prefix deduplication - checkpointed - 2026-07-29
 

@@ -1,6 +1,7 @@
 # SAXS real 2D scientific acceptance audit
 
-Status: automated acceptance recorded; human scientific review pending.
+Status: automated acceptance recorded at `e377d6a`; human scientific review
+pending.
 
 The fresh PAD8 in-situ strain run completed through the read-only
 `scientific_acceptance_audit` attached to its SAXS strain parameters.
@@ -47,3 +48,5 @@ no existing physical metric, quality level, publication role, rescue action,
 or AI behavior changed. Full/boundary repository verification, restarted-GUI
 review, detector calibration, mask validity, and final publication/release
 approval remain separate gates.
+
+No push or merge was performed.

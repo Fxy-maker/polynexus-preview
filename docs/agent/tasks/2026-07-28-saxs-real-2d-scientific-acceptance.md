@@ -144,5 +144,5 @@ and `tests/_tmp_phase3/` remain outside this task.
 
 ## Checkpoint
 
-The explicit allowlist checkpoint is created after this verification record is
-finalized. No push, merge, or publication approval is performed.
+The explicit allowlist implementation checkpoint is `e377d6a`. No push,
+merge, or publication approval was performed.
