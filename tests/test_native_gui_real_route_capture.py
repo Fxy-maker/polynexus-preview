@@ -283,7 +283,7 @@ def test_native_windows_gui_synthetic_ir_mapping_route(tmp_path: Path) -> None:
         "ir.mapping.invalid-pixels",
     }
 
-    evidence = mapping_result.to_evidence()["feature_evidence"]["mapping_evidence"]
+    evidence = mapping_result.to_evidence()
     result_payload = {
         "submodule_id": "ir.mapping",
         "sample": "native synthetic mapping",
@@ -332,6 +332,8 @@ def test_native_windows_gui_synthetic_ir_mapping_route(tmp_path: Path) -> None:
     assert window._current_results_table_model.primary_section is not None
     assert window._results_table.rowCount() > 0
     assert window._chart_gallery._entries
+    assert "IR mapping provenance" in window._results_review_ir_support.text()
+    assert "microscope_stage_x" in window._results_review_ir_support.text()
 
     capture_root = _capture_root(tmp_path)
     for index, surface in ((2, "results"), (3, "gallery"), (4, "history")):

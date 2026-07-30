@@ -150,8 +150,35 @@ def result_review_ir_support_block_text(
     structure = feature.get("structure_evidence", {}) if isinstance(feature.get("structure_evidence"), dict) else {}
     peak = feature.get("peak_evidence", {}) if isinstance(feature.get("peak_evidence"), dict) else {}
     baseline = feature.get("baseline_evidence", {}) if isinstance(feature.get("baseline_evidence"), dict) else {}
+    mapping = feature.get("mapping_evidence", {}) if isinstance(feature.get("mapping_evidence"), dict) else {}
 
     sections: list[str] = []
+
+    if mapping:
+        semantics = mapping.get("mapping_semantics") if isinstance(mapping.get("mapping_semantics"), dict) else {}
+        axes = semantics.get("spatial_axes") if isinstance(semantics.get("spatial_axes"), dict) else {}
+        x_axis = axes.get("x") if isinstance(axes.get("x"), dict) else {}
+        y_axis = axes.get("y") if isinstance(axes.get("y"), dict) else {}
+        origin = semantics.get("origin") if isinstance(semantics.get("origin"), dict) else {}
+        roi = semantics.get("roi") if isinstance(semantics.get("roi"), dict) else {}
+        serialization = semantics.get("serialization") if isinstance(semantics.get("serialization"), dict) else {}
+        shape = mapping.get("map_shape") if isinstance(mapping.get("map_shape"), (list, tuple)) else []
+        shape_text = "x".join(_display_text(value) for value in shape[:2]) if len(shape) >= 2 else "unknown"
+        mapping_bits = [
+            f"source={_display_text(mapping.get('source_id'))}",
+            f"map={shape_text}",
+            "x=" + "/".join(
+                _display_text(x_axis.get(key)) for key in ("coordinate_role", "physical_axis")
+            ) + f" ({_display_text(x_axis.get('unit'))})",
+            "y=" + "/".join(
+                _display_text(y_axis.get(key)) for key in ("coordinate_role", "physical_axis")
+            ) + f" ({_display_text(y_axis.get('unit'))})",
+            f"origin={_display_text(origin.get('kind'))} ({_display_text(origin.get('x'))}, {_display_text(origin.get('y'))})",
+            f"roi={_display_text(roi.get('kind'))}",
+            f"order={_display_text(serialization.get('order'))}",
+            f"status={_display_text(semantics.get('status'))}",
+        ]
+        sections.append(tr("RESULTS_REVIEW_IR_MAPPING_PROVENANCE", " | ".join(mapping_bits)))
 
     detected_bits: list[str] = []
     if isinstance(peak, dict) and peak:
@@ -884,6 +911,7 @@ class ResultReviewPanelTexts:
     boundary_text: str = ""
     joint_text: str = ""
     joint_visible: bool = False
+    ir_support_text: str = ""
     risk_text: str = ""
     next_text: str = ""
     title_text: str = ""
@@ -1378,6 +1406,12 @@ def result_review_panel_texts(
         family_label_fn=family_label_fn,
     )
 
+    ir_support_text = (
+        result_review_ir_support_block_text(analysis_evidence)
+        if technique == "ir"
+        else ""
+    )
+
     risk_text = _panel_risk_text(
         validation_summary,
         history_context,
@@ -1403,6 +1437,7 @@ def result_review_panel_texts(
         boundary_text=boundary_text,
         joint_text=joint_text,
         joint_visible=joint_visible,
+        ir_support_text=ir_support_text,
         risk_text=risk_text,
         next_text=next_text,
         title_text=title_text,

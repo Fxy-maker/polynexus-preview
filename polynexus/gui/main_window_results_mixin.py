@@ -492,6 +492,12 @@ class MainWindowResultsMixin:
         self._results_review_joint.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_joint)
 
+        self._results_review_ir_support = WrappedEvidenceLabel()
+        self._results_review_ir_support.setWordWrap(True)
+        self._results_review_ir_support.setStyleSheet(f"color: {C_TEXT_MUTED};")
+        self._results_review_ir_support.setVisible(False)
+        review_layout.addWidget(self._results_review_ir_support)
+
         self._results_review_risk = WrappedEvidenceLabel()
         self._results_review_risk.setWordWrap(True)
         self._results_review_risk.setStyleSheet(f"color: {C_TEXT_MUTED};")
@@ -513,6 +519,7 @@ class MainWindowResultsMixin:
             self._results_review_trend,
             self._results_review_boundary,
             self._results_review_joint,
+            self._results_review_ir_support,
             self._results_review_risk,
             self._results_review_next,
         ):
@@ -1013,6 +1020,9 @@ class MainWindowResultsMixin:
         if hasattr(self, "_results_review_joint"):
             self._results_review_joint.setText(panel_texts.joint_text)
             self._results_review_joint.setVisible(panel_texts.joint_visible)
+        if hasattr(self, "_results_review_ir_support"):
+            self._results_review_ir_support.setText(panel_texts.ir_support_text)
+            self._results_review_ir_support.setVisible(bool(panel_texts.ir_support_text))
         if hasattr(self, "_results_review_risk"):
             self._results_review_risk.setText(panel_texts.risk_text)
             self._results_review_risk.setVisible(bool(panel_texts.risk_text))

@@ -506,6 +506,52 @@ def test_result_review_ir_support_block_text_surfaces_source_summary_sections():
         set_language(previous)
 
 
+def test_result_review_ir_support_block_text_surfaces_mapping_coordinate_provenance():
+    previous = get_language()
+    set_language("en")
+    try:
+        text = result_review_ir_support_block_text(
+            {
+                "feature_evidence": {
+                    "mapping_evidence": {
+                        "source_id": "map-a.json",
+                        "map_shape": [2, 2],
+                        "mapping_semantics": {
+                            "spatial_axes": {
+                                "x": {
+                                    "coordinate_role": "column",
+                                    "physical_axis": "microscope_stage_x",
+                                    "unit": "um",
+                                },
+                                "y": {
+                                    "coordinate_role": "row",
+                                    "physical_axis": "microscope_stage_y",
+                                    "unit": "um",
+                                },
+                            },
+                            "origin": {"kind": "stage_home", "x": 0.0, "y": 0.0},
+                            "roi": {"kind": "area_map_boundary_or_explicit_roi"},
+                            "serialization": {"order": "unknown_without_vendor_map"},
+                            "status": "official_rule_sample_metadata_unverified",
+                        },
+                    }
+                }
+            }
+        )
+
+        assert "IR mapping provenance" in text
+        assert "source=map-a.json" in text
+        assert "map=2x2" in text
+        assert "x=column/microscope_stage_x (um)" in text
+        assert "y=row/microscope_stage_y (um)" in text
+        assert "origin=stage_home (0.0, 0.0)" in text
+        assert "roi=area_map_boundary_or_explicit_roi" in text
+        assert "order=unknown_without_vendor_map" in text
+        assert "status=official_rule_sample_metadata_unverified" in text
+    finally:
+        set_language(previous)
+
+
 def test_result_review_ir_temperature_2d_user_summary_lines_surface_key_statuses():
     previous = get_language()
     set_language("en")
@@ -1012,6 +1058,80 @@ def test_build_result_review_panel_texts_from_window_uses_window_state():
         assert "Measured result | Sample A" in parts.benchmark_text
         assert "Risk label" in parts.risk_text
         assert "history next" in parts.next_text
+    finally:
+        set_language(previous)
+
+
+def test_build_result_review_panel_texts_from_window_surfaces_ir_mapping_provenance():
+    previous = get_language()
+    set_language("en")
+    try:
+        class _MappingWindow:
+            _current_technique = "ir"
+
+            def _current_results_record(self):
+                return {"parameters": {}, "results_summary": {}}
+
+            def _current_analysis_evidence(self):
+                return {
+                    "feature_evidence": {
+                        "mapping_evidence": {
+                            "source_id": "vendor-map.json",
+                            "map_shape": [4, 5],
+                            "mapping_semantics": {
+                                "spatial_axes": {
+                                    "x": {
+                                        "coordinate_role": "column",
+                                        "physical_axis": "microscope_stage_x",
+                                        "unit": "um",
+                                    },
+                                    "y": {
+                                        "coordinate_role": "row",
+                                        "physical_axis": "microscope_stage_y",
+                                        "unit": "um",
+                                    },
+                                },
+                                "origin": {"kind": "stage_home", "x": 0.0, "y": 0.0},
+                                "roi": {"kind": "area_map_boundary_or_explicit_roi"},
+                                "serialization": {"order": "unknown_without_vendor_map"},
+                                "status": "official_rule_sample_metadata_unverified",
+                            },
+                        }
+                    }
+                }
+
+            def _current_result_history_context(self, current):
+                return {}
+
+            def _current_result_tuning_context(self, current):
+                return {}
+
+            def _joint_ai_context(self):
+                return {}
+
+            def _current_result_origin(self):
+                return "manual_run"
+
+            def _current_result_label_for_confirmation(self):
+                return "Sample A"
+
+            def _current_result_origin_label(self):
+                return "Manual run"
+
+            def _measured_result_summary_text(self, current):
+                return "Measured result"
+
+            def _is_current_result_confirmed(self):
+                return False
+
+            def _responsibility_boundary_summary(self):
+                return ""
+
+        parts = build_result_review_panel_texts_from_window(_MappingWindow())
+
+        assert "IR mapping provenance" in parts.ir_support_text
+        assert "source=vendor-map.json" in parts.ir_support_text
+        assert "x=column/microscope_stage_x (um)" in parts.ir_support_text
     finally:
         set_language(previous)
 
