@@ -34,6 +34,9 @@ _COMMON_EVIDENCE_FIELDS = (
     "fit_evidence",
     "physical_checks",
     "condition_axis",
+    "duplicate_source_index_indices",
+    "invalid_source_index_indices",
+    "source_index_order_reordered",
 )
 _DETECTOR_EVIDENCE_FIELDS = (
     "metric_name",

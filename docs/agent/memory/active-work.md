@@ -43,6 +43,28 @@
   is an explicit allowlist checkpoint; `current-state.md` and parallel files
   remain untouched.
 
+## SAXS series metric evidence Figure/Manifest/Export projection - verified, checkpointed - 2026-07-30
+
+- The existing Figure metric allowlist now carries the source-index integrity
+  fields `duplicate_source_index_indices`, `invalid_source_index_indices`, and
+  `source_index_order_reordered`. The change is transport-only and keeps the
+  existing detached JSON-safe projection; Export remains on its unchanged
+  quality DTO path.
+- TDD RED was `2 failed, 1 passed, 2 warnings`; focused GREEN was `47 passed,
+  1 warning`; the Figure/Manifest/Export and related consumer matrix was `71
+  passed, 1 warning`.
+- Fresh SAXS matrix passed `608 passed, 8 warnings in 394.32s`, exit code `0`.
+- Task verifier passed task-card, memory, Ruff, and compile checks. Its quality
+  gate was `288 passed, 2 failed, 3 warnings`, exit code `1`, from the existing
+  history locale assertions (`Scientific review` vs current `科学复核`).
+- Storage report/clean remained dry-run only: `56` artifacts, `6` eligible,
+  `eligible_bytes=13390550`, `removed=0`; no `test_storage.py --apply` ran.
+- Task/spec/plan/acceptance are recorded in the corresponding
+  `2026-07-30-saxs-series-metric-evidence-projection` files. Explicit
+  allowlist checkpoint was created with no push; the final local commit hash is
+  reported in the handoff. `current-state.md`, IR mapping changes, and all
+  parallel scratch files remain untouched.
+
 ## Current-head SAXS verification recheck - SAXS matrix green, full boundary open - 2026-07-30
 
 - Fresh current-head SAXS matrix using repository Python 3.14, offscreen Qt,
