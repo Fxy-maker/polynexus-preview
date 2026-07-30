@@ -40,7 +40,7 @@
   conflict interpretation and final release approval remain human gates.
 - Evidence: `docs/acceptance/2026-07-30-joint-ai-boundary.md`.
 
-## NMR JEOL axis provenance - verified, checkpoint pending - 2026-07-30
+## NMR JEOL axis provenance - verified and checkpointed - 2026-07-30
 
 - Real JEOL solid 13C files now expose raw `SCANS`, `X_OFFSET`, `X_SWEEP`, and
   related record fields through the observed 64-byte layout.
@@ -54,7 +54,14 @@
   passed `2`, the full NMR engine suite passed `19`, and the real four-partition
   lifecycle passed `4`.
 - No Xc, assignment, Joint, or review promotion rule changed. The explicit
-  allowlist checkpoint is the next action; no real test data was modified.
+  allowlist checkpoint is `0792518`; no real test data was modified.
+- A current-checkout rerun of the engine and four-partition lifecycle was
+  attempted with D:-isolated basetemps, but the tool window returned `124`
+  without a pytest summary while child processes were still active. The
+  processes later exited; this attempt is classified as tool-level timeout and
+  is not counted as new pass/fail evidence. The checkpointed results above
+  remain the authoritative evidence because no scoped NMR files changed after
+  `0792518`.
 - Evidence: `docs/acceptance/2026-07-30-nmr-jeol-axis-provenance.md`.
 
 ## IR Thermo/OMNIC mapping semantics - verified, checkpointed - 2026-07-30
