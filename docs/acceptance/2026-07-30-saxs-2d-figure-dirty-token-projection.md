@@ -18,6 +18,8 @@ pixel/pair filters.
   in the final report, `Eligible: 0 bytes`, `Cleanup failures: 0`, and no
   removals. `test_storage.py --apply` was not run.
 - `git diff --check` passed.
+- Explicit allowlist implementation checkpoint: `d480ac3`; no push or merge
+  was performed.
 
 ## Scientific and release boundary
 

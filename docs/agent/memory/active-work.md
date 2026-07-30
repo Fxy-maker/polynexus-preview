@@ -555,7 +555,7 @@
 - The prior full/boundary attempt after `765bda3` remains a timeout without a
   final summary and is not attributed to this task.
 
-## SAXS 2D Figure malformed-token projection - checkpoint ready - 2026-07-30
+## SAXS 2D Figure malformed-token projection - checkpointed - 2026-07-30
 
 - Shared detector Figure projection and strain detector/azimuthal projections
   now use the existing elementwise numeric coercion boundary. A malformed
@@ -580,6 +580,8 @@
   and `docs/superpowers/plans/2026-07-30-saxs-2d-figure-dirty-token-projection.md`.
 - The latest post-`765bda3` full/boundary attempt remains a `1504.1s` timeout
   without a final summary and is not attributed to this task.
+- The explicit allowlist implementation checkpoint is `d480ac3`; no push or
+  merge was performed.
 
 ## SAXS modern temperature Figure derived-array dirty-input guard - verified, ready for checkpoint - 2026-07-30
 

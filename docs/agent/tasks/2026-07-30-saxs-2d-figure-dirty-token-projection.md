@@ -105,3 +105,5 @@ and all other untracked or parallel files remain outside this task checkpoint.
   were removed or migrated.
 - The latest post-`765bda3` full/boundary attempt remains a historical
   `1504.1s` timeout with no final summary; it is not attributed to this task.
+- Explicit allowlist implementation checkpoint: `d480ac3`; no push or merge
+  was performed.
