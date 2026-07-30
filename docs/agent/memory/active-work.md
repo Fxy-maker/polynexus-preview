@@ -1,5 +1,33 @@
 # Active Work
 
+## SAXS temperature method evidence production Figure - checkpointed (2026-07-30)
+
+- Added `saxs.series.temperature.method_evidence` to the production
+  temperature Figure provider. It projects only existing Porod, Kratky,
+  invariant, and lamellar evidence from `TempSeriesResult.temp_points`, binds
+  through unique `source_index`, preserves nullable audit provenance, and
+  omits only non-finite pairs from renderer sources.
+- The Figure is diagnostic-only and applies only to the temperature axis.
+  Existing evolution Main Figure, quality levels, physical gates, rescue, AI,
+  publication semantics, and time-axis behavior are unchanged.
+- TDD RED was `2 failed, 8 deselected`; focused GREEN was `2 passed, 8
+  deselected`; production/evidence/provenance was `48 passed`, and the
+  production matrix with portable regression was `66 passed`.
+- The latest exact SAXS matrix was `653 passed, 6 warnings` in `541.39s`, exit
+  code `0`. Structured verification passed quality `296`, preprocessing `106`,
+  Ruff, compile, type baseline, memory/task, and whitespace checks.
+- Storage report/clean was dry-run only: `71` artifacts,
+  `16,473,416,178` bytes, `eligible_bytes=0`, no emergency pressure, and
+  `removed=0`; no `test_storage.py --apply` was run.
+- Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-30-saxs-temperature-method-evidence-production-figure.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-temperature-method-evidence-production-figure-design.md`,
+  `docs/superpowers/plans/2026-07-30-saxs-temperature-method-evidence-production-figure.md`,
+  and `docs/acceptance/2026-07-30-saxs-temperature-method-evidence-production-figure.md`.
+- The explicit seven-file allowlist checkpoint is `929da91`; no push or merge
+  was performed. Parallel GUI/NMR files, scratch, and test-storage
+  directories were not included.
+
 ## SAXS temperature method evidence diagnostic Figure - checkpointed (2026-07-30)
 
 - Added `saxs.series.temperature.method_evidence` to the portable temperature

@@ -123,6 +123,140 @@ def test_temperature_fallback_keeps_waterfall_and_adds_only_si_summary() -> None
     )
 
 
+def _method_metric(value, level, reason_codes=()):
+    return {
+        "value": value,
+        "level": level,
+        "reason_codes": list(reason_codes),
+    }
+
+
+def _production_method_evidence_engine(*, duplicate_source_index: bool = False):
+    engine = _temperature_engine()
+    engine.cfg.condition_label = "Temperature"
+    engine.cfg.condition_unit = "C"
+    points = [
+        SimpleNamespace(
+            source_index=2,
+            metric_evidence={
+                "porod": _method_metric(0.9, "Trend"),
+                "kratky": _method_metric(0.2, "Diagnostic", ("kratky_peak_missing",)),
+                "invariant": _method_metric(81.0, "Trend"),
+                "lamellar": _method_metric(10.8, "Trend"),
+            },
+        ),
+        SimpleNamespace(
+            source_index=0,
+            metric_evidence={
+                "porod": _method_metric(1.2, "Trend", ("porod_slope_deviation_observed",)),
+                "kratky": _method_metric(0.3, "Trend"),
+                "invariant": _method_metric(100.0, "Trend"),
+                "lamellar": _method_metric(12.0, "Diagnostic", ("lamellar_phi_c_invalid",)),
+            },
+        ),
+        SimpleNamespace(
+            source_index=1,
+            metric_evidence={
+                "porod": _method_metric(None, "Unusable", ("porod_payload_missing",)),
+                "kratky": None,
+                "invariant": _method_metric(92.0, "Trend"),
+                "lamellar": _method_metric(11.5, "Trend"),
+            },
+        ),
+    ]
+    if duplicate_source_index:
+        points.insert(
+            1,
+            SimpleNamespace(
+                source_index=0,
+                metric_evidence={
+                    "porod": _method_metric(99.0, "Trend"),
+                },
+            ),
+        )
+    engine._temperature_result.temp_points = points
+    return engine
+
+
+def test_production_temperature_method_evidence_figure_binds_by_source_index():
+    engine = _production_method_evidence_engine()
+
+    definitions = build_temperature_figure_definitions(engine)
+
+    figure = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.method_evidence"
+    )
+    assert figure.publication_role == "diagnostic"
+    audit_sources = {
+        source.source_id: source
+        for source in figure.data_sources
+        if source.role == "method_evidence_audit"
+    }
+    assert set(audit_sources) == {
+        "saxs-temperature-method-evidence-porod",
+        "saxs-temperature-method-evidence-kratky",
+        "saxs-temperature-method-evidence-invariant",
+        "saxs-temperature-method-evidence-lamellar",
+    }
+    porod = audit_sources["saxs-temperature-method-evidence-porod"]
+    assert porod.values["temperature_C"] == (0.0, 1.0, 2.0)
+    assert porod.values["value"] == (1.2, None, 0.9)
+    assert porod.values["source_index"] == (0, 1, 2)
+    assert porod.values["frame_level"] == ("Trend", "Unusable", "Trend")
+    assert porod.values["frame_reason_codes"] == (
+        "porod_slope_deviation_observed",
+        "porod_payload_missing",
+        None,
+    )
+    plot = next(
+        source
+        for source in figure.data_sources
+        if source.source_id == "saxs-temperature-method-evidence-porod-plot"
+    )
+    assert plot.values == {
+        "temperature_C": (0.0, 2.0),
+        "value": (1.2, 0.9),
+    }
+    assert figure.recipe["parameters"]["missing_values_preserved"] is True
+    assert figure.recipe["parameters"]["interpolation"] is False
+    assert figure.recipe["parameters"]["reclassification"] is False
+    json.dumps(
+        {source.source_id: dict(source.values) for source in figure.data_sources},
+        allow_nan=False,
+    )
+    assert definitions[0].figure_id == "saxs.temperature.evolution"
+
+
+def test_production_temperature_method_evidence_duplicate_source_fails_closed():
+    engine = _production_method_evidence_engine(duplicate_source_index=True)
+
+    definitions = build_temperature_figure_definitions(engine)
+
+    figure = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.method_evidence"
+    )
+    porod = next(
+        source
+        for source in figure.data_sources
+        if source.source_id == "saxs-temperature-method-evidence-porod"
+    )
+    assert porod.values["value"] == (None, None, 0.9)
+    assert porod.values["source_index"] == (None, 1, 2)
+    plot = next(
+        source
+        for source in figure.data_sources
+        if source.source_id == "saxs-temperature-method-evidence-porod-plot"
+    )
+    assert plot.values == {
+        "temperature_C": (2.0,),
+        "value": (0.9,),
+    }
+
+
 def test_dirty_projection_temperature_waterfall_keeps_valid_pairs() -> None:
     engine = _temperature_engine()
     engine._q_list[0] = np.asarray(

@@ -50,6 +50,14 @@ class _ConditionAxis:
     unit: str
 
 
+_TEMPERATURE_METHODS = (
+    ("porod", "Porod", "a.u.", "#0072B2"),
+    ("kratky", "Kratky", "nm^-1", "#009E73"),
+    ("invariant", "Invariant", "a.u.", "#D55E00"),
+    ("lamellar", "Lamellar", "nm", "#CC79A7"),
+)
+
+
 def _finite_float(value: Any) -> float:
     try:
         number = float(value)
@@ -552,6 +560,186 @@ def _avrami_gate(engine: Any, axis: _ConditionAxis) -> tuple[dict[str, Any], Map
     if not all(np.isfinite(_finite_float(avrami.get(key))) for key in ("n", "k_sn", "t_half_s")):
         return {"eligible": False, "reason": "nonfinite_avrami_parameters"}, avrami
     return {"eligible": True, "reason": "valid_time_axis_avrami_parameters"}, avrami
+
+
+def _temperature_source_index(point: Any) -> int | None:
+    raw_index = getattr(point, "source_index", None)
+    if isinstance(raw_index, bool) or not isinstance(raw_index, (int, np.integer)):
+        return None
+    source_index = int(raw_index)
+    return source_index if source_index >= 0 else None
+
+
+def _temperature_point_for_frame(frame: SAXSFrameView, series: Any) -> Any | None:
+    """Bind one emitted temperature point only when source identity is unique."""
+
+    points = getattr(series, "temp_points", ()) if series is not None else ()
+    matches = [
+        point
+        for point in points
+        if _temperature_source_index(point) == int(frame.index)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _method_reason_codes(payload: Mapping[str, Any]) -> str | None:
+    raw_reasons = payload.get("reason_codes")
+    if isinstance(raw_reasons, str):
+        return raw_reasons or None
+    if isinstance(raw_reasons, (list, tuple)):
+        return "|".join(str(reason) for reason in raw_reasons) or None
+    return None
+
+
+def _build_temperature_method_evidence(
+    frames: Sequence[SAXSFrameView],
+    series: Any,
+    axis: _ConditionAxis,
+) -> FigureDefinition | None:
+    """Project existing temperature method evidence without reanalysis."""
+
+    if axis.kind != "temperature":
+        return None
+    points = getattr(series, "temp_points", ()) if series is not None else ()
+    if not any(
+        isinstance(getattr(point, "metric_evidence", None), Mapping)
+        and any(
+            isinstance(getattr(point, "metric_evidence", {}).get(method), Mapping)
+            for method, _label, _unit, _color in _TEMPERATURE_METHODS
+        )
+        for point in points
+    ):
+        return None
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, Any]] = []
+    plot_methods: list[str] = []
+    for method, label, unit, color in _TEMPERATURE_METHODS:
+        audit_conditions: list[float | None] = []
+        audit_values: list[float | None] = []
+        source_indices: list[int | None] = []
+        levels: list[str | None] = []
+        reasons: list[str | None] = []
+        plot_conditions: list[float] = []
+        plot_values: list[float] = []
+        for frame in frames:
+            point = _temperature_point_for_frame(frame, series)
+            payloads = getattr(point, "metric_evidence", None)
+            payload = payloads.get(method) if isinstance(payloads, Mapping) else None
+            value = (
+                _finite_float(payload.get("value"))
+                if isinstance(payload, Mapping)
+                else np.nan
+            )
+            condition = _condition_value(frame)
+            audit_conditions.append(condition if np.isfinite(condition) else None)
+            audit_values.append(float(value) if np.isfinite(value) else None)
+            source_indices.append(_temperature_source_index(point) if point is not None else None)
+            if isinstance(payload, Mapping):
+                level = str(payload.get("level") or "").strip()
+                levels.append(level or None)
+                reasons.append(_method_reason_codes(payload))
+            else:
+                levels.append(None)
+                reasons.append(None)
+            if np.isfinite(condition) and np.isfinite(value):
+                plot_conditions.append(condition)
+                plot_values.append(float(value))
+
+        audit_source_id = f"saxs-temperature-method-evidence-{method}"
+        plot_source_id = f"{audit_source_id}-plot"
+        sources.extend(
+            (
+                _source(
+                    audit_source_id,
+                    (
+                        _column(axis.column, axis.unit),
+                        _column("value", unit),
+                        _column("source_index", "index", "int64"),
+                        _column("frame_level", "level", "string"),
+                        _column("frame_reason_codes", "reason", "string"),
+                    ),
+                    {
+                        axis.column: audit_conditions,
+                        "value": audit_values,
+                        "source_index": source_indices,
+                        "frame_level": levels,
+                        "frame_reason_codes": reasons,
+                    },
+                    role="method_evidence_audit",
+                ),
+                _source(
+                    plot_source_id,
+                    (
+                        _column(axis.column, axis.unit),
+                        _column("value", unit),
+                    ),
+                    {axis.column: plot_conditions, "value": plot_values},
+                    role="method_evidence_plot",
+                ),
+            )
+        )
+        if plot_values:
+            plot_methods.append(method)
+            objects.append(
+                {
+                    "id": f"temperature-method-{method}",
+                    "type": "plot_series",
+                    "name": label,
+                    "panel_id": method,
+                    "data_ref": plot_source_id,
+                    "x_column": axis.column,
+                    "y_column": "value",
+                    "chart_kind": "line",
+                    "style": {"color": color, "line_width": 0.9},
+                }
+            )
+
+    panels = tuple(
+        PanelDefinition(
+            panel_id=method,
+            row=index // 2,
+            column=index % 2,
+            x_axis=_condition_sci_axis(f"{method}-condition", axis),
+            y_axis=AxisDefinition(f"{method}-value", label, unit=unit),
+            panel_label=f"({chr(ord('a') + index)})",
+        )
+        for index, (method, label, unit, _color) in enumerate(_TEMPERATURE_METHODS)
+    )
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.method_evidence",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        publication_role="diagnostic",
+        title="Temperature SAXS method evidence",
+        layout=FigureLayoutDefinition(
+            width_in=7.5,
+            height_in=5.5,
+            rows=2,
+            columns=2,
+            panels=panels,
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_temperature",
+            "function": "build_temperature_figure_definitions",
+            "condition_axis": axis.column,
+            "parameters": {
+                "figure_kind": "method_evidence_diagnostic",
+                "methods": [method for method, _label, _unit, _color in _TEMPERATURE_METHODS],
+                "plot_methods": plot_methods,
+                "source_mapping": "unique_temperature_point_source_index",
+                "missing_values_preserved": True,
+                "interpolation": False,
+                "reclassification": False,
+            },
+            "v2_adapter": "temperature_saxs",
+        },
+        style_profile="sci_default",
+        display_order=150,
+    )
 
 
 def _build_evolution(
@@ -1220,6 +1408,13 @@ def build_temperature_figure_definitions(
     waterfall = _build_waterfall(frames, selection, axis)
     if waterfall is not None:
         definitions.append(waterfall)
+    method_evidence = _build_temperature_method_evidence(
+        frames,
+        getattr(engine, "_temperature_result", None),
+        axis,
+    )
+    if method_evidence is not None:
+        definitions.append(method_evidence)
     frames_by_index = {frame.index: frame for frame in frames}
     for order, index in enumerate(selection.indices):
         evidence = _build_selected_evidence(
