@@ -184,3 +184,25 @@ push, merge, deploy, or claim scientific release approval from this checkpoint.
 - [x] The verification commands and checkpoint allowlist are exact.
 - [ ] Human scientific and restarted-GUI review; these are external gates and
   intentionally not completed by this documentation task.
+
+## 7. Current-state reconciliation addendum (2026-07-30)
+
+This addendum indexes later atomic SAXS evidence without rewriting the
+historical stage records above. The linked task cards remain the authoritative
+source for individual commands and allowlists.
+
+| Area | Current classification | Evidence boundary |
+|---|---|---|
+| Temperature 1D Guinier frame and sequence evidence | Automated-ready as diagnostic evidence | Frame/sequence contracts, missing-frame preservation, quality levels, condition/source facts, and the source-mapping trust boundary are covered by the 2026-07-27 cards and the 2026-07-30 source-mapping card. No interpolation, phase decision, or scientific promotion is implied. |
+| Series Porod/Kratky/invariant/lamellar source integrity | Automated-ready as conservative evidence | `2026-07-30-saxs-series-metric-source-index-integrity.md` and its Figure/Manifest/Export projection card cover valid, reordered, invalid, duplicate, and length-mismatched mappings. Metric recalculation and physical meaning remain unchanged. |
+| Static/temperature/strain dirty-data projections | Automated-ready at the tested consumer boundaries | The 2026-07-28 and 2026-07-29 dirty-input, partial-frame, source-provenance, and projection cards preserve positions and diagnostics. A rendered Figure is not a scientific promotion signal. |
+| Raw detector, geometry, mask, and orientation | Contract-ready, scientific acceptance open | Existing raw-detector provenance is transported through results, DataFrame/CSV, Figure, and Workbench surfaces. `validity=not_assessed` remains explicit; calibration, mask validity, beam-center meaning, and real-detector interpretation require instrument-aware review. |
+| Candidate rescue and AI | Automated route-ready as candidate/replay/confirm-only | Existing rescue/AI cards require deterministic rerun, data preservation, existing physical gates, sequence evidence, identity/hash checks, and post-gate audit. No provider call or automatic acceptance is claimed here. |
+| Workbench/Figure/Manifest/Export/History | Automated transport-ready | Consumer cards cover explicit evidence projection, provenance, partial/dirty data degradation, and export/history boundaries. Consumers do not recompute SAXS state or promote Diagnostic/Unusable evidence. |
+| Full software release gate | Open | Current-head SAXS matrices are recorded in their task cards, but a full/boundary pass requires a complete pytest summary and boundary result. Historical Qt crashes/timeouts and unrelated shared-worktree failures are not counted as passes. |
+| Real-data and human gates | Open | Restarted-GUI visual review, temperature/strain scientific meaning, raw 2D detector review, and final publication/release authorization remain external gates. |
+
+Current task checkpoints include the 2026-07-30 Guinier source-mapping
+implementation (`b47f84e`) and its documentation closure (`09bf6cc`). This
+route addendum itself has a separate documentation-only allowlist; it does not
+modify `active-work.md`, `current-state.md`, NMR, Joint, or scratch files.
