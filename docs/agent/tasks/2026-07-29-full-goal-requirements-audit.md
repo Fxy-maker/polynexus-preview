@@ -41,13 +41,13 @@ and human scientific/release approval.
 | SAXS static/temperature/strain | real `3` cases and native route `3`; SAXS-specific contracts | automated evidence; temperature/strain science open |
 | DSC standard/isothermal/non-isothermal | real `3` cases and native route `3` | automated evidence; non-isothermal role review open |
 | WAXS static/temperature/strain/2D | real `3` cases including strain/2D and native route `3` | automated evidence; scientific review open |
-| IR standard/temperature-2D/mapping | real `2`, native `2`, synthetic mapping route | mapping vendor/coordinate/ROI semantics open |
-| NMR liquid H/C/solid H/C | real `4` and native `4` | solid-C assignment/label policy open |
-| Joint provenance/lifecycle | real transport and synthetic lifecycle routes | conflict interpretation/release approval open |
-| Manifest/Gallery/Editor/export/history | real published-run lifecycle; native route package export/captures | automated evidence; restarted GUI visual gate open |
+| IR standard/temperature-2D/mapping | real `2`, native `2`, synthetic mapping route; official Thermo/OMNIC Picta semantics profile | sample-level ROI bounds, flattening order, detector calibration, and source-matched scientific acceptance open |
+| NMR liquid H/C/solid H/C | real `4` and native `4`; JEOL axis provenance and assignment-limited status are explicit | solid-C assignment truth source, label policy, and Xc promotion remain open |
+| Joint provenance/lifecycle | real transport, synthetic lifecycle, deterministic AI boundary, and native route evidence | conflict precedence, minimum conclusion evidence, and release approval open |
+| Manifest/Gallery/Editor/export/history | real published-run lifecycle plus current native route captures for Results/Gallery/History/Editor/PackageExporter fallback | route construction is evidenced; complete human visual review and release approval remain open |
 | AI-off/failure/fallback | fresh `25 passed` matrix | automated safety evidence; scientific approval open |
 | Full repository/boundary gate | `2986 passed, 17 skipped, 12 warnings`; direct boundary exit `0` | automated gate green |
-| Restarted-GUI visual acceptance | fresh GUI was responsive but session screenshots showed lock screen | unverified; requires unlocked interactive session |
+| Restarted-GUI visual acceptance | current native selector completed `17` cases with Results/Gallery/History/Editor/PackageExporter captures; canonical shell was also inspected unlocked | route evidence is recorded; complete all-mode human visual acceptance remains separate |
 | Human scientific/release approval | IR ROI, NMR solid-C, Joint conflicts explicitly unresolved | open; must not be guessed |
 
 ## Acceptance criteria

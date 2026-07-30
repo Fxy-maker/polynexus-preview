@@ -11,7 +11,15 @@ The current evidence audit maps the full task as follows:
 - Mode coverage: SAXS `3`, DSC `3`, WAXS `3` including strain/2D, IR `2`
   plus synthetic mapping, NMR `4`, and Joint transport/synthetic lifecycle.
 
-The overall goal is not complete: restarted-GUI content was not visible because
-the Windows session was locked, and IR mapping/ROI semantics, NMR solid-C
-assignment policy, Joint conflict interpretation, and final release approval
-remain human decisions. No test data was deleted or migrated.
+The official Thermo/OMNIC Picta mapping profile is now documented for IR;
+sample-level ROI, flattening order, detector calibration, and source-matched
+review remain open. NMR JEOL axis calibration remains explicitly unconfirmed,
+and solid-C assignment/Xc stays assignment-limited. Joint AI fallback
+provenance and source/conflict preservation are covered, while conflict
+precedence remains reviewer-owned.
+
+The overall goal is not complete: current native route captures and an unlocked
+canonical shell inspection provide route evidence, but they do not replace
+complete human all-mode visual review. IR sample-level mapping/ROI calibration,
+NMR solid-C assignment policy, Joint conflict interpretation, and final release
+approval remain human decisions. No test data was deleted or migrated.
