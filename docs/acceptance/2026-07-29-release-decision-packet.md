@@ -55,5 +55,14 @@ remain open below.
   helper captured desktop wallpaper instead of the application window, so the
   visual result remains supplementary and the full restarted-GUI gate stays
   open.
+- The current-checkout Joint recheck expanded the automated evidence without
+  changing any scientific policy: real transport, synthetic lifecycle, and
+  report dataset checks passed `10` tests in `28.10s`; legacy History fallback
+  checks passed `4` tests in `0.45s`; and the Joint consumer/coordinator,
+  provider, diagnostics, and NMR provenance matrix passed `18` tests in
+  `12.99s`. All commands exited `0` with D:-isolated basetemps.
+- These results confirm provenance and route behavior only. They do not choose
+  conflict precedence, define the minimum evidence for a Joint conclusion, or
+  promote unresolved conflicts beyond diagnostic status.
 - No reviewer record, scientific role, or release state changed during this
   recheck.
