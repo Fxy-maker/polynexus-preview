@@ -90,6 +90,7 @@ part of this task.
 - `git diff --check` passed. Storage report/clean remained dry-run only:
   `54` artifacts, `eligible_bytes=13390550`, `eligible=6`, `removed=0`.
   `test_storage.py --apply` was not run.
+- Explicit allowlist checkpoint: `fb9fb42`; no push or merge was performed.
 
 ## Known limitations
 

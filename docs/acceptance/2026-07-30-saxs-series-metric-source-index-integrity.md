@@ -1,6 +1,6 @@
 # SAXS series metric source-index integrity
 
-Status: implementation verified; checkpoint pending.
+Status: implementation verified and checkpointed at `fb9fb42`.
 
 The source-index boundary is now verified. Initial RED was `8 failed, 2
 warnings`; the non-finite boundary RED was `1 failed, 6 passed, 4 deselected,
@@ -21,3 +21,4 @@ SAXS metric values, physical gates, rescue, AI, or publication roles.
 
 The explicit allowlist is recorded in
 `docs/agent/tasks/2026-07-30-saxs-series-metric-source-index-integrity.md`.
+No push or merge was performed.

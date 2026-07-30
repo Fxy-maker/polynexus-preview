@@ -449,7 +449,7 @@
   checkpoint was created with no push performed.
 - Evidence: `docs/acceptance/2026-07-30-ir-thermo-mapping-semantics.md`.
 
-## SAXS series metric source-index integrity - verified, checkpoint pending - 2026-07-30
+## SAXS series metric source-index integrity - verified, checkpointed - 2026-07-30
 
 - `build_series_metric_evidence()` now validates supplied frame source indices
   without coercing invalid values into trusted mappings. Duplicate, negative,
@@ -471,9 +471,9 @@
 - `git diff --check` passed. Storage stayed dry-run only: `54` artifacts,
   `eligible_bytes=13390550`, `eligible=6`, `removed=0`; no `--apply`.
 - Task/spec/plan/acceptance are recorded in the corresponding
-  `2026-07-30-saxs-series-metric-source-index-integrity` files. The next action
-  is an explicit allowlist checkpoint; `current-state.md` and parallel files
-  remain untouched.
+  `2026-07-30-saxs-series-metric-source-index-integrity` files. The explicit
+  allowlist checkpoint is `fb9fb42`; no push or merge was performed.
+  `current-state.md` and parallel files remain untouched.
 
 ## SAXS series metric evidence Figure/Manifest/Export projection - verified, checkpointed - 2026-07-30
 
