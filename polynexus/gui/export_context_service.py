@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 
 from .i18n import get_language, tr
-from .scientific_review_presentation import scientific_review_display
+from .scientific_review_presentation import scientific_release_display, scientific_review_display
 
 
 def create_export_bundle_dirs(save_root) -> dict[str, Path]:
@@ -148,6 +148,10 @@ def build_export_context_payload(window, *, report_path: str = "", ir_summary_fn
         submodule=current_submodule,
         language=get_language(),
     )
+    scientific_release = scientific_release_display(
+        {"analysis_evidence": analysis_evidence, "result": current_result},
+        language=get_language(),
+    )
 
     ir_export_semantics = ""
     if current_technique == "ir" and callable(ir_summary_fn):
@@ -198,6 +202,8 @@ def build_export_context_payload(window, *, report_path: str = "", ir_summary_fn
         "paper_figure_status": ir_export_semantics,
         "scientific_review": scientific_review.to_dict(),
         "scientific_review_text": scientific_review.text,
+        "scientific_release": scientific_release.to_dict(),
+        "scientific_release_text": scientific_release.text,
     }
 
 
@@ -218,6 +224,7 @@ def export_readme_text(
     source_data = str(source_data_path or "").strip() or "-"
     review_summary = str(context.get("review_summary") or "-").strip()
     scientific_review_text = str(context.get("scientific_review_text") or "-").strip()
+    scientific_release_text = str(context.get("scientific_release_text") or "-").strip()
     if context.get("confirmed_result") and review_summary not in {"", "-"}:
         confirmed_text = str(confirmed_review_label or "").strip()
         if confirmed_text and not review_summary.startswith(confirmed_text):
@@ -251,6 +258,7 @@ def export_readme_text(
         f"Comparison summary: {context.get('comparison_summary') or '-'}",
         f"Review summary: {review_summary}",
         f"Scientific review: {scientific_review_text}",
+        f"Scientific release: {scientific_release_text}",
         f"Validation chain: {validation_chain or benchmark_text or '-'}",
         f"Joint summary: {joint_detail or '-'}",
         f"Responsibility boundary: {context.get('responsibility_boundary') or '-'}",

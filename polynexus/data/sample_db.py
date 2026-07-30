@@ -57,6 +57,13 @@ class SampleDB:
                 confirmed INTEGER DEFAULT 0,
                 log TEXT, created_at TEXT DEFAULT (datetime('now'))
             );
+            CREATE TABLE IF NOT EXISTS scientific_release_reviews (
+                record_id TEXT PRIMARY KEY,
+                batch_id TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+                record_json TEXT NOT NULL,
+                snapshot_json TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
             """
         )
         self._ensure_column("analysis_runs", "ai_tuned", "INTEGER DEFAULT 0")
@@ -397,6 +404,9 @@ class SampleDB:
                 except Exception:
                     data[col] = {}
                     logger.warning("Failed to decode stored analysis run JSON.", exc_info=True)
+            release = self.get_latest_scientific_release_review_for_run(data.get("id"))
+            if release is not None:
+                data["scientific_release"] = release
             results.append(data)
         return results
 
@@ -414,6 +424,9 @@ class SampleDB:
             except Exception:
                 data[col] = {}
                 logger.warning("Failed to decode stored analysis run JSON.", exc_info=True)
+        release = self.get_latest_scientific_release_review_for_run(data.get("id"))
+        if release is not None:
+            data["scientific_release"] = release
         return data
 
     def update_plot_edits(self, run_id, plot_edits_json):
@@ -508,6 +521,84 @@ class SampleDB:
                 ),
             )
         return True
+
+    def save_scientific_release_review(self, batch_id, record_payload, decision_snapshot):
+        """Append one validated project-level release record to a batch."""
+
+        if not isinstance(record_payload, dict) or not isinstance(decision_snapshot, dict):
+            raise ValueError("scientific release payloads must be mappings")
+        from ..core.scientific_review import (
+            review_decision_snapshot,
+            review_record_from_payload,
+            validate_review_record,
+        )
+
+        record = review_record_from_payload(record_payload)
+        if record is None:
+            raise ValueError("scientific release record is invalid")
+        validate_review_record(record)
+        if record.scope != "release":
+            raise ValueError("scientific release record must use release scope")
+        canonical_source = record.source_refs[0] if record.source_refs else ""
+        expected_snapshot = review_decision_snapshot(
+            record,
+            expected_scope="release",
+            source_ref=canonical_source,
+        )
+        if decision_snapshot != expected_snapshot:
+            raise ValueError("scientific release snapshot does not match record")
+
+        batch_key = str(batch_id or "").strip()
+        row = self._conn.execute("SELECT id FROM batches WHERE id=?", (batch_key,)).fetchone()
+        if not row:
+            return False
+        record_json = json.dumps(record.to_dict(), ensure_ascii=False, allow_nan=False)
+        snapshot_json = json.dumps(expected_snapshot, ensure_ascii=False, allow_nan=False)
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO scientific_release_reviews (record_id,batch_id,record_json,snapshot_json) VALUES (?,?,?,?)",
+                (record.record_id, batch_key, record_json, snapshot_json),
+            )
+        return True
+
+    @staticmethod
+    def _decode_scientific_release_row(row):
+        if not row:
+            return None
+        try:
+            return {
+                "record": json.loads(row["record_json"]),
+                "snapshot": json.loads(row["snapshot_json"]),
+                "created_at": str(row["created_at"] or ""),
+            }
+        except (TypeError, ValueError, json.JSONDecodeError):
+            logger.warning("Failed to decode stored scientific release review.")
+            return None
+
+    def list_scientific_release_reviews(self, batch_id):
+        """Return all batch release records in append order."""
+
+        rows = self._conn.execute(
+            "SELECT record_json,snapshot_json,created_at FROM scientific_release_reviews WHERE batch_id=? ORDER BY rowid",
+            (str(batch_id or "").strip(),),
+        ).fetchall()
+        return [decoded for row in rows if (decoded := self._decode_scientific_release_row(row)) is not None]
+
+    def get_latest_scientific_release_review_for_run(self, run_id):
+        """Return the newest release projection for an analysis run."""
+
+        row = self._conn.execute(
+            """
+            SELECT review.record_json,review.snapshot_json,review.created_at
+            FROM scientific_release_reviews AS review
+            JOIN analysis_runs AS run ON run.batch_id=review.batch_id
+            WHERE run.id=?
+            ORDER BY review.rowid DESC
+            LIMIT 1
+            """,
+            (str(run_id or "").strip(),),
+        ).fetchone()
+        return self._decode_scientific_release_row(row)
 
     def cleanup_temp(self, days=30):
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()

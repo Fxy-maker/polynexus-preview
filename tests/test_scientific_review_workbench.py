@@ -34,6 +34,22 @@ def _accepted_ir_record() -> ScientificReviewRecord:
     )
 
 
+def _accepted_release_record(record_id: str) -> ScientificReviewRecord:
+    return ScientificReviewRecord(
+        record_id=record_id,
+        scope="release",
+        reviewer="reviewer-release",
+        reviewed_at="2026-07-30",
+        policy_version="release-v1",
+        source_refs=("ir-run", "nmr-run", "joint-run"),
+        decisions={
+            "release_decision": "approve",
+            "conditions_or_followups": "none",
+        },
+        status="accepted",
+    )
+
+
 def test_update_analysis_scientific_review_is_run_scoped_and_round_trips(tmp_path) -> None:
     db = SampleDB(tmp_path / "samples.db")
     sample_id = db.create_sample("PA6")
@@ -146,6 +162,27 @@ def test_scientific_review_dialog_rejects_incomplete_accepted_record() -> None:
 
     with pytest.raises(ValueError, match="missing required decisions"):
         dialog.build_record()
+    dialog.deleteLater()
+
+
+def test_scientific_review_dialog_builds_a_release_decision_record() -> None:
+    from polynexus.gui.scientific_review_dialog import ScientificReviewDialog
+
+    QApplication.instance() or QApplication([])
+    dialog = ScientificReviewDialog("release", source_refs=("ir-run", "joint-run"))
+    dialog.set_field("record_id", "release-dialog-1")
+    dialog.set_field("reviewer", "reviewer-release")
+    dialog.set_field("reviewed_at", "2026-07-30")
+    dialog.set_field("policy_version", "release-v1")
+    dialog.set_status("conditional")
+    dialog.set_decision_value("release_decision", "conditional")
+    dialog.set_decision_value("conditions_or_followups", "Keep Joint conclusion diagnostic until conflict review.")
+
+    record = dialog.build_record()
+
+    assert record.scope == "release"
+    assert record.status == "conditional"
+    assert record.decisions["release_decision"] == "conditional"
     dialog.deleteLater()
 
 
@@ -264,3 +301,160 @@ def test_workbench_review_snapshot_uses_canonical_source_with_multiple_refs(monk
     window._open_scientific_review_dialog()
 
     assert db.snapshot["source_ref"] == "native-synthetic-map.json"
+
+
+def test_release_storage_is_append_only_and_hydrates_latest_for_run(tmp_path) -> None:
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "release")
+    run_id = db.create_analysis_run(
+        batch_id,
+        "joint",
+        submodule="joint.compare",
+        results_summary={"result": {"metadata": {"source_id": "joint-run"}}},
+    )
+
+    first = _accepted_release_record("release-1")
+    first_snapshot = review_decision_snapshot(first, expected_scope="release", source_ref="ir-run")
+    second = _accepted_release_record("release-2")
+    second_snapshot = review_decision_snapshot(second, expected_scope="release", source_ref="ir-run")
+
+    assert db.save_scientific_release_review(batch_id, first.to_dict(), first_snapshot) is True
+    assert db.save_scientific_release_review(batch_id, second.to_dict(), second_snapshot) is True
+
+    records = db.list_scientific_release_reviews(batch_id)
+    assert [item["record"]["record_id"] for item in records] == ["release-1", "release-2"]
+    latest = db.get_latest_scientific_release_review_for_run(run_id)
+    assert latest["record"]["record_id"] == "release-2"
+    assert latest["snapshot"] == second_snapshot
+    db.close()
+
+
+def test_release_storage_rejects_unknown_batch_without_write(tmp_path) -> None:
+    db = SampleDB(tmp_path / "samples.db")
+    record = _accepted_release_record("release-missing-batch")
+    snapshot = review_decision_snapshot(record, expected_scope="release", source_ref="ir-run")
+
+    assert db.save_scientific_release_review("missing-batch", record.to_dict(), snapshot) is False
+    assert db.list_scientific_release_reviews("missing-batch") == []
+    db.close()
+
+
+def test_release_workbench_saves_batch_record_without_run_review_update(monkeypatch) -> None:
+    from PySide6.QtWidgets import QDialog
+
+    from polynexus.gui import main_window_results_mixin as results_mixin
+    from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+
+    record = _accepted_release_record("release-workbench-1")
+
+    class FakeDialog:
+        def __init__(self, scope, *, source_refs, parent=None):
+            del parent
+            assert scope == "release"
+            self.source_refs = tuple(source_refs)
+
+        def exec(self):
+            return QDialog.Accepted
+
+        def build_record(self):
+            return record
+
+    class FakeDB:
+        saved = None
+
+        def save_scientific_release_review(self, batch_id, payload, snapshot):
+            self.saved = (batch_id, payload, snapshot)
+            return True
+
+    db = FakeDB()
+    window = object.__new__(MainWindowResultsMixin)
+    window._current_technique = "joint"
+    window._current_submodule_id = "joint.compare"
+    window._current_batch_id = "batch-1"
+    window._last_persisted_run_id = "run-1"
+    window._current_filepath = "joint-run"
+    window._results = {
+        "joint": AnalysisResult(
+            technique="joint",
+            metadata={"source_id": "joint-run"},
+        )
+    }
+    window._ensure_sample_db = lambda: db
+    window._apply_scientific_release_to_current_result = lambda *_args: None
+    window._refresh_history = lambda: None
+    window._update_results_review_panel = lambda: None
+    window._update_work_memory_panel = lambda: None
+    window.log = lambda _message: None
+    monkeypatch.setattr(results_mixin, "ScientificReviewDialog", FakeDialog)
+
+    window._open_scientific_release_dialog()
+
+    assert db.saved[0] == "batch-1"
+    assert db.saved[1]["scope"] == "release"
+    assert db.saved[2]["source_ref"] == "ir-run"
+
+
+def test_release_provenance_is_applied_without_changing_analysis_values() -> None:
+    from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+
+    window = object.__new__(MainWindowResultsMixin)
+    window._current_technique = "joint"
+    window._results = {
+        "joint": AnalysisResult(
+            technique="joint",
+            metadata={"existing": "keep"},
+            analysis_evidence={"existing": "evidence"},
+            parameters={"metric": 1.0},
+        )
+    }
+    record_payload = {"record_id": "release-1", "scope": "release", "status": "accepted"}
+    snapshot = {
+        "allowed": True,
+        "reason": "review_accepted",
+        "record_id": "release-1",
+        "scope": "release",
+        "source_ref": "joint-run",
+    }
+
+    window._apply_scientific_release_to_current_result(record_payload, snapshot)
+
+    result = window._results["joint"]
+    assert result.parameters == {"metric": 1.0}
+    assert result.metadata["scientific_release"] == record_payload
+    assert result.metadata["scientific_release_decision"] == snapshot
+    assert result.analysis_evidence["existing"] == "evidence"
+    assert result.analysis_evidence["scientific_release"] == snapshot
+
+
+def test_release_display_is_visible_to_history_consumers() -> None:
+    from polynexus.gui.scientific_review_presentation import scientific_release_display
+
+    display = scientific_release_display(
+        {
+            "scientific_release": {
+                "allowed": True,
+                "reason": "review_accepted",
+                "record_id": "release-1",
+                "scope": "release",
+                "source_ref": "joint-run",
+                "policy_version": "release-v1",
+            }
+        },
+        language="en",
+    )
+
+    assert display.status == "accepted"
+    assert display.allowed is True
+    assert display.record_id == "release-1"
+    assert "release-1" in display.text
+
+
+def test_release_display_is_fail_closed_when_record_is_missing() -> None:
+    from polynexus.gui.scientific_review_presentation import scientific_release_display
+
+    display = scientific_release_display({}, language="en")
+
+    assert display.allowed is False
+    assert display.status == "required"
+    assert display.reason == "release_missing"

@@ -55,7 +55,7 @@ from .history_compare_service import (
     history_compare_state_label,
 )
 from .history_table_service import build_history_table_rows, write_history_export_table
-from .scientific_review_presentation import scientific_review_display
+from .scientific_review_presentation import scientific_release_display, scientific_review_display
 from .table_clipboard_service import (
     copy_table_selection_to_clipboard as copy_table_selection_text_to_clipboard,
     extract_table_text_matrix,
@@ -143,12 +143,16 @@ class MainWindowHistoryMixin:
         copy_table_selection_text_to_clipboard(table)
 
     def _scientific_review_text(self, record):
-        return scientific_review_display(
+        review = scientific_review_display(
             record,
             technique=str(record.get("technique") or "") if isinstance(record, dict) else "",
             submodule=str(record.get("submodule") or "") if isinstance(record, dict) else "",
             language=get_language(),
         ).text
+        release = scientific_release_display(record, language=get_language(), include_missing=False)
+        if release.status == "not_applicable":
+            return review
+        return " | ".join(part for part in (review, release.text) if part)
 
     def _history_compare_record(self, record):
         if not isinstance(record, dict):

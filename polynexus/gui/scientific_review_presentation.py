@@ -72,6 +72,27 @@ def _review_mapping(value: Any, *, max_depth: int = 8) -> dict[str, Any] | None:
     return None
 
 
+def _release_mapping(value: Any, *, max_depth: int = 8) -> dict[str, Any] | None:
+    """Find the detached project-level release snapshot."""
+
+    if max_depth < 0 or not isinstance(value, Mapping):
+        return None
+    for key in ("scientific_release_decision", "scientific_release"):
+        candidate = value.get(key)
+        if isinstance(candidate, Mapping):
+            snapshot = candidate.get("snapshot")
+            if isinstance(snapshot, Mapping):
+                return dict(snapshot)
+            if "reason" in candidate or "allowed" in candidate:
+                return dict(candidate)
+    for candidate in value.values():
+        if isinstance(candidate, Mapping):
+            found = _release_mapping(candidate, max_depth=max_depth - 1)
+            if found is not None:
+                return found
+    return None
+
+
 def _source_mapping(value: Any) -> Mapping[str, Any]:
     if isinstance(value, Mapping):
         return value
@@ -161,4 +182,66 @@ def scientific_review_display(
     )
 
 
-__all__ = ["ScientificReviewDisplay", "scientific_review_display"]
+def scientific_release_display(
+    value: Any,
+    *,
+    language: str = "en",
+    include_missing: bool = True,
+) -> ScientificReviewDisplay:
+    """Normalize one project-level release snapshot for History and Export."""
+
+    release = _release_mapping(_source_mapping(value))
+    if release is None:
+        if not include_missing:
+            return ScientificReviewDisplay()
+        return ScientificReviewDisplay(
+            status="required",
+            reason="release_missing",
+            scope="release",
+            text=f"{tr_for_language('SCIENTIFIC_RELEASE_LABEL', language)}: {_label('required', language)} | reason=release_missing",
+        )
+
+    reason = str(release.get("reason") or "").strip().lower()
+    allowed = release.get("allowed") is True and reason == "review_accepted"
+    record_id = str(release.get("record_id") or "").strip()
+    scope = str(release.get("scope") or "release").strip()
+    source_ref = str(release.get("source_ref") or "").strip()
+    policy_version = str(release.get("policy_version") or "").strip()
+    if reason == "review_missing":
+        status = "required"
+        reason = "release_missing"
+        allowed = False
+    elif not reason or not record_id or scope != "release":
+        status = "invalid"
+        reason = "release_invalid"
+        allowed = False
+    else:
+        status = _REASON_STATUS.get(reason, "invalid")
+        if status == "invalid":
+            reason = "release_invalid"
+            allowed = False
+
+    parts = [
+        f"{tr_for_language('SCIENTIFIC_RELEASE_LABEL', language)}: {_label(status, language)}",
+        f"reason={reason}",
+    ]
+    if record_id:
+        parts.append(f"record={record_id}")
+    parts.append("scope=release")
+    if source_ref:
+        parts.append(f"source={source_ref}")
+    if policy_version:
+        parts.append(f"policy={policy_version}")
+    return ScientificReviewDisplay(
+        status=status,
+        allowed=bool(allowed),
+        reason=reason,
+        record_id=record_id,
+        scope="release",
+        source_ref=source_ref,
+        policy_version=policy_version,
+        text=" | ".join(parts),
+    )
+
+
+__all__ = ["ScientificReviewDisplay", "scientific_release_display", "scientific_review_display"]

@@ -207,6 +207,76 @@ class MainWindowResultsMixin:
         self._update_work_memory_panel()
         self.log(f"Scientific review saved for {scope} run {run_id}.")
 
+    def _current_release_batch_id(self) -> str:
+        batch_id = str(getattr(self, "_current_batch_id", "") or "").strip()
+        if batch_id:
+            return batch_id
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+        if not run_id or run_id == "current":
+            return ""
+        try:
+            run = self._ensure_sample_db().get_analysis_run(run_id)
+        except Exception:
+            return ""
+        return str(run.get("batch_id") or "").strip() if isinstance(run, dict) else ""
+
+    def _open_scientific_release_dialog(self) -> None:
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+        batch_id = self._current_release_batch_id()
+        if technique == "saxs" or not run_id or run_id == "current" or not batch_id:
+            self.log("Project release review requires a persisted non-SAXS run and batch.")
+            return
+
+        dialog = ScientificReviewDialog(
+            "release",
+            source_refs=self._current_scientific_review_source_refs(),
+            parent=self,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        try:
+            record = dialog.build_record()
+            record_payload = record.to_dict()
+            source_ref = record.source_refs[0] if record.source_refs else ""
+            snapshot = review_decision_snapshot(
+                record,
+                expected_scope="release",
+                source_ref=source_ref,
+            )
+            db = self._ensure_sample_db()
+            if not db.save_scientific_release_review(batch_id, record_payload, snapshot):
+                self.log("Project release review could not be attached to the selected batch.")
+                return
+        except (TypeError, ValueError) as exc:
+            self.log(f"Project release review was not saved: {exc}")
+            return
+
+        self._apply_scientific_release_to_current_result(record_payload, snapshot)
+        self._refresh_history()
+        self._update_results_review_panel()
+        self._update_work_memory_panel()
+        self.log(f"Project release review saved for batch {batch_id}.")
+
+    def _apply_scientific_release_to_current_result(self, record_payload: dict, snapshot: dict) -> None:
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        result = getattr(self, "_results", {}).get(technique)
+        if result is None:
+            return
+        if isinstance(result, dict):
+            metadata = result.setdefault("metadata", {})
+            evidence = result.setdefault("analysis_evidence", {})
+        else:
+            metadata = getattr(result, "metadata", None)
+            evidence = getattr(result, "analysis_evidence", None)
+            if not isinstance(metadata, dict) or not isinstance(evidence, dict):
+                return
+        metadata["scientific_release"] = dict(record_payload)
+        metadata["scientific_release_decision"] = dict(snapshot)
+        evidence["scientific_release_record"] = dict(record_payload)
+        evidence["scientific_release"] = dict(snapshot)
+
     def _apply_scientific_review_to_current_result(self, record_payload: dict, snapshot: dict) -> None:
         technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
         result = getattr(self, "_results", {}).get(technique)
@@ -456,6 +526,11 @@ class MainWindowResultsMixin:
         self._results_review_scientific_btn.setVisible(False)
         self._results_review_scientific_btn.clicked.connect(self._open_scientific_review_dialog)
         review_actions.addWidget(self._results_review_scientific_btn)
+        self._results_release_btn = QPushButton(tr("RESULTS_WORKBENCH_RELEASE_ACTION"))
+        self._results_release_btn.setObjectName("secondary_btn")
+        self._results_release_btn.setVisible(False)
+        self._results_release_btn.clicked.connect(self._open_scientific_release_dialog)
+        review_actions.addWidget(self._results_release_btn)
         self._results_review_joint_btn = QPushButton(tr("RESULTS_REVIEW_OPEN_JOINT"))
         self._results_review_joint_btn.setObjectName("secondary_btn")
         self._results_review_joint_btn.clicked.connect(self._jump_to_joint_hub)
@@ -942,6 +1017,14 @@ class MainWindowResultsMixin:
                 bool(gated and persisted and persisted != "current")
             )
             self._results_review_scientific_btn.setText(tr("RESULTS_WORKBENCH_REVIEW_ACTION"))
+        if hasattr(self, "_results_release_btn"):
+            technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+            persisted = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+            batch_id = self._current_release_batch_id()
+            available = bool(technique != "saxs" and persisted and persisted != "current" and batch_id)
+            self._results_release_btn.setVisible(available)
+            self._results_release_btn.setEnabled(available)
+            self._results_release_btn.setText(tr("RESULTS_WORKBENCH_RELEASE_ACTION"))
         if hasattr(self, "_results_review_title"):
             self._results_review_title.setText(panel_texts.title_text)
         self._results_review_group.setVisible(True)

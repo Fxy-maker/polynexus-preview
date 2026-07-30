@@ -1,5 +1,24 @@
 # Active Work
 
+## Project release decision provenance - verified, checkpoint ready - 2026-07-30
+
+- The non-SAXS Results Workbench now records an append-only, batch-scoped
+  release decision using `ScientificReviewRecord(scope="release")`. The
+  latest detached snapshot is hydrated into current Results, History, and
+  Export contexts; absent records remain `release_missing` and saving does not
+  alter numeric analysis values, Figure roles, or scientific conclusions.
+- Fresh focused verification passed `61` tests in `1.53s`, exit 0. The task
+  verifier passed with quality `291` and preprocessing `106`; task/memory,
+  Ruff, compile, type baseline, whitespace, and boundary audit checks exited
+  0. `git diff --check` also exited 0.
+- This closes the software/provenance slice only. IR vendor mapping, NMR
+  solid-C assignments, Joint conflict precedence, and reviewer-owned final
+  `approve/conditional/reject` approval remain open scientific gates. SAXS,
+  real datasets, and the pre-existing `current-state.md` modification remain
+  outside this checkpoint.
+- Evidence: `docs/agent/tasks/2026-07-30-project-release-decision.md` and
+  `docs/acceptance/2026-07-30-project-release-decision.md`.
+
 - Scientific review canonical source matching completed on 2026-07-30 for
   non-SAXS Workbench saves. When nested evidence and the current input path
   produce multiple refs, the saved decision snapshot now binds to the first

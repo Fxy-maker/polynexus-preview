@@ -385,6 +385,39 @@ def test_export_context_carries_structured_scientific_review_and_readme_text():
     assert "review-ir-map-1" in text
 
 
+def test_export_context_carries_project_release_provenance():
+    window = _FakeWindow()
+    window._current_analysis_evidence = lambda: {
+        "scientific_release": {
+            "allowed": True,
+            "reason": "review_accepted",
+            "record_id": "release-1",
+            "scope": "release",
+            "source_ref": "joint-run",
+            "policy_version": "release-v1",
+        }
+    }
+
+    context = build_export_context_payload(window)
+
+    assert context["scientific_release"]["status"] == "accepted"
+    assert context["scientific_release"]["record_id"] == "release-1"
+    assert "release-1" in context["scientific_release_text"]
+
+    text = export_readme_text(
+        project_name="PA6",
+        generated_at="2026-07-30 12:00:00",
+        techniques="Joint",
+        source_data_path="D:/data/joint-run",
+        primary_report="",
+        export_context=context,
+        joint_detail="",
+        confirmed_review_label="Confirmed reference",
+    )
+    assert "Scientific release:" in text
+    assert "release-1" in text
+
+
 def test_copy_export_bundle_sections_copies_available_sections(tmp_path):
     source = tmp_path / "source"
     figures = source / "figures"

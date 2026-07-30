@@ -210,6 +210,17 @@ def validate_review_record(record: ScientificReviewRecord) -> ScientificReviewRe
     missing = [key for key in required if not _is_present(record.decisions.get(key))]
     if missing:
         raise ValueError(f"missing required decisions: {', '.join(missing)}")
+    if record.scope == "release":
+        expected_decision = {
+            "accepted": "approve",
+            "conditional": "conditional",
+            "rejected": "reject",
+        }.get(record.status)
+        supplied_decision = str(record.decisions.get("release_decision") or "").strip().lower()
+        if expected_decision and supplied_decision != expected_decision:
+            raise ValueError(
+                f"release status requires decision {expected_decision}, got {supplied_decision or '<empty>'}"
+            )
     return record
 
 

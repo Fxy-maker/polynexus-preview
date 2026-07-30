@@ -101,6 +101,35 @@ def _accepted_saxs_2d_record() -> ScientificReviewRecord:
     )
 
 
+def _release_record(*, status: str = "accepted", decision: str = "approve") -> ScientificReviewRecord:
+    return ScientificReviewRecord(
+        record_id=f"release-{status}-{decision}",
+        scope="release",
+        reviewer="reviewer-release",
+        reviewed_at="2026-07-30",
+        policy_version="release-v1",
+        source_refs=("ir-run", "nmr-run", "joint-run"),
+        decisions={
+            "release_decision": decision,
+            "conditions_or_followups": "none",
+        },
+        status=status,
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "decision"),
+    (("accepted", "approve"), ("conditional", "conditional"), ("rejected", "reject")),
+)
+def test_release_record_accepts_matching_status_and_decision(status: str, decision: str) -> None:
+    assert validate_review_record(_release_record(status=status, decision=decision)).scope == "release"
+
+
+def test_release_record_rejects_status_and_decision_mismatch() -> None:
+    with pytest.raises(ValueError, match="release status requires decision"):
+        validate_review_record(_release_record(status="accepted", decision="conditional"))
+
+
 def test_pending_record_is_json_safe_but_not_promotable() -> None:
     record = ScientificReviewRecord.pending(
         record_id="review-ir-1",
