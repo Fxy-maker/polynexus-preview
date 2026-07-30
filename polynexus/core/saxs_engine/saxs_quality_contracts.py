@@ -2190,6 +2190,153 @@ def _audit_mapping_tree(value: Any) -> Iterable[Mapping[str, Any]]:
             yield from _audit_mapping_tree(child)
 
 
+_RAW_DETECTOR_GEOMETRY_FIELDS = (
+    "wavelength_m",
+    "pixel_size_m",
+    "sdd_m",
+    "beam_center_x",
+    "beam_center_y",
+)
+_PROVENANCE_VALIDITIES = {"validated", "not_assessed", "invalid"}
+
+
+def _audit_raw_detector_provenance(
+    report: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Audit supplied raw-detector provenance without assessing calibration."""
+
+    source_kind = str(report.get("source_kind") or "").strip().lower()
+    if source_kind != "raw_detector":
+        return None
+
+    reasons: list[str] = []
+    unusable_reasons: set[str] = set()
+    review_reasons: set[str] = set()
+
+    def add_reason(reason: str, *, unusable: bool = False) -> None:
+        if reason not in reasons:
+            reasons.append(reason)
+        (unusable_reasons if unusable else review_reasons).add(reason)
+
+    raw_shape = report.get("shape")
+    shape = (
+        [int(value) for value in raw_shape]
+        if isinstance(raw_shape, (list, tuple))
+        and len(raw_shape) == 2
+        and all(isinstance(value, (int, np.integer)) for value in raw_shape)
+        else None
+    )
+    if shape is None or any(value <= 0 for value in shape):
+        add_reason("detector_shape_not_two_dimensional", unusable=True)
+
+    raw_pixel_count = report.get("pixel_count")
+    try:
+        pixel_count = int(raw_pixel_count)
+    except (TypeError, ValueError, OverflowError):
+        pixel_count = None
+    if shape is not None and pixel_count != shape[0] * shape[1]:
+        add_reason("detector_pixel_count_mismatch", unusable=True)
+
+    geometry = report.get("geometry_provenance")
+    if isinstance(geometry, Mapping):
+        geometry_validity = geometry.get("validity")
+        geometry_source = geometry.get("source")
+        raw_field_sources = geometry.get("field_sources")
+        field_sources = (
+            {str(key): str(value) for key, value in raw_field_sources.items()}
+            if isinstance(raw_field_sources, Mapping)
+            else {}
+        )
+    else:
+        geometry_validity = None
+        geometry_source = None
+        field_sources = {}
+        add_reason("geometry_provenance_missing")
+
+    missing_field_sources = [
+        name for name in _RAW_DETECTOR_GEOMETRY_FIELDS if not field_sources.get(name)
+    ]
+    if missing_field_sources:
+        add_reason("geometry_field_sources_missing")
+
+    def inspect_validity(value: Any, prefix: str) -> str | None:
+        if value is None:
+            add_reason(f"{prefix}_validity_missing")
+            return None
+        normalized = str(value).strip().lower()
+        if normalized not in _PROVENANCE_VALIDITIES:
+            add_reason(f"{prefix}_validity_unknown")
+        elif normalized == "not_assessed":
+            add_reason(f"{prefix}_validity_not_assessed")
+        elif normalized == "invalid":
+            add_reason(f"{prefix}_validity_invalid", unusable=True)
+        return normalized
+
+    geometry_validity = inspect_validity(geometry_validity, "geometry")
+
+    mask = report.get("mask_provenance")
+    if isinstance(mask, Mapping):
+        mask_validity = inspect_validity(mask.get("validity"), "mask")
+        mask_source = mask.get("source")
+        configured = mask.get("configured")
+        configured = configured if isinstance(configured, bool) else None
+        raw_mask_shape = mask.get("shape")
+        mask_shape = (
+            [int(value) for value in raw_mask_shape]
+            if isinstance(raw_mask_shape, (list, tuple))
+            and len(raw_mask_shape) == 2
+            and all(isinstance(value, (int, np.integer)) for value in raw_mask_shape)
+            else None
+        )
+    else:
+        mask_validity = None
+        mask_source = None
+        configured = None
+        mask_shape = None
+        add_reason("mask_provenance_missing")
+
+    shape_matches_detector = (
+        mask_shape == shape if mask_shape is not None and shape is not None else None
+    )
+    if configured is True and shape_matches_detector is not True:
+        add_reason("mask_shape_mismatch", unusable=True)
+
+    geometry_payload = {
+        "validity": geometry_validity,
+        "source": geometry_source,
+        "field_sources": dict(field_sources),
+        "missing_field_sources": list(missing_field_sources),
+    }
+    mask_payload = {
+        "validity": mask_validity,
+        "source": mask_source,
+        "configured": configured,
+        "shape": list(mask_shape) if mask_shape is not None else None,
+        "shape_matches_detector": shape_matches_detector,
+    }
+
+    if unusable_reasons:
+        status = "unusable"
+        level = QualityLevel.UNUSABLE.value
+    elif review_reasons:
+        status = "review_required"
+        level = QualityLevel.DIAGNOSTIC.value
+    else:
+        status = "structurally_consistent"
+        level = QualityLevel.TREND.value
+
+    return {
+        "status": status,
+        "level": level,
+        "source_kind": source_kind,
+        "shape": list(shape) if shape is not None else None,
+        "pixel_count": pixel_count,
+        "reason_codes": list(reasons),
+        "geometry": geometry_payload,
+        "mask": mask_payload,
+    }
+
+
 def build_saxs_scientific_acceptance_audit(
     validation_passed: Any,
     parameters: Mapping[str, Any] | None,
@@ -2215,6 +2362,7 @@ def build_saxs_scientific_acceptance_audit(
     provenance_validity: dict[str, list[str]] = {}
     physical_gate_evidence: dict[str, list[dict[str, Any]]] = {}
     method_gate_status: dict[str, list[bool | None]] = {}
+    detector_provenance_audit: dict[str, list[dict[str, Any]]] = {}
     existing_reasons: list[str] = []
     provenance_blockers: list[str] = []
 
@@ -2282,6 +2430,12 @@ def build_saxs_scientific_acceptance_audit(
             report = node.get(field_name)
             if isinstance(report, Mapping):
                 inspect_report(field_name, report)
+                if field_name == "raw_detector_quality_report":
+                    detector_audit = _audit_raw_detector_provenance(report)
+                    if detector_audit is not None:
+                        detector_provenance_audit.setdefault(field_name, []).append(
+                            detector_audit
+                        )
         metrics = node.get("metric_evidence")
         if isinstance(metrics, Mapping):
             for metric_name, report in metrics.items():
@@ -2343,24 +2497,25 @@ def build_saxs_scientific_acceptance_audit(
 
     for reason in existing_reasons:
         append_unique(reason_codes, reason)
-    return _contract_dict(
-        {
-            "status": status,
-            "automated_validation_passed": validation,
-            "existing_publication_gate": publication_gate,
-            "evidence_levels": evidence_levels,
-            "provenance_validity": provenance_validity,
-            "physical_gate_evidence": physical_gate_evidence,
-            "method_gate_status": method_gate_status,
-            "reliability": {
-                "status": reliability_status or None,
-                "reason": reliability_reason or None,
-            },
-            "reason_codes": reason_codes,
-            "audit_scope": "existing_gates_only",
-            "publication_decision_changed": False,
-        }
-    )
+    audit_payload = {
+        "status": status,
+        "automated_validation_passed": validation,
+        "existing_publication_gate": publication_gate,
+        "evidence_levels": evidence_levels,
+        "provenance_validity": provenance_validity,
+        "physical_gate_evidence": physical_gate_evidence,
+        "method_gate_status": method_gate_status,
+        "reliability": {
+            "status": reliability_status or None,
+            "reason": reliability_reason or None,
+        },
+        "reason_codes": reason_codes,
+        "audit_scope": "existing_gates_only",
+        "publication_decision_changed": False,
+    }
+    if detector_provenance_audit:
+        audit_payload["detector_provenance_audit"] = detector_provenance_audit
+    return _contract_dict(audit_payload)
 
 
 def contract_json(value: Any) -> str:
