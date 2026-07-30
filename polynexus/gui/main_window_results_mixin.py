@@ -136,13 +136,37 @@ class MainWindowResultsMixin:
         if not isinstance(metadata, dict):
             metadata = {}
         refs: list[str] = []
+
+        def append_ref(value) -> None:
+            if isinstance(value, (dict, list, tuple, set)):
+                return
+            text = str(value or "").strip()
+            if text and text not in refs:
+                refs.append(text)
+
         for key in ("mapping_source_id", "source_id", "batch_id"):
-            value = str(metadata.get(key) or "").strip()
-            if value and value not in refs:
-                refs.append(value)
+            append_ref(metadata.get(key))
+
+        evidence = find_analysis_evidence(payload)
+        pending = [evidence] if isinstance(evidence, dict) else []
+        visited: set[int] = set()
+        while pending:
+            node = pending.pop()
+            marker = id(node)
+            if marker in visited:
+                continue
+            visited.add(marker)
+            if isinstance(node, dict):
+                for key in ("mapping_source_id", "source_id", "batch_id"):
+                    append_ref(node.get(key))
+                for value in node.values():
+                    if isinstance(value, dict):
+                        pending.append(value)
+                    elif isinstance(value, (list, tuple, set)):
+                        pending.extend(item for item in value if isinstance(item, dict))
+
         current_file = str(getattr(self, "_current_filepath", "") or "").strip()
-        if current_file and current_file not in refs:
-            refs.append(current_file)
+        append_ref(current_file)
         return tuple(refs)
 
     def _open_scientific_review_dialog(self) -> None:

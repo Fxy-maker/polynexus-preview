@@ -177,3 +177,29 @@ def test_workbench_review_application_updates_only_generic_result_provenance() -
     assert result.analysis_evidence["existing"] == "keep"
     assert result.analysis_evidence["scientific_review"] == snapshot
     assert result.analysis_evidence["scientific_review_record"] == record_payload
+
+
+def test_workbench_source_refs_include_nested_mapping_evidence_source_id() -> None:
+    from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+
+    window = object.__new__(MainWindowResultsMixin)
+    window._current_technique = "ir"
+    window._current_submodule_id = "ir.mapping"
+    window._current_filepath = ""
+    window._results = {
+        "ir": AnalysisResult(
+            technique="ir",
+            metadata={},
+            analysis_evidence={
+                "feature_evidence": {
+                    "mapping_evidence": {
+                        "source_id": "native-synthetic-map.json",
+                    }
+                }
+            },
+        )
+    }
+
+    assert window._current_scientific_review_source_refs() == (
+        "native-synthetic-map.json",
+    )

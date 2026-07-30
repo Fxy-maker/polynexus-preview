@@ -1,5 +1,16 @@
 # Active Work
 
+- Scientific review source-reference hydration completed on 2026-07-30 for
+  non-SAXS Results Workbench routes. Nested `analysis_evidence` identifiers
+  such as IR mapping `source_id` now remain visible to the reviewer dialog;
+  existing metadata/current-file refs remain preserved. Focused Workbench
+  tests pass (`29 passed`), native IR mapping route passes (`1 passed, 16
+  deselected`), and task-scoped verification passes with quality `290` and
+  preprocessing `106`. Native dialog capture is at
+  `D:\PolyNexus_review_entry_native_20260730\scientific_review_dialog.png`.
+  The explicit allowlist checkpoint is this task's commit. SAXS remains out of
+  scope.
+
 ## Scientific Review Workbench entry - verified, checkpoint ready - 2026-07-30
 
 - Results Workbench now exposes a generic Scientific Review dialog for IR
