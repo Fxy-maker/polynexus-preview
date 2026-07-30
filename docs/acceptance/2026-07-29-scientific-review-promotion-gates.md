@@ -64,3 +64,21 @@ remain untouched.
   AI-off/failure/fallback acceptance remain open.
 - Full repository verification needs a bounded rerun or a separately captured
   complete pytest summary; the timeout above cannot certify it.
+
+## Conservative policy alignment (2026-07-30)
+
+The implementation already follows the conservative policy selected for this
+release review:
+
+- NMR solid-C without an accepted source-matched `nmr.solid_c` record remains
+  fully diagnostic. An accepted record can promote only the spectrum; support
+  figures remain SI and deconvolution remains diagnostic.
+- Joint requires an accepted source-matched `joint` record for every selected
+  batch row. Source-specific values and conflicts remain visible, and an
+  unresolved conflict stays diagnostic until human resolution.
+
+The current provider/policy contract subset passed `28` tests in `13.56s`,
+exit code `0`. This confirms the fail-closed implementation and its recipe/
+role projection. The accepted records in tests are contract fixtures, not
+real reviewer signatures; the real solid-C lifecycle remains `review_missing`
+and no scientific release promotion is claimed.
