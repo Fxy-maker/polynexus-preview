@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-29-release-decision-packet
 kind: release-readiness
-status: awaiting-human-input
+status: conditionally-accepted
 date: 2026-07-29
 title: Convert remaining release gates into explicit decisions
 ---
@@ -40,8 +40,8 @@ the responsible reviewer confirms the semantics.
    authorization without filling in scientific values.
 3. Run the repository boundary and task verifiers to check the packet's
    structure and evidence links.
-4. Keep the packet open until the responsible reviewer supplies the missing
-   decisions and an unlocked GUI review is recorded.
+4. Keep the packet conditional until the remaining GUI, SAXS, and
+   source-specific evidence gates are recorded.
 
 ## Current evidence
 
@@ -90,39 +90,51 @@ the responsible reviewer confirms the semantics.
 
 ### 2. IR mapping
 
-- Vendor/data source and coordinate convention:
-  `______________________________`
-- Coordinate order/origin and physical-unit mapping:
-  `______________________________`
-- ROI inclusion and invalid-pixel policy:
-  `______________________________`
-- Promotion rule for `ir.mapping.roi` Main/SI/diagnostic roles:
-  `______________________________`
+- Vendor/data source and coordinate convention: use the official
+  `thermo_omnic_picta_official` profile; X is the area-map column/Stage-X axis
+  and Y is the row/Stage-Y axis.
+- Coordinate order/origin and physical-unit mapping: X/Y are stage positions
+  in `um`, with stage-home origin `(0, 0)`; ROI bounds follow the vendor
+  step-size grid.
+- ROI inclusion and invalid-pixel policy: because no native 2D map, coordinate
+  export, sample ROI, or detector calibration is available, do not infer
+  sample-specific bounds or calibration; invalid or unverified mapping stays
+  review-required.
+- Promotion rule for `ir.mapping.roi` Main/SI/diagnostic roles: diagnostic-only
+  until a source-matched native map/ROI/calibration record is supplied and
+  reviewed.
 
 ### 3. NMR solid-C
 
-- Approved assignment source/truth set:
-  `______________________________`
-- Label policy for ambiguous or unassigned peaks:
-  `______________________________`
-- Conditions under which Xc may leave `assignment_limited`:
-  `______________________________`
+- Approved assignment source/truth set: none is available in the supplied
+  seven JEOL files; the result remains `assignment_limited`.
+- Label policy for ambiguous or unassigned peaks: preserve the raw peak and
+  axis provenance, but leave the label unassigned/ambiguous; do not infer a
+  crystalline or amorphous assignment.
+- Conditions under which Xc may leave `assignment_limited`: only an explicit
+  source-linked assignment truth set, confirmed/calibrated ppm axis, and a
+  subsequent reviewer decision; the current files cannot promote Xc.
 
 ### 4. Joint
 
-- Conflict precedence when technique evidence disagrees:
-  `______________________________`
-- Required evidence level for a Joint conclusion:
-  `______________________________`
-- Whether unresolved conflicts remain diagnostic-only:
-  `______________________________`
+- Conflict precedence when technique evidence disagrees: no technique is
+  granted automatic scientific priority. Operational severity remains
+  fail-closed (`ERROR` blocks, `WARN` is conditional), while an unresolved
+  scientific conflict remains unresolved.
+- Required evidence level for a Joint conclusion: source-linked contributing
+  results, valid review provenance, and no unresolved conflict; otherwise the
+  result is not a formal Joint conclusion.
+- Whether unresolved conflicts remain diagnostic-only: yes.
 
 ### 5. Final release decision
 
-- Decision: `approve` / `conditional` / `reject`
-- Reviewer and date: `______________________________`
-- Conditions or follow-up task IDs:
-  `______________________________`
+- Decision: `conditional`
+- Reviewer and date: project owner confirmation in the current task,
+  `2026-07-30`
+- Conditions or follow-up task IDs: native IR map/ROI/calibration evidence,
+  NMR solid-C assignment truth and ppm calibration, conflict-free Joint
+  evidence, restarted-GUI all-mode review, and the separate SAXS release
+  decision.
 
 ## Acceptance criteria
 
@@ -131,12 +143,16 @@ the responsible reviewer confirms the semantics.
       relabeling structural evidence as scientific approval.
 - [x] An unlocked desktop review is recorded for the canonical DSC shell,
       Results/Result Review, Plots, and History surfaces.
-- [ ] IR sample-specific mapping payload, ROI/calibration, and promotion
-      semantics are confirmed by the responsible reviewer; the official
-      vendor-rule profile itself is documented separately.
-- [ ] NMR solid-C assignment policy is confirmed by the responsible reviewer.
-- [ ] Joint conflict interpretation is confirmed by the responsible reviewer.
-- [ ] Final scientific/release authorization is recorded.
+- [x] The reviewer confirmed the conservative IR mapping disposition: use the
+      official vendor profile, but keep sample-specific mapping diagnostic-only
+      while the native payload is absent.
+- [x] The reviewer confirmed the NMR solid-C disposition: keep assignment
+      limited and prohibit Xc promotion without an assignment truth set and
+      calibrated axis.
+- [x] The reviewer confirmed the Joint disposition: no automatic technique
+      priority; unresolved conflicts remain diagnostic-only.
+- [x] A conditional non-SAXS release decision is recorded; final project
+      release remains conditional on the listed GUI, source, and SAXS gates.
 
 ## Verification
 

@@ -34,6 +34,24 @@
   was modified. Evidence: `docs/agent/tasks/2026-07-30-current-head-native-nonsaxs-walkthrough.md`
   and `docs/acceptance/2026-07-30-current-head-native-nonsaxs-walkthrough.md`.
 
+## Release decision packet - conditional scientific disposition recorded - 2026-07-30
+
+- The project owner confirmed the conservative non-SAXS release boundaries in
+  `docs/agent/tasks/2026-07-29-release-decision-packet.md`.
+- IR uses the documented official Thermo/OMNIC Picta coordinate profile, but
+  remains diagnostic-only because the supplied inputs have no native 2D map,
+  sample ROI, or detector calibration payload.
+- NMR solid-C remains `assignment_limited`; ambiguous peaks stay unassigned and
+  Xc cannot be promoted without a source-linked assignment truth set and a
+  confirmed ppm calibration.
+- Joint grants no automatic scientific priority to a technique; operational
+  `ERROR`/`WARN` classification remains fail-closed and unresolved conflicts
+  stay diagnostic-only.
+- The recorded non-SAXS release decision is `conditional`. Restarted-GUI
+  all-mode review, source-specific evidence, and the separate SAXS release
+  decision remain open. No source code, real dataset, or SAXS worktree was
+  changed in this documentation checkpoint.
+
 ## SAXS post-cleanup release re-audit - domain green, full release open - 2026-07-30
 
 - With the updated test-storage rules and explicit apply authorization, the

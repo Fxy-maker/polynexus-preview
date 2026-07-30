@@ -1,6 +1,7 @@
 # Release decision packet acceptance
 
-Status: awaiting human input; the overall software goal remains active.
+Status: conditional decision recorded; the overall software goal remains
+active.
 
 The packet separates the remaining release gates into four decisions:
 
@@ -16,13 +17,14 @@ Stage-X axis, Y is the map-row Stage-Y axis, both use `um`, the stage-home
 origin is `(0, 0)`, and ROI bounds follow the vendor step-size grid. Because
 the workspace has no native 2D map or coordinate export, sample-specific ROI,
 flattening order, detector calibration, and source-matched reviewer acceptance
-remain unverified. The repository therefore keeps IR mapping, NMR solid-C, and
-unresolved Joint results diagnostic or assignment-limited until the remaining
-fields are confirmed. No scientific conclusion or release approval is inferred
-by this packet.
+remain unavailable. The project owner confirmed the conservative disposition:
+IR mapping remains diagnostic-only; NMR solid-C remains assignment-limited and
+cannot promote Xc; and unresolved Joint conflicts remain diagnostic-only. No
+scientific conclusion beyond those boundaries is inferred by this packet.
 
-The unchecked criteria cannot be closed by pytest or `boundary_audit.py`; they
-require an authorized scientific/release reviewer.
+The remaining conditional criteria cannot be closed by pytest or
+`boundary_audit.py`; they require the source-specific evidence, restarted-GUI
+review, and separate SAXS decision listed below.
 
 ## Unlocked canonical GUI recheck
 
@@ -39,8 +41,8 @@ loaded the read-only `C:\Users\Fan Xuyi\Desktop\DSC\PA6.txt` fixture.
 
 This records a live shell/workbench visual check, not an all-mode publication
 approval. The all-mode native route evidence remains the automated 17-case /
-68-capture matrix, and the IR, NMR solid-C, Joint, and final release decisions
-remain open below.
+68-capture matrix; the three scientific dispositions below are recorded, while
+the final release remains conditional.
 
 ## Current-checkout evidence recheck
 
@@ -66,6 +68,26 @@ remain open below.
   promote unresolved conflicts beyond diagnostic status.
 - No reviewer record, scientific role, or release state changed during this
   recheck.
+
+## Reviewer decision (2026-07-30)
+
+The project owner confirmed the following fail-closed decisions in the current
+task:
+
+- IR uses the official Thermo/OMNIC Picta coordinate profile, but the current
+  1D/temperature inputs do not authorize sample-specific ROI, flattening, or
+  detector calibration. Mapping stays diagnostic-only.
+- NMR solid-C has no approved assignment truth set in the supplied files.
+  Ambiguous peaks remain unassigned, the axis remains explicitly uncalibrated,
+  and Xc cannot leave `assignment_limited`.
+- Joint assigns no automatic scientific priority to one technique. Operational
+  severity remains `ERROR` -> blocked and `WARN` -> conditional; unresolved
+  scientific conflicts stay diagnostic-only.
+
+The non-SAXS release decision is therefore `conditional`, with the remaining
+conditions being source-specific evidence, restarted-GUI all-mode review, and
+the separate SAXS release decision. This is a reviewer decision record, not a
+claim that those missing inputs or gates have been supplied.
 
 ## Raw fixture inventory recheck (2026-07-30)
 
