@@ -11,6 +11,7 @@ from polynexus.core.ir_engine.ir_mapping import (
     IRMappingROISpectrum,
     IRMappingResult,
     build_ir_mapping_figure_definitions,
+    official_thermo_omnic_picta_semantics,
     validate_ir_mapping_result,
 )
 from polynexus.core.ir import IREngine
@@ -140,6 +141,50 @@ def test_ir_mapping_result_exposes_structural_evidence_without_scientific_infere
     assert mapping["valid_pixel_ratio"] == 0.75
     assert mapping["status"] == "review_required"
     assert mapping["source_id"] == "map-a.json"
+
+
+def test_official_thermo_omnic_picta_semantics_are_explicit_and_json_safe() -> None:
+    semantics = official_thermo_omnic_picta_semantics()
+
+    assert semantics["profile_id"] == "thermo_omnic_picta_official"
+    assert semantics["spatial_axes"]["x"] == {
+        "coordinate_role": "column",
+        "physical_axis": "microscope_stage_x",
+        "unit": "um",
+    }
+    assert semantics["spatial_axes"]["y"] == {
+        "coordinate_role": "row",
+        "physical_axis": "microscope_stage_y",
+        "unit": "um",
+    }
+    assert semantics["origin"] == {
+        "kind": "stage_home",
+        "x": 0.0,
+        "y": 0.0,
+    }
+    assert semantics["roi"]["kind"] == "area_map_boundary_or_explicit_roi"
+    assert semantics["roi"]["step_size_policy"] == "vendor_adjusted_grid"
+    assert semantics["serialization"]["order"] == "unknown_without_vendor_map"
+    assert semantics["status"] == "official_rule_sample_metadata_unverified"
+    assert json.loads(json.dumps(semantics, ensure_ascii=True)) == semantics
+
+
+def test_ir_mapping_exposes_official_semantics_in_evidence_and_figure_recipes() -> None:
+    result = _mapping_result()
+    semantics = official_thermo_omnic_picta_semantics()
+
+    evidence = result.to_evidence()["feature_evidence"]["mapping_evidence"]
+    definitions = build_ir_mapping_figure_definitions(result)
+
+    assert evidence["mapping_semantics"] == semantics
+    assert definitions[0].recipe["mapping_semantics"] == semantics
+    assert definitions[1].recipe["mapping_semantics"] == semantics
+    assert definitions[2].recipe["mapping_semantics"] == semantics
+    assert definitions[0].layout.panels[0].x_axis.label == "X position (um)"
+    assert definitions[0].layout.panels[0].y_axis.label == "Y position (um)"
+    source_columns = {column.name: column.unit for column in definitions[0].data_sources[0].columns}
+    assert source_columns["column_coordinate"] == "um"
+    assert source_columns["row_coordinate"] == "um"
 
 
 def test_ir_mapping_without_review_is_fail_closed_and_traceable() -> None:

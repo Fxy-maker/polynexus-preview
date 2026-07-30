@@ -45,6 +45,7 @@ from .ir_mapping import (
     IRMappingROISpectrum,
     IRMappingResult,
     build_ir_mapping_figure_definitions,
+    official_thermo_omnic_picta_semantics,
     validate_ir_mapping_result,
 )
 
@@ -100,5 +101,6 @@ __all__ = [
     "generate_gaussian_input", "generate_orca_input", "generate_xyz_from_smiles",
     "POLYMER_SMILES", "GAUSSIAN_ROUTES", "ORCA_ROUTES",
     "IRMappingROISpectrum", "IRMappingResult",
-    "build_ir_mapping_figure_definitions", "validate_ir_mapping_result",
+    "build_ir_mapping_figure_definitions", "official_thermo_omnic_picta_semantics",
+    "validate_ir_mapping_result",
 ]

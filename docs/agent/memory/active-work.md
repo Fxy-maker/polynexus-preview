@@ -1,5 +1,22 @@
 # Active Work
 
+## IR Thermo/OMNIC mapping semantics - verified, checkpointed - 2026-07-30
+
+- The IR mapping contract now publishes the official Thermo Scientific OMNIC
+  Picta semantics profile: X is the column/stage-X axis, Y is the row/stage-Y
+  axis, units are `um`, origin is stage home `(0, 0)`, and area-map ROI bounds
+  may expand to fit the vendor step-size grid.
+- The profile is explicitly marked `official_rule_sample_metadata_unverified`;
+  native map absence leaves sample ROI bounds, detector calibration, and
+  flattened scan order unknown. No vendor reader or scientific review
+  promotion rule was added.
+- Focused mapping/lifecycle tests passed (`18 passed`). Task verification
+  passed with quality `290` and preprocessing `106`; storage reporting was
+  read-only (`55` artifacts, `eligible_bytes=0`, no removal).
+- Full IR regression passed (`55 passed in 41.70s`). The explicit allowlist
+  checkpoint was created with no push performed.
+- Evidence: `docs/acceptance/2026-07-30-ir-thermo-mapping-semantics.md`.
+
 ## SAXS series metric source-index integrity - verified, checkpoint pending - 2026-07-30
 
 - `build_series_metric_evidence()` now validates supplied frame source indices

@@ -26,6 +26,53 @@ from polynexus.core.scientific_review import (
 )
 
 
+def official_thermo_omnic_picta_semantics() -> dict[str, Any]:
+    """Return the documented Thermo/OMNIC Picta mapping semantics.
+
+    This is a semantic reference profile, not a vendor-file parser.  It keeps
+    sample-specific bounds, detector settings, and flattened scan order
+    explicitly unverified until a native map or coordinate export is supplied.
+    """
+
+    return {
+        "profile_id": "thermo_omnic_picta_official",
+        "source": {
+            "publisher": "Thermo Fisher Scientific",
+            "document": "OMNIC Picta User Guide",
+            "revision": "269-257900 Rev A",
+            "url": "https://knowledge1.thermofisher.com/Molecular_Spectroscopy/Molecular_Spectroscopy_Software/OMNIC_Family/OMNIC_Picta_Software/OMNIC_Picta__Suite_Operator_Manuals/269-257900_-_REV_A_-_OMNIC_Picta_User_Guide",
+        },
+        "spatial_axes": {
+            "x": {
+                "coordinate_role": "column",
+                "physical_axis": "microscope_stage_x",
+                "unit": "um",
+            },
+            "y": {
+                "coordinate_role": "row",
+                "physical_axis": "microscope_stage_y",
+                "unit": "um",
+            },
+        },
+        "origin": {
+            "kind": "stage_home",
+            "x": 0.0,
+            "y": 0.0,
+        },
+        "roi": {
+            "kind": "area_map_boundary_or_explicit_roi",
+            "coordinate_system": "stage_xy",
+            "step_size_policy": "vendor_adjusted_grid",
+            "sample_bounds": "unverified_without_vendor_map",
+        },
+        "serialization": {
+            "order": "unknown_without_vendor_map",
+            "reason": "official guide defines X/Y roles but not flattened array order",
+        },
+        "status": "official_rule_sample_metadata_unverified",
+    }
+
+
 @dataclass
 class IRMappingROISpectrum:
     """One explicitly selected ROI spectrum and its upstream provenance."""
@@ -72,6 +119,7 @@ class IRMappingResult:
 
         validate_ir_mapping_result(self)
         scientific_review = _mapping_scientific_review_decision(self.provenance)
+        mapping_semantics = official_thermo_omnic_picta_semantics()
         return {
             "submodule_id": "ir.mapping",
             "feature_evidence": {
@@ -85,6 +133,7 @@ class IRMappingResult:
                     "assignment_roi_count": sum(bool(item.assignments) for item in self.roi_spectra),
                     "source_id": str(self.provenance["source_id"]),
                     "status": "review_required" if self.invalid_pixel_count else "ready_for_review",
+                    "mapping_semantics": mapping_semantics,
                     "scientific_review": scientific_review,
                 }
             },
@@ -151,6 +200,7 @@ def build_ir_mapping_figure_definitions(
     rows, columns = values.shape
     row_coordinates = np.asarray(result.row_coordinates, dtype=float)
     column_coordinates = np.asarray(result.column_coordinates, dtype=float)
+    mapping_semantics = official_thermo_omnic_picta_semantics()
     provenance = {
         "source_kind": str(result.provenance.get("source_kind", "explicit_mapping_payload")),
         "source_id": str(result.provenance["source_id"]),
@@ -161,8 +211,8 @@ def build_ir_mapping_figure_definitions(
     map_source = FigureDataSourceDefinition(
         source_id="ir-mapping-map",
         columns=(
-            DataColumnDefinition("column_coordinate", ""),
-            DataColumnDefinition("row_coordinate", ""),
+            DataColumnDefinition("column_coordinate", "um"),
+            DataColumnDefinition("row_coordinate", "um"),
             DataColumnDefinition("value", "a.u."),
         ),
         values={
@@ -179,6 +229,7 @@ def build_ir_mapping_figure_definitions(
         "map_metric": result.map_metric,
         "valid_pixel_ratio": result.valid_pixel_ratio,
         "invalid_pixel_count": result.invalid_pixel_count,
+        "mapping_semantics": mapping_semantics,
         "scientific_review": scientific_review,
         "v2_adapter": "ir",
     }
@@ -190,7 +241,7 @@ def build_ir_mapping_figure_definitions(
             category="series_overview",
             publication_role="main" if promoted else "diagnostic",
             title=f"IR Mapping — {result.map_metric}",
-            layout=_mapping_layout("Column coordinate", "Row coordinate"),
+            layout=_mapping_layout("X position (um)", "Y position (um)"),
             data_sources=(map_source,),
             objects=(
                 {
@@ -223,8 +274,8 @@ def build_ir_mapping_figure_definitions(
     invalid_source = FigureDataSourceDefinition(
         source_id="ir-mapping-invalid-pixels",
         columns=(
-            DataColumnDefinition("column_coordinate", ""),
-            DataColumnDefinition("row_coordinate", ""),
+            DataColumnDefinition("column_coordinate", "um"),
+            DataColumnDefinition("row_coordinate", "um"),
             DataColumnDefinition("invalid", "", dtype="int64"),
         ),
         values={
@@ -242,7 +293,7 @@ def build_ir_mapping_figure_definitions(
             category="diagnostic",
             publication_role="diagnostic",
             title="IR Mapping Invalid-Pixel Diagnostics",
-            layout=_mapping_layout("Column coordinate", "Row coordinate"),
+            layout=_mapping_layout("X position (um)", "Y position (um)"),
             data_sources=(invalid_source,),
             objects=(
                 {
@@ -367,5 +418,6 @@ __all__ = [
     "IRMappingROISpectrum",
     "IRMappingResult",
     "build_ir_mapping_figure_definitions",
+    "official_thermo_omnic_picta_semantics",
     "validate_ir_mapping_result",
 ]
