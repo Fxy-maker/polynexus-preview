@@ -979,6 +979,67 @@ def _scientific_acceptance_audit_review_text(
     )
 
 
+def _detector_provenance_audit_review_text(
+    payload: Mapping[str, Any],
+    *,
+    language: str,
+) -> tuple[str, str]:
+    """Present raw-detector structural audit evidence without accepting it."""
+
+    audit = payload.get("scientific_acceptance_audit")
+    if not isinstance(audit, Mapping):
+        return "", ""
+    detector_audit = audit.get("detector_provenance_audit")
+    if not isinstance(detector_audit, Mapping):
+        return "", ""
+    reports = detector_audit.get("raw_detector_quality_report")
+    if not isinstance(reports, (list, tuple)):
+        return "", ""
+
+    details: list[str] = []
+    needs_review = False
+    for report in reports:
+        if not isinstance(report, Mapping):
+            continue
+        status = str(report.get("status") or "").strip()
+        level = str(report.get("level") or "").strip()
+        geometry = report.get("geometry")
+        mask = report.get("mask")
+        if not status or not level or not isinstance(geometry, Mapping) or not isinstance(mask, Mapping):
+            continue
+        geometry_validity = str(geometry.get("validity") or "").strip()
+        mask_validity = str(mask.get("validity") or "").strip()
+        if not geometry_validity or not mask_validity:
+            continue
+        raw_reasons = report.get("reason_codes")
+        if isinstance(raw_reasons, str):
+            reason_values = (raw_reasons,)
+        elif isinstance(raw_reasons, (list, tuple)):
+            reason_values = tuple(reason for reason in raw_reasons if isinstance(reason, str))
+        else:
+            reason_values = ()
+        reasons = tuple(reason.strip()[:100] for reason in reason_values if reason.strip())
+        reason_text = ",".join(reasons[:5]) or "none"
+        details.append(
+            "Detector provenance audit: "
+            f"status={status}; level={level}; geometry={geometry_validity}; "
+            f"mask={mask_validity}; reasons={reason_text}"
+        )
+        needs_review = needs_review or status.lower() in {"review_required", "unusable"}
+
+    if not details:
+        return "", ""
+    detail = " | ".join(details)
+    risk = tr_for_language("RESULTS_REVIEW_RISK", language, detail) if needs_review else ""
+    next_instruction = (
+        f"{detail}. Treat this detector provenance as structural evidence only; it does not establish "
+        "detector calibration or physical acceptance. Review existing SAXS physical and "
+        "quality gates before interpretation or publication."
+    )
+    next_text = tr_for_language("RESULTS_REVIEW_NEXT", language, next_instruction)
+    return risk, next_text
+
+
 def _sequence_rescue_review_text(
     payload: Mapping[str, Any],
     *,
@@ -1479,6 +1540,10 @@ def build_saxs_results_presentation(
         payload,
         language=target_language,
     )
+    detector_provenance_risk, detector_provenance_next = _detector_provenance_audit_review_text(
+        payload,
+        language=target_language,
+    )
     rescue_risk, rescue_next = _sequence_rescue_review_text(
         payload,
         language=target_language,
@@ -1497,6 +1562,7 @@ def build_saxs_results_presentation(
     )
     risk_sections = (
         audit_risk,
+        detector_provenance_risk,
         axis_risk,
         metric_risk,
         sequence_risk,
@@ -1507,6 +1573,7 @@ def build_saxs_results_presentation(
     )
     next_sections = (
         audit_next,
+        detector_provenance_next,
         axis_next,
         metric_next,
         sequence_next,
