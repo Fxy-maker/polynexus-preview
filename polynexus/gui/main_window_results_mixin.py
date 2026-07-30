@@ -6,6 +6,7 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -45,6 +46,8 @@ from .results_review_service import (
 from .styles import C_TEXT_MUTED, C_TEXT_PRIMARY
 from .theme import ThemeEngine
 from ..core.engine import logger
+from ..core.scientific_review import review_decision_snapshot, review_scope_for_context
+from .scientific_review_dialog import ScientificReviewDialog
 
 
 class MainWindowResultsMixin:
@@ -120,6 +123,83 @@ class MainWindowResultsMixin:
         if not isinstance(current, dict) or not current:
             return {}
         return find_analysis_evidence(current)
+
+    def _current_scientific_review_scope(self) -> str | None:
+        return review_scope_for_context(
+            str(getattr(self, "_current_technique", "") or ""),
+            str(getattr(self, "_current_submodule_id", "") or ""),
+        )
+
+    def _current_scientific_review_source_refs(self) -> tuple[str, ...]:
+        payload = self._current_results_payload()
+        metadata = payload.get("metadata") if isinstance(payload, dict) else {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        refs: list[str] = []
+        for key in ("mapping_source_id", "source_id", "batch_id"):
+            value = str(metadata.get(key) or "").strip()
+            if value and value not in refs:
+                refs.append(value)
+        current_file = str(getattr(self, "_current_filepath", "") or "").strip()
+        if current_file and current_file not in refs:
+            refs.append(current_file)
+        return tuple(refs)
+
+    def _open_scientific_review_dialog(self) -> None:
+        scope = self._current_scientific_review_scope()
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+        if not scope or not run_id or run_id == "current":
+            self.log("Scientific review requires a persisted gated analysis run.")
+            return
+
+        dialog = ScientificReviewDialog(
+            scope,
+            source_refs=self._current_scientific_review_source_refs(),
+            parent=self,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        try:
+            record = dialog.build_record()
+            record_payload = record.to_dict()
+            source_ref = record.source_refs[0] if len(record.source_refs) == 1 else ""
+            snapshot = review_decision_snapshot(
+                record,
+                expected_scope=scope,
+                source_ref=source_ref,
+            )
+            db = self._ensure_sample_db()
+            if not db.update_analysis_scientific_review(run_id, record_payload, snapshot):
+                self.log("Scientific review could not be attached to the selected run.")
+                return
+        except (TypeError, ValueError) as exc:
+            self.log(f"Scientific review was not saved: {exc}")
+            return
+
+        self._apply_scientific_review_to_current_result(record_payload, snapshot)
+        self._refresh_history()
+        self._update_results_review_panel()
+        self._update_work_memory_panel()
+        self.log(f"Scientific review saved for {scope} run {run_id}.")
+
+    def _apply_scientific_review_to_current_result(self, record_payload: dict, snapshot: dict) -> None:
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        result = getattr(self, "_results", {}).get(technique)
+        if result is None:
+            return
+        if isinstance(result, dict):
+            metadata = result.setdefault("metadata", {})
+            evidence = result.setdefault("analysis_evidence", {})
+        else:
+            metadata = getattr(result, "metadata", None)
+            evidence = getattr(result, "analysis_evidence", None)
+            if not isinstance(metadata, dict) or not isinstance(evidence, dict):
+                return
+        metadata["scientific_review"] = dict(record_payload)
+        metadata["scientific_review_decision"] = dict(snapshot)
+        evidence["scientific_review_record"] = dict(record_payload)
+        evidence["scientific_review"] = dict(snapshot)
 
     def _current_result_origin(self) -> str:
         technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
@@ -347,6 +427,11 @@ class MainWindowResultsMixin:
         review_actions.setContentsMargins(0, 0, 0, 0)
         review_actions.setSpacing(8)
         review_actions.addStretch(1)
+        self._results_review_scientific_btn = QPushButton(tr("RESULTS_WORKBENCH_REVIEW_ACTION"))
+        self._results_review_scientific_btn.setObjectName("secondary_btn")
+        self._results_review_scientific_btn.setVisible(False)
+        self._results_review_scientific_btn.clicked.connect(self._open_scientific_review_dialog)
+        review_actions.addWidget(self._results_review_scientific_btn)
         self._results_review_joint_btn = QPushButton(tr("RESULTS_REVIEW_OPEN_JOINT"))
         self._results_review_joint_btn.setObjectName("secondary_btn")
         self._results_review_joint_btn.clicked.connect(self._jump_to_joint_hub)
@@ -825,6 +910,14 @@ class MainWindowResultsMixin:
         if hasattr(self, "_results_review_next"):
             self._results_review_next.setText(panel_texts.next_text)
             self._results_review_next.setVisible(bool(panel_texts.next_text))
+        if hasattr(self, "_results_review_scientific_btn"):
+            gated = self._current_scientific_review_scope() is not None
+            persisted = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+            self._results_review_scientific_btn.setVisible(gated)
+            self._results_review_scientific_btn.setEnabled(
+                bool(gated and persisted and persisted != "current")
+            )
+            self._results_review_scientific_btn.setText(tr("RESULTS_WORKBENCH_REVIEW_ACTION"))
         if hasattr(self, "_results_review_title"):
             self._results_review_title.setText(panel_texts.title_text)
         self._results_review_group.setVisible(True)

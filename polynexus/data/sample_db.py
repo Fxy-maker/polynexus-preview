@@ -92,7 +92,8 @@ class SampleDB:
         tag_list = list(tags or [])
         if family:
             try:
-                entry = MultiFamilyDB().find(polymer_name) if "MultiFamilyDB" in globals() else None
+                family_db = globals().get("MultiFamilyDB")
+                entry = family_db().find(polymer_name) if family_db is not None else None
                 if hasattr(entry, "tags") and entry.tags:
                     tag_list = list(set(tag_list) | set(entry.tags))
             except Exception:
@@ -455,6 +456,57 @@ class SampleDB:
             (1 if confirmed else 0, json.dumps(summary, ensure_ascii=False), run_id),
         )
         self._conn.commit()
+        return True
+
+    def update_analysis_scientific_review(self, run_id, record_payload, decision_snapshot):
+        """Attach one JSON-safe scientific review to exactly one analysis run."""
+
+        if not isinstance(record_payload, dict) or not isinstance(decision_snapshot, dict):
+            raise ValueError("scientific review payloads must be mappings")
+
+        record_json = json.dumps(record_payload, ensure_ascii=False, allow_nan=False)
+        snapshot_json = json.dumps(decision_snapshot, ensure_ascii=False, allow_nan=False)
+        row = self._conn.execute(
+            "SELECT analysis_evidence, results_summary FROM analysis_runs WHERE id=?",
+            (run_id,),
+        ).fetchone()
+        if not row:
+            return False
+
+        try:
+            evidence = json.loads(row["analysis_evidence"]) if row["analysis_evidence"] else {}
+            summary = json.loads(row["results_summary"]) if row["results_summary"] else {}
+        except (TypeError, ValueError, json.JSONDecodeError):
+            logger.warning("Failed to decode analysis run while attaching scientific review.")
+            return False
+        if not isinstance(evidence, dict):
+            evidence = {}
+        if not isinstance(summary, dict):
+            summary = {}
+
+        evidence["scientific_review_record"] = json.loads(record_json)
+        evidence["scientific_review"] = json.loads(snapshot_json)
+        result = summary.get("result")
+        if not isinstance(result, dict):
+            result = {}
+        metadata = result.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+        metadata["scientific_review"] = json.loads(record_json)
+        metadata["scientific_review_decision"] = json.loads(snapshot_json)
+        result["metadata"] = metadata
+        summary["result"] = result
+        summary["scientific_review"] = json.loads(snapshot_json)
+
+        with self._conn:
+            self._conn.execute(
+                "UPDATE analysis_runs SET analysis_evidence=?, results_summary=? WHERE id=?",
+                (
+                    json.dumps(evidence, ensure_ascii=False, allow_nan=False),
+                    json.dumps(summary, ensure_ascii=False, allow_nan=False),
+                    run_id,
+                ),
+            )
         return True
 
     def cleanup_temp(self, days=30):

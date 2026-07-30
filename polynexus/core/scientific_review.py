@@ -96,6 +96,26 @@ def _is_present(value: Any) -> bool:
     return True
 
 
+def required_decision_keys(scope: str) -> tuple[str, ...]:
+    """Return the immutable decision schema for one supported review scope."""
+
+    return tuple(_REQUIRED_DECISION_KEYS.get(str(scope or "").strip().lower(), ()))
+
+
+def review_scope_for_context(technique: str, submodule: str) -> str | None:
+    """Resolve only the non-SAXS Workbench review scopes."""
+
+    technique_key = str(technique or "").strip().lower()
+    submodule_key = str(submodule or "").strip().lower()
+    if technique_key == "joint":
+        return "joint"
+    if technique_key == "ir" and submodule_key in {"mapping", "ir.mapping"}:
+        return "ir.mapping"
+    if technique_key == "nmr" and submodule_key in {"solid_c", "nmr.solid_c"}:
+        return "nmr.solid_c"
+    return None
+
+
 @dataclass(frozen=True)
 class ScientificReviewRecord:
     """One reviewer-owned, scope-specific scientific decision record."""
@@ -289,7 +309,9 @@ __all__ = [
     "ReviewPromotionDecision",
     "ScientificReviewRecord",
     "promotion_decision",
+    "required_decision_keys",
     "review_decision_snapshot",
     "review_record_from_payload",
+    "review_scope_for_context",
     "validate_review_record",
 ]

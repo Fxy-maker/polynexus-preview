@@ -1,5 +1,25 @@
 # Active Work
 
+## Scientific Review Workbench entry - verified, checkpoint ready - 2026-07-30
+
+- Results Workbench now exposes a generic Scientific Review dialog for IR
+  mapping, NMR solid-C, and Joint. The dialog uses the core public schema,
+  validates `ScientificReviewRecord`, and saves one source-linked record to the
+  selected analysis run through a transactional SampleDB update.
+- Existing History presentation sees the same review snapshot. Saving does
+  not republish figures or promote roles; scientific conclusions remain
+  reviewer-owned and fail-closed.
+- Focused non-SAXS review/IR/NMR/Joint matrix passed `62` tests in `33.01s`;
+  `git diff --check` passed. Task verification passed with quality `290`,
+  preprocessing `106`, Ruff, compile, memory, task, and whitespace checks;
+  no phased type baseline target was selected. The explicit allowlist
+  checkpoint is ready.
+- Task, design, plan, and acceptance:
+  `docs/agent/tasks/2026-07-30-scientific-review-workbench-entry.md`,
+  `docs/superpowers/specs/2026-07-30-scientific-review-workbench-entry-design.md`,
+  `docs/superpowers/plans/2026-07-30-scientific-review-workbench-entry.md`,
+  and `docs/acceptance/2026-07-30-scientific-review-workbench-entry.md`.
+
 ## Current non-SAXS module recheck - verified - 2026-07-30
 
 - The current checkout was re-run in D:-isolated recursive pytest shards with

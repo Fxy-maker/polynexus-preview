@@ -9,8 +9,10 @@ from polynexus.core.scientific_review import (
     REVIEW_SCOPES,
     ScientificReviewRecord,
     promotion_decision,
+    required_decision_keys,
     review_decision_snapshot,
     review_record_from_payload,
+    review_scope_for_context,
     validate_review_record,
 )
 
@@ -31,6 +33,33 @@ def _accepted_ir_record() -> ScientificReviewRecord:
         },
         status="accepted",
     )
+
+
+def test_required_decision_keys_are_public_and_immutable() -> None:
+    keys = required_decision_keys("ir.mapping")
+
+    assert keys == (
+        "coordinate_convention",
+        "roi_inclusion_policy",
+        "invalid_pixel_policy",
+        "promotion_rule",
+    )
+    assert isinstance(keys, tuple)
+
+
+@pytest.mark.parametrize(
+    ("technique", "submodule", "expected"),
+    [
+        ("ir", "ir.mapping", "ir.mapping"),
+        ("ir", "mapping", "ir.mapping"),
+        ("nmr", "nmr.solid_c", "nmr.solid_c"),
+        ("joint", "", "joint"),
+        ("saxs", "saxs.1d", None),
+        ("dsc", "dsc.standard", None),
+    ],
+)
+def test_review_scope_for_context_is_fail_closed(technique, submodule, expected) -> None:
+    assert review_scope_for_context(technique, submodule) == expected
 
 
 def _accepted_saxs_1d_record() -> ScientificReviewRecord:
