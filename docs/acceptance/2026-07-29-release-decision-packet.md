@@ -66,3 +66,26 @@ remain open below.
   promote unresolved conflicts beyond diagnostic status.
 - No reviewer record, scientific role, or release state changed during this
   recheck.
+
+## Raw fixture inventory recheck (2026-07-30)
+
+The supplied real-data directories were inspected read-only before treating
+the remaining scientific fields as unavailable:
+
+- `D:\PolyNexus\测试数据\IR` contains only `普通红外` and `原位变温红外`.
+  The former contains SPA plus 1D `TXT_results`; the latter contains
+  temperature CSV files and generated temperature-analysis output. No native
+  2D mapping payload, coordinate export, ROI definition, or detector
+  calibration file was found. The generated temperature heatmap is not a
+  native mapping source.
+- `D:\PolyNexus\测试数据\NMR\固体nmr碳谱` contains seven JDF/bin files. The
+  reader exposes `SCANS`, `TOTAL_SCANS`, `X_OFFSET`, `X_FREQ`, `X_SWEEP`, and
+  related raw fields, but every file is classified as
+  `ppm_axis_source=default_range`, `ppm_axis_reason=jeol_metadata_units_unconfirmed`,
+  `ppm_axis_calibrated=false`, with display range `240.0..-20.0 ppm`.
+  The files do not provide an explicit assignment truth set or a
+  crystalline/amorphous phase-assignment record usable for Xc promotion.
+
+This confirms that `review_missing` for IR mapping and NMR solid-C is a
+source-evidence boundary, not an omitted parser step. No real input or
+generated dataset was changed.
