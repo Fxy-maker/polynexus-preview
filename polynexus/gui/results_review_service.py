@@ -583,6 +583,13 @@ def result_review_round_support_summary_text(
         readiness = structure.get("assignment_readiness") or assignment.get("readiness")
         if isinstance(readiness, dict) and readiness.get("class"):
             parts.append(tr("RESULTS_REVIEW_NMR_ASSIGNMENT", str(readiness["class"])))
+        assignment_source = str(
+            assignment.get("assignment_source")
+            or assignment.get("assignment_library_source")
+            or ""
+        ).strip()
+        if assignment_source:
+            parts.append(tr("RESULTS_REVIEW_NMR_ASSIGNMENT_SOURCE", assignment_source))
         if isinstance(axis, dict) and axis:
             axis_parts = []
             for key in ("source", "units", "calibrated"):
@@ -591,6 +598,13 @@ def result_review_round_support_summary_text(
                     axis_parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
             if axis_parts:
                 parts.append(tr("RESULTS_REVIEW_NMR_AXIS", " | ".join(axis_parts)))
+        xc_status = str(structure.get("Xc_assignment_status") or "").strip()
+        if xc_status:
+            ready = structure.get("paper_conclusion_ready") is True
+            allowed = isinstance(readiness, dict) and readiness.get("allowed") is True
+            gate = "allowed" if ready and allowed else "blocked"
+            reason = str(readiness.get("reason") or "") if isinstance(readiness, dict) else ""
+            parts.append(tr("RESULTS_REVIEW_NMR_XC_GATE", gate, reason or xc_status))
         if parts:
             return " | ".join(parts)
 
@@ -912,6 +926,7 @@ class ResultReviewPanelTexts:
     joint_text: str = ""
     joint_visible: bool = False
     ir_support_text: str = ""
+    nmr_support_text: str = ""
     risk_text: str = ""
     next_text: str = ""
     title_text: str = ""
@@ -1411,6 +1426,17 @@ def result_review_panel_texts(
         if technique == "ir"
         else ""
     )
+    nmr_support_text = (
+        result_review_round_support_summary_text(
+            analysis_evidence,
+            technique="nmr",
+            language=language,
+        )
+        if technique == "nmr"
+        else ""
+    )
+    if nmr_support_text == _empty_value_text():
+        nmr_support_text = ""
 
     risk_text = _panel_risk_text(
         validation_summary,
@@ -1438,6 +1464,7 @@ def result_review_panel_texts(
         joint_text=joint_text,
         joint_visible=joint_visible,
         ir_support_text=ir_support_text,
+        nmr_support_text=nmr_support_text,
         risk_text=risk_text,
         next_text=next_text,
         title_text=title_text,

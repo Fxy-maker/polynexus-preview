@@ -4706,6 +4706,19 @@ def test_nmr_solid_c_assignment_readiness_is_explicit(
     assert readiness["reason"] == expected_reason
     assert bundle["assignment_evidence"]["readiness"] == readiness
 
+
+def test_nmr_assignment_source_is_preserved_in_evidence() -> None:
+    bundle = analysis_evidence_nmr._nmr_analysis_bundle(
+        {
+            "nucleus": "13C",
+            "sample_state": "solid",
+            "assignment_source": "generic_region",
+            "Xc_assignment_status": "assignment_limited",
+        }
+    )
+
+    assert bundle["assignment_evidence"]["assignment_source"] == "generic_region"
+
 def test_nmr_assignment_library_score_supports_xc_evidence() -> None:
     evidence = build_analysis_evidence(
         "NMR",

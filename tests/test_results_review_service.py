@@ -1256,6 +1256,7 @@ def test_result_review_round_support_summary_surfaces_nmr_assignment_and_axis_bo
         {
             "feature_evidence": {
                 "assignment_evidence": {
+                    "assignment_source": "generic_region",
                     "readiness": {
                         "class": "assignment_limited",
                         "allowed": False,
@@ -1284,3 +1285,106 @@ def test_result_review_round_support_summary_surfaces_nmr_assignment_and_axis_bo
     assert "Assignment readiness | assignment_limited" in text
     assert "Axis | source=default_range" in text
     assert "calibrated=false" in text
+
+
+def test_result_review_round_support_summary_surfaces_nmr_xc_promotion_gate():
+    text = result_review_round_support_summary_text(
+        {
+            "feature_evidence": {
+                "assignment_evidence": {
+                    "assignment_source": "generic_region",
+                    "readiness": {
+                        "class": "assignment_limited",
+                        "allowed": False,
+                        "reason": "phase_assignment_limited",
+                    },
+                },
+                "structure_evidence": {
+                    "Xc_assignment_status": "assignment_limited",
+                    "paper_conclusion_ready": False,
+                    "assignment_readiness": {
+                        "class": "assignment_limited",
+                        "allowed": False,
+                        "reason": "phase_assignment_limited",
+                    },
+                },
+            }
+        },
+        technique="nmr",
+        language="en",
+    )
+
+    assert "Xc promotion | blocked" in text
+    assert "reason=phase_assignment_limited" in text
+    assert "Assignment source | generic_region" in text
+
+
+def test_build_result_review_panel_texts_from_window_surfaces_nmr_evidence_gate():
+    class _NMRPanelWindow:
+        _current_technique = "nmr"
+
+        def _current_results_record(self):
+            return {"parameters": {}, "results_summary": {}}
+
+        def _current_analysis_evidence(self):
+            return {
+                "feature_evidence": {
+                    "assignment_evidence": {
+                        "assignment_source": "generic_region",
+                        "readiness": {
+                            "class": "assignment_limited",
+                            "allowed": False,
+                            "reason": "phase_assignment_limited",
+                        }
+                    },
+                    "structure_evidence": {
+                        "Xc_assignment_status": "assignment_limited",
+                        "paper_conclusion_ready": False,
+                        "assignment_readiness": {
+                            "class": "assignment_limited",
+                            "allowed": False,
+                            "reason": "phase_assignment_limited",
+                        },
+                    },
+                    "axis_evidence": {
+                        "source": "default_range",
+                        "reason": "jeol_metadata_units_unconfirmed",
+                        "units": "ppm",
+                        "calibrated": False,
+                    },
+                }
+            }
+
+        def _current_result_history_context(self, current):
+            return {}
+
+        def _current_result_tuning_context(self, current):
+            return {}
+
+        def _joint_ai_context(self):
+            return {}
+
+        def _current_result_origin(self):
+            return "manual_run"
+
+        def _current_result_label_for_confirmation(self):
+            return "Solid C"
+
+        def _current_result_origin_label(self):
+            return "Manual run"
+
+        def _measured_result_summary_text(self, current):
+            return "Measured result"
+
+        def _is_current_result_confirmed(self):
+            return False
+
+        def _responsibility_boundary_summary(self):
+            return ""
+
+    parts = build_result_review_panel_texts_from_window(_NMRPanelWindow())
+
+    assert "Assignment readiness | assignment_limited" in parts.nmr_support_text
+    assert "Axis | source=default_range" in parts.nmr_support_text
+    assert "Xc promotion | blocked" in parts.nmr_support_text
+    assert "Assignment source | generic_region" in parts.nmr_support_text

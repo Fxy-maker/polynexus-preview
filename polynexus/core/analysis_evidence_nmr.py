@@ -155,6 +155,7 @@ def _nmr_analysis_bundle(output: dict[str, Any]) -> dict[str, Any]:
             ("n_matches", _clean_float(output.get("n_matches"))),
             ("library_match_fraction", library_match_fraction),
             ("assignment_confidence", assignment_confidence),
+            ("assignment_source", str(output.get("assignment_source") or "").strip() or None),
             ("phase_pair_support", phase_pair_support if output.get("phase_pair_support") is not None else None),
             ("solvent_overlap_penalty", solvent_overlap_penalty),
             ("matched_library_count", matched_library_count if matched_library_count > 0 else None),

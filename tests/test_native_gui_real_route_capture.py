@@ -181,6 +181,9 @@ def test_native_windows_gui_real_route_capture(
     assert window._current_results_table_model.primary_section is not None
     assert window._results_table.rowCount() > 0
     assert window._chart_gallery._entries
+    if mode == "nmr.solid_c":
+        assert "Assignment readiness |" in window._results_review_nmr_support.text()
+        assert "Xc promotion | blocked" in window._results_review_nmr_support.text()
 
     capture_root = _capture_root(tmp_path)
     slug = _mode_slug(mode)
