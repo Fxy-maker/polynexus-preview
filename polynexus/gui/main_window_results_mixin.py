@@ -48,6 +48,8 @@ from .theme import ThemeEngine
 from ..core.engine import logger
 from ..core.scientific_review import review_decision_snapshot, review_scope_for_context
 from .scientific_review_dialog import ScientificReviewDialog
+from .saxs_mask_edit_service import build_saxs_mask_edit_context
+from .widgets.saxs_mask_editor import SAXSDetectorMaskEditor
 
 
 class MainWindowResultsMixin:
@@ -539,6 +541,11 @@ class MainWindowResultsMixin:
         self._results_review_compare_btn.setObjectName("secondary_btn")
         self._results_review_compare_btn.clicked.connect(self._open_current_result_comparison)
         review_actions.addWidget(self._results_review_compare_btn)
+        self._results_mask_edit_btn = QPushButton("Edit detector mask")
+        self._results_mask_edit_btn.setObjectName("secondary_btn")
+        self._results_mask_edit_btn.setVisible(False)
+        self._results_mask_edit_btn.clicked.connect(self._open_saxs_mask_editor)
+        review_actions.addWidget(self._results_mask_edit_btn)
         review_layout.addLayout(review_actions)
 
         self._results_review_group.setVisible(False)
@@ -980,6 +987,9 @@ class MainWindowResultsMixin:
         if not hasattr(self, "_results_review_group"):
             return
         if not isinstance(current, dict) or not current:
+            if hasattr(self, "_results_mask_edit_btn"):
+                self._results_mask_edit_btn.setVisible(False)
+                self._results_mask_edit_btn.setEnabled(False)
             self._results_review_group.setVisible(False)
             return
 
@@ -1025,9 +1035,41 @@ class MainWindowResultsMixin:
             self._results_release_btn.setVisible(available)
             self._results_release_btn.setEnabled(available)
             self._results_release_btn.setText(tr("RESULTS_WORKBENCH_RELEASE_ACTION"))
+        if hasattr(self, "_results_mask_edit_btn"):
+            available = self._saxs_mask_edit_context() is not None
+            self._results_mask_edit_btn.setVisible(available)
+            self._results_mask_edit_btn.setEnabled(available)
         if hasattr(self, "_results_review_title"):
             self._results_review_title.setText(panel_texts.title_text)
         self._results_review_group.setVisible(True)
+
+    def _saxs_mask_edit_context(self):
+        result = getattr(self, "_results", {}).get("saxs")
+        return build_saxs_mask_edit_context(
+            result,
+            technique=getattr(self, "_current_technique", ""),
+            submodule_id=getattr(self, "_current_submodule_id", ""),
+            input_mode=getattr(self, "_current_input_mode", ""),
+            source_path=getattr(self, "_current_filepath", ""),
+        )
+
+    def _open_saxs_mask_editor(self):
+        context = self._saxs_mask_edit_context()
+        if context is None:
+            return
+        editor = SAXSDetectorMaskEditor(
+            context.image,
+            context.base_mask,
+            source_path=context.source_path,
+            parent=self,
+        )
+        self._saxs_mask_editor = editor
+        editor.candidate_confirmed.connect(self._on_saxs_mask_candidate_confirmed)
+        editor.open()
+
+    def _on_saxs_mask_candidate_confirmed(self, candidate):
+        if isinstance(candidate, dict) and candidate.get("confirmed") is True:
+            self._run_single(mask_edit_candidate=candidate)
 
 
     def _result_comparison_summary(self) -> str:

@@ -850,6 +850,12 @@ class SAXSEngine(BaseEngine):
         self.result.raw_data["detector_quality_report"] = pp.get(
             "detector_quality_report"
         )
+        base_mask = pp.get("mask_edit_base_mask")
+        if base_mask is not None:
+            self.result.raw_data["mask_edit_base_mask"] = np.asarray(
+                base_mask,
+                dtype=bool,
+            ).copy()
         self.result.metadata.update(pp.get("metadata", {}))
         self._publish_processed_profile(
             self._processed_profile_from_payload(pp, source="static_image_preprocess")

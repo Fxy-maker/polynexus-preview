@@ -1,5 +1,32 @@
 # Active Work
 
+## SAXS GUI mask editor confirmed rerun - checkpointed (2026-07-30)
+
+- Added a detached configured detector-mask baseline to static SAXS
+  preprocessing and transported it through `SAXSEngine.result.raw_data`.
+  The GUI exposes a fail-closed editor only for a single static 2D result;
+  mask, unmask, reset, cancel, and explicit confirm are supported.
+- Confirmed candidates reuse the existing digest/shape validation and are
+  forwarded through one normal `AnalysisWorker`/`SAXSEngine` static rerun.
+  Temperature, strain, directory, 1D, AI, automatic rescue, new thresholds,
+  and publication semantics remain outside this task.
+- Fresh focused GREEN passed `5` tests in `0.59s`. Structured verification
+  passed with quality `292`, preprocessing `106`, Ruff, compile, type baseline,
+  memory/task, and whitespace checks. The current exact SAXS matrix passed
+  `647 passed, 6 warnings in 552.67s`, exit code `0`.
+- Storage `report --json` found `57` artifacts, `15,802,080,308` bytes total,
+  `eligible_bytes=0`, and no emergency pressure. The subsequent
+  `clean --older-than-hours 24` was dry-run only: `removed=0`; no
+  `test_storage.py --apply` was run and no directory was deleted or migrated.
+- Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-30-saxs-gui-mask-editor-confirmed-rerun.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-gui-mask-editor-confirmed-rerun-design.md`,
+  `docs/superpowers/plans/2026-07-30-saxs-gui-mask-editor-confirmed-rerun.md`,
+  and `docs/acceptance/2026-07-30-saxs-gui-mask-editor-confirmed-rerun.md`.
+- Status: implementation, automated verification, and the explicit allowlist
+  checkpoint are complete. Full/boundary release and human
+  scientific / restarted-GUI review remain open.
+
 ## SAXS confirmed mask engine rerun (2026-07-30)
 
 - The existing confirmed detector-mask candidate now travels through

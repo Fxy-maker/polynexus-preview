@@ -623,6 +623,12 @@ def preprocess_pipeline(
         cfg,
         mask_edit_candidate,
     )
+    configured_mask = _build_mask(img, cfg)
+    mask_edit_base_mask = (
+        np.asarray(configured_mask, dtype=bool).copy()
+        if configured_mask is not None
+        else np.zeros(np.asarray(img).shape, dtype=bool)
+    )
 
     # Integration
     if cfg.is_isotropic:
@@ -729,6 +735,7 @@ def preprocess_pipeline(
         ),
     )
     result["detector_quality_report"] = detector_report.to_dict()
+    result["mask_edit_base_mask"] = mask_edit_base_mask
 
     return result
 

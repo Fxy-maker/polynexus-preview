@@ -259,7 +259,13 @@ class MainWindowRunMixin:
         if len(interesting) > 8:
             self.log(tr("LOG_JOINT_VALIDATION_MORE", len(interesting) - 8))
 
-    def _run_single(self):
+    def _analysis_worker_kwargs(self, *, config, submodule_id, mask_edit_candidate=None):
+        kwargs = {"config": config, "submodule_id": submodule_id}
+        if mask_edit_candidate is not None:
+            kwargs["mask_edit_candidate"] = mask_edit_candidate
+        return kwargs
+
+    def _run_single(self, *, mask_edit_candidate=None):
         self._start_run_lifecycle()
         self._hide_error_diagnostics()
         self._set_results_summary("")
@@ -314,8 +320,11 @@ class MainWindowRunMixin:
             self._current_technique,
             self._current_filepath,
             self._output_dir,
-            config=config,
-            submodule_id=submodule_id,
+            **self._analysis_worker_kwargs(
+                config=config,
+                submodule_id=submodule_id,
+                mask_edit_candidate=mask_edit_candidate,
+            ),
         )
         self._worker.log_msg.connect(self.log)
         self._connect_worker_lifecycle(self._worker)
