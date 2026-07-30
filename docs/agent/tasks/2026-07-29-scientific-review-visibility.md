@@ -52,6 +52,21 @@ python -m pytest -q tests/test_scientific_review_presentation.py tests/test_hist
 python scripts/verify.py --task docs/agent/tasks/2026-07-29-scientific-review-visibility.md --changed --types
 ```
 
+## Verification evidence
+
+- Focused Results Workbench/History/Export matrix: `46 passed in 0.85s`, exit
+  code `0`.
+- Task-scoped verifier exited `0`; task and memory checks, quality gate
+  (`290 passed`), preprocessing gate (`106 passed`), Ruff, compile, type
+  baseline, and whitespace checks passed.
+- Implementation checkpoint: `e7209ee`; policy-provenance follow-up:
+  `2d6e77d`. This documentation checkpoint records the completed task evidence
+  without re-staging those existing implementation commits.
+
+Scientific decisions remain reviewer-owned. This slice only presents the
+persisted decision and never promotes missing, malformed, or mismatched review
+records.
+
 ## Explicit file allowlist
 
 - `docs/superpowers/specs/2026-07-29-scientific-review-visibility-design.md`
@@ -72,4 +87,5 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-29-scientific-review-vi
 - `tests/test_export_context_service.py`
 - `tests/test_results_table_service.py`
 - `tests/test_main_window_persistence.py`
+- `docs/acceptance/2026-07-29-scientific-review-visibility.md`
 - `docs/agent/memory/active-work.md`

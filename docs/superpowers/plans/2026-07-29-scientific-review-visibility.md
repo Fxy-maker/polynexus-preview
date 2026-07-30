@@ -69,4 +69,4 @@
 - [x] **Step 1: Run the focused matrix from the task card.
 - [x] **Step 2: Run `python scripts/verify.py --task docs/agent/tasks/2026-07-29-scientific-review-visibility.md --changed --types` and record the exact outcome.
 - [x] **Step 3: Review `git diff --check` and the explicit allowlist.
-- [ ] **Step 4: Create the checkpoint with `python scripts/auto_commit.py --message "feat(gui): surface scientific review state" --files ...`.
+- [x] **Step 4: Create the implementation checkpoint and a follow-up evidence checkpoint with explicit allowlists.** The implementation is `e7209ee`; the current evidence checkpoint records the fresh focused matrix and verifier.
