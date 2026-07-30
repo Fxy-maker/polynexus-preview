@@ -1,5 +1,23 @@
 # Active Work
 
+## Current-head full/boundary post-cleanup recheck - tool-level timeout (2026-07-30)
+
+- The current-head command `python scripts/verify.py --changed --types --full
+  --boundary` was launched with an isolated `D:\PolyNexus-test-runs-full-current-20260730`
+  root and `review` retention. Its pytest child exited, but the tool returned
+  no pytest summary, stderr, or wrapper exit code; this is recorded as a
+  tool-level timeout/incomplete result and is not a pass. The separate shared
+  verifier was excluded.
+- Fresh boundary audit returned exit code `0` with no failures. Storage report
+  and dry-run clean each returned exit code `0`: `82` artifacts,
+  `24,069,383,574` bytes total, `36` emergency-eligible artifacts,
+  `14,710,286,387` eligible bytes, and `0` removed. No `--apply` was run.
+- Acceptance evidence is in
+  `docs/acceptance/2026-07-30-current-head-full-boundary-post-cleanup-recheck.md`.
+  Task-scoped verification and the documentation-only allowlist checkpoint
+  are complete; the full release and human scientific/restarted-GUI gates
+  remain open.
+
 ## SAXS temperature method evidence production Figure - checkpointed (2026-07-30)
 
 - Added `saxs.series.temperature.method_evidence` to the production
