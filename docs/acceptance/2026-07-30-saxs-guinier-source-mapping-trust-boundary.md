@@ -1,8 +1,8 @@
 # SAXS Guinier source-mapping trust boundary
 
-Status: implementation and focused verification complete; the shared quality
-gate has an unrelated parallel-NMR failure, and the allowlist checkpoint is
-pending.
+Status: complete for this scoped contract; the shared quality gate has an
+unrelated parallel-NMR failure. Allowlist checkpoint: `b47f84e` (local only,
+no push).
 
 This slice narrows only the trust boundary for existing temperature Guinier
 source-index evidence. Invalid, duplicate, or length-mismatched mappings must

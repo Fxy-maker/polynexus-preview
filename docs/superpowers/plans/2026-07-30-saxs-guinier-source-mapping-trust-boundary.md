@@ -106,7 +106,10 @@ changes currently emit Chinese scientific-review labels while two existing
 history-table tests still expect English labels. Those NMR files are outside
 this task and remain untouched.
 
-- [ ] **Step 2: Create one explicit allowlist checkpoint**
+- [x] **Step 2: Create one explicit allowlist checkpoint**
+
+Checkpoint `b47f84e` was created with the explicit eight-file allowlist. No
+push was performed; parallel NMR and workspace-memory changes were excluded.
 
 Use `scripts/auto_commit.py` with only the source, focused test, task,
 acceptance, spec, plan, and independent lesson files. Do not include the

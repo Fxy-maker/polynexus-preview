@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-30-saxs-guinier-source-mapping-trust-boundary
 kind: scientific-core-contract
-status: in_progress
+status: complete
 date: 2026-07-30
 title: Make Guinier sequence source mappings trusted only after validation
 ---
@@ -48,7 +48,9 @@ frame or pair identities while preserving diagnostic facts.
 - [x] Invalid, duplicate, and length-mismatched mappings retain diagnostic
   facts while emitting no trusted frame or pair identities.
 - [x] Omitted mappings remain empty and all evidence remains strict-JSON safe.
-- [ ] Task-scoped verification and the explicit allowlist checkpoint complete.
+- [x] Task-scoped verification and the explicit allowlist checkpoint complete.
+
+Checkpoint: `b47f84e` (local only; no push).
 
 ## Verification
 
