@@ -5,15 +5,21 @@ Status: awaiting human input; the overall software goal remains active.
 The packet separates the remaining release gates into four decisions:
 
 1. unlocked canonical-GUI visual review;
-2. IR vendor coordinate and ROI semantics;
+2. IR sample-level coordinate/ROI/calibration acceptance;
 3. NMR solid-C assignment and Xc promotion policy;
 4. Joint conflict precedence and conclusion policy.
 
 Current automated evidence is recorded in the full-goal audit and native route
-acceptance records. The repository intentionally keeps IR mapping, NMR solid-C,
-and unresolved Joint results diagnostic or assignment-limited until a reviewer
-confirms the corresponding fields. No scientific conclusion or release approval
-is inferred by this packet.
+acceptance records. The official Thermo/OMNIC Picta rule profile is recorded in
+`docs/acceptance/2026-07-30-ir-thermo-mapping-semantics.md`: X is the map-column
+Stage-X axis, Y is the map-row Stage-Y axis, both use `um`, the stage-home
+origin is `(0, 0)`, and ROI bounds follow the vendor step-size grid. Because
+the workspace has no native 2D map or coordinate export, sample-specific ROI,
+flattening order, detector calibration, and source-matched reviewer acceptance
+remain unverified. The repository therefore keeps IR mapping, NMR solid-C, and
+unresolved Joint results diagnostic or assignment-limited until the remaining
+fields are confirmed. No scientific conclusion or release approval is inferred
+by this packet.
 
 The unchecked criteria cannot be closed by pytest or `boundary_audit.py`; they
 require an authorized scientific/release reviewer.

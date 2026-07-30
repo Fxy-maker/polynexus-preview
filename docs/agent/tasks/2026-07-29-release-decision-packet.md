@@ -60,8 +60,14 @@ the responsible reviewer confirms the semantics.
   Result Review were visible, and Plots/History were selected through Windows
   UI Automation. This closes only the observed shell/workbench slice; it does
   not replace the all-mode visual review or scientific decisions below.
-- IR mapping has structural map/ROI/provenance coverage, but no confirmed
-  vendor-native coordinate convention.
+- IR mapping now has an official Thermo Scientific OMNIC Picta semantics
+  profile: area-map X is the column/Stage-X axis, Y is the row/Stage-Y axis,
+  both are stage positions in `um`, the stage-home origin is `(0, 0)`, and
+  area-map ROI bounds follow the vendor step-size grid. The current workspace
+  still has no vendor-native 2D map or coordinate export, so sample-specific
+  ROI bounds, flattened scan order, detector/pixel calibration, and reviewer
+  acceptance remain open. See
+  `docs/acceptance/2026-07-30-ir-thermo-mapping-semantics.md`.
 - NMR solid-C preserves complete labels and explicitly reports
   `assignment_limited`; no assignment truth set has been approved.
 - Joint preserves source/run provenance and reports conflicts; no scientific
@@ -125,7 +131,9 @@ the responsible reviewer confirms the semantics.
       relabeling structural evidence as scientific approval.
 - [x] An unlocked desktop review is recorded for the canonical DSC shell,
       Results/Result Review, Plots, and History surfaces.
-- [ ] IR mapping semantics are confirmed by the responsible reviewer.
+- [ ] IR sample-specific mapping payload, ROI/calibration, and promotion
+      semantics are confirmed by the responsible reviewer; the official
+      vendor-rule profile itself is documented separately.
 - [ ] NMR solid-C assignment policy is confirmed by the responsible reviewer.
 - [ ] Joint conflict interpretation is confirmed by the responsible reviewer.
 - [ ] Final scientific/release authorization is recorded.
