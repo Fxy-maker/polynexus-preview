@@ -22,6 +22,7 @@ from polynexus.core.scientific_review import (
 
 
 _PEAK_LABEL_LANES = (0.96, 0.84, 0.72, 0.60, 0.48)
+_PEAK_LABEL_LIMIT = 10
 
 
 def build_nmr_figure_definitions(
@@ -311,17 +312,19 @@ def _peak_objects(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]
     objects: list[dict[str, object]] = []
     for peak_index, peak in enumerate(ranked, start=1):
         ppm = float(peak["ppm"])
-        label_y = _PEAK_LABEL_LANES[(peak_index - 1) % len(_PEAK_LABEL_LANES)]
-        objects.extend(
-            [
-                {
-                    "id": f"line-peak-{peak_index}",
-                    "type": "line",
-                    "panel_id": "main",
-                    "orientation": "vertical",
-                    "x": ppm,
-                    "style": {"color": "#0072B2", "line_width": 0.5, "line_style": ":"},
-                },
+        objects.append(
+            {
+                "id": f"line-peak-{peak_index}",
+                "type": "line",
+                "panel_id": "main",
+                "orientation": "vertical",
+                "x": ppm,
+                "style": {"color": "#0072B2", "line_width": 0.5, "line_style": ":"},
+            }
+        )
+        if peak_index <= _PEAK_LABEL_LIMIT:
+            label_y = _PEAK_LABEL_LANES[(peak_index - 1) % len(_PEAK_LABEL_LANES)]
+            objects.append(
                 {
                     "id": f"text-peak-{peak_index}",
                     "type": "text",
@@ -332,9 +335,8 @@ def _peak_objects(peaks: Sequence[dict[str, object]]) -> list[dict[str, object]]
                     "coordinate_space": "xdata_yaxes",
                     "rotation": 90.0,
                     "style": {"color": "#0072B2", "font_size": 6},
-                },
-            ]
-        )
+                }
+            )
     return objects
 
 
@@ -477,7 +479,11 @@ def _recipe(
         "module": "polynexus.core.nmr_engine.figure_provider",
         "function": "build_nmr_figure_definitions",
         "inputs": {"result_label": result.label},
-        "parameters": {"frame_index": index, "figure_kind": figure_kind},
+        "parameters": {
+            "frame_index": index,
+            "figure_kind": figure_kind,
+            **({"peak_label_limit": _PEAK_LABEL_LIMIT} if figure_kind in {"spectrum", "deconvolution"} else {}),
+        },
         "scientific_review": review,
         "v2_adapter": "nmr",
     }

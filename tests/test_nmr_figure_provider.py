@@ -121,6 +121,34 @@ def test_nmr_peak_labels_preserve_assignments_and_cycle_through_lanes(nmr_result
     assert definition.layout.width_in == pytest.approx(9.5)
 
 
+def test_nmr_dense_peak_labels_are_capped_without_dropping_peak_lines(nmr_results):
+    nmr_results[0].peaks = [
+        {
+            "ppm": 180.0 - index * 0.5,
+            "height": 0.8 - index * 0.01,
+            "prominence": 20 - index,
+            "assignment": f"assignment-{index}",
+        }
+        for index in range(16)
+    ]
+
+    definition = build_nmr_figure_definitions(nmr_results)[0]
+    peak_lines = [
+        item
+        for item in definition.objects
+        if item["type"] == "line" and item.get("orientation") == "vertical"
+    ]
+    canvas_labels = [
+        item
+        for item in definition.objects
+        if item["type"] == "text" and item.get("coordinate_space") == "xdata_yaxes"
+    ]
+
+    assert len(peak_lines) == 16
+    assert len(canvas_labels) == 10
+    assert definition.recipe["parameters"]["peak_label_limit"] == 10
+
+
 def _solid_c_review(source_id: str = "solid-c.json") -> dict:
     return {
         "record_id": "review-nmr-solid-c-1",
