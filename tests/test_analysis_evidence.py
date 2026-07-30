@@ -4671,6 +4671,41 @@ def test_nmr_analysis_bundle_collects_sections_and_confidence_signals() -> None:
     assert any(item["name"] == "median_snr" for item in bundle["confidence_signals"])
 
 
+@pytest.mark.parametrize(
+    ("status", "expected_class", "expected_allowed", "expected_reason"),
+    [
+        ("supported", "supported", True, "phase_assignment_supported"),
+        ("assignment_limited", "assignment_limited", False, "phase_assignment_limited"),
+        ("missing_assignment", "missing_assignment", False, "phase_assignment_missing"),
+    ],
+)
+def test_nmr_solid_c_assignment_readiness_is_explicit(
+    status: str,
+    expected_class: str,
+    expected_allowed: bool,
+    expected_reason: str,
+) -> None:
+    bundle = analysis_evidence_nmr._nmr_analysis_bundle(
+        {
+            "nucleus": "13C",
+            "sample_state": "solid",
+            "Xc_pct": 47.0,
+            "Xc_method": "requires_crystalline_amorphous_assignment",
+            "Xc_assignment_status": status,
+            "ppm_axis_source": "default_range",
+            "ppm_axis_reason": "jeol_metadata_units_unconfirmed",
+            "ppm_axis_units": "ppm",
+            "ppm_axis_calibrated": False,
+            "ppm_axis_range": [240.0, -20.0],
+        }
+    )
+
+    readiness = bundle["structure_evidence"]["assignment_readiness"]
+    assert readiness["class"] == expected_class
+    assert readiness["allowed"] is expected_allowed
+    assert readiness["reason"] == expected_reason
+    assert bundle["assignment_evidence"]["readiness"] == readiness
+
 def test_nmr_assignment_library_score_supports_xc_evidence() -> None:
     evidence = build_analysis_evidence(
         "NMR",

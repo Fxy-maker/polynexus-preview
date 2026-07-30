@@ -14,10 +14,48 @@ __all__ = [
     "_NMR_CONSTRAINT_NAMES",
     "_evaluate_nmr_constraint",
     "_nmr_analysis_bundle",
+    "_nmr_assignment_readiness",
     "_nmr_peak_rows",
     "_nmr_symptom_bridge_lines",
     "_nmr_symptoms_from_constraints",
 ]
+
+
+def _nmr_assignment_readiness(
+    *,
+    nucleus: str,
+    sample_state: str,
+    assignment_status: str,
+) -> dict[str, Any]:
+    """Expose the existing solid-13C assignment gate without inferring truth."""
+
+    nucleus_key = str(nucleus or "").strip().upper().replace(" ", "")
+    state_key = str(sample_state or "").strip().lower()
+    if state_key != "solid" or nucleus_key not in {"13C", "C"}:
+        return {
+            "class": "not_applicable",
+            "allowed": True,
+            "reason": "not_solid_c",
+        }
+
+    status_key = str(assignment_status or "").strip().lower()
+    if status_key == "supported":
+        return {
+            "class": "supported",
+            "allowed": True,
+            "reason": "phase_assignment_supported",
+        }
+    if status_key == "assignment_limited":
+        return {
+            "class": "assignment_limited",
+            "allowed": False,
+            "reason": "phase_assignment_limited",
+        }
+    return {
+        "class": "missing_assignment",
+        "allowed": False,
+        "reason": "phase_assignment_missing",
+    }
 
 
 def _nmr_peak_rows(output: dict[str, Any]) -> list[dict[str, Any]]:
@@ -151,6 +189,13 @@ def _nmr_analysis_bundle(output: dict[str, Any]) -> dict[str, Any]:
             ("paper_conclusion_ready", xc_assignment_status == "supported"),
         ]
     )
+    assignment_readiness = _nmr_assignment_readiness(
+        nucleus=str(output.get("nucleus") or ""),
+        sample_state=str(output.get("sample_state") or ""),
+        assignment_status=xc_assignment_status,
+    )
+    assignment_evidence["readiness"] = assignment_readiness
+    structure_evidence["assignment_readiness"] = assignment_readiness
 
     feature_evidence["signal_evidence"] = signal_evidence
     feature_evidence["peak_evidence"] = peak_evidence

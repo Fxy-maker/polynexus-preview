@@ -1122,3 +1122,38 @@ def test_build_result_review_summary_snapshot_populates_controlled_optimization_
         assert snapshot["waxs_semantic_lines"] == ["WAXS | trend"]
     finally:
         set_language(previous)
+
+
+def test_result_review_round_support_summary_surfaces_nmr_assignment_and_axis_boundaries():
+    text = result_review_round_support_summary_text(
+        {
+            "feature_evidence": {
+                "assignment_evidence": {
+                    "readiness": {
+                        "class": "assignment_limited",
+                        "allowed": False,
+                        "reason": "phase_assignment_limited",
+                    },
+                },
+                "structure_evidence": {
+                    "assignment_readiness": {
+                        "class": "assignment_limited",
+                        "allowed": False,
+                        "reason": "phase_assignment_limited",
+                    },
+                },
+                "axis_evidence": {
+                    "source": "default_range",
+                    "reason": "jeol_metadata_units_unconfirmed",
+                    "units": "ppm",
+                    "calibrated": False,
+                },
+            }
+        },
+        technique="nmr",
+        language="en",
+    )
+
+    assert "Assignment readiness | assignment_limited" in text
+    assert "Axis | source=default_range" in text
+    assert "calibrated=false" in text

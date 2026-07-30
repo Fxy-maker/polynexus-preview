@@ -404,6 +404,26 @@ def result_review_analysis_evidence_card_text(
         if parts:
             sections.append("IR | " + " ; ".join(parts))
 
+    elif technique_key == "nmr":
+        feature = analysis_evidence.get("feature_evidence", {}) if isinstance(analysis_evidence.get("feature_evidence"), dict) else {}
+        assignment = feature.get("assignment_evidence", {}) if isinstance(feature.get("assignment_evidence"), dict) else {}
+        structure = feature.get("structure_evidence", {}) if isinstance(feature.get("structure_evidence"), dict) else {}
+        axis = feature.get("axis_evidence", {}) if isinstance(feature.get("axis_evidence"), dict) else {}
+        parts = []
+        readiness = structure.get("assignment_readiness") or assignment.get("readiness")
+        if isinstance(readiness, dict) and readiness.get("class"):
+            parts.append(tr("RESULTS_REVIEW_NMR_ASSIGNMENT", str(readiness["class"])))
+        if isinstance(axis, dict) and axis:
+            axis_parts = []
+            for key in ("source", "units", "calibrated"):
+                value = axis.get(key)
+                if value is not None and str(value).strip():
+                    axis_parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
+            if axis_parts:
+                parts.append(tr("RESULTS_REVIEW_NMR_AXIS", " | ".join(axis_parts)))
+        if parts:
+            sections.append("NMR | " + " ; ".join(parts))
+
     elif technique_key == "dsc":
         dsc_text = result_review_dsc_support_block_text(analysis_evidence, include_measurement=True)
         if dsc_text != _empty_value_text():
@@ -525,6 +545,27 @@ def result_review_round_support_summary_text(
                 )
 
         return " | ".join(parts) if parts else _empty_value_text()
+
+    if technique_key == "nmr":
+        feature = evidence.get("feature_evidence", {}) if isinstance(evidence.get("feature_evidence"), dict) else {}
+        assignment = feature.get("assignment_evidence", {}) if isinstance(feature.get("assignment_evidence"), dict) else {}
+        structure = feature.get("structure_evidence", {}) if isinstance(feature.get("structure_evidence"), dict) else {}
+        axis = feature.get("axis_evidence", {}) if isinstance(feature.get("axis_evidence"), dict) else {}
+
+        parts = []
+        readiness = structure.get("assignment_readiness") or assignment.get("readiness")
+        if isinstance(readiness, dict) and readiness.get("class"):
+            parts.append(tr("RESULTS_REVIEW_NMR_ASSIGNMENT", str(readiness["class"])))
+        if isinstance(axis, dict) and axis:
+            axis_parts = []
+            for key in ("source", "units", "calibrated"):
+                value = axis.get(key)
+                if value is not None and str(value).strip():
+                    axis_parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
+            if axis_parts:
+                parts.append(tr("RESULTS_REVIEW_NMR_AXIS", " | ".join(axis_parts)))
+        if parts:
+            return " | ".join(parts)
 
     if technique_key == "dsc":
         support_text = result_review_dsc_support_block_text(evidence, include_measurement=False)

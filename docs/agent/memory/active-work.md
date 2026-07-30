@@ -1,5 +1,29 @@
 # Active Work
 
+## NMR solid-C readiness projection - verified, checkpoint pending - 2026-07-30
+
+- Existing `Xc_assignment_status` is now projected into JSON-safe
+  `assignment_readiness` with `supported`, `assignment_limited`, and
+  `missing_assignment` states. Non-solid-13C inputs are `not_applicable`.
+  The same object is available under assignment and structure evidence.
+- Results review now presents assignment readiness plus existing ppm-axis
+  `source`, `units`, and `calibrated` fields. No peak assignment, Xc formula,
+  JEOL conversion, or figure-promotion rule changed.
+- Focused evidence passed `13`; Results review NMR passed `1`; changed-file
+  Ruff passed. NMR engine passed `19` in `112.93s`; figure provider passed `6`,
+  figure document passed `5`,
+  and solid-C lifecycle passed `1 selected, 3 deselected` in `148.24s`, exit
+  code `0`.
+- The combined engine/figure/document/lifecycle command reached an outer
+  tool timeout; the full lifecycle shard returned tool exit `124` without a
+  pytest summary. This remains a tool-level timeout, not a full-suite pass.
+  Task verifier passed with quality `292` and preprocessing `106`; boundary
+  audit, Ruff, compile, memory/task, whitespace, and diff checks also exited
+  `0`. The explicit checkpoint is pending.
+- Evidence: `docs/agent/tasks/2026-07-30-nmr-solid-c-readiness.md`,
+  `docs/acceptance/2026-07-30-nmr-solid-c-readiness.md`, and
+  `docs/superpowers/plans/2026-07-30-nmr-solid-c-readiness.md`.
+
 ## Joint conclusion policy - verified, checkpoint ready - 2026-07-30
 
 - Joint reports now expose a fail-closed `joint_conclusion` classification at
