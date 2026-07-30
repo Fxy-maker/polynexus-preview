@@ -18,3 +18,10 @@ promotion.
 This task intentionally does not modify `active-work.md` or `current-state.md`
 because both contain parallel uncommitted work. Its task card and acceptance
 note are the durable execution record.
+
+Verification lesson: the focused SAXS matrix is the reliable acceptance signal
+for this narrow contract (`33 passed, 1 warning`). The repository verifier can
+also include unrelated changed-worktree tests; here its quality gate reached
+`288 passed, 2 failed, 3 warnings` on parallel NMR label expectations. Record
+that limitation explicitly instead of changing or committing the parallel NMR
+files to make a SAXS checkpoint appear green.

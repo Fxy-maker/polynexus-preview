@@ -1175,10 +1175,6 @@ def build_guinier_sequence_evidence(
     except TypeError:
         frames = []
     frame_count = max(int(temperature_arr.size), len(frames))
-    frame_source_indices = _int_tuple(source_indices)
-    source_index_mapping_mismatch = (
-        source_indices is not None and len(frame_source_indices) != frame_count
-    )
     raw_source_indices: list[Any] = []
     if source_indices is not None:
         if isinstance(source_indices, (str, bytes)):
@@ -1188,7 +1184,11 @@ def build_guinier_sequence_evidence(
                 raw_source_indices = list(source_indices)
             except TypeError:
                 raw_source_indices = [source_indices]
+    source_index_mapping_mismatch = (
+        source_indices is not None and len(raw_source_indices) != frame_count
+    )
     invalid_source_index_positions: list[int] = []
+    trusted_source_indices: list[int] = []
     for position, raw_index in enumerate(raw_source_indices):
         try:
             numeric_index = float(raw_index)
@@ -1202,10 +1202,16 @@ def build_guinier_sequence_evidence(
             or not numeric_index.is_integer()
         ):
             invalid_source_index_positions.append(position)
+        else:
+            trusted_source_indices.append(int(numeric_index))
 
     duplicate_source_index_positions: list[int] = []
-    if source_indices is not None and not invalid_source_index_positions:
-        comparable_indices = list(frame_source_indices[:frame_count])
+    if (
+        source_indices is not None
+        and not source_index_mapping_mismatch
+        and not invalid_source_index_positions
+    ):
+        comparable_indices = list(trusted_source_indices)
         for position, source_index in enumerate(comparable_indices):
             if source_index in comparable_indices[:position]:
                 duplicate_source_index_positions.append(position)
@@ -1223,11 +1229,16 @@ def build_guinier_sequence_evidence(
     source_index_order_reordered = bool(
         source_indices is not None
         and not source_index_mapping_invalid
-        and len(frame_source_indices) == frame_count
+        and len(trusted_source_indices) == frame_count
         and any(
             current < previous
-            for previous, current in zip(frame_source_indices, frame_source_indices[1:])
+            for previous, current in zip(
+                trusted_source_indices, trusted_source_indices[1:]
+            )
         )
+    )
+    frame_source_indices = (
+        tuple(trusted_source_indices) if not source_index_mapping_invalid else ()
     )
 
     reasons: list[str] = []

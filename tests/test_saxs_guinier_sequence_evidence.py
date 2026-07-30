@@ -132,7 +132,7 @@ def test_sequence_evidence_source_index_length_mismatch_is_diagnostic():
         source_indices=[7],
     )
 
-    assert evidence.frame_source_indices == (7,)
+    assert evidence.frame_source_indices == ()
     assert evidence.level is QualityLevel.DIAGNOSTIC
     assert "guinier_sequence_source_index_mismatch" in evidence.reason_codes
 
