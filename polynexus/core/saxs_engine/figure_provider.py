@@ -845,7 +845,7 @@ def _build_temperature_summary_definitions(
     publication_role: str,
     evidence: dict[str, object],
 ) -> tuple[FigureDefinition, ...]:
-    return (
+    definitions: list[FigureDefinition] = [
         _build_temperature_parameters(
             result,
             temperatures=temperatures,
@@ -860,7 +860,15 @@ def _build_temperature_summary_definitions(
             publication_role=publication_role,
             evidence=evidence,
         ),
+    ]
+    guinier_definition = _build_temperature_guinier(
+        result,
+        temperatures=temperatures,
+        evidence=evidence,
     )
+    if guinier_definition is not None:
+        definitions.append(guinier_definition)
+    return tuple(definitions)
 
 
 def _build_temperature_parameters(
@@ -978,6 +986,168 @@ def _build_temperature_parameters(
     )
 
 
+def _build_temperature_guinier(
+    result: TempSeriesResult,
+    *,
+    temperatures: np.ndarray,
+    evidence: dict[str, object] | None = None,
+) -> FigureDefinition | None:
+    """Expose emitted frame Guinier evidence as a diagnostic-only figure."""
+
+    count = len(temperatures)
+    if count == 0 or getattr(result, "Rg_array", None) is None:
+        return None
+
+    try:
+        rg_values = _series_values(result.Rg_array, count, "Rg_array")
+    except (TypeError, ValueError):
+        rg_values = np.full(count, np.nan, dtype=float)
+
+    points = tuple(getattr(result, "temp_points", ()) or ())
+    level_values = list(getattr(result, "guinier_level_array", ()) or ())
+    if len(level_values) != count:
+        level_values = [
+            getattr(points[index], "guinier_level", None)
+            if index < len(points)
+            else None
+            for index in range(count)
+        ]
+
+    source_indices: list[int | None] = []
+    reason_values: list[str | None] = []
+    normalized_levels: list[str] = []
+    for index in range(count):
+        point = points[index] if index < len(points) else None
+        source_index = getattr(point, "source_index", None)
+        try:
+            source_index = int(source_index)
+        except (TypeError, ValueError, OverflowError):
+            source_index = None
+        if source_index is not None and source_index < 0:
+            source_index = None
+        source_indices.append(source_index)
+
+        level = str(level_values[index] or "Unusable")
+        normalized_levels.append(level)
+        reasons = getattr(point, "guinier_reason_codes", None)
+        if isinstance(reasons, str):
+            reason_values.append(reasons or None)
+        elif isinstance(reasons, (list, tuple)):
+            reason_values.append("|".join(str(reason) for reason in reasons) or None)
+        else:
+            reason_values.append(None)
+
+    sequence = getattr(result, "guinier_sequence_evidence", None)
+    sequence_level = sequence.get("level") if isinstance(sequence, Mapping) else None
+    sequence_reasons = sequence.get("reason_codes", ()) if isinstance(sequence, Mapping) else ()
+    if isinstance(sequence_reasons, str):
+        sequence_reasons = [sequence_reasons]
+    elif isinstance(sequence_reasons, (list, tuple)):
+        sequence_reasons = [str(reason) for reason in sequence_reasons]
+    else:
+        sequence_reasons = []
+
+    source_id = "temperature-guinier-data"
+    plot_source_id = "temperature-guinier-plot-data"
+    plot_temperatures: list[float] = []
+    plot_rg_values: list[float] = []
+    for temperature, rg_value in zip(temperatures, rg_values):
+        temperature_value = _finite_float_or_none(temperature)
+        rg_numeric = _finite_float_or_none(rg_value)
+        if temperature_value is not None and rg_numeric is not None:
+            plot_temperatures.append(temperature_value)
+            plot_rg_values.append(rg_numeric)
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.guinier",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        title="SAXS Temperature Guinier Evidence",
+        layout=_temperature_guinier_layout(),
+        data_sources=(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("temperature_C", "C"),
+                    DataColumnDefinition("Rg_nm", "nm"),
+                    DataColumnDefinition("source_index", "index", "int64"),
+                    DataColumnDefinition("frame_level", "level", "string"),
+                    DataColumnDefinition("frame_reason_codes", "reason", "string"),
+                ),
+                values={
+                    "temperature_C": _nullable_float_values(temperatures),
+                    "Rg_nm": _nullable_float_values(rg_values),
+                    "source_index": tuple(source_indices),
+                    "frame_level": tuple(normalized_levels),
+                    "frame_reason_codes": tuple(reason_values),
+                },
+            ),
+            FigureDataSourceDefinition(
+                source_id=plot_source_id,
+                columns=(
+                    DataColumnDefinition("temperature_C", "C"),
+                    DataColumnDefinition("Rg_nm", "nm"),
+                ),
+                values={
+                    "temperature_C": tuple(plot_temperatures),
+                    "Rg_nm": tuple(plot_rg_values),
+                },
+            ),
+        ),
+        objects=(_parameter_series(
+            "temperature-rg",
+            "main",
+            plot_source_id,
+            "Rg_nm",
+            "Rg",
+            "#0072B2",
+        ),),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": count},
+            "parameters": {
+                "figure_kind": "guinier_sequence_evidence",
+                "source_ref": "TempSeriesResult.Rg_array",
+                "missing_values_preserved": True,
+                "interpolation": False,
+                "plot_nonfinite_policy": "omit_from_line_only",
+                "sequence_level": str(sequence_level) if sequence_level else None,
+                "sequence_reason_codes": sequence_reasons,
+            },
+            "v2_adapter": "temperature_saxs",
+            **({"evidence": evidence} if evidence is not None else {}),
+        },
+        style_profile="sci_default",
+        publication_role="diagnostic",
+    )
+
+
+def _temperature_guinier_layout() -> FigureLayoutDefinition:
+    return FigureLayoutDefinition(
+        width_in=7.5,
+        height_in=4.5,
+        rows=1,
+        columns=1,
+        panels=(
+            PanelDefinition(
+                panel_id="main",
+                row=0,
+                column=0,
+                x_axis=AxisDefinition(
+                    axis_id="x-guinier",
+                    label="Temperature",
+                    unit="C",
+                ),
+                y_axis=AxisDefinition(
+                    axis_id="y-guinier",
+                    label="Radius of gyration",
+                    unit="nm",
+                ),
+                title="Guinier Rg Sequence",
+            ),
+        ),
+    )
 def _build_temperature_heatmap(
     temperatures: np.ndarray,
     frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
@@ -1294,6 +1464,10 @@ def _waterfall_indices(frame_count: int) -> tuple[int, ...]:
 
 def _float_values(values: np.ndarray) -> tuple[float, ...]:
     return tuple(float(value) for value in values)
+
+
+def _nullable_float_values(values: np.ndarray) -> tuple[float | None, ...]:
+    return tuple(_finite_float_or_none(value) for value in values)
 
 
 def _temperature_array(values: Any) -> np.ndarray:

@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 from types import SimpleNamespace
@@ -96,6 +98,84 @@ def test_saxs_temperature_provider_emits_multi_panel_and_heatmap(
 
     validate_figure_definition(parameters)
     validate_figure_definition(heatmap)
+
+
+def test_saxs_temperature_guinier_diagnostic_figure_preserves_frame_evidence():
+    result = TempSeriesResult(
+        temperatures=np.asarray([30.0, 60.0, 90.0]),
+        L_array=np.asarray([12.0, 11.5, 10.8]),
+        lc_array=np.asarray([4.0, 3.8, 3.2]),
+        lc_effective_array=np.asarray([4.1, 3.9, 3.3]),
+        Q_star_array=np.asarray([100.0, 92.0, 81.0]),
+        Xc_array=np.asarray([0.4, 0.38, 0.3]),
+        Rg_array=np.asarray([4.2, np.nan, 5.1]),
+        guinier_level_array=["Quantitative", "Unusable", "Diagnostic"],
+        guinier_sequence_evidence={
+            "level": "Diagnostic",
+            "reason_codes": ["guinier_sequence_missing_frames"],
+        },
+        temp_points=[
+            SimpleNamespace(
+                source_index=7,
+                guinier_level="Quantitative",
+                guinier_reason_codes=["fit_ok"],
+            ),
+            SimpleNamespace(
+                source_index=3,
+                guinier_level="Unusable",
+                guinier_reason_codes=["guinier_fit_failed"],
+            ),
+            SimpleNamespace(
+                source_index=5,
+                guinier_level="Diagnostic",
+                guinier_reason_codes=["qrg_gate_failed"],
+            ),
+        ],
+    )
+    before_rg = result.Rg_array.copy()
+    definitions = build_saxs_temperature_definitions(
+        result,
+        (np.asarray([0.1, 0.2, 0.3]),) * 3,
+        (np.asarray([10.0, 5.0, 2.0]),) * 3,
+    )
+
+    figure = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.guinier"
+    )
+    source = figure.data_sources[0]
+    assert figure.publication_role == "diagnostic"
+    assert source.values["temperature_C"] == (30.0, 60.0, 90.0)
+    assert source.values["Rg_nm"] == (4.2, None, 5.1)
+    assert source.values["source_index"] == (7, 3, 5)
+    assert source.values["frame_level"] == (
+        "Quantitative",
+        "Unusable",
+        "Diagnostic",
+    )
+    assert source.values["frame_reason_codes"] == (
+        "fit_ok",
+        "guinier_fit_failed",
+        "qrg_gate_failed",
+    )
+    assert figure.recipe["parameters"]["missing_values_preserved"] is True
+    assert figure.recipe["parameters"]["interpolation"] is False
+    json.dumps(dict(source.values), allow_nan=False)
+    validate_figure_definition(figure)
+    assert build_v2_definition_artifact(figure).capability["v2_runtime"] == "ready"
+    assert np.array_equal(result.Rg_array, before_rg, equal_nan=True)
+
+
+def test_saxs_temperature_provider_keeps_legacy_results_without_rg_figure(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+
+    assert "saxs.series.temperature.guinier" not in {
+        item.figure_id for item in definitions
+    }
 
 
 def test_saxs_engine_exposes_temperature_figure_definitions(

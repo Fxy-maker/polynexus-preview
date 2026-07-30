@@ -1,5 +1,33 @@
 # Active Work
 
+## SAXS temperature Guinier diagnostic Figure - verified, checkpoint pending (2026-07-30)
+
+- Added `saxs.series.temperature.guinier` to the temperature Figure provider.
+  The all-frame audit source preserves nullable `Rg_nm`, temperature, existing
+  source index, frame level, and reason codes; a separate finite-pair source
+  feeds the line renderer so V2 remains data-linked without interpolation.
+- The definition is always `diagnostic`, records
+  `missing_values_preserved=true` and `interpolation=false`, and consumes only
+  existing `TempSeriesResult` evidence. Legacy results without `Rg_array` keep
+  the previous figure set.
+- TDD RED reproduced the missing definition (`StopIteration`); focused GREEN
+  passed `6` selected tests and the full temperature provider passed `16`.
+  Structured verification passed with quality `294`, preprocessing `106`,
+  Ruff, compile, type baseline, memory/task, and whitespace checks. The fresh
+  exact SAXS matrix passed `649 passed, 6 warnings in 543.62s`, exit code `0`.
+- Storage `report --json` found `62` artifacts, `15,806,654,463` bytes total,
+  `eligible_bytes=0`, and no emergency pressure. `clean --older-than-hours 24`
+  was dry-run only; no directory was removed or migrated and no
+  `test_storage.py --apply` was run.
+- Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-30-saxs-temperature-guinier-diagnostic-figure.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-temperature-guinier-diagnostic-figure-design.md`,
+  `docs/superpowers/plans/2026-07-30-saxs-temperature-guinier-diagnostic-figure.md`,
+  and `docs/acceptance/2026-07-30-saxs-temperature-guinier-diagnostic-figure.md`.
+- Status: implementation and automated verification complete; the explicit
+  allowlist checkpoint is the next action. Full/boundary release and human
+  scientific / restarted-GUI review remain open.
+
 ## SAXS GUI mask editor confirmed rerun - checkpointed (2026-07-30)
 
 - Added a detached configured detector-mask baseline to static SAXS
