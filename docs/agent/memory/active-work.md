@@ -1,5 +1,27 @@
 # Active Work
 
+## Joint deterministic AI boundary - verified and checkpointed - 2026-07-30
+
+- Joint `ai_context` now declares `mode=off`, `provider_status=not_configured`,
+  `fallback=rule_based_report`, and the failure policy
+  `preserve_source_evidence_and_diagnostic_status` on both clean and
+  conflicted report branches.
+- The change is status/provenance only. It does not call a provider, build a
+  prompt, alter formulas or thresholds, change evidence weights, or promote a
+  WARN/ERROR into an accepted conclusion.
+- TDD RED was `2 failed` with the expected missing-key error. With
+  `POLYNEXUS_TEST_RETENTION=review`, the focused Joint dataset/real lifecycle
+  matrix passed `9` tests in `17.12s`, exit code `0`. An ephemeral rerun's
+  SQLite cleanup hit `WinError 32` after `2 passed` bodies and is recorded as
+  a tool-level failure rather than evidence of success.
+- Task-scoped verification passed with quality `290`, preprocessing `106`,
+  Ruff, compile, type baseline, memory/task, and whitespace checks; exit code
+  `0`. The broader Joint conflict/lifecycle/provenance matrix passed `27`
+  tests in `28.92s`. The explicit allowlist checkpoint is the only commit
+  action for this slice; no push or merge is performed. Scientific Joint
+  conflict interpretation and final release approval remain human gates.
+- Evidence: `docs/acceptance/2026-07-30-joint-ai-boundary.md`.
+
 ## NMR JEOL axis provenance - verified, checkpoint pending - 2026-07-30
 
 - Real JEOL solid 13C files now expose raw `SCANS`, `X_OFFSET`, `X_SWEEP`, and

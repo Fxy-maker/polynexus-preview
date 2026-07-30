@@ -612,6 +612,13 @@ def _build_joint_ai_context(
     elif sample_names:
         scope = " / ".join(sample_names[:2])
 
+    ai_boundary = {
+        "mode": "off",
+        "provider_status": "not_configured",
+        "fallback": "rule_based_report",
+        "failure_policy": "preserve_source_evidence_and_diagnostic_status",
+    }
+
     if not issue_rows and not technique_issue_rows:
         return {
             "summary": f"Cross-tech checks passed for {scope}.",
@@ -628,6 +635,7 @@ def _build_joint_ai_context(
             "samples": sample_names[:3],
             "batches": batch_labels[:3],
             "row_count": len(summary_rows),
+            "ai_boundary": ai_boundary,
         }
 
     family_stats: dict[str, dict[str, Any]] = {}
@@ -706,6 +714,7 @@ def _build_joint_ai_context(
         "samples": sample_names[:3],
         "batches": batch_labels[:3],
         "row_count": len(summary_rows),
+        "ai_boundary": ai_boundary,
     }
 
 

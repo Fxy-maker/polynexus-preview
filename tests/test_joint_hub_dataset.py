@@ -52,6 +52,12 @@ def test_joint_hub_dataset_collects_latest_runs_and_reports(tmp_path):
     assert report["validations"]
     assert report["ai_context"]["issue_count"] == 0
     assert "Cross-tech checks passed" in report["ai_context"]["summary"]
+    assert report["ai_context"]["ai_boundary"] == {
+        "mode": "off",
+        "provider_status": "not_configured",
+        "fallback": "rule_based_report",
+        "failure_policy": "preserve_source_evidence_and_diagnostic_status",
+    }
 
 
 def test_joint_hub_report_builds_cross_tech_ai_context(tmp_path):
@@ -89,6 +95,12 @@ def test_joint_hub_report_builds_cross_tech_ai_context(tmp_path):
     assert context["scope"]
     assert context["highlights"]
     assert any("phi_c" in item or "L_consistency" in item or "Tm" in item for item in context["highlights"])
+    assert context["ai_boundary"] == {
+        "mode": "off",
+        "provider_status": "not_configured",
+        "fallback": "rule_based_report",
+        "failure_policy": "preserve_source_evidence_and_diagnostic_status",
+    }
 
 
 def test_joint_conflict_rows_keep_source_run_and_evidence_provenance(tmp_path):
