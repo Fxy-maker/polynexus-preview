@@ -1,5 +1,23 @@
 # Active Work
 
+## Joint AI boundary through GUI/history fallback - verified and checkpointed - 2026-07-30
+
+- The legacy `joint_ai_context()` adapter now preserves the same JSON-safe
+  `ai_boundary` as the current Joint report when it reconstructs clean or
+  conflicted context from `rows` and `validations`. This keeps the AI-off,
+  not-configured, rule-based fallback and source-evidence preservation policy
+  visible through Workbench, History, and Export compatibility paths.
+- TDD RED was `2 failed, 2 passed, 114 deselected` with the expected missing
+  key. GREEN fallback tests passed `4`; the History/Export/Joint consumer and
+  lifecycle matrix passed `143` in `20.97s`, both exit code `0`.
+- No provider, prompt, formula, threshold, evidence weight, issue severity,
+  or scientific promotion rule changed. Task-scoped verification passed with
+  quality `290`, preprocessing `106`, task/memory, Ruff, compile, type
+  baseline, and whitespace checks; exit code `0`. The explicit seven-file
+  checkpoint is `c179c25` (local only; no push). IR/NMR/Joint scientific
+  decisions and final release authorization remain human gates.
+- Evidence: `docs/acceptance/2026-07-30-joint-ai-context-fallback-provenance.md`.
+
 ## Joint deterministic AI boundary - verified and checkpointed - 2026-07-30
 
 - Joint `ai_context` now declares `mode=off`, `provider_status=not_configured`,
