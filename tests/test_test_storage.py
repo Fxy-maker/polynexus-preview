@@ -233,6 +233,111 @@ def test_emergency_mode_never_removes_review_or_evidence():
     assert failure_deadline("evidence", now, emergency=True) is None
 
 
+def test_emergency_cleanup_releases_failed_ephemeral_after_two_hours(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    finished = now - timedelta(hours=3)
+    artifact = TestArtifact(
+        tmp_path / "run-failed",
+        "managed",
+        100,
+        finished,
+        profile="ephemeral",
+        status="failed",
+        finished_at=finished,
+        keep_until=now + timedelta(hours=21),
+    )
+
+    plan = build_cleanup_plan(
+        [artifact],
+        now=now,
+        older_than=timedelta(hours=24),
+        emergency=True,
+    )
+
+    assert plan[artifact].eligible is True
+    assert plan[artifact].emergency is True
+    assert plan[artifact].reason == "eligible (emergency)"
+
+
+def test_emergency_cleanup_releases_known_legacy_after_two_hours(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    artifact = TestArtifact(
+        tmp_path / "PolyNexus_saxs_demo_matrix",
+        "legacy",
+        100,
+        now - timedelta(hours=3),
+    )
+
+    plan = build_cleanup_plan(
+        [artifact],
+        now=now,
+        older_than=timedelta(hours=24),
+        emergency=True,
+    )
+
+    assert plan[artifact].eligible is True
+    assert plan[artifact].emergency is True
+    assert plan[artifact].reason == "eligible (emergency)"
+
+
+def test_emergency_cleanup_keeps_young_legacy_protected(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    artifact = TestArtifact(
+        tmp_path / "PolyNexus_saxs_demo_matrix",
+        "legacy",
+        100,
+        now - timedelta(hours=1),
+    )
+
+    plan = build_cleanup_plan(
+        [artifact],
+        now=now,
+        older_than=timedelta(hours=24),
+        emergency=True,
+    )
+
+    assert plan[artifact].eligible is False
+    assert plan[artifact].emergency is False
+    assert plan[artifact].reason == "younger than retention"
+
+
+def test_emergency_cleanup_preserves_review_and_evidence(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    artifacts = [
+        TestArtifact(
+            tmp_path / "run-review",
+            "managed",
+            100,
+            now - timedelta(days=2),
+            profile="review",
+            status="failed",
+            finished_at=now - timedelta(days=2),
+            keep_until=now + timedelta(days=5),
+        ),
+        TestArtifact(
+            tmp_path / "run-evidence",
+            "managed",
+            100,
+            now - timedelta(days=2),
+            profile="evidence",
+            status="failed",
+            finished_at=now - timedelta(days=2),
+        ),
+    ]
+
+    plan = build_cleanup_plan(
+        artifacts,
+        now=now,
+        older_than=timedelta(hours=24),
+        emergency=True,
+    )
+
+    assert plan[artifacts[0]].eligible is False
+    assert plan[artifacts[0]].reason == "younger than retention"
+    assert plan[artifacts[1]].eligible is False
+    assert plan[artifacts[1]].reason == "evidence profile"
+
+
 def test_emergency_pressure_detects_low_volume(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(
         "scripts.test_storage.shutil.disk_usage",

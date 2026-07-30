@@ -61,6 +61,7 @@ class TestArtifact:
     kind: str
     size_bytes: int
     modified_at: datetime
+    finished_at: datetime | None = None
     profile: str | None = None
     status: str | None = None
     exit_code: int | None = None
@@ -72,6 +73,7 @@ class TestArtifact:
 class CleanupDecision:
     eligible: bool
     reason: str
+    emergency: bool = False
 
 
 @dataclass(frozen=True)
@@ -388,6 +390,7 @@ def build_cleanup_plan(
     *,
     now: datetime,
     older_than: timedelta,
+    emergency: bool = False,
     active_command_lines: Iterable[str] = (),
     tracked_paths: Iterable[Path] = (),
     protected_paths: Iterable[Path] = (),
@@ -400,6 +403,7 @@ def build_cleanup_plan(
     pytest_active = pytest_process_active(commands)
     plan: dict[TestArtifact, CleanupDecision] = {}
     for artifact in artifacts:
+        emergency_decision = False
         path = artifact.path.resolve()
         if any(path == item or item in path.parents for item in protected):
             reason = "protected path"
@@ -423,19 +427,41 @@ def build_cleanup_plan(
         elif artifact.profile == "ephemeral" and artifact.status == "passed":
             reason = "owned terminal cleanup only"
             eligible = False
+        elif emergency and (
+            (
+                artifact.profile == "ephemeral"
+                and artifact.status in {"failed", "interrupted", "cleanup_pending"}
+            )
+            or (
+                artifact.manifest_error is None
+                and (artifact.profile == "legacy" or artifact.kind in {"legacy", "legacy-external"})
+            )
+        ):
+            reference_time = artifact.finished_at or artifact.modified_at
+            if reference_time.tzinfo is None:
+                reference_time = reference_time.replace(tzinfo=timezone.utc)
+            eligible = now - reference_time >= timedelta(hours=2)
+            reason = "eligible (emergency)" if eligible else "younger than retention"
+            emergency_decision = eligible
         elif artifact.keep_until is not None:
             modified_at = artifact.keep_until
             if modified_at.tzinfo is None:
                 modified_at = modified_at.replace(tzinfo=timezone.utc)
             eligible = now >= modified_at
             reason = "eligible" if eligible else "younger than retention"
+            emergency_decision = False
         else:
             modified_at = artifact.modified_at
             if modified_at.tzinfo is None:
                 modified_at = modified_at.replace(tzinfo=timezone.utc)
             eligible = now - modified_at >= older_than
             reason = "eligible" if eligible else "younger than retention"
-        plan[artifact] = CleanupDecision(eligible=eligible, reason=reason)
+            emergency_decision = False
+        plan[artifact] = CleanupDecision(
+            eligible=eligible,
+            reason=reason,
+            emergency=emergency_decision,
+        )
     return plan
 
 
