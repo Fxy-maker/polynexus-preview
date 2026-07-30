@@ -1,5 +1,39 @@
 # Active Work
 
+## Current-head SAXS verification recheck - SAXS matrix green, full boundary open - 2026-07-30
+
+- Fresh current-head SAXS matrix using repository Python 3.14, offscreen Qt,
+  and a writable workspace basetemp returned `594 passed, 8 warnings in
+  524.50s`, exit code `0`. The warnings are existing locale, Arial glyph, EDF
+  geometry-header, and pytest cache-permission warnings.
+- The first fresh full/boundary attempt passed focused quality `290` and
+  preprocessing `106`, then crashed around 27% with Windows access violation
+  `0xC0000005` in `PySide6\\Qt6Widgets.dll`; it exited `1` without a final
+  pytest summary or boundary result. An isolated ChartEditor probe passed
+  `57` tests, and a later offscreen full attempt was tool-aborted with no
+  final result. Neither is counted as a full/boundary pass.
+- A first SAXS attempt with an external basetemp outside the writable
+  workspace returned `514 passed, 80 errors` from setup `PermissionError
+  [WinError 5]`; this is recorded as an environment limitation, not a
+  production failure.
+- Latest storage dry-run remains non-destructive: `54` artifacts,
+  `eligible_bytes=13390550`, `eligible=6`, `removed=0`; no
+  `test_storage.py --apply` was run.
+- The task-scoped verifier completed task-card, memory, Ruff, compile, and
+  type-baseline checks. Its focused quality gate returned `288 passed, 2
+  failed, 3 warnings` and exit code `1`; both failures are pre-existing locale
+  expectation mismatches in `tests/test_history_table_service.py` where tests
+  expect English `Scientific review` but the current locale emits `科学复核`.
+  The standard invocation also hit runner PATH and external-basetemp permission
+  limitations; a process-local executable PATH and workspace test root reached
+  the actual focused tests. This does not change the green SAXS matrix result.
+- Task/acceptance/plan:
+  `docs/agent/tasks/2026-07-30-current-head-saxs-verification-recheck.md`,
+  `docs/acceptance/2026-07-30-current-head-saxs-verification-recheck.md`, and
+  `docs/superpowers/plans/2026-07-30-current-head-saxs-verification-recheck.md`.
+- Remaining gates are native Qt full-suite stability, restarted-GUI visual
+  review, reviewer-owned scientific decisions, and final release approval.
+
 ## SAXS representative selection dirty-profile projection - checkpoint ready - 2026-07-30
 
 - `figure_selection._intensity_features()` now projects q and intensity tokens
