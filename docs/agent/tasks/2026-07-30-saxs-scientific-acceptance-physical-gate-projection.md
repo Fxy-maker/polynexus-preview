@@ -118,6 +118,6 @@ outside this atomic task.
 
 ## Checkpoint
 
-The checkpoint is created only after the verification evidence and acceptance
-record are finalized. It is local-only: no push, merge, publication approval,
-or data deletion is authorized.
+The implementation allowlist checkpoint is `60664cc`; verification-document
+closeout is `229b7a6`. Both are local-only: no push, merge, publication
+approval, or data deletion was performed.

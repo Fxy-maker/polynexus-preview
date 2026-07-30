@@ -1,8 +1,8 @@
 # SAXS scientific acceptance physical gate projection
 
-Status: implementation complete for this scoped contract; the shared quality
-gate has two unrelated parallel-NMR failures. The local allowlist checkpoint
-is the final handoff action.
+Status: implementation complete for this scoped contract at `60664cc`; the
+verification-document closeout is `229b7a6`. The shared quality gate has two
+unrelated parallel-NMR failures.
 
 This slice makes `scientific_acceptance_audit` traceable to the physical checks
 already present in SAXS metric evidence. It exposes detached
