@@ -47,6 +47,13 @@ _SERIES_COLORS = (
     "#AA4499",
 )
 
+_TEMPERATURE_METHODS = (
+    ("porod", "Porod", "a.u.", "#0072B2"),
+    ("kratky", "Kratky", "nm^-1", "#009E73"),
+    ("invariant", "Invariant", "a.u.", "#D55E00"),
+    ("lamellar", "Lamellar", "nm", "#CC79A7"),
+)
+
 
 def _sci_axis_label(label: str, *, y_axis: bool = False) -> str:
     """Map recipe shorthand to the shared SCI axis vocabulary."""
@@ -868,6 +875,13 @@ def _build_temperature_summary_definitions(
     )
     if guinier_definition is not None:
         definitions.append(guinier_definition)
+    method_evidence_definition = _build_temperature_method_evidence(
+        result,
+        temperatures=temperatures,
+        evidence=evidence,
+    )
+    if method_evidence_definition is not None:
+        definitions.append(method_evidence_definition)
     return tuple(definitions)
 
 
@@ -1148,6 +1162,184 @@ def _temperature_guinier_layout() -> FigureLayoutDefinition:
             ),
         ),
     )
+
+
+def _build_temperature_method_evidence(
+    result: TempSeriesResult,
+    *,
+    temperatures: np.ndarray,
+    evidence: dict[str, object] | None = None,
+) -> FigureDefinition | None:
+    """Project existing per-frame method evidence into a diagnostic figure."""
+
+    count = len(temperatures)
+    points = tuple(getattr(result, "temp_points", ()) or ())
+    if count == 0 or not any(
+        isinstance(getattr(point, "metric_evidence", None), Mapping)
+        and any(
+            isinstance(getattr(point, "metric_evidence", {}).get(metric), Mapping)
+            for metric, _label, _unit, _color in _TEMPERATURE_METHODS
+        )
+        for point in points
+    ):
+        return None
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, object]] = []
+    method_names: list[str] = []
+    for method, label, unit, color in _TEMPERATURE_METHODS:
+        audit_temperatures: list[float | None] = []
+        audit_values: list[float | None] = []
+        source_indices: list[int | None] = []
+        levels: list[str | None] = []
+        reasons: list[str | None] = []
+        plot_temperatures: list[float] = []
+        plot_values: list[float] = []
+        for index, temperature in enumerate(temperatures):
+            point = points[index] if index < len(points) else None
+            payloads = getattr(point, "metric_evidence", None)
+            payload = payloads.get(method) if isinstance(payloads, Mapping) else None
+            value = (
+                _finite_float_or_none(payload.get("value"))
+                if isinstance(payload, Mapping)
+                else None
+            )
+            temperature_value = _finite_float_or_none(temperature)
+            audit_temperatures.append(temperature_value)
+            audit_values.append(value)
+            raw_source_index = getattr(point, "source_index", None)
+            try:
+                source_index = int(raw_source_index)
+            except (TypeError, ValueError, OverflowError):
+                source_index = None
+            if source_index is not None and source_index < 0:
+                source_index = None
+            source_indices.append(source_index)
+            if isinstance(payload, Mapping):
+                raw_level = str(payload.get("level") or "").strip()
+                levels.append(raw_level or None)
+                raw_reasons = payload.get("reason_codes")
+                if isinstance(raw_reasons, str):
+                    reasons.append(raw_reasons or None)
+                elif isinstance(raw_reasons, (list, tuple)):
+                    reasons.append("|".join(str(reason) for reason in raw_reasons) or None)
+                else:
+                    reasons.append(None)
+            else:
+                levels.append(None)
+                reasons.append(None)
+            if temperature_value is not None and value is not None:
+                plot_temperatures.append(temperature_value)
+                plot_values.append(value)
+
+        audit_source_id = f"temperature-method-evidence-{method}"
+        plot_source_id = f"{audit_source_id}-plot"
+        sources.extend(
+            (
+                FigureDataSourceDefinition(
+                    source_id=audit_source_id,
+                    columns=(
+                        DataColumnDefinition("temperature_C", "C"),
+                        DataColumnDefinition("value", unit),
+                        DataColumnDefinition("source_index", "index", "int64"),
+                        DataColumnDefinition("frame_level", "level", "string"),
+                        DataColumnDefinition("frame_reason_codes", "reason", "string"),
+                    ),
+                    values={
+                        "temperature_C": tuple(audit_temperatures),
+                        "value": tuple(audit_values),
+                        "source_index": tuple(source_indices),
+                        "frame_level": tuple(levels),
+                        "frame_reason_codes": tuple(reasons),
+                    },
+                    role="method_evidence_audit",
+                ),
+                FigureDataSourceDefinition(
+                    source_id=plot_source_id,
+                    columns=(
+                        DataColumnDefinition("temperature_C", "C"),
+                        DataColumnDefinition("value", unit),
+                    ),
+                    values={
+                        "temperature_C": tuple(plot_temperatures),
+                        "value": tuple(plot_values),
+                    },
+                    role="method_evidence_plot",
+                ),
+            )
+        )
+        if plot_values:
+            method_names.append(method)
+            objects.append(
+                {
+                    "id": f"temperature-method-{method}",
+                    "type": "plot_series",
+                    "panel_id": method,
+                    "name": label,
+                    "data_ref": plot_source_id,
+                    "x_column": "temperature_C",
+                    "y_column": "value",
+                    "style": {"color": color, "line_width": 0.9},
+                }
+            )
+
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.method_evidence",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        title="SAXS Temperature Method Evidence",
+        layout=_temperature_method_evidence_layout(),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": count},
+            "parameters": {
+                "figure_kind": "method_evidence_diagnostic",
+                "methods": method_names,
+                "missing_values_preserved": True,
+                "interpolation": False,
+                "reclassification": False,
+            },
+            "v2_adapter": "temperature_saxs",
+            **({"evidence": evidence} if evidence is not None else {}),
+        },
+        style_profile="sci_default",
+        publication_role="diagnostic",
+    )
+
+
+def _temperature_method_evidence_layout() -> FigureLayoutDefinition:
+    panels = tuple(
+        PanelDefinition(
+            panel_id=method,
+            row=index // 2,
+            column=index % 2,
+            x_axis=AxisDefinition(
+                axis_id=f"x-{method}",
+                label="Temperature",
+                unit="C",
+            ),
+            y_axis=AxisDefinition(
+                axis_id=f"y-{method}",
+                label=label,
+                unit=unit,
+                ),
+            panel_label=f"({chr(ord('a') + index)})",
+        )
+        for index, (method, label, unit, _color) in enumerate(_TEMPERATURE_METHODS)
+    )
+    return FigureLayoutDefinition(
+        width_in=7.5,
+        height_in=5.5,
+        rows=2,
+        columns=2,
+        panels=panels,
+    )
+
+
 def _build_temperature_heatmap(
     temperatures: np.ndarray,
     frames: Sequence[tuple[np.ndarray, np.ndarray] | None],

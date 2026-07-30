@@ -1,6 +1,32 @@
 # Active Work
 
-## SAXS temperature Guinier diagnostic Figure - verified, checkpoint pending (2026-07-30)
+## SAXS temperature method evidence diagnostic Figure - verified, checkpoint pending (2026-07-30)
+
+- Added `saxs.series.temperature.method_evidence` to the portable temperature
+  Figure provider. It projects only existing per-frame Porod, Kratky,
+  invariant, and lamellar `MetricEvidence` into detached nullable audit sources
+  plus finite renderer sources. The Figure is always diagnostic; it does not
+  recalculate, interpolate, reclassify, or change quality/physical/publication
+  gates.
+- TDD RED was `1 failed, 1 passed, 16 deselected`; focused GREEN was `2
+  passed, 16 deselected`; the complete temperature Figure provider passed `18`.
+  Structured verification passed quality `296`, preprocessing `106`, Ruff,
+  compile, type baseline, memory/task, and whitespace. The exact SAXS matrix
+  passed `651 passed, 6 warnings` in `602.27s`, exit code `0`.
+- Storage report/clean was dry-run only: `71` artifacts,
+  `16,289,827,301` bytes total, `eligible_bytes=0`, no emergency pressure, and
+  `removed=0`; two paths were protected by a running process and no apply was
+  run.
+- Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-30-saxs-temperature-method-evidence-diagnostic-figure.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-temperature-method-evidence-diagnostic-figure-design.md`,
+  `docs/superpowers/plans/2026-07-30-saxs-temperature-method-evidence-diagnostic-figure.md`,
+  and `docs/acceptance/2026-07-30-saxs-temperature-method-evidence-diagnostic-figure.md`.
+- Status: implementation and automated verification complete; the explicit
+  allowlist checkpoint is the next action. Full/boundary release and human
+  scientific / restarted-GUI review remain open.
+
+## SAXS temperature Guinier diagnostic Figure - checkpointed (2026-07-30)
 
 - Added `saxs.series.temperature.guinier` to the temperature Figure provider.
   The all-frame audit source preserves nullable `Rg_nm`, temperature, existing
@@ -24,9 +50,8 @@
   `docs/superpowers/specs/2026-07-30-saxs-temperature-guinier-diagnostic-figure-design.md`,
   `docs/superpowers/plans/2026-07-30-saxs-temperature-guinier-diagnostic-figure.md`,
   and `docs/acceptance/2026-07-30-saxs-temperature-guinier-diagnostic-figure.md`.
-- Status: implementation and automated verification complete; the explicit
-  allowlist checkpoint is the next action. Full/boundary release and human
-  scientific / restarted-GUI review remain open.
+- The explicit allowlist checkpoint is `ffc4a56`; full/boundary release and
+  human scientific / restarted-GUI review remain open.
 
 ## SAXS GUI mask editor confirmed rerun - checkpointed (2026-07-30)
 

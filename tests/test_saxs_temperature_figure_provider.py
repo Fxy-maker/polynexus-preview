@@ -167,6 +167,163 @@ def test_saxs_temperature_guinier_diagnostic_figure_preserves_frame_evidence():
     assert np.array_equal(result.Rg_array, before_rg, equal_nan=True)
 
 
+def test_saxs_temperature_method_evidence_diagnostic_figure_preserves_frames():
+    result = TempSeriesResult(
+        temperatures=np.asarray([30.0, 60.0, 90.0]),
+        L_array=np.asarray([12.0, 11.5, 10.8]),
+        lc_array=np.asarray([4.0, 3.8, 3.2]),
+        lc_effective_array=np.asarray([4.1, 3.9, 3.3]),
+        Q_star_array=np.asarray([100.0, 92.0, 81.0]),
+        Xc_array=np.asarray([0.4, 0.38, 0.3]),
+        temp_points=[
+            SimpleNamespace(
+                source_index=7,
+                metric_evidence={
+                    "porod": {
+                        "value": 1.2,
+                        "level": "Trend",
+                        "reason_codes": ["porod_slope_deviation_observed"],
+                    },
+                    "kratky": {
+                        "value": 0.3,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "invariant": {
+                        "value": 100.0,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "lamellar": {
+                        "value": 12.0,
+                        "level": "Diagnostic",
+                        "reason_codes": ["lamellar_phi_c_invalid"],
+                    },
+                },
+            ),
+            SimpleNamespace(
+                source_index=3,
+                metric_evidence={
+                    "porod": {
+                        "value": None,
+                        "level": "Unusable",
+                        "reason_codes": ["porod_payload_missing"],
+                    },
+                    "kratky": None,
+                    "invariant": {
+                        "value": 92.0,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "lamellar": {
+                        "value": 11.5,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                },
+            ),
+            SimpleNamespace(
+                source_index=5,
+                metric_evidence={
+                    "porod": {
+                        "value": 0.9,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "kratky": {
+                        "value": 0.2,
+                        "level": "Diagnostic",
+                        "reason_codes": ["kratky_peak_missing"],
+                    },
+                    "invariant": {
+                        "value": 81.0,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "lamellar": {
+                        "value": 10.8,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                },
+            ),
+        ],
+    )
+    definitions = build_saxs_temperature_definitions(
+        result,
+        (np.asarray([0.1, 0.2, 0.3]),) * 3,
+        (np.asarray([10.0, 5.0, 2.0]),) * 3,
+    )
+
+    figure = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.method_evidence"
+    )
+    assert figure.publication_role == "diagnostic"
+    audit_sources = {
+        source.source_id: source
+        for source in figure.data_sources
+        if source.role == "method_evidence_audit"
+    }
+    assert set(audit_sources) == {
+        "temperature-method-evidence-porod",
+        "temperature-method-evidence-kratky",
+        "temperature-method-evidence-invariant",
+        "temperature-method-evidence-lamellar",
+    }
+    porod = audit_sources["temperature-method-evidence-porod"]
+    assert porod.values["temperature_C"] == (30.0, 60.0, 90.0)
+    assert porod.values["value"] == (1.2, None, 0.9)
+    assert porod.values["source_index"] == (7, 3, 5)
+    assert porod.values["frame_level"] == ("Trend", "Unusable", "Trend")
+    assert porod.values["frame_reason_codes"] == (
+        "porod_slope_deviation_observed",
+        "porod_payload_missing",
+        None,
+    )
+    plot_sources = {
+        source.source_id: source
+        for source in figure.data_sources
+        if source.role == "method_evidence_plot"
+    }
+    assert plot_sources["temperature-method-evidence-porod-plot"].values == {
+        "temperature_C": (30.0, 90.0),
+        "value": (1.2, 0.9),
+    }
+    assert plot_sources["temperature-method-evidence-kratky-plot"].values == {
+        "temperature_C": (30.0, 90.0),
+        "value": (0.3, 0.2),
+    }
+    assert figure.recipe["parameters"]["missing_values_preserved"] is True
+    assert figure.recipe["parameters"]["interpolation"] is False
+    assert figure.recipe["parameters"]["reclassification"] is False
+    json.dumps(
+        {
+            source.source_id: dict(source.values)
+            for source in figure.data_sources
+        },
+        allow_nan=False,
+    )
+    result.temp_points[0].metric_evidence["porod"]["value"] = 99.0
+    assert porod.values["value"] == (1.2, None, 0.9)
+    validate_figure_definition(figure)
+    assert build_v2_definition_artifact(figure).capability["v2_runtime"] == "ready"
+
+
+def test_saxs_temperature_provider_omits_empty_method_evidence_figure(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    result.temp_points = [SimpleNamespace(source_index=0, metric_evidence=None)]
+
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+
+    assert "saxs.series.temperature.method_evidence" not in {
+        item.figure_id for item in definitions
+    }
+
+
 def test_saxs_temperature_provider_keeps_legacy_results_without_rg_figure(
     saxs_temperature_inputs,
 ):
