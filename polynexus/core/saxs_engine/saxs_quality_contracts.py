@@ -386,6 +386,9 @@ class MetricEvidenceSummary:
     unusable_frame_indices: tuple[int, ...] = ()
     invalid_level_indices: tuple[int, ...] = ()
     frame_source_indices: tuple[int, ...] = ()
+    duplicate_source_index_indices: tuple[int, ...] = ()
+    invalid_source_index_indices: tuple[int, ...] = ()
+    source_index_order_reordered: bool = False
     condition_axis: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -399,8 +402,11 @@ class MetricEvidenceSummary:
             "unusable_frame_indices",
             "invalid_level_indices",
             "frame_source_indices",
+            "duplicate_source_index_indices",
+            "invalid_source_index_indices",
         ):
             object.__setattr__(self, field_name, _int_tuple(getattr(self, field_name)))
+        object.__setattr__(self, "source_index_order_reordered", bool(self.source_index_order_reordered))
 
     def to_dict(self) -> dict[str, Any]:
         return _contract_dict(self)
@@ -423,8 +429,11 @@ class MetricEvidenceSummary:
             "unusable_frame_indices",
             "invalid_level_indices",
             "frame_source_indices",
+            "duplicate_source_index_indices",
+            "invalid_source_index_indices",
         ):
             data[key] = _int_tuple(data.get(key))
+        data["source_index_order_reordered"] = bool(data.get("source_index_order_reordered", False))
         raw_axis = data.get("condition_axis")
         data["condition_axis"] = raw_axis if isinstance(raw_axis, Mapping) else {}
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
@@ -1747,8 +1756,70 @@ def build_series_metric_evidence(
 
     frames = list(frame_evidence or ())
     source_indices_supplied = frame_source_indices is not None
-    source_indices = _int_tuple(frame_source_indices)
-    source_index_mapping_valid = not source_indices_supplied or len(source_indices) == len(frames)
+    raw_source_indices: list[Any] = []
+    if source_indices_supplied:
+        if isinstance(frame_source_indices, (str, bytes)):
+            raw_source_indices = [frame_source_indices]
+        else:
+            try:
+                raw_source_indices = list(frame_source_indices)
+            except TypeError:
+                raw_source_indices = [frame_source_indices]
+    source_index_length_mismatch = bool(
+        source_indices_supplied and len(raw_source_indices) != len(frames)
+    )
+    trusted_source_indices: list[int] = []
+    invalid_source_index_indices: list[int] = []
+    for position, raw_index in enumerate(raw_source_indices):
+        try:
+            numeric_index = float(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            invalid_source_index_indices.append(position)
+            continue
+        if (
+            isinstance(raw_index, (bool, np.bool_))
+            or not np.isfinite(numeric_index)
+            or numeric_index < 0
+            or not numeric_index.is_integer()
+        ):
+            invalid_source_index_indices.append(position)
+        else:
+            trusted_source_indices.append(int(numeric_index))
+    source_indices = tuple(trusted_source_indices)
+
+    duplicate_source_index_indices: list[int] = []
+    if (
+        source_indices_supplied
+        and not source_index_length_mismatch
+        and not invalid_source_index_indices
+    ):
+        for position, source_index in enumerate(source_indices):
+            if source_index in source_indices[:position]:
+                duplicate_source_index_indices.append(position)
+                duplicate_source_index_indices.extend(
+                    previous
+                    for previous, previous_index in enumerate(source_indices[:position])
+                    if previous_index == source_index
+                    and previous not in duplicate_source_index_indices
+                )
+        duplicate_source_index_indices.sort()
+    source_index_mapping_invalid = bool(
+        source_index_length_mismatch
+        or invalid_source_index_indices
+        or duplicate_source_index_indices
+    )
+    source_index_mapping_valid = bool(
+        not source_indices_supplied or not source_index_mapping_invalid
+    )
+    source_index_order_reordered = bool(
+        source_indices_supplied
+        and source_index_mapping_valid
+        and len(source_indices) == len(frames)
+        and any(
+            current < previous
+            for previous, current in zip(source_indices, source_indices[1:])
+        )
+    )
     if not source_index_mapping_valid:
         source_indices = ()
     condition_values_supplied = condition_values is not None
@@ -1891,8 +1962,12 @@ def build_series_metric_evidence(
             reasons.append("series_metric_diagnostic_frames")
         if unusable_frame_count and "series_metric_unusable_frames" not in reasons:
             reasons.append("series_metric_unusable_frames")
-        if not source_index_mapping_valid:
+        if source_index_length_mismatch:
             reasons.append("series_metric_source_index_mismatch")
+        if invalid_source_index_indices:
+            reasons.append("series_metric_source_index_invalid")
+        if duplicate_source_index_indices:
+            reasons.append("series_metric_source_index_duplicate")
         if condition_axis_reason:
             reasons.append(condition_axis_reason)
 
@@ -1909,6 +1984,7 @@ def build_series_metric_evidence(
             or diagnostic_frame_count
             or unusable_frame_count
             or frame_count < 2
+            or source_index_mapping_invalid
         ):
             level = QualityLevel.DIAGNOSTIC
             if frame_count < 2:
@@ -1938,6 +2014,9 @@ def build_series_metric_evidence(
             unusable_frame_indices=tuple(unusable_frame_indices),
             invalid_level_indices=tuple(invalid_level_indices),
             frame_source_indices=source_indices if source_index_mapping_valid else (),
+            duplicate_source_index_indices=tuple(duplicate_source_index_indices),
+            invalid_source_index_indices=tuple(invalid_source_index_indices),
+            source_index_order_reordered=source_index_order_reordered,
             condition_axis=condition_axis,
         ).to_dict()
     return summaries

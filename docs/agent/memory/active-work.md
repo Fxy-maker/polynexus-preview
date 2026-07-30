@@ -1,5 +1,31 @@
 # Active Work
 
+## SAXS series metric source-index integrity - verified, checkpoint pending - 2026-07-30
+
+- `build_series_metric_evidence()` now validates supplied frame source indices
+  without coercing invalid values into trusted mappings. Duplicate, negative,
+  non-integral, boolean, non-finite, non-coercible, and length-mismatched
+  mappings expose position facts, clear trusted indices, add reason codes, and
+  cap usable metric summaries at `Diagnostic`. Valid reordered mappings remain
+  Trend evidence and record `source_index_order_reordered=True`; omitted
+  mappings are unchanged.
+- No metric value, condition-axis rule, physical threshold, interpolation,
+  rescue, AI, Figure role, Manifest, or Export decision changed.
+- TDD RED was `8 failed, 2 warnings`; the non-finite boundary RED was `1
+  failed, 6 passed, 4 deselected, 2 warnings`; focused GREEN was `21 passed,
+  1 warning`. The consumer matrix passed `110 passed, 1 warning`.
+- Fresh SAXS passed `605 passed, 8 warnings in 424.90s`, exit code `0`.
+- Task verifier passed task-card, memory, Ruff, compile, and type baseline, but
+  its focused quality gate returned `288 passed, 2 failed, 3 warnings`, exit
+  code `1`, from pre-existing `tests/test_history_table_service.py` locale
+  expectations (`Scientific review` vs current `科学复核`).
+- `git diff --check` passed. Storage stayed dry-run only: `54` artifacts,
+  `eligible_bytes=13390550`, `eligible=6`, `removed=0`; no `--apply`.
+- Task/spec/plan/acceptance are recorded in the corresponding
+  `2026-07-30-saxs-series-metric-source-index-integrity` files. The next action
+  is an explicit allowlist checkpoint; `current-state.md` and parallel files
+  remain untouched.
+
 ## Current-head SAXS verification recheck - SAXS matrix green, full boundary open - 2026-07-30
 
 - Fresh current-head SAXS matrix using repository Python 3.14, offscreen Qt,
