@@ -18,8 +18,8 @@ Evidence:
 - Exact SAXS matrix: `540 passed, 6 warnings in 315.38s`, exit `0`.
 - Storage report/clean: dry-run `302 artifacts, 40 eligible, 262 protected,
   0 removed`; no `--apply`, delete, move, or migration.
-- Explicit allowlist checkpoint created after the above evidence; commit hash
-  is reported in the handoff.
+- Explicit allowlist implementation checkpoint: `957e6ce`; no push or merge
+  was performed.
 
 Limitations: condition/result arrays in the legacy provider and 2D detector,
 azimuthal chi, geometry, mask, saturation, and orientation paths are not part

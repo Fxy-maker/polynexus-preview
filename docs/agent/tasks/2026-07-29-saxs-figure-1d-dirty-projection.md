@@ -100,9 +100,8 @@ pass only with a final pytest summary and exit code `0`. `test_storage.py
 - Storage report and clean were dry-run only: `302` artifacts, `40` eligible,
   `262` protected, `0` removed. `test_storage.py --apply` was not executed;
   no test directory was deleted, moved, or migrated.
-- The explicit allowlist checkpoint is created after these results; its commit
-  hash is reported in the handoff. No push, merge, deployment, or unrelated
-  cleanup was performed.
+- The explicit allowlist implementation checkpoint is `957e6ce`; no push,
+  merge, deployment, or unrelated cleanup was performed.
 
 ## Known limitations
 

@@ -1137,7 +1137,7 @@
   (projection provenance). Evidence: `docs/agent/tasks/2026-07-29-saxs-detector-figure-dirty-projection.md`
   and `docs/agent/tasks/2026-07-29-saxs-detector-figure-provenance.md`.
 
-## SAXS 1D Figure dirty projection - checkpoint pending - 2026-07-29
+## SAXS 1D Figure dirty projection - checkpointed - 2026-07-29
 
 - A shared detached `_coerce_numeric_array()` now represents malformed tokens
   as position-preserving `NaN` and is used by static, temperature, strain, and
@@ -1150,8 +1150,8 @@
   Structured verification passed with quality `287` and preprocessing `106`;
   exact SAXS returned `540 passed, 6 warnings in 315.38s`, exit code `0`.
   Storage report/clean remained dry-run with `302` artifacts, `40` eligible,
-  `262` protected, and `0` removed. The explicit checkpoint hash is reported
-  in the handoff.
+  `262` protected, and `0` removed. The explicit allowlist implementation
+  checkpoint is `957e6ce`; no push or merge was performed.
 - Evidence: `docs/agent/tasks/2026-07-29-saxs-figure-1d-dirty-projection.md`
   and `docs/acceptance/2026-07-29-saxs-figure-1d-dirty-projection.md`.
 
