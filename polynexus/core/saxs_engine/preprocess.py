@@ -20,6 +20,12 @@ from scipy.signal import savgol_filter
 
 from .config import SAXSConfig
 from .saxs_quality_contracts import build_detector_quality_report
+from .saxs_mask_edit import (
+    MaskEditValidationError,
+    apply_confirmed_mask_edit,
+    mask_digest,
+    validate_mask_edit_candidate,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +98,12 @@ def build_integrator(cfg: SAXSConfig):
     # Fallback: no pyFAI, use manual numpy integration
     return None
 
-def _manual_sector_integrate(img: np.ndarray, cfg: SAXSConfig, sector: str) -> np.ndarray:
+def _manual_sector_integrate(
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    sector: str,
+    mask: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """Manual sector integration for meridional or equatorial regions.
 
     Uses azimuthal masking in polar coordinates.
@@ -118,7 +129,7 @@ def _manual_sector_integrate(img: np.ndarray, cfg: SAXSConfig, sector: str) -> n
         chi_mask |= ((chi - 180 >= cfg.chi_equat_range[0]) & (chi - 180 <= cfg.chi_equat_range[1]))
 
     # Exclude dummy / masked pixels (beam stop, dead pixels, etc.)
-    dummy_mask = _build_mask(img, cfg)
+    dummy_mask = _build_mask(img, cfg) if mask is None else mask
     if dummy_mask is not None:
         valid = np.isfinite(img) & (img > 0) & chi_mask & ~dummy_mask
     else:
@@ -139,7 +150,11 @@ def _manual_sector_integrate(img: np.ndarray, cfg: SAXSConfig, sector: str) -> n
     return I_radial
 
 
-def _manual_integrate(img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np.ndarray]:
+def _manual_integrate(
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    mask: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Manual radial integration fallback (no pyFAI dependency for core functionality)."""
     # Guard against invalid geometry configuration
     if cfg.wavelength_m <= 0 or cfg.sdd_m <= 0:
@@ -158,7 +173,7 @@ def _manual_integrate(img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np.
     q_flat = q_map.flatten()
     I_flat = img.flatten()
     # Exclude dummy / masked pixels (beam stop, dead pixels, etc.)
-    dummy_mask = _build_mask(img, cfg)
+    dummy_mask = _build_mask(img, cfg) if mask is None else mask
     if dummy_mask is not None:
         valid = np.isfinite(I_flat) & (I_flat > 0) & np.isfinite(q_flat) & ~dummy_mask.flatten()
     else:
@@ -242,7 +257,12 @@ def _integrate_pyfai_shadow(img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarra
     return np.array([]), np.array([])
 
 
-def integrate_full(ai, img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np.ndarray]:
+def integrate_full(
+    ai,
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    mask: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Full azimuthal integration -> I(q).
 
     If ai is None (no pyFAI), uses manual numpy integration.
@@ -250,7 +270,7 @@ def integrate_full(ai, img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np
     """
     if ai is not None:
         try:
-            mask = _build_mask(img, cfg)
+            mask = _build_mask(img, cfg) if mask is None else mask
             q, I = ai.integrate1d(
                 img, cfg.n_pt,
                 radial_range=(cfg.q_min, cfg.q_max),
@@ -266,10 +286,13 @@ def integrate_full(ai, img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np
             logger.warning("SAXS pyFAI full integration failed; using manual integration.", exc_info=True)
 
     # Manual numpy fallback
-    return _manual_integrate(img, cfg)
+    return _manual_integrate(img, cfg, mask=mask)
 
 def integrate_sectors(
-    ai, img: np.ndarray, cfg: SAXSConfig
+    ai,
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    mask: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Anisotropic integration: meridional + equatorial sectors.
 
@@ -277,13 +300,13 @@ def integrate_sectors(
     Returns (q, I_full, I_merid, I_equat).
     """
     if ai is None:
-        q, I_full = _manual_integrate(img, cfg)
+        q, I_full = _manual_integrate(img, cfg, mask=mask)
         # Approximate sectors from manual integration
-        I_merid = _manual_sector_integrate(img, cfg, 'meridional')
-        I_equat = _manual_sector_integrate(img, cfg, 'equatorial')
+        I_merid = _manual_sector_integrate(img, cfg, 'meridional', mask=mask)
+        I_equat = _manual_sector_integrate(img, cfg, 'equatorial', mask=mask)
         return q, I_full, I_merid, I_equat
 
-    mask = _build_mask(img, cfg)
+    mask = _build_mask(img, cfg) if mask is None else mask
     n_pt = cfg.n_pt
 
     # Full
@@ -313,7 +336,10 @@ def integrate_sectors(
 
 
 def integrate_chi_sectors(
-    ai, img: np.ndarray, cfg: SAXSConfig
+    ai,
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    mask: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Azimuthal sector integration into n_chi_sectors bins.
 
@@ -344,7 +370,7 @@ def integrate_chi_sectors(
             & (chi_bins >= 0)
             & (chi_bins < n_chi)
         )
-        dummy_mask = _build_mask(img, cfg)
+        dummy_mask = _build_mask(img, cfg) if mask is None else mask
         if dummy_mask is not None:
             valid &= ~dummy_mask
 
@@ -362,7 +388,7 @@ def integrate_chi_sectors(
         chi = 0.5 * (chi_edges[:-1] + chi_edges[1:])
         return q, intensity, chi
 
-    mask = _build_mask(img, cfg)
+    mask = _build_mask(img, cfg) if mask is None else mask
     res = ai.integrate2d(
         img, cfg.n_pt, n_chi,
         radial_range=(cfg.q_min, cfg.q_max),
@@ -380,7 +406,7 @@ def integrate_chi_sectors(
     return q, I_2d, chi
 
 
-def default_integration_fn(img, cfg):
+def default_integration_fn(img, cfg, mask: Optional[np.ndarray] = None):
     """Default integration pipeline for assemble_dataset().
 
     For isotropic: integrate_full only.
@@ -388,10 +414,10 @@ def default_integration_fn(img, cfg):
     """
     ai = build_integrator(cfg)
     if cfg.is_isotropic or cfg.analysis_priority == "isotropic":
-        q, I = integrate_full(ai, img, cfg)
+        q, I = integrate_full(ai, img, cfg, mask=mask)
         return q, I, None, None
     else:
-        return integrate_sectors(ai, img, cfg)
+        return integrate_sectors(ai, img, cfg, mask=mask)
 
 
 # ---------------------------------------------------------------------------
@@ -577,6 +603,7 @@ def preprocess_pipeline(
     q_background: Optional[np.ndarray] = None,
     temperature: float = 25.0,
     detector_header: Optional[Mapping[str, Any]] = None,
+    mask_edit_candidate: Optional[Mapping[str, Any]] = None,
 ) -> dict:
     """Run the full preprocessing pipeline on a single 2D image.
 
@@ -591,12 +618,23 @@ def preprocess_pipeline(
         cfg = apply_thermal_correction(cfg, temperature)
         ai = build_integrator(cfg)
 
+    detector_mask, mask_edit_provenance = _resolve_detector_mask(
+        img,
+        cfg,
+        mask_edit_candidate,
+    )
+
     # Integration
     if cfg.is_isotropic:
-        q, Iq = integrate_full(ai, img, cfg)
+        q, Iq = integrate_full(ai, img, cfg, mask=detector_mask)
         result = {"q": q, "Iq": Iq, "Iq_merid": None, "Iq_equat": None}
     else:
-        q, I_full, I_merid, I_equat = integrate_sectors(ai, img, cfg)
+        q, I_full, I_merid, I_equat = integrate_sectors(
+            ai,
+            img,
+            cfg,
+            mask=detector_mask,
+        )
         result = {"q": q, "Iq": I_full, "Iq_merid": I_merid, "Iq_equat": I_equat}
 
     # Background subtraction
@@ -652,7 +690,12 @@ def preprocess_pipeline(
     }
     if not cfg.is_isotropic and cfg.analysis_priority != "isotropic":
         try:
-            q_2d, I_2d, chi_rad = integrate_chi_sectors(ai, img, cfg)
+            q_2d, I_2d, chi_rad = integrate_chi_sectors(
+                ai,
+                img,
+                cfg,
+                mask=detector_mask,
+            )
             if (
                 I_2d.ndim == 2
                 and I_2d.shape[1] == len(q_2d)
@@ -669,7 +712,6 @@ def preprocess_pipeline(
         except Exception:
             logger.warning("SAXS azimuthal sector integration failed; orientation is unavailable.", exc_info=True)
     result["sector_data"] = sector_data
-    detector_mask = _build_mask(img, cfg)
     detector_report = build_detector_quality_report(
         img,
         mask=detector_mask,
@@ -680,7 +722,11 @@ def preprocess_pipeline(
         source_kind="raw_detector",
         beam_center=_header_beam_center(detector_header),
         geometry_provenance=_geometry_provenance(detector_header, cfg),
-        mask_provenance=_mask_provenance(img, detector_mask),
+        mask_provenance=_mask_provenance(
+            img,
+            detector_mask,
+            edit_provenance=mask_edit_provenance,
+        ),
     )
     result["detector_quality_report"] = detector_report.to_dict()
 
@@ -696,6 +742,50 @@ def _build_mask(img: np.ndarray, cfg: SAXSConfig) -> Optional[np.ndarray]:
     if np.isnan(cfg.dummy_val):
         return None
     return np.abs(img - cfg.dummy_val) < cfg.ddummy
+
+
+def _resolve_detector_mask(
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    candidate: Optional[Mapping[str, Any]],
+) -> tuple[Optional[np.ndarray], dict[str, Any] | None]:
+    """Resolve a confirmed edit without changing the configured mask path."""
+
+    configured_mask = _build_mask(img, cfg)
+    if candidate is None:
+        return configured_mask, None
+
+    base_mask = (
+        configured_mask
+        if configured_mask is not None
+        else np.zeros(np.asarray(img).shape, dtype=bool)
+    )
+    provenance: dict[str, Any] = {
+        "edit_status": "invalid",
+        "base_mask_digest": mask_digest(base_mask),
+        "edited_mask_digest": None,
+        "changed_pixel_count": None,
+    }
+    try:
+        edited_mask = validate_mask_edit_candidate(candidate, base_mask)
+        provenance.update(
+            {
+                "edited_mask_digest": candidate.get("edited_mask_digest"),
+                "changed_pixel_count": int(candidate.get("changed_pixel_count")),
+                "edit_status": (
+                    "confirmed"
+                    if candidate.get("confirmed") is True
+                    else "candidate_only"
+                ),
+            }
+        )
+        if candidate.get("confirmed") is True:
+            # Re-validate through the public confirmation boundary before use.
+            edited_mask = apply_confirmed_mask_edit(base_mask, candidate)
+            return edited_mask, provenance
+    except (MaskEditValidationError, TypeError, ValueError, OverflowError) as exc:
+        provenance["edit_error"] = type(exc).__name__
+    return configured_mask, provenance
 
 
 def _header_float(
@@ -819,27 +909,41 @@ def _geometry_provenance(
 def _mask_provenance(
     img: Any,
     mask: Any,
+    *,
+    edit_provenance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Record only the configured mask origin and aligned image shape."""
     if mask is None:
-        return {
+        provenance = {
             "source": "none",
             "configured": False,
             "shape": None,
             "validity": "not_assessed",
         }
-    shape = getattr(mask, "shape", ())
-    image_shape = getattr(img, "shape", ())
-    if len(shape) == 2 and tuple(shape) == tuple(image_shape):
-        serialized_shape = [int(item) for item in shape]
     else:
-        serialized_shape = None
-    return {
-        "source": "saxs_config.dummy_value",
-        "configured": True,
-        "shape": serialized_shape,
-        "validity": "not_assessed",
-    }
+        shape = getattr(mask, "shape", ())
+        image_shape = getattr(img, "shape", ())
+        if len(shape) == 2 and tuple(shape) == tuple(image_shape):
+            serialized_shape = [int(item) for item in shape]
+        else:
+            serialized_shape = None
+        provenance = {
+            "source": "saxs_config.dummy_value",
+            "configured": True,
+            "shape": serialized_shape,
+            "validity": "not_assessed",
+        }
+    if isinstance(edit_provenance, Mapping):
+        for key in (
+            "edit_status",
+            "base_mask_digest",
+            "edited_mask_digest",
+            "changed_pixel_count",
+            "edit_error",
+        ):
+            if key in edit_provenance:
+                provenance[key] = edit_provenance[key]
+    return provenance
 
 
 def detect_beamstop_edge(

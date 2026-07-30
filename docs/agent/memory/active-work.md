@@ -1,5 +1,21 @@
 # Active Work
 
+## SAXS manual mask confirmed rerun - checkpointed 2026-07-30
+
+- Added a strict, detached JSON candidate contract for explicit 2D detector
+  mask edits. Candidates carry shape-bound base/edited digests and explicit
+  pixel operations; only confirmed candidates affect preprocessing.
+- Pending, malformed, and unconfirmed candidates remain numerical no-ops while
+  their status is preserved in existing detector mask provenance. Confirmed
+  masks propagate through full, sector, and azimuthal integration without
+  mutating the raw image or changing quality/physical/publication authority.
+- Fresh exact SAXS evidence is `636 passed, 6 warnings` in `540.67s`, exit `0`.
+  Task verification and diff checks passed. Storage report/dry-run found `54`
+  artifacts, `0` eligible bytes, and removed `0`; no storage apply was run.
+- The explicit allowlist checkpoint is committed locally; no push or merge was
+  performed. Full / boundary release verification is not claimed by this
+  slice.
+
 ## Current HEAD native non-SAXS walkthrough - verified, checkpoint pending - 2026-07-30
 
 - Windows Qt native walkthrough passed `14 passed, 3 deselected in 353.49s`,

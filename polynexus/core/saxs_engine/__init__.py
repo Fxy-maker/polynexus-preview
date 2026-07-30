@@ -41,6 +41,14 @@ from .saxs_quality_contracts import (
     contract_json,
 )
 from .processed_profile import ProcessedProfile
+from .saxs_mask_edit import (
+    MaskEditValidationError,
+    apply_confirmed_mask_edit,
+    build_mask_edit_candidate,
+    confirm_mask_edit_candidate,
+    mask_digest,
+    validate_mask_edit_candidate,
+)
 from .io import (
     read_image, read_1d_profile, extract_geometry_from_header,
     scan_experiment_dir, assemble_dataset, recover_condition_axis,
@@ -116,6 +124,9 @@ __all__ = [
     "Sanitized1DProfile", "sanitize_1d_profile",
     "contract_json",
     "ProcessedProfile",
+    "MaskEditValidationError", "apply_confirmed_mask_edit",
+    "build_mask_edit_candidate", "confirm_mask_edit_candidate",
+    "mask_digest", "validate_mask_edit_candidate",
     "read_image", "read_1d_profile", "extract_geometry_from_header",
     "scan_experiment_dir", "assemble_dataset", "recover_condition_axis",
     "build_integrator", "integrate_full", "integrate_sectors",
