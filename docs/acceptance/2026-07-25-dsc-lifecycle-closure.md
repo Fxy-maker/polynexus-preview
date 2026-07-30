@@ -36,6 +36,20 @@ The verifier required an external pytest basetemp because a first invocation
 hit a Windows permission error while cleaning the pre-existing repository-root
 `.pytest_tmp`; the rerun with `C:\Temp\PolyNexus_dsc_verifier` passed.
 
+## Current checkout focused recheck (2026-07-30)
+
+The current checkout passed the DSC provider, lifecycle, Workbench, export,
+figure-project, editor-save, and results-contract matrix:
+
+```text
+python -m pytest -p no:cacheprovider tests/test_dsc_lifecycle_closure.py tests/test_dsc_engine.py tests/test_dsc_figure_provider.py tests/test_dsc_publication_standard_provider.py tests/test_dsc_publication_isothermal_provider.py tests/test_dsc_publication_nonisothermal_provider.py tests/test_dsc_publication_cutover.py tests/test_dsc_workbench_figure_contracts.py tests/test_results_workbench_profiles.py tests/test_results_export_contracts.py tests/test_figure_project_service.py tests/test_chart_editor_save_mixin.py tests/test_export_context_service.py -q
+97 passed in 28.01s, exit code 0
+```
+
+The run used the external test root
+`D:\PolyNexus-test-runs-current-dsc-20260730`. It excluded the known broad
+GUI persistence baseline shard and did not run or modify SAXS.
+
 ## Remaining acceptance boundary
 
 This closes the DSC automated lifecycle evidence boundary only. Restarted-GUI

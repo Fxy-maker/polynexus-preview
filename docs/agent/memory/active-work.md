@@ -34,6 +34,18 @@
   was modified. Evidence: `docs/agent/tasks/2026-07-30-current-head-native-nonsaxs-walkthrough.md`
   and `docs/acceptance/2026-07-30-current-head-native-nonsaxs-walkthrough.md`.
 
+## Current DSC/WAXS focused lifecycle recheck - 2026-07-30
+
+- Current-head DSC provider/lifecycle/Workbench/export/editor matrix passed
+  `97 passed in 28.01s`, exit `0`, using
+  `D:\PolyNexus-test-runs-current-dsc-20260730`.
+- Current-head WAXS lifecycle/provider/Workbench/project/History matrix passed
+  `21 passed in 46.36s`, exit `0`, using
+  `D:\PolyNexus-test-runs-current-waxs-20260730`.
+- Both runs excluded SAXS and changed no source or real dataset. They strengthen
+  automated lifecycle evidence only; GUI visual/scientific review and final
+  release authorization remain separate gates.
+
 ## Release decision packet - conditional scientific disposition recorded - 2026-07-30
 
 - The project owner confirmed the conservative non-SAXS release boundaries in

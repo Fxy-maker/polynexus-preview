@@ -55,6 +55,21 @@ temperature series labels. The Results surface retains the explicit warning
 that WAXS physical support is limited, so this is route and artifact evidence,
 not scientific publication approval.
 
+## Current checkout focused recheck (2026-07-30)
+
+The current checkout passed the WAXS lifecycle, real publication evaluation,
+provider, Workbench, reactive/project service, and History matrix:
+
+```text
+python -m pytest -p no:cacheprovider tests/test_waxs_lifecycle_closure.py tests/eval/test_waxs_publication_real_data.py tests/test_waxs_figure_provider.py tests/test_waxs_workbench_figure_contracts.py tests/test_reactive_figure_project_service.py tests/test_figure_project_service.py tests/test_main_window_history_mixin.py -q
+21 passed in 46.36s, exit code 0
+```
+
+The run used the external test root
+`D:\PolyNexus-test-runs-current-waxs-20260730` and did not run or modify SAXS.
+This strengthens route and artifact evidence only; detector/orientation
+semantics and final publication approval remain human boundaries.
+
 ## Remaining acceptance boundary
 
 Restarted-GUI visual inspection of the 2D image-grid, real instrument-data
