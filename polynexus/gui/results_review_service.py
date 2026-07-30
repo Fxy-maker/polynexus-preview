@@ -1190,7 +1190,23 @@ def _panel_joint_text(
     joint_summary = str(joint.get("summary") or "").strip()
     joint_reminder_text = tr(reminder_parts.translation_key, *reminder_parts.args) if reminder_parts else ""
     joint_compare_hint_text = tr(compare_parts.translation_key, *compare_parts.args) if compare_parts else ""
-    joint_parts = [part for part in [joint_summary, joint_reminder_text, joint_compare_hint_text] if part]
+    conclusion = joint.get("joint_conclusion") if isinstance(joint.get("joint_conclusion"), dict) else {}
+    conclusion_class = str(conclusion.get("class") or "").strip()
+    conclusion_reason = str(conclusion.get("reason") or "").strip()
+    conclusion_allowed = conclusion.get("allowed")
+    joint_conclusion_text = ""
+    if conclusion_class or conclusion_reason or conclusion_allowed is not None:
+        joint_conclusion_text = tr(
+            "RESULTS_REVIEW_JOINT_CONCLUSION",
+            conclusion_class or "unknown",
+            str(conclusion_allowed).lower() if isinstance(conclusion_allowed, bool) else str(conclusion_allowed or "unknown"),
+            conclusion_reason or "unspecified",
+        )
+    joint_parts = [
+        part
+        for part in [joint_summary, joint_conclusion_text, joint_reminder_text, joint_compare_hint_text]
+        if part
+    ]
     if not joint_parts:
         return tr("RESULTS_REVIEW_NO_JOINT"), False
     return tr("RESULTS_REVIEW_JOINT", " | ".join(joint_parts)), True

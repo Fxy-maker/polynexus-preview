@@ -758,6 +758,11 @@ def test_result_review_panel_texts_compose_controlled_rerun_sections():
                     "summary": "Cross-tech consistency",
                     "issue_count": 1,
                     "issue_families": ["phi_c inconsistency"],
+                    "joint_conclusion": {
+                        "class": "blocked",
+                        "allowed": False,
+                        "reason": "conflict_error",
+                    },
                 },
                 "responsibility_boundary": "Boundary | core provides evidence",
                 "fallback_next_text": "Fallback next",
@@ -786,6 +791,8 @@ def test_result_review_panel_texts_compose_controlled_rerun_sections():
         assert parts.joint_visible is True
         assert "Cross-tech consistency" in parts.joint_text
         assert "Phi C Inconsistency" in parts.joint_text
+        assert "Joint conclusion | blocked" in parts.joint_text
+        assert "conflict_error" in parts.joint_text
         assert "Validation note" in parts.risk_text
         assert "stop here" in parts.risk_text
         assert "keep checking" in parts.risk_text
