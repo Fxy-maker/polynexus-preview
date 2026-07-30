@@ -531,7 +531,7 @@
 - Remaining gates are native Qt full-suite stability, restarted-GUI visual
   review, reviewer-owned scientific decisions, and final release approval.
 
-## SAXS representative selection dirty-profile projection - checkpoint ready - 2026-07-30
+## SAXS representative selection dirty-profile projection - checkpointed - 2026-07-30
 
 - `figure_selection._intensity_features()` now projects q and intensity tokens
   elementwise through the existing numeric coercion boundary. Valid finite
@@ -554,6 +554,8 @@
   and `docs/superpowers/plans/2026-07-30-saxs-representative-selection-dirty-profile.md`.
 - The prior full/boundary attempt after `765bda3` remains a timeout without a
   final summary and is not attributed to this task.
+- The explicit allowlist implementation checkpoint is `b5cbc92`; no push or
+  merge was performed.
 
 ## SAXS 2D Figure malformed-token projection - checkpointed - 2026-07-30
 

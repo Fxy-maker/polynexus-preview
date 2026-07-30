@@ -16,6 +16,8 @@ individual profile tokens are malformed.
   `Eligible: 0 bytes`, `Cleanup failures: 0`, and no removals. The explicit
   `--apply` command was not run.
 - `git diff --check` passed.
+- Explicit allowlist implementation checkpoint: `b5cbc92`; no push or merge
+  was performed.
 
 ## Scientific and release boundary
 

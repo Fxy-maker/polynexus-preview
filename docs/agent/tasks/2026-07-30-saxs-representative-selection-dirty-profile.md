@@ -96,3 +96,5 @@ this task checkpoint.
   were removed or migrated.
 - The prior full/boundary attempt after `765bda3` remains a timeout without a
   final summary and is not attributed to this task.
+- Explicit allowlist implementation checkpoint: `b5cbc92`; no push or merge
+  was performed.
