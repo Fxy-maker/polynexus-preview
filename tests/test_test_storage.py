@@ -381,6 +381,70 @@ def test_discover_artifacts_includes_external_legacy_test_root(tmp_path: Path):
     assert artifacts[0].kind == "legacy-external"
 
 
+def test_discover_reconciles_dead_running_manifest(tmp_path: Path):
+    test_root = tmp_path / "test-root"
+    run_path = test_root / "pytest" / "run-dead"
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    begin_run_state(run_path, project_root=tmp_path, profile="ephemeral", now=now, pid=1234)
+
+    artifacts = discover_artifacts(
+        tmp_path,
+        test_root=test_root,
+        legacy_roots=[tmp_path],
+        active_pids=set(),
+        now=now + timedelta(hours=3),
+        emergency=True,
+    )
+
+    artifact = next(item for item in artifacts if item.path == run_path)
+    assert artifact.status == "interrupted"
+    assert artifact.finished_at == now + timedelta(hours=3)
+
+
+def test_discover_keeps_live_running_manifest(tmp_path: Path):
+    test_root = tmp_path / "test-root"
+    run_path = test_root / "pytest" / "run-live"
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    begin_run_state(run_path, project_root=tmp_path, profile="ephemeral", now=now, pid=1234)
+
+    artifacts = discover_artifacts(
+        tmp_path,
+        test_root=test_root,
+        legacy_roots=[tmp_path],
+        active_pids={1234},
+        now=now,
+        emergency=True,
+    )
+
+    artifact = next(item for item in artifacts if item.path == run_path)
+    assert artifact.status == "running"
+
+
+def test_discover_known_legacy_patterns_but_rejects_archive_like_names(tmp_path: Path):
+    legacy_root = tmp_path / "legacy"
+    names = [
+        "PolyNexus_saxs_demo_matrix",
+        "PN_SAXS_MATRIX_X",
+        "PolyNexus_demo_pytest",
+        "PolyNexus_demo_archive",
+        "PolyNexus_demo_evidence",
+    ]
+    for name in names:
+        (legacy_root / name).mkdir(parents=True)
+
+    artifacts = discover_artifacts(
+        tmp_path,
+        test_root=tmp_path / "managed",
+        legacy_roots=[legacy_root],
+    )
+
+    assert [artifact.path.name for artifact in artifacts] == [
+        "PN_SAXS_MATRIX_X",
+        "PolyNexus_demo_pytest",
+        "PolyNexus_saxs_demo_matrix",
+    ]
+
+
 def test_discover_managed_artifact_reads_run_state(tmp_path: Path):
     test_root = tmp_path / "test-root"
     run_path = test_root / "pytest" / "run-1"

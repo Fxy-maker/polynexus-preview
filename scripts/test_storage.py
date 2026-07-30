@@ -276,7 +276,14 @@ def finalize_run_state(
     return updated
 
 
-def reconcile_run_state(state: RunState, *, process_active: bool, now: datetime | None = None) -> RunState:
+def reconcile_run_state(
+    state: RunState,
+    *,
+    process_active: bool,
+    now: datetime | None = None,
+    emergency: bool | None = None,
+    persist: bool = True,
+) -> RunState:
     """Mark an abandoned running process as interrupted after it exits."""
 
     if state.status != "running" or process_active:
@@ -298,10 +305,11 @@ def reconcile_run_state(state: RunState, *, process_active: bool, now: datetime 
         keep_until=failure_deadline(
             state.profile,
             finished_at,
-            emergency=emergency_pressure(state.path),
+            emergency=emergency if emergency is not None else emergency_pressure(state.path),
         ),
     )
-    write_run_state(updated)
+    if persist:
+        write_run_state(updated)
     return updated
 
 
@@ -321,6 +329,7 @@ def resolve_legacy_test_roots(
     environ: Mapping[str, str] | None = None,
     *,
     extra_roots: Iterable[str | Path] = (),
+    include_project_drive: bool = False,
 ) -> list[Path]:
     """Resolve roots that may contain legacy test output directories.
 
@@ -338,6 +347,8 @@ def resolve_legacy_test_roots(
     elif os.name == "nt":
         system_drive = values.get("SystemDrive", "C:").strip() or "C:"
         roots.append(Path(system_drive.rstrip("\\/") + "\\"))
+    if include_project_drive:
+        roots.append(Path(Path(project_root).resolve().anchor))
     roots.extend(Path(value).expanduser() for value in extra_roots)
 
     unique: list[Path] = []
@@ -383,6 +394,32 @@ def pytest_process_active(command_lines: Iterable[str]) -> bool:
     """Return whether any supplied process command line is running pytest."""
 
     return any("pytest" in line.lower() for line in command_lines)
+
+
+def running_process_ids() -> set[int]:
+    """Return one snapshot of running Windows process IDs."""
+
+    if os.name != "nt":
+        return set()
+    command = "Get-CimInstance Win32_Process | Select-Object -ExpandProperty ProcessId"
+    try:
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", command],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        return set()
+    process_ids: set[int] = set()
+    for line in completed.stdout.splitlines():
+        try:
+            process_ids.add(int(line.strip()))
+        except ValueError:
+            continue
+    return process_ids
 
 
 def build_cleanup_plan(
@@ -480,11 +517,28 @@ def _modified_at(path: Path) -> datetime:
     return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
 
 
+def _is_known_legacy_name(lowered: str) -> bool:
+    """Recognize disposable test names without treating archives as tests."""
+
+    if any(token in lowered for token in ("archive", "evidence", "review", "baseline")):
+        return False
+    if "pytest_tmp" in lowered or "tmp_pytest" in lowered:
+        return True
+    if any(lowered.startswith(prefix) for prefix in EXTERNAL_LEGACY_PATTERNS):
+        return True
+    if lowered.startswith("polynexus_") and ("_matrix" in lowered or "_pytest" in lowered):
+        return True
+    return lowered.startswith("pn_") and "matrix" in lowered
+
+
 def discover_artifacts(
     project_root: Path,
     test_root: Path | None = None,
     *,
     legacy_roots: Iterable[Path] | None = None,
+    active_pids: Iterable[int] | None = None,
+    now: datetime | None = None,
+    emergency: bool = False,
 ) -> list[TestArtifact]:
     """Find legacy basetemps and managed per-run basetemps.
 
@@ -496,6 +550,8 @@ def discover_artifacts(
     root = project_root.resolve()
     artifacts: list[TestArtifact] = []
     roots = [root] if legacy_roots is None else [Path(path).resolve() for path in legacy_roots]
+    process_ids = None if active_pids is None else set(active_pids)
+    observed_at = now or datetime.now(timezone.utc)
     seen: set[str] = set()
     for legacy_root in roots:
         key = str(legacy_root).casefold()
@@ -510,8 +566,8 @@ def discover_artifacts(
             if not path.is_dir():
                 continue
             lowered = path.name.lower()
-            is_project_legacy = "pytest_tmp" in lowered or "tmp_pytest" in lowered
-            is_external_legacy = any(lowered.startswith(prefix) for prefix in EXTERNAL_LEGACY_PATTERNS)
+            is_project_legacy = _is_known_legacy_name(lowered)
+            is_external_legacy = _is_known_legacy_name(lowered)
             if (legacy_root == root and is_project_legacy) or (legacy_root != root and is_external_legacy):
                 kind = "legacy" if legacy_root == root else "legacy-external"
                 artifacts.append(TestArtifact(path, kind, _directory_size(path), _modified_at(path)))
@@ -526,12 +582,21 @@ def discover_artifacts(
                     state = read_run_state(path)
                 except (OSError, TypeError, ValueError, KeyError):
                     manifest_error = "invalid"
+                if state and state.status == "running" and process_ids is not None:
+                    state = reconcile_run_state(
+                        state,
+                        process_active=state.pid in process_ids,
+                        now=observed_at,
+                        emergency=emergency,
+                        persist=False,
+                    )
                 artifacts.append(
                     TestArtifact(
                         path,
                         "managed",
                         _directory_size(path),
                         _modified_at(path),
+                        finished_at=state.finished_at if state else None,
                         profile=state.profile if state else "legacy",
                         status=state.status if state else "manifest-invalid" if manifest_error else "legacy",
                         exit_code=state.exit_code if state else None,
