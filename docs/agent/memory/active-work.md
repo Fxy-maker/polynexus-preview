@@ -1,5 +1,33 @@
 # Active Work
 
+## SAXS post-cleanup release re-audit - domain green, full release open - 2026-07-30
+
+- With the updated test-storage rules and explicit apply authorization, the
+  cleanup removed eligible historical pytest/SAXS matrix artifacts. The first
+  apply inventory had `127` artifacts and `116946589183` emergency-eligible
+  bytes; it returned `11` Windows `PermissionError [WinError 5]` failures.
+  A fresh report then showed `45` artifacts, `1091805727` total bytes, and
+  `0` eligible bytes. No source files or real datasets were targeted.
+- The fresh full verifier first hit the outer tool timeout after `604` seconds
+  with no pytest summary. A background rerun completed its all-tests phase with
+  `1 failed, 3184 passed, 18 skipped, 12 warnings in 2609.69s`, wrapper exit
+  code `1`. The only failure was the pre-existing untracked GUI scratch test
+  `tests/_tmp_phase3/test_visual_audit_capture.py::test_capture_real_result_gui_routes`,
+  which found no `PolyNexusPolyNexus.pytest_tmp_release_real_dsc` output
+  directory. The wrapper therefore did not run its boundary phase; this is
+  not a full/boundary pass and no unrelated scratch file was changed.
+- The current HEAD SAXS matrix independently passed `631` tests with `6`
+  warnings in `588.82s`, exit code `0`, across the `99` repository
+  `tests/test_saxs_*.py` files. The standalone read-only boundary audit also
+  returned exit code `0`. After this matrix, storage reported `54` artifacts,
+  `15802078628` total bytes, and `0` eligible bytes; D: had about `94.27 GB`
+  free at the audit.
+- SAXS production behavior was not changed in this re-audit. Remaining gates
+  are the unrelated full-suite scratch-test failure, restarted-GUI review,
+  real-detector calibration/mask/orientation review, scientific meaning review,
+  and final release/publication authorization.
+
+
 ## NMR solid-C readiness projection - verified, checkpoint pending - 2026-07-30
 
 - Existing `Xc_assignment_status` is now projected into JSON-safe
