@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-30-nmr-solid-c-readiness
 kind: scientific-semantics
-status: in-progress
+status: completed
 date: 2026-07-30
 title: Surface NMR solid-C assignment and axis readiness
 ---
@@ -47,7 +47,7 @@ evidence and Results review text without supplying scientific assignments.
 - [x] No scientific value, assignment, axis conversion, or promotion rule is
       invented or changed.
 - [x] Task verifier, boundary audit, and diff checks are recorded below; the
-      explicit checkpoint is created after this final diff review.
+      explicit allowlist checkpoint is `fddb8c5`.
 
 ## Verification
 
@@ -88,5 +88,10 @@ vendor semantics, and final release authorization.
   lifecycle gate for this task.
 - Task verifier: exit 0; quality `292`, preprocessing `106`; Ruff, compile,
   memory/task, whitespace, and boundary checks passed.
-- `git diff --check`: exit 0. Explicit checkpoint is created after final diff
-  review using the allowlist below.
+- `git diff --check`: exit 0. Explicit checkpoint: `fddb8c5`.
+
+## Checkpoint
+
+The implementation and evidence slice was checkpointed at `fddb8c5`. The
+remaining assignment and axis limitations are intentional scientific review
+boundaries, not incomplete parser work.

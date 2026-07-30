@@ -1,6 +1,6 @@
 ---
 task_id: 2026-07-30-nmr-solid-c-readiness
-status: verified-checkpoint-pending
+status: verified-checkpointed
 date: 2026-07-30
 ---
 
@@ -38,4 +38,8 @@ scientific review or final release approval is implied.
 
 Task-scoped verification passed with quality `292` and preprocessing `106`;
 Ruff, compile, memory/task, whitespace, boundary audit, and `git diff --check`
-also passed. The explicit allowlist checkpoint is the remaining handoff action.
+also passed. The explicit allowlist checkpoint is `fddb8c5`.
+
+The user-confirmed release disposition keeps solid-C `assignment_limited`,
+leaves ambiguous peaks unassigned, and prohibits Xc promotion until an
+assignment truth set and calibrated ppm axis are supplied.

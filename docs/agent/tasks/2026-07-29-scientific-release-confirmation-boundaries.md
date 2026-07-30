@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-29-scientific-release-confirmation-boundaries
 kind: scientific-semantics
-status: awaiting-review
+status: completed
 date: 2026-07-29
 title: Define reviewer-owned IR, NMR solid-C, Joint, and release boundaries
 ---
@@ -49,7 +49,9 @@ semantics or changing current result roles.
    include a focused regression and an explicit changed-file allowlist.
 4. Verify each value-specific implementation with the task verifier, focused
    lifecycle matrix, full/boundary evidence where applicable, and an updated
-   acceptance note before any release promotion.
+   acceptance note before any release promotion. The confirmed conservative
+   dispositions are recorded in the release decision packet; no promotion is
+   authorized by this card.
 
 ## Acceptance criteria
 
@@ -63,9 +65,13 @@ semantics or changing current result roles.
       behavior when the record is absent or invalid.
 - [x] The design states how the decision must travel through shared lifecycle
       provenance, History restore, and fallback export.
-- [ ] Reviewer supplies the scientific values for the selected real sources.
-- [ ] Follow-up implementation task cards are created after the reviewer
-      values are fixed.
+- [x] Reviewer supplies the conservative scientific dispositions for the
+      selected real sources: IR remains diagnostic-only without a native map,
+      NMR solid-C remains assignment-limited without an assignment truth set,
+      and unresolved Joint conflicts remain diagnostic-only.
+- [x] Follow-up implementation/evidence task cards are recorded for the
+      official IR semantics, NMR readiness, Joint conclusion policy, and
+      project release decision.
 
 ## Verification
 
@@ -74,6 +80,14 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-29-scientific-release-c
 python scripts/boundary_audit.py --root D:\PolyNexus --json
 git diff --check
 ```
+
+## Reviewer disposition
+
+The project owner confirmed these fail-closed values in the current task on
+2026-07-30. They define the current result boundaries but do not supply the
+missing native IR map, NMR assignment truth set, or a Joint scientific
+precedence rule. The release decision is therefore conditional and the overall
+software goal remains active.
 
 ## Explicit changed-file allowlist
 

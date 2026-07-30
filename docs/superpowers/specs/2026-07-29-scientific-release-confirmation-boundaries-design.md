@@ -1,8 +1,8 @@
 # Scientific Release Confirmation Boundaries Design
 
 Date: 2026-07-29
-Status: high-level design approved by the user; scientific values pending
-reviewer entry
+Status: high-level design approved by the user; conservative reviewer
+dispositions recorded on 2026-07-30
 Task: `docs/agent/tasks/2026-07-29-scientific-release-confirmation-boundaries.md`
 
 ## Goal
@@ -121,12 +121,15 @@ the authority for scientific promotion.
 
 ## Verification strategy
 
-The implementation plan will add focused tests for JSON-safe round-trip,
+The implementation plan adds focused tests for JSON-safe round-trip,
 missing/malformed/stale records, per-mode promotion gates, shared lifecycle
 propagation, History restore, and fallback export. Existing IR mapping,
 NMR-evidence, Joint, Workbench, and real published-run matrices remain
-regression gates. Scientific values and thresholds will be supplied by the
-reviewer before any promotion test is made green.
+regression gates. The current reviewer decision deliberately supplies
+conservative dispositions, not scientific promotion values: no native IR map
+means diagnostic-only, no NMR assignment truth set means assignment-limited,
+and unresolved Joint conflicts remain diagnostic-only. Any future promotion
+value still requires a source-linked reviewer record and its own focused task.
 
 ## Alternatives considered
 
@@ -140,7 +143,7 @@ reviewer before any promotion test is made green.
 
 ## Acceptance boundary
 
-This design closes the shape of the remaining decision workflow, not the
-scientific decisions themselves. The overall release goal remains active until
-the reviewer supplies the four decision groups and the resulting behavior is
-implemented and verified across the shared lifecycle.
+This design now records the conservative decision workflow and its current
+reviewer dispositions. It does not close the overall release goal: source-
+specific payloads, remaining visual gates, SAXS, and any future promotion
+values still require separate evidence and verification.

@@ -52,6 +52,12 @@
   decision remain open. No source code, real dataset, or SAXS worktree was
   changed in this documentation checkpoint.
 
+- The scientific confirmation and NMR readiness cards are now synchronized to
+  their existing evidence: the confirmation card is completed, and NMR
+  solid-C readiness is checkpointed at `fddb8c5`. These status changes record
+  existing implementation evidence only; no SAXS code, source dataset, or
+  scientific promotion was changed.
+
 ## SAXS post-cleanup release re-audit - domain green, full release open - 2026-07-30
 
 - With the updated test-storage rules and explicit apply authorization, the
