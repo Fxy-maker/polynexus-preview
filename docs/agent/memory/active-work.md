@@ -10,8 +10,8 @@
   verifier was excluded.
 - Fresh boundary audit returned exit code `0` with no failures. Storage report
   and dry-run clean each returned exit code `0`: `82` artifacts,
-  `24,069,383,574` bytes total, `36` emergency-eligible artifacts,
-  `14,710,286,387` eligible bytes, and `0` removed. No `--apply` was run.
+  `24,069,383,574` bytes total, `38` emergency-eligible artifacts,
+  `14,710,294,260` eligible bytes, and `0` removed. No `--apply` was run.
 - Acceptance evidence is in
   `docs/acceptance/2026-07-30-current-head-full-boundary-post-cleanup-recheck.md`.
   Task-scoped verification and the documentation-only allowlist checkpoint

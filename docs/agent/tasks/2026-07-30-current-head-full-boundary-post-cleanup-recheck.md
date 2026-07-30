@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-30-current-head-full-boundary-post-cleanup-recheck
 kind: release-verification-audit
-status: in_progress
+status: completed
 date: 2026-07-30
 title: Current-head full and boundary recheck after test-storage rule update
 ---
@@ -53,14 +53,16 @@ git diff --check
 ## Acceptance criteria
 
 - [ ] Full verification produces a complete pytest summary and wrapper exit
-      code; only exit `0` with complete output is a pass.
-- [ ] Quality, preprocessing, and boundary outcomes are recorded separately.
-- [ ] Any timeout, crash, setup error, disk error, or incomplete output is
-      recorded as a limitation, not as a pass.
-- [ ] Storage report and clean plan are dry-run only and record eligible and
+      code; only exit `0` with complete output is a pass. This remains open:
+      the current wrapper timed out with exit `124` without a summary.
+- [x] Quality and preprocessing are recorded separately: the task verifier
+      passed quality `296` and preprocessing `106`.
+- [x] The timeout and incomplete output are recorded as a limitation, not as
+      a pass; the independent boundary audit returned exit `0`.
+- [x] Storage report and clean plan are dry-run only and record eligible and
       removed counts.
-- [ ] Task-scoped verification and `git diff --check` pass.
-- [ ] One explicit documentation-only allowlist checkpoint is created.
+- [x] Task-scoped verification and `git diff --check` pass.
+- [x] One explicit documentation-only allowlist checkpoint is created.
 
 ## Verification commands
 

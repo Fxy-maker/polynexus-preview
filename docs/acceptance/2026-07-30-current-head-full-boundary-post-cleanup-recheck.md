@@ -17,11 +17,11 @@ dataset, or parallel SAXS worktree was changed.
   and `POLYNEXUS_TEST_RETENTION=review`.
 - Command:
   `python scripts/verify.py --changed --types --full --boundary`
-- The pytest child process exited, but the tool cell returned no pytest
-  summary, stderr, or exit code. The waiting tool handle was then stopped
-  after the process was confirmed absent. This is recorded as a tool-level
-  timeout/incomplete result, not as a pass or failure. A separate shared
-  verifier (PID 25100) was intentionally excluded from this result.
+- The wrapper returned `command timed out` with exit `124` after its 30-minute
+  tool limit and no complete pytest summary. The child process was later
+  confirmed absent. This is recorded as a timeout/incomplete result, not as a
+  pass. A separate shared verifier was intentionally excluded from this
+  result.
 - Boundary audit:
   `python scripts/boundary_audit.py --root D:\PolyNexus --json`
   returned exit code `0`; no boundary failures were reported. The audit
@@ -30,7 +30,7 @@ dataset, or parallel SAXS worktree was changed.
 - Storage report:
   `python scripts/test_storage.py report --json` returned exit code `0` in
   dry-run mode. It found `82` artifacts totaling `24,069,383,574` bytes;
-  `36` emergency-eligible artifacts totaling `14,710,286,387` bytes.
+  `38` emergency-eligible artifacts totaling `14,710,294,260` bytes.
 - Storage clean plan:
   `python scripts/test_storage.py clean --older-than-hours 24 --json`
   returned exit code `0` in dry-run mode with the same inventory and
@@ -39,21 +39,23 @@ dataset, or parallel SAXS worktree was changed.
 
 ## Acceptance classification
 
-- [ ] Fresh full verification has a complete pytest summary and exit code.
+- [ ] Fresh full verification has a complete pytest summary and exit code;
+  this remains open because the wrapper timed out with exit `124`.
 - [x] Boundary outcome is recorded separately from full verification.
 - [x] Incomplete full-verifier output is explicitly classified as a
   limitation, not a pass.
 - [x] Storage report and clean plan are non-destructive and record eligible
   and removed counts.
 - [x] Diff whitespace check passed.
-- [x] Task-scoped verifier passed and this document, task card, plan, spec,
-  and active-work entry are the explicit documentation-only checkpoint
-  allowlist.
+- [x] Task-scoped verifier passed: quality `296`, preprocessing `106`, Ruff,
+  compile/type baseline, memory/task checks, and whitespace all passed.
+- [x] This document, task card, plan, spec, and active-work entry are the
+  explicit documentation-only checkpoint allowlist.
 
 ## Limitations and next action
 
 The current full/boundary release gate remains open because its authoritative
-pytest summary and wrapper exit code were not returned by the tool. The
-emergency storage candidates also remain untouched by design. Run the task
-scoped verifier and create the documentation-only checkpoint after reviewing
-this classification; do not promote the overall release beyond `conditional`.
+pytest summary was not returned before the wrapper timeout. The emergency
+storage candidates also remain untouched by design. The audit task itself is
+complete with this limitation; do not promote the overall release beyond
+`conditional`.
