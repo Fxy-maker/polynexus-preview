@@ -1,6 +1,6 @@
 ---
 kind: task
-status: in_progress
+status: completed
 date: 2026-07-30
 title: Aggressive emergency cleanup for test storage
 ---
@@ -57,16 +57,16 @@ matrix/pytest test naming patterns. Names containing `archive`, `review`,
 
 ## Acceptance criteria
 
-- [ ] Emergency pressure is evaluated during every cleanup-plan build.
-- [ ] Failed/interrupted ephemeral and known legacy artifacts older than two
+- [x] Emergency pressure is evaluated during every cleanup-plan build.
+- [x] Failed/interrupted ephemeral and known legacy artifacts older than two
   hours are emergency-eligible below 10% free space.
-- [ ] Running and cleanup-pending manifests remain protected; dead manifests
+- [x] Running and cleanup-pending manifests remain protected; dead manifests
   are reconciled in memory as interrupted without report-side deletion.
-- [ ] Review, evidence, active, tracked, protected, symlink, invalid, archive,
+- [x] Review, evidence, active, tracked, protected, symlink, invalid, archive,
   baseline, and unknown paths remain protected.
-- [ ] JSON and human reports show emergency status, emergency eligible bytes,
+- [x] JSON and human reports show emergency status, emergency eligible bytes,
   and per-path deletion failures.
-- [ ] Focused storage tests, task-scoped verifier, and real dry-run pass.
+- [x] Focused storage tests, task-scoped verifier, and real dry-run pass.
 
 ## Verification
 
@@ -105,3 +105,18 @@ checkpoint.
 - `d454c0b`: stale manifest reconciliation and known legacy discovery.
 - `62a7d6b`: CLI pressure wiring and emergency report fields.
 - `bc14678`: running-manifest deletion protection.
+
+## Verification evidence
+
+- Storage matrix: `38 passed, 1 skipped in 6.43s`.
+- Task-scoped verifier: exit code `0`; task and memory checks passed, Ruff and
+  compile passed, quality gate `290 passed`, preprocessing gate `106 passed`,
+  and whitespace passed.
+- Real report dry-run: emergency mode `true`, `126` artifacts,
+  `76,595,807,762` bytes eligible in the first process snapshot.
+- Real clean dry-run: emergency mode `true`, `126` artifacts, `93` emergency
+  eligible artifacts, `116,946,589,183` eligible bytes, `removed: []`, and no
+  failure records. The difference from the report snapshot reflects process
+  reference revalidation between scans.
+- No real `--apply`, ACL takeover, process termination, push, merge, or deploy
+  was performed.
