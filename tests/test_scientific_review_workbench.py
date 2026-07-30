@@ -203,3 +203,64 @@ def test_workbench_source_refs_include_nested_mapping_evidence_source_id() -> No
     assert window._current_scientific_review_source_refs() == (
         "native-synthetic-map.json",
     )
+
+
+def test_workbench_review_snapshot_uses_canonical_source_with_multiple_refs(monkeypatch) -> None:
+    from PySide6.QtWidgets import QDialog
+
+    from polynexus.gui import main_window_results_mixin as results_mixin
+    from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+
+    base = _accepted_ir_record()
+    record = ScientificReviewRecord(
+        record_id="review-multi-source",
+        scope=base.scope,
+        reviewer=base.reviewer,
+        reviewed_at=base.reviewed_at,
+        policy_version=base.policy_version,
+        source_refs=("native-synthetic-map.json", r"D:\PolyNexus\README.md"),
+        decisions=dict(base.decisions),
+        status=base.status,
+    )
+
+    class FakeDialog:
+        def __init__(self, _scope, *, source_refs, parent=None):
+            del parent
+            self.source_refs = tuple(source_refs)
+
+        def exec(self):
+            return QDialog.Accepted
+
+        def build_record(self):
+            return record
+
+    class FakeDB:
+        snapshot = None
+
+        def update_analysis_scientific_review(self, _run_id, _record, snapshot):
+            self.snapshot = snapshot
+            return True
+
+    db = FakeDB()
+    window = object.__new__(MainWindowResultsMixin)
+    window._current_technique = "ir"
+    window._current_submodule_id = "ir.mapping"
+    window._last_persisted_run_id = "run-1"
+    window._current_filepath = r"D:\PolyNexus\README.md"
+    window._results = {
+        "ir": AnalysisResult(
+            technique="ir",
+            metadata={"source_id": "native-synthetic-map.json"},
+        )
+    }
+    window._ensure_sample_db = lambda: db
+    window._apply_scientific_review_to_current_result = lambda *_args: None
+    window._refresh_history = lambda: None
+    window._update_results_review_panel = lambda: None
+    window._update_work_memory_panel = lambda: None
+    window.log = lambda _message: None
+    monkeypatch.setattr(results_mixin, "ScientificReviewDialog", FakeDialog)
+
+    window._open_scientific_review_dialog()
+
+    assert db.snapshot["source_ref"] == "native-synthetic-map.json"

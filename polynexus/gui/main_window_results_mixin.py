@@ -187,7 +187,7 @@ class MainWindowResultsMixin:
         try:
             record = dialog.build_record()
             record_payload = record.to_dict()
-            source_ref = record.source_refs[0] if len(record.source_refs) == 1 else ""
+            source_ref = record.source_refs[0] if record.source_refs else ""
             snapshot = review_decision_snapshot(
                 record,
                 expected_scope=scope,

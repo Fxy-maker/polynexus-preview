@@ -1,5 +1,14 @@
 # Active Work
 
+- Scientific review canonical source matching completed on 2026-07-30 for
+  non-SAXS Workbench saves. When nested evidence and the current input path
+  produce multiple refs, the saved decision snapshot now binds to the first
+  canonical source ref instead of leaving `source_ref` empty. TDD RED was
+  `1 failed`; GREEN and the Workbench/core matrix passed (`30 passed`).
+  Task-scoped verification passed with quality `290` and preprocessing `106`,
+  and the native IR route passed (`1 passed, 16 deselected`). SAXS remains out
+  of scope.
+
 - Scientific review source-reference hydration completed on 2026-07-30 for
   non-SAXS Results Workbench routes. Nested `analysis_evidence` identifiers
   such as IR mapping `source_id` now remain visible to the reviewer dialog;
