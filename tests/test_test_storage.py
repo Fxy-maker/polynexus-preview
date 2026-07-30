@@ -503,6 +503,28 @@ def test_cleanup_plan_does_not_cli_delete_passed_ephemeral_run(tmp_path: Path):
     assert plan[artifact].reason == "owned terminal cleanup only"
 
 
+def test_cleanup_plan_protects_running_managed_manifest(tmp_path: Path):
+    now = datetime(2026, 7, 29, 12, 0, tzinfo=timezone.utc)
+    artifact = TestArtifact(
+        tmp_path / "run-running",
+        "managed",
+        100,
+        now - timedelta(days=30),
+        profile="ephemeral",
+        status="running",
+    )
+
+    plan = build_cleanup_plan(
+        [artifact],
+        now=now,
+        older_than=timedelta(hours=1),
+        emergency=True,
+    )
+
+    assert plan[artifact].eligible is False
+    assert plan[artifact].reason == "running manifest"
+
+
 def test_report_json_includes_manifest_metadata(tmp_path: Path, monkeypatch, capsys):
     test_root = tmp_path / "test-root"
     run_path = test_root / "pytest" / "run-1"

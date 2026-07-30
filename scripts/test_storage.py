@@ -455,6 +455,9 @@ def build_cleanup_plan(
         ):
             reason = "referenced by a running process"
             eligible = False
+        elif artifact.kind == "managed" and artifact.status in {"running", "cleanup_pending"}:
+            reason = "running manifest"
+            eligible = False
         elif artifact.manifest_error == "invalid":
             reason = "manifest-invalid"
             eligible = False
