@@ -23,3 +23,19 @@ canonical shell inspection provide route evidence, but they do not replace
 complete human all-mode visual review. IR sample-level mapping/ROI calibration,
 NMR solid-C assignment policy, Joint conflict interpretation, and final release
 approval remain human decisions. No test data was deleted or migrated.
+
+## Current non-SAXS module recheck (2026-07-30)
+
+The current checkout was re-run in three D:-isolated pytest shards, excluding
+all SAXS test files:
+
+```text
+DSC/WAXS recursive test shard: 124 passed in 82.05s, exit code 0
+IR recursive test shard: 55 passed in 46.51s, exit code 0
+NMR/Joint recursive test shard: 65 passed in 412.97s, exit code 0
+```
+
+These counts strengthen the module-level regression evidence for the current
+checkout. They do not alter the scientific/release boundaries above, and no
+SAXS source, task card, or acceptance record was read for execution or
+modified in this recheck.
