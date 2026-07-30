@@ -23,7 +23,16 @@ class AnalysisWorker(QThread):
     stage = Signal(str)
     cancelled = Signal()
 
-    def __init__(self, technique, filepath, output_dir, config=None, submodule_id=None, engine=None):
+    def __init__(
+        self,
+        technique,
+        filepath,
+        output_dir,
+        config=None,
+        submodule_id=None,
+        engine=None,
+        mask_edit_candidate=None,
+    ):
         super().__init__()
         self.technique = technique
         self.filepath = filepath
@@ -31,6 +40,7 @@ class AnalysisWorker(QThread):
         self.config = config
         self.submodule_id = submodule_id
         self.engine = engine
+        self.mask_edit_candidate = mask_edit_candidate
         self.skip_to = None
         self._cancel_requested = False
 
@@ -64,7 +74,14 @@ class AnalysisWorker(QThread):
                 self.cancelled.emit()
                 return
             self.stage.emit("processing")
-            result = engine.run_pipeline(self.filepath, self.output_dir, skip_to=self.skip_to)
+            pipeline_kwargs = {"skip_to": self.skip_to}
+            if self.mask_edit_candidate is not None:
+                pipeline_kwargs["mask_edit_candidate"] = self.mask_edit_candidate
+            result = engine.run_pipeline(
+                self.filepath,
+                self.output_dir,
+                **pipeline_kwargs,
+            )
             if self._cancel_requested or self.isInterruptionRequested():
                 self.cancelled.emit()
                 return

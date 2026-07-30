@@ -1,5 +1,31 @@
 # Active Work
 
+## SAXS confirmed mask engine rerun (2026-07-30)
+
+- The existing confirmed detector-mask candidate now travels through
+  `SAXSEngine.run_pipeline()` and `AnalysisWorker` only for a single static 2D
+  rerun. The transient state is restored in `finally`; 1D, directory,
+  temperature/strain, and plot-only routes do not apply it. Existing
+  preprocessing validation and detector/quality/physical/publication gates
+  remain authoritative.
+- Focused boundary coverage is `6 passed`; task verification passed with
+  quality `292` and preprocessing `106`, plus Ruff/compile/type/memory/task/
+  whitespace checks. The full current SAXS matrix passed `642 passed, 6
+  warnings` in `559.53s` with exit code `0`.
+- Storage `report --json` found `54` artifacts and `eligible_bytes=0` with no
+  emergency pressure. `clean --older-than-hours 24` was dry-run only; no
+  directory was removed or migrated. The first matrix command timed out at
+  the 120-second tool limit without a summary; a longer independent retry is
+  the authoritative evidence.
+- Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-30-saxs-engine-confirmed-mask-rerun.md`,
+  `docs/superpowers/specs/2026-07-30-saxs-engine-confirmed-mask-rerun-design.md`,
+  `docs/superpowers/plans/2026-07-30-saxs-engine-confirmed-mask-rerun.md`, and
+  `docs/acceptance/2026-07-30-saxs-engine-confirmed-mask-rerun.md`.
+- Status: implementation and automated verification complete; the explicit
+  allowlist checkpoint is the commit created for this task. Full/boundary
+  release and human scientific / restarted-GUI review remain open.
+
 ## SAXS manual mask confirmed rerun - checkpointed 2026-07-30
 
 - Added a strict, detached JSON candidate contract for explicit 2D detector

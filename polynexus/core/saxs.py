@@ -202,6 +202,7 @@ class SAXSEngine(BaseEngine):
         self._batch_params: List[Dict[str, Any]] = []
         self._temperature_result: Optional[TempSeriesResult] = None
         self._strain_result: Optional[StrainSeriesResult] = None
+        self._mask_edit_candidate: Optional[Dict[str, Any]] = None
 
         self._file_list: List[str] = []
         self._source_path: str = ""
@@ -375,9 +376,19 @@ class SAXSEngine(BaseEngine):
         filepath: str,
         output_dir: str = "",
         skip_to: str | None = None,
+        mask_edit_candidate: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Publish SAXS evidence even when load or preprocessing exits early."""
-        result = super().run_pipeline(filepath, output_dir=output_dir, skip_to=skip_to)
+        previous_candidate = self._mask_edit_candidate
+        self._mask_edit_candidate = mask_edit_candidate
+        try:
+            result = super().run_pipeline(
+                filepath,
+                output_dir=output_dir,
+                skip_to=skip_to,
+            )
+        finally:
+            self._mask_edit_candidate = previous_candidate
         publish_saxs_result_contract(self)
         return result
 
@@ -815,11 +826,17 @@ class SAXSEngine(BaseEngine):
                     setattr(self.cfg, attr, getattr(sc, attr))
         self._apply_submodule_defaults()
 
-        pp = preprocess_pipeline(
-            self._img,
-            self.cfg,
-            **({"detector_header": self._header} if self._header else {}),
-        )
+        preprocess_kwargs = {
+            "detector_header": self._header,
+        } if self._header else {}
+        if (
+            not self._file_list
+            and self._condition_type in ("", "static")
+            and self.cfg.experiment_type == "static"
+            and self._mask_edit_candidate is not None
+        ):
+            preprocess_kwargs["mask_edit_candidate"] = self._mask_edit_candidate
+        pp = preprocess_pipeline(self._img, self.cfg, **preprocess_kwargs)
         self._q = pp["q"]
         self._I = pp["Iq"]
         self._I_smooth = pp.get("Iq_smooth", self._I)
