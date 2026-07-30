@@ -1,5 +1,23 @@
 # Active Work
 
+## Current HEAD native non-SAXS walkthrough - verified, checkpoint pending - 2026-07-30
+
+- Windows Qt native walkthrough passed `14 passed, 3 deselected in 353.49s`,
+  exit `0`, covering DSC standard/isothermal/non-isothermal, WAXS
+  static/temperature/strain, IR standard/temperature-2D/synthetic mapping,
+  NMR liquid-H/liquid-C/solid-H/solid-C, and synthetic Joint.
+- The run generated `56` PNG captures under
+  `D:\PolyNexus_native_all_routes_current_nonsaxs_20260730`, four surfaces
+  per selected route, including real Editor Export fallback checks.
+- Visual inspection confirms IR mapping remains `Review required`, NMR
+  solid-C remains `review_missing`, and the shared surfaces are populated.
+  The synthetic Joint fixture displays an accepted review record alongside
+  2 errors and 2 warnings; this is fixture provenance only and does not close
+  Joint conflict interpretation or release approval.
+- No SAXS route, production code, real dataset, or existing workspace change
+  was modified. Evidence: `docs/agent/tasks/2026-07-30-current-head-native-nonsaxs-walkthrough.md`
+  and `docs/acceptance/2026-07-30-current-head-native-nonsaxs-walkthrough.md`.
+
 ## SAXS post-cleanup release re-audit - domain green, full release open - 2026-07-30
 
 - With the updated test-storage rules and explicit apply authorization, the
