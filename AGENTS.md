@@ -115,12 +115,13 @@ New pytest runs use an explicit retention profile selected by
   cooldown and never receive an inferred pass/fail result.
 
 Unknown profile values fail closed to `review`. When the target volume has
-less than 10% free space, only failed or interrupted `ephemeral` runs may use
-a two-hour retention deadline; `review`, `evidence`, active, protected,
-tracked, and legacy paths keep their normal safety rules. Pytest's immediate
-cleanup is limited to the exact run directory it created and owns. The CLI
-can delete only after an explicit `clean --apply`; `report` and `clean`
-without `--apply` are non-destructive.
+less than 10% free space, failed or interrupted `ephemeral` runs and known
+test-class legacy directories older than two hours may be cleaned. Review,
+evidence, active, running-manifest, cleanup-pending, protected, tracked,
+symlinked, invalid, unknown, archive-like, and baseline paths keep their normal
+safety rules. The CLI still requires explicit `clean --apply`; `report` and
+`clean` without `--apply` are non-destructive. Review the JSON inventory before
+the first emergency apply on a real drive.
 
 ## 6. Superpowers integration
 

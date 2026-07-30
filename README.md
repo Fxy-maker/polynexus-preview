@@ -192,14 +192,23 @@ pytest tests/test_release_acceptance.py
 `review` retains output for 7 days; `evidence` retains it permanently. Existing
 directories without a manifest are classified as `legacy`: their test result
 is never guessed from the directory name, and the janitor applies a 24-hour
-cooldown. If the target volume falls below 10% free space, only failed or
-interrupted ephemeral runs can be shortened to a two-hour deadline.
+cooldown. If the target volume falls below 10% free space, failed or
+interrupted ephemeral runs and known test-class legacy directories older than
+two hours may be cleaned. Known legacy names are limited to matrix/pytest test
+patterns; archive, review, evidence, baseline, and unknown paths stay
+protected. Live PIDs, running manifests, cleanup-pending runs, tracked paths,
+symlinks, and protected roots also stay protected.
 
 The immediate deletion path is restricted to the exact run directory created
 by pytest. Scheduled deletion is always dry-run first and requires the
 explicit `--apply` flag. Do not use `--apply` for the first legacy migration
 until the concrete JSON inventory has been reviewed; source files, real data,
 worktrees, and evidence paths remain protected.
+
+Emergency cleanup is evaluated when each report or clean plan is built, so a
+volume that becomes nearly full does not have to wait for a later pytest
+finalization event. Use `report --json` first and inspect `emergency`,
+`emergency_eligible_bytes`, `reason`, and `failures` before applying.
 
 ## Notes
 
