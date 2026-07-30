@@ -2213,6 +2213,8 @@ def build_saxs_scientific_acceptance_audit(
     validation = _audit_optional_bool(validation_passed)
     evidence_levels: dict[str, list[str]] = {}
     provenance_validity: dict[str, list[str]] = {}
+    physical_gate_evidence: dict[str, list[dict[str, Any]]] = {}
+    method_gate_status: dict[str, list[bool | None]] = {}
     existing_reasons: list[str] = []
     provenance_blockers: list[str] = []
 
@@ -2221,13 +2223,41 @@ def build_saxs_scientific_acceptance_audit(
         if text and text not in items:
             items.append(text)
 
-    def inspect_report(label: str, report: Mapping[str, Any]) -> None:
+    def inspect_report(
+        label: str,
+        report: Mapping[str, Any],
+        *,
+        metric: bool = False,
+    ) -> None:
         level = _quality_level(report.get("level"))
         if report.get("level") is not None:
             levels = evidence_levels.setdefault(label, [])
             append_unique(levels, level.value)
         for reason in report.get("reason_codes", ()) or ():
             append_unique(existing_reasons, reason)
+        physical_checks = report.get("physical_checks")
+        if isinstance(physical_checks, Mapping):
+            physical_gate_evidence.setdefault(label, []).append(
+                _contract_dict(physical_checks)
+            )
+            if "method_gate_passed" in physical_checks:
+                raw_gate = physical_checks.get("method_gate_passed")
+                gate = (
+                    bool(raw_gate)
+                    if isinstance(raw_gate, (bool, np.bool_))
+                    else None
+                )
+                method_gate_status.setdefault(label, []).append(gate)
+                if gate is False:
+                    append_unique(existing_reasons, "method_gate_failed")
+                elif gate is None:
+                    append_unique(existing_reasons, "method_gate_not_assessed")
+            elif metric and report.get("applicable") is True:
+                method_gate_status.setdefault(label, []).append(None)
+                append_unique(existing_reasons, "method_gate_not_assessed")
+        elif metric and report.get("applicable") is True:
+            method_gate_status.setdefault(label, []).append(None)
+            append_unique(existing_reasons, "method_gate_not_assessed")
         for provenance_name in ("geometry_provenance", "mask_provenance"):
             provenance = report.get(provenance_name)
             if not isinstance(provenance, Mapping):
@@ -2256,7 +2286,7 @@ def build_saxs_scientific_acceptance_audit(
         if isinstance(metrics, Mapping):
             for metric_name, report in metrics.items():
                 if isinstance(report, Mapping):
-                    inspect_report(f"metric:{metric_name}", report)
+                    inspect_report(f"metric:{metric_name}", report, metric=True)
         sequence = node.get("guinier_sequence_evidence")
         if isinstance(sequence, Mapping):
             level = _quality_level(sequence.get("level"))
@@ -2278,6 +2308,7 @@ def build_saxs_scientific_acceptance_audit(
         or any(value is not None for value in publication_gate.values())
         or evidence_levels
         or provenance_validity
+        or physical_gate_evidence
         or reliability_status
     )
     if not has_evidence:
@@ -2319,6 +2350,8 @@ def build_saxs_scientific_acceptance_audit(
             "existing_publication_gate": publication_gate,
             "evidence_levels": evidence_levels,
             "provenance_validity": provenance_validity,
+            "physical_gate_evidence": physical_gate_evidence,
+            "method_gate_status": method_gate_status,
             "reliability": {
                 "status": reliability_status or None,
                 "reason": reliability_reason or None,
