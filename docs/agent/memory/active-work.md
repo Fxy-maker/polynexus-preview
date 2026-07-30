@@ -1,5 +1,18 @@
 # Active Work
 
+## Current non-SAXS module recheck - verified - 2026-07-30
+
+- The current checkout was re-run in D:-isolated recursive pytest shards with
+  all SAXS test files excluded: DSC/WAXS `124 passed in 82.05s`, IR `55
+  passed in 46.51s`, and NMR/Joint `65 passed in 412.97s`; each exited `0`.
+- The corresponding acceptance evidence is in
+  `docs/acceptance/2026-07-29-full-goal-requirements-audit.md` (checkpoint
+  `7be0385`). This is module regression evidence, not final scientific or
+  release approval.
+- IR native mapping data, NMR assignment truth, source-matched reviewer
+  records, all-mode human visual approval, and final release authorization
+  remain open. SAXS was not executed or modified in this recheck.
+
 ## Joint AI boundary through GUI/history fallback - verified and checkpointed - 2026-07-30
 
 - The legacy `joint_ai_context()` adapter now preserves the same JSON-safe
