@@ -41,14 +41,14 @@ and human scientific/release approval.
 | SAXS static/temperature/strain | real `3` cases and native route `3`; SAXS-specific contracts | automated evidence; temperature/strain science open |
 | DSC standard/isothermal/non-isothermal | real `3` cases and native route `3` | automated evidence; non-isothermal role review open |
 | WAXS static/temperature/strain/2D | real `3` cases including strain/2D and native route `3` | automated evidence; scientific review open |
-| IR standard/temperature-2D/mapping | real `2`, native `2`, synthetic mapping route; official Thermo/OMNIC Picta semantics profile | sample-level ROI bounds, flattening order, detector calibration, and source-matched scientific acceptance open |
-| NMR liquid H/C/solid H/C | real `4` and native `4`; JEOL axis provenance and assignment-limited status are explicit | solid-C assignment truth source, label policy, and Xc promotion remain open |
-| Joint provenance/lifecycle | real transport, synthetic lifecycle, deterministic AI boundary, and native route evidence | conflict precedence, minimum conclusion evidence, and release approval open |
+| IR standard/temperature-2D/mapping | real `2`, native `2`, synthetic mapping route; official Thermo/OMNIC Picta semantics profile | reviewer disposition recorded as diagnostic-only; native map, sample ROI, flattening order, detector calibration, and source-matched promotion evidence remain absent |
+| NMR liquid H/C/solid H/C | real `4` and native `4`; JEOL axis provenance and assignment-limited status are explicit | reviewer disposition recorded: ambiguous solid-C peaks remain unassigned and Xc promotion is prohibited without assignment truth and calibrated axis |
+| Joint provenance/lifecycle | real transport, synthetic lifecycle, deterministic AI boundary, and native route evidence | reviewer disposition recorded: no automatic technique priority; unresolved conflicts remain diagnostic-only |
 | Manifest/Gallery/Editor/export/history | real published-run lifecycle plus current native route captures for Results/Gallery/History/Editor/PackageExporter fallback | route construction is evidenced; complete human visual review and release approval remain open |
 | AI-off/failure/fallback | fresh `25 passed` matrix | automated safety evidence; scientific approval open |
 | Full repository/boundary gate | `2986 passed, 17 skipped, 12 warnings`; direct boundary exit `0` | automated gate green |
 | Restarted-GUI visual acceptance | current native selector completed `17` cases with Results/Gallery/History/Editor/PackageExporter captures; canonical shell was also inspected unlocked | route evidence is recorded; complete all-mode human visual acceptance remains separate |
-| Human scientific/release approval | IR ROI, NMR solid-C, Joint conflicts explicitly unresolved | open; must not be guessed |
+| Human scientific/release approval | Conservative IR, NMR solid-C, and Joint dispositions recorded in the release packet | final release remains conditional on source-specific evidence, restarted-GUI review, and the separate SAXS decision |
 
 ## Acceptance criteria
 
@@ -66,10 +66,11 @@ git diff --check
 
 ## Conclusion
 
-The automated implementation/lifecycle gates are substantially evidenced, but
-the overall delivery task remains active. The remaining gates require an
-unlocked desktop for all-route visual inspection and human/subject-matter
-decisions for unresolved scientific semantics and release authorization.
+The automated implementation/lifecycle gates are substantially evidenced, and
+the conservative IR/NMR/Joint dispositions are now recorded. The overall
+delivery task remains active because the source-specific payloads are absent,
+complete all-route visual inspection is not yet the final release authority,
+and SAXS plus final project authorization remain separate conditions.
 
 ## Explicit changed-file allowlist
 
