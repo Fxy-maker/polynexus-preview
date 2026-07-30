@@ -56,6 +56,37 @@ __all__ = [
     "result_review_stability_summary_text",
 ]
 
+
+def _nmr_vendor_axis_text(declaration: Any) -> str:
+    """Format the vendor declaration compactly enough for the review panel."""
+    if not isinstance(declaration, dict):
+        return ""
+    domain = str(declaration.get("domain", "") or "").strip()
+    origin_field = str(declaration.get("origin_field", "") or "").strip()
+    sweep_field = str(declaration.get("sweep_field", "") or "").strip()
+    points_field = str(declaration.get("points_field", "") or "").strip()
+    units = str(declaration.get("units", "") or "").strip()
+    if not domain or not origin_field or not sweep_field or not points_field:
+        return ""
+
+    def compact(value: Any) -> str:
+        if isinstance(value, bool):
+            return str(value).lower()
+        if isinstance(value, (int, float)):
+            return f"{value:g}"
+        return str(value or "").strip()
+
+    status = str(declaration.get("status", "") or "").strip()
+    if status == "declared_not_applied":
+        status = "not applied"
+    dimension = f"{declaration.get('dimension', '')}/{declaration.get('dimension_index', '')}"
+    return (
+        f"{dimension} | {domain} | origin {origin_field}={compact(declaration.get('origin'))} {units} | "
+        f"sweep {sweep_field}={compact(declaration.get('sweep'))} {units} | "
+        f"points {points_field}={compact(declaration.get('points'))} | {status}"
+    )
+
+
 def _dsc_support_block_text(analysis_evidence: dict[str, Any] | None, *, include_measurement: bool) -> str:
     feature = analysis_evidence.get("feature_evidence", {}) if isinstance(analysis_evidence, dict) else {}
     if not isinstance(feature, dict):
@@ -448,6 +479,9 @@ def result_review_analysis_evidence_card_text(
                     axis_parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
             if axis_parts:
                 parts.append(tr("RESULTS_REVIEW_NMR_AXIS", " | ".join(axis_parts)))
+            vendor_axis_text = _nmr_vendor_axis_text(axis.get("vendor_declaration"))
+            if vendor_axis_text:
+                parts.append(tr("RESULTS_REVIEW_NMR_VENDOR_AXIS", vendor_axis_text))
         if parts:
             sections.append("NMR | " + " ; ".join(parts))
 
@@ -598,6 +632,9 @@ def result_review_round_support_summary_text(
                     axis_parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
             if axis_parts:
                 parts.append(tr("RESULTS_REVIEW_NMR_AXIS", " | ".join(axis_parts)))
+            vendor_axis_text = _nmr_vendor_axis_text(axis.get("vendor_declaration"))
+            if vendor_axis_text:
+                parts.append(tr("RESULTS_REVIEW_NMR_VENDOR_AXIS", vendor_axis_text))
         xc_status = str(structure.get("Xc_assignment_status") or "").strip()
         if xc_status:
             ready = structure.get("paper_conclusion_ready") is True

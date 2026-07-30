@@ -1275,6 +1275,20 @@ def test_result_review_round_support_summary_surfaces_nmr_assignment_and_axis_bo
                     "reason": "jeol_metadata_units_unconfirmed",
                     "units": "ppm",
                     "calibrated": False,
+                    "vendor_declaration": {
+                        "dimension": "x",
+                        "dimension_index": 1,
+                        "domain": "Carbon13",
+                        "units": "ppm",
+                        "origin_field": "x_offset",
+                        "origin": 100.0,
+                        "sweep_field": "x_sweep",
+                        "sweep": 300.0,
+                        "points_field": "x_points",
+                        "points": 1024,
+                        "source": "jeol_delta_acquisition_text",
+                        "status": "declared_not_applied",
+                    },
                 },
             }
         },
@@ -1285,6 +1299,7 @@ def test_result_review_round_support_summary_surfaces_nmr_assignment_and_axis_bo
     assert "Assignment readiness | assignment_limited" in text
     assert "Axis | source=default_range" in text
     assert "calibrated=false" in text
+    assert "Vendor axis | x/1 | Carbon13 | origin x_offset=100 ppm | sweep x_sweep=300 ppm | points x_points=1024 | not applied" in text
 
 
 def test_result_review_round_support_summary_surfaces_nmr_xc_promotion_gate():

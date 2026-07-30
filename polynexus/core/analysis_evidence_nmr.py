@@ -176,6 +176,7 @@ def _nmr_analysis_bundle(output: dict[str, Any]) -> dict[str, Any]:
             ("units", str(output.get("ppm_axis_units") or "").strip() or None),
             ("calibrated", output.get("ppm_axis_calibrated")),
             ("range", output.get("ppm_axis_range")),
+            ("vendor_declaration", output.get("vendor_axis_declaration")),
         ]
     )
     structure_evidence = _non_empty_mapping(

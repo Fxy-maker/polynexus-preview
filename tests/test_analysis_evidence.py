@@ -4697,6 +4697,20 @@ def test_nmr_solid_c_assignment_readiness_is_explicit(
             "ppm_axis_units": "ppm",
             "ppm_axis_calibrated": False,
             "ppm_axis_range": [240.0, -20.0],
+            "vendor_axis_declaration": {
+                "dimension": "x",
+                "dimension_index": 1,
+                "domain": "Carbon13",
+                "units": "ppm",
+                "origin_field": "x_offset",
+                "origin": 100.0,
+                "sweep_field": "x_sweep",
+                "sweep": 300.0,
+                "points_field": "x_points",
+                "points": 1024,
+                "source": "jeol_delta_acquisition_text",
+                "status": "declared_not_applied",
+            },
         }
     )
 
@@ -4705,6 +4719,7 @@ def test_nmr_solid_c_assignment_readiness_is_explicit(
     assert readiness["allowed"] is expected_allowed
     assert readiness["reason"] == expected_reason
     assert bundle["assignment_evidence"]["readiness"] == readiness
+    assert bundle["axis_evidence"]["vendor_declaration"]["origin_field"] == "x_offset"
 
 
 def test_nmr_assignment_source_is_preserved_in_evidence() -> None:

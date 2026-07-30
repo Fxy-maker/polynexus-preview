@@ -403,6 +403,84 @@ def _safe_float_jeol(value: Any) -> Optional[float]:
         return None
 
 
+def _read_jeol_embedded_axis_declaration(
+    blob: bytes,
+) -> Optional[Dict[str, Any]]:
+    """Read the explicit 1D x-axis declaration from a JEOL/Delta payload.
+
+    The declaration is provenance only.  The current axis builder remains
+    unchanged until the vendor's origin/orientation semantics are separately
+    verified against a processed-spectrum contract.
+    """
+    text = blob.decode("latin1", errors="ignore")
+    block_match = re.search(
+        r"(?ims)^\s*acquisition\s*$([\s\S]*?)^\s*end\s+acquisition\s*;",
+        text,
+    )
+    if block_match is None:
+        return None
+    block = block_match.group(1)
+    number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+
+    def match_text(field: str) -> Optional[str]:
+        match = re.search(
+            rf"(?im)^\s*{field}\s*=>\s*\"([^\"]+)\"\s*;",
+            block,
+        )
+        return match.group(1).strip() if match else None
+
+    def match_number_with_unit(field: str) -> Optional[tuple[float, str]]:
+        match = re.search(
+            rf"(?im)^\s*{field}\s*=>\s*({number})\s*\[([^\]]+)\]\s*;",
+            block,
+        )
+        if match is None:
+            return None
+        try:
+            return float(match.group(1)), match.group(2).strip().lower()
+        except (TypeError, ValueError):
+            return None
+
+    points_match = re.search(
+        rf"(?im)^\s*x_points\s*=>\s*({number})\s*;",
+        block,
+    )
+    origin = match_number_with_unit("x_offset")
+    sweep = match_number_with_unit("x_sweep")
+    domain = match_text("x_domain")
+    if origin is None or sweep is None or points_match is None or not domain:
+        return None
+    if origin[1] != "ppm" or sweep[1] != "ppm":
+        return None
+    try:
+        points_float = float(points_match.group(1))
+    except (TypeError, ValueError):
+        return None
+    if (
+        not np.isfinite(origin[0])
+        or not np.isfinite(sweep[0])
+        or not np.isfinite(points_float)
+        or sweep[0] <= 0
+        or points_float <= 0
+        or not points_float.is_integer()
+    ):
+        return None
+    return {
+        "dimension": "x",
+        "dimension_index": 1,
+        "domain": domain,
+        "units": "ppm",
+        "origin_field": "x_offset",
+        "origin": float(origin[0]),
+        "sweep_field": "x_sweep",
+        "sweep": float(sweep[0]),
+        "points_field": "x_points",
+        "points": int(points_float),
+        "source": "jeol_delta_acquisition_text",
+        "status": "declared_not_applied",
+    }
+
+
 def _read_jeol_record_value(blob: bytes, label: str) -> Optional[Any]:
     """Read a value from a JEOL.NMR record by its 8-byte label.
 
@@ -625,6 +703,12 @@ def _load_jeol_jdf(filepath: str, sample_state: Optional[str] = None,
             "X_ACQ_DURATION", "FILTER_FACTOR",
         )
     }
+    vendor_axis_declaration = _read_jeol_embedded_axis_declaration(blob)
+    vendor_axis_metadata = (
+        {"vendor_axis_declaration": vendor_axis_declaration}
+        if vendor_axis_declaration is not None
+        else {}
+    )
 
     data = np.frombuffer(blob[start:end], dtype="<f8").astype(float)
     finite = np.isfinite(data)
@@ -661,6 +745,7 @@ def _load_jeol_jdf(filepath: str, sample_state: Optional[str] = None,
                 "ppm_axis_units": params.get("_ppm_axis_units", "ppm"),
                 "ppm_axis_calibrated": bool(params.get("_ppm_axis_calibrated", False)),
                 "ppm_range": (float(ppm[0]), float(ppm[-1])) if len(ppm) else default_ppm_range(nuc, state),
+                **vendor_axis_metadata,
             },
         )
 
@@ -691,6 +776,7 @@ def _load_jeol_jdf(filepath: str, sample_state: Optional[str] = None,
             "ppm_axis_units": params.get("_ppm_axis_units", "ppm"),
             "ppm_axis_calibrated": bool(params.get("_ppm_axis_calibrated", False)),
             "ppm_range": (float(ppm[0]), float(ppm[-1])) if len(ppm) else default_ppm_range(nuc, state),
+            **vendor_axis_metadata,
         },
     )
 

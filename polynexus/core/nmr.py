@@ -441,6 +441,9 @@ class NMREngine(BaseEngine):
             axis_range = axis_metadata.get("ppm_range")
             if isinstance(axis_range, (list, tuple)) and len(axis_range) == 2:
                 output_parameters["ppm_axis_range"] = [float(axis_range[0]), float(axis_range[1])]
+            vendor_axis_declaration = axis_metadata.get("vendor_axis_declaration")
+            if isinstance(vendor_axis_declaration, dict) and vendor_axis_declaration:
+                output_parameters["vendor_axis_declaration"] = dict(vendor_axis_declaration)
 
             evidence = build_analysis_evidence(
                 "NMR",

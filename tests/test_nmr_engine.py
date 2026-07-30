@@ -122,6 +122,20 @@ def test_nmr_engine_analysis_attaches_unified_evidence_for_history_persistence(m
             "ppm_axis_units": "ppm",
             "ppm_axis_calibrated": False,
             "ppm_range": (240.0, -20.0),
+            "vendor_axis_declaration": {
+                "dimension": "x",
+                "dimension_index": 1,
+                "domain": "Carbon13",
+                "units": "ppm",
+                "origin_field": "x_offset",
+                "origin": 100.0,
+                "sweep_field": "x_sweep",
+                "sweep": 300.0,
+                "points_field": "x_points",
+                "points": 1024,
+                "source": "jeol_delta_acquisition_text",
+                "status": "declared_not_applied",
+            },
         },
         n_peaks=2,
         median_snr=12.0,
@@ -160,6 +174,20 @@ def test_nmr_engine_analysis_attaches_unified_evidence_for_history_persistence(m
         "units": "ppm",
         "calibrated": False,
         "range": [240.0, -20.0],
+        "vendor_declaration": {
+            "dimension": "x",
+            "dimension_index": 1,
+            "domain": "Carbon13",
+            "units": "ppm",
+            "origin_field": "x_offset",
+            "origin": 100.0,
+            "sweep_field": "x_sweep",
+            "sweep": 300.0,
+            "points_field": "x_points",
+            "points": 1024,
+            "source": "jeol_delta_acquisition_text",
+            "status": "declared_not_applied",
+        },
     }
 
 
@@ -338,6 +366,70 @@ def test_jeol_solid_c_exposes_raw_axis_fields_without_claiming_ppm_calibration()
     assert spec.metadata["ppm_axis_source"] == "default_range"
     assert spec.metadata["ppm_axis_reason"] == "jeol_metadata_units_unconfirmed"
     assert spec.metadata["ppm_axis_calibrated"] is False
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "nucleus", "expected"),
+    [
+        (
+            "固体nmr碳谱/CXD_20250409_HC_cpmas-1-1.jdf",
+            "13C",
+            {
+                "dimension": "x",
+                "dimension_index": 1,
+                "domain": "Carbon13",
+                "units": "ppm",
+                "origin_field": "x_offset",
+                "origin": 100.0,
+                "sweep_field": "x_sweep",
+                "sweep": 300.0,
+                "points_field": "x_points",
+                "points": 1024,
+            },
+        ),
+        (
+            "固体nmr氢谱/CXD1_HC_20250324_single_pulse-1-1.jdf.bin",
+            "1H",
+            {
+                "dimension": "x",
+                "dimension_index": 1,
+                "domain": "Proton",
+                "units": "ppm",
+                "origin_field": "x_offset",
+                "origin": 0.0,
+                "sweep_field": "x_sweep",
+                "sweep": 200.0,
+                "points_field": "x_points",
+                "points": 2048,
+            },
+        ),
+    ],
+)
+def test_jeol_embedded_axis_declaration_identifies_vendor_x_dimension(
+    relative_path, nucleus, expected
+):
+    path = _nmr_root() / relative_path
+    spec = load_project(str(path), sample_state="solid", nucleus=nucleus)[0]
+
+    declaration = spec.metadata["vendor_axis_declaration"]
+    assert declaration == {
+        **expected,
+        "source": "jeol_delta_acquisition_text",
+        "status": "declared_not_applied",
+    }
+
+
+def test_jeol_embedded_axis_declaration_rejects_non_ppm_units():
+    from polynexus.core.nmr_engine.io import _read_jeol_embedded_axis_declaration
+
+    blob = b"""acquisition
+        x_domain => \"Carbon13\";
+        x_offset => 100[Hz];
+        x_sweep => 300[Hz];
+        x_points => 1024;
+    end acquisition;"""
+
+    assert _read_jeol_embedded_axis_declaration(blob) is None
 
 
 def test_liquid_c_deconvolution_quality():
