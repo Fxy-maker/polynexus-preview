@@ -100,9 +100,9 @@ metric mapping has `applicable is True` and no explicit boolean gate, append
 - [x] **Step 3: Include the new fields in the returned contract**
 
 Return the two maps as `physical_gate_evidence` and `method_gate_status` next
-to `evidence_levels` and `provenance_validity`. Keep the existing `has_evidence`
-calculation and status ordering, except that the new explicit gate reasons are
-handled by the existing `if reason_codes: status = "diagnostic_only"` branch.
+to `evidence_levels` and `provenance_validity`. Keep the existing
+`has_evidence` calculation and status ordering; unknown gate reasons remain
+visible in the audit while the existing status logic remains authoritative.
 
 ### Task 3: Verify green and compatibility
 

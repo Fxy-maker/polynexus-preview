@@ -1,43 +1,45 @@
-# SAXS Scientific Acceptance Physical Gate Projection
+# SAXS scientific acceptance physical gate projection
 
-Date: 2026-07-30
-Task: `docs/agent/tasks/2026-07-30-saxs-scientific-acceptance-physical-gate-projection.md`
+Status: implementation complete for this scoped contract; the shared quality
+gate has two unrelated parallel-NMR failures. The local allowlist checkpoint
+is the final handoff action.
 
-## Result
+This slice makes `scientific_acceptance_audit` traceable to the physical checks
+already present in SAXS metric evidence. It exposes detached
+`physical_gate_evidence` and `method_gate_status` fields, records explicit
+method-gate failures, and keeps an applicable metric with an unknown gate at
+least `review_required`. It does not add thresholds, recalculate metrics,
+change quality levels, rescue data, call AI, or change publication decisions.
 
-The existing SAXS scientific acceptance audit now exposes detached copies of
-metric `physical_checks` under `physical_gate_evidence` and the corresponding
-boolean or unknown method-gate state under `method_gate_status`. Explicit false
-gates add `method_gate_failed`; applicable metrics without a valid explicit
-gate add `method_gate_not_assessed`. The projection is diagnostic evidence only
-and does not recalculate metrics or change thresholds, publication roles,
-validation, or source payloads.
+Evidence:
 
-## Verification evidence
+- TDD RED: `3 failed, 1 passed`; the failures were the expected missing output
+  fields.
+- Final focused acceptance/audit batch: `41 passed, 2 warnings` in `334.82s`.
+- Fresh complete SAXS matrix: `621 passed, 8 warnings` in `567.71s` with exit
+  code `0`. Warnings are the existing locale deprecation, Arial CJK glyph,
+  EDF geometry-default, and pytest-cache warnings.
+- Task/memory checks, Ruff, compile, and type baseline completed successfully
+  inside the structured verifier. The shared quality gate reported `288
+  passed, 2 failed, 3 warnings`; both failures are existing NMR history-table
+  locale expectations from parallel uncommitted work, and no NMR file is in
+  this task's allowlist.
+- `git diff --check` passed.
+- Test-storage report and dry-run clean remained non-destructive: `80`
+  artifacts, `6` eligible, `removed=0`; no `test_storage.py --apply` was run.
 
-- TDD RED: `4 failed, 1 passed in 0.70s`; the four contract assertions failed
-  with the expected missing projection keys while the strict-JSON test passed.
-- Focused GREEN: `5 passed in 0.36s`.
-- Exact current SAXS matrix: `621 passed, 6 warnings in 600.47s`, exit code `0`.
-- Structured verifier:
-  `python scripts/verify.py --task docs/agent/tasks/2026-07-30-saxs-scientific-acceptance-physical-gate-projection.md --changed --types`
-  exited `0`; task and memory checks, Ruff, compile, type baseline, and
-  whitespace checks passed. Quality gate: `290 passed`; preprocessing gate:
-  `106 passed`.
-- `git diff --check`: passed.
+The existing audit remains read-only and strict-JSON-safe. Full software
+full/boundary release acceptance, raw detector geometry/mask scientific review,
+AI rescue execution, and publication authorization remain open outside this
+task.
 
-The warnings are existing font glyph and SAXS geometry-header warnings. They
-do not change the audit projection and are retained as warnings rather than
-being suppressed.
+Explicit changed-file allowlist:
 
-## Boundaries and limitations
+- `polynexus/core/saxs_engine/saxs_quality_contracts.py`
+- `tests/test_saxs_audit_physical_gate_projection.py`
+- `docs/agent/tasks/2026-07-30-saxs-scientific-acceptance-physical-gate-projection.md`
+- `docs/superpowers/specs/2026-07-30-saxs-scientific-acceptance-physical-gate-projection-design.md`
+- `docs/superpowers/plans/2026-07-30-saxs-scientific-acceptance-physical-gate-projection.md`
+- `docs/acceptance/2026-07-30-saxs-scientific-acceptance-physical-gate-projection.md`
 
-No SAXS physical threshold, metric algorithm, rescue/interpolation behavior,
-AI call, publication decision, GUI consumer, export contract, real dataset, or
-`docs/agent/memory/current-state.md` was changed. The output remains strict
-JSON-safe and detached from input mappings. Scientific interpretation and
-release approval remain separate human gates.
-
-The earlier parallel matrix processes exited without an available pytest
-summary and were not counted as evidence; the counts above come from fresh
-commands run after the final test file state.
+No push, merge, data deletion, or publication approval is included.

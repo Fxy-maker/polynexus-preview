@@ -53,10 +53,11 @@ used to recompute a metric.
 
 For an evidence node with `applicable=True` and no explicit
 `method_gate_passed`, the audit records `method_gate_not_assessed`. A false
-method gate records `method_gate_failed`. These reasons affect only the
-diagnostic audit status and never alter the source evidence level or any
-publication decision. Nodes without metric evidence keep the existing audit
-behavior.
+method gate records `method_gate_failed`. The existing audit status logic
+remains authoritative: an unknown gate is at least `review_required` when no
+stronger existing blocker applies. These reasons never alter the source
+evidence level or any publication decision. Nodes without metric evidence keep
+the existing audit behavior.
 
 ## Acceptance criteria
 
@@ -86,6 +87,25 @@ git diff --check
 Test storage remains external. A timeout, process exit without a pytest
 summary, or a historical run is not a pass. `test_storage.py --apply` is not
 part of this task.
+
+## Verification evidence
+
+- TDD RED: `3 failed, 1 passed`; failures were the expected missing audit
+  projection keys.
+- Focused final audit/acceptance batch: `41 passed, 2 warnings` in `334.82s`.
+- Fresh complete SAXS matrix: `621 passed, 8 warnings` in `567.71s`.
+- `git diff --check`: passed.
+- Structured verifier task check, memory check, Ruff, compile, and type
+  baseline passed. Its shared quality gate reported `288 passed, 2 failed,
+  3 warnings`; both failures are pre-existing parallel NMR history-table
+  expectations for English scientific-review labels while the parallel NMR
+  implementation emits Chinese labels. No NMR file is in this task allowlist.
+- Test-storage report and dry-run clean were non-destructive: `80` artifacts,
+  `6` eligible, `removed=0`; no `--apply` was run.
+
+The verifier limitation is recorded rather than treated as a full repository
+pass. Full/boundary release acceptance and human scientific review remain
+outside this atomic task.
 
 ## Explicit changed-file allowlist
 
