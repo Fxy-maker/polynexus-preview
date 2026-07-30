@@ -62,6 +62,18 @@ python scripts/verify.py --task docs/agent/tasks/2026-07-30-joint-conclusion-dis
 git diff --check
 ```
 
+## Native route evidence
+
+- Windows Qt Joint route: `1 passed, 16 deselected in 9.22s`, exit 0, with
+  `QT_QPA_PLATFORM=windows`.
+- Capture root:
+  `D:\PolyNexus_native_joint_conclusion_display_20260730`.
+- Results, Gallery, History, and Editor captures were generated; Editor
+  package export fallback also passed.
+- Visual inspection confirmed the Results review text exposes the blocked
+  Joint conclusion while the separate scientific review record remains
+  visible as provenance.
+
 ## Explicit changed-file allowlist
 
 - `polynexus/gui/results_review_service.py`
