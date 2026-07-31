@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -233,6 +234,8 @@ class Advisor:
         if assessment not in {"PASS", "WARN", "FAIL"}:
             assessment = "WARN"
         confidence = float(advice.get("confidence", 0.0))
+        if not math.isfinite(confidence):
+            raise ValueError("AI advice confidence must be finite")
         confidence = max(0.0, min(1.0, confidence))
         suggestions = advice.get("suggestions", [])
         if not isinstance(suggestions, list):

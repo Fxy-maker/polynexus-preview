@@ -117,6 +117,15 @@ class _CancelledLLM:
         raise LLMCancelledError("cancelled by user")
 
 
+class _NonFiniteConfidenceLLM:
+    last_used_mock = False
+    provider_label = "Test LLM"
+
+    def chat(self, prompt: str, **kwargs: object) -> str:
+        del prompt, kwargs
+        return '{"assessment":"PASS","confidence":"NaN","changes":{}}'
+
+
 def test_advisor_transports_saxs_summary_context_to_the_real_prompt() -> None:
     advisor = Advisor(retriever=_ContextRetriever(), llm_client=_ContextLLM())
 
@@ -166,3 +175,13 @@ def test_advisor_preserves_provider_cancellation() -> None:
 
     with pytest.raises(LLMCancelledError, match="cancelled by user"):
         advisor.advise({"technique": "SAXS", "params": {}})
+
+
+def test_advisor_falls_back_on_nonfinite_provider_confidence() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_NonFiniteConfidenceLLM())
+
+    advice = advisor.advise({"technique": "SAXS", "params": {}})
+
+    assert advice["diagnosis"] == "provider_unavailable"
+    assert advice["llm_used"] is False
+    assert advice["changes"] == {}
