@@ -72,12 +72,18 @@ commands are dry-run only; `test_storage.py --apply` is not authorized.
 
 Evidence:
 
-- Focused live-context: `5 passed in 1.26s`.
-- Advisor/orchestrator/PromptBuilder regressions: `103 passed in 48.27s`.
+- Focused live-context: `5 passed in 1.51s`, exit code `0`.
+- Combined live-state/Advisor/PromptBuilder/summary regressions: `17 passed
+  in 1.27s`, exit code `0`.
 - Ruff and compileall passed for the changed production/test files.
-- Exact SAXS file matrix: `685 passed, 6 warnings in 561.43s`, exit code `0`.
+- The latest exact SAXS file-matrix attempt timed out at the tool limit after
+  approximately 604 seconds with no pytest summary and exit code `124`. It is
+  recorded as a tool-level timeout, not as a passing test result.
 - Structured verifier: task card, memory, Ruff, compile, quality `297 passed`,
   preprocessing `106 passed`, and whitespace checks passed; exit code `0`.
+- Storage report/clean were non-destructive dry-runs: `63` artifacts,
+  `1,368,593,231` total bytes, `18,784` eligible bytes (all emergency), and
+  `0` removed. Active Python test processes kept referenced paths protected.
 - Storage report and `clean --older-than-hours 24 --json` were both dry-run:
   `63` artifacts, `1,368,593,231` bytes, `13` emergency-eligible artifacts
   (`18,784` bytes), and `removed_count=0`. No `--apply` was run.
