@@ -163,6 +163,9 @@ class DetectorQualityReport:
     finite_pixel_count: int = 0
     nonfinite_pixel_count: int = 0
     nonpositive_pixel_count: int = 0
+    background_floor_pixel_count: int = 0
+    masked_sentinel_pixel_count: int = 0
+    unexpected_negative_pixel_count: int = 0
     masked_pixel_count: int = 0
     saturated_pixel_count: int = 0
     valid_pixel_count: int = 0
@@ -173,6 +176,7 @@ class DetectorQualityReport:
     beam_center: tuple[float, float] | None = None
     geometry_provenance: Mapping[str, Any] | None = None
     mask_provenance: Mapping[str, Any] | None = None
+    detector_metadata: Mapping[str, Any] | None = None
     reason_codes: tuple[str, ...] = ()
     level: QualityLevel = QualityLevel.UNUSABLE
 
@@ -203,6 +207,8 @@ def build_detector_quality_report(
     beam_center: Any = None,
     geometry_provenance: Mapping[str, Any] | None = None,
     mask_provenance: Mapping[str, Any] | None = None,
+    detector_metadata: Mapping[str, Any] | None = None,
+    background_floor_value: Any = None,
 ) -> DetectorQualityReport:
     """Build a strict, read-only quality report for a 2D intensity input."""
 
@@ -250,6 +256,26 @@ def build_detector_quality_report(
             reasons.append("mask_shape_mismatch")
     masked_count = int(np.count_nonzero(mask_array)) if array.ndim == 2 else 0
 
+    background_floor = np.zeros(array.shape, dtype=bool)
+    if array.ndim == 2 and background_floor_value is not None:
+        try:
+            floor_value = float(background_floor_value)
+        except (TypeError, ValueError):
+            floor_value = None
+        if floor_value is not None and np.isfinite(floor_value):
+            tolerance = max(1e-9, abs(floor_value) * 1e-6)
+            background_floor = finite & np.isclose(
+                array,
+                floor_value,
+                rtol=0.0,
+                atol=tolerance,
+            )
+    background_floor_count = int(np.count_nonzero(background_floor))
+    masked_sentinel = mask_array & finite & ~background_floor
+    masked_sentinel_count = int(np.count_nonzero(masked_sentinel))
+    unexpected_negative = finite & (array < 0) & ~background_floor & ~mask_array
+    unexpected_negative_count = int(np.count_nonzero(unexpected_negative))
+
     saturation_available = False
     saturated = np.zeros(array.shape, dtype=bool)
     try:
@@ -258,7 +284,12 @@ def build_detector_quality_report(
         saturation = None
         if saturation_value is not None:
             reasons.append("saturation_value_invalid")
-    if saturation is not None and np.isfinite(saturation) and array.ndim == 2:
+    if (
+        saturation is not None
+        and np.isfinite(saturation)
+        and saturation > 0
+        and array.ndim == 2
+    ):
         saturation_available = True
         saturated = finite & (array == saturation)
     elif saturation_value is None:
@@ -316,6 +347,9 @@ def build_detector_quality_report(
         finite_pixel_count=finite_count,
         nonfinite_pixel_count=nonfinite_count,
         nonpositive_pixel_count=nonpositive_count,
+        background_floor_pixel_count=background_floor_count,
+        masked_sentinel_pixel_count=masked_sentinel_count,
+        unexpected_negative_pixel_count=unexpected_negative_count,
         masked_pixel_count=masked_count,
         saturated_pixel_count=saturated_count,
         valid_pixel_count=valid_count,
@@ -326,6 +360,7 @@ def build_detector_quality_report(
         beam_center=center,
         geometry_provenance=geometry_provenance,
         mask_provenance=mask_provenance,
+        detector_metadata=detector_metadata,
         reason_codes=tuple(dict.fromkeys(reasons)),
         level=level,
     )

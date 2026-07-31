@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 import os as _os
 from pathlib import Path
-from typing import Any, List, Tuple, Optional, Dict
+from typing import Any, List, Tuple, Optional, Dict, Mapping
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -24,6 +24,87 @@ from .config import SAXSConfig, ExperimentCondition
 
 SUPPORTED_2D_EXTENSIONS = {'.edf', '.cbf', '.tif', '.tiff', '.h5', '.hdf5', '.nxs'}
 SUPPORTED_1D_EXTENSIONS = {'.dat', '.txt', '.csv', '.xy'}
+
+
+def normalize_edf_detector_metadata(header: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Normalize known EDF detector fields without asserting calibration validity."""
+    if not isinstance(header, Mapping):
+        return {
+            "metadata_status": "missing",
+            "metadata_source": "none",
+        }
+
+    normalized = {
+        str(key).strip().lower().replace("-", "_").replace(" ", "_"): value
+        for key, value in header.items()
+    }
+
+    def _text(*names: str) -> str | None:
+        for name in names:
+            value = normalized.get(name.lower().replace("-", "_").replace(" ", "_"))
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        return None
+
+    def _number(*names: str) -> float | None:
+        for name in names:
+            value = normalized.get(name.lower().replace("-", "_").replace(" ", "_"))
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                continue
+            if np.isfinite(number):
+                return float(number)
+        return None
+
+    detector_model = _text("detectormodel", "detector_model")
+    serial_number = None
+    if detector_model:
+        import re
+
+        match = re.search(r"(?:s/n|serial(?:_number)?|sn)\s*[:=]?\s*([A-Za-z0-9._-]+)", detector_model, re.I)
+        if match:
+            serial_number = match.group(1)
+
+    values: dict[str, Any] = {
+        "detector_model": detector_model,
+        "detector_serial_number": serial_number,
+        "exposure_time_s": _number("exposuretime", "exposure_time"),
+        "threshold_setting": _number("thresholdsetting", "threshold_setting"),
+        "count_cutoff": _number("countcutoff", "count_cutoff"),
+        "saturation_field": _number("saturation"),
+        "flat_field_status": _text("flatfield", "flat_field"),
+        "dummy_value": _number("dummy"),
+        "dummy_tolerance": _number("ddummy"),
+        "background_correction_constant": _number(
+            "backgroundcorrectionconstant", "background_correction_constant"
+        ),
+    }
+    values.update(
+        {
+            "wavelength_m": _number("wavelength", "wave_length"),
+            "pixel_size_m": _number("psize_1", "pixelsize", "pixel_size"),
+            "sample_distance_m": _number(
+                "sampledistance", "sample_distance", "detector_distance"
+            ),
+            "beam_center_x_px": _number("center_1", "center_x", "beam_center_x"),
+            "beam_center_y_px": _number("center_2", "center_y", "beam_center_y"),
+        }
+    )
+    required = (
+        "detector_model",
+        "detector_serial_number",
+        "wavelength_m",
+        "pixel_size_m",
+        "sample_distance_m",
+        "beam_center_x_px",
+        "beam_center_y_px",
+    )
+    values["metadata_status"] = (
+        "complete" if all(values.get(key) is not None for key in required) else "partial"
+    )
+    values["metadata_source"] = "edf_header"
+    return values
 
 
 def read_image(filepath: str) -> Tuple[np.ndarray, dict]:

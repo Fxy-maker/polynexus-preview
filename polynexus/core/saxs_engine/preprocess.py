@@ -19,6 +19,7 @@ import numpy as np
 from scipy.signal import savgol_filter
 
 from .config import SAXSConfig
+from .io import normalize_edf_detector_metadata
 from .saxs_quality_contracts import build_detector_quality_report
 from .saxs_mask_edit import (
     MaskEditValidationError,
@@ -610,6 +611,14 @@ def preprocess_pipeline(
     Returns dict with keys:
         q, Iq, Iq_merid, Iq_equat, Iq_smooth, Iq_corrected
     """
+    detector_metadata = normalize_edf_detector_metadata(detector_header)
+    if detector_header:
+        cfg = replace(cfg)
+        if detector_metadata.get("dummy_value") is not None:
+            cfg.dummy_val = float(detector_metadata["dummy_value"])
+        if detector_metadata.get("dummy_tolerance") is not None:
+            cfg.ddummy = float(detector_metadata["dummy_tolerance"])
+
     if ai is None:
         ai = build_integrator(cfg)
 
@@ -721,7 +730,7 @@ def preprocess_pipeline(
     detector_report = build_detector_quality_report(
         img,
         mask=detector_mask,
-        saturation_value=_header_float(
+        saturation_value=_header_positive_float(
             detector_header,
             ("saturation", "saturation_value", "saturationvalue"),
         ),
@@ -732,6 +741,12 @@ def preprocess_pipeline(
             img,
             detector_mask,
             edit_provenance=mask_edit_provenance,
+        ),
+        detector_metadata=detector_metadata,
+        background_floor_value=(
+            -abs(float(detector_metadata["background_correction_constant"]))
+            if detector_metadata.get("background_correction_constant") is not None
+            else None
         ),
     )
     result["detector_quality_report"] = detector_report.to_dict()
@@ -815,6 +830,15 @@ def _header_float(
         if np.isfinite(value):
             return float(value)
     return None
+
+
+def _header_positive_float(
+    header: Optional[Mapping[str, Any]],
+    names: Tuple[str, ...],
+) -> float | None:
+    """Return a positive finite header value suitable for a detector limit."""
+    value = _header_float(header, names)
+    return value if value is not None and value > 0 else None
 
 
 def _header_beam_center(
