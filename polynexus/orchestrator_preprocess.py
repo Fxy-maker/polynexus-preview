@@ -785,40 +785,14 @@ def _run_preprocess_intent(
         report["saxs_ai_rescue_decision"] = deepcopy(report["preprocess_decision"])
         engine.saxs_ai_rescue_decision = report["saxs_ai_rescue_decision"]
 
-    if saxs_intent is not None:
-        replay_rows: list[dict[str, Any]] = []
-        for item in replay_inputs:
-            trial = item["trial"]
-            candidate = item["candidate"]
-            if candidate.candidate_id == selected["candidate"].candidate_id:
-                decision_payload = report["saxs_ai_rescue_decision"]
-            else:
-                decision_payload = trial["decision"].to_dict()
-            replay_rows.append(
-                build_preprocess_replay_audit(
-                    candidate=candidate,
-                    source_config=item["source_config"],
-                    effective_config=(
-                        trial["effective_config"]
-                        if trial.get("effective_config_object") is not None
-                        else None
-                    ),
-                    mode=item["mode"],
-                    source_context=_saxs_replay_context(self),
-                    evidence=trial["evidence"],
-                    decision=decision_payload,
-                    trial_engine_created=trial.get("engine") is not None,
-                    error=trial.get("error", ""),
-                ).to_dict()
-            )
-        report["saxs_ai_rescue_replay"] = replay_rows
-        engine.saxs_ai_rescue_replay = replay_rows
+    selected_apply_performed = False
     if audited and report["preprocess_decision"]["decision"] == "auto_accept":
         committed, commit_error = self._commit_preprocess_candidate(
             engine,
             selected["candidate"],
             original_hash,
         )
+        selected_apply_performed = committed
         if not committed:
             selected_decision = replace(
                 selected_decision,
@@ -847,6 +821,38 @@ def _run_preprocess_intent(
             )
     elif report["preprocess_decision"]["decision"] == "request_confirmation":
         report["pending_preprocess_config"] = deepcopy(selected_config)
+
+    if saxs_intent is not None:
+        replay_rows: list[dict[str, Any]] = []
+        for item in replay_inputs:
+            trial = item["trial"]
+            candidate = item["candidate"]
+            is_selected = candidate.candidate_id == selected["candidate"].candidate_id
+            decision_payload = (
+                report["saxs_ai_rescue_decision"]
+                if is_selected
+                else trial["decision"].to_dict()
+            )
+            replay_rows.append(
+                build_preprocess_replay_audit(
+                    candidate=candidate,
+                    source_config=item["source_config"],
+                    effective_config=(
+                        trial["effective_config"]
+                        if trial.get("effective_config_object") is not None
+                        else None
+                    ),
+                    mode=item["mode"],
+                    source_context=_saxs_replay_context(self),
+                    evidence=trial["evidence"],
+                    decision=decision_payload,
+                    trial_engine_created=trial.get("engine") is not None,
+                    error=trial.get("error", ""),
+                    apply_performed=is_selected and selected_apply_performed,
+                ).to_dict()
+            )
+        report["saxs_ai_rescue_replay"] = replay_rows
+        engine.saxs_ai_rescue_replay = replay_rows
 
     report["best_config"] = self._config_to_dict(
         self._best_config if self._best_config is not None else control_config_object

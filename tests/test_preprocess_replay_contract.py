@@ -100,3 +100,21 @@ def test_failed_replay_has_no_effective_hash_and_cannot_apply() -> None:
     assert audit.apply_allowed is False
     assert audit.apply_performed is False
     assert audit.error == "candidate_timeout"
+
+
+def test_replay_audit_can_record_a_successful_application() -> None:
+    audit = build_preprocess_replay_audit(
+        candidate=_candidate(),
+        source_config={"savgol_window": 7},
+        effective_config={"savgol_window": 9},
+        mode="static",
+        source_context={},
+        evidence=_evidence(),
+        decision=_decision(decision="auto_accept"),
+        trial_engine_created=True,
+        error="",
+        apply_performed=True,
+    )
+
+    assert audit.apply_performed is True
+    assert audit.to_dict()["apply_performed"] is True

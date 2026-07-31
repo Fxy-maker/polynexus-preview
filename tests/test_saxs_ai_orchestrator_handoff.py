@@ -234,3 +234,50 @@ def test_failed_saxs_replay_preserves_control_and_records_error() -> None:
     assert all("synthetic candidate failure" in item["error"] for item in report["saxs_ai_rescue_replay"])
     assert all(item["apply_performed"] is False for item in report["saxs_ai_rescue_replay"])
     assert orchestrator._engine.cfg.savgol_window == 7
+
+
+def test_saxs_replay_application_records_successful_calibrated_commit() -> None:
+    orchestrator = build_fake_saxs_orchestrator()
+    orchestrator.preprocess_policy = replace(
+        get_preprocess_policy("SAXS"),
+        calibrated=True,
+        automation_state="tiered_auto",
+    )
+
+    report = orchestrator.run_preprocess_intent(saxs_intent())
+
+    selected_id = report["selected_candidate_id"]
+    replay = next(
+        item for item in report["saxs_ai_rescue_replay"]
+        if item["candidate_id"] == selected_id
+    )
+    assert report["saxs_ai_rescue_decision"]["decision"] == "auto_accept"
+    assert replay["decision"]["decision"] == "auto_accept"
+    assert replay["decision"]["apply_allowed"] is True
+    assert replay["apply_performed"] is True
+
+
+def test_saxs_replay_application_records_commit_failure_as_keep_original() -> None:
+    orchestrator = build_fake_saxs_orchestrator()
+    orchestrator.preprocess_policy = replace(
+        get_preprocess_policy("SAXS"),
+        calibrated=True,
+        automation_state="tiered_auto",
+    )
+    orchestrator._commit_preprocess_candidate = MethodType(  # type: ignore[method-assign]
+        lambda self, _engine, _candidate, _original_hash: (False, "commit_failed"),
+        orchestrator,
+    )
+
+    report = orchestrator.run_preprocess_intent(saxs_intent())
+
+    selected_id = report["selected_candidate_id"]
+    replay = next(
+        item for item in report["saxs_ai_rescue_replay"]
+        if item["candidate_id"] == selected_id
+    )
+    assert report["saxs_ai_rescue_decision"]["decision"] == "keep_original"
+    assert replay["decision"]["decision"] == "keep_original"
+    assert replay["decision"]["apply_allowed"] is False
+    assert replay["apply_performed"] is False
+    assert report["error"] == "commit_failed"
