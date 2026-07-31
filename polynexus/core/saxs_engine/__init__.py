@@ -105,7 +105,10 @@ from .saxs_ai_rescue import (
     validate_saxs_ai_intent,
     sanitize_saxs_ai_summary_context,
 )
-from .saxs_2d_review_context import build_saxs_2d_review_context
+from .saxs_2d_review_context import (
+    build_saxs_2d_review_context,
+    sanitize_saxs_2d_review_context,
+)
 from .saxs_output import (
     export_parameters_csv,
     export_1d_profile,
@@ -161,5 +164,6 @@ __all__ = [
     "validate_saxs_confirmation_report",
     "validate_saxs_ai_intent",
     "build_saxs_2d_review_context",
+    "sanitize_saxs_2d_review_context",
     "export_1d_profile", "export_strain_series_csv", "export_temp_series_csv",
 ]

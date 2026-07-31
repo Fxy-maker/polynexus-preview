@@ -118,6 +118,31 @@ _REVIEW_RECORD_DECISION_FIELDS = (
     "orientation_applicability",
     "promotion_rule",
 )
+_PROVENANCE_FIELDS = ("validity", "source", "field_sources", "missing_field_sources")
+_MASK_PROVENANCE_FIELDS = ("validity", "source", "configured", "shape", "shape_matches_detector")
+_BEAM_CENTER_FIELDS = ("status", "available")
+_DETECTOR_CONTEXT_FIELDS = frozenset((*_DETECTOR_FIELDS, "status"))
+_ORIENTATION_CONTEXT_FIELDS = frozenset((*_ORIENTATION_FIELDS, "fit_evidence", "physical_checks", "status"))
+_GATE_CONTEXT_FIELDS = frozenset(
+    {
+        "audit_status",
+        "automated_validation_passed",
+        "quality_gate_status",
+        "physical_gate_status",
+        *_AUDIT_FIELDS,
+    }
+)
+_REVIEW_CONTEXT_FIELDS = frozenset({"status", "scope", "decision", "record"})
+_REVIEW_RECORD_FIELDS = (
+    "record_id",
+    "scope",
+    "reviewer",
+    "reviewed_at",
+    "policy_version",
+    "status",
+    "conditions",
+    "decisions",
+)
 
 
 def _mapping_value(source: Any, name: str, default: Any = None) -> Any:
@@ -212,6 +237,95 @@ def _optional_bool(value: Any) -> bool | None:
     if isinstance(value, bool):
         return value
     return None
+
+
+def _fixed_fields(value: Any, fields: Sequence[str]) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {field: _safe(value[field]) for field in fields if field in value and not _raw_key(field)}
+
+
+def _sanitize_provenance(value: Any, *, kind: str) -> dict[str, Any]:
+    source = value if isinstance(value, Mapping) else {}
+    fields = _MASK_PROVENANCE_FIELDS if kind == "mask" else _PROVENANCE_FIELDS
+    result = _fixed_fields(source, fields)
+    if "source" in result:
+        result["source"] = _safe_identifier(source.get("source")) or None
+    if kind == "geometry":
+        field_sources = source.get("field_sources")
+        result["field_sources"] = (
+            {
+                str(key): _safe_identifier(item) or None
+                for key, item in field_sources.items()
+                if not _raw_key(key)
+            }
+            if isinstance(field_sources, Mapping)
+            else {}
+        )
+        result["missing_field_sources"] = _reason_codes(source.get("missing_field_sources"))
+    return result
+
+
+def sanitize_saxs_2d_review_context(value: Any) -> dict[str, Any]:
+    """Keep only the fixed, summary-only 2D DTO at the prompt boundary."""
+
+    if not isinstance(value, Mapping):
+        return {}
+    if (
+        value.get("schema_version") != "saxs-2d-review-v1"
+        or str(value.get("technique", "")).upper() != "SAXS"
+        or value.get("scope") != _EXPECTED_SCOPE
+    ):
+        return {}
+    nested_fields = (
+        "detector",
+        "geometry",
+        "mask",
+        "beam_center",
+        "orientation",
+        "gates",
+        "scientific_review",
+    )
+    if any(not isinstance(value.get(field), Mapping) for field in nested_fields):
+        return {}
+
+    context: dict[str, Any] = {
+        "schema_version": "saxs-2d-review-v1",
+        "technique": "SAXS",
+        "scope": _EXPECTED_SCOPE,
+        "status": _text(value.get("status")) or "unavailable",
+        "reason_codes": _reason_codes(value.get("reason_codes")),
+        "detector": _fixed_fields(
+            value.get("detector"),
+            tuple(_DETECTOR_CONTEXT_FIELDS),
+        ),
+        "geometry": _sanitize_provenance(value.get("geometry"), kind="geometry"),
+        "mask": _sanitize_provenance(value.get("mask"), kind="mask"),
+        "beam_center": _fixed_fields(value.get("beam_center"), _BEAM_CENTER_FIELDS),
+        "orientation": _fixed_fields(
+            value.get("orientation"),
+            tuple(_ORIENTATION_CONTEXT_FIELDS),
+        ),
+        "gates": _fixed_fields(value.get("gates"), tuple(_GATE_CONTEXT_FIELDS)),
+        "scientific_review": _fixed_fields(
+            value.get("scientific_review"),
+            tuple(_REVIEW_CONTEXT_FIELDS),
+        ),
+        "raw_profile_included": False,
+        "raw_detector_data_included": False,
+    }
+    review = value.get("scientific_review")
+    if isinstance(review, Mapping):
+        decision = _fixed_fields(review.get("decision"), _REVIEW_DECISION_FIELDS)
+        record = _fixed_fields(review.get("record"), _REVIEW_RECORD_FIELDS)
+        if decision:
+            context["scientific_review"]["decision"] = decision
+        if record:
+            record_decisions = record.get("decisions")
+            if isinstance(record_decisions, Mapping):
+                record["decisions"] = _fixed_fields(record_decisions, _REVIEW_RECORD_DECISION_FIELDS)
+            context["scientific_review"]["record"] = record
+    return _safe(context)
 
 
 def _project_provenance(value: Any, *, kind: str) -> dict[str, Any]:
@@ -506,4 +620,4 @@ def build_saxs_2d_review_context(
     }
 
 
-__all__ = ["build_saxs_2d_review_context"]
+__all__ = ["build_saxs_2d_review_context", "sanitize_saxs_2d_review_context"]

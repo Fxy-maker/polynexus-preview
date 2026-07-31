@@ -31,6 +31,10 @@ from ..preprocess_optimization import (
 from ..preprocess_optimization.decision import decide_preprocess_candidate
 from ..preprocess_optimization.intent_schema import ContractValidationError
 from ..preprocess_optimization.policy import PolicyValidationError
+from .saxs_2d_review_context import (
+    build_saxs_2d_review_context,
+    sanitize_saxs_2d_review_context,
+)
 
 
 _REQUIRED_PROTECTED_FEATURES = frozenset(
@@ -422,6 +426,9 @@ def sanitize_saxs_ai_summary_context(payload: Any) -> dict[str, Any]:
         "raw_detector_data_included": False,
         "physical_validation_required": True,
     }
+    two_d_context = sanitize_saxs_2d_review_context(payload.get("saxs_2d_review_context"))
+    if two_d_context:
+        context["saxs_2d_review_context"] = two_d_context
     if acceptance_audit:
         context["scientific_acceptance_audit"] = acceptance_audit
     return _json_safe(context)
@@ -455,6 +462,9 @@ def build_saxs_ai_summary_context(result: Any, *, mode: str) -> dict[str, Any]:
     acceptance_audit = _existing_acceptance_audit(result)
     if acceptance_audit:
         context["scientific_acceptance_audit"] = acceptance_audit
+    two_d_context = build_saxs_2d_review_context(_mode_result(result, normalized_mode))
+    if two_d_context.get("status") != "unavailable":
+        context["saxs_2d_review_context"] = two_d_context
     return _json_safe(context)
 
 
