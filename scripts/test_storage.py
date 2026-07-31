@@ -523,13 +523,26 @@ def _modified_at(path: Path) -> datetime:
 def _is_known_legacy_name(lowered: str) -> bool:
     """Recognize disposable test names without treating archives as tests."""
 
-    if any(token in lowered for token in ("archive", "evidence", "review", "baseline")):
+    if lowered == "测试数据" or any(
+        token in lowered for token in ("archive", "evidence", "review", "baseline")
+    ):
         return False
     if "pytest_tmp" in lowered or "tmp_pytest" in lowered:
         return True
     if any(lowered.startswith(prefix) for prefix in EXTERNAL_LEGACY_PATTERNS):
         return True
-    if lowered.startswith("polynexus_") and ("_matrix" in lowered or "_pytest" in lowered):
+    if lowered.startswith(("full_boundary", "native_", "gallery_", "saxs")):
+        return True
+    if lowered.startswith("polynexus_") and (
+        lowered.startswith((
+            "polynexus_full_boundary",
+            "polynexus_native_",
+            "polynexus_gallery_",
+            "polynexus_saxs_",
+        ))
+        or "_matrix" in lowered
+        or "_pytest" in lowered
+    ):
         return True
     return lowered.startswith("pn_") and "matrix" in lowered
 

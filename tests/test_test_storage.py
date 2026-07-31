@@ -445,6 +445,37 @@ def test_discover_known_legacy_patterns_but_rejects_archive_like_names(tmp_path:
     ]
 
 
+def test_discover_historical_test_directories_but_protects_data_and_evidence(
+    tmp_path: Path,
+):
+    legacy_root = tmp_path / "legacy"
+    disposable = [
+        "PolyNexus_full_boundary_current_head_20260730",
+        "PolyNexus_native_ir_mapping_recheck_20260730_basetemp",
+        "PolyNexus_gallery_editor_selection_verify_20260729",
+        "PolyNexus_saxs_temperature_matrix",
+        "SaxsAuxiliaryProvenanceRelated",
+        "SaxsTemperatureAuxiliaryMatrix",
+    ]
+    protected = [
+        "测试数据",
+        "PolyNexus_saxs_review_matrix",
+        "PolyNexus_saxs_evidence_matrix",
+        "PolyNexus_release_baseline",
+        "PolyNexus_demo_archive",
+    ]
+    for name in disposable + protected:
+        (legacy_root / name).mkdir(parents=True)
+
+    artifacts = discover_artifacts(
+        tmp_path,
+        test_root=tmp_path / "managed",
+        legacy_roots=[legacy_root],
+    )
+
+    assert [artifact.path.name for artifact in artifacts] == sorted(disposable, key=str.casefold)
+
+
 def test_discover_managed_artifact_reads_run_state(tmp_path: Path):
     test_root = tmp_path / "test-root"
     run_path = test_root / "pytest" / "run-1"
