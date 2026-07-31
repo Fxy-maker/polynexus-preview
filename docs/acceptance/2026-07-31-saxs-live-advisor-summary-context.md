@@ -28,7 +28,11 @@ closed to an empty context. Non-SAXS state is unchanged.
 - `git diff --check`: exit code `0`.
 - Storage `report` and dry-run `clean`: `63` artifacts,
   `1,368,593,231` total bytes, `18,784` eligible bytes, and `0` removed.
-  No apply cleanup was run; active Python test processes remain protected.
+- The explicitly authorized `clean --older-than-hours 24 --apply` then removed
+  one managed ephemeral run (`10,911` bytes) but exited `1`: ten legacy
+  D-drive directories returned Windows `PermissionError`, and the C-drive
+  legacy path was protected by an active-process reference. No ACL or ownership
+  bypass was attempted.
 
 ## Explicit changed-file allowlist
 
@@ -41,7 +45,8 @@ closed to an empty context. Non-SAXS state is unchanged.
 
 ## Remaining gate
 
-The implementation checkpoint is `37f83db`. The exact SAXS matrix needs a
+The implementation checkpoint is `37f83db` and the evidence checkpoint is
+`69ca458`. The exact SAXS matrix needs a
 separate bounded rerun or approved timeout policy before it can be called
 green. Broader non-SAXS scientific review, restarted-GUI review, and final
 release approval remain open.

@@ -83,7 +83,10 @@ Evidence:
   preprocessing `106 passed`, and whitespace checks passed; exit code `0`.
 - Storage report/clean were non-destructive dry-runs: `63` artifacts,
   `1,368,593,231` total bytes, `18,784` eligible bytes (all emergency), and
-  `0` removed. Active Python test processes kept referenced paths protected.
+  `0` removed. The explicitly authorized follow-up apply removed one managed
+  ephemeral run (`10,911` bytes), then exited `1` because ten legacy D-drive
+  directories were denied by Windows permissions; the C-drive legacy path was
+  protected by an active-process reference.
 - Storage report and `clean --older-than-hours 24 --json` were both dry-run:
   `63` artifacts, `1,368,593,231` bytes, `13` emergency-eligible artifacts
   (`18,784` bytes), and `removed_count=0`. No `--apply` was run.
