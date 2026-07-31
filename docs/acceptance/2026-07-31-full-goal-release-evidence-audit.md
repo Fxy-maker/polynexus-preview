@@ -39,6 +39,22 @@ disposition remains **conditional**.
 - The final release packet remains conditional until the human and
   source-specific gates close.
 
+## Latest evidence amendment (2026-08-01)
+
+- SAXS 2D reviewer context is checkpointed at `a9e0743` and projects existing
+  detector, geometry/mask, beam-center, orientation, gate, and scientific-review
+  evidence without recalculation or publication promotion.
+- Independent focused compatibility coverage passed `58`; the complete SAXS
+  file matrix passed `700 passed, 6 warnings in 530.15s`, exit `0`.
+- The latest formal full/boundary verifier reached its 40-minute tool bound,
+  returned exit `124`, and emitted no complete pytest summary. The managed
+  child manifest recorded exit `3` at the timeout/reap boundary; this remains
+  incomplete tool evidence, not a test pass or product failure.
+- The release disposition remains conditional. IR mapping remains
+  `review_required`/diagnostic-only, NMR solid-C remains assignment-limited,
+  unresolved Joint conflicts remain diagnostic-only, and restarted-GUI plus
+  owner scientific/release approval remain open.
+
 ## Verification record
 
 The commands below were run after the three audit files were complete. Their
