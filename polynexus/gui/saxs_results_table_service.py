@@ -24,6 +24,7 @@ from .result_table_models import (
     normalize_table_scalar,
 )
 from .result_table_templates import ResultFieldSpec, ResultTableTemplate, saxs_template
+from ..core.saxs_engine.saxs_2d_review_context import build_saxs_2d_review_context
 
 
 _RELIABLE_STATUSES = {"usable", "ok", "passed"}
@@ -1588,6 +1589,9 @@ def build_saxs_results_presentation(
     )
     risk_text = "\n".join(text for text in risk_sections if text)
     next_text = "\n".join(text for text in next_sections if text)
+    saxs_2d_review_context = build_saxs_2d_review_context(payload)
+    if saxs_2d_review_context.get("status") == "unavailable":
+        saxs_2d_review_context = {}
 
     row_count = len(rows)
     has_rows = row_count > 0
@@ -1603,4 +1607,5 @@ def build_saxs_results_presentation(
         sortable=row_count > 1,
         copy_enabled=has_rows,
         export_enabled=has_rows,
+        saxs_2d_review_context=saxs_2d_review_context,
     )
