@@ -105,6 +105,9 @@ class Advisor:
             or eval_case.get("config_overrides")
             or {}
         )
+        saxs_ai_context = eval_case.get("saxs_ai_context", {})
+        if not isinstance(saxs_ai_context, dict):
+            saxs_ai_context = {}
         return {
             "case_id": eval_case.get("case_id", "unknown"),
             "technique": str(eval_case.get("technique", "unknown")).upper(),
@@ -127,6 +130,7 @@ class Advisor:
             "workspace_context": eval_case.get("workspace_context", {}),
             "analysis_evidence": eval_case.get("analysis_evidence", {}),
             "ir_reference_bands": eval_case.get("ir_reference_bands", {}),
+            "saxs_ai_context": dict(saxs_ai_context),
         }
 
     def _query_from_sample(self, current_sample: dict[str, Any]) -> str:

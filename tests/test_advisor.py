@@ -82,3 +82,49 @@ def test_advisor_omits_preprocess_fields_for_ordinary_advice() -> None:
 
     assert "preprocess_intent" not in advice
     assert "preprocess_intent_error" not in advice
+
+
+class _ContextRetriever:
+    def retrieve(self, *args: object, **kwargs: object) -> list[dict[str, object]]:
+        return []
+
+
+class _ContextLLM:
+    last_used_mock = True
+
+    def chat(self, prompt: str, **kwargs: object) -> str:
+        del prompt, kwargs
+        return '{"assessment":"WARN","confidence":0.0,"changes":{},"converge":true}'
+
+
+def test_advisor_transports_saxs_summary_context_to_the_real_prompt() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_ContextLLM())
+
+    advisor.advise(
+        {
+            "technique": "SAXS",
+            "params": {"Rg_nm": 4.2},
+            "saxs_ai_context": {
+                "technique": "SAXS",
+                "mode": "temperature",
+                "status": "available",
+                "candidate_only": True,
+                "raw_profile_included": False,
+                "raw_detector_data_included": False,
+                "frames": [],
+            },
+        }
+    )
+
+    assert "## SAXS AI summary context" in advisor.last_prompt
+    assert '"candidate_only": true' in advisor.last_prompt
+
+
+def test_advisor_ignores_non_mapping_saxs_summary_context() -> None:
+    advisor = Advisor.__new__(Advisor)
+
+    normalized = advisor._normalize_case(
+        {"technique": "SAXS", "saxs_ai_context": ["raw", "payload"]}
+    )
+
+    assert normalized["saxs_ai_context"] == {}
