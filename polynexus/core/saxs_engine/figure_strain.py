@@ -61,6 +61,12 @@ _STANDARD_AXIS_LABELS = {
     "Azimuth": r"Azimuth $\chi$ (rad)",
     "Phase": "Strain phase",
 }
+_STRAIN_METHOD_EVIDENCE_METHODS = (
+    ("porod", "Porod", "a.u.", "#0072B2"),
+    ("kratky", "Kratky", "nm^-1", "#009E73"),
+    ("invariant", "Invariant", "a.u.", "#D55E00"),
+    ("lamellar", "Lamellar", "nm", "#CC79A7"),
+)
 
 
 @dataclass(frozen=True)
@@ -101,6 +107,11 @@ def _finite_number(value: Any) -> float:
     except (TypeError, ValueError):
         return np.nan
     return number if np.isfinite(number) else np.nan
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    number = _finite_number(value)
+    return float(number) if np.isfinite(number) else None
 
 
 def _first_finite(*values: Any) -> float:
@@ -1433,6 +1444,179 @@ def _trace_definition(
     )
 
 
+def _method_reason_codes(payload: Mapping[str, Any]) -> str | None:
+    raw_reasons = payload.get("reason_codes")
+    if isinstance(raw_reasons, str):
+        return raw_reasons or None
+    if isinstance(raw_reasons, (list, tuple)):
+        return "|".join(str(reason) for reason in raw_reasons) or None
+    return None
+
+
+def _build_strain_method_evidence(
+    frames: Sequence[SAXSFrameView],
+) -> FigureDefinition | None:
+    """Project existing strain frame metric evidence into a diagnostic Figure."""
+
+    if not any(
+        isinstance(getattr(frame.analysis, "metric_evidence", None), Mapping)
+        and any(
+            isinstance(
+                getattr(frame.analysis, "metric_evidence", {}).get(method),
+                Mapping,
+            )
+            for method, _label, _unit, _color in _STRAIN_METHOD_EVIDENCE_METHODS
+        )
+        for frame in frames
+    ):
+        return None
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, Any]] = []
+    plot_methods: list[str] = []
+    for method, label, unit, color in _STRAIN_METHOD_EVIDENCE_METHODS:
+        audit_strains: list[float | None] = []
+        audit_values: list[float | None] = []
+        frame_indices: list[int] = []
+        source_paths: list[str | None] = []
+        levels: list[str | None] = []
+        reasons: list[str | None] = []
+        plot_strains: list[float] = []
+        plot_values: list[float] = []
+        for frame in frames:
+            payloads = getattr(frame.analysis, "metric_evidence", None)
+            payload = payloads.get(method) if isinstance(payloads, Mapping) else None
+            strain = _finite_float_or_none(frame.condition)
+            value = (
+                _finite_float_or_none(payload.get("value"))
+                if isinstance(payload, Mapping)
+                else None
+            )
+            audit_strains.append(strain)
+            audit_values.append(value)
+            frame_indices.append(int(frame.index))
+            source_path = str(frame.source_path or "").strip()
+            source_paths.append(source_path or None)
+            if isinstance(payload, Mapping):
+                raw_level = str(payload.get("level") or "").strip()
+                levels.append(raw_level or None)
+                reasons.append(_method_reason_codes(payload))
+            else:
+                levels.append(None)
+                reasons.append(None)
+            if strain is not None and value is not None:
+                plot_strains.append(strain)
+                plot_values.append(value)
+
+        audit_source_id = f"strain-method-evidence-{method}"
+        plot_source_id = f"{audit_source_id}-plot"
+        sources.append(
+            _data_source(
+                audit_source_id,
+                (
+                    ("strain_pct", "%", "float64"),
+                    ("value", unit, "float64"),
+                    ("frame_index", "index", "int64"),
+                    ("source_path", "path", "string"),
+                    ("frame_level", "level", "string"),
+                    ("frame_reason_codes", "reason", "string"),
+                ),
+                {
+                    "strain_pct": audit_strains,
+                    "value": audit_values,
+                    "frame_index": frame_indices,
+                    "source_path": source_paths,
+                    "frame_level": levels,
+                    "frame_reason_codes": reasons,
+                },
+                role="method_evidence_audit",
+            )
+        )
+        if len(plot_values) >= 2:
+            sources.append(
+                _data_source(
+                    plot_source_id,
+                    (
+                        ("strain_pct", "%", "float64"),
+                        ("value", unit, "float64"),
+                    ),
+                    {
+                        "strain_pct": plot_strains,
+                        "value": plot_values,
+                    },
+                    role="method_evidence_plot",
+                )
+            )
+            plot_methods.append(method)
+            objects.append(
+                _series_object(
+                    f"strain-method-{method}",
+                    method,
+                    plot_source_id,
+                    "strain_pct",
+                    "value",
+                    name=label,
+                    color=color,
+                    marker="o",
+                    chart_kind="scatter",
+                )
+            )
+
+    panels = tuple(
+        _panel(
+            method,
+            index // 2,
+            index % 2,
+            _axis(f"{method}-x", "Strain", "%"),
+            _axis(f"{method}-y", label, unit),
+            title=label,
+            panel_label=f"({chr(ord('a') + index)})",
+        )
+        for index, (method, label, unit, _color) in enumerate(
+            _STRAIN_METHOD_EVIDENCE_METHODS
+        )
+    )
+    return FigureDefinition(
+        figure_id="saxs.strain.method_evidence",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        publication_role="diagnostic",
+        title="Strain SAXS Method Evidence",
+        layout=FigureLayoutDefinition(
+            width_in=7.5,
+            height_in=5.5,
+            rows=2,
+            columns=2,
+            panels=panels,
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": _MODULE,
+            "function": "build_strain_figure_definitions",
+            "inputs": {"frame_count": len(frames)},
+            "parameters": {
+                "figure_kind": "method_evidence_diagnostic",
+                "methods": [
+                    method
+                    for method, _label, _unit, _color in _STRAIN_METHOD_EVIDENCE_METHODS
+                ],
+                "plot_methods": plot_methods,
+                "condition_axis": "strain_pct",
+                "source_mapping": "static_frame_order",
+                "renderer_minimum_pairs": 2,
+                "missing_values_preserved": True,
+                "interpolation": False,
+                "reclassification": False,
+            },
+            "v2_adapter": "saxs_strain",
+        },
+        style_profile="sci_default",
+        display_order=150,
+    )
+
+
 def _azimuthal_definition(
     frames: Sequence[SAXSFrameView],
     decisions: Mapping[int, FigureEligibilityDecision],
@@ -1775,6 +1959,9 @@ def build_strain_figure_definitions(
         definitions.append(diagnostic)
 
     evidence_frames = non_diagnostic_frames or diagnostic_frames
+    method_evidence = _build_strain_method_evidence(frames)
+    if method_evidence is not None:
+        definitions.append(method_evidence)
     for definition in (
         _invariant_definition(engine, evidence_frames, decisions),
         _trace_definition(
