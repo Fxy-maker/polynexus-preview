@@ -1,0 +1,15 @@
+{
+  "case_id": "nmr_real_solid_h_vendor",
+  "technique": "nmr",
+  "submodule": "solid_h",
+  "data_file": "NMR/固体nmr氢谱/CXD_20250410_H_single_pulse-1-1.jdf",
+  "polymer_name": "PA6",
+  "polymer_phase": "solid",
+  "config_overrides": {
+    "real_data": true,
+    "max_peaks": 18
+  },
+  "ground_truth": {},
+  "source": "vendor_unreviewed",
+  "notes": "Vendor input registry only; assignment truth, ppm calibration, and Xc acceptance are pending."
+}

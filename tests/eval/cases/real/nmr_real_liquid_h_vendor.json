@@ -1,0 +1,15 @@
+{
+  "case_id": "nmr_real_liquid_h_vendor",
+  "technique": "nmr",
+  "submodule": "liquid_h",
+  "data_file": "NMR/液体核磁/H谱/fid",
+  "polymer_name": "PA6",
+  "polymer_phase": null,
+  "config_overrides": {
+    "real_data": true,
+    "max_peaks": 18
+  },
+  "ground_truth": {},
+  "source": "vendor_unreviewed",
+  "notes": "Vendor input registry only; reviewer peak truth and scientific acceptance are pending."
+}

@@ -74,7 +74,13 @@ class EvalRunner:
             },
             "source": {
                 "type": "string",
-                "enum": ["synthetic", "literature", "cross_validation", "expert_review"],
+                "enum": [
+                    "synthetic",
+                    "literature",
+                    "cross_validation",
+                    "expert_review",
+                    "vendor_unreviewed",
+                ],
             },
             "notes": {"type": "string"},
         },
