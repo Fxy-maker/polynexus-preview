@@ -86,6 +86,7 @@ git diff --check
 - `polynexus/gui/saxs_results_table_service.py`
 - `tests/test_saxs_condition_recovery.py`
 - `tests/test_saxs_edf_metadata_quality.py`
+- `tests/test_saxs_raw_detector_quality_transport.py`
 - `tests/test_saxs_workbench_detector_provenance_audit.py`
 
 ## Verification evidence
@@ -94,13 +95,20 @@ git diff --check
   covered the intended missing provenance statuses, unexpected nonpositive
   count, and audit deduplication behavior. The strain precedence and static
   isolation regressions already passed against the shared implementation.
-- Focused SAXS matrix: `28 passed, 2 warnings` for condition recovery, EDF
+- Focused SAXS matrix (rerun 2026-07-31): `28 passed, 2 warnings` for condition recovery, EDF
   metadata quality, raw-detector transport, and Workbench detector audit.
-- Structured verifier: exit `0`; task card and memory checks passed, Ruff and
+- Structured verifier (rerun 2026-07-31): exit `0`; task card and memory checks passed, Ruff and
   compile passed, no changed type baseline was required, quality gate was
   `297 passed`, preprocessing gate was `106 passed`, and whitespace passed.
-- `git diff --check`: passed after the lint-only import/name cleanup in
-  `polynexus/core/saxs_engine/io.py`.
+- Four-frame real EDF replay (rerun 2026-07-31) returned conditions
+  `0.0/5.0/60.0/200.0` with source key `strain_dash_S_suffix` for all frames.
+  All four reports were `metadata_complete` / `configured_shape_match`; each
+  retained `background_floor_pixel_count`, `masked_sentinel_pixel_count=15`,
+  and `unexpected_nonpositive_pixel_count=6`. The remaining reasons are
+  `detector_saturation_unknown` and `nonpositive_pixels`, so they remain visible
+  for scientific review.
+- `git diff --check`: passed in the structured verifier; it will be rerun after
+  this evidence-only task-card update before checkpointing.
 - Test-storage report and clean dry-run: `68` artifacts, `5,089,755,229`
   bytes total, `17` emergency-eligible artifacts (`2,948,589,610` bytes),
   `0` removed. No `--apply` was used; no test directory was deleted or moved.

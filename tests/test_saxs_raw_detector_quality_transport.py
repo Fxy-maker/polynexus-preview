@@ -92,12 +92,12 @@ def test_raw_report_transports_complete_geometry_and_mask_provenance(monkeypatch
         "beam_center_x": 1.0,
         "beam_center_y": 1.0,
     }
-    assert geometry["validity"] == "not_assessed"
+    assert geometry["validity"] == "metadata_complete"
     assert report["mask_provenance"] == {
         "source": "saxs_config.dummy_value",
         "configured": True,
         "shape": [2, 2],
-        "validity": "not_assessed",
+        "validity": "configured_shape_match",
     }
     json.dumps(report, allow_nan=False)
 
@@ -127,7 +127,7 @@ def test_raw_report_distinguishes_mixed_and_invalid_geometry_without_gate_change
         "beam_center_x": "config_default",
         "beam_center_y": "config_default",
     }
-    assert geometry["validity"] == "not_assessed"
+    assert geometry["validity"] == "invalid"
     assert report["level"] == "Diagnostic"
     assert "beam_center_missing" in report["reason_codes"]
 

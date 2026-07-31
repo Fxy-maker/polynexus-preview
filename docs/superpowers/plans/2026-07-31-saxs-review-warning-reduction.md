@@ -23,6 +23,7 @@
 
 **Files:**
 - Modify: `tests/test_saxs_edf_metadata_quality.py`
+- Modify: `tests/test_saxs_raw_detector_quality_transport.py`
 
 - [x] Add a test image containing only the declared floor plus a shape-matched configured mask and assert the raw counts remain while the report does not contain an unexpected nonpositive reason.
 - [x] Add an assertion for a new unexpected-nonpositive count when a zero or non-floor negative is present.
