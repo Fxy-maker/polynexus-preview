@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-31-saxs-workbench-scientific-review-entry
 kind: scientific-cross-module
-status: in_progress
+status: completed
 date: 2026-07-31
 title: Add reviewer-selected SAXS scientific review entry to Workbench
 ---
@@ -43,7 +43,7 @@ selected analysis run.
 3. Run focused GREEN tests and the complete SAXS matrix with a complete
    pytest summary and exit code.
 4. Run the structured verifier, diff/storage dry-runs, update evidence, and
-   create the explicit allowlist checkpoint.
+   create the explicit allowlist checkpoint `0abc550`.
 
 ## Acceptance criteria
 
@@ -54,9 +54,8 @@ selected analysis run.
       with the existing source-linked promotion snapshot.
 - [x] No SAXS analysis field, quality level, physical gate, rescue state, AI
       state, Figure, Manifest, Export, or publication role changes.
-- [x] TDD RED/GREEN, task verifier, SAXS matrix, diff check, and storage
-      dry-run are recorded; the explicit allowlist checkpoint follows the
-      final cumulative-diff review.
+- [x] TDD RED/GREEN, task verifier, SAXS matrix, diff check, storage dry-run,
+      and explicit allowlist checkpoint `0abc550` are recorded.
 
 ## Verification commands
 
@@ -101,6 +100,8 @@ verifier, and `git diff --check` have actual successful results recorded below.
   `22,700,847,442` eligible bytes, and `removed_count=0`. No `--apply` ran.
 
 ## Explicit changed-file allowlist
+
+Checkpoint: `0abc550` (`feat(saxs): add workbench scientific review entry`).
 
 - `polynexus/core/scientific_review.py`
 - `polynexus/gui/main_window_results_mixin.py`
