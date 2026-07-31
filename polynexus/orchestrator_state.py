@@ -26,7 +26,7 @@ def _saxs_ai_result_and_mode(engine: Any) -> tuple[Any, str]:
 def _saxs_ai_state_context(engine: Any) -> dict[str, Any]:
     result, mode = _saxs_ai_result_and_mode(engine)
     try:
-        context = build_saxs_ai_summary_context(result, mode=mode)
+        context = build_saxs_ai_summary_context(engine, mode=mode)
     except (TypeError, ValueError):
         return {}
     return dict(context) if isinstance(context, dict) else {}

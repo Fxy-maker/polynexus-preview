@@ -24,8 +24,9 @@ evidence already used by SAXS Result, Workbench, Figure, Manifest, and Export.
 ## Affected boundaries
 
 - `polynexus/core/saxs_engine/saxs_ai_rescue.py`: engine/result unwrapping and strict audit summary projection.
-- `polynexus/orchestrator_state.py`: existing committed engine boundary used
-  unchanged by this projection.
+- `polynexus/orchestrator_state.py`: pass the engine wrapper into the summary
+  builder so live temperature/strain contexts can read the existing audit on
+  the engine-level result.
 - `tests/test_saxs_ai_acceptance_audit_context.py` and `tests/test_saxs_ai_live_context.py`: focused regressions.
 
 ## Contract
@@ -83,7 +84,8 @@ without a final summary is recorded as incomplete, never as a pass.
 
 ## Verification evidence
 
-- Complete SAXS matrix: `689 passed, 6 warnings in 503.60s`, exit `0`.
+- Complete SAXS matrix after the live engine-wrapper handoff: `693 passed, 6
+  warnings in 461.24s`, exit `0`.
 - Task-scoped verifier: exit `0`; quality `297 passed`, preprocessing `106
   passed`, plus task/memory, Ruff, compile, type baseline, whitespace, and
   diff checks passed.
@@ -93,6 +95,7 @@ without a final summary is recorded as incomplete, never as a pass.
 ## Explicit changed-file allowlist
 
 - `polynexus/core/saxs_engine/saxs_ai_rescue.py`
+- `polynexus/orchestrator_state.py`
 - `tests/test_saxs_ai_acceptance_audit_context.py`
 - `tests/test_saxs_ai_live_context.py`
 - `docs/superpowers/specs/2026-07-31-saxs-ai-audit-context.md`
