@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from llm.llm_client import LLMCancelledError
 from rag.advisor import Advisor
 
 
@@ -97,6 +100,23 @@ class _ContextLLM:
         return '{"assessment":"WARN","confidence":0.0,"changes":{},"converge":true}'
 
 
+class _MalformedResponseLLM:
+    last_used_mock = False
+    provider_label = "Test LLM"
+
+    def chat(self, prompt: str, **kwargs: object) -> str:
+        del prompt, kwargs
+        return '{"assessment":"PASS","confidence":"not-a-number","changes":{}}'
+
+
+class _CancelledLLM:
+    last_used_mock = False
+
+    def chat(self, prompt: str, **kwargs: object) -> str:
+        del prompt, kwargs
+        raise LLMCancelledError("cancelled by user")
+
+
 def test_advisor_transports_saxs_summary_context_to_the_real_prompt() -> None:
     advisor = Advisor(retriever=_ContextRetriever(), llm_client=_ContextLLM())
 
@@ -128,3 +148,21 @@ def test_advisor_ignores_non_mapping_saxs_summary_context() -> None:
     )
 
     assert normalized["saxs_ai_context"] == {}
+
+
+def test_advisor_falls_back_when_provider_response_normalization_fails() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_MalformedResponseLLM())
+
+    advice = advisor.advise({"technique": "SAXS", "params": {}})
+
+    assert advice["diagnosis"] == "provider_unavailable"
+    assert advice["llm_used"] is False
+    assert advice["changes"] == {}
+    assert advice["converge"] is True
+
+
+def test_advisor_preserves_provider_cancellation() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_CancelledLLM())
+
+    with pytest.raises(LLMCancelledError, match="cancelled by user"):
+        advisor.advise({"technique": "SAXS", "params": {}})

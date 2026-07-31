@@ -88,14 +88,18 @@ class Advisor:
                 )
             parsed = self._parse_response(raw)
             parsed["llm_used"] = not self.llm_client.last_used_mock
+            normalized = self._normalize_advice(parsed)
         except LLMCancelledError:
             raise
         except Exception as exc:
             print(f"[Advisor] LLM call failed, falling back to mock: {exc}")
-            parsed = self._mock_response(retrieved, str(exc))
-            parsed["llm_used"] = False
-        parsed["reference_cases"] = parsed.get("reference_cases") or [item["case_id"] for item in retrieved]
-        return self._normalize_advice(parsed)
+            fallback = self._mock_response(retrieved, str(exc))
+            fallback["llm_used"] = False
+            normalized = self._normalize_advice(fallback)
+        normalized["reference_cases"] = normalized.get("reference_cases") or [
+            item["case_id"] for item in retrieved
+        ]
+        return normalized
 
     def _normalize_case(self, eval_case: dict[str, Any]) -> dict[str, Any]:
         params = (
