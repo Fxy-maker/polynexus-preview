@@ -13,9 +13,10 @@ q/I, detector pixels, source paths, and unknown fields.
 
 ## Verification evidence
 
-- Focused audit/live/Advisor/prompt suite: `24 passed in 0.96s`, exit `0`.
+- Focused audit/live/Advisor/prompt/summary suite: `25 passed in 1.70s`, exit
+  `0`; the audit consumer regression was `18 passed in 93.87s`.
 - The complete SAXS matrix after the live engine-wrapper handoff returned
-  `693 passed, 6 warnings in 461.24s`, exit `0`.
+  `693 passed, 6 warnings in 467.02s`, exit `0`.
 - The first structured-verifier attempt stopped at `task_check.py` because the
   task card lacked canonical `Implementation plan` and `Verification`
   headings. No code failure was reported; the card was corrected before the
@@ -23,12 +24,13 @@ q/I, detector pixels, source paths, and unknown fields.
 - Structured verifier rerun: exit `0`; quality `297 passed`, preprocessing
   `106 passed`, and task/memory, Ruff, compile, type baseline, whitespace, and
   diff checks passed.
-- Storage report: `68` artifacts, `12.18 GB` total, `0` eligible bytes;
-  dry-run clean removed `0`, exit `0`.
+- Storage report and clean were dry-run only: `68` artifacts,
+  `13,075,489,954` bytes total, `0` eligible bytes; dry-run clean removed `0`,
+  exit `0`.
 - The follow-up task verifier after the handoff also exited `0`, with quality
   `297 passed` and preprocessing `106 passed`.
-- TDD RED was not captured in the inherited worktree and is intentionally not
-  represented as a pass claim.
+- TDD RED: `4 failed, 5 passed in 1.79s`; the four failures were expected
+  missing audit projection keys. GREEN followed with the focused results above.
 
 ## Boundary
 

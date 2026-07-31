@@ -8,6 +8,7 @@ from polynexus.core.saxs_engine.saxs_ai_rescue import (
     build_saxs_ai_summary_context,
     sanitize_saxs_ai_summary_context,
 )
+from rag.prompt_builder import PromptBuilder
 
 
 def _audit() -> dict[str, object]:
@@ -89,3 +90,22 @@ def test_prompt_sanitizer_keeps_audit_whitelist_and_excludes_raw_fields() -> Non
     assert "source_path" not in serialized
     assert "unknown_prompt_instruction" not in serialized
     assert payload == before
+
+
+def test_prompt_builder_renders_existing_audit_as_diagnostic_context() -> None:
+    context = build_saxs_ai_summary_context(
+        SimpleNamespace(
+            parameters={"scientific_acceptance_audit": _audit()},
+            data_quality_report={"level": "Trend"},
+        ),
+        mode="static",
+    )
+
+    prompt = PromptBuilder().build_prompt(
+        {"technique": "SAXS", "saxs_ai_context": context},
+        [],
+    )
+
+    assert '"scientific_acceptance_audit"' in prompt
+    assert "diagnosis" in prompt
+    assert "return only the existing SAXS preprocess intent" in prompt

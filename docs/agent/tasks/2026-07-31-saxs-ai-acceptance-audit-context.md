@@ -77,20 +77,22 @@ without a final summary is recorded as incomplete, never as a pass.
 
 ## TDD evidence
 
-- RED: not captured in the inherited worktree before implementation; no RED
-  result is claimed.
-- GREEN: focused audit/live/Advisor/prompt suite passed `24 passed in 0.96s`,
-  exit `0`.
+- RED: `4 failed, 5 passed in 1.79s`; all four failures were the expected
+  missing audit projection keys.
+- GREEN: audit/live focused `9 passed in 1.42s`; combined Advisor/prompt/summary
+  regression `24 passed in 0.97s`; final combined focused suite `25 passed in
+  1.70s`.
 
 ## Verification evidence
 
-- Complete SAXS matrix after the live engine-wrapper handoff: `693 passed, 6
-  warnings in 461.24s`, exit `0`.
+- Fresh complete SAXS matrix after the live engine-wrapper handoff: `693 passed,
+  6 warnings in 467.02s`, exit `0`.
 - Task-scoped verifier: exit `0`; quality `297 passed`, preprocessing `106
   passed`, plus task/memory, Ruff, compile, type baseline, whitespace, and
   diff checks passed.
-- Storage report: `68` artifacts, `12.18 GB` total, `0` eligible bytes.
-- Storage clean dry-run: `0` removed, exit `0`.
+- Audit consumer regression: `18 passed in 93.87s`; `git diff --check` passed.
+- Final storage report and clean were dry-run only: `68` artifacts,
+  `13,075,489,954` bytes total, `0` eligible bytes, and `0` removed.
 
 ## Explicit changed-file allowlist
 

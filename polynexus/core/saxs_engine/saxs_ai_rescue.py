@@ -54,21 +54,19 @@ _EVIDENCE_FIELDS = (
     "detector_quality_report",
     "orientation_evidence",
 )
-_ACCEPTANCE_AUDIT_FIELDS = frozenset(
-    {
-        "status",
-        "automated_validation_passed",
-        "existing_publication_gate",
-        "evidence_levels",
-        "provenance_validity",
-        "physical_gate_evidence",
-        "method_gate_status",
-        "reliability",
-        "reason_codes",
-        "audit_scope",
-        "publication_decision_changed",
-        "detector_provenance_audit",
-    }
+_ACCEPTANCE_AUDIT_FIELDS = (
+    "status",
+    "automated_validation_passed",
+    "existing_publication_gate",
+    "evidence_levels",
+    "provenance_validity",
+    "physical_gate_evidence",
+    "method_gate_status",
+    "reliability",
+    "reason_codes",
+    "audit_scope",
+    "publication_decision_changed",
+    "detector_provenance_audit",
 )
 _RAW_SUMMARY_KEYS = frozenset(
     {
