@@ -50,6 +50,26 @@ def _accepted_release_record(record_id: str) -> ScientificReviewRecord:
     )
 
 
+def _accepted_saxs_2d_record() -> ScientificReviewRecord:
+    return ScientificReviewRecord(
+        record_id="review-saxs-2d-workbench",
+        scope="saxs.2d",
+        reviewer="reviewer-saxs",
+        reviewed_at="2026-07-31",
+        policy_version="saxs-2d-v1",
+        source_refs=("pad8-run",),
+        decisions={
+            "geometry_reference": "reviewed calibration record",
+            "beam_center_policy": "reviewed detector coordinates",
+            "mask_policy": "reviewed beamstop mask",
+            "saturation_policy": "saturation status retained",
+            "orientation_applicability": "orientation evidence applicable",
+            "promotion_rule": "existing gates and source-matched review",
+        },
+        status="accepted",
+    )
+
+
 def test_update_analysis_scientific_review_is_run_scoped_and_round_trips(tmp_path) -> None:
     db = SampleDB(tmp_path / "samples.db")
     sample_id = db.create_sample("PA6")
@@ -240,6 +260,91 @@ def test_workbench_source_refs_include_nested_mapping_evidence_source_id() -> No
     assert window._current_scientific_review_source_refs() == (
         "native-synthetic-map.json",
     )
+
+
+def test_saxs_workbench_scope_choice_persists_selected_2d_snapshot(monkeypatch) -> None:
+    from PySide6.QtWidgets import QDialog
+
+    from polynexus.gui import main_window_results_mixin as results_mixin
+    from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+
+    record = _accepted_saxs_2d_record()
+
+    class FakeDialog:
+        def __init__(self, scope, *, source_refs, parent=None):
+            del parent
+            self.scope = scope
+            self.source_refs = tuple(source_refs)
+
+        def exec(self):
+            return QDialog.Accepted
+
+        def build_record(self):
+            assert self.scope == "saxs.2d"
+            return record
+
+    class FakeDB:
+        snapshot = None
+
+        def update_analysis_scientific_review(self, _run_id, _record, snapshot):
+            self.snapshot = snapshot
+            return True
+
+    db = FakeDB()
+    window = object.__new__(MainWindowResultsMixin)
+    window._current_technique = "saxs"
+    window._current_submodule_id = "saxs.static"
+    window._last_persisted_run_id = "run-1"
+    window._current_filepath = "pad8-run"
+    window._results = {
+        "saxs": AnalysisResult(
+            technique="saxs",
+            metadata={"source_id": "pad8-run"},
+        )
+    }
+    window._ensure_sample_db = lambda: db
+    window._apply_scientific_review_to_current_result = lambda *_args: None
+    window._refresh_history = lambda: None
+    window._update_results_review_panel = lambda: None
+    window._update_work_memory_panel = lambda: None
+    window.log = lambda _message: None
+    monkeypatch.setattr(results_mixin, "ScientificReviewDialog", FakeDialog)
+    monkeypatch.setattr(
+        results_mixin.QInputDialog,
+        "getItem",
+        staticmethod(lambda *args, **kwargs: ("saxs.2d", True)),
+    )
+
+    window._open_scientific_review_dialog()
+
+    assert db.snapshot["scope"] == "saxs.2d"
+    assert db.snapshot["reason"] == "review_accepted"
+
+
+def test_saxs_workbench_scope_choice_cancel_does_not_write(monkeypatch) -> None:
+    from polynexus.gui import main_window_results_mixin as results_mixin
+    from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+
+    window = object.__new__(MainWindowResultsMixin)
+    window._current_technique = "saxs"
+    window._current_submodule_id = "saxs.static"
+    window._last_persisted_run_id = "run-1"
+    window._current_filepath = "pad8-run"
+    window._results = {
+        "saxs": AnalysisResult(
+            technique="saxs",
+            metadata={"source_id": "pad8-run"},
+        )
+    }
+    window._ensure_sample_db = lambda: pytest.fail("cancelled scope must not write")
+    window.log = lambda _message: None
+    monkeypatch.setattr(
+        results_mixin.QInputDialog,
+        "getItem",
+        staticmethod(lambda *args, **kwargs: ("", False)),
+    )
+
+    window._open_scientific_review_dialog()
 
 
 def test_workbench_review_snapshot_uses_canonical_source_with_multiple_refs(monkeypatch) -> None:

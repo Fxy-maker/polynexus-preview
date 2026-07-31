@@ -13,6 +13,7 @@ from polynexus.core.scientific_review import (
     review_decision_snapshot,
     review_record_from_payload,
     review_scope_for_context,
+    review_scope_options_for_context,
     validate_review_record,
 )
 
@@ -60,6 +61,21 @@ def test_required_decision_keys_are_public_and_immutable() -> None:
 )
 def test_review_scope_for_context_is_fail_closed(technique, submodule, expected) -> None:
     assert review_scope_for_context(technique, submodule) == expected
+
+
+@pytest.mark.parametrize(
+    ("technique", "submodule", "expected"),
+    [
+        ("saxs", "saxs.static", ("saxs.1d", "saxs.2d")),
+        ("saxs", "saxs.temperature", ("saxs.1d", "saxs.2d")),
+        ("ir", "ir.mapping", ("ir.mapping",)),
+        ("nmr", "nmr.solid_c", ("nmr.solid_c",)),
+        ("joint", "", ("joint",)),
+        ("dsc", "dsc.standard", ()),
+    ],
+)
+def test_review_scope_options_are_explicit_and_ordered(technique, submodule, expected) -> None:
+    assert review_scope_options_for_context(technique, submodule) == expected
 
 
 def _accepted_saxs_1d_record() -> ScientificReviewRecord:

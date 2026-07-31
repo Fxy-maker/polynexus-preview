@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -46,7 +47,10 @@ from .results_review_service import (
 from .styles import C_TEXT_MUTED, C_TEXT_PRIMARY
 from .theme import ThemeEngine
 from ..core.engine import logger
-from ..core.scientific_review import review_decision_snapshot, review_scope_for_context
+from ..core.scientific_review import (
+    review_decision_snapshot,
+    review_scope_options_for_context,
+)
 from .scientific_review_dialog import ScientificReviewDialog
 from .saxs_mask_edit_service import build_saxs_mask_edit_context
 from .widgets.saxs_mask_editor import SAXSDetectorMaskEditor
@@ -127,7 +131,11 @@ class MainWindowResultsMixin:
         return find_analysis_evidence(current)
 
     def _current_scientific_review_scope(self) -> str | None:
-        return review_scope_for_context(
+        scopes = self._current_scientific_review_scopes()
+        return scopes[0] if len(scopes) == 1 else None
+
+    def _current_scientific_review_scopes(self) -> tuple[str, ...]:
+        return review_scope_options_for_context(
             str(getattr(self, "_current_technique", "") or ""),
             str(getattr(self, "_current_submodule_id", "") or ""),
         )
@@ -172,11 +180,25 @@ class MainWindowResultsMixin:
         return tuple(refs)
 
     def _open_scientific_review_dialog(self) -> None:
-        scope = self._current_scientific_review_scope()
+        scopes = self._current_scientific_review_scopes()
         run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
-        if not scope or not run_id or run_id == "current":
+        if not scopes or not run_id or run_id == "current":
             self.log("Scientific review requires a persisted gated analysis run.")
             return
+
+        scope = scopes[0]
+        if len(scopes) > 1:
+            scope, accepted = QInputDialog.getItem(
+                self,
+                tr("SCIENTIFIC_REVIEW_SCOPE_TITLE"),
+                tr("SCIENTIFIC_REVIEW_SCOPE_PROMPT"),
+                list(scopes),
+                0,
+                False,
+            )
+            if not accepted or not str(scope).strip():
+                return
+            scope = str(scope).strip()
 
         dialog = ScientificReviewDialog(
             scope,
@@ -1040,7 +1062,7 @@ class MainWindowResultsMixin:
             self._results_review_next.setText(panel_texts.next_text)
             self._results_review_next.setVisible(bool(panel_texts.next_text))
         if hasattr(self, "_results_review_scientific_btn"):
-            gated = self._current_scientific_review_scope() is not None
+            gated = bool(self._current_scientific_review_scopes())
             persisted = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
             self._results_review_scientific_btn.setVisible(gated)
             self._results_review_scientific_btn.setEnabled(

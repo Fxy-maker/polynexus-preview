@@ -116,6 +116,21 @@ def review_scope_for_context(technique: str, submodule: str) -> str | None:
     return None
 
 
+def review_scope_options_for_context(technique: str, submodule: str) -> tuple[str, ...]:
+    """Return reviewer-selectable scopes without inferring scientific meaning.
+
+    SAXS deliberately exposes both registered scopes because choosing between
+    1D and 2D is a reviewer decision. Existing non-SAXS contexts retain their
+    single fail-closed mapping.
+    """
+
+    technique_key = str(technique or "").strip().lower()
+    if technique_key == "saxs":
+        return ("saxs.1d", "saxs.2d")
+    scope = review_scope_for_context(technique, submodule)
+    return (scope,) if scope else ()
+
+
 @dataclass(frozen=True)
 class ScientificReviewRecord:
     """One reviewer-owned, scope-specific scientific decision record."""
@@ -324,5 +339,6 @@ __all__ = [
     "review_decision_snapshot",
     "review_record_from_payload",
     "review_scope_for_context",
+    "review_scope_options_for_context",
     "validate_review_record",
 ]
