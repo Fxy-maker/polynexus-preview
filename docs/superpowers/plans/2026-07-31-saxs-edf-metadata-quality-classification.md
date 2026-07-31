@@ -16,7 +16,7 @@
 - Create: `tests/test_saxs_edf_metadata_quality.py`
 - Modify: `tests/test_saxs_raw_detector_quality_transport.py`
 
-- [ ] **Step 1: Write tests for metadata normalization and report fields.**
+- [x] **Step 1: Write tests for metadata normalization and report fields.**
 
 Use a real-style header mapping containing `DetectorModel`, `Saturation="0"`,
 `CountCutoff`, `ThresholdSetting`, `FlatField`, `Dummy`, `DDummy`, and
@@ -24,28 +24,28 @@ Use a real-style header mapping containing `DetectorModel`, `Saturation="0"`,
 that `geometry_provenance.validity` and `mask_provenance.validity` remain
 `not_assessed`.
 
-- [ ] **Step 2: Write the pixel-classification test.**
+- [x] **Step 2: Write the pixel-classification test.**
 
 Construct an image containing repeated `-0.0024174`, one `-2.0`, one positive
 pixel, and no zero values. Assert the raw nonpositive count remains visible,
 the background-floor count is separated, and dummy-sentinel count is
 separated.
 
-- [ ] **Step 3: Write the saturation semantics test.**
+- [x] **Step 3: Write the saturation semantics test.**
 
 Assert that `Saturation="0"` leaves saturation unresolved and does not count
 zero pixels as saturated. Assert that an explicit positive `Saturation="9"`
 still marks an image pixel equal to `9` as saturated, and that
 `ThresholdSetting` alone never becomes the saturation threshold.
 
-- [ ] **Step 4: Add the four-frame sequence regression.**
+- [x] **Step 4: Add the four-frame sequence regression.**
 
 Use four temporary EDF files with the same header and distinct small image
 arrays. Load them through the existing directory path and assert four report
 slots, independent source paths, complete metadata inventory per frame, and no
 cross-frame report reuse.
 
-- [ ] **Step 5: Run the new tests and verify RED.**
+- [x] **Step 5: Run the new tests and verify RED.**
 
 Run:
 
@@ -63,7 +63,7 @@ continue to identify the current behavior.
 - Modify: `polynexus/core/saxs_engine/io.py`
 - Modify: `polynexus/core/saxs_engine/preprocess.py`
 
-- [ ] **Step 1: Add a read-only known-field normalization helper.**
+- [x] **Step 1: Add a read-only known-field normalization helper.**
 
 Normalize case and separator variants for the known fields, preserve raw text
 where needed, convert finite numeric values only, and return JSON-safe values.
@@ -71,13 +71,13 @@ Do not treat `ThresholdSetting` as saturation. Add `Dummy` and `DDummy`
 extraction so the EDF mask rule is used when explicitly present rather than
 only the configuration default.
 
-- [ ] **Step 2: Pass header-derived dummy configuration to the existing mask path.**
+- [x] **Step 2: Pass header-derived dummy configuration to the existing mask path.**
 
 Create a copied config for per-image preprocessing, update only finite explicit
 `Dummy`/`DDummy` values, and keep the existing `_build_mask()` algorithm. Do
 not mutate a shared series config from one frame's header.
 
-- [ ] **Step 3: Run the focused tests.**
+- [x] **Step 3: Run the focused tests.**
 
 Run:
 
@@ -94,28 +94,28 @@ assertions; no existing geometry tests regress.
 - Modify: `polynexus/core/saxs_engine/saxs_quality_contracts.py`
 - Modify: `polynexus/core/saxs_engine/preprocess.py`
 
-- [ ] **Step 1: Add explicit classification counts to `DetectorQualityReport`.**
+- [x] **Step 1: Add explicit classification counts to `DetectorQualityReport`.**
 
 Add JSON-safe fields for `background_floor_pixel_count`,
 `masked_sentinel_pixel_count`, and `unexpected_negative_pixel_count`. Keep
 `nonpositive_pixel_count`, `masked_pixel_count`, and existing reason codes for
 backward compatibility.
 
-- [ ] **Step 2: Add metadata presence/source fields.**
+- [x] **Step 2: Add metadata presence/source fields.**
 
 Add a report payload containing normalized detector identity and processing
 metadata plus `metadata_status` (`complete`/`partial`) and
 `metadata_source="edf_header"` when fields are present. Keep geometry and mask
 validity unchanged as `not_assessed`.
 
-- [ ] **Step 3: Make saturation handling explicit.**
+- [x] **Step 3: Make saturation handling explicit.**
 
 Only a finite positive `Saturation` value is an explicit saturation threshold.
 For zero, absent, or invalid values, report the existing unknown state and
 include `CountCutoff` only as metadata. Preserve the existing positive-value
 test behavior.
 
-- [ ] **Step 4: Run the focused RED-to-GREEN cycle.**
+- [x] **Step 4: Run the focused RED-to-GREEN cycle.**
 
 Run:
 
@@ -131,23 +131,23 @@ pass.
 **Files:**
 - Modify: `docs/agent/tasks/2026-07-31-saxs-edf-metadata-quality-classification.md`
 
-- [ ] **Step 1: Run the focused SAXS matrix.**
+- [x] **Step 1: Run the focused SAXS matrix.**
 
 ```powershell
 python -m pytest -q tests/test_saxs_edf_metadata_quality.py tests/test_saxs_raw_detector_quality_transport.py tests/test_saxs_2d_detector_orientation_evidence.py tests/test_saxs_2d_evidence_propagation.py -vv
 ```
 
-- [ ] **Step 2: Run the required structured verifier.**
+- [x] **Step 2: Run the required structured verifier.**
 
 ```powershell
 python scripts/verify.py --task docs/agent/tasks/2026-07-31-saxs-edf-metadata-quality-classification.md --changed --types
 ```
 
-- [ ] **Step 3: Run `git diff --check` and inspect the allowlist.**
+- [x] **Step 3: Run `git diff --check` and inspect the allowlist.**
 
 Confirm no unrelated pre-existing changes are staged or included.
 
-- [ ] **Step 4: Create the atomic checkpoint.**
+- [x] **Step 4: Create the atomic checkpoint.**
 
 After verification, run:
 

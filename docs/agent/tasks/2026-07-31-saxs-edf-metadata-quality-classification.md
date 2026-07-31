@@ -1,6 +1,6 @@
 # Task: SAXS EDF metadata and pixel-quality classification
 
-**Status:** in progress
+**Status:** completed; implementation checkpoint `539879f`, verification closure recorded below
 
 ## Goal
 
@@ -39,7 +39,7 @@ misreading `Saturation=0`, while preserving conservative scientific gates.
   a saturation threshold.
 - [x] Geometry and mask scientific validity remain `not_assessed`, but metadata
   presence is not reported as missing.
-- [ ] Existing focused SAXS tests and repository verification pass.
+- [x] Existing focused SAXS tests and repository verification pass.
 
 ## Implementation plan
 
@@ -82,6 +82,30 @@ explicit file list; a timeout is reported as incomplete rather than a pass.
   because the changed `io.py` also contains pre-existing E402/E741/F401
   baseline findings. Targeted Ruff (ignoring those baseline codes), compileall,
   and `git diff --check` pass.
+
+## Final verification record (2026-07-31)
+
+- Focused EDF/raw-detector/2D matrix: `50 passed, 2 warnings in 1.93s`, exit
+  code `0`. Warnings are the existing geometry-header fallback warnings.
+- Read-only replay of `C:\Users\Fan Xuyi\Desktop\edf\610`: four EDF frames
+  loaded, each `(1028, 512)`, with `metadata_status=complete`,
+  `metadata_source=edf_header`, detector `Dectris EIGER2 Si 500K`, serial
+  `E-01-0419`, and `geometry_validity=not_assessed` /
+  `mask_validity=not_assessed`. Per-frame nonpositive/background-floor/
+  sentinel/unexpected-negative counts remained independent.
+- Complete SAXS matrix using the explicit `tests/test_saxs_*.py` file list:
+  `669 passed, 6 warnings in 522.18s`, exit code `0`. Warnings are the
+  existing SAXS Arial glyph and geometry-header fallback warnings.
+- Structured verifier exited `0`: quality `297 passed`, preprocessing `106
+  passed`, task/memory, Ruff, compile, type-baseline, and whitespace checks
+  passed.
+- `git diff --check` exited `0`. Storage report and clean were both
+  non-destructive dry-runs: `64` artifacts, `2,948,589,050` eligible bytes,
+  no cleanup failures, and no directories removed because `--apply` was not
+  supplied. No `test_storage.py --apply` was run.
+
+The earlier 244-second explicit-matrix timeout remains historical incomplete
+evidence; the fresh complete matrix above supersedes it for this task.
 
 ## Verification commands
 
