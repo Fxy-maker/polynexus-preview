@@ -106,6 +106,26 @@ def _static_engine(*, with_evidence: bool = True) -> SimpleNamespace:
     )
 
 
+def _accepted_saxs_1d_review(*source_refs: str) -> dict[str, object]:
+    return {
+        "record_id": "review-saxs-1d-downstream",
+        "scope": "saxs.1d",
+        "reviewer": "reviewer-saxs",
+        "reviewed_at": "2026-07-31",
+        "policy_version": "saxs-1d-v1",
+        "source_refs": list(source_refs),
+        "decisions": {
+            "sequence_axis_policy": "existing temperature/source order",
+            "frame_identity_policy": "source-linked frame identity",
+            "missing_repeat_policy": "retain missing repeats",
+            "metric_claim_scope": "diagnostic evidence only",
+            "promotion_rule": "existing gates and source-matched review",
+        },
+        "status": "accepted",
+        "conditions": [],
+    }
+
+
 def _temperature_engine() -> SimpleNamespace:
     frames = [
         _frame(index=0, condition=20.0, source_path="source-0.dat"),
@@ -324,6 +344,55 @@ def test_static_provider_binds_frame_evidence_without_changing_roles() -> None:
     assert provenance["mode"] == "static"
     assert provenance["frame_records"][0]["metric_evidence"]["porod"]["level"] == "Trend"
     assert definitions[0].publication_role == "main"
+
+
+def test_workbench_result_review_reaches_new_figure_and_manifest(tmp_path) -> None:
+    engine = _static_engine()
+    review = _accepted_saxs_1d_review("sample-0.dat", "sample-1.dat")
+    engine.result = SimpleNamespace(
+        metadata={"scientific_review": review},
+        parameters={},
+    )
+
+    definitions = build_static_saxs_figure_definitions(engine)
+    provenance = definitions[0].recipe["evidence"]["quality_provenance"]
+
+    assert provenance["scientific_review"]["reason"] == "review_accepted"
+    assert definitions[0].publication_role == "main"
+
+    FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="saxs-workbench-review",
+        technique="saxs",
+        definitions=(definitions[0],),
+    )
+    document = next(
+        (tmp_path / "runs" / "saxs-workbench-review" / "figures").glob(
+            "*/figure.pnfig.json"
+        )
+    )
+    persisted = json.loads(document.read_text(encoding="utf-8"))
+    persisted_review = persisted["recipe"]["evidence"]["quality_provenance"][
+        "scientific_review"
+    ]
+    assert persisted_review["record_id"] == review["record_id"]
+    assert persisted_review["reason"] == "review_accepted"
+
+
+def test_workbench_result_review_source_mismatch_remains_fail_closed() -> None:
+    engine = _static_engine()
+    engine.result = SimpleNamespace(
+        metadata={"scientific_review": _accepted_saxs_1d_review("other.dat")},
+        parameters={},
+    )
+
+    definitions = build_static_saxs_figure_definitions(engine)
+    review = definitions[0].recipe["evidence"]["quality_provenance"][
+        "scientific_review"
+    ]
+
+    assert review["allowed"] is False
+    assert review["reason"] == "source_mismatch"
 
 
 def test_ai_rescue_audit_binds_to_static_figure_and_manifest_without_roles(tmp_path) -> None:

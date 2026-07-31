@@ -38,6 +38,26 @@ def _engine() -> SimpleNamespace:
     )
 
 
+def _accepted_saxs_1d_review(*source_refs: str) -> dict[str, object]:
+    return {
+        "record_id": "review-saxs-1d-export",
+        "scope": "saxs.1d",
+        "reviewer": "reviewer-saxs",
+        "reviewed_at": "2026-07-31",
+        "policy_version": "saxs-1d-v1",
+        "source_refs": list(source_refs),
+        "decisions": {
+            "sequence_axis_policy": "existing temperature/source order",
+            "frame_identity_policy": "source-linked frame identity",
+            "missing_repeat_policy": "retain missing repeats",
+            "metric_claim_scope": "diagnostic evidence only",
+            "promotion_rule": "existing gates and source-matched review",
+        },
+        "status": "accepted",
+        "conditions": [],
+    }
+
+
 def test_export_saxs_bundle_writes_reproducible_core_artifacts(tmp_path) -> None:
     bundle = export_saxs_bundle(_engine(), str(tmp_path / "bundle"))
 
@@ -49,6 +69,33 @@ def test_export_saxs_bundle_writes_reproducible_core_artifacts(tmp_path) -> None
     assert (root / "provenance.json").exists()
     assert list((root / "data" / "profiles").glob("*.csv"))
     assert json.loads((root / "config_snapshot.json").read_text())["q_min"] == 0.12
+
+
+def test_export_uses_workbench_result_review_when_config_has_no_review(tmp_path) -> None:
+    engine = _engine()
+    engine.result.metadata["scientific_review"] = _accepted_saxs_1d_review(
+        "sample.dat"
+    )
+    engine._analysis = SimpleNamespace(
+        q=np.asarray([0.1, 0.2, 0.3]),
+        I=np.asarray([10.0, 8.0, 5.0]),
+        I_smooth=np.asarray([9.5, 7.5, 4.5]),
+        final_parameters={"file": "sample.dat"},
+    )
+    engine._q_list = [engine._analysis.q]
+    engine._I_list = [engine._analysis.I]
+    engine._file_list = ["sample.dat"]
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "workbench-review"))
+
+    payload = json.loads(
+        (tmp_path / "workbench-review" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["scientific_review"]["record_id"] == "review-saxs-1d-export"
+    assert payload["scientific_review"]["reason"] == "review_accepted"
 
 
 def test_dirty_profile_export_preserves_positions_and_diagnostics(tmp_path) -> None:

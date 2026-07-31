@@ -334,14 +334,27 @@ def build_saxs_2d_review_evidence(
     )
 
 
-def configured_saxs_1d_review(source: Any) -> Any:
-    """Read the optional reviewer payload from an existing SAXS config."""
+def _configured_saxs_review_payload(source: Any) -> Mapping[str, Any] | None:
+    """Read the current result review, with a legacy config fallback."""
+
+    result = getattr(source, "result", None)
+    metadata = getattr(result, "metadata", None)
+    if isinstance(metadata, Mapping):
+        payload = metadata.get("scientific_review", _MISSING)
+        if isinstance(payload, Mapping):
+            return payload
 
     config = getattr(source, "cfg", source)
     if not hasattr(config, "scientific_review"):
         return None
     payload = getattr(config, "scientific_review")
     return payload if isinstance(payload, Mapping) else {}
+
+
+def configured_saxs_1d_review(source: Any) -> Any:
+    """Read the current result review, retaining config compatibility."""
+
+    return _configured_saxs_review_payload(source)
 
 
 def configured_saxs_review_evidence(
@@ -356,9 +369,8 @@ def configured_saxs_review_evidence(
     SAXS consumers do not present a missing optional review as a new gate.
     """
 
-    config = getattr(source, "cfg", source)
-    payload = getattr(config, "scientific_review", None)
-    if not isinstance(payload, Mapping) or not payload:
+    payload = _configured_saxs_review_payload(source)
+    if payload is None:
         return None
     declared_scope = str(payload.get("scope") or "").strip()
     expected_scope = (
