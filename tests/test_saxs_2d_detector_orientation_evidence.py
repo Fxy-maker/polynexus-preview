@@ -77,6 +77,29 @@ def test_supported_orientation_evidence_is_trend_and_references_detector_report(
     assert evidence.fit_evidence["pattern_type"] == "fiber"
 
 
+def test_orientation_evidence_preserves_raw_value_when_effective_value_is_blocked():
+    detector = build_detector_quality_report(
+        np.ones((4, 4)), source_kind="sector_map"
+    )
+    payload = {
+        **_orientation_payload(),
+        "f_herman_raw": 0.46,
+        "orientation_reliability_status": "blocked",
+        "orientation_reliability_reason_codes": ["orientation_harmonic_insignificant"],
+    }
+
+    evidence = build_orientation_evidence(
+        payload, detector, applicability="supported", source_ref="synthetic"
+    )
+
+    assert evidence.fit_evidence.get("f_herman_raw") == 0.46
+    assert "f_herman" not in evidence.fit_evidence
+    assert evidence.physical_checks.get("orientation_reliability_status") == "blocked"
+    assert "orientation_harmonic_insignificant" in evidence.reason_codes
+    assert evidence.applicable is False
+    json.dumps(evidence.to_dict(), allow_nan=False)
+
+
 def test_orientation_unknown_or_missing_evidence_degrades_without_fabrication():
     detector = build_detector_quality_report(
         np.ones((4, 4)), source_kind="sector_map"
@@ -209,3 +232,44 @@ def test_anisotropy_auto_detection_fails_closed_for_isotropic_profile():
     assert result.orientation_axis_source == "unavailable"
     assert not np.isfinite(result.f_herman)
     assert "orientation_axis_low_strength" in result.orientation_evidence["reason_codes"]
+
+
+def test_weak_noisy_profile_keeps_raw_herman_but_blocks_effective_value():
+    rng = np.random.default_rng(1234)
+    q = np.linspace(0.3, 1.0, 120)
+    q_profile = 0.1 + np.exp(-((q - 0.55) / 0.025) ** 2)
+    chi = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    angular = 1.0 + 0.25 * np.cos(chi - np.deg2rad(37.0)) ** 2
+    angular += rng.normal(0.0, 0.35, size=chi.size)
+    angular = np.clip(angular, 0.02, None)
+    result = analyze_anisotropy(
+        np.outer(angular, q_profile),
+        q,
+        chi,
+        q,
+        q_profile,
+        cfg=SAXSConfig(orientation_axis_deg=None),
+    )
+
+    assert np.isfinite(getattr(result, "f_herman_raw", np.nan))
+    assert not np.isfinite(result.f_herman)
+    assert "orientation_harmonic_insignificant" in result.orientation_evidence["reason_codes"]
+
+
+def test_incomplete_azimuthal_coverage_keeps_raw_herman_but_blocks_effective_value():
+    q = np.linspace(0.3, 1.0, 120)
+    q_profile = 0.1 + np.exp(-((q - 0.55) / 0.025) ** 2)
+    chi = np.linspace(-0.45, 0.45, 24, endpoint=False)
+    angular = 1.0 + 8.0 * np.cos(chi - np.deg2rad(37.0)) ** 2
+    result = analyze_anisotropy(
+        np.outer(angular, q_profile),
+        q,
+        chi,
+        q,
+        q_profile,
+        cfg=SAXSConfig(orientation_axis_deg=None),
+    )
+
+    assert np.isfinite(getattr(result, "f_herman_raw", np.nan))
+    assert not np.isfinite(result.f_herman)
+    assert "orientation_azimuth_coverage_insufficient" in result.orientation_evidence["reason_codes"]

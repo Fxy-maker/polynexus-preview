@@ -29,6 +29,7 @@ class AnisotropyResult:
     """Comprehensive anisotropy analysis result."""
     # Herman orientation factors
     f_herman: float = np.nan
+    f_herman_raw: float = np.nan
     f_herman_sub: float = np.nan     # sub-tropical (meridional)
     f_herman_eq: float = np.nan      # equatorial
     f_herman_diag: float = np.nan    # diagonal
@@ -64,6 +65,12 @@ class AnisotropyResult:
     orientation_axis_strength: float = np.nan
     orientation_axis_confidence: float = 0.0
     orientation_axis_reason: str = ""
+    orientation_reliability_status: str = "unavailable"
+    orientation_reliability_reason_codes: List[str] = None
+    orientation_harmonic_significance: float = np.nan
+    orientation_effective_bins: float = np.nan
+    orientation_azimuthal_coverage: float = np.nan
+    orientation_axis_drift_deg: float = np.nan
 
     # JSON-safe 2D evidence contracts.  Legacy numeric fields above remain
     # authoritative for backwards-compatible callers.
@@ -76,15 +83,19 @@ def _attach_orientation_evidence(
     I_2d: np.ndarray,
     *,
     invalid_reason: str | None = None,
+    detector_quality: object = None,
 ) -> None:
     """Attach evidence for the sector-map input consumed by this module."""
 
-    detector = build_detector_quality_report(I_2d, source_kind="sector_map")
+    detector = detector_quality or build_detector_quality_report(
+        I_2d, source_kind="sector_map"
+    )
     payload = (
         {}
         if invalid_reason
         else {
             "f_herman": result.f_herman,
+            "f_herman_raw": result.f_herman_raw,
             "P2": result.P2,
             "P4": result.P4,
             "pattern_type": result.pattern_type,
@@ -96,6 +107,14 @@ def _attach_orientation_evidence(
             "orientation_axis_strength": result.orientation_axis_strength,
             "orientation_axis_confidence": result.orientation_axis_confidence,
             "orientation_axis_reason": result.orientation_axis_reason,
+            "orientation_reliability_status": result.orientation_reliability_status,
+            "orientation_reliability_reason_codes": (
+                result.orientation_reliability_reason_codes or []
+            ),
+            "orientation_harmonic_significance": result.orientation_harmonic_significance,
+            "orientation_effective_bins": result.orientation_effective_bins,
+            "orientation_azimuthal_coverage": result.orientation_azimuthal_coverage,
+            "orientation_axis_drift_deg": result.orientation_axis_drift_deg,
         }
     )
     evidence = build_orientation_evidence(
@@ -122,6 +141,10 @@ def _attach_orientation_evidence(
             ),
             "orientation_axis_confidence": float(result.orientation_axis_confidence),
             "orientation_axis_reason": result.orientation_axis_reason or None,
+            "orientation_reliability_status": result.orientation_reliability_status,
+            "orientation_reliability_reason_codes": (
+                result.orientation_reliability_reason_codes or []
+            ),
         }
     )
     if result.orientation_axis_reason:
@@ -304,12 +327,92 @@ def _azimuthal_weights(
     return chi_arr, weights
 
 
+def _axis_difference_deg(first: float, second: float) -> float:
+    """Return the smallest difference between two 180-degree axes."""
+
+    return float(abs((float(first) - float(second) + 90.0) % 180.0 - 90.0))
+
+
+def _harmonic_diagnostics(
+    chi: np.ndarray,
+    weights: np.ndarray,
+) -> Dict[str, float]:
+    """Measure second-harmonic strength and sampling stability."""
+
+    if len(chi) < 2 or len(weights) != len(chi):
+        return {
+            "strength": np.nan,
+            "axis_deg": np.nan,
+            "effective_bins": 0.0,
+            "coverage": 0.0,
+            "significance": 0.0,
+            "axis_drift_deg": np.nan,
+        }
+
+    denominator = float(np.trapezoid(weights, chi))
+    weight_sum = float(np.sum(weights))
+    weight_square_sum = float(np.sum(np.square(weights)))
+    if denominator <= 1e-12 or weight_sum <= 1e-12 or weight_square_sum <= 0:
+        return {
+            "strength": np.nan,
+            "axis_deg": np.nan,
+            "effective_bins": 0.0,
+            "coverage": 0.0,
+            "significance": 0.0,
+            "axis_drift_deg": np.nan,
+        }
+
+    z2 = np.trapezoid(weights * np.exp(2j * chi), chi) / denominator
+    strength = float(np.abs(z2))
+    axis_deg = float((np.degrees(0.5 * np.angle(z2)) + 180.0) % 180.0)
+    effective_bins = float(weight_sum**2 / weight_square_sum)
+
+    wrapped = np.sort(np.mod(chi, 2.0 * np.pi))
+    gaps = np.diff(np.r_[wrapped, wrapped[0] + 2.0 * np.pi])
+    coverage = float(np.clip(1.0 - np.max(gaps) / (2.0 * np.pi), 0.0, 1.0))
+
+    split_axes: list[float] = []
+    for split in (0, 1):
+        split_chi = chi[split::2]
+        split_weights = weights[split::2]
+        if len(split_chi) < 3:
+            continue
+        split_denominator = float(np.trapezoid(split_weights, split_chi))
+        if split_denominator <= 1e-12:
+            continue
+        split_z2 = np.trapezoid(
+            split_weights * np.exp(2j * split_chi), split_chi
+        ) / split_denominator
+        if np.isfinite(split_z2.real) and np.isfinite(split_z2.imag):
+            split_axes.append(
+                float((np.degrees(0.5 * np.angle(split_z2)) + 180.0) % 180.0)
+            )
+    axis_drift = (
+        _axis_difference_deg(split_axes[0], split_axes[1])
+        if len(split_axes) == 2
+        else np.nan
+    )
+
+    return {
+        "strength": strength,
+        "axis_deg": axis_deg,
+        "effective_bins": effective_bins,
+        "coverage": coverage,
+        "significance": float(strength * np.sqrt(max(effective_bins, 0.0))),
+        "axis_drift_deg": float(axis_drift) if np.isfinite(axis_drift) else np.nan,
+    }
+
+
 def detect_in_plane_orientation_axis(
     chi: np.ndarray,
     I_chi: np.ndarray,
     *,
     min_strength: float = 0.08,
     min_bins: int = 12,
+    min_significance: float = 2.5,
+    min_coverage: float = 0.75,
+    min_effective_bins: float = 8.0,
+    max_axis_drift_deg: float = 20.0,
 ) -> Dict:
     """Detect the dominant 180-degree-periodic detector-plane axis.
 
@@ -324,27 +427,56 @@ def detect_in_plane_orientation_axis(
         "confidence": 0.0,
         "source": "unavailable",
         "reason": "orientation_axis_insufficient_bins",
+        "reason_codes": ["orientation_axis_insufficient_bins"],
+        "quality_status": "unavailable",
+        "effective_bins": 0.0,
+        "coverage": 0.0,
+        "significance": 0.0,
+        "axis_drift_deg": np.nan,
     }
     chi_arr, weights = _azimuthal_weights(chi, I_chi)
     if len(chi_arr) < max(int(min_bins), 5):
         return result
 
-    denominator = float(np.trapezoid(weights, chi_arr))
-    if denominator <= 1e-12 or not np.isfinite(denominator):
+    diagnostics = _harmonic_diagnostics(chi_arr, weights)
+    result.update(
+        {
+            "strength": diagnostics["strength"],
+            "effective_bins": diagnostics["effective_bins"],
+            "coverage": diagnostics["coverage"],
+            "significance": diagnostics["significance"],
+            "axis_drift_deg": diagnostics["axis_drift_deg"],
+        }
+    )
+    if not np.isfinite(diagnostics["strength"]):
         result["reason"] = "orientation_axis_zero_weight"
+        result["reason_codes"] = [result["reason"]]
         return result
 
-    z2 = np.trapezoid(weights * np.exp(2j * chi_arr), chi_arr) / denominator
-    strength = float(np.abs(z2))
-    result["strength"] = strength
-    if not np.isfinite(strength) or strength < float(min_strength):
+    strength = diagnostics["strength"]
+    if strength < float(min_strength):
         result["reason"] = "orientation_axis_low_strength"
+        result["reason_codes"] = [result["reason"]]
         return result
 
-    result["axis_deg"] = float((np.degrees(0.5 * np.angle(z2)) + 180.0) % 180.0)
+    result["axis_deg"] = diagnostics["axis_deg"]
     result["confidence"] = float(np.clip(strength, 0.0, 1.0))
     result["source"] = "auto_detected"
-    result["reason"] = ""
+    reasons: list[str] = []
+    if diagnostics["effective_bins"] < float(min_effective_bins):
+        reasons.append("orientation_effective_bins_insufficient")
+    if diagnostics["coverage"] < float(min_coverage):
+        reasons.append("orientation_azimuth_coverage_insufficient")
+    if diagnostics["significance"] < float(min_significance):
+        reasons.append("orientation_harmonic_insignificant")
+    if (
+        not np.isfinite(diagnostics["axis_drift_deg"])
+        or diagnostics["axis_drift_deg"] > float(max_axis_drift_deg)
+    ):
+        reasons.append("orientation_axis_unstable")
+    result["reason_codes"] = reasons
+    result["quality_status"] = "blocked" if reasons else "usable"
+    result["reason"] = reasons[0] if reasons else ""
     return result
 
 def herman_from_azimuthal(
@@ -618,6 +750,7 @@ def analyze_anisotropy(
         )
         return result
     I_2d, q, chi, q_1d, I_1d = normalized
+    detector = build_detector_quality_report(I_2d, source_kind="sector_map")
 
     # 1. Azimuthal profile at Bragg peak position
     from .core import bragg_long_period
@@ -641,6 +774,10 @@ def analyze_anisotropy(
                 I_prof,
                 min_strength=0.0,
                 min_bins=getattr(cfg, "orientation_auto_min_bins", 12),
+                min_significance=getattr(cfg, "orientation_auto_min_significance", 2.0),
+                min_coverage=getattr(cfg, "orientation_min_coverage", 0.75),
+                min_effective_bins=getattr(cfg, "orientation_min_effective_bins", 8.0),
+                max_axis_drift_deg=getattr(cfg, "orientation_max_axis_drift_deg", 20.0),
             )
             result.orientation_axis_deg = float(configured_axis % 180.0)
             result.orientation_axis_source = "configured"
@@ -653,6 +790,10 @@ def analyze_anisotropy(
                 I_prof,
                 min_strength=getattr(cfg, "orientation_auto_min_strength", 0.08),
                 min_bins=getattr(cfg, "orientation_auto_min_bins", 12),
+                min_significance=getattr(cfg, "orientation_auto_min_significance", 2.0),
+                min_coverage=getattr(cfg, "orientation_min_coverage", 0.75),
+                min_effective_bins=getattr(cfg, "orientation_min_effective_bins", 8.0),
+                max_axis_drift_deg=getattr(cfg, "orientation_max_axis_drift_deg", 20.0),
             )
             result.orientation_axis_deg = axis_info.get("axis_deg", np.nan)
             result.orientation_axis_source = axis_info.get("source", "unavailable")
@@ -660,15 +801,45 @@ def analyze_anisotropy(
             result.orientation_axis_confidence = axis_info.get("confidence", 0.0)
             result.orientation_axis_reason = axis_info.get("reason", "")
 
+        result.orientation_harmonic_significance = axis_info.get("significance", np.nan)
+        result.orientation_effective_bins = axis_info.get("effective_bins", np.nan)
+        result.orientation_azimuthal_coverage = axis_info.get("coverage", np.nan)
+        result.orientation_axis_drift_deg = axis_info.get("axis_drift_deg", np.nan)
+        reliability_reasons = list(axis_info.get("reason_codes", ()))
+        detector_blockers = {
+            "detector_input_invalid",
+            "detector_input_not_2d",
+            "detector_input_empty",
+            "nonfinite_pixels",
+            "nonpositive_pixels",
+            "saturated_pixels",
+        }
+        reliability_reasons.extend(
+            reason
+            for reason in detector.reason_codes
+            if reason in detector_blockers
+        )
+        result.orientation_reliability_reason_codes = list(
+            dict.fromkeys(reliability_reasons)
+        )
+        if not np.isfinite(result.orientation_axis_deg):
+            result.orientation_reliability_status = "unavailable"
+        elif result.orientation_reliability_reason_codes:
+            result.orientation_reliability_status = "blocked"
+        else:
+            result.orientation_reliability_status = "usable"
+
         if np.isfinite(result.orientation_axis_deg):
             herman = herman_from_azimuthal(
                 chi_prof,
                 I_prof,
                 reference_axis_deg=result.orientation_axis_deg,
             )
-            result.f_herman = herman.get('f', np.nan)
-            result.P2 = herman.get('P2', np.nan)
-            result.P4 = herman.get('P4', np.nan)
+            result.f_herman_raw = herman.get('f', np.nan)
+            if result.orientation_reliability_status == "usable":
+                result.f_herman = result.f_herman_raw
+                result.P2 = herman.get('P2', np.nan)
+                result.P4 = herman.get('P4', np.nan)
 
         # 3. Herman from sector regions
         # Meridional: chi ~ 0
@@ -724,5 +895,5 @@ def analyze_anisotropy(
         if result.pattern_type != "unknown":
             result.confidence += 0.15
 
-    _attach_orientation_evidence(result, I_2d)
+    _attach_orientation_evidence(result, I_2d, detector_quality=detector)
     return result

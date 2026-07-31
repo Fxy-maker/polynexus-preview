@@ -195,6 +195,10 @@ class SAXSConfig:
     orientation_axis_deg: Optional[float] = None
     orientation_auto_min_strength: float = 0.08
     orientation_auto_min_bins: int = 12
+    orientation_auto_min_significance: float = 2.0
+    orientation_min_coverage: float = 0.75
+    orientation_min_effective_bins: float = 8.0
+    orientation_max_axis_drift_deg: float = 20.0
 
     # ---- Masking ----
     dummy_val: float = -1.5

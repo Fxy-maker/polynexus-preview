@@ -825,6 +825,52 @@ def test_saxs_strain_series_passes_configured_orientation_axis_to_core() -> None
     assert point.orientation_evidence["fit_evidence"]["orientation_axis_source"] == "configured"
 
 
+def test_saxs_strain_blocks_effective_herman_for_hard_1d_quality_defects(monkeypatch) -> None:
+    from polynexus.core.saxs_engine import saxs_strain
+    from polynexus.core.saxs_engine.core import (
+        LongPeriodResult,
+        SAXSResult,
+        StructureParams,
+    )
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.1, 1.0, 120)
+    peak = np.exp(-((q - 0.45) / 0.025) ** 2)
+    intensity = 0.1 + peak
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    I_2d = np.outer(1.0 + 3.0 * np.cos(chi_rad) ** 2, intensity)
+    sector_data = {"I_2d": I_2d, "q_2d": q, "chi_rad": chi_rad, "I_full": intensity}
+
+    def fake_analyze_single(*_args, **_kwargs):
+        return SAXSResult(
+            long_period=LongPeriodResult(L_best=14.0, L_confidence=0.8),
+            structure=StructureParams(L=14.0, lc=3.0, la=11.0, phi_c=0.25),
+            data_quality_report={
+                "level": "Diagnostic",
+                "low_q_truncated": True,
+                "actions": ["invalid_pairs_dropped"],
+                "reason_codes": ["intensity_nonpositive"],
+            },
+        )
+
+    monkeypatch.setattr(saxs_strain, "analyze_single", fake_analyze_single)
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[sector_data],
+        cfg=SAXSConfig(smooth_method="none"),
+    )
+
+    point = result.strain_points[0]
+    assert np.isfinite(getattr(point, "f_herman_raw", np.nan))
+    assert not np.isfinite(point.f_herman)
+    evidence = point.orientation_evidence or {}
+    reasons = evidence.get("reason_codes", ())
+    assert "orientation_low_q_truncated" in reasons
+    assert "orientation_invalid_pairs_dropped" in reasons
+
+
 def test_saxs_strain_batch_payload_exposes_raw_and_effective_layers() -> None:
     engine = get_engine("saxs")
     assert engine is not None

@@ -1732,7 +1732,11 @@ def build_orientation_evidence(
 
     payload = anisotropy_payload if isinstance(anisotropy_payload, Mapping) else {}
     numeric_fields = (
-        "f_herman", "P2", "P4", "anisotropy_ratio", "anisotropy_index", "confidence"
+        "f_herman", "f_herman_raw", "P2", "P4", "anisotropy_ratio",
+        "anisotropy_index", "confidence", "orientation_axis_strength",
+        "orientation_axis_confidence", "orientation_harmonic_significance",
+        "orientation_effective_bins", "orientation_azimuthal_coverage",
+        "orientation_axis_drift_deg",
     )
     fit_evidence: dict[str, Any] = {}
     for key in numeric_fields:
@@ -1743,6 +1747,19 @@ def build_orientation_evidence(
     if isinstance(pattern_type, str) and pattern_type.strip() and pattern_type != "unknown":
         fit_evidence["pattern_type"] = pattern_type
     metrics_present = bool(fit_evidence)
+
+    reliability_status = str(
+        payload.get("orientation_reliability_status") or ""
+    ).strip().lower()
+    reliability_reasons = [
+        str(reason).strip()
+        for reason in (payload.get("orientation_reliability_reason_codes") or ())
+        if str(reason).strip()
+    ]
+    if reliability_status in {"blocked", "unavailable"}:
+        for key in ("f_herman", "P2", "P4"):
+            fit_evidence.pop(key, None)
+        metrics_present = bool(fit_evidence)
 
     normalized_applicability = str(applicability or "unknown").strip().lower()
     supported = normalized_applicability == "supported"
@@ -1757,6 +1774,11 @@ def build_orientation_evidence(
         reasons.append("detector_quality_unusable")
     elif detector_quality.level is QualityLevel.DIAGNOSTIC:
         reasons.append("detector_quality_diagnostic")
+    if reliability_status == "blocked":
+        reasons.append("orientation_reliability_blocked")
+        reasons.extend(reliability_reasons)
+    elif reliability_status == "unavailable":
+        reasons.append("orientation_reliability_unavailable")
 
     physical_checks = {
         "detector_source_kind": detector_quality.source_kind,
@@ -1767,10 +1789,16 @@ def build_orientation_evidence(
         "detector_quality_report": detector_quality.to_dict(),
         "applicability_supported": supported,
         "orientation_metrics_present": metrics_present,
+        "orientation_reliability_status": reliability_status or None,
+        "orientation_reliability_reason_codes": reliability_reasons,
     }
     if not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
         level = QualityLevel.UNUSABLE
-    elif not supported or detector_quality.level is QualityLevel.DIAGNOSTIC:
+    elif (
+        not supported
+        or detector_quality.level is QualityLevel.DIAGNOSTIC
+        or reliability_status in {"blocked", "unavailable"}
+    ):
         level = QualityLevel.DIAGNOSTIC
     else:
         # Orientation remains a Trend claim until calibrated physical gates
@@ -1782,7 +1810,12 @@ def build_orientation_evidence(
         value=dict(fit_evidence),
         unit="",
         level=level,
-        applicable=bool(level is QualityLevel.TREND and supported and metrics_present),
+        applicable=bool(
+            level is QualityLevel.TREND
+            and supported
+            and metrics_present
+            and reliability_status not in {"blocked", "unavailable"}
+        ),
         fit_evidence=fit_evidence,
         physical_checks=physical_checks,
         reason_codes=tuple(dict.fromkeys(reasons)),

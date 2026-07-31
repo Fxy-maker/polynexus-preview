@@ -15,7 +15,7 @@ Reference: SAXS Design Document v1.0, Module 4B.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple
 import numpy as np
 from scipy.integrate import trapezoid
 from scipy.signal import find_peaks
@@ -113,6 +113,7 @@ class StrainPointResult:
     
     # Herman orientation factor
     f_herman: float = np.nan
+    f_herman_raw: float = np.nan
     f_herman_sub: float = np.nan   # sub-tropical
     f_herman_eq: float = np.nan    # equatorial
     
@@ -364,6 +365,7 @@ def herman_from_sector_data(
     sector_data: Dict[str, Dict],
     q_range: Tuple[float, float] = None,
     cfg: Optional[SAXSConfig] = None,
+    data_quality_report: Mapping[str, object] | None = None,
 ) -> Dict:
     """Compute Herman factor from sector-integrated data dictionary.
 
@@ -396,8 +398,19 @@ def herman_from_sector_data(
                 cfg=cfg,
             )
             f_value = float(getattr(orientation, "f_herman", np.nan))
+            f_raw = float(getattr(orientation, "f_herman_raw", np.nan))
+            orientation_evidence = getattr(orientation, "orientation_evidence", None)
+            quality_blockers = _orientation_quality_blockers(data_quality_report)
+            if quality_blockers:
+                orientation_evidence = _block_orientation_evidence(
+                    orientation_evidence,
+                    raw_value=f_raw,
+                    reason_codes=quality_blockers,
+                )
+                f_value = np.nan
             return {
                 "f": f_value,
+                "f_raw": f_raw,
                 "f_sub": float(getattr(orientation, "f_herman_sub", np.nan)),
                 "f_eq": float(getattr(orientation, "f_herman_eq", np.nan)),
                 "cos2_avg": (2.0 * f_value + 1.0) / 3.0 if np.isfinite(f_value) else np.nan,
@@ -405,7 +418,7 @@ def herman_from_sector_data(
                 "detector_quality_report": getattr(
                     orientation, "detector_quality_report", None
                 ),
-                "orientation_evidence": getattr(orientation, "orientation_evidence", None),
+                "orientation_evidence": orientation_evidence,
                 "orientation_axis_deg": getattr(orientation, "orientation_axis_deg", np.nan),
                 "orientation_axis_source": getattr(orientation, "orientation_axis_source", "unavailable"),
                 "orientation_axis_strength": getattr(orientation, "orientation_axis_strength", np.nan),
@@ -434,6 +447,73 @@ def herman_from_sector_data(
     return herman_orientation_factor(I_mer, I_eq, chi_mer, chi_eq)
 
 
+def _orientation_quality_blockers(
+    report: Mapping[str, object] | None,
+) -> tuple[str, ...]:
+    """Return 1D quality reasons that invalidate orientation transport."""
+
+    if not isinstance(report, Mapping):
+        return ()
+
+    reasons: list[str] = []
+    level = str(report.get("level") or "").strip().lower()
+    if level == "unusable":
+        reasons.append("orientation_input_quality_unusable")
+    if bool(report.get("low_q_truncated")):
+        reasons.append("orientation_low_q_truncated")
+
+    reason_codes = {
+        str(reason).strip().lower()
+        for reason in (report.get("reason_codes") or ())
+        if str(reason).strip()
+    }
+    actions = {
+        str(action).strip().lower()
+        for action in (report.get("actions") or ())
+        if str(action).strip()
+    }
+    for reason in (
+        "intensity_nonfinite",
+        "intensity_nonpositive",
+        "q_nonfinite",
+        "q_nonpositive",
+    ):
+        if reason in reason_codes:
+            reasons.append(f"orientation_{reason}")
+    if "invalid_pairs_dropped" in actions:
+        reasons.append("orientation_invalid_pairs_dropped")
+    return tuple(dict.fromkeys(reasons))
+
+
+def _block_orientation_evidence(
+    evidence: Mapping[str, object] | None,
+    *,
+    raw_value: float,
+    reason_codes: tuple[str, ...],
+) -> dict:
+    """Keep raw fit evidence while removing a blocked effective value."""
+
+    payload = dict(evidence) if isinstance(evidence, Mapping) else {}
+    fit_evidence = dict(payload.get("fit_evidence") or {})
+    if np.isfinite(raw_value):
+        fit_evidence["f_herman_raw"] = float(raw_value)
+    fit_evidence.pop("f_herman", None)
+    payload["value"] = dict(fit_evidence)
+    payload["fit_evidence"] = fit_evidence
+    physical_checks = dict(payload.get("physical_checks") or {})
+    physical_checks["orientation_reliability_status"] = "blocked"
+    physical_checks["orientation_reliability_reason_codes"] = list(reason_codes)
+    payload["physical_checks"] = physical_checks
+    payload["applicable"] = False
+    payload["reason_codes"] = tuple(
+        dict.fromkeys(
+            list(payload.get("reason_codes") or ())
+            + ["orientation_reliability_blocked", *reason_codes]
+        )
+    )
+    return payload
+
+
 def _invalid_sector_data_result(
     reason: str = "strain_sector_data_invalid",
 ) -> Dict:
@@ -457,6 +537,7 @@ def _invalid_sector_data_result(
     evidence["physical_checks"] = physical_checks
     return {
         "f": np.nan,
+        "f_raw": np.nan,
         "f_sub": np.nan,
         "f_eq": np.nan,
         "cos2_avg": np.nan,
@@ -692,7 +773,11 @@ def analyze_strain_series(
             sd = sector_data_list[i]
             if sd is not None:
                 try:
-                    herman = herman_from_sector_data(sd, cfg=cfg)
+                    herman = herman_from_sector_data(
+                        sd,
+                        cfg=cfg,
+                        data_quality_report=sp.data_quality_report,
+                    )
                 except Exception:
                     logger.warning(
                         "SAXS strain sector payload failed closed.",
@@ -700,6 +785,7 @@ def analyze_strain_series(
                     )
                     herman = _invalid_sector_data_result()
                 sp.f_herman = herman.get('f', np.nan)
+                sp.f_herman_raw = herman.get('f_raw', sp.f_herman)
                 sp.f_herman_sub = herman.get('f_sub', np.nan)
                 sp.f_herman_eq = herman.get('f_eq', np.nan)
                 if herman.get("detector_quality_report") is not None:
