@@ -108,6 +108,12 @@ without a final summary is recorded as incomplete, never as a pass.
   `28,835,126,572` bytes total, `79` eligible artifacts,
   `15,743,185,346` eligible bytes, `0` removed, and `0` failures. No
   `test_storage.py --apply` was executed.
+- Current-turn follow-up recheck: live-context `6 passed in 1.62s` and the
+  combined Advisor/prompt/summary/audit/live regression `25 passed in 1.63s`,
+  both exit `0`; `git diff --check` passed. A shared full/boundary verifier
+  remained running without a pytest summary at handoff and is not counted as
+  pass evidence. Storage dry-run remained `142` artifacts with `0` eligible
+  bytes and `0` removed; no `test_storage.py --apply` was executed.
 
 ## Explicit changed-file allowlist
 
