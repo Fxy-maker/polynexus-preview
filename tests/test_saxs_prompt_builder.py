@@ -4,6 +4,61 @@ from rag.prompt_builder import PromptBuilder
 from polynexus.core.preprocess_optimization import get_preprocess_policy
 
 
+def test_saxs_prompt_renders_summary_only_context_boundary() -> None:
+    prompt = PromptBuilder().build_prompt(
+        {
+            "technique": "SAXS",
+            "params": {"Rg_nm": 4.2},
+            "current_config": {},
+            "saxs_ai_context": {
+                "technique": "SAXS",
+                "mode": "temperature",
+                "status": "available",
+                "quality_gate_status": "passed",
+                "physical_gate_status": "passed",
+                "candidate_only": True,
+                "raw_profile_included": False,
+                "raw_detector_data_included": False,
+                "frames": [],
+            },
+        },
+        [],
+    )
+
+    assert "SAXS AI summary context" in prompt
+    assert "raw_profile_included" in prompt
+    assert "candidate_only" in prompt
+    assert "return only the existing SAXS preprocess intent" in prompt
+
+
+def test_saxs_prompt_drops_untrusted_raw_fields_from_context() -> None:
+    prompt = PromptBuilder().build_prompt(
+        {
+            "technique": "SAXS",
+            "params": {},
+            "current_config": {},
+            "saxs_ai_context": {
+                "technique": "SAXS",
+                "mode": "static",
+                "candidate_only": True,
+                "raw_profile_included": False,
+                "raw_detector_data_included": False,
+                "frames": [{"source_index": 0, "raw_q": [0.01], "raw_I": [1.0]}],
+                "q_values": [0.01],
+                "intensity_values": [1.0],
+                "detector_pixels": [[1]],
+            },
+        },
+        [],
+    )
+
+    assert "raw_q" not in prompt
+    assert "raw_I" not in prompt
+    assert "q_values" not in prompt
+    assert "intensity_values" not in prompt
+    assert "detector_pixels" not in prompt
+
+
 def test_saxs_prompt_marks_savgol_window_as_high_priority() -> None:
     prompt = PromptBuilder().build_prompt(
         {

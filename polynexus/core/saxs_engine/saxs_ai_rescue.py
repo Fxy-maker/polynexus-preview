@@ -312,6 +312,69 @@ def assess_saxs_confirmed_rerun(result: Any, *, mode: str) -> dict[str, Any]:
     return _json_safe(evidence)
 
 
+def sanitize_saxs_ai_summary_context(payload: Any) -> dict[str, Any]:
+    """Keep only the summary fields allowed to cross the SAXS prompt boundary."""
+
+    if not isinstance(payload, Mapping) or str(payload.get("technique", "")).upper() != "SAXS":
+        return {}
+    raw_frames = payload.get("frames", ())
+    frames = (
+        [_frame_projection(item, index) for index, item in enumerate(raw_frames) if isinstance(item, Mapping)]
+        if isinstance(raw_frames, Sequence) and not isinstance(raw_frames, (str, bytes))
+        else []
+    )
+    series: dict[str, Any] = {}
+    for field_name in ("guinier_sequence_evidence", *_EVIDENCE_FIELDS):
+        value = payload.get("series", {}).get(field_name) if isinstance(payload.get("series"), Mapping) else None
+        compact = _compact(value)
+        if compact:
+            series[field_name] = compact
+    context = {
+        "schema_version": "saxs-ai-summary-v1",
+        "technique": "SAXS",
+        "mode": str(payload.get("mode", "") or ""),
+        "status": str(payload.get("status", "unavailable") or "unavailable"),
+        "physical_gate_status": str(payload.get("physical_gate_status", "unavailable") or "unavailable"),
+        "quality_gate_status": str(payload.get("quality_gate_status", "unavailable") or "unavailable"),
+        "reason_codes": [str(item) for item in payload.get("reason_codes", ()) if isinstance(item, str)],
+        "frames": frames,
+        "series": series,
+        "candidate_only": True,
+        "raw_profile_included": False,
+        "raw_detector_data_included": False,
+        "physical_validation_required": True,
+    }
+    return _json_safe(context)
+
+
+def build_saxs_ai_summary_context(result: Any, *, mode: str) -> dict[str, Any]:
+    """Build a summary-only, strict-JSON input envelope for a future AI call.
+
+    The envelope deliberately reuses the existing evidence projection and
+    status assessment.  It never inspects or serializes raw q/I, detector
+    pixels, source paths, or any other unbounded input payload.
+    """
+
+    evidence = assess_saxs_confirmed_rerun(result, mode=mode)
+    normalized_mode = _normal_mode(mode)
+    context = {
+        "schema_version": "saxs-ai-summary-v1",
+        "technique": "SAXS",
+        "mode": normalized_mode or str(mode or ""),
+        "status": evidence.get("status", "unavailable"),
+        "physical_gate_status": evidence.get("physical_gate_status", "unavailable"),
+        "quality_gate_status": evidence.get("quality_gate_status", "unavailable"),
+        "reason_codes": evidence.get("reason_codes", []),
+        "frames": evidence.get("frames", []),
+        "series": evidence.get("series", {}),
+        "candidate_only": True,
+        "raw_profile_included": False,
+        "raw_detector_data_included": False,
+        "physical_validation_required": True,
+    }
+    return _json_safe(context)
+
+
 def validate_saxs_confirmation_report(
     report: Mapping[str, Any],
     *,
@@ -565,8 +628,10 @@ __all__ = [
     "SAXSAIRescuePlan",
     "assess_saxs_ai_candidate",
     "assess_saxs_confirmed_rerun",
+    "build_saxs_ai_summary_context",
     "build_saxs_confirmed_rerun_evidence",
     "build_saxs_ai_rescue_plan",
+    "sanitize_saxs_ai_summary_context",
     "validate_saxs_confirmation_report",
     "validate_saxs_ai_intent",
 ]

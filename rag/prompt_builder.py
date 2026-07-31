@@ -6,6 +6,7 @@ from typing import Any
 
 from polynexus.config_bridge import DSC_PARAM_MAP, IR_PARAM_MAP, NMR_PARAM_MAP, SAXS_PARAM_MAP, WAXS_PARAM_MAP
 from polynexus.core.preprocess_optimization import get_preprocess_policy
+from polynexus.core.saxs_engine.saxs_ai_rescue import sanitize_saxs_ai_summary_context
 from rag.preprocess_intent import PREPROCESS_ACTION_NAMES
 from rag.polymer_knowledge import format_polymer_knowledge
 
@@ -371,6 +372,12 @@ class PromptBuilder:
         current_phi_c = self._metric(params, "phi_c", precision=3)
         current_rg = self._metric(params, "Rg_nm", precision=3)
         current_snr = self._metric(params, "q_peak_snr", precision=3)
+        saxs_ai_context = current_sample.get("saxs_ai_context")
+        saxs_ai_context_text = ""
+        if isinstance(saxs_ai_context, dict) and saxs_ai_context:
+            sanitized_context = sanitize_saxs_ai_summary_context(saxs_ai_context)
+            if sanitized_context:
+                saxs_ai_context_text = self._json_dumps(sanitized_context, indent=2)
 
         lines = [
             "[SYSTEM]",
@@ -414,8 +421,21 @@ class PromptBuilder:
             "",
             "## 历史参考案例（RAG 检索结果）",
             retrieved_text,
-            "",
-            "## 任务",
+        ]
+        if saxs_ai_context_text:
+            lines.extend(
+                [
+                    "",
+                    "## SAXS AI summary context",
+                    saxs_ai_context_text,
+                    "Use this summary only for diagnosis. It contains no raw q/I or detector data.",
+                    "return only the existing SAXS preprocess intent; never apply or publish a candidate.",
+                ]
+            )
+        lines.extend(
+            [
+                "",
+                "## 任务",
             "根据以上信息，给出下一轮 SAXS 参数修改建议（JSON）。只改最可能提升拟合质量的 1-2 个参数；若历史中已有 ❌ 回滚组合，不得重复建议。",
             "输出格式：",
             "{",
@@ -434,7 +454,8 @@ class PromptBuilder:
             '  "converge": false',
             "}",
             "只输出 JSON，不要有任何额外文字。",
-        ]
+            ]
+        )
 
         return "\n".join(lines)
 
