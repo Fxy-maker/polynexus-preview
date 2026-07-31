@@ -15,7 +15,7 @@ Status: collection boundary verified; single-process release wrapper timed out
 - Baseline collection included `_tmp_phase3`; `3251 tests collected`.
 - `pytest.ini` now declares `norecursedirs = _tmp*`.
 - Fresh collection after the change returned exit code `0`, excluded
-  `_tmp_phase3`, and reported `3250 tests collected in 3.01s`.
+  `_tmp_phase3`, and reported `3275 tests collected in 3.50s`.
 
 ## Acceptance classification
 
@@ -38,3 +38,19 @@ failure. The four canonical pytest slices each returned a complete summary and
 exit `0`, but they do not change the wrapper classification. Scientific IR
 mapping, NMR solid-C, Joint conflict, restarted-GUI, and final publication
 approval gates remain separate from this test-infrastructure fix.
+
+## Fresh verification rerun
+
+On 2026-07-31 the full/boundary wrapper was rerun with an external D: test
+root. It reached the 2104-second tool limit with no pytest summary and exit
+`124`; this is recorded as incomplete evidence. The spawned verifier/pytest
+processes were reaped afterward.
+
+The fresh collection check returned exit `0` with `3275 tests collected in
+3.50s`. The task-scoped verifier returned exit `0`, including quality `297
+passed` and preprocessing `106 passed`; the boundary audit and `git diff
+--check` also returned exit `0`.
+
+Storage report and clean remained non-destructive dry-runs: `64` artifacts,
+`22,285` eligible bytes, no cleanup failures, and no directories removed
+because `--apply` was not supplied. No `test_storage.py --apply` was run.

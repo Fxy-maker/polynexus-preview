@@ -74,6 +74,24 @@ The slice totals are `3233 passed, 18 skipped, 12 warnings`; no slice had a
 failure. The task verifier passed with quality `297` and preprocessing `106`,
 and the boundary audit returned exit `0`.
 
+## Fresh rerun evidence (2026-07-31)
+
+- `python scripts/verify.py --changed --types --full --boundary` reached the
+  2104-second tool limit with no pytest summary and exit `124`; the spawned
+  verifier/pytest processes were reaped afterward. This remains incomplete
+  verification, not a pass or product-test failure.
+- `python -m pytest --collect-only -q` returned exit `0` and reported
+  `3275 tests collected in 3.50s`.
+- The task-scoped verifier returned exit `0`, with quality `297 passed` and
+  preprocessing `106 passed`; task, memory, Ruff, compile, type-baseline, and
+  whitespace checks also passed.
+- `python scripts/boundary_audit.py --root D:\PolyNexus --json` and
+  `git diff --check` both returned exit `0`.
+- Storage report and clean were both dry-run only: `64` artifacts,
+  `22,285` eligible bytes, no cleanup failures, and no directories removed
+  because `--apply` was not supplied. No
+  `test_storage.py --apply` was run.
+
 ## Explicit changed-file allowlist
 
 - `pytest.ini`
