@@ -105,3 +105,11 @@ outside this task's allowlist.
 ## Checkpoint
 
 The three documentation files are ready for an explicit allowlist checkpoint.
+
+## Verification evidence
+
+- `python scripts/verify.py --task docs/agent/tasks/2026-07-31-nonsaxs-real-published-run-recheck.md --changed --types` exited `0`; task/memory checks, Ruff, compile, type baseline, whitespace, quality `297 passed`, and preprocessing `106 passed` all passed.
+- `python scripts/boundary_audit.py --root D:\PolyNexus --json` exited `0`.
+- `git diff --check` exited `0`.
+- Final real-fixture selector: `12 passed, 3 deselected, 11 warnings in 291.31s`, exit `0`.
+- Storage apply was already executed under explicit user authorization; it reclaimed eligible artifacts, skipped ten permission-locked historical directories, and left zero eligible bytes in the subsequent inventory.

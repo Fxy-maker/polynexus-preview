@@ -72,6 +72,12 @@ The final lifecycle command used:
 python -m pytest -p no:cacheprovider -q tests/test_real_published_run_walkthrough.py -k "not saxs" -vv --basetemp=C:\PolyNexus-test-runs\nonsaxs-real-published-20260731-c-after-clean
 ```
 
+## Structured verification
+
+- `python scripts/verify.py --task docs/agent/tasks/2026-07-31-nonsaxs-real-published-run-recheck.md --changed --types` exited `0`; quality `297 passed`, preprocessing `106 passed`, task/memory, Ruff, compile, type baseline, and whitespace checks passed.
+- `python scripts/boundary_audit.py --root D:\PolyNexus --json` exited `0`.
+- `git diff --check` exited `0`.
+
 ## Workspace boundary
 
 No production files, real fixtures, generated outputs, or parallel memory files

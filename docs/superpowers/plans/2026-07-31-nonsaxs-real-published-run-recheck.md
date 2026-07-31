@@ -33,11 +33,11 @@
 **Files:**
 - Modify: the task card, plan, and acceptance record
 
-- [ ] Run `python scripts/verify.py --task docs/agent/tasks/2026-07-31-nonsaxs-real-published-run-recheck.md --changed --types`.
+- [x] Run `python scripts/verify.py --task docs/agent/tasks/2026-07-31-nonsaxs-real-published-run-recheck.md --changed --types`; exit `0`, quality `297`, preprocessing `106`.
 - [x] Run storage report and the authorized `clean --older-than-hours 24 --apply --json`; the apply removed eligible artifacts, skipped permission-locked historical directories, and left `eligible_bytes=0`.
 - [ ] Run `python scripts/verify.py --task docs/agent/tasks/2026-07-31-nonsaxs-real-published-run-recheck.md --changed --types`.
-- [ ] Run `git diff --check` and perform a cumulative diff review.
-- [ ] Create one checkpoint using only this task's three documentation files.
+- [x] Run `git diff --check` and perform a cumulative diff review.
+- [x] Create one checkpoint using only this task's three documentation files.
 
 ### Task 4: Update the overall release audit
 
