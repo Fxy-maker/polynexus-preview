@@ -54,6 +54,39 @@ _EVIDENCE_FIELDS = (
     "detector_quality_report",
     "orientation_evidence",
 )
+_ACCEPTANCE_AUDIT_FIELDS = frozenset(
+    {
+        "status",
+        "automated_validation_passed",
+        "existing_publication_gate",
+        "evidence_levels",
+        "provenance_validity",
+        "physical_gate_evidence",
+        "method_gate_status",
+        "reliability",
+        "reason_codes",
+        "audit_scope",
+        "publication_decision_changed",
+        "detector_provenance_audit",
+    }
+)
+_RAW_SUMMARY_KEYS = frozenset(
+    {
+        "q",
+        "i",
+        "raw_q",
+        "raw_i",
+        "q_values",
+        "intensity_values",
+        "detector_pixels",
+        "pixel_values",
+        "source_path",
+        "source_paths",
+        "source_file",
+        "file_path",
+        "filepath",
+    }
+)
 _COMPACT_FIELDS = frozenset(
     {
         "level",
@@ -120,6 +153,50 @@ def _object_value(source: Any, name: str, default: Any = None) -> Any:
     return getattr(source, name, default)
 
 
+def _mode_result(result: Any, mode: str) -> Any:
+    if mode == "temperature":
+        series = _object_value(result, "_temperature_result", None)
+        if series is not None:
+            return series
+    elif mode == "strain":
+        series = _object_value(result, "_strain_result", None)
+        if series is not None:
+            return series
+    wrapped = _object_value(result, "result", None)
+    return wrapped if wrapped is not None else result
+
+
+def _summary_safe(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _summary_safe(item)
+            for key, item in value.items()
+            if str(key).strip().lower() not in _RAW_SUMMARY_KEYS
+        }
+    if isinstance(value, (list, tuple, set, np.ndarray)):
+        return [_summary_safe(item) for item in value]
+    return _json_safe(value)
+
+
+def _acceptance_audit_projection(source: Any) -> dict[str, Any]:
+    if not isinstance(source, Mapping):
+        return {}
+    projected = {
+        str(key): _summary_safe(source[key])
+        for key in _ACCEPTANCE_AUDIT_FIELDS
+        if key in source
+    }
+    return _json_safe(projected)
+
+
+def _existing_acceptance_audit(result: Any) -> dict[str, Any]:
+    owner = _mode_result(result, "static")
+    parameters = _object_value(owner, "parameters", None)
+    if not isinstance(parameters, Mapping):
+        return {}
+    return _acceptance_audit_projection(parameters.get("scientific_acceptance_audit"))
+
+
 def _compact(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
@@ -170,6 +247,7 @@ def _has_failed_physical_check(value: Any) -> bool:
 def _result_frames(result: Any, mode: str) -> list[Any]:
     if result is None:
         return []
+    result = _mode_result(result, mode)
     if mode == "temperature":
         points = _object_value(result, "temp_points", ())
     elif mode == "strain":
@@ -223,14 +301,15 @@ def build_saxs_confirmed_rerun_evidence(result: Any, *, mode: str) -> dict[str, 
             "frames": [],
             "series": {},
         }
+    mode_result = _mode_result(result, normalized_mode)
     frames = [_frame_projection(frame, index) for index, frame in enumerate(_result_frames(result, normalized_mode))]
     series: dict[str, Any] = {}
     if normalized_mode == "temperature":
         series["guinier_sequence_evidence"] = _compact(
-            _object_value(result, "guinier_sequence_evidence", None)
+            _object_value(mode_result, "guinier_sequence_evidence", None)
         )
     for field_name in ("metric_evidence", "detector_quality_report", "orientation_evidence"):
-        evidence = _compact(_object_value(result, field_name, None))
+        evidence = _compact(_object_value(mode_result, field_name, None))
         if evidence:
             series[field_name] = evidence
     payload = {
@@ -329,6 +408,7 @@ def sanitize_saxs_ai_summary_context(payload: Any) -> dict[str, Any]:
         compact = _compact(value)
         if compact:
             series[field_name] = compact
+    acceptance_audit = _acceptance_audit_projection(payload.get("scientific_acceptance_audit"))
     context = {
         "schema_version": "saxs-ai-summary-v1",
         "technique": "SAXS",
@@ -344,6 +424,8 @@ def sanitize_saxs_ai_summary_context(payload: Any) -> dict[str, Any]:
         "raw_detector_data_included": False,
         "physical_validation_required": True,
     }
+    if acceptance_audit:
+        context["scientific_acceptance_audit"] = acceptance_audit
     return _json_safe(context)
 
 
@@ -372,6 +454,9 @@ def build_saxs_ai_summary_context(result: Any, *, mode: str) -> dict[str, Any]:
         "raw_detector_data_included": False,
         "physical_validation_required": True,
     }
+    acceptance_audit = _existing_acceptance_audit(result)
+    if acceptance_audit:
+        context["scientific_acceptance_audit"] = acceptance_audit
     return _json_safe(context)
 
 

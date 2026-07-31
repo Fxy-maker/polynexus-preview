@@ -63,6 +63,24 @@ def test_live_static_state_carries_summary_only_saxs_context() -> None:
     assert all(key not in context for key in ("q", "I", "source_path"))
 
 
+def test_live_state_carries_existing_scientific_acceptance_audit() -> None:
+    audit = {
+        "status": "diagnostic_only",
+        "reason_codes": ["existing_evidence_not_quantitative"],
+        "audit_scope": "existing_gates_only",
+        "publication_decision_changed": False,
+    }
+    raw_result = SimpleNamespace(
+        parameters={"scientific_acceptance_audit": audit},
+        data_quality_report={"level": "Trend"},
+        metric_evidence={"guinier": {"level": "Trend"}},
+    )
+
+    state = _orchestrator()._build_agent_state(_engine(result=raw_result), 1)
+
+    assert state["saxs_ai_context"]["scientific_acceptance_audit"] == audit
+
+
 @pytest.mark.parametrize(
     ("mode", "attribute", "condition_key"),
     [("temperature", "_temperature_result", "temperature_C"), ("strain", "_strain_result", "strain")],
