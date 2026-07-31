@@ -377,7 +377,8 @@ class EvalRunner:
             self._apply_nmr_config_overrides(engine, case)
         else:
             self._apply_saxs_config_overrides(engine, case)
-        result = engine.run_pipeline(str(data_path), output_dir="")
+        output_dir = str(case.config_overrides.get("eval_output_dir") or "")
+        result = engine.run_pipeline(str(data_path), output_dir=output_dir)
         if tech == "dsc":
             output_parameters = self._dsc_output_parameters(engine, result)
             parameters_used = self._dsc_parameters_used(engine, data_path)

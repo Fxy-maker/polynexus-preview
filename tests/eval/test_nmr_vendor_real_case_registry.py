@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from dataclasses import replace
 
 import pytest
 
@@ -65,3 +66,36 @@ def test_vendor_case_descriptors_have_no_hidden_ground_truth() -> None:
         payload = json.loads((CASE_ROOT / f"{case_id}.json").read_text(encoding="utf-8"))
         assert payload["source"] == "vendor_unreviewed"
         assert payload["ground_truth"] == {}
+
+
+def test_output_isolation_forwards_external_output_dir(monkeypatch, tmp_path: Path) -> None:
+    runner = EvalRunner(project_root=PROJECT_ROOT)
+    case = runner.load_case(CASE_ROOT / "nmr_real_solid_c_vendor.json")
+    output_root = tmp_path / "external-eval-output"
+    case = replace(
+        case,
+        config_overrides={**case.config_overrides, "eval_output_dir": str(output_root)},
+    )
+
+    class _FakeResult:
+        technique = "nmr"
+        metadata = {}
+        parameters = {"solid_c": {"n_peaks": 1}}
+
+    class _FakeEngine:
+        active_submodule = "nmr.solid_c"
+        _results = []
+
+        def run_pipeline(self, filepath: str, output_dir: str = "") -> _FakeResult:
+            calls.append((filepath, output_dir))
+            return _FakeResult()
+
+        def get_parameters(self) -> dict[str, object]:
+            return {"n_peaks": 1}
+
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr("polynexus.core.get_engine", lambda *args, **kwargs: _FakeEngine())
+
+    runner._run_real_engine(case)
+
+    assert calls == [(str(runner._resolve_real_engine_path(case)), str(output_root))]
