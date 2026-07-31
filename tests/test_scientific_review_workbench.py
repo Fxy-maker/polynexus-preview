@@ -118,6 +118,39 @@ def test_update_analysis_scientific_review_rejects_unknown_run_without_write(tmp
     db.close()
 
 
+def test_saxs_workbench_review_routes_to_existing_figure_sync() -> None:
+    from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+
+    calls: list[dict] = []
+
+    class _Engine:
+        def sync_scientific_review_to_figures(self, payload):
+            calls.append(payload)
+            return {"status": "ok", "updated_count": 1}
+
+    result = AnalysisResult(technique="saxs")
+    owner = type(
+        "ReviewOwner",
+        (),
+        {
+            "_current_technique": "saxs",
+            "_results": {"saxs": result},
+            "_engine_cache": {"saxs": _Engine()},
+        },
+    )()
+    record_payload = {"record_id": "review-route", "scope": "saxs.1d"}
+    snapshot = {"allowed": True, "reason": "review_accepted"}
+
+    MainWindowResultsMixin._apply_scientific_review_to_current_result(
+        owner,
+        record_payload,
+        snapshot,
+    )
+
+    assert calls == [record_payload]
+    assert result.metadata["scientific_review"] == record_payload
+
+
 def test_persisted_review_is_visible_to_existing_history_presentation(tmp_path) -> None:
     from polynexus.gui.scientific_review_presentation import scientific_review_display
 

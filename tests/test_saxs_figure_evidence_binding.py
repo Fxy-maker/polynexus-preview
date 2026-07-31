@@ -7,8 +7,10 @@ import numpy as np
 
 from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
+from polynexus.core.saxs import SAXSEngine
 from polynexus.core.saxs_engine.figure_evidence import (
     build_saxs_figure_evidence,
+    sync_saxs_review_evidence_to_existing_figures,
 )
 import polynexus.core.saxs_engine.figure_strain as figure_strain_module
 from polynexus.core.saxs_engine.figure_static import (
@@ -18,7 +20,10 @@ from polynexus.core.saxs_engine.figure_strain import build_strain_figure_definit
 from polynexus.core.saxs_engine.figure_temperature import (
     build_temperature_figure_definitions,
 )
-from polynexus.core.saxs_engine.figure_common import SAXSFrameView
+from polynexus.core.saxs_engine.figure_common import (
+    SAXSFrameView,
+    frame_views_from_engine,
+)
 from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
 
 
@@ -393,6 +398,155 @@ def test_workbench_result_review_source_mismatch_remains_fail_closed() -> None:
 
     assert review["allowed"] is False
     assert review["reason"] == "source_mismatch"
+
+
+def test_existing_figure_review_sync_updates_only_review_provenance(tmp_path) -> None:
+    engine = _static_engine()
+    definitions = build_static_saxs_figure_definitions(engine)
+    FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="saxs-existing-review-sync",
+        technique="saxs",
+        definitions=(definitions[0],),
+    )
+    manifest_path = (
+        tmp_path / "runs" / "saxs-existing-review-sync" / "figure_manifest.json"
+    )
+    manifest_before = json.loads(manifest_path.read_text(encoding="utf-8"))
+    document_path = tmp_path / "runs" / "saxs-existing-review-sync" / manifest_before[
+        "figures"
+    ][0]["document"]
+    document_before = json.loads(document_path.read_text(encoding="utf-8"))
+    review = _accepted_saxs_1d_review("sample-0.dat", "sample-1.dat")
+
+    report = sync_saxs_review_evidence_to_existing_figures(
+        manifest_path,
+        frame_views_from_engine(engine),
+        review,
+    )
+
+    document_after = json.loads(document_path.read_text(encoding="utf-8"))
+    manifest_after = json.loads(manifest_path.read_text(encoding="utf-8"))
+    before_provenance = document_before["recipe"]["evidence"]["quality_provenance"]
+    after_provenance = document_after["recipe"]["evidence"]["quality_provenance"]
+
+    assert report["status"] == "ok"
+    assert report["updated_count"] == 1
+    assert after_provenance["scientific_review"]["reason"] == "review_accepted"
+    assert before_provenance.get("scientific_review") is None
+    document_before["recipe"]["evidence"]["quality_provenance"].pop(
+        "scientific_review", None
+    )
+    document_after["recipe"]["evidence"]["quality_provenance"].pop(
+        "scientific_review", None
+    )
+    assert document_after == document_before
+    assert manifest_after == manifest_before
+
+
+def test_existing_figure_review_sync_is_fail_closed_for_bad_review(tmp_path) -> None:
+    engine = _static_engine()
+    definitions = build_static_saxs_figure_definitions(engine)
+    FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="saxs-existing-review-fail-closed",
+        technique="saxs",
+        definitions=(definitions[0],),
+    )
+    manifest_path = (
+        tmp_path / "runs" / "saxs-existing-review-fail-closed" / "figure_manifest.json"
+    )
+    document_path = tmp_path / "runs" / "saxs-existing-review-fail-closed" / "figures" / "saxs.static.comparison" / "figure.pnfig.json"
+    before = json.loads(document_path.read_text(encoding="utf-8"))
+    cancelled = _accepted_saxs_1d_review("sample-0.dat", "sample-1.dat")
+    cancelled["status"] = "cancelled"
+
+    report = sync_saxs_review_evidence_to_existing_figures(
+        manifest_path,
+        frame_views_from_engine(engine),
+        cancelled,
+    )
+
+    after = json.loads(document_path.read_text(encoding="utf-8"))
+    review = after["recipe"]["evidence"]["quality_provenance"]["scientific_review"]
+    assert report["status"] == "ok"
+    assert review["allowed"] is False
+    assert review["reason"] != "review_accepted"
+    before["recipe"]["evidence"]["quality_provenance"].pop(
+        "scientific_review", None
+    )
+    after["recipe"]["evidence"]["quality_provenance"].pop(
+        "scientific_review", None
+    )
+    assert after == before
+
+
+def test_existing_figure_review_sync_uses_detector_scope_boundary(tmp_path) -> None:
+    engine = _static_engine()
+    definitions = build_static_saxs_figure_definitions(engine)
+    FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="saxs-existing-review-2d-scope",
+        technique="saxs",
+        definitions=(definitions[0],),
+    )
+    manifest_path = (
+        tmp_path / "runs" / "saxs-existing-review-2d-scope" / "figure_manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["figures"][0]["figure_id"] = "saxs.static.detector.2d"
+    document_path = tmp_path / "runs" / "saxs-existing-review-2d-scope" / manifest[
+        "figures"
+    ][0]["document"]
+    document = json.loads(document_path.read_text(encoding="utf-8"))
+    document["recipe"]["source_capability"] = "detector_2d"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    document_path.write_text(json.dumps(document), encoding="utf-8")
+
+    report = sync_saxs_review_evidence_to_existing_figures(
+        manifest_path,
+        frame_views_from_engine(engine),
+        _accepted_saxs_1d_review("sample-0.dat", "sample-1.dat"),
+    )
+
+    updated = json.loads(document_path.read_text(encoding="utf-8"))
+    review = updated["recipe"]["evidence"]["quality_provenance"]["scientific_review"]
+    assert report["updated_count"] == 1
+    assert review["allowed"] is False
+    assert review["reason"] == "scope_mismatch"
+
+
+def test_existing_figure_review_sync_missing_manifest_is_nonfatal(tmp_path) -> None:
+    report = sync_saxs_review_evidence_to_existing_figures(
+        tmp_path / "missing" / "figure_manifest.json",
+        (),
+        {},
+    )
+
+    assert report["status"] == "skipped"
+    assert report["updated_count"] == 0
+
+
+def test_saxs_engine_review_sync_uses_current_result_manifest(tmp_path) -> None:
+    source_engine = _static_engine()
+    definitions = build_static_saxs_figure_definitions(source_engine)
+    FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="saxs-engine-review-sync",
+        technique="saxs",
+        definitions=(definitions[0],),
+    )
+    manifest_path = tmp_path / "runs" / "saxs-engine-review-sync" / "figure_manifest.json"
+    engine = SAXSEngine.__new__(SAXSEngine)
+    engine.__dict__.update(vars(source_engine))
+    engine.result = SimpleNamespace(metadata={"figure_manifest": str(manifest_path)})
+
+    report = engine.sync_scientific_review_to_figures(
+        _accepted_saxs_1d_review("sample-0.dat", "sample-1.dat")
+    )
+
+    assert report["status"] == "ok"
+    assert report["updated_count"] == 1
 
 
 def test_ai_rescue_audit_binds_to_static_figure_and_manifest_without_roles(tmp_path) -> None:

@@ -63,6 +63,10 @@ from .saxs_sequence_qa import build_sequence_qa_summary
 from .saxs_result_contract import publish_saxs_result_contract
 from .saxs_export_bundle import SAXSExportBundle, export_saxs_bundle
 from .saxs_engine.processed_profile import ProcessedProfile, _coerce_numeric_array
+from .saxs_engine.figure_common import frame_views_from_engine
+from .saxs_engine.figure_evidence import (
+    sync_saxs_review_evidence_to_existing_figures,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -353,6 +357,7 @@ class SAXSEngine(BaseEngine):
                     if isinstance(evidence, dict)
                     else None
                 )
+
                 if not isinstance(provenance, dict):
                     logger.warning(
                         "SAXS figure audit provenance missing; audit sync skipped: %s",
@@ -370,6 +375,40 @@ class SAXSEngine(BaseEngine):
                     document_path,
                     exc,
                 )
+
+    def sync_scientific_review_to_figures(
+        self,
+        review_payload: Dict[str, Any] | None,
+    ) -> Dict[str, Any]:
+        """Project a newly saved Workbench review onto existing Figure docs."""
+
+        metadata = getattr(self.result, "metadata", None)
+        manifest_value = (
+            metadata.get("figure_manifest")
+            if isinstance(metadata, dict)
+            else None
+        )
+        if not manifest_value:
+            return {
+                "status": "skipped",
+                "updated_count": 0,
+                "skipped_count": 1,
+                "reason_codes": ["manifest_missing"],
+            }
+        try:
+            return sync_saxs_review_evidence_to_existing_figures(
+                Path(str(manifest_value)),
+                frame_views_from_engine(self),
+                review_payload,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("SAXS scientific review sync failed: %s", exc)
+            return {
+                "status": "skipped",
+                "updated_count": 0,
+                "skipped_count": 1,
+                "reason_codes": ["review_sync_failed"],
+            }
 
     def run_pipeline(
         self,

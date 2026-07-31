@@ -318,6 +318,14 @@ class MainWindowResultsMixin:
         metadata["scientific_review_decision"] = dict(snapshot)
         evidence["scientific_review_record"] = dict(record_payload)
         evidence["scientific_review"] = dict(snapshot)
+        if technique == "saxs":
+            engine = getattr(self, "_engine_cache", {}).get("saxs")
+            sync = getattr(engine, "sync_scientific_review_to_figures", None)
+            if callable(sync):
+                try:
+                    sync(record_payload)
+                except Exception as exc:  # pragma: no cover - defensive GUI boundary
+                    self.log(f"SAXS Figure review sync was skipped: {exc}")
 
     def _current_result_origin(self) -> str:
         technique = str(getattr(self, "_current_technique", "") or "").strip().lower()

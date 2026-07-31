@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from enum import Enum
-from pathlib import Path
+import json
+import os
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import tempfile
 from typing import Any
 
 import numpy as np
@@ -801,6 +804,154 @@ def attach_saxs_figure_evidence(
     return tuple(attached)
 
 
+def _safe_manifest_document_path(manifest_path: Path, value: Any) -> Path | None:
+    """Resolve one manifest-owned POSIX document path without path guessing."""
+
+    text = str(value or "")
+    if not text or "\\" in text:
+        return None
+    posix_path = PurePosixPath(text)
+    windows_path = PureWindowsPath(text)
+    if (
+        posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or ".." in posix_path.parts
+        or posix_path.as_posix() != text
+    ):
+        return None
+    root = manifest_path.parent.resolve()
+    candidate = (root / posix_path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
+
+
+def _document_uses_2d_review(document: Mapping[str, Any], figure_id: Any) -> bool:
+    """Classify a persisted detector/orientation recipe without inference."""
+
+    recipe = document.get("recipe", {})
+    recipe = recipe if isinstance(recipe, Mapping) else {}
+    parameters = recipe.get("parameters", {})
+    parameters = parameters if isinstance(parameters, Mapping) else {}
+    figure_text = str(figure_id or "")
+    return bool(
+        recipe.get("source_capability") == "detector_2d"
+        or parameters.get("source_capability") == "detector_2d"
+        or figure_text.endswith(".2d")
+        or figure_text.endswith(".azimuthal")
+    )
+
+
+def _atomic_write_figure_document(path: Path, document: Mapping[str, Any]) -> None:
+    """Persist one Figure document without exposing a half-written JSON file."""
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(document, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def sync_saxs_review_evidence_to_existing_figures(
+    manifest_path: str | Path,
+    frames: Sequence[SAXSFrameView],
+    review_payload: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Refresh review provenance in ready documents selected by a manifest.
+
+    The structural manifest is read but never rewritten. Only the detached
+    ``scientific_review`` field under an existing Figure provenance payload is
+    changed; all frame, metric, role, revision, and source fields remain owned
+    by the already-published document.
+    """
+
+    path = Path(manifest_path)
+    report: dict[str, Any] = {
+        "status": "ok",
+        "updated_count": 0,
+        "skipped_count": 0,
+        "reason_codes": [],
+    }
+
+    def skip(reason: str) -> None:
+        report["skipped_count"] += 1
+        if reason not in report["reason_codes"]:
+            report["reason_codes"].append(reason)
+
+    if not path.is_file():
+        report["status"] = "skipped"
+        skip("manifest_missing")
+        return report
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError):
+        report["status"] = "skipped"
+        skip("manifest_unreadable")
+        return report
+    entries = manifest.get("figures") if isinstance(manifest, Mapping) else None
+    if not isinstance(entries, list):
+        report["status"] = "skipped"
+        skip("manifest_figures_missing")
+        return report
+
+    for entry in entries:
+        if not isinstance(entry, Mapping) or str(entry.get("status") or "") != "ready":
+            continue
+        document_path = _safe_manifest_document_path(path, entry.get("document"))
+        if document_path is None:
+            skip("document_path_invalid")
+            continue
+        if not document_path.is_file():
+            skip("document_missing")
+            continue
+        try:
+            document = json.loads(document_path.read_text(encoding="utf-8"))
+            if not isinstance(document, dict):
+                skip("document_invalid")
+                continue
+            recipe = document.get("recipe")
+            evidence = recipe.get("evidence") if isinstance(recipe, dict) else None
+            provenance = (
+                evidence.get("quality_provenance")
+                if isinstance(evidence, dict)
+                else None
+            )
+            if not isinstance(provenance, dict):
+                skip("review_provenance_missing")
+                continue
+            projected = build_saxs_review_evidence(
+                review_payload,
+                tuple(frame for frame in frames if isinstance(frame, SAXSFrameView)),
+                expected_scope=(
+                    "saxs.2d"
+                    if _document_uses_2d_review(document, entry.get("figure_id"))
+                    else "saxs.1d"
+                ),
+            )
+            provenance["scientific_review"] = projected
+            _atomic_write_figure_document(document_path, document)
+            report["updated_count"] += 1
+        except (OSError, TypeError, ValueError):
+            skip("document_sync_failed")
+
+    if report["skipped_count"] and not report["updated_count"]:
+        report["status"] = "skipped"
+    return report
+
+
 def existing_saxs_acceptance_audit(source: Any) -> dict[str, Any] | None:
     """Return a detached existing audit snapshot without recalculating it."""
 
@@ -824,4 +975,5 @@ __all__ = [
     "configured_saxs_1d_review",
     "configured_saxs_review_evidence",
     "existing_saxs_acceptance_audit",
+    "sync_saxs_review_evidence_to_existing_figures",
 ]
