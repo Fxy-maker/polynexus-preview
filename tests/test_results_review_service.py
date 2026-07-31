@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from polynexus.gui import results_review_service
 from polynexus.gui.analysis_history_service import ControlledOptimizationReviewParts
 from polynexus.gui.i18n import get_language, set_language, tr
 from polynexus.gui.results_review_service import (
@@ -1302,6 +1303,39 @@ def test_result_review_round_support_summary_surfaces_nmr_assignment_and_axis_bo
     assert "Vendor axis | x/1 | Carbon13 | origin x_offset=100 ppm | sweep x_sweep=300 ppm | points x_points=1024 | not applied" in text
 
 
+def test_result_review_round_support_summary_honors_explicit_language(monkeypatch):
+    previous = get_language()
+    set_language("zh")
+    try:
+        text = result_review_round_support_summary_text(
+            {
+                "feature_evidence": {
+                    "assignment_evidence": {
+                        "readiness": {"class": "assignment_limited"},
+                        "assignment_source": "generic_region",
+                    },
+                    "structure_evidence": {
+                        "Xc_assignment_status": "assignment_limited",
+                        "paper_conclusion_ready": False,
+                        "assignment_readiness": {
+                            "class": "assignment_limited",
+                            "allowed": False,
+                            "reason": "phase_assignment_limited",
+                        },
+                    },
+                }
+            },
+            technique="nmr",
+            language="en",
+        )
+
+        assert "Assignment readiness | assignment_limited" in text
+        assert "Xc promotion | blocked" in text
+        assert "固体 13C" not in text
+    finally:
+        set_language(previous)
+
+
 def test_result_review_round_support_summary_surfaces_nmr_xc_promotion_gate():
     text = result_review_round_support_summary_text(
         {
@@ -1334,7 +1368,9 @@ def test_result_review_round_support_summary_surfaces_nmr_xc_promotion_gate():
     assert "Assignment source | generic_region" in text
 
 
-def test_build_result_review_panel_texts_from_window_surfaces_nmr_evidence_gate():
+def test_build_result_review_panel_texts_from_window_surfaces_nmr_evidence_gate(monkeypatch):
+    monkeypatch.setattr(results_review_service, "get_language", lambda: "en")
+
     class _NMRPanelWindow:
         _current_technique = "nmr"
 

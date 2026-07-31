@@ -470,7 +470,13 @@ def result_review_analysis_evidence_card_text(
         parts = []
         readiness = structure.get("assignment_readiness") or assignment.get("readiness")
         if isinstance(readiness, dict) and readiness.get("class"):
-            parts.append(tr("RESULTS_REVIEW_NMR_ASSIGNMENT", str(readiness["class"])))
+            parts.append(
+                tr_for_language(
+                    "RESULTS_REVIEW_NMR_ASSIGNMENT",
+                    language,
+                    str(readiness["class"]),
+                )
+            )
         if isinstance(axis, dict) and axis:
             axis_parts = []
             for key in ("source", "units", "calibrated"):
@@ -616,14 +622,26 @@ def result_review_round_support_summary_text(
         parts = []
         readiness = structure.get("assignment_readiness") or assignment.get("readiness")
         if isinstance(readiness, dict) and readiness.get("class"):
-            parts.append(tr("RESULTS_REVIEW_NMR_ASSIGNMENT", str(readiness["class"])))
+            parts.append(
+                tr_for_language(
+                    "RESULTS_REVIEW_NMR_ASSIGNMENT",
+                    language,
+                    str(readiness["class"]),
+                )
+            )
         assignment_source = str(
             assignment.get("assignment_source")
             or assignment.get("assignment_library_source")
             or ""
         ).strip()
         if assignment_source:
-            parts.append(tr("RESULTS_REVIEW_NMR_ASSIGNMENT_SOURCE", assignment_source))
+            parts.append(
+                tr_for_language(
+                    "RESULTS_REVIEW_NMR_ASSIGNMENT_SOURCE",
+                    language,
+                    assignment_source,
+                )
+            )
         if isinstance(axis, dict) and axis:
             axis_parts = []
             for key in ("source", "units", "calibrated"):
@@ -631,17 +649,36 @@ def result_review_round_support_summary_text(
                 if value is not None and str(value).strip():
                     axis_parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
             if axis_parts:
-                parts.append(tr("RESULTS_REVIEW_NMR_AXIS", " | ".join(axis_parts)))
+                parts.append(
+                    tr_for_language(
+                        "RESULTS_REVIEW_NMR_AXIS",
+                        language,
+                        " | ".join(axis_parts),
+                    )
+                )
             vendor_axis_text = _nmr_vendor_axis_text(axis.get("vendor_declaration"))
             if vendor_axis_text:
-                parts.append(tr("RESULTS_REVIEW_NMR_VENDOR_AXIS", vendor_axis_text))
+                parts.append(
+                    tr_for_language(
+                        "RESULTS_REVIEW_NMR_VENDOR_AXIS",
+                        language,
+                        vendor_axis_text,
+                    )
+                )
         xc_status = str(structure.get("Xc_assignment_status") or "").strip()
         if xc_status:
             ready = structure.get("paper_conclusion_ready") is True
             allowed = isinstance(readiness, dict) and readiness.get("allowed") is True
             gate = "allowed" if ready and allowed else "blocked"
             reason = str(readiness.get("reason") or "") if isinstance(readiness, dict) else ""
-            parts.append(tr("RESULTS_REVIEW_NMR_XC_GATE", gate, reason or xc_status))
+            parts.append(
+                tr_for_language(
+                    "RESULTS_REVIEW_NMR_XC_GATE",
+                    language,
+                    gate,
+                    reason or xc_status,
+                )
+            )
         if parts:
             return " | ".join(parts)
 
