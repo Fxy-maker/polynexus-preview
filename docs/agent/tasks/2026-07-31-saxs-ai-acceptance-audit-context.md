@@ -82,6 +82,11 @@ without a final summary is recorded as incomplete, never as a pass.
 - GREEN: audit/live focused `9 passed in 1.42s`; combined Advisor/prompt/summary
   regression `24 passed in 0.97s`; final combined focused suite `25 passed in
   1.70s`.
+- Contract correction recorded during final live-context review: the temperature
+  parameterization asserts `context["series"]["guinier_sequence_evidence"]`,
+  while the strain parameterization asserts
+  `context["series"]["metric_evidence"]["guinier"]`. This is a test-contract
+  correction only; production logic was not changed.
 
 ## Verification evidence
 
@@ -93,6 +98,16 @@ without a final summary is recorded as incomplete, never as a pass.
 - Audit consumer regression: `18 passed in 93.87s`; `git diff --check` passed.
 - Final storage report and clean were dry-run only: `68` artifacts,
   `13,075,489,954` bytes total, `0` eligible bytes, and `0` removed.
+- Fresh follow-up verification after the live-context test-contract correction:
+  Advisor/prompt/summary/live regression `25 passed in 2.48s`; the complete
+  SAXS matrix `694 passed, 6 warnings in 536.21s`, exit `0`.
+- Fresh structured verifier exit `0`: quality `297 passed`, preprocessing
+  `106 passed`, task/memory checks, Ruff, compile, type baseline, whitespace,
+  and diff checks passed.
+- Fresh storage report and dry-run clean exit `0`: `142` artifacts,
+  `28,835,126,572` bytes total, `79` eligible artifacts,
+  `15,743,185,346` eligible bytes, `0` removed, and `0` failures. No
+  `test_storage.py --apply` was executed.
 
 ## Explicit changed-file allowlist
 

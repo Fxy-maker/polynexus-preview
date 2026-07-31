@@ -18,23 +18,23 @@
 
 **Files:** `tests/test_saxs_ai_acceptance_audit_context.py`, `tests/test_saxs_ai_live_context.py`
 
-- [ ] Assert an existing static audit is projected and detached.
-- [ ] Assert an engine wrapper exposes its existing temperature audit while retaining series evidence.
-- [ ] Assert malformed/missing audits are omitted and raw/unknown fields do not enter the context.
-- [ ] Run the new focused tests and capture the expected RED before implementation.
+- [x] Assert an existing static audit is projected and detached.
+- [x] Assert an engine wrapper exposes its existing temperature audit while retaining series evidence.
+- [x] Assert malformed/missing audits are omitted and raw/unknown fields do not enter the context.
+- [x] Run the new focused tests and capture the expected RED before implementation.
 
 ### Task 3: Implement the minimal GREEN projection
 
 **Files:** `polynexus/core/saxs_engine/saxs_ai_rescue.py`, `polynexus/orchestrator_state.py`
 
-- [ ] Unwrap mode-specific series results without changing existing frame selection.
-- [ ] Project only the existing scientific audit summary fields and strict-JSON-safe nested summaries.
-- [ ] Pass the existing engine boundary from live SAXS state so temperature/strain audits are available.
-- [ ] Run focused tests and Advisor/prompt regressions.
+- [x] Unwrap mode-specific series results without changing existing frame selection.
+- [x] Project only the existing scientific audit summary fields and strict-JSON-safe nested summaries.
+- [x] Pass the existing engine boundary from live SAXS state so temperature/strain audits are available.
+- [x] Run focused tests and Advisor/prompt regressions.
 
 ### Task 4: Verify and checkpoint
 
-- [ ] Run the focused audit/live/Advisor/prompt suite.
-- [ ] Run the exact SAXS matrix and classify only complete pytest summaries as pass evidence.
-- [ ] Run the structured task verifier, storage report, storage dry-run clean, and `git diff --check`.
-- [ ] Review the disjoint diff and create one explicit allowlist checkpoint with `scripts/auto_commit.py`.
+- [x] Run the focused audit/live/Advisor/prompt suite.
+- [x] Run the exact SAXS matrix and classify only complete pytest summaries as pass evidence.
+- [x] Run the structured task verifier, storage report, storage dry-run clean, and `git diff --check`.
+- [x] Review the disjoint diff and create one explicit allowlist checkpoint with `scripts/auto_commit.py`.
