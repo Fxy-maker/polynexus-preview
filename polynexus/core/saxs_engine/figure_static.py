@@ -41,6 +41,12 @@ from .figure_selection import select_representative_frames
 
 _COLORS = ("#4477AA", "#EE6677", "#228833", "#CCBB44", "#66CCEE", "#AA3377")
 _DIAGNOSTIC_METHODS = ("correlation", "idf", "porod", "guinier", "kratky")
+_STATIC_METHOD_EVIDENCE_METHODS = (
+    ("porod", "Porod", "a.u.", "#0072B2"),
+    ("kratky", "Kratky", "nm^-1", "#009E73"),
+    ("invariant", "Invariant", "a.u.", "#D55E00"),
+    ("lamellar", "Lamellar", "nm", "#CC79A7"),
+)
 
 
 def _static_eligibility(frame: SAXSFrameView):
@@ -55,6 +61,14 @@ def _finite_number(value: Any) -> bool:
         return bool(np.isfinite(float(value)))
     except (TypeError, ValueError):
         return False
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
 
 
 def _parameter(frame: SAXSFrameView, *keys: str) -> Any:
@@ -163,6 +177,8 @@ def _source(
     source_id: str,
     columns: Sequence[tuple[str, str, str]],
     values: Mapping[str, Sequence[Any]],
+    *,
+    role: str = "plot_data",
 ) -> FigureDataSourceDefinition:
     return FigureDataSourceDefinition(
         source_id=source_id,
@@ -171,6 +187,7 @@ def _source(
             for name, unit, dtype in columns
         ),
         values={name: tuple(items) for name, items in values.items()},
+        role=role,
     )
 
 
@@ -903,6 +920,168 @@ def _build_diagnostic(frame: SAXSFrameView, method: str) -> FigureDefinition | N
     )
 
 
+def _method_reason_codes(payload: Mapping[str, Any]) -> str | None:
+    raw_reasons = payload.get("reason_codes")
+    if isinstance(raw_reasons, str):
+        return raw_reasons or None
+    if isinstance(raw_reasons, (list, tuple)):
+        return "|".join(str(reason) for reason in raw_reasons) or None
+    return None
+
+
+def _build_static_method_evidence(
+    frames: Sequence[SAXSFrameView],
+) -> FigureDefinition | None:
+    """Project existing static frame metric evidence into a diagnostic figure."""
+
+    if not any(
+        isinstance(getattr(frame.analysis, "metric_evidence", None), Mapping)
+        and any(
+            isinstance(
+                getattr(frame.analysis, "metric_evidence", {}).get(method),
+                Mapping,
+            )
+            for method, _label, _unit, _color in _STATIC_METHOD_EVIDENCE_METHODS
+        )
+        for frame in frames
+    ):
+        return None
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, Any]] = []
+    plot_methods: list[str] = []
+    for method, label, unit, color in _STATIC_METHOD_EVIDENCE_METHODS:
+        audit_indices: list[int | None] = []
+        audit_values: list[float | None] = []
+        source_paths: list[str | None] = []
+        levels: list[str | None] = []
+        reasons: list[str | None] = []
+        plot_indices: list[float] = []
+        plot_values: list[float] = []
+        for frame in frames:
+            payloads = getattr(frame.analysis, "metric_evidence", None)
+            payload = payloads.get(method) if isinstance(payloads, Mapping) else None
+            value = (
+                _finite_float_or_none(payload.get("value"))
+                if isinstance(payload, Mapping)
+                else None
+            )
+            index_value = _finite_float_or_none(frame.index)
+            audit_indices.append(
+                int(index_value) if index_value is not None else None
+            )
+            audit_values.append(value)
+            source_path = str(frame.source_path or "").strip()
+            source_paths.append(source_path or None)
+            if isinstance(payload, Mapping):
+                raw_level = str(payload.get("level") or "").strip()
+                levels.append(raw_level or None)
+                reasons.append(_method_reason_codes(payload))
+            else:
+                levels.append(None)
+                reasons.append(None)
+            if index_value is not None and value is not None:
+                plot_indices.append(index_value)
+                plot_values.append(value)
+
+        audit_source_id = f"static-method-evidence-{method}"
+        plot_source_id = f"{audit_source_id}-plot"
+        sources.append(
+            _source(
+                audit_source_id,
+                (
+                    ("frame_index", "index", "int64"),
+                    ("value", unit, "float64"),
+                    ("source_path", "path", "string"),
+                    ("frame_level", "level", "string"),
+                    ("frame_reason_codes", "reason", "string"),
+                ),
+                {
+                    "frame_index": audit_indices,
+                    "value": audit_values,
+                    "source_path": source_paths,
+                    "frame_level": levels,
+                    "frame_reason_codes": reasons,
+                },
+                role="method_evidence_audit",
+            )
+        )
+        if plot_values:
+            sources.append(
+                _source(
+                    plot_source_id,
+                    (
+                        ("frame_index", "index", "float64"),
+                        ("value", unit, "float64"),
+                    ),
+                    {
+                        "frame_index": plot_indices,
+                        "value": plot_values,
+                    },
+                    role="method_evidence_plot",
+                )
+            )
+            plot_methods.append(method)
+            objects.append(
+                _plot_object(
+                    f"static-method-{method}",
+                    method,
+                    plot_source_id,
+                    "frame_index",
+                    "value",
+                    name=label,
+                    color=color,
+                    chart_kind="scatter",
+                    marker="o",
+                )
+            )
+
+    panels = tuple(
+        _panel(
+            method,
+            index // 2,
+            index % 2,
+            title=label,
+            x_label="Frame index",
+            x_unit="index",
+            y_label=label,
+            y_unit=unit,
+        )
+        for index, (method, label, unit, _color) in enumerate(
+            _STATIC_METHOD_EVIDENCE_METHODS
+        )
+    )
+    return _definition(
+        figure_id="saxs.static.method_evidence",
+        scope="series",
+        category="diagnostic",
+        role="diagnostic",
+        title="Static SAXS Method Evidence",
+        display_order=150,
+        panels=panels,
+        sources=sources,
+        objects=objects,
+        rows=2,
+        columns=2,
+        width=7.5,
+        height=5.5,
+        recipe_inputs={"frame_count": len(frames)},
+        recipe_parameters={
+            "figure_kind": "method_evidence_diagnostic",
+            "methods": [
+                method for method, _label, _unit, _color in _STATIC_METHOD_EVIDENCE_METHODS
+            ],
+            "plot_methods": plot_methods,
+            "sequence_axis": "frame_index",
+            "source_mapping": "static_frame_order",
+            "missing_values_preserved": True,
+            "interpolation": False,
+            "reclassification": False,
+        },
+        v2_adapter="saxs_static",
+    )
+
+
 def _detector_heatmap_object(
     item: Any,
     panel_id: str,
@@ -1065,6 +1244,9 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
     detector = _build_detector_figure(frames)
     if detector is not None:
         definitions.append(detector)
+    method_evidence = _build_static_method_evidence(frames)
+    if method_evidence is not None:
+        definitions.append(method_evidence)
     for frame in frames:
         for method in _DIAGNOSTIC_METHODS:
             diagnostic = _build_diagnostic(frame, method)
