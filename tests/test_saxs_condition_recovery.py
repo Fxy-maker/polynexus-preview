@@ -99,3 +99,28 @@ def test_scan_experiment_dir_ignores_generated_output_tree(tmp_path) -> None:
     discovered = [path for condition in conditions for path in condition.files]
 
     assert [Path(path).resolve() for path in discovered] == [raw.resolve()]
+
+
+def test_strain_filename_value_precedes_directory_sample_code(tmp_path) -> None:
+    root = tmp_path / "610"
+    root.mkdir()
+    path = root / "610-005-S_0_00000.edf"
+
+    cfg = SAXSConfig(experiment_type="strain", condition_label="Strain", condition_unit="%")
+    recovered = recover_condition_axis(path, cfg)
+
+    assert recovered["value"] == 5.0
+    assert recovered["source"] == "path_filename"
+    assert recovered["source_key"] == "strain_dash_S_suffix"
+
+
+def test_static_mode_does_not_interpret_strain_filename_or_directory_as_condition(tmp_path) -> None:
+    root = tmp_path / "610"
+    root.mkdir()
+    path = root / "610-005-S_0_00000.edf"
+
+    recovered = recover_condition_axis(path, SAXSConfig(experiment_type="static"))
+
+    assert np.isnan(recovered["value"])
+    assert recovered["source"] == "unresolved"
+    assert recovered["source_key"] == ""

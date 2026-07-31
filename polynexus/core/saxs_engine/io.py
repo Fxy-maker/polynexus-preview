@@ -5,9 +5,6 @@ Uses fabio for multi-format 2D detector image reading,
 xarray for multi-dimensional in-situ data management.
 """
 import logging
-logger = logging.getLogger(__name__)
-
-
 import os as _os
 from pathlib import Path
 from typing import Any, List, Tuple, Optional, Dict, Mapping
@@ -16,6 +13,8 @@ import xarray as xr
 import pandas as pd
 
 from .config import SAXSConfig, ExperimentCondition
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -167,8 +166,8 @@ def read_1d_profile(filepath: str) -> Tuple[np.ndarray, np.ndarray, dict]:
         df = pd.read_csv(filepath)
         cols = df.columns
         q = df[cols[0]].values.astype(np.float64)
-        I = df[cols[1]].values.astype(np.float64)
-        return q, I, {}
+        intensity = df[cols[1]].values.astype(np.float64)
+        return q, intensity, {}
 
     # Generic text (dat, txt, xy)
     try:
@@ -384,17 +383,17 @@ def assemble_dataset(
         img, header = read_image(fpath)
 
         if integration_fn is not None:
-            q, I, I_m, I_e = integration_fn(img, cfg)
+            q, intensity, intensity_meridional, intensity_equatorial = integration_fn(img, cfg)
             if q_data is None:
                 q_data = q
             cond_key = cond.condition_key if cond.condition_key is not None else (
                 cond.value if np.isfinite(cond.value) else f"condition::{len(all_Iq)}"
             )
-            all_Iq[cond_key] = I
-            if I_m is not None:
-                all_Iq_merid[cond_key] = I_m
-            if I_e is not None:
-                all_Iq_equat[cond_key] = I_e
+            all_Iq[cond_key] = intensity
+            if intensity_meridional is not None:
+                all_Iq_merid[cond_key] = intensity_meridional
+            if intensity_equatorial is not None:
+                all_Iq_equat[cond_key] = intensity_equatorial
         else:
             # Store raw image; q is just pixel index
             if q_data is None:
@@ -506,9 +505,9 @@ def _parse_condition(entry: Path, cfg: "SAXSConfig") -> float:
 
     for p in patterns:
         # ---- Skip if pattern doesn't match experiment type ----
-        if exp_type == "strain" and p.name.startswith("temp_"):
+        if p.name.startswith("strain_") and exp_type != "strain":
             continue
-        if exp_type == "temperature" and p.name.startswith("strain_"):
+        if p.name.startswith("temp_") and exp_type != "temperature":
             continue
 
         # ---- Search ----
@@ -644,9 +643,9 @@ def _parse_condition_detail(entry: Path, cfg: "SAXSConfig") -> dict[str, Any]:
 
     exp_type = cfg.experiment_type
     for pattern in patterns:
-        if exp_type == "strain" and pattern.name.startswith("temp_"):
+        if pattern.name.startswith("strain_") and exp_type != "strain":
             continue
-        if exp_type == "temperature" and pattern.name.startswith("strain_"):
+        if pattern.name.startswith("temp_") and exp_type != "temperature":
             continue
 
         regex = pattern.regex
@@ -910,8 +909,6 @@ def _read_edf_fallback(filepath: str) -> Tuple[np.ndarray, dict]:
     nothing.  This reader handles byte-order via the ``ByteOrder`` header key
     and supports all common pixel data types.
     """
-    import re
-
     with open(filepath, 'rb') as f:
         raw = f.read()
 

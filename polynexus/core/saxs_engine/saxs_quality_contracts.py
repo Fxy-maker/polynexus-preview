@@ -163,6 +163,7 @@ class DetectorQualityReport:
     finite_pixel_count: int = 0
     nonfinite_pixel_count: int = 0
     nonpositive_pixel_count: int = 0
+    unexpected_nonpositive_pixel_count: int = 0
     background_floor_pixel_count: int = 0
     masked_sentinel_pixel_count: int = 0
     unexpected_negative_pixel_count: int = 0
@@ -273,6 +274,8 @@ def build_detector_quality_report(
     background_floor_count = int(np.count_nonzero(background_floor))
     masked_sentinel = mask_array & finite & ~background_floor
     masked_sentinel_count = int(np.count_nonzero(masked_sentinel))
+    unexpected_nonpositive = finite & (array <= 0) & ~background_floor & ~mask_array
+    unexpected_nonpositive_count = int(np.count_nonzero(unexpected_nonpositive))
     unexpected_negative = finite & (array < 0) & ~background_floor & ~mask_array
     unexpected_negative_count = int(np.count_nonzero(unexpected_negative))
 
@@ -318,10 +321,8 @@ def build_detector_quality_report(
 
     if nonfinite_count:
         reasons.append("nonfinite_pixels")
-    if nonpositive_count:
+    if unexpected_nonpositive_count:
         reasons.append("nonpositive_pixels")
-    if masked_count:
-        reasons.append("masked_pixels")
     if saturated_count:
         reasons.append("saturated_pixels")
     if normalized_source == "unknown":
@@ -330,7 +331,7 @@ def build_detector_quality_report(
     defect_reasons = {
         "detector_input_invalid", "detector_input_not_2d", "detector_input_empty",
         "mask_shape_mismatch", "saturation_value_invalid", "nonfinite_pixels",
-        "nonpositive_pixels", "masked_pixels", "saturated_pixels", "beam_center_invalid",
+        "nonpositive_pixels", "saturated_pixels", "beam_center_invalid",
     }
     if pixel_count == 0 or valid_count == 0:
         level = QualityLevel.UNUSABLE
@@ -347,6 +348,7 @@ def build_detector_quality_report(
         finite_pixel_count=finite_count,
         nonfinite_pixel_count=nonfinite_count,
         nonpositive_pixel_count=nonpositive_count,
+        unexpected_nonpositive_pixel_count=unexpected_nonpositive_count,
         background_floor_pixel_count=background_floor_count,
         masked_sentinel_pixel_count=masked_sentinel_count,
         unexpected_negative_pixel_count=unexpected_negative_count,
@@ -2232,7 +2234,13 @@ _RAW_DETECTOR_GEOMETRY_FIELDS = (
     "beam_center_x",
     "beam_center_y",
 )
-_PROVENANCE_VALIDITIES = {"validated", "not_assessed", "invalid"}
+_PROVENANCE_VALIDITIES = {
+    "validated",
+    "not_assessed",
+    "invalid",
+    "metadata_complete",
+    "configured_shape_match",
+}
 
 
 def _audit_raw_detector_provenance(

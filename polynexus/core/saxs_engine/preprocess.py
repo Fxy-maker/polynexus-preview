@@ -923,6 +923,13 @@ def _geometry_provenance(
         source = "invalid_header"
     else:
         source = "mixed"
+    validity = (
+        "metadata_complete"
+        if source == "header"
+        else "invalid"
+        if source == "invalid_header"
+        else "not_assessed"
+    )
     return {
         "source": source,
         "field_sources": field_sources,
@@ -933,7 +940,7 @@ def _geometry_provenance(
             "beam_center_x": _finite_config_value(getattr(cfg, "beam_center_x", None)),
             "beam_center_y": _finite_config_value(getattr(cfg, "beam_center_y", None)),
         },
-        "validity": "not_assessed",
+        "validity": validity,
     }
 
 
@@ -954,7 +961,8 @@ def _mask_provenance(
     else:
         shape = getattr(mask, "shape", ())
         image_shape = getattr(img, "shape", ())
-        if len(shape) == 2 and tuple(shape) == tuple(image_shape):
+        shape_matches = len(shape) == 2 and tuple(shape) == tuple(image_shape)
+        if shape_matches:
             serialized_shape = [int(item) for item in shape]
         else:
             serialized_shape = None
@@ -962,7 +970,7 @@ def _mask_provenance(
             "source": "saxs_config.dummy_value",
             "configured": True,
             "shape": serialized_shape,
-            "validity": "not_assessed",
+            "validity": "configured_shape_match" if shape_matches else "invalid",
         }
     if isinstance(edit_provenance, Mapping):
         for key in (

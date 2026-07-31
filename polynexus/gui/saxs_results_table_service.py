@@ -997,6 +997,7 @@ def _detector_provenance_audit_review_text(
         return "", ""
 
     details: list[str] = []
+    seen_details: set[str] = set()
     needs_review = False
     for report in reports:
         if not isinstance(report, Mapping):
@@ -1020,11 +1021,14 @@ def _detector_provenance_audit_review_text(
             reason_values = ()
         reasons = tuple(reason.strip()[:100] for reason in reason_values if reason.strip())
         reason_text = ",".join(reasons[:5]) or "none"
-        details.append(
+        detail = (
             "Detector provenance audit: "
             f"status={status}; level={level}; geometry={geometry_validity}; "
             f"mask={mask_validity}; reasons={reason_text}"
         )
+        if detail not in seen_details:
+            details.append(detail)
+            seen_details.add(detail)
         needs_review = needs_review or status.lower() in {"review_required", "unusable"}
 
     if not details:

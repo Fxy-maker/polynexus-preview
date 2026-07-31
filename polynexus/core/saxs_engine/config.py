@@ -59,16 +59,16 @@ def _default_condition_patterns() -> List[ConditionPattern]:
     return [
         # ---- Strain patterns (matched first for experiment_type="strain") ----
         ConditionPattern(
+            name="strain_dash_S_suffix",
+            regex=r"-(\d+)-[Ss]_",
+            unit="%",
+            lookup_map="strain_map",
+        ),
+        ConditionPattern(
             name="strain_directory_code",
             regex=r"^(\d{3})$",
             unit="%",
             search_path=True,
-            lookup_map="strain_map",
-        ),
-        ConditionPattern(
-            name="strain_dash_S_suffix",
-            regex=r"-(\d+)-[Ss]_",
-            unit="%",
             lookup_map="strain_map",
         ),
         ConditionPattern(

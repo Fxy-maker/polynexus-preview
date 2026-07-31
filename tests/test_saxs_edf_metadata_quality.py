@@ -82,8 +82,8 @@ def test_edf_header_metadata_is_exposed_without_promoting_calibration() -> None:
     assert metadata["dummy_value"] == -1.5
     assert metadata["dummy_tolerance"] == 0.6
     assert metadata["background_correction_constant"] == 0.0024174
-    assert report["geometry_provenance"]["validity"] == "not_assessed"
-    assert report["mask_provenance"]["validity"] == "not_assessed"
+    assert report["geometry_provenance"]["validity"] == "metadata_complete"
+    assert report["mask_provenance"]["validity"] == "configured_shape_match"
     json.dumps(report, allow_nan=False)
 
 
@@ -106,12 +106,61 @@ def test_processed_negative_pixels_are_classified_without_hiding_raw_count() -> 
         mask=mask,
         source_kind="raw_detector",
         background_floor_value=-0.0024174,
+        beam_center=(1.0, 1.0),
     )
 
     assert report.nonpositive_pixel_count == 4
     assert report.background_floor_pixel_count == 2
     assert report.masked_sentinel_pixel_count == 1
     assert report.unexpected_negative_pixel_count == 1
+
+
+def test_declared_floor_and_shape_matched_mask_are_expected_exclusions() -> None:
+    from polynexus.core.saxs_engine.saxs_quality_contracts import (
+        build_detector_quality_report,
+    )
+
+    image = np.asarray(
+        [[-0.0024174, -0.0024174, -1.5], [1.0, 2.0, 3.0]],
+        dtype=np.float64,
+    )
+    mask = np.asarray(
+        [[False, False, True], [False, False, False]],
+        dtype=bool,
+    )
+
+    report = build_detector_quality_report(
+        image,
+        mask=mask,
+        source_kind="raw_detector",
+        background_floor_value=-0.0024174,
+        beam_center=(1.0, 1.0),
+    )
+
+    assert report.nonpositive_pixel_count == 3
+    assert report.background_floor_pixel_count == 2
+    assert report.masked_sentinel_pixel_count == 1
+    assert report.unexpected_nonpositive_pixel_count == 0
+    assert "nonpositive_pixels" not in report.reason_codes
+    assert "masked_pixels" not in report.reason_codes
+    assert report.level.value == "Trend"
+
+
+def test_unexpected_nonpositive_pixels_remain_diagnostic() -> None:
+    from polynexus.core.saxs_engine.saxs_quality_contracts import (
+        build_detector_quality_report,
+    )
+
+    report = build_detector_quality_report(
+        np.asarray([[0.0, -2.0], [1.0, 2.0]], dtype=np.float64),
+        source_kind="raw_detector",
+        background_floor_value=-0.0024174,
+        beam_center=(0.5, 0.5),
+    )
+
+    assert report.unexpected_nonpositive_pixel_count == 2
+    assert "nonpositive_pixels" in report.reason_codes
+    assert report.level.value == "Diagnostic"
 
 
 def test_zero_saturation_field_is_unresolved_but_positive_threshold_still_works() -> None:
@@ -156,8 +205,8 @@ def test_four_edf_frames_keep_independent_metadata_and_quality_counts(tmp_path, 
         np.asarray([[-16.0, -0.0024174], [2.0, 3.0]], dtype=np.float32),
     ]
     paths = []
-    for index, image in enumerate(images):
-        path = tmp_path / f"610-{index:03d}-S_0_00000.edf"
+    for strain_value, image in zip((0, 5, 60, 200), images):
+        path = tmp_path / f"610-{strain_value:03d}-S_0_00000.edf"
         _write_edf(path, image, header)
         paths.append(path)
 

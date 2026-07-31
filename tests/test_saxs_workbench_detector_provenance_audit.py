@@ -131,3 +131,22 @@ def test_detector_provenance_reasons_are_bounded_and_non_string_values_ignored()
     assert "reason_5" in presentation.risk_text
     assert "reason_6" not in presentation.risk_text
     assert "99" not in presentation.risk_text
+
+
+def test_identical_detector_audits_are_rendered_once_per_presentation_field() -> None:
+    audit = {
+        "raw_detector_quality_report": [
+            {
+                "status": "review_required",
+                "level": "Diagnostic",
+                "geometry": {"validity": "metadata_complete"},
+                "mask": {"validity": "configured_shape_match"},
+                "reason_codes": ["detector_saturation_unknown"],
+            }
+        ] * 4,
+    }
+
+    presentation = _presentation(audit)
+
+    assert presentation.risk_text.count("Detector provenance audit") == 1
+    assert presentation.next_text.count("Detector provenance audit") == 1
