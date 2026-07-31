@@ -35,7 +35,6 @@
 
 - [x] Run `python scripts/verify.py --task docs/agent/tasks/2026-07-31-nonsaxs-real-published-run-recheck.md --changed --types`; exit `0`, quality `297`, preprocessing `106`.
 - [x] Run storage report and the authorized `clean --older-than-hours 24 --apply --json`; the apply removed eligible artifacts, skipped permission-locked historical directories, and left `eligible_bytes=0`.
-- [ ] Run `python scripts/verify.py --task docs/agent/tasks/2026-07-31-nonsaxs-real-published-run-recheck.md --changed --types`.
 - [x] Run `git diff --check` and perform a cumulative diff review.
 - [x] Create one checkpoint using only this task's three documentation files.
 
@@ -45,3 +44,5 @@
 - Read: `docs/acceptance/2026-07-31-full-goal-release-evidence-audit.md`
 
 - [x] Treat this evidence as automated real-fixture lifecycle proof only; retain the separate restarted-GUI, scientific, vendor-semantic, and final authorization gates.
+- [x] Inspect representative native Results captures and record visible
+      conservative states without converting them into scientific sign-off.

@@ -53,6 +53,8 @@ Export provenance, and History restore.
 - [x] Diagnostic-only, SI-only, validation-required, and assignment-limited
       outcomes remain explicitly unpromoted.
 - [x] Task verifier, storage audit, and diff check have exact outcomes.
+- [x] Existing native non-SAXS route captures were visually reviewed for
+      Results-state clarity and conservative scientific status labels.
 - [x] One allowlist checkpoint contains only this task's plan, task card, and
       acceptance record.
 
@@ -113,3 +115,9 @@ The three documentation files are ready for an explicit allowlist checkpoint.
 - `git diff --check` exited `0`.
 - Final real-fixture selector: `12 passed, 3 deselected, 11 warnings in 291.31s`, exit `0`.
 - Storage apply was already executed under explicit user authorization; it reclaimed eligible artifacts, skipped ten permission-locked historical directories, and left zero eligible bytes in the subsequent inventory.
+- Native visual evidence from
+  `D:\PolyNexus_native_all_routes_current_nonsaxs_post_joint_display_20260730`
+  shows IR mapping `Review required`, NMR solid-C `Review required`, Joint
+  `2 errors, 2 warnings` with `blocked / allowed=false`, and WAXS strain
+  `Not applicable` with a physical-support limitation. These are correct
+  conservative states, not scientific approval.

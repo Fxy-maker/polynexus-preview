@@ -46,6 +46,24 @@ Manifest/Gallery, Editor working and published revisions, Export provenance,
 and History restore. It does not close scientific, vendor-semantic,
 restarted-GUI, or final release gates.
 
+## Native visual evidence
+
+Representative captures from
+`D:\PolyNexus_native_all_routes_current_nonsaxs_post_joint_display_20260730`
+were inspected:
+
+- IR mapping Results clearly shows `Scientific review: Review required`,
+  `reason=review_missing`, and the synthetic source identity.
+- NMR solid-C Results clearly shows `Scientific review: Review required` and
+  retains the source file identity without inventing assignments or Xc.
+- Joint Results clearly shows `2 errors`, `2 warnings`, and
+  `Joint conclusion | blocked | allowed=false | reason=conflict_error`.
+- WAXS strain Results clearly shows `Scientific review: Not applicable` and
+  the physical-support limitation.
+
+This confirms the visible fail-closed state of the Results route. It is not a
+restarted-GUI owner acceptance or scientific publication approval.
+
 ## Storage cleanup evidence
 
 The storage tool was run with the user's explicit prior `--apply` authorization
