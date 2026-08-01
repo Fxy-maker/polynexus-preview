@@ -122,6 +122,25 @@ _COMPACT_FIELDS = frozenset(
         "reason_codes",
     }
 )
+_SEQUENCE_RESCUE_CANDIDATE_FIELDS = (
+    "candidate_id",
+    "kind",
+    "parameters",
+    "reason_codes",
+    "requires_validation",
+)
+_SEQUENCE_RESCUE_PARAMETER_FIELDS = (
+    "frame_index",
+    "axis_name",
+    "axis_value",
+    "metric",
+    "original_value_nm",
+    "proposed_value_nm",
+    "proposed_source",
+    "path_status",
+    "preserve_missing_frames",
+    "apply_mode",
+)
 
 
 def _json_safe(value: Any) -> Any:
@@ -229,6 +248,44 @@ def _compact(value: Any) -> dict[str, Any]:
     return result
 
 
+def _sequence_rescue_candidate_projection(value: Any) -> dict[str, Any]:
+    """Project one existing sequence candidate without arbitrary payloads."""
+
+    if not isinstance(value, Mapping):
+        to_dict = getattr(value, "to_dict", None)
+        value = to_dict() if callable(to_dict) else None
+    if not isinstance(value, Mapping):
+        return {}
+
+    projected: dict[str, Any] = {}
+    for field_name in _SEQUENCE_RESCUE_CANDIDATE_FIELDS:
+        if field_name not in value:
+            continue
+        item = value[field_name]
+        if field_name == "parameters":
+            if not isinstance(item, Mapping):
+                continue
+            parameters = {
+                str(key): _json_safe(item[key])
+                for key in _SEQUENCE_RESCUE_PARAMETER_FIELDS
+                if key in item
+            }
+            if parameters:
+                projected[field_name] = parameters
+        else:
+            projected[field_name] = _json_safe(item)
+    return projected
+
+
+def _sequence_rescue_candidates_projection(value: Any) -> list[dict[str, Any]]:
+    """Project only valid existing sequence candidates in stable order."""
+
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+    projected = [_sequence_rescue_candidate_projection(item) for item in value]
+    return [item for item in projected if item]
+
+
 def _normal_mode(mode: str) -> str:
     value = str(mode or "static").strip().lower()
     return value if value in _CONFIRMED_RERUN_MODES else ""
@@ -321,6 +378,11 @@ def build_saxs_confirmed_rerun_evidence(result: Any, *, mode: str) -> dict[str, 
         series["guinier_sequence_evidence"] = _compact(
             _object_value(mode_result, "guinier_sequence_evidence", None)
         )
+        rescue_candidates = _sequence_rescue_candidates_projection(
+            _object_value(mode_result, "sequence_rescue_candidates", ())
+        )
+        if rescue_candidates:
+            series["sequence_rescue_candidates"] = rescue_candidates
     for field_name in ("metric_evidence", "detector_quality_report", "orientation_evidence"):
         evidence = _compact(_object_value(mode_result, field_name, None))
         if evidence:
@@ -416,8 +478,15 @@ def sanitize_saxs_ai_summary_context(payload: Any) -> dict[str, Any]:
         else []
     )
     series: dict[str, Any] = {}
+    raw_series = payload.get("series")
+    if isinstance(raw_series, Mapping):
+        rescue_candidates = _sequence_rescue_candidates_projection(
+            raw_series.get("sequence_rescue_candidates", ())
+        )
+        if rescue_candidates:
+            series["sequence_rescue_candidates"] = rescue_candidates
     for field_name in ("guinier_sequence_evidence", *_EVIDENCE_FIELDS):
-        value = payload.get("series", {}).get(field_name) if isinstance(payload.get("series"), Mapping) else None
+        value = raw_series.get(field_name) if isinstance(raw_series, Mapping) else None
         compact = _compact(value)
         if compact:
             series[field_name] = compact

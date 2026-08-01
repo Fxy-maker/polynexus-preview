@@ -186,6 +186,46 @@ def test_advisor_prompt_retains_all_saxs_1d_method_evidence() -> None:
     assert '"physical_validation_required": true' in advisor.last_prompt
 
 
+def test_advisor_prompt_retains_existing_sequence_rescue_candidate_boundary() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_ContextLLM())
+
+    advisor.advise(
+        {
+            "technique": "SAXS",
+            "params": {},
+            "saxs_ai_context": {
+                "technique": "SAXS",
+                "mode": "temperature",
+                "status": "available",
+                "candidate_only": True,
+                "physical_validation_required": True,
+                "series": {
+                    "sequence_rescue_candidates": [
+                        {
+                            "candidate_id": "temperature-frame-0-lc-tangent",
+                            "kind": "deterministic",
+                            "parameters": {
+                                "frame_index": 0,
+                                "proposed_value_nm": 10.8,
+                                "apply_mode": "candidate_only",
+                                "preserve_missing_frames": True,
+                                "raw_q": [0.01],
+                            },
+                            "requires_validation": True,
+                        }
+                    ]
+                },
+            },
+        }
+    )
+
+    assert advisor.last_prompt is not None
+    assert "temperature-frame-0-lc-tangent" in advisor.last_prompt
+    assert '"apply_mode": "candidate_only"' in advisor.last_prompt
+    assert '"requires_validation": true' in advisor.last_prompt
+    assert "raw_q" not in advisor.last_prompt
+
+
 def test_advisor_ignores_non_mapping_saxs_summary_context() -> None:
     advisor = Advisor.__new__(Advisor)
 

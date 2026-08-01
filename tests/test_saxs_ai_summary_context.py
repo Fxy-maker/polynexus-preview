@@ -73,6 +73,72 @@ def test_summary_context_fails_closed_for_unsupported_or_missing_result() -> Non
         json.dumps(context, allow_nan=False)
 
 
+def test_temperature_summary_projects_existing_rescue_candidates_only() -> None:
+    result = SimpleNamespace(
+        temp_points=[_frame()],
+        sequence_rescue_candidates=[
+            {
+                "candidate_id": "temperature-frame-0-lc-tangent",
+                "kind": "deterministic",
+                "parameters": {
+                    "frame_index": 0,
+                    "axis_name": "temperature",
+                    "axis_value": 25.0,
+                    "metric": "lc_nm",
+                    "original_value_nm": None,
+                    "proposed_value_nm": 10.8,
+                    "proposed_source": "tangent",
+                    "path_status": "low_confidence",
+                    "preserve_missing_frames": True,
+                    "apply_mode": "candidate_only",
+                    "raw_q": [0.01, 0.02],
+                    "source_path": "D:/secret/raw.dat",
+                },
+                "reason_codes": ["sequence_existing_alternative"],
+                "requires_validation": True,
+                "raw_profile": [1, 2, 3],
+            }
+        ],
+        validation_passed=True,
+    )
+
+    context = build_saxs_ai_summary_context(result, mode="temperature")
+
+    candidate = context["series"]["sequence_rescue_candidates"][0]
+    assert candidate["candidate_id"] == "temperature-frame-0-lc-tangent"
+    assert candidate["parameters"]["frame_index"] == 0
+    assert candidate["parameters"]["proposed_value_nm"] == 10.8
+    assert candidate["parameters"]["apply_mode"] == "candidate_only"
+    assert candidate["parameters"]["preserve_missing_frames"] is True
+    assert candidate["requires_validation"] is True
+    serialized = json.dumps(context, ensure_ascii=False, allow_nan=False)
+    assert "raw_q" not in serialized
+    assert "source_path" not in serialized
+    assert "raw_profile" not in candidate
+    assert "source_path" not in candidate["parameters"]
+
+    result.sequence_rescue_candidates[0]["parameters"]["proposed_value_nm"] = 99.0
+    assert candidate["parameters"]["proposed_value_nm"] == 10.8
+
+
+@pytest.mark.parametrize("mode", ("static", "strain"))
+def test_non_temperature_summary_does_not_invent_sequence_rescue_candidates(
+    mode: str,
+) -> None:
+    frame = _frame()
+    result = SimpleNamespace(
+        frames=[frame] if mode == "static" else None,
+        strain_points=[frame] if mode == "strain" else None,
+        sequence_rescue_candidates=[{"candidate_id": "must-not-cross"}],
+        validation_passed=True,
+    )
+
+    context = build_saxs_ai_summary_context(result, mode=mode)
+
+    assert "sequence_rescue_candidates" not in context["series"]
+    json.dumps(context, allow_nan=False)
+
+
 @pytest.mark.parametrize("mode", ("static", "temperature", "strain"))
 def test_summary_context_preserves_all_existing_1d_method_evidence(mode: str) -> None:
     metric_names = ("porod", "kratky", "invariant", "lamellar")
