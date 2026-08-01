@@ -40,26 +40,27 @@ invariant, and lamellar evidence after SAXS summary sanitization.
 
 ## Implementation plan
 
-1. [ ] Add the Advisor prompt regression with detached summary evidence.
-2. [ ] Run the focused Advisor/prompt/summary suite and inspect the actual
+1. [x] Add the Advisor prompt regression with detached summary evidence.
+2. [x] Run the focused Advisor/prompt/summary suite and inspect the actual
    prompt assertions.
-3. [ ] Run the complete SAXS matrix and task-scoped structured verifier.
-4. [ ] Run storage report/clean dry-run and diff audit.
+3. [x] Run the complete SAXS matrix and task-scoped structured verifier.
+4. [x] Run storage report/clean dry-run and diff audit.
 5. [x] Record exact outcomes and create a test-plus-documentation checkpoint.
 
 ## Evidence
 
-- Real Advisor/prompt/summary/live regression: `25 passed in 2.12s`, exit code
+- Fresh Advisor/prompt/summary/live regression: `25 passed in 2.61s`, exit code
   `0`. The captured `Advisor.last_prompt` retained Guinier, Porod, Kratky,
   invariant, and lamellar keys plus candidate-only and physical-validation
   safeguards.
-- Complete SAXS matrix: `713 passed, 6 warnings in 525.94s`, exit code `0`.
+- Fresh complete SAXS matrix: `713 passed, 6 warnings in 482.99s`, exit code
+  `0`.
 - Structured verifier exited `0`: quality `297 passed`, preprocessing `106
   passed`, task/memory, Ruff, compile, type-baseline, and whitespace checks
   passed.
 - Storage report and dry-run clean both exited `0`: `145` artifacts,
-  `34,459,621,656` total bytes, `15,743,185,346` eligible bytes,
-  `failures=[]`, and `removed=0`. No `test_storage.py --apply` was executed.
+  `34,459,621,656` total bytes, `eligible_bytes=0`, `failures=[]`, and
+  `removed=0`. No `test_storage.py --apply` was executed.
 - `git diff --check` passed. No production code changed.
 
 ## Verification

@@ -12,15 +12,15 @@ task: docs/agent/tasks/2026-08-01-saxs-ai-method-prompt-transport.md
 
 - `python -m pytest -q tests/test_advisor.py tests/test_saxs_prompt_builder.py
   tests/test_saxs_ai_summary_context.py tests/test_saxs_ai_live_context.py
-  -o addopts=` returned `25 passed in 2.12s`, exit code `0`.
-- The complete SAXS matrix returned `713 passed, 6 warnings in 525.94s`, exit
+  -o addopts=` returned `25 passed in 2.61s`, exit code `0`.
+- The fresh complete SAXS matrix returned `713 passed, 6 warnings in 482.99s`, exit
   code `0`.
 - Structured verifier exited `0`: quality `297 passed`, preprocessing `106
   passed`, task/memory, Ruff, compile, type baseline, and whitespace checks
   passed.
 - Storage report and dry-run clean exited `0` in non-destructive mode: `145`
-  artifacts, `34,459,621,656` total bytes, `15,743,185,346` eligible bytes,
-  `failures=[]`, and `removed=0`. No `test_storage.py --apply` ran.
+  artifacts, `34,459,621,656` total bytes, `eligible_bytes=0`, `failures=[]`,
+  and `removed=0`. No `test_storage.py --apply` ran.
 - `git diff --check` exited `0`.
 
 ## Contract Result
