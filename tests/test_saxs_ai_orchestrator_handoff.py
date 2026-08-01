@@ -39,9 +39,18 @@ class FakeSAXSConfig:
 
 
 class FakeSAXSEngine:
-    def __init__(self, config: FakeSAXSConfig | None = None, *, fail: bool = False) -> None:
+    def __init__(
+        self,
+        config: FakeSAXSConfig | None = None,
+        *,
+        fail: bool = False,
+        quality_level: str = "Quantitative",
+        quality_flag: str = "OK",
+    ) -> None:
         self.cfg = deepcopy(config or FakeSAXSConfig())
         self.fail = fail
+        self.quality_level = quality_level
+        self.quality_flag = quality_flag
         self.result = SimpleNamespace(parameters={}, metadata={})
         self.residual_pattern: dict[str, Any] = {}
 
@@ -60,6 +69,24 @@ class FakeSAXSEngine:
             "negative_fraction": 0.0,
             "baseline_stability_score": 0.85 if changed else 0.70,
         }
+        self.result.data_quality_report = {"level": self.quality_level}
+        self.result.guinier_evidence = {"level": self.quality_level, "rg_nm": 4.0}
+        self.result.metric_evidence = {"porod": {"level": self.quality_level}}
+        self.result.quality_flag = self.quality_flag
+        self.result.Q_star_valid = True
+        self._temperature_result = None
+        self._strain_result = None
+        if self.cfg.experiment_type in {"temperature", "cooling", "heating", "isothermal"}:
+            self._temperature_result = SimpleNamespace(
+                temp_points=[self.result],
+                guinier_sequence_evidence={"level": "Trend", "valid_frame_count": 1},
+                metric_evidence={"porod": {"level": "Trend", "frame_count": 1}},
+            )
+        elif self.cfg.experiment_type == "strain":
+            self._strain_result = SimpleNamespace(
+                strain_points=[self.result],
+                metric_evidence={"porod": {"level": "Trend", "frame_count": 1}},
+            )
         self.residual_pattern = {
             "rmse": 0.70 if changed else 1.0,
             "residual_autocorrelation": 0.05,
@@ -92,7 +119,11 @@ def saxs_intent(**overrides: Any) -> dict[str, Any]:
 
 
 def build_fake_saxs_orchestrator(
-    *, experiment_type: str = "static", fail_trials: bool = False
+    *,
+    experiment_type: str = "static",
+    fail_trials: bool = False,
+    trial_quality_level: str = "Quantitative",
+    trial_quality_flag: str = "OK",
 ) -> ParameterOrchestrator:
     orchestrator = ParameterOrchestrator.__new__(ParameterOrchestrator)
     orchestrator.technique = "saxs"
@@ -137,7 +168,12 @@ def build_fake_saxs_orchestrator(
     )
 
     def create_trial(self: ParameterOrchestrator, config: FakeSAXSConfig) -> FakeSAXSEngine:
-        trial = FakeSAXSEngine(config, fail=fail_trials)
+        trial = FakeSAXSEngine(
+            config,
+            fail=fail_trials,
+            quality_level=trial_quality_level,
+            quality_flag=trial_quality_flag,
+        )
         self.created_trial_engines.append(trial)
         return trial
 
@@ -255,6 +291,75 @@ def test_saxs_replay_application_records_successful_calibrated_commit() -> None:
     assert replay["decision"]["decision"] == "auto_accept"
     assert replay["decision"]["apply_allowed"] is True
     assert replay["apply_performed"] is True
+
+
+@pytest.mark.parametrize("experiment_type", ["static", "temperature", "strain"])
+def test_saxs_candidate_keeps_original_when_existing_quality_gate_fails(
+    experiment_type: str,
+) -> None:
+    orchestrator = build_fake_saxs_orchestrator(
+        experiment_type=experiment_type,
+        trial_quality_level="Diagnostic",
+    )
+    orchestrator.preprocess_policy = replace(
+        get_preprocess_policy("SAXS"),
+        calibrated=True,
+        automation_state="tiered_auto",
+    )
+
+    report = orchestrator.run_preprocess_intent(saxs_intent())
+
+    decision = report["saxs_ai_rescue_decision"]
+    assert decision["decision"] == "keep_original"
+    assert decision["apply_allowed"] is False
+    assert decision["hard_guard_results"]["saxs_existing_quality_gate"] is False
+    assert decision["hard_guard_results"]["saxs_existing_physical_gate"] is True
+    assert report["saxs_ai_rescue_replay"][0]["apply_performed"] is False
+    gate = report["preprocess_evidence"][0]["technique_specific"]["saxs_existing_gate"]
+    assert gate["quality_gate_status"] == "failed"
+    assert gate["physical_gate_status"] == "passed"
+    json.dumps(decision, allow_nan=False)
+    json.dumps(report["saxs_ai_rescue_replay"], allow_nan=False)
+    assert {item["mode"] for item in report["saxs_ai_rescue_replay"]} == {experiment_type}
+    assert orchestrator._engine.cfg.savgol_window == 7
+
+
+@pytest.mark.parametrize("experiment_type", ["static", "temperature", "strain"])
+def test_saxs_candidate_accepts_existing_gates_for_all_modes(experiment_type: str) -> None:
+    orchestrator = build_fake_saxs_orchestrator(experiment_type=experiment_type)
+    orchestrator.preprocess_policy = replace(
+        get_preprocess_policy("SAXS"),
+        calibrated=True,
+        automation_state="tiered_auto",
+    )
+
+    report = orchestrator.run_preprocess_intent(saxs_intent())
+
+    decision = report["saxs_ai_rescue_decision"]
+    assert decision["decision"] == "auto_accept"
+    assert decision["apply_allowed"] is True
+    assert decision["hard_guard_results"]["saxs_existing_quality_gate"] is True
+    assert decision["hard_guard_results"]["saxs_existing_physical_gate"] is True
+
+
+def test_saxs_candidate_keeps_original_when_existing_physical_gate_fails() -> None:
+    orchestrator = build_fake_saxs_orchestrator(
+        trial_quality_flag="ERROR:qstar_contaminated",
+    )
+    orchestrator.preprocess_policy = replace(
+        get_preprocess_policy("SAXS"),
+        calibrated=True,
+        automation_state="tiered_auto",
+    )
+
+    report = orchestrator.run_preprocess_intent(saxs_intent())
+
+    decision = report["saxs_ai_rescue_decision"]
+    assert decision["decision"] == "keep_original"
+    assert decision["apply_allowed"] is False
+    assert decision["hard_guard_results"]["saxs_existing_quality_gate"] is True
+    assert decision["hard_guard_results"]["saxs_existing_physical_gate"] is False
+    assert "saxs_existing:existing_physical_gate_failed" in decision["reason_codes"]
 
 
 def test_saxs_replay_application_records_commit_failure_as_keep_original() -> None:
