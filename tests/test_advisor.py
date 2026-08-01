@@ -149,6 +149,43 @@ def test_advisor_transports_saxs_summary_context_to_the_real_prompt() -> None:
     assert '"candidate_only": true' in advisor.last_prompt
 
 
+def test_advisor_prompt_retains_all_saxs_1d_method_evidence() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_ContextLLM())
+    metric_evidence = {
+        name: {
+            "metric_name": name.title(),
+            "level": "Trend",
+            "value": float(index + 1),
+            "physical_checks": {"method_gate_passed": True},
+        }
+        for index, name in enumerate(("guinier", "porod", "kratky", "invariant", "lamellar"))
+    }
+
+    advisor.advise(
+        {
+            "technique": "SAXS",
+            "params": {"Rg_nm": 4.2},
+            "saxs_ai_context": {
+                "technique": "SAXS",
+                "mode": "temperature",
+                "status": "available",
+                "candidate_only": True,
+                "physical_validation_required": True,
+                "raw_profile_included": False,
+                "raw_detector_data_included": False,
+                "frames": [],
+                "series": {"metric_evidence": metric_evidence},
+            },
+        }
+    )
+
+    assert advisor.last_prompt is not None
+    for name in metric_evidence:
+        assert f'"{name}"' in advisor.last_prompt
+    assert '"candidate_only": true' in advisor.last_prompt
+    assert '"physical_validation_required": true' in advisor.last_prompt
+
+
 def test_advisor_ignores_non_mapping_saxs_summary_context() -> None:
     advisor = Advisor.__new__(Advisor)
 
