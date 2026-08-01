@@ -35,6 +35,7 @@ from .saxs_2d_review_context import (
     build_saxs_2d_review_context,
     sanitize_saxs_2d_review_context,
 )
+from .saxs_sequence_rescue import resolve_sequence_rescue_candidate
 
 
 _REQUIRED_PROTECTED_FEATURES = frozenset(
@@ -552,6 +553,85 @@ def build_saxs_ai_summary_context(result: Any, *, mode: str) -> dict[str, Any]:
     return _json_safe(context)
 
 
+def resolve_saxs_ai_candidate_references(
+    result: Any,
+    advice: Mapping[str, Any] | None,
+    *,
+    mode: str,
+) -> dict[str, Any]:
+    """Resolve advisory candidate IDs against the current SAXS result only.
+
+    This is a diagnostic bridge. It materializes no analysis result and never
+    evaluates or applies a rescue candidate.
+    """
+
+    normalized_mode = _normal_mode(mode)
+    resolution: dict[str, Any] = {
+        "mode": normalized_mode or str(mode or ""),
+        "status": "unavailable",
+        "resolved": [],
+        "unresolved_ids": [],
+        "reason_codes": [],
+    }
+    reasons: list[str] = []
+    if normalized_mode != "temperature":
+        resolution["reason_codes"] = ["unsupported_mode"]
+        return resolution
+    if not isinstance(advice, Mapping) or "saxs_candidate_references" not in advice:
+        resolution["reason_codes"] = ["candidate_references_missing"]
+        return resolution
+
+    raw_references = advice.get("saxs_candidate_references")
+    if not isinstance(raw_references, Sequence) or isinstance(raw_references, (str, bytes)):
+        resolution["reason_codes"] = ["candidate_references_malformed"]
+        return resolution
+    reference_ids: list[str] = []
+    for item in raw_references:
+        if not isinstance(item, str):
+            reasons.append("candidate_reference_malformed")
+            continue
+        candidate_id = item.strip()
+        if candidate_id and candidate_id not in reference_ids:
+            reference_ids.append(candidate_id)
+    if not reference_ids:
+        reasons.append("candidate_references_missing")
+
+    mode_result = _mode_result(result, normalized_mode)
+    raw_candidates = _object_value(mode_result, "sequence_rescue_candidates", ())
+    if not isinstance(raw_candidates, Sequence) or isinstance(raw_candidates, (str, bytes)):
+        if reference_ids:
+            resolution["unresolved_ids"] = reference_ids
+            reasons.append("result_candidates_missing")
+        resolution["reason_codes"] = list(dict.fromkeys(reasons))
+        return resolution
+    candidates = list(raw_candidates)
+    for candidate_id in reference_ids:
+        matches = [
+            item
+            for item in candidates
+            if str(_object_value(item, "candidate_id", "") or "").strip() == candidate_id
+        ]
+        if len(matches) > 1:
+            resolution["unresolved_ids"].append(candidate_id)
+            reasons.append("duplicate_candidate_id")
+            continue
+        resolved = resolve_sequence_rescue_candidate(
+            candidates,
+            candidate_id,
+            mode=normalized_mode,
+        )
+        if resolved is None:
+            resolution["unresolved_ids"].append(candidate_id)
+            reasons.append("candidate_not_found" if not matches else "candidate_identity_rejected")
+            continue
+        resolution["resolved"].append(resolved.to_dict())
+
+    if resolution["resolved"]:
+        resolution["status"] = "available"
+    resolution["reason_codes"] = list(dict.fromkeys(reasons))
+    return _json_safe(resolution)
+
+
 def validate_saxs_confirmation_report(
     report: Mapping[str, Any],
     *,
@@ -806,6 +886,7 @@ __all__ = [
     "assess_saxs_ai_candidate",
     "assess_saxs_confirmed_rerun",
     "build_saxs_ai_summary_context",
+    "resolve_saxs_ai_candidate_references",
     "build_saxs_confirmed_rerun_evidence",
     "build_saxs_ai_rescue_plan",
     "sanitize_saxs_ai_summary_context",
