@@ -22,7 +22,7 @@
 Use the formal task's latest current-head result: `3303 passed, 18 skipped,
 12 warnings in 2244.54s`, wrapper exit `0`, quality `297`, preprocessing
 `106`, and boundary audit exit `0`. Use the SAXS bridge task's checkpoint
-`edad9a9`, latest focused `26 passed`, and latest SAXS matrix `707 passed`.
+`edad9a9`, latest focused `26 passed`, and latest SAXS matrix `710 passed`.
 
 ### Task 2: Write the current evidence record
 

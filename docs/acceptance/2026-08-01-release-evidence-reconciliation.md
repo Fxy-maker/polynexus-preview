@@ -18,7 +18,8 @@ approval or owner release authorization.
 - Focused quality gate: `297 passed`; preprocessing gate: `106 passed`.
 - Boundary audit: exit code `0`.
 - SAXS 2D bridge checkpoint: `edad9a9`; latest focused bridge regression:
-  `26 passed`; latest complete SAXS matrix: `707 passed, 6 warnings`.
+  `26 passed`; latest complete SAXS matrix: `710 passed, 6 warnings in
+  486.47s`.
 - Storage report and clean were dry-run only: `142` artifacts,
   `15,743,185,346` eligible bytes, and `0` removed. No `--apply` was run.
 

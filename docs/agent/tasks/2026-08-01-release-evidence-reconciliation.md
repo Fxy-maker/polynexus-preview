@@ -45,7 +45,7 @@ visual, and owner-approval gates.
 - [x] The latest wrapper result records `3303 passed, 18 skipped, 12 warnings`
   in `2244.54s`, exit `0`, with quality `297`, preprocessing `106`, and
   boundary audit exit `0`.
-- [x] The SAXS 2D bridge checkpoint `edad9a9` and latest `707 passed` SAXS
+- [x] The SAXS 2D bridge checkpoint `edad9a9` and latest `710 passed` SAXS
   matrix are linked without changing their scientific scope.
 - [x] The previous full/boundary `124` timeout is retained as historical
   incomplete evidence, not counted as a current failure or pass.
