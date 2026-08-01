@@ -34,8 +34,9 @@ Expand the existing PolyNexus HTML overview from 20 slides to an approved
 
 - User selected the 40-50 slide scale on 2026-08-01.
 - User approved the SAXS-led 46-slide chapter structure on 2026-08-01.
-- Detailed design is recorded in the linked design spec and awaits written-spec
-  review before implementation planning.
+- User approved the written design and requested continuation on 2026-08-01.
+- Implementation plan is recorded in
+  `docs/superpowers/plans/2026-08-01-polynexus-html-presentation-depth.md`.
 
 ## Verification
 
