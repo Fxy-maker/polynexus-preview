@@ -84,6 +84,11 @@ Storage commands are dry-run only; `test_storage.py --apply` is forbidden.
   exit code `0`.
 - Latest task-card focused bridge/AI/Advisor/prompt regression returned
   `26 passed in 0.41s` with exit code `0`.
+- Post-checkpoint review-record consumer coverage added temperature/strain
+  outer scientific-review propagation and wrong-scope fail-closed assertions;
+  the focused bridge test returned `10 passed in 0.09s`, and the combined
+  bridge/review-context/AI/Advisor/prompt matrix returned `35 passed in 0.51s`,
+  both with exit code `0`. No production code change was required.
 - Final structured verifier exited `0`: quality `297 passed`, preprocessing
   `106 passed`, Ruff/compile/type-baseline/whitespace passed.
 - Storage `report --json` and `clean --older-than-hours 24 --json` were both

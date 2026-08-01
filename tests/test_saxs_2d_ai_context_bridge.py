@@ -40,6 +40,36 @@ def _orientation() -> dict[str, object]:
     }
 
 
+def _review(*, scope: str = "saxs.2d") -> dict[str, object]:
+    decisions = {
+        "geometry_reference": "edf_header",
+        "beam_center_policy": "explicit_or_diagnostic",
+        "mask_policy": "configured_mask_reviewed",
+        "saturation_policy": "explicit_limit_or_diagnostic",
+        "orientation_applicability": "supported",
+        "promotion_rule": "reviewer_only",
+    }
+    if scope == "saxs.1d":
+        decisions = {
+            "sequence_axis_policy": "reviewed_axis",
+            "frame_identity_policy": "source_index",
+            "missing_repeat_policy": "diagnostic",
+            "metric_claim_scope": "trend_only",
+            "promotion_rule": "reviewer_only",
+        }
+    return {
+        "record_id": "review-2d-parent-1",
+        "scope": scope,
+        "reviewer": "reviewer",
+        "reviewed_at": "2026-07-31T00:00:00Z",
+        "policy_version": "saxs-2d-v1",
+        "source_refs": ["frame-0"],
+        "decisions": decisions,
+        "status": "accepted",
+        "conditions": [],
+    }
+
+
 def _frame(*, source_index: int, condition: str) -> SimpleNamespace:
     return SimpleNamespace(
         source_index=source_index,
@@ -49,6 +79,70 @@ def _frame(*, source_index: int, condition: str) -> SimpleNamespace:
         detector_quality_report=_detector(),
         orientation_evidence=_orientation(),
     )
+
+
+@pytest.mark.parametrize(
+    ("mode", "series_field", "series"),
+    [
+        (
+            "temperature",
+            "_temperature_result",
+            SimpleNamespace(
+                temp_points=[_frame(source_index=0, condition="temperature_C")],
+                guinier_sequence_evidence={"level": "Trend"},
+                detector_quality_report=_detector(),
+                orientation_evidence=_orientation(),
+            ),
+        ),
+        (
+            "strain",
+            "_strain_result",
+            SimpleNamespace(
+                strain_points=[_frame(source_index=0, condition="strain")],
+                metric_evidence={"guinier": {"level": "Trend"}},
+                detector_quality_report=_detector(),
+                orientation_evidence=_orientation(),
+            ),
+        ),
+    ],
+)
+def test_mode_2d_context_uses_outer_existing_review_record(
+    mode: str, series_field: str, series: SimpleNamespace
+) -> None:
+    engine = SimpleNamespace(
+        result=SimpleNamespace(parameters={"scientific_review_record": _review()}),
+        _temperature_result=series if series_field == "_temperature_result" else None,
+        _strain_result=series if series_field == "_strain_result" else None,
+    )
+
+    context = build_saxs_ai_summary_context(engine, mode=mode)
+
+    review = context["saxs_2d_review_context"]["scientific_review"]
+    assert review["status"] == "accepted"
+    assert review["decision"]["allowed"] is True
+    assert context["saxs_2d_review_context"]["detector"]["level"] == "Trend"
+    assert context["saxs_2d_review_context"]["orientation"]["level"] == "Trend"
+    json.dumps(context, allow_nan=False)
+
+
+def test_mode_2d_context_keeps_outer_wrong_scope_fail_closed() -> None:
+    series = SimpleNamespace(
+        strain_points=[_frame(source_index=0, condition="strain")],
+        detector_quality_report=_detector(),
+        orientation_evidence=_orientation(),
+    )
+    engine = SimpleNamespace(
+        result=SimpleNamespace(parameters={"scientific_review_record": _review(scope="saxs.1d")}),
+        _temperature_result=None,
+        _strain_result=series,
+    )
+
+    context = build_saxs_ai_summary_context(engine, mode="strain")
+
+    review = context["saxs_2d_review_context"]["scientific_review"]
+    assert review["status"] == "scope_mismatch"
+    assert review["decision"]["allowed"] is False
+    assert review["decision"]["reason"] == "scope_mismatch"
 
 
 @pytest.mark.parametrize(
