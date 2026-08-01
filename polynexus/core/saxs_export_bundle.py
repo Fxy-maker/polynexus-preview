@@ -237,12 +237,23 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
     ai_plan = getattr(engine, "saxs_ai_rescue_plan", None)
     ai_decision = getattr(engine, "saxs_ai_rescue_decision", None)
     ai_replay = getattr(engine, "saxs_ai_rescue_replay", None)
+    candidate_reference_resolution = getattr(
+        engine, "saxs_candidate_reference_resolution", None
+    )
     confirmed_rerun_audit = getattr(engine, "saxs_confirmed_rerun_audit", None)
     if ai_plan is None and ai_decision is None:
         result = getattr(engine, "result", None)
         ai_plan = getattr(result, "saxs_ai_rescue_plan", None)
         ai_decision = getattr(result, "saxs_ai_rescue_decision", None)
         ai_replay = getattr(result, "saxs_ai_rescue_replay", None)
+        if candidate_reference_resolution is None:
+            candidate_reference_resolution = getattr(
+                result, "saxs_candidate_reference_resolution", None
+            )
+    if candidate_reference_resolution is not None and not isinstance(
+        candidate_reference_resolution, Mapping
+    ):
+        candidate_reference_resolution = None
     if confirmed_rerun_audit is None:
         result = getattr(engine, "result", None)
         confirmed_rerun_audit = getattr(result, "saxs_confirmed_rerun_audit", None)
@@ -270,14 +281,18 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
         ai_plan is not None
         or ai_decision is not None
         or ai_replay is not None
+        or candidate_reference_resolution is not None
         or confirmed_rerun_audit is not None
     ):
-        payload["ai_rescue"] = {
+        ai_rescue_payload: dict[str, Any] = {
             "plan": ai_plan,
             "decision": ai_decision,
             "replay": ai_replay,
             "confirmed_rerun": confirmed_rerun_audit,
         }
+        if candidate_reference_resolution is not None:
+            ai_rescue_payload["candidate_reference_resolution"] = candidate_reference_resolution
+        payload["ai_rescue"] = ai_rescue_payload
     return _jsonable(payload)
 
 

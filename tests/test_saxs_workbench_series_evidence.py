@@ -5,6 +5,7 @@ from copy import deepcopy
 import numpy as np
 
 from polynexus.core.saxs import SAXSEngine
+from polynexus.core.saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.saxs_strain import StrainSeriesResult
 from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
@@ -95,12 +96,68 @@ def test_saxs_workbench_ignores_empty_and_malformed_ai_rescue_evidence() -> None
             "saxs_ai_rescue_decision": "request_confirmation",
             "saxs_ai_rescue_replay": [{"run_status": "not_run"}, None],
             "saxs_confirmed_rerun_audit": {"apply_performed": False},
+            "saxs_candidate_reference_resolution": [None],
         },
         submodule="temperature",
         language="en",
     )
 
     assert "AI rescue" not in presentation.risk_text
+
+
+def test_shared_ai_evidence_copy_preserves_candidate_reference_resolution() -> None:
+    resolution = {
+        "mode": "temperature",
+        "status": "available",
+        "resolved": [
+            {
+                "candidate_id": "candidate-1",
+                "kind": "deterministic",
+                "parameters": {"proposed_value_nm": 8.0},
+            }
+        ],
+        "unresolved_ids": [],
+        "reason_codes": [],
+    }
+    source = type("Source", (), {"saxs_candidate_reference_resolution": resolution})()
+
+    copied = copy_saxs_ai_rescue_evidence(source)
+
+    assert copied["saxs_candidate_reference_resolution"] == resolution
+    assert copied["saxs_candidate_reference_resolution"] is not resolution
+
+
+def test_saxs_workbench_reports_candidate_reference_resolution_as_advisory() -> None:
+    params = {
+        **_series_params(),
+        "saxs_candidate_reference_resolution": {
+            "mode": "temperature",
+            "status": "available",
+            "resolved": [
+                {
+                    "candidate_id": "candidate-1",
+                    "kind": "deterministic",
+                    "parameters": {"proposed_value_nm": 8.0},
+                }
+            ],
+            "unresolved_ids": ["candidate-unknown"],
+            "reason_codes": ["candidate_not_found"],
+        },
+    }
+
+    presentation = build_saxs_results_presentation(
+        params,
+        submodule="saxs.temperature",
+        language="en",
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "candidate-1" in review_text
+    assert "candidate-unknown" in review_text
+    assert "candidate_not_found" in review_text
+    assert "validation" in review_text.lower()
+    assert "8.0" not in review_text
+    assert "physically valid" not in review_text.lower()
 
 
 def test_workbench_renders_temperature_guinier_sequence_diagnostics():

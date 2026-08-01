@@ -158,6 +158,12 @@ _AI_RERUN_FIELDS = (
     "before_config_hash",
     "after_config_hash",
 )
+_AI_REFERENCE_FIELDS = (
+    "mode",
+    "status",
+    "unresolved_ids",
+    "reason_codes",
+)
 _MISSING = object()
 
 
@@ -629,6 +635,19 @@ def _project_ai_rescue_evidence(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         return {}
     projected: dict[str, Any] = {}
+
+    resolution = payload.get("saxs_candidate_reference_resolution")
+    if isinstance(resolution, Mapping):
+        resolution_record = _project_mapping(resolution, _AI_REFERENCE_FIELDS)
+        resolved_ids = [
+            str(item.get("candidate_id") or "").strip()
+            for item in resolution.get("resolved", ())
+            if isinstance(item, Mapping) and str(item.get("candidate_id") or "").strip()
+        ]
+        if resolved_ids:
+            resolution_record["resolved_candidate_ids"] = resolved_ids
+        if resolution_record:
+            projected["candidate_reference_resolution"] = resolution_record
 
     plan = payload.get("saxs_ai_rescue_plan")
     if isinstance(plan, Mapping):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import inspect
 from typing import Any
 
@@ -34,11 +35,16 @@ def _execute_round_iteration(self, engine, baseline, round_num: int) -> dict[str
         saxs_context = state.get("saxs_ai_context", {})
         mode = saxs_context.get("mode", "static") if isinstance(saxs_context, dict) else "static"
         advice = dict(advice)
-        advice["saxs_candidate_reference_resolution"] = resolve_saxs_ai_candidate_references(
+        resolution = resolve_saxs_ai_candidate_references(
             engine,
             advice,
             mode=str(mode or "static"),
         )
+        advice["saxs_candidate_reference_resolution"] = resolution
+        setattr(engine, "saxs_candidate_reference_resolution", deepcopy(resolution))
+        result = getattr(engine, "result", None)
+        if result is not None:
+            setattr(result, "saxs_candidate_reference_resolution", deepcopy(resolution))
 
     prompt = str(getattr(self.advisor, "last_prompt", ""))
     changes = advice.get("changes", {})

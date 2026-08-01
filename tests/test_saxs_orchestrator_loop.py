@@ -702,6 +702,8 @@ def test_saxs_orchestrator_attaches_ai_reference_resolution_diagnostic(monkeypat
     resolution = report["history"][1]["llm_advice"]["saxs_candidate_reference_resolution"]
     assert resolution["status"] == "unavailable"
     assert "unsupported_mode" in resolution["reason_codes"]
+    assert fake_engine.saxs_candidate_reference_resolution == resolution
+    assert fake_engine.result.saxs_candidate_reference_resolution == resolution
     assert fake_engine.analyze_calls >= 1
 
 

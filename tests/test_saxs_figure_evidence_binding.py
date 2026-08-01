@@ -216,6 +216,13 @@ def _strain_engine() -> SimpleNamespace:
 
 def _ai_rescue_audit() -> dict[str, object]:
     return {
+        "saxs_candidate_reference_resolution": {
+            "mode": "temperature",
+            "status": "available",
+            "resolved": [{"candidate_id": "candidate-1", "kind": "deterministic"}],
+            "unresolved_ids": [],
+            "reason_codes": [],
+        },
         "saxs_ai_rescue_plan": {
             "intent": {"technique": "SAXS", "raw_curve": [1.0, 2.0]},
             "policy_version": "saxs-v1",
@@ -564,6 +571,7 @@ def test_ai_rescue_audit_binds_to_static_figure_and_manifest_without_roles(tmp_p
     assert ai_rescue["decision"]["decision"] == "request_confirmation"
     assert ai_rescue["replay"][0]["run_status"] == "not_run"
     assert ai_rescue["confirmed_rerun"]["phase"] == "rolled_back"
+    assert ai_rescue["candidate_reference_resolution"]["resolved_candidate_ids"] == ["candidate-1"]
     assert "intent" not in ai_rescue["plan"]
     assert "candidates" not in ai_rescue["plan"]
     assert "raw_curve" not in json.dumps(ai_rescue)
@@ -595,10 +603,43 @@ def test_malformed_ai_rescue_audit_is_ignored_by_figure_projection() -> None:
             "saxs_ai_rescue_decision": "request_confirmation",
             "saxs_ai_rescue_replay": [{"run_status": "not_run"}, None],
             "saxs_confirmed_rerun_audit": {"apply_performed": False},
+            "saxs_candidate_reference_resolution": [None],
         },
     )
 
     assert "ai_rescue" not in payload
+
+
+def test_candidate_reference_resolution_reaches_figure_as_compact_diagnostic() -> None:
+    resolution = {
+        "mode": "temperature",
+        "status": "available",
+        "resolved": [
+            {
+                "candidate_id": "candidate-1",
+                "kind": "deterministic",
+                "parameters": {"proposed_value_nm": 8.0},
+            }
+        ],
+        "unresolved_ids": ["candidate-unknown"],
+        "reason_codes": ["candidate_not_found"],
+    }
+
+    payload = build_saxs_figure_evidence(
+        (_frame(),),
+        mode="temperature",
+        ai_rescue={"saxs_candidate_reference_resolution": resolution},
+    )
+
+    projected = payload["ai_rescue"]["candidate_reference_resolution"]
+    assert projected == {
+        "mode": "temperature",
+        "status": "available",
+        "resolved_candidate_ids": ["candidate-1"],
+        "unresolved_ids": ["candidate-unknown"],
+        "reason_codes": ["candidate_not_found"],
+    }
+    assert "parameters" not in json.dumps(projected)
 
 
 def test_ai_rescue_audit_reaches_temperature_and_strain_providers() -> None:
@@ -616,6 +657,13 @@ def test_ai_rescue_audit_reaches_temperature_and_strain_providers() -> None:
         assert all(
             "ai_rescue"
             in definition.recipe["evidence"]["quality_provenance"]
+            for definition in definitions
+        )
+        assert all(
+            definition.recipe["evidence"]["quality_provenance"]["ai_rescue"][
+                "candidate_reference_resolution"
+            ]["resolved_candidate_ids"]
+            == ["candidate-1"]
             for definition in definitions
         )
 

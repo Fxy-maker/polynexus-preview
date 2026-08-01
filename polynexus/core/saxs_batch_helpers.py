@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
@@ -31,6 +32,7 @@ _AI_RESCUE_EVIDENCE_FIELDS = (
     "saxs_ai_rescue_decision",
     "saxs_ai_rescue_replay",
     "saxs_confirmed_rerun_audit",
+    "saxs_candidate_reference_resolution",
 )
 
 
@@ -72,6 +74,8 @@ def copy_saxs_ai_rescue_evidence(*sources: Any) -> Dict[str, Any]:
                 continue
             item = getattr(source, field, None)
             if item is not None:
+                if field == "saxs_candidate_reference_resolution" and not isinstance(item, Mapping):
+                    continue
                 payload[field] = deepcopy(item)
                 break
     return payload

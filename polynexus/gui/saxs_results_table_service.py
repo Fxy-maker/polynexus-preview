@@ -1137,6 +1137,40 @@ def _saxs_ai_rescue_review_text(
         return "", ""
 
     details: list[str] = []
+    resolution = payload.get("saxs_candidate_reference_resolution")
+    if isinstance(resolution, Mapping):
+        resolution_parts: list[str] = []
+        mode = str(resolution.get("mode") or "").strip()
+        status = str(resolution.get("status") or "").strip()
+        if mode or status:
+            resolution_parts.append(
+                "mode=" + (mode or "unknown") + ", status=" + (status or "unknown")
+            )
+        resolved_ids = [
+            str(item.get("candidate_id") or "").strip()
+            for item in resolution.get("resolved", ())
+            if isinstance(item, Mapping) and str(item.get("candidate_id") or "").strip()
+        ]
+        if resolved_ids:
+            resolution_parts.append("resolved=" + ",".join(resolved_ids[:5]))
+        unresolved_ids = [
+            str(item).strip()
+            for item in resolution.get("unresolved_ids", ())
+            if str(item).strip()
+        ]
+        if unresolved_ids:
+            resolution_parts.append("unresolved=" + ",".join(unresolved_ids[:5]))
+        reason_codes = [
+            str(item).strip()
+            for item in resolution.get("reason_codes", ())
+            if str(item).strip()
+        ]
+        if reason_codes:
+            resolution_parts.append("reasons=" + ",".join(reason_codes[:5]))
+        if resolution_parts:
+            details.append(
+                "AI candidate reference resolution: " + "; ".join(resolution_parts)
+            )
     plan = payload.get("saxs_ai_rescue_plan")
     if isinstance(plan, Mapping):
         candidates = plan.get("candidates")
@@ -1197,7 +1231,7 @@ def _saxs_ai_rescue_review_text(
 
     detail = " | ".join(details)
     next_instruction = (
-        "Review the existing SAXS physical and quality gates and perform deterministic validation before any rescue action; this AI evidence is advisory"
+        "Review the existing SAXS physical and quality gates and perform deterministic validation before any rescue action; candidate-reference evidence is advisory and does not establish acceptance"
     )
     return tr_for_language("RESULTS_REVIEW_RISK", language, detail), tr_for_language(
         "RESULTS_REVIEW_NEXT", language, next_instruction

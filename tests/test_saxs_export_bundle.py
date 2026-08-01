@@ -223,6 +223,28 @@ def test_export_saxs_bundle_persists_quality_evidence_and_ai_audit(tmp_path) -> 
     assert payload["ai_rescue"]["decision"]["apply_allowed"] is False
 
 
+def test_export_saxs_bundle_persists_candidate_reference_resolution(tmp_path) -> None:
+    engine = _engine()
+    engine.saxs_candidate_reference_resolution = {
+        "mode": "temperature",
+        "status": "available",
+        "resolved": [{"candidate_id": "candidate-1", "kind": "deterministic"}],
+        "unresolved_ids": [],
+        "reason_codes": [],
+    }
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "candidate_reference"))
+
+    payload = json.loads(
+        (tmp_path / "candidate_reference" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["ai_rescue"]["candidate_reference_resolution"]["status"] == "available"
+    assert payload["ai_rescue"]["candidate_reference_resolution"]["resolved"][0]["candidate_id"] == "candidate-1"
+
+
 def test_export_saxs_bundle_adds_quality_evidence_reference_to_parameters(tmp_path) -> None:
     engine = _engine()
     engine.saxs_ai_rescue_plan = {
