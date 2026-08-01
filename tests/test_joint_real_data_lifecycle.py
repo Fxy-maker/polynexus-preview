@@ -21,7 +21,11 @@ def _real_sources() -> tuple[tuple[str, str, Path], ...]:
             "saxs",
             "saxs.static",
             next(
-                (root / "saxs").rglob("8-000-s_0_00000_with_mask.edf"),
+                (
+                    path
+                    for path in (root / "saxs" / "普通小角").rglob("*PA6*.edf")
+                    if "PAD8" not in str(path) and "8-000-s" not in path.name
+                ),
                 root / "missing",
             ),
         ),
@@ -71,6 +75,8 @@ def _joint_summary(technique: str, result: AnalysisResult) -> dict[str, float]:
 
 def test_real_engine_runs_persist_into_joint_report_and_manifest(tmp_path: Path) -> None:
     sources = _real_sources()
+    assert sources[1][2].name != "8-000-s_0_00000_with_mask.edf"
+    assert "普通小角" in str(sources[1][2])
     missing = [str(path) for _, _, path in sources if not path.exists()]
     if missing:
         pytest.skip(f"real Joint fixtures unavailable: {missing}")
@@ -93,7 +99,11 @@ def test_real_engine_runs_persist_into_joint_report_and_manifest(tmp_path: Path)
             config={"fig_format": "png"},
             submodule_id=submodule,
         ).run_pipeline(str(source), str(technique_output))
-        assert result.validation_passed is True
+        if technique == "saxs":
+            assert result.validation_passed is False
+            assert result.quality_flags.get("saxs") == "ERROR"
+        else:
+            assert result.validation_passed is True
         source_run_ids[technique] = db.create_analysis_run(
             batch_id,
             technique,
@@ -147,3 +157,4 @@ def test_real_engine_runs_persist_into_joint_report_and_manifest(tmp_path: Path)
     assert {validation_sources[key]["run_id"] for key in ("dsc", "saxs")} <= set(
         source_run_ids.values()
     )
+    db.close()

@@ -104,6 +104,7 @@ class JointRunRecord:
     technique: str
     submodule: str = ""
     created_at: str = ""
+    source_path: str = ""
     output_dir: str = ""
     parameters: dict[str, Any] = field(default_factory=dict)
     results_summary: dict[str, Any] = field(default_factory=dict)
@@ -214,6 +215,11 @@ def collect_joint_dataset(
                 continue
 
             latest_by_technique: dict[str, JointRunRecord] = {}
+            source_by_technique: dict[str, str] = {}
+            for data_file in sample_db.get_data_files(batch_id):
+                data_technique = _normalise_technique(data_file.get("technique"))
+                if data_technique in TECHNIQUES and data_technique not in source_by_technique:
+                    source_by_technique[data_technique] = str(data_file.get("file_path") or "")
             for run in sample_db.get_analysis_runs(batch_id):
                 technique = _normalise_technique(run.get("technique"))
                 if technique not in TECHNIQUES or technique in latest_by_technique:
@@ -223,6 +229,7 @@ def collect_joint_dataset(
                     technique=technique,
                     submodule=run.get("submodule", "") or "",
                     created_at=run.get("created_at", "") or "",
+                    source_path=source_by_technique.get(technique, _embedded_source_path(run)),
                     output_dir=run.get("output_dir", "") or "",
                     parameters=run.get("parameters", {}) or {},
                     results_summary=run.get("results_summary", {}) or {},
@@ -256,6 +263,15 @@ def _normalise_xc(value: float) -> float:
     return value / 100.0
 
 
+def _embedded_source_path(run: dict[str, Any]) -> str:
+    for payload in _iter_dicts(run):
+        for key in ("source_path", "input_path", "source_file", "file_path"):
+            value = payload.get(key)
+            if value:
+                return str(value)
+    return ""
+
+
 def _saxs_xc(row: JointBatchRow) -> float:
     saxs = row.run("saxs")
     if not saxs:
@@ -275,9 +291,42 @@ def _xc_pct_for(row: JointBatchRow, technique: str) -> float:
         value = _saxs_xc(row)
     else:
         run = row.run(technique)
+        if technique == "nmr" and not _nmr_xc_is_eligible(run):
+            return math.nan
         value = run.get_first_number(XC_KEYS) if run else math.nan
         value = _normalise_xc(value)
     return value * 100.0 if not math.isnan(value) else math.nan
+
+
+def _nmr_xc_is_eligible(run: JointRunRecord | None) -> bool:
+    if run is None:
+        return False
+    evidence = _run_analysis_evidence(run)
+    structure = evidence.get("structure_evidence", {}) if isinstance(evidence.get("structure_evidence"), dict) else {}
+    if str(structure.get("Xc_assignment_status") or "").strip() == "assignment_limited":
+        return False
+    ppm_axis = structure.get("ppm_axis") if isinstance(structure.get("ppm_axis"), dict) else {}
+    for payload in (structure, ppm_axis):
+        if payload.get("ppm_axis_calibrated") is False or payload.get("calibrated") is False:
+            return False
+    return True
+
+
+def _joint_row_not_comparable(row: JointBatchRow) -> bool:
+    """Detect explicit source-condition incompatibility without guessing identity."""
+    expected = dict(row.condition_values or {})
+    for run in row.runs.values():
+        values = run.values.get("condition_values")
+        if isinstance(values, dict) and expected and dict(values) != expected:
+            return True
+        evidence = _run_analysis_evidence(run)
+        compatibility = evidence.get("condition_compatibility")
+        if compatibility is False or str(compatibility or "").strip().lower() in {
+            "incompatible",
+            "not_comparable",
+        }:
+            return True
+    return False
 
 
 def _run_analysis_evidence(run: JointRunRecord | None) -> dict[str, Any]:
@@ -354,6 +403,8 @@ def build_joint_run_provenance(
             "technique": str(run.technique or technique),
             "submodule": str(run.submodule or ""),
             "created_at": str(run.created_at or ""),
+            "source_path": str(run.source_path or ""),
+            "output_dir": str(run.output_dir or ""),
             "evidence_status": str(evidence["status"]),
             "evidence_weight": float(evidence["weight"]),
             "evidence_reasons": [str(item) for item in evidence["reasons"]],
@@ -365,6 +416,45 @@ def build_joint_run_provenance(
         "batch": str(row.batch_label or ""),
         "sources": sources,
     }
+
+
+def build_joint_source_preflight(row: JointBatchRow) -> list[dict[str, Any]]:
+    """Return detached source/run evidence for one selected batch row."""
+    entries: list[dict[str, Any]] = []
+    for technique in TECHNIQUES:
+        run = row.run(technique)
+        if run is None:
+            continue
+        evidence = _run_evidence_context(run)
+        contributes = not math.isnan(_xc_pct_for(row, technique))
+        excluded_reason = ""
+        if run and technique == "nmr" and not _nmr_xc_is_eligible(run):
+            excluded_reason = "assignment_or_axis_not_ready"
+        comparison_status = "NOT_COMPARABLE" if _joint_row_not_comparable(row) else (
+            "included" if contributes else (excluded_reason or "unavailable")
+        )
+        entries.append(
+            {
+                "sample_id": str(row.sample_id or ""),
+                "sample": str(row.sample_name or ""),
+                "batch_id": str(row.batch_id or ""),
+                "batch": str(row.batch_label or ""),
+                "condition_type": str(row.condition_type or ""),
+                "condition_values": dict(row.condition_values or {}),
+                "technique": technique,
+                "available": True,
+                "submodule": str(run.submodule or ""),
+                "run_id": str(run.run_id or ""),
+                "created_at": str(run.created_at or ""),
+                "source_path": str(run.source_path or ""),
+                "output_dir": str(run.output_dir or ""),
+                "evidence_status": str(evidence["status"]),
+                "evidence_reasons": [str(item) for item in evidence["reasons"]],
+                "comparison_status": comparison_status,
+                "comparison_value_available": contributes,
+            }
+        )
+    return entries
 
 
 def build_joint_scientific_review_snapshot(
@@ -442,6 +532,25 @@ def detect_joint_opportunities(row: JointBatchRow) -> list[str]:
 
 def validate_joint_row(row: JointBatchRow) -> list[dict[str, Any]]:
     """Run cross-technique validation checks for one hub row."""
+    if _joint_row_not_comparable(row):
+        return [
+            {
+                "sample": row.sample_name,
+                "sample_id": row.sample_id,
+                "batch": row.batch_label,
+                "batch_id": row.batch_id,
+                "check": f"{row.sample_name}/{row.batch_label}/condition_compatibility",
+                "status": "NOT_COMPARABLE",
+                "severity": "INFO",
+                "passed": True,
+                "message": "Source condition evidence is incompatible with the selected batch; numeric Joint comparisons were not performed.",
+                "details": {"condition_values": dict(row.condition_values or {})},
+                "provenance": {
+                    "check": "condition_compatibility",
+                    **build_joint_run_provenance(row),
+                },
+            }
+        ]
     dsc = row.run("dsc")
     waxs = row.run("waxs")
     saxs = row.run("saxs")
@@ -479,8 +588,11 @@ def validate_joint_row(row: JointBatchRow) -> list[dict[str, Any]]:
         output.append(
             {
                 "sample": row.sample_name,
+                "sample_id": row.sample_id,
                 "batch": row.batch_label,
+                "batch_id": row.batch_id,
                 "check": item.check_name,
+                "status": item.status,
                 "severity": item.severity,
                 "passed": item.passed,
                 "message": item.message,
@@ -593,7 +705,8 @@ def _build_joint_ai_context(
 ) -> dict[str, Any]:
     issue_rows = [
         item for item in validation_rows
-        if str(item.get("severity") or "").strip().upper() in {"WARN", "ERROR"}
+        if str(item.get("status") or "").strip().upper() != "SKIP"
+        and str(item.get("severity") or "").strip().upper() in {"WARN", "ERROR"}
     ]
     technique_issue_rows = _joint_technique_issue_rows(summary_rows)
     weak_xc_sources, recommended_review_targets = _joint_weak_xc_sources(summary_rows)
@@ -740,7 +853,9 @@ def build_joint_hub_report(rows: list[JointBatchRow]) -> dict[str, Any]:
         summary_rows.append(
             {
                 "sample": row.sample_name,
+                "sample_id": row.sample_id,
                 "batch": row.batch_label,
+                "batch_id": row.batch_id,
                 "condition": row.condition_label or row.condition_type,
                 "condition_values": row.condition_values,
                 "techniques": row.technique_label,
@@ -749,6 +864,7 @@ def build_joint_hub_report(rows: list[JointBatchRow]) -> dict[str, Any]:
                 "saxs_Xc_pct": _xc_pct_for(row, "saxs"),
                 "ir_Xc_pct": _xc_pct_for(row, "ir"),
                 "nmr_Xc_pct": _xc_pct_for(row, "nmr"),
+                "source_preflight": build_joint_source_preflight(row),
                 "Tm_C": row.run("dsc").get_first_number(("Tm_peak_C", "Tm_C")) if row.run("dsc") else math.nan,
                 "L_nm": row.run("saxs").get_first_number(("L_nm", "long_period_nm", "L_best")) if row.run("saxs") else math.nan,
                 "lc_nm": row.run("saxs").get_first_number(("lc_nm", "crystalline_thickness_nm")) if row.run("saxs") else math.nan,
@@ -759,6 +875,12 @@ def build_joint_hub_report(rows: list[JointBatchRow]) -> dict[str, Any]:
                 "paper_conclusion_ready_by_technique": paper_ready_by_technique,
             }
         )
+
+    source_preflight = [
+        source
+        for row in summary_rows
+        for source in row["source_preflight"]
+    ]
 
     issue_count = sum(v["severity"] == "ERROR" for v in validation_rows)
     warn_count = sum(v["severity"] == "WARN" for v in validation_rows)
@@ -775,6 +897,7 @@ def build_joint_hub_report(rows: list[JointBatchRow]) -> dict[str, Any]:
     return {
         "name": "joint_analysis_hub",
         "rows": summary_rows,
+        "source_preflight": source_preflight,
         "validations": validation_rows,
         "scientific_review": scientific_review,
         "joint_conclusion": joint_conclusion,

@@ -4,8 +4,47 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QTableWidgetItem
 
-from polynexus.gui.i18n import get_language, set_language, tr
+from polynexus.gui.i18n import get_language, set_language
 from polynexus.gui.widgets.joint_analysis_hub import JointAnalysisHub
+from polynexus.core.joint.dataset import JointBatchRow, JointRunRecord
+
+
+def test_joint_analysis_hub_refresh_does_not_select_rows(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    rows = [
+        JointBatchRow(
+            sample_id="sample-1",
+            sample_name="PA6",
+            family="PA6",
+            batch_id="batch-1",
+            batch_label="batch-1",
+            runs={"dsc": JointRunRecord(run_id="run-1", technique="dsc")},
+        ),
+        JointBatchRow(
+            sample_id="sample-1",
+            sample_name="PA6",
+            family="PA6",
+            batch_id="batch-2",
+            batch_label="batch-2",
+            runs={
+                "dsc": JointRunRecord(run_id="run-2", technique="dsc"),
+                "saxs": JointRunRecord(run_id="run-3", technique="saxs"),
+            },
+        ),
+    ]
+    monkeypatch.setattr(
+        "polynexus.gui.widgets.joint_analysis_hub.collect_joint_dataset",
+        lambda *_args, **_kwargs: rows,
+    )
+
+    hub = JointAnalysisHub()
+    hub.set_db(object())
+
+    assert hub.selected_rows() == []
+    hub._select_recommended()
+    assert hub.selected_batch_ids() == ["batch-2"]
+    hub.deleteLater()
+    app.processEvents()
 
 
 def test_joint_analysis_hub_copy_button_copies_selected_row():

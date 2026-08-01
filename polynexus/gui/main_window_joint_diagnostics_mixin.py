@@ -127,6 +127,10 @@ class MainWindowJointDiagnosticsMixin:
 
         write_csv(os.path.join(data_dir, "joint_hub_summary.csv"), report.get("rows", []))
         write_csv(
+            os.path.join(data_dir, "joint_hub_source_preflight.csv"),
+            report.get("source_preflight", []),
+        )
+        write_csv(
             os.path.join(data_dir, "joint_hub_validations.csv"),
             report.get("validations", []),
         )

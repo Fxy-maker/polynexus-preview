@@ -63,7 +63,6 @@ class JointAnalysisHub(QWidget):
             query = self._search.text().strip() or None
             self._rows = collect_joint_dataset(self._db, search=query)
         self._populate_table()
-        self._select_recommended()
         self._update_summary()
 
     def selected_rows(self) -> list[JointBatchRow]:

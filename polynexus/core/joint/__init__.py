@@ -12,6 +12,7 @@ from .figure_provider import build_joint_figure_definitions
 from .dataset import (
     JointBatchRow,
     JointRunRecord,
+    build_joint_source_preflight,
     build_joint_hub_report,
     collect_joint_dataset,
     detect_joint_opportunities,
@@ -23,6 +24,7 @@ __all__ = [
     "build_joint_figure_definitions",
     "JointBatchRow",
     "JointRunRecord",
+    "build_joint_source_preflight",
     "build_joint_hub_report",
     "collect_joint_dataset",
     "detect_joint_opportunities",

@@ -54,6 +54,8 @@ def _issue_counts(
     error_count = 0
     warning_count = 0
     for item in (*validation_rows, *technique_issue_rows):
+        if str(item.get("status") or "").strip().upper() == "SKIP":
+            continue
         severity = str(item.get("severity") or "").strip().upper()
         if severity == "ERROR":
             error_count += 1

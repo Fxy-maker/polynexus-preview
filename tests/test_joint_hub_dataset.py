@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from polynexus.core.joint.dataset import (
@@ -120,6 +122,93 @@ def test_joint_hub_report_builds_cross_tech_ai_context(tmp_path):
         "provider_status": "not_configured",
         "fallback": "rule_based_report",
         "failure_policy": "preserve_source_evidence_and_diagnostic_status",
+    }
+
+
+def test_joint_report_exposes_selected_source_preflight_and_batch_boundary(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_a = db.create_batch(sample_id, "annealed", condition_values={"temperature_C": 180})
+    batch_b = db.create_batch(sample_id, "cooled", condition_values={"temperature_C": 25})
+    dsc_path = tmp_path / "dsc" / "FXY-PA6.txt"
+    saxs_path = tmp_path / "saxs" / "PA6.edf"
+    dsc_path.parent.mkdir()
+    saxs_path.parent.mkdir()
+    dsc_path.write_text("fixture", encoding="utf-8")
+    saxs_path.write_text("fixture", encoding="utf-8")
+    db.add_data_file(batch_a, str(dsc_path), "dsc", submodule="dsc.standard", file_type=".txt")
+    db.add_data_file(batch_a, str(saxs_path), "saxs", submodule="saxs.static", file_type=".edf")
+    db.create_analysis_run(
+        batch_a,
+        "dsc",
+        submodule="dsc.standard",
+        results_summary={"Xc_pct": 42.0},
+        output_dir=str(tmp_path / "runs" / "dsc"),
+        analysis_evidence={"constraint_summary": {"status": "ok"}},
+    )
+    db.create_analysis_run(
+        batch_a,
+        "saxs",
+        submodule="saxs.static",
+        results_summary={"L_nm": 12.0, "lc_nm": 5.0},
+        output_dir=str(tmp_path / "runs" / "saxs"),
+        analysis_evidence={"constraint_summary": {"status": "ok"}},
+    )
+    db.create_analysis_run(batch_b, "dsc", results_summary={"Xc_pct": 10.0})
+
+    rows = collect_joint_dataset(db, batch_ids=[batch_a])
+    report = build_joint_hub_report(rows)
+
+    assert [row["batch_id"] for row in report["source_preflight"]] == [batch_a, batch_a]
+    dsc_source = next(item for item in report["source_preflight"] if item["technique"] == "dsc")
+    assert dsc_source["sample_id"] == sample_id
+    assert dsc_source["batch_id"] == batch_a
+    assert dsc_source["submodule"] == "dsc.standard"
+    assert dsc_source["run_id"]
+    assert dsc_source["source_path"] == str(dsc_path)
+    assert dsc_source["condition_values"] == {"temperature_C": 180}
+    assert dsc_source["evidence_status"] == "ok"
+    assert dsc_source["evidence_reasons"] == []
+    assert report["rows"][0]["source_preflight"]
+    assert all(item["batch_id"] == batch_a for item in report["source_preflight"])
+
+
+def test_joint_skip_status_is_not_a_conflict():
+    from polynexus.core.joint.validation import validate_L_consistency, validate_tm_bidirectional
+
+    tm_skip = validate_tm_bidirectional(220.0, 12.0, 5.0, polymer_family="", delta_Hf=None)[0]
+    l_skip = validate_L_consistency(12.0, None)
+
+    assert tm_skip.status == "SKIP"
+    assert tm_skip.passed is True
+    assert tm_skip.severity == "INFO"
+    assert l_skip.status == "SKIP"
+    assert l_skip.passed is True
+    assert l_skip.severity == "INFO"
+
+
+def test_joint_condition_mismatch_is_not_comparable_without_precedence(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "mixed", condition_values={"temperature_C": 180})
+    db.create_analysis_run(
+        batch_id,
+        "dsc",
+        results_summary={"Xc_pct": 42.0, "condition_values": {"temperature_C": 180}},
+    )
+    db.create_analysis_run(
+        batch_id,
+        "waxs",
+        results_summary={"Xc_pct": 20.0, "condition_values": {"temperature_C": 25}},
+    )
+
+    report = build_joint_hub_report(collect_joint_dataset(db))
+
+    assert report["validations"][0]["status"] == "NOT_COMPARABLE"
+    assert report["validations"][0]["severity"] == "INFO"
+    assert report["ai_context"]["issue_count"] == 0
+    assert {item["comparison_status"] for item in report["source_preflight"]} == {
+        "NOT_COMPARABLE"
     }
 
 
@@ -249,6 +338,8 @@ def test_joint_context_downgrades_assignment_limited_nmr_xc(tmp_path):
     report = build_joint_hub_report(collect_joint_dataset(db))
 
     assert report["ai_context"]["weak_xc_sources"]["nmr"] == "assignment_limited"
+    assert math.isnan(report["rows"][0]["nmr_Xc_pct"])
+    assert not any("phi_c" in item["check"] and "NMR" in item["message"] for item in report["validations"])
     assert "NMR assignment limited" in report["ai_context"]["issue_families"]
     assert "nmr" in report["ai_context"]["recommended_review_targets"]
 
