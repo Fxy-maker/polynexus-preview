@@ -49,11 +49,15 @@ invariant, and lamellar evidence after SAXS summary sanitization.
 
 ## Evidence
 
-- Fresh Advisor/prompt/summary/live regression: `25 passed in 2.61s`, exit code
+- Fresh Advisor/prompt/summary/live regression: `25 passed in 1.44s`, exit code
   `0`. The captured `Advisor.last_prompt` retained Guinier, Porod, Kratky,
   invariant, and lamellar keys plus candidate-only and physical-validation
-  safeguards.
-- Fresh complete SAXS matrix: `713 passed, 6 warnings in 482.99s`, exit code
+  safeguards. The live-context contract correction is recorded explicitly:
+  Temperature asserts `series.guinier_sequence_evidence`, while Strain asserts
+  `series.metric_evidence.guinier`; this changed only test projection
+  expectations, not production logic.
+- Fresh live-context slice: `6 passed in 0.88s`, exit code `0`.
+- Fresh complete SAXS matrix: `713 passed, 6 warnings in 488.71s`, exit code
   `0`.
 - Structured verifier exited `0`: quality `297 passed`, preprocessing `106
   passed`, task/memory, Ruff, compile, type-baseline, and whitespace checks

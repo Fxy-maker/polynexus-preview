@@ -12,9 +12,13 @@ task: docs/agent/tasks/2026-08-01-saxs-ai-method-prompt-transport.md
 
 - `python -m pytest -q tests/test_advisor.py tests/test_saxs_prompt_builder.py
   tests/test_saxs_ai_summary_context.py tests/test_saxs_ai_live_context.py
-  -o addopts=` returned `25 passed in 2.61s`, exit code `0`.
-- The fresh complete SAXS matrix returned `713 passed, 6 warnings in 482.99s`, exit
-  code `0`.
+  -o addopts=` returned `25 passed in 1.44s`, exit code `0`.
+- The dedicated live-context slice returned `6 passed in 0.88s`, exit code `0`.
+  Its corrected assertions keep Temperature sequence evidence under
+  `series.guinier_sequence_evidence` and Strain Guinier metric evidence under
+  `series.metric_evidence.guinier`; no production behavior changed.
+- The fresh complete SAXS matrix returned `713 passed, 6 warnings in 488.71s`,
+  exit code `0`.
 - Structured verifier exited `0`: quality `297 passed`, preprocessing `106
   passed`, task/memory, Ruff, compile, type baseline, and whitespace checks
   passed.
