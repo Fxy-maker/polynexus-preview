@@ -199,6 +199,17 @@ def _existing_acceptance_audit(result: Any) -> dict[str, Any]:
     return _acceptance_audit_projection(parameters.get("scientific_acceptance_audit"))
 
 
+def _existing_scientific_review(result: Any) -> Any:
+    owner = _mode_result(result, "static")
+    parameters = _object_value(owner, "parameters", None)
+    if not isinstance(parameters, Mapping):
+        return None
+    for field_name in ("scientific_review_record", "scientific_review"):
+        if field_name in parameters:
+            return parameters[field_name]
+    return None
+
+
 def _compact(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
@@ -462,7 +473,10 @@ def build_saxs_ai_summary_context(result: Any, *, mode: str) -> dict[str, Any]:
     acceptance_audit = _existing_acceptance_audit(result)
     if acceptance_audit:
         context["scientific_acceptance_audit"] = acceptance_audit
-    two_d_context = build_saxs_2d_review_context(_mode_result(result, normalized_mode))
+    two_d_context = build_saxs_2d_review_context(
+        _mode_result(result, normalized_mode),
+        scientific_review=_existing_scientific_review(result),
+    )
     if two_d_context.get("status") != "unavailable":
         context["saxs_2d_review_context"] = two_d_context
     return _json_safe(context)
