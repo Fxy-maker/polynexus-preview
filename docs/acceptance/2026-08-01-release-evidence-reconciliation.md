@@ -48,3 +48,16 @@ of the current complete exit-`0` result.
 - `docs/agent/tasks/2026-07-31-saxs-2d-ai-context-bridge.md`
 - `docs/agent/tasks/2026-07-31-full-goal-release-evidence-audit.md`
 - `docs/agent/tasks/2026-07-29-release-decision-packet.md`
+
+## Current-head amendment
+
+The Joint `SKIP`/`INFO` compatibility update was verified on the current HEAD.
+The authoritative full/boundary result is `3352 passed, 18 skipped, 12
+warnings in 2157.07s (0:35:57)`, exit code `0`, with quality `297`,
+preprocessing `106`, boundary audit exit `0`, and all structural checks passed.
+
+An earlier rerun with two stale v4 severity assertions returned `3350 passed,
+18 skipped, 12 warnings`, exit code `1`; after the assertion update it is
+classified as a repaired compatibility failure, not as a current product
+failure. This does not close the scientific or owner release gates listed
+above.

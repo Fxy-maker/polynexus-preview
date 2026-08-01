@@ -89,3 +89,20 @@ Recorded 2026-08-01:
 
 Parallel memory, source, GUI, scratch, generated output, and test-storage
 changes remain outside this checkpoint.
+
+## Current-head amendment after Joint status contract
+
+After the Joint `SKIP`/`INFO` compatibility regression was aligned, the
+current HEAD full/boundary verifier completed with:
+
+- `3352 passed, 18 skipped, 12 warnings in 2157.07s`, exit code `0`;
+- quality gate `297 passed` and preprocessing gate `106 passed`;
+- boundary audit exit code `0`, with Ruff, compile, type baseline, memory,
+  task, whitespace, and diff checks passing.
+
+The preceding rerun with stale v4 validation expectations produced `3350
+passed, 18 skipped, 12 warnings`, exit code `1`; it is retained as a diagnosed
+compatibility failure and is not counted as release evidence. The overall
+release classification remains conditional: IR mapping, NMR solid-C, Joint
+scientific interpretation, restarted-GUI human review, and owner approval are
+still open.
