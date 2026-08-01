@@ -45,29 +45,34 @@ Temperature, and Strain modes.
 
 ## Implementation plan
 
-1. [ ] Add a parameterized focused regression using existing metric evidence
+1. [x] Add a parameterized focused regression using existing metric evidence
    fields for all three modes.
-2. [ ] Run the focused test and inspect whether the current generic projection
+2. [x] Run the focused test and inspect whether the current generic projection
    already satisfies the contract; do not change production code if it does.
-3. [ ] Run Advisor/prompt/summary regressions and the complete SAXS matrix.
-4. [ ] Run task-scoped structured verification, storage dry-runs, and diff
+3. [x] Run Advisor/prompt/summary regressions and the complete SAXS matrix.
+4. [x] Run task-scoped structured verification, storage dry-runs, and diff
    audit; record exact outcomes.
 5. [x] Create one explicit allowlist checkpoint containing only the test and
    four task documents.
 
 ## Evidence
 
-- Focused method/Advisor/prompt regression: `18 passed in 0.59s`, exit code `0`.
+- The live series assertion follows the existing mode-specific contract:
+  Temperature reads `series["guinier_sequence_evidence"]`, while Strain reads
+  `series["metric_evidence"]["guinier"]`. This is a test-contract correction;
+  no production logic changed.
+- Fresh Advisor/prompt/summary/live/audit regression: `29 passed in 1.56s`,
+  exit code `0`.
 - Combined summary/live/Advisor/prompt/audit regression: `28 passed in 6.27s`,
   exit code `0`.
 - Complete SAXS matrix including this regression: `713 passed, 6 warnings in
-  568.82s`, exit code `0`.
+  482.99s`, exit code `0`.
 - Structured verifier exited `0`: quality `297 passed`, preprocessing `106
   passed`, plus task/memory, Ruff, compile, type-baseline, and whitespace
   checks.
 - Storage report and dry-run clean both exited `0`: `145` artifacts,
-  `34,459,621,656` total bytes, `15,743,185,346` eligible bytes,
-  `failures=[]`, and `removed=0`. No `test_storage.py --apply` was executed.
+  `34,459,621,656` total bytes, `eligible_bytes=0`, `failures=[]`, and
+  `removed=0`. No `test_storage.py --apply` was executed.
 - `git diff --check` passed. The explicit allowlist checkpoint is the final
   task step.
 
