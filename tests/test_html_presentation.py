@@ -106,6 +106,23 @@ def test_saxs_method_slides_have_distinct_model_scope():
             assert term.lower() in slide.lower(), (slide_no, term)
 
 
+def test_opening_introduces_product_before_the_saxs_map():
+    html = PRESENTATION.read_text(encoding="utf-8")
+    opening_claims = (
+        "PolyNexus<br><span>从数据到证据</span>",
+        "DSC · WAXS · SAXS · IR · NMR",
+        "同一份样品，<br>从五种入口进入分析。",
+        "从原始数据到论文图表",
+        "为什么需要它？",
+        "PolyNexus 的核心思路",
+        "接下来，<br>我们先把 <span>SAXS</span> 讲透。",
+    )
+
+    positions = [html.index(claim) for claim in opening_claims]
+    assert positions == sorted(positions)
+    assert "data <span>→</span> models <span>→</span> quality <span>→</span> figures" in html
+
+
 def test_presentation_exposes_narration_navigation_and_motion_safety():
     html = PRESENTATION.read_text(encoding="utf-8")
 

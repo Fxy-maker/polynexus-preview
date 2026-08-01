@@ -14,19 +14,23 @@
   `0`. The flow ribbon was moved above the bottom navigation safe area after
   screenshot review.
 
-## PolyNexus HTML presentation depth - ready for checkpoint (2026-08-01)
+## PolyNexus HTML presentation opening revision - ready for checkpoint (2026-08-01)
 
 - The 46-slide SAXS-led master video now uses uniform five-chapter metadata.
   SAXS slides 17-27 are distinct method pages covering q-region mapping,
   Guinier, Porod, Bragg, Lorentz, IDF, invariant Q, cross-method review, and
   fail-closed quality state.
-- Focused presentation coverage is `3 passed`; inline JavaScript parsing,
+- The opening seven slides now introduce PolyNexus as a multi-technique
+  materials-analysis workbench, show DSC/WAXS/SAXS/IR/NMR scope and the shared
+  evidence path, then explain workflow fragmentation, model assumptions,
+  review boundaries, and the transition into SAXS.
+- Focused presentation coverage is `4 passed`; inline JavaScript parsing,
   `git diff --check`, and `python scripts/verify.py --changed --types` pass.
   The verifier reports quality gate `297 passed` and preprocessing gate
   `106 passed`.
-- Fresh Playwright checks passed at `1280x720` and `390x844`: 46 slides,
-  no viewport overflow, navigation reached slides 17 and 46, and the browser
-  console reported zero errors, warnings, or messages.
+- Fresh Playwright checks passed at `1280x720` and `390x844`: all 46 slides
+  passed the viewport-boundary scan, no viewport overflow was detected, and the
+  browser console reported zero errors, warnings, or messages.
 
 ## Full-goal release evidence refresh - checkpointed (2026-08-01)
 
