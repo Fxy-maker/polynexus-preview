@@ -80,8 +80,10 @@ Storage commands are dry-run only; `test_storage.py --apply` is forbidden.
   1.67s`, including malformed nested DTO fail-closed coverage. The existing
   temperature assertion remains `series.guinier_sequence_evidence`; the
   strain assertion remains `series.metric_evidence.guinier`.
-- Final fresh SAXS matrix returned `707 passed, 6 warnings in 480.79s` with
+- Latest fresh SAXS matrix returned `707 passed, 6 warnings in 486.94s` with
   exit code `0`.
+- Latest task-card focused bridge/AI/Advisor/prompt regression returned
+  `26 passed in 0.41s` with exit code `0`.
 - Final structured verifier exited `0`: quality `297 passed`, preprocessing
   `106 passed`, Ruff/compile/type-baseline/whitespace passed.
 - Storage `report --json` and `clean --older-than-hours 24 --json` were both

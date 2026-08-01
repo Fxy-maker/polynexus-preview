@@ -98,7 +98,7 @@ python -m pytest -q (Get-ChildItem tests -Filter 'test_saxs_*.py' | ForEach-Obje
 
 Only a complete summary and exit code `0` count as pass evidence.
 
-Observed: final fresh matrix `707 passed, 6 warnings in 480.79s`, exit code `0`.
+Observed: latest fresh matrix `707 passed, 6 warnings in 486.94s`, exit code `0`.
 
 - [x] **Step 2: Run structured verification and dry-runs**
 
@@ -114,6 +114,7 @@ No storage `--apply` is allowed.
 Observed: structured verifier exit code `0`, quality `297 passed`,
 preprocessing `106 passed`; storage dry-runs reported `142` artifacts,
 `15,743,185,346` eligible bytes, `removed=0`; `git diff --check` passed.
+The latest task-card focused regression returned `26 passed in 0.41s`.
 
 - [x] **Step 3: Checkpoint the exact allowlist**
 

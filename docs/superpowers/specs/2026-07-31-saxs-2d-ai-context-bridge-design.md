@@ -42,3 +42,12 @@ Tests cover static and all mode-result projection, missing 2D evidence,
 prompt-side raw-field exclusion, malformed scope/nested DTO fail-closed
 behavior, strict JSON, input immutability, and existing Advisor/prompt
 behavior when the optional field is absent.
+
+## Verification evidence
+
+The latest task-card focused regression passed with `26 passed in 0.41s` and
+the complete SAXS matrix passed with `707 passed, 6 warnings in 486.94s`, both
+with exit code `0`. The structured verifier passed with quality `297` and
+preprocessing `106`; storage report and clean remained dry-run only (`142`
+artifacts, `15,743,185,346` eligible bytes, `0` removed). No model, candidate,
+rerun, publication, or raw-data path was enabled by this slice.
