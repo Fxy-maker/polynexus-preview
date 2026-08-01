@@ -90,6 +90,7 @@ from .saxs_anisotropy import (
 )
 from .saxs_sequence_rescue import (
     build_sequence_rescue_candidates,
+    resolve_sequence_rescue_candidate,
     validate_sequence_rescue_candidate,
 )
 from .saxs_ai_rescue import (
@@ -155,7 +156,8 @@ __all__ = [
     "extract_azimuthal_profile", "extract_azimuthal_at_peaks",
     "herman_from_azimuthal", "herman_multi_q", "classify_2d_pattern",
     "analyze_peak_widths", "analyze_anisotropy", "detect_in_plane_orientation_axis", "export_parameters_csv",
-    "build_sequence_rescue_candidates", "validate_sequence_rescue_candidate",
+    "build_sequence_rescue_candidates", "resolve_sequence_rescue_candidate",
+    "validate_sequence_rescue_candidate",
     "SAXSAIRescueDecision", "SAXSAIRescuePlan",
     "SAXSConfirmedRerunAudit", "assess_saxs_ai_candidate",
     "assess_saxs_confirmed_rerun", "build_saxs_ai_summary_context",

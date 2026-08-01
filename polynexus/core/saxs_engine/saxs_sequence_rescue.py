@@ -15,6 +15,9 @@ import numpy as np
 from .saxs_quality_contracts import RescueCandidate, RescueValidationReport
 
 
+_SEQUENCE_RESCUE_SOURCE = "saxs_temperature.select_lc_sequence_path"
+
+
 def _get_value(point: Any, name: str, default: Any = None) -> Any:
     if isinstance(point, Mapping):
         return point.get(name, default)
@@ -98,6 +101,62 @@ def build_sequence_rescue_candidates(
     return tuple(candidates)
 
 
+def resolve_sequence_rescue_candidate(
+    candidates: Sequence[RescueCandidate | Mapping[str, Any]] | None,
+    candidate_id: str,
+    *,
+    mode: str = "temperature",
+) -> RescueCandidate | None:
+    """Resolve one advisory ID against the current full candidate records.
+
+    The prompt projection is intentionally insufficient for this operation:
+    resolution requires the source provenance retained on the current result.
+    This function only restores candidate identity and never evaluates or
+    applies the candidate.
+    """
+
+    if str(mode or "").strip().lower() != "temperature":
+        return None
+    target_id = str(candidate_id or "").strip()
+    if not target_id or candidates is None or isinstance(candidates, (str, bytes)):
+        return None
+
+    matches: list[RescueCandidate] = []
+    try:
+        candidate_items = list(candidates)
+    except TypeError:
+        return None
+    for item in candidate_items:
+        if isinstance(item, RescueCandidate):
+            candidate = item
+        elif isinstance(item, Mapping):
+            try:
+                candidate = RescueCandidate.from_dict(item)
+            except (KeyError, TypeError, ValueError):
+                continue
+        else:
+            continue
+        if candidate.candidate_id == target_id:
+            matches.append(candidate)
+
+    if len(matches) != 1:
+        return None
+    candidate = matches[0]
+    parameters = candidate.parameters
+    if (
+        candidate.kind != "deterministic"
+        or candidate.requires_validation is not True
+        or candidate.source != _SEQUENCE_RESCUE_SOURCE
+        or str(parameters.get("axis_name", "")).strip().lower() != "temperature"
+        or parameters.get("metric") != "lc_nm"
+        or parameters.get("apply_mode") != "candidate_only"
+        or parameters.get("preserve_missing_frames") is not True
+    ):
+        return None
+
+    return RescueCandidate.from_dict(candidate.to_dict())
+
+
 def validate_sequence_rescue_candidate(
     candidate: RescueCandidate,
     *,
@@ -131,5 +190,6 @@ def validate_sequence_rescue_candidate(
 
 __all__ = [
     "build_sequence_rescue_candidates",
+    "resolve_sequence_rescue_candidate",
     "validate_sequence_rescue_candidate",
 ]
