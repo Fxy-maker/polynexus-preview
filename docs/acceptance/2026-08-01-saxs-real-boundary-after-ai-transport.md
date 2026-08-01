@@ -13,18 +13,18 @@ task: docs/agent/tasks/2026-08-01-saxs-real-boundary-after-ai-transport.md
 - Real method evidence:
   `python -m pytest -q tests/test_saxs_real_method_evidence_surfaces.py -vv
   -o addopts= --basetemp=D:\PolyNexus-test-runs\saxs-real-boundary-methods-20260801`
-  returned `3 passed in 94.63s`, exit code `0`. The three cases were Static,
+  returned `3 passed in 75.34s`, exit code `0`. The three cases were Static,
   Temperature, and Strain, and each checked Parameter, Figure/Manifest, and
   Export method evidence.
 - PAD8 boundary:
   `python -m pytest -q tests/test_saxs_real_2d_scientific_acceptance.py -vv
   -o addopts= --basetemp=D:\PolyNexus-test-runs\saxs-real-boundary-pad8-20260801`
-  returned `4 passed in 34.74s`, exit code `0`.
+  returned `4 passed in 20.61s`, exit code `0`.
 - Real lifecycle:
   `python -m pytest -q tests/test_real_published_run_walkthrough.py -k saxs
   -vv -o addopts= --basetemp=D:\PolyNexus-test-runs\saxs-real-boundary-lifecycle-20260801`
   collected 15 items, selected 3, and returned `3 passed, 12 deselected in
-  94.99s`, exit code `0`.
+  93.23s`, exit code `0`.
 
 ## Boundary Meaning
 
@@ -43,8 +43,8 @@ each pytest command used a separate external D: basetemp.
   passed`, task/memory, Ruff, compile, type baseline, and whitespace checks
   passed.
 - Storage report and dry-run clean exited `0` in non-destructive mode: `145`
-  artifacts, `34,459,621,656` total bytes, `15,743,185,346` eligible bytes,
-  `failures=[]`, and `removed=0`. No `test_storage.py --apply` ran.
+  artifacts, `34,459,621,656` total bytes, `eligible_bytes=0`, `failures=[]`,
+  and `removed=0`. No `test_storage.py --apply` ran.
 - `git diff --check` exited `0`.
 
 The explicit four-file documentation checkpoint is the final task step.

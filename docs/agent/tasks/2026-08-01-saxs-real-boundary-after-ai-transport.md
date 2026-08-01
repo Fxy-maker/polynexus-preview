@@ -51,34 +51,34 @@ shared lifecycle.
 
 ## Implementation plan
 
-1. [ ] Run the real method-evidence surface test with an external writable
+1. [x] Run the real method-evidence surface test with an external writable
    basetemp and require a complete pytest summary.
-2. [ ] Run the PAD8 scientific-acceptance boundary with a separate external
+2. [x] Run the PAD8 scientific-acceptance boundary with a separate external
    basetemp and require a complete pytest summary.
-3. [ ] Run the SAXS Static/Temperature/Strain lifecycle selector and classify
+3. [x] Run the SAXS Static/Temperature/Strain lifecycle selector and classify
    only its actual exit code and final summary.
-4. [ ] Run the task verifier, storage report/dry-run clean, and `git diff
+4. [x] Run the task verifier, storage report/dry-run clean, and `git diff
    --check`; record any tool or disk limitation without relabeling it.
 5. [x] Review the disjoint diff and create one checkpoint containing only the
    four documentation files in this task.
 
 ## Evidence
 
-- Real method-evidence replay: `3 passed in 94.63s`, exit code `0`. Static,
+- Fresh real method-evidence replay: `3 passed in 75.34s`, exit code `0`. Static,
   Temperature, and Strain each preserved strict-JSON method evidence through
   final parameters, Figure/Manifest provenance, and Export quality evidence.
-- PAD8 scientific-acceptance boundary: `4 passed in 34.74s`, exit code `0`.
+- Fresh PAD8 scientific-acceptance boundary: `4 passed in 20.61s`, exit code `0`.
   The existing contract retained `diagnostic_only`, conservative publication
   flags, and no inferred geometry, mask, beam-center, or orientation approval.
-- Real SAXS lifecycle selector: `3 passed, 12 deselected in 94.99s`, exit code
+- Fresh real SAXS lifecycle selector: `3 passed, 12 deselected in 93.23s`, exit code
   `0`, covering Static, Temperature, and Strain.
 
 - Task-scoped structured verifier exited `0`: quality `297 passed`,
   preprocessing `106 passed`, task/memory, Ruff, compile, type-baseline, and
   whitespace checks passed.
 - Storage report and dry-run clean both exited `0`: `145` artifacts,
-  `34,459,621,656` total bytes, `15,743,185,346` eligible bytes,
-  `failures=[]`, and `removed=0`. No `test_storage.py --apply` was executed.
+  `34,459,621,656` total bytes, `eligible_bytes=0`, `failures=[]`, and
+  `removed=0`. No `test_storage.py --apply` was executed.
 - `git diff --check` exited `0`. The documentation-only checkpoint is the
   remaining finalization step. These automated results do not close human
   scientific or release approval.
