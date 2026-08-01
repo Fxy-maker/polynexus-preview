@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-01-saxs-ai-reference-evidence-transport
 kind: scientific-cross-module
-status: in_progress
+status: completed
 date: 2026-08-01
 title: Transport SAXS AI candidate-reference evidence to consumers
 ---
@@ -85,7 +85,7 @@ Workbench and Figure projections never display proposed candidate parameters.
 - [x] Export quality evidence retains the detached full resolution under the
       existing `ai_rescue` section.
 - [x] Empty/malformed/non-SAXS paths remain fail-closed and non-fatal.
-- [ ] Focused RED/GREEN, SAXS matrix, structured verifier, storage dry-runs,
+- [x] Focused RED/GREEN, SAXS matrix, structured verifier, storage dry-runs,
       diff audit, acceptance note, and explicit allowlist checkpoint are recorded.
 
 ## TDD evidence
@@ -99,6 +99,9 @@ Workbench and Figure projections never display proposed candidate parameters.
   `metric_evidence.guinier`, matching their existing contracts.
 - Structured verifier passed: task-check valid, Ruff, compile, quality gate
   (`297 passed`), preprocessing gate (`106 passed`), and whitespace check.
+- Fresh isolated full SAXS matrix passed: `744 passed, 6 warnings in
+  704.21s`, exit code `0`. The warnings are existing font and EDF geometry
+  default warnings; no test failed.
 - Storage report/clean were dry-run only: `162` artifacts, `eligible_bytes=0`,
   clean `removed=0`, `failures=0`. No `--apply` was run.
 
@@ -106,14 +109,15 @@ Workbench and Figure projections never display proposed candidate parameters.
 
 ```powershell
 python -m pytest -q tests/test_saxs_workbench_series_evidence.py tests/test_saxs_figure_evidence_binding.py tests/test_saxs_export_bundle.py -o addopts=
-python -m pytest -q (Get-ChildItem tests -Filter 'test_saxs_*.py' | ForEach-Object { $_.FullName }) -o addopts=
+python -m pytest -q (Get-ChildItem tests -Filter 'test_saxs_*.py' | ForEach-Object { $_.FullName }) -o addopts= --basetemp=D:\PolyNexus_saxs_reference_transport_matrix_20260801
 python scripts/verify.py --task docs/agent/tasks/2026-08-01-saxs-ai-reference-evidence-transport.md --changed --types
 python scripts/test_storage.py report --json
 python scripts/test_storage.py clean --older-than-hours 24 --json
 git diff --check
 ```
 
-Only complete pytest summaries with exit code `0` count as pass evidence.
+Only complete pytest summaries with exit code `0` count as pass evidence. The
+isolated full matrix completed with `744 passed, 6 warnings` in `704.21s`.
 Storage commands are dry-run only.
 
 ## Explicit changed-file allowlist

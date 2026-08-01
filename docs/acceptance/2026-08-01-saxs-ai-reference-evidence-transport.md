@@ -13,6 +13,7 @@ roles, or validation semantics.
 |---|---|
 | TDD RED | `4 failed in 1.44s`; expected missing shared, Workbench, Figure, and Export evidence |
 | Focused GREEN and Advisor/prompt regression | `104 passed in 20.94s` |
+| Complete SAXS matrix | `744 passed, 6 warnings in 704.21s`, exit code `0` |
 | Structured verifier | task-check valid; Ruff, compile, quality `297 passed`, preprocessing `106 passed`, whitespace passed |
 | Storage report | dry-run, `162` artifacts, `eligible_bytes=0`, no emergency cleanup |
 | Storage clean | dry-run, `removed=0`, `failures=0` |
@@ -24,14 +25,13 @@ Figure and Manifest projection, Export JSON evidence, resolver behavior, SAXS
 prompt contract, and acceptance-context regression. Temperature assertions use
 `guinier_sequence_evidence`; strain assertions use `metric_evidence.guinier`.
 
-## Full-matrix limitation
+## Full-matrix verification
 
-The exact PowerShell-expanded `test_saxs_*.py` matrix was attempted twice on
-the current checkout. The first invocation exited `124` after `124044 ms`; the
-second exited `124` after `604102 ms`. Neither produced a final pytest summary,
-so neither is counted as a pass. The second run's exact parent/pytest processes
-were then stopped after the bounded timeout; unrelated parallel pytest
-processes were left untouched.
+The exact PowerShell-expanded `test_saxs_*.py` matrix was rerun with an
+isolated external basetemp and completed with `744 passed, 6 warnings in
+704.21s`, exit code `0`. The six warnings are existing Arial CJK font warnings
+and EDF geometry-default warnings; no failure occurred. Two earlier bounded
+attempts timed out without summaries and are not counted as pass evidence.
 
 ## Scientific boundary
 
@@ -41,9 +41,8 @@ requirements, and publication gates remain authoritative. No candidate
 parameters are shown in Workbench or Figure projections, and no interpolation,
 frame repair, automatic rescue, or candidate execution is introduced.
 
-## Open follow-up
+## Follow-up boundary
 
-Re-run the complete SAXS matrix in an isolated, sufficiently long-lived test
-session and record a complete pytest summary with exit code `0` before treating
-this task as fully closed. The current code and focused/structured checks are
-checkpointable, but the full-matrix acceptance checkbox remains open.
+This task's automated acceptance is closed. Scientific review of real SAXS
+calibration, temperature/strain meaning, candidate validation, and publication
+approval remains a separate human gate under the broader goal.

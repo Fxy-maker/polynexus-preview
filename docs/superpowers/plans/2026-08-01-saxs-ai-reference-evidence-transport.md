@@ -75,15 +75,13 @@ Export resolution evidence and no unrelated exception.
 
 - [x] Run the four new tests and the adjacent Figure/Workbench/Export/Advisor
   regression slice.
-- [ ] Run the complete `test_saxs_*.py` matrix and retain only a complete
+- [x] Run the complete `test_saxs_*.py` matrix and retain only a complete
   pytest summary with exit code `0`.
 - [x] Run the task-scoped structured verifier, storage report, and dry-run clean;
   never use `test_storage.py --apply`.
 - [x] Run `git diff --check`, inspect the explicit allowlist, write the
   acceptance note, and create one `scripts/auto_commit.py` checkpoint.
 
-Current verification limitation: the full matrix was attempted twice and
-returned exit `124` without a pytest summary after `124s` and `604s`; those
-runs are not counted as pass evidence. Focused and structured verifier evidence
-is complete, and the remaining matrix limitation is recorded in the task card
-and acceptance note.
+Final full-matrix evidence: an isolated external-basetemp run completed with
+`744 passed, 6 warnings in 704.21s`, exit code `0`. Earlier bounded attempts
+timed out without summaries and are retained only as historical limitations.
