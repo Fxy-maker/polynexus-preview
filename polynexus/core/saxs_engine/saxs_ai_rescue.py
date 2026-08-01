@@ -471,6 +471,7 @@ def sanitize_saxs_ai_summary_context(payload: Any) -> dict[str, Any]:
 
     if not isinstance(payload, Mapping) or str(payload.get("technique", "")).upper() != "SAXS":
         return {}
+    normalized_mode = str(payload.get("mode", "") or "").strip().lower()
     raw_frames = payload.get("frames", ())
     frames = (
         [_frame_projection(item, index) for index, item in enumerate(raw_frames) if isinstance(item, Mapping)]
@@ -479,7 +480,7 @@ def sanitize_saxs_ai_summary_context(payload: Any) -> dict[str, Any]:
     )
     series: dict[str, Any] = {}
     raw_series = payload.get("series")
-    if isinstance(raw_series, Mapping):
+    if normalized_mode == "temperature" and isinstance(raw_series, Mapping):
         rescue_candidates = _sequence_rescue_candidates_projection(
             raw_series.get("sequence_rescue_candidates", ())
         )

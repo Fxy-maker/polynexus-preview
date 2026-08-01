@@ -5,7 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from polynexus.core.saxs_engine.saxs_ai_rescue import build_saxs_ai_summary_context
+from polynexus.core.saxs_engine.saxs_ai_rescue import (
+    build_saxs_ai_summary_context,
+    sanitize_saxs_ai_summary_context,
+)
 
 
 def _frame(*, source_index: int = 0, level: str = "Trend") -> SimpleNamespace:
@@ -137,6 +140,22 @@ def test_non_temperature_summary_does_not_invent_sequence_rescue_candidates(
 
     assert "sequence_rescue_candidates" not in context["series"]
     json.dumps(context, allow_nan=False)
+
+
+def test_sanitizer_drops_sequence_rescue_candidates_for_non_temperature_mode() -> None:
+    context = sanitize_saxs_ai_summary_context(
+        {
+            "technique": "SAXS",
+            "mode": "strain",
+            "series": {
+                "sequence_rescue_candidates": [
+                    {"candidate_id": "must-not-cross"}
+                ]
+            },
+        }
+    )
+
+    assert "sequence_rescue_candidates" not in context["series"]
 
 
 @pytest.mark.parametrize("mode", ("static", "temperature", "strain"))
