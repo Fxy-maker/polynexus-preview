@@ -1,5 +1,19 @@
 # Active Work
 
+## PolyNexus HTML data-flow motion follow-up - ready for checkpoint (2026-08-01)
+
+- Lecture slides now expose a shared `raw input -> decision -> model -> quality
+  / output` ribbon. The active stage follows the slide visual role so formula,
+  process, comparison, and quality pages read as one software workflow.
+- Added staggered lecture entrances, curve drawing, process sweeps, active-stage
+  pulses, and a reduced-motion reset. Focused presentation coverage is `3
+  passed`; repository verification reports quality `297 passed` and
+  preprocessing `106 passed`.
+- Fresh Playwright evidence: 46-slide geometry scan at `1280x720` returned
+  `issueCount: 0`, phone `390x844` had no overflow, and console messages were
+  `0`. The flow ribbon was moved above the bottom navigation safe area after
+  screenshot review.
+
 ## PolyNexus HTML presentation depth - ready for checkpoint (2026-08-01)
 
 - The 46-slide SAXS-led master video now uses uniform five-chapter metadata.

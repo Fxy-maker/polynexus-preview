@@ -65,8 +65,16 @@ def test_presentation_has_a_fixed_stage_and_complete_slide_story():
         "parameter stability",
         "physical plausibility",
         "data quality",
+        "flow-ribbon",
+        "ensureFlowRibbons",
+        "updateFlowRibbon",
+        "lecture-enter",
+        "process-sweep",
     ):
         assert term in html
+
+    assert "@media (prefers-reduced-motion: reduce)" in html
+    assert "lecture-slide .flow-ribbon" in html
 
 
 def test_saxs_method_slides_have_distinct_model_scope():

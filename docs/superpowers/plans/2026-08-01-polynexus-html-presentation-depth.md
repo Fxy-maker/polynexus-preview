@@ -234,3 +234,45 @@ python scripts/auto_commit.py `
 
 Expected result: one local commit containing only the expanded deck, focused
 test, plan, task evidence, and design documents; no push or merge.
+
+## Task 7: Make the data flow visible and animate the lecture system
+
+**Files:**
+- Modify `docs/presentations/polynexus-overview.html`
+- Modify `tests/test_html_presentation.py`
+
+- [x] **Step 1: Add a persistent data-flow ribbon to lecture slides.**
+
+The presentation engine should add one small fixed-stage ribbon to each
+`lecture-slide`, with the stages `raw input`, `decision`, `model`, and
+`quality / output`. `updateFlowRibbon()` should highlight the stage implied by
+the slide visual role (`process`/`hierarchy` = decision, `formula`/`curve` =
+model, `comparison`/`quality` = quality, `closing` = output). This makes each
+abstract method page visibly part of the same software workflow.
+
+- [x] **Step 2: Add layered entrance motion for lecture components.**
+
+Use CSS transforms and opacity only: headings rise, visual panels scale in,
+tables and quality rows wipe in, and metrics stagger. The classes must be
+retriggered by the existing `showSlide()` visibility toggle and must be
+disabled by the existing `prefers-reduced-motion` rule.
+
+- [x] **Step 3: Animate scientific visual primitives.**
+
+Animate SVG curve paths with a line-draw effect, add a slow sweep to process
+strips, and pulse the active flow-ribbon stage once after the slide enters.
+These effects must remain explanatory and must not imply measured dynamics.
+
+- [x] **Step 4: Extend focused HTML contract tests.**
+
+Assert that the HTML contains `flow-ribbon`, `updateFlowRibbon`,
+`lecture-enter`, `process-sweep`, and a `prefers-reduced-motion` reset for the
+new motion classes. Run `pytest tests/test_html_presentation.py -q` before
+browser review.
+
+- [x] **Step 5: Verify motion at desktop and phone viewports.**
+
+At `1280x720` and `390x844`, inspect slides 01, 17, 20, 25, 27, 40, and 46.
+Confirm that the ribbon stays inside the stage, text remains readable, the
+animation does not cause layout shift or overflow, and the browser console is
+clean.

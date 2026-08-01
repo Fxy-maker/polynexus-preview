@@ -78,6 +78,15 @@ python scripts/verify.py --changed --types
 - `git diff --check` passed. Screenshots were captured under the ignored
   `output/playwright/` diagnostic directory.
 
+- Motion/directness follow-up: lecture slides now add a visible
+  `raw input -> decision -> model -> quality / output` ribbon. The active stage
+  follows the slide visual role; lecture claims, panels, tables, metrics,
+  curves, process sweeps, and quality rows enter in a staggered sequence.
+- Motion contract coverage remains in the focused presentation test (`3 passed`)
+  and the inline JavaScript parser. A fresh 46-slide desktop geometry scan at
+  `1280x720` reported `issueCount: 0`; the phone check at `390x844` reported
+  no overflow, and the browser console reported zero messages.
+
 The diagrams are explanatory visuals, not measured experimental results. Real
 GUI screenshots and scientific examples remain follow-up material for the
 separate tutorial and case-study videos.

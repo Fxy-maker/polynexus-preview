@@ -150,6 +150,19 @@ speaker notes, captions, replay, and reduced-motion behavior remain unchanged.
 The expanded deck adds chapter markers and a chapter-level navigation label so
 the master video can be cut without losing the conceptual transition.
 
+## Visual directness and motion extension
+
+The lecture pages use a persistent `raw input -> decision -> model -> quality /
+output` ribbon so the audience can locate every formula and method inside the
+same PolyNexus workflow. The active step follows the slide's visual role and
+does not replace the scientific explanation. Lecture content enters in layers:
+the claim first, the supporting visual second, and the caveat or quality state
+third. Curves draw from left to right, process strips carry a restrained sweep,
+and quality states resolve one row at a time. All motion is opacity/transform or
+stroke-dashoffset based, restarts on slide navigation, and is disabled by
+`prefers-reduced-motion`; diagrams remain explanatory and do not represent
+measured time-dependent behavior.
+
 ## Acceptance criteria
 
 - The deck contains 44-48 slides, with the approved 46-slide outline present.
