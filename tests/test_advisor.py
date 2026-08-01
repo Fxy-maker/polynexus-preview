@@ -100,6 +100,18 @@ class _ContextLLM:
         return '{"assessment":"WARN","confidence":0.0,"changes":{},"converge":true}'
 
 
+class _CandidateReferenceLLM:
+    last_used_mock = True
+
+    def chat(self, prompt: str, **kwargs: object) -> str:
+        del prompt, kwargs
+        return (
+            '{"assessment":"WARN","confidence":0.4,"changes":{},'
+            '"saxs_candidate_references":["temperature-frame-0-lc-tangent",'
+            '"unknown-candidate","temperature-frame-0-lc-tangent",7]}'
+        )
+
+
 class _MalformedResponseLLM:
     last_used_mock = False
     provider_label = "Test LLM"
@@ -224,6 +236,67 @@ def test_advisor_prompt_retains_existing_sequence_rescue_candidate_boundary() ->
     assert '"apply_mode": "candidate_only"' in advisor.last_prompt
     assert '"requires_validation": true' in advisor.last_prompt
     assert "raw_q" not in advisor.last_prompt
+
+
+def test_advisor_allowlists_existing_saxs_candidate_references() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_CandidateReferenceLLM())
+
+    advice = advisor.advise(
+        {
+            "technique": "SAXS",
+            "params": {},
+            "saxs_ai_context": {
+                "technique": "SAXS",
+                "mode": "temperature",
+                "status": "available",
+                "candidate_only": True,
+                "physical_validation_required": True,
+                "series": {
+                    "sequence_rescue_candidates": [
+                        {"candidate_id": "temperature-frame-0-lc-tangent"}
+                    ]
+                },
+            },
+        }
+    )
+
+    assert advice["saxs_candidate_references"] == ["temperature-frame-0-lc-tangent"]
+    assert advice["changes"] == {}
+    assert "preprocess_intent" not in advice
+    assert "candidate_plan" not in advice
+
+
+def test_advisor_drops_candidate_references_without_temperature_candidates() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_CandidateReferenceLLM())
+
+    advice = advisor.advise(
+        {
+            "technique": "SAXS",
+            "params": {},
+            "saxs_ai_context": {
+                "technique": "SAXS",
+                "mode": "static",
+                "status": "available",
+                "candidate_only": True,
+                "physical_validation_required": True,
+                "series": {
+                    "sequence_rescue_candidates": [
+                        {"candidate_id": "temperature-frame-0-lc-tangent"}
+                    ]
+                },
+            },
+        }
+    )
+
+    assert advice["saxs_candidate_references"] == []
+
+
+def test_advisor_drops_saxs_candidate_references_for_non_saxs_cases() -> None:
+    advisor = Advisor(retriever=_ContextRetriever(), llm_client=_CandidateReferenceLLM())
+
+    advice = advisor.advise({"technique": "IR", "params": {}})
+
+    assert advice["saxs_candidate_references"] == []
 
 
 def test_advisor_ignores_non_mapping_saxs_summary_context() -> None:

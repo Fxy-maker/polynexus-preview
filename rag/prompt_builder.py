@@ -430,6 +430,8 @@ class PromptBuilder:
                     saxs_ai_context_text,
                     "Use this summary only for diagnosis. It contains no raw q/I or detector data.",
                     "return only the existing SAXS preprocess intent; never apply or publish a candidate.",
+                    "Optional saxs_candidate_references may contain only exact candidate IDs already shown in the current temperature summary.",
+                    "Candidate references are diagnostic-only: never execute, rerun, interpolate, repair, or mutate configuration from this field; return [] when no existing candidate applies.",
                 ]
             )
         lines.extend(
@@ -451,6 +453,7 @@ class PromptBuilder:
             '  "risk": "low | medium | high",',
             '  "suggestions": ["建议1", "建议2"],',
             '  "reference_cases": ["case_id_1", "case_id_2"],',
+            '  "saxs_candidate_references": ["existing_temperature_candidate_id"],',
             '  "converge": false',
             "}",
             "只输出 JSON，不要有任何额外文字。",

@@ -59,6 +59,36 @@ def test_saxs_prompt_drops_untrusted_raw_fields_from_context() -> None:
     assert "detector_pixels" not in prompt
 
 
+def test_saxs_prompt_contracts_existing_candidate_references_as_diagnostic_only() -> None:
+    prompt = PromptBuilder().build_prompt(
+        {
+            "technique": "SAXS",
+            "params": {},
+            "saxs_ai_context": {
+                "technique": "SAXS",
+                "mode": "temperature",
+                "status": "available",
+                "candidate_only": True,
+                "physical_validation_required": True,
+                "series": {
+                    "sequence_rescue_candidates": [
+                        {"candidate_id": "temperature-frame-0-lc-tangent"}
+                    ]
+                },
+            },
+        },
+        [],
+        [],
+    )
+
+    assert "saxs_candidate_references" in prompt
+    assert "exact IDs" in prompt or "exact candidate IDs" in prompt
+    assert "diagnostic-only" in prompt
+    assert "never execute" in prompt or "cannot execute" in prompt
+    assert "rerun" in prompt
+    assert "configuration" in prompt
+
+
 def test_saxs_prompt_marks_savgol_window_as_high_priority() -> None:
     prompt = PromptBuilder().build_prompt(
         {
