@@ -114,6 +114,20 @@ without a final summary is recorded as incomplete, never as a pass.
   remained running without a pytest summary at handoff and is not counted as
   pass evidence. Storage dry-run remained `142` artifacts with `0` eligible
   bytes and `0` removed; no `test_storage.py --apply` was executed.
+- Fresh current-head recheck (2026-08-01): live-context `6 passed in 1.48s`
+  and combined Advisor/prompt/summary/audit/live regression `25 passed in
+  1.49s`, both exit `0`. The test contract remains explicit: temperature
+  asserts `context["series"]["guinier_sequence_evidence"]`, while strain
+  asserts `context["series"]["metric_evidence"]["guinier"]`; this is a
+  test-only contract correction and production logic was unchanged.
+- The complete SAXS matrix returned `710 passed, 6 warnings in 557.25s`, exit
+  `0`. Task-scoped structured verification returned exit `0` with quality
+  `297 passed`, preprocessing `106 passed`, and task/memory, Ruff, compile,
+  type-baseline, and whitespace checks passed.
+- Fresh storage report and dry-run clean remained non-destructive: `145`
+  artifacts, `34,459,621,656` total bytes, `15,743,185,346` eligible bytes,
+  `failures=[]`, and `removed=0`. No `test_storage.py --apply` was executed;
+  `git diff --check` passed.
 
 ## Explicit changed-file allowlist
 
