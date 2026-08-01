@@ -49,6 +49,26 @@ git diff --check
 exit code 0.
 ```
 
+## Full-head compatibility update
+
+The Joint status contract changes missing cross-technique inputs from the old
+warning-like representation to `SKIP` with `INFO` severity. The two legacy v4
+validation assertions were updated accordingly in
+`tests/test_v4_validation.py`.
+
+Authoritative current-head rerun:
+
+```text
+3352 passed, 18 skipped, 12 warnings in 2157.07s (0:35:57), exit code 0
+quality gate: 297 passed
+preprocessing gate: 106 passed
+boundary audit: exit code 0
+```
+
+The preceding run with stale assertions had `3350 passed, 18 skipped, 12
+warnings` and exit code `1`; it is retained as a diagnosed compatibility
+failure, not as pass evidence.
+
 ## Boundaries
 
 This checkpoint does not infer vendor-native IR mapping coordinates, assign or

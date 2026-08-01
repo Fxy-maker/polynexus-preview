@@ -1,14 +1,13 @@
 """Tests for PolyNexus v4.0 validation and lmfit infrastructure."""
 
 import numpy as np
-import pytest
 
 from polynexus.core.lmfit_wrapper import (
     fit_linear, fit_avrami, fit_multi_peak, fit_guinier,
 )
 from polynexus.core.joint.validation import (
     validate_triple_phi_c, validate_tm_bidirectional,
-    validate_L_consistency, CrossValidationResult,
+    validate_L_consistency,
 )
 
 
@@ -92,8 +91,8 @@ def test_fit_guinier_synthetic():
     Rg_true = 10.0  # nm
     I0 = 100.0
     q = np.linspace(0.01, 0.2, 100)
-    I = I0 * np.exp(-q**2 * Rg_true**2 / 3)
-    result = fit_guinier(q, I)
+    intensity = I0 * np.exp(-q**2 * Rg_true**2 / 3)
+    result = fit_guinier(q, intensity)
     assert abs(result["Rg"] - Rg_true) < 2.0
     assert result["r_squared"] > 0.9
 
@@ -116,7 +115,8 @@ def test_triple_phi_c_failed():
 def test_triple_phi_c_single_available():
     results = validate_triple_phi_c(0.60, None, None)
     assert len(results) == 1
-    assert results[0].severity == "WARN"
+    assert results[0].status == "SKIP"
+    assert results[0].severity == "INFO"
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -135,7 +135,8 @@ def test_tm_bidirectional():
 
 def test_tm_bidirectional_no_data():
     results = validate_tm_bidirectional(None, 30.0, 15.0)
-    assert results[0].severity == "WARN"
+    assert results[0].status == "SKIP"
+    assert results[0].severity == "INFO"
 
 
 # ══════════════════════════════════════════════════════════════════════

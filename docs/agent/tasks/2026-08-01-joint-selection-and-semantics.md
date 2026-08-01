@@ -97,6 +97,21 @@ changes, real datasets, and temporary test directories are excluded.
 
 Focused verification: `33 passed in 31.07s`, exit code `0`.
 
+## Full-head compatibility follow-up
+
+The `SKIP`/`INFO` contract also updates the legacy v4 validation regressions
+for single-available `phi_c` and missing `Tm` inputs. The focused Joint/v4
+matrix passed `47 passed in 40.55s`, exit code `0`.
+
+The first current-head full verifier run found only those two stale severity
+assertions (`3350 passed, 18 skipped, 12 warnings`, exit code `1`). After the
+test contract update, the authoritative rerun passed `3352 passed, 18 skipped,
+12 warnings in 2157.07s`, exit code `0`; quality `297`, preprocessing `106`,
+boundary audit, Ruff, compile, type baseline, memory, task, whitespace, and
+diff checks all passed.
+
+Follow-up changed file: `tests/test_v4_validation.py`.
+
 This task does not assign NMR peaks, calibrate ppm, choose a technique winner,
 or authorize publication. Existing unrelated workspace changes were left
 untouched.
