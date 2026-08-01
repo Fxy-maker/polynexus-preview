@@ -1,7 +1,7 @@
 ---
 task_id: 2026-07-31-formal-pytest-temp-collection-boundary
 kind: test-infrastructure
-status: in_progress
+status: completed
 date: 2026-07-31
 title: Exclude temporary diagnostic directories from formal pytest collection
 ---
@@ -40,8 +40,8 @@ debugging behavior.
       its obsolete output-path assertion as the only failure.
 - [x] Formal collection excludes `_tmp_phase3` while retaining the ordinary
       canonical test tree.
-- [ ] Full verifier returns a complete pytest summary with wrapper exit code
-      `0`; the single-process attempt reached the tool timeout instead.
+- [x] Full verifier returns a complete pytest summary with wrapper exit code
+      `0`; the latest current-head run completed successfully.
 - [x] Canonical tests were rerun in four explicit file slices with complete
       summaries, and the boundary audit passed.
 - [x] Task-scoped verifier, diff check, and the scoped explicit allowlist
@@ -74,6 +74,16 @@ The slice totals are `3233 passed, 18 skipped, 12 warnings`; no slice had a
 failure. The task verifier passed with quality `297` and preprocessing `106`,
 and the boundary audit returned exit `0`.
 
+The prior timeout was superseded by the latest current-head wrapper run. With
+`POLYNEXUS_TEST_ROOT=D:\PolyNexus-test-runs-full-goal-20260801-final` and
+`POLYNEXUS_TEST_RETENTION=review`,
+`python scripts/verify.py --changed --types --full --boundary` returned exit
+code `0`. Its complete formal pytest summary was `3303 passed, 18 skipped, 12
+warnings in 2244.54s (0:37:24)`. The focused quality gate passed `297`, the
+preprocessing gate passed `106`, and the boundary audit returned exit `0`.
+This is the authoritative full/boundary pass for this task; the older
+tool-level timeout remains historical evidence only.
+
 ## Fresh rerun evidence (2026-07-31)
 
 - `python scripts/verify.py --changed --types --full --boundary` reached the
@@ -91,6 +101,34 @@ and the boundary audit returned exit `0`.
   `22,285` eligible bytes, no cleanup failures, and no directories removed
   because `--apply` was not supplied. No
   `test_storage.py --apply` was run.
+
+## Latest rerun evidence (2026-07-31)
+
+- A fresh run used `POLYNEXUS_TEST_ROOT=D:\PolyNexus-test-runs-full-goal-20260731-rerun`
+  with `POLYNEXUS_TEST_RETENTION=review`.
+- `python scripts/verify.py --changed --types --full --boundary` reached the
+  40-minute tool bound and returned exit `124` without a complete pytest
+  summary. It is classified as tool-level timeout/incomplete evidence, not a
+  pass or product-test failure.
+- The verifier's own child processes were reaped after timeout; the separately
+  shared SAXS pytest process was left untouched. No source or test file was
+  changed by this rerun.
+- The managed run manifest for the formal child records `status=failed` and
+  `exit_code=3` at the timeout/reap boundary. Because no pytest summary or
+  failure report was emitted, this is retained as incomplete tool evidence,
+  not classified as a product-test failure. A second running manifest under
+  the run directory came from the storage regression's mock pytest config and
+  had no live PID; it is not evidence of an active formal run.
+
+## Completion evidence (2026-08-01)
+
+- Current-head full/boundary verification completed with exit code `0` and a
+  complete pytest summary: `3303 passed, 18 skipped, 12 warnings in 2244.54s`.
+- The task-scoped quality/preprocessing gates passed `297`/`106`; Ruff,
+  compile, type-baseline, whitespace/diff, and boundary audit also passed.
+- No pytest process remains active. The previous `124`/child-manifest `3`
+  record is retained as historical incomplete evidence and is not used as the
+  current classification.
 
 ## Explicit changed-file allowlist
 
