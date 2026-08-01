@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -16,12 +17,85 @@ def test_presentation_has_a_fixed_stage_and_complete_slide_story():
     assert 'class="deck-viewport"' in html
     assert 'class="deck-stage"' in html
     slide_count = html.count('class="slide ')
-    assert 18 <= slide_count <= 20
+    assert slide_count == 46
+    assert html.count("data-chapter=") == 46
+    assert html.count("data-visual=") == 46
+    assert html.count("data-notes=") == 46
     assert "SAXS" in html
     assert "DSC" in html
     assert "WAXS" in html
     assert "IR" in html
     assert "NMR" in html
+
+    chapter_counts = {
+        chapter: html.count(f'data-chapter="{chapter}"')
+        for chapter in (
+            "01 / WHY POLYNEXUS",
+            "02 / SAXS DEEP DIVE",
+            "03 / SEQUENCE AND 2D",
+            "04 / FIVE TECHNIQUES",
+            "05 / AI ADVISOR",
+        )
+    }
+    assert chapter_counts == {
+        "01 / WHY POLYNEXUS": 7,
+        "02 / SAXS DEEP DIVE": 20,
+        "03 / SEQUENCE AND 2D": 6,
+        "04 / FIVE TECHNIQUES": 6,
+        "05 / AI ADVISOR": 7,
+    }
+
+    for term in (
+        "q = 4π sinθ / λ",
+        "Guinier",
+        "Porod",
+        "Bragg",
+        "Lorentz",
+        "IDF",
+        "invariant",
+        "background subtraction",
+        "temperature",
+        "strain",
+        "azimuthal",
+        "DSC",
+        "WAXS",
+        "IR",
+        "NMR",
+        "fit quality",
+        "parameter stability",
+        "physical plausibility",
+        "data quality",
+    ):
+        assert term in html
+
+
+def test_saxs_method_slides_have_distinct_model_scope():
+    html = PRESENTATION.read_text(encoding="utf-8")
+
+    expected_by_slide = {
+        "17 / 46": ("LOW / MID / HIGH Q", "model map"),
+        "18 / 46": ("Guinier", "Rg"),
+        "19 / 46": ("I(0)", "window stability"),
+        "20 / 46": ("Porod", "assumption"),
+        "21 / 46": ("Porod exponent", "restriction"),
+        "22 / 46": ("Bragg", "d = 2π/q*"),
+        "23 / 46": ("Lorentz", "correction"),
+        "24 / 46": ("correlation function", "IDF"),
+        "25 / 46": ("invariant Q", "integral"),
+        "26 / 46": ("cross-method", "matrix"),
+        "27 / 46": ("quality state", "fail closed"),
+    }
+
+    for slide_no, terms in expected_by_slide.items():
+        match = re.search(
+            rf'<section class="slide [^>]*>.*?<div class="slide-no">{re.escape(slide_no)}</div>',
+            html,
+            flags=re.DOTALL,
+        )
+        assert match, slide_no
+        slide = match.group(0)
+        for term in terms:
+            assert term.lower() in slide.lower(), (slide_no, term)
 
 
 def test_presentation_exposes_narration_navigation_and_motion_safety():

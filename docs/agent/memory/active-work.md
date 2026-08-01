@@ -1,5 +1,132 @@
 # Active Work
 
+## PolyNexus HTML presentation depth - ready for checkpoint (2026-08-01)
+
+- The 46-slide SAXS-led master video now uses uniform five-chapter metadata.
+  SAXS slides 17-27 are distinct method pages covering q-region mapping,
+  Guinier, Porod, Bragg, Lorentz, IDF, invariant Q, cross-method review, and
+  fail-closed quality state.
+- Focused presentation coverage is `3 passed`; inline JavaScript parsing,
+  `git diff --check`, and `python scripts/verify.py --changed --types` pass.
+  The verifier reports quality gate `297 passed` and preprocessing gate
+  `106 passed`.
+- Fresh Playwright checks passed at `1280x720` and `390x844`: 46 slides,
+  no viewport overflow, navigation reached slides 17 and 46, and the browser
+  console reported zero errors, warnings, or messages.
+
+## Full-goal release evidence refresh - checkpointed (2026-08-01)
+
+- Acceptance ledger now records SAXS 2D context checkpoint `a9e0743`, fresh
+  focused `58 passed`, and complete SAXS `700 passed, 6 warnings in 530.15s`,
+  exit `0`.
+- The 40-minute full/boundary run remains explicitly incomplete (`124`, no
+  pytest summary; child manifest `exit_code=3` at timeout/reap). IR mapping,
+  NMR solid-C, Joint, restarted-GUI, and owner approval remain conditional.
+- Documentation-only checkpoint: `e295ad2` (`docs(release): refresh current
+  evidence ledger`).
+
+## SAXS 2D review context projection - checkpointed (2026-08-01)
+
+- Checkpoint `a9e0743` projects existing SAXS 2D detector, geometry/mask,
+  beam-center, orientation, gate, and scientific-review evidence into a
+  detached JSON-safe Workbench DTO without recalculation or publication
+  promotion.
+- Independent focused compatibility coverage passed `58` tests; the complete
+  SAXS file matrix passed `700 passed, 6 warnings in 530.15s`, exit `0`.
+- The task preserves diagnostic/review-required states and does not close the
+  separate SAXS scientific or final release gates.
+
+## Historical test-storage name discovery - implementation complete
+
+- The storage classifier now covers the observed `full_boundary`, native
+  basetemp, gallery, SAXS matrix, and `Saxs*` legacy test families, with
+  protected-name precedence for `测试数据`, archive, review, evidence, and
+  baseline paths.
+- Focused storage tests passed `39 passed, 1 skipped`; structured verification
+  passed quality `297` and preprocessing `106`; task-check, Ruff, compile,
+  type-baseline, whitespace, and diff checks passed.
+- Reviewed dry-run: `241` artifacts, `56,658,056,745` bytes total,
+  `117` eligible artifacts, `26,825,556,265` eligible bytes, `0` removed,
+  `0` failures, and `0` protected-name candidates eligible. No `--apply` was
+  run in this task. Explicit checkpoint: `a43e70e`.
+- Separate authorized follow-up apply removed `98` historical test
+  directories. The post-apply inventory has `143` artifacts and `19` remaining
+  zero-byte ACL-locked candidates; D: has about `120.15 GB` free. The shared
+  SAXS pytest matrix is currently active, so no further apply or ACL changes
+  should be attempted until it exits.
+
+## Formal full/boundary verifier - latest tool timeout (2026-07-31)
+
+- A fresh run used `D:\PolyNexus-test-runs-full-goal-20260731-rerun` with
+  `review` retention and reached the 40-minute tool bound.
+- The wrapper returned exit `124` without a complete pytest summary. This is
+  recorded as tool-level incomplete evidence, not pass or product failure.
+- The verifier's own child processes were reaped after timeout; the independent
+  shared SAXS pytest process was not touched. The formal task remains
+  `in_progress`; the four complete canonical slices remain the authoritative
+  available test evidence.
+- The formal child manifest records `status=failed, exit_code=3` at the reap
+  boundary, without a pytest summary; it is therefore still incomplete tool
+  evidence rather than a product-test failure. A nested `status=running`
+  manifest is from the storage test's mock configuration and has no live PID.
+
+## Results evidence wrap readability - checkpointed (2026-07-31)
+
+- Root cause was isolated in the shared `WrappedEvidenceLabel`: Results applied
+  `QSizePolicy.Ignored/Preferred`, which disabled QLabel `heightForWidth` even
+  though zero-width break opportunities were present in the rendered text.
+- The shared widget now preserves the caller's policy values while restoring
+  `heightForWidth=True`; source `text()` remains lossless and no evidence or
+  scientific semantics changed.
+- TDD RED was `1 failed`; focused GREEN and the Results/Workbench GUI matrix
+  passed `52`. Ruff and compile passed. Structured verification passed with
+  quality `297`, preprocessing `106`, task/memory/type-baseline/whitespace
+  checks, and `git diff --check`.
+- Native Windows NMR solid-H/solid-C recheck passed `2 passed, 15 deselected in
+  71.69s`, exit code `0`; captures are under
+  `D:\PolyNexus_native_restarted_gui_audit_wrap_recheck_20260731`.
+- Task/spec/plan/acceptance:
+  `docs/agent/tasks/2026-07-31-results-evidence-wrap-readability.md`,
+  `docs/superpowers/specs/2026-07-31-results-evidence-wrap-readability-design.md`,
+  `docs/superpowers/plans/2026-07-31-results-evidence-wrap-readability.md`,
+  and `docs/acceptance/2026-07-31-results-evidence-wrap-readability.md`.
+- The explicit six-file allowlist checkpoint is `5f737c2`
+  (`fix(gui): preserve evidence label wrapping`); no push was performed. The
+  full release remains conditional; IR mapping, NMR solid-C scientific
+  assignment, Joint conflict review, and owner publication approval remain
+  open.
+
+## Results review explicit-language contract - checkpointed (2026-07-31)
+
+- Results/NMR review summaries now honor their explicit `language` argument
+  for assignment, source, axis, vendor-axis, and Xc-gate labels through
+  `tr_for_language`; History table regressions explicitly isolate English
+  expectations from the persisted GUI language.
+- Focused matrix passed `87`; task verifier passed with quality `297` and
+  preprocessing `106`, plus Ruff/compile/type/whitespace and diff checks.
+- Atomic checkpoint: `6e632ad` (`fix(results): honor explicit review language`).
+
+## Formal pytest temporary-directory collection boundary - wrapper timeout recorded (2026-07-31)
+
+- The full verifier found one failure in the pre-existing untracked
+  `tests/_tmp_phase3/test_visual_audit_capture.py`: it searched for an old
+  repository-root output path while formal runs use external D: basetemps.
+- Root-cause reproduction showed `3251` collected tests including `_tmp_phase3`.
+  `pytest.ini` now sets `norecursedirs = _tmp*`; fresh collection returned exit
+  `0`, excluded the temporary directory, and collected `3250` canonical tests.
+- Task-scoped verifier passed with quality `297` and preprocessing `106`;
+  boundary audit returned exit `0`; `git diff --check` passed.
+- The single-process full/boundary verifier reached the 30-minute tool bound,
+  returned exit `124` without a pytest summary, and is classified only as a
+  tool-level timeout. No residual process remained from that attempt.
+- Four explicit canonical pytest slices all returned complete summaries and
+  exit `0`: `1006 passed, 4 warnings`; `709 passed`; `839 passed, 17 skipped,
+  2 warnings`; `679 passed, 1 skipped, 6 warnings`. Combined: `3233 passed,
+  18 skipped, 12 warnings`.
+- The temporary file and all parallel SAXS/NMR/GUI workspace changes remain
+  untouched; the explicit allowlist checkpoint for this boundary task is
+  pending this limitation record.
+
 ## Current-head full/boundary post-cleanup recheck - tool-level timeout (2026-07-30)
 
 - The current-head command `python scripts/verify.py --changed --types --full
