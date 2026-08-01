@@ -45,11 +45,16 @@ boundary for static, strain, unsupported, or missing modes.
 
 - RED: the direct static/strain sanitizer regression failed because candidates
   crossed the boundary without a mode check.
-- GREEN: summary/Advisor/prompt focused regression passed `24`.
+- Contract-only test correction: the temperature assertion reads
+  `series.guinier_sequence_evidence`, while the strain assertion reads
+  `series.metric_evidence.guinier`; production logic was unchanged. The
+  shared focused rerun reported `5 passed in 1.00s`.
+- Fresh GREEN: Advisor/live-context/prompt regression passed `21 passed in
+  1.31s`.
 
 ## Verification evidence
 
-- Complete SAXS matrix: `724 passed, 6 warnings in 480.18s`, exit code `0`.
+- Complete SAXS matrix: `724 passed, 6 warnings in 462.63s`, exit code `0`.
 - Structured verifier exited `0`: quality `297 passed`, preprocessing `106
   passed`, task/memory, Ruff, compile, type baseline, and whitespace checks
   passed.
@@ -61,7 +66,7 @@ boundary for static, strain, unsupported, or missing modes.
 ## Verification
 
 ```powershell
-python -m pytest -q tests/test_saxs_ai_summary_context.py tests/test_advisor.py tests/test_saxs_prompt_builder.py -o addopts=
+python -m pytest -q tests/test_saxs_ai_live_context.py tests/test_advisor.py tests/test_saxs_prompt_builder.py -o addopts=
 python -m pytest -q (Get-ChildItem tests -Filter 'test_saxs_*.py' | ForEach-Object { $_.FullName }) -o addopts=
 python scripts/verify.py --task docs/agent/tasks/2026-08-01-saxs-ai-sequence-rescue-mode-boundary.md --changed --types
 python scripts/test_storage.py report --json
