@@ -124,6 +124,18 @@ def _finite_float_or_none(value: Any) -> float | None:
     return number if np.isfinite(number) else None
 
 
+def _contains_bool_value(value: Any) -> bool:
+    if isinstance(value, (bool, np.bool_)):
+        return True
+    if isinstance(value, np.ndarray):
+        return value.dtype.kind == "b" or any(
+            _contains_bool_value(item) for item in value.flat
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_bool_value(item) for item in value)
+    return False
+
+
 def _normalize_detached_support_report(
     data: dict[str, Any],
     *,
@@ -154,6 +166,7 @@ def _normalize_detached_support_report(
             )
         ):
             malformed = True
+            data["shape"] = ()
         else:
             data["shape"] = tuple(int(item) for item in shape)
 
@@ -167,6 +180,7 @@ def _normalize_detached_support_report(
             or value < 0
         ):
             malformed = True
+            data[key] = 0
         else:
             data[key] = int(value)
 
@@ -180,10 +194,12 @@ def _normalize_detached_support_report(
             value, (int, float, np.integer, np.floating)
         ):
             malformed = True
+            data[key] = None
             continue
         normalized = _finite_float_or_none(value)
         if normalized is None:
             malformed = True
+            data[key] = None
         else:
             data[key] = normalized
 
@@ -228,7 +244,7 @@ def _sector_map_report_is_coherent(data: Mapping[str, Any]) -> bool:
     reasons = set(data["reason_codes"])
     if not data["support_available"]:
         return (
-            data["level"] is not QualityLevel.TREND
+            data["level"] in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
             and "sector_support_unavailable" in reasons
         )
     shape = data["shape"]
@@ -262,7 +278,7 @@ def _annulus_report_is_coherent(data: Mapping[str, Any]) -> bool:
     reasons = set(data["reason_codes"])
     if not data["support_available"]:
         return (
-            data["level"] is not QualityLevel.TREND
+            data["level"] in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
             and "sector_support_unavailable" in reasons
         )
     angular = data["angular_bin_count"]
@@ -665,6 +681,11 @@ def build_sector_map_quality_report(
     except (TypeError, ValueError):
         intensity_array = np.asarray([], dtype=float)
     try:
+        raw_support_array = np.asarray(support_count, dtype=object)
+        support_contains_bool = _contains_bool_value(raw_support_array)
+    except (TypeError, ValueError):
+        support_contains_bool = True
+    try:
         support_array = np.asarray(support_count, dtype=float)
     except (TypeError, ValueError):
         support_array = np.asarray([], dtype=float)
@@ -682,6 +703,7 @@ def build_sector_map_quality_report(
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
         or np.any(support_array != np.floor(support_array))
+        or support_contains_bool
     ):
         return SectorMapQualityReport(
             shape=shape,
@@ -2221,6 +2243,11 @@ def build_orientation_evidence(
         normalized_sector_quality = SectorMapQualityReport.from_dict(
             sector_map_quality
         )
+    elif sector_map_quality is not None:
+        normalized_sector_quality = SectorMapQualityReport(
+            reason_codes=("sector_support_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
     normalized_annulus_quality: AnnulusQualityReport | None = None
     if isinstance(annulus_quality, AnnulusQualityReport):
         normalized_annulus_quality = AnnulusQualityReport.from_dict(
@@ -2229,6 +2256,11 @@ def build_orientation_evidence(
     elif isinstance(annulus_quality, Mapping):
         normalized_annulus_quality = AnnulusQualityReport.from_dict(
             annulus_quality
+        )
+    elif annulus_quality is not None:
+        normalized_annulus_quality = AnnulusQualityReport(
+            reason_codes=("sector_support_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
         )
 
     support_quality_blocked = False

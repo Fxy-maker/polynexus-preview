@@ -131,6 +131,77 @@ def test_detached_support_reports_fail_closed_for_malformed_fields() -> None:
         json.dumps(report.to_dict(), allow_nan=False)
 
 
+def test_detached_support_reports_canonicalize_invalid_shape_counts_and_q_fields() -> None:
+    sector = SectorMapQualityReport.from_dict(
+        {
+            "shape": "not-a-shape",
+            "support_available": True,
+            "supported_bin_count": "many",
+            "empty_bin_count": [4],
+            "measured_nonpositive_bin_count": -1,
+            "support_fraction": "full",
+            "reason_codes": [],
+            "level": "Trend",
+        }
+    )
+    annulus = AnnulusQualityReport.from_dict(
+        {
+            "q_target_nm1": [0.5],
+            "q_width_nm1": "narrow",
+            "selected_q_bin_count": "one",
+            "angular_bin_count": [2],
+            "supported_angular_bin_count": "two",
+            "support_fraction": "half",
+            "support_available": True,
+            "reason_codes": [],
+            "level": "Trend",
+        }
+    )
+
+    assert sector.shape == ()
+    assert sector.supported_bin_count == 0
+    assert sector.empty_bin_count == 0
+    assert sector.measured_nonpositive_bin_count == 0
+    assert sector.support_fraction is None
+    assert annulus.q_target_nm1 is None
+    assert annulus.q_width_nm1 is None
+    assert annulus.selected_q_bin_count == 0
+    assert annulus.angular_bin_count == 0
+    assert annulus.supported_angular_bin_count == 0
+    assert annulus.support_fraction is None
+    for report in (sector, annulus):
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+        json.dumps(report.to_dict(), allow_nan=False)
+
+
+def test_orientation_evidence_blocks_invalid_optional_support_report_types() -> None:
+    detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+
+    for quality_key, report_key in (
+        ("sector_map_quality", "sector_map_quality_report"),
+        ("annulus_quality", "annulus_quality_report"),
+    ):
+        evidence = build_orientation_evidence(
+            {"f_herman": 0.4},
+            detector,
+            applicability="supported",
+            **{quality_key: object()},
+        )
+
+        report = evidence.physical_checks[report_key]
+        assert evidence.level is QualityLevel.DIAGNOSTIC
+        assert evidence.applicable is False
+        assert report["support_available"] is False
+        assert report["level"] == "Diagnostic"
+        assert "sector_support_unavailable" in report["reason_codes"]
+
+
 def test_detached_support_reports_require_complete_generated_fields() -> None:
     payload = {
         "support_available": True,
@@ -268,14 +339,57 @@ def test_sector_report_downgrades_supported_nonfinite_intensity() -> None:
 
 
 def test_sector_report_rejects_fractional_support_counts() -> None:
-    report = build_sector_map_quality_report(
-        np.ones((1, 2)),
+    for support in (
         np.asarray([[0.5, 1.0]]),
+        np.asarray([[True, 1]], dtype=bool),
+    ):
+        report = build_sector_map_quality_report(
+            np.ones((1, 2)),
+            support,
+        )
+
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+
+    integer_valued_float = build_sector_map_quality_report(
+        np.ones((1, 2)),
+        np.asarray([[1.0, 2.0]]),
+    )
+    assert integer_valued_float.support_available is True
+
+
+def test_unavailable_support_cannot_retain_non_unusable_report_level() -> None:
+    sector = SectorMapQualityReport.from_dict(
+        {
+            "shape": [1, 1],
+            "support_available": False,
+            "supported_bin_count": 0,
+            "empty_bin_count": 0,
+            "measured_nonpositive_bin_count": 0,
+            "support_fraction": None,
+            "reason_codes": ["sector_support_unavailable"],
+            "level": "Quantitative",
+        }
+    )
+    annulus = AnnulusQualityReport.from_dict(
+        {
+            "q_target_nm1": None,
+            "q_width_nm1": None,
+            "selected_q_bin_count": 0,
+            "angular_bin_count": 0,
+            "supported_angular_bin_count": 0,
+            "support_fraction": None,
+            "support_available": False,
+            "reason_codes": ["sector_support_unavailable"],
+            "level": "Trend",
+        }
     )
 
-    assert report.support_available is False
-    assert report.level is QualityLevel.DIAGNOSTIC
-    assert "sector_support_unavailable" in report.reason_codes
+    for report in (sector, annulus):
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
 
 
 def test_annulus_report_fails_closed_for_zero_sized_support_maps() -> None:
