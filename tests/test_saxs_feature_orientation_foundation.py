@@ -10,6 +10,7 @@ import pytest
 
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.preprocess import integrate_chi_sectors
+from polynexus.core.saxs_engine.saxs_anisotropy import analyze_anisotropy
 from polynexus.core.saxs_engine.saxs_quality_contracts import (
     AnnulusQualityReport,
     QualityLevel,
@@ -19,6 +20,67 @@ from polynexus.core.saxs_engine.saxs_quality_contracts import (
     build_orientation_evidence,
     build_sector_map_quality_report,
 )
+
+
+def _synthetic_annulus_input(axis_deg: float = 37.0) -> tuple[np.ndarray, ...]:
+    q = np.linspace(0.3, 1.0, 120)
+    q_profile = 0.1 + np.exp(-((q - 0.55) / 0.025) ** 2)
+    chi = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    angular = 1.0 + 8.0 * np.cos(chi - np.deg2rad(axis_deg)) ** 2
+    return np.outer(angular, q_profile), q, chi, q, q_profile
+
+
+def test_effective_herman_requires_explicit_tensile_axis() -> None:
+    payload = _synthetic_annulus_input()
+    raw = build_detector_quality_report(
+        np.ones((16, 16)), source_kind="raw_detector", beam_center=(8.0, 8.0)
+    )
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=None),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality=raw.to_dict(),
+    )
+
+    assert np.isfinite(result.f_herman_raw)
+    assert not np.isfinite(result.f_herman)
+    assert not np.isfinite(result.P2)
+    assert not np.isfinite(result.P4)
+    assert np.isfinite(result.principal_scattering_axis_deg)
+    assert result.reference_axis_kind == "unknown"
+    assert result.herman_convention == "detector_plane_2d_v1"
+    assert result.isotropic_baseline == 0.25
+    assert result.orientation_evidence["fit_evidence"]["reference_axis_kind"] == "unknown"
+    assert "tensile_axis_unknown" in result.orientation_evidence["reason_codes"]
+
+
+def test_supported_annulus_uses_tensile_axis_and_ignores_empty_bins_outside_band() -> None:
+    payload = _synthetic_annulus_input()
+    support = np.ones_like(payload[0])
+    support[:, :5] = 0.0
+    raw = build_detector_quality_report(
+        np.ones((16, 16)), source_kind="raw_detector", beam_center=None
+    )
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=support,
+        raw_detector_quality=raw,
+    )
+
+    checks = result.orientation_evidence["physical_checks"]
+    assert result.f_herman > 0.5
+    assert result.reference_axis_deg == 37.0
+    assert result.reference_axis_kind == "tensile_axis"
+    assert checks["sector_map_quality_report"]["empty_bin_count"] == 360
+    assert checks["annulus_quality_report"]["support_available"] is True
+    assert checks["annulus_quality_report"]["level"] == "Trend"
+    assert result.detector_quality_report["source_kind"] == "raw_detector"
+    assert result.detector_quality_report["level"] == "Diagnostic"
+    assert "nonpositive_pixels" not in result.orientation_evidence["reason_codes"]
+    json.dumps(result.orientation_evidence, allow_nan=False)
 
 
 def test_numpy_sector_map_preserves_zero_support_separately_from_intensity() -> None:

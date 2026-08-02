@@ -188,7 +188,11 @@ def test_anisotropy_nonfinite_required_input_fails_closed(input_index, bad_value
 
 def test_anisotropy_prefers_explicit_axis_and_uses_detector_plane_weighting():
     payload = _synthetic_azimuthal_input(90.0)
-    result = analyze_anisotropy(*payload, cfg=SAXSConfig(orientation_axis_deg=90.0))
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(orientation_axis_deg=90.0, tensile_axis_deg=90.0),
+        support_count=np.ones_like(payload[0]),
+    )
 
     assert result.orientation_axis_source == "configured"
     assert result.orientation_axis_deg == 90.0
@@ -205,12 +209,16 @@ def test_anisotropy_auto_detects_arbitrary_in_plane_axis():
             orientation_axis_deg=None,
             orientation_auto_min_strength=0.05,
         ),
+        support_count=np.ones_like(payload[0]),
     )
 
     assert result.orientation_axis_source == "auto_detected"
     assert abs(((result.orientation_axis_deg - 37.0 + 90.0) % 180.0) - 90.0) < 5.0
     assert result.orientation_axis_strength > 0.05
-    assert result.f_herman > 0.5
+    assert result.principal_scattering_axis_deg == result.orientation_axis_deg
+    assert np.isfinite(result.f_herman_raw)
+    assert not np.isfinite(result.f_herman)
+    assert result.orientation_evidence["fit_evidence"]["reference_axis_kind"] == "unknown"
     json.dumps(result.orientation_evidence, allow_nan=False)
 
 
@@ -226,7 +234,8 @@ def test_anisotropy_auto_detection_fails_closed_for_isotropic_profile():
         chi,
         q,
         q_profile,
-        cfg=SAXSConfig(orientation_axis_deg=None),
+        cfg=SAXSConfig(orientation_axis_deg=None, tensile_axis_deg=37.0),
+        support_count=np.ones((chi.size, q.size)),
     )
 
     assert result.orientation_axis_source == "unavailable"
@@ -248,7 +257,8 @@ def test_weak_noisy_profile_keeps_raw_herman_but_blocks_effective_value():
         chi,
         q,
         q_profile,
-        cfg=SAXSConfig(orientation_axis_deg=None),
+        cfg=SAXSConfig(orientation_axis_deg=None, tensile_axis_deg=37.0),
+        support_count=np.ones((chi.size, q.size)),
     )
 
     assert np.isfinite(getattr(result, "f_herman_raw", np.nan))
@@ -267,7 +277,8 @@ def test_incomplete_azimuthal_coverage_keeps_raw_herman_but_blocks_effective_val
         chi,
         q,
         q_profile,
-        cfg=SAXSConfig(orientation_axis_deg=None),
+        cfg=SAXSConfig(orientation_axis_deg=None, tensile_axis_deg=37.0),
+        support_count=np.ones((chi.size, q.size)),
     )
 
     assert np.isfinite(getattr(result, "f_herman_raw", np.nan))

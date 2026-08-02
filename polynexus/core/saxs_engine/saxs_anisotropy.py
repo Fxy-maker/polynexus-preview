@@ -10,15 +10,21 @@ Reference: SAXS Design Document v1.0, Module 5.
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 import numpy as np
 from scipy.integrate import trapezoid
 from scipy.signal import find_peaks
 
 from .config import SAXSConfig
 from .saxs_quality_contracts import (
+    AnnulusQualityReport,
+    DetectorQualityReport,
+    QualityLevel,
+    SectorMapQualityReport,
+    build_annulus_quality_report,
     build_detector_quality_report,
     build_orientation_evidence,
+    build_sector_map_quality_report,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,6 +78,19 @@ class AnisotropyResult:
     orientation_azimuthal_coverage: float = np.nan
     orientation_axis_drift_deg: float = np.nan
 
+    # Explicit physical-axis semantics.  The legacy orientation axis remains a
+    # principal-scattering diagnostic; final Herman values require a tensile
+    # reference supplied independently of the observed scattering pattern.
+    principal_scattering_axis_deg: float = np.nan
+    tensile_axis_deg: float = np.nan
+    reference_axis_deg: float = np.nan
+    reference_axis_kind: str = "unknown"
+    orientation_vector_kind: str = "unknown"
+    herman_convention: str = "detector_plane_2d_v1"
+    isotropic_baseline: float = 0.25
+    q_star_candidate: float = np.nan
+    selected_q_range_nm1: tuple[float, float] | None = None
+
     # JSON-safe 2D evidence contracts.  Legacy numeric fields above remain
     # authoritative for backwards-compatible callers.
     detector_quality_report: dict = None
@@ -83,7 +102,9 @@ def _attach_orientation_evidence(
     I_2d: np.ndarray,
     *,
     invalid_reason: str | None = None,
-    detector_quality: object = None,
+    detector_quality: DetectorQualityReport | None = None,
+    sector_map_quality: SectorMapQualityReport | None = None,
+    annulus_quality: AnnulusQualityReport | None = None,
 ) -> None:
     """Attach evidence for the sector-map input consumed by this module."""
 
@@ -115,13 +136,23 @@ def _attach_orientation_evidence(
             "orientation_effective_bins": result.orientation_effective_bins,
             "orientation_azimuthal_coverage": result.orientation_azimuthal_coverage,
             "orientation_axis_drift_deg": result.orientation_axis_drift_deg,
+            "principal_scattering_axis_deg": result.principal_scattering_axis_deg,
+            "tensile_axis_deg": result.tensile_axis_deg,
+            "reference_axis_deg": result.reference_axis_deg,
+            "reference_axis_kind": result.reference_axis_kind,
+            "orientation_vector_kind": result.orientation_vector_kind,
+            "herman_convention": result.herman_convention,
+            "isotropic_baseline": result.isotropic_baseline,
+            "q_star_candidate": result.q_star_candidate,
         }
     )
     evidence = build_orientation_evidence(
         payload,
         detector,
-        applicability="supported" if invalid_reason else "unknown",
+        applicability="unknown" if invalid_reason else "supported",
         source_ref="saxs_anisotropy.analyze_anisotropy",
+        sector_map_quality=sector_map_quality,
+        annulus_quality=annulus_quality,
     )
     result.detector_quality_report = detector.to_dict()
     evidence_dict = evidence.to_dict()
@@ -145,22 +176,54 @@ def _attach_orientation_evidence(
             "orientation_reliability_reason_codes": (
                 result.orientation_reliability_reason_codes or []
             ),
+            "feature_kind": "q_star_candidate",
+            "q_star_candidate": (
+                float(result.q_star_candidate)
+                if np.isfinite(result.q_star_candidate)
+                else None
+            ),
+            "selected_q_range_nm1": (
+                list(result.selected_q_range_nm1)
+                if result.selected_q_range_nm1 is not None
+                else None
+            ),
+            "principal_scattering_axis_deg": (
+                float(result.principal_scattering_axis_deg)
+                if np.isfinite(result.principal_scattering_axis_deg)
+                else None
+            ),
+            "tensile_axis_deg": (
+                float(result.tensile_axis_deg)
+                if np.isfinite(result.tensile_axis_deg)
+                else None
+            ),
+            "reference_axis_deg": (
+                float(result.reference_axis_deg)
+                if np.isfinite(result.reference_axis_deg)
+                else None
+            ),
+            "reference_axis_kind": result.reference_axis_kind,
+            "raw_reference_axis_deg": (
+                float(result.principal_scattering_axis_deg)
+                if np.isfinite(result.principal_scattering_axis_deg)
+                else None
+            ),
+            "raw_reference_axis_kind": "legacy_principal_axis",
+            "orientation_vector_kind": result.orientation_vector_kind,
+            "herman_convention": result.herman_convention,
+            "isotropic_baseline": float(result.isotropic_baseline),
         }
     )
+    evidence_reasons = list(evidence_dict.get("reason_codes", ()))
     if result.orientation_axis_reason:
-        evidence_dict["reason_codes"] = tuple(
-            list(evidence_dict.get("reason_codes", ()))
-            + [result.orientation_axis_reason]
-        )
+        evidence_reasons.append(result.orientation_axis_reason)
+    evidence_reasons.extend(result.orientation_reliability_reason_codes or [])
     if invalid_reason:
-        evidence_dict["reason_codes"] = tuple(
-            dict.fromkeys(
-                list(evidence_dict.get("reason_codes", ())) + [invalid_reason]
-            )
-        )
+        evidence_reasons.append(invalid_reason)
         evidence_dict.setdefault("physical_checks", {})[
             "input_validation_reason"
         ] = invalid_reason
+    evidence_dict["reason_codes"] = tuple(dict.fromkeys(evidence_reasons))
     result.orientation_evidence = evidence_dict
 
 
@@ -706,6 +769,27 @@ def analyze_peak_widths(
 #  Full anisotropy analysis pipeline
 # ======================================================================
 
+def _normalized_detector_quality(
+    raw_detector_quality: DetectorQualityReport | Mapping[str, Any] | None,
+    sector_intensity: Any,
+) -> DetectorQualityReport:
+    """Prefer supplied raw-detector provenance over the derived sector map."""
+
+    if isinstance(raw_detector_quality, DetectorQualityReport):
+        return DetectorQualityReport.from_dict(raw_detector_quality.to_dict())
+    if isinstance(raw_detector_quality, Mapping):
+        return DetectorQualityReport.from_dict(raw_detector_quality)
+    return build_detector_quality_report(sector_intensity, source_kind="sector_map")
+
+
+def _finite_axis_deg(value: Any) -> float:
+    try:
+        axis = float(value)
+    except (TypeError, ValueError):
+        return np.nan
+    return float(axis % 180.0) if np.isfinite(axis) else np.nan
+
+
 def analyze_anisotropy(
     I_2d: np.ndarray,
     q: np.ndarray,
@@ -713,6 +797,9 @@ def analyze_anisotropy(
     q_1d: np.ndarray,
     I_1d: np.ndarray,
     cfg: Optional[SAXSConfig] = None,
+    *,
+    support_count: np.ndarray | None = None,
+    raw_detector_quality: DetectorQualityReport | Mapping[str, Any] | None = None,
 ) -> AnisotropyResult:
     """Complete anisotropy analysis of a 2D SAXS pattern.
 
@@ -737,20 +824,29 @@ def analyze_anisotropy(
     result = AnisotropyResult()
     if cfg is None:
         cfg = SAXSConfig()
+    result.tensile_axis_deg = _finite_axis_deg(
+        getattr(cfg, "tensile_axis_deg", None)
+    )
+    if np.isfinite(result.tensile_axis_deg):
+        result.reference_axis_deg = result.tensile_axis_deg
+        result.reference_axis_kind = "tensile_axis"
 
     normalized, invalid_reason = _normalize_anisotropy_inputs(
         I_2d, q, chi, q_1d, I_1d
     )
+    detector = _normalized_detector_quality(raw_detector_quality, I_2d)
+    sector_quality = build_sector_map_quality_report(I_2d, support_count)
     if invalid_reason:
         result.confidence = 0.0
         _attach_orientation_evidence(
             result,
             I_2d,
             invalid_reason=invalid_reason,
+            detector_quality=detector,
+            sector_map_quality=sector_quality,
         )
         return result
     I_2d, q, chi, q_1d, I_1d = normalized
-    detector = build_detector_quality_report(I_2d, source_kind="sector_map")
 
     # 1. Azimuthal profile at Bragg peak position
     from .core import bragg_long_period
@@ -760,15 +856,37 @@ def analyze_anisotropy(
         q_star = q_1d[np.argmax(I_1d * q_1d**2)]
         logger.warning("SAXS anisotropy Bragg period estimate failed; using maximum Iq2.", exc_info=True)
 
+    q_window = 0.01
+    annulus_quality = build_annulus_quality_report(
+        support_count,
+        q,
+        q_target=q_star,
+        q_width=q_window,
+    )
     if np.isfinite(q_star) and q_star > 0:
-        chi_prof, I_prof = extract_azimuthal_profile(I_2d, q, chi, q_star)
+        result.q_star_candidate = float(q_star)
+        selected_q = np.abs(q - q_star) <= q_window
+        if int(np.count_nonzero(selected_q)) < 2:
+            selected_q = np.abs(q - q_star) <= q_window * 5
+        if np.any(selected_q):
+            result.selected_q_range_nm1 = (
+                float(np.min(q[selected_q])),
+                float(np.max(q[selected_q])),
+            )
+
+    if np.isfinite(q_star) and q_star > 0:
+        chi_prof, I_prof = extract_azimuthal_profile(
+            I_2d, q, chi, q_star, q_width=q_window
+        )
         result.azimuthal_chi = chi_prof
         result.azimuthal_I = I_prof
         result.azimuthal_q = float(q_star)
 
         # 2. Resolve the detector-plane reference axis and Herman factor.
-        configured_axis = getattr(cfg, "orientation_axis_deg", None)
-        if configured_axis is not None and np.isfinite(configured_axis):
+        configured_axis = _finite_axis_deg(
+            getattr(cfg, "orientation_axis_deg", None)
+        )
+        if np.isfinite(configured_axis):
             axis_info = detect_in_plane_orientation_axis(
                 chi_prof,
                 I_prof,
@@ -779,7 +897,7 @@ def analyze_anisotropy(
                 min_effective_bins=getattr(cfg, "orientation_min_effective_bins", 8.0),
                 max_axis_drift_deg=getattr(cfg, "orientation_max_axis_drift_deg", 20.0),
             )
-            result.orientation_axis_deg = float(configured_axis % 180.0)
+            result.orientation_axis_deg = configured_axis
             result.orientation_axis_source = "configured"
             result.orientation_axis_strength = axis_info.get("strength", np.nan)
             result.orientation_axis_confidence = 1.0
@@ -805,41 +923,55 @@ def analyze_anisotropy(
         result.orientation_effective_bins = axis_info.get("effective_bins", np.nan)
         result.orientation_azimuthal_coverage = axis_info.get("coverage", np.nan)
         result.orientation_axis_drift_deg = axis_info.get("axis_drift_deg", np.nan)
+        result.principal_scattering_axis_deg = result.orientation_axis_deg
         reliability_reasons = list(axis_info.get("reason_codes", ()))
-        detector_blockers = {
-            "detector_input_invalid",
-            "detector_input_not_2d",
-            "detector_input_empty",
-            "nonfinite_pixels",
-            "nonpositive_pixels",
-            "saturated_pixels",
-        }
-        reliability_reasons.extend(
-            reason
-            for reason in detector.reason_codes
-            if reason in detector_blockers
-        )
-        result.orientation_reliability_reason_codes = list(
-            dict.fromkeys(reliability_reasons)
-        )
+        if detector.level is QualityLevel.UNUSABLE:
+            reliability_reasons.append("raw_detector_quality_unusable")
+        if (
+            not annulus_quality.support_available
+            or annulus_quality.level is not QualityLevel.TREND
+        ):
+            reliability_reasons.extend(annulus_quality.reason_codes)
+            if not annulus_quality.reason_codes:
+                reliability_reasons.append("annulus_support_unusable")
         if not np.isfinite(result.orientation_axis_deg):
             result.orientation_reliability_status = "unavailable"
-        elif result.orientation_reliability_reason_codes:
+        elif reliability_reasons:
             result.orientation_reliability_status = "blocked"
         else:
             result.orientation_reliability_status = "usable"
 
         if np.isfinite(result.orientation_axis_deg):
-            herman = herman_from_azimuthal(
+            raw_herman = herman_from_azimuthal(
                 chi_prof,
                 I_prof,
                 reference_axis_deg=result.orientation_axis_deg,
             )
-            result.f_herman_raw = herman.get('f', np.nan)
+            result.f_herman_raw = raw_herman.get('f', np.nan)
+
+        if np.isfinite(result.tensile_axis_deg):
+            result.reference_axis_deg = result.tensile_axis_deg
+            result.reference_axis_kind = "tensile_axis"
+        else:
+            reliability_reasons.append("tensile_axis_unknown")
             if result.orientation_reliability_status == "usable":
-                result.f_herman = result.f_herman_raw
-                result.P2 = herman.get('P2', np.nan)
-                result.P4 = herman.get('P4', np.nan)
+                result.orientation_reliability_status = "unavailable"
+
+        result.orientation_reliability_reason_codes = list(
+            dict.fromkeys(reliability_reasons)
+        )
+        if (
+            result.orientation_reliability_status == "usable"
+            and np.isfinite(result.reference_axis_deg)
+        ):
+            tensile_herman = herman_from_azimuthal(
+                chi_prof,
+                I_prof,
+                reference_axis_deg=result.reference_axis_deg,
+            )
+            result.f_herman = tensile_herman.get('f', np.nan)
+            result.P2 = tensile_herman.get('P2', np.nan)
+            result.P4 = tensile_herman.get('P4', np.nan)
 
         # 3. Herman from sector regions
         # Meridional: chi ~ 0
@@ -895,5 +1027,11 @@ def analyze_anisotropy(
         if result.pattern_type != "unknown":
             result.confidence += 0.15
 
-    _attach_orientation_evidence(result, I_2d, detector_quality=detector)
+    _attach_orientation_evidence(
+        result,
+        I_2d,
+        detector_quality=detector,
+        sector_map_quality=sector_quality,
+        annulus_quality=annulus_quality,
+    )
     return result
