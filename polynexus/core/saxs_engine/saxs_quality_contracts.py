@@ -124,6 +124,97 @@ def _finite_float_or_none(value: Any) -> float | None:
     return number if np.isfinite(number) else None
 
 
+def _normalize_detached_support_report(
+    data: dict[str, Any],
+    *,
+    integer_fields: tuple[str, ...],
+    float_fields: tuple[str, ...],
+    has_shape: bool = False,
+) -> bool:
+    """Normalize detached support evidence and report malformed fields."""
+
+    malformed = False
+    support_available = data.get("support_available", False)
+    if "support_available" in data and not isinstance(
+        support_available, (bool, np.bool_)
+    ):
+        malformed = True
+    data["support_available"] = bool(support_available) if not malformed else False
+
+    if has_shape and "shape" in data:
+        shape = data["shape"]
+        if (
+            not isinstance(shape, (list, tuple))
+            or any(
+                isinstance(item, (bool, np.bool_))
+                or not isinstance(item, (int, np.integer))
+                or item < 0
+                for item in shape
+            )
+        ):
+            malformed = True
+        else:
+            data["shape"] = tuple(int(item) for item in shape)
+
+    for key in integer_fields:
+        if key not in data:
+            continue
+        value = data[key]
+        if (
+            isinstance(value, (bool, np.bool_))
+            or not isinstance(value, (int, np.integer))
+            or value < 0
+        ):
+            malformed = True
+        else:
+            data[key] = int(value)
+
+    for key in float_fields:
+        if key not in data:
+            continue
+        value = data[key]
+        if value is None:
+            continue
+        if isinstance(value, (bool, np.bool_)) or not isinstance(
+            value, (int, float, np.integer, np.floating)
+        ):
+            malformed = True
+            continue
+        normalized = _finite_float_or_none(value)
+        if normalized is None:
+            malformed = True
+        else:
+            data[key] = normalized
+
+    raw_reasons = data.get("reason_codes", ())
+    if isinstance(raw_reasons, str):
+        data["reason_codes"] = (raw_reasons,)
+    elif isinstance(raw_reasons, (list, tuple)) and all(
+        isinstance(reason, str) for reason in raw_reasons
+    ):
+        data["reason_codes"] = tuple(raw_reasons)
+    else:
+        data["reason_codes"] = ()
+        malformed = True
+
+    raw_level = data.get("level", QualityLevel.UNUSABLE)
+    data["level"] = _quality_level(raw_level)
+    if (
+        "level" in data
+        and not isinstance(raw_level, QualityLevel)
+        and raw_level not in {level.value for level in QualityLevel}
+    ):
+        malformed = True
+
+    if malformed:
+        data["support_available"] = False
+        data["level"] = QualityLevel.DIAGNOSTIC
+        data["reason_codes"] = tuple(
+            dict.fromkeys((*data["reason_codes"], "sector_support_unavailable"))
+        )
+    return malformed
+
+
 @dataclass(frozen=True)
 class DataQualityReport:
     """Deterministic, non-mutating inventory of a 1D q-I input pair."""
@@ -228,10 +319,16 @@ class SectorMapQualityReport:
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "SectorMapQualityReport":
         data = dict(payload)
-        data["shape"] = _int_tuple(data.get("shape"))
-        data["support_fraction"] = _finite_float_or_none(data.get("support_fraction"))
-        data["reason_codes"] = _string_tuple(data.get("reason_codes"))
-        data["level"] = _quality_level(data.get("level"))
+        _normalize_detached_support_report(
+            data,
+            integer_fields=(
+                "supported_bin_count",
+                "empty_bin_count",
+                "measured_nonpositive_bin_count",
+            ),
+            float_fields=("support_fraction",),
+            has_shape=True,
+        )
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -255,10 +352,15 @@ class AnnulusQualityReport:
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "AnnulusQualityReport":
         data = dict(payload)
-        for key in ("q_target_nm1", "q_width_nm1", "support_fraction"):
-            data[key] = _finite_float_or_none(data.get(key))
-        data["reason_codes"] = _string_tuple(data.get("reason_codes"))
-        data["level"] = _quality_level(data.get("level"))
+        _normalize_detached_support_report(
+            data,
+            integer_fields=(
+                "selected_q_bin_count",
+                "angular_bin_count",
+                "supported_angular_bin_count",
+            ),
+            float_fields=("q_target_nm1", "q_width_nm1", "support_fraction"),
+        )
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -455,6 +557,7 @@ def build_sector_map_quality_report(
         intensity_array.ndim != 2
         or support_array.ndim != 2
         or intensity_array.shape != support_array.shape
+        or intensity_array.size == 0
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
     ):
@@ -2031,10 +2134,10 @@ def build_orientation_evidence(
         physical_checks["annulus_quality_report"] = (
             normalized_annulus_quality.to_dict()
         )
-    if support_quality_blocked:
-        level = QualityLevel.DIAGNOSTIC
-    elif not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
+    if not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
         level = QualityLevel.UNUSABLE
+    elif support_quality_blocked:
+        level = QualityLevel.DIAGNOSTIC
     elif (
         not supported
         or detector_quality.level is QualityLevel.DIAGNOSTIC

@@ -63,6 +63,51 @@ def test_support_reports_fail_closed_for_missing_or_mismatched_support() -> None
         assert "sector_support_unavailable" in report.reason_codes
 
 
+def test_sector_report_fails_closed_for_zero_sized_map_and_support() -> None:
+    report = build_sector_map_quality_report(
+        np.empty((0, 0)),
+        np.empty((0, 0)),
+    )
+
+    assert report.support_available is False
+    assert report.level is QualityLevel.DIAGNOSTIC
+    assert "sector_support_unavailable" in report.reason_codes
+
+
+def test_detached_support_reports_fail_closed_for_malformed_fields() -> None:
+    sector = SectorMapQualityReport.from_dict(
+        {
+            "shape": [1, 2],
+            "support_available": "false",
+            "supported_bin_count": 2,
+            "empty_bin_count": 0,
+            "measured_nonpositive_bin_count": 0,
+            "support_fraction": 1.0,
+            "reason_codes": [],
+            "level": "Trend",
+        }
+    )
+    annulus = AnnulusQualityReport.from_dict(
+        {
+            "q_target_nm1": 0.5,
+            "q_width_nm1": 0.1,
+            "selected_q_bin_count": "two",
+            "angular_bin_count": 2,
+            "supported_angular_bin_count": 2,
+            "support_fraction": 1.0,
+            "support_available": True,
+            "reason_codes": [],
+            "level": "Trend",
+        }
+    )
+
+    for report in (sector, annulus):
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+        json.dumps(report.to_dict(), allow_nan=False)
+
+
 def test_saxs_engine_package_facade_exports_support_quality_contracts() -> None:
     from polynexus.core import saxs_engine
     from polynexus.core.saxs_engine import (
@@ -194,7 +239,7 @@ def test_orientation_evidence_normalizes_unavailable_support_reports() -> None:
     assert "annulus_quality_level_invalid" in diagnostic_evidence.reason_codes
     assert (
         diagnostic_evidence.physical_checks["annulus_quality_report"]["level"]
-        == "Unusable"
+        == "Diagnostic"
     )
 
 
@@ -224,3 +269,37 @@ def test_orientation_evidence_keeps_trend_for_normalized_valid_support_reports()
 
     assert valid.level is QualityLevel.TREND
     assert valid.applicable is True
+
+
+def test_orientation_evidence_preserves_unusable_precedence_over_unavailable_support() -> None:
+    unavailable_sector = SectorMapQualityReport(
+        reason_codes=("sector_support_unavailable",),
+        level=QualityLevel.DIAGNOSTIC,
+    )
+    usable_detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+    unusable_detector = build_detector_quality_report(
+        np.empty((0, 0)),
+        source_kind="raw_detector",
+    )
+
+    missing_metrics = build_orientation_evidence(
+        {},
+        usable_detector,
+        applicability="supported",
+        sector_map_quality=unavailable_sector,
+    )
+    detector_unusable = build_orientation_evidence(
+        {"f_herman": 0.4},
+        unusable_detector,
+        applicability="supported",
+        sector_map_quality=unavailable_sector,
+    )
+
+    for evidence in (missing_metrics, detector_unusable):
+        assert evidence.level is QualityLevel.UNUSABLE
+        assert evidence.applicable is False
+        assert "sector_support_unavailable" in evidence.reason_codes
