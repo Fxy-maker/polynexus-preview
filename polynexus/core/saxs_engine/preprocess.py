@@ -354,9 +354,23 @@ class SectorMapResult:
         yield self.chi
 
 
+def _contains_invalid_pyfai_support_value(value: Any) -> bool:
+    if isinstance(value, (bool, np.bool_, str, complex, np.complexfloating)):
+        return True
+    if isinstance(value, np.ndarray):
+        if value.dtype.kind in {"b", "c", "O", "U", "S"}:
+            return True
+        return False
+    if isinstance(value, (list, tuple)):
+        return any(_contains_invalid_pyfai_support_value(item) for item in value)
+    return False
+
+
 def _validated_pyfai_support_count(res, intensity: np.ndarray) -> Optional[np.ndarray]:
     count = getattr(res, "count", None)
     if count is None:
+        return None
+    if _contains_invalid_pyfai_support_value(count):
         return None
     try:
         raw_count = np.asarray(count)

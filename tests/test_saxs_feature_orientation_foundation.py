@@ -95,6 +95,7 @@ def test_pyfai_sector_map_fails_closed_for_invalid_count_payloads() -> None:
         np.asarray([[1.0, np.nan], [1.0, 1.0], [1.0, 1.0]]),
         np.asarray([[1.0, -1.0], [1.0, 1.0], [1.0, 1.0]]),
         np.asarray([[True, False], [True, True], [True, True]]),
+        [[True, 1.0], [1.0, 1.0], [1.0, 1.0]],
         np.asarray([["1.0", "1.0"], ["1.0", "1.0"], ["1.0", "1.0"]]),
         np.asarray([[1.0 + 0.0j, 1.0 + 0.0j], [1.0 + 0.0j, 1.0 + 0.0j], [1.0 + 0.0j, 1.0 + 0.0j]]),
     )
