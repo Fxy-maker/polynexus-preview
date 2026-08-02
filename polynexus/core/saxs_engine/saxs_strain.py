@@ -487,7 +487,8 @@ def herman_from_sector_data(
             I_mer = np.array([np.mean(I_mer[:, mask], axis=1)]) if I_mer.ndim > 1 else I_mer[mask]
 
     return _legacy_orientation_result(
-        herman_orientation_factor(I_mer, I_eq, chi_mer, chi_eq)
+        herman_orientation_factor(I_mer, I_eq, chi_mer, chi_eq),
+        cfg=cfg,
     )
 
 
@@ -533,7 +534,11 @@ def _block_orientation_evidence(
     return payload
 
 
-def _legacy_orientation_result(legacy: Mapping[str, object]) -> Dict:
+def _legacy_orientation_result(
+    legacy: Mapping[str, object],
+    *,
+    cfg: Optional[SAXSConfig] = None,
+) -> Dict:
     """Keep legacy Herman output diagnostic without promoting it to final."""
 
     f_raw = float(legacy.get("f", np.nan))
@@ -541,24 +546,53 @@ def _legacy_orientation_result(legacy: Mapping[str, object]) -> Dict:
         np.empty((0, 0), dtype=float),
         source_kind="sector_map",
     )
-    reason = "legacy_orientation_unavailable"
+    reasons = ["legacy_orientation_unavailable"]
+    try:
+        tensile_axis = float(getattr(cfg, "tensile_axis_deg", np.nan))
+    except (TypeError, ValueError):
+        tensile_axis = np.nan
+    if not np.isfinite(tensile_axis):
+        reasons.append("tensile_axis_unknown")
     evidence = build_orientation_evidence(
         {
             "f_herman_raw": f_raw,
             "orientation_reliability_status": "unavailable",
-            "orientation_reliability_reason_codes": [reason],
+            "orientation_reliability_reason_codes": reasons,
         },
         detector,
         applicability="supported",
         source_ref="saxs_strain.legacy_sector_adapter",
     ).to_dict()
-    reasons = list(evidence.get("reason_codes") or ())
-    reasons.append(reason)
-    evidence["reason_codes"] = tuple(dict.fromkeys(reasons))
+    fit_evidence = dict(evidence.get("fit_evidence") or {})
+    fit_evidence.update(
+        {
+            "feature_kind": "legacy_orientation",
+            "orientation_axis_source": "legacy_sector_adapter",
+            "orientation_axis_deg": None,
+            "orientation_axis_strength": None,
+            "orientation_axis_confidence": 0.0,
+            "principal_scattering_axis_deg": None,
+            "tensile_axis_deg": (
+                float(tensile_axis) if np.isfinite(tensile_axis) else None
+            ),
+            "reference_axis_deg": None,
+            "reference_axis_kind": "legacy_principal_axis",
+            "orientation_vector_kind": "legacy_principal_axis",
+            "herman_convention": "detector_plane_2d_v1",
+            "isotropic_baseline": 0.25,
+            "q_star_candidate": None,
+            "selected_q_range_nm1": None,
+        }
+    )
+    evidence["value"] = dict(fit_evidence)
+    evidence["fit_evidence"] = fit_evidence
+    evidence_reasons = list(evidence.get("reason_codes") or ())
+    evidence_reasons.extend(reasons)
+    evidence["reason_codes"] = tuple(dict.fromkeys(evidence_reasons))
     evidence["applicable"] = False
     physical_checks = dict(evidence.get("physical_checks") or {})
     physical_checks["orientation_reliability_status"] = "unavailable"
-    physical_checks["orientation_reliability_reason_codes"] = [reason]
+    physical_checks["orientation_reliability_reason_codes"] = reasons
     evidence["physical_checks"] = physical_checks
     return {
         "f": np.nan,

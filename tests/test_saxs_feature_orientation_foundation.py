@@ -112,7 +112,7 @@ def test_supported_annulus_uses_tensile_axis_and_ignores_empty_bins_outside_band
     support = np.ones_like(payload[0])
     support[:, :5] = 0.0
     raw = build_detector_quality_report(
-        np.ones((16, 16)), source_kind="raw_detector", beam_center=None
+        np.ones((16, 16)), source_kind="raw_detector", beam_center=(8.0, 8.0)
     )
 
     result = analyze_anisotropy(
@@ -127,10 +127,13 @@ def test_supported_annulus_uses_tensile_axis_and_ignores_empty_bins_outside_band
     assert result.reference_axis_deg == 37.0
     assert result.reference_axis_kind == "tensile_axis"
     assert checks["sector_map_quality_report"]["empty_bin_count"] == 360
+    assert checks["sector_map_quality_report"]["level"] == "Diagnostic"
     assert checks["annulus_quality_report"]["support_available"] is True
     assert checks["annulus_quality_report"]["level"] == "Trend"
+    assert result.orientation_evidence["level"] == "Trend"
+    assert result.orientation_evidence["applicable"] is True
     assert result.detector_quality_report["source_kind"] == "raw_detector"
-    assert result.detector_quality_report["level"] == "Diagnostic"
+    assert result.detector_quality_report["level"] == "Trend"
     assert "nonpositive_pixels" not in result.orientation_evidence["reason_codes"]
     json.dumps(result.orientation_evidence, allow_nan=False)
 

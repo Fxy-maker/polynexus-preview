@@ -2322,15 +2322,34 @@ def build_orientation_evidence(
 
     support_quality_blocked = False
     support_quality_unusable = False
-    for report in (normalized_sector_quality, normalized_annulus_quality):
-        if report is None:
-            continue
-        reasons.extend(report.reason_codes)
-        if report.level is QualityLevel.UNUSABLE:
+    if normalized_sector_quality is not None:
+        reasons.extend(normalized_sector_quality.reason_codes)
+        if normalized_sector_quality.level is QualityLevel.UNUSABLE:
             support_quality_unusable = True
         if (
-            not report.support_available
-            or report.level in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
+            not normalized_sector_quality.support_available
+            or normalized_sector_quality.level is QualityLevel.UNUSABLE
+            or "sector_support_unavailable"
+            in normalized_sector_quality.reason_codes
+            or (
+                normalized_sector_quality.level is QualityLevel.DIAGNOSTIC
+                and not (
+                    normalized_annulus_quality is not None
+                    and normalized_annulus_quality.support_available
+                    and normalized_annulus_quality.level is QualityLevel.TREND
+                )
+            )
+        ):
+            support_quality_blocked = True
+
+    if normalized_annulus_quality is not None:
+        reasons.extend(normalized_annulus_quality.reason_codes)
+        if normalized_annulus_quality.level is QualityLevel.UNUSABLE:
+            support_quality_unusable = True
+        if (
+            not normalized_annulus_quality.support_available
+            or normalized_annulus_quality.level
+            in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
         ):
             support_quality_blocked = True
 

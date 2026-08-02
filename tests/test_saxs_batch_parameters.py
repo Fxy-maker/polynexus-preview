@@ -1011,7 +1011,18 @@ def test_saxs_strain_legacy_orientation_is_raw_only_without_tensile_axis(monkeyp
     dataframe = result.to_dataframe()
     assert np.isfinite(point.f_herman_raw)
     assert not np.isfinite(point.f_herman)
-    assert "legacy_orientation_unavailable" in point.orientation_evidence["reason_codes"]
+    evidence = point.orientation_evidence
+    fit_evidence = evidence["fit_evidence"]
+    assert "legacy_orientation_unavailable" in evidence["reason_codes"]
+    assert "tensile_axis_unknown" in evidence["reason_codes"]
+    assert fit_evidence["feature_kind"] == "legacy_orientation"
+    assert fit_evidence["herman_convention"] == "detector_plane_2d_v1"
+    assert fit_evidence["reference_axis_kind"] == "legacy_principal_axis"
+    assert fit_evidence["orientation_axis_source"] == "legacy_sector_adapter"
+    assert fit_evidence["principal_scattering_axis_deg"] is None
+    assert fit_evidence["isotropic_baseline"] == 0.25
+    import json
+    json.dumps(evidence, allow_nan=False)
     assert dataframe.iloc[0]["f_Herman"] is None
 
 
