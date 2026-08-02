@@ -209,11 +209,25 @@ def _attach_orientation_evidence(
             ),
             "reference_axis_kind": result.reference_axis_kind,
             "raw_reference_axis_deg": (
-                float(result.principal_scattering_axis_deg)
-                if np.isfinite(result.principal_scattering_axis_deg)
+                float(result.orientation_axis_deg)
+                if np.isfinite(result.orientation_axis_deg)
                 else None
             ),
-            "raw_reference_axis_kind": "legacy_principal_axis",
+            "raw_reference_axis_kind": (
+                "legacy_configured_axis"
+                if result.orientation_axis_source == "configured"
+                else "legacy_principal_axis"
+            ),
+            "legacy_reference_axis_deg": (
+                float(result.orientation_axis_deg)
+                if np.isfinite(result.orientation_axis_deg)
+                else None
+            ),
+            "legacy_reference_axis_kind": (
+                "legacy_configured_axis"
+                if result.orientation_axis_source == "configured"
+                else "legacy_principal_axis"
+            ),
             "orientation_vector_kind": result.orientation_vector_kind,
             "herman_convention": result.herman_convention,
             "isotropic_baseline": float(result.isotropic_baseline),
@@ -972,7 +986,7 @@ def analyze_anisotropy(
         result.orientation_effective_bins = axis_info.get("effective_bins", np.nan)
         result.orientation_azimuthal_coverage = axis_info.get("coverage", np.nan)
         result.orientation_axis_drift_deg = axis_info.get("axis_drift_deg", np.nan)
-        result.principal_scattering_axis_deg = result.orientation_axis_deg
+        result.principal_scattering_axis_deg = axis_info.get("axis_deg", np.nan)
         reliability_reasons = list(axis_info.get("reason_codes", ()))
         if detector.level is QualityLevel.UNUSABLE:
             reliability_reasons.append("raw_detector_quality_unusable")

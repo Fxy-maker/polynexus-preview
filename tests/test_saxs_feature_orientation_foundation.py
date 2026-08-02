@@ -129,6 +129,51 @@ def test_sparse_annulus_support_blocks_final_herman_and_is_json_safe() -> None:
     json.dumps(result.orientation_evidence, allow_nan=False)
 
 
+def test_observed_principal_axis_is_not_overwritten_by_legacy_reference_axis() -> None:
+    payload = _synthetic_annulus_input(axis_deg=37.0)
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(orientation_axis_deg=90.0, tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+    )
+
+    fit = result.orientation_evidence["fit_evidence"]
+    assert abs(((result.principal_scattering_axis_deg - 37.0 + 90.0) % 180.0) - 90.0) < 5.0
+    assert result.orientation_axis_deg == 90.0
+    assert result.orientation_axis_source == "configured"
+    assert fit["raw_reference_axis_deg"] == 90.0
+    assert fit["raw_reference_axis_kind"] == "legacy_configured_axis"
+    assert abs(((fit["principal_scattering_axis_deg"] - 37.0 + 90.0) % 180.0) - 90.0) < 5.0
+    assert result.f_herman_raw != result.f_herman
+    assert result.reference_axis_deg == 37.0
+
+
+def test_diagnostic_raw_nonpositive_pixels_do_not_automatically_veto_final_herman() -> None:
+    payload = _synthetic_annulus_input(axis_deg=37.0)
+    raw = build_detector_quality_report(
+        np.asarray([[1.0, 0.0], [1.0, 1.0]]),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality=raw,
+    )
+
+    assert raw.level is QualityLevel.DIAGNOSTIC
+    assert "nonpositive_pixels" in raw.reason_codes
+    assert np.isfinite(result.f_herman)
+    assert "detector_quality_diagnostic" in result.orientation_evidence["reason_codes"]
+    assert "raw_detector_quality_unusable" not in result.orientation_evidence[
+        "reason_codes"
+    ]
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
 def test_numpy_sector_map_preserves_zero_support_separately_from_intensity() -> None:
     cfg = SAXSConfig(q_min=0.01, q_max=5.0, n_pt=8, n_chi_sectors=12)
     image = np.ones((32, 32), dtype=float)
