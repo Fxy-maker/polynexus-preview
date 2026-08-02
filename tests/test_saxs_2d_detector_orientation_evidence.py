@@ -138,7 +138,10 @@ def test_anisotropy_result_keeps_legacy_empty_path_and_attaches_json_evidence():
     )
 
     assert result.confidence == 0.0
-    assert result.detector_quality_report["source_kind"] == "sector_map"
+    assert result.detector_quality_report["source_kind"] == "raw_detector"
+    assert "raw_detector_quality_unavailable" in result.detector_quality_report[
+        "reason_codes"
+    ]
     assert result.orientation_evidence["level"] == QualityLevel.UNUSABLE.value
     json.dumps(result.detector_quality_report, allow_nan=False)
     json.dumps(result.orientation_evidence, allow_nan=False)

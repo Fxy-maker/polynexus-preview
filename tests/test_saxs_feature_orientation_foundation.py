@@ -83,6 +83,52 @@ def test_supported_annulus_uses_tensile_axis_and_ignores_empty_bins_outside_band
     json.dumps(result.orientation_evidence, allow_nan=False)
 
 
+def test_omitted_raw_report_does_not_promote_sector_bins_to_detector_defects() -> None:
+    I_2d, q, chi, q_1d, I_1d = _synthetic_annulus_input()
+    I_2d = np.array(I_2d, copy=True)
+    I_2d[:, :5] = 0.0
+
+    result = analyze_anisotropy(
+        I_2d,
+        q,
+        chi,
+        q_1d,
+        I_1d,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(I_2d),
+    )
+
+    report = result.detector_quality_report
+    assert report["source_kind"] == "raw_detector"
+    assert report["level"] == "Diagnostic"
+    assert "raw_detector_quality_unavailable" in report["reason_codes"]
+    assert "nonpositive_pixels" not in report["reason_codes"]
+    json.dumps(report, allow_nan=False)
+
+
+def test_sparse_annulus_support_blocks_final_herman_and_is_json_safe() -> None:
+    payload = _synthetic_annulus_input()
+    support = np.zeros_like(payload[0])
+    support[0, np.abs(payload[1] - 0.55) <= 0.02] = 1.0
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=support,
+    )
+
+    annulus = result.orientation_evidence["physical_checks"][
+        "annulus_quality_report"
+    ]
+    assert annulus["support_fraction"] == pytest.approx(1.0 / 72.0)
+    assert "annulus_support_insufficient" in result.orientation_evidence["reason_codes"]
+    assert not np.isfinite(result.f_herman)
+    assert not np.isfinite(result.P2)
+    assert not np.isfinite(result.P4)
+    assert result.orientation_reliability_status != "usable"
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
 def test_numpy_sector_map_preserves_zero_support_separately_from_intensity() -> None:
     cfg = SAXSConfig(q_min=0.01, q_max=5.0, n_pt=8, n_chi_sectors=12)
     image = np.ones((32, 32), dtype=float)

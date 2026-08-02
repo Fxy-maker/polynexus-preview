@@ -22,12 +22,19 @@ from .saxs_quality_contracts import (
     QualityLevel,
     SectorMapQualityReport,
     build_annulus_quality_report,
-    build_detector_quality_report,
     build_orientation_evidence,
     build_sector_map_quality_report,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _unavailable_raw_detector_quality() -> DetectorQualityReport:
+    return DetectorQualityReport(
+        source_kind="raw_detector",
+        reason_codes=("raw_detector_quality_unavailable",),
+        level=QualityLevel.DIAGNOSTIC,
+    )
 
 
 @dataclass
@@ -108,9 +115,7 @@ def _attach_orientation_evidence(
 ) -> None:
     """Attach evidence for the sector-map input consumed by this module."""
 
-    detector = detector_quality or build_detector_quality_report(
-        I_2d, source_kind="sector_map"
-    )
+    detector = detector_quality or _unavailable_raw_detector_quality()
     payload = (
         {}
         if invalid_reason
@@ -274,6 +279,7 @@ def extract_azimuthal_profile(
     chi: np.ndarray,
     q_target: float,
     q_width: float = 0.01,
+    support_count: np.ndarray | None = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Extract azimuthal intensity profile I(chi) at a given q value.
 
@@ -303,8 +309,34 @@ def extract_azimuthal_profile(
     if np.sum(mask) < 1:
         return np.array([]), np.array([])
 
-    # Average intensity over q range
-    if I_2d.ndim == 2:
+    # Average only measured bins.  Sector support is a source-pixel weight,
+    # not an intensity proxy, so unsupported q bins never enter the profile.
+    if I_2d.ndim == 2 and support_count is not None:
+        try:
+            support = np.asarray(support_count, dtype=float)
+        except (TypeError, ValueError):
+            support = np.asarray([], dtype=float)
+        if (
+            support.shape != I_2d.shape
+            or not np.all(np.isfinite(support))
+            or np.any(support < 0)
+        ):
+            return chi, np.full(chi.shape, np.nan, dtype=float)
+        selected_support = support[:, mask]
+        valid_weight = selected_support > 0
+        denominator = np.sum(
+            np.where(valid_weight, selected_support, 0.0), axis=1
+        )
+        numerator = np.sum(
+            np.where(valid_weight, I_2d[:, mask] * selected_support, 0.0),
+            axis=1,
+        )
+        I_profile = np.full(I_2d.shape[0], np.nan, dtype=float)
+        supported_rows = denominator > 0
+        I_profile[supported_rows] = (
+            numerator[supported_rows] / denominator[supported_rows]
+        )
+    elif I_2d.ndim == 2:
         I_profile = np.mean(I_2d[:, mask], axis=1)
     else:
         I_profile = I_2d
@@ -771,7 +803,6 @@ def analyze_peak_widths(
 
 def _normalized_detector_quality(
     raw_detector_quality: DetectorQualityReport | Mapping[str, Any] | None,
-    sector_intensity: Any,
 ) -> DetectorQualityReport:
     """Prefer supplied raw-detector provenance over the derived sector map."""
 
@@ -779,7 +810,7 @@ def _normalized_detector_quality(
         return DetectorQualityReport.from_dict(raw_detector_quality.to_dict())
     if isinstance(raw_detector_quality, Mapping):
         return DetectorQualityReport.from_dict(raw_detector_quality)
-    return build_detector_quality_report(sector_intensity, source_kind="sector_map")
+    return _unavailable_raw_detector_quality()
 
 
 def _finite_axis_deg(value: Any) -> float:
@@ -834,7 +865,7 @@ def analyze_anisotropy(
     normalized, invalid_reason = _normalize_anisotropy_inputs(
         I_2d, q, chi, q_1d, I_1d
     )
-    detector = _normalized_detector_quality(raw_detector_quality, I_2d)
+    detector = _normalized_detector_quality(raw_detector_quality)
     sector_quality = build_sector_map_quality_report(I_2d, support_count)
     if invalid_reason:
         result.confidence = 0.0
@@ -863,6 +894,19 @@ def analyze_anisotropy(
         q_target=q_star,
         q_width=q_window,
     )
+    try:
+        annulus_min_coverage = float(
+            getattr(cfg, "orientation_min_coverage", 0.75)
+        )
+    except (TypeError, ValueError):
+        annulus_min_coverage = 0.75
+    annulus_support_reason = ""
+    if (
+        annulus_quality.support_available
+        and annulus_quality.support_fraction is not None
+        and annulus_quality.support_fraction < annulus_min_coverage
+    ):
+        annulus_support_reason = "annulus_support_insufficient"
     if np.isfinite(q_star) and q_star > 0:
         result.q_star_candidate = float(q_star)
         selected_q = np.abs(q - q_star) <= q_window
@@ -876,7 +920,12 @@ def analyze_anisotropy(
 
     if np.isfinite(q_star) and q_star > 0:
         chi_prof, I_prof = extract_azimuthal_profile(
-            I_2d, q, chi, q_star, q_width=q_window
+            I_2d,
+            q,
+            chi,
+            q_star,
+            q_width=q_window,
+            support_count=support_count,
         )
         result.azimuthal_chi = chi_prof
         result.azimuthal_I = I_prof
@@ -934,6 +983,8 @@ def analyze_anisotropy(
             reliability_reasons.extend(annulus_quality.reason_codes)
             if not annulus_quality.reason_codes:
                 reliability_reasons.append("annulus_support_unusable")
+        if annulus_support_reason:
+            reliability_reasons.append(annulus_support_reason)
         if not np.isfinite(result.orientation_axis_deg):
             result.orientation_reliability_status = "unavailable"
         elif reliability_reasons:
