@@ -14,6 +14,7 @@ from polynexus.core.saxs_engine.saxs_anisotropy import analyze_anisotropy
 from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
 from polynexus.core.saxs_engine.saxs_quality_contracts import (
     AnnulusQualityReport,
+    DetectorQualityReport,
     QualityLevel,
     SectorMapQualityReport,
     build_annulus_quality_report,
@@ -266,6 +267,66 @@ def test_valid_raw_detector_mapping_round_trips_without_losing_applicability() -
     assert np.isfinite(result.f_herman)
     assert result.orientation_evidence["applicable"] is True
     json.dumps(result.orientation_evidence, allow_nan=False)
+
+
+def test_valid_raw_detector_report_object_round_trips_without_losing_applicability() -> None:
+    payload = _synthetic_annulus_input(axis_deg=37.0)
+    raw = build_detector_quality_report(
+        np.ones((8, 8)), source_kind="raw_detector", beam_center=(4.0, 4.0)
+    )
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality=raw,
+    )
+
+    assert result.detector_quality_report == raw.to_dict()
+    assert result.orientation_evidence["applicable"] is True
+
+
+def test_empty_raw_detector_report_object_is_unavailable_and_not_applicable() -> None:
+    payload = _synthetic_annulus_input(axis_deg=37.0)
+    raw = DetectorQualityReport(
+        source_kind="raw_detector", level=QualityLevel.TREND
+    )
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality=raw,
+    )
+
+    assert result.detector_quality_report["level"] == QualityLevel.DIAGNOSTIC.value
+    assert "raw_detector_quality_unavailable" in result.detector_quality_report[
+        "reason_codes"
+    ]
+    assert result.orientation_evidence["applicable"] is False
+
+
+def test_numpy_sector_map_counts_finite_nonpositive_measurements_as_support() -> None:
+    cfg = SAXSConfig(
+        beam_center_x=16.0,
+        beam_center_y=16.0,
+        q_min=0.01,
+        q_max=2.0,
+        n_pt=8,
+        n_chi_sectors=12,
+        dummy_val=np.nan,
+    )
+    image = np.zeros((32, 32), dtype=float)
+    image[16, 24] = -0.5
+
+    sector_map = integrate_chi_sectors(None, image, cfg)
+    report = build_sector_map_quality_report(
+        sector_map.intensity, sector_map.support_count
+    )
+
+    assert np.any(sector_map.support_count > 0)
+    assert report.measured_nonpositive_bin_count > 0
+    assert "sector_measured_nonpositive_bins_present" in report.reason_codes
 
 
 def test_numpy_sector_map_preserves_zero_support_separately_from_intensity() -> None:

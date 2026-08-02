@@ -885,7 +885,12 @@ def _normalized_detector_quality(
     """Prefer supplied raw-detector provenance over the derived sector map."""
 
     if isinstance(raw_detector_quality, DetectorQualityReport):
-        return DetectorQualityReport.from_dict(raw_detector_quality.to_dict())
+        payload = raw_detector_quality.to_dict()
+        if raw_detector_quality.level is QualityLevel.UNUSABLE:
+            return DetectorQualityReport.from_dict(payload)
+        if _raw_detector_mapping_is_coherent(payload):
+            return DetectorQualityReport.from_dict(payload)
+        return _unavailable_raw_detector_quality()
     if isinstance(raw_detector_quality, Mapping):
         if _raw_detector_mapping_is_coherent(raw_detector_quality):
             return DetectorQualityReport.from_dict(raw_detector_quality)

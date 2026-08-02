@@ -427,9 +427,8 @@ def integrate_chi_sectors(
         chi_edges = np.linspace(-np.pi, np.pi, n_chi + 1)
         q_bins = np.searchsorted(q_edges, q_map, side="right") - 1
         chi_bins = np.searchsorted(chi_edges, chi_map, side="right") - 1
-        valid = (
+        occupancy_valid = (
             np.isfinite(img)
-            & (img > 0)
             & np.isfinite(q_map)
             & (q_bins >= 0)
             & (q_bins < cfg.n_pt)
@@ -438,12 +437,20 @@ def integrate_chi_sectors(
         )
         dummy_mask = _build_mask(img, cfg) if mask is None else mask
         if dummy_mask is not None:
-            valid &= ~dummy_mask
+            occupancy_valid &= ~dummy_mask
 
         intensity_sum = np.zeros((n_chi, cfg.n_pt), dtype=float)
         pixel_count = np.zeros((n_chi, cfg.n_pt), dtype=float)
-        np.add.at(intensity_sum, (chi_bins[valid], q_bins[valid]), img[valid])
-        np.add.at(pixel_count, (chi_bins[valid], q_bins[valid]), 1.0)
+        np.add.at(
+            intensity_sum,
+            (chi_bins[occupancy_valid], q_bins[occupancy_valid]),
+            img[occupancy_valid],
+        )
+        np.add.at(
+            pixel_count,
+            (chi_bins[occupancy_valid], q_bins[occupancy_valid]),
+            1.0,
+        )
         intensity = np.divide(
             intensity_sum,
             pixel_count,
