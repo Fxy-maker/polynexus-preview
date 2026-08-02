@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 from pathlib import Path
 from typing import Any, Mapping, Tuple, Optional, Callable, Dict, List
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import numpy as np
 from scipy.signal import savgol_filter
 
@@ -336,15 +336,57 @@ def integrate_sectors(
     return q, I_full, I_merid, I_equat
 
 
+@dataclass(frozen=True)
+class SectorMapResult:
+    q: np.ndarray
+    intensity: np.ndarray
+    chi: np.ndarray
+    support_count: Optional[np.ndarray]
+    integration_backend: str
+
+    @property
+    def empty_bin_mask(self) -> Optional[np.ndarray]:
+        return None if self.support_count is None else self.support_count <= 0
+
+    def __iter__(self):
+        yield self.q
+        yield self.intensity
+        yield self.chi
+
+
+def _validated_pyfai_support_count(res, intensity: np.ndarray) -> Optional[np.ndarray]:
+    count = getattr(res, "count", None)
+    if count is None:
+        return None
+    try:
+        raw_count = np.asarray(count)
+    except (TypeError, ValueError):
+        return None
+    if raw_count.ndim != 2 or raw_count.shape != intensity.shape or raw_count.dtype.kind == "b":
+        return None
+    try:
+        count_array = np.asarray(raw_count, dtype=float)
+    except (TypeError, ValueError):
+        return None
+    if (
+        not np.all(np.isfinite(count_array))
+        or np.any(count_array < 0)
+        or not np.all(count_array == np.floor(count_array))
+    ):
+        return None
+    return count_array
+
+
 def integrate_chi_sectors(
     ai,
     img: np.ndarray,
     cfg: SAXSConfig,
     mask: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> SectorMapResult:
     """Azimuthal sector integration into n_chi_sectors bins.
 
-    Returns (q, I_2d[n_chi, n_q], chi_center).
+    Returns a support-aware sector map that still unpacks as
+    ``(q, I_2d[n_chi, n_q], chi_center)``.
     """
     n_chi = cfg.n_chi_sectors
 
@@ -387,7 +429,7 @@ def integrate_chi_sectors(
         )
         q = 0.5 * (q_edges[:-1] + q_edges[1:])
         chi = 0.5 * (chi_edges[:-1] + chi_edges[1:])
-        return q, intensity, chi
+        return SectorMapResult(q, intensity, chi, pixel_count, "numpy")
 
     mask = _build_mask(img, cfg) if mask is None else mask
     res = ai.integrate2d(
@@ -395,7 +437,7 @@ def integrate_chi_sectors(
         radial_range=(cfg.q_min, cfg.q_max),
         mask=mask, unit="q_nm^-1", method="csr",
     )
-    I_2d = res.intensity
+    I_2d = np.asarray(res.intensity)
     q = res.radial
     chi = np.asarray(res.azimuthal, dtype=float)
     if chi.size and np.nanmax(np.abs(chi)) > 2 * np.pi + 1e-6:
@@ -403,8 +445,11 @@ def integrate_chi_sectors(
     chi = (chi + np.pi) % (2 * np.pi) - np.pi
     order = np.argsort(chi)
     chi = chi[order]
-    I_2d = np.asarray(I_2d)[order, :]
-    return q, I_2d, chi
+    I_2d = I_2d[order, :]
+    support_count = _validated_pyfai_support_count(res, I_2d)
+    if support_count is not None:
+        support_count = support_count[order, :]
+    return SectorMapResult(q, I_2d, chi, support_count, "pyfai")
 
 
 def default_integration_fn(img, cfg, mask: Optional[np.ndarray] = None):
@@ -705,12 +750,13 @@ def preprocess_pipeline(
     }
     if not cfg.is_isotropic and cfg.analysis_priority != "isotropic":
         try:
-            q_2d, I_2d, chi_rad = integrate_chi_sectors(
+            sector_map = integrate_chi_sectors(
                 ai,
                 img,
                 cfg,
                 mask=detector_mask,
             )
+            q_2d, I_2d, chi_rad = sector_map
             if (
                 I_2d.ndim == 2
                 and I_2d.shape[1] == len(q_2d)
@@ -723,6 +769,9 @@ def preprocess_pipeline(
                     "I_2d": I_2d,
                     "q_2d": q_2d,
                     "chi_rad": chi_rad,
+                    "support_count": sector_map.support_count,
+                    "sector_empty_bin_mask": sector_map.empty_bin_mask,
+                    "sector_integration_backend": sector_map.integration_backend,
                 })
         except Exception:
             logger.warning("SAXS azimuthal sector integration failed; orientation is unavailable.", exc_info=True)
@@ -750,6 +799,7 @@ def preprocess_pipeline(
         ),
     )
     result["detector_quality_report"] = detector_report.to_dict()
+    sector_data["raw_detector_quality_report"] = detector_report.to_dict()
     result["mask_edit_base_mask"] = mask_edit_base_mask
 
     return result

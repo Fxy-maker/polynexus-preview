@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import fields
+from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
 
 from polynexus.core.saxs_engine.config import SAXSConfig
+from polynexus.core.saxs_engine.preprocess import integrate_chi_sectors
 from polynexus.core.saxs_engine.saxs_quality_contracts import (
     AnnulusQualityReport,
     QualityLevel,
@@ -16,6 +18,75 @@ from polynexus.core.saxs_engine.saxs_quality_contracts import (
     build_orientation_evidence,
     build_sector_map_quality_report,
 )
+
+
+def test_numpy_sector_map_preserves_zero_support_separately_from_intensity() -> None:
+    cfg = SAXSConfig(q_min=0.01, q_max=5.0, n_pt=8, n_chi_sectors=12)
+    image = np.ones((32, 32), dtype=float)
+    image[0, 0] = -1.5
+
+    sector_map = integrate_chi_sectors(None, image, cfg)
+
+    assert sector_map.intensity.shape == (12, 8)
+    assert sector_map.support_count.shape == sector_map.intensity.shape
+    assert np.array_equal(sector_map.empty_bin_mask, sector_map.support_count == 0)
+    assert np.any(sector_map.empty_bin_mask)
+    q, intensity, chi = sector_map
+    assert q is sector_map.q
+    assert intensity is sector_map.intensity
+    assert chi is sector_map.chi
+
+
+def test_pyfai_sector_map_reorders_valid_count_with_intensity() -> None:
+    class FakeAI:
+        def integrate2d(self, *_args, **_kwargs):
+            return SimpleNamespace(
+                intensity=np.asarray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),
+                radial=np.asarray([0.2, 0.3]),
+                azimuthal=np.asarray([90.0, -90.0, 0.0]),
+                count=np.asarray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),
+            )
+
+    result = integrate_chi_sectors(
+        FakeAI(), np.ones((8, 8)), SAXSConfig(n_pt=2, n_chi_sectors=3)
+    )
+
+    assert result.integration_backend == "pyfai"
+    assert np.array_equal(result.chi, np.deg2rad([-90.0, 0.0, 90.0]))
+    assert np.array_equal(result.intensity, [[3.0, 4.0], [5.0, 6.0], [1.0, 2.0]])
+    assert np.array_equal(result.support_count, [[3.0, 4.0], [5.0, 6.0], [1.0, 2.0]])
+
+
+def test_pyfai_sector_map_fails_closed_for_invalid_count_payloads() -> None:
+    class FakeAI:
+        def __init__(self, count):
+            self.count = count
+
+        def integrate2d(self, *_args, **_kwargs):
+            return SimpleNamespace(
+                intensity=np.ones((3, 2)),
+                radial=np.asarray([0.2, 0.3]),
+                azimuthal=np.asarray([0.0, 1.0, 2.0]),
+                count=self.count,
+            )
+
+    invalid_counts = (
+        None,
+        [[1.0, 1.0], [1.0]],
+        np.ones((2, 3)),
+        np.ones(6),
+        np.asarray([[1.0, np.nan], [1.0, 1.0], [1.0, 1.0]]),
+        np.asarray([[1.0, -1.0], [1.0, 1.0], [1.0, 1.0]]),
+        np.asarray([[True, False], [True, True], [True, True]]),
+        np.asarray([[1.5, 1.0], [1.0, 1.0], [1.0, 1.0]]),
+    )
+
+    for count in invalid_counts:
+        result = integrate_chi_sectors(
+            FakeAI(count), np.ones((8, 8)), SAXSConfig(n_pt=2, n_chi_sectors=3)
+        )
+        assert result.support_count is None
+        assert result.empty_bin_mask is None
 
 
 def test_support_reports_distinguish_empty_bins_from_intensity_values() -> None:
