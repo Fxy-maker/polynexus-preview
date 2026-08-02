@@ -964,6 +964,57 @@ def test_saxs_strain_legacy_sector_payload_keeps_unavailable_support_explicit() 
     assert "sector_support_unavailable" in point.orientation_evidence["reason_codes"]
 
 
+def test_saxs_strain_legacy_orientation_is_raw_only_without_tensile_axis(monkeypatch) -> None:
+    from polynexus.core.saxs_engine import saxs_strain
+    from polynexus.core.saxs_engine.saxs_strain import StrainPhase, analyze_strain_series
+
+    q = np.linspace(0.2, 0.8, 12)
+    intensity = np.ones_like(q)
+    chi = np.linspace(-np.pi / 12, np.pi / 12, 12)
+    legacy_sector = {"chi": chi, "I": np.ones_like(chi), "q": q}
+
+    monkeypatch.setattr(
+        saxs_strain,
+        "analyze_single",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            long_period=SimpleNamespace(L_best=14.0, L_confidence=0.8, method_used="bragg"),
+            structure=SimpleNamespace(lc=3.0, la=11.0, phi_c=0.25),
+            data_quality_report={"level": "Trend"},
+            metric_evidence={},
+        ),
+    )
+    monkeypatch.setattr(saxs_strain, "scattering_invariant", lambda *args, **kwargs: 1.0)
+    monkeypatch.setattr(
+        saxs_strain,
+        "detect_strain_phase",
+        lambda *_args, **_kwargs: StrainPhase.ELASTIC,
+    )
+    monkeypatch.setattr(
+        saxs_strain,
+        "detect_voids",
+        lambda *_args, **_kwargs: {
+            "has_voids": False,
+            "phi_void": np.nan,
+            "void_ar": np.nan,
+        },
+    )
+
+    result = analyze_strain_series(
+        [0.0], [q], [intensity],
+        sector_data_list=[
+            {"meridional": legacy_sector, "equatorial": legacy_sector}
+        ],
+        cfg=SAXSConfig(tensile_axis_deg=None),
+    )
+
+    point = result.strain_points[0]
+    dataframe = result.to_dataframe()
+    assert np.isfinite(point.f_herman_raw)
+    assert not np.isfinite(point.f_herman)
+    assert "legacy_orientation_unavailable" in point.orientation_evidence["reason_codes"]
+    assert dataframe.iloc[0]["f_Herman"] is None
+
+
 def test_saxs_strain_dataframe_uses_only_effective_herman_value() -> None:
     from polynexus.core.saxs_engine.saxs_strain import StrainPhase, StrainPointResult, StrainSeriesResult
 

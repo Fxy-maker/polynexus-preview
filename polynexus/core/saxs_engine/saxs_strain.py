@@ -486,7 +486,9 @@ def herman_from_sector_data(
         if np.sum(mask) > 0:
             I_mer = np.array([np.mean(I_mer[:, mask], axis=1)]) if I_mer.ndim > 1 else I_mer[mask]
 
-    return herman_orientation_factor(I_mer, I_eq, chi_mer, chi_eq)
+    return _legacy_orientation_result(
+        herman_orientation_factor(I_mer, I_eq, chi_mer, chi_eq)
+    )
 
 
 def _orientation_quality_blockers(
@@ -529,6 +531,45 @@ def _block_orientation_evidence(
         )
     )
     return payload
+
+
+def _legacy_orientation_result(legacy: Mapping[str, object]) -> Dict:
+    """Keep legacy Herman output diagnostic without promoting it to final."""
+
+    f_raw = float(legacy.get("f", np.nan))
+    detector = build_detector_quality_report(
+        np.empty((0, 0), dtype=float),
+        source_kind="sector_map",
+    )
+    reason = "legacy_orientation_unavailable"
+    evidence = build_orientation_evidence(
+        {
+            "f_herman_raw": f_raw,
+            "orientation_reliability_status": "unavailable",
+            "orientation_reliability_reason_codes": [reason],
+        },
+        detector,
+        applicability="supported",
+        source_ref="saxs_strain.legacy_sector_adapter",
+    ).to_dict()
+    reasons = list(evidence.get("reason_codes") or ())
+    reasons.append(reason)
+    evidence["reason_codes"] = tuple(dict.fromkeys(reasons))
+    evidence["applicable"] = False
+    physical_checks = dict(evidence.get("physical_checks") or {})
+    physical_checks["orientation_reliability_status"] = "unavailable"
+    physical_checks["orientation_reliability_reason_codes"] = [reason]
+    evidence["physical_checks"] = physical_checks
+    return {
+        "f": np.nan,
+        "f_raw": f_raw,
+        "f_sub": float(legacy.get("f_sub", np.nan)),
+        "f_eq": float(legacy.get("f_eq", np.nan)),
+        "cos2_avg": float(legacy.get("cos2_avg", np.nan)),
+        "method": "legacy_sector_adapter",
+        "detector_quality_report": detector.to_dict(),
+        "orientation_evidence": evidence,
+    }
 
 
 def _invalid_sector_data_result(
