@@ -114,6 +114,16 @@ def _int_tuple(value: Any) -> tuple[int, ...]:
         except (TypeError, ValueError):
             continue
     return tuple(result)
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
+
+
 @dataclass(frozen=True)
 class DataQualityReport:
     """Deterministic, non-mutating inventory of a 1D q-I input pair."""
@@ -196,6 +206,59 @@ class DetectorQualityReport:
                 data["beam_center"] = (float(center[0]), float(center[1]))
             except (IndexError, TypeError, ValueError):
                 data["beam_center"] = None
+        return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
+
+
+@dataclass(frozen=True)
+class SectorMapQualityReport:
+    """Support-aware quality inventory for a chi x q sector map."""
+
+    shape: tuple[int, ...] = ()
+    support_available: bool = False
+    supported_bin_count: int = 0
+    empty_bin_count: int = 0
+    measured_nonpositive_bin_count: int = 0
+    support_fraction: float | None = None
+    reason_codes: tuple[str, ...] = ()
+    level: QualityLevel = QualityLevel.UNUSABLE
+
+    def to_dict(self) -> dict[str, Any]:
+        return _contract_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SectorMapQualityReport":
+        data = dict(payload)
+        data["shape"] = _int_tuple(data.get("shape"))
+        data["support_fraction"] = _finite_float_or_none(data.get("support_fraction"))
+        data["reason_codes"] = _string_tuple(data.get("reason_codes"))
+        data["level"] = _quality_level(data.get("level"))
+        return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
+
+
+@dataclass(frozen=True)
+class AnnulusQualityReport:
+    """Support-aware quality inventory for one selected q annulus."""
+
+    q_target_nm1: float | None = None
+    q_width_nm1: float | None = None
+    selected_q_bin_count: int = 0
+    angular_bin_count: int = 0
+    supported_angular_bin_count: int = 0
+    support_fraction: float | None = None
+    support_available: bool = False
+    reason_codes: tuple[str, ...] = ()
+    level: QualityLevel = QualityLevel.UNUSABLE
+
+    def to_dict(self) -> dict[str, Any]:
+        return _contract_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "AnnulusQualityReport":
+        data = dict(payload)
+        for key in ("q_target_nm1", "q_width_nm1", "support_fraction"):
+            data[key] = _finite_float_or_none(data.get(key))
+        data["reason_codes"] = _string_tuple(data.get("reason_codes"))
+        data["level"] = _quality_level(data.get("level"))
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -364,6 +427,140 @@ def build_detector_quality_report(
         mask_provenance=mask_provenance,
         detector_metadata=detector_metadata,
         reason_codes=tuple(dict.fromkeys(reasons)),
+        level=level,
+    )
+
+
+def build_sector_map_quality_report(
+    intensity: Any,
+    support_count: Any,
+) -> SectorMapQualityReport:
+    """Describe sector-map occupancy without treating empty bins as pixels."""
+
+    try:
+        intensity_array = np.asarray(intensity, dtype=float)
+    except (TypeError, ValueError):
+        intensity_array = np.asarray([], dtype=float)
+    try:
+        support_array = np.asarray(support_count, dtype=float)
+    except (TypeError, ValueError):
+        support_array = np.asarray([], dtype=float)
+
+    shape = (
+        tuple(int(item) for item in intensity_array.shape)
+        if intensity_array.ndim == 2
+        else ()
+    )
+    if (
+        intensity_array.ndim != 2
+        or support_array.ndim != 2
+        or intensity_array.shape != support_array.shape
+        or not np.all(np.isfinite(support_array))
+    ):
+        return SectorMapQualityReport(
+            shape=shape,
+            reason_codes=("sector_support_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
+
+    empty = support_array <= 0
+    supported = support_array > 0
+    empty_count = int(np.count_nonzero(empty))
+    supported_count = int(np.count_nonzero(supported))
+    measured_nonpositive = int(np.count_nonzero(
+        supported & np.isfinite(intensity_array) & (intensity_array <= 0)
+    ))
+    reasons: list[str] = []
+    if empty_count:
+        reasons.append("sector_empty_bins_present")
+    if measured_nonpositive:
+        reasons.append("sector_measured_nonpositive_bins_present")
+    level = (
+        QualityLevel.TREND
+        if not reasons
+        else QualityLevel.DIAGNOSTIC
+    )
+    return SectorMapQualityReport(
+        shape=shape,
+        support_available=True,
+        supported_bin_count=supported_count,
+        empty_bin_count=empty_count,
+        measured_nonpositive_bin_count=measured_nonpositive,
+        support_fraction=float(supported_count / support_array.size)
+        if support_array.size else None,
+        reason_codes=tuple(reasons),
+        level=level,
+    )
+
+
+def build_annulus_quality_report(
+    support_count: Any,
+    q: Any,
+    *,
+    q_target: Any,
+    q_width: Any,
+) -> AnnulusQualityReport:
+    """Describe support for the q window used by azimuthal extraction."""
+
+    target = _finite_float_or_none(q_target)
+    width = _finite_float_or_none(q_width)
+    try:
+        support_array = np.asarray(support_count, dtype=float)
+    except (TypeError, ValueError):
+        support_array = np.asarray([], dtype=float)
+    try:
+        q_array = np.asarray(q, dtype=float)
+    except (TypeError, ValueError):
+        q_array = np.asarray([], dtype=float)
+
+    if (
+        support_array.ndim != 2
+        or not np.all(np.isfinite(support_array))
+        or q_array.ndim != 1
+        or support_array.shape[1] != q_array.size
+    ):
+        return AnnulusQualityReport(
+            q_target_nm1=target,
+            q_width_nm1=width,
+            angular_bin_count=int(support_array.shape[0])
+            if support_array.ndim == 2 else 0,
+            reason_codes=("sector_support_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
+    if target is None or width is None or width < 0 or not np.all(np.isfinite(q_array)):
+        return AnnulusQualityReport(
+            q_target_nm1=target,
+            q_width_nm1=width,
+            angular_bin_count=int(support_array.shape[0]),
+            support_available=True,
+            reason_codes=("annulus_q_window_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
+
+    q_mask = np.abs(q_array - target) <= width
+    if int(np.count_nonzero(q_mask)) < 2:
+        q_mask = np.abs(q_array - target) <= width * 5
+    selected_q_bin_count = int(np.count_nonzero(q_mask))
+    angular_bin_count = int(support_array.shape[0])
+    supported_angular_bin_count = int(np.count_nonzero(
+        np.any(support_array[:, q_mask] > 0, axis=1)
+    )) if selected_q_bin_count else 0
+    reasons: list[str] = []
+    if not selected_q_bin_count:
+        reasons.append("annulus_q_window_empty")
+    elif not supported_angular_bin_count:
+        reasons.append("annulus_no_supported_angular_bins")
+    level = QualityLevel.TREND if not reasons else QualityLevel.DIAGNOSTIC
+    return AnnulusQualityReport(
+        q_target_nm1=target,
+        q_width_nm1=width,
+        selected_q_bin_count=selected_q_bin_count,
+        angular_bin_count=angular_bin_count,
+        supported_angular_bin_count=supported_angular_bin_count,
+        support_fraction=float(supported_angular_bin_count / angular_bin_count)
+        if angular_bin_count else None,
+        support_available=True,
+        reason_codes=tuple(reasons),
         level=level,
     )
 
@@ -1722,6 +1919,8 @@ def build_orientation_evidence(
     *,
     applicability: str = "unknown",
     source_ref: str = "",
+    sector_map_quality: SectorMapQualityReport | Mapping[str, Any] | None = None,
+    annulus_quality: AnnulusQualityReport | Mapping[str, Any] | None = None,
 ) -> MetricEvidence:
     """Wrap existing anisotropy outputs in conservative orientation evidence.
 
@@ -1792,6 +1991,18 @@ def build_orientation_evidence(
         "orientation_reliability_status": reliability_status or None,
         "orientation_reliability_reason_codes": reliability_reasons,
     }
+    if isinstance(sector_map_quality, SectorMapQualityReport):
+        physical_checks["sector_map_quality_report"] = sector_map_quality.to_dict()
+    elif isinstance(sector_map_quality, Mapping):
+        physical_checks["sector_map_quality_report"] = (
+            SectorMapQualityReport.from_dict(sector_map_quality).to_dict()
+        )
+    if isinstance(annulus_quality, AnnulusQualityReport):
+        physical_checks["annulus_quality_report"] = annulus_quality.to_dict()
+    elif isinstance(annulus_quality, Mapping):
+        physical_checks["annulus_quality_report"] = (
+            AnnulusQualityReport.from_dict(annulus_quality).to_dict()
+        )
     if not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
         level = QualityLevel.UNUSABLE
     elif (
@@ -2603,6 +2814,8 @@ def contract_json(value: Any) -> str:
 __all__ = [
     "DataQualityReport",
     "DetectorQualityReport",
+    "SectorMapQualityReport",
+    "AnnulusQualityReport",
     "GuinierEvidence",
     "GuinierSequenceEvidence",
     "MetricEvidence",
@@ -2622,6 +2835,8 @@ __all__ = [
     "build_series_detector_quality_report",
     "build_series_orientation_evidence",
     "build_detector_quality_report",
+    "build_sector_map_quality_report",
+    "build_annulus_quality_report",
     "build_orientation_evidence",
     "build_saxs_scientific_acceptance_audit",
     "contract_json",
