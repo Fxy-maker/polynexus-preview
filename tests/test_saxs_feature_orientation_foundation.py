@@ -306,6 +306,26 @@ def test_empty_raw_detector_report_object_is_unavailable_and_not_applicable() ->
     assert result.orientation_evidence["applicable"] is False
 
 
+def test_sector_map_detector_quality_object_is_unavailable_even_when_unusable() -> None:
+    payload = _synthetic_annulus_input(axis_deg=37.0)
+    sector_report = DetectorQualityReport(
+        source_kind="sector_map", level=QualityLevel.UNUSABLE
+    )
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality=sector_report,
+    )
+
+    report = result.detector_quality_report
+    assert report["source_kind"] == "raw_detector"
+    assert report["level"] == QualityLevel.DIAGNOSTIC.value
+    assert "raw_detector_quality_unavailable" in report["reason_codes"]
+    assert result.orientation_evidence["applicable"] is False
+
+
 def test_numpy_sector_map_counts_finite_nonpositive_measurements_as_support() -> None:
     cfg = SAXSConfig(
         beam_center_x=16.0,
