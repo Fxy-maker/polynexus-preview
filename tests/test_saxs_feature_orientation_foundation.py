@@ -326,6 +326,37 @@ def test_sector_map_detector_quality_object_is_unavailable_even_when_unusable() 
     assert result.orientation_evidence["applicable"] is False
 
 
+@pytest.mark.parametrize("level", [QualityLevel.UNUSABLE, QualityLevel.TREND])
+def test_incomplete_raw_detector_mapping_matches_object_semantics(level) -> None:
+    payload = _synthetic_annulus_input(axis_deg=37.0)
+    report_object = DetectorQualityReport(
+        source_kind="raw_detector", level=level
+    )
+    report_mapping = {
+        "source_kind": "raw_detector",
+        "level": level.value,
+    }
+
+    object_result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality=report_object,
+    )
+    mapping_result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality=report_mapping,
+    )
+
+    assert mapping_result.detector_quality_report == object_result.detector_quality_report
+    assert mapping_result.orientation_evidence["applicable"] is object_result.orientation_evidence[
+        "applicable"
+    ]
+    assert np.isfinite(mapping_result.f_herman) is np.isfinite(object_result.f_herman)
+
+
 def test_numpy_sector_map_counts_finite_nonpositive_measurements_as_support() -> None:
     cfg = SAXSConfig(
         beam_center_x=16.0,

@@ -898,6 +898,15 @@ def _normalized_detector_quality(
     if isinstance(raw_detector_quality, Mapping):
         if _raw_detector_mapping_is_coherent(raw_detector_quality):
             return DetectorQualityReport.from_dict(raw_detector_quality)
+        source_kind = str(
+            raw_detector_quality.get("source_kind") or ""
+        ).strip().lower()
+        raw_level = raw_detector_quality.get("level")
+        if (
+            source_kind == "raw_detector"
+            and raw_level in {QualityLevel.UNUSABLE, QualityLevel.UNUSABLE.value}
+        ):
+            return DetectorQualityReport.from_dict(raw_detector_quality)
         return _unavailable_raw_detector_quality()
     return _unavailable_raw_detector_quality()
 
