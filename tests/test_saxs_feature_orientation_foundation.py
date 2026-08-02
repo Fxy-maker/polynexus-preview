@@ -77,6 +77,36 @@ def test_strain_missing_tensile_axis_preserves_raw_but_not_final_herman() -> Non
     assert "tensile_axis_unknown" in point.orientation_evidence["reason_codes"]
 
 
+def test_malformed_canonical_sector_payload_does_not_fall_back_to_legacy() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import herman_from_sector_data
+
+    q = np.linspace(0.2, 0.8, 12)
+    chi = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    legacy_chi = np.linspace(-np.pi / 12, np.pi / 12, 12)
+    legacy_sector = {
+        "chi": legacy_chi,
+        "I": np.ones(legacy_chi.size),
+        "q": q,
+    }
+    payload = {
+        "I_2d": [["malformed"]],
+        "q_2d": q,
+        "chi_rad": chi,
+        "meridional": legacy_sector,
+        "equatorial": legacy_sector,
+    }
+
+    result = herman_from_sector_data(payload, cfg=SAXSConfig())
+
+    assert not np.isfinite(result["f"])
+    assert not np.isfinite(result["f_raw"])
+    evidence = result["orientation_evidence"]
+    assert evidence["level"] == "Unusable"
+    assert evidence["applicable"] is False
+    assert "strain_canonical_sector_payload_invalid" in evidence["reason_codes"]
+    assert not evidence["fit_evidence"]
+
+
 def test_supported_annulus_uses_tensile_axis_and_ignores_empty_bins_outside_band() -> None:
     payload = _synthetic_annulus_input()
     support = np.ones_like(payload[0])

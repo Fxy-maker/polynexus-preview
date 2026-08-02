@@ -377,13 +377,34 @@ def herman_from_sector_data(
     if not isinstance(sector_data, dict):
         return _invalid_sector_data_result()
 
-    if all(key in sector_data for key in ("I_2d", "q_2d", "chi_rad")):
+    canonical_keys = ("I_2d", "q_2d", "chi_rad")
+    canonical_present = any(key in sector_data for key in canonical_keys)
+    if canonical_present and not all(key in sector_data for key in canonical_keys):
+        return _invalid_sector_data_result(
+            "strain_canonical_sector_payload_invalid"
+        )
+
+    if canonical_present:
         try:
             from .saxs_anisotropy import analyze_anisotropy
 
             I_2d = np.asarray(sector_data["I_2d"], dtype=float)
             q_2d = np.asarray(sector_data["q_2d"], dtype=float)
             chi_rad = np.asarray(sector_data["chi_rad"], dtype=float)
+            if (
+                I_2d.ndim != 2
+                or q_2d.ndim != 1
+                or chi_rad.ndim != 1
+                or I_2d.shape != (chi_rad.size, q_2d.size)
+                or chi_rad.size < 5
+                or q_2d.size == 0
+                or not np.all(np.isfinite(I_2d))
+                or not np.all(np.isfinite(q_2d))
+                or not np.all(np.isfinite(chi_rad))
+            ):
+                return _invalid_sector_data_result(
+                    "strain_canonical_sector_payload_invalid"
+                )
             q_1d = np.asarray(sector_data.get("q", q_2d), dtype=float)
             I_1d = np.asarray(
                 sector_data.get("I_full", np.nanmean(I_2d, axis=0)),
@@ -444,6 +465,9 @@ def herman_from_sector_data(
             }
         except Exception:
             logger.warning("Canonical SAXS orientation payload analysis failed.", exc_info=True)
+            return _invalid_sector_data_result(
+                "strain_canonical_sector_payload_invalid"
+            )
 
     mer_data = sector_data.get('meridional', {})
     eq_data = sector_data.get('equatorial', {})

@@ -900,7 +900,7 @@ def test_saxs_strain_transports_support_and_raw_detector_quality_to_analyzer(mon
     from polynexus.core.saxs_engine.saxs_strain import herman_from_sector_data
 
     q = np.asarray([0.3, 0.4], dtype=float)
-    chi = np.asarray([-1.0, 0.0, 1.0], dtype=float)
+    chi = np.linspace(-1.0, 1.0, 6)
     intensity = np.ones((chi.size, q.size), dtype=float)
     support = np.full_like(intensity, 7.0)
     raw_report = {"source_kind": "raw_detector", "level": "Trend", "pixel_count": 64}
