@@ -468,7 +468,7 @@ def build_sector_map_quality_report(
     empty_count = int(np.count_nonzero(empty))
     supported_count = int(np.count_nonzero(supported))
     measured_nonpositive = int(np.count_nonzero(
-        supported & np.isfinite(intensity_array) & (intensity_array <= 0)
+        supported & (intensity_array <= 0)
     ))
     reasons: list[str] = []
     if empty_count:

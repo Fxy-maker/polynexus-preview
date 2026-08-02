@@ -14,6 +14,7 @@ Modules:
 
 from .config import SAXSConfig, ExperimentCondition
 from .saxs_quality_contracts import (
+    AnnulusQualityReport,
     DataQualityReport,
     DetectorQualityReport,
     GuinierEvidence,
@@ -23,6 +24,8 @@ from .saxs_quality_contracts import (
     QualityLevel,
     RescueCandidate,
     RescueValidationReport,
+    SectorMapQualityReport,
+    build_annulus_quality_report,
     build_data_quality_report,
     build_guinier_evidence,
     build_guinier_sequence_evidence,
@@ -34,6 +37,7 @@ from .saxs_quality_contracts import (
     build_series_detector_quality_report,
     build_series_orientation_evidence,
     build_detector_quality_report,
+    build_sector_map_quality_report,
     build_orientation_evidence,
     build_saxs_scientific_acceptance_audit,
     Sanitized1DProfile,
@@ -120,6 +124,7 @@ from .saxs_output import (
 
 __all__ = [
     "SAXSConfig", "ExperimentCondition", "DataQualityReport", "DetectorQualityReport",
+    "SectorMapQualityReport", "AnnulusQualityReport",
     "GuinierEvidence", "GuinierSequenceEvidence", "MetricEvidence", "MetricEvidenceSummary", "QualityLevel", "RescueCandidate",
     "RescueValidationReport", "build_data_quality_report", "build_guinier_evidence",
     "build_guinier_sequence_evidence",
@@ -127,7 +132,8 @@ __all__ = [
     "build_invariant_evidence", "build_lamellar_evidence",
     "build_series_metric_evidence", "build_series_detector_quality_report",
     "build_series_orientation_evidence",
-    "build_detector_quality_report", "build_orientation_evidence",
+    "build_detector_quality_report", "build_sector_map_quality_report",
+    "build_annulus_quality_report", "build_orientation_evidence",
     "build_saxs_scientific_acceptance_audit",
     "Sanitized1DProfile", "sanitize_1d_profile",
     "contract_json",
