@@ -362,7 +362,11 @@ def _validated_pyfai_support_count(res, intensity: np.ndarray) -> Optional[np.nd
         raw_count = np.asarray(count)
     except (TypeError, ValueError):
         return None
-    if raw_count.ndim != 2 or raw_count.shape != intensity.shape or raw_count.dtype.kind == "b":
+    if (
+        raw_count.ndim != 2
+        or raw_count.shape != intensity.shape
+        or raw_count.dtype.kind in {"b", "c", "O", "U", "S"}
+    ):
         return None
     try:
         count_array = np.asarray(raw_count, dtype=float)
@@ -371,7 +375,6 @@ def _validated_pyfai_support_count(res, intensity: np.ndarray) -> Optional[np.nd
     if (
         not np.all(np.isfinite(count_array))
         or np.any(count_array < 0)
-        or not np.all(count_array == np.floor(count_array))
     ):
         return None
     return count_array

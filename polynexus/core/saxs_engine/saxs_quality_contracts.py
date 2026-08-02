@@ -749,7 +749,6 @@ def build_sector_map_quality_report(
         or intensity_array.size == 0
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
-        or np.any(support_array != np.floor(support_array))
         or support_contains_invalid_value
     ):
         return SectorMapQualityReport(
@@ -827,7 +826,6 @@ def build_annulus_quality_report(
         support_array.ndim != 2
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
-        or np.any(support_array != np.floor(support_array))
         or support_contains_invalid_value
         or support_array.size == 0
         or q_array.ndim != 1

@@ -44,7 +44,7 @@ def test_pyfai_sector_map_reorders_valid_count_with_intensity() -> None:
                 intensity=np.asarray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),
                 radial=np.asarray([0.2, 0.3]),
                 azimuthal=np.asarray([90.0, -90.0, 0.0]),
-                count=np.asarray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]),
+                count=np.asarray([[0.5, 2.0], [3.25, 4.0], [5.0, 6.75]]),
             )
 
     result = integrate_chi_sectors(
@@ -54,7 +54,24 @@ def test_pyfai_sector_map_reorders_valid_count_with_intensity() -> None:
     assert result.integration_backend == "pyfai"
     assert np.array_equal(result.chi, np.deg2rad([-90.0, 0.0, 90.0]))
     assert np.array_equal(result.intensity, [[3.0, 4.0], [5.0, 6.0], [1.0, 2.0]])
-    assert np.array_equal(result.support_count, [[3.0, 4.0], [5.0, 6.0], [1.0, 2.0]])
+    assert np.array_equal(result.support_count, [[3.25, 4.0], [5.0, 6.75], [0.5, 2.0]])
+
+
+def test_pyfai_sector_map_fails_closed_when_count_attribute_is_absent() -> None:
+    class FakeAI:
+        def integrate2d(self, *_args, **_kwargs):
+            return SimpleNamespace(
+                intensity=np.ones((3, 2)),
+                radial=np.asarray([0.2, 0.3]),
+                azimuthal=np.asarray([0.0, 1.0, 2.0]),
+            )
+
+    result = integrate_chi_sectors(
+        FakeAI(), np.ones((8, 8)), SAXSConfig(n_pt=2, n_chi_sectors=3)
+    )
+
+    assert result.support_count is None
+    assert result.empty_bin_mask is None
 
 
 def test_pyfai_sector_map_fails_closed_for_invalid_count_payloads() -> None:
@@ -78,7 +95,8 @@ def test_pyfai_sector_map_fails_closed_for_invalid_count_payloads() -> None:
         np.asarray([[1.0, np.nan], [1.0, 1.0], [1.0, 1.0]]),
         np.asarray([[1.0, -1.0], [1.0, 1.0], [1.0, 1.0]]),
         np.asarray([[True, False], [True, True], [True, True]]),
-        np.asarray([[1.5, 1.0], [1.0, 1.0], [1.0, 1.0]]),
+        np.asarray([["1.0", "1.0"], ["1.0", "1.0"], ["1.0", "1.0"]]),
+        np.asarray([[1.0 + 0.0j, 1.0 + 0.0j], [1.0 + 0.0j, 1.0 + 0.0j], [1.0 + 0.0j, 1.0 + 0.0j]]),
     )
 
     for count in invalid_counts:
@@ -526,55 +544,57 @@ def test_sector_report_downgrades_supported_nonfinite_intensity() -> None:
         assert evidence.applicable is False
 
 
-def test_sector_report_rejects_fractional_support_counts() -> None:
-    for support in (
-        np.asarray([[0.5, 1.0]]),
-        np.asarray([[True, 1]], dtype=bool),
-    ):
-        report = build_sector_map_quality_report(
-            np.ones((1, 2)),
-            support,
-        )
-
-        assert report.support_available is False
-        assert report.level is QualityLevel.DIAGNOSTIC
-        assert "sector_support_unavailable" in report.reason_codes
-
-    integer_valued_float = build_sector_map_quality_report(
+def test_sector_report_accepts_fractional_and_rejects_bool_support_counts() -> None:
+    fractional = build_sector_map_quality_report(
         np.ones((1, 2)),
-        np.asarray([[1.0, 2.0]]),
+        np.asarray([[0.5, 1.0]]),
     )
-    assert integer_valued_float.support_available is True
+    assert fractional.support_available is True
+    assert fractional.support_fraction == 1.0
+    json.dumps(fractional.to_dict(), allow_nan=False)
+
+    boolean = build_sector_map_quality_report(
+        np.ones((1, 2)),
+        np.asarray([[True, 1]], dtype=bool),
+    )
+    assert boolean.support_available is False
+    assert boolean.level is QualityLevel.DIAGNOSTIC
+    assert "sector_support_unavailable" in boolean.reason_codes
 
 
-def test_annulus_report_rejects_fractional_and_bool_support_counts() -> None:
+def test_annulus_report_accepts_fractional_and_rejects_bool_support_counts() -> None:
     detector = build_detector_quality_report(
         np.ones((2, 2)),
         source_kind="raw_detector",
         beam_center=(1.0, 1.0),
     )
-    for support in (
+    fractional = build_annulus_quality_report(
         np.asarray([[0.5, 1.0], [1.0, 1.0]]),
-        np.asarray([[True, True], [True, True]], dtype=bool),
-    ):
-        report = build_annulus_quality_report(
-            support,
-            np.asarray([0.40, 0.50]),
-            q_target=0.50,
-            q_width=0.01,
-        )
-        evidence = build_orientation_evidence(
-            {"f_herman": 0.4},
-            detector,
-            applicability="supported",
-            annulus_quality=report,
-        )
+        np.asarray([0.40, 0.50]),
+        q_target=0.50,
+        q_width=0.01,
+    )
+    assert fractional.support_available is True
+    json.dumps(fractional.to_dict(), allow_nan=False)
 
-        assert report.support_available is False
-        assert report.level is QualityLevel.DIAGNOSTIC
-        assert "sector_support_unavailable" in report.reason_codes
-        assert evidence.level is QualityLevel.DIAGNOSTIC
-        assert evidence.applicable is False
+    boolean = build_annulus_quality_report(
+        np.asarray([[True, True], [True, True]], dtype=bool),
+        np.asarray([0.40, 0.50]),
+        q_target=0.50,
+        q_width=0.01,
+    )
+    evidence = build_orientation_evidence(
+        {"f_herman": 0.4},
+        detector,
+        applicability="supported",
+        annulus_quality=boolean,
+    )
+
+    assert boolean.support_available is False
+    assert boolean.level is QualityLevel.DIAGNOSTIC
+    assert "sector_support_unavailable" in boolean.reason_codes
+    assert evidence.level is QualityLevel.DIAGNOSTIC
+    assert evidence.applicable is False
 
 
 def test_unavailable_support_cannot_retain_non_unusable_report_level() -> None:
