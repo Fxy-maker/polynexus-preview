@@ -193,9 +193,6 @@ class SAXSConfig:
     # A finite value is an explicit detector-plane reference axis (degrees).
     # None enables conservative second-harmonic auto-detection at q*.
     orientation_axis_deg: Optional[float] = None
-    # This is the explicit detector-plane projection of the tensile axis. None
-    # means no verified tensile reference for table-level Herman.
-    tensile_axis_deg: Optional[float] = None
     orientation_auto_min_strength: float = 0.08
     orientation_auto_min_bins: int = 12
     orientation_auto_min_significance: float = 2.0
@@ -316,6 +313,11 @@ class SAXSConfig:
     # ---- Plotting ----
     save_figures: bool = True
     figure_format: str = "pdf"
+
+    # This is the explicit detector-plane projection of the tensile axis. None
+    # means no verified tensile reference for table-level Herman.  It remains
+    # append-only to preserve positional construction of older configurations.
+    tensile_axis_deg: Optional[float] = None
 
 
 @dataclass

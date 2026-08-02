@@ -127,13 +127,14 @@ def _finite_float_or_none(value: Any) -> float | None:
 def _normalize_detached_support_report(
     data: dict[str, Any],
     *,
+    required_fields: tuple[str, ...],
     integer_fields: tuple[str, ...],
     float_fields: tuple[str, ...],
     has_shape: bool = False,
 ) -> bool:
     """Normalize detached support evidence and report malformed fields."""
 
-    malformed = False
+    malformed = any(key not in data for key in required_fields)
     support_available = data.get("support_available", False)
     if "support_available" in data and not isinstance(
         support_available, (bool, np.bool_)
@@ -213,6 +214,55 @@ def _normalize_detached_support_report(
             dict.fromkeys((*data["reason_codes"], "sector_support_unavailable"))
         )
     return malformed
+
+
+def _mark_support_report_unavailable(data: dict[str, Any]) -> None:
+    data["support_available"] = False
+    data["level"] = QualityLevel.DIAGNOSTIC
+    data["reason_codes"] = tuple(
+        dict.fromkeys((*data.get("reason_codes", ()), "sector_support_unavailable"))
+    )
+
+
+def _sector_map_report_is_coherent(data: Mapping[str, Any]) -> bool:
+    if not data["support_available"]:
+        return data["level"] is not QualityLevel.TREND
+    shape = data["shape"]
+    supported = data["supported_bin_count"]
+    empty = data["empty_bin_count"]
+    measured_nonpositive = data["measured_nonpositive_bin_count"]
+    fraction = data["support_fraction"]
+    total_bins = int(np.prod(shape, dtype=int))
+    return bool(
+        len(shape) == 2
+        and total_bins > 0
+        and supported + empty == total_bins
+        and measured_nonpositive <= supported
+        and fraction is not None
+        and 0.0 <= fraction <= 1.0
+        and np.isclose(fraction, supported / total_bins)
+    )
+
+
+def _annulus_report_is_coherent(data: Mapping[str, Any]) -> bool:
+    if not data["support_available"]:
+        return data["level"] is not QualityLevel.TREND
+    angular = data["angular_bin_count"]
+    supported = data["supported_angular_bin_count"]
+    selected = data["selected_q_bin_count"]
+    fraction = data["support_fraction"]
+    target = data["q_target_nm1"]
+    width = data["q_width_nm1"]
+    if angular <= 0 or supported > angular:
+        return False
+    if target is None or width is None:
+        return selected == 0 and supported == 0 and fraction is None
+    return bool(
+        width >= 0
+        and fraction is not None
+        and 0.0 <= fraction <= 1.0
+        and np.isclose(fraction, supported / angular)
+    )
 
 
 @dataclass(frozen=True)
@@ -319,8 +369,18 @@ class SectorMapQualityReport:
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "SectorMapQualityReport":
         data = dict(payload)
-        _normalize_detached_support_report(
+        malformed = _normalize_detached_support_report(
             data,
+            required_fields=(
+                "shape",
+                "support_available",
+                "supported_bin_count",
+                "empty_bin_count",
+                "measured_nonpositive_bin_count",
+                "support_fraction",
+                "reason_codes",
+                "level",
+            ),
             integer_fields=(
                 "supported_bin_count",
                 "empty_bin_count",
@@ -329,6 +389,8 @@ class SectorMapQualityReport:
             float_fields=("support_fraction",),
             has_shape=True,
         )
+        if malformed or not _sector_map_report_is_coherent(data):
+            _mark_support_report_unavailable(data)
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -352,8 +414,19 @@ class AnnulusQualityReport:
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "AnnulusQualityReport":
         data = dict(payload)
-        _normalize_detached_support_report(
+        malformed = _normalize_detached_support_report(
             data,
+            required_fields=(
+                "q_target_nm1",
+                "q_width_nm1",
+                "selected_q_bin_count",
+                "angular_bin_count",
+                "supported_angular_bin_count",
+                "support_fraction",
+                "support_available",
+                "reason_codes",
+                "level",
+            ),
             integer_fields=(
                 "selected_q_bin_count",
                 "angular_bin_count",
@@ -361,6 +434,8 @@ class AnnulusQualityReport:
             ),
             float_fields=("q_target_nm1", "q_width_nm1", "support_fraction"),
         )
+        if malformed or not _annulus_report_is_coherent(data):
+            _mark_support_report_unavailable(data)
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -574,11 +649,16 @@ def build_sector_map_quality_report(
     measured_nonpositive = int(np.count_nonzero(
         supported & (intensity_array <= 0)
     ))
+    measured_nonfinite = int(np.count_nonzero(
+        supported & ~np.isfinite(intensity_array)
+    ))
     reasons: list[str] = []
     if empty_count:
         reasons.append("sector_empty_bins_present")
     if measured_nonpositive:
         reasons.append("sector_measured_nonpositive_bins_present")
+    if measured_nonfinite:
+        reasons.append("sector_measured_nonfinite_bins_present")
     level = (
         QualityLevel.TREND
         if not reasons
@@ -621,6 +701,7 @@ def build_annulus_quality_report(
         support_array.ndim != 2
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
+        or support_array.size == 0
         or q_array.ndim != 1
         or support_array.shape[1] != q_array.size
     ):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import fields
 from typing import cast
 
 import numpy as np
@@ -43,6 +44,28 @@ def test_config_keeps_tensile_axis_separate_from_legacy_axis() -> None:
 
     assert config.orientation_axis_deg == 37.0
     assert config.tensile_axis_deg == 90.0
+
+
+def test_config_preserves_preexisting_positional_arguments_after_orientation_axis() -> None:
+    defaults = SAXSConfig()
+    legacy_values = [
+        getattr(defaults, item.name)
+        for item in fields(SAXSConfig)
+        if item.name != "tensile_axis_deg"
+    ]
+    legacy_values[30:38] = [37.0, 0.12, 13, 2.5, 0.8, 9.0, 21.0, -1.2]
+
+    config = SAXSConfig(*legacy_values)
+
+    assert config.orientation_axis_deg == 37.0
+    assert config.orientation_auto_min_strength == 0.12
+    assert config.orientation_auto_min_bins == 13
+    assert config.orientation_auto_min_significance == 2.5
+    assert config.orientation_min_coverage == 0.8
+    assert config.orientation_min_effective_bins == 9.0
+    assert config.orientation_max_axis_drift_deg == 21.0
+    assert config.dummy_val == -1.2
+    assert config.tensile_axis_deg is None
 
 
 def test_support_reports_fail_closed_for_missing_or_mismatched_support() -> None:
@@ -108,6 +131,47 @@ def test_detached_support_reports_fail_closed_for_malformed_fields() -> None:
         json.dumps(report.to_dict(), allow_nan=False)
 
 
+def test_detached_support_reports_require_complete_generated_fields() -> None:
+    payload = {
+        "support_available": True,
+        "reason_codes": [],
+        "level": "Trend",
+    }
+    detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+
+    for report_type, quality_key in (
+        (SectorMapQualityReport, "sector_map_quality"),
+        (AnnulusQualityReport, "annulus_quality"),
+    ):
+        report = report_type.from_dict(payload)
+        evidence = build_orientation_evidence(
+            {"f_herman": 0.4},
+            detector,
+            applicability="supported",
+            **{quality_key: payload},
+        )
+
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+        assert evidence.level is QualityLevel.DIAGNOSTIC
+        assert evidence.applicable is False
+
+    sector = build_sector_map_quality_report(np.ones((2, 2)), np.ones((2, 2)))
+    annulus = build_annulus_quality_report(
+        np.ones((2, 2)),
+        np.asarray([0.40, 0.50]),
+        q_target=0.50,
+        q_width=0.01,
+    )
+    assert SectorMapQualityReport.from_dict(sector.to_dict()) == sector
+    assert AnnulusQualityReport.from_dict(annulus.to_dict()) == annulus
+
+
 def test_saxs_engine_package_facade_exports_support_quality_contracts() -> None:
     from polynexus.core import saxs_engine
     from polynexus.core.saxs_engine import (
@@ -136,6 +200,49 @@ def test_sector_report_counts_negative_infinity_only_with_support() -> None:
     )
 
     assert report.measured_nonpositive_bin_count == 1
+
+
+def test_sector_report_downgrades_supported_nonfinite_intensity() -> None:
+    detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+
+    for intensity in (np.nan, np.inf):
+        report = build_sector_map_quality_report(
+            np.asarray([[intensity, 1.0]]),
+            np.ones((1, 2)),
+        )
+        evidence = build_orientation_evidence(
+            {"f_herman": 0.4},
+            detector,
+            applicability="supported",
+            sector_map_quality=report,
+        )
+
+        assert report.support_available is True
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_measured_nonfinite_bins_present" in report.reason_codes
+        assert evidence.applicable is False
+
+
+def test_annulus_report_fails_closed_for_zero_sized_support_maps() -> None:
+    for support, q in (
+        (np.empty((0, 2)), np.asarray([0.40, 0.50])),
+        (np.empty((2, 0)), np.asarray([])),
+        (np.empty((0, 0)), np.asarray([])),
+    ):
+        report = build_annulus_quality_report(
+            support,
+            q,
+            q_target=0.50,
+            q_width=0.01,
+        )
+
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
 
 
 def test_annulus_quality_widens_q_window_before_counting_support() -> None:
