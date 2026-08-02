@@ -353,6 +353,12 @@ class SectorMapResult:
         yield self.intensity
         yield self.chi
 
+    def __len__(self) -> int:
+        return 3
+
+    def __getitem__(self, index):
+        return (self.q, self.intensity, self.chi)[index]
+
 
 def _contains_invalid_pyfai_support_value(value: Any) -> bool:
     if isinstance(value, (bool, np.bool_, str, complex, np.complexfloating)):

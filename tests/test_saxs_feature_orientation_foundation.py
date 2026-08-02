@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
+import pytest
 
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.preprocess import integrate_chi_sectors
@@ -35,6 +36,26 @@ def test_numpy_sector_map_preserves_zero_support_separately_from_intensity() -> 
     assert q is sector_map.q
     assert intensity is sector_map.intensity
     assert chi is sector_map.chi
+
+
+def test_sector_map_preserves_legacy_tuple_length_indexing_and_errors() -> None:
+    result = integrate_chi_sectors(
+        None,
+        np.ones((32, 32), dtype=float),
+        SAXSConfig(q_min=0.01, q_max=5.0, n_pt=8, n_chi_sectors=12),
+    )
+
+    assert len(result) == 3
+    assert result[0] is result.q
+    assert result[1] is result.intensity
+    assert result[2] is result.chi
+    legacy_view = result[0:3]
+    assert isinstance(legacy_view, tuple)
+    assert legacy_view[0] is result.q
+    assert legacy_view[1] is result.intensity
+    assert legacy_view[2] is result.chi
+    with pytest.raises(IndexError):
+        result[3]
 
 
 def test_pyfai_sector_map_reorders_valid_count_with_intensity() -> None:
