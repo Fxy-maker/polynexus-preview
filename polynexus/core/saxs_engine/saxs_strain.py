@@ -389,6 +389,10 @@ def herman_from_sector_data(
                 sector_data.get("I_full", np.nanmean(I_2d, axis=0)),
                 dtype=float,
             )
+            support_count = sector_data.get("support_count")
+            raw_detector_quality = sector_data.get(
+                "raw_detector_quality_report"
+            )
             orientation = analyze_anisotropy(
                 I_2d,
                 q_2d,
@@ -396,6 +400,8 @@ def herman_from_sector_data(
                 q_1d,
                 I_1d,
                 cfg=cfg,
+                support_count=support_count,
+                raw_detector_quality=raw_detector_quality,
             )
             f_value = float(getattr(orientation, "f_herman", np.nan))
             f_raw = float(getattr(orientation, "f_herman_raw", np.nan))
@@ -415,7 +421,11 @@ def herman_from_sector_data(
                 "f_eq": float(getattr(orientation, "f_herman_eq", np.nan)),
                 "cos2_avg": (2.0 * f_value + 1.0) / 3.0 if np.isfinite(f_value) else np.nan,
                 "method": "analyze_anisotropy",
-                "detector_quality_report": getattr(
+                "detector_quality_report": build_detector_quality_report(
+                    I_2d,
+                    source_kind="sector_map",
+                ).to_dict(),
+                "raw_detector_quality_report": getattr(
                     orientation, "detector_quality_report", None
                 ),
                 "orientation_evidence": orientation_evidence,
@@ -423,6 +433,14 @@ def herman_from_sector_data(
                 "orientation_axis_source": getattr(orientation, "orientation_axis_source", "unavailable"),
                 "orientation_axis_strength": getattr(orientation, "orientation_axis_strength", np.nan),
                 "orientation_axis_confidence": getattr(orientation, "orientation_axis_confidence", 0.0),
+                "principal_scattering_axis_deg": getattr(
+                    orientation, "principal_scattering_axis_deg", np.nan
+                ),
+                "tensile_axis_deg": getattr(orientation, "tensile_axis_deg", np.nan),
+                "reference_axis_deg": getattr(orientation, "reference_axis_deg", np.nan),
+                "reference_axis_kind": getattr(
+                    orientation, "reference_axis_kind", "unknown"
+                ),
             }
         except Exception:
             logger.warning("Canonical SAXS orientation payload analysis failed.", exc_info=True)
@@ -450,39 +468,13 @@ def herman_from_sector_data(
 def _orientation_quality_blockers(
     report: Mapping[str, object] | None,
 ) -> tuple[str, ...]:
-    """Return 1D quality reasons that invalidate orientation transport."""
+    """Return only the radial-1D quality gate that blocks 2D transport."""
 
     if not isinstance(report, Mapping):
         return ()
 
-    reasons: list[str] = []
     level = str(report.get("level") or "").strip().lower()
-    if level == "unusable":
-        reasons.append("orientation_input_quality_unusable")
-    if bool(report.get("low_q_truncated")):
-        reasons.append("orientation_low_q_truncated")
-
-    reason_codes = {
-        str(reason).strip().lower()
-        for reason in (report.get("reason_codes") or ())
-        if str(reason).strip()
-    }
-    actions = {
-        str(action).strip().lower()
-        for action in (report.get("actions") or ())
-        if str(action).strip()
-    }
-    for reason in (
-        "intensity_nonfinite",
-        "intensity_nonpositive",
-        "q_nonfinite",
-        "q_nonpositive",
-    ):
-        if reason in reason_codes:
-            reasons.append(f"orientation_{reason}")
-    if "invalid_pairs_dropped" in actions:
-        reasons.append("orientation_invalid_pairs_dropped")
-    return tuple(dict.fromkeys(reasons))
+    return ("orientation_input_quality_unusable",) if level == "unusable" else ()
 
 
 def _block_orientation_evidence(
@@ -790,6 +782,13 @@ def analyze_strain_series(
                 sp.f_herman_eq = herman.get('f_eq', np.nan)
                 if herman.get("detector_quality_report") is not None:
                     sp.detector_quality_report = herman["detector_quality_report"]
+                if (
+                    sp.raw_detector_quality_report is None
+                    and herman.get("raw_detector_quality_report") is not None
+                ):
+                    sp.raw_detector_quality_report = herman[
+                        "raw_detector_quality_report"
+                    ]
                 if herman.get("orientation_evidence") is not None:
                     sp.orientation_evidence = herman["orientation_evidence"]
                 result.f_herman_array[i] = sp.f_herman

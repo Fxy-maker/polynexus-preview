@@ -11,6 +11,7 @@ import pytest
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.preprocess import integrate_chi_sectors
 from polynexus.core.saxs_engine.saxs_anisotropy import analyze_anisotropy
+from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
 from polynexus.core.saxs_engine.saxs_quality_contracts import (
     AnnulusQualityReport,
     QualityLevel,
@@ -53,6 +54,27 @@ def test_effective_herman_requires_explicit_tensile_axis() -> None:
     assert result.isotropic_baseline == 0.25
     assert result.orientation_evidence["fit_evidence"]["reference_axis_kind"] == "unknown"
     assert "tensile_axis_unknown" in result.orientation_evidence["reason_codes"]
+
+
+def test_strain_missing_tensile_axis_preserves_raw_but_not_final_herman() -> None:
+    I_2d, q, chi, _q_1d, intensity = _synthetic_annulus_input()
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi,
+        "I_full": intensity,
+        "support_count": np.ones_like(I_2d),
+    }
+
+    result = analyze_strain_series(
+        [0.0], [q], [intensity], sector_data_list=[sector_data],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=None),
+    )
+
+    point = result.strain_points[0]
+    assert np.isfinite(point.f_herman_raw)
+    assert not np.isfinite(point.f_herman)
+    assert "tensile_axis_unknown" in point.orientation_evidence["reason_codes"]
 
 
 def test_supported_annulus_uses_tensile_axis_and_ignores_empty_bins_outside_band() -> None:

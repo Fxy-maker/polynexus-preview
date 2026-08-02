@@ -168,6 +168,18 @@ def test_real_sector_map_detector_evidence_reaches_strain_series_summary(monkeyp
         "chi_rad": chi,
         "q": q,
         "I_full": np.mean(I_2d, axis=0),
+        "support_count": np.ones_like(I_2d),
+        "raw_detector_quality_report": {
+            "source_kind": "raw_detector",
+            "shape": [8, 8],
+            "pixel_count": 64,
+            "finite_pixel_count": 64,
+            "valid_pixel_count": 64,
+            "coverage_fraction": 1.0,
+            "beam_center_available": True,
+            "beam_center": [4.0, 4.0],
+            "level": "Trend",
+        },
     }
     intensity = 120.0 * np.exp(-q**2 * 4.0**2 / 3.0)
 
@@ -188,13 +200,25 @@ def test_real_sector_map_detector_evidence_reaches_strain_series_summary(monkeyp
         [q, q],
         [intensity, intensity],
         sector_data_list=[sector_data, sector_data],
-        cfg=SAXSConfig(),
+        cfg=SAXSConfig(tensile_axis_deg=0.0),
     )
 
     point_report = result.strain_points[0].detector_quality_report
     assert point_report["source_kind"] == "sector_map"
     assert result.detector_quality_report["evidence_frame_count"] == 2
     assert result.detector_quality_report["source_kinds"] == ["sector_map"]
+    point_evidence = result.strain_points[0].orientation_evidence
+    fit_evidence = point_evidence["fit_evidence"]
+    physical_checks = point_evidence["physical_checks"]
+    assert np.isfinite(result.strain_points[0].f_herman)
+    assert fit_evidence["principal_scattering_axis_deg"] is not None
+    assert fit_evidence["tensile_axis_deg"] == 0.0
+    assert fit_evidence["reference_axis_deg"] == 0.0
+    assert fit_evidence["reference_axis_kind"] == "tensile_axis"
+    assert physical_checks["sector_map_quality_report"]["support_available"] is True
+    assert physical_checks["annulus_quality_report"]["support_available"] is True
+    assert result.strain_points[0].raw_detector_quality_report["source_kind"] == "raw_detector"
+    assert result.raw_detector_quality_report["source_kinds"] == ["raw_detector"]
     json.dumps(point_report, allow_nan=False)
     json.dumps(result.detector_quality_report, allow_nan=False)
 

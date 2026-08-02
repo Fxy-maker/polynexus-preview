@@ -786,14 +786,20 @@ def test_saxs_strain_series_consumes_canonical_2d_sector_payload() -> None:
     intensity = 0.1 + peak
     chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
     I_2d = np.outer(1.0 + 3.0 * np.cos(chi_rad) ** 2, intensity)
-    sector_data = {"I_2d": I_2d, "q_2d": q, "chi_rad": chi_rad, "I_full": intensity}
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi_rad,
+        "I_full": intensity,
+        "support_count": np.ones_like(I_2d),
+    }
 
     result = analyze_strain_series(
         strains=[0.0, 5.0],
         q_list=[q, q],
         I_list=[intensity, intensity],
         sector_data_list=[sector_data, sector_data],
-        cfg=SAXSConfig(smooth_method="none"),
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=0.0),
     )
 
     assert np.isfinite(result.strain_points[0].f_herman)
@@ -810,14 +816,24 @@ def test_saxs_strain_series_passes_configured_orientation_axis_to_core() -> None
     chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
     axis_rad = np.deg2rad(37.0)
     I_2d = np.outer(1.0 + 3.0 * np.cos(chi_rad - axis_rad) ** 2, intensity)
-    sector_data = {"I_2d": I_2d, "q_2d": q, "chi_rad": chi_rad, "I_full": intensity}
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi_rad,
+        "I_full": intensity,
+        "support_count": np.ones_like(I_2d),
+    }
 
     result = analyze_strain_series(
         strains=[0.0, 5.0],
         q_list=[q, q],
         I_list=[intensity, intensity],
         sector_data_list=[sector_data, sector_data],
-        cfg=SAXSConfig(smooth_method="none", orientation_axis_deg=37.0),
+        cfg=SAXSConfig(
+            smooth_method="none",
+            orientation_axis_deg=37.0,
+            tensile_axis_deg=37.0,
+        ),
     )
 
     point = result.strain_points[0]
@@ -825,7 +841,7 @@ def test_saxs_strain_series_passes_configured_orientation_axis_to_core() -> None
     assert point.orientation_evidence["fit_evidence"]["orientation_axis_source"] == "configured"
 
 
-def test_saxs_strain_blocks_effective_herman_for_hard_1d_quality_defects(monkeypatch) -> None:
+def test_saxs_strain_keeps_1d_quality_defects_separate_from_supported_annulus(monkeypatch) -> None:
     from polynexus.core.saxs_engine import saxs_strain
     from polynexus.core.saxs_engine.core import (
         LongPeriodResult,
@@ -839,7 +855,13 @@ def test_saxs_strain_blocks_effective_herman_for_hard_1d_quality_defects(monkeyp
     intensity = 0.1 + peak
     chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
     I_2d = np.outer(1.0 + 3.0 * np.cos(chi_rad) ** 2, intensity)
-    sector_data = {"I_2d": I_2d, "q_2d": q, "chi_rad": chi_rad, "I_full": intensity}
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi_rad,
+        "I_full": intensity,
+        "support_count": np.ones_like(I_2d),
+    }
 
     def fake_analyze_single(*_args, **_kwargs):
         return SAXSResult(
@@ -859,16 +881,106 @@ def test_saxs_strain_blocks_effective_herman_for_hard_1d_quality_defects(monkeyp
         q_list=[q],
         I_list=[intensity],
         sector_data_list=[sector_data],
-        cfg=SAXSConfig(smooth_method="none"),
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=0.0),
     )
 
     point = result.strain_points[0]
     assert np.isfinite(getattr(point, "f_herman_raw", np.nan))
-    assert not np.isfinite(point.f_herman)
+    assert np.isfinite(point.f_herman)
     evidence = point.orientation_evidence or {}
     reasons = evidence.get("reason_codes", ())
-    assert "orientation_low_q_truncated" in reasons
-    assert "orientation_invalid_pairs_dropped" in reasons
+    assert "orientation_low_q_truncated" not in reasons
+    assert "orientation_invalid_pairs_dropped" not in reasons
+    assert point.data_quality_report["low_q_truncated"] is True
+    assert "intensity_nonpositive" in point.data_quality_report["reason_codes"]
+
+
+def test_saxs_strain_transports_support_and_raw_detector_quality_to_analyzer(monkeypatch) -> None:
+    from polynexus.core.saxs_engine import saxs_anisotropy
+    from polynexus.core.saxs_engine.saxs_strain import herman_from_sector_data
+
+    q = np.asarray([0.3, 0.4], dtype=float)
+    chi = np.asarray([-1.0, 0.0, 1.0], dtype=float)
+    intensity = np.ones((chi.size, q.size), dtype=float)
+    support = np.full_like(intensity, 7.0)
+    raw_report = {"source_kind": "raw_detector", "level": "Trend", "pixel_count": 64}
+    captured = {}
+
+    def fake_analyze(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return SimpleNamespace(
+            f_herman=0.4,
+            f_herman_raw=0.5,
+            f_herman_sub=np.nan,
+            f_herman_eq=np.nan,
+            detector_quality_report=raw_report,
+            orientation_evidence={"level": "Trend", "fit_evidence": {"f_herman": 0.4}},
+            principal_scattering_axis_deg=12.0,
+            tensile_axis_deg=0.0,
+            reference_axis_deg=0.0,
+            reference_axis_kind="tensile_axis",
+        )
+
+    monkeypatch.setattr(saxs_anisotropy, "analyze_anisotropy", fake_analyze)
+    sector_data = {
+        "I_2d": intensity,
+        "q_2d": q,
+        "chi_rad": chi,
+        "I_full": np.mean(intensity, axis=0),
+        "support_count": support,
+        "raw_detector_quality_report": raw_report,
+    }
+
+    result = herman_from_sector_data(sector_data, cfg=SAXSConfig(tensile_axis_deg=0.0))
+
+    assert captured["kwargs"]["support_count"] is support
+    assert captured["kwargs"]["raw_detector_quality"] is raw_report
+    assert result["f"] == 0.4
+    assert result["f_raw"] == 0.5
+
+
+def test_saxs_strain_legacy_sector_payload_keeps_unavailable_support_explicit() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.1, 1.0, 120)
+    intensity = 0.1 + np.exp(-((q - 0.45) / 0.025) ** 2)
+    chi = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    sector_data = {
+        "I_2d": np.outer(1.0 + 3.0 * np.cos(chi) ** 2, intensity),
+        "q_2d": q,
+        "chi_rad": chi,
+        "I_full": intensity,
+    }
+
+    result = analyze_strain_series(
+        [0.0], [q], [intensity], sector_data_list=[sector_data],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=0.0),
+    )
+
+    point = result.strain_points[0]
+    assert np.isfinite(point.f_herman_raw)
+    assert not np.isfinite(point.f_herman)
+    assert "sector_support_unavailable" in point.orientation_evidence["reason_codes"]
+
+
+def test_saxs_strain_dataframe_uses_only_effective_herman_value() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import StrainPhase, StrainPointResult, StrainSeriesResult
+
+    result = StrainSeriesResult(
+        strain_points=[
+            StrainPointResult(
+                strain_pct=0.0,
+                phase=StrainPhase.ELASTIC,
+                f_herman=np.nan,
+                f_herman_raw=0.46,
+            )
+        ]
+    )
+
+    dataframe = result.to_dataframe()
+
+    assert dataframe.iloc[0]["f_Herman"] is None
 
 
 def test_saxs_strain_batch_payload_exposes_raw_and_effective_layers() -> None:
