@@ -336,6 +336,70 @@ def test_detached_support_reports_reject_contradictory_availability_payloads() -
         assert report.support_fraction is None
 
 
+def test_detached_support_defect_reasons_cannot_claim_usable_levels() -> None:
+    sector = SectorMapQualityReport.from_dict(
+        {
+            "shape": [1, 1],
+            "support_available": True,
+            "supported_bin_count": 1,
+            "empty_bin_count": 0,
+            "measured_nonpositive_bin_count": 1,
+            "support_fraction": 1.0,
+            "reason_codes": ["sector_measured_nonpositive_bins_present"],
+            "level": "Quantitative",
+        }
+    )
+    annulus = AnnulusQualityReport.from_dict(
+        {
+            "q_target_nm1": 0.5,
+            "q_width_nm1": 0.1,
+            "selected_q_bin_count": 2,
+            "angular_bin_count": 2,
+            "supported_angular_bin_count": 0,
+            "support_fraction": 0.0,
+            "support_available": True,
+            "reason_codes": ["annulus_no_supported_angular_bins"],
+            "level": "Trend",
+        }
+    )
+
+    for report in (sector, annulus):
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+
+
+def test_support_builders_reject_string_and_complex_counts() -> None:
+    detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+    for support in (
+        np.asarray([["1", "1"]]),
+        np.asarray([[1.0 + 0.0j, 1.0 + 0.0j]]),
+    ):
+        sector = build_sector_map_quality_report(np.ones((1, 2)), support)
+        annulus = build_annulus_quality_report(
+            support,
+            np.asarray([0.40, 0.50]),
+            q_target=0.50,
+            q_width=0.01,
+        )
+        evidence = build_orientation_evidence(
+            {"f_herman": 0.4},
+            detector,
+            applicability="supported",
+            annulus_quality=annulus,
+        )
+
+        for report in (sector, annulus):
+            assert report.support_available is False
+            assert report.level is QualityLevel.DIAGNOSTIC
+            assert "sector_support_unavailable" in report.reason_codes
+        assert evidence.applicable is False
+
+
 def test_saxs_engine_package_facade_exports_support_quality_contracts() -> None:
     from polynexus.core import saxs_engine
     from polynexus.core.saxs_engine import (

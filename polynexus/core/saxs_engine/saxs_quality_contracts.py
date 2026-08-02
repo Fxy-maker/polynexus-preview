@@ -124,15 +124,17 @@ def _finite_float_or_none(value: Any) -> float | None:
     return number if np.isfinite(number) else None
 
 
-def _contains_bool_value(value: Any) -> bool:
-    if isinstance(value, (bool, np.bool_)):
+def _contains_invalid_support_value(value: Any) -> bool:
+    if isinstance(value, (bool, np.bool_, str, complex, np.complexfloating)):
         return True
     if isinstance(value, np.ndarray):
-        return value.dtype.kind == "b" or any(
-            _contains_bool_value(item) for item in value.flat
+        if value.dtype.kind in {"b", "c", "U", "S"}:
+            return True
+        return value.dtype.kind == "O" and any(
+            _contains_invalid_support_value(item) for item in value.flat
         )
     if isinstance(value, (list, tuple)):
-        return any(_contains_bool_value(item) for item in value)
+        return any(_contains_invalid_support_value(item) for item in value)
     return False
 
 
@@ -265,6 +267,11 @@ def _sector_map_report_is_coherent(data: Mapping[str, Any]) -> bool:
         )
     if "sector_support_unavailable" in reasons:
         return False
+    if reasons & {
+        "sector_source_missing",
+        "annulus_support_incomplete",
+    }:
+        return False
     shape = data["shape"]
     supported = data["supported_bin_count"]
     empty = data["empty_bin_count"]
@@ -278,6 +285,10 @@ def _sector_map_report_is_coherent(data: Mapping[str, Any]) -> bool:
         expected_reasons.add("sector_measured_nonpositive_bins_present")
     if data["level"] is QualityLevel.TREND:
         expected_reasons_are_coherent = not expected_reasons and not reasons
+    elif data["level"] is QualityLevel.QUANTITATIVE and (
+        expected_reasons or reasons
+    ):
+        expected_reasons_are_coherent = False
     else:
         expected_reasons_are_coherent = expected_reasons <= reasons and bool(reasons)
     return bool(
@@ -304,6 +315,11 @@ def _annulus_report_is_coherent(data: Mapping[str, Any]) -> bool:
             and data["support_fraction"] is None
         )
     if "sector_support_unavailable" in reasons:
+        return False
+    if reasons & {
+        "sector_source_missing",
+        "annulus_support_incomplete",
+    }:
         return False
     angular = data["angular_bin_count"]
     supported = data["supported_angular_bin_count"]
@@ -708,13 +724,18 @@ def build_sector_map_quality_report(
         intensity_array = np.asarray([], dtype=float)
     try:
         raw_support_array = np.asarray(support_count, dtype=object)
-        support_contains_bool = _contains_bool_value(raw_support_array)
+        support_contains_invalid_value = _contains_invalid_support_value(
+            raw_support_array
+        )
     except (TypeError, ValueError):
-        support_contains_bool = True
-    try:
-        support_array = np.asarray(support_count, dtype=float)
-    except (TypeError, ValueError):
+        support_contains_invalid_value = True
+    if support_contains_invalid_value:
         support_array = np.asarray([], dtype=float)
+    else:
+        try:
+            support_array = np.asarray(support_count, dtype=float)
+        except (TypeError, ValueError):
+            support_array = np.asarray([], dtype=float)
 
     shape = (
         tuple(int(item) for item in intensity_array.shape)
@@ -729,7 +750,7 @@ def build_sector_map_quality_report(
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
         or np.any(support_array != np.floor(support_array))
-        or support_contains_bool
+        or support_contains_invalid_value
     ):
         return SectorMapQualityReport(
             shape=shape,
@@ -785,13 +806,18 @@ def build_annulus_quality_report(
     width = _finite_float_or_none(q_width)
     try:
         raw_support_array = np.asarray(support_count, dtype=object)
-        support_contains_bool = _contains_bool_value(raw_support_array)
+        support_contains_invalid_value = _contains_invalid_support_value(
+            raw_support_array
+        )
     except (TypeError, ValueError):
-        support_contains_bool = True
-    try:
-        support_array = np.asarray(support_count, dtype=float)
-    except (TypeError, ValueError):
+        support_contains_invalid_value = True
+    if support_contains_invalid_value:
         support_array = np.asarray([], dtype=float)
+    else:
+        try:
+            support_array = np.asarray(support_count, dtype=float)
+        except (TypeError, ValueError):
+            support_array = np.asarray([], dtype=float)
     try:
         q_array = np.asarray(q, dtype=float)
     except (TypeError, ValueError):
@@ -802,7 +828,7 @@ def build_annulus_quality_report(
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
         or np.any(support_array != np.floor(support_array))
-        or support_contains_bool
+        or support_contains_invalid_value
         or support_array.size == 0
         or q_array.ndim != 1
         or support_array.shape[1] != q_array.size
