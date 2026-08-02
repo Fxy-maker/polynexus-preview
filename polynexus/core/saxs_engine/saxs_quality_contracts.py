@@ -758,6 +758,11 @@ def build_annulus_quality_report(
     target = _finite_float_or_none(q_target)
     width = _finite_float_or_none(q_width)
     try:
+        raw_support_array = np.asarray(support_count, dtype=object)
+        support_contains_bool = _contains_bool_value(raw_support_array)
+    except (TypeError, ValueError):
+        support_contains_bool = True
+    try:
         support_array = np.asarray(support_count, dtype=float)
     except (TypeError, ValueError):
         support_array = np.asarray([], dtype=float)
@@ -770,6 +775,8 @@ def build_annulus_quality_report(
         support_array.ndim != 2
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
+        or np.any(support_array != np.floor(support_array))
+        or support_contains_bool
         or support_array.size == 0
         or q_array.ndim != 1
         or support_array.shape[1] != q_array.size

@@ -359,6 +359,36 @@ def test_sector_report_rejects_fractional_support_counts() -> None:
     assert integer_valued_float.support_available is True
 
 
+def test_annulus_report_rejects_fractional_and_bool_support_counts() -> None:
+    detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+    for support in (
+        np.asarray([[0.5, 1.0], [1.0, 1.0]]),
+        np.asarray([[True, True], [True, True]], dtype=bool),
+    ):
+        report = build_annulus_quality_report(
+            support,
+            np.asarray([0.40, 0.50]),
+            q_target=0.50,
+            q_width=0.01,
+        )
+        evidence = build_orientation_evidence(
+            {"f_herman": 0.4},
+            detector,
+            applicability="supported",
+            annulus_quality=report,
+        )
+
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+        assert evidence.level is QualityLevel.DIAGNOSTIC
+        assert evidence.applicable is False
+
+
 def test_unavailable_support_cannot_retain_non_unusable_report_level() -> None:
     sector = SectorMapQualityReport.from_dict(
         {
