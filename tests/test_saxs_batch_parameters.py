@@ -940,6 +940,43 @@ def test_saxs_strain_transports_support_and_raw_detector_quality_to_analyzer(mon
     assert result["f_raw"] == 0.5
 
 
+def test_saxs_strain_missing_raw_detector_report_stays_explicitly_unavailable() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import herman_from_sector_data
+
+    q = np.asarray([0.3, 0.4], dtype=float)
+    chi = np.linspace(-1.0, 1.0, 6)
+    intensity = np.ones((chi.size, q.size), dtype=float)
+    intensity[0, 0] = 0.0
+    canonical = {
+        "I_2d": intensity,
+        "q_2d": q,
+        "chi_rad": chi,
+        "I_full": np.mean(intensity, axis=0),
+    }
+    legacy_sector = {
+        "chi": np.linspace(-np.pi / 12, np.pi / 12, 12),
+        "I": np.ones(12),
+        "q": np.linspace(0.2, 0.8, 12),
+    }
+    legacy = {
+        "meridional": legacy_sector,
+        "equatorial": legacy_sector,
+    }
+
+    for payload in (canonical, legacy):
+        result = herman_from_sector_data(
+            payload,
+            cfg=SAXSConfig(tensile_axis_deg=0.0),
+        )
+        raw_report = result["raw_detector_quality_report"]
+        if hasattr(raw_report, "to_dict"):
+            raw_report = raw_report.to_dict()
+        assert raw_report["source_kind"] == "raw_detector"
+        assert raw_report["level"] == "Diagnostic"
+        assert "raw_detector_quality_unavailable" in raw_report["reason_codes"]
+        assert raw_report["nonpositive_pixel_count"] == 0
+
+
 def test_saxs_strain_legacy_sector_payload_keeps_unavailable_support_explicit() -> None:
     from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
 

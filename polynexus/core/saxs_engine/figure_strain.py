@@ -653,13 +653,7 @@ def _orientation_values(
     for frame in frames:
         point = _series_point(engine, frame)
         anisotropy = getattr(frame.analysis, "anisotropy", None)
-        f_values.append(
-            _first_finite(
-                getattr(point, "f_herman", np.nan),
-                getattr(anisotropy, "f_herman", np.nan),
-                _emitted_parameter(frame, "f_herman", "f_Herman", "orientation_f"),
-            )
-        )
+        f_values.append(_effective_orientation_fherman(point))
         anisotropy_values.append(
             _first_finite(
                 getattr(anisotropy, "anisotropy_index", np.nan),
@@ -671,6 +665,25 @@ def _orientation_values(
         "f_herman": f_values,
         "anisotropy_index": anisotropy_values,
     }
+
+
+def _effective_orientation_fherman(point: Any) -> float:
+    """Project only a final, explicitly tensile-referenced orientation value."""
+
+    value = _finite_number(getattr(point, "f_herman", np.nan))
+    evidence = getattr(point, "orientation_evidence", None)
+    if not np.isfinite(value) or not isinstance(evidence, Mapping):
+        return np.nan
+    if evidence.get("applicable") is not True:
+        return np.nan
+    fit_evidence = evidence.get("fit_evidence")
+    if not isinstance(fit_evidence, Mapping):
+        return np.nan
+    if fit_evidence.get("reference_axis_kind") != "tensile_axis":
+        return np.nan
+    if not np.isfinite(_finite_number(fit_evidence.get("tensile_axis_deg"))):
+        return np.nan
+    return value
 
 
 def _orientation_source(

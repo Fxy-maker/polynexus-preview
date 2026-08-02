@@ -28,6 +28,8 @@ from .core import (
     LongPeriodResult, StructureParams, porod_analysis,
 )
 from .saxs_quality_contracts import (
+    DetectorQualityReport,
+    QualityLevel,
     _as_1d_float_array,
     build_detector_quality_report,
     build_orientation_evidence,
@@ -76,6 +78,16 @@ def _source_kwargs(
     if raw_data_refs:
         kwargs["raw_data_ref"] = raw_data_refs[index]
     return {key: value for key, value in kwargs.items() if value}
+
+
+def _unavailable_raw_detector_quality_report() -> dict[str, object]:
+    """Return raw-detector evidence without attributing sector defects to it."""
+
+    return DetectorQualityReport(
+        source_kind="raw_detector",
+        reason_codes=("raw_detector_quality_unavailable",),
+        level=QualityLevel.DIAGNOSTIC,
+    ).to_dict()
 
 
 class StrainPhase(Enum):
@@ -414,6 +426,8 @@ def herman_from_sector_data(
             raw_detector_quality = sector_data.get(
                 "raw_detector_quality_report"
             )
+            if raw_detector_quality is None:
+                raw_detector_quality = _unavailable_raw_detector_quality_report()
             orientation = analyze_anisotropy(
                 I_2d,
                 q_2d,
@@ -435,6 +449,11 @@ def herman_from_sector_data(
                     reason_codes=quality_blockers,
                 )
                 f_value = np.nan
+            raw_detector_quality_report = getattr(
+                orientation, "detector_quality_report", None
+            )
+            if raw_detector_quality_report is None:
+                raw_detector_quality_report = raw_detector_quality
             return {
                 "f": f_value,
                 "f_raw": f_raw,
@@ -446,9 +465,7 @@ def herman_from_sector_data(
                     I_2d,
                     source_kind="sector_map",
                 ).to_dict(),
-                "raw_detector_quality_report": getattr(
-                    orientation, "detector_quality_report", None
-                ),
+                "raw_detector_quality_report": raw_detector_quality_report,
                 "orientation_evidence": orientation_evidence,
                 "orientation_axis_deg": getattr(orientation, "orientation_axis_deg", np.nan),
                 "orientation_axis_source": getattr(orientation, "orientation_axis_source", "unavailable"),
@@ -546,6 +563,7 @@ def _legacy_orientation_result(
         np.empty((0, 0), dtype=float),
         source_kind="sector_map",
     )
+    raw_detector_quality = _unavailable_raw_detector_quality_report()
     reasons = ["legacy_orientation_unavailable"]
     try:
         tensile_axis = float(getattr(cfg, "tensile_axis_deg", np.nan))
@@ -602,6 +620,7 @@ def _legacy_orientation_result(
         "cos2_avg": float(legacy.get("cos2_avg", np.nan)),
         "method": "legacy_sector_adapter",
         "detector_quality_report": detector.to_dict(),
+        "raw_detector_quality_report": raw_detector_quality,
         "orientation_evidence": evidence,
     }
 
@@ -636,6 +655,7 @@ def _invalid_sector_data_result(
         "method": "unavailable",
         "reason_codes": (reason,),
         "detector_quality_report": detector.to_dict(),
+        "raw_detector_quality_report": _unavailable_raw_detector_quality_report(),
         "orientation_evidence": evidence,
     }
 

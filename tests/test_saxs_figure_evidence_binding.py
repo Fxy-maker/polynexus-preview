@@ -838,6 +838,69 @@ def test_strain_binding_keeps_orientation_separate_and_survives_manifest_documen
     )
 
 
+def test_strain_figure_does_not_fallback_to_legacy_orientation_values() -> None:
+    engine = _strain_engine()
+    engine._batch_results[0].anisotropy = SimpleNamespace(f_herman=0.91)
+    engine._batch_params[0]["f_Herman"] = 0.82
+    engine._strain_result.strain_points = [
+        SimpleNamespace(
+            f_herman=np.nan,
+            orientation_evidence={
+                "level": "Unusable",
+                "applicable": False,
+            },
+        ),
+        SimpleNamespace(
+            f_herman=np.nan,
+            orientation_evidence=None,
+        ),
+    ]
+
+    values = figure_strain_module._orientation_values(
+        engine,
+        figure_strain_module.frame_views_from_engine(engine),
+    )
+
+    assert np.isnan(values["f_herman"][0])
+    assert np.isnan(values["f_herman"][1])
+
+
+def test_strain_figure_projects_only_applicable_tensile_orientation() -> None:
+    engine = _strain_engine()
+    engine._strain_result.strain_points = [
+        SimpleNamespace(
+            f_herman=0.42,
+            orientation_evidence={
+                "level": "Trend",
+                "applicable": True,
+                "fit_evidence": {
+                    "reference_axis_kind": "tensile_axis",
+                    "tensile_axis_deg": 37.0,
+                },
+            },
+        ),
+        SimpleNamespace(
+            f_herman=np.nan,
+            orientation_evidence={
+                "level": "Trend",
+                "applicable": True,
+                "fit_evidence": {
+                    "reference_axis_kind": "unknown",
+                    "tensile_axis_deg": None,
+                },
+            },
+        ),
+    ]
+
+    values = figure_strain_module._orientation_values(
+        engine,
+        figure_strain_module.frame_views_from_engine(engine),
+    )
+
+    assert values["f_herman"][0] == 0.42
+    assert np.isnan(values["f_herman"][1])
+
+
 def test_dirty_projection_strain_keeps_profile_and_q_strain_sources() -> None:
     engine = _strain_engine()
     engine._q_list[0] = np.asarray(
