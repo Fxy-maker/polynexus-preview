@@ -283,6 +283,59 @@ def test_detached_support_reports_reject_coherence_inconsistent_trend_payloads()
         assert "sector_support_unavailable" in report.reason_codes
 
 
+def test_detached_support_reports_reject_contradictory_availability_payloads() -> None:
+    contradictory_sector = {
+        "shape": [1, 1],
+        "support_available": True,
+        "supported_bin_count": 1,
+        "empty_bin_count": 0,
+        "measured_nonpositive_bin_count": 0,
+        "support_fraction": 1.0,
+        "reason_codes": ["sector_support_unavailable"],
+        "level": "Trend",
+    }
+    unavailable_sector = dict(contradictory_sector)
+    unavailable_sector.update(support_available=False)
+    contradictory_annulus = {
+        "q_target_nm1": 0.5,
+        "q_width_nm1": 0.1,
+        "selected_q_bin_count": 2,
+        "angular_bin_count": 2,
+        "supported_angular_bin_count": 2,
+        "support_fraction": 1.0,
+        "support_available": True,
+        "reason_codes": ["sector_support_unavailable"],
+        "level": "Trend",
+    }
+    unavailable_annulus = dict(contradictory_annulus)
+    unavailable_annulus.update(support_available=False)
+
+    sector_reports = [
+        SectorMapQualityReport.from_dict(contradictory_sector),
+        SectorMapQualityReport.from_dict(unavailable_sector),
+    ]
+    annulus_reports = [
+        AnnulusQualityReport.from_dict(contradictory_annulus),
+        AnnulusQualityReport.from_dict(unavailable_annulus),
+    ]
+
+    for report in (*sector_reports, *annulus_reports):
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+        json.dumps(report.to_dict(), allow_nan=False)
+    for report in sector_reports:
+        assert report.supported_bin_count == 0
+        assert report.empty_bin_count == 0
+        assert report.measured_nonpositive_bin_count == 0
+        assert report.support_fraction is None
+    for report in annulus_reports:
+        assert report.selected_q_bin_count == 0
+        assert report.angular_bin_count == 0
+        assert report.supported_angular_bin_count == 0
+        assert report.support_fraction is None
+
+
 def test_saxs_engine_package_facade_exports_support_quality_contracts() -> None:
     from polynexus.core import saxs_engine
     from polynexus.core.saxs_engine import (

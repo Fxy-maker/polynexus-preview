@@ -235,6 +235,18 @@ def _normalize_detached_support_report(
 def _mark_support_report_unavailable(data: dict[str, Any]) -> None:
     data["support_available"] = False
     data["level"] = QualityLevel.DIAGNOSTIC
+    for key in (
+        "supported_bin_count",
+        "empty_bin_count",
+        "measured_nonpositive_bin_count",
+        "selected_q_bin_count",
+        "angular_bin_count",
+        "supported_angular_bin_count",
+    ):
+        if key in data:
+            data[key] = 0
+    if "support_fraction" in data:
+        data["support_fraction"] = None
     data["reason_codes"] = tuple(
         dict.fromkeys((*data.get("reason_codes", ()), "sector_support_unavailable"))
     )
@@ -246,7 +258,13 @@ def _sector_map_report_is_coherent(data: Mapping[str, Any]) -> bool:
         return (
             data["level"] in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
             and "sector_support_unavailable" in reasons
+            and data["supported_bin_count"] == 0
+            and data["empty_bin_count"] == 0
+            and data["measured_nonpositive_bin_count"] == 0
+            and data["support_fraction"] is None
         )
+    if "sector_support_unavailable" in reasons:
+        return False
     shape = data["shape"]
     supported = data["supported_bin_count"]
     empty = data["empty_bin_count"]
@@ -280,7 +298,13 @@ def _annulus_report_is_coherent(data: Mapping[str, Any]) -> bool:
         return (
             data["level"] in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
             and "sector_support_unavailable" in reasons
+            and data["selected_q_bin_count"] == 0
+            and data["angular_bin_count"] == 0
+            and data["supported_angular_bin_count"] == 0
+            and data["support_fraction"] is None
         )
+    if "sector_support_unavailable" in reasons:
+        return False
     angular = data["angular_bin_count"]
     supported = data["supported_angular_bin_count"]
     selected = data["selected_q_bin_count"]
@@ -308,6 +332,8 @@ def _annulus_report_is_coherent(data: Mapping[str, Any]) -> bool:
         expected_reasons_are_coherent = (
             data["level"] is QualityLevel.DIAGNOSTIC
             and "annulus_q_window_empty" in reasons
+            and supported == 0
+            and fraction == 0.0
         )
     elif supported == 0:
         expected_reasons_are_coherent = (
