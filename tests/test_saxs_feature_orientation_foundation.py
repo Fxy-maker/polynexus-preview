@@ -216,7 +216,7 @@ def test_diagnostic_raw_nonpositive_pixels_do_not_automatically_veto_final_herma
         *payload,
         cfg=SAXSConfig(tensile_axis_deg=37.0),
         support_count=np.ones_like(payload[0]),
-        raw_detector_quality=raw,
+        raw_detector_quality=raw.to_dict(),
     )
 
     assert raw.level is QualityLevel.DIAGNOSTIC
@@ -226,6 +226,45 @@ def test_diagnostic_raw_nonpositive_pixels_do_not_automatically_veto_final_herma
     assert "raw_detector_quality_unusable" not in result.orientation_evidence[
         "reason_codes"
     ]
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
+def test_incomplete_raw_trend_mapping_is_unavailable_and_not_applicable() -> None:
+    payload = _synthetic_annulus_input(axis_deg=37.0)
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality={"level": "Trend"},
+    )
+
+    report = result.detector_quality_report
+    assert report["source_kind"] == "raw_detector"
+    assert report["level"] == "Diagnostic"
+    assert "raw_detector_quality_unavailable" in report["reason_codes"]
+    assert np.isfinite(result.f_herman)
+    assert result.orientation_evidence["level"] == "Diagnostic"
+    assert result.orientation_evidence["applicable"] is False
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
+def test_valid_raw_detector_mapping_round_trips_without_losing_applicability() -> None:
+    payload = _synthetic_annulus_input(axis_deg=37.0)
+    raw = build_detector_quality_report(
+        np.ones((8, 8)), source_kind="raw_detector", beam_center=(4.0, 4.0)
+    )
+
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(tensile_axis_deg=37.0),
+        support_count=np.ones_like(payload[0]),
+        raw_detector_quality=raw.to_dict(),
+    )
+
+    assert result.detector_quality_report == raw.to_dict()
+    assert np.isfinite(result.f_herman)
+    assert result.orientation_evidence["applicable"] is True
     json.dumps(result.orientation_evidence, allow_nan=False)
 
 

@@ -815,6 +815,70 @@ def analyze_peak_widths(
 #  Full anisotropy analysis pipeline
 # ======================================================================
 
+def _raw_detector_mapping_is_coherent(payload: Mapping[str, Any]) -> bool:
+    """Accept only a complete, internally consistent raw-detector inventory."""
+
+    required = (
+        "shape",
+        "pixel_count",
+        "finite_pixel_count",
+        "nonfinite_pixel_count",
+        "valid_pixel_count",
+        "coverage_fraction",
+        "source_kind",
+    )
+    if any(key not in payload for key in required):
+        return False
+    if str(payload.get("source_kind") or "").strip().lower() != "raw_detector":
+        return False
+
+    shape = payload.get("shape")
+    if not isinstance(shape, (list, tuple)) or len(shape) != 2:
+        return False
+    counts = [*shape]
+    counts.extend(
+        payload.get(key)
+        for key in (
+            "pixel_count",
+            "finite_pixel_count",
+            "nonfinite_pixel_count",
+            "valid_pixel_count",
+        )
+    )
+    if any(
+        isinstance(value, (bool, np.bool_))
+        or not isinstance(value, (int, np.integer))
+        or value < 0
+        for value in counts
+    ):
+        return False
+
+    pixel_count = int(payload["pixel_count"])
+    finite_count = int(payload["finite_pixel_count"])
+    nonfinite_count = int(payload["nonfinite_pixel_count"])
+    valid_count = int(payload["valid_pixel_count"])
+    if (
+        int(shape[0]) * int(shape[1]) != pixel_count
+        or finite_count + nonfinite_count != pixel_count
+        or valid_count > finite_count
+        or pixel_count == 0
+    ):
+        return False
+
+    coverage = payload.get("coverage_fraction")
+    if isinstance(coverage, (bool, np.bool_)):
+        return False
+    try:
+        coverage_value = float(coverage)
+    except (TypeError, ValueError):
+        return False
+    return bool(
+        np.isfinite(coverage_value)
+        and 0.0 <= coverage_value <= 1.0
+        and np.isclose(coverage_value, valid_count / pixel_count)
+    )
+
+
 def _normalized_detector_quality(
     raw_detector_quality: DetectorQualityReport | Mapping[str, Any] | None,
 ) -> DetectorQualityReport:
@@ -823,7 +887,9 @@ def _normalized_detector_quality(
     if isinstance(raw_detector_quality, DetectorQualityReport):
         return DetectorQualityReport.from_dict(raw_detector_quality.to_dict())
     if isinstance(raw_detector_quality, Mapping):
-        return DetectorQualityReport.from_dict(raw_detector_quality)
+        if _raw_detector_mapping_is_coherent(raw_detector_quality):
+            return DetectorQualityReport.from_dict(raw_detector_quality)
+        return _unavailable_raw_detector_quality()
     return _unavailable_raw_detector_quality()
 
 
