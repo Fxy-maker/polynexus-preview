@@ -2323,10 +2323,13 @@ def build_orientation_evidence(
         )
 
     support_quality_blocked = False
+    support_quality_unusable = False
     for report in (normalized_sector_quality, normalized_annulus_quality):
         if report is None:
             continue
         reasons.extend(report.reason_codes)
+        if report.level is QualityLevel.UNUSABLE:
+            support_quality_unusable = True
         if (
             not report.support_available
             or report.level in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
@@ -2353,7 +2356,11 @@ def build_orientation_evidence(
         physical_checks["annulus_quality_report"] = (
             normalized_annulus_quality.to_dict()
         )
-    if not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
+    if (
+        not metrics_present
+        or detector_quality.level is QualityLevel.UNUSABLE
+        or support_quality_unusable
+    ):
         level = QualityLevel.UNUSABLE
     elif support_quality_blocked:
         level = QualityLevel.DIAGNOSTIC

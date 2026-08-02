@@ -722,3 +722,34 @@ def test_orientation_evidence_preserves_unusable_precedence_over_unavailable_sup
         assert evidence.level is QualityLevel.UNUSABLE
         assert evidence.applicable is False
         assert "sector_support_unavailable" in evidence.reason_codes
+
+
+def test_orientation_evidence_preserves_explicit_unusable_support_precedence() -> None:
+    detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+    unusable_sector = SectorMapQualityReport(
+        reason_codes=("sector_support_unavailable",),
+        level=QualityLevel.UNUSABLE,
+    )
+    unusable_annulus = AnnulusQualityReport(
+        reason_codes=("sector_support_unavailable",),
+        level=QualityLevel.UNUSABLE,
+    )
+
+    for quality_key, report in (
+        ("sector_map_quality", unusable_sector),
+        ("annulus_quality", unusable_annulus),
+    ):
+        evidence = build_orientation_evidence(
+            {"f_herman": 0.4},
+            detector,
+            applicability="supported",
+            **{quality_key: report},
+        )
+
+        assert evidence.level is QualityLevel.UNUSABLE
+        assert evidence.applicable is False
+        assert "sector_support_unavailable" in evidence.reason_codes
