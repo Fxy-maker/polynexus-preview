@@ -496,6 +496,7 @@ def _block_orientation_evidence(
     physical_checks["orientation_reliability_status"] = "blocked"
     physical_checks["orientation_reliability_reason_codes"] = list(reason_codes)
     payload["physical_checks"] = physical_checks
+    payload["level"] = "Unusable"
     payload["applicable"] = False
     payload["reason_codes"] = tuple(
         dict.fromkeys(
