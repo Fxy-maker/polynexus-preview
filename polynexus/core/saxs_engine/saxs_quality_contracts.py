@@ -225,14 +225,27 @@ def _mark_support_report_unavailable(data: dict[str, Any]) -> None:
 
 
 def _sector_map_report_is_coherent(data: Mapping[str, Any]) -> bool:
+    reasons = set(data["reason_codes"])
     if not data["support_available"]:
-        return data["level"] is not QualityLevel.TREND
+        return (
+            data["level"] is not QualityLevel.TREND
+            and "sector_support_unavailable" in reasons
+        )
     shape = data["shape"]
     supported = data["supported_bin_count"]
     empty = data["empty_bin_count"]
     measured_nonpositive = data["measured_nonpositive_bin_count"]
     fraction = data["support_fraction"]
     total_bins = int(np.prod(shape, dtype=int))
+    expected_reasons = set()
+    if empty:
+        expected_reasons.add("sector_empty_bins_present")
+    if measured_nonpositive:
+        expected_reasons.add("sector_measured_nonpositive_bins_present")
+    if data["level"] is QualityLevel.TREND:
+        expected_reasons_are_coherent = not expected_reasons and not reasons
+    else:
+        expected_reasons_are_coherent = expected_reasons <= reasons and bool(reasons)
     return bool(
         len(shape) == 2
         and total_bins > 0
@@ -241,12 +254,17 @@ def _sector_map_report_is_coherent(data: Mapping[str, Any]) -> bool:
         and fraction is not None
         and 0.0 <= fraction <= 1.0
         and np.isclose(fraction, supported / total_bins)
+        and expected_reasons_are_coherent
     )
 
 
 def _annulus_report_is_coherent(data: Mapping[str, Any]) -> bool:
+    reasons = set(data["reason_codes"])
     if not data["support_available"]:
-        return data["level"] is not QualityLevel.TREND
+        return (
+            data["level"] is not QualityLevel.TREND
+            and "sector_support_unavailable" in reasons
+        )
     angular = data["angular_bin_count"]
     supported = data["supported_angular_bin_count"]
     selected = data["selected_q_bin_count"]
@@ -255,13 +273,41 @@ def _annulus_report_is_coherent(data: Mapping[str, Any]) -> bool:
     width = data["q_width_nm1"]
     if angular <= 0 or supported > angular:
         return False
+    if "annulus_q_window_unavailable" in reasons:
+        return bool(
+            selected == 0
+            and supported == 0
+            and fraction is None
+            and data["level"] is QualityLevel.DIAGNOSTIC
+        )
     if target is None or width is None:
-        return selected == 0 and supported == 0 and fraction is None
+        return bool(
+            selected == 0
+            and supported == 0
+            and fraction is None
+            and data["level"] is QualityLevel.DIAGNOSTIC
+            and "annulus_q_window_unavailable" in reasons
+        )
+    if selected == 0:
+        expected_reasons_are_coherent = (
+            data["level"] is QualityLevel.DIAGNOSTIC
+            and "annulus_q_window_empty" in reasons
+        )
+    elif supported == 0:
+        expected_reasons_are_coherent = (
+            data["level"] is QualityLevel.DIAGNOSTIC
+            and "annulus_no_supported_angular_bins" in reasons
+        )
+    else:
+        expected_reasons_are_coherent = (
+            data["level"] is QualityLevel.TREND and not reasons
+        )
     return bool(
         width >= 0
         and fraction is not None
         and 0.0 <= fraction <= 1.0
         and np.isclose(fraction, supported / angular)
+        and expected_reasons_are_coherent
     )
 
 
@@ -635,6 +681,7 @@ def build_sector_map_quality_report(
         or intensity_array.size == 0
         or not np.all(np.isfinite(support_array))
         or np.any(support_array < 0)
+        or np.any(support_array != np.floor(support_array))
     ):
         return SectorMapQualityReport(
             shape=shape,
