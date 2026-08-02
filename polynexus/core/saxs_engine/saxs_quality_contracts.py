@@ -456,6 +456,7 @@ def build_sector_map_quality_report(
         or support_array.ndim != 2
         or intensity_array.shape != support_array.shape
         or not np.all(np.isfinite(support_array))
+        or np.any(support_array < 0)
     ):
         return SectorMapQualityReport(
             shape=shape,
@@ -516,6 +517,7 @@ def build_annulus_quality_report(
     if (
         support_array.ndim != 2
         or not np.all(np.isfinite(support_array))
+        or np.any(support_array < 0)
         or q_array.ndim != 1
         or support_array.shape[1] != q_array.size
     ):
@@ -1979,6 +1981,36 @@ def build_orientation_evidence(
     elif reliability_status == "unavailable":
         reasons.append("orientation_reliability_unavailable")
 
+    normalized_sector_quality: SectorMapQualityReport | None = None
+    if isinstance(sector_map_quality, SectorMapQualityReport):
+        normalized_sector_quality = SectorMapQualityReport.from_dict(
+            sector_map_quality.to_dict()
+        )
+    elif isinstance(sector_map_quality, Mapping):
+        normalized_sector_quality = SectorMapQualityReport.from_dict(
+            sector_map_quality
+        )
+    normalized_annulus_quality: AnnulusQualityReport | None = None
+    if isinstance(annulus_quality, AnnulusQualityReport):
+        normalized_annulus_quality = AnnulusQualityReport.from_dict(
+            annulus_quality.to_dict()
+        )
+    elif isinstance(annulus_quality, Mapping):
+        normalized_annulus_quality = AnnulusQualityReport.from_dict(
+            annulus_quality
+        )
+
+    support_quality_blocked = False
+    for report in (normalized_sector_quality, normalized_annulus_quality):
+        if report is None:
+            continue
+        reasons.extend(report.reason_codes)
+        if (
+            not report.support_available
+            or report.level in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
+        ):
+            support_quality_blocked = True
+
     physical_checks = {
         "detector_source_kind": detector_quality.source_kind,
         "detector_quality_level": detector_quality.level,
@@ -1991,19 +2023,17 @@ def build_orientation_evidence(
         "orientation_reliability_status": reliability_status or None,
         "orientation_reliability_reason_codes": reliability_reasons,
     }
-    if isinstance(sector_map_quality, SectorMapQualityReport):
-        physical_checks["sector_map_quality_report"] = sector_map_quality.to_dict()
-    elif isinstance(sector_map_quality, Mapping):
+    if normalized_sector_quality is not None:
         physical_checks["sector_map_quality_report"] = (
-            SectorMapQualityReport.from_dict(sector_map_quality).to_dict()
+            normalized_sector_quality.to_dict()
         )
-    if isinstance(annulus_quality, AnnulusQualityReport):
-        physical_checks["annulus_quality_report"] = annulus_quality.to_dict()
-    elif isinstance(annulus_quality, Mapping):
+    if normalized_annulus_quality is not None:
         physical_checks["annulus_quality_report"] = (
-            AnnulusQualityReport.from_dict(annulus_quality).to_dict()
+            normalized_annulus_quality.to_dict()
         )
-    if not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
+    if support_quality_blocked:
+        level = QualityLevel.DIAGNOSTIC
+    elif not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
         level = QualityLevel.UNUSABLE
     elif (
         not supported

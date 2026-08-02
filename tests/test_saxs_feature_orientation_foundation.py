@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import cast
 
 import numpy as np
 
@@ -10,6 +11,8 @@ from polynexus.core.saxs_engine.saxs_quality_contracts import (
     QualityLevel,
     SectorMapQualityReport,
     build_annulus_quality_report,
+    build_detector_quality_report,
+    build_orientation_evidence,
     build_sector_map_quality_report,
 )
 
@@ -100,3 +103,124 @@ def test_annulus_quality_widens_q_window_before_counting_support() -> None:
 
     assert report.selected_q_bin_count == 2
     assert report.supported_angular_bin_count == 2
+
+
+def test_sector_report_fails_closed_for_negative_support_count() -> None:
+    for invalid_support in (-1.0, np.nan, np.inf):
+        report = build_sector_map_quality_report(
+            np.ones((1, 2)),
+            np.asarray([[1.0, invalid_support]]),
+        )
+
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+
+
+def test_annulus_report_fails_closed_for_negative_support_count() -> None:
+    for invalid_support in (-1.0, np.nan, np.inf):
+        report = build_annulus_quality_report(
+            np.asarray([[1.0, invalid_support], [1.0, 1.0]]),
+            np.asarray([0.40, 0.50]),
+            q_target=0.50,
+            q_width=0.01,
+        )
+
+        assert report.support_available is False
+        assert report.level is QualityLevel.DIAGNOSTIC
+        assert "sector_support_unavailable" in report.reason_codes
+
+
+def test_orientation_evidence_normalizes_unavailable_support_reports() -> None:
+    sector_payload = {
+        "shape": [1, 2],
+        "support_available": False,
+        "reason_codes": ["sector_support_unavailable", "sector_source_missing"],
+        "level": "Diagnostic",
+    }
+    original_sector_payload = json.loads(json.dumps(sector_payload))
+    diagnostic_annulus = AnnulusQualityReport(
+        support_available=True,
+        reason_codes=("annulus_support_incomplete",),
+        level="Diagnostic",
+    )
+    detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+
+    evidence = build_orientation_evidence(
+        {"f_herman": 0.4},
+        detector,
+        applicability="supported",
+        sector_map_quality=sector_payload,
+        annulus_quality=diagnostic_annulus,
+    )
+
+    assert evidence.level is QualityLevel.DIAGNOSTIC
+    assert evidence.applicable is False
+    assert {"sector_support_unavailable", "sector_source_missing", "annulus_support_incomplete"} <= set(evidence.reason_codes)
+    sector_evidence_payload = evidence.physical_checks["sector_map_quality_report"]
+    annulus_evidence_payload = evidence.physical_checks["annulus_quality_report"]
+    assert sector_evidence_payload is not sector_payload
+    assert annulus_evidence_payload is not diagnostic_annulus
+    assert sector_evidence_payload["support_available"] is False
+    assert annulus_evidence_payload["level"] == "Diagnostic"
+    assert "sector_support_unavailable" in sector_evidence_payload["reason_codes"]
+    assert "annulus_support_incomplete" in annulus_evidence_payload["reason_codes"]
+    assert sector_payload["shape"] == original_sector_payload["shape"]
+    assert sector_payload["support_available"] is original_sector_payload["support_available"]
+    assert sector_payload["reason_codes"] == original_sector_payload["reason_codes"]
+    json.dumps(evidence.to_dict(), allow_nan=False)
+
+    noncanonical_annulus = AnnulusQualityReport(
+        support_available=True,
+        reason_codes=("annulus_quality_level_invalid",),
+        level=cast(QualityLevel, "not-a-quality-level"),
+    )
+    diagnostic_evidence = build_orientation_evidence(
+        {"f_herman": 0.4},
+        detector,
+        applicability="supported",
+        sector_map_quality=build_sector_map_quality_report(
+            np.ones((2, 2)), np.ones((2, 2))
+        ),
+        annulus_quality=noncanonical_annulus,
+    )
+
+    assert diagnostic_evidence.level is QualityLevel.DIAGNOSTIC
+    assert diagnostic_evidence.applicable is False
+    assert "annulus_quality_level_invalid" in diagnostic_evidence.reason_codes
+    assert (
+        diagnostic_evidence.physical_checks["annulus_quality_report"]["level"]
+        == "Unusable"
+    )
+
+
+def test_orientation_evidence_keeps_trend_for_normalized_valid_support_reports() -> None:
+    detector = build_detector_quality_report(
+        np.ones((2, 2)),
+        source_kind="raw_detector",
+        beam_center=(1.0, 1.0),
+    )
+    valid_sector = build_sector_map_quality_report(
+        np.ones((2, 2)),
+        np.ones((2, 2)),
+    )
+    valid_annulus = build_annulus_quality_report(
+        np.ones((2, 2)),
+        np.asarray([0.40, 0.50]),
+        q_target=0.50,
+        q_width=0.01,
+    )
+    valid = build_orientation_evidence(
+        {"f_herman": 0.4},
+        detector,
+        applicability="supported",
+        sector_map_quality=valid_sector.to_dict(),
+        annulus_quality=valid_annulus,
+    )
+
+    assert valid.level is QualityLevel.TREND
+    assert valid.applicable is True
