@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import math
 import os
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,36 +9,36 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from .context_suggestion_service import (
-    ai_tuning_goal_recommendation,
-    context_suggestion_spec,
+    ai_tuning_goal_recommendation,  # noqa: F401
+    context_suggestion_spec,  # noqa: F401
     safe_jsonable_method_result,
-    workflow_task_context_spec,
-    workflow_task_tech_label,
+    workflow_task_context_spec,  # noqa: F401
+    workflow_task_tech_label,  # noqa: F401
 )
-from .i18n import tr
+from .i18n import tr  # noqa: F401
 from .workspace_context_service import (
-    work_memory_summary_text,
-    workspace_context_summary_text,
+    work_memory_summary_text,  # noqa: F401
+    workspace_context_summary_text,  # noqa: F401
 )
 from .analysis_history_risk_helpers import (
     DEFAULT_COMPARISON_KEYS,
     DEFAULT_REVIEW_METRIC_KEYS,
     DEFAULT_TECHNIQUE_FILTERS,
-    PREFERRED_RESULT_COLUMNS,
+    PREFERRED_RESULT_COLUMNS,  # noqa: F401
     SAXS_COMPARISON_KEYS,
     SAXS_STRAIN_COMPARISON_KEYS,
     STRAIN_REVIEW_METRIC_KEYS,
     gui_coerce_summary_float,
-    gui_display_text,
-    gui_display_text_value,
-    gui_format_score_value,
-    has_condition_axis_risk,
-    has_fallback_conflict_risk,
-    measured_result_metric_parts,
-    ordered_results_columns,
-    result_mask_summary_text,
-    results_has_critical_risk,
-    results_next_step_translation_key,
+    gui_display_text,  # noqa: F401
+    gui_display_text_value,  # noqa: F401
+    gui_format_score_value,  # noqa: F401
+    has_condition_axis_risk,  # noqa: F401
+    has_fallback_conflict_risk,  # noqa: F401
+    measured_result_metric_parts,  # noqa: F401
+    ordered_results_columns,  # noqa: F401
+    result_mask_summary_text,  # noqa: F401
+    results_has_critical_risk,  # noqa: F401
+    results_next_step_translation_key,  # noqa: F401
 )
 
 
@@ -73,6 +71,12 @@ SUMMARY_METRIC_KEYS_TO_SKIP: set[str] = {
     "next_goal",
     "joint_ai_context",
     "joint_summary",
+}
+_JOINT_AI_BOUNDARY: dict[str, str] = {
+    "mode": "off",
+    "provider_status": "not_configured",
+    "fallback": "rule_based_report",
+    "failure_policy": "preserve_source_evidence_and_diagnostic_status",
 }
 VALIDATION_KEYS: set[str] = {
     "validation_passed",
@@ -2155,6 +2159,7 @@ def joint_ai_context(
             "samples": [],
             "batches": [],
             "row_count": len(rows),
+            "ai_boundary": dict(_JOINT_AI_BOUNDARY),
         }
 
     family_order = []
@@ -2229,6 +2234,7 @@ def joint_ai_context(
         "samples": sample_names[:3],
         "batches": batch_labels[:3],
         "row_count": len(rows),
+        "ai_boundary": dict(_JOINT_AI_BOUNDARY),
     }
 
 

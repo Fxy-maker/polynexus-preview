@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -17,10 +17,19 @@ from polynexus.core.figures.contracts import (
     PanelDefinition,
 )
 from polynexus.plotting.sci_style import AXIS_LABELS, WONG_COLORS
+from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 
 from .saxs_temperature import TempSeriesResult
-from .figure_common import SAXSFrameView, frame_views_from_engine
-from .figure_evidence import attach_saxs_figure_evidence
+from .figure_common import (
+    SAXSFrameView,
+    _coerce_numeric_array,
+    frame_views_from_engine,
+)
+from .figure_evidence import (
+    attach_saxs_figure_evidence,
+    configured_saxs_1d_review,
+    existing_saxs_acceptance_audit,
+)
 from .figure_eligibility import classify_frame_eligibility
 from .figure_selection import resolve_saxs_figure_mode
 
@@ -38,11 +47,20 @@ _SERIES_COLORS = (
     "#AA4499",
 )
 
+_TEMPERATURE_METHODS = (
+    ("porod", "Porod", "a.u.", "#0072B2"),
+    ("kratky", "Kratky", "nm^-1", "#009E73"),
+    ("invariant", "Invariant", "a.u.", "#D55E00"),
+    ("lamellar", "Lamellar", "nm", "#CC79A7"),
+)
+
 
 def _sci_axis_label(label: str, *, y_axis: bool = False) -> str:
     """Map recipe shorthand to the shared SCI axis vocabulary."""
 
     text = str(label or "").lower()
+    if "detector" in text:
+        return AXIS_LABELS["detector_y" if "y" in text else "detector_x"]
     if "temperature" in text:
         return AXIS_LABELS["T"]
     if "strain" in text:
@@ -130,6 +148,11 @@ def _temperature_summary_fallback(
             tuple(getattr(engine_state, "_q_list", ()) or ()),
             tuple(getattr(engine_state, "_I_list", ()) or ()),
             evidence_frames=frame_views_from_engine(engine_state),
+            ai_rescue=copy_saxs_ai_rescue_evidence(
+                engine_state,
+                getattr(engine_state, "result", None),
+            ),
+            scientific_review=configured_saxs_1d_review(engine_state),
         )
     except (TypeError, ValueError):
         return tuple(definitions)
@@ -168,6 +191,12 @@ def _temperature_summary_fallback(
         frame_views_from_engine(engine_state),
         mode="temperature",
         series=result,
+        ai_rescue=copy_saxs_ai_rescue_evidence(
+            engine_state,
+            getattr(engine_state, "result", None),
+        ),
+        acceptance_audit=existing_saxs_acceptance_audit(engine_state),
+        scientific_review=configured_saxs_1d_review(engine_state),
     )
 
 
@@ -221,6 +250,11 @@ def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
             tuple(getattr(engine_state, "_q_list", ())),
             tuple(getattr(engine_state, "_I_list", ())),
             evidence_frames=evidence_frames,
+            ai_rescue=copy_saxs_ai_rescue_evidence(
+                engine_state,
+                getattr(engine_state, "result", None),
+            ),
+            scientific_review=configured_saxs_1d_review(engine_state),
         )
         return _apply_publication_roles(
             engine_state,
@@ -325,6 +359,16 @@ def _apply_publication_roles(
         else getattr(engine_state, "_strain_result", None)
         if mode_name == "strain"
         else None,
+        ai_rescue=copy_saxs_ai_rescue_evidence(
+            engine_state,
+            getattr(engine_state, "result", None),
+        ),
+        acceptance_audit=existing_saxs_acceptance_audit(engine_state),
+        scientific_review=(
+            configured_saxs_1d_review(engine_state)
+            if mode_name in {"static", "strain"}
+            else None
+        ),
     )
 
 
@@ -371,23 +415,30 @@ def build_saxs_temperature_definitions(
     intensities: Sequence[np.ndarray],
     *,
     evidence_frames: Sequence[SAXSFrameView] = (),
+    ai_rescue: object = None,
+    scientific_review: Mapping[str, Any] | None = None,
 ) -> tuple[FigureDefinition, ...]:
     """Describe SAXS temperature figures without publishing artifacts."""
 
-    temperatures = np.asarray(result.temperatures, dtype=float)
+    temperatures = _temperature_array(result.temperatures)
     if len(temperatures) != len(q_values) or len(q_values) != len(intensities):
         raise ValueError("temperature frame counts differ")
     definitions: list[FigureDefinition] = []
-    cleaned_frames: list[tuple[np.ndarray, np.ndarray]] = []
+    cleaned_frames: list[tuple[np.ndarray, np.ndarray] | None] = []
+    unavailable_reasons: dict[int, str] = {}
     for index, (temperature, q, intensity) in enumerate(
         zip(temperatures, q_values, intensities),
-        start=1,
+        start=0,
     ):
-        clean_q, clean_intensity = _clean_frame(q, intensity, index)
-        cleaned_frames.append((clean_q, clean_intensity))
+        cleaned, reason = _try_clean_frame(q, intensity, index + 1)
+        cleaned_frames.append(cleaned)
+        if cleaned is None:
+            unavailable_reasons[index] = reason or "figure_profile_unavailable"
+            continue
+        clean_q, clean_intensity = cleaned
         definitions.append(
             _build_temperature_frame(
-                index,
+                index + 1,
                 float(temperature),
                 clean_q,
                 clean_intensity,
@@ -395,11 +446,20 @@ def build_saxs_temperature_definitions(
         )
     if definitions:
         frame_count = len(cleaned_frames)
+        available_indices = tuple(
+            index
+            for index, frame in enumerate(cleaned_frames)
+            if frame is not None
+        )
         _decisions, main_indices, omission_reasons = _evidence_plan(
             evidence_frames,
             frame_count,
         )
-        selected_indices = main_indices or tuple(range(frame_count))
+        main_indices = tuple(
+            index for index in main_indices if index in available_indices
+        )
+        omission_reasons.update(unavailable_reasons)
+        selected_indices = main_indices or available_indices
         evidence = {
             "included_frame_indices": list(selected_indices),
             "omitted_frame_indices": [
@@ -419,6 +479,7 @@ def build_saxs_temperature_definitions(
             _build_temperature_waterfall(
                 temperatures,
                 cleaned_frames,
+                available_indices=available_indices,
                 publication_role=waterfall_role,
                 evidence=evidence,
             )
@@ -426,6 +487,7 @@ def build_saxs_temperature_definitions(
         definitions.extend(
             _build_temperature_summary_definitions(
                 result,
+                temperatures,
                 cleaned_frames,
                 included_indices=selected_indices,
                 publication_role=summary_role,
@@ -437,6 +499,9 @@ def build_saxs_temperature_definitions(
         evidence_frames,
         mode="temperature",
         series=result,
+        ai_rescue=ai_rescue,
+        acceptance_audit=existing_saxs_acceptance_audit(result),
+        scientific_review=scientific_review,
     )
 
 
@@ -509,7 +574,7 @@ def _frame_condition_values(
         values = getattr(strain_result, "strains", None)
     if values is None or np.asarray(values).size != frame_count:
         values = getattr(engine_state, "_conditions", ())
-    array = np.ravel(np.asarray(values, dtype=float))
+    array = _coerce_numeric_array(values)
     if len(array) != frame_count:
         return tuple(float("nan") for _index in range(frame_count))
     return tuple(float(value) for value in array)
@@ -654,12 +719,13 @@ def _build_temperature_frame(
     intensity: np.ndarray,
 ) -> FigureDefinition:
     source_id = "scattering-data"
+    temperature_label = _temperature_label(temperature, index)
     return FigureDefinition(
         figure_id=f"saxs.frame.temperature.scattering.{index:03d}",
         technique="saxs",
         scope="frame",
         category="per_frame",
-        title=f"SAXS Scattering At {temperature:g} C",
+        title=f"SAXS Scattering At {temperature_label}",
         layout=_scattering_layout(show_legend=False),
         data_sources=(
             FigureDataSourceDefinition(
@@ -688,7 +754,7 @@ def _build_temperature_frame(
         recipe={
             "module": "polynexus.core.saxs_engine.figure_provider",
             "function": "build_saxs_temperature_definitions",
-            "inputs": {"temperature_C": temperature},
+            "inputs": {"temperature_C": _finite_float_or_none(temperature)},
             "parameters": {"frame_index": index, "figure_kind": "scattering"},
             "v2_adapter": "temperature_saxs",
         },
@@ -698,16 +764,28 @@ def _build_temperature_frame(
 
 def _build_temperature_waterfall(
     temperatures: np.ndarray,
-    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
     *,
+    available_indices: Sequence[int] | None = None,
     publication_role: str = "si",
     evidence: dict[str, object] | None = None,
 ) -> FigureDefinition:
-    selected_indices = _waterfall_indices(len(frames))
+    source_indices = (
+        tuple(available_indices)
+        if available_indices is not None
+        else tuple(index for index, frame in enumerate(frames) if frame is not None)
+    )
+    selected_indices = tuple(
+        source_indices[position]
+        for position in _waterfall_indices(len(source_indices))
+    )
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, object]] = []
     for display_index, frame_index in enumerate(selected_indices):
-        q, intensity = frames[frame_index]
+        frame = frames[frame_index]
+        if frame is None:
+            continue
+        q, intensity = frame
         source_id = f"frame-{frame_index + 1:03d}-data"
         offset = np.log10(np.clip(intensity, np.finfo(float).tiny, None)) + display_index * 1.2
         sources.append(
@@ -729,7 +807,7 @@ def _build_temperature_waterfall(
                 "id": f"series-frame-{frame_index + 1:03d}",
                 "type": "plot_series",
                 "panel_id": "main",
-                "name": f"{temperature:g} C",
+                "name": _temperature_label(temperature, frame_index + 1),
                 "data_ref": source_id,
                 "x_column": "q_nm1",
                 "y_column": "intensity_offset",
@@ -767,37 +845,59 @@ def _build_temperature_waterfall(
 
 def _build_temperature_summary_definitions(
     result: TempSeriesResult,
-    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    temperatures: np.ndarray,
+    frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
     *,
     included_indices: Sequence[int],
     publication_role: str,
     evidence: dict[str, object],
 ) -> tuple[FigureDefinition, ...]:
-    return (
+    definitions: list[FigureDefinition] = [
         _build_temperature_parameters(
             result,
+            temperatures=temperatures,
             included_indices=included_indices,
             publication_role=publication_role,
             evidence=evidence,
         ),
         _build_temperature_heatmap(
-            np.asarray(result.temperatures, dtype=float),
+            temperatures,
             frames,
             included_indices=included_indices,
             publication_role=publication_role,
             evidence=evidence,
         ),
+    ]
+    guinier_definition = _build_temperature_guinier(
+        result,
+        temperatures=temperatures,
+        evidence=evidence,
     )
+    if guinier_definition is not None:
+        definitions.append(guinier_definition)
+    method_evidence_definition = _build_temperature_method_evidence(
+        result,
+        temperatures=temperatures,
+        evidence=evidence,
+    )
+    if method_evidence_definition is not None:
+        definitions.append(method_evidence_definition)
+    return tuple(definitions)
 
 
 def _build_temperature_parameters(
     result: TempSeriesResult,
     *,
+    temperatures: np.ndarray | None = None,
     included_indices: Sequence[int] | None = None,
     publication_role: str = "si",
     evidence: dict[str, object] | None = None,
 ) -> FigureDefinition:
-    all_temperatures = np.ravel(np.asarray(result.temperatures, dtype=float))
+    all_temperatures = (
+        _temperature_array(result.temperatures)
+        if temperatures is None
+        else np.asarray(temperatures, dtype=float).reshape(-1)
+    )
     count = len(all_temperatures)
     indices = tuple(range(count)) if included_indices is None else tuple(included_indices)
     temperatures = all_temperatures[list(indices)]
@@ -900,9 +1000,349 @@ def _build_temperature_parameters(
     )
 
 
+def _build_temperature_guinier(
+    result: TempSeriesResult,
+    *,
+    temperatures: np.ndarray,
+    evidence: dict[str, object] | None = None,
+) -> FigureDefinition | None:
+    """Expose emitted frame Guinier evidence as a diagnostic-only figure."""
+
+    count = len(temperatures)
+    if count == 0 or getattr(result, "Rg_array", None) is None:
+        return None
+
+    try:
+        rg_values = _series_values(result.Rg_array, count, "Rg_array")
+    except (TypeError, ValueError):
+        rg_values = np.full(count, np.nan, dtype=float)
+
+    points = tuple(getattr(result, "temp_points", ()) or ())
+    level_values = list(getattr(result, "guinier_level_array", ()) or ())
+    if len(level_values) != count:
+        level_values = [
+            getattr(points[index], "guinier_level", None)
+            if index < len(points)
+            else None
+            for index in range(count)
+        ]
+
+    source_indices: list[int | None] = []
+    reason_values: list[str | None] = []
+    normalized_levels: list[str] = []
+    for index in range(count):
+        point = points[index] if index < len(points) else None
+        source_index = getattr(point, "source_index", None)
+        try:
+            source_index = int(source_index)
+        except (TypeError, ValueError, OverflowError):
+            source_index = None
+        if source_index is not None and source_index < 0:
+            source_index = None
+        source_indices.append(source_index)
+
+        level = str(level_values[index] or "Unusable")
+        normalized_levels.append(level)
+        reasons = getattr(point, "guinier_reason_codes", None)
+        if isinstance(reasons, str):
+            reason_values.append(reasons or None)
+        elif isinstance(reasons, (list, tuple)):
+            reason_values.append("|".join(str(reason) for reason in reasons) or None)
+        else:
+            reason_values.append(None)
+
+    sequence = getattr(result, "guinier_sequence_evidence", None)
+    sequence_level = sequence.get("level") if isinstance(sequence, Mapping) else None
+    sequence_reasons = sequence.get("reason_codes", ()) if isinstance(sequence, Mapping) else ()
+    if isinstance(sequence_reasons, str):
+        sequence_reasons = [sequence_reasons]
+    elif isinstance(sequence_reasons, (list, tuple)):
+        sequence_reasons = [str(reason) for reason in sequence_reasons]
+    else:
+        sequence_reasons = []
+
+    source_id = "temperature-guinier-data"
+    plot_source_id = "temperature-guinier-plot-data"
+    plot_temperatures: list[float] = []
+    plot_rg_values: list[float] = []
+    for temperature, rg_value in zip(temperatures, rg_values):
+        temperature_value = _finite_float_or_none(temperature)
+        rg_numeric = _finite_float_or_none(rg_value)
+        if temperature_value is not None and rg_numeric is not None:
+            plot_temperatures.append(temperature_value)
+            plot_rg_values.append(rg_numeric)
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.guinier",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        title="SAXS Temperature Guinier Evidence",
+        layout=_temperature_guinier_layout(),
+        data_sources=(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("temperature_C", "C"),
+                    DataColumnDefinition("Rg_nm", "nm"),
+                    DataColumnDefinition("source_index", "index", "int64"),
+                    DataColumnDefinition("frame_level", "level", "string"),
+                    DataColumnDefinition("frame_reason_codes", "reason", "string"),
+                ),
+                values={
+                    "temperature_C": _nullable_float_values(temperatures),
+                    "Rg_nm": _nullable_float_values(rg_values),
+                    "source_index": tuple(source_indices),
+                    "frame_level": tuple(normalized_levels),
+                    "frame_reason_codes": tuple(reason_values),
+                },
+            ),
+            FigureDataSourceDefinition(
+                source_id=plot_source_id,
+                columns=(
+                    DataColumnDefinition("temperature_C", "C"),
+                    DataColumnDefinition("Rg_nm", "nm"),
+                ),
+                values={
+                    "temperature_C": tuple(plot_temperatures),
+                    "Rg_nm": tuple(plot_rg_values),
+                },
+            ),
+        ),
+        objects=(_parameter_series(
+            "temperature-rg",
+            "main",
+            plot_source_id,
+            "Rg_nm",
+            "Rg",
+            "#0072B2",
+        ),),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": count},
+            "parameters": {
+                "figure_kind": "guinier_sequence_evidence",
+                "source_ref": "TempSeriesResult.Rg_array",
+                "missing_values_preserved": True,
+                "interpolation": False,
+                "plot_nonfinite_policy": "omit_from_line_only",
+                "sequence_level": str(sequence_level) if sequence_level else None,
+                "sequence_reason_codes": sequence_reasons,
+            },
+            "v2_adapter": "temperature_saxs",
+            **({"evidence": evidence} if evidence is not None else {}),
+        },
+        style_profile="sci_default",
+        publication_role="diagnostic",
+    )
+
+
+def _temperature_guinier_layout() -> FigureLayoutDefinition:
+    return FigureLayoutDefinition(
+        width_in=7.5,
+        height_in=4.5,
+        rows=1,
+        columns=1,
+        panels=(
+            PanelDefinition(
+                panel_id="main",
+                row=0,
+                column=0,
+                x_axis=AxisDefinition(
+                    axis_id="x-guinier",
+                    label="Temperature",
+                    unit="C",
+                ),
+                y_axis=AxisDefinition(
+                    axis_id="y-guinier",
+                    label="Radius of gyration",
+                    unit="nm",
+                ),
+                title="Guinier Rg Sequence",
+            ),
+        ),
+    )
+
+
+def _build_temperature_method_evidence(
+    result: TempSeriesResult,
+    *,
+    temperatures: np.ndarray,
+    evidence: dict[str, object] | None = None,
+) -> FigureDefinition | None:
+    """Project existing per-frame method evidence into a diagnostic figure."""
+
+    count = len(temperatures)
+    points = tuple(getattr(result, "temp_points", ()) or ())
+    if count == 0 or not any(
+        isinstance(getattr(point, "metric_evidence", None), Mapping)
+        and any(
+            isinstance(getattr(point, "metric_evidence", {}).get(metric), Mapping)
+            for metric, _label, _unit, _color in _TEMPERATURE_METHODS
+        )
+        for point in points
+    ):
+        return None
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, object]] = []
+    method_names: list[str] = []
+    for method, label, unit, color in _TEMPERATURE_METHODS:
+        audit_temperatures: list[float | None] = []
+        audit_values: list[float | None] = []
+        source_indices: list[int | None] = []
+        levels: list[str | None] = []
+        reasons: list[str | None] = []
+        plot_temperatures: list[float] = []
+        plot_values: list[float] = []
+        for index, temperature in enumerate(temperatures):
+            point = points[index] if index < len(points) else None
+            payloads = getattr(point, "metric_evidence", None)
+            payload = payloads.get(method) if isinstance(payloads, Mapping) else None
+            value = (
+                _finite_float_or_none(payload.get("value"))
+                if isinstance(payload, Mapping)
+                else None
+            )
+            temperature_value = _finite_float_or_none(temperature)
+            audit_temperatures.append(temperature_value)
+            audit_values.append(value)
+            raw_source_index = getattr(point, "source_index", None)
+            try:
+                source_index = int(raw_source_index)
+            except (TypeError, ValueError, OverflowError):
+                source_index = None
+            if source_index is not None and source_index < 0:
+                source_index = None
+            source_indices.append(source_index)
+            if isinstance(payload, Mapping):
+                raw_level = str(payload.get("level") or "").strip()
+                levels.append(raw_level or None)
+                raw_reasons = payload.get("reason_codes")
+                if isinstance(raw_reasons, str):
+                    reasons.append(raw_reasons or None)
+                elif isinstance(raw_reasons, (list, tuple)):
+                    reasons.append("|".join(str(reason) for reason in raw_reasons) or None)
+                else:
+                    reasons.append(None)
+            else:
+                levels.append(None)
+                reasons.append(None)
+            if temperature_value is not None and value is not None:
+                plot_temperatures.append(temperature_value)
+                plot_values.append(value)
+
+        audit_source_id = f"temperature-method-evidence-{method}"
+        plot_source_id = f"{audit_source_id}-plot"
+        sources.extend(
+            (
+                FigureDataSourceDefinition(
+                    source_id=audit_source_id,
+                    columns=(
+                        DataColumnDefinition("temperature_C", "C"),
+                        DataColumnDefinition("value", unit),
+                        DataColumnDefinition("source_index", "index", "int64"),
+                        DataColumnDefinition("frame_level", "level", "string"),
+                        DataColumnDefinition("frame_reason_codes", "reason", "string"),
+                    ),
+                    values={
+                        "temperature_C": tuple(audit_temperatures),
+                        "value": tuple(audit_values),
+                        "source_index": tuple(source_indices),
+                        "frame_level": tuple(levels),
+                        "frame_reason_codes": tuple(reasons),
+                    },
+                    role="method_evidence_audit",
+                ),
+                FigureDataSourceDefinition(
+                    source_id=plot_source_id,
+                    columns=(
+                        DataColumnDefinition("temperature_C", "C"),
+                        DataColumnDefinition("value", unit),
+                    ),
+                    values={
+                        "temperature_C": tuple(plot_temperatures),
+                        "value": tuple(plot_values),
+                    },
+                    role="method_evidence_plot",
+                ),
+            )
+        )
+        if plot_values:
+            method_names.append(method)
+            objects.append(
+                {
+                    "id": f"temperature-method-{method}",
+                    "type": "plot_series",
+                    "panel_id": method,
+                    "name": label,
+                    "data_ref": plot_source_id,
+                    "x_column": "temperature_C",
+                    "y_column": "value",
+                    "style": {"color": color, "line_width": 0.9},
+                }
+            )
+
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.method_evidence",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        title="SAXS Temperature Method Evidence",
+        layout=_temperature_method_evidence_layout(),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": count},
+            "parameters": {
+                "figure_kind": "method_evidence_diagnostic",
+                "methods": method_names,
+                "missing_values_preserved": True,
+                "interpolation": False,
+                "reclassification": False,
+            },
+            "v2_adapter": "temperature_saxs",
+            **({"evidence": evidence} if evidence is not None else {}),
+        },
+        style_profile="sci_default",
+        publication_role="diagnostic",
+    )
+
+
+def _temperature_method_evidence_layout() -> FigureLayoutDefinition:
+    panels = tuple(
+        PanelDefinition(
+            panel_id=method,
+            row=index // 2,
+            column=index % 2,
+            x_axis=AxisDefinition(
+                axis_id=f"x-{method}",
+                label="Temperature",
+                unit="C",
+            ),
+            y_axis=AxisDefinition(
+                axis_id=f"y-{method}",
+                label=label,
+                unit=unit,
+                ),
+            panel_label=f"({chr(ord('a') + index)})",
+        )
+        for index, (method, label, unit, _color) in enumerate(_TEMPERATURE_METHODS)
+    )
+    return FigureLayoutDefinition(
+        width_in=7.5,
+        height_in=5.5,
+        rows=2,
+        columns=2,
+        panels=panels,
+    )
+
+
 def _build_temperature_heatmap(
     temperatures: np.ndarray,
-    frames: Sequence[tuple[np.ndarray, np.ndarray]],
+    frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
     *,
     included_indices: Sequence[int] | None = None,
     publication_role: str = "si",
@@ -913,8 +1353,15 @@ def _build_temperature_heatmap(
         if included_indices is None
         else tuple(included_indices)
     )
-    selected_temperatures = temperatures[list(indices)]
-    selected_frames = tuple(frames[index] for index in indices)
+    valid_indices = tuple(
+        index for index in indices if frames[index] is not None
+    )
+    selected_temperatures = temperatures[list(valid_indices)]
+    selected_frames = tuple(
+        frames[index]
+        for index in valid_indices
+        if frames[index] is not None
+    )
     q_min = max(float(np.nanmin(q)) for q, _intensity in selected_frames)
     q_max = min(float(np.nanmax(q)) for q, _intensity in selected_frames)
     if not q_min < q_max:
@@ -1105,7 +1552,7 @@ def _series_values(
         if missing_ok:
             return np.full(count, np.nan, dtype=float)
         raise ValueError(f"temperature result array is missing: {name}")
-    array = np.ravel(np.asarray(values, dtype=float))
+    array = _temperature_array(values)
     if len(array) != count:
         raise ValueError(f"temperature result array length differs: {name}")
     return array
@@ -1173,8 +1620,8 @@ def _clean_frame(
     intensities: np.ndarray,
     frame_index: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    q = np.ravel(np.asarray(q_values, dtype=float))
-    intensity = np.ravel(np.asarray(intensities, dtype=float))
+    q = _coerce_numeric_array(q_values)
+    intensity = _coerce_numeric_array(intensities)
     if len(q) != len(intensity):
         raise ValueError(f"temperature frame data lengths differ: {frame_index}")
     mask = np.isfinite(q) & np.isfinite(intensity) & (q > 0) & (intensity > 0)
@@ -1184,6 +1631,19 @@ def _clean_frame(
     intensity = intensity[mask]
     order = np.argsort(q)
     return q[order], intensity[order]
+
+
+def _try_clean_frame(
+    q_values: np.ndarray,
+    intensities: np.ndarray,
+    frame_index: int,
+) -> tuple[tuple[np.ndarray, np.ndarray] | None, str | None]:
+    """Project one legacy frame without aborting its containing series."""
+
+    try:
+        return _clean_frame(q_values, intensities, frame_index), None
+    except (TypeError, ValueError):
+        return None, "figure_profile_unavailable"
 
 
 def _waterfall_indices(frame_count: int) -> tuple[int, ...]:
@@ -1196,3 +1656,26 @@ def _waterfall_indices(frame_count: int) -> tuple[int, ...]:
 
 def _float_values(values: np.ndarray) -> tuple[float, ...]:
     return tuple(float(value) for value in values)
+
+
+def _nullable_float_values(values: np.ndarray) -> tuple[float | None, ...]:
+    return tuple(_finite_float_or_none(value) for value in values)
+
+
+def _temperature_array(values: Any) -> np.ndarray:
+    projected = _coerce_numeric_array(values)
+    projected[~np.isfinite(projected)] = np.nan
+    return projected
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
+
+
+def _temperature_label(value: Any, frame_index: int) -> str:
+    number = _finite_float_or_none(value)
+    return f"{number:g} C" if number is not None else f"Frame {frame_index}"

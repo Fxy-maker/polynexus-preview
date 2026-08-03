@@ -10,10 +10,12 @@ thin, while delegating real analysis work to `polynexus.core.saxs_engine`.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from copy import deepcopy
 from dataclasses import replace
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -54,12 +56,17 @@ from .saxs_engine import (
     export_1d_profile,
     export_strain_series_csv,
     export_temp_series_csv,
+    build_saxs_scientific_acceptance_audit,
 )
 from . import saxs_batch_helpers as _saxs_batch_helpers
 from .saxs_sequence_qa import build_sequence_qa_summary
 from .saxs_result_contract import publish_saxs_result_contract
 from .saxs_export_bundle import SAXSExportBundle, export_saxs_bundle
-from .saxs_engine.processed_profile import ProcessedProfile
+from .saxs_engine.processed_profile import ProcessedProfile, _coerce_numeric_array
+from .saxs_engine.figure_common import frame_views_from_engine
+from .saxs_engine.figure_evidence import (
+    sync_saxs_review_evidence_to_existing_figures,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -77,6 +84,22 @@ def _text_or_empty(value: Any) -> str:
     return "" if value is None else str(value)
 
 
+def _frame_quality_source_kwargs(
+    file_list: List[str], index: int, *, single_source: str = ""
+) -> Dict[str, str]:
+    """Bind a quality report only to an explicitly available frame source."""
+
+    if index < len(file_list):
+        raw_data_ref = str(file_list[index] or "")
+    elif index == 0:
+        raw_data_ref = str(single_source or "")
+    else:
+        raw_data_ref = ""
+    if not raw_data_ref:
+        return {}
+    return {"source_id": f"frame-{index}", "raw_data_ref": raw_data_ref}
+
+
 def _series_metric_evidence_payload(series: Any) -> Dict[str, Any]:
     """Copy an existing series evidence summary for view/persistence transport."""
 
@@ -87,6 +110,59 @@ def _series_metric_evidence_payload(series: Any) -> Dict[str, Any]:
         str(name): deepcopy(summary)
         for name, summary in evidence.items()
     }
+
+
+def _orientation_tracking_rows(value: Any) -> list[dict[str, Any]]:
+    """Flatten detached tracking observations without deriving scientific fields."""
+
+    if not isinstance(value, dict):
+        return []
+    rows: list[dict[str, Any]] = []
+    tracks = value.get("tracks")
+    if not isinstance(tracks, (list, tuple)):
+        return rows
+    for track in tracks:
+        if not isinstance(track, dict):
+            continue
+        track_id = str(track.get("track_id") or "").strip()
+        observations = track.get("observations")
+        if not isinstance(observations, (list, tuple)):
+            continue
+        for observation in observations:
+            if not isinstance(observation, dict):
+                continue
+            q_range = observation.get("q_range_nm1")
+            q_min = q_range[0] if isinstance(q_range, (list, tuple)) and len(q_range) >= 1 else None
+            q_max = q_range[1] if isinstance(q_range, (list, tuple)) and len(q_range) >= 2 else None
+            interval = observation.get("delta_stability_interval")
+            if not isinstance(interval, dict):
+                interval = {}
+            reasons = observation.get("reason_codes")
+            if isinstance(reasons, str):
+                reasons = [reasons]
+            elif not isinstance(reasons, (list, tuple)):
+                reasons = []
+            rows.append(
+                {
+                    "strain_pct": _float_or_none(observation.get("condition_value")),
+                    "source_index": observation.get("frame_source_index"),
+                    "f_Herman": _float_or_none(observation.get("f_reference")),
+                    "f_Herman_raw": _float_or_none(observation.get("f_principal_raw")),
+                    "delta_f_from_zero": _float_or_none(observation.get("delta_f_from_zero")),
+                    "delta_f_stability_lower": _float_or_none(interval.get("lower")),
+                    "delta_f_stability_upper": _float_or_none(interval.get("upper")),
+                    "orientation_q_min_nm1": _float_or_none(q_min),
+                    "orientation_q_max_nm1": _float_or_none(q_max),
+                    "orientation_track_id": track_id,
+                    "orientation_reliability_status": str(
+                        observation.get("reliability_status") or "unavailable"
+                    ),
+                    "orientation_reason_summary": "; ".join(
+                        str(reason).strip() for reason in reasons if str(reason).strip()
+                    ),
+                }
+            )
+    return rows
 
 
 @register_technique("saxs")
@@ -130,6 +206,14 @@ def _series_metric_evidence_payload(series: Any) -> Dict[str, Any]:
     required_polymer_families=["polyolefin", "polyester", "polyamide"],
     accepted_formats=["directory"],
     input_mode="sequence",
+    config_schema={
+        "tensile_axis_deg": {
+            "type": "saxs_tensile_axis",
+            "default": None,
+            "convention": "detector_image_clockwise_deg_v1",
+            "label_key": "CONFIG_SAXS_TENSILE_AXIS",
+        },
+    },
     output_parameters=[
         {"key": "orientation_f", "label": "Herman 取向因子", "format": ".3f"},
         {"key": "void_volume_fraction", "label": "空穴体积分数", "format": ".3f"},
@@ -183,13 +267,16 @@ class SAXSEngine(BaseEngine):
         self._batch_params: List[Dict[str, Any]] = []
         self._temperature_result: Optional[TempSeriesResult] = None
         self._strain_result: Optional[StrainSeriesResult] = None
+        self._mask_edit_candidate: Optional[Dict[str, Any]] = None
 
         self._file_list: List[str] = []
+        self._source_path: str = ""
         self._q_list: List[np.ndarray] = []
         self._I_list: List[np.ndarray] = []
         self._I_merid_list: List[np.ndarray | None] = []
         self._I_equat_list: List[np.ndarray | None] = []
         self._sector_data_list: List[Dict[str, Any] | None] = []
+        self._detector_quality_reports: List[Dict[str, Any] | None] = []
         self._q_pyfai_list: List[np.ndarray] = []
         self._I_pyfai_list: List[np.ndarray] = []
         self._conditions: List[float] = []
@@ -219,9 +306,18 @@ class SAXSEngine(BaseEngine):
         if q is None or raw is None:
             return None
 
-        q_array = np.atleast_1d(np.asarray(q, dtype=float))
-        raw_array = np.atleast_1d(np.asarray(raw, dtype=float))
+        q_array, q_invalid_count = _coerce_numeric_array(q)
+        raw_array, raw_invalid_count = _coerce_numeric_array(raw)
+        q_array = np.atleast_1d(q_array)
+        raw_array = np.atleast_1d(raw_array)
         diagnostics: Dict[str, Any] = {}
+        invalid_numeric_values = {
+            name: count
+            for name, count in (("q", q_invalid_count), ("raw", raw_invalid_count))
+            if count
+        }
+        if invalid_numeric_values:
+            diagnostics["invalid_numeric_values"] = invalid_numeric_values
         if len(q_array) != len(raw_array):
             diagnostics["length_mismatch"] = {
                 "q": len(q_array),
@@ -280,16 +376,119 @@ class SAXSEngine(BaseEngine):
         """Run generic validation and publish the SAXS result contract."""
         base_valid = super()._validate_results()
         publish_saxs_result_contract(self)
+        parameters = getattr(self.result, "parameters", None)
+        if isinstance(parameters, dict) and "scientific_acceptance_audit" in parameters:
+            parameters["scientific_acceptance_audit"] = build_saxs_scientific_acceptance_audit(
+                getattr(self.result, "validation_passed", None),
+                parameters,
+            )
+            self._sync_scientific_acceptance_audit_to_figures(
+                parameters["scientific_acceptance_audit"]
+            )
         return bool(base_valid and self.result.validation_passed)
+
+    def _sync_scientific_acceptance_audit_to_figures(
+        self,
+        audit: Dict[str, Any],
+    ) -> None:
+        """Refresh generated Figure documents with the final validation audit."""
+
+        metadata = getattr(self.result, "metadata", None)
+        manifest_value = metadata.get("figure_manifest") if isinstance(metadata, dict) else None
+        if not manifest_value:
+            return
+
+        manifest_path = Path(str(manifest_value))
+        if not manifest_path.is_file():
+            logger.warning("SAXS figure manifest missing; audit sync skipped: %s", manifest_path)
+            return
+
+        document_paths = tuple((manifest_path.parent / "figures").glob("*/figure.pnfig.json"))
+        if not document_paths:
+            logger.warning("SAXS figure documents missing; audit sync skipped: %s", manifest_path)
+            return
+
+        for document_path in document_paths:
+            try:
+                document = json.loads(document_path.read_text(encoding="utf-8"))
+                recipe = document.get("recipe")
+                evidence = recipe.get("evidence") if isinstance(recipe, dict) else None
+                provenance = (
+                    evidence.get("quality_provenance")
+                    if isinstance(evidence, dict)
+                    else None
+                )
+
+                if not isinstance(provenance, dict):
+                    logger.warning(
+                        "SAXS figure audit provenance missing; audit sync skipped: %s",
+                        document_path,
+                    )
+                    continue
+                provenance["scientific_acceptance_audit"] = deepcopy(audit)
+                document_path.write_text(
+                    json.dumps(document, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            except (OSError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "SAXS figure audit sync failed for %s: %s",
+                    document_path,
+                    exc,
+                )
+
+    def sync_scientific_review_to_figures(
+        self,
+        review_payload: Dict[str, Any] | None,
+    ) -> Dict[str, Any]:
+        """Project a newly saved Workbench review onto existing Figure docs."""
+
+        metadata = getattr(self.result, "metadata", None)
+        manifest_value = (
+            metadata.get("figure_manifest")
+            if isinstance(metadata, dict)
+            else None
+        )
+        if not manifest_value:
+            return {
+                "status": "skipped",
+                "updated_count": 0,
+                "skipped_count": 1,
+                "reason_codes": ["manifest_missing"],
+            }
+        try:
+            return sync_saxs_review_evidence_to_existing_figures(
+                Path(str(manifest_value)),
+                frame_views_from_engine(self),
+                review_payload,
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("SAXS scientific review sync failed: %s", exc)
+            return {
+                "status": "skipped",
+                "updated_count": 0,
+                "skipped_count": 1,
+                "reason_codes": ["review_sync_failed"],
+            }
 
     def run_pipeline(
         self,
         filepath: str,
         output_dir: str = "",
         skip_to: str | None = None,
+        mask_edit_candidate: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Publish SAXS evidence even when load or preprocessing exits early."""
-        result = super().run_pipeline(filepath, output_dir=output_dir, skip_to=skip_to)
+        previous_candidate = self._mask_edit_candidate
+        self._mask_edit_candidate = mask_edit_candidate
+        try:
+            result = super().run_pipeline(
+                filepath,
+                output_dir=output_dir,
+                skip_to=skip_to,
+            )
+        finally:
+            self._mask_edit_candidate = previous_candidate
         publish_saxs_result_contract(self)
         return result
 
@@ -363,6 +562,9 @@ class SAXSEngine(BaseEngine):
         if os.path.isdir(filepath):
             return self._load_directory(filepath)
 
+        self._source_path = str(filepath)
+        self._file_list = []
+
         if filepath.lower().endswith(".edf"):
             self._img, self._header = read_image(filepath)
             if self._img is None:
@@ -393,6 +595,7 @@ class SAXSEngine(BaseEngine):
         return False
 
     def _load_directory(self, dirpath: str) -> bool:
+        self._source_path = ""
         conditions = scan_experiment_dir(dirpath, self.cfg)
         if not conditions:
             self.log("No supported files found in directory")
@@ -405,6 +608,7 @@ class SAXSEngine(BaseEngine):
         self._I_merid_list = []
         self._I_equat_list = []
         self._sector_data_list = []
+        self._detector_quality_reports = []
         self._q_pyfai_list = []
         self._I_pyfai_list = []
         self._file_list = []
@@ -432,12 +636,18 @@ class SAXSEngine(BaseEngine):
                         q, I, _ = read_1d_profile(str(filepath))
                         pp = {"q": q, "Iq": I, "Iq_smooth": I}
                         I_merid, I_equat = None, None
+                        detector_quality_report = None
                     else:
-                        pp = preprocess_pipeline(img, cfg_copy)
+                        pp = preprocess_pipeline(
+                            img,
+                            cfg_copy,
+                            **({"detector_header": header} if header else {}),
+                        )
                         q = pp["q"]
                         I = pp["Iq_smooth"]
                         I_merid = pp.get("Iq_merid_smooth")
                         I_equat = pp.get("Iq_equat_smooth")
+                        detector_quality_report = pp.get("detector_quality_report")
                     sector_data = pp.get("sector_data") if img is not None else None
                     if not isinstance(sector_data, dict):
                         sector_data = None
@@ -447,6 +657,11 @@ class SAXSEngine(BaseEngine):
                     self._I_merid_list.append(I_merid)
                     self._I_equat_list.append(I_equat)
                     self._sector_data_list.append(sector_data)
+                    self._detector_quality_reports.append(
+                        detector_quality_report
+                        if isinstance(detector_quality_report, dict)
+                        else None
+                    )
                     profile = self._processed_profile_from_payload(
                         pp, source="directory_load", filepath=str(filepath)
                     )
@@ -492,6 +707,7 @@ class SAXSEngine(BaseEngine):
                 self._I_merid_list = []
                 self._I_equat_list = []
                 self._sector_data_list = []
+                self._detector_quality_reports = []
                 self._file_list = []
                 self._conditions = []
                 self._condition_keys = []
@@ -507,7 +723,11 @@ class SAXSEngine(BaseEngine):
                         img, header = read_image(edf)
                         cfg_copy = extract_geometry_from_header(header, self.cfg)
                         if img is not None:
-                            pp = preprocess_pipeline(img, cfg_copy)
+                            pp = preprocess_pipeline(
+                                img,
+                                cfg_copy,
+                                **({"detector_header": header} if header else {}),
+                            )
                             self._q_list.append(pp["q"])
                             self._I_list.append(pp["Iq_smooth"])
                             self._I_merid_list.append(pp.get("Iq_merid_smooth"))
@@ -515,6 +735,12 @@ class SAXSEngine(BaseEngine):
                             sector_data = pp.get("sector_data")
                             self._sector_data_list.append(
                                 sector_data if isinstance(sector_data, dict) else None
+                            )
+                            detector_quality_report = pp.get("detector_quality_report")
+                            self._detector_quality_reports.append(
+                                detector_quality_report
+                                if isinstance(detector_quality_report, dict)
+                                else None
                             )
                             q_pf, I_pf = _integrate_pyfai_shadow(img, cfg_copy)
                             self._q_pyfai_list.append(q_pf if len(q_pf) > 0 else np.array([]))
@@ -527,6 +753,7 @@ class SAXSEngine(BaseEngine):
                             self._I_merid_list.append(None)
                             self._I_equat_list.append(None)
                             self._sector_data_list.append(None)
+                            self._detector_quality_reports.append(None)
                             self._q_pyfai_list.append(np.array([]))
                             self._I_pyfai_list.append(np.array([]))
                         profile = self._processed_profile_from_payload(
@@ -633,6 +860,30 @@ class SAXSEngine(BaseEngine):
             self._publish_processed_profile(self._processed_list[0] if self._processed_list else None)
         return len(self._q_list) > 0
 
+    def _quality_source_kwargs(self, index: int) -> Dict[str, str]:
+        return _frame_quality_source_kwargs(
+            self._file_list,
+            index,
+            single_source=self._source_path,
+        )
+
+    def _quality_source_lists(self) -> Dict[str, List[str]]:
+        count = len(self._q_list)
+        if count <= 0:
+            return {}
+        if len(self._file_list) == count:
+            refs = [str(path or "") for path in self._file_list]
+        elif count == 1 and self._source_path:
+            refs = [str(self._source_path)]
+        else:
+            return {}
+        if not any(refs):
+            return {}
+        return {
+            "source_ids": [f"frame-{index}" if ref else "" for index, ref in enumerate(refs)],
+            "raw_data_refs": refs,
+        }
+
     def _parse_strain_from_filename(self, filepath: str) -> float:
         import re
         name = os.path.basename(str(filepath))
@@ -675,7 +926,17 @@ class SAXSEngine(BaseEngine):
                     setattr(self.cfg, attr, getattr(sc, attr))
         self._apply_submodule_defaults()
 
-        pp = preprocess_pipeline(self._img, self.cfg)
+        preprocess_kwargs = {
+            "detector_header": self._header,
+        } if self._header else {}
+        if (
+            not self._file_list
+            and self._condition_type in ("", "static")
+            and self.cfg.experiment_type == "static"
+            and self._mask_edit_candidate is not None
+        ):
+            preprocess_kwargs["mask_edit_candidate"] = self._mask_edit_candidate
+        pp = preprocess_pipeline(self._img, self.cfg, **preprocess_kwargs)
         self._q = pp["q"]
         self._I = pp["Iq"]
         self._I_smooth = pp.get("Iq_smooth", self._I)
@@ -686,6 +947,15 @@ class SAXSEngine(BaseEngine):
         self.result.raw_data["I_smooth"] = self._I_smooth
         self.result.raw_data["img"] = self._img
         self.result.raw_data["sector_data"] = pp.get("sector_data", {})
+        self.result.raw_data["detector_quality_report"] = pp.get(
+            "detector_quality_report"
+        )
+        base_mask = pp.get("mask_edit_base_mask")
+        if base_mask is not None:
+            self.result.raw_data["mask_edit_base_mask"] = np.asarray(
+                base_mask,
+                dtype=bool,
+            ).copy()
         self.result.metadata.update(pp.get("metadata", {}))
         self._publish_processed_profile(
             self._processed_profile_from_payload(pp, source="static_image_preprocess")
@@ -1072,6 +1342,16 @@ class SAXSEngine(BaseEngine):
             experiment_type=str(getattr(self.cfg, "experiment_type", "") or ""),
         )
 
+    def _attach_scientific_acceptance_audit(
+        self,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        payload["scientific_acceptance_audit"] = build_saxs_scientific_acceptance_audit(
+            getattr(self.result, "validation_passed", None),
+            payload,
+        )
+        return payload
+
 
     def _run_temperature_pipeline(self) -> bool:
         temps_valid = [float(v) for v in self._conditions if np.isfinite(v)]
@@ -1086,7 +1366,18 @@ class SAXSEngine(BaseEngine):
 
         for i in range(len(self._q_list)):
             try:
-                analysis = analyze_single(self._q_list[i], self._I_list[i], self.cfg, q_anchor=_prev_q_star)
+                analysis = analyze_single(
+                    self._q_list[i],
+                    self._I_list[i],
+                    self.cfg,
+                    q_anchor=_prev_q_star,
+                    **self._quality_source_kwargs(i),
+                )
+                analysis.raw_detector_quality_report = (
+                    self._detector_quality_reports[i]
+                    if i < len(self._detector_quality_reports)
+                    else None
+                )
                 analysis.condition_value = self._conditions[i] if i < len(self._conditions) else np.nan
                 lp = analysis.long_period
                 if lp is not None and np.isfinite(lp.L_best) and lp.L_best > 0:
@@ -1111,6 +1402,12 @@ class SAXSEngine(BaseEngine):
                 q_list=self._q_list,
                 I_list=self._I_list,
                 cfg=self.cfg,
+                **(
+                    {"detector_quality_reports": self._detector_quality_reports}
+                    if self._detector_quality_reports
+                    else {}
+                ),
+                **self._quality_source_lists(),
             )
         except Exception as exc:
             self.log(f"Temperature window analysis skipped: {exc}")
@@ -1351,6 +1648,12 @@ class SAXSEngine(BaseEngine):
                     I_list=I_use,
                     sector_data_list=self._sector_data_list,
                     cfg=replace(strain_cfg),
+                    **(
+                        {"detector_quality_reports": self._detector_quality_reports}
+                        if self._detector_quality_reports
+                        else {}
+                    ),
+                    **self._quality_source_lists(),
                 )
         except Exception:
             logger.warning("Failed to derive tensile SAXS strain-series evidence.", exc_info=True)
@@ -1363,6 +1666,12 @@ class SAXSEngine(BaseEngine):
                     self._q_list[i], I_use[i], strain_cfg, q_anchor=_prev_q_star,
                     q_pyfai=(q_pf if len(q_pf) > 0 else None),
                     I_pyfai=(I_pf if len(I_pf) > 0 else None),
+                    **self._quality_source_kwargs(i),
+                )
+                analysis.raw_detector_quality_report = (
+                    self._detector_quality_reports[i]
+                    if i < len(self._detector_quality_reports)
+                    else None
                 )
                 analysis.condition_value = self._conditions[i] if i < len(self._conditions) else np.nan
                 lp = analysis.long_period
@@ -1449,6 +1758,9 @@ class SAXSEngine(BaseEngine):
                 if self._strain_result is not None and i < len(getattr(self._strain_result, "strain_points", [])):
                     strain_point = self._strain_result.strain_points[i]
                 f_herman = _float_or_none(getattr(strain_point, "f_herman", np.nan))
+                f_herman_raw = _float_or_none(
+                    getattr(strain_point, "f_herman_raw", np.nan)
+                )
                 phase_name = str(getattr(getattr(strain_point, "phase", None), "name", "") or "").strip().upper()
                 if not phase_name:
                     phase_name = "ELASTIC"
@@ -1493,6 +1805,9 @@ class SAXSEngine(BaseEngine):
                     "Q_star": round(float(Q_raw), 3) if np.isfinite(Q_raw) else None,
                     "Q_rel": Q_rel,
                     "f_Herman": round(f_herman, 4) if f_herman is not None else None,
+                    "f_Herman_raw": (
+                        round(f_herman_raw, 4) if f_herman_raw is not None else None
+                    ),
                     "lc_nm_effective": lc,
                     "la_nm_effective": la,
                     "Xc_effective": phi_c,
@@ -1579,6 +1894,12 @@ class SAXSEngine(BaseEngine):
                         self._q_list[i], self._I_list[i], self.cfg,
                         q_pyfai=(q_pf_s if len(q_pf_s) > 0 else None),
                         I_pyfai=(I_pf_s if len(I_pf_s) > 0 else None),
+                        **self._quality_source_kwargs(i),
+                    )
+                    analysis.raw_detector_quality_report = (
+                        self._detector_quality_reports[i]
+                        if i < len(self._detector_quality_reports)
+                        else None
                     )
                     analysis.condition_value = self._conditions[i] if i < len(self._conditions) else np.nan
                     self._batch_results.append(analysis)
@@ -1685,7 +2006,15 @@ class SAXSEngine(BaseEngine):
         if self._q is None or self._I is None:
             return False
 
-        self._analysis = analyze_single(self._q, self._I, self.cfg)
+        self._analysis = analyze_single(
+            self._q,
+            self._I,
+            self.cfg,
+            **self._quality_source_kwargs(0),
+        )
+        self._analysis.raw_detector_quality_report = self.result.raw_data.get(
+            "detector_quality_report"
+        )
         self._batch_results = [self._analysis]
         self.result.raw_data["q"] = self._analysis.q
         self.result.raw_data["I"] = self._analysis.I
@@ -1697,7 +2026,18 @@ class SAXSEngine(BaseEngine):
         if not self._q_list:
             self.log("No data loaded for temperature analysis")
             return None
-        result = analyze_temperature_series(temperatures=temperatures, q_list=self._q_list, I_list=self._I_list, cfg=self.cfg)
+        result = analyze_temperature_series(
+            temperatures=temperatures,
+            q_list=self._q_list,
+            I_list=self._I_list,
+            cfg=self.cfg,
+            **(
+                {"detector_quality_reports": self._detector_quality_reports}
+                if self._detector_quality_reports
+                else {}
+            ),
+            **self._quality_source_lists(),
+        )
         self._temperature_result = result
         self._results = list(getattr(result, "temp_points", []))
         if output_dir:
@@ -1714,6 +2054,12 @@ class SAXSEngine(BaseEngine):
             I_list=self._I_list,
             sector_data_list=self._sector_data_list,
             cfg=self.cfg,
+            **(
+                {"detector_quality_reports": self._detector_quality_reports}
+                if self._detector_quality_reports
+                else {}
+            ),
+            **self._quality_source_lists(),
         )
         self._strain_result = result
         self._results = list(getattr(result, "strain_points", []))
@@ -1750,6 +2096,13 @@ class SAXSEngine(BaseEngine):
             lc_raw_vals = [float(v) for v in np.ravel(np.asarray(tr.lc_array, dtype=float)) if np.isfinite(v)]
             lc_effective_vals = [float(v) for v in np.ravel(np.asarray(tr.lc_effective_array, dtype=float)) if np.isfinite(v)]
             params: Dict[str, Any] = {"n_temperatures": len(tr.temperatures)}
+            params.update(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                    tr,
+                )
+            )
             metric_evidence = _series_metric_evidence_payload(tr)
             if metric_evidence:
                 params["metric_evidence"] = metric_evidence
@@ -1758,7 +2111,16 @@ class SAXSEngine(BaseEngine):
             )
             if sequence_evidence is not None:
                 params["guinier_sequence_evidence"] = sequence_evidence
-            for field_name in ("detector_quality_report", "orientation_evidence"):
+            rescue_candidates = _saxs_batch_helpers.copy_saxs_quality_evidence(tr).get(
+                "sequence_rescue_candidates"
+            )
+            if rescue_candidates is not None:
+                params["sequence_rescue_candidates"] = rescue_candidates
+            for field_name in (
+                "detector_quality_report",
+                "raw_detector_quality_report",
+                "orientation_evidence",
+            ):
                 copied = _saxs_batch_helpers.copy_saxs_quality_evidence(tr).get(field_name)
                 if copied is not None:
                     params[field_name] = copied
@@ -1786,18 +2148,41 @@ class SAXSEngine(BaseEngine):
                 getattr(tr, "temp_points", ()),
                 source_index_attr="source_index",
             )
-            return self._build_batch_parameters_payload(params, batch_params=batch_rows)
+            payload = self._build_batch_parameters_payload(params, batch_params=batch_rows)
+            payload["scientific_acceptance_audit"] = build_saxs_scientific_acceptance_audit(
+                getattr(getattr(self, "result", None), "validation_passed", None),
+                payload,
+            )
+            return payload
         if self._strain_result is not None:
             sr = self._strain_result
             strains = [float(v) for v in np.asarray(sr.strains, dtype=float) if np.isfinite(v)]
             params: Dict[str, Any] = {"n_strains": len(sr.strains)}
+            params.update(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                    sr,
+                )
+            )
             metric_evidence = _series_metric_evidence_payload(sr)
             if metric_evidence:
                 params["metric_evidence"] = metric_evidence
-            for field_name in ("detector_quality_report", "orientation_evidence"):
+            for field_name in (
+                "detector_quality_report",
+                "raw_detector_quality_report",
+                "orientation_evidence",
+                "q_resolved_orientation_evidence",
+                "orientation_tracking_evidence",
+            ):
                 copied = _saxs_batch_helpers.copy_saxs_quality_evidence(sr).get(field_name)
                 if copied is not None:
                     params[field_name] = copied
+            tracking_rows = _orientation_tracking_rows(
+                params.get("orientation_tracking_evidence")
+            )
+            if tracking_rows:
+                params["_orientation_tracking_rows"] = tracking_rows
             def _first_finite(*values):
                 for value in values:
                     try:
@@ -1835,6 +2220,19 @@ class SAXSEngine(BaseEngine):
                     params["f_Herman_mean"] = round(float(np.mean(valid_f_herman)), 4)
                     params["f_Herman_span"] = round(float(np.max(valid_f_herman) - np.min(valid_f_herman)), 4)
                     params["f_Herman_range"] = f"{np.min(valid_f_herman):.4f}-{np.max(valid_f_herman):.4f}"
+            raw_f_herman = np.asarray(
+                [getattr(point, "f_herman_raw", np.nan) for point in sr.strain_points],
+                dtype=float,
+            )
+            raw_f_herman = raw_f_herman[np.isfinite(raw_f_herman)]
+            if raw_f_herman.size:
+                params["f_Herman_raw_mean"] = round(float(np.mean(raw_f_herman)), 4)
+                params["f_Herman_raw_span"] = round(
+                    float(np.max(raw_f_herman) - np.min(raw_f_herman)), 4
+                )
+                params["f_Herman_raw_range"] = (
+                    f"{np.min(raw_f_herman):.4f}-{np.max(raw_f_herman):.4f}"
+                )
             phase_names: List[str] = []
             phase_counts: Dict[str, int] = {}
             phase_boundary_candidates: List[Dict[str, Any]] = []
@@ -1919,7 +2317,12 @@ class SAXSEngine(BaseEngine):
                 self._batch_params,
                 getattr(sr, "strain_points", ()),
             )
-            return self._build_batch_parameters_payload(params, batch_params=batch_rows)
+            payload = self._build_batch_parameters_payload(params, batch_params=batch_rows)
+            payload["scientific_acceptance_audit"] = build_saxs_scientific_acceptance_audit(
+                getattr(getattr(self, "result", None), "validation_passed", None),
+                payload,
+            )
+            return payload
         if self._batch_params:
             # Temperature/strain results have dedicated branches above.  If
             # neither series result exists, the aligned batch rows are the
@@ -1931,6 +2334,12 @@ class SAXSEngine(BaseEngine):
                         getattr(self.cfg, "experiment_type", "")
                     ),
                 }
+                base_params.update(
+                    _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                        self,
+                        getattr(self, "result", None),
+                    )
+                )
                 metric_evidence = _saxs_batch_helpers.build_static_batch_metric_evidence(
                     self._batch_results,
                 )
@@ -1951,14 +2360,30 @@ class SAXSEngine(BaseEngine):
                             )
                         )
                     aligned_rows.append(aligned)
-                return self._build_batch_parameters_payload(
-                    base_params,
-                    batch_params=aligned_rows,
+                return self._attach_scientific_acceptance_audit(
+                    self._build_batch_parameters_payload(
+                        base_params,
+                        batch_params=aligned_rows,
+                    )
                 )
-            return self._build_batch_parameters_payload()
+            return self._attach_scientific_acceptance_audit(
+                self._build_batch_parameters_payload(
+                    _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                        self,
+                        getattr(self, "result", None),
+                    )
+                )
+            )
         if self._analysis is not None and self._analysis.structure is not None:
             sp = self._analysis.structure
             params: Dict[str, Any] = {}
+            params.update(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                    self._analysis,
+                )
+            )
             if np.isfinite(sp.L):
                 params["L_nm"] = round(float(sp.L), 2)
             if np.isfinite(sp.lc):
@@ -1970,11 +2395,23 @@ class SAXSEngine(BaseEngine):
             if np.isfinite(sp.Q_invariant):
                 params["Q_star"] = round(float(sp.Q_invariant), 4)
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(self._analysis))
-            return params
+            return self._attach_scientific_acceptance_audit(params)
         if self._q is not None and self._I is not None:
-            result = analyze_single(self._q, self._I, self.cfg)
+            result = analyze_single(
+                self._q,
+                self._I,
+                self.cfg,
+                **self._quality_source_kwargs(0),
+            )
             sp = result.structure
             params: Dict[str, Any] = {}
+            params.update(
+                _saxs_batch_helpers.copy_saxs_ai_rescue_evidence(
+                    self,
+                    getattr(self, "result", None),
+                    result,
+                )
+            )
             if sp and np.isfinite(sp.L):
                 params["L_nm"] = round(float(sp.L), 2)
             if sp and np.isfinite(sp.lc):
@@ -1984,7 +2421,7 @@ class SAXSEngine(BaseEngine):
             if sp and np.isfinite(sp.phi_c):
                 params["phi_c"] = round(float(sp.phi_c), 3)
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(result))
-            return params
+            return self._attach_scientific_acceptance_audit(params)
         return {}
 
     def export_bundle(self, output_dir: str) -> SAXSExportBundle:

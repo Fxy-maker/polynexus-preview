@@ -1,15 +1,69 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import numpy as np
 from types import SimpleNamespace
 
 from polynexus.core.engine import get_engine
+import polynexus.core.saxs_batch_helpers as saxs_batch_helpers
 from polynexus.core.saxs_batch_helpers import (
     build_static_batch_metric_evidence,
     copy_saxs_quality_evidence,
 )
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.saxs_output import _result_to_params_dict
+
+
+def _ai_rescue_payload() -> dict[str, object]:
+    return {
+        "saxs_ai_rescue_plan": {
+            "policy_version": "saxs-v1",
+            "candidate_only": True,
+            "candidates": [{"candidate_id": "candidate-1"}],
+        },
+        "saxs_ai_rescue_decision": {
+            "decision": "request_confirmation",
+            "apply_allowed": True,
+            "original_preserved": True,
+        },
+        "saxs_ai_rescue_replay": [
+            {"candidate_id": "candidate-1", "run_status": "not_run", "apply_performed": False}
+        ],
+        "saxs_confirmed_rerun_audit": {
+            "phase": "rolled_back",
+            "apply_performed": False,
+            "rollback_reason": "quality_gate_failed",
+        },
+    }
+
+
+def test_copy_saxs_ai_rescue_evidence_deep_copies_existing_fields() -> None:
+    source = type("Source", (), _ai_rescue_payload())()
+
+    copied = saxs_batch_helpers.copy_saxs_ai_rescue_evidence(source)
+
+    assert copied == _ai_rescue_payload()
+    assert copied["saxs_ai_rescue_plan"] is not source.saxs_ai_rescue_plan
+    copied["saxs_ai_rescue_plan"]["candidates"][0]["candidate_id"] = "changed"  # type: ignore[index]
+    assert source.saxs_ai_rescue_plan["candidates"][0]["candidate_id"] == "candidate-1"
+
+
+def test_copy_saxs_orientation_advisory_evidence_deep_copies_only_detached_report() -> None:
+    source = SimpleNamespace(
+        saxs_orientation_advisory_report={
+            "schema_version": "saxs-orientation-advisory-report-v1",
+            "status": "limited",
+            "candidate_observations": [{"candidate_id": "band-1", "f_reference": 0.42}],
+        },
+        orientation_advisory_context={"candidates": [{"candidate_id": "must-not-copy"}]},
+    )
+
+    copied = saxs_batch_helpers.copy_saxs_orientation_advisory_evidence(source)
+
+    assert copied == {"saxs_orientation_advisory_report": source.saxs_orientation_advisory_report}
+    assert copied["saxs_orientation_advisory_report"] is not source.saxs_orientation_advisory_report
+    copied["saxs_orientation_advisory_report"]["candidate_observations"][0]["candidate_id"] = "changed"
+    assert source.saxs_orientation_advisory_report["candidate_observations"][0]["candidate_id"] == "band-1"
 
 
 def test_saxs_batch_get_parameters_returns_full_batch_payload() -> None:
@@ -221,6 +275,86 @@ def test_saxs_temperature_get_parameters_transports_sequence_evidence() -> None:
     params = engine.get_parameters()
 
     assert params["guinier_sequence_evidence"] == sequence
+
+
+def test_saxs_temperature_get_parameters_transports_detached_rescue_candidates() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
+
+    candidates = [
+        {
+            "candidate_id": "temperature-frame-1-lc-tangent",
+            "kind": "deterministic",
+            "parameters": {
+                "frame_index": 1,
+                "proposed_source": "tangent",
+                "apply_mode": "candidate_only",
+                "preserve_missing_frames": True,
+            },
+            "reason_codes": ["sequence_existing_alternative"],
+            "source": "saxs_temperature.select_lc_sequence_path",
+            "requires_validation": True,
+        }
+    ]
+    before = deepcopy(candidates)
+    engine._temperature_result = TempSeriesResult(  # type: ignore[attr-defined]
+        temperatures=np.asarray([170.0, 180.0]),
+        lc_array=np.asarray([3.0, np.nan]),
+        lc_effective_array=np.asarray([3.0, 3.2]),
+        sequence_rescue_candidates=candidates,
+    )
+
+    params = engine.get_parameters()
+
+    assert params["sequence_rescue_candidates"] == candidates
+    assert params["sequence_rescue_candidates"] is not candidates
+    assert params["sequence_rescue_candidates"][0] is not candidates[0]
+    assert candidates == before
+
+
+def test_saxs_temperature_get_parameters_transports_detached_ai_rescue_evidence() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
+
+    source = _ai_rescue_payload()
+    for key, value in source.items():
+        setattr(engine, key, value)
+    engine._temperature_result = TempSeriesResult(  # type: ignore[attr-defined]
+        temperatures=np.asarray([170.0, 180.0]),
+        lc_array=np.asarray([3.0, 3.1]),
+        lc_effective_array=np.asarray([3.0, 3.1]),
+    )
+
+    params = engine.get_parameters()
+
+    for key, value in source.items():
+        assert params[key] == value
+        assert params[key] is not value
+    params["saxs_ai_rescue_plan"]["candidates"][0]["candidate_id"] = "changed"  # type: ignore[index]
+    assert engine.saxs_ai_rescue_plan["candidates"][0]["candidate_id"] == "candidate-1"
+
+
+def test_saxs_static_get_parameters_transports_ai_rescue_evidence() -> None:
+    engine = get_engine("saxs")
+    assert engine is not None
+
+    from polynexus.core.saxs_engine.core import SAXSResult, StructureParams
+
+    source = _ai_rescue_payload()
+    for key, value in source.items():
+        setattr(engine, key, value)
+    engine._analysis = SAXSResult(  # type: ignore[attr-defined]
+        structure=StructureParams(L=12.0),
+    )
+
+    params = engine.get_parameters()
+
+    assert params["saxs_ai_rescue_decision"] == source["saxs_ai_rescue_decision"]
+    assert params["saxs_ai_rescue_decision"] is not source["saxs_ai_rescue_decision"]
 
 
 def test_saxs_batch_export_row_keeps_status_fields() -> None:
@@ -606,6 +740,7 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                     Q_star_rel=1.0,
                     Q_star_normalized=1.0,
                     f_herman=0.25,
+                    f_herman_raw=0.33,
                     confidence=0.8,
                 ),
                 StrainPointResult(
@@ -613,6 +748,7 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                     phase=StrainPhase.ELASTIC,
                     Q_star_rel=1.0,
                     Q_star_normalized=1.0,
+                    f_herman_raw=0.41,
                     confidence=0.8,
                 ),
             ],
@@ -651,11 +787,16 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
     assert captured["sector_data_list"] is sector_data
     assert engine._batch_params[0]["f_Herman"] == 0.25  # type: ignore[attr-defined]
     assert engine._batch_params[1]["f_Herman"] is None  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["f_Herman_raw"] == 0.33  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["f_Herman_raw"] == 0.41  # type: ignore[attr-defined]
 
     params = engine.get_parameters()
     assert params["f_Herman_mean"] == 0.25
     assert params["f_Herman_span"] == 0.0
     assert params["f_Herman_range"] == "0.2500-0.2500"
+    assert params["f_Herman_raw_mean"] == 0.37
+    assert params["f_Herman_raw_span"] == 0.08
+    assert params["f_Herman_raw_range"] == "0.3300-0.4100"
 
     assert engine.analyze_strain([0.0, 8.0]) is not None
     assert captured["sector_data_list"] is sector_data
@@ -670,14 +811,20 @@ def test_saxs_strain_series_consumes_canonical_2d_sector_payload() -> None:
     intensity = 0.1 + peak
     chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
     I_2d = np.outer(1.0 + 3.0 * np.cos(chi_rad) ** 2, intensity)
-    sector_data = {"I_2d": I_2d, "q_2d": q, "chi_rad": chi_rad, "I_full": intensity}
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi_rad,
+        "I_full": intensity,
+        "support_count": np.ones_like(I_2d),
+    }
 
     result = analyze_strain_series(
         strains=[0.0, 5.0],
         q_list=[q, q],
         I_list=[intensity, intensity],
         sector_data_list=[sector_data, sector_data],
-        cfg=SAXSConfig(smooth_method="none"),
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=0.0),
     )
 
     assert np.isfinite(result.strain_points[0].f_herman)
@@ -694,19 +841,270 @@ def test_saxs_strain_series_passes_configured_orientation_axis_to_core() -> None
     chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
     axis_rad = np.deg2rad(37.0)
     I_2d = np.outer(1.0 + 3.0 * np.cos(chi_rad - axis_rad) ** 2, intensity)
-    sector_data = {"I_2d": I_2d, "q_2d": q, "chi_rad": chi_rad, "I_full": intensity}
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi_rad,
+        "I_full": intensity,
+        "support_count": np.ones_like(I_2d),
+    }
 
     result = analyze_strain_series(
         strains=[0.0, 5.0],
         q_list=[q, q],
         I_list=[intensity, intensity],
         sector_data_list=[sector_data, sector_data],
-        cfg=SAXSConfig(smooth_method="none", orientation_axis_deg=37.0),
+        cfg=SAXSConfig(
+            smooth_method="none",
+            orientation_axis_deg=37.0,
+            tensile_axis_deg=37.0,
+        ),
     )
 
     point = result.strain_points[0]
     assert point.f_herman > 0.3
     assert point.orientation_evidence["fit_evidence"]["orientation_axis_source"] == "configured"
+
+
+def test_saxs_strain_keeps_1d_quality_defects_separate_from_supported_annulus(monkeypatch) -> None:
+    from polynexus.core.saxs_engine import saxs_strain
+    from polynexus.core.saxs_engine.core import (
+        LongPeriodResult,
+        SAXSResult,
+        StructureParams,
+    )
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.1, 1.0, 120)
+    peak = np.exp(-((q - 0.45) / 0.025) ** 2)
+    intensity = 0.1 + peak
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    I_2d = np.outer(1.0 + 3.0 * np.cos(chi_rad) ** 2, intensity)
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi_rad,
+        "I_full": intensity,
+        "support_count": np.ones_like(I_2d),
+    }
+
+    def fake_analyze_single(*_args, **_kwargs):
+        return SAXSResult(
+            long_period=LongPeriodResult(L_best=14.0, L_confidence=0.8),
+            structure=StructureParams(L=14.0, lc=3.0, la=11.0, phi_c=0.25),
+            data_quality_report={
+                "level": "Diagnostic",
+                "low_q_truncated": True,
+                "actions": ["invalid_pairs_dropped"],
+                "reason_codes": ["intensity_nonpositive"],
+            },
+        )
+
+    monkeypatch.setattr(saxs_strain, "analyze_single", fake_analyze_single)
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[sector_data],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=0.0),
+    )
+
+    point = result.strain_points[0]
+    assert np.isfinite(getattr(point, "f_herman_raw", np.nan))
+    assert np.isfinite(point.f_herman)
+    evidence = point.orientation_evidence or {}
+    reasons = evidence.get("reason_codes", ())
+    assert "orientation_low_q_truncated" not in reasons
+    assert "orientation_invalid_pairs_dropped" not in reasons
+    assert point.data_quality_report["low_q_truncated"] is True
+    assert "intensity_nonpositive" in point.data_quality_report["reason_codes"]
+
+
+def test_saxs_strain_transports_support_and_raw_detector_quality_to_analyzer(monkeypatch) -> None:
+    from polynexus.core.saxs_engine import saxs_anisotropy
+    from polynexus.core.saxs_engine.saxs_strain import herman_from_sector_data
+
+    q = np.asarray([0.3, 0.4], dtype=float)
+    chi = np.linspace(-1.0, 1.0, 6)
+    intensity = np.ones((chi.size, q.size), dtype=float)
+    support = np.full_like(intensity, 7.0)
+    raw_report = {"source_kind": "raw_detector", "level": "Trend", "pixel_count": 64}
+    captured = {}
+
+    def fake_analyze(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return SimpleNamespace(
+            f_herman=0.4,
+            f_herman_raw=0.5,
+            f_herman_sub=np.nan,
+            f_herman_eq=np.nan,
+            detector_quality_report=raw_report,
+            orientation_evidence={"level": "Trend", "fit_evidence": {"f_herman": 0.4}},
+            principal_scattering_axis_deg=12.0,
+            tensile_axis_deg=0.0,
+            reference_axis_deg=0.0,
+            reference_axis_kind="tensile_axis",
+        )
+
+    monkeypatch.setattr(saxs_anisotropy, "analyze_anisotropy", fake_analyze)
+    sector_data = {
+        "I_2d": intensity,
+        "q_2d": q,
+        "chi_rad": chi,
+        "I_full": np.mean(intensity, axis=0),
+        "support_count": support,
+        "raw_detector_quality_report": raw_report,
+    }
+
+    result = herman_from_sector_data(sector_data, cfg=SAXSConfig(tensile_axis_deg=0.0))
+
+    assert captured["kwargs"]["support_count"] is support
+    assert captured["kwargs"]["raw_detector_quality"] is raw_report
+    assert result["f"] == 0.4
+    assert result["f_raw"] == 0.5
+
+
+def test_saxs_strain_missing_raw_detector_report_stays_explicitly_unavailable() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import herman_from_sector_data
+
+    q = np.asarray([0.3, 0.4], dtype=float)
+    chi = np.linspace(-1.0, 1.0, 6)
+    intensity = np.ones((chi.size, q.size), dtype=float)
+    intensity[0, 0] = 0.0
+    canonical = {
+        "I_2d": intensity,
+        "q_2d": q,
+        "chi_rad": chi,
+        "I_full": np.mean(intensity, axis=0),
+    }
+    legacy_sector = {
+        "chi": np.linspace(-np.pi / 12, np.pi / 12, 12),
+        "I": np.ones(12),
+        "q": np.linspace(0.2, 0.8, 12),
+    }
+    legacy = {
+        "meridional": legacy_sector,
+        "equatorial": legacy_sector,
+    }
+
+    for payload in (canonical, legacy):
+        result = herman_from_sector_data(
+            payload,
+            cfg=SAXSConfig(tensile_axis_deg=0.0),
+        )
+        raw_report = result["raw_detector_quality_report"]
+        if hasattr(raw_report, "to_dict"):
+            raw_report = raw_report.to_dict()
+        assert raw_report["source_kind"] == "raw_detector"
+        assert raw_report["level"] == "Diagnostic"
+        assert "raw_detector_quality_unavailable" in raw_report["reason_codes"]
+        assert raw_report["nonpositive_pixel_count"] == 0
+
+
+def test_saxs_strain_legacy_sector_payload_keeps_unavailable_support_explicit() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.1, 1.0, 120)
+    intensity = 0.1 + np.exp(-((q - 0.45) / 0.025) ** 2)
+    chi = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    sector_data = {
+        "I_2d": np.outer(1.0 + 3.0 * np.cos(chi) ** 2, intensity),
+        "q_2d": q,
+        "chi_rad": chi,
+        "I_full": intensity,
+    }
+
+    result = analyze_strain_series(
+        [0.0], [q], [intensity], sector_data_list=[sector_data],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=0.0),
+    )
+
+    point = result.strain_points[0]
+    assert np.isfinite(point.f_herman_raw)
+    assert not np.isfinite(point.f_herman)
+    assert "sector_support_unavailable" in point.orientation_evidence["reason_codes"]
+
+
+def test_saxs_strain_legacy_orientation_is_raw_only_without_tensile_axis(monkeypatch) -> None:
+    from polynexus.core.saxs_engine import saxs_strain
+    from polynexus.core.saxs_engine.saxs_strain import StrainPhase, analyze_strain_series
+
+    q = np.linspace(0.2, 0.8, 12)
+    intensity = np.ones_like(q)
+    chi = np.linspace(-np.pi / 12, np.pi / 12, 12)
+    legacy_sector = {"chi": chi, "I": np.ones_like(chi), "q": q}
+
+    monkeypatch.setattr(
+        saxs_strain,
+        "analyze_single",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            long_period=SimpleNamespace(L_best=14.0, L_confidence=0.8, method_used="bragg"),
+            structure=SimpleNamespace(lc=3.0, la=11.0, phi_c=0.25),
+            data_quality_report={"level": "Trend"},
+            metric_evidence={},
+        ),
+    )
+    monkeypatch.setattr(saxs_strain, "scattering_invariant", lambda *args, **kwargs: 1.0)
+    monkeypatch.setattr(
+        saxs_strain,
+        "detect_strain_phase",
+        lambda *_args, **_kwargs: StrainPhase.ELASTIC,
+    )
+    monkeypatch.setattr(
+        saxs_strain,
+        "detect_voids",
+        lambda *_args, **_kwargs: {
+            "has_voids": False,
+            "phi_void": np.nan,
+            "void_ar": np.nan,
+        },
+    )
+
+    result = analyze_strain_series(
+        [0.0], [q], [intensity],
+        sector_data_list=[
+            {"meridional": legacy_sector, "equatorial": legacy_sector}
+        ],
+        cfg=SAXSConfig(tensile_axis_deg=None),
+    )
+
+    point = result.strain_points[0]
+    dataframe = result.to_dataframe()
+    assert np.isfinite(point.f_herman_raw)
+    assert not np.isfinite(point.f_herman)
+    evidence = point.orientation_evidence
+    fit_evidence = evidence["fit_evidence"]
+    assert "legacy_orientation_unavailable" in evidence["reason_codes"]
+    assert "tensile_axis_unknown" in evidence["reason_codes"]
+    assert fit_evidence["feature_kind"] == "legacy_orientation"
+    assert fit_evidence["herman_convention"] == "detector_plane_2d_v1"
+    assert fit_evidence["reference_axis_kind"] == "legacy_principal_axis"
+    assert fit_evidence["orientation_axis_source"] == "legacy_sector_adapter"
+    assert fit_evidence["principal_scattering_axis_deg"] is None
+    assert fit_evidence["isotropic_baseline"] == 0.25
+    import json
+    json.dumps(evidence, allow_nan=False)
+    assert dataframe.iloc[0]["f_Herman"] is None
+
+
+def test_saxs_strain_dataframe_uses_only_effective_herman_value() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import StrainPhase, StrainPointResult, StrainSeriesResult
+
+    result = StrainSeriesResult(
+        strain_points=[
+            StrainPointResult(
+                strain_pct=0.0,
+                phase=StrainPhase.ELASTIC,
+                f_herman=np.nan,
+                f_herman_raw=0.46,
+            )
+        ]
+    )
+
+    dataframe = result.to_dataframe()
+
+    assert dataframe.iloc[0]["f_Herman"] is None
 
 
 def test_saxs_strain_batch_payload_exposes_raw_and_effective_layers() -> None:

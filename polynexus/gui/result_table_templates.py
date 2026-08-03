@@ -94,7 +94,18 @@ _SAXS_STRAIN = ResultTableTemplate(
     hero_fields=(
         ResultFieldSpec("Q_star_rel_mean", "TABLE_FIELD_Q_STAR_REL", digits=4),
         ResultFieldSpec("phi_void_mean", "TABLE_FIELD_VOID_FRACTION", digits=4),
-        ResultFieldSpec("f_Herman_mean", "TABLE_FIELD_HERMAN", digits=4),
+        ResultFieldSpec(
+            "f_Herman_mean",
+            "TABLE_FIELD_HERMAN",
+            digits=4,
+            aliases=("f_Herman",),
+        ),
+        ResultFieldSpec(
+            "f_Herman_raw_mean",
+            "TABLE_FIELD_HERMAN_DIAGNOSTIC",
+            digits=4,
+            aliases=("f_Herman_raw",),
+        ),
         ResultFieldSpec("phase_support_mean", "TABLE_FIELD_PHASE_SUPPORT", digits=3),
     ),
     primary_fields=(
@@ -113,6 +124,27 @@ _SAXS_STRAIN = ResultTableTemplate(
         ),
         ResultFieldSpec("phi_void", "TABLE_FIELD_VOID_FRACTION", digits=4),
         ResultFieldSpec("f_Herman", "TABLE_FIELD_HERMAN", digits=4),
+        ResultFieldSpec(
+            "f_Herman_raw",
+            "TABLE_FIELD_HERMAN_DIAGNOSTIC",
+            digits=4,
+        ),
+        ResultFieldSpec("delta_f_from_zero", "TABLE_FIELD_HERMAN_DELTA", digits=4),
+        ResultFieldSpec(
+            "delta_f_stability_lower",
+            "TABLE_FIELD_HERMAN_STABILITY_LOWER",
+            digits=4,
+        ),
+        ResultFieldSpec(
+            "delta_f_stability_upper",
+            "TABLE_FIELD_HERMAN_STABILITY_UPPER",
+            digits=4,
+        ),
+        ResultFieldSpec("orientation_q_min_nm1", "TABLE_FIELD_ORIENTATION_Q_MIN", "nm^-1", 4),
+        ResultFieldSpec("orientation_q_max_nm1", "TABLE_FIELD_ORIENTATION_Q_MAX", "nm^-1", 4),
+        ResultFieldSpec("orientation_track_id", "TABLE_FIELD_ORIENTATION_TRACK"),
+        ResultFieldSpec("orientation_reliability_status", "TABLE_FIELD_ORIENTATION_RELIABILITY"),
+        ResultFieldSpec("orientation_reason_summary", "TABLE_FIELD_ORIENTATION_REASONS"),
         ResultFieldSpec(
             "phase_name",
             "TABLE_FIELD_STRUCTURE_STAGE",

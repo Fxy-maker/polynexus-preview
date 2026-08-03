@@ -18,20 +18,42 @@ from ..figures.contracts import (
 )
 from .figure_common import (
     SAXSFrameView,
+    _coerce_numeric_array,
     frame_views_from_engine,
     polish_saxs_publication_definitions,
 )
-from .figure_evidence import attach_saxs_figure_evidence
+from .figure_evidence import (
+    attach_saxs_figure_evidence,
+    configured_saxs_1d_review,
+    existing_saxs_acceptance_audit,
+)
+from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
+from polynexus.plotting.sci_style import AXIS_LABELS
+from .figure_detector import build_detector_evidence, detector_capable
 from .figure_eligibility import (
     classify_frame_eligibility,
     crystallinity_panel_eligible,
     invariant_panel_eligible,
     trend_panel_eligible,
 )
+from .figure_selection import select_representative_frames
 
 
 _COLORS = ("#4477AA", "#EE6677", "#228833", "#CCBB44", "#66CCEE", "#AA3377")
 _DIAGNOSTIC_METHODS = ("correlation", "idf", "porod", "guinier", "kratky")
+_STATIC_METHOD_EVIDENCE_METHODS = (
+    ("porod", "Porod", "a.u.", "#0072B2"),
+    ("kratky", "Kratky", "nm^-1", "#009E73"),
+    ("invariant", "Invariant", "a.u.", "#D55E00"),
+    ("lamellar", "Lamellar", "nm", "#CC79A7"),
+)
+
+
+def _static_eligibility(frame: SAXSFrameView):
+    return classify_frame_eligibility(
+        frame,
+        require_explicit_publication_candidate=True,
+    )
 
 
 def _finite_number(value: Any) -> bool:
@@ -39,6 +61,14 @@ def _finite_number(value: Any) -> bool:
         return bool(np.isfinite(float(value)))
     except (TypeError, ValueError):
         return False
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
 
 
 def _parameter(frame: SAXSFrameView, *keys: str) -> Any:
@@ -85,8 +115,8 @@ def _numeric_pairs(
     require_all_finite: bool = True,
 ) -> tuple[tuple[float, ...], tuple[float, ...]] | None:
     try:
-        x = np.asarray(x_values, dtype=float).reshape(-1)
-        y = np.asarray(y_values, dtype=float).reshape(-1)
+        x = _coerce_numeric_array(x_values)
+        y = _coerce_numeric_array(y_values)
     except (TypeError, ValueError):
         return None
     if x.size != y.size or x.size < minimum:
@@ -147,6 +177,8 @@ def _source(
     source_id: str,
     columns: Sequence[tuple[str, str, str]],
     values: Mapping[str, Sequence[Any]],
+    *,
+    role: str = "plot_data",
 ) -> FigureDataSourceDefinition:
     return FigureDataSourceDefinition(
         source_id=source_id,
@@ -155,6 +187,7 @@ def _source(
             for name, unit, dtype in columns
         ),
         values={name: tuple(items) for name, items in values.items()},
+        role=role,
     )
 
 
@@ -259,7 +292,15 @@ def _definition(
     width: float,
     height: float,
     recipe_inputs: Mapping[str, Any],
+    recipe_parameters: Mapping[str, Any] | None = None,
+    v2_adapter: str = "saxs_static",
 ) -> FigureDefinition:
+    parameters: dict[str, Any] = {
+        "source": "completed_analysis",
+        "display_order": int(display_order),
+    }
+    if recipe_parameters:
+        parameters.update(dict(recipe_parameters))
     return FigureDefinition(
         figure_id=figure_id,
         technique="saxs",
@@ -281,13 +322,39 @@ def _definition(
             "module": "polynexus.core.saxs_engine.figure_static",
             "function": "build_static_saxs_figure_definitions",
             "inputs": dict(recipe_inputs),
-            "parameters": {
-                "source": "completed_analysis",
-                "display_order": int(display_order),
-            },
+            "parameters": parameters,
+            **({"v2_adapter": v2_adapter} if v2_adapter else {}),
         },
         style_profile="sci_default",
     )
+
+
+def _profile_projection_quality(frame: SAXSFrameView) -> dict[str, Any] | None:
+    try:
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
+    except (TypeError, ValueError):
+        return None
+    count = min(q.size, intensity.size)
+    q = q[:count]
+    intensity = intensity[:count]
+    finite = np.isfinite(q) & np.isfinite(intensity)
+    retained = finite & (q > 0) & (intensity > 0)
+    finite_count = int(np.count_nonzero(finite))
+    retained_count = int(np.count_nonzero(retained))
+    nonfinite_count = int(count - finite_count)
+    nonpositive_count = int(finite_count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "nonpositive_pair_count": nonpositive_count,
+        "status": (
+            "complete"
+            if nonfinite_count == 0 and nonpositive_count == 0
+            else "partial_invalid"
+        ),
+    }
 
 
 def _append_profile_objects(
@@ -295,14 +362,22 @@ def _append_profile_objects(
     *,
     profile_panel: str,
     lorentz_panel: str,
-) -> tuple[list[FigureDataSourceDefinition], list[dict[str, Any]]]:
+) -> tuple[
+    list[FigureDataSourceDefinition],
+    list[dict[str, Any]],
+    dict[str, dict[str, Any]],
+]:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    projection_quality: dict[str, dict[str, Any]] = {}
     for order, frame in enumerate(frames):
         pairs = _profile_pairs(frame)
         if pairs is None:
             continue
         q, intensity = pairs
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            projection_quality[str(frame.index)] = quality
         source_id = f"static-frame-{frame.index:03d}-profile"
         color = _COLORS[order % len(_COLORS)]
         sources.append(
@@ -355,7 +430,7 @@ def _append_profile_objects(
                     color=color,
                 )
             )
-    return sources, objects
+    return sources, objects, projection_quality
 
 
 def _metric_values(frames: Sequence[SAXSFrameView]) -> dict[str, tuple[Any, ...]]:
@@ -373,7 +448,7 @@ def _build_comparison(frames: Sequence[SAXSFrameView]) -> FigureDefinition | Non
     profile_frames = tuple(frame for frame in frames if _profile_pairs(frame) is not None)
     if len(profile_frames) < 2:
         return None
-    sources, objects = _append_profile_objects(
+    sources, objects, projection_quality = _append_profile_objects(
         profile_frames,
         profile_panel="profiles",
         lorentz_panel="lorentz",
@@ -500,6 +575,7 @@ def _build_comparison(frames: Sequence[SAXSFrameView]) -> FigureDefinition | Non
         width=7.2,
         height=6.0,
         recipe_inputs={"frame_indices": [frame.index for frame in profile_frames]},
+        recipe_parameters={"profile_projection_quality": projection_quality},
     )
 
 
@@ -507,7 +583,7 @@ def _build_sample(frame: SAXSFrameView) -> FigureDefinition | None:
     pairs = _profile_pairs(frame)
     if pairs is None:
         return None
-    sources, objects = _append_profile_objects(
+    sources, objects, projection_quality = _append_profile_objects(
         (frame,),
         profile_panel="profile",
         lorentz_panel="lorentz",
@@ -606,6 +682,7 @@ def _build_sample(frame: SAXSFrameView) -> FigureDefinition | None:
         width=7.2,
         height=5.5,
         recipe_inputs={"frame_index": frame.index},
+        recipe_parameters={"profile_projection_quality": projection_quality},
     )
 
 
@@ -635,7 +712,7 @@ def _supported_lc(frame: SAXSFrameView) -> Any:
 
 
 def _promotable(frame: SAXSFrameView) -> bool:
-    if classify_frame_eligibility(frame).highest_role != "main":
+    if _static_eligibility(frame).highest_role != "main":
         return False
     status = _text_parameter(
         frame,
@@ -661,7 +738,7 @@ def _build_correlation_support(frames: Sequence[SAXSFrameView]) -> FigureDefinit
         (
             frame
             for frame in sorted(frames, key=lambda item: item.index)
-            if classify_frame_eligibility(frame).highest_role != "diagnostic"
+            if _static_eligibility(frame).highest_role != "diagnostic"
             and (_correlation_pairs(frame) is not None or _idf_pairs(frame) is not None)
         ),
         None,
@@ -843,6 +920,268 @@ def _build_diagnostic(frame: SAXSFrameView, method: str) -> FigureDefinition | N
     )
 
 
+def _method_reason_codes(payload: Mapping[str, Any]) -> str | None:
+    raw_reasons = payload.get("reason_codes")
+    if isinstance(raw_reasons, str):
+        return raw_reasons or None
+    if isinstance(raw_reasons, (list, tuple)):
+        return "|".join(str(reason) for reason in raw_reasons) or None
+    return None
+
+
+def _build_static_method_evidence(
+    frames: Sequence[SAXSFrameView],
+) -> FigureDefinition | None:
+    """Project existing static frame metric evidence into a diagnostic figure."""
+
+    if not any(
+        isinstance(getattr(frame.analysis, "metric_evidence", None), Mapping)
+        and any(
+            isinstance(
+                getattr(frame.analysis, "metric_evidence", {}).get(method),
+                Mapping,
+            )
+            for method, _label, _unit, _color in _STATIC_METHOD_EVIDENCE_METHODS
+        )
+        for frame in frames
+    ):
+        return None
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, Any]] = []
+    plot_methods: list[str] = []
+    for method, label, unit, color in _STATIC_METHOD_EVIDENCE_METHODS:
+        audit_indices: list[int | None] = []
+        audit_values: list[float | None] = []
+        source_paths: list[str | None] = []
+        levels: list[str | None] = []
+        reasons: list[str | None] = []
+        plot_indices: list[float] = []
+        plot_values: list[float] = []
+        for frame in frames:
+            payloads = getattr(frame.analysis, "metric_evidence", None)
+            payload = payloads.get(method) if isinstance(payloads, Mapping) else None
+            value = (
+                _finite_float_or_none(payload.get("value"))
+                if isinstance(payload, Mapping)
+                else None
+            )
+            index_value = _finite_float_or_none(frame.index)
+            audit_indices.append(
+                int(index_value) if index_value is not None else None
+            )
+            audit_values.append(value)
+            source_path = str(frame.source_path or "").strip()
+            source_paths.append(source_path or None)
+            if isinstance(payload, Mapping):
+                raw_level = str(payload.get("level") or "").strip()
+                levels.append(raw_level or None)
+                reasons.append(_method_reason_codes(payload))
+            else:
+                levels.append(None)
+                reasons.append(None)
+            if index_value is not None and value is not None:
+                plot_indices.append(index_value)
+                plot_values.append(value)
+
+        audit_source_id = f"static-method-evidence-{method}"
+        plot_source_id = f"{audit_source_id}-plot"
+        sources.append(
+            _source(
+                audit_source_id,
+                (
+                    ("frame_index", "index", "int64"),
+                    ("value", unit, "float64"),
+                    ("source_path", "path", "string"),
+                    ("frame_level", "level", "string"),
+                    ("frame_reason_codes", "reason", "string"),
+                ),
+                {
+                    "frame_index": audit_indices,
+                    "value": audit_values,
+                    "source_path": source_paths,
+                    "frame_level": levels,
+                    "frame_reason_codes": reasons,
+                },
+                role="method_evidence_audit",
+            )
+        )
+        if plot_values:
+            sources.append(
+                _source(
+                    plot_source_id,
+                    (
+                        ("frame_index", "index", "float64"),
+                        ("value", unit, "float64"),
+                    ),
+                    {
+                        "frame_index": plot_indices,
+                        "value": plot_values,
+                    },
+                    role="method_evidence_plot",
+                )
+            )
+            plot_methods.append(method)
+            objects.append(
+                _plot_object(
+                    f"static-method-{method}",
+                    method,
+                    plot_source_id,
+                    "frame_index",
+                    "value",
+                    name=label,
+                    color=color,
+                    chart_kind="scatter",
+                    marker="o",
+                )
+            )
+
+    panels = tuple(
+        _panel(
+            method,
+            index // 2,
+            index % 2,
+            title=label,
+            x_label="Frame index",
+            x_unit="index",
+            y_label=label,
+            y_unit=unit,
+        )
+        for index, (method, label, unit, _color) in enumerate(
+            _STATIC_METHOD_EVIDENCE_METHODS
+        )
+    )
+    return _definition(
+        figure_id="saxs.static.method_evidence",
+        scope="series",
+        category="diagnostic",
+        role="diagnostic",
+        title="Static SAXS Method Evidence",
+        display_order=150,
+        panels=panels,
+        sources=sources,
+        objects=objects,
+        rows=2,
+        columns=2,
+        width=7.5,
+        height=5.5,
+        recipe_inputs={"frame_count": len(frames)},
+        recipe_parameters={
+            "figure_kind": "method_evidence_diagnostic",
+            "methods": [
+                method for method, _label, _unit, _color in _STATIC_METHOD_EVIDENCE_METHODS
+            ],
+            "plot_methods": plot_methods,
+            "sequence_axis": "frame_index",
+            "source_mapping": "static_frame_order",
+            "missing_values_preserved": True,
+            "interpolation": False,
+            "reclassification": False,
+        },
+        v2_adapter="saxs_static",
+    )
+
+
+def _detector_heatmap_object(
+    item: Any,
+    panel_id: str,
+) -> dict[str, Any]:
+    return {
+        "id": f"detector-pattern-{item.frame.index:03d}",
+        "type": "heatmap",
+        "panel_id": panel_id,
+        "data_ref": item.source.source_id,
+        "x_column": "pixel_x",
+        "y_column": "pixel_y",
+        "z_column": "log_intensity",
+        "allow_partial_detector_grid": True,
+        "style": {"cmap": "magma", "colorbar_label": "log10(counts)"},
+    }
+
+
+def _build_detector_figure(
+    frames: Sequence[SAXSFrameView],
+) -> FigureDefinition | None:
+    if not frames or not detector_capable(frames):
+        return None
+    selection = select_representative_frames(
+        frames,
+        maximum=3,
+        minimum_separation=2,
+    )
+    frame_by_index = {frame.index: frame for frame in frames}
+    selected_frames = tuple(frame_by_index[index] for index in selection.indices)
+    evidence, failures = build_detector_evidence(selected_frames)
+    if not evidence:
+        return None
+
+    panels: list[PanelDefinition] = []
+    objects: list[dict[str, Any]] = []
+    for ordinal, item in enumerate(evidence):
+        panel_id = f"detector-{item.frame.index:03d}"
+        panels.append(
+            PanelDefinition(
+                panel_id=panel_id,
+                row=0,
+                column=ordinal,
+                x_axis=AxisDefinition(
+                    f"{panel_id}-x",
+                    AXIS_LABELS["detector_x"],
+                    unit="pixel",
+                ),
+                y_axis=AxisDefinition(
+                    f"{panel_id}-y",
+                    AXIS_LABELS["detector_y"],
+                    unit="pixel",
+                    reversed=True,
+                ),
+                title="",
+                panel_label=f"({chr(97 + ordinal)})",
+            )
+        )
+        objects.append(_detector_heatmap_object(item, panel_id))
+
+    included_indices = [frame.index for frame in frames]
+    parameters = {
+        "source_capability": "detector_2d",
+        "included_frame_indices": included_indices,
+        "representative_indices": list(selection.indices),
+        "representative_reasons": dict(selection.reasons),
+        "representative_selection_source": selection.source,
+        "source_path_by_frame": {
+            str(frame.index): frame.source_path for frame in frames
+        },
+        "selected_detector_source_paths": {
+            str(frame.index): frame.source_path for frame in selected_frames
+        },
+        "detector_failures": dict(failures),
+        "detector_projection_quality": {
+            str(item.frame.index): item.projection_quality for item in evidence
+        },
+    }
+    return _definition(
+        figure_id="saxs.static.detector.2d",
+        scope="series" if len(frames) > 1 else "frame",
+        category="diagnostic",
+        role="diagnostic",
+        title="Static SAXS detector evidence",
+        display_order=30,
+        panels=panels,
+        sources=tuple(item.source for item in evidence),
+        objects=tuple(objects),
+        rows=1,
+        columns=len(panels),
+        width=max(4.2, 3.2 * len(panels)),
+        height=3.2,
+        recipe_inputs={
+            "source_paths": [frame.source_path for frame in frames],
+            "selected_frame_indices": list(selection.indices),
+        },
+        recipe_parameters=parameters,
+        v2_adapter="saxs_static",
+    )
+
+
 def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefinition, ...]:
     """Build deterministic static figures from immutable views of emitted data."""
 
@@ -881,6 +1220,33 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
                     display_order=20,
                 )
             )
+    elif frames:
+        # A frame without publication authorization still remains reviewable.
+        # Preserve its measured profile as SI rather than dropping the entire
+        # Static evidence pack when no diagnostic transform is available.
+        profile_frame = next(
+            (frame for frame in frames if _profile_pairs(frame) is not None),
+            None,
+        )
+        if profile_frame is not None:
+            profile = _build_sample(profile_frame)
+            if profile is not None:
+                definitions.append(
+                    replace(
+                        profile,
+                        figure_id="saxs.static.profile.si",
+                        category="supplementary",
+                        publication_role="si",
+                        title=f"Static SAXS supplementary profile: {profile_frame.label}",
+                        display_order=20,
+                    )
+                )
+    detector = _build_detector_figure(frames)
+    if detector is not None:
+        definitions.append(detector)
+    method_evidence = _build_static_method_evidence(frames)
+    if method_evidence is not None:
+        definitions.append(method_evidence)
     for frame in frames:
         for method in _DIAGNOSTIC_METHODS:
             diagnostic = _build_diagnostic(frame, method)
@@ -898,13 +1264,35 @@ def build_static_saxs_figure_definitions(engine_state: Any) -> tuple[FigureDefin
             ),
         )
     )
+    if ordered and not any(item.publication_role == "main" for item in ordered):
+        downgraded: list[FigureDefinition] = []
+        for item in ordered:
+            recipe = dict(item.recipe)
+            parameters = dict(recipe.get("parameters", {}))
+            parameters.update(
+                {
+                    "no_publication_ready_figure": True,
+                    "no_publication_ready_reason": (
+                        "static_frame_publication_authorization_missing"
+                    ),
+                }
+            )
+            recipe["parameters"] = parameters
+            downgraded.append(replace(item, recipe=recipe))
+        ordered = tuple(downgraded)
     polished = polish_saxs_publication_definitions(
         tuple(_ensure_display_order(item) for item in ordered)
     )
     return attach_saxs_figure_evidence(
         polished,
         frames,
-        mode="static",
+            mode="static",
+            ai_rescue=copy_saxs_ai_rescue_evidence(
+                engine_state,
+                getattr(engine_state, "result", None),
+            ),
+            acceptance_audit=existing_saxs_acceptance_audit(engine_state),
+            scientific_review=configured_saxs_1d_review(engine_state),
     )
 
 

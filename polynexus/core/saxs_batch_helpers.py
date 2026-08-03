@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
@@ -20,9 +21,50 @@ _QUALITY_EVIDENCE_FIELDS = (
     "guinier_evidence",
     "metric_evidence",
     "detector_quality_report",
+    "raw_detector_quality_report",
     "orientation_evidence",
+    "q_resolved_orientation_evidence",
+    "orientation_tracking_evidence",
     "guinier_sequence_evidence",
+    "sequence_rescue_candidates",
 )
+
+_AI_RESCUE_EVIDENCE_FIELDS = (
+    "saxs_ai_rescue_plan",
+    "saxs_ai_rescue_decision",
+    "saxs_ai_rescue_replay",
+    "saxs_confirmed_rerun_audit",
+    "saxs_candidate_reference_resolution",
+)
+
+_ORIENTATION_ADVISORY_EVIDENCE_FIELDS = (
+    "saxs_orientation_advisory_report",
+)
+
+
+def _detached_evidence(value: Any) -> Any:
+    """Detach DTOs while preserving the JSON contract used by persistence."""
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        try:
+            return _detached_evidence(to_dict())
+        except Exception:
+            return None
+    if isinstance(value, Mapping):
+        return {
+            str(key): _detached_evidence(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_detached_evidence(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return _detached_evidence(value.tolist())
+    if isinstance(value, np.generic):
+        return _detached_evidence(value.item())
+    return deepcopy(value)
 
 
 def batch_metric_evidence_scope(mode_or_experiment_type: Any) -> str:
@@ -49,7 +91,39 @@ def copy_saxs_quality_evidence(value: Any) -> Dict[str, Any]:
     for field in _QUALITY_EVIDENCE_FIELDS:
         item = getattr(value, field, None)
         if item is not None:
-            payload[field] = deepcopy(item)
+            payload[field] = _detached_evidence(item)
+    return payload
+
+
+def copy_saxs_ai_rescue_evidence(*sources: Any) -> Dict[str, Any]:
+    """Copy existing AI rescue audit fields without interpreting them."""
+
+    payload: Dict[str, Any] = {}
+    for field in _AI_RESCUE_EVIDENCE_FIELDS:
+        for source in sources:
+            if source is None:
+                continue
+            item = getattr(source, field, None)
+            if item is not None:
+                if field == "saxs_candidate_reference_resolution" and not isinstance(item, Mapping):
+                    continue
+                payload[field] = deepcopy(item)
+                break
+    return payload
+
+
+def copy_saxs_orientation_advisory_evidence(*sources: Any) -> Dict[str, Any]:
+    """Copy a detached advisory report without exposing its source context."""
+
+    payload: Dict[str, Any] = {}
+    for field in _ORIENTATION_ADVISORY_EVIDENCE_FIELDS:
+        for source in sources:
+            if source is None:
+                continue
+            item = getattr(source, field, None)
+            if isinstance(item, Mapping):
+                payload[field] = _detached_evidence(item)
+                break
     return payload
 
 
@@ -110,10 +184,16 @@ def build_static_batch_2d_quality_evidence(analyses: Any) -> Dict[str, Dict[str,
         [frame.get("orientation_evidence") for frame in copied_frames],
         source_ref="saxs_static_batch.orientation_evidence",
     )
+    raw_detector = build_series_detector_quality_report(
+        [frame.get("raw_detector_quality_report") for frame in copied_frames],
+        source_ref="saxs_static_batch.raw_detector_quality_report",
+    )
     if detector is not None:
         payload["detector_quality_report"] = detector
     if orientation is not None:
         payload["orientation_evidence"] = orientation
+    if raw_detector is not None:
+        payload["raw_detector_quality_report"] = raw_detector
     return payload
 
 

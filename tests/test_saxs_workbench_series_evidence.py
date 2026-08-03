@@ -5,6 +5,7 @@ from copy import deepcopy
 import numpy as np
 
 from polynexus.core.saxs import SAXSEngine
+from polynexus.core.saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.saxs_strain import StrainSeriesResult
 from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
@@ -44,6 +45,121 @@ def _series_params() -> dict:
     }
 
 
+def test_saxs_workbench_reports_ai_rescue_audit_as_advisory_only() -> None:
+    params = {
+        **_series_params(),
+        "saxs_ai_rescue_plan": {
+            "policy_version": "saxs-v1",
+            "automation_state": "shadow",
+            "candidate_only": True,
+            "candidates": [{"candidate_id": "candidate-1"}],
+        },
+        "saxs_ai_rescue_decision": {
+            "decision": "request_confirmation",
+            "apply_allowed": True,
+            "original_preserved": True,
+        },
+        "saxs_ai_rescue_replay": [
+            {"candidate_id": "candidate-1", "run_status": "not_run", "apply_performed": False}
+        ],
+        "saxs_confirmed_rerun_audit": {
+            "phase": "rolled_back",
+            "physical_gate_status": "pass",
+            "quality_gate_status": "fail",
+            "rollback_reason": "quality_gate_failed",
+            "apply_performed": False,
+        },
+    }
+
+    presentation = build_saxs_results_presentation(
+        params,
+        submodule="temperature",
+        language="en",
+    )
+
+    assert "candidate-1" in presentation.risk_text
+    assert "request_confirmation" in presentation.risk_text
+    assert "rolled_back" in presentation.risk_text
+    assert "quality_gate_failed" in presentation.risk_text
+    assert "deterministic" in presentation.next_text.lower()
+    assert "physical" in presentation.next_text.lower()
+    assert "accepted" not in presentation.risk_text.lower()
+    assert "applied" not in presentation.risk_text.lower()
+    assert "physically valid" not in presentation.risk_text.lower()
+
+
+def test_saxs_workbench_ignores_empty_and_malformed_ai_rescue_evidence() -> None:
+    presentation = build_saxs_results_presentation(
+        {
+            **_series_params(),
+            "saxs_ai_rescue_plan": [],
+            "saxs_ai_rescue_decision": "request_confirmation",
+            "saxs_ai_rescue_replay": [{"run_status": "not_run"}, None],
+            "saxs_confirmed_rerun_audit": {"apply_performed": False},
+            "saxs_candidate_reference_resolution": [None],
+        },
+        submodule="temperature",
+        language="en",
+    )
+
+    assert "AI rescue" not in presentation.risk_text
+
+
+def test_shared_ai_evidence_copy_preserves_candidate_reference_resolution() -> None:
+    resolution = {
+        "mode": "temperature",
+        "status": "available",
+        "resolved": [
+            {
+                "candidate_id": "candidate-1",
+                "kind": "deterministic",
+                "parameters": {"proposed_value_nm": 8.0},
+            }
+        ],
+        "unresolved_ids": [],
+        "reason_codes": [],
+    }
+    source = type("Source", (), {"saxs_candidate_reference_resolution": resolution})()
+
+    copied = copy_saxs_ai_rescue_evidence(source)
+
+    assert copied["saxs_candidate_reference_resolution"] == resolution
+    assert copied["saxs_candidate_reference_resolution"] is not resolution
+
+
+def test_saxs_workbench_reports_candidate_reference_resolution_as_advisory() -> None:
+    params = {
+        **_series_params(),
+        "saxs_candidate_reference_resolution": {
+            "mode": "temperature",
+            "status": "available",
+            "resolved": [
+                {
+                    "candidate_id": "candidate-1",
+                    "kind": "deterministic",
+                    "parameters": {"proposed_value_nm": 8.0},
+                }
+            ],
+            "unresolved_ids": ["candidate-unknown"],
+            "reason_codes": ["candidate_not_found"],
+        },
+    }
+
+    presentation = build_saxs_results_presentation(
+        params,
+        submodule="saxs.temperature",
+        language="en",
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "candidate-1" in review_text
+    assert "candidate-unknown" in review_text
+    assert "candidate_not_found" in review_text
+    assert "validation" in review_text.lower()
+    assert "8.0" not in review_text
+    assert "physically valid" not in review_text.lower()
+
+
 def test_workbench_renders_temperature_guinier_sequence_diagnostics():
     params = _series_params()
     params["guinier_sequence_evidence"] = {
@@ -67,6 +183,65 @@ def test_workbench_renders_temperature_guinier_sequence_diagnostics():
     assert "source indices" in review_text
     assert "guinier_sequence_missing_frames" in review_text
     assert "physical pass" not in review_text.lower()
+
+
+def test_workbench_renders_existing_rescue_candidates_as_candidate_only_review():
+    params = _series_params()
+    params["sequence_rescue_candidates"] = [
+        {
+            "candidate_id": "temperature-frame-1-lc-tangent",
+            "kind": "deterministic",
+            "parameters": {
+                "frame_index": 1,
+                "axis_name": "temperature",
+                "axis_value": 180.0,
+                "proposed_source": "tangent",
+                "proposed_value_nm": 3.2,
+                "apply_mode": "candidate_only",
+                "preserve_missing_frames": True,
+            },
+            "reason_codes": ["sequence_existing_alternative"],
+            "source": "saxs_temperature.select_lc_sequence_path",
+            "requires_validation": True,
+        }
+    ]
+    before = deepcopy(params)
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "rescue candidate" in review_text.lower()
+    assert "1" in review_text
+    assert "frame=1" in review_text
+    assert "source=tangent" in review_text
+    assert "candidate_only" in review_text
+    assert "requires validation" in review_text.lower()
+    assert "deterministic re-analysis" in review_text.lower()
+    assert "applied" not in review_text.lower()
+    assert "accepted" not in review_text.lower()
+    assert "physically valid" not in review_text.lower()
+    assert params == before
+
+
+def test_workbench_ignores_missing_or_malformed_rescue_candidates_and_localizes():
+    params = {
+        **_series_params(),
+        "sequence_rescue_candidates": [None, "malformed", {}],
+    }
+    before = deepcopy(params)
+
+    english = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+    chinese = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="zh"
+    )
+
+    assert "rescue candidate" not in (english.risk_text + english.next_text).lower()
+    assert "救援候选" not in (chinese.risk_text + chinese.next_text)
+    assert params == before
 
 
 def test_temperature_get_parameters_transports_existing_series_evidence_without_mutation():
@@ -189,6 +364,84 @@ def test_complete_series_evidence_is_trend_capped_in_review_text():
     assert "Trend" in review_text
     assert "Quantitative" not in review_text
     assert not presentation.risk_text
+
+
+def test_condition_axis_defects_are_visible_without_replacing_full_diagnostics():
+    params = _series_params()
+    params["metric_evidence"]["porod"] = {
+        **_series_metric_summary(frame_count=4),
+        "condition_axis": {
+            "condition_name": "temperature_C",
+            "condition_values": [20.0, 20.0, 19.0, None],
+            "invalid_condition_indices": [3],
+            "duplicate_condition_indices": [0, 1],
+            "nonmonotonic_condition_indices": [1, 2],
+            "status": "diagnostic",
+        },
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "Porod" in review_text
+    assert "temperature_C" in review_text
+    assert "condition axis" in review_text
+    assert "invalid=1" in review_text
+    assert "duplicate=2" in review_text
+    assert "non-monotonic=2" in review_text
+    assert "positions=[0, 1, 2, 3]" in review_text
+    assert "physical pass" not in review_text.lower()
+    metric_column = next(
+        index
+        for index, column in enumerate(presentation.diagnostics.columns)
+        if column.key == "metric_evidence"
+    )
+    diagnostics = presentation.diagnostics.rows[-1][metric_column].display
+    assert "condition_values" in diagnostics
+    assert "invalid_condition_indices" in diagnostics
+    assert "nonmonotonic_condition_indices" in diagnostics
+
+
+def test_ordered_condition_axis_does_not_add_workbench_risk():
+    params = _series_params()
+    params["metric_evidence"]["porod"]["condition_axis"] = {
+        "condition_name": "temperature_C",
+        "condition_values": [20.0, 40.0],
+        "invalid_condition_indices": [],
+        "duplicate_condition_indices": [],
+        "nonmonotonic_condition_indices": [],
+        "status": "ordered",
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="en"
+    )
+
+    assert presentation.risk_text == ""
+    assert "condition axis" not in presentation.next_text.lower()
+
+
+def test_condition_axis_review_text_is_localized():
+    params = _series_params()
+    params["metric_evidence"]["porod"]["condition_axis"] = {
+        "condition_name": "temperature_C",
+        "condition_values": [],
+        "invalid_condition_indices": [],
+        "duplicate_condition_indices": [],
+        "nonmonotonic_condition_indices": [],
+        "status": "empty",
+    }
+
+    presentation = build_saxs_results_presentation(
+        params, submodule="saxs.temperature", language="zh"
+    )
+    review_text = presentation.risk_text + " " + presentation.next_text
+
+    assert "条件轴" in review_text
+    assert "诊断" in review_text
+    assert "temperature_C" in review_text
 
 
 def test_static_batch_evidence_uses_batch_quality_wording_and_keeps_diagnostics():

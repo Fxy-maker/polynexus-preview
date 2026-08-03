@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from .i18n import tr
 from .analysis_results_table_service import build_analysis_results_presentation
 from .joint_results_table_service import build_joint_results_presentation
 from .result_table_models import HeroMetric, ResultTableSection
+from .scientific_review_presentation import ScientificReviewDisplay, scientific_review_display
 from .results_workbench_profiles import profile_for
 from .saxs_results_table_service import build_saxs_results_presentation
 
@@ -34,6 +35,7 @@ class ResultsTableModel:
     diagnostic_section: ResultTableSection | None = None
     risk_text: str = ""
     next_text: str = ""
+    scientific_review: ScientificReviewDisplay = field(default_factory=ScientificReviewDisplay, compare=False)
     profile: Any = None
 
 
@@ -136,7 +138,14 @@ def build_results_table_model(
     technique: str = "",
     submodule: str = "",
     language: str = "en",
+    review_source: Any = None,
 ) -> ResultsTableModel:
+    review_display = scientific_review_display(
+        params if review_source is None else review_source,
+        technique=technique,
+        submodule=submodule,
+        language=language,
+    )
     if isinstance(params, dict) and len(params) > 1 and all(isinstance(v, dict) for v in params.values()) and not any(
         str(k).startswith("_") for k in params
     ):
@@ -169,6 +178,7 @@ def build_results_table_model(
             copy_enabled=True,
             sortable=True,
             summary_kind="multi_sample",
+            scientific_review=review_display,
         )
 
     if str(technique or "").strip().lower() == "saxs":
@@ -208,6 +218,7 @@ def build_results_table_model(
                 risk_text=presentation.risk_text,
                 next_text=presentation.next_text,
                 profile=profile_for(presentation.kind, language=language),
+                scientific_review=review_display,
             )
 
     normalized_technique = str(technique or "").strip().lower()
@@ -231,6 +242,7 @@ def build_results_table_model(
             risk_text=presentation.risk_text,
             next_text=presentation.next_text,
             profile=profile_for("joint", language=language),
+            scientific_review=review_display,
         )
 
     if normalized_technique in _ANALYSIS_SUBMODULES and _analysis_submodule_supported(
@@ -270,6 +282,7 @@ def build_results_table_model(
                     risk_text=presentation.risk_text,
                     next_text=presentation.next_text,
                     profile=profile_for(presentation.kind, language=language),
+                    scientific_review=review_display,
                 )
 
     batch_frames = params.get("batch_frames", 0) if isinstance(params, dict) else 0
@@ -305,6 +318,7 @@ def build_results_table_model(
             copy_enabled=True,
             sortable=True,
             summary_kind="batch",
+            scientific_review=review_display,
         )
 
     items = flatten_params_fn(params)
@@ -322,6 +336,7 @@ def build_results_table_model(
         copy_enabled=has_items,
         sortable=False,
         summary_kind="single",
+        scientific_review=review_display,
     )
 
 

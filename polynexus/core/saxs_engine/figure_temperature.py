@@ -17,8 +17,18 @@ from ..figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
-from .figure_common import SAXSFrameView, frame_views_from_engine
-from .figure_evidence import attach_saxs_figure_evidence
+from .figure_common import (
+    SAXSFrameView,
+    _coerce_numeric_array,
+    frame_views_from_engine,
+)
+from .figure_evidence import (
+    attach_saxs_figure_evidence,
+    configured_saxs_1d_review,
+    existing_saxs_acceptance_audit,
+)
+from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
+from .figure_detector import build_detector_evidence, detector_capable
 from .figure_eligibility import (
     classify_frame_eligibility,
     crystallinity_panel_eligible,
@@ -38,6 +48,14 @@ class _ConditionAxis:
     column: str
     label: str
     unit: str
+
+
+_TEMPERATURE_METHODS = (
+    ("porod", "Porod", "a.u.", "#0072B2"),
+    ("kratky", "Kratky", "nm^-1", "#009E73"),
+    ("invariant", "Invariant", "a.u.", "#D55E00"),
+    ("lamellar", "Lamellar", "nm", "#CC79A7"),
+)
 
 
 def _finite_float(value: Any) -> float:
@@ -144,8 +162,8 @@ def _selection_recipe(
 
 def _positive_curve(frame: SAXSFrameView) -> tuple[np.ndarray, np.ndarray] | None:
     try:
-        q = np.asarray(frame.q, dtype=float).reshape(-1)
-        intensity = np.asarray(frame.intensity, dtype=float).reshape(-1)
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
     except (TypeError, ValueError):
         return None
     count = min(q.size, intensity.size)
@@ -164,6 +182,58 @@ def _positive_curve(frame: SAXSFrameView) -> tuple[np.ndarray, np.ndarray] | Non
     if q.size < 2:
         return None
     return q, intensity
+
+
+def _profile_projection_quality(frame: SAXSFrameView) -> dict[str, Any] | None:
+    try:
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
+    except (TypeError, ValueError):
+        return None
+    count = min(q.size, intensity.size)
+    q = q[:count]
+    intensity = intensity[:count]
+    finite = np.isfinite(q) & np.isfinite(intensity)
+    retained = finite & (intensity > 0.0)
+    finite_count = int(np.count_nonzero(finite))
+    retained_count = int(np.count_nonzero(retained))
+    nonfinite_count = int(count - finite_count)
+    nonpositive_intensity_count = int(finite_count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "nonpositive_intensity_pair_count": nonpositive_intensity_count,
+        "status": (
+            "complete"
+            if nonfinite_count == 0 and nonpositive_intensity_count == 0
+            else "partial_invalid"
+        ),
+    }
+
+
+def _trace_projection_quality(
+    payload: Any,
+    x_key: str,
+    y_key: str,
+) -> dict[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        x_values = _coerce_numeric_array(payload.get(x_key, ()))
+        y_values = _coerce_numeric_array(payload.get(y_key, ()))
+    except (TypeError, ValueError):
+        return None
+    count = min(x_values.size, y_values.size)
+    finite = np.isfinite(x_values[:count]) & np.isfinite(y_values[:count])
+    retained_count = int(np.count_nonzero(finite))
+    nonfinite_count = int(count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "status": "complete" if nonfinite_count == 0 else "partial_nonfinite",
+    }
 
 
 def _regular_heatmap_source(
@@ -244,15 +314,23 @@ def _q_star_source(
 def _representative_profile_content(
     frames_by_index: Mapping[int, SAXSFrameView],
     selection: RepresentativeFrameSelection,
-) -> tuple[list[FigureDataSourceDefinition], list[dict[str, Any]]]:
+) -> tuple[
+    list[FigureDataSourceDefinition],
+    list[dict[str, Any]],
+    dict[str, dict[str, Any]],
+]:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    projection_quality: dict[str, dict[str, Any]] = {}
     colors = ("#0072B2", "#D55E00", "#009E73", "#E69F00", "#56B4E9", "#CC79A7")
     for order, index in enumerate(selection.indices):
         frame = frames_by_index[index]
         curve = _positive_curve(frame)
         if curve is None:
             continue
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            projection_quality[str(frame.index)] = quality
         source_id = f"saxs-temperature-profile-{index:03d}"
         sources.append(
             _source(
@@ -281,7 +359,7 @@ def _representative_profile_content(
                 },
             }
         )
-    return sources, objects
+    return sources, objects, projection_quality
 
 
 def _lamellar_metrics_content(
@@ -484,6 +562,186 @@ def _avrami_gate(engine: Any, axis: _ConditionAxis) -> tuple[dict[str, Any], Map
     return {"eligible": True, "reason": "valid_time_axis_avrami_parameters"}, avrami
 
 
+def _temperature_source_index(point: Any) -> int | None:
+    raw_index = getattr(point, "source_index", None)
+    if isinstance(raw_index, bool) or not isinstance(raw_index, (int, np.integer)):
+        return None
+    source_index = int(raw_index)
+    return source_index if source_index >= 0 else None
+
+
+def _temperature_point_for_frame(frame: SAXSFrameView, series: Any) -> Any | None:
+    """Bind one emitted temperature point only when source identity is unique."""
+
+    points = getattr(series, "temp_points", ()) if series is not None else ()
+    matches = [
+        point
+        for point in points
+        if _temperature_source_index(point) == int(frame.index)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _method_reason_codes(payload: Mapping[str, Any]) -> str | None:
+    raw_reasons = payload.get("reason_codes")
+    if isinstance(raw_reasons, str):
+        return raw_reasons or None
+    if isinstance(raw_reasons, (list, tuple)):
+        return "|".join(str(reason) for reason in raw_reasons) or None
+    return None
+
+
+def _build_temperature_method_evidence(
+    frames: Sequence[SAXSFrameView],
+    series: Any,
+    axis: _ConditionAxis,
+) -> FigureDefinition | None:
+    """Project existing temperature method evidence without reanalysis."""
+
+    if axis.kind != "temperature":
+        return None
+    points = getattr(series, "temp_points", ()) if series is not None else ()
+    if not any(
+        isinstance(getattr(point, "metric_evidence", None), Mapping)
+        and any(
+            isinstance(getattr(point, "metric_evidence", {}).get(method), Mapping)
+            for method, _label, _unit, _color in _TEMPERATURE_METHODS
+        )
+        for point in points
+    ):
+        return None
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, Any]] = []
+    plot_methods: list[str] = []
+    for method, label, unit, color in _TEMPERATURE_METHODS:
+        audit_conditions: list[float | None] = []
+        audit_values: list[float | None] = []
+        source_indices: list[int | None] = []
+        levels: list[str | None] = []
+        reasons: list[str | None] = []
+        plot_conditions: list[float] = []
+        plot_values: list[float] = []
+        for frame in frames:
+            point = _temperature_point_for_frame(frame, series)
+            payloads = getattr(point, "metric_evidence", None)
+            payload = payloads.get(method) if isinstance(payloads, Mapping) else None
+            value = (
+                _finite_float(payload.get("value"))
+                if isinstance(payload, Mapping)
+                else np.nan
+            )
+            condition = _condition_value(frame)
+            audit_conditions.append(condition if np.isfinite(condition) else None)
+            audit_values.append(float(value) if np.isfinite(value) else None)
+            source_indices.append(_temperature_source_index(point) if point is not None else None)
+            if isinstance(payload, Mapping):
+                level = str(payload.get("level") or "").strip()
+                levels.append(level or None)
+                reasons.append(_method_reason_codes(payload))
+            else:
+                levels.append(None)
+                reasons.append(None)
+            if np.isfinite(condition) and np.isfinite(value):
+                plot_conditions.append(condition)
+                plot_values.append(float(value))
+
+        audit_source_id = f"saxs-temperature-method-evidence-{method}"
+        plot_source_id = f"{audit_source_id}-plot"
+        sources.extend(
+            (
+                _source(
+                    audit_source_id,
+                    (
+                        _column(axis.column, axis.unit),
+                        _column("value", unit),
+                        _column("source_index", "index", "int64"),
+                        _column("frame_level", "level", "string"),
+                        _column("frame_reason_codes", "reason", "string"),
+                    ),
+                    {
+                        axis.column: audit_conditions,
+                        "value": audit_values,
+                        "source_index": source_indices,
+                        "frame_level": levels,
+                        "frame_reason_codes": reasons,
+                    },
+                    role="method_evidence_audit",
+                ),
+                _source(
+                    plot_source_id,
+                    (
+                        _column(axis.column, axis.unit),
+                        _column("value", unit),
+                    ),
+                    {axis.column: plot_conditions, "value": plot_values},
+                    role="method_evidence_plot",
+                ),
+            )
+        )
+        if plot_values:
+            plot_methods.append(method)
+            objects.append(
+                {
+                    "id": f"temperature-method-{method}",
+                    "type": "plot_series",
+                    "name": label,
+                    "panel_id": method,
+                    "data_ref": plot_source_id,
+                    "x_column": axis.column,
+                    "y_column": "value",
+                    "chart_kind": "line",
+                    "style": {"color": color, "line_width": 0.9},
+                }
+            )
+
+    panels = tuple(
+        PanelDefinition(
+            panel_id=method,
+            row=index // 2,
+            column=index % 2,
+            x_axis=_condition_sci_axis(f"{method}-condition", axis),
+            y_axis=AxisDefinition(f"{method}-value", label, unit=unit),
+            panel_label=f"({chr(ord('a') + index)})",
+        )
+        for index, (method, label, unit, _color) in enumerate(_TEMPERATURE_METHODS)
+    )
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.method_evidence",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        publication_role="diagnostic",
+        title="Temperature SAXS method evidence",
+        layout=FigureLayoutDefinition(
+            width_in=7.5,
+            height_in=5.5,
+            rows=2,
+            columns=2,
+            panels=panels,
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_temperature",
+            "function": "build_temperature_figure_definitions",
+            "condition_axis": axis.column,
+            "parameters": {
+                "figure_kind": "method_evidence_diagnostic",
+                "methods": [method for method, _label, _unit, _color in _TEMPERATURE_METHODS],
+                "plot_methods": plot_methods,
+                "source_mapping": "unique_temperature_point_source_index",
+                "missing_values_preserved": True,
+                "interpolation": False,
+                "reclassification": False,
+            },
+            "v2_adapter": "temperature_saxs",
+        },
+        style_profile="sci_default",
+        display_order=150,
+    )
+
+
 def _build_evolution(
     engine: Any,
     frames: Sequence[SAXSFrameView],
@@ -494,7 +752,7 @@ def _build_evolution(
     heatmap = _regular_heatmap_source(frames, axis)
     q_star = _q_star_source(frames, axis)
     frames_by_index = {frame.index: frame for frame in frames}
-    profile_sources, profile_objects = _representative_profile_content(
+    profile_sources, profile_objects, profile_projection_quality = _representative_profile_content(
         frames_by_index,
         selection,
     )
@@ -623,6 +881,10 @@ def _build_evolution(
             "crystallinity": crystallinity_gate,
             "avrami": dict(avrami_gate),
         },
+        "parameters": {
+            "profile_projection_quality": dict(profile_projection_quality),
+        },
+        "v2_adapter": "temperature_saxs",
     }
     return FigureDefinition(
         figure_id="saxs.temperature.evolution",
@@ -656,12 +918,24 @@ def _build_avrami(
 ) -> FigureDefinition:
     conditions: list[float] = []
     crystallinity: list[Any] = []
+    retained_pair_count = 0
     for frame in frames:
         condition = _condition_value(frame)
         value = _first_final_value(frame, "Xc_effective", "Xc")
         if np.isfinite(condition) and np.isfinite(_finite_float(value)):
+            retained_pair_count += 1
             conditions.append(condition)
             crystallinity.append(value)
+    input_pair_count = len(frames)
+    nonfinite_pair_count = input_pair_count - retained_pair_count
+    avrami_projection_quality = {
+        "input_pair_count": int(input_pair_count),
+        "retained_pair_count": int(retained_pair_count),
+        "nonfinite_pair_count": int(nonfinite_pair_count),
+        "status": (
+            "complete" if nonfinite_pair_count == 0 else "partial_nonfinite"
+        ),
+    }
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
     if len(conditions) >= 2:
@@ -704,8 +978,10 @@ def _build_avrami(
             "n": avrami["n"],
             "k_sn": avrami["k_sn"],
             "t_half_s": avrami["t_half_s"],
+            "avrami_projection_quality": avrami_projection_quality,
         },
         "gate": {"eligible": True, "reason": "valid_time_axis_avrami_parameters"},
+        "v2_adapter": "temperature_saxs",
     }
     return FigureDefinition(
         figure_id="saxs.temperature.avrami",
@@ -746,12 +1022,16 @@ def _build_waterfall(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    projection_quality: dict[str, dict[str, Any]] = {}
     colors = ("#0072B2", "#56B4E9", "#009E73", "#E69F00", "#D55E00", "#CC79A7")
     ordered_frames = sorted(frames, key=lambda frame: (_condition_value(frame), frame.index))
     for order, frame in enumerate(ordered_frames):
         curve = _positive_curve(frame)
         if curve is None:
             continue
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            projection_quality[str(frame.index)] = quality
         source_id = f"saxs-temperature-waterfall-{frame.index:03d}"
         sources.append(
             _source(
@@ -813,9 +1093,121 @@ def _build_waterfall(
             "function": "build_temperature_figure_definitions",
             **_selection_recipe(selection, axis),
             "includes_all_frames": True,
+            "parameters": {
+                "profile_projection_quality": dict(projection_quality),
+            },
+            "v2_adapter": "temperature_saxs",
         },
         style_profile="sci_default",
         display_order=100,
+    )
+
+
+def _build_detector_figure(
+    frames: Sequence[SAXSFrameView],
+    selection: RepresentativeFrameSelection,
+    axis: _ConditionAxis,
+) -> FigureDefinition | None:
+    if not frames or not detector_capable(frames):
+        return None
+    frame_by_index = {frame.index: frame for frame in frames}
+    selected_frames = tuple(frame_by_index[index] for index in selection.indices)
+    evidence, failures = build_detector_evidence(selected_frames)
+    if not evidence:
+        return None
+
+    panels: list[PanelDefinition] = []
+    objects: list[dict[str, Any]] = []
+    for ordinal, item in enumerate(evidence):
+        panel_id = f"detector-{item.frame.index:03d}"
+        condition = _condition_value(item.frame)
+        title = (
+            f"{condition:g} {axis.unit}"
+            if np.isfinite(condition)
+            else item.frame.label
+        )
+        panels.append(
+            PanelDefinition(
+                panel_id=panel_id,
+                row=0,
+                column=ordinal,
+                x_axis=AxisDefinition(
+                    f"{panel_id}-x",
+                    AXIS_LABELS["detector_x"],
+                    unit="pixel",
+                ),
+                y_axis=AxisDefinition(
+                    f"{panel_id}-y",
+                    AXIS_LABELS["detector_y"],
+                    unit="pixel",
+                    reversed=True,
+                ),
+                title=title,
+                panel_label=f"({chr(97 + ordinal)})",
+            )
+        )
+        objects.append(
+            {
+                "id": f"detector-pattern-{item.frame.index:03d}",
+                "type": "heatmap",
+                "panel_id": panel_id,
+                "data_ref": item.source.source_id,
+                "x_column": "pixel_x",
+                "y_column": "pixel_y",
+                "z_column": "log_intensity",
+                "allow_partial_detector_grid": True,
+                "style": {
+                    "cmap": "magma",
+                    "colorbar_label": "log10(counts)",
+                },
+            }
+        )
+
+    parameters = {
+        "source_capability": "detector_2d",
+        "included_frame_indices": [frame.index for frame in frames],
+        "representative_indices": list(selection.indices),
+        "representative_reasons": dict(selection.reasons),
+        "representative_selection_source": selection.source,
+        "source_path_by_frame": {
+            str(frame.index): frame.source_path for frame in frames
+        },
+        "selected_detector_source_paths": {
+            str(frame.index): frame.source_path for frame in selected_frames
+        },
+        "detector_failures": dict(failures),
+        "detector_projection_quality": {
+            str(item.frame.index): item.projection_quality for item in evidence
+        },
+    }
+    return FigureDefinition(
+        figure_id="saxs.temperature.detector.2d",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        publication_role="diagnostic",
+        title="Temperature SAXS detector evidence",
+        layout=FigureLayoutDefinition(
+            width_in=max(4.2, 3.2 * len(panels)),
+            height_in=3.2,
+            rows=1,
+            columns=len(panels),
+            panels=tuple(panels),
+        ),
+        data_sources=tuple(item.source for item in evidence),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_temperature",
+            "function": "build_temperature_figure_definitions",
+            "inputs": {
+                "source_paths": [frame.source_path for frame in frames],
+            },
+            **_selection_recipe(selection, axis),
+            "parameters": parameters,
+            "v2_adapter": "temperature_saxs",
+        },
+        style_profile="sci_default",
+        display_order=30,
     )
 
 
@@ -827,8 +1219,8 @@ def _mapping_curve(
     if not isinstance(payload, Mapping):
         return None
     try:
-        x = np.asarray(payload.get(x_key, ()), dtype=float).reshape(-1)
-        y = np.asarray(payload.get(y_key, ()), dtype=float).reshape(-1)
+        x = _coerce_numeric_array(payload.get(x_key, ()))
+        y = _coerce_numeric_array(payload.get(y_key, ()))
     except (TypeError, ValueError):
         return None
     count = min(x.size, y.size)
@@ -853,7 +1245,13 @@ def _build_selected_evidence(
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
     panels: list[PanelDefinition] = []
+    trace_projection_quality: dict[str, dict[str, Any]] = {}
     if correlation is not None:
+        quality = _trace_projection_quality(
+            getattr(frame.analysis, "correlation", None), "r", "gamma"
+        )
+        if quality is not None:
+            trace_projection_quality["correlation"] = quality
         source_id = f"saxs-temperature-correlation-{frame.index:03d}"
         sources.append(
             _source(
@@ -887,6 +1285,11 @@ def _build_selected_evidence(
             }
         )
     if idf is not None:
+        quality = _trace_projection_quality(
+            getattr(frame.analysis, "idf", None), "r_idf", "idf"
+        )
+        if quality is not None:
+            trace_projection_quality["idf"] = quality
         column = len(panels)
         source_id = f"saxs-temperature-idf-{frame.index:03d}"
         sources.append(
@@ -958,9 +1361,13 @@ def _build_selected_evidence(
             "source_frame_index": frame.index,
             "selection_reason": selection.reasons[frame.index],
             "supported_main_parameters": supported_parameters,
+            "parameters": {
+                "trace_projection_quality": trace_projection_quality,
+            },
             "role_reason": (
                 "supports_main_parameter" if supports_main else "does_not_support_main_parameter"
             ),
+            "v2_adapter": "temperature_saxs",
         },
         style_profile="sci_default",
         display_order=display_order,
@@ -984,6 +1391,9 @@ def build_temperature_figure_definitions(
     axis = _condition_axis(engine)
     avrami_gate, avrami = _avrami_gate(engine, axis)
     definitions: list[FigureDefinition] = []
+    detector = _build_detector_figure(frames, selection, axis)
+    if detector is not None:
+        definitions.append(detector)
     evolution = _build_evolution(
         engine,
         frames,
@@ -998,6 +1408,13 @@ def build_temperature_figure_definitions(
     waterfall = _build_waterfall(frames, selection, axis)
     if waterfall is not None:
         definitions.append(waterfall)
+    method_evidence = _build_temperature_method_evidence(
+        frames,
+        getattr(engine, "_temperature_result", None),
+        axis,
+    )
+    if method_evidence is not None:
+        definitions.append(method_evidence)
     frames_by_index = {frame.index: frame for frame in frames}
     for order, index in enumerate(selection.indices):
         evidence = _build_selected_evidence(
@@ -1015,6 +1432,12 @@ def build_temperature_figure_definitions(
         frames,
         mode="temperature",
         series=getattr(engine, "_temperature_result", None),
+        ai_rescue=copy_saxs_ai_rescue_evidence(
+            engine,
+            getattr(engine, "result", None),
+        ),
+        acceptance_audit=existing_saxs_acceptance_audit(engine),
+        scientific_review=configured_saxs_1d_review(engine),
     )
 
 

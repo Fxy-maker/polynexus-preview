@@ -338,7 +338,10 @@ class MatplotlibFigureRenderer:
                 raise ValueError("heatmap data contains duplicate grid cells")
             seen[row_index, column_index] = True
             matrix[row_index, column_index] = z_value
-        if not seen.all():
+        if (
+            not seen.all()
+            and figure_object.get("allow_partial_detector_grid") is not True
+        ):
             raise ValueError("heatmap data does not form a complete regular grid")
         style = self._style(figure_object)
         image = axis.pcolormesh(
@@ -488,12 +491,15 @@ class MatplotlibFigureRenderer:
             horizontal_alignment=horizontal_alignment,
             vertical_alignment=vertical_alignment,
         )
+        coordinate_space = str(figure_object.get("coordinate_space") or "").lower()
         is_axes_label = is_axes_text_box(figure_object)
         text_kwargs = {
             "wrap": True,
             "clip_on": True,
         } if has_box and not is_axes_label else {}
-        if is_axes_label:
+        if coordinate_space == "xdata_yaxes":
+            text_kwargs["transform"] = axis.get_xaxis_transform()
+        elif is_axes_label:
             text_kwargs["transform"] = axis.transAxes
         return [axis.text(
             x,

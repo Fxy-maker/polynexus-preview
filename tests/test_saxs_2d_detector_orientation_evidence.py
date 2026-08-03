@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 
 from polynexus.core.saxs_engine.saxs_quality_contracts import (
     QualityLevel,
@@ -76,6 +77,29 @@ def test_supported_orientation_evidence_is_trend_and_references_detector_report(
     assert evidence.fit_evidence["pattern_type"] == "fiber"
 
 
+def test_orientation_evidence_preserves_raw_value_when_effective_value_is_blocked():
+    detector = build_detector_quality_report(
+        np.ones((4, 4)), source_kind="sector_map"
+    )
+    payload = {
+        **_orientation_payload(),
+        "f_herman_raw": 0.46,
+        "orientation_reliability_status": "blocked",
+        "orientation_reliability_reason_codes": ["orientation_harmonic_insignificant"],
+    }
+
+    evidence = build_orientation_evidence(
+        payload, detector, applicability="supported", source_ref="synthetic"
+    )
+
+    assert evidence.fit_evidence.get("f_herman_raw") == 0.46
+    assert "f_herman" not in evidence.fit_evidence
+    assert evidence.physical_checks.get("orientation_reliability_status") == "blocked"
+    assert "orientation_harmonic_insignificant" in evidence.reason_codes
+    assert evidence.applicable is False
+    json.dumps(evidence.to_dict(), allow_nan=False)
+
+
 def test_orientation_unknown_or_missing_evidence_degrades_without_fabrication():
     detector = build_detector_quality_report(
         np.ones((4, 4)), source_kind="sector_map"
@@ -114,8 +138,27 @@ def test_anisotropy_result_keeps_legacy_empty_path_and_attaches_json_evidence():
     )
 
     assert result.confidence == 0.0
-    assert result.detector_quality_report["source_kind"] == "sector_map"
+    assert result.detector_quality_report["source_kind"] == "raw_detector"
+    assert "raw_detector_quality_unavailable" in result.detector_quality_report[
+        "reason_codes"
+    ]
     assert result.orientation_evidence["level"] == QualityLevel.UNUSABLE.value
+    json.dumps(result.detector_quality_report, allow_nan=False)
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
+def test_anisotropy_mismatched_q_axis_fails_closed_with_unusable_evidence():
+    I_2d = np.ones((72, 5))
+    q = np.linspace(0.1, 1.0, 10)
+    chi = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    q_1d = np.linspace(0.1, 1.0, 10)
+    I_1d = np.ones(10)
+
+    result = analyze_anisotropy(I_2d, q, chi, q_1d, I_1d)
+
+    assert not np.isfinite(result.f_herman)
+    assert result.orientation_evidence["level"] == QualityLevel.UNUSABLE.value
+    assert "orientation_input_shape_mismatch" in result.orientation_evidence["reason_codes"]
     json.dumps(result.detector_quality_report, allow_nan=False)
     json.dumps(result.orientation_evidence, allow_nan=False)
 
@@ -129,9 +172,30 @@ def _synthetic_azimuthal_input(axis_deg: float) -> tuple[np.ndarray, ...]:
     return np.outer(angular, q_profile), q, chi, q, q_profile
 
 
+@pytest.mark.parametrize("input_index", range(5))
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_anisotropy_nonfinite_required_input_fails_closed(input_index, bad_value):
+    payload = list(_synthetic_azimuthal_input(37.0))
+    payload[input_index] = np.array(payload[input_index], copy=True)
+    payload[input_index].flat[0] = bad_value
+
+    result = analyze_anisotropy(*payload)
+
+    assert result.confidence == 0.0
+    assert not np.isfinite(result.f_herman)
+    assert result.orientation_evidence["level"] == QualityLevel.UNUSABLE.value
+    assert "orientation_input_nonfinite" in result.orientation_evidence["reason_codes"]
+    json.dumps(result.detector_quality_report, allow_nan=False)
+    json.dumps(result.orientation_evidence, allow_nan=False)
+
+
 def test_anisotropy_prefers_explicit_axis_and_uses_detector_plane_weighting():
     payload = _synthetic_azimuthal_input(90.0)
-    result = analyze_anisotropy(*payload, cfg=SAXSConfig(orientation_axis_deg=90.0))
+    result = analyze_anisotropy(
+        *payload,
+        cfg=SAXSConfig(orientation_axis_deg=90.0, tensile_axis_deg=90.0),
+        support_count=np.ones_like(payload[0]),
+    )
 
     assert result.orientation_axis_source == "configured"
     assert result.orientation_axis_deg == 90.0
@@ -148,12 +212,16 @@ def test_anisotropy_auto_detects_arbitrary_in_plane_axis():
             orientation_axis_deg=None,
             orientation_auto_min_strength=0.05,
         ),
+        support_count=np.ones_like(payload[0]),
     )
 
     assert result.orientation_axis_source == "auto_detected"
     assert abs(((result.orientation_axis_deg - 37.0 + 90.0) % 180.0) - 90.0) < 5.0
     assert result.orientation_axis_strength > 0.05
-    assert result.f_herman > 0.5
+    assert result.principal_scattering_axis_deg == result.orientation_axis_deg
+    assert np.isfinite(result.f_herman_raw)
+    assert not np.isfinite(result.f_herman)
+    assert result.orientation_evidence["fit_evidence"]["reference_axis_kind"] == "unknown"
     json.dumps(result.orientation_evidence, allow_nan=False)
 
 
@@ -169,9 +237,53 @@ def test_anisotropy_auto_detection_fails_closed_for_isotropic_profile():
         chi,
         q,
         q_profile,
-        cfg=SAXSConfig(orientation_axis_deg=None),
+        cfg=SAXSConfig(orientation_axis_deg=None, tensile_axis_deg=37.0),
+        support_count=np.ones((chi.size, q.size)),
     )
 
     assert result.orientation_axis_source == "unavailable"
     assert not np.isfinite(result.f_herman)
     assert "orientation_axis_low_strength" in result.orientation_evidence["reason_codes"]
+
+
+def test_weak_noisy_profile_keeps_raw_herman_but_blocks_effective_value():
+    rng = np.random.default_rng(1234)
+    q = np.linspace(0.3, 1.0, 120)
+    q_profile = 0.1 + np.exp(-((q - 0.55) / 0.025) ** 2)
+    chi = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    angular = 1.0 + 0.25 * np.cos(chi - np.deg2rad(37.0)) ** 2
+    angular += rng.normal(0.0, 0.35, size=chi.size)
+    angular = np.clip(angular, 0.02, None)
+    result = analyze_anisotropy(
+        np.outer(angular, q_profile),
+        q,
+        chi,
+        q,
+        q_profile,
+        cfg=SAXSConfig(orientation_axis_deg=None, tensile_axis_deg=37.0),
+        support_count=np.ones((chi.size, q.size)),
+    )
+
+    assert np.isfinite(getattr(result, "f_herman_raw", np.nan))
+    assert not np.isfinite(result.f_herman)
+    assert "orientation_harmonic_insignificant" in result.orientation_evidence["reason_codes"]
+
+
+def test_incomplete_azimuthal_coverage_keeps_raw_herman_but_blocks_effective_value():
+    q = np.linspace(0.3, 1.0, 120)
+    q_profile = 0.1 + np.exp(-((q - 0.55) / 0.025) ** 2)
+    chi = np.linspace(-0.45, 0.45, 24, endpoint=False)
+    angular = 1.0 + 8.0 * np.cos(chi - np.deg2rad(37.0)) ** 2
+    result = analyze_anisotropy(
+        np.outer(angular, q_profile),
+        q,
+        chi,
+        q,
+        q_profile,
+        cfg=SAXSConfig(orientation_axis_deg=None, tensile_axis_deg=37.0),
+        support_count=np.ones((chi.size, q.size)),
+    )
+
+    assert np.isfinite(getattr(result, "f_herman_raw", np.nan))
+    assert not np.isfinite(result.f_herman)
+    assert "orientation_azimuth_coverage_insufficient" in result.orientation_evidence["reason_codes"]

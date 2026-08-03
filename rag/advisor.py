@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
 
 from llm.llm_client import LLMCancelledError, LLMClient
 
@@ -23,7 +25,10 @@ if TYPE_CHECKING:
 ADVISOR_SYSTEM_PROMPT = """You are PolyNexus's constrained tuning advisor.
 Core evidence and versioned policy are authoritative. Choose only allowed actions and,
 for preprocessing, emit only a strict qualitative PreprocessIntent. Never invent or
-write numeric baseline or smoothing parameters. Return exactly one JSON object.
+write numeric baseline or smoothing parameters. For SAXS, candidate references may
+only use exact IDs already present in the current summary context; references are
+diagnostic-only and never execute, rerun, or mutate a configuration. Return exactly
+one JSON object.
 """
 
 
@@ -39,6 +44,41 @@ class Advisor:
         self.llm_client = llm_client or LLMClient()
         self.last_prompt = ""
 
+    def advise_saxs_orientation(
+        self,
+        source: Mapping[str, Any] | dict[str, Any],
+        *,
+        cancel_event: "threading.Event | None" = None,
+    ):
+        """Run the isolated read-only SAXS orientation advisory route."""
+
+        from polynexus.core.saxs_engine.saxs_orientation_advisory import (
+            build_orientation_advisory_context,
+            build_orientation_advisory_report,
+        )
+
+        context = build_orientation_advisory_context(source)
+        prompt = self.prompt_builder.build_saxs_orientation_advisory(context)
+        self.last_prompt = prompt
+        try:
+            try:
+                raw = self.llm_client.chat(
+                    prompt,
+                    system="Return only the exact SAXS orientation advisory JSON schema.",
+                    json_mode=True,
+                    cancel_event=cancel_event,
+                )
+            except TypeError as exc:
+                if "system" not in str(exc):
+                    raise
+                raw = self.llm_client.chat(prompt, json_mode=True, cancel_event=cancel_event)
+            parsed = raw if isinstance(raw, dict) else self._parse_response(str(raw))
+            return build_orientation_advisory_report(context, parsed)
+        except LLMCancelledError:
+            raise
+        except Exception:
+            return build_orientation_advisory_report(context, None)
+
     def advise(
         self,
         eval_case: dict[str, Any],
@@ -47,6 +87,7 @@ class Advisor:
         cancel_event: "threading.Event | None" = None,
     ) -> dict[str, Any]:
         current_sample = self._normalize_case(eval_case)
+        saxs_candidate_ids = self._saxs_candidate_ids(current_sample)
         query = self._query_from_sample(current_sample)
         retrieved = self.retriever.retrieve(
             query,
@@ -88,14 +129,24 @@ class Advisor:
                 )
             parsed = self._parse_response(raw)
             parsed["llm_used"] = not self.llm_client.last_used_mock
+            normalized = self._normalize_advice(
+                parsed,
+                saxs_candidate_ids=saxs_candidate_ids,
+            )
         except LLMCancelledError:
             raise
         except Exception as exc:
             print(f"[Advisor] LLM call failed, falling back to mock: {exc}")
-            parsed = self._mock_response(retrieved, str(exc))
-            parsed["llm_used"] = False
-        parsed["reference_cases"] = parsed.get("reference_cases") or [item["case_id"] for item in retrieved]
-        return self._normalize_advice(parsed)
+            fallback = self._mock_response(retrieved, str(exc))
+            fallback["llm_used"] = False
+            normalized = self._normalize_advice(
+                fallback,
+                saxs_candidate_ids=saxs_candidate_ids,
+            )
+        normalized["reference_cases"] = normalized.get("reference_cases") or [
+            item["case_id"] for item in retrieved
+        ]
+        return normalized
 
     def _normalize_case(self, eval_case: dict[str, Any]) -> dict[str, Any]:
         params = (
@@ -105,6 +156,9 @@ class Advisor:
             or eval_case.get("config_overrides")
             or {}
         )
+        saxs_ai_context = eval_case.get("saxs_ai_context", {})
+        if not isinstance(saxs_ai_context, dict):
+            saxs_ai_context = {}
         return {
             "case_id": eval_case.get("case_id", "unknown"),
             "technique": str(eval_case.get("technique", "unknown")).upper(),
@@ -127,6 +181,7 @@ class Advisor:
             "workspace_context": eval_case.get("workspace_context", {}),
             "analysis_evidence": eval_case.get("analysis_evidence", {}),
             "ir_reference_bands": eval_case.get("ir_reference_bands", {}),
+            "saxs_ai_context": dict(saxs_ai_context),
         }
 
     def _query_from_sample(self, current_sample: dict[str, Any]) -> str:
@@ -135,6 +190,45 @@ class Advisor:
             f"聚合物: {current_sample.get('polymer_name')} | "
             f"参数: {json.dumps(current_sample.get('params', {}), ensure_ascii=False, sort_keys=True)}"
         )
+
+    @staticmethod
+    def _saxs_candidate_ids(current_sample: dict[str, Any]) -> set[str] | None:
+        """Return the only candidate IDs the current SAXS case can reference."""
+
+        if str(current_sample.get("technique", "")).upper() != "SAXS":
+            return None
+        context = current_sample.get("saxs_ai_context", {})
+        if not isinstance(context, dict):
+            return set()
+        if str(context.get("mode", "") or "").strip().lower() != "temperature":
+            return set()
+        series = context.get("series", {})
+        if not isinstance(series, dict):
+            return set()
+        candidates = series.get("sequence_rescue_candidates", [])
+        if not isinstance(candidates, list):
+            return set()
+        return {
+            str(item.get("candidate_id", "")).strip()
+            for item in candidates
+            if isinstance(item, dict) and str(item.get("candidate_id", "")).strip()
+        }
+
+    @staticmethod
+    def _normalize_saxs_candidate_references(
+        value: object,
+        allowed_ids: set[str],
+    ) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        references: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                continue
+            candidate_id = item.strip()
+            if candidate_id in allowed_ids and candidate_id not in references:
+                references.append(candidate_id)
+        return references
 
     # ── JSON response parsing ─────────────────────────────────────────
     @staticmethod
@@ -220,11 +314,18 @@ class Advisor:
             "converge": True,
         }
 
-    def _normalize_advice(self, advice: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_advice(
+        self,
+        advice: dict[str, Any],
+        *,
+        saxs_candidate_ids: set[str] | None = None,
+    ) -> dict[str, Any]:
         assessment = str(advice.get("assessment", "WARN")).upper()
         if assessment not in {"PASS", "WARN", "FAIL"}:
             assessment = "WARN"
         confidence = float(advice.get("confidence", 0.0))
+        if not math.isfinite(confidence):
+            raise ValueError("AI advice confidence must be finite")
         confidence = max(0.0, min(1.0, confidence))
         suggestions = advice.get("suggestions", [])
         if not isinstance(suggestions, list):
@@ -297,6 +398,11 @@ class Advisor:
             "converge": converge,
             "llm_used": bool(advice.get("llm_used", False)),
         }
+        if saxs_candidate_ids is not None or "saxs_candidate_references" in advice:
+            normalized["saxs_candidate_references"] = self._normalize_saxs_candidate_references(
+                advice.get("saxs_candidate_references", []),
+                saxs_candidate_ids or set(),
+            )
         if has_preprocess_request:
             normalized["preprocess_intent"] = preprocess_intent
             normalized["preprocess_intent_error"] = preprocess_intent_error

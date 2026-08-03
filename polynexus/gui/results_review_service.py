@@ -3,19 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
 from .analysis_history_service import (
     ControlledOptimizationReviewParts,
     controlled_optimization_review_parts,
-    ai_tuning_constraint_summary_parts,
     ai_tuning_chain_summary,
-    ai_tuning_stability_summary_parts,
-    batch_fallback_summary_parts,
     gui_coerce_summary_float,
-    gui_display_text,
     gui_display_text_value,
-    gui_format_score_value,
     has_condition_axis_risk,
     has_fallback_conflict_risk,
     quality_flag_summary_text,
@@ -32,22 +27,17 @@ from .analysis_history_service import (
     saxs_strain_summary_text,
     result_review_metric_summary,
 )
-from .i18n import get_language, tr
+from .i18n import get_language, tr, tr_for_language
 from .window_text_helpers import ir_conclusion_state_display as _ir_conclusion_state_display
 from .results_review_text_helpers import (
     _batch_fallback_summary_text,
     _constraint_summary_text,
     _dsc_conclusion_state_display,
     _display_text,
-    _display_text_value,
     _empty_value_text,
     _format_score_value,
     _ir_basis_label_text,
     _stability_summary_text,
-    _waxs_core_summary_text,
-    _waxs_structure_evidence,
-    _waxs_support_snapshot,
-    _waxs_support_summary_text,
     _waxs_temperature_trend_evidence,
     ai_tuning_report_benchmark_text,
     ai_tuning_report_decision_text,
@@ -56,9 +46,47 @@ from .results_review_text_helpers import (
     result_review_constraint_summary_text,
     result_review_ir_temperature_2d_user_summary_lines,
     result_review_stability_summary_text,
-    result_review_waxs_core_text,
-    result_review_waxs_support_text,
 )
+
+__all__ = [
+    "ai_tuning_report_benchmark_text",
+    "ai_tuning_report_decision_text",
+    "ai_tuning_report_summary_text",
+    "result_review_constraint_summary_text",
+    "result_review_stability_summary_text",
+]
+
+
+def _nmr_vendor_axis_text(declaration: Any) -> str:
+    """Format the vendor declaration compactly enough for the review panel."""
+    if not isinstance(declaration, dict):
+        return ""
+    domain = str(declaration.get("domain", "") or "").strip()
+    origin_field = str(declaration.get("origin_field", "") or "").strip()
+    sweep_field = str(declaration.get("sweep_field", "") or "").strip()
+    points_field = str(declaration.get("points_field", "") or "").strip()
+    units = str(declaration.get("units", "") or "").strip()
+    if not domain or not origin_field or not sweep_field or not points_field:
+        return ""
+
+    def compact(value: Any) -> str:
+        if isinstance(value, bool):
+            return str(value).lower()
+        if isinstance(value, (int, float)):
+            return f"{value:g}"
+        return str(value or "").strip()
+
+    status = str(declaration.get("status", "") or "").strip()
+    if status == "declared_not_applied":
+        status = "not applied"
+    dimension = f"{declaration.get('dimension', '')}/{declaration.get('dimension_index', '')}"
+    return (
+        f"{dimension} | {domain} | origin {origin_field}={compact(declaration.get('origin'))} {units} | "
+        f"sweep {sweep_field}={compact(declaration.get('sweep'))} {units} | "
+        f"points {points_field}={compact(declaration.get('points'))} | {status}"
+    )
+
+
 def _dsc_support_block_text(analysis_evidence: dict[str, Any] | None, *, include_measurement: bool) -> str:
     feature = analysis_evidence.get("feature_evidence", {}) if isinstance(analysis_evidence, dict) else {}
     if not isinstance(feature, dict):
@@ -153,8 +181,35 @@ def result_review_ir_support_block_text(
     structure = feature.get("structure_evidence", {}) if isinstance(feature.get("structure_evidence"), dict) else {}
     peak = feature.get("peak_evidence", {}) if isinstance(feature.get("peak_evidence"), dict) else {}
     baseline = feature.get("baseline_evidence", {}) if isinstance(feature.get("baseline_evidence"), dict) else {}
+    mapping = feature.get("mapping_evidence", {}) if isinstance(feature.get("mapping_evidence"), dict) else {}
 
     sections: list[str] = []
+
+    if mapping:
+        semantics = mapping.get("mapping_semantics") if isinstance(mapping.get("mapping_semantics"), dict) else {}
+        axes = semantics.get("spatial_axes") if isinstance(semantics.get("spatial_axes"), dict) else {}
+        x_axis = axes.get("x") if isinstance(axes.get("x"), dict) else {}
+        y_axis = axes.get("y") if isinstance(axes.get("y"), dict) else {}
+        origin = semantics.get("origin") if isinstance(semantics.get("origin"), dict) else {}
+        roi = semantics.get("roi") if isinstance(semantics.get("roi"), dict) else {}
+        serialization = semantics.get("serialization") if isinstance(semantics.get("serialization"), dict) else {}
+        shape = mapping.get("map_shape") if isinstance(mapping.get("map_shape"), (list, tuple)) else []
+        shape_text = "x".join(_display_text(value) for value in shape[:2]) if len(shape) >= 2 else "unknown"
+        mapping_bits = [
+            f"source={_display_text(mapping.get('source_id'))}",
+            f"map={shape_text}",
+            "x=" + "/".join(
+                _display_text(x_axis.get(key)) for key in ("coordinate_role", "physical_axis")
+            ) + f" ({_display_text(x_axis.get('unit'))})",
+            "y=" + "/".join(
+                _display_text(y_axis.get(key)) for key in ("coordinate_role", "physical_axis")
+            ) + f" ({_display_text(y_axis.get('unit'))})",
+            f"origin={_display_text(origin.get('kind'))} ({_display_text(origin.get('x'))}, {_display_text(origin.get('y'))})",
+            f"roi={_display_text(roi.get('kind'))}",
+            f"order={_display_text(serialization.get('order'))}",
+            f"status={_display_text(semantics.get('status'))}",
+        ]
+        sections.append(tr("RESULTS_REVIEW_IR_MAPPING_PROVENANCE", " | ".join(mapping_bits)))
 
     detected_bits: list[str] = []
     if isinstance(peak, dict) and peak:
@@ -407,6 +462,35 @@ def result_review_analysis_evidence_card_text(
         if parts:
             sections.append("IR | " + " ; ".join(parts))
 
+    elif technique_key == "nmr":
+        feature = analysis_evidence.get("feature_evidence", {}) if isinstance(analysis_evidence.get("feature_evidence"), dict) else {}
+        assignment = feature.get("assignment_evidence", {}) if isinstance(feature.get("assignment_evidence"), dict) else {}
+        structure = feature.get("structure_evidence", {}) if isinstance(feature.get("structure_evidence"), dict) else {}
+        axis = feature.get("axis_evidence", {}) if isinstance(feature.get("axis_evidence"), dict) else {}
+        parts = []
+        readiness = structure.get("assignment_readiness") or assignment.get("readiness")
+        if isinstance(readiness, dict) and readiness.get("class"):
+            parts.append(
+                tr_for_language(
+                    "RESULTS_REVIEW_NMR_ASSIGNMENT",
+                    language,
+                    str(readiness["class"]),
+                )
+            )
+        if isinstance(axis, dict) and axis:
+            axis_parts = []
+            for key in ("source", "units", "calibrated"):
+                value = axis.get(key)
+                if value is not None and str(value).strip():
+                    axis_parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
+            if axis_parts:
+                parts.append(tr("RESULTS_REVIEW_NMR_AXIS", " | ".join(axis_parts)))
+            vendor_axis_text = _nmr_vendor_axis_text(axis.get("vendor_declaration"))
+            if vendor_axis_text:
+                parts.append(tr("RESULTS_REVIEW_NMR_VENDOR_AXIS", vendor_axis_text))
+        if parts:
+            sections.append("NMR | " + " ; ".join(parts))
+
     elif technique_key == "dsc":
         dsc_text = result_review_dsc_support_block_text(analysis_evidence, include_measurement=True)
         if dsc_text != _empty_value_text():
@@ -528,6 +612,75 @@ def result_review_round_support_summary_text(
                 )
 
         return " | ".join(parts) if parts else _empty_value_text()
+
+    if technique_key == "nmr":
+        feature = evidence.get("feature_evidence", {}) if isinstance(evidence.get("feature_evidence"), dict) else {}
+        assignment = feature.get("assignment_evidence", {}) if isinstance(feature.get("assignment_evidence"), dict) else {}
+        structure = feature.get("structure_evidence", {}) if isinstance(feature.get("structure_evidence"), dict) else {}
+        axis = feature.get("axis_evidence", {}) if isinstance(feature.get("axis_evidence"), dict) else {}
+
+        parts = []
+        readiness = structure.get("assignment_readiness") or assignment.get("readiness")
+        if isinstance(readiness, dict) and readiness.get("class"):
+            parts.append(
+                tr_for_language(
+                    "RESULTS_REVIEW_NMR_ASSIGNMENT",
+                    language,
+                    str(readiness["class"]),
+                )
+            )
+        assignment_source = str(
+            assignment.get("assignment_source")
+            or assignment.get("assignment_library_source")
+            or ""
+        ).strip()
+        if assignment_source:
+            parts.append(
+                tr_for_language(
+                    "RESULTS_REVIEW_NMR_ASSIGNMENT_SOURCE",
+                    language,
+                    assignment_source,
+                )
+            )
+        if isinstance(axis, dict) and axis:
+            axis_parts = []
+            for key in ("source", "units", "calibrated"):
+                value = axis.get(key)
+                if value is not None and str(value).strip():
+                    axis_parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
+            if axis_parts:
+                parts.append(
+                    tr_for_language(
+                        "RESULTS_REVIEW_NMR_AXIS",
+                        language,
+                        " | ".join(axis_parts),
+                    )
+                )
+            vendor_axis_text = _nmr_vendor_axis_text(axis.get("vendor_declaration"))
+            if vendor_axis_text:
+                parts.append(
+                    tr_for_language(
+                        "RESULTS_REVIEW_NMR_VENDOR_AXIS",
+                        language,
+                        vendor_axis_text,
+                    )
+                )
+        xc_status = str(structure.get("Xc_assignment_status") or "").strip()
+        if xc_status:
+            ready = structure.get("paper_conclusion_ready") is True
+            allowed = isinstance(readiness, dict) and readiness.get("allowed") is True
+            gate = "allowed" if ready and allowed else "blocked"
+            reason = str(readiness.get("reason") or "") if isinstance(readiness, dict) else ""
+            parts.append(
+                tr_for_language(
+                    "RESULTS_REVIEW_NMR_XC_GATE",
+                    language,
+                    gate,
+                    reason or xc_status,
+                )
+            )
+        if parts:
+            return " | ".join(parts)
 
     if technique_key == "dsc":
         support_text = result_review_dsc_support_block_text(evidence, include_measurement=False)
@@ -846,6 +999,8 @@ class ResultReviewPanelTexts:
     boundary_text: str = ""
     joint_text: str = ""
     joint_visible: bool = False
+    ir_support_text: str = ""
+    nmr_support_text: str = ""
     risk_text: str = ""
     next_text: str = ""
     title_text: str = ""
@@ -1152,10 +1307,48 @@ def _panel_joint_text(
     joint_summary = str(joint.get("summary") or "").strip()
     joint_reminder_text = tr(reminder_parts.translation_key, *reminder_parts.args) if reminder_parts else ""
     joint_compare_hint_text = tr(compare_parts.translation_key, *compare_parts.args) if compare_parts else ""
-    joint_parts = [part for part in [joint_summary, joint_reminder_text, joint_compare_hint_text] if part]
+    conclusion = joint.get("joint_conclusion") if isinstance(joint.get("joint_conclusion"), dict) else {}
+    conclusion_class = str(conclusion.get("class") or "").strip()
+    conclusion_reason = str(conclusion.get("reason") or "").strip()
+    conclusion_allowed = conclusion.get("allowed")
+    joint_conclusion_text = ""
+    if conclusion_class or conclusion_reason or conclusion_allowed is not None:
+        joint_conclusion_text = tr(
+            "RESULTS_REVIEW_JOINT_CONCLUSION",
+            conclusion_class or "unknown",
+            str(conclusion_allowed).lower() if isinstance(conclusion_allowed, bool) else str(conclusion_allowed or "unknown"),
+            conclusion_reason or "unspecified",
+        )
+    joint_parts = [
+        part
+        for part in [joint_summary, joint_conclusion_text, joint_reminder_text, joint_compare_hint_text]
+        if part
+    ]
     if not joint_parts:
         return tr("RESULTS_REVIEW_NO_JOINT"), False
     return tr("RESULTS_REVIEW_JOINT", " | ".join(joint_parts)), True
+
+
+def _strip_leading_panel_prefix(text: str, key: str, *, language: str) -> str:
+    """Remove repeated localized panel decoration while preserving the body."""
+    value = str(text or "").strip()
+    if not value:
+        return ""
+
+    language_code = "zh" if str(language or "").strip().lower().startswith("zh") else "en"
+    prefix_languages = (language_code, "en" if language_code == "zh" else "zh")
+    prefixes = tuple(
+        tr_for_language(key, prefix_language, "").rstrip()
+        for prefix_language in prefix_languages
+    )
+    while value:
+        for prefix in prefixes:
+            if prefix and value.startswith(prefix):
+                value = value[len(prefix) :].lstrip()
+                break
+        else:
+            break
+    return value
 
 
 def _panel_risk_text(
@@ -1163,8 +1356,13 @@ def _panel_risk_text(
     history_context,
     *,
     is_controlled_rerun: bool,
+    language: str,
 ) -> str:
-    risk_text = str(validation_summary or "").strip() or tr("RESULTS_REVIEW_NO_RISK")
+    risk_text = _strip_leading_panel_prefix(
+        validation_summary,
+        "RESULTS_REVIEW_RISK",
+        language=language,
+    ) or tr("RESULTS_REVIEW_NO_RISK")
     history = history_context if isinstance(history_context, dict) else {}
     if is_controlled_rerun and history:
         risk_bits = []
@@ -1188,6 +1386,7 @@ def _panel_next_text(
     *,
     fallback_next_text: str,
     is_controlled_rerun: bool,
+    language: str,
 ) -> str:
     tuning = tuning_context if isinstance(tuning_context, dict) else {}
     history = history_context if isinstance(history_context, dict) else {}
@@ -1198,6 +1397,11 @@ def _panel_next_text(
             next_step = str(history.get("next_goal") or "").strip()
     if not next_step:
         next_step = str(fallback_next_text or "").strip()
+    next_step = _strip_leading_panel_prefix(
+        next_step,
+        "RESULTS_REVIEW_NEXT",
+        language=language,
+    )
     if not next_step:
         next_step = tr("RESULTS_REVIEW_NO_NEXT")
     return tr("RESULTS_REVIEW_NEXT", next_step)
@@ -1223,7 +1427,6 @@ def result_review_panel_texts(
     current_confirmed_label = str(snapshot.get("current_confirmed_label") or "").strip()
     measured_text = str(snapshot.get("measured_text") or "").strip()
     validation_summary = str(snapshot.get("validation_summary") or "").strip()
-    current_metrics = snapshot.get("current_metrics") if isinstance(snapshot.get("current_metrics"), dict) else {}
     analysis_evidence = snapshot.get("analysis_evidence") if isinstance(snapshot.get("analysis_evidence"), dict) else {}
     history_context = snapshot.get("history_context") if isinstance(snapshot.get("history_context"), dict) else {}
     tuning_context = snapshot.get("tuning_context") if isinstance(snapshot.get("tuning_context"), dict) else {}
@@ -1292,10 +1495,28 @@ def result_review_panel_texts(
         family_label_fn=family_label_fn,
     )
 
+    ir_support_text = (
+        result_review_ir_support_block_text(analysis_evidence)
+        if technique == "ir"
+        else ""
+    )
+    nmr_support_text = (
+        result_review_round_support_summary_text(
+            analysis_evidence,
+            technique="nmr",
+            language=language,
+        )
+        if technique == "nmr"
+        else ""
+    )
+    if nmr_support_text == _empty_value_text():
+        nmr_support_text = ""
+
     risk_text = _panel_risk_text(
         validation_summary,
         history_context,
         is_controlled_rerun=is_controlled_rerun,
+        language=language,
     )
 
     next_text = _panel_next_text(
@@ -1303,6 +1524,7 @@ def result_review_panel_texts(
         history_context,
         fallback_next_text=fallback_next_text,
         is_controlled_rerun=is_controlled_rerun,
+        language=language,
     )
 
     title_text = tr("RESULTS_REVIEW_TITLE_CONFIRMED") if current_confirmed_label == tr("RESULTS_REVIEW_CONFIRMED") else tr("RESULTS_REVIEW_TITLE")
@@ -1315,6 +1537,8 @@ def result_review_panel_texts(
         boundary_text=boundary_text,
         joint_text=joint_text,
         joint_visible=joint_visible,
+        ir_support_text=ir_support_text,
+        nmr_support_text=nmr_support_text,
         risk_text=risk_text,
         next_text=next_text,
         title_text=title_text,

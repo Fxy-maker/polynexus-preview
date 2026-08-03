@@ -317,7 +317,7 @@ def test_temperature_pipeline_threads_status_fields_into_batch_rows(monkeypatch:
         ),
     }
 
-    def fake_analyze_single(q_arr, i_arr, cfg, q_anchor=None):
+    def fake_analyze_single(q_arr, i_arr, cfg, q_anchor=None, **_kwargs):
         idx = 0 if np.nanmax(i_arr) == 20.0 else 1
         temp = engine._conditions[idx]  # type: ignore[attr-defined]
         return fake_results[temp]
@@ -371,7 +371,11 @@ def test_temperature_pipeline_threads_status_fields_into_batch_rows(monkeypatch:
     )
 
     monkeypatch.setattr(saxs_module, "analyze_single", fake_analyze_single)
-    monkeypatch.setattr(saxs_module, "analyze_temperature_series", lambda temperatures, q_list, I_list, cfg: temp_result)
+    monkeypatch.setattr(
+        saxs_module,
+        "analyze_temperature_series",
+        lambda temperatures, q_list, I_list, cfg, **_kwargs: temp_result,
+    )
 
     assert engine._run_temperature_pipeline() is True  # type: ignore[attr-defined]
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
+from collections.abc import Mapping
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -28,6 +29,114 @@ def _json_number(value) -> Optional[float]:
     if not np.isfinite(number):
         return None
     return number
+
+
+def _detector_provenance_csv_fields(report: Any) -> dict[str, Any]:
+    """Flatten existing detector provenance for table/CSV consumers only."""
+    fields: dict[str, Any] = {
+        "Detector_source_kind": None,
+        "Detector_quality_level": None,
+        "Detector_reason_codes": None,
+        "Geometry_provenance_source": None,
+        "Geometry_field_sources": None,
+        "Geometry_provenance_validity": None,
+        "Mask_provenance_source": None,
+        "Mask_configured": None,
+        "Mask_shape": None,
+        "Mask_provenance_validity": None,
+    }
+    if not isinstance(report, Mapping):
+        return fields
+
+    for output_key, report_key in (
+        ("Detector_source_kind", "source_kind"),
+        ("Detector_quality_level", "level"),
+    ):
+        value = report.get(report_key)
+        fields[output_key] = getattr(value, "value", value)
+
+    reasons = report.get("reason_codes")
+    if isinstance(reasons, str):
+        fields["Detector_reason_codes"] = reasons
+    elif isinstance(reasons, (list, tuple)):
+        fields["Detector_reason_codes"] = "|".join(str(item) for item in reasons)
+
+    geometry = report.get("geometry_provenance")
+    if isinstance(geometry, Mapping):
+        fields["Geometry_provenance_source"] = geometry.get("source")
+        fields["Geometry_provenance_validity"] = geometry.get("validity")
+        source_fields = geometry.get("field_sources")
+        if isinstance(source_fields, Mapping):
+            fields["Geometry_field_sources"] = "|".join(
+                f"{key}:{source_fields[key]}"
+                for key in sorted(source_fields, key=str)
+            ) or None
+
+    mask = report.get("mask_provenance")
+    if isinstance(mask, Mapping):
+        fields["Mask_provenance_source"] = mask.get("source")
+        configured = mask.get("configured")
+        fields["Mask_configured"] = configured if isinstance(configured, bool) else None
+        fields["Mask_provenance_validity"] = mask.get("validity")
+        shape = mask.get("shape")
+        if isinstance(shape, (list, tuple, np.ndarray)) and len(shape) == 2:
+            try:
+                fields["Mask_shape"] = f"{int(shape[0])}x{int(shape[1])}"
+            except (TypeError, ValueError):
+                fields["Mask_shape"] = None
+    return fields
+
+
+_DATA_QUALITY_CSV_FIELDS = (
+    ("Data_quality_source_id", "source_id"),
+    ("Data_quality_raw_data_ref", "raw_data_ref"),
+    ("Data_quality_processed_data_ref", "processed_data_ref"),
+    ("Data_quality_processing_config_ref", "processing_config_ref"),
+    ("Data_quality_level", "level"),
+    ("Data_quality_reason_codes", "reason_codes"),
+    ("Data_quality_actions", "actions"),
+    ("Data_quality_low_q_truncated", "low_q_truncated"),
+    ("Data_quality_original_point_count", "original_point_count"),
+    ("Data_quality_finite_point_count", "finite_point_count"),
+    ("Data_quality_usable_point_count", "usable_point_count"),
+    ("Data_quality_invalid_point_count", "invalid_point_count"),
+    ("Data_quality_nonfinite_q_count", "nonfinite_q_count"),
+    ("Data_quality_nonpositive_q_count", "nonpositive_q_count"),
+    ("Data_quality_nonfinite_intensity_count", "nonfinite_intensity_count"),
+    ("Data_quality_nonpositive_intensity_count", "nonpositive_intensity_count"),
+    ("Data_quality_duplicate_q_count", "duplicate_q_count"),
+    ("Data_quality_nonmonotonic_q", "nonmonotonic_q"),
+)
+_DATA_QUALITY_LIST_FIELDS = {
+    "Data_quality_reason_codes",
+    "Data_quality_actions",
+}
+_DATA_QUALITY_BOOL_FIELDS = {
+    "Data_quality_low_q_truncated",
+    "Data_quality_nonmonotonic_q",
+}
+
+
+def _data_quality_csv_fields(report: Any) -> dict[str, Any]:
+    """Flatten an existing q/I quality report for table/CSV consumers only."""
+    fields: dict[str, Any] = {
+        output_key: None for output_key, _ in _DATA_QUALITY_CSV_FIELDS
+    }
+    if not isinstance(report, Mapping):
+        return fields
+
+    for output_key, report_key in _DATA_QUALITY_CSV_FIELDS:
+        value = report.get(report_key)
+        if output_key in _DATA_QUALITY_LIST_FIELDS:
+            if isinstance(value, str):
+                fields[output_key] = value
+            elif isinstance(value, (list, tuple)):
+                fields[output_key] = "|".join(str(item) for item in value)
+        elif output_key in _DATA_QUALITY_BOOL_FIELDS:
+            fields[output_key] = value if isinstance(value, bool) else None
+        else:
+            fields[output_key] = getattr(value, "value", value)
+    return fields
 
 
 def _result_effective_lc_value(result) -> float:
@@ -67,7 +176,7 @@ def export_parameters_csv(
 
 def export_1d_profile(
     q: np.ndarray,
-    I: np.ndarray,
+    I: np.ndarray,  # noqa: E741 - preserve the public SAXS intensity parameter name
     output_dir: str,
     filename: str = "saxs_1d_profile.csv",
     I_smooth: Optional[np.ndarray] = None,
@@ -203,6 +312,14 @@ def _result_to_params_dict(result) -> Dict:
             value = getattr(result, field, None)
             if value not in (None, "") and field not in d:
                 d[field] = value
+        d.update(
+            _detector_provenance_csv_fields(
+                getattr(result, "raw_detector_quality_report", None)
+            )
+        )
+        d.update(
+            _data_quality_csv_fields(getattr(result, "data_quality_report", None))
+        )
         return d
 
     d = {
@@ -236,4 +353,10 @@ def _result_to_params_dict(result) -> Dict:
         value = getattr(result, field, None)
         if value not in (None, "") and field not in d:
             d[field] = value
+    d.update(
+        _detector_provenance_csv_fields(
+            getattr(result, "raw_detector_quality_report", None)
+        )
+    )
+    d.update(_data_quality_csv_fields(getattr(result, "data_quality_report", None)))
     return d

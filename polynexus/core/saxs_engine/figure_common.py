@@ -62,6 +62,8 @@ class SAXSFrameView:
 
 def _sci_axis_label(label: str, *, y_axis: bool = False) -> str:
     text = str(label or "").lower()
+    if "detector" in text:
+        return AXIS_LABELS["detector_y" if "y" in text else "detector_x"]
     if "temperature" in text:
         return AXIS_LABELS["T"]
     if "strain" in text:
@@ -120,6 +122,19 @@ def polish_saxs_publication_definitions(
             )
         )
     return tuple(polished)
+
+
+def _coerce_numeric_array(values: Any) -> np.ndarray:
+    """Project numeric tokens elementwise without mutating the source."""
+
+    source = np.asarray(values).reshape(-1)
+    projected = np.full(source.shape, np.nan, dtype=float)
+    for index, value in enumerate(source):
+        try:
+            projected[index] = float(value)
+        except (OverflowError, TypeError, ValueError):
+            continue
+    return projected
 
 
 def _freeze_value(value: Any) -> Any:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,6 +15,7 @@ from polynexus.core.preprocess_optimization.intent_schema import ContractValidat
 from polynexus.core.saxs_engine.saxs_ai_rescue import (
     build_saxs_ai_rescue_plan,
     assess_saxs_ai_candidate,
+    resolve_saxs_ai_candidate_references,
     validate_saxs_ai_intent,
 )
 
@@ -142,3 +144,68 @@ def test_tiered_auto_requires_calibration_and_all_hard_guards():
     assert accepted.apply_allowed is True
     assert fallback.decision == "keep_original"
     assert fallback.apply_allowed is False
+
+
+def _sequence_candidate(candidate_id: str = "temperature-frame-0-lc-tangent") -> dict:
+    return {
+        "candidate_id": candidate_id,
+        "kind": "deterministic",
+        "parameters": {
+            "frame_index": 0,
+            "axis_name": "temperature",
+            "axis_value": 170.0,
+            "metric": "lc_nm",
+            "original_value_nm": None,
+            "proposed_value_nm": 10.8,
+            "proposed_source": "tangent",
+            "path_status": "diagnostic_only",
+            "preserve_missing_frames": True,
+            "apply_mode": "candidate_only",
+        },
+        "reason_codes": ["sequence_existing_alternative"],
+        "source": "saxs_temperature.select_lc_sequence_path",
+        "requires_validation": True,
+    }
+
+
+def test_ai_reference_bridge_resolves_current_temperature_candidate_detached() -> None:
+    candidate = _sequence_candidate()
+    result = SimpleNamespace(
+        _temperature_result=SimpleNamespace(sequence_rescue_candidates=[candidate])
+    )
+    advice = {"saxs_candidate_references": [candidate["candidate_id"]]}
+
+    resolution = resolve_saxs_ai_candidate_references(result, advice, mode="temperature")
+
+    assert resolution["status"] == "available"
+    assert resolution["unresolved_ids"] == []
+    assert resolution["resolved"][0]["candidate_id"] == candidate["candidate_id"]
+    assert resolution["resolved"][0] is not candidate
+    candidate["parameters"]["proposed_value_nm"] = 99.0
+    assert resolution["resolved"][0]["parameters"]["proposed_value_nm"] == 10.8
+
+
+@pytest.mark.parametrize(
+    ("mode", "advice", "candidate_records", "expected_reason"),
+    [
+        ("static", {"saxs_candidate_references": ["temperature-frame-0-lc-tangent"]}, [_sequence_candidate()], "unsupported_mode"),
+        ("temperature", {"saxs_candidate_references": ["unknown"]}, [_sequence_candidate()], "candidate_not_found"),
+        ("temperature", {"saxs_candidate_references": [7]}, [_sequence_candidate()], "candidate_reference_malformed"),
+        ("temperature", {"saxs_candidate_references": ["temperature-frame-0-lc-tangent"]}, [_sequence_candidate(), _sequence_candidate()], "duplicate_candidate_id"),
+    ],
+)
+def test_ai_reference_bridge_fails_closed_without_fabricating_candidates(
+    mode: str,
+    advice: dict,
+    candidate_records: list[dict],
+    expected_reason: str,
+) -> None:
+    result = SimpleNamespace(
+        _temperature_result=SimpleNamespace(sequence_rescue_candidates=candidate_records)
+    )
+
+    resolution = resolve_saxs_ai_candidate_references(result, advice, mode=mode)
+
+    assert resolution["resolved"] == []
+    assert expected_reason in resolution["reason_codes"]
+    assert resolution["status"] == "unavailable"

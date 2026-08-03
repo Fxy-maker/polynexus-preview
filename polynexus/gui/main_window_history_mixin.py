@@ -55,12 +55,37 @@ from .history_compare_service import (
     history_compare_state_label,
 )
 from .history_table_service import build_history_table_rows, write_history_export_table
+from .scientific_review_presentation import scientific_release_display, scientific_review_display
 from .table_clipboard_service import (
     copy_table_selection_to_clipboard as copy_table_selection_text_to_clipboard,
     extract_table_text_matrix,
 )
 from .i18n import get_language, tr
+from .window_text_helpers import is_default_project_label
 from ..core.engine import logger
+
+
+def resolve_joint_history_project_label(current_label, report) -> str:
+    """Resolve display-only identity for a Joint run without inventing data."""
+
+    label = str(current_label or "").strip()
+    if label and not is_default_project_label(label):
+        return label
+    rows = report.get("rows") if isinstance(report, dict) else None
+    if not isinstance(rows, list):
+        return label
+    samples = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        sample = str(row.get("sample") or "").strip()
+        if sample and sample not in samples:
+            samples.append(sample)
+    if len(samples) == 1:
+        return samples[0]
+    if len(samples) > 1:
+        return tr("WORKFLOW_TASK_JOINT_TITLE")
+    return label
 
 
 class MainWindowHistoryMixin:
@@ -116,6 +141,18 @@ class MainWindowHistoryMixin:
 
     def _copy_table_selection_to_clipboard(self, table):
         copy_table_selection_text_to_clipboard(table)
+
+    def _scientific_review_text(self, record):
+        review = scientific_review_display(
+            record,
+            technique=str(record.get("technique") or "") if isinstance(record, dict) else "",
+            submodule=str(record.get("submodule") or "") if isinstance(record, dict) else "",
+            language=get_language(),
+        ).text
+        release = scientific_release_display(record, language=get_language(), include_missing=False)
+        if release.status == "not_applicable":
+            return review
+        return " | ".join(part for part in (review, release.text) if part)
 
     def _history_compare_record(self, record):
         if not isinstance(record, dict):
@@ -323,7 +360,7 @@ class MainWindowHistoryMixin:
         layout.addWidget(toolbar_scroll)
 
         self._history_table = QTableWidget()
-        self._history_table.setColumnCount(7)
+        self._history_table.setColumnCount(8)
         self._history_table.setHorizontalHeaderLabels(
             [
                 tr("HISTORY_COL_TIME"),
@@ -331,6 +368,7 @@ class MainWindowHistoryMixin:
                 tr("HISTORY_COL_SUBMODULE"),
                 tr("HISTORY_COL_SCORE"),
                 tr("HISTORY_COL_STATUS"),
+                tr("HISTORY_COL_SCIENTIFIC_REVIEW"),
                 tr("HISTORY_COL_VALIDATION"),
                 tr("HISTORY_COL_CONFIRMED"),
             ]
@@ -359,12 +397,17 @@ class MainWindowHistoryMixin:
     def _persist_analysis_run(self, result):
         try:
             db = self._ensure_sample_db()
+            project_label = self._project_label.text().strip()
+            if str(getattr(self, "_current_technique", "") or "").strip().lower() == "joint":
+                display_project_label = resolve_joint_history_project_label(project_label, result)
+                if display_project_label and hasattr(self, "_project_label"):
+                    self._project_label.setText(display_project_label)
             context = self._analysis_run_persistence_context_class()(
                 technique=str(getattr(self, "_current_technique", "") or ""),
                 submodule=str(getattr(self, "_current_submodule_id", "") or ""),
                 data_file=str(getattr(self, "_current_filepath", "") or ""),
                 output_dir=str(getattr(self, "_output_dir", "") or ""),
-                project_label=self._project_label.text().strip(),
+                project_label=project_label,
                 current_sample_name=str(getattr(self, "_current_sample_name", "") or ""),
                 current_sample_id=str(getattr(self, "_current_sample_id", "") or ""),
                 current_batch_id=str(getattr(self, "_current_batch_id", "") or ""),
@@ -454,6 +497,7 @@ class MainWindowHistoryMixin:
                 technique_text_fn=self._history_technique_text,
                 submodule_text_fn=self._history_submodule_text,
                 status_text_fn=self._history_status_text,
+                scientific_review_text_fn=lambda run: self._scientific_review_text(run),
                 validation_summary_fn=self._history_validation_summary,
                 confirmation_label_fn=self._history_confirmation_label,
                 has_source_fn=history_has_available_source,
@@ -625,6 +669,12 @@ class MainWindowHistoryMixin:
             )
         joint_report = summary.get("result") if is_joint and isinstance(summary.get("result"), dict) else None
         if joint_report is not None:
+            project_label = resolve_joint_history_project_label(
+                summary.get("project_label"),
+                joint_report,
+            )
+            if project_label and hasattr(self, "_project_label"):
+                self._project_label.setText(project_label)
             self._joint_report = joint_report
             self._results["joint"] = joint_report
             self._display_joint_report(joint_report)

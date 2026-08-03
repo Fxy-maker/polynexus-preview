@@ -18,6 +18,9 @@ from .saxs_batch_helpers import (
     build_static_batch_metric_evidence,
 )
 from .saxs_config_binding import saxs_config_snapshot
+from .saxs_engine.figure_common import frame_views_from_engine
+from .saxs_engine.figure_evidence import configured_saxs_review_evidence
+from .saxs_engine.processed_profile import _coerce_numeric_array
 
 
 @dataclass(frozen=True)
@@ -158,6 +161,7 @@ _QUALITY_FIELDS = (
     "guinier_evidence",
     "metric_evidence",
     "detector_quality_report",
+    "raw_detector_quality_report",
     "orientation_evidence",
     "guinier_sequence_evidence",
     "sequence_rescue_candidates",
@@ -233,12 +237,23 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
     ai_plan = getattr(engine, "saxs_ai_rescue_plan", None)
     ai_decision = getattr(engine, "saxs_ai_rescue_decision", None)
     ai_replay = getattr(engine, "saxs_ai_rescue_replay", None)
+    candidate_reference_resolution = getattr(
+        engine, "saxs_candidate_reference_resolution", None
+    )
     confirmed_rerun_audit = getattr(engine, "saxs_confirmed_rerun_audit", None)
     if ai_plan is None and ai_decision is None:
         result = getattr(engine, "result", None)
         ai_plan = getattr(result, "saxs_ai_rescue_plan", None)
         ai_decision = getattr(result, "saxs_ai_rescue_decision", None)
         ai_replay = getattr(result, "saxs_ai_rescue_replay", None)
+        if candidate_reference_resolution is None:
+            candidate_reference_resolution = getattr(
+                result, "saxs_candidate_reference_resolution", None
+            )
+    if candidate_reference_resolution is not None and not isinstance(
+        candidate_reference_resolution, Mapping
+    ):
+        candidate_reference_resolution = None
     if confirmed_rerun_audit is None:
         result = getattr(engine, "result", None)
         confirmed_rerun_audit = getattr(result, "saxs_confirmed_rerun_audit", None)
@@ -251,18 +266,33 @@ def _quality_evidence_payload(engine: Any, mode: str) -> dict[str, Any]:
         "temperature": _series_quality_payload(temperature),
         "strain": _series_quality_payload(strain),
     }
+    review_evidence = configured_saxs_review_evidence(
+        engine,
+        frame_views_from_engine(engine),
+    )
+    if review_evidence is not None:
+        payload["scientific_review"] = review_evidence
+    result_parameters = getattr(getattr(engine, "result", None), "parameters", None)
+    if isinstance(result_parameters, Mapping):
+        acceptance_audit = result_parameters.get("scientific_acceptance_audit")
+        if isinstance(acceptance_audit, Mapping):
+            payload["scientific_acceptance_audit"] = _jsonable(acceptance_audit)
     if (
         ai_plan is not None
         or ai_decision is not None
         or ai_replay is not None
+        or candidate_reference_resolution is not None
         or confirmed_rerun_audit is not None
     ):
-        payload["ai_rescue"] = {
+        ai_rescue_payload: dict[str, Any] = {
             "plan": ai_plan,
             "decision": ai_decision,
             "replay": ai_replay,
             "confirmed_rerun": confirmed_rerun_audit,
         }
+        if candidate_reference_resolution is not None:
+            ai_rescue_payload["candidate_reference_resolution"] = candidate_reference_resolution
+        payload["ai_rescue"] = ai_rescue_payload
     return _jsonable(payload)
 
 
@@ -276,6 +306,8 @@ def _profile_items(engine: Any) -> list[dict[str, Any]]:
     if q_list and intensity_list:
         for index, (q_values, intensity) in enumerate(zip(q_list, intensity_list)):
             profile = processed[index] if index < len(processed) else None
+            if profile is not None:
+                q_values = getattr(profile, "q", q_values)
             items.append(
                 {
                     "index": index,
@@ -344,17 +376,33 @@ def _write_profiles(
         relative = f"data/profiles/profile_{index:03d}.csv"
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        q_values = np.asarray(item["q"], dtype=float).ravel()
+        q_values, q_invalid_count = _coerce_numeric_array(item["q"])
+        q_values = q_values.ravel()
         layers = {
             "I_raw_au": item.get("raw"),
             "I_corrected_au": item.get("corrected"),
             "I_normalized_au": item.get("normalized"),
             "I_smooth_au": item.get("smoothed"),
         }
-        arrays = {
-            key: (np.asarray(value, dtype=float).ravel() if value is not None else None)
-            for key, value in layers.items()
-        }
+        arrays = {}
+        invalid_numeric_values: dict[str, int] = {}
+        if q_invalid_count:
+            invalid_numeric_values["q"] = q_invalid_count
+        for key, value in layers.items():
+            if value is None:
+                arrays[key] = None
+                continue
+            array, invalid_count = _coerce_numeric_array(value)
+            arrays[key] = array.ravel()
+            if invalid_count:
+                invalid_numeric_values[
+                    {
+                        "I_raw_au": "raw",
+                        "I_corrected_au": "corrected",
+                        "I_normalized_au": "normalized",
+                        "I_smooth_au": "smoothed",
+                    }[key]
+                ] = invalid_count
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=["q_nm_inv", *layers])
             writer.writeheader()
@@ -368,6 +416,21 @@ def _write_profiles(
                         row[key] = value if np.isfinite(value) else ""
                 writer.writerow(row)
         files[f"profile_{index:03d}"] = relative
+        diagnostics = dict(item.get("diagnostics", {})) if isinstance(
+            item.get("diagnostics", {}), Mapping
+        ) else {}
+        if invalid_numeric_values:
+            existing_counts = diagnostics.get("invalid_numeric_values")
+            merged_counts = (
+                dict(existing_counts)
+                if isinstance(existing_counts, Mapping)
+                else {}
+            )
+            merged_counts.update(invalid_numeric_values)
+            diagnostics["invalid_numeric_values"] = merged_counts
+        quality_status = item.get("quality_status", "unknown")
+        if invalid_numeric_values and quality_status in {None, "", "OK", "unknown"}:
+            quality_status = "WARN"
         provenance.append(
             {
                 "index": index,
@@ -384,9 +447,9 @@ def _write_profiles(
                     "available": item.get("corrected") is not None,
                     "source": "canonical.corrected",
                 },
-                "quality_status": item.get("quality_status", "unknown"),
+                "quality_status": quality_status,
                 "provenance": item.get("provenance", {}),
-                "diagnostics": item.get("diagnostics", {}),
+                "diagnostics": diagnostics,
             }
         )
     return files, provenance
@@ -502,17 +565,23 @@ def export_saxs_bundle(engine: Any, output_dir: str) -> SAXSExportBundle:
         )
         files["config_snapshot"] = _write_json(root, "config_snapshot.json", saxs_config_snapshot(getattr(engine, "cfg", None)))
         parameter_payload = _parameter_payload(engine, mode)
+        parameter_payload["quality_evidence_file"] = files["quality_evidence"]
         files["parameters"] = _write_json(root, "parameters.json", parameter_payload)
         files["parameters_csv"] = "data/parameters.csv"
         parameter_rows = parameter_payload.get("rows", []) or [parameter_payload.get("summary", {})]
         parameters_path = root / files["parameters_csv"]
         parameters_path.parent.mkdir(parents=True, exist_ok=True)
-        keys = sorted({str(key) for row in parameter_rows if isinstance(row, Mapping) for key in row})
+        quality_evidence_ref = f"../{files['quality_evidence']}"
+        csv_rows = []
+        for row in parameter_rows:
+            data = dict(row) if isinstance(row, Mapping) else {}
+            data["quality_evidence_ref"] = quality_evidence_ref
+            csv_rows.append(data)
+        keys = sorted({str(key) for row in csv_rows for key in row})
         with parameters_path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=keys or ["status"])
             writer.writeheader()
-            for row in parameter_rows:
-                data = row if isinstance(row, Mapping) else {}
+            for data in csv_rows:
                 writer.writerow({key: _jsonable(data.get(key, "")) for key in writer.fieldnames})
 
         profile_files, profile_provenance = _write_profiles(root, profile_items)

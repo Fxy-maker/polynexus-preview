@@ -6,9 +6,11 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -38,11 +40,28 @@ from .analysis_history_service import (
 )
 from .i18n import tr
 from .widgets.results_table_panel import ResultsTablePanel
+from .widgets.wrapped_evidence_label import WrappedEvidenceLabel
 from .results_review_service import (
     build_result_review_panel_texts_from_window,
 )
 from .styles import C_TEXT_MUTED, C_TEXT_PRIMARY
+from .theme import ThemeEngine
 from ..core.engine import logger
+from ..core.scientific_review import (
+    review_decision_snapshot,
+    review_scope_options_for_context,
+)
+from .scientific_review_dialog import ScientificReviewDialog
+from .saxs_mask_edit_service import build_saxs_mask_edit_context
+from .saxs_orientation_advisory_service import (
+    advisory_request_matches,
+    advisory_request_token,
+    orientation_advisory_action_context,
+    orientation_advisory_action_state,
+    persist_orientation_advisory_report,
+)
+from .widgets.saxs_mask_editor import SAXSDetectorMaskEditor
+from .main_window_workers import SAXSOrientationAdvisoryWorker
 
 
 class MainWindowResultsMixin:
@@ -119,6 +138,203 @@ class MainWindowResultsMixin:
             return {}
         return find_analysis_evidence(current)
 
+    def _current_scientific_review_scope(self) -> str | None:
+        scopes = self._current_scientific_review_scopes()
+        return scopes[0] if len(scopes) == 1 else None
+
+    def _current_scientific_review_scopes(self) -> tuple[str, ...]:
+        return review_scope_options_for_context(
+            str(getattr(self, "_current_technique", "") or ""),
+            str(getattr(self, "_current_submodule_id", "") or ""),
+        )
+
+    def _current_scientific_review_source_refs(self) -> tuple[str, ...]:
+        payload = self._current_results_payload()
+        metadata = payload.get("metadata") if isinstance(payload, dict) else {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        refs: list[str] = []
+
+        def append_ref(value) -> None:
+            if isinstance(value, (dict, list, tuple, set)):
+                return
+            text = str(value or "").strip()
+            if text and text not in refs:
+                refs.append(text)
+
+        for key in ("mapping_source_id", "source_id", "batch_id"):
+            append_ref(metadata.get(key))
+
+        evidence = find_analysis_evidence(payload)
+        pending = [evidence] if isinstance(evidence, dict) else []
+        visited: set[int] = set()
+        while pending:
+            node = pending.pop()
+            marker = id(node)
+            if marker in visited:
+                continue
+            visited.add(marker)
+            if isinstance(node, dict):
+                for key in ("mapping_source_id", "source_id", "batch_id"):
+                    append_ref(node.get(key))
+                for value in node.values():
+                    if isinstance(value, dict):
+                        pending.append(value)
+                    elif isinstance(value, (list, tuple, set)):
+                        pending.extend(item for item in value if isinstance(item, dict))
+
+        current_file = str(getattr(self, "_current_filepath", "") or "").strip()
+        append_ref(current_file)
+        return tuple(refs)
+
+    def _open_scientific_review_dialog(self) -> None:
+        scopes = self._current_scientific_review_scopes()
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+        if not scopes or not run_id or run_id == "current":
+            self.log("Scientific review requires a persisted gated analysis run.")
+            return
+
+        scope = scopes[0]
+        if len(scopes) > 1:
+            scope, accepted = QInputDialog.getItem(
+                self,
+                tr("SCIENTIFIC_REVIEW_SCOPE_TITLE"),
+                tr("SCIENTIFIC_REVIEW_SCOPE_PROMPT"),
+                list(scopes),
+                0,
+                False,
+            )
+            if not accepted or not str(scope).strip():
+                return
+            scope = str(scope).strip()
+
+        dialog = ScientificReviewDialog(
+            scope,
+            source_refs=self._current_scientific_review_source_refs(),
+            parent=self,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        try:
+            record = dialog.build_record()
+            record_payload = record.to_dict()
+            source_ref = record.source_refs[0] if record.source_refs else ""
+            snapshot = review_decision_snapshot(
+                record,
+                expected_scope=scope,
+                source_ref=source_ref,
+            )
+            db = self._ensure_sample_db()
+            if not db.update_analysis_scientific_review(run_id, record_payload, snapshot):
+                self.log("Scientific review could not be attached to the selected run.")
+                return
+        except (TypeError, ValueError) as exc:
+            self.log(f"Scientific review was not saved: {exc}")
+            return
+
+        self._apply_scientific_review_to_current_result(record_payload, snapshot)
+        self._refresh_history()
+        self._update_results_review_panel()
+        self._update_work_memory_panel()
+        self.log(f"Scientific review saved for {scope} run {run_id}.")
+
+    def _current_release_batch_id(self) -> str:
+        batch_id = str(getattr(self, "_current_batch_id", "") or "").strip()
+        if batch_id:
+            return batch_id
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+        if not run_id or run_id == "current":
+            return ""
+        try:
+            run = self._ensure_sample_db().get_analysis_run(run_id)
+        except Exception:
+            return ""
+        return str(run.get("batch_id") or "").strip() if isinstance(run, dict) else ""
+
+    def _open_scientific_release_dialog(self) -> None:
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+        batch_id = self._current_release_batch_id()
+        if technique == "saxs" or not run_id or run_id == "current" or not batch_id:
+            self.log("Project release review requires a persisted non-SAXS run and batch.")
+            return
+
+        dialog = ScientificReviewDialog(
+            "release",
+            source_refs=self._current_scientific_review_source_refs(),
+            parent=self,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        try:
+            record = dialog.build_record()
+            record_payload = record.to_dict()
+            source_ref = record.source_refs[0] if record.source_refs else ""
+            snapshot = review_decision_snapshot(
+                record,
+                expected_scope="release",
+                source_ref=source_ref,
+            )
+            db = self._ensure_sample_db()
+            if not db.save_scientific_release_review(batch_id, record_payload, snapshot):
+                self.log("Project release review could not be attached to the selected batch.")
+                return
+        except (TypeError, ValueError) as exc:
+            self.log(f"Project release review was not saved: {exc}")
+            return
+
+        self._apply_scientific_release_to_current_result(record_payload, snapshot)
+        self._refresh_history()
+        self._update_results_review_panel()
+        self._update_work_memory_panel()
+        self.log(f"Project release review saved for batch {batch_id}.")
+
+    def _apply_scientific_release_to_current_result(self, record_payload: dict, snapshot: dict) -> None:
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        result = getattr(self, "_results", {}).get(technique)
+        if result is None:
+            return
+        if isinstance(result, dict):
+            metadata = result.setdefault("metadata", {})
+            evidence = result.setdefault("analysis_evidence", {})
+        else:
+            metadata = getattr(result, "metadata", None)
+            evidence = getattr(result, "analysis_evidence", None)
+            if not isinstance(metadata, dict) or not isinstance(evidence, dict):
+                return
+        metadata["scientific_release"] = dict(record_payload)
+        metadata["scientific_release_decision"] = dict(snapshot)
+        evidence["scientific_release_record"] = dict(record_payload)
+        evidence["scientific_release"] = dict(snapshot)
+
+    def _apply_scientific_review_to_current_result(self, record_payload: dict, snapshot: dict) -> None:
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        result = getattr(self, "_results", {}).get(technique)
+        if result is None:
+            return
+        if isinstance(result, dict):
+            metadata = result.setdefault("metadata", {})
+            evidence = result.setdefault("analysis_evidence", {})
+        else:
+            metadata = getattr(result, "metadata", None)
+            evidence = getattr(result, "analysis_evidence", None)
+            if not isinstance(metadata, dict) or not isinstance(evidence, dict):
+                return
+        metadata["scientific_review"] = dict(record_payload)
+        metadata["scientific_review_decision"] = dict(snapshot)
+        evidence["scientific_review_record"] = dict(record_payload)
+        evidence["scientific_review"] = dict(snapshot)
+        if technique == "saxs":
+            engine = getattr(self, "_engine_cache", {}).get("saxs")
+            sync = getattr(engine, "sync_scientific_review_to_figures", None)
+            if callable(sync):
+                try:
+                    sync(record_payload)
+                except Exception as exc:  # pragma: no cover - defensive GUI boundary
+                    self.log(f"SAXS Figure review sync was skipped: {exc}")
+
     def _current_result_origin(self) -> str:
         technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
         current_result = self._results.get(technique)
@@ -139,6 +355,45 @@ class MainWindowResultsMixin:
         if translation_key:
             return tr(translation_key)
         return key or "Unknown"
+
+    def _refresh_results_text_theme(self, _theme_name: str = "") -> None:
+        """Keep Results Workbench inline label styles aligned with active QSS."""
+        tokens = ThemeEngine.instance().tokens
+        primary = f"color: {tokens.text_primary}; font-weight: 600;"
+        muted = f"color: {tokens.text_muted};"
+        muted_emphasis = f"color: {tokens.text_muted}; font-weight: 600;"
+
+        for name in (
+            "_results_summary_label",
+            "_results_review_title",
+            "_results_compare_desc",
+            "_results_confirm_desc",
+        ):
+            widget = getattr(self, name, None)
+            if widget is not None:
+                widget.setStyleSheet(primary)
+        for name in (
+            "_results_summary_risk_label",
+            "_results_summary_next_label",
+            "_results_review_meta",
+            "_results_review_benchmark",
+            "_results_review_chain",
+            "_results_review_trend",
+            "_results_review_boundary",
+            "_results_review_joint",
+            "_results_review_risk",
+            "_results_review_next",
+            "_results_compare_current",
+            "_results_compare_baseline",
+            "_results_compare_hint",
+            "_results_confirm_status",
+        ):
+            widget = getattr(self, name, None)
+            if widget is not None:
+                widget.setStyleSheet(muted)
+        widget = getattr(self, "_results_compare_selector_label", None)
+        if widget is not None:
+            widget.setStyleSheet(muted_emphasis)
 
     def _build_results_tab(self):
 
@@ -214,17 +469,17 @@ class MainWindowResultsMixin:
         summary_layout.setContentsMargins(12, 10, 12, 10)
         summary_layout.setSpacing(4)
 
-        self._results_summary_label = QLabel()
+        self._results_summary_label = WrappedEvidenceLabel()
         self._results_summary_label.setWordWrap(True)
         self._results_summary_label.setStyleSheet(f"color: {C_TEXT_PRIMARY}; font-weight: 600;")
         summary_layout.addWidget(self._results_summary_label)
 
-        self._results_summary_risk_label = QLabel()
+        self._results_summary_risk_label = WrappedEvidenceLabel()
         self._results_summary_risk_label.setWordWrap(True)
         self._results_summary_risk_label.setStyleSheet(f"color: {C_TEXT_MUTED};")
         summary_layout.addWidget(self._results_summary_risk_label)
 
-        self._results_summary_next_label = QLabel()
+        self._results_summary_next_label = WrappedEvidenceLabel()
         self._results_summary_next_label.setWordWrap(True)
         self._results_summary_next_label.setStyleSheet(f"color: {C_TEXT_MUTED};")
         summary_layout.addWidget(self._results_summary_next_label)
@@ -237,58 +492,99 @@ class MainWindowResultsMixin:
         review_layout.setContentsMargins(12, 10, 12, 10)
         review_layout.setSpacing(6)
 
-        self._results_review_title = QLabel(tr("RESULTS_REVIEW_TITLE"))
+        self._results_review_title = WrappedEvidenceLabel(tr("RESULTS_REVIEW_TITLE"))
         self._results_review_title.setWordWrap(True)
         self._results_review_title.setStyleSheet(f"color: {C_TEXT_PRIMARY}; font-weight: 600;")
         review_layout.addWidget(self._results_review_title)
 
-        self._results_review_meta = QLabel()
+        self._results_review_meta = WrappedEvidenceLabel()
         self._results_review_meta.setWordWrap(True)
         self._results_review_meta.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_meta)
 
-        self._results_review_benchmark = QLabel()
+        self._results_review_benchmark = WrappedEvidenceLabel()
         self._results_review_benchmark.setWordWrap(True)
         self._results_review_benchmark.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_benchmark)
 
-        self._results_review_chain = QLabel()
+        self._results_review_chain = WrappedEvidenceLabel()
         self._results_review_chain.setWordWrap(True)
         self._results_review_chain.setStyleSheet(f"color: {C_TEXT_MUTED};")
         self._results_review_chain.setVisible(False)
         review_layout.addWidget(self._results_review_chain)
 
-        self._results_review_trend = QLabel()
+        self._results_review_trend = WrappedEvidenceLabel()
         self._results_review_trend.setWordWrap(True)
         self._results_review_trend.setStyleSheet(f"color: {C_TEXT_MUTED};")
         self._results_review_trend.setVisible(False)
         review_layout.addWidget(self._results_review_trend)
 
-        self._results_review_boundary = QLabel()
+        self._results_review_boundary = WrappedEvidenceLabel()
         self._results_review_boundary.setWordWrap(True)
         self._results_review_boundary.setStyleSheet(f"color: {C_TEXT_MUTED};")
         self._results_review_boundary.setVisible(False)
         review_layout.addWidget(self._results_review_boundary)
 
-        self._results_review_joint = QLabel()
+        self._results_review_joint = WrappedEvidenceLabel()
         self._results_review_joint.setWordWrap(True)
         self._results_review_joint.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_joint)
 
-        self._results_review_risk = QLabel()
+        self._results_review_ir_support = WrappedEvidenceLabel()
+        self._results_review_ir_support.setWordWrap(True)
+        self._results_review_ir_support.setStyleSheet(f"color: {C_TEXT_MUTED};")
+        self._results_review_ir_support.setVisible(False)
+        review_layout.addWidget(self._results_review_ir_support)
+
+        self._results_review_nmr_support = WrappedEvidenceLabel()
+        self._results_review_nmr_support.setWordWrap(True)
+        self._results_review_nmr_support.setStyleSheet(f"color: {C_TEXT_MUTED};")
+        self._results_review_nmr_support.setVisible(False)
+        review_layout.addWidget(self._results_review_nmr_support)
+
+        self._results_review_risk = WrappedEvidenceLabel()
         self._results_review_risk.setWordWrap(True)
         self._results_review_risk.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_risk)
 
-        self._results_review_next = QLabel()
+        self._results_review_next = WrappedEvidenceLabel()
         self._results_review_next.setWordWrap(True)
         self._results_review_next.setStyleSheet(f"color: {C_TEXT_MUTED};")
         review_layout.addWidget(self._results_review_next)
+
+        for evidence_label in (
+            self._results_summary_label,
+            self._results_summary_risk_label,
+            self._results_summary_next_label,
+            self._results_review_title,
+            self._results_review_meta,
+            self._results_review_benchmark,
+            self._results_review_chain,
+            self._results_review_trend,
+            self._results_review_boundary,
+            self._results_review_joint,
+            self._results_review_ir_support,
+            self._results_review_nmr_support,
+            self._results_review_risk,
+            self._results_review_next,
+        ):
+            evidence_label.setMinimumWidth(0)
+            evidence_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
         review_actions = QHBoxLayout()
         review_actions.setContentsMargins(0, 0, 0, 0)
         review_actions.setSpacing(8)
         review_actions.addStretch(1)
+        self._results_review_scientific_btn = QPushButton(tr("RESULTS_WORKBENCH_REVIEW_ACTION"))
+        self._results_review_scientific_btn.setObjectName("secondary_btn")
+        self._results_review_scientific_btn.setVisible(False)
+        self._results_review_scientific_btn.clicked.connect(self._open_scientific_review_dialog)
+        review_actions.addWidget(self._results_review_scientific_btn)
+        self._results_release_btn = QPushButton(tr("RESULTS_WORKBENCH_RELEASE_ACTION"))
+        self._results_release_btn.setObjectName("secondary_btn")
+        self._results_release_btn.setVisible(False)
+        self._results_release_btn.clicked.connect(self._open_scientific_release_dialog)
+        review_actions.addWidget(self._results_release_btn)
         self._results_review_joint_btn = QPushButton(tr("RESULTS_REVIEW_OPEN_JOINT"))
         self._results_review_joint_btn.setObjectName("secondary_btn")
         self._results_review_joint_btn.clicked.connect(self._jump_to_joint_hub)
@@ -297,6 +593,19 @@ class MainWindowResultsMixin:
         self._results_review_compare_btn.setObjectName("secondary_btn")
         self._results_review_compare_btn.clicked.connect(self._open_current_result_comparison)
         review_actions.addWidget(self._results_review_compare_btn)
+        self._results_mask_edit_btn = QPushButton("Edit detector mask")
+        self._results_mask_edit_btn.setObjectName("secondary_btn")
+        self._results_mask_edit_btn.setVisible(False)
+        self._results_mask_edit_btn.clicked.connect(self._open_saxs_mask_editor)
+        review_actions.addWidget(self._results_mask_edit_btn)
+        self._results_orientation_advisory_btn = QPushButton("Review orientation evidence")
+        self._results_orientation_advisory_btn.setObjectName("secondary_btn")
+        self._results_orientation_advisory_btn.setToolTip(
+            "Generate a read-only orientation evidence advisory."
+        )
+        self._results_orientation_advisory_btn.setVisible(False)
+        self._results_orientation_advisory_btn.clicked.connect(self._start_saxs_orientation_advisory)
+        review_actions.addWidget(self._results_orientation_advisory_btn)
         review_layout.addLayout(review_actions)
 
         self._results_review_group.setVisible(False)
@@ -421,6 +730,10 @@ class MainWindowResultsMixin:
         self._btn_ai_tune.clicked.connect(self.on_ai_tune_clicked)
         action_row.addWidget(self._btn_ai_tune)
         layout.addLayout(action_row)
+
+        theme = ThemeEngine.instance()
+        theme.theme_changed.connect(self._refresh_results_text_theme)
+        self._refresh_results_text_theme(theme.current)
 
         return w
 
@@ -734,6 +1047,12 @@ class MainWindowResultsMixin:
         if not hasattr(self, "_results_review_group"):
             return
         if not isinstance(current, dict) or not current:
+            if hasattr(self, "_results_mask_edit_btn"):
+                self._results_mask_edit_btn.setVisible(False)
+                self._results_mask_edit_btn.setEnabled(False)
+            if hasattr(self, "_results_orientation_advisory_btn"):
+                self._results_orientation_advisory_btn.setVisible(False)
+                self._results_orientation_advisory_btn.setEnabled(False)
             self._results_review_group.setVisible(False)
             return
 
@@ -757,15 +1076,163 @@ class MainWindowResultsMixin:
         if hasattr(self, "_results_review_joint"):
             self._results_review_joint.setText(panel_texts.joint_text)
             self._results_review_joint.setVisible(panel_texts.joint_visible)
+        if hasattr(self, "_results_review_ir_support"):
+            self._results_review_ir_support.setText(panel_texts.ir_support_text)
+            self._results_review_ir_support.setVisible(bool(panel_texts.ir_support_text))
+        if hasattr(self, "_results_review_nmr_support"):
+            self._results_review_nmr_support.setText(panel_texts.nmr_support_text)
+            self._results_review_nmr_support.setVisible(bool(panel_texts.nmr_support_text))
         if hasattr(self, "_results_review_risk"):
             self._results_review_risk.setText(panel_texts.risk_text)
             self._results_review_risk.setVisible(bool(panel_texts.risk_text))
         if hasattr(self, "_results_review_next"):
             self._results_review_next.setText(panel_texts.next_text)
             self._results_review_next.setVisible(bool(panel_texts.next_text))
+        if hasattr(self, "_results_review_scientific_btn"):
+            gated = bool(self._current_scientific_review_scopes())
+            persisted = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+            self._results_review_scientific_btn.setVisible(gated)
+            self._results_review_scientific_btn.setEnabled(
+                bool(gated and persisted and persisted != "current")
+            )
+            self._results_review_scientific_btn.setText(tr("RESULTS_WORKBENCH_REVIEW_ACTION"))
+        if hasattr(self, "_results_release_btn"):
+            technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+            persisted = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+            batch_id = self._current_release_batch_id()
+            available = bool(technique != "saxs" and persisted and persisted != "current" and batch_id)
+            self._results_release_btn.setVisible(available)
+            self._results_release_btn.setEnabled(available)
+            self._results_release_btn.setText(tr("RESULTS_WORKBENCH_RELEASE_ACTION"))
+        if hasattr(self, "_results_mask_edit_btn"):
+            available = self._saxs_mask_edit_context() is not None
+            self._results_mask_edit_btn.setVisible(available)
+            self._results_mask_edit_btn.setEnabled(available)
+        if hasattr(self, "_results_orientation_advisory_btn"):
+            source = self._saxs_orientation_advisory_source()
+            state = orientation_advisory_action_state(source)
+            running = bool(getattr(getattr(self, "_saxs_orientation_advisory_worker", None), "isRunning", lambda: False)())
+            self._results_orientation_advisory_btn.setVisible(state.visible)
+            self._results_orientation_advisory_btn.setEnabled(state.enabled and not running)
         if hasattr(self, "_results_review_title"):
             self._results_review_title.setText(panel_texts.title_text)
         self._results_review_group.setVisible(True)
+
+    def _saxs_mask_edit_context(self):
+        result = getattr(self, "_results", {}).get("saxs")
+        return build_saxs_mask_edit_context(
+            result,
+            technique=getattr(self, "_current_technique", ""),
+            submodule_id=getattr(self, "_current_submodule_id", ""),
+            input_mode=getattr(self, "_current_input_mode", ""),
+            source_path=getattr(self, "_current_filepath", ""),
+        )
+
+    def _open_saxs_mask_editor(self):
+        context = self._saxs_mask_edit_context()
+        if context is None:
+            return
+        editor = SAXSDetectorMaskEditor(
+            context.image,
+            context.base_mask,
+            source_path=context.source_path,
+            parent=self,
+        )
+        self._saxs_mask_editor = editor
+        editor.candidate_confirmed.connect(self._on_saxs_mask_candidate_confirmed)
+        editor.open()
+
+    def _on_saxs_mask_candidate_confirmed(self, candidate):
+        if isinstance(candidate, dict) and candidate.get("confirmed") is True:
+            self._run_single(mask_edit_candidate=candidate)
+
+    def _saxs_orientation_advisory_source(self) -> dict:
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        submodule = str(getattr(self, "_current_submodule_id", "") or "").strip().lower()
+        if technique != "saxs" or submodule != "saxs.strain":
+            return {}
+        payload = self._current_results_payload()
+        params = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
+        source = dict(params)
+        source["technique"] = "SAXS"
+        source["experiment_type"] = "strain"
+        return source
+
+    def _start_saxs_orientation_advisory(self) -> None:
+        source = self._saxs_orientation_advisory_source()
+        state = orientation_advisory_action_state(source)
+        if not state.enabled:
+            return
+        worker = getattr(self, "_saxs_orientation_advisory_worker", None)
+        if worker is not None and worker.isRunning():
+            return
+        context = orientation_advisory_action_context(source)
+        result = getattr(self, "_results", {}).get("saxs")
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "current")
+        request_token = advisory_request_token(result, run_id, context)
+        self._saxs_orientation_advisory_request_token = request_token
+        self._saxs_orientation_advisory_worker = SAXSOrientationAdvisoryWorker(context)
+        self._saxs_orientation_advisory_worker.finished.connect(
+            lambda report, token=request_token: self._on_saxs_orientation_advisory_finished(
+                report, token
+            )
+        )
+        self._saxs_orientation_advisory_worker.error_msg.connect(
+            lambda message, token=request_token: self._on_saxs_orientation_advisory_error(
+                message, token
+            )
+        )
+        self._saxs_orientation_advisory_worker.cancelled.connect(
+            lambda token=request_token: self._on_saxs_orientation_advisory_cancelled(token)
+        )
+        self._update_results_review_panel()
+        self._saxs_orientation_advisory_worker.start()
+
+    def _saxs_orientation_advisory_callback_is_current(self, request_token) -> bool:
+        if bool(getattr(self, "_saxs_orientation_advisory_closing", False)):
+            return False
+        result = getattr(self, "_results", {}).get("saxs")
+        source = self._saxs_orientation_advisory_source()
+        context = orientation_advisory_action_context(source)
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "current")
+        return advisory_request_matches(result, run_id, context, request_token)
+
+    def _on_saxs_orientation_advisory_finished(self, report, request_token=None) -> None:
+        if request_token is None or not self._saxs_orientation_advisory_callback_is_current(request_token):
+            logger.info("Discarded detached SAXS orientation advisory for a stale result.")
+            return
+        result = getattr(self, "_results", {}).get("saxs")
+        source = self._saxs_orientation_advisory_source()
+        parameters = persist_orientation_advisory_report(source, report)
+        parameters.pop("technique", None)
+        parameters.pop("experiment_type", None)
+        if isinstance(result, dict):
+            result["parameters"] = parameters
+        elif result is not None:
+            result.parameters = parameters
+
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+        if run_id and run_id != "current":
+            try:
+                self._ensure_sample_db().update_analysis_parameters(run_id, parameters)
+            except Exception:
+                logger.warning("Failed to persist SAXS orientation advisory.", exc_info=True)
+
+        self._display_results(parameters, result)
+        self._update_results_review_panel()
+        self.log(f"SAXS orientation advisory ready: {getattr(report, 'status', 'limited')}.")
+
+    def _on_saxs_orientation_advisory_error(self, message: str, request_token=None) -> None:
+        if request_token is None or not self._saxs_orientation_advisory_callback_is_current(request_token):
+            return
+        self._update_results_review_panel()
+        self.log(f"SAXS orientation advisory failed: {message}")
+
+    def _on_saxs_orientation_advisory_cancelled(self, request_token=None) -> None:
+        if request_token is None or not self._saxs_orientation_advisory_callback_is_current(request_token):
+            return
+        self._update_results_review_panel()
+        self.log("SAXS orientation advisory cancelled.")
 
 
     def _result_comparison_summary(self) -> str:

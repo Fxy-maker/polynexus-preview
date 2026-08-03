@@ -96,6 +96,32 @@ def test_build_results_table_model_handles_single_tables():
         set_language(previous)
 
 
+def test_structured_results_model_carries_scientific_review_from_live_result():
+    model = _build(
+        {"map_shape": [2, 2], "valid_pixel_ratio": 1.0},
+        technique="ir",
+        submodule="ir.mapping",
+        review_source={
+            "analysis_evidence": {
+                "feature_evidence": {
+                    "mapping_evidence": {
+                        "scientific_review": {
+                            "allowed": True,
+                            "reason": "review_accepted",
+                            "record_id": "review-ir-map-1",
+                            "scope": "ir.mapping",
+                            "source_ref": "map-a.json",
+                        }
+                    }
+                }
+            }
+        },
+    )
+
+    assert model.scientific_review.status == "accepted"
+    assert "review-ir-map-1" in model.scientific_review.text
+
+
 def test_build_batch_results_table_model_flattens_nested_params_and_keeps_file_first():
     previous = get_language()
     set_language("en")
@@ -242,6 +268,7 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
             "Q_star_rel_mean": 1.02,
             "phi_void_mean": 0.04,
             "f_Herman_mean": 0.2,
+            "f_Herman_raw_mean": 0.3,
             "phase_support_mean": 0.82,
             "_batch_data": [
                 {
@@ -249,6 +276,7 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
                     "Q_rel": 1.025,
                     "phi_void": 0.04,
                     "f_Herman": 0.2,
+                    "f_Herman_raw": 0.3,
                     "strain_phase": "plastic_voiding",
                     "phase_support_score": 0.82,
                     "strain_reliability_status": "passed",
@@ -267,12 +295,23 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
         "Relative Q*",
         "Void fraction",
         "Herman orientation",
+        "Herman orientation (diagnostic)",
+        "Herman delta from zero",
+        "Herman delta stability lower",
+        "Herman delta stability upper",
+        "Orientation q minimum / nm^-1",
+        "Orientation q maximum / nm^-1",
+        "Orientation track",
+        "Orientation reliability",
+        "Orientation reasons",
         "Structure stage",
         "Phase support",
         "Reliability",
     ]
-    assert model.stored_rows == [[8.0, 1.025, 0.04, 0.2, "plastic_voiding", 0.82, "passed"]]
-    assert tuple(metric.raw for metric in model.hero_metrics) == (1.02, 0.04, 0.2, 0.82)
+    assert model.stored_rows == [
+        [8.0, 1.025, 0.04, 0.2, 0.3, None, None, None, None, None, None, None, None, "plastic_voiding", 0.82, "passed"]
+    ]
+    assert tuple(metric.raw for metric in model.hero_metrics) == (1.02, 0.04, 0.2, 0.3, 0.82)
 
 
 def test_saxs_batch_frame_count_preserves_batch_summary_shape_without_sequence_rows():

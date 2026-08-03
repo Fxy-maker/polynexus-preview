@@ -32,6 +32,7 @@ from .saxs_quality_contracts import (
     build_kratky_evidence,
     build_invariant_evidence,
     build_lamellar_evidence,
+    sanitize_1d_profile,
 )
 
 
@@ -105,6 +106,7 @@ class SAXSResult:
     guinier_evidence: Dict[str, Any] = None
     metric_evidence: Dict[str, Any] = None
     detector_quality_report: Dict[str, Any] = None
+    raw_detector_quality_report: Dict[str, Any] = None
     orientation_evidence: Dict[str, Any] = None
     beam_stop_contaminated: bool = False # direct-beam pollution detected
     effective_q_min: float = 0.01        # q_min after beamstop-edge correction
@@ -138,12 +140,21 @@ def bragg_long_period(
         "candidate_peaks": [],
     }
 
-    mask = (q >= q_min) & (q <= q_max) & np.isfinite(q) & np.isfinite(I) & (I > 0)
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
+    mask = (
+        (q >= q_min)
+        & (q <= q_max)
+        & np.isfinite(q)
+        & np.isfinite(intensity)
+        & (intensity > 0)
+    )
     if np.sum(mask) < 5:
         return np.nan, np.nan, info
 
     q_sel = q[mask]
-    I_sel = I[mask]
+    I_sel = intensity[mask]
     I_lorentz = I_sel * q_sel ** 2
 
     I_range = np.max(I_lorentz) - np.min(I_lorentz)
@@ -303,6 +314,10 @@ def scattering_invariant(
         if q_max is None:
             q_max = getattr(cfg, "q_max", None)
 
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
+
     if q_min is not None:
         mask = (q >= q_min)
     else:
@@ -335,14 +350,27 @@ def lorentz_fit_long_period(
 
     Returns (L_nm, fit_quality_r2, fit_result_dict).
     """
-    try:
-        from lmfit.models import LorentzianModel, ConstantModel
-    except ImportError:
-        return _lorentz_fallback(q, I, cfg, q_min=q_min, q_max=q_max)
-
     q_corr_min = cfg.q_corr_min
     if q_min is not None:
         q_corr_min = max(q_corr_min, float(q_min))
+
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
+    if q.size == 0:
+        q_corr_max = cfg.q_corr_max
+        if q_max is not None:
+            q_corr_max = min(q_corr_max, float(q_max))
+        return np.nan, 0.0, {
+            'q_corr_min': q_corr_min,
+            'q_corr_max': q_corr_max,
+        }
+
+    try:
+        from lmfit.models import LorentzianModel, ConstantModel
+    except ImportError:
+        return _lorentz_fallback(q, intensity, cfg, q_min=q_min, q_max=q_max)
+
     q_corr_max = min(cfg.q_corr_max, q[-1])
     if q_max is not None:
         q_corr_max = min(q_corr_max, float(q_max))
@@ -352,7 +380,7 @@ def lorentz_fit_long_period(
         return np.nan, 0.0, {'q_corr_min': q_corr_min, 'q_corr_max': q_corr_max}
 
     q_sel = q[mask]
-    I_sel = I[mask]
+    I_sel = intensity[mask]
     Iq2 = I_sel * q_sel ** 2
 
     # First find Bragg peak to narrow search range
@@ -666,12 +694,26 @@ def correlation_function(
     q_corr_min = cfg.q_corr_min
     if q_min is not None:
         q_corr_min = max(q_corr_min, float(q_min))
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
+    if q.size == 0:
+        q_corr_max = cfg.q_corr_max
+        if q_max is not None:
+            q_corr_max = min(q_corr_max, float(q_max))
+        return {
+            'r': np.array([]),
+            'gamma': np.array([]),
+            'Q_invariant': np.nan,
+            'q_corr_min': q_corr_min,
+            'q_corr_max': q_corr_max,
+        }
     q_corr_max = min(cfg.q_corr_max, q[-1])
     if q_max is not None:
         q_corr_max = min(q_corr_max, float(q_max))
     mask = (q >= q_corr_min) & (q <= q_corr_max)
     q_sel = q[mask]
-    I_sel = I[mask]
+    I_sel = intensity[mask]
 
     if len(q_sel) < 20:
         return {
@@ -796,7 +838,7 @@ def correlation_function(
         'q_corr_min': q_corr_min,
         'q_corr_max': q_corr_max,
         'q_ext': q_ext, 'I_ext': I_ext,
-        'q_raw': q, 'I_raw': I,
+        'q_raw': q, 'I_raw': intensity,
     }
 
 
@@ -1113,6 +1155,7 @@ def compute_structure_params(
 
     # ── Decision logic: pick the most reliable thickness estimate ──
     thickness = np.nan  # raw thickness (may be lc or la depending on flag)
+    idf_is_artifact = False
 
     if np.isfinite(tangent_thickness) and tangent_thickness > 0.3:
         # Tangent method succeeded — use as primary.
@@ -1126,7 +1169,6 @@ def compute_structure_params(
         
         # Detect IDF artifact: peaks at perfectly regular intervals indicate
         # Fourier / SG-filter artifacts, not real structural peaks.
-        idf_is_artifact = False
         if idf_result and 'peak_positions' in idf_result:
             pp = idf_result['peak_positions']
             if isinstance(pp, list) and len(pp) >= 3:
@@ -1416,6 +1458,18 @@ def kratky_analysis(
     Shape reveals: folded chain (Gaussian peak), unfolded (plateau),
     compact globule (bell at low q).
     """
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
+    if q.size == 0:
+        empty = np.asarray([], dtype=float)
+        return {
+            'q': empty,
+            'kratky': empty,
+            'kratky_norm': empty,
+            'q_peak_kratky': np.nan,
+        }
+
     kratky = I * q ** 2
     # Normalize by maximum
     kratky_norm = kratky / np.max(kratky) if np.max(kratky) > 0 else kratky
@@ -1723,6 +1777,9 @@ def analyze_single(
     q_anchor: float | None = None,
     q_pyfai: np.ndarray | None = None,
     I_pyfai: np.ndarray | None = None,
+    *,
+    source_id: str = "",
+    raw_data_ref: str = "",
 ) -> SAXSResult:
     """Run complete SAXS analysis for a single I(q) profile.
 
@@ -1733,7 +1790,44 @@ def analyze_single(
       - Phase 4: automated validation
       - Phase 5: weighted composite confidence
     """
+    original_q = q
+    original_I = I
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
     result = SAXSResult(q=q, I=I)
+
+    if q.size == 0:
+        quality_report = build_data_quality_report(
+            original_q,
+            original_I,
+            source_id=source_id,
+            raw_data_ref=raw_data_ref,
+            processed_data_ref="saxs_result:I_smooth",
+            processing_config_ref="SAXSConfig",
+            actions=sanitized.actions,
+        )
+        condition_context = getattr(cfg, "condition_context", {}) or {}
+        applicability = (
+            condition_context.get("guinier_applicability", "unknown")
+            if isinstance(condition_context, dict)
+            else "unknown"
+        )
+        result.I_smooth = I
+        result.long_period = LongPeriodResult()
+        result.structure = StructureParams()
+        result.metric_evidence = {}
+        result.data_quality_report = quality_report.to_dict()
+        result.guinier_evidence = build_guinier_evidence(
+            q,
+            I,
+            rg_nm=np.nan,
+            i0=np.nan,
+            quality_report=quality_report,
+            applicability=str(applicability or "unknown"),
+            source_ref="saxs_engine.guinier_analysis",
+        ).to_dict()
+        return result
 
     # Smooth
     from .preprocess import smooth_profile
@@ -1788,11 +1882,14 @@ def analyze_single(
     # Guinier
     Rg, I0, q_guinier, lnI_guinier = guinier_analysis(q, I_smooth, q_min=q_analysis_min)
     quality_report = build_data_quality_report(
-        q,
-        I,
+        original_q,
+        original_I,
+        source_id=source_id,
+        raw_data_ref=raw_data_ref,
         processed_data_ref="saxs_result:I_smooth",
         processing_config_ref="SAXSConfig",
         low_q_truncated=bool(result.mask_truncated),
+        actions=sanitized.actions,
     )
     condition_context = getattr(cfg, "condition_context", {}) or {}
     applicability = (

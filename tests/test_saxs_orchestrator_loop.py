@@ -682,6 +682,31 @@ def test_saxs_orchestrator_runs_guarded_candidates_and_keeps_best(monkeypatch) -
     assert fake_engine.analyze_calls >= 3
 
 
+def test_saxs_orchestrator_attaches_ai_reference_resolution_diagnostic(monkeypatch) -> None:
+    fake_engine = _ScriptedSAXSEngine(_peak_window_profile)
+    monkeypatch.setattr("polynexus.orchestrator.get_engine", lambda *args, **kwargs: fake_engine)
+
+    orchestrator = ParameterOrchestrator(
+        technique="saxs",
+        data_file="dummy.dat",
+        polymer_name="PA6",
+        max_rounds=1,
+        advisor=_PeakWindowAdvisor(),
+        project_root=Path("."),
+    )
+    orchestrator._build_agent_state = lambda engine, round_num: _peak_window_state(orchestrator, engine, round_num)  # type: ignore[method-assign]
+    orchestrator._residual_pattern = lambda engine: _scripted_residual(engine)  # type: ignore[method-assign]
+
+    report = orchestrator.run()
+
+    resolution = report["history"][1]["llm_advice"]["saxs_candidate_reference_resolution"]
+    assert resolution["status"] == "unavailable"
+    assert "unsupported_mode" in resolution["reason_codes"]
+    assert fake_engine.saxs_candidate_reference_resolution == resolution
+    assert fake_engine.result.saxs_candidate_reference_resolution == resolution
+    assert fake_engine.analyze_calls >= 1
+
+
 def test_saxs_orchestrator_records_candidate_trial_failures_when_all_candidates_fail(monkeypatch) -> None:
     fake_engine = _ScriptedSAXSEngine(_failing_peak_window_profile)
     monkeypatch.setattr("polynexus.orchestrator.get_engine", lambda *args, **kwargs: fake_engine)

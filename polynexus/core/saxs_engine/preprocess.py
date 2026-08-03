@@ -13,12 +13,27 @@ logger = logging.getLogger(__name__)
 
 
 from pathlib import Path
-from typing import Tuple, Optional, Callable, Dict, List
-from dataclasses import replace
+from typing import Any, Mapping, Tuple, Optional, Callable, Dict, List
+from dataclasses import dataclass, replace
 import numpy as np
 from scipy.signal import savgol_filter
 
 from .config import SAXSConfig
+from .io import normalize_edf_detector_metadata
+from .saxs_quality_contracts import build_detector_quality_report
+from .saxs_detector_correction import (
+    DetectorCorrectionRegistry,
+    DetectorCorrectionRequest,
+    default_detector_correction_registry,
+    detector_input_digest,
+    evaluate_detector_correction,
+)
+from .saxs_mask_edit import (
+    MaskEditValidationError,
+    apply_confirmed_mask_edit,
+    mask_digest,
+    validate_mask_edit_candidate,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +106,12 @@ def build_integrator(cfg: SAXSConfig):
     # Fallback: no pyFAI, use manual numpy integration
     return None
 
-def _manual_sector_integrate(img: np.ndarray, cfg: SAXSConfig, sector: str) -> np.ndarray:
+def _manual_sector_integrate(
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    sector: str,
+    mask: Optional[np.ndarray] = None,
+) -> np.ndarray:
     """Manual sector integration for meridional or equatorial regions.
 
     Uses azimuthal masking in polar coordinates.
@@ -117,7 +137,7 @@ def _manual_sector_integrate(img: np.ndarray, cfg: SAXSConfig, sector: str) -> n
         chi_mask |= ((chi - 180 >= cfg.chi_equat_range[0]) & (chi - 180 <= cfg.chi_equat_range[1]))
 
     # Exclude dummy / masked pixels (beam stop, dead pixels, etc.)
-    dummy_mask = _build_mask(img, cfg)
+    dummy_mask = _build_mask(img, cfg) if mask is None else mask
     if dummy_mask is not None:
         valid = np.isfinite(img) & (img > 0) & chi_mask & ~dummy_mask
     else:
@@ -138,7 +158,11 @@ def _manual_sector_integrate(img: np.ndarray, cfg: SAXSConfig, sector: str) -> n
     return I_radial
 
 
-def _manual_integrate(img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np.ndarray]:
+def _manual_integrate(
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    mask: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Manual radial integration fallback (no pyFAI dependency for core functionality)."""
     # Guard against invalid geometry configuration
     if cfg.wavelength_m <= 0 or cfg.sdd_m <= 0:
@@ -157,7 +181,7 @@ def _manual_integrate(img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np.
     q_flat = q_map.flatten()
     I_flat = img.flatten()
     # Exclude dummy / masked pixels (beam stop, dead pixels, etc.)
-    dummy_mask = _build_mask(img, cfg)
+    dummy_mask = _build_mask(img, cfg) if mask is None else mask
     if dummy_mask is not None:
         valid = np.isfinite(I_flat) & (I_flat > 0) & np.isfinite(q_flat) & ~dummy_mask.flatten()
     else:
@@ -241,7 +265,12 @@ def _integrate_pyfai_shadow(img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarra
     return np.array([]), np.array([])
 
 
-def integrate_full(ai, img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np.ndarray]:
+def integrate_full(
+    ai,
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    mask: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Full azimuthal integration -> I(q).
 
     If ai is None (no pyFAI), uses manual numpy integration.
@@ -249,7 +278,7 @@ def integrate_full(ai, img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np
     """
     if ai is not None:
         try:
-            mask = _build_mask(img, cfg)
+            mask = _build_mask(img, cfg) if mask is None else mask
             q, I = ai.integrate1d(
                 img, cfg.n_pt,
                 radial_range=(cfg.q_min, cfg.q_max),
@@ -265,10 +294,13 @@ def integrate_full(ai, img: np.ndarray, cfg: SAXSConfig) -> Tuple[np.ndarray, np
             logger.warning("SAXS pyFAI full integration failed; using manual integration.", exc_info=True)
 
     # Manual numpy fallback
-    return _manual_integrate(img, cfg)
+    return _manual_integrate(img, cfg, mask=mask)
 
 def integrate_sectors(
-    ai, img: np.ndarray, cfg: SAXSConfig
+    ai,
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    mask: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Anisotropic integration: meridional + equatorial sectors.
 
@@ -276,13 +308,13 @@ def integrate_sectors(
     Returns (q, I_full, I_merid, I_equat).
     """
     if ai is None:
-        q, I_full = _manual_integrate(img, cfg)
+        q, I_full = _manual_integrate(img, cfg, mask=mask)
         # Approximate sectors from manual integration
-        I_merid = _manual_sector_integrate(img, cfg, 'meridional')
-        I_equat = _manual_sector_integrate(img, cfg, 'equatorial')
+        I_merid = _manual_sector_integrate(img, cfg, 'meridional', mask=mask)
+        I_equat = _manual_sector_integrate(img, cfg, 'equatorial', mask=mask)
         return q, I_full, I_merid, I_equat
 
-    mask = _build_mask(img, cfg)
+    mask = _build_mask(img, cfg) if mask is None else mask
     n_pt = cfg.n_pt
 
     # Full
@@ -311,12 +343,80 @@ def integrate_sectors(
     return q, I_full, I_merid, I_equat
 
 
+@dataclass(frozen=True)
+class SectorMapResult:
+    q: np.ndarray
+    intensity: np.ndarray
+    chi: np.ndarray
+    support_count: Optional[np.ndarray]
+    integration_backend: str
+
+    @property
+    def empty_bin_mask(self) -> Optional[np.ndarray]:
+        return None if self.support_count is None else self.support_count <= 0
+
+    def __iter__(self):
+        yield self.q
+        yield self.intensity
+        yield self.chi
+
+    def __len__(self) -> int:
+        return 3
+
+    def __getitem__(self, index):
+        return (self.q, self.intensity, self.chi)[index]
+
+
+def _contains_invalid_pyfai_support_value(value: Any) -> bool:
+    if isinstance(value, (bool, np.bool_, str, complex, np.complexfloating)):
+        return True
+    if isinstance(value, np.ndarray):
+        if value.dtype.kind in {"b", "c", "O", "U", "S"}:
+            return True
+        return False
+    if isinstance(value, (list, tuple)):
+        return any(_contains_invalid_pyfai_support_value(item) for item in value)
+    return False
+
+
+def _validated_pyfai_support_count(res, intensity: np.ndarray) -> Optional[np.ndarray]:
+    count = getattr(res, "count", None)
+    if count is None:
+        return None
+    if _contains_invalid_pyfai_support_value(count):
+        return None
+    try:
+        raw_count = np.asarray(count)
+    except (TypeError, ValueError):
+        return None
+    if (
+        raw_count.ndim != 2
+        or raw_count.shape != intensity.shape
+        or raw_count.dtype.kind in {"b", "c", "O", "U", "S"}
+    ):
+        return None
+    try:
+        count_array = np.asarray(raw_count, dtype=float)
+    except (TypeError, ValueError):
+        return None
+    if (
+        not np.all(np.isfinite(count_array))
+        or np.any(count_array < 0)
+    ):
+        return None
+    return count_array
+
+
 def integrate_chi_sectors(
-    ai, img: np.ndarray, cfg: SAXSConfig
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ai,
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    mask: Optional[np.ndarray] = None,
+) -> SectorMapResult:
     """Azimuthal sector integration into n_chi_sectors bins.
 
-    Returns (q, I_2d[n_chi, n_q], chi_center).
+    Returns a support-aware sector map that still unpacks as
+    ``(q, I_2d[n_chi, n_q], chi_center)``.
     """
     n_chi = cfg.n_chi_sectors
 
@@ -334,23 +434,30 @@ def integrate_chi_sectors(
         chi_edges = np.linspace(-np.pi, np.pi, n_chi + 1)
         q_bins = np.searchsorted(q_edges, q_map, side="right") - 1
         chi_bins = np.searchsorted(chi_edges, chi_map, side="right") - 1
-        valid = (
+        occupancy_valid = (
             np.isfinite(img)
-            & (img > 0)
             & np.isfinite(q_map)
             & (q_bins >= 0)
             & (q_bins < cfg.n_pt)
             & (chi_bins >= 0)
             & (chi_bins < n_chi)
         )
-        dummy_mask = _build_mask(img, cfg)
+        dummy_mask = _build_mask(img, cfg) if mask is None else mask
         if dummy_mask is not None:
-            valid &= ~dummy_mask
+            occupancy_valid &= ~dummy_mask
 
         intensity_sum = np.zeros((n_chi, cfg.n_pt), dtype=float)
         pixel_count = np.zeros((n_chi, cfg.n_pt), dtype=float)
-        np.add.at(intensity_sum, (chi_bins[valid], q_bins[valid]), img[valid])
-        np.add.at(pixel_count, (chi_bins[valid], q_bins[valid]), 1.0)
+        np.add.at(
+            intensity_sum,
+            (chi_bins[occupancy_valid], q_bins[occupancy_valid]),
+            img[occupancy_valid],
+        )
+        np.add.at(
+            pixel_count,
+            (chi_bins[occupancy_valid], q_bins[occupancy_valid]),
+            1.0,
+        )
         intensity = np.divide(
             intensity_sum,
             pixel_count,
@@ -359,15 +466,15 @@ def integrate_chi_sectors(
         )
         q = 0.5 * (q_edges[:-1] + q_edges[1:])
         chi = 0.5 * (chi_edges[:-1] + chi_edges[1:])
-        return q, intensity, chi
+        return SectorMapResult(q, intensity, chi, pixel_count, "numpy")
 
-    mask = _build_mask(img, cfg)
+    mask = _build_mask(img, cfg) if mask is None else mask
     res = ai.integrate2d(
         img, cfg.n_pt, n_chi,
         radial_range=(cfg.q_min, cfg.q_max),
         mask=mask, unit="q_nm^-1", method="csr",
     )
-    I_2d = res.intensity
+    I_2d = np.asarray(res.intensity)
     q = res.radial
     chi = np.asarray(res.azimuthal, dtype=float)
     if chi.size and np.nanmax(np.abs(chi)) > 2 * np.pi + 1e-6:
@@ -375,11 +482,14 @@ def integrate_chi_sectors(
     chi = (chi + np.pi) % (2 * np.pi) - np.pi
     order = np.argsort(chi)
     chi = chi[order]
-    I_2d = np.asarray(I_2d)[order, :]
-    return q, I_2d, chi
+    I_2d = I_2d[order, :]
+    support_count = _validated_pyfai_support_count(res, I_2d)
+    if support_count is not None:
+        support_count = support_count[order, :]
+    return SectorMapResult(q, I_2d, chi, support_count, "pyfai")
 
 
-def default_integration_fn(img, cfg):
+def default_integration_fn(img, cfg, mask: Optional[np.ndarray] = None):
     """Default integration pipeline for assemble_dataset().
 
     For isotropic: integrate_full only.
@@ -387,10 +497,10 @@ def default_integration_fn(img, cfg):
     """
     ai = build_integrator(cfg)
     if cfg.is_isotropic or cfg.analysis_priority == "isotropic":
-        q, I = integrate_full(ai, img, cfg)
+        q, I = integrate_full(ai, img, cfg, mask=mask)
         return q, I, None, None
     else:
-        return integrate_sectors(ai, img, cfg)
+        return integrate_sectors(ai, img, cfg, mask=mask)
 
 
 # ---------------------------------------------------------------------------
@@ -575,12 +685,24 @@ def preprocess_pipeline(
     I_background: Optional[np.ndarray] = None,
     q_background: Optional[np.ndarray] = None,
     temperature: float = 25.0,
+    detector_header: Optional[Mapping[str, Any]] = None,
+    mask_edit_candidate: Optional[Mapping[str, Any]] = None,
+    detector_correction_request: DetectorCorrectionRequest | None = None,
+    detector_correction_registry: DetectorCorrectionRegistry | None = None,
 ) -> dict:
     """Run the full preprocessing pipeline on a single 2D image.
 
     Returns dict with keys:
         q, Iq, Iq_merid, Iq_equat, Iq_smooth, Iq_corrected
     """
+    detector_metadata = normalize_edf_detector_metadata(detector_header)
+    if detector_header:
+        cfg = replace(cfg)
+        if detector_metadata.get("dummy_value") is not None:
+            cfg.dummy_val = float(detector_metadata["dummy_value"])
+        if detector_metadata.get("dummy_tolerance") is not None:
+            cfg.ddummy = float(detector_metadata["dummy_tolerance"])
+
     if ai is None:
         ai = build_integrator(cfg)
 
@@ -589,12 +711,55 @@ def preprocess_pipeline(
         cfg = apply_thermal_correction(cfg, temperature)
         ai = build_integrator(cfg)
 
+    detector_mask, mask_edit_provenance = _resolve_detector_mask(
+        img,
+        cfg,
+        mask_edit_candidate,
+    )
+    configured_mask = _build_mask(img, cfg)
+    mask_edit_base_mask = (
+        np.asarray(configured_mask, dtype=bool).copy()
+        if configured_mask is not None
+        else np.zeros(np.asarray(img).shape, dtype=bool)
+    )
+
+    correction_request = detector_correction_request or DetectorCorrectionRequest.disabled(
+        sample_source_id="preprocess.input"
+    )
+    correction_mask = (
+        np.asarray(detector_mask, dtype=bool)
+        if detector_mask is not None
+        else np.zeros(np.asarray(img).shape, dtype=bool)
+    )
+    legacy_operations = []
+    if I_background is not None and q_background is not None:
+        legacy_operations.append("background_correction")
+    if getattr(cfg, "do_polarisation_correction", False):
+        legacy_operations.append("polarization_correction")
+    correction = evaluate_detector_correction(
+        img,
+        correction_mask,
+        correction_request,
+        registry=detector_correction_registry or default_detector_correction_registry(),
+        legacy_operations=legacy_operations,
+    )
+    effective_img = correction.effective_image
+    effective_mask = correction.effective_mask
+    correction_evidence = correction.to_evidence_dict()
+    integration_input_digest = detector_input_digest(effective_img, effective_mask)
+    sector_map_input_digest = detector_input_digest(effective_img, effective_mask)
+
     # Integration
     if cfg.is_isotropic:
-        q, Iq = integrate_full(ai, img, cfg)
+        q, Iq = integrate_full(ai, effective_img, cfg, mask=effective_mask)
         result = {"q": q, "Iq": Iq, "Iq_merid": None, "Iq_equat": None}
     else:
-        q, I_full, I_merid, I_equat = integrate_sectors(ai, img, cfg)
+        q, I_full, I_merid, I_equat = integrate_sectors(
+            ai,
+            effective_img,
+            cfg,
+            mask=effective_mask,
+        )
         result = {"q": q, "Iq": I_full, "Iq_merid": I_merid, "Iq_equat": I_equat}
 
     # Background subtraction
@@ -650,7 +815,13 @@ def preprocess_pipeline(
     }
     if not cfg.is_isotropic and cfg.analysis_priority != "isotropic":
         try:
-            q_2d, I_2d, chi_rad = integrate_chi_sectors(ai, img, cfg)
+            sector_map = integrate_chi_sectors(
+                ai,
+                effective_img,
+                cfg,
+                mask=effective_mask,
+            )
+            q_2d, I_2d, chi_rad = sector_map
             if (
                 I_2d.ndim == 2
                 and I_2d.shape[1] == len(q_2d)
@@ -663,10 +834,69 @@ def preprocess_pipeline(
                     "I_2d": I_2d,
                     "q_2d": q_2d,
                     "chi_rad": chi_rad,
+                    "support_count": sector_map.support_count,
+                    "sector_empty_bin_mask": sector_map.empty_bin_mask,
+                    "sector_integration_backend": sector_map.integration_backend,
                 })
         except Exception:
             logger.warning("SAXS azimuthal sector integration failed; orientation is unavailable.", exc_info=True)
     result["sector_data"] = sector_data
+    detector_report = build_detector_quality_report(
+        effective_img,
+        mask=effective_mask,
+        saturation_value=_header_positive_float(
+            detector_header,
+            ("saturation", "saturation_value", "saturationvalue"),
+        ),
+        source_kind="raw_detector",
+        beam_center=_header_beam_center(detector_header),
+        geometry_provenance=_geometry_provenance(detector_header, cfg),
+        mask_provenance=_mask_provenance(
+            img,
+            detector_mask,
+            edit_provenance=mask_edit_provenance,
+        ),
+        detector_metadata=detector_metadata,
+        detector_correction_evidence=correction_evidence,
+        background_floor_value=(
+            -abs(float(detector_metadata["background_correction_constant"]))
+            if detector_metadata.get("background_correction_constant") is not None
+            else None
+        ),
+    )
+    raw_detector_report = build_detector_quality_report(
+        img,
+        mask=detector_mask,
+        saturation_value=_header_positive_float(
+            detector_header,
+            ("saturation", "saturation_value", "saturationvalue"),
+        ),
+        source_kind="raw_detector",
+        beam_center=_header_beam_center(detector_header),
+        geometry_provenance=_geometry_provenance(detector_header, cfg),
+        mask_provenance=_mask_provenance(
+            img,
+            detector_mask,
+            edit_provenance=mask_edit_provenance,
+        ),
+        detector_metadata=detector_metadata,
+        detector_correction_evidence=correction_evidence,
+        background_floor_value=(
+            -abs(float(detector_metadata["background_correction_constant"]))
+            if detector_metadata.get("background_correction_constant") is not None
+            else None
+        ),
+    )
+    result["detector_quality_report"] = detector_report.to_dict()
+    result["raw_detector_quality_report"] = raw_detector_report.to_dict()
+    result["detector_correction_evidence"] = correction_evidence
+    result["integration_input_digest"] = integration_input_digest
+    result["sector_map_input_digest"] = integration_input_digest
+    sector_data["raw_detector_quality_report"] = raw_detector_report.to_dict()
+    sector_data["detector_correction_evidence"] = correction_evidence
+    sector_data["integration_input_digest"] = integration_input_digest
+    sector_data["sector_map_input_digest"] = integration_input_digest
+    result["mask_edit_base_mask"] = mask_edit_base_mask
 
     return result
 
@@ -680,6 +910,225 @@ def _build_mask(img: np.ndarray, cfg: SAXSConfig) -> Optional[np.ndarray]:
     if np.isnan(cfg.dummy_val):
         return None
     return np.abs(img - cfg.dummy_val) < cfg.ddummy
+
+
+def _resolve_detector_mask(
+    img: np.ndarray,
+    cfg: SAXSConfig,
+    candidate: Optional[Mapping[str, Any]],
+) -> tuple[Optional[np.ndarray], dict[str, Any] | None]:
+    """Resolve a confirmed edit without changing the configured mask path."""
+
+    configured_mask = _build_mask(img, cfg)
+    if candidate is None:
+        return configured_mask, None
+
+    base_mask = (
+        configured_mask
+        if configured_mask is not None
+        else np.zeros(np.asarray(img).shape, dtype=bool)
+    )
+    provenance: dict[str, Any] = {
+        "edit_status": "invalid",
+        "base_mask_digest": mask_digest(base_mask),
+        "edited_mask_digest": None,
+        "changed_pixel_count": None,
+    }
+    try:
+        edited_mask = validate_mask_edit_candidate(candidate, base_mask)
+        provenance.update(
+            {
+                "edited_mask_digest": candidate.get("edited_mask_digest"),
+                "changed_pixel_count": int(candidate.get("changed_pixel_count")),
+                "edit_status": (
+                    "confirmed"
+                    if candidate.get("confirmed") is True
+                    else "candidate_only"
+                ),
+            }
+        )
+        if candidate.get("confirmed") is True:
+            # Re-validate through the public confirmation boundary before use.
+            edited_mask = apply_confirmed_mask_edit(base_mask, candidate)
+            return edited_mask, provenance
+    except (MaskEditValidationError, TypeError, ValueError, OverflowError) as exc:
+        provenance["edit_error"] = type(exc).__name__
+    return configured_mask, provenance
+
+
+def _header_float(
+    header: Optional[Mapping[str, Any]],
+    names: Tuple[str, ...],
+) -> float | None:
+    """Read one explicitly named finite numeric header field."""
+    if not isinstance(header, Mapping):
+        return None
+    normalized = {
+        str(key).strip().lower().replace("-", "_"): value
+        for key, value in header.items()
+    }
+    for name in names:
+        raw_value = normalized.get(str(name).strip().lower().replace("-", "_"))
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(value):
+            return float(value)
+    return None
+
+
+def _header_positive_float(
+    header: Optional[Mapping[str, Any]],
+    names: Tuple[str, ...],
+) -> float | None:
+    """Return a positive finite header value suitable for a detector limit."""
+    value = _header_float(header, names)
+    return value if value is not None and value > 0 else None
+
+
+def _header_beam_center(
+    header: Optional[Mapping[str, Any]],
+) -> Tuple[float, float] | None:
+    """Return a header beam center only when both coordinates are explicit."""
+    x_value = _header_float(header, ("center_1", "center_x", "beam_center_x"))
+    y_value = _header_float(header, ("center_2", "center_y", "beam_center_y"))
+    if x_value is None or y_value is None:
+        return None
+    return x_value, y_value
+
+
+def _normalized_header(header: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    """Normalize known EDF header spellings without interpreting unknown keys."""
+    if not isinstance(header, Mapping):
+        return {}
+    return {
+        str(key).strip().lower().replace("-", "_").replace(" ", "_"): value
+        for key, value in header.items()
+    }
+
+
+def _geometry_field_source(
+    header: Optional[Mapping[str, Any]],
+    names: Tuple[str, ...],
+) -> str:
+    """Classify only explicit, finite, positive geometry header values."""
+    normalized = _normalized_header(header)
+    present = False
+    for name in names:
+        key = str(name).strip().lower().replace("-", "_").replace(" ", "_")
+        if key not in normalized:
+            continue
+        present = True
+        try:
+            value = float(normalized[key])
+        except (TypeError, ValueError):
+            continue
+        if np.isfinite(value) and value > 0:
+            return "header"
+    return "invalid_header" if present else "config_default"
+
+
+def _finite_config_value(value: Any) -> float | None:
+    """Return an effective geometry value as a strict-JSON-safe float."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return float(number) if np.isfinite(number) else None
+
+
+def _geometry_provenance(
+    header: Optional[Mapping[str, Any]],
+    cfg: SAXSConfig,
+) -> dict[str, Any]:
+    """Record geometry origins without assessing calibration validity."""
+    field_sources = {
+        "wavelength_m": _geometry_field_source(
+            header, ("wavelength", "wave_length")
+        ),
+        "pixel_size_m": _geometry_field_source(
+            header, ("pixelsize", "pixel_size", "psize_1")
+        ),
+        "sdd_m": _geometry_field_source(
+            header, ("sampledistance", "sample_distance", "detector_distance")
+        ),
+        "beam_center_x": _geometry_field_source(
+            header, ("center_1", "center_x", "beam_center_x")
+        ),
+        "beam_center_y": _geometry_field_source(
+            header, ("center_2", "center_y", "beam_center_y")
+        ),
+    }
+    statuses = set(field_sources.values())
+    if statuses == {"header"}:
+        source = "header"
+    elif statuses == {"config_default"}:
+        source = "config_default"
+    elif "invalid_header" in statuses:
+        source = "invalid_header"
+    else:
+        source = "mixed"
+    validity = (
+        "metadata_complete"
+        if source == "header"
+        else "invalid"
+        if source == "invalid_header"
+        else "not_assessed"
+    )
+    return {
+        "source": source,
+        "field_sources": field_sources,
+        "values": {
+            "wavelength_m": _finite_config_value(getattr(cfg, "wavelength_m", None)),
+            "pixel_size_m": _finite_config_value(getattr(cfg, "pixel_size_m", None)),
+            "sdd_m": _finite_config_value(getattr(cfg, "sdd_m", None)),
+            "beam_center_x": _finite_config_value(getattr(cfg, "beam_center_x", None)),
+            "beam_center_y": _finite_config_value(getattr(cfg, "beam_center_y", None)),
+        },
+        "validity": validity,
+    }
+
+
+def _mask_provenance(
+    img: Any,
+    mask: Any,
+    *,
+    edit_provenance: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record only the configured mask origin and aligned image shape."""
+    if mask is None:
+        provenance = {
+            "source": "none",
+            "configured": False,
+            "shape": None,
+            "validity": "not_assessed",
+        }
+    else:
+        shape = getattr(mask, "shape", ())
+        image_shape = getattr(img, "shape", ())
+        shape_matches = len(shape) == 2 and tuple(shape) == tuple(image_shape)
+        if shape_matches:
+            serialized_shape = [int(item) for item in shape]
+        else:
+            serialized_shape = None
+        provenance = {
+            "source": "saxs_config.dummy_value",
+            "configured": True,
+            "shape": serialized_shape,
+            "validity": "configured_shape_match" if shape_matches else "invalid",
+        }
+    if isinstance(edit_provenance, Mapping):
+        for key in (
+            "edit_status",
+            "base_mask_digest",
+            "edited_mask_digest",
+            "changed_pixel_count",
+            "edit_error",
+        ):
+            if key in edit_provenance:
+                provenance[key] = edit_provenance[key]
+    return provenance
 
 
 def detect_beamstop_edge(

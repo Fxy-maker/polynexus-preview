@@ -15,7 +15,7 @@ Reference: SAXS Design Document v1.0, Module 4B.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple
 import numpy as np
 from scipy.integrate import trapezoid
 from scipy.signal import find_peaks
@@ -28,10 +28,87 @@ from .core import (
     LongPeriodResult, StructureParams, porod_analysis,
 )
 from .saxs_quality_contracts import (
+    DetectorQualityReport,
+    QualityLevel,
+    _as_1d_float_array,
+    build_detector_quality_report,
+    build_orientation_evidence,
     build_series_detector_quality_report,
     build_series_metric_evidence,
     build_series_orientation_evidence,
+    build_orientation_tracking_evidence,
+    metric_evidence_dataframe_fields,
+    sanitize_1d_profile,
 )
+from .saxs_output_helpers import (
+    _data_quality_csv_fields,
+    _detector_provenance_csv_fields,
+)
+from .saxs_orientation_tracking import track_orientation_features
+
+
+def _aligned_source_values(values: Optional[List[str]], count: int) -> tuple[str, ...]:
+    """Return source values only when the caller supplied one per frame."""
+
+    if values is None or len(values) != count:
+        return ()
+    return tuple(str(value or "") for value in values)
+
+
+def _aligned_source_indices(values, count: int) -> tuple[int, ...]:
+    """Accept only an explicit, one-per-frame source-index mapping."""
+
+    if values is None or len(values) != count:
+        return ()
+    output: list[int] = []
+    for value in values:
+        if isinstance(value, (bool, np.bool_)):
+            return ()
+        try:
+            index = int(value)
+        except (TypeError, ValueError, OverflowError):
+            return ()
+        if index < 0 or float(value) != float(index):
+            return ()
+        output.append(index)
+    return tuple(output) if len(set(output)) == count else ()
+
+
+def _coerce_strain_value(value) -> float:
+    """Return one finite strain value or NaN without inventing an axis value."""
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return np.nan
+    return number if np.isfinite(number) else np.nan
+
+
+def _source_kwargs(
+    source_ids: tuple[str, ...],
+    raw_data_refs: tuple[str, ...],
+    index: int,
+) -> dict[str, str]:
+    """Build explicit source kwargs without inventing an unbound source."""
+
+    if not source_ids and not raw_data_refs:
+        return {}
+    kwargs: dict[str, str] = {}
+    if source_ids:
+        kwargs["source_id"] = source_ids[index]
+    if raw_data_refs:
+        kwargs["raw_data_ref"] = raw_data_refs[index]
+    return {key: value for key, value in kwargs.items() if value}
+
+
+def _unavailable_raw_detector_quality_report() -> dict[str, object]:
+    """Return raw-detector evidence without attributing sector defects to it."""
+
+    return DetectorQualityReport(
+        source_kind="raw_detector",
+        reason_codes=("raw_detector_quality_unavailable",),
+        level=QualityLevel.DIAGNOSTIC,
+    ).to_dict()
 
 
 class StrainPhase(Enum):
@@ -69,6 +146,7 @@ class StrainPointResult:
     
     # Herman orientation factor
     f_herman: float = np.nan
+    f_herman_raw: float = np.nan
     f_herman_sub: float = np.nan   # sub-tropical
     f_herman_eq: float = np.nan    # equatorial
     
@@ -78,8 +156,10 @@ class StrainPointResult:
     data_quality_report: Dict = None
     metric_evidence: Dict = None
     detector_quality_report: Dict = None
+    raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
     warnings: List[str] = field(default_factory=list)
+    q_resolved_orientation_evidence: object = None
 
 
 @dataclass
@@ -99,7 +179,10 @@ class StrainSeriesResult:
     phi_void_array: np.ndarray = None
     metric_evidence: Dict = None
     detector_quality_report: Dict = None
+    raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
+    q_resolved_orientation_evidence: List[object] = field(default_factory=list)
+    orientation_tracking_evidence: Dict = None
 
     def get_phase_transition(self) -> Dict:
         """Return phase transition strains."""
@@ -125,7 +208,7 @@ class StrainSeriesResult:
 
         rows = []
         for sp in self.strain_points:
-            rows.append({
+            row = {
                 'Strain(%)': sp.strain_pct,
                 'Phase': sp.phase.name,
                 'L(nm)': round(sp.L_nm, 2) if np.isfinite(sp.L_nm) else None,
@@ -141,7 +224,13 @@ class StrainSeriesResult:
                 'Confidence': round(sp.confidence, 2),
                 'Method': sp.method,
                 'Metric_evidence_levels': metric_level_summary(sp.metric_evidence),
-            })
+            }
+            row.update(metric_evidence_dataframe_fields(sp.metric_evidence))
+            row.update(
+                _detector_provenance_csv_fields(sp.raw_detector_quality_report)
+            )
+            row.update(_data_quality_csv_fields(sp.data_quality_report))
+            rows.append(row)
         return pd.DataFrame(rows)
 
 
@@ -167,6 +256,9 @@ def detect_strain_phase(
 
     Returns the detected phase.
     """
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
     Q_norm = Q_star / Q_star_ref if Q_star_ref > 0 else 1.0
     
     # Check for excess low-q scattering (void indicator)
@@ -225,17 +317,50 @@ def herman_orientation_factor(
     result = {'f': np.nan, 'f_sub': np.nan, 'f_eq': np.nan,
               'cos2_avg': np.nan, 'method': 'none'}
 
+    def prepare_profile(
+        intensity_values: object,
+        chi_values: object,
+        default_start: float,
+        default_end: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        if intensity_values is None:
+            return np.asarray([], dtype=float), np.asarray([], dtype=float)
+        intensity_array = _as_1d_float_array(intensity_values)
+        if chi_values is None:
+            chi_array = np.linspace(
+                default_start, default_end, intensity_array.size
+            )
+        else:
+            chi_array = _as_1d_float_array(chi_values)
+        count = min(intensity_array.size, chi_array.size)
+        if count == 0:
+            return np.asarray([], dtype=float), np.asarray([], dtype=float)
+        chi_pair = chi_array[:count].copy()
+        intensity_pair = intensity_array[:count].copy()
+        valid = np.isfinite(chi_pair) & np.isfinite(intensity_pair)
+        chi_pair = chi_pair[valid]
+        intensity_pair = intensity_pair[valid]
+        if chi_pair.size > 1 and np.any(np.diff(chi_pair) < 0):
+            order = np.argsort(chi_pair, kind="stable")
+            chi_pair = chi_pair[order]
+            intensity_pair = intensity_pair[order]
+        return intensity_pair, chi_pair
+
+    meridional_intensity, meridional_chi = prepare_profile(
+        I_meridional, chi_mer, -np.pi / 12, np.pi / 12
+    )
+    equatorial_intensity, equatorial_chi = prepare_profile(
+        I_equatorial, chi_eq, np.pi / 2 - np.pi / 12, np.pi / 2 + np.pi / 12
+    )
+
     # Meridional (along stretch) — sub-tropical region
-    if I_meridional is not None and len(I_meridional) > 5:
-        n = len(I_meridional)
-        if chi_mer is None:
-            chi_mer = np.linspace(-np.pi/12, np.pi/12, n)  # +/- 15 deg
+    if meridional_intensity.size > 5:
         
         # Filter chi to [-15, 15] degrees
-        mask = (np.abs(chi_mer) <= np.pi / 12)
+        mask = np.abs(meridional_chi) <= np.pi / 12
         if np.sum(mask) > 3:
-            chi_f = chi_mer[mask]
-            I_f = I_meridional[mask]
+            chi_f = meridional_chi[mask]
+            I_f = meridional_intensity[mask]
             
             cos2_chi = np.cos(chi_f) ** 2
             sin_abs = np.abs(np.sin(chi_f))
@@ -252,15 +377,12 @@ def herman_orientation_factor(
                 result['method'] = 'azimuthal_integral'
 
     # Equatorial (perpendicular to stretch)
-    if I_equatorial is not None and len(I_equatorial) > 5:
-        n = len(I_equatorial)
-        if chi_eq is None:
-            chi_eq = np.linspace(np.pi/2 - np.pi/12, np.pi/2 + np.pi/12, n)
+    if equatorial_intensity.size > 5:
         
-        mask = (np.abs(chi_eq - np.pi/2) <= np.pi / 12)
+        mask = np.abs(equatorial_chi - np.pi / 2) <= np.pi / 12
         if np.sum(mask) > 3:
-            chi_f = chi_eq[mask]
-            I_f = I_equatorial[mask]
+            chi_f = equatorial_chi[mask]
+            I_f = equatorial_intensity[mask]
             
             cos2_chi = np.cos(chi_f) ** 2
             sin_abs = np.abs(np.sin(chi_f))
@@ -279,6 +401,7 @@ def herman_from_sector_data(
     sector_data: Dict[str, Dict],
     q_range: Tuple[float, float] = None,
     cfg: Optional[SAXSConfig] = None,
+    data_quality_report: Mapping[str, object] | None = None,
 ) -> Dict:
     """Compute Herman factor from sector-integrated data dictionary.
 
@@ -287,18 +410,48 @@ def herman_from_sector_data(
         'equatorial': {'chi': array, 'I': array, 'q': array},
     }
     """
-    if all(key in sector_data for key in ("I_2d", "q_2d", "chi_rad")):
+    if not isinstance(sector_data, dict):
+        return _invalid_sector_data_result()
+
+    canonical_keys = ("I_2d", "q_2d", "chi_rad")
+    canonical_present = any(key in sector_data for key in canonical_keys)
+    if canonical_present and not all(key in sector_data for key in canonical_keys):
+        return _invalid_sector_data_result(
+            "strain_canonical_sector_payload_invalid"
+        )
+
+    if canonical_present:
         try:
             from .saxs_anisotropy import analyze_anisotropy
 
             I_2d = np.asarray(sector_data["I_2d"], dtype=float)
             q_2d = np.asarray(sector_data["q_2d"], dtype=float)
             chi_rad = np.asarray(sector_data["chi_rad"], dtype=float)
+            if (
+                I_2d.ndim != 2
+                or q_2d.ndim != 1
+                or chi_rad.ndim != 1
+                or I_2d.shape != (chi_rad.size, q_2d.size)
+                or chi_rad.size < 5
+                or q_2d.size == 0
+                or not np.all(np.isfinite(I_2d))
+                or not np.all(np.isfinite(q_2d))
+                or not np.all(np.isfinite(chi_rad))
+            ):
+                return _invalid_sector_data_result(
+                    "strain_canonical_sector_payload_invalid"
+                )
             q_1d = np.asarray(sector_data.get("q", q_2d), dtype=float)
             I_1d = np.asarray(
                 sector_data.get("I_full", np.nanmean(I_2d, axis=0)),
                 dtype=float,
             )
+            support_count = sector_data.get("support_count")
+            raw_detector_quality = sector_data.get(
+                "raw_detector_quality_report"
+            )
+            if raw_detector_quality is None:
+                raw_detector_quality = _unavailable_raw_detector_quality_report()
             orientation = analyze_anisotropy(
                 I_2d,
                 q_2d,
@@ -306,25 +459,64 @@ def herman_from_sector_data(
                 q_1d,
                 I_1d,
                 cfg=cfg,
+                support_count=support_count,
+                raw_detector_quality=raw_detector_quality,
             )
             f_value = float(getattr(orientation, "f_herman", np.nan))
+            f_raw = float(getattr(orientation, "f_herman_raw", np.nan))
+            orientation_evidence = getattr(orientation, "orientation_evidence", None)
+            quality_blockers = _orientation_quality_blockers(data_quality_report)
+            if quality_blockers:
+                orientation_evidence = _block_orientation_evidence(
+                    orientation_evidence,
+                    raw_value=f_raw,
+                    reason_codes=quality_blockers,
+                )
+                f_value = np.nan
+            raw_detector_quality_report = getattr(
+                orientation, "detector_quality_report", None
+            )
+            if raw_detector_quality_report is None:
+                raw_detector_quality_report = raw_detector_quality
             return {
                 "f": f_value,
+                "f_raw": f_raw,
                 "f_sub": float(getattr(orientation, "f_herman_sub", np.nan)),
                 "f_eq": float(getattr(orientation, "f_herman_eq", np.nan)),
                 "cos2_avg": (2.0 * f_value + 1.0) / 3.0 if np.isfinite(f_value) else np.nan,
                 "method": "analyze_anisotropy",
-                "orientation_evidence": getattr(orientation, "orientation_evidence", None),
+                "detector_quality_report": build_detector_quality_report(
+                    I_2d,
+                    source_kind="sector_map",
+                ).to_dict(),
+                "raw_detector_quality_report": raw_detector_quality_report,
+                "orientation_evidence": orientation_evidence,
+                "q_resolved_orientation_evidence": getattr(
+                    orientation, "q_resolved_orientation_evidence", None
+                ),
                 "orientation_axis_deg": getattr(orientation, "orientation_axis_deg", np.nan),
                 "orientation_axis_source": getattr(orientation, "orientation_axis_source", "unavailable"),
                 "orientation_axis_strength": getattr(orientation, "orientation_axis_strength", np.nan),
                 "orientation_axis_confidence": getattr(orientation, "orientation_axis_confidence", 0.0),
+                "principal_scattering_axis_deg": getattr(
+                    orientation, "principal_scattering_axis_deg", np.nan
+                ),
+                "tensile_axis_deg": getattr(orientation, "tensile_axis_deg", np.nan),
+                "reference_axis_deg": getattr(orientation, "reference_axis_deg", np.nan),
+                "reference_axis_kind": getattr(
+                    orientation, "reference_axis_kind", "unknown"
+                ),
             }
         except Exception:
             logger.warning("Canonical SAXS orientation payload analysis failed.", exc_info=True)
+            return _invalid_sector_data_result(
+                "strain_canonical_sector_payload_invalid"
+            )
 
     mer_data = sector_data.get('meridional', {})
     eq_data = sector_data.get('equatorial', {})
+    if not isinstance(mer_data, dict) or not isinstance(eq_data, dict):
+        return _invalid_sector_data_result()
 
     I_mer = mer_data.get('I', None)
     I_eq = eq_data.get('I', None)
@@ -338,7 +530,161 @@ def herman_from_sector_data(
         if np.sum(mask) > 0:
             I_mer = np.array([np.mean(I_mer[:, mask], axis=1)]) if I_mer.ndim > 1 else I_mer[mask]
 
-    return herman_orientation_factor(I_mer, I_eq, chi_mer, chi_eq)
+    return _legacy_orientation_result(
+        herman_orientation_factor(I_mer, I_eq, chi_mer, chi_eq),
+        cfg=cfg,
+    )
+
+
+def _orientation_quality_blockers(
+    report: Mapping[str, object] | None,
+) -> tuple[str, ...]:
+    """Return only the radial-1D quality gate that blocks 2D transport."""
+
+    if not isinstance(report, Mapping):
+        return ()
+
+    level = str(report.get("level") or "").strip().lower()
+    return ("orientation_input_quality_unusable",) if level == "unusable" else ()
+
+
+def _block_orientation_evidence(
+    evidence: Mapping[str, object] | None,
+    *,
+    raw_value: float,
+    reason_codes: tuple[str, ...],
+) -> dict:
+    """Keep raw fit evidence while removing a blocked effective value."""
+
+    payload = dict(evidence) if isinstance(evidence, Mapping) else {}
+    fit_evidence = dict(payload.get("fit_evidence") or {})
+    if np.isfinite(raw_value):
+        fit_evidence["f_herman_raw"] = float(raw_value)
+    fit_evidence.pop("f_herman", None)
+    payload["value"] = dict(fit_evidence)
+    payload["fit_evidence"] = fit_evidence
+    physical_checks = dict(payload.get("physical_checks") or {})
+    physical_checks["orientation_reliability_status"] = "blocked"
+    physical_checks["orientation_reliability_reason_codes"] = list(reason_codes)
+    payload["physical_checks"] = physical_checks
+    payload["level"] = "Unusable"
+    payload["applicable"] = False
+    payload["reason_codes"] = tuple(
+        dict.fromkeys(
+            list(payload.get("reason_codes") or ())
+            + ["orientation_reliability_blocked", *reason_codes]
+        )
+    )
+    return payload
+
+
+def _legacy_orientation_result(
+    legacy: Mapping[str, object],
+    *,
+    cfg: Optional[SAXSConfig] = None,
+) -> Dict:
+    """Keep legacy Herman output diagnostic without promoting it to final."""
+
+    f_raw = float(legacy.get("f", np.nan))
+    detector = build_detector_quality_report(
+        np.empty((0, 0), dtype=float),
+        source_kind="sector_map",
+    )
+    raw_detector_quality = _unavailable_raw_detector_quality_report()
+    reasons = ["legacy_orientation_unavailable"]
+    try:
+        tensile_axis = float(getattr(cfg, "tensile_axis_deg", np.nan))
+    except (TypeError, ValueError):
+        tensile_axis = np.nan
+    if not np.isfinite(tensile_axis):
+        reasons.append("tensile_axis_unknown")
+    evidence = build_orientation_evidence(
+        {
+            "f_herman_raw": f_raw,
+            "orientation_reliability_status": "unavailable",
+            "orientation_reliability_reason_codes": reasons,
+        },
+        detector,
+        applicability="supported",
+        source_ref="saxs_strain.legacy_sector_adapter",
+    ).to_dict()
+    fit_evidence = dict(evidence.get("fit_evidence") or {})
+    fit_evidence.update(
+        {
+            "feature_kind": "legacy_orientation",
+            "orientation_axis_source": "legacy_sector_adapter",
+            "orientation_axis_deg": None,
+            "orientation_axis_strength": None,
+            "orientation_axis_confidence": 0.0,
+            "principal_scattering_axis_deg": None,
+            "tensile_axis_deg": (
+                float(tensile_axis) if np.isfinite(tensile_axis) else None
+            ),
+            "reference_axis_deg": None,
+            "reference_axis_kind": "legacy_principal_axis",
+            "orientation_vector_kind": "legacy_principal_axis",
+            "herman_convention": "detector_plane_2d_v1",
+            "isotropic_baseline": 0.25,
+            "q_star_candidate": None,
+            "selected_q_range_nm1": None,
+        }
+    )
+    evidence["value"] = dict(fit_evidence)
+    evidence["fit_evidence"] = fit_evidence
+    evidence_reasons = list(evidence.get("reason_codes") or ())
+    evidence_reasons.extend(reasons)
+    evidence["reason_codes"] = tuple(dict.fromkeys(evidence_reasons))
+    evidence["applicable"] = False
+    physical_checks = dict(evidence.get("physical_checks") or {})
+    physical_checks["orientation_reliability_status"] = "unavailable"
+    physical_checks["orientation_reliability_reason_codes"] = reasons
+    evidence["physical_checks"] = physical_checks
+    return {
+        "f": np.nan,
+        "f_raw": f_raw,
+        "f_sub": float(legacy.get("f_sub", np.nan)),
+        "f_eq": float(legacy.get("f_eq", np.nan)),
+        "cos2_avg": float(legacy.get("cos2_avg", np.nan)),
+        "method": "legacy_sector_adapter",
+        "detector_quality_report": detector.to_dict(),
+        "raw_detector_quality_report": raw_detector_quality,
+        "orientation_evidence": evidence,
+    }
+
+
+def _invalid_sector_data_result(
+    reason: str = "strain_sector_data_invalid",
+) -> Dict:
+    """Return explicit Unusable orientation evidence for malformed sectors."""
+
+    detector = build_detector_quality_report(
+        np.empty((0, 0), dtype=float),
+        source_kind="sector_map",
+    )
+    evidence = build_orientation_evidence(
+        {},
+        detector,
+        applicability="supported",
+        source_ref="saxs_strain.herman_from_sector_data",
+    ).to_dict()
+    reason_codes = list(evidence.get("reason_codes") or ())
+    reason_codes.append(reason)
+    evidence["reason_codes"] = tuple(dict.fromkeys(reason_codes))
+    physical_checks = dict(evidence.get("physical_checks") or {})
+    physical_checks["input_validation_reason"] = reason
+    evidence["physical_checks"] = physical_checks
+    return {
+        "f": np.nan,
+        "f_raw": np.nan,
+        "f_sub": np.nan,
+        "f_eq": np.nan,
+        "cos2_avg": np.nan,
+        "method": "unavailable",
+        "reason_codes": (reason,),
+        "detector_quality_report": detector.to_dict(),
+        "raw_detector_quality_report": _unavailable_raw_detector_quality_report(),
+        "orientation_evidence": evidence,
+    }
 
 
 # ======================================================================
@@ -358,6 +704,9 @@ def detect_voids(
 
     Returns dict with void indicators.
     """
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    I = sanitized.intensity
     result = {
         'has_voids': False,
         'phi_void': np.nan,
@@ -414,6 +763,10 @@ def analyze_strain_series(
     sector_data_list: Optional[List[Dict]] = None,
     cfg: Optional[SAXSConfig] = None,
     verbose: bool = False,
+    detector_quality_reports: Optional[List[Dict]] = None,
+    source_ids: Optional[List[str]] = None,
+    raw_data_refs: Optional[List[str]] = None,
+    frame_source_indices: Optional[List[int]] = None,
 ) -> StrainSeriesResult:
     """Analyze a complete in-situ tensile SAXS experiment.
 
@@ -441,11 +794,33 @@ def analyze_strain_series(
     if len(q_list) != n_points or len(I_list) != n_points:
         raise ValueError("strains, q_list, I_list must have same length")
 
+    source_ids_aligned = _aligned_source_values(source_ids, n_points)
+    raw_data_refs_aligned = _aligned_source_values(raw_data_refs, n_points)
+    frame_source_indices_aligned = _aligned_source_indices(frame_source_indices, n_points)
+    frame_source_indices_invalid = (
+        frame_source_indices is not None and not frame_source_indices_aligned
+    )
+
     # Normalize strains
-    strains_arr = np.array(strains, dtype=float)
+    strains_arr = np.asarray(
+        [_coerce_strain_value(value) for value in strains],
+        dtype=float,
+    )
+    sanitized_profiles = [
+        sanitize_1d_profile(q_values, intensity_values)
+        for q_values, intensity_values in zip(q_list, I_list)
+    ]
 
     # Reference: first point (unstretched)
-    Q_ref = scattering_invariant(q_list[0], I_list[0], cfg=cfg)
+    if sanitized_profiles:
+        reference_profile = sanitized_profiles[0]
+        Q_ref = scattering_invariant(
+            reference_profile.q,
+            reference_profile.intensity,
+            cfg=cfg,
+        )
+    else:
+        Q_ref = np.nan
 
     result = StrainSeriesResult()
     result.strains = strains_arr
@@ -463,8 +838,13 @@ def analyze_strain_series(
         strain = strains_arr[i]
         q = q_list[i]
         I = I_list[i]
+        profile = sanitized_profiles[i]
 
         sp = StrainPointResult(strain_pct=float(strain))
+        if not np.isfinite(strain):
+            sp.warnings.append("Invalid strain axis value; retained as NaN")
+        if detector_quality_reports is not None and len(detector_quality_reports) == n_points:
+            sp.raw_detector_quality_report = detector_quality_reports[i]
 
         # ---- Core analysis (strain-aware) ----
         try:
@@ -477,7 +857,8 @@ def analyze_strain_series(
                 cfg.q_corr_max = min(2.0, q_ref_0 * 1.60)
             # else: use cfg defaults (already 0.30-1.2)
             
-            saxs_result = analyze_single(q, I, cfg)
+            source_kwargs = _source_kwargs(source_ids_aligned, raw_data_refs_aligned, i)
+            saxs_result = analyze_single(q, I, cfg, **source_kwargs)
             lp = saxs_result.long_period
             struct = saxs_result.structure
             
@@ -498,7 +879,11 @@ def analyze_strain_series(
             logger.warning("SAXS strain frame core analysis failed.", exc_info=True)
 
         # ---- Invariant ----
-        Q_star = scattering_invariant(q, I, cfg=cfg)
+        Q_star = scattering_invariant(
+            profile.q,
+            profile.intensity,
+            cfg=cfg,
+        )
         sp.Q_star = Q_star
         sp.Q_star_rel = Q_star / Q_ref if Q_ref > 0 else 1.0
         sp.Q_star_normalized = sp.Q_star_rel
@@ -506,15 +891,22 @@ def analyze_strain_series(
         result.Q_star_rel_array[i] = sp.Q_star_rel
 
         # ---- Phase detection ----
-        phase = detect_strain_phase(strain, Q_star, Q_ref, q, I, cfg)
+        phase = detect_strain_phase(
+            strain,
+            Q_star,
+            Q_ref,
+            profile.q,
+            profile.intensity,
+            cfg,
+        )
         sp.phase = phase
 
         # Track phase boundaries
-        if phase not in phase_boundaries:
+        if np.isfinite(strain) and phase not in phase_boundaries:
             phase_boundaries[phase] = strain
 
         # ---- Void analysis ----
-        void = detect_voids(q, I, cfg)
+        void = detect_voids(profile.q, profile.intensity, cfg)
         sp.has_voids = void['has_voids']
         sp.phi_void = void['phi_void']
         sp.void_ar = void['void_ar']
@@ -524,12 +916,37 @@ def analyze_strain_series(
         if sector_data_list is not None and i < len(sector_data_list):
             sd = sector_data_list[i]
             if sd is not None:
-                herman = herman_from_sector_data(sd, cfg=cfg)
+                try:
+                    herman = herman_from_sector_data(
+                        sd,
+                        cfg=cfg,
+                        data_quality_report=sp.data_quality_report,
+                    )
+                except Exception:
+                    logger.warning(
+                        "SAXS strain sector payload failed closed.",
+                        exc_info=True,
+                    )
+                    herman = _invalid_sector_data_result()
                 sp.f_herman = herman.get('f', np.nan)
+                sp.f_herman_raw = herman.get('f_raw', sp.f_herman)
                 sp.f_herman_sub = herman.get('f_sub', np.nan)
                 sp.f_herman_eq = herman.get('f_eq', np.nan)
+                if herman.get("detector_quality_report") is not None:
+                    sp.detector_quality_report = herman["detector_quality_report"]
+                if (
+                    sp.raw_detector_quality_report is None
+                    and herman.get("raw_detector_quality_report") is not None
+                ):
+                    sp.raw_detector_quality_report = herman[
+                        "raw_detector_quality_report"
+                    ]
                 if herman.get("orientation_evidence") is not None:
                     sp.orientation_evidence = herman["orientation_evidence"]
+                if herman.get("q_resolved_orientation_evidence") is not None:
+                    sp.q_resolved_orientation_evidence = herman[
+                        "q_resolved_orientation_evidence"
+                    ]
                 result.f_herman_array[i] = sp.f_herman
 
         result.strain_points.append(sp)
@@ -541,6 +958,8 @@ def analyze_strain_series(
         [point.metric_evidence for point in result.strain_points],
         metric_names=("porod", "kratky", "invariant", "lamellar"),
         source_ref="saxs_strain.metric_evidence",
+        condition_name="strain_pct",
+        condition_values=result.strains,
     )
     detector_quality = build_series_detector_quality_report(
         [point.detector_quality_report for point in result.strain_points],
@@ -552,8 +971,51 @@ def analyze_strain_series(
     )
     if detector_quality is not None:
         result.detector_quality_report = detector_quality
+    raw_detector_quality = build_series_detector_quality_report(
+        [point.raw_detector_quality_report for point in result.strain_points],
+        source_ref="saxs_strain.raw_detector_quality_report",
+    )
+    if raw_detector_quality is not None:
+        result.raw_detector_quality_report = raw_detector_quality
     if orientation is not None:
         result.orientation_evidence = orientation
+    result.q_resolved_orientation_evidence = [
+        point.q_resolved_orientation_evidence
+        for point in result.strain_points
+    ]
+    if any(item is not None for item in result.q_resolved_orientation_evidence):
+        tracking_frames = [
+            {
+                "frame_source_index": (
+                    None
+                    if frame_source_indices_invalid
+                    else frame_source_indices_aligned[index]
+                    if frame_source_indices_aligned
+                    else (
+                        sector_data_list[index].get("frame_source_index")
+                        if sector_data_list is not None
+                        and index < len(sector_data_list)
+                        and isinstance(sector_data_list[index], Mapping)
+                        else None
+                    )
+                ),
+                "condition_value": result.strains[index],
+                "q_resolved_orientation_evidence": evidence,
+            }
+            for index, evidence in enumerate(result.q_resolved_orientation_evidence)
+        ]
+        tracking = track_orientation_features(
+            tracking_frames,
+            frame_source_indices=(
+                frame_source_indices_aligned
+                if frame_source_indices_aligned
+                else None
+            ),
+            max_axis_drift_deg=float(getattr(cfg, "orientation_max_axis_drift_deg", 20.0)),
+        )
+        result.orientation_tracking_evidence = build_orientation_tracking_evidence(
+            tracking
+        )
     result.phase_boundaries = phase_boundaries
 
     if verbose:
@@ -590,12 +1052,19 @@ def check_invariant_conservation(
         'max_dev_strain': np.nan,
     }
 
-    valid = np.isfinite(Q_star_array)
+    strain_values = _as_1d_float_array(strains)
+    q_values = _as_1d_float_array(Q_star_array)
+    aligned_count = min(strain_values.size, q_values.size)
+    strain_values = strain_values[:aligned_count]
+    q_values = q_values[:aligned_count]
+    tolerance_value = _coerce_strain_value(tolerance)
+
+    valid = np.isfinite(q_values) & np.isfinite(strain_values)
     if np.sum(valid) < 2:
         return result
 
-    Q_valid = Q_star_array[valid]
-    strains_valid = strains[valid]
+    Q_valid = q_values[valid]
+    strains_valid = strain_values[valid]
 
     Q_mean = np.mean(Q_valid)
     Q_std = np.std(Q_valid)
@@ -604,7 +1073,7 @@ def check_invariant_conservation(
     result['Q_cv'] = Q_std / Q_mean if Q_mean > 0 else np.nan
 
     # Check if within tolerance
-    result['conserved'] = result['Q_cv'] < tolerance
+    result['conserved'] = result['Q_cv'] < tolerance_value
 
     # Find max deviation
     deviations = np.abs(Q_valid - Q_mean) / Q_mean

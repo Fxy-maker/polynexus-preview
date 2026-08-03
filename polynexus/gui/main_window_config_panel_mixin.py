@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from .i18n import tr
+from .widgets.saxs_tensile_axis_editor import SAXSTensileAxisEditor
 
 
 class MainWindowConfigPanelMixin:
@@ -116,7 +117,9 @@ class MainWindowConfigPanelMixin:
         field_type = spec.get("type", "string")
         label = spec.get("label", key)
 
-        if field_type == "choice":
+        if field_type == "saxs_tensile_axis":
+            widget = SAXSTensileAxisEditor()
+        elif field_type == "choice":
             widget = QComboBox()
             widget.addItems(spec.get("options", []))
             default_value = spec.get("default", "")
@@ -390,6 +393,10 @@ class MainWindowConfigPanelMixin:
             widget = item.widget() if item is not None else None
             if widget is None:
                 continue
+            config_keys = getattr(widget, "config_keys", None)
+            if callable(config_keys):
+                keys.extend(str(key) for key in config_keys())
+                continue
             key = widget.property("config_key")
             if key:
                 keys.append(str(key))
@@ -609,6 +616,10 @@ class MainWindowConfigPanelMixin:
                 item = self._config_form.itemAt(row, QFormLayout.SpanningRole)
             widget = item.widget() if item is not None else None
             if widget is None:
+                continue
+            values_fn = getattr(widget, "config_values", None)
+            if callable(values_fn):
+                values.update(values_fn())
                 continue
 
             key = widget.property("config_key")

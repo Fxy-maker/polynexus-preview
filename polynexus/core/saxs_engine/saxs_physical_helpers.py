@@ -6,6 +6,7 @@ import numpy as np
 
 from ..engine import logger
 from .config import SAXSConfig
+from .saxs_quality_contracts import sanitize_1d_profile
 
 
 def _tangent_lc(corr_result: Dict, L: float, cfg: SAXSConfig) -> float:
@@ -105,18 +106,22 @@ def _crystallinity_invariant(L: float, Q_invariant: float, Kp: float) -> float:
 
 def guinier_analysis(
     q: np.ndarray,
-    I: np.ndarray,
+    I: np.ndarray,  # noqa: E741 - preserve the legacy public parameter name
     q_min: float | None = None,
     q_max_factor: float = 1.3,
 ) -> Tuple[float, float, np.ndarray, np.ndarray]:
     """Guinier analysis: ln(I) vs q^2 in the low-q region."""
     del q_max_factor
 
-    mask = np.isfinite(q) & np.isfinite(I)
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
+
+    mask = np.isfinite(q) & np.isfinite(intensity)
     if q_min is not None:
         mask &= q >= float(q_min)
     q_valid = q[mask]
-    I_valid = I[mask]
+    I_valid = intensity[mask]
 
     if len(q_valid) < 10:
         return np.nan, np.nan, np.array([]), np.array([])
@@ -144,14 +149,17 @@ def guinier_analysis(
     return rg, i0, q_sel, lnI
 
 
-def porod_analysis(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> Dict:
+def porod_analysis(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> Dict:  # noqa: E741 - preserve the legacy public parameter name
     """Porod analysis: I(q) ~ Kp / q^4 at high q."""
+    sanitized = sanitize_1d_profile(q, I)
+    q = sanitized.q
+    intensity = sanitized.intensity
     mask = (q >= cfg.q_porod_min) & (q <= cfg.q_porod_max)
     if np.sum(mask) < 10:
         return {"Kp": np.nan, "Sv": np.nan}
 
     q_sel = q[mask]
-    I_sel = I[mask]
+    I_sel = intensity[mask]
     iq4 = I_sel * q_sel**4
 
     kp = np.median(iq4)

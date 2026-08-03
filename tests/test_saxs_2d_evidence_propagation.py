@@ -156,6 +156,131 @@ def test_strain_points_and_summary_propagate_2d_evidence(monkeypatch):
     json.dumps(result.orientation_evidence, allow_nan=False)
 
 
+def test_real_sector_map_detector_evidence_reaches_strain_series_summary(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_strain as module
+
+    q = np.linspace(0.02, 0.6, 24)
+    chi = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    I_2d = (1.0 + 0.4 * np.cos(2.0 * chi))[:, None] * np.ones((1, q.size))
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi,
+        "q": q,
+        "I_full": np.mean(I_2d, axis=0),
+        "support_count": np.ones_like(I_2d),
+        "raw_detector_quality_report": {
+            "source_kind": "raw_detector",
+            "shape": [8, 8],
+            "pixel_count": 64,
+            "finite_pixel_count": 64,
+            "valid_pixel_count": 64,
+            "coverage_fraction": 1.0,
+            "beam_center_available": True,
+            "beam_center": [4.0, 4.0],
+            "level": "Trend",
+        },
+    }
+    intensity = 120.0 * np.exp(-q**2 * 4.0**2 / 3.0)
+
+    monkeypatch.setattr(
+        module,
+        "analyze_single",
+        lambda q_arr, i_arr, cfg: SimpleNamespace(
+            long_period=SimpleNamespace(L_best=10.0, L_confidence=0.8, method_used="bragg"),
+            structure=SimpleNamespace(lc=3.0, la=7.0, phi_c=0.3),
+            data_quality_report={"level": "Trend"},
+            metric_evidence={},
+        ),
+    )
+    monkeypatch.setattr(module, "scattering_invariant", lambda *args, **kwargs: 1.0)
+
+    result = analyze_strain_series(
+        [0.0, 10.0],
+        [q, q],
+        [intensity, intensity],
+        sector_data_list=[sector_data, sector_data],
+        cfg=SAXSConfig(tensile_axis_deg=0.0),
+    )
+
+    point_report = result.strain_points[0].detector_quality_report
+    assert point_report["source_kind"] == "sector_map"
+    assert result.detector_quality_report["evidence_frame_count"] == 2
+    assert result.detector_quality_report["source_kinds"] == ["sector_map"]
+    point_evidence = result.strain_points[0].orientation_evidence
+    fit_evidence = point_evidence["fit_evidence"]
+    physical_checks = point_evidence["physical_checks"]
+    assert np.isfinite(result.strain_points[0].f_herman)
+    assert fit_evidence["principal_scattering_axis_deg"] is not None
+    assert fit_evidence["tensile_axis_deg"] == 0.0
+    assert fit_evidence["reference_axis_deg"] == 0.0
+    assert fit_evidence["reference_axis_kind"] == "tensile_axis"
+    assert physical_checks["sector_map_quality_report"]["support_available"] is True
+    assert physical_checks["annulus_quality_report"]["support_available"] is True
+    assert result.strain_points[0].raw_detector_quality_report["source_kind"] == "raw_detector"
+    assert result.raw_detector_quality_report["source_kinds"] == ["raw_detector"]
+    json.dumps(point_report, allow_nan=False)
+    json.dumps(result.detector_quality_report, allow_nan=False)
+
+
+def test_unusable_radial_quality_propagates_to_strain_orientation_summary(monkeypatch):
+    import polynexus.core.saxs_engine.saxs_strain as module
+
+    q = np.linspace(0.1, 1.0, 120)
+    intensity = 0.1 + np.exp(-((q - 0.45) / 0.025) ** 2)
+    chi = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    I_2d = np.outer(1.0 + 3.0 * np.cos(chi) ** 2, intensity)
+    raw_detector_report = {
+        "source_kind": "raw_detector",
+        "shape": [8, 8],
+        "pixel_count": 64,
+        "finite_pixel_count": 64,
+        "valid_pixel_count": 64,
+        "coverage_fraction": 1.0,
+        "beam_center_available": True,
+        "beam_center": [4.0, 4.0],
+        "level": "Trend",
+    }
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi,
+        "I_full": intensity,
+        "support_count": np.ones_like(I_2d),
+        "raw_detector_quality_report": raw_detector_report,
+    }
+
+    monkeypatch.setattr(
+        module,
+        "analyze_single",
+        lambda *_args, **_kwargs: SAXSResult(
+            long_period=SimpleNamespace(L_best=14.0, L_confidence=0.8, method_used="bragg"),
+            structure=StructureParams(L=14.0, lc=3.0, la=11.0, phi_c=0.25),
+            data_quality_report={
+                "level": "Unusable",
+                "reason_codes": ["q_nonfinite"],
+            },
+            metric_evidence={},
+        ),
+    )
+
+    result = analyze_strain_series(
+        [0.0], [q], [intensity], sector_data_list=[sector_data],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=0.0),
+    )
+
+    frame_evidence = result.strain_points[0].orientation_evidence
+    summary_evidence = result.orientation_evidence
+    assert not np.isfinite(result.strain_points[0].f_herman)
+    assert np.isfinite(result.strain_points[0].f_herman_raw)
+    assert frame_evidence["level"] == "Unusable"
+    assert frame_evidence["applicable"] is False
+    assert "orientation_input_quality_unusable" in frame_evidence["reason_codes"]
+    assert summary_evidence["level"] == "Unusable"
+    assert summary_evidence["applicable"] is False
+    assert "orientation_input_quality_unusable" in summary_evidence["reason_codes"]
+
+
 def test_temperature_parameters_align_2d_frame_evidence_by_source_index():
     engine = SAXSEngine(SAXSConfig())
     series = TempSeriesResult(

@@ -2286,6 +2286,12 @@ def test_joint_ai_context_builds_no_issue_summary_with_translated_labels():
         "samples": [],
         "batches": [],
         "row_count": 2,
+        "ai_boundary": {
+            "mode": "off",
+            "provider_status": "not_configured",
+            "fallback": "rule_based_report",
+            "failure_policy": "preserve_source_evidence_and_diagnostic_status",
+        },
     }
 
 
@@ -2344,6 +2350,12 @@ def test_joint_ai_context_summarizes_issue_families_highlights_and_counts():
     assert context["samples"] == ["PA6", "PET", "PBT"]
     assert context["batches"] == ["batch-a", "batch-b", "batch-c"]
     assert context["row_count"] == 4
+    assert context["ai_boundary"] == {
+        "mode": "off",
+        "provider_status": "not_configured",
+        "fallback": "rule_based_report",
+        "failure_policy": "preserve_source_evidence_and_diagnostic_status",
+    }
     assert context["highlights"] == [
         "ERROR · PA6 / batch-a · phi_c_delta · phi mismatch",
         "WARN · PET / batch-c · tm_gt_tc · gap large",

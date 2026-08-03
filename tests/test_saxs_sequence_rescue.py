@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from polynexus.core.saxs_engine.saxs_quality_contracts import contract_json
 from polynexus.core.saxs_engine.saxs_sequence_rescue import (
     build_sequence_rescue_candidates,
+    resolve_sequence_rescue_candidate,
     validate_sequence_rescue_candidate,
 )
 from polynexus.core.saxs_engine.saxs_temperature import TemperaturePointResult, TempSeriesResult
@@ -43,6 +46,72 @@ def test_sequence_candidates_do_not_fabricate_missing_or_usable_frames():
     )
 
     assert candidates == ()
+
+
+def test_sequence_reference_resolves_one_detached_existing_candidate():
+    candidate = build_sequence_rescue_candidates([_point()])[0]
+
+    resolved = resolve_sequence_rescue_candidate(
+        [candidate.to_dict()],
+        candidate.candidate_id,
+    )
+
+    assert resolved is not None
+    assert resolved is not candidate
+    assert resolved.candidate_id == candidate.candidate_id
+    assert resolved.kind == "deterministic"
+    assert resolved.source == "saxs_temperature.select_lc_sequence_path"
+    assert resolved.parameters["axis_name"] == "temperature"
+    assert resolved.parameters["metric"] == "lc_nm"
+    assert resolved.parameters["apply_mode"] == "candidate_only"
+    assert resolved.parameters["preserve_missing_frames"] is True
+    assert resolved.requires_validation is True
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda payload: payload.update({"kind": "ai"}),
+        lambda payload: payload.pop("source"),
+        lambda payload: payload["parameters"].update({"apply_mode": "validated"}),
+        lambda payload: payload["parameters"].update({"preserve_missing_frames": False}),
+    ],
+)
+def test_sequence_reference_rejects_untrusted_candidate_identity(mutator):
+    candidate = build_sequence_rescue_candidates([_point()])[0]
+    payload = candidate.to_dict()
+    mutator(payload)
+
+    assert resolve_sequence_rescue_candidate([payload], candidate.candidate_id) is None
+
+
+@pytest.mark.parametrize(
+    ("candidate_id", "mode"),
+    [
+        ("", "temperature"),
+        ("unknown", "temperature"),
+        ("temperature-frame-0-lc-tangent", "static"),
+    ],
+)
+def test_sequence_reference_rejects_empty_unknown_or_unsupported_request(
+    candidate_id, mode
+):
+    candidate = build_sequence_rescue_candidates([_point()])[0]
+
+    assert resolve_sequence_rescue_candidate(
+        [candidate.to_dict()],
+        candidate_id,
+        mode=mode,
+    ) is None
+
+
+def test_sequence_reference_rejects_ambiguous_duplicate_ids():
+    candidate = build_sequence_rescue_candidates([_point()])[0]
+
+    assert resolve_sequence_rescue_candidate(
+        [candidate.to_dict(), candidate.to_dict()],
+        candidate.candidate_id,
+    ) is None
 
 
 def test_rescue_validation_requires_all_hard_gates_and_is_strict_json_safe():

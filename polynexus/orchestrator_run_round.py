@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import inspect
 from typing import Any
 
 from llm.llm_client import LLMCancelledError
+from polynexus.core.saxs_engine.saxs_ai_rescue import resolve_saxs_ai_candidate_references
 from .orchestrator_run_round_handlers import (
     _handle_candidate_plan_round,
     _handle_direct_change_round,
@@ -14,8 +16,6 @@ from .orchestrator_run_round_handlers import (
 
 
 def _execute_round_iteration(self, engine, baseline, round_num: int) -> dict[str, Any]:
-    from polynexus import orchestrator as orchestrator_module
-
     if self._cancel_event and self._cancel_event.is_set():
         return {"stop": True, "converged": False, "convergence_reason": "cancelled"}
 
@@ -30,6 +30,21 @@ def _execute_round_iteration(self, engine, baseline, round_num: int) -> dict[str
         advice = self.advisor.advise(state, **advise_kwargs)
     except LLMCancelledError:
         return {"stop": True, "converged": False, "convergence_reason": "cancelled"}
+
+    if self.technique == "saxs" and isinstance(advice, dict):
+        saxs_context = state.get("saxs_ai_context", {})
+        mode = saxs_context.get("mode", "static") if isinstance(saxs_context, dict) else "static"
+        advice = dict(advice)
+        resolution = resolve_saxs_ai_candidate_references(
+            engine,
+            advice,
+            mode=str(mode or "static"),
+        )
+        advice["saxs_candidate_reference_resolution"] = resolution
+        setattr(engine, "saxs_candidate_reference_resolution", deepcopy(resolution))
+        result = getattr(engine, "result", None)
+        if result is not None:
+            setattr(result, "saxs_candidate_reference_resolution", deepcopy(resolution))
 
     prompt = str(getattr(self.advisor, "last_prompt", ""))
     changes = advice.get("changes", {})

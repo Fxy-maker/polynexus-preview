@@ -21,8 +21,17 @@ from ..figures.contracts import (
     FigureLayoutDefinition,
     PanelDefinition,
 )
-from .figure_common import SAXSFrameView, frame_views_from_engine
-from .figure_evidence import attach_saxs_figure_evidence
+from .figure_common import (
+    SAXSFrameView,
+    _coerce_numeric_array,
+    frame_views_from_engine,
+)
+from .figure_evidence import (
+    attach_saxs_figure_evidence,
+    configured_saxs_1d_review,
+    existing_saxs_acceptance_audit,
+)
+from ..saxs_batch_helpers import copy_saxs_ai_rescue_evidence
 from .figure_eligibility import (
     FigureEligibilityDecision,
     classify_frame_eligibility,
@@ -52,12 +61,44 @@ _STANDARD_AXIS_LABELS = {
     "Azimuth": r"Azimuth $\chi$ (rad)",
     "Phase": "Strain phase",
 }
+_STRAIN_METHOD_EVIDENCE_METHODS = (
+    ("porod", "Porod", "a.u.", "#0072B2"),
+    ("kratky", "Kratky", "nm^-1", "#009E73"),
+    ("invariant", "Invariant", "a.u.", "#D55E00"),
+    ("lamellar", "Lamellar", "nm", "#CC79A7"),
+)
 
 
 @dataclass(frozen=True)
 class _DetectorEvidence:
     frame: SAXSFrameView
     source: FigureDataSourceDefinition
+    sampled_pixel_count: int
+    retained_pixel_count: int
+    nonfinite_pixel_count: int
+
+    @property
+    def projection_quality(self) -> dict[str, Any]:
+        return {
+            "sampled_pixel_count": self.sampled_pixel_count,
+            "retained_pixel_count": self.retained_pixel_count,
+            "nonfinite_pixel_count": self.nonfinite_pixel_count,
+            "status": (
+                "partial_nonfinite"
+                if self.nonfinite_pixel_count
+                else "complete"
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class _DetectorProjection:
+    pixel_x: np.ndarray
+    pixel_y: np.ndarray
+    log_intensity: np.ndarray
+    sampled_pixel_count: int
+    retained_pixel_count: int
+    nonfinite_pixel_count: int
 
 
 def _finite_number(value: Any) -> float:
@@ -66,6 +107,11 @@ def _finite_number(value: Any) -> float:
     except (TypeError, ValueError):
         return np.nan
     return number if np.isfinite(number) else np.nan
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    number = _finite_number(value)
+    return float(number) if np.isfinite(number) else None
 
 
 def _first_finite(*values: Any) -> float:
@@ -271,11 +317,10 @@ def _profile_values(
     intensity: Any | None = None,
 ) -> tuple[tuple[float, ...], tuple[float, ...]]:
     try:
-        q = np.asarray(frame.q, dtype=float).reshape(-1)
-        values = np.asarray(
+        q = _coerce_numeric_array(frame.q)
+        values = _coerce_numeric_array(
             frame.intensity if intensity is None else intensity,
-            dtype=float,
-        ).reshape(-1)
+        )
     except (TypeError, ValueError):
         return (), ()
     count = min(q.size, values.size)
@@ -283,6 +328,34 @@ def _profile_values(
     values = values[:count]
     finite = np.isfinite(q) & np.isfinite(values) & (q > 0) & (values > 0)
     return tuple(q[finite].tolist()), tuple(values[finite].tolist())
+
+
+def _profile_projection_quality(frame: SAXSFrameView) -> dict[str, Any] | None:
+    try:
+        q = _coerce_numeric_array(frame.q)
+        intensity = _coerce_numeric_array(frame.intensity)
+    except (TypeError, ValueError):
+        return None
+    count = min(q.size, intensity.size)
+    q = q[:count]
+    intensity = intensity[:count]
+    finite = np.isfinite(q) & np.isfinite(intensity)
+    retained = finite & (q > 0.0) & (intensity > 0.0)
+    finite_count = int(np.count_nonzero(finite))
+    retained_count = int(np.count_nonzero(retained))
+    nonfinite_count = int(count - finite_count)
+    nonpositive_count = int(finite_count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "nonpositive_pair_count": nonpositive_count,
+        "status": (
+            "complete"
+            if nonfinite_count == 0 and nonpositive_count == 0
+            else "partial_invalid"
+        ),
+    }
 
 
 def _engine_channel(engine: Any, frame: SAXSFrameView, attribute: str) -> Any | None:
@@ -333,8 +406,8 @@ def _q_strain_source(
     curves: list[tuple[SAXSFrameView, np.ndarray, np.ndarray]] = []
     for frame in frames:
         try:
-            q = np.asarray(frame.q, dtype=float).reshape(-1)
-            intensity = np.asarray(frame.intensity, dtype=float).reshape(-1)
+            q = _coerce_numeric_array(frame.q)
+            intensity = _coerce_numeric_array(frame.intensity)
         except (TypeError, ValueError):
             return None, "unavailable"
         count = min(q.size, intensity.size)
@@ -580,13 +653,7 @@ def _orientation_values(
     for frame in frames:
         point = _series_point(engine, frame)
         anisotropy = getattr(frame.analysis, "anisotropy", None)
-        f_values.append(
-            _first_finite(
-                getattr(point, "f_herman", np.nan),
-                getattr(anisotropy, "f_herman", np.nan),
-                _emitted_parameter(frame, "f_herman", "f_Herman", "orientation_f"),
-            )
-        )
+        f_values.append(_effective_orientation_fherman(point))
         anisotropy_values.append(
             _first_finite(
                 getattr(anisotropy, "anisotropy_index", np.nan),
@@ -598,6 +665,25 @@ def _orientation_values(
         "f_herman": f_values,
         "anisotropy_index": anisotropy_values,
     }
+
+
+def _effective_orientation_fherman(point: Any) -> float:
+    """Project only a final, explicitly tensile-referenced orientation value."""
+
+    value = _finite_number(getattr(point, "f_herman", np.nan))
+    evidence = getattr(point, "orientation_evidence", None)
+    if not np.isfinite(value) or not isinstance(evidence, Mapping):
+        return np.nan
+    if evidence.get("applicable") is not True:
+        return np.nan
+    fit_evidence = evidence.get("fit_evidence")
+    if not isinstance(fit_evidence, Mapping):
+        return np.nan
+    if fit_evidence.get("reference_axis_kind") != "tensile_axis":
+        return np.nan
+    if not np.isfinite(_finite_number(fit_evidence.get("tensile_axis_deg"))):
+        return np.nan
+    return value
 
 
 def _orientation_source(
@@ -627,13 +713,14 @@ def _orientation_source(
     )
 
 
-def _downsample_detector(image: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+def _downsample_detector(image: Any) -> _DetectorProjection | None:
     try:
-        array = np.asarray(image, dtype=float)
+        source = np.asarray(image, dtype=object)
     except (TypeError, ValueError):
         return None
-    if array.ndim != 2 or array.size == 0 or not np.all(np.isfinite(array)):
+    if source.ndim != 2 or source.size == 0:
         return None
+    array = _coerce_numeric_array(source).reshape(source.shape)
     row_count, column_count = array.shape
     row_indices = np.linspace(
         0,
@@ -648,9 +735,23 @@ def _downsample_detector(image: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray
         dtype=int,
     )
     sampled = array[np.ix_(row_indices, column_indices)]
-    positive = np.clip(sampled, np.finfo(float).tiny, None)
     x_grid, y_grid = np.meshgrid(column_indices, row_indices)
-    return x_grid.reshape(-1), y_grid.reshape(-1), np.log10(positive).reshape(-1)
+    finite = np.isfinite(sampled).reshape(-1)
+    sampled_pixel_count = int(finite.size)
+    retained_pixel_count = int(np.count_nonzero(finite))
+    nonfinite_pixel_count = sampled_pixel_count - retained_pixel_count
+    if retained_pixel_count == 0:
+        return None
+    sampled_values = sampled.reshape(-1)[finite]
+    positive = np.clip(sampled_values, np.finfo(float).tiny, None)
+    return _DetectorProjection(
+        pixel_x=x_grid.reshape(-1)[finite],
+        pixel_y=y_grid.reshape(-1)[finite],
+        log_intensity=np.log10(positive),
+        sampled_pixel_count=sampled_pixel_count,
+        retained_pixel_count=retained_pixel_count,
+        nonfinite_pixel_count=nonfinite_pixel_count,
+    )
 
 
 def _detector_evidence(
@@ -674,7 +775,9 @@ def _detector_evidence(
                 "detector image is empty, non-finite, or not two-dimensional"
             )
             continue
-        pixel_x, pixel_y, log_intensity = sampled
+        pixel_x = sampled.pixel_x
+        pixel_y = sampled.pixel_y
+        log_intensity = sampled.log_intensity
         source = _data_source(
             f"detector-image-{frame.index:03d}",
             (
@@ -689,7 +792,15 @@ def _detector_evidence(
             },
             role="detector_image",
         )
-        evidence.append(_DetectorEvidence(frame=frame, source=source))
+        evidence.append(
+            _DetectorEvidence(
+                frame=frame,
+                source=source,
+                sampled_pixel_count=sampled.sampled_pixel_count,
+                retained_pixel_count=sampled.retained_pixel_count,
+                nonfinite_pixel_count=sampled.nonfinite_pixel_count,
+            )
+        )
     return tuple(evidence), failures
 
 
@@ -705,6 +816,8 @@ def _main_recipe(
     decisions: Mapping[int, FigureEligibilityDecision],
     selection: RepresentativeFrameSelection,
     detector_failures: Mapping[str, str],
+    detector_projection_quality: Mapping[str, Mapping[str, Any]],
+    profile_projection_quality: Mapping[str, Mapping[str, Any]],
     *,
     detector_capable: bool,
     heatmap_render_transform: str,
@@ -737,12 +850,21 @@ def _main_recipe(
             "heatmap_render_transform": heatmap_render_transform,
         },
     }
+    if not detector_capable:
+        recipe["parameters"]["profile_projection_quality"] = {
+            str(index): dict(quality)
+            for index, quality in profile_projection_quality.items()
+        }
     if detector_capable:
         recipe["selected_detector_source_paths"] = {
             str(index): frame_by_index[index].source_path
             for index in selection.indices
         }
         recipe["parameters"]["detector_failures"] = dict(detector_failures)
+        recipe["parameters"]["detector_projection_quality"] = {
+            str(index): dict(quality)
+            for index, quality in detector_projection_quality.items()
+        }
     return recipe
 
 
@@ -762,11 +884,15 @@ def _main_definition(
     detector_failures: dict[str, str] = {}
     if detector_capable:
         detector_evidence, detector_failures = _detector_evidence(selected_frames)
+    detector_projection_quality = {
+        str(item.frame.index): item.projection_quality for item in detector_evidence
+    }
 
     sources: list[FigureDataSourceDefinition] = []
     panels: list[PanelDefinition] = []
     objects: list[dict[str, Any]] = []
     auxiliary: list[tuple[PanelDefinition, tuple[dict[str, Any], ...]]] = []
+    profile_projection_quality: dict[str, dict[str, Any]] = {}
 
     if detector_capable:
         for ordinal, item in enumerate(detector_evidence):
@@ -807,6 +933,9 @@ def _main_definition(
             )
             if source is None:
                 continue
+            quality = _profile_projection_quality(frame)
+            if quality is not None:
+                profile_projection_quality[str(frame.index)] = quality
             sources.append(source)
             profile_objects.append(
                 _series_object(
@@ -1063,6 +1192,8 @@ def _main_definition(
             decisions,
             selection,
             detector_failures,
+            detector_projection_quality,
+            profile_projection_quality,
             detector_capable=detector_capable,
             heatmap_render_transform=heatmap_render_transform,
         ),
@@ -1081,6 +1212,7 @@ def _sequence_definition(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    profile_projection_quality: dict[str, dict[str, Any]] = {}
     for ordinal, frame in enumerate(frames):
         source = _profile_source(
             engine,
@@ -1091,6 +1223,9 @@ def _sequence_definition(
         )
         if source is None:
             continue
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            profile_projection_quality[str(frame.index)] = quality
         sources.append(source)
         objects.append(
             _series_object(
@@ -1128,6 +1263,16 @@ def _sequence_definition(
         if diagnostic
         else f"saxs.strain.sequence.{'2d' if detector_capable else '1d'}"
     )
+    parameters: dict[str, Any] = {
+        "included_frame_indices": [frame.index for frame in frames],
+        "eligibility_reasons": _eligibility_payload(frames, decisions),
+        **({"detector_images_loaded": False} if detector_capable else {}),
+    }
+    if not detector_capable:
+        parameters["profile_projection_quality"] = {
+            str(index): dict(quality)
+            for index, quality in profile_projection_quality.items()
+        }
     return FigureDefinition(
         figure_id=figure_id,
         technique="saxs",
@@ -1163,11 +1308,7 @@ def _sequence_definition(
             "module": _MODULE,
             "function": "build_strain_figure_definitions",
             "inputs": {"source_paths": [frame.source_path for frame in frames]},
-            "parameters": {
-                "included_frame_indices": [frame.index for frame in frames],
-                "eligibility_reasons": _eligibility_payload(frames, decisions),
-                **({"detector_images_loaded": False} if detector_capable else {}),
-            },
+            "parameters": parameters,
         },
         style_profile="sci_default",
         display_order=200 if diagnostic else 100,
@@ -1184,13 +1325,39 @@ def _analysis_trace(
     if not isinstance(payload, Mapping):
         return (), ()
     try:
-        x_values = np.asarray(payload.get(x_key, ()), dtype=float).reshape(-1)
-        y_values = np.asarray(payload.get(y_key, ()), dtype=float).reshape(-1)
+        x_values = _coerce_numeric_array(payload.get(x_key, ()))
+        y_values = _coerce_numeric_array(payload.get(y_key, ()))
     except (TypeError, ValueError):
         return (), ()
     count = min(x_values.size, y_values.size)
     finite = np.isfinite(x_values[:count]) & np.isfinite(y_values[:count])
     return tuple(x_values[:count][finite]), tuple(y_values[:count][finite])
+
+
+def _analysis_trace_projection_quality(
+    frame: SAXSFrameView,
+    attribute: str,
+    x_key: str,
+    y_key: str,
+) -> dict[str, Any] | None:
+    payload = getattr(frame.analysis, attribute, None)
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        x_values = _coerce_numeric_array(payload.get(x_key, ()))
+        y_values = _coerce_numeric_array(payload.get(y_key, ()))
+    except (TypeError, ValueError):
+        return None
+    count = min(x_values.size, y_values.size)
+    finite = np.isfinite(x_values[:count]) & np.isfinite(y_values[:count])
+    retained_count = int(np.count_nonzero(finite))
+    nonfinite_count = int(count - retained_count)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": retained_count,
+        "nonfinite_pair_count": nonfinite_count,
+        "status": "complete" if nonfinite_count == 0 else "partial_nonfinite",
+    }
 
 
 def _trace_definition(
@@ -1208,10 +1375,14 @@ def _trace_definition(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    trace_projection_quality: dict[str, dict[str, Any]] = {}
     for ordinal, frame in enumerate(frames):
         x_values, y_values = _analysis_trace(frame, attribute, x_key, y_key)
         if not x_values:
             continue
+        quality = _analysis_trace_projection_quality(frame, attribute, x_key, y_key)
+        if quality is not None:
+            trace_projection_quality[str(frame.index)] = quality
         source_id = f"{attribute}-trace-{frame.index:03d}"
         sources.append(
             _data_source(
@@ -1275,10 +1446,187 @@ def _trace_definition(
                     int(source.source_id.rsplit("-", 1)[1]) for source in sources
                 ],
                 "eligibility_reasons": _eligibility_payload(frames, decisions),
+                "trace_projection_quality": {
+                    str(index): dict(quality)
+                    for index, quality in trace_projection_quality.items()
+                },
             },
         },
         style_profile="sci_default",
         display_order=display_order,
+    )
+
+
+def _method_reason_codes(payload: Mapping[str, Any]) -> str | None:
+    raw_reasons = payload.get("reason_codes")
+    if isinstance(raw_reasons, str):
+        return raw_reasons or None
+    if isinstance(raw_reasons, (list, tuple)):
+        return "|".join(str(reason) for reason in raw_reasons) or None
+    return None
+
+
+def _build_strain_method_evidence(
+    frames: Sequence[SAXSFrameView],
+) -> FigureDefinition | None:
+    """Project existing strain frame metric evidence into a diagnostic Figure."""
+
+    if not any(
+        isinstance(getattr(frame.analysis, "metric_evidence", None), Mapping)
+        and any(
+            isinstance(
+                getattr(frame.analysis, "metric_evidence", {}).get(method),
+                Mapping,
+            )
+            for method, _label, _unit, _color in _STRAIN_METHOD_EVIDENCE_METHODS
+        )
+        for frame in frames
+    ):
+        return None
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, Any]] = []
+    plot_methods: list[str] = []
+    for method, label, unit, color in _STRAIN_METHOD_EVIDENCE_METHODS:
+        audit_strains: list[float | None] = []
+        audit_values: list[float | None] = []
+        frame_indices: list[int] = []
+        source_paths: list[str | None] = []
+        levels: list[str | None] = []
+        reasons: list[str | None] = []
+        plot_strains: list[float] = []
+        plot_values: list[float] = []
+        for frame in frames:
+            payloads = getattr(frame.analysis, "metric_evidence", None)
+            payload = payloads.get(method) if isinstance(payloads, Mapping) else None
+            strain = _finite_float_or_none(frame.condition)
+            value = (
+                _finite_float_or_none(payload.get("value"))
+                if isinstance(payload, Mapping)
+                else None
+            )
+            audit_strains.append(strain)
+            audit_values.append(value)
+            frame_indices.append(int(frame.index))
+            source_path = str(frame.source_path or "").strip()
+            source_paths.append(source_path or None)
+            if isinstance(payload, Mapping):
+                raw_level = str(payload.get("level") or "").strip()
+                levels.append(raw_level or None)
+                reasons.append(_method_reason_codes(payload))
+            else:
+                levels.append(None)
+                reasons.append(None)
+            if strain is not None and value is not None:
+                plot_strains.append(strain)
+                plot_values.append(value)
+
+        audit_source_id = f"strain-method-evidence-{method}"
+        plot_source_id = f"{audit_source_id}-plot"
+        sources.append(
+            _data_source(
+                audit_source_id,
+                (
+                    ("strain_pct", "%", "float64"),
+                    ("value", unit, "float64"),
+                    ("frame_index", "index", "int64"),
+                    ("source_path", "path", "string"),
+                    ("frame_level", "level", "string"),
+                    ("frame_reason_codes", "reason", "string"),
+                ),
+                {
+                    "strain_pct": audit_strains,
+                    "value": audit_values,
+                    "frame_index": frame_indices,
+                    "source_path": source_paths,
+                    "frame_level": levels,
+                    "frame_reason_codes": reasons,
+                },
+                role="method_evidence_audit",
+            )
+        )
+        if len(plot_values) >= 2:
+            sources.append(
+                _data_source(
+                    plot_source_id,
+                    (
+                        ("strain_pct", "%", "float64"),
+                        ("value", unit, "float64"),
+                    ),
+                    {
+                        "strain_pct": plot_strains,
+                        "value": plot_values,
+                    },
+                    role="method_evidence_plot",
+                )
+            )
+            plot_methods.append(method)
+            objects.append(
+                _series_object(
+                    f"strain-method-{method}",
+                    method,
+                    plot_source_id,
+                    "strain_pct",
+                    "value",
+                    name=label,
+                    color=color,
+                    marker="o",
+                    chart_kind="scatter",
+                )
+            )
+
+    panels = tuple(
+        _panel(
+            method,
+            index // 2,
+            index % 2,
+            _axis(f"{method}-x", "Strain", "%"),
+            _axis(f"{method}-y", label, unit),
+            title=label,
+            panel_label=f"({chr(ord('a') + index)})",
+        )
+        for index, (method, label, unit, _color) in enumerate(
+            _STRAIN_METHOD_EVIDENCE_METHODS
+        )
+    )
+    return FigureDefinition(
+        figure_id="saxs.strain.method_evidence",
+        technique="saxs",
+        scope="series",
+        category="diagnostic",
+        publication_role="diagnostic",
+        title="Strain SAXS Method Evidence",
+        layout=FigureLayoutDefinition(
+            width_in=7.5,
+            height_in=5.5,
+            rows=2,
+            columns=2,
+            panels=panels,
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": _MODULE,
+            "function": "build_strain_figure_definitions",
+            "inputs": {"frame_count": len(frames)},
+            "parameters": {
+                "figure_kind": "method_evidence_diagnostic",
+                "methods": [
+                    method
+                    for method, _label, _unit, _color in _STRAIN_METHOD_EVIDENCE_METHODS
+                ],
+                "plot_methods": plot_methods,
+                "condition_axis": "strain_pct",
+                "source_mapping": "static_frame_order",
+                "renderer_minimum_pairs": 2,
+                "missing_values_preserved": True,
+                "interpolation": False,
+                "reclassification": False,
+            },
+            "v2_adapter": "saxs_strain",
+        },
+        style_profile="sci_default",
+        display_order=150,
     )
 
 
@@ -1288,20 +1636,30 @@ def _azimuthal_definition(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    azimuthal_projection_quality: dict[str, dict[str, Any]] = {}
     for ordinal, frame in enumerate(frames):
         anisotropy = getattr(frame.analysis, "anisotropy", None)
         try:
-            chi = np.asarray(getattr(anisotropy, "azimuthal_chi", ()), dtype=float).reshape(-1)
-            intensity = np.asarray(
-                getattr(anisotropy, "azimuthal_I", ()),
-                dtype=float,
-            ).reshape(-1)
+            chi = _coerce_numeric_array(
+                getattr(anisotropy, "azimuthal_chi", ())
+            )
+            intensity = _coerce_numeric_array(
+                getattr(anisotropy, "azimuthal_I", ())
+            )
         except (TypeError, ValueError):
             continue
         count = min(chi.size, intensity.size)
         finite = np.isfinite(chi[:count]) & np.isfinite(intensity[:count])
         if not np.any(finite):
             continue
+        retained_count = int(np.count_nonzero(finite))
+        nonfinite_count = count - retained_count
+        azimuthal_projection_quality[str(frame.index)] = {
+            "input_pair_count": int(count),
+            "retained_pair_count": retained_count,
+            "nonfinite_pair_count": int(nonfinite_count),
+            "status": "partial_nonfinite" if nonfinite_count else "complete",
+        }
         source_id = f"azimuthal-trace-{frame.index:03d}"
         sources.append(
             _data_source(
@@ -1365,6 +1723,7 @@ def _azimuthal_definition(
                     int(source.source_id.rsplit("-", 1)[1]) for source in sources
                 ],
                 "eligibility_reasons": _eligibility_payload(frames, decisions),
+                "azimuthal_projection_quality": dict(azimuthal_projection_quality),
             },
         },
         style_profile="sci_default",
@@ -1472,10 +1831,14 @@ def _low_q_definition(
 ) -> FigureDefinition | None:
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
+    profile_projection_quality: dict[str, dict[str, Any]] = {}
     for ordinal, frame in enumerate(frames):
         q_values, intensity_values = _profile_values(frame)
         if len(q_values) < 3:
             continue
+        quality = _profile_projection_quality(frame)
+        if quality is not None:
+            profile_projection_quality[str(frame.index)] = quality
         q_array = np.asarray(q_values)
         intensity_array = np.asarray(intensity_values)
         count = max(3, int(np.ceil(q_array.size * 0.25)))
@@ -1537,6 +1900,10 @@ def _low_q_definition(
                     int(source.source_id.rsplit("-", 1)[1]) for source in sources
                 ],
                 "eligibility_reasons": _eligibility_payload(frames, decisions),
+                "profile_projection_quality": {
+                    str(index): dict(quality)
+                    for index, quality in profile_projection_quality.items()
+                },
             },
         },
         style_profile="sci_default",
@@ -1605,6 +1972,9 @@ def build_strain_figure_definitions(
         definitions.append(diagnostic)
 
     evidence_frames = non_diagnostic_frames or diagnostic_frames
+    method_evidence = _build_strain_method_evidence(frames)
+    if method_evidence is not None:
+        definitions.append(method_evidence)
     for definition in (
         _invariant_definition(engine, evidence_frames, decisions),
         _trace_definition(
@@ -1645,11 +2015,18 @@ def build_strain_figure_definitions(
         frames,
         mode="strain",
         series=getattr(engine, "_strain_result", None),
+        ai_rescue=copy_saxs_ai_rescue_evidence(
+            engine,
+            getattr(engine, "result", None),
+        ),
+        acceptance_audit=existing_saxs_acceptance_audit(engine),
+        scientific_review=configured_saxs_1d_review(engine),
     )
 
 
 def _ensure_display_order(definition: FigureDefinition) -> FigureDefinition:
     recipe = dict(definition.recipe)
+    recipe.setdefault("v2_adapter", "saxs_strain")
     parameters = dict(recipe.get("parameters", {}))
     parameters.setdefault("display_order", int(definition.display_order))
     recipe["parameters"] = parameters

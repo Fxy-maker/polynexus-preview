@@ -11,6 +11,28 @@ from typing import Any, Dict, Tuple, Optional, List
 import numpy as np
 
 
+TENSILE_AXIS_CONVENTION = "detector_image_clockwise_deg_v1"
+
+
+def normalize_tensile_axis(
+    value: Any,
+    convention: Any,
+) -> tuple[float | None, str | None]:
+    """Normalize an explicit detector-plane axis without inferring one."""
+
+    if value is None or str(value).strip() == "":
+        return None, None
+    if str(convention or "").strip() != TENSILE_AXIS_CONVENTION:
+        raise ValueError("unsupported_tensile_axis_convention")
+    try:
+        angle = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("tensile_axis_invalid") from exc
+    if not np.isfinite(angle):
+        raise ValueError("tensile_axis_nonfinite")
+    return float(angle % 180.0), TENSILE_AXIS_CONVENTION
+
+
 @dataclass
 class ConditionPattern:
     """A named regular expression for extracting experimental condition
@@ -59,16 +81,16 @@ def _default_condition_patterns() -> List[ConditionPattern]:
     return [
         # ---- Strain patterns (matched first for experiment_type="strain") ----
         ConditionPattern(
+            name="strain_dash_S_suffix",
+            regex=r"-(\d+)-[Ss]_",
+            unit="%",
+            lookup_map="strain_map",
+        ),
+        ConditionPattern(
             name="strain_directory_code",
             regex=r"^(\d{3})$",
             unit="%",
             search_path=True,
-            lookup_map="strain_map",
-        ),
-        ConditionPattern(
-            name="strain_dash_S_suffix",
-            regex=r"-(\d+)-[Ss]_",
-            unit="%",
             lookup_map="strain_map",
         ),
         ConditionPattern(
@@ -195,6 +217,10 @@ class SAXSConfig:
     orientation_axis_deg: Optional[float] = None
     orientation_auto_min_strength: float = 0.08
     orientation_auto_min_bins: int = 12
+    orientation_auto_min_significance: float = 2.0
+    orientation_min_coverage: float = 0.75
+    orientation_min_effective_bins: float = 8.0
+    orientation_max_axis_drift_deg: float = 20.0
 
     # ---- Masking ----
     dummy_val: float = -1.5
@@ -207,6 +233,12 @@ class SAXSConfig:
     transmission_sample: float = 1.0
     transmission_background: float = 1.0
     sample_thickness_m: float = 1.0
+
+    # ---- Detector correction plugin ----
+    # The production registry is intentionally empty. These fields document
+    # an explicit future policy without enabling correction by configuration.
+    detector_correction_mode: str = "disabled"
+    detector_correction_policy_id: str = ""
 
     # ---- Smoothing ----
     smooth_method: str = "savgol"  # Best for preserving lamellar peak shape
@@ -301,9 +333,30 @@ class SAXSConfig:
     # ---- Output ----
     output_dir: str = ""
 
+    # ---- Reviewer-owned scientific evidence ----
+    # Optional serialized ScientificReviewRecord payload.  Consumers must
+    # validate it through the shared fail-closed review contract.
+    scientific_review: Dict[str, Any] = field(default_factory=dict)
+
     # ---- Plotting ----
     save_figures: bool = True
     figure_format: str = "pdf"
+
+    # ---- q-resolved orientation reliability diagnostics ----
+    # These settings bound non-mutating sensitivity evidence. They do not
+    # change the legacy scalar Herman calculation or promote calibration.
+    orientation_reliability_enabled: bool = True
+    orientation_bootstrap_replicates: int = 256
+    orientation_center_offsets_px: Tuple[float, ...] = (-1.0, 0.0, 1.0)
+    orientation_mask_dilation_px: Tuple[int, ...] = (1, 2)
+    orientation_q_width_scales: Tuple[float, ...] = (0.75, 1.0, 1.25)
+    orientation_chi_bin_scales: Tuple[float, ...] = (0.5, 1.0, 2.0)
+
+    # This is the explicit detector-plane projection of the tensile axis. None
+    # means no verified tensile reference for table-level Herman. It remains
+    # append-only to preserve positional construction of older configurations.
+    tensile_axis_deg: Optional[float] = None
+    tensile_axis_convention: str | None = None
 
 
 @dataclass

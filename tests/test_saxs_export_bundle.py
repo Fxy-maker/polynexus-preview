@@ -9,6 +9,7 @@ import numpy as np
 
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.saxs_engine.config import SAXSConfig
+from polynexus.core.saxs_engine.processed_profile import ProcessedProfile
 import polynexus.core.saxs_export_bundle as export_module
 from polynexus.core.saxs_export_bundle import export_saxs_bundle
 
@@ -37,6 +38,26 @@ def _engine() -> SimpleNamespace:
     )
 
 
+def _accepted_saxs_1d_review(*source_refs: str) -> dict[str, object]:
+    return {
+        "record_id": "review-saxs-1d-export",
+        "scope": "saxs.1d",
+        "reviewer": "reviewer-saxs",
+        "reviewed_at": "2026-07-31",
+        "policy_version": "saxs-1d-v1",
+        "source_refs": list(source_refs),
+        "decisions": {
+            "sequence_axis_policy": "existing temperature/source order",
+            "frame_identity_policy": "source-linked frame identity",
+            "missing_repeat_policy": "retain missing repeats",
+            "metric_claim_scope": "diagnostic evidence only",
+            "promotion_rule": "existing gates and source-matched review",
+        },
+        "status": "accepted",
+        "conditions": [],
+    }
+
+
 def test_export_saxs_bundle_writes_reproducible_core_artifacts(tmp_path) -> None:
     bundle = export_saxs_bundle(_engine(), str(tmp_path / "bundle"))
 
@@ -48,6 +69,88 @@ def test_export_saxs_bundle_writes_reproducible_core_artifacts(tmp_path) -> None
     assert (root / "provenance.json").exists()
     assert list((root / "data" / "profiles").glob("*.csv"))
     assert json.loads((root / "config_snapshot.json").read_text())["q_min"] == 0.12
+
+
+def test_export_uses_workbench_result_review_when_config_has_no_review(tmp_path) -> None:
+    engine = _engine()
+    engine.result.metadata["scientific_review"] = _accepted_saxs_1d_review(
+        "sample.dat"
+    )
+    engine._analysis = SimpleNamespace(
+        q=np.asarray([0.1, 0.2, 0.3]),
+        I=np.asarray([10.0, 8.0, 5.0]),
+        I_smooth=np.asarray([9.5, 7.5, 4.5]),
+        final_parameters={"file": "sample.dat"},
+    )
+    engine._q_list = [engine._analysis.q]
+    engine._I_list = [engine._analysis.I]
+    engine._file_list = ["sample.dat"]
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "workbench-review"))
+
+    payload = json.loads(
+        (tmp_path / "workbench-review" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["scientific_review"]["record_id"] == "review-saxs-1d-export"
+    assert payload["scientific_review"]["reason"] == "review_accepted"
+
+
+def test_dirty_profile_export_preserves_positions_and_diagnostics(tmp_path) -> None:
+    engine = _engine()
+    q_values = np.asarray(["0.1", "bad-q", "0.3"], dtype=object)
+    intensity = np.asarray(["10.0", "bad-i", "8.0"], dtype=object)
+    profile = ProcessedProfile(q=q_values, raw=intensity)
+    engine._q_list = [q_values]
+    engine._I_list = [intensity]
+    engine._processed_list = [profile]
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "dirty_profile_export"))
+
+    root = tmp_path / "dirty_profile_export"
+    assert bundle.status == "ok"
+    with (root / "data" / "profiles" / "profile_000.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+    provenance = json.loads((root / "provenance.json").read_text(encoding="utf-8"))
+
+    assert len(rows) == 3
+    assert rows[1]["q_nm_inv"] == ""
+    assert rows[1]["I_raw_au"] == ""
+    assert provenance["profiles"][0]["quality_status"] == "WARN"
+    assert provenance["profiles"][0]["diagnostics"] == {
+        "invalid_numeric_values": {"q": 1, "raw": 1}
+    }
+    assert q_values.tolist() == ["0.1", "bad-q", "0.3"]
+    assert intensity.tolist() == ["10.0", "bad-i", "8.0"]
+
+
+def test_fallback_dirty_provenance_records_conversion_diagnostics(tmp_path) -> None:
+    engine = _engine()
+    q_values = np.asarray(["0.1", "bad-q", "0.3"], dtype=object)
+    intensity = np.asarray(["10.0", "bad-i", "8.0"], dtype=object)
+    engine._analysis = SimpleNamespace(
+        q=q_values,
+        I=intensity,
+        I_smooth=np.asarray([9.5, 7.5, 4.5]),
+        quality_flag="OK",
+    )
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "fallback_dirty_provenance"))
+
+    root = tmp_path / "fallback_dirty_provenance"
+    provenance = json.loads((root / "provenance.json").read_text(encoding="utf-8"))
+
+    assert bundle.status == "ok"
+    assert provenance["profiles"][0]["quality_status"] == "WARN"
+    assert provenance["profiles"][0]["diagnostics"] == {
+        "invalid_numeric_values": {"q": 1, "raw": 1}
+    }
+    assert q_values.tolist() == ["0.1", "bad-q", "0.3"]
+    assert intensity.tolist() == ["10.0", "bad-i", "8.0"]
 
 
 def test_export_saxs_bundle_defends_non_mapping_parameter_rows(tmp_path, monkeypatch) -> None:
@@ -68,7 +171,10 @@ def test_export_saxs_bundle_defends_non_mapping_parameter_rows(tmp_path, monkeyp
     with (tmp_path / "mixed_rows" / "data" / "parameters.csv").open(
         newline="", encoding="utf-8"
     ) as handle:
-        assert list(csv.DictReader(handle)) == [{"L_nm": ""}, {"L_nm": "12.4"}]
+        assert list(csv.DictReader(handle)) == [
+            {"L_nm": "", "quality_evidence_ref": "../quality_evidence.json"},
+            {"L_nm": "12.4", "quality_evidence_ref": "../quality_evidence.json"},
+        ]
 
 
 def test_export_saxs_bundle_returns_failed_status_if_manifest_fallback_also_fails(
@@ -115,6 +221,53 @@ def test_export_saxs_bundle_persists_quality_evidence_and_ai_audit(tmp_path) -> 
     assert payload["static"]["orientation_evidence"]["level"] == "Diagnostic"
     assert payload["ai_rescue"]["plan"]["candidate_only"] is True
     assert payload["ai_rescue"]["decision"]["apply_allowed"] is False
+
+
+def test_export_saxs_bundle_persists_candidate_reference_resolution(tmp_path) -> None:
+    engine = _engine()
+    engine.saxs_candidate_reference_resolution = {
+        "mode": "temperature",
+        "status": "available",
+        "resolved": [{"candidate_id": "candidate-1", "kind": "deterministic"}],
+        "unresolved_ids": [],
+        "reason_codes": [],
+    }
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "candidate_reference"))
+
+    payload = json.loads(
+        (tmp_path / "candidate_reference" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["ai_rescue"]["candidate_reference_resolution"]["status"] == "available"
+    assert payload["ai_rescue"]["candidate_reference_resolution"]["resolved"][0]["candidate_id"] == "candidate-1"
+
+
+def test_export_saxs_bundle_adds_quality_evidence_reference_to_parameters(tmp_path) -> None:
+    engine = _engine()
+    engine.saxs_ai_rescue_plan = {
+        "candidate_only": True,
+        "candidates": [{"candidate_id": "candidate-secret", "config": {"q_min": 0.01}}],
+    }
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "quality_reference"))
+
+    root = tmp_path / "quality_reference"
+    parameters = json.loads((root / "parameters.json").read_text(encoding="utf-8"))
+    with (root / "data" / "parameters.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert bundle.status == "ok"
+    assert parameters["quality_evidence_file"] == "quality_evidence.json"
+    assert rows
+    assert all(row["quality_evidence_ref"] == "../quality_evidence.json" for row in rows)
+    csv_text = (root / "data" / "parameters.csv").read_text(encoding="utf-8")
+    assert "candidate-secret" not in csv_text
+    assert "q_min" not in csv_text
 
 
 def test_export_saxs_bundle_persists_confirmed_rerun_audit(tmp_path) -> None:
@@ -175,6 +328,39 @@ def test_export_saxs_bundle_preserves_series_and_frame_metric_evidence(tmp_path)
     assert payload["temperature"]["frames"][0]["metric_evidence"]["porod"]["level"] == "Trend"
     assert summary == summary_before
     assert frame == frame_before
+
+
+def test_export_saxs_bundle_preserves_series_condition_axis_provenance(tmp_path) -> None:
+    engine = _engine()
+    axis = {
+        "condition_name": "temperature_C",
+        "condition_values": [20.0, None, 40.0],
+        "status": "diagnostic",
+        "invalid_positions": [1],
+        "duplicate_positions": [],
+        "non_monotonic_positions": [2],
+    }
+    summary = {
+        "porod": {
+            "metric_name": "Porod",
+            "level": "Diagnostic",
+            "condition_axis": axis,
+        }
+    }
+    engine._temperature_result = SimpleNamespace(
+        metric_evidence=summary,
+        temp_points=[],
+    )
+
+    bundle = export_saxs_bundle(engine, str(tmp_path / "axis_quality"))
+
+    payload = json.loads(
+        (tmp_path / "axis_quality" / "quality_evidence.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert bundle.status == "ok"
+    assert payload["temperature"]["metric_evidence"]["porod"]["condition_axis"] == axis
 
 
 def test_export_saxs_bundle_preserves_static_batch_frame_and_summary_evidence(tmp_path) -> None:

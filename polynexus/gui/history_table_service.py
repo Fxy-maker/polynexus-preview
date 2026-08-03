@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
@@ -11,6 +10,8 @@ from .analysis_history_service import (
     format_history_timestamp,
     format_r2_value,
 )
+from .i18n import get_language
+from .scientific_review_presentation import scientific_review_display
 from .table_export_service import write_table_export
 
 
@@ -30,6 +31,7 @@ def build_history_table_rows(
     validation_summary_fn: Callable[[dict[str, Any]], str],
     confirmation_label_fn: Callable[[dict[str, Any]], str],
     has_source_fn: Callable[[dict[str, Any]], bool],
+    scientific_review_text_fn: Callable[[dict[str, Any]], str] | None = None,
 ) -> list[HistoryTableRow]:
     table_rows: list[HistoryTableRow] = []
     for run in rows if isinstance(rows, Iterable) else []:
@@ -39,12 +41,23 @@ def build_history_table_rows(
         technique_id = str(run.get("technique") or "")
         status_value = str(run.get("status") or "")
         metrics_tooltip = str(metrics_tooltip_fn(run) or "")
+        review_text = (
+            str(scientific_review_text_fn(run) or "").strip()
+            if scientific_review_text_fn is not None
+            else scientific_review_display(
+                run,
+                technique=technique_id,
+                submodule=submodule_id,
+                language=get_language(),
+            ).text
+        )
         values = [
             format_history_timestamp(run.get("created_at")),
             technique_text_fn(technique_id),
             submodule_text_fn(submodule_id),
             format_r2_value(extract_result_r2(run.get("results_summary") if isinstance(run.get("results_summary"), dict) else {})),
             status_text_fn(run),
+            review_text,
             validation_summary_fn(run),
             confirmation_label_fn(run),
         ]
@@ -65,6 +78,7 @@ def build_history_table_rows(
         tooltips[4] = " | ".join(bit for bit in status_bits if bit)
         tooltips[5] = values[5]
         tooltips[6] = values[6]
+        tooltips[7] = values[7]
         table_rows.append(HistoryTableRow(values=values, tooltips=tooltips))
     return table_rows
 

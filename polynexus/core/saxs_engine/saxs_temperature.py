@@ -27,14 +27,46 @@ from .lc_path_selection import (
 )
 from .preprocess import apply_thermal_correction
 from .saxs_quality_contracts import (
+    _as_1d_float_array,
     build_series_detector_quality_report,
     build_guinier_sequence_evidence,
     build_series_metric_evidence,
     build_series_orientation_evidence,
+    metric_evidence_dataframe_fields,
+    sanitize_1d_profile,
 )
 from .saxs_sequence_rescue import build_sequence_rescue_candidates
+from .saxs_output_helpers import (
+    _data_quality_csv_fields,
+    _detector_provenance_csv_fields,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _aligned_source_values(values: Optional[List[str]], count: int) -> tuple[str, ...]:
+    """Return source values only when the caller supplied one per frame."""
+
+    if values is None or len(values) != count:
+        return ()
+    return tuple(str(value or "") for value in values)
+
+
+def _source_kwargs(
+    source_ids: tuple[str, ...],
+    raw_data_refs: tuple[str, ...],
+    index: int,
+) -> dict[str, str]:
+    """Build explicit source kwargs without inventing an unbound source."""
+
+    if not source_ids and not raw_data_refs:
+        return {}
+    kwargs: dict[str, str] = {}
+    if source_ids:
+        kwargs["source_id"] = source_ids[index]
+    if raw_data_refs:
+        kwargs["raw_data_ref"] = raw_data_refs[index]
+    return {key: value for key, value in kwargs.items() if value}
 
 
 def _guinier_metric_frame_payload(point: "TemperaturePointResult") -> dict:
@@ -47,6 +79,43 @@ def _guinier_metric_frame_payload(point: "TemperaturePointResult") -> dict:
     if not isinstance(metric, Mapping):
         return {}
     return {"guinier": dict(metric)}
+
+
+_GUINIER_SEQUENCE_INDEX_FIELDS = {
+    "frame_source_indices": "Rg_sequence_frame_source_indices",
+    "missing_frame_indices": "Rg_sequence_missing_frame_indices",
+    "diagnostic_frame_indices": "Rg_sequence_diagnostic_frame_indices",
+    "invalid_temperature_indices": "Rg_sequence_invalid_temperature_indices",
+    "duplicate_temperature_indices": "Rg_sequence_duplicate_temperature_indices",
+    "nonmonotonic_temperature_indices": "Rg_sequence_nonmonotonic_temperature_indices",
+    "continuity_break_indices": "Rg_sequence_continuity_break_indices",
+    "duplicate_source_index_indices": "Rg_sequence_duplicate_source_index_indices",
+    "invalid_source_index_indices": "Rg_sequence_invalid_source_index_indices",
+}
+
+
+def _sequence_indices_csv_value(value: object) -> str | None:
+    """Format an emitted sequence index collection without deriving values."""
+
+    if not isinstance(value, (list, tuple)) or not value:
+        return None
+    return "|".join(str(item) for item in value)
+
+
+def _guinier_sequence_csv_fields(payload: object) -> dict[str, object]:
+    """Project existing sequence integrity facts into stable flat fields."""
+
+    fields: dict[str, object] = {column: None for column in _GUINIER_SEQUENCE_INDEX_FIELDS.values()}
+    fields["Rg_sequence_source_index_order_reordered"] = None
+    if not isinstance(payload, Mapping):
+        return fields
+
+    for source_field, output_field in _GUINIER_SEQUENCE_INDEX_FIELDS.items():
+        fields[output_field] = _sequence_indices_csv_value(payload.get(source_field))
+    reordered = payload.get("source_index_order_reordered")
+    if isinstance(reordered, (bool, np.bool_)):
+        fields["Rg_sequence_source_index_order_reordered"] = bool(reordered)
+    return fields
 
 
 class TempPhase(Enum):
@@ -87,6 +156,7 @@ class TemperaturePointResult:
     guinier_evidence: Dict = None
     metric_evidence: Dict = None
     detector_quality_report: Dict = None
+    raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
     
     # Crystallization (if applicable)
@@ -138,6 +208,7 @@ class TempSeriesResult:
     guinier_level_array: List[str] = field(default_factory=list)
     guinier_sequence_evidence: Dict = None
     detector_quality_report: Dict = None
+    raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
     metric_evidence: Dict = None
     melting_window_status_array: List[str] = field(default_factory=list)
@@ -188,7 +259,7 @@ class TempSeriesResult:
         for tp in self.temp_points:
             frame_index = len(rows)
             rescue = rescue_by_frame.get(frame_index)
-            rows.append({
+            row = {
                 'Temperature(C)': tp.temperature_C,
                 'source_index': int(tp.source_index) if int(tp.source_index) >= 0 else None,
                 'Phase': tp.phase.name,
@@ -215,12 +286,20 @@ class TempSeriesResult:
                 'melting_window_status': tp.melting_window_status or None,
                 'lc_reliability_status': tp.lc_reliability_status or None,
                 'lc_reliability_reason': tp.lc_reliability_reason or None,
-            })
+            }
+            row.update(metric_evidence_dataframe_fields(tp.metric_evidence))
+            row.update(_guinier_sequence_csv_fields(sequence_payload))
+            row.update(
+                _detector_provenance_csv_fields(tp.raw_detector_quality_report)
+            )
+            row.update(_data_quality_csv_fields(tp.data_quality_report))
+            rows.append(row)
         return pd.DataFrame(rows)
 
 
 def _temperature_window_margin(temperatures: np.ndarray) -> float:
-    finite = np.asarray([float(v) for v in np.asarray(temperatures, dtype=float) if np.isfinite(v)], dtype=float)
+    finite = _as_1d_float_array(temperatures)
+    finite = finite[np.isfinite(finite)]
     if finite.size < 2:
         return 5.0
     diffs = np.diff(np.sort(finite))
@@ -272,6 +351,11 @@ def classify_melting_window_status(
     expected_melt_C: float = np.nan,
 ) -> tuple[str, str]:
     """Classify where a frame sits relative to the sequence-derived melting window."""
+    temperature = _coerce_optional_float(temperature)
+    Tm_onset = _coerce_optional_float(Tm_onset)
+    Tm_peak = _coerce_optional_float(Tm_peak)
+    Tm_end = _coerce_optional_float(Tm_end)
+
     if not np.isfinite(temperature):
         return "undetermined", "temperature_unresolved"
 
@@ -524,6 +608,11 @@ def detect_temperature_phase(
     - Bragg peak disappears → fully molten
     - Q* rises → crystallization
     """
+    Q_star = _coerce_optional_float(Q_star)
+    Q_star_solid = _coerce_optional_float(Q_star_solid)
+    L = _coerce_optional_float(L)
+    L_solid = _coerce_optional_float(L_solid)
+
     Q_norm = Q_star / Q_star_solid if Q_star_solid > 0 else 1.0
     
     if exp_type == "heating":
@@ -585,6 +674,12 @@ def gibbs_thomson_analysis(
         'R2': np.nan,
         'valid': False,
     }
+
+    temperatures = _as_1d_float_array(temperatures)
+    lc_array = _as_1d_float_array(lc_array)
+    aligned_count = min(temperatures.size, lc_array.size)
+    temperatures = temperatures[:aligned_count]
+    lc_array = lc_array[:aligned_count]
 
     # Filter valid points in melting region
     valid = np.isfinite(lc_array) & (lc_array > 0) & np.isfinite(temperatures)
@@ -661,6 +756,12 @@ def avrami_kinetics(
         'fit_range': None,
     }
 
+    times = _as_1d_float_array(times)
+    Xc_relative = _as_1d_float_array(Xc_relative)
+    aligned_count = min(times.size, Xc_relative.size)
+    times = times[:aligned_count]
+    Xc_relative = Xc_relative[:aligned_count]
+
     valid = np.isfinite(Xc_relative) & np.isfinite(times) & (times > 0)
     if np.sum(valid) < 5:
         return result
@@ -729,12 +830,29 @@ def avrami_from_temp_series(
 
     For isothermal crystallization data embedded in cooling runs.
     """
-    mask = np.abs(temp_array - Tc_target) <= tolerance
+    time_values = _as_1d_float_array(time_array)
+    temperature_values = _as_1d_float_array(temp_array)
+    xc_values = _as_1d_float_array(Xc_array)
+    aligned_count = min(
+        time_values.size,
+        temperature_values.size,
+        xc_values.size,
+    )
+    time_values = time_values[:aligned_count]
+    temperature_values = temperature_values[:aligned_count]
+    xc_values = xc_values[:aligned_count]
+
+    mask = (
+        np.isfinite(temperature_values)
+        & (np.abs(temperature_values - Tc_target) <= tolerance)
+        & np.isfinite(time_values)
+        & np.isfinite(xc_values)
+    )
     if np.sum(mask) < 5:
         return {'valid': False, 'n': np.nan, 'k_sn': np.nan}
 
-    t_iso = time_array[mask] - time_array[mask][0]  # relative time
-    Xc_iso = Xc_array[mask]
+    t_iso = time_values[mask] - time_values[mask][0]  # relative time
+    Xc_iso = xc_values[mask]
 
     return avrami_kinetics(t_iso, Xc_iso)
 
@@ -763,12 +881,18 @@ def detect_melting_from_saxs(
         'melting_range_C': np.nan,
     }
 
-    valid = np.isfinite(I_peak_array) & np.isfinite(temperatures)
+    temperature_values = _as_1d_float_array(temperatures)
+    peak_intensity_values = _as_1d_float_array(I_peak_array)
+    aligned_count = min(temperature_values.size, peak_intensity_values.size)
+    temperature_values = temperature_values[:aligned_count]
+    peak_intensity_values = peak_intensity_values[:aligned_count]
+
+    valid = np.isfinite(peak_intensity_values) & np.isfinite(temperature_values)
     if np.sum(valid) < 3:
         return result
 
-    T = temperatures[valid]
-    I_pk = I_peak_array[valid]
+    T = temperature_values[valid]
+    I_pk = peak_intensity_values[valid]
     I_init = np.nanmedian(I_pk[:min(5, len(I_pk))])  # robust initial intensity
 
     if I_init <= 0:
@@ -808,6 +932,9 @@ def analyze_temperature_series(
     exp_type: str = "heating",
     Tm_inf: Optional[float] = None,
     thermal_expansion_coeff: Optional[float] = None,
+    detector_quality_reports: Optional[List[Dict]] = None,
+    source_ids: Optional[List[str]] = None,
+    raw_data_refs: Optional[List[str]] = None,
     verbose: bool = False,
 ) -> TempSeriesResult:
     """Analyze a complete in-situ temperature SAXS experiment.
@@ -840,21 +967,87 @@ def analyze_temperature_series(
     n_points = len(temperatures)
     if len(q_list) != n_points or len(I_list) != n_points:
         raise ValueError("temperatures, q_list, I_list must have same length")
+    time_axis_length_mismatch = times is not None and len(times) != n_points
+    time_axis_invalid_values = False
 
-    temps_arr = np.array(temperatures, dtype=float)
+    if n_points == 0:
+        empty = np.asarray([], dtype=float)
+        result = TempSeriesResult(experiment_type=exp_type)
+        result.temperatures = empty.copy()
+        result.L_array = empty.copy()
+        result.lc_array = empty.copy()
+        result.lc_effective_array = empty.copy()
+        result.Q_star_array = empty.copy()
+        result.Xc_array = empty.copy()
+        result.Rg_array = empty.copy()
+        result.lc_candidate_selected_score_array = empty.copy()
+        result.guinier_sequence_evidence = build_guinier_sequence_evidence(
+            [], [], source_indices=[],
+            source_ref="saxs_temperature.guinier_sequence",
+        ).to_dict()
+        result.metric_evidence = build_series_metric_evidence(
+            [],
+            metric_names=("guinier", "porod", "kratky", "invariant", "lamellar"),
+            source_ref="saxs_temperature.metric_evidence",
+            frame_source_indices=[],
+            condition_name="temperature_C",
+            condition_values=[],
+        )
+        if time_axis_length_mismatch:
+            result.avrami = {
+                "valid": False,
+                "reason": "temperature_time_axis_length_mismatch",
+            }
+        return result
+
+    source_ids_aligned = _aligned_source_values(source_ids, n_points)
+    raw_data_refs_aligned = _aligned_source_values(raw_data_refs, n_points)
+
+    temps_arr = np.asarray(
+        [_coerce_optional_float(value) for value in temperatures],
+        dtype=float,
+    )
 
     # Sort by temperature
     sort_idx = np.argsort(temps_arr)
     temps_arr = temps_arr[sort_idx]
     q_sorted = [q_list[i] for i in sort_idx]
     I_sorted = [I_list[i] for i in sort_idx]
+    sanitized_sorted = [
+        sanitize_1d_profile(q_values, intensity_values)
+        for q_values, intensity_values in zip(q_sorted, I_sorted)
+    ]
+    reports_sorted = (
+        [detector_quality_reports[i] for i in sort_idx]
+        if detector_quality_reports is not None
+        and len(detector_quality_reports) == n_points
+        else [None] * n_points
+    )
 
     if times is not None:
-        times_arr = np.array(times, dtype=float)[sort_idx]
+        if time_axis_length_mismatch:
+            times_arr = np.full(n_points, np.nan, dtype=float)
+        else:
+            time_values = np.asarray(
+                [_coerce_optional_float(value) for value in times],
+                dtype=float,
+            )
+            time_axis_invalid_values = bool(np.any(~np.isfinite(time_values)))
+            times_arr = time_values[sort_idx]
     else:
         times_arr = np.arange(n_points, dtype=float)
 
     result = TempSeriesResult(experiment_type=exp_type)
+    if time_axis_length_mismatch:
+        result.avrami = {
+            "valid": False,
+            "reason": "temperature_time_axis_length_mismatch",
+        }
+    elif time_axis_invalid_values:
+        result.avrami = {
+            "valid": False,
+            "reason": "temperature_time_axis_invalid_values",
+        }
     result.temperatures = temps_arr
     result.L_array = np.full(n_points, np.nan)
     result.lc_array = np.full(n_points, np.nan)
@@ -865,15 +1058,19 @@ def analyze_temperature_series(
 
     # Reference: lowest temperature point (solid state)
     ref_idx = 0
+    reference_profile = sanitized_sorted[ref_idx]
     Q_solid, reference_invariant_warning = _safe_temperature_invariant(
-        q_sorted[ref_idx],
-        I_sorted[ref_idx],
+        reference_profile.q,
+        reference_profile.intensity,
         cfg,
         warning_code="temperature_reference_invariant_unavailable",
     )
     reference_long_period_warning = None
     try:
-        L_solid, _, _ = bragg_long_period(q_sorted[ref_idx], I_sorted[ref_idx])
+        L_solid, _, _ = bragg_long_period(
+            reference_profile.q,
+            reference_profile.intensity,
+        )
         L_solid = float(L_solid)
         if not np.isfinite(L_solid):
             reference_long_period_warning = "temperature_reference_long_period_unavailable"
@@ -893,8 +1090,10 @@ def analyze_temperature_series(
         T = temps_arr[i]
         q = q_sorted[i]
         I = I_sorted[i]  # noqa: E741
+        profile = sanitized_sorted[i]
 
         tp = TemperaturePointResult(source_index=int(sort_idx[i]), temperature_C=float(T))
+        tp.raw_detector_quality_report = reports_sorted[i]
         if i == ref_idx:
             for warning_code in (reference_invariant_warning, reference_long_period_warning):
                 if warning_code:
@@ -912,7 +1111,12 @@ def analyze_temperature_series(
 
         # ---- Core analysis ----
         try:
-            saxs_result = analyze_single(q, I, cfg_corrected)
+            source_kwargs = _source_kwargs(
+                source_ids_aligned,
+                raw_data_refs_aligned,
+                int(sort_idx[i]),
+            )
+            saxs_result = analyze_single(q, I, cfg_corrected, **source_kwargs)
             lp = saxs_result.long_period
             struct = saxs_result.structure
             
@@ -948,17 +1152,21 @@ def analyze_temperature_series(
 
             # Track Bragg peak intensity
             q_star = tp.q_star_nm1
-            if np.isfinite(q_star):
-                idx = np.argmin(np.abs(q - q_star))
-                I_peak_tracking[i] = I[idx] if idx < len(I) else np.nan
+            if np.isfinite(q_star) and profile.q.size:
+                idx = np.argmin(np.abs(profile.q - q_star))
+                I_peak_tracking[i] = (
+                    profile.intensity[idx]
+                    if idx < len(profile.intensity)
+                    else np.nan
+                )
         except Exception as e:
             tp.warnings.append(f"Core analysis: {e}")
             logger.warning("SAXS temperature frame core analysis failed.", exc_info=True)
 
         # ---- Invariant ----
         Q_star, invariant_warning = _safe_temperature_invariant(
-            q,
-            I,
+            profile.q,
+            profile.intensity,
             cfg_corrected,
             warning_code="temperature_frame_invariant_unavailable",
         )
@@ -1005,6 +1213,8 @@ def analyze_temperature_series(
         metric_names=("guinier", "porod", "kratky", "invariant", "lamellar"),
         source_ref="saxs_temperature.metric_evidence",
         frame_source_indices=[point.source_index for point in result.temp_points],
+        condition_name="temperature_C",
+        condition_values=result.temperatures,
     )
     detector_quality = build_series_detector_quality_report(
         [point.detector_quality_report for point in result.temp_points],
@@ -1016,6 +1226,12 @@ def analyze_temperature_series(
     )
     if detector_quality is not None:
         result.detector_quality_report = detector_quality
+    raw_detector_quality = build_series_detector_quality_report(
+        [point.raw_detector_quality_report for point in result.temp_points],
+        source_ref="saxs_temperature.raw_detector_quality_report",
+    )
+    if raw_detector_quality is not None:
+        result.raw_detector_quality_report = raw_detector_quality
     if orientation is not None:
         result.orientation_evidence = orientation
     result.guinier_sequence_evidence = build_guinier_sequence_evidence(
@@ -1094,7 +1310,12 @@ def analyze_temperature_series(
     )
 
     # Avrami kinetics (for cooling/isothermal)
-    if exp_type in ("cooling", "isothermal") and len(times_arr) > 5:
+    if (
+        not time_axis_length_mismatch
+        and not time_axis_invalid_values
+        and exp_type in ("cooling", "isothermal")
+        and len(times_arr) > 5
+    ):
         result.avrami = avrami_kinetics(times_arr, result.Xc_array)
 
     if verbose:

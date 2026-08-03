@@ -1,7 +1,10 @@
+import json
+
 import numpy as np
 import pytest
 from types import SimpleNamespace
 
+from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.figures.validation import validate_figure_definition
 from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.saxs import SAXSEngine
@@ -97,6 +100,241 @@ def test_saxs_temperature_provider_emits_multi_panel_and_heatmap(
     validate_figure_definition(heatmap)
 
 
+def test_saxs_temperature_guinier_diagnostic_figure_preserves_frame_evidence():
+    result = TempSeriesResult(
+        temperatures=np.asarray([30.0, 60.0, 90.0]),
+        L_array=np.asarray([12.0, 11.5, 10.8]),
+        lc_array=np.asarray([4.0, 3.8, 3.2]),
+        lc_effective_array=np.asarray([4.1, 3.9, 3.3]),
+        Q_star_array=np.asarray([100.0, 92.0, 81.0]),
+        Xc_array=np.asarray([0.4, 0.38, 0.3]),
+        Rg_array=np.asarray([4.2, np.nan, 5.1]),
+        guinier_level_array=["Quantitative", "Unusable", "Diagnostic"],
+        guinier_sequence_evidence={
+            "level": "Diagnostic",
+            "reason_codes": ["guinier_sequence_missing_frames"],
+        },
+        temp_points=[
+            SimpleNamespace(
+                source_index=7,
+                guinier_level="Quantitative",
+                guinier_reason_codes=["fit_ok"],
+            ),
+            SimpleNamespace(
+                source_index=3,
+                guinier_level="Unusable",
+                guinier_reason_codes=["guinier_fit_failed"],
+            ),
+            SimpleNamespace(
+                source_index=5,
+                guinier_level="Diagnostic",
+                guinier_reason_codes=["qrg_gate_failed"],
+            ),
+        ],
+    )
+    before_rg = result.Rg_array.copy()
+    definitions = build_saxs_temperature_definitions(
+        result,
+        (np.asarray([0.1, 0.2, 0.3]),) * 3,
+        (np.asarray([10.0, 5.0, 2.0]),) * 3,
+    )
+
+    figure = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.guinier"
+    )
+    source = figure.data_sources[0]
+    assert figure.publication_role == "diagnostic"
+    assert source.values["temperature_C"] == (30.0, 60.0, 90.0)
+    assert source.values["Rg_nm"] == (4.2, None, 5.1)
+    assert source.values["source_index"] == (7, 3, 5)
+    assert source.values["frame_level"] == (
+        "Quantitative",
+        "Unusable",
+        "Diagnostic",
+    )
+    assert source.values["frame_reason_codes"] == (
+        "fit_ok",
+        "guinier_fit_failed",
+        "qrg_gate_failed",
+    )
+    assert figure.recipe["parameters"]["missing_values_preserved"] is True
+    assert figure.recipe["parameters"]["interpolation"] is False
+    json.dumps(dict(source.values), allow_nan=False)
+    validate_figure_definition(figure)
+    assert build_v2_definition_artifact(figure).capability["v2_runtime"] == "ready"
+    assert np.array_equal(result.Rg_array, before_rg, equal_nan=True)
+
+
+def test_saxs_temperature_method_evidence_diagnostic_figure_preserves_frames():
+    result = TempSeriesResult(
+        temperatures=np.asarray([30.0, 60.0, 90.0]),
+        L_array=np.asarray([12.0, 11.5, 10.8]),
+        lc_array=np.asarray([4.0, 3.8, 3.2]),
+        lc_effective_array=np.asarray([4.1, 3.9, 3.3]),
+        Q_star_array=np.asarray([100.0, 92.0, 81.0]),
+        Xc_array=np.asarray([0.4, 0.38, 0.3]),
+        temp_points=[
+            SimpleNamespace(
+                source_index=7,
+                metric_evidence={
+                    "porod": {
+                        "value": 1.2,
+                        "level": "Trend",
+                        "reason_codes": ["porod_slope_deviation_observed"],
+                    },
+                    "kratky": {
+                        "value": 0.3,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "invariant": {
+                        "value": 100.0,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "lamellar": {
+                        "value": 12.0,
+                        "level": "Diagnostic",
+                        "reason_codes": ["lamellar_phi_c_invalid"],
+                    },
+                },
+            ),
+            SimpleNamespace(
+                source_index=3,
+                metric_evidence={
+                    "porod": {
+                        "value": None,
+                        "level": "Unusable",
+                        "reason_codes": ["porod_payload_missing"],
+                    },
+                    "kratky": None,
+                    "invariant": {
+                        "value": 92.0,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "lamellar": {
+                        "value": 11.5,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                },
+            ),
+            SimpleNamespace(
+                source_index=5,
+                metric_evidence={
+                    "porod": {
+                        "value": 0.9,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "kratky": {
+                        "value": 0.2,
+                        "level": "Diagnostic",
+                        "reason_codes": ["kratky_peak_missing"],
+                    },
+                    "invariant": {
+                        "value": 81.0,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                    "lamellar": {
+                        "value": 10.8,
+                        "level": "Trend",
+                        "reason_codes": [],
+                    },
+                },
+            ),
+        ],
+    )
+    definitions = build_saxs_temperature_definitions(
+        result,
+        (np.asarray([0.1, 0.2, 0.3]),) * 3,
+        (np.asarray([10.0, 5.0, 2.0]),) * 3,
+    )
+
+    figure = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.method_evidence"
+    )
+    assert figure.publication_role == "diagnostic"
+    audit_sources = {
+        source.source_id: source
+        for source in figure.data_sources
+        if source.role == "method_evidence_audit"
+    }
+    assert set(audit_sources) == {
+        "temperature-method-evidence-porod",
+        "temperature-method-evidence-kratky",
+        "temperature-method-evidence-invariant",
+        "temperature-method-evidence-lamellar",
+    }
+    porod = audit_sources["temperature-method-evidence-porod"]
+    assert porod.values["temperature_C"] == (30.0, 60.0, 90.0)
+    assert porod.values["value"] == (1.2, None, 0.9)
+    assert porod.values["source_index"] == (7, 3, 5)
+    assert porod.values["frame_level"] == ("Trend", "Unusable", "Trend")
+    assert porod.values["frame_reason_codes"] == (
+        "porod_slope_deviation_observed",
+        "porod_payload_missing",
+        None,
+    )
+    plot_sources = {
+        source.source_id: source
+        for source in figure.data_sources
+        if source.role == "method_evidence_plot"
+    }
+    assert plot_sources["temperature-method-evidence-porod-plot"].values == {
+        "temperature_C": (30.0, 90.0),
+        "value": (1.2, 0.9),
+    }
+    assert plot_sources["temperature-method-evidence-kratky-plot"].values == {
+        "temperature_C": (30.0, 90.0),
+        "value": (0.3, 0.2),
+    }
+    assert figure.recipe["parameters"]["missing_values_preserved"] is True
+    assert figure.recipe["parameters"]["interpolation"] is False
+    assert figure.recipe["parameters"]["reclassification"] is False
+    json.dumps(
+        {
+            source.source_id: dict(source.values)
+            for source in figure.data_sources
+        },
+        allow_nan=False,
+    )
+    result.temp_points[0].metric_evidence["porod"]["value"] = 99.0
+    assert porod.values["value"] == (1.2, None, 0.9)
+    validate_figure_definition(figure)
+    assert build_v2_definition_artifact(figure).capability["v2_runtime"] == "ready"
+
+
+def test_saxs_temperature_provider_omits_empty_method_evidence_figure(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    result.temp_points = [SimpleNamespace(source_index=0, metric_evidence=None)]
+
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+
+    assert "saxs.series.temperature.method_evidence" not in {
+        item.figure_id for item in definitions
+    }
+
+
+def test_saxs_temperature_provider_keeps_legacy_results_without_rg_figure(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+
+    assert "saxs.series.temperature.guinier" not in {
+        item.figure_id for item in definitions
+    }
+
+
 def test_saxs_engine_exposes_temperature_figure_definitions(
     saxs_temperature_inputs,
 ):
@@ -111,6 +349,76 @@ def test_saxs_engine_exposes_temperature_figure_definitions(
     assert definitions
     assert all(item.technique == "saxs" for item in definitions)
     assert "saxs.series.temperature.heatmap" in {item.figure_id for item in definitions}
+
+
+def test_legacy_v2_saxs_lifecycle_is_ready_for_all_modes(tmp_path) -> None:
+    cases = (
+        (
+            "static",
+            "saxs_static",
+            build_saxs_figure_definitions(
+                _saxs_provider_state(
+                    _batch_results=[
+                        _analyzed_saxs_frame("a", [0.1, 0.2], [10.0, 5.0]),
+                        _analyzed_saxs_frame("b", [0.1, 0.2], [9.0, 4.0]),
+                    ]
+                )
+            ),
+        ),
+        (
+            "strain",
+            "saxs_strain",
+            build_saxs_figure_definitions(
+                _saxs_provider_state(
+                    _strain_result=SimpleNamespace(
+                        strains=np.asarray([0.0, 25.0])
+                    ),
+                    _q_list=[np.asarray([0.1, 0.2]), np.asarray([0.1, 0.2])],
+                    _I_list=[np.asarray([10.0, 5.0]), np.asarray([9.0, 4.0])],
+                    _conditions=[0.0, 25.0],
+                )
+            ),
+        ),
+        (
+            "temperature",
+            "temperature_saxs",
+            build_saxs_temperature_definitions(
+                TempSeriesResult(
+                    temperatures=np.asarray([30.0, 60.0]),
+                    L_array=np.asarray([12.0, 11.0]),
+                    lc_array=np.asarray([4.0, 3.0]),
+                    lc_effective_array=np.asarray([4.0, 3.0]),
+                    Q_star_array=np.asarray([100.0, 90.0]),
+                    Xc_array=np.asarray([0.4, 0.42]),
+                ),
+                (np.asarray([0.1, 0.2, 0.3]),) * 2,
+                (np.asarray([10.0, 5.0, 2.0]),) * 2,
+            ),
+        ),
+    )
+
+    for mode, adapter, definitions in cases:
+        assert definitions
+        assert all(item.recipe["v2_adapter"] == adapter for item in definitions)
+        assert all(
+            build_v2_definition_artifact(item).capability["v2_runtime"] == "ready"
+            for item in definitions
+        )
+        manifest = FigurePipeline().run(
+            output_root=tmp_path,
+            run_id=f"legacy-saxs-v2-{mode}",
+            technique="saxs",
+            definitions=(definitions[0],),
+        )
+        entry = manifest.figures[0]
+        assert entry.status == "ready"
+        assert entry.capability_report["v2_runtime"] == "ready"
+        assert (
+            tmp_path
+            / "runs"
+            / f"legacy-saxs-v2-{mode}"
+            / entry.capability_report["v2_sidecar"]
+        ).is_file()
 
 
 def test_saxs_completed_temperature_series_keeps_summary_fallback_when_evolution_gate_fails():
@@ -251,5 +559,151 @@ def test_saxs_provider_emits_strain_profiles_and_waterfall_from_loaded_frames():
         definition.recipe["function"] == "build_saxs_figure_definitions"
         for definition in definitions
     )
+    for definition in definitions:
+        validate_figure_definition(definition)
+
+
+def test_dirty_projection_legacy_temperature_frame_keeps_valid_pairs(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    q_values = list(q_values)
+    intensities = list(intensities)
+    q_values[0] = np.asarray(
+        ["0.1", "bad-q", "0.3", "0.4"],
+        dtype=object,
+    )
+    intensities[0] = np.asarray(
+        ["100.0", "80.0", "bad-intensity", "20.0"],
+        dtype=object,
+    )
+
+    definitions = build_saxs_temperature_definitions(
+        result,
+        q_values,
+        intensities,
+    )
+    source = definitions[0].data_sources[0]
+
+    assert source.values["q_nm1"] == (0.1, 0.4)
+    assert source.values["intensity_au"] == (100.0, 20.0)
+
+
+def test_legacy_temperature_provider_omits_unplottable_frame_with_evidence(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    q_values = list(q_values)
+    intensities = list(intensities)
+    q_values[1] = np.asarray(["bad-q", "also-bad"], dtype=object)
+    intensities[1] = np.asarray(["bad-intensity", "still-bad"], dtype=object)
+
+    definitions = build_saxs_temperature_definitions(
+        result,
+        q_values,
+        intensities,
+    )
+
+    frame_ids = {item.figure_id for item in definitions}
+    assert "saxs.frame.temperature.scattering.001" in frame_ids
+    assert "saxs.frame.temperature.scattering.002" not in frame_ids
+    parameters = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.parameters"
+    )
+    assert parameters.data_sources[0].values["temperature_C"] == (30.0,)
+    evidence = parameters.recipe["evidence"]
+    assert evidence["included_frame_indices"] == [0]
+    assert evidence["omitted_frame_indices"] == [1]
+    assert evidence["omission_reasons"][1] == "figure_profile_unavailable"
+
+
+def test_legacy_condition_axis_dirty_values_keep_frame_order():
+    conditions = ["0", "bad-strain", "25"]
+    state = _saxs_provider_state(
+        _strain_result=SimpleNamespace(strains=None),
+        _q_list=[np.asarray([0.1, 0.2])] * 3,
+        _I_list=[np.asarray([10.0, 5.0])] * 3,
+        _conditions=conditions,
+    )
+
+    definitions = build_saxs_figure_definitions(state)
+
+    assert [item.figure_id for item in definitions] == [
+        "saxs.frame.strain.scattering.001",
+        "saxs.frame.strain.scattering.002",
+        "saxs.frame.strain.scattering.003",
+        "saxs.series.strain.waterfall",
+    ]
+    assert [item.title for item in definitions[:3]] == [
+        "SAXS Scattering - 0% strain",
+        "SAXS Scattering - Frame 2",
+        "SAXS Scattering - 25% strain",
+    ]
+    assert conditions == ["0", "bad-strain", "25"]
+
+
+def test_dirty_temperature_axis_preserves_frame_positions_and_marks_missing_condition(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    result.temperatures = np.asarray(["30", "bad-temperature"], dtype=object)
+
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+
+    assert [item.figure_id for item in definitions[:2]] == [
+        "saxs.frame.temperature.scattering.001",
+        "saxs.frame.temperature.scattering.002",
+    ]
+    assert definitions[1].title == "SAXS Scattering At Frame 2"
+    assert definitions[1].recipe["inputs"]["temperature_C"] is None
+
+    by_id = {item.figure_id: item for item in definitions}
+    parameter_values = by_id["saxs.series.temperature.parameters"].data_sources[0].values[
+        "temperature_C"
+    ]
+    heatmap_values = by_id["saxs.series.temperature.heatmap"].data_sources[0].values[
+        "temperature_C"
+    ]
+    assert parameter_values[0] == 30.0
+    assert np.isnan(parameter_values[1])
+    assert heatmap_values[:5] == (30.0,) * 5
+    assert all(np.isnan(value) for value in heatmap_values[5:])
+
+    for definition in definitions:
+        validate_figure_definition(definition)
+
+
+def test_dirty_temperature_derived_arrays_preserve_metric_positions_and_fallback(
+    saxs_temperature_inputs,
+):
+    result, q_values, intensities = saxs_temperature_inputs
+    result.L_array = np.asarray(["12.0", "bad-long-period"], dtype=object)
+    result.lc_array = np.asarray(["4.0", "bad-raw-lc"], dtype=object)
+    result.lc_effective_array = np.asarray(["4.1", "bad-effective-lc"], dtype=object)
+    result.Q_star_array = np.asarray(["100.0", "bad-invariant"], dtype=object)
+    result.Xc_array = np.asarray(["0.4", "bad-crystallinity"], dtype=object)
+
+    definitions = build_saxs_temperature_definitions(result, q_values, intensities)
+
+    parameters = next(
+        item
+        for item in definitions
+        if item.figure_id == "saxs.series.temperature.parameters"
+    )
+    values = parameters.data_sources[0].values
+
+    assert values["L_nm"][0] == 12.0
+    assert np.isnan(values["L_nm"][1])
+    assert values["lc_nm"][0] == 4.1
+    assert np.isnan(values["lc_nm"][1])
+    assert values["Q_star"][0] == 100.0
+    assert np.isnan(values["Q_star"][1])
+    assert values["crystallinity_fraction"][0] == 0.4
+    assert np.isnan(values["crystallinity_fraction"][1])
+    metric_keys = ("L_nm", "lc_nm", "la_nm", "Q_star", "crystallinity_fraction")
+    assert all(np.isnan(values[key][1]) for key in metric_keys)
+
     for definition in definitions:
         validate_figure_definition(definition)

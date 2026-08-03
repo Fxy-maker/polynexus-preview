@@ -14,6 +14,7 @@ Modules:
 
 from .config import SAXSConfig, ExperimentCondition
 from .saxs_quality_contracts import (
+    AnnulusQualityReport,
     DataQualityReport,
     DetectorQualityReport,
     GuinierEvidence,
@@ -23,6 +24,8 @@ from .saxs_quality_contracts import (
     QualityLevel,
     RescueCandidate,
     RescueValidationReport,
+    SectorMapQualityReport,
+    build_annulus_quality_report,
     build_data_quality_report,
     build_guinier_evidence,
     build_guinier_sequence_evidence,
@@ -34,10 +37,22 @@ from .saxs_quality_contracts import (
     build_series_detector_quality_report,
     build_series_orientation_evidence,
     build_detector_quality_report,
+    build_sector_map_quality_report,
     build_orientation_evidence,
+    build_saxs_scientific_acceptance_audit,
+    Sanitized1DProfile,
+    sanitize_1d_profile,
     contract_json,
 )
 from .processed_profile import ProcessedProfile
+from .saxs_mask_edit import (
+    MaskEditValidationError,
+    apply_confirmed_mask_edit,
+    build_mask_edit_candidate,
+    confirm_mask_edit_candidate,
+    mask_digest,
+    validate_mask_edit_candidate,
+)
 from .io import (
     read_image, read_1d_profile, extract_geometry_from_header,
     scan_experiment_dir, assemble_dataset, recover_condition_axis,
@@ -77,8 +92,53 @@ from .saxs_anisotropy import (
     classify_2d_pattern, analyze_peak_widths,
     analyze_anisotropy, detect_in_plane_orientation_axis,
 )
+from .saxs_orientation_reliability import (
+    CorrectionLedgerEntry,
+    OrientationQBandCandidate,
+    OrientationSensitivityObservation,
+    OrientationSensitivitySummary,
+    QOrientationBin,
+    QResolvedOrientationEvidence,
+    axial_distance_deg,
+    build_correction_ledger,
+    build_q_resolved_orientation,
+    evaluate_orientation_sensitivity,
+)
+from .saxs_detector_correction import (
+    REVIEW_SCOPE as DETECTOR_CALIBRATION_REVIEW_SCOPE,
+    DetectorCalibrationFrame,
+    DetectorCorrectionBackend,
+    DetectorCorrectionRegistry,
+    DetectorCorrectionRequest,
+    DetectorCorrectionResult,
+    default_detector_correction_registry,
+    detector_array_digest,
+    detector_input_digest,
+    evaluate_detector_correction,
+)
+from .saxs_orientation_advisory import (
+    CONTEXT_SCHEMA as ORIENTATION_ADVISORY_CONTEXT_SCHEMA,
+    RESPONSE_SCHEMA as ORIENTATION_ADVISORY_RESPONSE_SCHEMA,
+    OrientationAdvisoryReport,
+    OrientationAdvisoryValidationError,
+    build_orientation_advisory_context,
+    build_orientation_advisory_report,
+    parse_orientation_advisory_response,
+)
+from .saxs_orientation_tracking import (
+    OrientationFeatureObservation,
+    OrientationFeatureTrack,
+    OrientationSequenceEvidence,
+    aggregate_common_m2,
+    build_orientation_feature_tracks,
+    compatible,
+    delta_interval,
+    ordered_common_q_bins,
+    track_orientation_features,
+)
 from .saxs_sequence_rescue import (
     build_sequence_rescue_candidates,
+    resolve_sequence_rescue_candidate,
     validate_sequence_rescue_candidate,
 )
 from .saxs_ai_rescue import (
@@ -87,10 +147,17 @@ from .saxs_ai_rescue import (
     SAXSAIRescuePlan,
     assess_saxs_ai_candidate,
     assess_saxs_confirmed_rerun,
+    build_saxs_ai_summary_context,
     build_saxs_confirmed_rerun_evidence,
     build_saxs_ai_rescue_plan,
+    resolve_saxs_ai_candidate_references,
     validate_saxs_confirmation_report,
     validate_saxs_ai_intent,
+    sanitize_saxs_ai_summary_context,
+)
+from .saxs_2d_review_context import (
+    build_saxs_2d_review_context,
+    sanitize_saxs_2d_review_context,
 )
 from .saxs_output import (
     export_parameters_csv,
@@ -101,6 +168,7 @@ from .saxs_output import (
 
 __all__ = [
     "SAXSConfig", "ExperimentCondition", "DataQualityReport", "DetectorQualityReport",
+    "SectorMapQualityReport", "AnnulusQualityReport",
     "GuinierEvidence", "GuinierSequenceEvidence", "MetricEvidence", "MetricEvidenceSummary", "QualityLevel", "RescueCandidate",
     "RescueValidationReport", "build_data_quality_report", "build_guinier_evidence",
     "build_guinier_sequence_evidence",
@@ -108,9 +176,15 @@ __all__ = [
     "build_invariant_evidence", "build_lamellar_evidence",
     "build_series_metric_evidence", "build_series_detector_quality_report",
     "build_series_orientation_evidence",
-    "build_detector_quality_report", "build_orientation_evidence",
+    "build_detector_quality_report", "build_sector_map_quality_report",
+    "build_annulus_quality_report", "build_orientation_evidence",
+    "build_saxs_scientific_acceptance_audit",
+    "Sanitized1DProfile", "sanitize_1d_profile",
     "contract_json",
     "ProcessedProfile",
+    "MaskEditValidationError", "apply_confirmed_mask_edit",
+    "build_mask_edit_candidate", "confirm_mask_edit_candidate",
+    "mask_digest", "validate_mask_edit_candidate",
     "read_image", "read_1d_profile", "extract_geometry_from_header",
     "scan_experiment_dir", "assemble_dataset", "recover_condition_axis",
     "build_integrator", "integrate_full", "integrate_sectors",
@@ -133,11 +207,36 @@ __all__ = [
     "extract_azimuthal_profile", "extract_azimuthal_at_peaks",
     "herman_from_azimuthal", "herman_multi_q", "classify_2d_pattern",
     "analyze_peak_widths", "analyze_anisotropy", "detect_in_plane_orientation_axis", "export_parameters_csv",
-    "build_sequence_rescue_candidates", "validate_sequence_rescue_candidate",
+    "CorrectionLedgerEntry", "OrientationQBandCandidate",
+    "DetectorCalibrationFrame", "DetectorCorrectionBackend",
+    "DetectorCorrectionRegistry", "DetectorCorrectionRequest",
+    "DetectorCorrectionResult", "DETECTOR_CALIBRATION_REVIEW_SCOPE",
+    "default_detector_correction_registry", "detector_array_digest",
+    "detector_input_digest",
+    "evaluate_detector_correction",
+    "ORIENTATION_ADVISORY_CONTEXT_SCHEMA", "ORIENTATION_ADVISORY_RESPONSE_SCHEMA",
+    "OrientationAdvisoryReport", "OrientationAdvisoryValidationError",
+    "build_orientation_advisory_context", "build_orientation_advisory_report",
+    "parse_orientation_advisory_response",
+    "OrientationSensitivityObservation", "OrientationSensitivitySummary",
+    "QOrientationBin", "QResolvedOrientationEvidence", "axial_distance_deg",
+    "build_correction_ledger", "build_q_resolved_orientation",
+    "evaluate_orientation_sensitivity",
+    "OrientationFeatureObservation", "OrientationFeatureTrack",
+    "OrientationSequenceEvidence", "aggregate_common_m2",
+    "build_orientation_feature_tracks", "compatible", "delta_interval",
+    "ordered_common_q_bins", "track_orientation_features",
+    "build_sequence_rescue_candidates", "resolve_sequence_rescue_candidate",
+    "validate_sequence_rescue_candidate",
     "SAXSAIRescueDecision", "SAXSAIRescuePlan",
     "SAXSConfirmedRerunAudit", "assess_saxs_ai_candidate",
-    "assess_saxs_confirmed_rerun", "build_saxs_confirmed_rerun_evidence",
-    "build_saxs_ai_rescue_plan", "validate_saxs_confirmation_report",
+    "assess_saxs_confirmed_rerun", "build_saxs_ai_summary_context",
+    "build_saxs_confirmed_rerun_evidence",
+    "build_saxs_ai_rescue_plan", "sanitize_saxs_ai_summary_context",
+    "resolve_saxs_ai_candidate_references",
+    "validate_saxs_confirmation_report",
     "validate_saxs_ai_intent",
+    "build_saxs_2d_review_context",
+    "sanitize_saxs_2d_review_context",
     "export_1d_profile", "export_strain_series_csv", "export_temp_series_csv",
 ]

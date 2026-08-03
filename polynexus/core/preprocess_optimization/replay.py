@@ -82,6 +82,7 @@ def build_preprocess_replay_audit(
     decision: Any,
     trial_engine_created: bool,
     error: str,
+    apply_performed: bool = False,
 ) -> PreprocessReplayAudit:
     """Build a replay row without retaining raw data or applying a candidate."""
 
@@ -105,7 +106,7 @@ def build_preprocess_replay_audit(
         decision=decision_payload,
         original_preserved=True,
         apply_allowed=bool(decision_payload.get("apply_allowed", False)),
-        apply_performed=False,
+        apply_performed=bool(apply_performed),
     )
 
 

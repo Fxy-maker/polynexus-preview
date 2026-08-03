@@ -44,6 +44,306 @@ def _cell(section, row: int, key: str):
     return section.rows[row][_column_index(section, key)]
 
 
+def test_detector_quality_review_shows_raw_source_level_coverage_and_reasons() -> None:
+    params = {
+        "raw_detector_quality_report": {
+            "metric_name": "DetectorQuality",
+            "source_kind": "raw_detector",
+            "level": "Unusable",
+            "frame_count": 5,
+            "evidence_frame_count": 5,
+            "coverage_fraction": 0.8,
+            "reason_codes": ["detector_saturation_unknown", "beam_center_missing"],
+        }
+    }
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, submodule="saxs.temperature", language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "raw detector" in review_text
+    assert "Unusable" in review_text
+    assert "5/5" in review_text
+    assert "detector_saturation_unknown" in review_text
+    assert "beam_center_missing" in review_text
+    assert params == before
+
+
+def test_detector_quality_review_keeps_raw_and_sector_sources_separate() -> None:
+    presentation = _build(
+        {
+            "raw_detector_quality_report": {
+                "source_kind": "raw_detector",
+                "level": "Diagnostic",
+                "frame_count": 2,
+                "evidence_frame_count": 1,
+                "reason_codes": ["beam_center_missing"],
+            },
+            "detector_quality_report": {
+                "source_kind": "sector_map",
+                "level": "Trend",
+                "frame_count": 2,
+                "evidence_frame_count": 2,
+                "coverage_fraction": 1.0,
+                "reason_codes": [],
+            },
+        },
+        submodule="saxs.strain",
+        language="en",
+    )
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "raw detector" in review_text
+    assert "sector map" in review_text
+    assert "beam_center_missing" in review_text
+    assert "1/2" in review_text
+
+
+def test_detector_quality_review_is_bilingual_and_absent_when_reports_are_missing() -> None:
+    chinese = _build(
+        {
+            "detector_quality_report": {
+                "source_kind": "sector_map",
+                "level": "Diagnostic",
+                "frame_count": 3,
+                "evidence_frame_count": 2,
+                "reason_codes": ["nonpositive_pixels"],
+            }
+        },
+        language="zh",
+    )
+    chinese_text = f"{chinese.risk_text} {chinese.next_text}"
+
+    assert "sector map" not in chinese_text
+    assert "Diagnostic" not in chinese_text
+    assert "nonpositive_pixels" in chinese_text
+    assert "2/3" in chinese_text
+
+    empty = _build({"L_nm": 12.0}, language="en")
+    empty_text = f"{empty.risk_text} {empty.next_text}"
+    assert "raw detector" not in empty_text
+    assert "sector map" not in empty_text
+
+
+def test_detector_quality_review_shows_raw_geometry_and_mask_provenance() -> None:
+    params = {
+        "raw_detector_quality_report": {
+            "source_kind": "raw_detector",
+            "level": "Diagnostic",
+            "geometry_provenance": {
+                "source": "mixed",
+                "field_sources": {
+                    "wavelength_m": "header",
+                    "pixel_size_m": "header",
+                    "sdd_m": "config_default",
+                    "beam_center_x": "config_default",
+                    "beam_center_y": "invalid_header",
+                },
+                "validity": "not_assessed",
+            },
+            "mask_provenance": {
+                "source": "saxs_config.dummy_value",
+                "configured": True,
+                "shape": [128, 256],
+                "validity": "not_assessed",
+            },
+        }
+    }
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "geometry source=mixed" in review_text
+    assert "header=2" in review_text
+    assert "config_default=2" in review_text
+    assert "invalid_header=1" in review_text
+    assert "mask source=saxs_config.dummy_value" in review_text
+    assert "configured=True" in review_text
+    assert "shape=128x256" in review_text
+    assert "validity=not_assessed" in review_text
+    assert params == before
+
+
+def test_detector_quality_review_keeps_missing_and_unconfigured_provenance_explicit() -> None:
+    missing = _build(
+        {
+            "raw_detector_quality_report": {
+                "source_kind": "raw_detector",
+                "level": "Diagnostic",
+            }
+        },
+        language="en",
+    )
+    missing_text = f"{missing.risk_text} {missing.next_text}"
+    assert "geometry source=" not in missing_text
+    assert "mask source=" not in missing_text
+
+    unconfigured = _build(
+        {
+            "raw_detector_quality_report": {
+                "source_kind": "raw_detector",
+                "level": "Diagnostic",
+                "mask_provenance": {
+                    "source": "none",
+                    "configured": False,
+                    "shape": None,
+                    "validity": "not_assessed",
+                },
+            }
+        },
+        language="en",
+    )
+    unconfigured_text = f"{unconfigured.risk_text} {unconfigured.next_text}"
+    assert "mask source=none" in unconfigured_text
+    assert "configured=False" in unconfigured_text
+    assert "shape=Unavailable" in unconfigured_text
+    assert "validity=not_assessed" in unconfigured_text
+
+
+def test_detector_quality_review_localizes_provenance_and_keeps_sector_map_separate() -> None:
+    params = {
+        "raw_detector_quality_report": {
+            "source_kind": "raw_detector",
+            "level": "Diagnostic",
+            "geometry_provenance": {
+                "source": "header",
+                "field_sources": {"wavelength_m": "header"},
+                "validity": "not_assessed",
+            },
+            "mask_provenance": {
+                "source": "none",
+                "configured": False,
+                "shape": None,
+                "validity": "not_assessed",
+            },
+        },
+        "detector_quality_report": {
+            "source_kind": "sector_map",
+            "level": "Trend",
+            "geometry_provenance": {"source": "should-not-be-projected"},
+            "mask_provenance": {"source": "should-not-be-projected"},
+        },
+    }
+    chinese = _build(params, language="zh")
+    chinese_text = f"{chinese.risk_text} {chinese.next_text}"
+
+    assert "\u51e0\u4f55\u6765\u6e90=header" in chinese_text
+    assert "\u63a9\u819c\u6765\u6e90=none" in chinese_text
+    assert "geometry source=should-not-be-projected" not in chinese_text
+    assert "mask source=should-not-be-projected" not in chinese_text
+
+
+def test_data_quality_review_shows_top_level_report() -> None:
+    params = {
+        "data_quality_report": {
+            "source_id": "frame-7",
+            "raw_data_ref": "raw/frame-7.edf",
+            "level": "Trend",
+            "original_point_count": 24,
+            "usable_point_count": 18,
+            "invalid_point_count": 6,
+            "reason_codes": ["q_duplicate", "low_q_truncated"],
+            "actions": ["drop_nonfinite", "truncate_low_q"],
+        }
+    }
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, submodule="saxs.static", language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "data quality" in review_text.lower()
+    assert "Trend" in review_text
+    assert "frame-7" in review_text
+    assert "raw/frame-7.edf" in review_text
+    assert "18/24" in review_text
+    assert "invalid=6" in review_text
+    assert "q_duplicate" in review_text
+    assert "drop_nonfinite" in review_text
+    assert "Review q/I data quality" in review_text
+    assert params == before
+
+
+def test_data_quality_review_shows_batch_coverage_and_missing_rows() -> None:
+    params = {
+        "_batch_data": [
+            {
+                "source_index": 4,
+                "data_quality_report": {
+                    "source_id": "frame-4",
+                    "level": "Diagnostic",
+                    "original_point_count": 12,
+                    "usable_point_count": 8,
+                    "invalid_point_count": 4,
+                    "reason_codes": ["q_nonmonotonic"],
+                    "actions": ["sort_for_analysis"],
+                },
+            },
+            {"source_index": 9},
+        ]
+    }
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, submodule="saxs.temperature", language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "1/2" in review_text
+    assert "Diagnostic" in review_text
+    assert "q_nonmonotonic" in review_text
+    assert "sort_for_analysis" in review_text
+    assert "source_index=9" not in review_text
+    assert params == before
+
+
+def test_data_quality_review_summarizes_batch_once_when_top_level_report_is_malformed() -> None:
+    params = {
+        "data_quality_report": "not-a-report",
+        "_batch_data": [
+            {
+                "data_quality_report": {
+                    "source_id": "frame-4",
+                    "level": "Diagnostic",
+                    "reason_codes": ["q_nonmonotonic"],
+                    "actions": ["sort_for_analysis"],
+                },
+            },
+            {},
+        ],
+    }
+
+    presentation = _build(params, submodule="saxs.temperature", language="en")
+    review_text = f"{presentation.risk_text} {presentation.next_text}"
+
+    assert "Data-quality frames: 1/2" in review_text
+    assert "levels=Diagnostic=1" in review_text
+    assert "q_nonmonotonic" in review_text
+    assert "sort_for_analysis" in review_text
+    assert "Data quality: Diagnostic" not in review_text
+
+
+def test_data_quality_review_localizes_without_mutating_payload() -> None:
+    params = {
+        "data_quality_report": {
+            "source_id": "frame-1",
+            "level": "Unusable",
+            "original_point_count": 4,
+            "usable_point_count": 2,
+            "invalid_point_count": 2,
+            "reason_codes": ["insufficient_points"],
+            "actions": [],
+        }
+    }
+    before = copy.deepcopy(params)
+
+    chinese = _build(params, language="zh")
+    chinese_text = f"{chinese.risk_text} {chinese.next_text}"
+
+    assert "insufficient_points" in chinese_text
+    assert "Data quality" not in chinese_text
+    assert "Unusable" not in chinese_text
+    assert params == before
+
+
 def test_temperature_primary_uses_effective_lc_source_status_and_unavailable_text() -> None:
     presentation = _build(
         {
@@ -166,6 +466,15 @@ def test_strain_primary_contains_only_strain_template_columns() -> None:
         "Q_star_rel",
         "phi_void",
         "f_Herman",
+        "f_Herman_raw",
+        "delta_f_from_zero",
+        "delta_f_stability_lower",
+        "delta_f_stability_upper",
+        "orientation_q_min_nm1",
+        "orientation_q_max_nm1",
+        "orientation_track_id",
+        "orientation_reliability_status",
+        "orientation_reason_summary",
         "phase_name",
         "phase_support_score",
         "strain_reliability_status",
@@ -181,8 +490,8 @@ def test_strain_herman_mixed_frames_keep_unavailable_cells_explicit() -> None:
     presentation = _build(
         {
             "_batch_data": [
-                {"strain_pct": 0.0, "f_Herman": None},
-                {"strain_pct": 8.0, "f_Herman": 0.25},
+                {"strain_pct": 0.0, "f_Herman": None, "f_Herman_raw": 0.47},
+                {"strain_pct": 8.0, "f_Herman": 0.25, "f_Herman_raw": 0.52},
             ]
         },
         submodule="saxs.strain",
@@ -192,6 +501,94 @@ def test_strain_herman_mixed_frames_keep_unavailable_cells_explicit() -> None:
     assert _cell(presentation.primary, 0, "f_Herman").status == "neutral"
     assert _cell(presentation.primary, 1, "f_Herman").display == "0.2500"
     assert _cell(presentation.primary, 1, "f_Herman").status == "neutral"
+    assert _cell(presentation.primary, 0, "f_Herman_raw").display == "0.4700"
+    assert _cell(presentation.primary, 1, "f_Herman_raw").display == "0.5200"
+    heroes = {metric.key: metric for metric in presentation.hero_metrics}
+    assert "f_Herman" not in heroes
+    assert heroes["f_Herman_raw_mean"].label == "Herman orientation (diagnostic)"
+    assert heroes["f_Herman_raw_mean"].display == "0.4700"
+
+
+def test_strain_missing_final_never_falls_back_to_raw_diagnostic() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [
+                {"strain_pct": 5.0, "f_Herman": None, "f_Herman_raw": 0.41},
+            ]
+        },
+        submodule="saxs.strain",
+    )
+
+    assert _cell(presentation.primary, 0, "f_Herman").raw is None
+    assert _cell(presentation.primary, 0, "f_Herman").display == "—"
+    assert _cell(presentation.primary, 0, "f_Herman_raw").raw == pytest.approx(0.41)
+
+
+def test_strain_detail_presents_all_detached_orientation_tracks() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [{"strain_pct": 5.0, "f_Herman": None, "f_Herman_raw": 0.41}],
+            "_orientation_tracking_rows": [
+                {"orientation_track_id": "track-a", "f_Herman": 0.21},
+                {"orientation_track_id": "track-b", "f_Herman": 0.31},
+            ],
+        },
+        submodule="saxs.strain",
+    )
+
+    track_ids = {
+        _cell(presentation.detail, row, "orientation_track_id").raw
+        for row in range(len(presentation.detail.rows))
+    }
+    assert {"track-a", "track-b"} <= track_ids
+
+
+def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliability_separate() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [
+                {
+                    "strain_pct": 5.0,
+                    "f_Herman": None,
+                    "f_Herman_raw": 0.41,
+                    "delta_f_from_zero": -0.02,
+                    "delta_f_stability_lower": -0.05,
+                    "delta_f_stability_upper": 0.01,
+                    "orientation_q_min_nm1": 0.20,
+                    "orientation_q_max_nm1": 0.35,
+                    "orientation_track_id": "track-a",
+                    "orientation_reliability_status": "diagnostic",
+                    "orientation_reason_summary": "delta_not_available",
+                },
+                {
+                    "strain_pct": 5.0,
+                    "orientation_track_id": "track-b",
+                    "orientation_reliability_status": "usable",
+                },
+            ]
+        },
+        submodule="saxs.strain",
+    )
+
+    primary_keys = {column.key for column in presentation.primary.columns}
+    assert {
+        "f_Herman",
+        "f_Herman_raw",
+        "delta_f_from_zero",
+        "delta_f_stability_lower",
+        "delta_f_stability_upper",
+        "orientation_q_min_nm1",
+        "orientation_q_max_nm1",
+        "orientation_track_id",
+        "orientation_reliability_status",
+        "orientation_reason_summary",
+    } <= primary_keys
+    assert _cell(presentation.primary, 0, "f_Herman").raw is None
+    assert _cell(presentation.primary, 0, "f_Herman_raw").raw == pytest.approx(0.41)
+    assert _cell(presentation.primary, 0, "delta_f_from_zero").raw == pytest.approx(-0.02)
+    assert _cell(presentation.primary, 0, "orientation_q_min_nm1").raw == pytest.approx(0.20)
+    assert _cell(presentation.primary, 0, "orientation_track_id").raw == "track-a"
+    assert _cell(presentation.primary, 1, "orientation_track_id").raw == "track-b"
 
 
 def test_empty_payload_builds_empty_sections_and_disabled_actions() -> None:

@@ -29,6 +29,11 @@ def test_preprocess_pipeline_emits_canonical_azimuthal_payload_without_pyfai(mon
     assert sector_data["chi_rad"].shape == (cfg.n_chi_sectors,)
     assert np.all(np.isfinite(sector_data["chi_rad"]))
     assert np.any(sector_data["I_2d"] > 0)
+    assert sector_data["support_count"].shape == sector_data["I_2d"].shape
+    assert sector_data["sector_empty_bin_mask"].shape == sector_data["I_2d"].shape
+    assert sector_data["sector_integration_backend"] == "numpy"
+    assert sector_data["raw_detector_quality_report"] == processed["detector_quality_report"]
+    assert sector_data["raw_detector_quality_report"] is not processed["detector_quality_report"]
 
 
 def test_preprocess_pipeline_keeps_isotropic_input_without_orientation_payload(monkeypatch) -> None:

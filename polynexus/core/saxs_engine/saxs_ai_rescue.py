@@ -31,6 +31,11 @@ from ..preprocess_optimization import (
 from ..preprocess_optimization.decision import decide_preprocess_candidate
 from ..preprocess_optimization.intent_schema import ContractValidationError
 from ..preprocess_optimization.policy import PolicyValidationError
+from .saxs_2d_review_context import (
+    build_saxs_2d_review_context,
+    sanitize_saxs_2d_review_context,
+)
+from .saxs_sequence_rescue import resolve_sequence_rescue_candidate
 
 
 _REQUIRED_PROTECTED_FEATURES = frozenset(
@@ -53,6 +58,37 @@ _EVIDENCE_FIELDS = (
     "metric_evidence",
     "detector_quality_report",
     "orientation_evidence",
+)
+_ACCEPTANCE_AUDIT_FIELDS = (
+    "status",
+    "automated_validation_passed",
+    "existing_publication_gate",
+    "evidence_levels",
+    "provenance_validity",
+    "physical_gate_evidence",
+    "method_gate_status",
+    "reliability",
+    "reason_codes",
+    "audit_scope",
+    "publication_decision_changed",
+    "detector_provenance_audit",
+)
+_RAW_SUMMARY_KEYS = frozenset(
+    {
+        "q",
+        "i",
+        "raw_q",
+        "raw_i",
+        "q_values",
+        "intensity_values",
+        "detector_pixels",
+        "pixel_values",
+        "source_path",
+        "source_paths",
+        "source_file",
+        "file_path",
+        "filepath",
+    }
 )
 _COMPACT_FIELDS = frozenset(
     {
@@ -87,6 +123,25 @@ _COMPACT_FIELDS = frozenset(
         "reason_codes",
     }
 )
+_SEQUENCE_RESCUE_CANDIDATE_FIELDS = (
+    "candidate_id",
+    "kind",
+    "parameters",
+    "reason_codes",
+    "requires_validation",
+)
+_SEQUENCE_RESCUE_PARAMETER_FIELDS = (
+    "frame_index",
+    "axis_name",
+    "axis_value",
+    "metric",
+    "original_value_nm",
+    "proposed_value_nm",
+    "proposed_source",
+    "path_status",
+    "preserve_missing_frames",
+    "apply_mode",
+)
 
 
 def _json_safe(value: Any) -> Any:
@@ -120,6 +175,61 @@ def _object_value(source: Any, name: str, default: Any = None) -> Any:
     return getattr(source, name, default)
 
 
+def _mode_result(result: Any, mode: str) -> Any:
+    if mode == "temperature":
+        series = _object_value(result, "_temperature_result", None)
+        if series is not None:
+            return series
+    elif mode == "strain":
+        series = _object_value(result, "_strain_result", None)
+        if series is not None:
+            return series
+    wrapped = _object_value(result, "result", None)
+    return wrapped if wrapped is not None else result
+
+
+def _summary_safe(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _summary_safe(item)
+            for key, item in value.items()
+            if str(key).strip().lower() not in _RAW_SUMMARY_KEYS
+        }
+    if isinstance(value, (list, tuple, set, np.ndarray)):
+        return [_summary_safe(item) for item in value]
+    return _json_safe(value)
+
+
+def _acceptance_audit_projection(source: Any) -> dict[str, Any]:
+    if not isinstance(source, Mapping):
+        return {}
+    projected = {
+        str(key): _summary_safe(source[key])
+        for key in _ACCEPTANCE_AUDIT_FIELDS
+        if key in source
+    }
+    return _json_safe(projected)
+
+
+def _existing_acceptance_audit(result: Any) -> dict[str, Any]:
+    owner = _mode_result(result, "static")
+    parameters = _object_value(owner, "parameters", None)
+    if not isinstance(parameters, Mapping):
+        return {}
+    return _acceptance_audit_projection(parameters.get("scientific_acceptance_audit"))
+
+
+def _existing_scientific_review(result: Any) -> Any:
+    owner = _mode_result(result, "static")
+    parameters = _object_value(owner, "parameters", None)
+    if not isinstance(parameters, Mapping):
+        return None
+    for field_name in ("scientific_review_record", "scientific_review"):
+        if field_name in parameters:
+            return parameters[field_name]
+    return None
+
+
 def _compact(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
@@ -137,6 +247,44 @@ def _compact(value: Any) -> dict[str, Any]:
             if nested:
                 result[name] = nested
     return result
+
+
+def _sequence_rescue_candidate_projection(value: Any) -> dict[str, Any]:
+    """Project one existing sequence candidate without arbitrary payloads."""
+
+    if not isinstance(value, Mapping):
+        to_dict = getattr(value, "to_dict", None)
+        value = to_dict() if callable(to_dict) else None
+    if not isinstance(value, Mapping):
+        return {}
+
+    projected: dict[str, Any] = {}
+    for field_name in _SEQUENCE_RESCUE_CANDIDATE_FIELDS:
+        if field_name not in value:
+            continue
+        item = value[field_name]
+        if field_name == "parameters":
+            if not isinstance(item, Mapping):
+                continue
+            parameters = {
+                str(key): _json_safe(item[key])
+                for key in _SEQUENCE_RESCUE_PARAMETER_FIELDS
+                if key in item
+            }
+            if parameters:
+                projected[field_name] = parameters
+        else:
+            projected[field_name] = _json_safe(item)
+    return projected
+
+
+def _sequence_rescue_candidates_projection(value: Any) -> list[dict[str, Any]]:
+    """Project only valid existing sequence candidates in stable order."""
+
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+    projected = [_sequence_rescue_candidate_projection(item) for item in value]
+    return [item for item in projected if item]
 
 
 def _normal_mode(mode: str) -> str:
@@ -170,6 +318,7 @@ def _has_failed_physical_check(value: Any) -> bool:
 def _result_frames(result: Any, mode: str) -> list[Any]:
     if result is None:
         return []
+    result = _mode_result(result, mode)
     if mode == "temperature":
         points = _object_value(result, "temp_points", ())
     elif mode == "strain":
@@ -223,14 +372,20 @@ def build_saxs_confirmed_rerun_evidence(result: Any, *, mode: str) -> dict[str, 
             "frames": [],
             "series": {},
         }
+    mode_result = _mode_result(result, normalized_mode)
     frames = [_frame_projection(frame, index) for index, frame in enumerate(_result_frames(result, normalized_mode))]
     series: dict[str, Any] = {}
     if normalized_mode == "temperature":
         series["guinier_sequence_evidence"] = _compact(
-            _object_value(result, "guinier_sequence_evidence", None)
+            _object_value(mode_result, "guinier_sequence_evidence", None)
         )
+        rescue_candidates = _sequence_rescue_candidates_projection(
+            _object_value(mode_result, "sequence_rescue_candidates", ())
+        )
+        if rescue_candidates:
+            series["sequence_rescue_candidates"] = rescue_candidates
     for field_name in ("metric_evidence", "detector_quality_report", "orientation_evidence"):
-        evidence = _compact(_object_value(result, field_name, None))
+        evidence = _compact(_object_value(mode_result, field_name, None))
         if evidence:
             series[field_name] = evidence
     payload = {
@@ -312,6 +467,171 @@ def assess_saxs_confirmed_rerun(result: Any, *, mode: str) -> dict[str, Any]:
     return _json_safe(evidence)
 
 
+def sanitize_saxs_ai_summary_context(payload: Any) -> dict[str, Any]:
+    """Keep only the summary fields allowed to cross the SAXS prompt boundary."""
+
+    if not isinstance(payload, Mapping) or str(payload.get("technique", "")).upper() != "SAXS":
+        return {}
+    normalized_mode = str(payload.get("mode", "") or "").strip().lower()
+    raw_frames = payload.get("frames", ())
+    frames = (
+        [_frame_projection(item, index) for index, item in enumerate(raw_frames) if isinstance(item, Mapping)]
+        if isinstance(raw_frames, Sequence) and not isinstance(raw_frames, (str, bytes))
+        else []
+    )
+    series: dict[str, Any] = {}
+    raw_series = payload.get("series")
+    if normalized_mode == "temperature" and isinstance(raw_series, Mapping):
+        rescue_candidates = _sequence_rescue_candidates_projection(
+            raw_series.get("sequence_rescue_candidates", ())
+        )
+        if rescue_candidates:
+            series["sequence_rescue_candidates"] = rescue_candidates
+    for field_name in ("guinier_sequence_evidence", *_EVIDENCE_FIELDS):
+        value = raw_series.get(field_name) if isinstance(raw_series, Mapping) else None
+        compact = _compact(value)
+        if compact:
+            series[field_name] = compact
+    acceptance_audit = _acceptance_audit_projection(payload.get("scientific_acceptance_audit"))
+    context = {
+        "schema_version": "saxs-ai-summary-v1",
+        "technique": "SAXS",
+        "mode": str(payload.get("mode", "") or ""),
+        "status": str(payload.get("status", "unavailable") or "unavailable"),
+        "physical_gate_status": str(payload.get("physical_gate_status", "unavailable") or "unavailable"),
+        "quality_gate_status": str(payload.get("quality_gate_status", "unavailable") or "unavailable"),
+        "reason_codes": [str(item) for item in payload.get("reason_codes", ()) if isinstance(item, str)],
+        "frames": frames,
+        "series": series,
+        "candidate_only": True,
+        "raw_profile_included": False,
+        "raw_detector_data_included": False,
+        "physical_validation_required": True,
+    }
+    two_d_context = sanitize_saxs_2d_review_context(payload.get("saxs_2d_review_context"))
+    if two_d_context:
+        context["saxs_2d_review_context"] = two_d_context
+    if acceptance_audit:
+        context["scientific_acceptance_audit"] = acceptance_audit
+    return _json_safe(context)
+
+
+def build_saxs_ai_summary_context(result: Any, *, mode: str) -> dict[str, Any]:
+    """Build a summary-only, strict-JSON input envelope for a future AI call.
+
+    The envelope deliberately reuses the existing evidence projection and
+    status assessment.  It never inspects or serializes raw q/I, detector
+    pixels, source paths, or any other unbounded input payload.
+    """
+
+    evidence = assess_saxs_confirmed_rerun(result, mode=mode)
+    normalized_mode = _normal_mode(mode)
+    context = {
+        "schema_version": "saxs-ai-summary-v1",
+        "technique": "SAXS",
+        "mode": normalized_mode or str(mode or ""),
+        "status": evidence.get("status", "unavailable"),
+        "physical_gate_status": evidence.get("physical_gate_status", "unavailable"),
+        "quality_gate_status": evidence.get("quality_gate_status", "unavailable"),
+        "reason_codes": evidence.get("reason_codes", []),
+        "frames": evidence.get("frames", []),
+        "series": evidence.get("series", {}),
+        "candidate_only": True,
+        "raw_profile_included": False,
+        "raw_detector_data_included": False,
+        "physical_validation_required": True,
+    }
+    acceptance_audit = _existing_acceptance_audit(result)
+    if acceptance_audit:
+        context["scientific_acceptance_audit"] = acceptance_audit
+    two_d_context = build_saxs_2d_review_context(
+        _mode_result(result, normalized_mode),
+        scientific_review=_existing_scientific_review(result),
+    )
+    if two_d_context.get("status") != "unavailable":
+        context["saxs_2d_review_context"] = two_d_context
+    return _json_safe(context)
+
+
+def resolve_saxs_ai_candidate_references(
+    result: Any,
+    advice: Mapping[str, Any] | None,
+    *,
+    mode: str,
+) -> dict[str, Any]:
+    """Resolve advisory candidate IDs against the current SAXS result only.
+
+    This is a diagnostic bridge. It materializes no analysis result and never
+    evaluates or applies a rescue candidate.
+    """
+
+    normalized_mode = _normal_mode(mode)
+    resolution: dict[str, Any] = {
+        "mode": normalized_mode or str(mode or ""),
+        "status": "unavailable",
+        "resolved": [],
+        "unresolved_ids": [],
+        "reason_codes": [],
+    }
+    reasons: list[str] = []
+    if normalized_mode != "temperature":
+        resolution["reason_codes"] = ["unsupported_mode"]
+        return resolution
+    if not isinstance(advice, Mapping) or "saxs_candidate_references" not in advice:
+        resolution["reason_codes"] = ["candidate_references_missing"]
+        return resolution
+
+    raw_references = advice.get("saxs_candidate_references")
+    if not isinstance(raw_references, Sequence) or isinstance(raw_references, (str, bytes)):
+        resolution["reason_codes"] = ["candidate_references_malformed"]
+        return resolution
+    reference_ids: list[str] = []
+    for item in raw_references:
+        if not isinstance(item, str):
+            reasons.append("candidate_reference_malformed")
+            continue
+        candidate_id = item.strip()
+        if candidate_id and candidate_id not in reference_ids:
+            reference_ids.append(candidate_id)
+    if not reference_ids:
+        reasons.append("candidate_references_missing")
+
+    mode_result = _mode_result(result, normalized_mode)
+    raw_candidates = _object_value(mode_result, "sequence_rescue_candidates", ())
+    if not isinstance(raw_candidates, Sequence) or isinstance(raw_candidates, (str, bytes)):
+        if reference_ids:
+            resolution["unresolved_ids"] = reference_ids
+            reasons.append("result_candidates_missing")
+        resolution["reason_codes"] = list(dict.fromkeys(reasons))
+        return resolution
+    candidates = list(raw_candidates)
+    for candidate_id in reference_ids:
+        matches = [
+            item
+            for item in candidates
+            if str(_object_value(item, "candidate_id", "") or "").strip() == candidate_id
+        ]
+        if len(matches) > 1:
+            resolution["unresolved_ids"].append(candidate_id)
+            reasons.append("duplicate_candidate_id")
+            continue
+        resolved = resolve_sequence_rescue_candidate(
+            candidates,
+            candidate_id,
+            mode=normalized_mode,
+        )
+        if resolved is None:
+            resolution["unresolved_ids"].append(candidate_id)
+            reasons.append("candidate_not_found" if not matches else "candidate_identity_rejected")
+            continue
+        resolution["resolved"].append(resolved.to_dict())
+
+    if resolution["resolved"]:
+        resolution["status"] = "available"
+    resolution["reason_codes"] = list(dict.fromkeys(reasons))
+    return _json_safe(resolution)
+
+
 def validate_saxs_confirmation_report(
     report: Mapping[str, Any],
     *,
@@ -325,6 +645,8 @@ def validate_saxs_confirmation_report(
         raise ValueError("unsupported SAXS confirmation mode")
     if not isinstance(report, Mapping):
         raise ValueError("SAXS confirmation report must be a mapping")
+    if "orientation_advisory_report" in report:
+        raise ValueError("orientation advisory has no confirmation authority")
     decision = report.get("preprocess_decision", {})
     if not isinstance(decision, Mapping) or decision.get("decision") != "request_confirmation":
         raise ValueError("SAXS confirmation requires request_confirmation")
@@ -495,6 +817,8 @@ def validate_saxs_ai_intent(
     """Validate a SAXS intent without generating or executing candidates."""
 
     selected_policy = policy or get_preprocess_policy("SAXS")
+    if "orientation_advisory_report" in intent_payload:
+        raise ContractValidationError("orientation advisory has no preprocessing authority")
     if selected_policy.technique.upper() != "SAXS":
         raise PolicyValidationError("SAXS rescue requires the SAXS preprocessing policy")
     return _validated_intent(intent_payload, selected_policy)
@@ -565,8 +889,11 @@ __all__ = [
     "SAXSAIRescuePlan",
     "assess_saxs_ai_candidate",
     "assess_saxs_confirmed_rerun",
+    "build_saxs_ai_summary_context",
+    "resolve_saxs_ai_candidate_references",
     "build_saxs_confirmed_rerun_evidence",
     "build_saxs_ai_rescue_plan",
+    "sanitize_saxs_ai_summary_context",
     "validate_saxs_confirmation_report",
     "validate_saxs_ai_intent",
 ]

@@ -1348,6 +1348,8 @@ class MainWindow(
         self._result_contexts = {}
         self._current_result_confirmed_flag = False
         self._results_compare_selected_run_id = ""
+        self._saxs_orientation_advisory_closing = False
+        self._saxs_orientation_advisory_request_token = None
 
 
 
@@ -1386,6 +1388,22 @@ class MainWindow(
         # Bind keyboard shortcuts
 
         bind_shortcuts(self)
+
+    def closeEvent(self, event):
+        """Stop the read-only advisory before Qt destroys the window."""
+
+        self._saxs_orientation_advisory_closing = True
+        worker = getattr(self, "_saxs_orientation_advisory_worker", None)
+        if worker is not None:
+            is_running = getattr(worker, "isRunning", None)
+            if callable(is_running) and is_running():
+                cancel = getattr(worker, "cancel", None)
+                if callable(cancel):
+                    cancel()
+                else:
+                    worker.requestInterruption()
+                worker.wait(3000)
+        super().closeEvent(event)
 
     def schedule_deferred_startup(self) -> None:
         """Build non-critical widgets after the first window paint."""
@@ -2130,12 +2148,11 @@ class MainWindow(
 
 
     def _on_tab_changed(self, index):
-
-        widget = self._tabs.widget(index) if hasattr(self, "_tabs") else None
-
-        if widget is not None:
-
-            fade_in(widget, duration=170, start=0.35)
+        # Main pages contain dense scientific text and figures. Applying an
+        # opacity effect to the whole page makes the active route appear
+        # washed out during native capture and can leave child content with
+        # misleadingly low contrast. Keep transitions local to explicit
+        # transient surfaces such as the drop banner.
         self._update_context_suggestions()
 
 

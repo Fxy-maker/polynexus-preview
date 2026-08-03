@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -25,6 +26,7 @@ from ..i18n import get_language, tr, tr_for_language
 from ..result_table_models import HeroMetric, ResultTableSection, TableColumn, TableScalar
 from ..results_workbench_profiles import ResultsWorkbenchProfile, profile_for
 from ..theme import ThemeEngine
+from .wrapped_evidence_label import WrappedEvidenceLabel
 
 _RAW_ROLE = Qt.UserRole
 _STATUS_ROLE = int(Qt.UserRole) + 1
@@ -206,14 +208,18 @@ class ResultsTablePanel(QWidget):
         self.review_hint_title.setObjectName("results_review_hint_title")
         review_hint_layout.addWidget(self.review_hint_title)
 
-        self.review_hint_detail = QLabel(self.review_hint_widget)
+        self.review_hint_detail = WrappedEvidenceLabel(self.review_hint_widget)
         self.review_hint_detail.setObjectName("results_review_hint_detail")
         self.review_hint_detail.setWordWrap(True)
+        self.review_hint_detail.setMinimumWidth(0)
+        self.review_hint_detail.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         review_hint_layout.addWidget(self.review_hint_detail, 1)
 
-        self.review_hint_next = QLabel(self.review_hint_widget)
+        self.review_hint_next = WrappedEvidenceLabel(self.review_hint_widget)
         self.review_hint_next.setObjectName("results_review_hint_next")
         self.review_hint_next.setWordWrap(True)
+        self.review_hint_next.setMinimumWidth(0)
+        self.review_hint_next.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         review_hint_layout.addWidget(self.review_hint_next, 1)
 
         self.review_hint_action = QPushButton(self.review_hint_widget)

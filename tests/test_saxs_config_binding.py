@@ -6,7 +6,10 @@ from polynexus.core.saxs_config_binding import (
     apply_saxs_config_panel_values,
     saxs_config_snapshot,
 )
-from polynexus.core.saxs_engine.config import SAXSConfig
+from polynexus.core.saxs_engine.config import (
+    SAXSConfig,
+    TENSILE_AXIS_CONVENTION,
+)
 
 
 def test_saxs_panel_aliases_apply_with_explicit_conversion_and_report() -> None:
@@ -53,3 +56,49 @@ def test_saxs_config_snapshot_is_strict_json_safe() -> None:
     assert snapshot["crystallinity"] is None
     assert snapshot["T_melt_expected"] is None
     json.dumps(snapshot, allow_nan=False)
+
+
+def test_tensile_axis_binding_keeps_none_distinct_from_zero_and_records_provenance() -> None:
+    empty = SAXSConfig()
+    empty_report = apply_saxs_config_panel_values(
+        empty,
+        {
+            "tensile_axis_deg": None,
+            "tensile_axis_convention": TENSILE_AXIS_CONVENTION,
+        },
+    )
+    assert empty.tensile_axis_deg is None
+    assert empty_report["normalized_values"]["tensile_axis_deg"] is None
+
+    zero = SAXSConfig()
+    zero_report = apply_saxs_config_panel_values(
+        zero,
+        {
+            "tensile_axis_deg": 180.0,
+            "tensile_axis_convention": TENSILE_AXIS_CONVENTION,
+        },
+    )
+    assert zero.tensile_axis_deg == 0.0
+    assert zero.tensile_axis_convention == TENSILE_AXIS_CONVENTION
+    assert zero_report["normalized_values"]["tensile_axis_deg"] == 0.0
+    assert zero_report["provenance"]["tensile_axis_deg"]["source"] == (
+        "explicit_run_config"
+    )
+
+
+def test_tensile_axis_binding_rejects_unknown_convention_without_partial_apply() -> None:
+    config = SAXSConfig()
+
+    report = apply_saxs_config_panel_values(
+        config,
+        {
+            "tensile_axis_deg": 45.0,
+            "tensile_axis_convention": "screen_angle_v0",
+        },
+    )
+
+    assert config.tensile_axis_deg is None
+    assert config.tensile_axis_convention is None
+    assert report["unavailable"]["tensile_axis_deg"] == (
+        "unsupported_tensile_axis_convention"
+    )

@@ -114,6 +114,261 @@ def _int_tuple(value: Any) -> tuple[int, ...]:
         except (TypeError, ValueError):
             continue
     return tuple(result)
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
+
+
+def _contains_invalid_support_value(value: Any) -> bool:
+    if isinstance(value, (bool, np.bool_, str, complex, np.complexfloating)):
+        return True
+    if isinstance(value, np.ndarray):
+        if value.dtype.kind in {"b", "c", "U", "S"}:
+            return True
+        return value.dtype.kind == "O" and any(
+            _contains_invalid_support_value(item) for item in value.flat
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_invalid_support_value(item) for item in value)
+    return False
+
+
+def _normalize_detached_support_report(
+    data: dict[str, Any],
+    *,
+    required_fields: tuple[str, ...],
+    integer_fields: tuple[str, ...],
+    float_fields: tuple[str, ...],
+    has_shape: bool = False,
+) -> bool:
+    """Normalize detached support evidence and report malformed fields."""
+
+    malformed = any(key not in data for key in required_fields)
+    support_available = data.get("support_available", False)
+    if "support_available" in data and not isinstance(
+        support_available, (bool, np.bool_)
+    ):
+        malformed = True
+    data["support_available"] = bool(support_available) if not malformed else False
+
+    if has_shape and "shape" in data:
+        shape = data["shape"]
+        if (
+            not isinstance(shape, (list, tuple))
+            or any(
+                isinstance(item, (bool, np.bool_))
+                or not isinstance(item, (int, np.integer))
+                or item < 0
+                for item in shape
+            )
+        ):
+            malformed = True
+            data["shape"] = ()
+        else:
+            data["shape"] = tuple(int(item) for item in shape)
+
+    for key in integer_fields:
+        if key not in data:
+            continue
+        value = data[key]
+        if (
+            isinstance(value, (bool, np.bool_))
+            or not isinstance(value, (int, np.integer))
+            or value < 0
+        ):
+            malformed = True
+            data[key] = 0
+        else:
+            data[key] = int(value)
+
+    for key in float_fields:
+        if key not in data:
+            continue
+        value = data[key]
+        if value is None:
+            continue
+        if isinstance(value, (bool, np.bool_)) or not isinstance(
+            value, (int, float, np.integer, np.floating)
+        ):
+            malformed = True
+            data[key] = None
+            continue
+        normalized = _finite_float_or_none(value)
+        if normalized is None:
+            malformed = True
+            data[key] = None
+        else:
+            data[key] = normalized
+
+    raw_reasons = data.get("reason_codes", ())
+    if isinstance(raw_reasons, str):
+        data["reason_codes"] = (raw_reasons,)
+    elif isinstance(raw_reasons, (list, tuple)) and all(
+        isinstance(reason, str) for reason in raw_reasons
+    ):
+        data["reason_codes"] = tuple(raw_reasons)
+    else:
+        data["reason_codes"] = ()
+        malformed = True
+
+    raw_level = data.get("level", QualityLevel.UNUSABLE)
+    data["level"] = _quality_level(raw_level)
+    if (
+        "level" in data
+        and not isinstance(raw_level, QualityLevel)
+        and raw_level not in {level.value for level in QualityLevel}
+    ):
+        malformed = True
+
+    if malformed:
+        data["support_available"] = False
+        data["level"] = QualityLevel.DIAGNOSTIC
+        data["reason_codes"] = tuple(
+            dict.fromkeys((*data["reason_codes"], "sector_support_unavailable"))
+        )
+    return malformed
+
+
+def _mark_support_report_unavailable(data: dict[str, Any]) -> None:
+    data["support_available"] = False
+    data["level"] = QualityLevel.DIAGNOSTIC
+    for key in (
+        "supported_bin_count",
+        "empty_bin_count",
+        "measured_nonpositive_bin_count",
+        "selected_q_bin_count",
+        "angular_bin_count",
+        "supported_angular_bin_count",
+    ):
+        if key in data:
+            data[key] = 0
+    if "support_fraction" in data:
+        data["support_fraction"] = None
+    data["reason_codes"] = tuple(
+        dict.fromkeys((*data.get("reason_codes", ()), "sector_support_unavailable"))
+    )
+
+
+def _sector_map_report_is_coherent(data: Mapping[str, Any]) -> bool:
+    reasons = set(data["reason_codes"])
+    if not data["support_available"]:
+        return (
+            data["level"] in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
+            and "sector_support_unavailable" in reasons
+            and data["supported_bin_count"] == 0
+            and data["empty_bin_count"] == 0
+            and data["measured_nonpositive_bin_count"] == 0
+            and data["support_fraction"] is None
+        )
+    if "sector_support_unavailable" in reasons:
+        return False
+    if reasons & {
+        "sector_source_missing",
+        "annulus_support_incomplete",
+    }:
+        return False
+    shape = data["shape"]
+    supported = data["supported_bin_count"]
+    empty = data["empty_bin_count"]
+    measured_nonpositive = data["measured_nonpositive_bin_count"]
+    fraction = data["support_fraction"]
+    total_bins = int(np.prod(shape, dtype=int))
+    expected_reasons = set()
+    if empty:
+        expected_reasons.add("sector_empty_bins_present")
+    if measured_nonpositive:
+        expected_reasons.add("sector_measured_nonpositive_bins_present")
+    if data["level"] is QualityLevel.TREND:
+        expected_reasons_are_coherent = not expected_reasons and not reasons
+    elif data["level"] is QualityLevel.QUANTITATIVE and (
+        expected_reasons or reasons
+    ):
+        expected_reasons_are_coherent = False
+    else:
+        expected_reasons_are_coherent = expected_reasons <= reasons and bool(reasons)
+    return bool(
+        len(shape) == 2
+        and total_bins > 0
+        and supported + empty == total_bins
+        and measured_nonpositive <= supported
+        and fraction is not None
+        and 0.0 <= fraction <= 1.0
+        and np.isclose(fraction, supported / total_bins)
+        and expected_reasons_are_coherent
+    )
+
+
+def _annulus_report_is_coherent(data: Mapping[str, Any]) -> bool:
+    reasons = set(data["reason_codes"])
+    if not data["support_available"]:
+        return (
+            data["level"] in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
+            and "sector_support_unavailable" in reasons
+            and data["selected_q_bin_count"] == 0
+            and data["angular_bin_count"] == 0
+            and data["supported_angular_bin_count"] == 0
+            and data["support_fraction"] is None
+        )
+    if "sector_support_unavailable" in reasons:
+        return False
+    if reasons & {
+        "sector_source_missing",
+        "annulus_support_incomplete",
+    }:
+        return False
+    angular = data["angular_bin_count"]
+    supported = data["supported_angular_bin_count"]
+    selected = data["selected_q_bin_count"]
+    fraction = data["support_fraction"]
+    target = data["q_target_nm1"]
+    width = data["q_width_nm1"]
+    if angular <= 0 or supported > angular:
+        return False
+    if "annulus_q_window_unavailable" in reasons:
+        return bool(
+            selected == 0
+            and supported == 0
+            and fraction is None
+            and data["level"] is QualityLevel.DIAGNOSTIC
+        )
+    if target is None or width is None:
+        return bool(
+            selected == 0
+            and supported == 0
+            and fraction is None
+            and data["level"] is QualityLevel.DIAGNOSTIC
+            and "annulus_q_window_unavailable" in reasons
+        )
+    if selected == 0:
+        expected_reasons_are_coherent = (
+            data["level"] is QualityLevel.DIAGNOSTIC
+            and "annulus_q_window_empty" in reasons
+            and supported == 0
+            and fraction == 0.0
+        )
+    elif supported == 0:
+        expected_reasons_are_coherent = (
+            data["level"] is QualityLevel.DIAGNOSTIC
+            and "annulus_no_supported_angular_bins" in reasons
+        )
+    else:
+        expected_reasons_are_coherent = (
+            data["level"] is QualityLevel.TREND and not reasons
+        )
+    return bool(
+        width >= 0
+        and fraction is not None
+        and 0.0 <= fraction <= 1.0
+        and np.isclose(fraction, supported / angular)
+        and expected_reasons_are_coherent
+    )
+
+
 @dataclass(frozen=True)
 class DataQualityReport:
     """Deterministic, non-mutating inventory of a 1D q-I input pair."""
@@ -163,6 +418,10 @@ class DetectorQualityReport:
     finite_pixel_count: int = 0
     nonfinite_pixel_count: int = 0
     nonpositive_pixel_count: int = 0
+    unexpected_nonpositive_pixel_count: int = 0
+    background_floor_pixel_count: int = 0
+    masked_sentinel_pixel_count: int = 0
+    unexpected_negative_pixel_count: int = 0
     masked_pixel_count: int = 0
     saturated_pixel_count: int = 0
     valid_pixel_count: int = 0
@@ -171,6 +430,10 @@ class DetectorQualityReport:
     saturation_detection_available: bool = False
     beam_center_available: bool = False
     beam_center: tuple[float, float] | None = None
+    geometry_provenance: Mapping[str, Any] | None = None
+    mask_provenance: Mapping[str, Any] | None = None
+    detector_metadata: Mapping[str, Any] | None = None
+    detector_correction_evidence: Mapping[str, Any] | None = None
     reason_codes: tuple[str, ...] = ()
     level: QualityLevel = QualityLevel.UNUSABLE
 
@@ -192,6 +455,95 @@ class DetectorQualityReport:
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
+@dataclass(frozen=True)
+class SectorMapQualityReport:
+    """Support-aware quality inventory for a chi x q sector map."""
+
+    shape: tuple[int, ...] = ()
+    support_available: bool = False
+    supported_bin_count: int = 0
+    empty_bin_count: int = 0
+    measured_nonpositive_bin_count: int = 0
+    support_fraction: float | None = None
+    reason_codes: tuple[str, ...] = ()
+    level: QualityLevel = QualityLevel.UNUSABLE
+
+    def to_dict(self) -> dict[str, Any]:
+        return _contract_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SectorMapQualityReport":
+        data = dict(payload)
+        malformed = _normalize_detached_support_report(
+            data,
+            required_fields=(
+                "shape",
+                "support_available",
+                "supported_bin_count",
+                "empty_bin_count",
+                "measured_nonpositive_bin_count",
+                "support_fraction",
+                "reason_codes",
+                "level",
+            ),
+            integer_fields=(
+                "supported_bin_count",
+                "empty_bin_count",
+                "measured_nonpositive_bin_count",
+            ),
+            float_fields=("support_fraction",),
+            has_shape=True,
+        )
+        if malformed or not _sector_map_report_is_coherent(data):
+            _mark_support_report_unavailable(data)
+        return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
+
+
+@dataclass(frozen=True)
+class AnnulusQualityReport:
+    """Support-aware quality inventory for one selected q annulus."""
+
+    q_target_nm1: float | None = None
+    q_width_nm1: float | None = None
+    selected_q_bin_count: int = 0
+    angular_bin_count: int = 0
+    supported_angular_bin_count: int = 0
+    support_fraction: float | None = None
+    support_available: bool = False
+    reason_codes: tuple[str, ...] = ()
+    level: QualityLevel = QualityLevel.UNUSABLE
+
+    def to_dict(self) -> dict[str, Any]:
+        return _contract_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "AnnulusQualityReport":
+        data = dict(payload)
+        malformed = _normalize_detached_support_report(
+            data,
+            required_fields=(
+                "q_target_nm1",
+                "q_width_nm1",
+                "selected_q_bin_count",
+                "angular_bin_count",
+                "supported_angular_bin_count",
+                "support_fraction",
+                "support_available",
+                "reason_codes",
+                "level",
+            ),
+            integer_fields=(
+                "selected_q_bin_count",
+                "angular_bin_count",
+                "supported_angular_bin_count",
+            ),
+            float_fields=("q_target_nm1", "q_width_nm1", "support_fraction"),
+        )
+        if malformed or not _annulus_report_is_coherent(data):
+            _mark_support_report_unavailable(data)
+        return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
+
+
 def build_detector_quality_report(
     image: Any,
     *,
@@ -199,6 +551,11 @@ def build_detector_quality_report(
     saturation_value: Any = None,
     source_kind: str = "unknown",
     beam_center: Any = None,
+    geometry_provenance: Mapping[str, Any] | None = None,
+    mask_provenance: Mapping[str, Any] | None = None,
+    detector_metadata: Mapping[str, Any] | None = None,
+    detector_correction_evidence: Mapping[str, Any] | None = None,
+    background_floor_value: Any = None,
 ) -> DetectorQualityReport:
     """Build a strict, read-only quality report for a 2D intensity input."""
 
@@ -246,6 +603,28 @@ def build_detector_quality_report(
             reasons.append("mask_shape_mismatch")
     masked_count = int(np.count_nonzero(mask_array)) if array.ndim == 2 else 0
 
+    background_floor = np.zeros(array.shape, dtype=bool)
+    if array.ndim == 2 and background_floor_value is not None:
+        try:
+            floor_value = float(background_floor_value)
+        except (TypeError, ValueError):
+            floor_value = None
+        if floor_value is not None and np.isfinite(floor_value):
+            tolerance = max(1e-9, abs(floor_value) * 1e-6)
+            background_floor = finite & np.isclose(
+                array,
+                floor_value,
+                rtol=0.0,
+                atol=tolerance,
+            )
+    background_floor_count = int(np.count_nonzero(background_floor))
+    masked_sentinel = mask_array & finite & ~background_floor
+    masked_sentinel_count = int(np.count_nonzero(masked_sentinel))
+    unexpected_nonpositive = finite & (array <= 0) & ~background_floor & ~mask_array
+    unexpected_nonpositive_count = int(np.count_nonzero(unexpected_nonpositive))
+    unexpected_negative = finite & (array < 0) & ~background_floor & ~mask_array
+    unexpected_negative_count = int(np.count_nonzero(unexpected_negative))
+
     saturation_available = False
     saturated = np.zeros(array.shape, dtype=bool)
     try:
@@ -254,7 +633,12 @@ def build_detector_quality_report(
         saturation = None
         if saturation_value is not None:
             reasons.append("saturation_value_invalid")
-    if saturation is not None and np.isfinite(saturation) and array.ndim == 2:
+    if (
+        saturation is not None
+        and np.isfinite(saturation)
+        and saturation > 0
+        and array.ndim == 2
+    ):
         saturation_available = True
         saturated = finite & (array == saturation)
     elif saturation_value is None:
@@ -283,10 +667,8 @@ def build_detector_quality_report(
 
     if nonfinite_count:
         reasons.append("nonfinite_pixels")
-    if nonpositive_count:
+    if unexpected_nonpositive_count:
         reasons.append("nonpositive_pixels")
-    if masked_count:
-        reasons.append("masked_pixels")
     if saturated_count:
         reasons.append("saturated_pixels")
     if normalized_source == "unknown":
@@ -295,7 +677,7 @@ def build_detector_quality_report(
     defect_reasons = {
         "detector_input_invalid", "detector_input_not_2d", "detector_input_empty",
         "mask_shape_mismatch", "saturation_value_invalid", "nonfinite_pixels",
-        "nonpositive_pixels", "masked_pixels", "saturated_pixels", "beam_center_invalid",
+        "nonpositive_pixels", "saturated_pixels", "beam_center_invalid",
     }
     if pixel_count == 0 or valid_count == 0:
         level = QualityLevel.UNUSABLE
@@ -312,6 +694,10 @@ def build_detector_quality_report(
         finite_pixel_count=finite_count,
         nonfinite_pixel_count=nonfinite_count,
         nonpositive_pixel_count=nonpositive_count,
+        unexpected_nonpositive_pixel_count=unexpected_nonpositive_count,
+        background_floor_pixel_count=background_floor_count,
+        masked_sentinel_pixel_count=masked_sentinel_count,
+        unexpected_negative_pixel_count=unexpected_negative_count,
         masked_pixel_count=masked_count,
         saturated_pixel_count=saturated_count,
         valid_pixel_count=valid_count,
@@ -320,7 +706,176 @@ def build_detector_quality_report(
         saturation_detection_available=saturation_available,
         beam_center_available=center is not None,
         beam_center=center,
+        geometry_provenance=geometry_provenance,
+        mask_provenance=mask_provenance,
+        detector_metadata=detector_metadata,
+        detector_correction_evidence=detector_correction_evidence,
         reason_codes=tuple(dict.fromkeys(reasons)),
+        level=level,
+    )
+
+
+def build_sector_map_quality_report(
+    intensity: Any,
+    support_count: Any,
+) -> SectorMapQualityReport:
+    """Describe sector-map occupancy without treating empty bins as pixels."""
+
+    try:
+        intensity_array = np.asarray(intensity, dtype=float)
+    except (TypeError, ValueError):
+        intensity_array = np.asarray([], dtype=float)
+    try:
+        raw_support_array = np.asarray(support_count, dtype=object)
+        support_contains_invalid_value = _contains_invalid_support_value(
+            raw_support_array
+        )
+    except (TypeError, ValueError):
+        support_contains_invalid_value = True
+    if support_contains_invalid_value:
+        support_array = np.asarray([], dtype=float)
+    else:
+        try:
+            support_array = np.asarray(support_count, dtype=float)
+        except (TypeError, ValueError):
+            support_array = np.asarray([], dtype=float)
+
+    shape = (
+        tuple(int(item) for item in intensity_array.shape)
+        if intensity_array.ndim == 2
+        else ()
+    )
+    if (
+        intensity_array.ndim != 2
+        or support_array.ndim != 2
+        or intensity_array.shape != support_array.shape
+        or intensity_array.size == 0
+        or not np.all(np.isfinite(support_array))
+        or np.any(support_array < 0)
+        or support_contains_invalid_value
+    ):
+        return SectorMapQualityReport(
+            shape=shape,
+            reason_codes=("sector_support_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
+
+    empty = support_array <= 0
+    supported = support_array > 0
+    empty_count = int(np.count_nonzero(empty))
+    supported_count = int(np.count_nonzero(supported))
+    measured_nonpositive = int(np.count_nonzero(
+        supported & (intensity_array <= 0)
+    ))
+    measured_nonfinite = int(np.count_nonzero(
+        supported & ~np.isfinite(intensity_array)
+    ))
+    reasons: list[str] = []
+    if empty_count:
+        reasons.append("sector_empty_bins_present")
+    if measured_nonpositive:
+        reasons.append("sector_measured_nonpositive_bins_present")
+    if measured_nonfinite:
+        reasons.append("sector_measured_nonfinite_bins_present")
+    level = (
+        QualityLevel.TREND
+        if not reasons
+        else QualityLevel.DIAGNOSTIC
+    )
+    return SectorMapQualityReport(
+        shape=shape,
+        support_available=True,
+        supported_bin_count=supported_count,
+        empty_bin_count=empty_count,
+        measured_nonpositive_bin_count=measured_nonpositive,
+        support_fraction=float(supported_count / support_array.size)
+        if support_array.size else None,
+        reason_codes=tuple(reasons),
+        level=level,
+    )
+
+
+def build_annulus_quality_report(
+    support_count: Any,
+    q: Any,
+    *,
+    q_target: Any,
+    q_width: Any,
+) -> AnnulusQualityReport:
+    """Describe support for the q window used by azimuthal extraction."""
+
+    target = _finite_float_or_none(q_target)
+    width = _finite_float_or_none(q_width)
+    try:
+        raw_support_array = np.asarray(support_count, dtype=object)
+        support_contains_invalid_value = _contains_invalid_support_value(
+            raw_support_array
+        )
+    except (TypeError, ValueError):
+        support_contains_invalid_value = True
+    if support_contains_invalid_value:
+        support_array = np.asarray([], dtype=float)
+    else:
+        try:
+            support_array = np.asarray(support_count, dtype=float)
+        except (TypeError, ValueError):
+            support_array = np.asarray([], dtype=float)
+    try:
+        q_array = np.asarray(q, dtype=float)
+    except (TypeError, ValueError):
+        q_array = np.asarray([], dtype=float)
+
+    if (
+        support_array.ndim != 2
+        or not np.all(np.isfinite(support_array))
+        or np.any(support_array < 0)
+        or support_contains_invalid_value
+        or support_array.size == 0
+        or q_array.ndim != 1
+        or support_array.shape[1] != q_array.size
+    ):
+        return AnnulusQualityReport(
+            q_target_nm1=target,
+            q_width_nm1=width,
+            angular_bin_count=int(support_array.shape[0])
+            if support_array.ndim == 2 else 0,
+            reason_codes=("sector_support_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
+    if target is None or width is None or width < 0 or not np.all(np.isfinite(q_array)):
+        return AnnulusQualityReport(
+            q_target_nm1=target,
+            q_width_nm1=width,
+            angular_bin_count=int(support_array.shape[0]),
+            support_available=True,
+            reason_codes=("annulus_q_window_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
+
+    q_mask = np.abs(q_array - target) <= width
+    if int(np.count_nonzero(q_mask)) < 2:
+        q_mask = np.abs(q_array - target) <= width * 5
+    selected_q_bin_count = int(np.count_nonzero(q_mask))
+    angular_bin_count = int(support_array.shape[0])
+    supported_angular_bin_count = int(np.count_nonzero(
+        np.any(support_array[:, q_mask] > 0, axis=1)
+    )) if selected_q_bin_count else 0
+    reasons: list[str] = []
+    if not selected_q_bin_count:
+        reasons.append("annulus_q_window_empty")
+    elif not supported_angular_bin_count:
+        reasons.append("annulus_no_supported_angular_bins")
+    level = QualityLevel.TREND if not reasons else QualityLevel.DIAGNOSTIC
+    return AnnulusQualityReport(
+        q_target_nm1=target,
+        q_width_nm1=width,
+        selected_q_bin_count=selected_q_bin_count,
+        angular_bin_count=angular_bin_count,
+        supported_angular_bin_count=supported_angular_bin_count,
+        support_fraction=float(supported_angular_bin_count / angular_bin_count)
+        if angular_bin_count else None,
+        support_available=True,
+        reason_codes=tuple(reasons),
         level=level,
     )
 
@@ -380,10 +935,15 @@ class MetricEvidenceSummary:
     unusable_frame_indices: tuple[int, ...] = ()
     invalid_level_indices: tuple[int, ...] = ()
     frame_source_indices: tuple[int, ...] = ()
+    duplicate_source_index_indices: tuple[int, ...] = ()
+    invalid_source_index_indices: tuple[int, ...] = ()
+    source_index_order_reordered: bool = False
+    condition_axis: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "level_counts", _freeze(self.level_counts))
         object.__setattr__(self, "reason_codes", _string_tuple(self.reason_codes))
+        object.__setattr__(self, "condition_axis", _freeze(self.condition_axis))
         for field_name in (
             "evidence_frame_indices",
             "missing_frame_indices",
@@ -391,8 +951,11 @@ class MetricEvidenceSummary:
             "unusable_frame_indices",
             "invalid_level_indices",
             "frame_source_indices",
+            "duplicate_source_index_indices",
+            "invalid_source_index_indices",
         ):
             object.__setattr__(self, field_name, _int_tuple(getattr(self, field_name)))
+        object.__setattr__(self, "source_index_order_reordered", bool(self.source_index_order_reordered))
 
     def to_dict(self) -> dict[str, Any]:
         return _contract_dict(self)
@@ -415,8 +978,13 @@ class MetricEvidenceSummary:
             "unusable_frame_indices",
             "invalid_level_indices",
             "frame_source_indices",
+            "duplicate_source_index_indices",
+            "invalid_source_index_indices",
         ):
             data[key] = _int_tuple(data.get(key))
+        data["source_index_order_reordered"] = bool(data.get("source_index_order_reordered", False))
+        raw_axis = data.get("condition_axis")
+        data["condition_axis"] = raw_axis if isinstance(raw_axis, Mapping) else {}
         return cls(**{key: data[key] for key in cls.__dataclass_fields__ if key in data})
 
 
@@ -466,6 +1034,9 @@ class GuinierSequenceEvidence:
     nonmonotonic_temperature_indices: tuple[int, ...] = ()
     continuity_break_indices: tuple[int, ...] = ()
     frame_source_indices: tuple[int, ...] = ()
+    duplicate_source_index_indices: tuple[int, ...] = ()
+    invalid_source_index_indices: tuple[int, ...] = ()
+    source_index_order_reordered: bool = False
     temperature_min_C: float | None = None
     temperature_max_C: float | None = None
     rg_min_nm: float | None = None
@@ -484,6 +1055,9 @@ class GuinierSequenceEvidence:
         object.__setattr__(self, "nonmonotonic_temperature_indices", _int_tuple(self.nonmonotonic_temperature_indices))
         object.__setattr__(self, "continuity_break_indices", _int_tuple(self.continuity_break_indices))
         object.__setattr__(self, "frame_source_indices", _int_tuple(self.frame_source_indices))
+        object.__setattr__(self, "duplicate_source_index_indices", _int_tuple(self.duplicate_source_index_indices))
+        object.__setattr__(self, "invalid_source_index_indices", _int_tuple(self.invalid_source_index_indices))
+        object.__setattr__(self, "source_index_order_reordered", bool(self.source_index_order_reordered))
         object.__setattr__(self, "relative_change_stats", _freeze(self.relative_change_stats))
 
     def to_dict(self) -> dict[str, Any]:
@@ -500,6 +1074,8 @@ class GuinierSequenceEvidence:
             "nonmonotonic_temperature_indices",
             "continuity_break_indices",
             "frame_source_indices",
+            "duplicate_source_index_indices",
+            "invalid_source_index_indices",
         ):
             data[key] = _int_tuple(data.get(key))
         data["level"] = _quality_level(data.get("level"))
@@ -586,10 +1162,103 @@ class RescueValidationReport:
 
 
 def _as_1d_float_array(values: Any) -> np.ndarray:
+    """Coerce a possibly dirty 1D axis without discarding valid neighbors."""
     try:
         return np.asarray(values, dtype=float).reshape(-1)
     except (TypeError, ValueError):
-        return np.asarray([], dtype=float)
+        pass
+
+    try:
+        raw_values = np.asarray(values, dtype=object)
+    except (TypeError, ValueError):
+        try:
+            raw_values = np.asarray(list(values), dtype=object)
+        except (TypeError, ValueError):
+            raw_values = np.asarray([values], dtype=object)
+
+    if raw_values.ndim == 0:
+        items = (raw_values.item(),)
+    else:
+        items = tuple(raw_values.reshape(-1).tolist())
+
+    coerced = np.full(len(items), np.nan, dtype=float)
+    for index, item in enumerate(items):
+        try:
+            coerced[index] = float(item)
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return coerced
+
+
+@dataclass(frozen=True)
+class Sanitized1DProfile:
+    """Detached, deterministic q/I profile used by 1D analysis."""
+
+    q: np.ndarray
+    intensity: np.ndarray
+    original_point_count: int = 0
+    aligned_point_count: int = 0
+    usable_point_count: int = 0
+    actions: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        q_array = np.asarray(self.q, dtype=float).reshape(-1).copy()
+        intensity_array = np.asarray(self.intensity, dtype=float).reshape(-1).copy()
+        q_array.setflags(write=False)
+        intensity_array.setflags(write=False)
+        object.__setattr__(self, "q", q_array)
+        object.__setattr__(self, "intensity", intensity_array)
+        object.__setattr__(self, "actions", tuple(dict.fromkeys(_string_tuple(self.actions))))
+
+
+def sanitize_1d_profile(q: Any, intensity: Any) -> Sanitized1DProfile:
+    """Build a finite, positive, stably ordered analysis copy of q/I.
+
+    The caller-owned arrays are never modified. Invalid pairs are excluded,
+    surviving observations are stably sorted by q, and exact duplicate q
+    observations are retained because no measurement-error model is available
+    for a scientifically justified aggregation.
+    """
+
+    q_array = _as_1d_float_array(q)
+    intensity_array = _as_1d_float_array(intensity)
+    original_count = max(q_array.size, intensity_array.size)
+    aligned_count = min(q_array.size, intensity_array.size)
+    actions: list[str] = []
+
+    if q_array.size != intensity_array.size:
+        actions.append("axis_length_aligned")
+
+    q_pair = q_array[:aligned_count]
+    intensity_pair = intensity_array[:aligned_count]
+    valid = (
+        np.isfinite(q_pair)
+        & np.isfinite(intensity_pair)
+        & (q_pair > 0)
+        & (intensity_pair > 0)
+    )
+    if int(np.count_nonzero(valid)) != aligned_count:
+        actions.append("invalid_pairs_dropped")
+
+    q_valid = q_pair[valid].copy()
+    intensity_valid = intensity_pair[valid].copy()
+    if q_valid.size > 1 and np.any(np.diff(q_valid) < 0):
+        order = np.argsort(q_valid, kind="stable")
+        q_valid = q_valid[order]
+        intensity_valid = intensity_valid[order]
+        actions.append("q_sorted")
+
+    if q_valid.size > 1 and np.any(np.diff(q_valid) == 0):
+        actions.append("duplicate_q_retained")
+
+    return Sanitized1DProfile(
+        q=q_valid,
+        intensity=intensity_valid,
+        original_point_count=int(original_count),
+        aligned_point_count=int(aligned_count),
+        usable_point_count=int(q_valid.size),
+        actions=tuple(actions),
+    )
 
 
 def build_data_quality_report(
@@ -674,7 +1343,7 @@ def build_data_quality_report(
         nonpositive_intensity_count=nonpositive_i_count,
         duplicate_q_count=duplicate_q_count,
         nonmonotonic_q=nonmonotonic_q,
-        actions=_string_tuple(actions),
+        actions=tuple(dict.fromkeys(_string_tuple(actions))),
         reason_codes=tuple(dict.fromkeys(reasons)),
         level=level,
     )
@@ -1055,9 +1724,70 @@ def build_guinier_sequence_evidence(
     except TypeError:
         frames = []
     frame_count = max(int(temperature_arr.size), len(frames))
-    frame_source_indices = _int_tuple(source_indices)
+    raw_source_indices: list[Any] = []
+    if source_indices is not None:
+        if isinstance(source_indices, (str, bytes)):
+            raw_source_indices = [source_indices]
+        else:
+            try:
+                raw_source_indices = list(source_indices)
+            except TypeError:
+                raw_source_indices = [source_indices]
     source_index_mapping_mismatch = (
-        source_indices is not None and len(frame_source_indices) != frame_count
+        source_indices is not None and len(raw_source_indices) != frame_count
+    )
+    invalid_source_index_positions: list[int] = []
+    trusted_source_indices: list[int] = []
+    for position, raw_index in enumerate(raw_source_indices):
+        try:
+            numeric_index = float(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            invalid_source_index_positions.append(position)
+            continue
+        if (
+            isinstance(raw_index, (bool, np.bool_))
+            or not np.isfinite(numeric_index)
+            or numeric_index < 0
+            or not numeric_index.is_integer()
+        ):
+            invalid_source_index_positions.append(position)
+        else:
+            trusted_source_indices.append(int(numeric_index))
+
+    duplicate_source_index_positions: list[int] = []
+    if (
+        source_indices is not None
+        and not source_index_mapping_mismatch
+        and not invalid_source_index_positions
+    ):
+        comparable_indices = list(trusted_source_indices)
+        for position, source_index in enumerate(comparable_indices):
+            if source_index in comparable_indices[:position]:
+                duplicate_source_index_positions.append(position)
+                duplicate_source_index_positions.extend(
+                    previous
+                    for previous, previous_index in enumerate(comparable_indices[:position])
+                    if previous_index == source_index and previous not in duplicate_source_index_positions
+                )
+        duplicate_source_index_positions.sort()
+    source_index_mapping_invalid = bool(
+        source_index_mapping_mismatch
+        or invalid_source_index_positions
+        or duplicate_source_index_positions
+    )
+    source_index_order_reordered = bool(
+        source_indices is not None
+        and not source_index_mapping_invalid
+        and len(trusted_source_indices) == frame_count
+        and any(
+            current < previous
+            for previous, current in zip(
+                trusted_source_indices, trusted_source_indices[1:]
+            )
+        )
+    )
+    frame_source_indices = (
+        tuple(trusted_source_indices) if not source_index_mapping_invalid else ()
     )
 
     reasons: list[str] = []
@@ -1077,6 +1807,10 @@ def build_guinier_sequence_evidence(
         reasons.append("guinier_sequence_length_mismatch")
     if source_index_mapping_mismatch:
         reasons.append("guinier_sequence_source_index_mismatch")
+    if duplicate_source_index_positions:
+        reasons.append("guinier_sequence_source_index_duplicate")
+    if invalid_source_index_positions:
+        reasons.append("guinier_sequence_source_index_invalid")
 
     for index in range(frame_count):
         temperature = float(temperature_arr[index]) if index < temperature_arr.size else np.nan
@@ -1160,7 +1894,7 @@ def build_guinier_sequence_evidence(
         or invalid_temperature_indices
         or duplicate_temperature_indices
         or nonmonotonic_temperature_indices
-        or source_index_mapping_mismatch
+        or source_index_mapping_invalid
     ):
         level = QualityLevel.DIAGNOSTIC
     else:
@@ -1188,6 +1922,7 @@ def build_guinier_sequence_evidence(
             if len(frame_source_indices) == frame_count
             else ()
         ),
+        "source_index_order_reordered": source_index_order_reordered,
         "local_deviation_median": _finite_or_none(baseline),
         "local_deviation_mad": _finite_or_none(mad),
         "local_deviation_threshold": _finite_or_none(threshold),
@@ -1208,7 +1943,8 @@ def build_guinier_sequence_evidence(
             "temperature_axis_valid": not bool(
                 invalid_temperature_indices or duplicate_temperature_indices or nonmonotonic_temperature_indices
             ),
-            "source_index_mapping_valid": not source_index_mapping_mismatch,
+            "source_index_mapping_valid": not source_index_mapping_invalid,
+            "source_index_order_reordered": source_index_order_reordered,
             "interpolation_used": False,
             "continuity_break_count": len(continuity_break_indices),
         },
@@ -1227,6 +1963,9 @@ def build_guinier_sequence_evidence(
         nonmonotonic_temperature_indices=tuple(nonmonotonic_temperature_indices),
         continuity_break_indices=tuple(continuity_break_indices),
         frame_source_indices=frame_source_indices,
+        duplicate_source_index_indices=tuple(sorted(set(duplicate_source_index_positions))),
+        invalid_source_index_indices=tuple(sorted(set(invalid_source_index_positions))),
+        source_index_order_reordered=source_index_order_reordered,
         temperature_min_C=float(min(temperature_values)) if temperature_values else None,
         temperature_max_C=float(max(temperature_values)) if temperature_values else None,
         rg_min_nm=float(min(rg_values)) if rg_values else None,
@@ -1495,6 +2234,8 @@ def build_orientation_evidence(
     *,
     applicability: str = "unknown",
     source_ref: str = "",
+    sector_map_quality: SectorMapQualityReport | Mapping[str, Any] | None = None,
+    annulus_quality: AnnulusQualityReport | Mapping[str, Any] | None = None,
 ) -> MetricEvidence:
     """Wrap existing anisotropy outputs in conservative orientation evidence.
 
@@ -1505,7 +2246,11 @@ def build_orientation_evidence(
 
     payload = anisotropy_payload if isinstance(anisotropy_payload, Mapping) else {}
     numeric_fields = (
-        "f_herman", "P2", "P4", "anisotropy_ratio", "anisotropy_index", "confidence"
+        "f_herman", "f_herman_raw", "P2", "P4", "anisotropy_ratio",
+        "anisotropy_index", "confidence", "orientation_axis_strength",
+        "orientation_axis_confidence", "orientation_harmonic_significance",
+        "orientation_effective_bins", "orientation_azimuthal_coverage",
+        "orientation_axis_drift_deg",
     )
     fit_evidence: dict[str, Any] = {}
     for key in numeric_fields:
@@ -1516,6 +2261,19 @@ def build_orientation_evidence(
     if isinstance(pattern_type, str) and pattern_type.strip() and pattern_type != "unknown":
         fit_evidence["pattern_type"] = pattern_type
     metrics_present = bool(fit_evidence)
+
+    reliability_status = str(
+        payload.get("orientation_reliability_status") or ""
+    ).strip().lower()
+    reliability_reasons = [
+        str(reason).strip()
+        for reason in (payload.get("orientation_reliability_reason_codes") or ())
+        if str(reason).strip()
+    ]
+    if reliability_status in {"blocked", "unavailable"}:
+        for key in ("f_herman", "P2", "P4"):
+            fit_evidence.pop(key, None)
+        metrics_present = bool(fit_evidence)
 
     normalized_applicability = str(applicability or "unknown").strip().lower()
     supported = normalized_applicability == "supported"
@@ -1530,6 +2288,73 @@ def build_orientation_evidence(
         reasons.append("detector_quality_unusable")
     elif detector_quality.level is QualityLevel.DIAGNOSTIC:
         reasons.append("detector_quality_diagnostic")
+    if reliability_status == "blocked":
+        reasons.append("orientation_reliability_blocked")
+        reasons.extend(reliability_reasons)
+    elif reliability_status == "unavailable":
+        reasons.append("orientation_reliability_unavailable")
+
+    normalized_sector_quality: SectorMapQualityReport | None = None
+    if isinstance(sector_map_quality, SectorMapQualityReport):
+        normalized_sector_quality = SectorMapQualityReport.from_dict(
+            sector_map_quality.to_dict()
+        )
+    elif isinstance(sector_map_quality, Mapping):
+        normalized_sector_quality = SectorMapQualityReport.from_dict(
+            sector_map_quality
+        )
+    elif sector_map_quality is not None:
+        normalized_sector_quality = SectorMapQualityReport(
+            reason_codes=("sector_support_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
+    normalized_annulus_quality: AnnulusQualityReport | None = None
+    if isinstance(annulus_quality, AnnulusQualityReport):
+        normalized_annulus_quality = AnnulusQualityReport.from_dict(
+            annulus_quality.to_dict()
+        )
+    elif isinstance(annulus_quality, Mapping):
+        normalized_annulus_quality = AnnulusQualityReport.from_dict(
+            annulus_quality
+        )
+    elif annulus_quality is not None:
+        normalized_annulus_quality = AnnulusQualityReport(
+            reason_codes=("sector_support_unavailable",),
+            level=QualityLevel.DIAGNOSTIC,
+        )
+
+    support_quality_blocked = False
+    support_quality_unusable = False
+    if normalized_sector_quality is not None:
+        reasons.extend(normalized_sector_quality.reason_codes)
+        if normalized_sector_quality.level is QualityLevel.UNUSABLE:
+            support_quality_unusable = True
+        if (
+            not normalized_sector_quality.support_available
+            or normalized_sector_quality.level is QualityLevel.UNUSABLE
+            or "sector_support_unavailable"
+            in normalized_sector_quality.reason_codes
+            or (
+                normalized_sector_quality.level is QualityLevel.DIAGNOSTIC
+                and not (
+                    normalized_annulus_quality is not None
+                    and normalized_annulus_quality.support_available
+                    and normalized_annulus_quality.level is QualityLevel.TREND
+                )
+            )
+        ):
+            support_quality_blocked = True
+
+    if normalized_annulus_quality is not None:
+        reasons.extend(normalized_annulus_quality.reason_codes)
+        if normalized_annulus_quality.level is QualityLevel.UNUSABLE:
+            support_quality_unusable = True
+        if (
+            not normalized_annulus_quality.support_available
+            or normalized_annulus_quality.level
+            in {QualityLevel.DIAGNOSTIC, QualityLevel.UNUSABLE}
+        ):
+            support_quality_blocked = True
 
     physical_checks = {
         "detector_source_kind": detector_quality.source_kind,
@@ -1540,10 +2365,30 @@ def build_orientation_evidence(
         "detector_quality_report": detector_quality.to_dict(),
         "applicability_supported": supported,
         "orientation_metrics_present": metrics_present,
+        "orientation_reliability_status": reliability_status or None,
+        "orientation_reliability_reason_codes": reliability_reasons,
     }
-    if not metrics_present or detector_quality.level is QualityLevel.UNUSABLE:
+    if normalized_sector_quality is not None:
+        physical_checks["sector_map_quality_report"] = (
+            normalized_sector_quality.to_dict()
+        )
+    if normalized_annulus_quality is not None:
+        physical_checks["annulus_quality_report"] = (
+            normalized_annulus_quality.to_dict()
+        )
+    if (
+        not metrics_present
+        or detector_quality.level is QualityLevel.UNUSABLE
+        or support_quality_unusable
+    ):
         level = QualityLevel.UNUSABLE
-    elif not supported or detector_quality.level is QualityLevel.DIAGNOSTIC:
+    elif support_quality_blocked:
+        level = QualityLevel.DIAGNOSTIC
+    elif (
+        not supported
+        or detector_quality.level is QualityLevel.DIAGNOSTIC
+        or reliability_status in {"blocked", "unavailable"}
+    ):
         level = QualityLevel.DIAGNOSTIC
     else:
         # Orientation remains a Trend claim until calibrated physical gates
@@ -1555,7 +2400,12 @@ def build_orientation_evidence(
         value=dict(fit_evidence),
         unit="",
         level=level,
-        applicable=bool(level is QualityLevel.TREND and supported and metrics_present),
+        applicable=bool(
+            level is QualityLevel.TREND
+            and supported
+            and metrics_present
+            and reliability_status not in {"blocked", "unavailable"}
+        ),
         fit_evidence=fit_evidence,
         physical_checks=physical_checks,
         reason_codes=tuple(dict.fromkeys(reasons)),
@@ -1570,15 +2420,155 @@ def build_series_metric_evidence(
     metric_names: Iterable[str] | None = None,
     source_ref: str = "",
     frame_source_indices: Iterable[Any] | None = None,
+    condition_name: str = "",
+    condition_values: Iterable[Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Summarize existing per-frame metric evidence without mutating it."""
 
     frames = list(frame_evidence or ())
     source_indices_supplied = frame_source_indices is not None
-    source_indices = _int_tuple(frame_source_indices)
-    source_index_mapping_valid = not source_indices_supplied or len(source_indices) == len(frames)
+    raw_source_indices: list[Any] = []
+    if source_indices_supplied:
+        if isinstance(frame_source_indices, (str, bytes)):
+            raw_source_indices = [frame_source_indices]
+        else:
+            try:
+                raw_source_indices = list(frame_source_indices)
+            except TypeError:
+                raw_source_indices = [frame_source_indices]
+    source_index_length_mismatch = bool(
+        source_indices_supplied and len(raw_source_indices) != len(frames)
+    )
+    trusted_source_indices: list[int] = []
+    invalid_source_index_indices: list[int] = []
+    for position, raw_index in enumerate(raw_source_indices):
+        try:
+            numeric_index = float(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            invalid_source_index_indices.append(position)
+            continue
+        if (
+            isinstance(raw_index, (bool, np.bool_))
+            or not np.isfinite(numeric_index)
+            or numeric_index < 0
+            or not numeric_index.is_integer()
+        ):
+            invalid_source_index_indices.append(position)
+        else:
+            trusted_source_indices.append(int(numeric_index))
+    source_indices = tuple(trusted_source_indices)
+
+    duplicate_source_index_indices: list[int] = []
+    if (
+        source_indices_supplied
+        and not source_index_length_mismatch
+        and not invalid_source_index_indices
+    ):
+        for position, source_index in enumerate(source_indices):
+            if source_index in source_indices[:position]:
+                duplicate_source_index_indices.append(position)
+                duplicate_source_index_indices.extend(
+                    previous
+                    for previous, previous_index in enumerate(source_indices[:position])
+                    if previous_index == source_index
+                    and previous not in duplicate_source_index_indices
+                )
+        duplicate_source_index_indices.sort()
+    source_index_mapping_invalid = bool(
+        source_index_length_mismatch
+        or invalid_source_index_indices
+        or duplicate_source_index_indices
+    )
+    source_index_mapping_valid = bool(
+        not source_indices_supplied or not source_index_mapping_invalid
+    )
+    source_index_order_reordered = bool(
+        source_indices_supplied
+        and source_index_mapping_valid
+        and len(source_indices) == len(frames)
+        and any(
+            current < previous
+            for previous, current in zip(source_indices, source_indices[1:])
+        )
+    )
     if not source_index_mapping_valid:
         source_indices = ()
+    condition_values_supplied = condition_values is not None
+    condition_axis: dict[str, Any] = {}
+    condition_axis_reason = ""
+    if condition_values_supplied:
+        try:
+            raw_conditions = list(condition_values)
+        except TypeError:
+            raw_conditions = []
+        condition_name_text = str(condition_name or "")
+        if len(raw_conditions) != len(frames):
+            condition_axis = {
+                "condition_name": condition_name_text,
+                "condition_values": [],
+                "invalid_condition_indices": [],
+                "duplicate_condition_indices": [],
+                "nonmonotonic_condition_indices": [],
+                "status": "diagnostic",
+            }
+            condition_axis_reason = "series_metric_condition_axis_length_mismatch"
+        else:
+            normalized_conditions: list[float | None] = []
+            invalid_condition_indices: list[int] = []
+            for position, raw_value in enumerate(raw_conditions):
+                try:
+                    value = float(raw_value)
+                except (TypeError, ValueError):
+                    value = np.nan
+                if not np.isfinite(value):
+                    normalized_conditions.append(None)
+                    invalid_condition_indices.append(position)
+                else:
+                    normalized_conditions.append(float(value))
+
+            duplicate_condition_indices: list[int] = []
+            for position, value in enumerate(normalized_conditions):
+                if value is None:
+                    continue
+                previous_positions = [
+                    previous
+                    for previous, previous_value in enumerate(normalized_conditions[:position])
+                    if previous_value is not None
+                    and np.isclose(previous_value, value, rtol=0.0, atol=1e-12)
+                ]
+                if previous_positions:
+                    duplicate_condition_indices.extend(previous_positions)
+                    duplicate_condition_indices.append(position)
+            duplicate_condition_indices = list(dict.fromkeys(duplicate_condition_indices))
+
+            nonmonotonic_condition_indices = [
+                position
+                for position in range(1, len(normalized_conditions))
+                if normalized_conditions[position] is not None
+                and normalized_conditions[position - 1] is not None
+                and normalized_conditions[position] <= normalized_conditions[position - 1]
+            ]
+            axis_defective = bool(
+                invalid_condition_indices
+                or duplicate_condition_indices
+                or nonmonotonic_condition_indices
+            )
+            condition_axis = {
+                "condition_name": condition_name_text,
+                "condition_values": normalized_conditions,
+                "invalid_condition_indices": invalid_condition_indices,
+                "duplicate_condition_indices": duplicate_condition_indices,
+                "nonmonotonic_condition_indices": nonmonotonic_condition_indices,
+                "status": (
+                    "empty"
+                    if not frames
+                    else "diagnostic"
+                    if axis_defective
+                    else "ordered"
+                ),
+            }
+            if axis_defective:
+                condition_axis_reason = "series_metric_condition_axis_invalid"
     names = {str(name) for name in (metric_names or ()) if str(name)}
     if metric_names is None:
         for frame in frames:
@@ -1643,8 +2633,14 @@ def build_series_metric_evidence(
             reasons.append("series_metric_diagnostic_frames")
         if unusable_frame_count and "series_metric_unusable_frames" not in reasons:
             reasons.append("series_metric_unusable_frames")
-        if not source_index_mapping_valid:
+        if source_index_length_mismatch:
             reasons.append("series_metric_source_index_mismatch")
+        if invalid_source_index_indices:
+            reasons.append("series_metric_source_index_invalid")
+        if duplicate_source_index_indices:
+            reasons.append("series_metric_source_index_duplicate")
+        if condition_axis_reason:
+            reasons.append(condition_axis_reason)
 
         if frame_count == 0:
             reasons.append("series_no_frames")
@@ -1659,6 +2655,7 @@ def build_series_metric_evidence(
             or diagnostic_frame_count
             or unusable_frame_count
             or frame_count < 2
+            or source_index_mapping_invalid
         ):
             level = QualityLevel.DIAGNOSTIC
             if frame_count < 2:
@@ -1688,8 +2685,69 @@ def build_series_metric_evidence(
             unusable_frame_indices=tuple(unusable_frame_indices),
             invalid_level_indices=tuple(invalid_level_indices),
             frame_source_indices=source_indices if source_index_mapping_valid else (),
+            duplicate_source_index_indices=tuple(duplicate_source_index_indices),
+            invalid_source_index_indices=tuple(invalid_source_index_indices),
+            source_index_order_reordered=source_index_order_reordered,
+            condition_axis=condition_axis,
         ).to_dict()
     return summaries
+
+
+def metric_evidence_dataframe_fields(
+    payload: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Project existing per-frame metric evidence into table-safe fields.
+
+    This is a read-only presentation helper.  It deliberately copies only
+    fields already present in the evidence payload and never derives a level,
+    coverage value, or scientific result.
+    """
+
+    metric_labels = (
+        ("porod", "Porod"),
+        ("kratky", "Kratky"),
+        ("invariant", "Invariant"),
+        ("lamellar", "Lamellar"),
+    )
+    evidence = payload if isinstance(payload, Mapping) else {}
+    fields: dict[str, Any] = {}
+    for metric_name, label in metric_labels:
+        item = evidence.get(metric_name)
+        prefix = f"{label}_"
+        if not isinstance(item, Mapping):
+            fields[f"{prefix}level"] = None
+            fields[f"{prefix}coverage"] = None
+            fields[f"{prefix}reason_codes"] = None
+            continue
+
+        raw_level = item.get("level")
+        fields[f"{prefix}level"] = (
+            raw_level.value
+            if isinstance(raw_level, QualityLevel)
+            else None
+            if raw_level is None
+            else str(raw_level)
+        )
+
+        coverage = None
+        try:
+            candidate = float(item.get("coverage_fraction"))
+        except (TypeError, ValueError, OverflowError):
+            pass
+        else:
+            if np.isfinite(candidate):
+                coverage = candidate
+        fields[f"{prefix}coverage"] = coverage
+
+        raw_reasons = item.get("reason_codes")
+        if raw_reasons is None:
+            reasons = None
+        elif isinstance(raw_reasons, (list, tuple)):
+            reasons = "|".join(str(reason) for reason in raw_reasons)
+        else:
+            reasons = str(raw_reasons)
+        fields[f"{prefix}reason_codes"] = reasons
+    return fields
 
 
 def _build_series_2d_summary(
@@ -1768,6 +2826,378 @@ def build_series_orientation_evidence(
     )
 
 
+def build_orientation_tracking_evidence(value: Any) -> dict[str, Any] | None:
+    """Return one detached sequence DTO without selecting a primary track."""
+
+    if value is None:
+        return None
+    if hasattr(value, "to_dict"):
+        payload = value.to_dict()
+    elif isinstance(value, Mapping):
+        payload = _contract_dict(value)
+    else:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _audit_optional_bool(value: Any) -> bool | None:
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    if value is None:
+        return None
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes"}:
+            return True
+        if normalized in {"false", "0", "no"}:
+            return False
+    return None
+
+
+def _audit_mapping_tree(value: Any) -> Iterable[Mapping[str, Any]]:
+    if isinstance(value, Mapping):
+        yield value
+        for child in value.values():
+            yield from _audit_mapping_tree(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from _audit_mapping_tree(child)
+
+
+_RAW_DETECTOR_GEOMETRY_FIELDS = (
+    "wavelength_m",
+    "pixel_size_m",
+    "sdd_m",
+    "beam_center_x",
+    "beam_center_y",
+)
+_PROVENANCE_VALIDITIES = {
+    "validated",
+    "not_assessed",
+    "invalid",
+    "metadata_complete",
+    "configured_shape_match",
+}
+
+
+def _audit_raw_detector_provenance(
+    report: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Audit supplied raw-detector provenance without assessing calibration."""
+
+    source_kind = str(report.get("source_kind") or "").strip().lower()
+    if source_kind != "raw_detector":
+        return None
+
+    reasons: list[str] = []
+    unusable_reasons: set[str] = set()
+    review_reasons: set[str] = set()
+
+    def add_reason(reason: str, *, unusable: bool = False) -> None:
+        if reason not in reasons:
+            reasons.append(reason)
+        (unusable_reasons if unusable else review_reasons).add(reason)
+
+    raw_shape = report.get("shape")
+    shape = (
+        [int(value) for value in raw_shape]
+        if isinstance(raw_shape, (list, tuple))
+        and len(raw_shape) == 2
+        and all(isinstance(value, (int, np.integer)) for value in raw_shape)
+        else None
+    )
+    if shape is None or any(value <= 0 for value in shape):
+        add_reason("detector_shape_not_two_dimensional", unusable=True)
+
+    raw_pixel_count = report.get("pixel_count")
+    try:
+        pixel_count = int(raw_pixel_count)
+    except (TypeError, ValueError, OverflowError):
+        pixel_count = None
+    if shape is not None and pixel_count != shape[0] * shape[1]:
+        add_reason("detector_pixel_count_mismatch", unusable=True)
+
+    geometry = report.get("geometry_provenance")
+    if isinstance(geometry, Mapping):
+        geometry_validity = geometry.get("validity")
+        geometry_source = geometry.get("source")
+        raw_field_sources = geometry.get("field_sources")
+        field_sources = (
+            {str(key): str(value) for key, value in raw_field_sources.items()}
+            if isinstance(raw_field_sources, Mapping)
+            else {}
+        )
+    else:
+        geometry_validity = None
+        geometry_source = None
+        field_sources = {}
+        add_reason("geometry_provenance_missing")
+
+    missing_field_sources = [
+        name for name in _RAW_DETECTOR_GEOMETRY_FIELDS if not field_sources.get(name)
+    ]
+    if missing_field_sources:
+        add_reason("geometry_field_sources_missing")
+
+    def inspect_validity(value: Any, prefix: str) -> str | None:
+        if value is None:
+            add_reason(f"{prefix}_validity_missing")
+            return None
+        normalized = str(value).strip().lower()
+        if normalized not in _PROVENANCE_VALIDITIES:
+            add_reason(f"{prefix}_validity_unknown")
+        elif normalized == "not_assessed":
+            add_reason(f"{prefix}_validity_not_assessed")
+        elif normalized == "invalid":
+            add_reason(f"{prefix}_validity_invalid", unusable=True)
+        return normalized
+
+    geometry_validity = inspect_validity(geometry_validity, "geometry")
+
+    mask = report.get("mask_provenance")
+    if isinstance(mask, Mapping):
+        mask_validity = inspect_validity(mask.get("validity"), "mask")
+        mask_source = mask.get("source")
+        configured = mask.get("configured")
+        configured = configured if isinstance(configured, bool) else None
+        raw_mask_shape = mask.get("shape")
+        mask_shape = (
+            [int(value) for value in raw_mask_shape]
+            if isinstance(raw_mask_shape, (list, tuple))
+            and len(raw_mask_shape) == 2
+            and all(isinstance(value, (int, np.integer)) for value in raw_mask_shape)
+            else None
+        )
+    else:
+        mask_validity = None
+        mask_source = None
+        configured = None
+        mask_shape = None
+        add_reason("mask_provenance_missing")
+
+    shape_matches_detector = (
+        mask_shape == shape if mask_shape is not None and shape is not None else None
+    )
+    if configured is True and shape_matches_detector is not True:
+        add_reason("mask_shape_mismatch", unusable=True)
+
+    geometry_payload = {
+        "validity": geometry_validity,
+        "source": geometry_source,
+        "field_sources": dict(field_sources),
+        "missing_field_sources": list(missing_field_sources),
+    }
+    mask_payload = {
+        "validity": mask_validity,
+        "source": mask_source,
+        "configured": configured,
+        "shape": list(mask_shape) if mask_shape is not None else None,
+        "shape_matches_detector": shape_matches_detector,
+    }
+
+    if unusable_reasons:
+        status = "unusable"
+        level = QualityLevel.UNUSABLE.value
+    elif review_reasons:
+        status = "review_required"
+        level = QualityLevel.DIAGNOSTIC.value
+    else:
+        status = "structurally_consistent"
+        level = QualityLevel.TREND.value
+
+    return {
+        "status": status,
+        "level": level,
+        "source_kind": source_kind,
+        "shape": list(shape) if shape is not None else None,
+        "pixel_count": pixel_count,
+        "reason_codes": list(reasons),
+        "geometry": geometry_payload,
+        "mask": mask_payload,
+    }
+
+
+def build_saxs_scientific_acceptance_audit(
+    validation_passed: Any,
+    parameters: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Summarize existing SAXS scientific/publication boundaries read-only.
+
+    This audit deliberately has no accepted/publication status.  It exposes
+    existing gate fields and evidence levels so a successful software
+    validation cannot be mistaken for scientific approval.
+    """
+
+    source = parameters if isinstance(parameters, Mapping) else {}
+    publication_names = (
+        "paper_figure_candidate",
+        "paper_conclusion_candidate",
+        "paper_conclusion_ready",
+    )
+    publication_gate = {
+        name: _audit_optional_bool(source.get(name)) for name in publication_names
+    }
+    validation = _audit_optional_bool(validation_passed)
+    evidence_levels: dict[str, list[str]] = {}
+    provenance_validity: dict[str, list[str]] = {}
+    physical_gate_evidence: dict[str, list[dict[str, Any]]] = {}
+    method_gate_status: dict[str, list[bool | None]] = {}
+    detector_provenance_audit: dict[str, list[dict[str, Any]]] = {}
+    existing_reasons: list[str] = []
+    provenance_blockers: list[str] = []
+
+    def append_unique(items: list[str], value: Any) -> None:
+        text = str(value or "").strip()
+        if text and text not in items:
+            items.append(text)
+
+    def inspect_report(
+        label: str,
+        report: Mapping[str, Any],
+        *,
+        metric: bool = False,
+    ) -> None:
+        level = _quality_level(report.get("level"))
+        if report.get("level") is not None:
+            levels = evidence_levels.setdefault(label, [])
+            append_unique(levels, level.value)
+        for reason in report.get("reason_codes", ()) or ():
+            append_unique(existing_reasons, reason)
+        physical_checks = report.get("physical_checks")
+        if isinstance(physical_checks, Mapping):
+            physical_gate_evidence.setdefault(label, []).append(
+                _contract_dict(physical_checks)
+            )
+            if "method_gate_passed" in physical_checks:
+                raw_gate = physical_checks.get("method_gate_passed")
+                gate = (
+                    bool(raw_gate)
+                    if isinstance(raw_gate, (bool, np.bool_))
+                    else None
+                )
+                method_gate_status.setdefault(label, []).append(gate)
+                if gate is False:
+                    append_unique(existing_reasons, "method_gate_failed")
+                elif gate is None:
+                    append_unique(existing_reasons, "method_gate_not_assessed")
+            elif metric and report.get("applicable") is True:
+                method_gate_status.setdefault(label, []).append(None)
+                append_unique(existing_reasons, "method_gate_not_assessed")
+        elif metric and report.get("applicable") is True:
+            method_gate_status.setdefault(label, []).append(None)
+            append_unique(existing_reasons, "method_gate_not_assessed")
+        for provenance_name in ("geometry_provenance", "mask_provenance"):
+            provenance = report.get(provenance_name)
+            if not isinstance(provenance, Mapping):
+                continue
+            validity = provenance.get("validity")
+            if validity is not None:
+                values = provenance_validity.setdefault(provenance_name, [])
+                append_unique(values, validity)
+                if validity == "not_assessed" and label == "raw_detector_quality_report":
+                    short_name = provenance_name.removesuffix("_provenance")
+                    append_unique(
+                        provenance_blockers,
+                        f"raw_{short_name}_validity_not_assessed",
+                    )
+
+    for node in _audit_mapping_tree(source):
+        for field_name in (
+            "raw_detector_quality_report",
+            "detector_quality_report",
+            "orientation_evidence",
+        ):
+            report = node.get(field_name)
+            if isinstance(report, Mapping):
+                inspect_report(field_name, report)
+                if field_name == "raw_detector_quality_report":
+                    detector_audit = _audit_raw_detector_provenance(report)
+                    if detector_audit is not None:
+                        detector_provenance_audit.setdefault(field_name, []).append(
+                            detector_audit
+                        )
+        metrics = node.get("metric_evidence")
+        if isinstance(metrics, Mapping):
+            for metric_name, report in metrics.items():
+                if isinstance(report, Mapping):
+                    inspect_report(f"metric:{metric_name}", report, metric=True)
+        sequence = node.get("guinier_sequence_evidence")
+        if isinstance(sequence, Mapping):
+            level = _quality_level(sequence.get("level"))
+            if sequence.get("level") is not None:
+                levels = evidence_levels.setdefault("guinier_sequence_evidence", [])
+                append_unique(levels, level.value)
+            for reason in sequence.get("reason_codes", ()) or ():
+                append_unique(existing_reasons, reason)
+
+    reliability_status = str(source.get("strain_reliability_status") or "").strip()
+    reliability_reason = str(source.get("strain_reliability_reason") or "").strip()
+    if reliability_reason:
+        for reason in reliability_reason.split("|"):
+            append_unique(existing_reasons, reason)
+
+    reason_codes: list[str] = []
+    has_evidence = bool(
+        validation is not None
+        or any(value is not None for value in publication_gate.values())
+        or evidence_levels
+        or provenance_validity
+        or physical_gate_evidence
+        or reliability_status
+    )
+    if not has_evidence:
+        status = "not_assessed"
+        reason_codes.append("acceptance_evidence_missing")
+    else:
+        if validation is False:
+            reason_codes.append("automated_validation_failed")
+        if any(value is False for value in publication_gate.values()):
+            reason_codes.append("existing_publication_gate_not_ready")
+        if any(
+            level in {QualityLevel.DIAGNOSTIC.value, QualityLevel.UNUSABLE.value}
+            for levels in evidence_levels.values()
+            for level in levels
+        ):
+            reason_codes.append("existing_evidence_not_quantitative")
+        if any(
+            validity == "not_assessed"
+            for values in provenance_validity.values()
+            for validity in values
+        ):
+            reason_codes.append("provenance_validity_not_assessed")
+            for reason in provenance_blockers:
+                append_unique(reason_codes, reason)
+        if reliability_status and reliability_status.lower() != "usable":
+            reason_codes.append("existing_reliability_not_usable")
+        if reason_codes:
+            status = "diagnostic_only"
+        else:
+            status = "review_required"
+            reason_codes.append("human_scientific_review_required")
+
+    for reason in existing_reasons:
+        append_unique(reason_codes, reason)
+    audit_payload = {
+        "status": status,
+        "automated_validation_passed": validation,
+        "existing_publication_gate": publication_gate,
+        "evidence_levels": evidence_levels,
+        "provenance_validity": provenance_validity,
+        "physical_gate_evidence": physical_gate_evidence,
+        "method_gate_status": method_gate_status,
+        "reliability": {
+            "status": reliability_status or None,
+            "reason": reliability_reason or None,
+        },
+        "reason_codes": reason_codes,
+        "audit_scope": "existing_gates_only",
+        "publication_decision_changed": False,
+    }
+    if detector_provenance_audit:
+        audit_payload["detector_provenance_audit"] = detector_provenance_audit
+    return _contract_dict(audit_payload)
+
+
 def contract_json(value: Any) -> str:
     """Return a stable strict-JSON representation for audit persistence."""
     payload = value.to_dict() if hasattr(value, "to_dict") else _jsonable(value)
@@ -1777,6 +3207,8 @@ def contract_json(value: Any) -> str:
 __all__ = [
     "DataQualityReport",
     "DetectorQualityReport",
+    "SectorMapQualityReport",
+    "AnnulusQualityReport",
     "GuinierEvidence",
     "GuinierSequenceEvidence",
     "MetricEvidence",
@@ -1792,9 +3224,14 @@ __all__ = [
     "build_invariant_evidence",
     "build_lamellar_evidence",
     "build_series_metric_evidence",
+    "metric_evidence_dataframe_fields",
     "build_series_detector_quality_report",
     "build_series_orientation_evidence",
+    "build_orientation_tracking_evidence",
     "build_detector_quality_report",
+    "build_sector_map_quality_report",
+    "build_annulus_quality_report",
     "build_orientation_evidence",
+    "build_saxs_scientific_acceptance_audit",
     "contract_json",
 ]

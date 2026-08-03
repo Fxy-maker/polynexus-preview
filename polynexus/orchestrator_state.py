@@ -5,11 +5,31 @@ from typing import Any
 
 from polynexus.config_bridge import DSC_PARAM_MAP, IR_PARAM_MAP, SAXS_PARAM_MAP, WAXS_PARAM_MAP
 from polynexus.core.analysis_evidence import build_analysis_evidence
+from polynexus.core.saxs_engine.saxs_ai_rescue import build_saxs_ai_summary_context
 from polynexus.orchestrator_actions import (
     SAXS_LOW_Q_FIRST_ACTION_ORDER,
     SAXS_LOW_Q_PRIORITY_SYMPTOMS,
     SAXS_LOW_Q_SUPPORT_ACTION_ORDER,
 )
+
+
+def _saxs_ai_result_and_mode(engine: Any) -> tuple[Any, str]:
+    temperature_result = getattr(engine, "_temperature_result", None)
+    if temperature_result is not None:
+        return temperature_result, "temperature"
+    strain_result = getattr(engine, "_strain_result", None)
+    if strain_result is not None:
+        return strain_result, "strain"
+    return getattr(engine, "result", None), "static"
+
+
+def _saxs_ai_state_context(engine: Any) -> dict[str, Any]:
+    result, mode = _saxs_ai_result_and_mode(engine)
+    try:
+        context = build_saxs_ai_summary_context(engine, mode=mode)
+    except (TypeError, ValueError):
+        return {}
+    return dict(context) if isinstance(context, dict) else {}
 
 
 def _build_agent_state(self: Any, engine: Any, round_num: int) -> dict[str, Any]:
@@ -22,7 +42,7 @@ def _build_agent_state(self: Any, engine: Any, round_num: int) -> dict[str, Any]
     symptoms = self._analysis_symptoms(analysis_evidence)
     allowed_actions = self._allowed_actions(symptoms)
     allowed_changes = self._allowed_changes(allowed_actions)
-    return {
+    state = {
         "case_id": f"live_{self.polymer_name}_{self.technique}",
         "technique": self.technique.upper(),
         "submodule": self._agent_state_submodule(),
@@ -51,6 +71,9 @@ def _build_agent_state(self: Any, engine: Any, round_num: int) -> dict[str, Any]
         "objective_score": score_snapshot["objective_score"],
         "tunable_params": self._tunable_params(config, allowed_actions=allowed_actions),
     }
+    if self.technique == "saxs":
+        state["saxs_ai_context"] = _saxs_ai_state_context(engine)
+    return state
 
 
 def _clean_advice(self: Any, advice: dict[str, Any] | None) -> dict[str, Any] | None:

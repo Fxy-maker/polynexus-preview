@@ -8,6 +8,7 @@ from .context_suggestion_service import (
     workflow_task_tech_label as build_workflow_task_tech_label,
 )
 from .i18n import tr
+from .main_window_history_mixin import resolve_joint_history_project_label
 from .theme import TECHNIQUE_LABELS
 from .window_text_helpers import import_mode_text as _import_mode_text
 from .workspace_mode import WorkspaceMode, normalize_workspace_mode
@@ -71,6 +72,13 @@ class MainWindowWorkspaceMixin:
 
     def _workspace_context_summary_text(self, context) -> str:
         source = os.path.basename(context.source_path.rstrip("/\\")) if context.source_path else tr("WORKFLOW_NO_DATA")
+        if str(getattr(context, "technique", "") or "").strip().lower() == "joint":
+            joint_source = resolve_joint_history_project_label(
+                "",
+                getattr(self, "_joint_report", None),
+            )
+            if joint_source:
+                source = joint_source
         run_id = context.run_id or tr("WORKSPACE_RUN_NOT_PERSISTED")
         return tr(
             "WORKSPACE_CONTEXT_SUMMARY",
@@ -225,6 +233,11 @@ class MainWindowWorkspaceMixin:
         running = bool(self._btn_run.property("busy")) if hasattr(self, "_btn_run") else False
         is_dir = bool(filepath and os.path.isdir(filepath))
         source_name = os.path.basename(filepath.rstrip("/\\")) if filepath else ""
+        if tech == "joint":
+            source_name = resolve_joint_history_project_label(
+                "",
+                getattr(self, "_joint_report", None),
+            )
         mode_text = _import_mode_text(input_mode) if input_mode in {"sequence", "directory"} else ""
         is_native_directory_context = self._is_native_directory_run_context()
         spec = workflow_task_context_spec(
