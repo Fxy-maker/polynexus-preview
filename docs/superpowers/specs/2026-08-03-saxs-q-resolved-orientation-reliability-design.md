@@ -1,7 +1,7 @@
 # SAXS q-Resolved Orientation Reliability Design
 
 **Date:** 2026-08-03
-**Status:** Approved for written-spec review
+**Status:** Approved for implementation planning
 **Related task:**
 `docs/agent/tasks/2026-08-03-saxs-q-resolved-orientation-reliability-design.md`
 
@@ -180,8 +180,12 @@ files or GUI state.
 Each q-bin record contains:
 
 ```text
+q_bin_id
 q_nm1
 q_bin_width_nm1
+harmonic_numerator_real
+harmonic_numerator_imag
+intensity_denominator
 anisotropy_strength
 principal_axis_deg
 f_principal_raw
@@ -196,6 +200,13 @@ stability_interval
 level
 reason_codes
 ```
+
+`q_bin_id` is a deterministic identity derived from the canonical q-bin
+bounds.  The harmonic numerator components and intensity denominator are
+additive scalar statistics, not detector arrays; they are retained so a later
+sequence task can reaggregate two frames over the exact same common q-bin set.
+If any required additive term is unavailable, same-support delta calculation
+must remain unavailable.
 
 The module reuses existing configuration for minimum strength, effective bins,
 angular coverage, harmonic significance, and axis drift. It does not introduce
@@ -212,8 +223,9 @@ least three supported q bins; otherwise it remains a q-bin diagnostic.
 
 Each candidate contains its q range, support-weighted center, integrated M2,
 principal axis, stability interval, support summary, and neutral feature ID.
-The first milestone assigns frame-local IDs only. Cross-frame identity belongs
-to the next atomic task.
+It also contains the ordered `supported_q_bin_ids` used for the aggregate. The
+first milestone assigns frame-local IDs only. Cross-frame identity belongs to
+the next atomic task.
 
 ### Resampling stability
 
@@ -242,6 +254,11 @@ The reliability service evaluates the baseline result and bounded variants:
 
 Variant execution is bounded and may be disabled only through an explicit
 configuration value recorded in the ledger. Inputs remain immutable.
+
+Every sensitivity observation retains a stable `variant_id`, operation kind,
+candidate ID, ordered q-bin identities, q range, orientation summaries,
+eligibility, and reason codes. Aggregate min/max ranges alone are not enough
+to establish whether a later frame still represents the same q feature.
 
 No new absolute delta-f threshold defines `artifact_sensitive`. A candidate is
 artifact-sensitive when a bounded variant changes an existing eligibility
@@ -301,13 +318,18 @@ QResolvedOrientationEvidence
   isotropic_baseline
   reference_axis_deg
   reference_axis_kind
+  reliability_policy_digest
   correction_ledger
   q_bins
   q_band_candidates
   sensitivity_summary
   reliability_status
-  reason_codes
+reason_codes
 ```
+
+The policy digest is computed from the normalized reliability settings that
+affect support, candidate eligibility, resampling, and axis drift. Later
+same-feature comparisons require identical policy digests.
 
 Existing scalar `f_herman`, `f_herman_raw`, detector reports, orientation
 evidence, and table behavior remain backward compatible. The new evidence is
