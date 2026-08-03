@@ -21,6 +21,13 @@ from scipy.signal import savgol_filter
 from .config import SAXSConfig
 from .io import normalize_edf_detector_metadata
 from .saxs_quality_contracts import build_detector_quality_report
+from .saxs_detector_correction import (
+    DetectorCorrectionRegistry,
+    DetectorCorrectionRequest,
+    default_detector_correction_registry,
+    detector_input_digest,
+    evaluate_detector_correction,
+)
 from .saxs_mask_edit import (
     MaskEditValidationError,
     apply_confirmed_mask_edit,
@@ -680,6 +687,8 @@ def preprocess_pipeline(
     temperature: float = 25.0,
     detector_header: Optional[Mapping[str, Any]] = None,
     mask_edit_candidate: Optional[Mapping[str, Any]] = None,
+    detector_correction_request: DetectorCorrectionRequest | None = None,
+    detector_correction_registry: DetectorCorrectionRegistry | None = None,
 ) -> dict:
     """Run the full preprocessing pipeline on a single 2D image.
 
@@ -714,16 +723,42 @@ def preprocess_pipeline(
         else np.zeros(np.asarray(img).shape, dtype=bool)
     )
 
+    correction_request = detector_correction_request or DetectorCorrectionRequest.disabled(
+        sample_source_id="preprocess.input"
+    )
+    correction_mask = (
+        np.asarray(detector_mask, dtype=bool)
+        if detector_mask is not None
+        else np.zeros(np.asarray(img).shape, dtype=bool)
+    )
+    legacy_operations = []
+    if I_background is not None and q_background is not None:
+        legacy_operations.append("background_correction")
+    if getattr(cfg, "do_polarisation_correction", False):
+        legacy_operations.append("polarization_correction")
+    correction = evaluate_detector_correction(
+        img,
+        correction_mask,
+        correction_request,
+        registry=detector_correction_registry or default_detector_correction_registry(),
+        legacy_operations=legacy_operations,
+    )
+    effective_img = correction.effective_image
+    effective_mask = correction.effective_mask
+    correction_evidence = correction.to_evidence_dict()
+    integration_input_digest = detector_input_digest(effective_img, effective_mask)
+    sector_map_input_digest = detector_input_digest(effective_img, effective_mask)
+
     # Integration
     if cfg.is_isotropic:
-        q, Iq = integrate_full(ai, img, cfg, mask=detector_mask)
+        q, Iq = integrate_full(ai, effective_img, cfg, mask=effective_mask)
         result = {"q": q, "Iq": Iq, "Iq_merid": None, "Iq_equat": None}
     else:
         q, I_full, I_merid, I_equat = integrate_sectors(
             ai,
-            img,
+            effective_img,
             cfg,
-            mask=detector_mask,
+            mask=effective_mask,
         )
         result = {"q": q, "Iq": I_full, "Iq_merid": I_merid, "Iq_equat": I_equat}
 
@@ -782,9 +817,9 @@ def preprocess_pipeline(
         try:
             sector_map = integrate_chi_sectors(
                 ai,
-                img,
+                effective_img,
                 cfg,
-                mask=detector_mask,
+                mask=effective_mask,
             )
             q_2d, I_2d, chi_rad = sector_map
             if (
@@ -807,6 +842,29 @@ def preprocess_pipeline(
             logger.warning("SAXS azimuthal sector integration failed; orientation is unavailable.", exc_info=True)
     result["sector_data"] = sector_data
     detector_report = build_detector_quality_report(
+        effective_img,
+        mask=effective_mask,
+        saturation_value=_header_positive_float(
+            detector_header,
+            ("saturation", "saturation_value", "saturationvalue"),
+        ),
+        source_kind="raw_detector",
+        beam_center=_header_beam_center(detector_header),
+        geometry_provenance=_geometry_provenance(detector_header, cfg),
+        mask_provenance=_mask_provenance(
+            img,
+            detector_mask,
+            edit_provenance=mask_edit_provenance,
+        ),
+        detector_metadata=detector_metadata,
+        detector_correction_evidence=correction_evidence,
+        background_floor_value=(
+            -abs(float(detector_metadata["background_correction_constant"]))
+            if detector_metadata.get("background_correction_constant") is not None
+            else None
+        ),
+    )
+    raw_detector_report = build_detector_quality_report(
         img,
         mask=detector_mask,
         saturation_value=_header_positive_float(
@@ -822,6 +880,7 @@ def preprocess_pipeline(
             edit_provenance=mask_edit_provenance,
         ),
         detector_metadata=detector_metadata,
+        detector_correction_evidence=correction_evidence,
         background_floor_value=(
             -abs(float(detector_metadata["background_correction_constant"]))
             if detector_metadata.get("background_correction_constant") is not None
@@ -829,7 +888,14 @@ def preprocess_pipeline(
         ),
     )
     result["detector_quality_report"] = detector_report.to_dict()
-    sector_data["raw_detector_quality_report"] = detector_report.to_dict()
+    result["raw_detector_quality_report"] = raw_detector_report.to_dict()
+    result["detector_correction_evidence"] = correction_evidence
+    result["integration_input_digest"] = integration_input_digest
+    result["sector_map_input_digest"] = integration_input_digest
+    sector_data["raw_detector_quality_report"] = raw_detector_report.to_dict()
+    sector_data["detector_correction_evidence"] = correction_evidence
+    sector_data["integration_input_digest"] = integration_input_digest
+    sector_data["sector_map_input_digest"] = integration_input_digest
     result["mask_edit_base_mask"] = mask_edit_base_mask
 
     return result

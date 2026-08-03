@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-03-saxs-calibration-correction-plugin
 kind: scientific
-status: planned
+status: completed
 date: 2026-08-03
 title: Add a fail-closed SAXS detector correction plugin
 ---
@@ -51,13 +51,44 @@ authoritative.
 
 ## Acceptance criteria
 
-- [ ] Disabled mode preserves image and mask identity.
-- [ ] Candidate/rejected corrections cannot feed final orientation.
-- [ ] A test-only synthetic backend proves transaction ordering exactly once.
-- [ ] Shape, detector, exposure, geometry, and provenance mismatches fail closed.
-- [ ] Production reviewed mode remains unavailable without a registered,
+- [x] Disabled mode preserves image and mask identity.
+- [x] Candidate/rejected corrections cannot feed final orientation.
+- [x] A test-only synthetic backend proves transaction ordering exactly once.
+- [x] Shape, detector, exposure, geometry, and provenance mismatches fail closed.
+- [x] Production reviewed mode remains unavailable without a registered,
   scientifically reviewed backend.
-- [ ] Real calibration validity remains open without calibration EDF evidence.
+- [x] Real calibration validity remains open without calibration EDF evidence.
+
+## Completed evidence
+
+- `DetectorCorrectionRequest`, immutable calibration frames/results, strict
+  evidence serialization, operation ledger, and owner-controlled registry are
+  implemented in the core detector-correction module.
+- Disabled preprocessing is numerically identity-preserving. Candidate,
+  rejected, unavailable, backend-error, nonfinite-output, shape-mismatch, and
+  ledger-incomplete paths return the authoritative input image/mask.
+- Preprocessing evaluates correction once before full, directional, and
+  chi-by-q integration. The effective image/mask pair is transported with a
+  digest and detached correction evidence; raw detector quality remains
+  separately available.
+- EDF claims are normalized as provenance and always retain
+  `calibration_reviewed: false` with review scope `saxs.detector_calibration`.
+
+## Scientific stop gates
+
+Production numerical correction is intentionally inactive because no reviewed
+calibration EDF set or approved equations were supplied. Activation still
+requires reviewed dark/flat/background/standard roles, detector and geometry
+compatibility evidence, transmission/thickness scaling policy, ownership
+parity with pyFAI and legacy preprocessing, negative-support behavior, and a
+real-data replay review. Synthetic backend tests do not establish detector
+calibration validity.
+
+## Verification evidence
+
+- `python -m pytest -p no:cacheprovider tests/test_saxs_detector_corrections.py tests/test_saxs_detector_correction_integration.py tests/test_saxs_preprocess.py tests/test_saxs_edf_metadata_quality.py tests/test_saxs_quality_contracts.py tests/test_saxs_raw_detector_quality_transport.py tests/test_saxs_feature_orientation_foundation.py -q` -> 82 passed, 2 warnings.
+- `python scripts/verify.py --task docs/agent/tasks/2026-08-03-saxs-calibration-correction-plugin.md --changed --types` -> selected checks passed; quality gate 297 passed; preprocess gate 106 passed.
+- Ruff, compileall, and `git diff --check` passed for the task scope.
 
 ## Verification
 

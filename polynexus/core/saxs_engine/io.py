@@ -64,6 +64,9 @@ def normalize_edf_detector_metadata(header: Mapping[str, Any] | None) -> dict[st
         match = re.search(r"(?:s/n|serial(?:_number)?|sn)\s*[:=]?\s*([A-Za-z0-9._-]+)", detector_model, re.I)
         if match:
             serial_number = match.group(1)
+    serial_number = serial_number or _text(
+        "detectorsn", "detector_serial", "detector_serial_number", "serialnumber"
+    )
 
     values: dict[str, Any] = {
         "detector_model": detector_model,
@@ -73,6 +76,20 @@ def normalize_edf_detector_metadata(header: Mapping[str, Any] | None) -> dict[st
         "count_cutoff": _number("countcutoff", "count_cutoff"),
         "saturation_field": _number("saturation"),
         "flat_field_status": _text("flatfield", "flat_field"),
+        "dark_correction_status": _text(
+            "dark", "dark_correction", "dark_correction_status"
+        ),
+        "detector_background_status": _text(
+            "detectorbackground", "detector_background", "background_correction_status"
+        ),
+        "polarization_correction_status": _text(
+            "polarizationcorrection", "polarization_correction",
+            "polarisationcorrection", "polarisation_correction",
+        ),
+        "solid_angle_correction_status": _text(
+            "solidanglecorrection", "solid_angle_correction"
+        ),
+        "correction_owner": _text("correctionowner", "correction_owner"),
         "dummy_value": _number("dummy"),
         "dummy_tolerance": _number("ddummy"),
         "background_correction_constant": _number(
@@ -103,6 +120,10 @@ def normalize_edf_detector_metadata(header: Mapping[str, Any] | None) -> dict[st
         "complete" if all(values.get(key) is not None for key in required) else "partial"
     )
     values["metadata_source"] = "edf_header"
+    # Header claims are provenance facts only. They never constitute a
+    # reviewed calibration record or authorize a correction backend.
+    values["calibration_reviewed"] = False
+    values["calibration_review_scope"] = "saxs.detector_calibration"
     return values
 
 

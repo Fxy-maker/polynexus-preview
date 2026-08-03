@@ -234,6 +234,12 @@ class SAXSConfig:
     transmission_background: float = 1.0
     sample_thickness_m: float = 1.0
 
+    # ---- Detector correction plugin ----
+    # The production registry is intentionally empty. These fields document
+    # an explicit future policy without enabling correction by configuration.
+    detector_correction_mode: str = "disabled"
+    detector_correction_policy_id: str = ""
+
     # ---- Smoothing ----
     smooth_method: str = "savgol"  # Best for preserving lamellar peak shape
     baseline_method: str = "normalize"  # panel provenance; algorithm mapping remains explicit

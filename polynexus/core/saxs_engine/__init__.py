@@ -104,6 +104,18 @@ from .saxs_orientation_reliability import (
     build_q_resolved_orientation,
     evaluate_orientation_sensitivity,
 )
+from .saxs_detector_correction import (
+    REVIEW_SCOPE as DETECTOR_CALIBRATION_REVIEW_SCOPE,
+    DetectorCalibrationFrame,
+    DetectorCorrectionBackend,
+    DetectorCorrectionRegistry,
+    DetectorCorrectionRequest,
+    DetectorCorrectionResult,
+    default_detector_correction_registry,
+    detector_array_digest,
+    detector_input_digest,
+    evaluate_detector_correction,
+)
 from .saxs_orientation_tracking import (
     OrientationFeatureObservation,
     OrientationFeatureTrack,
@@ -187,6 +199,12 @@ __all__ = [
     "herman_from_azimuthal", "herman_multi_q", "classify_2d_pattern",
     "analyze_peak_widths", "analyze_anisotropy", "detect_in_plane_orientation_axis", "export_parameters_csv",
     "CorrectionLedgerEntry", "OrientationQBandCandidate",
+    "DetectorCalibrationFrame", "DetectorCorrectionBackend",
+    "DetectorCorrectionRegistry", "DetectorCorrectionRequest",
+    "DetectorCorrectionResult", "DETECTOR_CALIBRATION_REVIEW_SCOPE",
+    "default_detector_correction_registry", "detector_array_digest",
+    "detector_input_digest",
+    "evaluate_detector_correction",
     "OrientationSensitivityObservation", "OrientationSensitivitySummary",
     "QOrientationBin", "QResolvedOrientationEvidence", "axial_distance_deg",
     "build_correction_ledger", "build_q_resolved_orientation",

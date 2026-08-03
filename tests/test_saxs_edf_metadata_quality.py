@@ -79,6 +79,8 @@ def test_edf_header_metadata_is_exposed_without_promoting_calibration() -> None:
     assert metadata["count_cutoff"] == 1530250.0
     assert metadata["threshold_setting"] == 4023.88989258
     assert metadata["flat_field_status"] == "Corrected"
+    assert metadata["calibration_reviewed"] is False
+    assert metadata["calibration_review_scope"] == "saxs.detector_calibration"
     assert metadata["dummy_value"] == -1.5
     assert metadata["dummy_tolerance"] == 0.6
     assert metadata["background_correction_constant"] == 0.0024174

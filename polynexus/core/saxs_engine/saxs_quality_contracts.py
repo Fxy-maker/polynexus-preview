@@ -433,6 +433,7 @@ class DetectorQualityReport:
     geometry_provenance: Mapping[str, Any] | None = None
     mask_provenance: Mapping[str, Any] | None = None
     detector_metadata: Mapping[str, Any] | None = None
+    detector_correction_evidence: Mapping[str, Any] | None = None
     reason_codes: tuple[str, ...] = ()
     level: QualityLevel = QualityLevel.UNUSABLE
 
@@ -553,6 +554,7 @@ def build_detector_quality_report(
     geometry_provenance: Mapping[str, Any] | None = None,
     mask_provenance: Mapping[str, Any] | None = None,
     detector_metadata: Mapping[str, Any] | None = None,
+    detector_correction_evidence: Mapping[str, Any] | None = None,
     background_floor_value: Any = None,
 ) -> DetectorQualityReport:
     """Build a strict, read-only quality report for a 2D intensity input."""
@@ -707,6 +709,7 @@ def build_detector_quality_report(
         geometry_provenance=geometry_provenance,
         mask_provenance=mask_provenance,
         detector_metadata=detector_metadata,
+        detector_correction_evidence=detector_correction_evidence,
         reason_codes=tuple(dict.fromkeys(reasons)),
         level=level,
     )
