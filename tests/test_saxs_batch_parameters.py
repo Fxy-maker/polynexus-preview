@@ -722,6 +722,7 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                     Q_star_rel=1.0,
                     Q_star_normalized=1.0,
                     f_herman=0.25,
+                    f_herman_raw=0.33,
                     confidence=0.8,
                 ),
                 StrainPointResult(
@@ -729,6 +730,7 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                     phase=StrainPhase.ELASTIC,
                     Q_star_rel=1.0,
                     Q_star_normalized=1.0,
+                    f_herman_raw=0.41,
                     confidence=0.8,
                 ),
             ],
@@ -767,11 +769,16 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
     assert captured["sector_data_list"] is sector_data
     assert engine._batch_params[0]["f_Herman"] == 0.25  # type: ignore[attr-defined]
     assert engine._batch_params[1]["f_Herman"] is None  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["f_Herman_raw"] == 0.33  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["f_Herman_raw"] == 0.41  # type: ignore[attr-defined]
 
     params = engine.get_parameters()
     assert params["f_Herman_mean"] == 0.25
     assert params["f_Herman_span"] == 0.0
     assert params["f_Herman_range"] == "0.2500-0.2500"
+    assert params["f_Herman_raw_mean"] == 0.37
+    assert params["f_Herman_raw_span"] == 0.08
+    assert params["f_Herman_raw_range"] == "0.3300-0.4100"
 
     assert engine.analyze_strain([0.0, 8.0]) is not None
     assert captured["sector_data_list"] is sector_data

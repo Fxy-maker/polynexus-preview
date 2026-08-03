@@ -1697,6 +1697,9 @@ class SAXSEngine(BaseEngine):
                 if self._strain_result is not None and i < len(getattr(self._strain_result, "strain_points", [])):
                     strain_point = self._strain_result.strain_points[i]
                 f_herman = _float_or_none(getattr(strain_point, "f_herman", np.nan))
+                f_herman_raw = _float_or_none(
+                    getattr(strain_point, "f_herman_raw", np.nan)
+                )
                 phase_name = str(getattr(getattr(strain_point, "phase", None), "name", "") or "").strip().upper()
                 if not phase_name:
                     phase_name = "ELASTIC"
@@ -1741,6 +1744,9 @@ class SAXSEngine(BaseEngine):
                     "Q_star": round(float(Q_raw), 3) if np.isfinite(Q_raw) else None,
                     "Q_rel": Q_rel,
                     "f_Herman": round(f_herman, 4) if f_herman is not None else None,
+                    "f_Herman_raw": (
+                        round(f_herman_raw, 4) if f_herman_raw is not None else None
+                    ),
                     "lc_nm_effective": lc,
                     "la_nm_effective": la,
                     "Xc_effective": phi_c,
@@ -2146,6 +2152,19 @@ class SAXSEngine(BaseEngine):
                     params["f_Herman_mean"] = round(float(np.mean(valid_f_herman)), 4)
                     params["f_Herman_span"] = round(float(np.max(valid_f_herman) - np.min(valid_f_herman)), 4)
                     params["f_Herman_range"] = f"{np.min(valid_f_herman):.4f}-{np.max(valid_f_herman):.4f}"
+            raw_f_herman = np.asarray(
+                [getattr(point, "f_herman_raw", np.nan) for point in sr.strain_points],
+                dtype=float,
+            )
+            raw_f_herman = raw_f_herman[np.isfinite(raw_f_herman)]
+            if raw_f_herman.size:
+                params["f_Herman_raw_mean"] = round(float(np.mean(raw_f_herman)), 4)
+                params["f_Herman_raw_span"] = round(
+                    float(np.max(raw_f_herman) - np.min(raw_f_herman)), 4
+                )
+                params["f_Herman_raw_range"] = (
+                    f"{np.min(raw_f_herman):.4f}-{np.max(raw_f_herman):.4f}"
+                )
             phase_names: List[str] = []
             phase_counts: Dict[str, int] = {}
             phase_boundary_candidates: List[Dict[str, Any]] = []

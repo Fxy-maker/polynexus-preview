@@ -94,7 +94,18 @@ _SAXS_STRAIN = ResultTableTemplate(
     hero_fields=(
         ResultFieldSpec("Q_star_rel_mean", "TABLE_FIELD_Q_STAR_REL", digits=4),
         ResultFieldSpec("phi_void_mean", "TABLE_FIELD_VOID_FRACTION", digits=4),
-        ResultFieldSpec("f_Herman_mean", "TABLE_FIELD_HERMAN", digits=4),
+        ResultFieldSpec(
+            "f_Herman_mean",
+            "TABLE_FIELD_HERMAN",
+            digits=4,
+            aliases=("f_Herman",),
+        ),
+        ResultFieldSpec(
+            "f_Herman_raw_mean",
+            "TABLE_FIELD_HERMAN_DIAGNOSTIC",
+            digits=4,
+            aliases=("f_Herman_raw",),
+        ),
         ResultFieldSpec("phase_support_mean", "TABLE_FIELD_PHASE_SUPPORT", digits=3),
     ),
     primary_fields=(
@@ -113,6 +124,11 @@ _SAXS_STRAIN = ResultTableTemplate(
         ),
         ResultFieldSpec("phi_void", "TABLE_FIELD_VOID_FRACTION", digits=4),
         ResultFieldSpec("f_Herman", "TABLE_FIELD_HERMAN", digits=4),
+        ResultFieldSpec(
+            "f_Herman_raw",
+            "TABLE_FIELD_HERMAN_DIAGNOSTIC",
+            digits=4,
+        ),
         ResultFieldSpec(
             "phase_name",
             "TABLE_FIELD_STRUCTURE_STAGE",

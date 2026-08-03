@@ -466,6 +466,7 @@ def test_strain_primary_contains_only_strain_template_columns() -> None:
         "Q_star_rel",
         "phi_void",
         "f_Herman",
+        "f_Herman_raw",
         "phase_name",
         "phase_support_score",
         "strain_reliability_status",
@@ -481,8 +482,8 @@ def test_strain_herman_mixed_frames_keep_unavailable_cells_explicit() -> None:
     presentation = _build(
         {
             "_batch_data": [
-                {"strain_pct": 0.0, "f_Herman": None},
-                {"strain_pct": 8.0, "f_Herman": 0.25},
+                {"strain_pct": 0.0, "f_Herman": None, "f_Herman_raw": 0.47},
+                {"strain_pct": 8.0, "f_Herman": 0.25, "f_Herman_raw": 0.52},
             ]
         },
         submodule="saxs.strain",
@@ -492,6 +493,12 @@ def test_strain_herman_mixed_frames_keep_unavailable_cells_explicit() -> None:
     assert _cell(presentation.primary, 0, "f_Herman").status == "neutral"
     assert _cell(presentation.primary, 1, "f_Herman").display == "0.2500"
     assert _cell(presentation.primary, 1, "f_Herman").status == "neutral"
+    assert _cell(presentation.primary, 0, "f_Herman_raw").display == "0.4700"
+    assert _cell(presentation.primary, 1, "f_Herman_raw").display == "0.5200"
+    heroes = {metric.key: metric for metric in presentation.hero_metrics}
+    assert "f_Herman" not in heroes
+    assert heroes["f_Herman_raw_mean"].label == "Herman orientation (diagnostic)"
+    assert heroes["f_Herman_raw_mean"].display == "0.4700"
 
 
 def test_empty_payload_builds_empty_sections_and_disabled_actions() -> None:
