@@ -92,11 +92,16 @@ git diff --check
 - Results exposes a review-only action for `saxs.strain`; it is hidden without
   eligible q-band evidence and has no apply, rerun, engine, config, or source
   path authority.
-- Focused AI/SAXS/persistence matrix: `355 passed, 1 failed` in 401.51s. The
-  failure is the pre-existing shared GUI translation expectation in
+- Advisory regression matrix: `26 passed` in 0.93s; q-resolved/feature-tracking
+  bridge matrix: `24 passed, 2 skipped`; GUI/DB/batch/result-table matrix:
+  `97 passed`.
+- Full SAXS matrix after the transport hardening: `862 passed, 2 skipped,
+  6 warnings` in 496.29s. Warnings are the existing missing-font and EDF
+  geometry-default warnings.
+- Structured verifier passed: quality gate `297 passed`, preprocess gate
+  `106 passed`, Ruff, compile, and whitespace checks all passed. The known
+  parallel GUI translation expectation remains outside this task:
   `tests/test_main_window_persistence.py::test_workflow_task_card_shows_controlled_optimization_state`.
-- Compile and Ruff checks for the changed task files passed. The full SAXS
-  matrix remains a separate long-running verification and is not claimed here.
 
 ## Scientific Limits
 
