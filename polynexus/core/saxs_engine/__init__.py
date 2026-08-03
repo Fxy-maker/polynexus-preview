@@ -116,6 +116,15 @@ from .saxs_detector_correction import (
     detector_input_digest,
     evaluate_detector_correction,
 )
+from .saxs_orientation_advisory import (
+    CONTEXT_SCHEMA as ORIENTATION_ADVISORY_CONTEXT_SCHEMA,
+    RESPONSE_SCHEMA as ORIENTATION_ADVISORY_RESPONSE_SCHEMA,
+    OrientationAdvisoryReport,
+    OrientationAdvisoryValidationError,
+    build_orientation_advisory_context,
+    build_orientation_advisory_report,
+    parse_orientation_advisory_response,
+)
 from .saxs_orientation_tracking import (
     OrientationFeatureObservation,
     OrientationFeatureTrack,
@@ -205,6 +214,10 @@ __all__ = [
     "default_detector_correction_registry", "detector_array_digest",
     "detector_input_digest",
     "evaluate_detector_correction",
+    "ORIENTATION_ADVISORY_CONTEXT_SCHEMA", "ORIENTATION_ADVISORY_RESPONSE_SCHEMA",
+    "OrientationAdvisoryReport", "OrientationAdvisoryValidationError",
+    "build_orientation_advisory_context", "build_orientation_advisory_report",
+    "parse_orientation_advisory_response",
     "OrientationSensitivityObservation", "OrientationSensitivitySummary",
     "QOrientationBin", "QResolvedOrientationEvidence", "axial_distance_deg",
     "build_correction_ledger", "build_q_resolved_orientation",

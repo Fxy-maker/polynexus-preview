@@ -446,6 +446,25 @@ class SampleDB:
         self._conn.commit()
         return True
 
+    def update_analysis_parameters(self, run_id, parameters):
+        """Replace only one run's persisted parameters JSON."""
+
+        row = self._conn.execute(
+            "SELECT id FROM analysis_runs WHERE id=?",
+            (run_id,),
+        ).fetchone()
+        if not row:
+            return False
+        if not isinstance(parameters, dict):
+            raise ValueError("analysis parameters must be a mapping")
+        parameters_json = json.dumps(parameters, ensure_ascii=False, allow_nan=False)
+        self._conn.execute(
+            "UPDATE analysis_runs SET parameters=? WHERE id=?",
+            (parameters_json, run_id),
+        )
+        self._conn.commit()
+        return True
+
     def update_analysis_confirmation(self, run_id, confirmed=True):
         row = self._conn.execute(
             "SELECT results_summary FROM analysis_runs WHERE id=?",

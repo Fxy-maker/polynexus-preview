@@ -36,3 +36,32 @@ def test_analysis_run_persists_analysis_evidence(tmp_path):
     runs = db.get_analysis_runs(batch_id)
     saved = next(run for run in runs if run["id"] == run_id)
     assert saved["analysis_evidence"] == evidence
+
+
+def test_update_analysis_parameters_preserves_detached_orientation_advisory(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "orientation")
+    run_id = db.create_analysis_run(
+        batch_id,
+        "saxs",
+        parameters={"existing": "value"},
+        results_summary={"confirmed": False},
+    )
+    parameters = {
+        "existing": "value",
+        "saxs_orientation_advisory_report": {
+            "schema_version": "saxs-orientation-advisory-report-v1",
+            "status": "limited",
+            "source_evidence_digest": "abc",
+        },
+    }
+
+    assert db.update_analysis_parameters(run_id, parameters) is True
+    saved = db.get_analysis_run(run_id)
+
+    assert saved is not None
+    assert saved["parameters"] == parameters
+    assert saved["confirmed"] == 0
+    assert db.update_analysis_parameters("missing-run", parameters) is False
+    db.close()

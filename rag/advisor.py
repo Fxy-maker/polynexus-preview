@@ -6,6 +6,7 @@ import math
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
 
 from llm.llm_client import LLMCancelledError, LLMClient
 
@@ -42,6 +43,41 @@ class Advisor:
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.llm_client = llm_client or LLMClient()
         self.last_prompt = ""
+
+    def advise_saxs_orientation(
+        self,
+        source: Mapping[str, Any] | dict[str, Any],
+        *,
+        cancel_event: "threading.Event | None" = None,
+    ):
+        """Run the isolated read-only SAXS orientation advisory route."""
+
+        from polynexus.core.saxs_engine.saxs_orientation_advisory import (
+            build_orientation_advisory_context,
+            build_orientation_advisory_report,
+        )
+
+        context = build_orientation_advisory_context(source)
+        prompt = self.prompt_builder.build_saxs_orientation_advisory(context)
+        self.last_prompt = prompt
+        try:
+            try:
+                raw = self.llm_client.chat(
+                    prompt,
+                    system="Return only the exact SAXS orientation advisory JSON schema.",
+                    json_mode=True,
+                    cancel_event=cancel_event,
+                )
+            except TypeError as exc:
+                if "system" not in str(exc):
+                    raise
+                raw = self.llm_client.chat(prompt, json_mode=True, cancel_event=cancel_event)
+            parsed = raw if isinstance(raw, dict) else self._parse_response(str(raw))
+            return build_orientation_advisory_report(context, parsed)
+        except LLMCancelledError:
+            raise
+        except Exception:
+            return build_orientation_advisory_report(context, None)
 
     def advise(
         self,

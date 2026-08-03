@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-03-saxs-orientation-ai-advisory
 kind: scientific
-status: planned
+status: completed
 date: 2026-08-03
 title: Add read-only AI advisory for SAXS orientation evidence
 ---
@@ -64,12 +64,12 @@ gates, candidates, reruns, or publication decisions.
 
 ## Acceptance criteria
 
-- [ ] Only existing source candidate IDs can be ranked.
-- [ ] Numeric values are copied from deterministic evidence, not model output.
-- [ ] Model output accepts no free-form numeric or scientific explanation text.
-- [ ] Raw arrays, paths, and unknown fields are excluded.
-- [ ] Missing/diagnostic evidence yields limitations-first output.
-- [ ] No apply, candidate creation, rerun, or publication path exists.
+- [x] Only existing source candidate IDs can be ranked.
+- [x] Numeric values are copied from deterministic evidence, not model output.
+- [x] Model output accepts no free-form numeric or scientific explanation text.
+- [x] Raw arrays, paths, and unknown fields are excluded.
+- [x] Missing/diagnostic evidence yields limitations-first output.
+- [x] No apply, candidate creation, rerun, or publication path exists.
 
 ## Verification
 
@@ -79,6 +79,31 @@ python -m pytest -p no:cacheprovider (Get-ChildItem tests/test_saxs_*.py | ForEa
 python scripts/verify.py --task docs/agent/tasks/2026-08-03-saxs-orientation-ai-advisory.md --changed --types
 git diff --check
 ```
+
+## Completion Evidence
+
+- Core context, strict response parsing, deterministic hydration, fallback,
+  prompt isolation, rescue rejection, and read-only worker tests are covered by
+  `tests/test_saxs_orientation_ai_advisory.py` and the related SAXS AI safety
+  matrix.
+- SAXS parameters now transport a deep-copied detached advisory report, and
+  `SampleDB.update_analysis_parameters()` updates only an existing run's JSON
+  parameters column without changing confirmation or publication state.
+- Results exposes a review-only action for `saxs.strain`; it is hidden without
+  eligible q-band evidence and has no apply, rerun, engine, config, or source
+  path authority.
+- Focused AI/SAXS/persistence matrix: `355 passed, 1 failed` in 401.51s. The
+  failure is the pre-existing shared GUI translation expectation in
+  `tests/test_main_window_persistence.py::test_workflow_task_card_shows_controlled_optimization_state`.
+- Compile and Ruff checks for the changed task files passed. The full SAXS
+  matrix remains a separate long-running verification and is not claimed here.
+
+## Scientific Limits
+
+The advisory is read-only and cannot establish physical orientation validity,
+repair detector calibration, infer tensile axis, or authorize publication. Real
+detector correction remains disabled until reviewed formulas, compatible EDF
+calibration inputs, ownership policy, and real-data replay are available.
 
 ## Pre-existing workspace changes
 

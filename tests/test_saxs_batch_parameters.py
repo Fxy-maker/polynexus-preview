@@ -48,6 +48,24 @@ def test_copy_saxs_ai_rescue_evidence_deep_copies_existing_fields() -> None:
     assert source.saxs_ai_rescue_plan["candidates"][0]["candidate_id"] == "candidate-1"
 
 
+def test_copy_saxs_orientation_advisory_evidence_deep_copies_only_detached_report() -> None:
+    source = SimpleNamespace(
+        saxs_orientation_advisory_report={
+            "schema_version": "saxs-orientation-advisory-report-v1",
+            "status": "limited",
+            "candidate_observations": [{"candidate_id": "band-1", "f_reference": 0.42}],
+        },
+        orientation_advisory_context={"candidates": [{"candidate_id": "must-not-copy"}]},
+    )
+
+    copied = saxs_batch_helpers.copy_saxs_orientation_advisory_evidence(source)
+
+    assert copied == {"saxs_orientation_advisory_report": source.saxs_orientation_advisory_report}
+    assert copied["saxs_orientation_advisory_report"] is not source.saxs_orientation_advisory_report
+    copied["saxs_orientation_advisory_report"]["candidate_observations"][0]["candidate_id"] = "changed"
+    assert source.saxs_orientation_advisory_report["candidate_observations"][0]["candidate_id"] == "band-1"
+
+
 def test_saxs_batch_get_parameters_returns_full_batch_payload() -> None:
     engine = get_engine("saxs")
     assert engine is not None

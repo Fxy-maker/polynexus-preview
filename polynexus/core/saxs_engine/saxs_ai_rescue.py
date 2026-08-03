@@ -645,6 +645,8 @@ def validate_saxs_confirmation_report(
         raise ValueError("unsupported SAXS confirmation mode")
     if not isinstance(report, Mapping):
         raise ValueError("SAXS confirmation report must be a mapping")
+    if "orientation_advisory_report" in report:
+        raise ValueError("orientation advisory has no confirmation authority")
     decision = report.get("preprocess_decision", {})
     if not isinstance(decision, Mapping) or decision.get("decision") != "request_confirmation":
         raise ValueError("SAXS confirmation requires request_confirmation")
@@ -815,6 +817,8 @@ def validate_saxs_ai_intent(
     """Validate a SAXS intent without generating or executing candidates."""
 
     selected_policy = policy or get_preprocess_policy("SAXS")
+    if "orientation_advisory_report" in intent_payload:
+        raise ContractValidationError("orientation advisory has no preprocessing authority")
     if selected_policy.technique.upper() != "SAXS":
         raise PolicyValidationError("SAXS rescue requires the SAXS preprocessing policy")
     return _validated_intent(intent_payload, selected_policy)

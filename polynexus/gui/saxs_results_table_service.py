@@ -25,6 +25,7 @@ from .result_table_models import (
 )
 from .result_table_templates import ResultFieldSpec, ResultTableTemplate, saxs_template
 from ..core.saxs_engine.saxs_2d_review_context import build_saxs_2d_review_context
+from .saxs_orientation_advisory_service import render_orientation_advisory_report
 
 
 _RELIABLE_STATUSES = {"usable", "ok", "passed"}
@@ -1636,6 +1637,19 @@ def build_saxs_results_presentation(
     saxs_2d_review_context = build_saxs_2d_review_context(payload)
     if saxs_2d_review_context.get("status") == "unavailable":
         saxs_2d_review_context = {}
+    advisory_report = payload.get("saxs_orientation_advisory_report")
+    advisory_display = (
+        render_orientation_advisory_report(advisory_report, language=target_language)
+        if isinstance(advisory_report, Mapping)
+        else {}
+    )
+    if advisory_display:
+        advisory_risk = "; ".join(advisory_display.get("artifact_risks", ()))
+        advisory_limitations = "; ".join(advisory_display.get("limitations", ()))
+        if advisory_risk:
+            risk_text = "\n".join(part for part in (risk_text, advisory_risk) if part)
+        if advisory_limitations:
+            next_text = "\n".join(part for part in (next_text, advisory_limitations) if part)
 
     row_count = len(rows)
     has_rows = row_count > 0
@@ -1652,4 +1666,5 @@ def build_saxs_results_presentation(
         copy_enabled=has_rows,
         export_enabled=has_rows,
         saxs_2d_review_context=saxs_2d_review_context,
+        saxs_orientation_advisory=advisory_display,
     )

@@ -36,6 +36,10 @@ _AI_RESCUE_EVIDENCE_FIELDS = (
     "saxs_candidate_reference_resolution",
 )
 
+_ORIENTATION_ADVISORY_EVIDENCE_FIELDS = (
+    "saxs_orientation_advisory_report",
+)
+
 
 def batch_metric_evidence_scope(mode_or_experiment_type: Any) -> str:
     """Avoid relabeling a missing condition series as a static batch."""
@@ -77,6 +81,21 @@ def copy_saxs_ai_rescue_evidence(*sources: Any) -> Dict[str, Any]:
             if item is not None:
                 if field == "saxs_candidate_reference_resolution" and not isinstance(item, Mapping):
                     continue
+                payload[field] = deepcopy(item)
+                break
+    return payload
+
+
+def copy_saxs_orientation_advisory_evidence(*sources: Any) -> Dict[str, Any]:
+    """Copy a detached advisory report without exposing its source context."""
+
+    payload: Dict[str, Any] = {}
+    for field in _ORIENTATION_ADVISORY_EVIDENCE_FIELDS:
+        for source in sources:
+            if source is None:
+                continue
+            item = getattr(source, field, None)
+            if isinstance(item, Mapping):
                 payload[field] = deepcopy(item)
                 break
     return payload

@@ -53,7 +53,13 @@ from ..core.scientific_review import (
 )
 from .scientific_review_dialog import ScientificReviewDialog
 from .saxs_mask_edit_service import build_saxs_mask_edit_context
+from .saxs_orientation_advisory_service import (
+    orientation_advisory_action_context,
+    orientation_advisory_action_state,
+    persist_orientation_advisory_report,
+)
 from .widgets.saxs_mask_editor import SAXSDetectorMaskEditor
+from .main_window_workers import SAXSOrientationAdvisoryWorker
 
 
 class MainWindowResultsMixin:
@@ -590,6 +596,14 @@ class MainWindowResultsMixin:
         self._results_mask_edit_btn.setVisible(False)
         self._results_mask_edit_btn.clicked.connect(self._open_saxs_mask_editor)
         review_actions.addWidget(self._results_mask_edit_btn)
+        self._results_orientation_advisory_btn = QPushButton("Review orientation evidence")
+        self._results_orientation_advisory_btn.setObjectName("secondary_btn")
+        self._results_orientation_advisory_btn.setToolTip(
+            "Generate a read-only orientation evidence advisory."
+        )
+        self._results_orientation_advisory_btn.setVisible(False)
+        self._results_orientation_advisory_btn.clicked.connect(self._start_saxs_orientation_advisory)
+        review_actions.addWidget(self._results_orientation_advisory_btn)
         review_layout.addLayout(review_actions)
 
         self._results_review_group.setVisible(False)
@@ -1034,6 +1048,9 @@ class MainWindowResultsMixin:
             if hasattr(self, "_results_mask_edit_btn"):
                 self._results_mask_edit_btn.setVisible(False)
                 self._results_mask_edit_btn.setEnabled(False)
+            if hasattr(self, "_results_orientation_advisory_btn"):
+                self._results_orientation_advisory_btn.setVisible(False)
+                self._results_orientation_advisory_btn.setEnabled(False)
             self._results_review_group.setVisible(False)
             return
 
@@ -1089,6 +1106,12 @@ class MainWindowResultsMixin:
             available = self._saxs_mask_edit_context() is not None
             self._results_mask_edit_btn.setVisible(available)
             self._results_mask_edit_btn.setEnabled(available)
+        if hasattr(self, "_results_orientation_advisory_btn"):
+            source = self._saxs_orientation_advisory_source()
+            state = orientation_advisory_action_state(source)
+            running = bool(getattr(getattr(self, "_saxs_orientation_advisory_worker", None), "isRunning", lambda: False)())
+            self._results_orientation_advisory_btn.setVisible(state.visible)
+            self._results_orientation_advisory_btn.setEnabled(state.enabled and not running)
         if hasattr(self, "_results_review_title"):
             self._results_review_title.setText(panel_texts.title_text)
         self._results_review_group.setVisible(True)
@@ -1120,6 +1143,70 @@ class MainWindowResultsMixin:
     def _on_saxs_mask_candidate_confirmed(self, candidate):
         if isinstance(candidate, dict) and candidate.get("confirmed") is True:
             self._run_single(mask_edit_candidate=candidate)
+
+    def _saxs_orientation_advisory_source(self) -> dict:
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        submodule = str(getattr(self, "_current_submodule_id", "") or "").strip().lower()
+        if technique != "saxs" or submodule != "saxs.strain":
+            return {}
+        payload = self._current_results_payload()
+        params = payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {}
+        source = dict(params)
+        source["technique"] = "SAXS"
+        source["experiment_type"] = "strain"
+        return source
+
+    def _start_saxs_orientation_advisory(self) -> None:
+        source = self._saxs_orientation_advisory_source()
+        state = orientation_advisory_action_state(source)
+        if not state.enabled:
+            return
+        worker = getattr(self, "_saxs_orientation_advisory_worker", None)
+        if worker is not None and worker.isRunning():
+            return
+        context = orientation_advisory_action_context(source)
+        self._saxs_orientation_advisory_worker = SAXSOrientationAdvisoryWorker(context)
+        self._saxs_orientation_advisory_worker.finished.connect(
+            self._on_saxs_orientation_advisory_finished
+        )
+        self._saxs_orientation_advisory_worker.error_msg.connect(
+            self._on_saxs_orientation_advisory_error
+        )
+        self._saxs_orientation_advisory_worker.cancelled.connect(
+            self._on_saxs_orientation_advisory_cancelled
+        )
+        self._update_results_review_panel()
+        self._saxs_orientation_advisory_worker.start()
+
+    def _on_saxs_orientation_advisory_finished(self, report) -> None:
+        result = getattr(self, "_results", {}).get("saxs")
+        source = self._saxs_orientation_advisory_source()
+        parameters = persist_orientation_advisory_report(source, report)
+        parameters.pop("technique", None)
+        parameters.pop("experiment_type", None)
+        if isinstance(result, dict):
+            result["parameters"] = parameters
+        elif result is not None:
+            result.parameters = parameters
+
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "").strip()
+        if run_id and run_id != "current":
+            try:
+                self._ensure_sample_db().update_analysis_parameters(run_id, parameters)
+            except Exception:
+                logger.warning("Failed to persist SAXS orientation advisory.", exc_info=True)
+
+        self._display_results(parameters, result)
+        self._update_results_review_panel()
+        self.log(f"SAXS orientation advisory ready: {getattr(report, 'status', 'limited')}.")
+
+    def _on_saxs_orientation_advisory_error(self, message: str) -> None:
+        self._update_results_review_panel()
+        self.log(f"SAXS orientation advisory failed: {message}")
+
+    def _on_saxs_orientation_advisory_cancelled(self) -> None:
+        self._update_results_review_panel()
+        self.log("SAXS orientation advisory cancelled.")
 
 
     def _result_comparison_summary(self) -> str:

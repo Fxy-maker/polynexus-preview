@@ -93,6 +93,7 @@ class ResultsTablePresentation:
     export_enabled: bool = False
     scientific_review: ScientificReviewDisplay = field(default_factory=ScientificReviewDisplay)
     saxs_2d_review_context: dict[str, Any] = field(default_factory=dict)
+    saxs_orientation_advisory: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "hero_metrics", tuple(self.hero_metrics))

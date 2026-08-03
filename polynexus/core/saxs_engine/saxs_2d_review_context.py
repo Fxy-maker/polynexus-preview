@@ -143,6 +143,23 @@ _REVIEW_RECORD_FIELDS = (
     "conditions",
     "decisions",
 )
+_ADVISORY_CANDIDATE_FIELDS = (
+    "candidate_id", "feature_kind", "q_min_nm1", "q_max_nm1", "q_center_nm1",
+    "f_reference", "f_principal_raw", "reference_axis_kind", "reference_axis_deg",
+    "level", "reason_codes",
+)
+_ADVISORY_TRACK_FIELDS = (
+    "track_id", "feature_kind", "convention", "reference_axis_kind",
+    "reference_axis_deg", "reliability_status", "reason_codes",
+)
+_ADVISORY_OBSERVATION_FIELDS = (
+    "candidate_id", "condition_value", "q_range_nm1", "q_center_nm1",
+    "f_reference", "f_principal_raw", "delta_f_from_zero",
+    "delta_stability_interval", "reliability_status", "reason_codes",
+)
+_ADVISORY_LEDGER_FIELDS = (
+    "operation", "status", "input_digest", "output_digest", "reason_codes",
+)
 
 
 def _mapping_value(source: Any, name: str, default: Any = None) -> Any:
@@ -325,7 +342,71 @@ def sanitize_saxs_2d_review_context(value: Any) -> dict[str, Any]:
             if isinstance(record_decisions, Mapping):
                 record["decisions"] = _fixed_fields(record_decisions, _REVIEW_RECORD_DECISION_FIELDS)
             context["scientific_review"]["record"] = record
+    advisory_sources = value.get("orientation_advisory_sources")
+    if isinstance(advisory_sources, Mapping):
+        context["orientation_advisory_sources"] = _sanitize_orientation_advisory_sources(
+            advisory_sources
+        )
     return _safe(context)
+
+
+def _object_payload(value: Any) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    if hasattr(value, "to_dict"):
+        payload = value.to_dict()
+        return payload if isinstance(payload, Mapping) else {}
+    return {}
+
+
+def _advisory_candidate_projection(value: Any) -> dict[str, Any]:
+    source = _object_payload(value)
+    result = _fixed_fields(source, _ADVISORY_CANDIDATE_FIELDS)
+    result["candidate_id"] = _safe_identifier(source.get("candidate_id")) or None
+    result["reason_codes"] = _reason_codes(source.get("reason_codes"))
+    return result if result.get("candidate_id") else {}
+
+
+def _advisory_track_projection(value: Any) -> dict[str, Any]:
+    source = _object_payload(value)
+    result = _fixed_fields(source, _ADVISORY_TRACK_FIELDS)
+    result["track_id"] = _safe_identifier(source.get("track_id")) or None
+    result["reason_codes"] = _reason_codes(source.get("reason_codes"))
+    observations = []
+    for item in source.get("observations", ()):
+        observation = _object_payload(item)
+        projected = _fixed_fields(observation, _ADVISORY_OBSERVATION_FIELDS)
+        projected["candidate_id"] = _safe_identifier(observation.get("candidate_id")) or None
+        projected["reason_codes"] = _reason_codes(observation.get("reason_codes"))
+        if projected["candidate_id"]:
+            observations.append(projected)
+    result["observations"] = observations
+    return result if result.get("track_id") else {}
+
+
+def _sanitize_orientation_advisory_sources(value: Mapping[str, Any]) -> dict[str, Any]:
+    candidates = [
+        item for item in (_advisory_candidate_projection(raw) for raw in value.get("q_band_candidates", ()))
+        if item
+    ]
+    tracks = [
+        item for item in (_advisory_track_projection(raw) for raw in value.get("tracks", ()))
+        if item
+    ]
+    ledger = []
+    for item in value.get("correction_ledger", ()):
+        source = _object_payload(item)
+        projected = _fixed_fields(source, _ADVISORY_LEDGER_FIELDS)
+        projected["reason_codes"] = _reason_codes(source.get("reason_codes"))
+        if projected.get("operation") and projected.get("status"):
+            ledger.append(projected)
+    return {
+        "q_band_candidates": candidates,
+        "tracks": tracks,
+        "correction_ledger": ledger,
+        "reliability_status": _text(value.get("reliability_status")) or "unavailable",
+        "reason_codes": _reason_codes(value.get("reason_codes")),
+    }
 
 
 def _project_provenance(value: Any, *, kind: str) -> dict[str, Any]:
@@ -568,6 +649,8 @@ def build_saxs_2d_review_context(
     parameters = _parameters(source)
     detector_value = _read(source, parameters, "detector_quality_report")
     orientation_value = _read(source, parameters, "orientation_evidence")
+    q_resolved_value = _read(source, parameters, "q_resolved_orientation_evidence")
+    tracking_value = _read(source, parameters, "orientation_sequence_evidence")
     detector, geometry, mask, detector_reasons = _project_detector(detector_value)
     orientation, orientation_reasons = _project_orientation(orientation_value)
     review_value = scientific_review
@@ -593,6 +676,18 @@ def build_saxs_2d_review_context(
         evidence_present=evidence_present,
         review_allowed=bool(review["decision"].get("allowed")),
     )
+    q_resolved = _object_payload(q_resolved_value)
+    tracking = _object_payload(tracking_value)
+    advisory_sources = _sanitize_orientation_advisory_sources({
+        "q_band_candidates": q_resolved.get("q_band_candidates", ()),
+        "correction_ledger": q_resolved.get("correction_ledger", ()),
+        "tracks": tracking.get("tracks", ()),
+        "reliability_status": tracking.get("level", q_resolved.get("reliability_status")),
+        "reason_codes": [
+            *(_reason_codes(q_resolved.get("reason_codes"))),
+            *(_reason_codes(tracking.get("reason_codes"))),
+        ],
+    })
     return {
         "schema_version": "saxs-2d-review-v1",
         "technique": "SAXS",
@@ -615,6 +710,7 @@ def build_saxs_2d_review_context(
         "orientation": orientation,
         "gates": audit,
         "scientific_review": review,
+        "orientation_advisory_sources": advisory_sources,
         "raw_profile_included": False,
         "raw_detector_data_included": False,
     }

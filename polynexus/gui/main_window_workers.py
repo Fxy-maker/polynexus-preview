@@ -194,6 +194,44 @@ class JointHubWorker(QThread):
             main_window_module.logger.warning("Joint analysis worker failed.", exc_info=True)
 
 
+class SAXSOrientationAdvisoryWorker(QThread):
+    """One-shot advisory worker with no analysis or mutation authority."""
+
+    finished = Signal(object)
+    error_msg = Signal(str)
+    cancelled = Signal()
+
+    def __init__(self, source_context, advisor_factory=None):
+        super().__init__()
+        self.source_context = source_context
+        self.advisor_factory = advisor_factory
+        self._cancel_event = threading.Event()
+
+    def cancel(self):
+        self._cancel_event.set()
+        self.requestInterruption()
+
+    def run(self):
+        if self._cancel_event.is_set() or self.isInterruptionRequested():
+            self.cancelled.emit()
+            return
+        try:
+            from rag.advisor import Advisor
+
+            factory = self.advisor_factory or Advisor
+            report = factory().advise_saxs_orientation(
+                self.source_context,
+                cancel_event=self._cancel_event,
+            )
+            if self._cancel_event.is_set() or self.isInterruptionRequested():
+                self.cancelled.emit()
+                return
+            self.finished.emit(report)
+        except Exception as exc:
+            if not self._cancel_event.is_set():
+                self.error_msg.emit(str(exc))
+
+
 class AITuneSignals(QObject):
     progress_msg = Signal(str)
     finished = Signal(object)
