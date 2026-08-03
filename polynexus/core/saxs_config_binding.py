@@ -8,6 +8,11 @@ import math
 from numbers import Integral, Real
 from typing import Any, Callable, Mapping
 
+from .saxs_engine.config import (
+    TENSILE_AXIS_CONVENTION,
+    normalize_tensile_axis,
+)
+
 
 def _as_float_or_nan(value: Any) -> float:
     if value is None:
@@ -76,12 +81,36 @@ def apply_saxs_config_panel_values(
         "unavailable": {},
         "normalized_values": {},
         "diagnostic_only": {},
+        "provenance": {},
     }
     if not isinstance(values, Mapping):
         return report
 
+    axis_keys = {"tensile_axis_deg", "tensile_axis_convention"}
+    if any(key in values for key in axis_keys):
+        try:
+            axis_value, axis_convention = normalize_tensile_axis(
+                values.get("tensile_axis_deg"),
+                values.get("tensile_axis_convention"),
+            )
+        except ValueError as exc:
+            report["unavailable"]["tensile_axis_deg"] = str(exc)
+        else:
+            setattr(config, "tensile_axis_deg", axis_value)
+            setattr(config, "tensile_axis_convention", axis_convention)
+            report["applied"]["tensile_axis_deg"] = "tensile_axis_deg"
+            report["applied"]["tensile_axis_convention"] = "tensile_axis_convention"
+            report["normalized_values"]["tensile_axis_deg"] = axis_value
+            report["normalized_values"]["tensile_axis_convention"] = axis_convention
+            report["provenance"]["tensile_axis_deg"] = {
+                "source": "explicit_run_config",
+                "convention": axis_convention or TENSILE_AXIS_CONVENTION,
+            }
+
     for raw_key, raw_value in values.items():
         panel_key = str(raw_key)
+        if panel_key in axis_keys:
+            continue
         binding = _binding_for(config, panel_key)
         if binding is None:
             explicit = _FIELD_BINDINGS.get(panel_key)
@@ -136,4 +165,8 @@ def saxs_config_snapshot(config: Any) -> dict[str, Any]:
         return {str(key): _json_safe(value) for key, value in snapshot.items()}
 
 
-__all__ = ["apply_saxs_config_panel_values", "saxs_config_snapshot"]
+__all__ = [
+    "apply_saxs_config_panel_values",
+    "normalize_tensile_axis",
+    "saxs_config_snapshot",
+]

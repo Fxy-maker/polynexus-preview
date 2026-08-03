@@ -112,6 +112,59 @@ def _series_metric_evidence_payload(series: Any) -> Dict[str, Any]:
     }
 
 
+def _orientation_tracking_rows(value: Any) -> list[dict[str, Any]]:
+    """Flatten detached tracking observations without deriving scientific fields."""
+
+    if not isinstance(value, dict):
+        return []
+    rows: list[dict[str, Any]] = []
+    tracks = value.get("tracks")
+    if not isinstance(tracks, (list, tuple)):
+        return rows
+    for track in tracks:
+        if not isinstance(track, dict):
+            continue
+        track_id = str(track.get("track_id") or "").strip()
+        observations = track.get("observations")
+        if not isinstance(observations, (list, tuple)):
+            continue
+        for observation in observations:
+            if not isinstance(observation, dict):
+                continue
+            q_range = observation.get("q_range_nm1")
+            q_min = q_range[0] if isinstance(q_range, (list, tuple)) and len(q_range) >= 1 else None
+            q_max = q_range[1] if isinstance(q_range, (list, tuple)) and len(q_range) >= 2 else None
+            interval = observation.get("delta_stability_interval")
+            if not isinstance(interval, dict):
+                interval = {}
+            reasons = observation.get("reason_codes")
+            if isinstance(reasons, str):
+                reasons = [reasons]
+            elif not isinstance(reasons, (list, tuple)):
+                reasons = []
+            rows.append(
+                {
+                    "strain_pct": _float_or_none(observation.get("condition_value")),
+                    "source_index": observation.get("frame_source_index"),
+                    "f_Herman": _float_or_none(observation.get("f_reference")),
+                    "f_Herman_raw": _float_or_none(observation.get("f_principal_raw")),
+                    "delta_f_from_zero": _float_or_none(observation.get("delta_f_from_zero")),
+                    "delta_f_stability_lower": _float_or_none(interval.get("lower")),
+                    "delta_f_stability_upper": _float_or_none(interval.get("upper")),
+                    "orientation_q_min_nm1": _float_or_none(q_min),
+                    "orientation_q_max_nm1": _float_or_none(q_max),
+                    "orientation_track_id": track_id,
+                    "orientation_reliability_status": str(
+                        observation.get("reliability_status") or "unavailable"
+                    ),
+                    "orientation_reason_summary": "; ".join(
+                        str(reason).strip() for reason in reasons if str(reason).strip()
+                    ),
+                }
+            )
+    return rows
+
+
 @register_technique("saxs")
 @register_submodule(SubModuleSpec(
     id="saxs.static",
@@ -153,6 +206,14 @@ def _series_metric_evidence_payload(series: Any) -> Dict[str, Any]:
     required_polymer_families=["polyolefin", "polyester", "polyamide"],
     accepted_formats=["directory"],
     input_mode="sequence",
+    config_schema={
+        "tensile_axis_deg": {
+            "type": "saxs_tensile_axis",
+            "default": None,
+            "convention": "detector_image_clockwise_deg_v1",
+            "label_key": "CONFIG_SAXS_TENSILE_AXIS",
+        },
+    },
     output_parameters=[
         {"key": "orientation_f", "label": "Herman 取向因子", "format": ".3f"},
         {"key": "void_volume_fraction", "label": "空穴体积分数", "format": ".3f"},
@@ -2116,6 +2177,11 @@ class SAXSEngine(BaseEngine):
                 copied = _saxs_batch_helpers.copy_saxs_quality_evidence(sr).get(field_name)
                 if copied is not None:
                     params[field_name] = copied
+            tracking_rows = _orientation_tracking_rows(
+                params.get("orientation_tracking_evidence")
+            )
+            if tracking_rows:
+                params["_orientation_tracking_rows"] = tracking_rows
             def _first_finite(*values):
                 for value in values:
                     try:

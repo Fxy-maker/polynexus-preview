@@ -28,8 +28,15 @@ from ..core.saxs_engine.saxs_2d_review_context import build_saxs_2d_review_conte
 
 
 _RELIABLE_STATUSES = {"usable", "ok", "passed"}
-_REVIEW_STATUSES = {"low_confidence", "near_onset", "calibrated", "qstar_calibrated"}
-_BLOCKED_STATUSES = {"diagnostic_only", "post_end", "failed", "error"}
+_REVIEW_STATUSES = {
+    "low_confidence",
+    "near_onset",
+    "calibrated",
+    "qstar_calibrated",
+    "diagnostic",
+    "artifact_sensitive",
+}
+_BLOCKED_STATUSES = {"diagnostic_only", "post_end", "failed", "error", "unavailable"}
 
 _EXACT_DIAGNOSTIC_KEYS = {
     "Q_star_valid",
@@ -1546,6 +1553,9 @@ def build_saxs_results_presentation(
     target_language = _language_code(language)
     primary = _primary_section(rows, template, language=target_language)
     view_rows = _batch_view_rows(payload, rows)
+    tracking_rows = payload.get("_orientation_tracking_rows")
+    if isinstance(tracking_rows, list):
+        view_rows.extend(dict(row) for row in tracking_rows if isinstance(row, dict))
     detail = _dynamic_section(
         view_rows,
         _stable_scalar_keys(view_rows),

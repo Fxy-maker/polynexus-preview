@@ -11,6 +11,28 @@ from typing import Any, Dict, Tuple, Optional, List
 import numpy as np
 
 
+TENSILE_AXIS_CONVENTION = "detector_image_clockwise_deg_v1"
+
+
+def normalize_tensile_axis(
+    value: Any,
+    convention: Any,
+) -> tuple[float | None, str | None]:
+    """Normalize an explicit detector-plane axis without inferring one."""
+
+    if value is None or str(value).strip() == "":
+        return None, None
+    if str(convention or "").strip() != TENSILE_AXIS_CONVENTION:
+        raise ValueError("unsupported_tensile_axis_convention")
+    try:
+        angle = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("tensile_axis_invalid") from exc
+    if not np.isfinite(angle):
+        raise ValueError("tensile_axis_nonfinite")
+    return float(angle % 180.0), TENSILE_AXIS_CONVENTION
+
+
 @dataclass
 class ConditionPattern:
     """A named regular expression for extracting experimental condition
@@ -328,6 +350,7 @@ class SAXSConfig:
     # means no verified tensile reference for table-level Herman. It remains
     # append-only to preserve positional construction of older configurations.
     tensile_axis_deg: Optional[float] = None
+    tensile_axis_convention: str | None = None
 
 
 @dataclass

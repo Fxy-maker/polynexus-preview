@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-03-saxs-tensile-axis-results-presentation
 kind: scientific
-status: planned
+status: implemented_pending_parity_matrix
 date: 2026-08-03
 title: Capture the SAXS tensile axis and present orientation evidence
 ---
@@ -61,13 +61,14 @@ evidence.
 
 ## Acceptance criteria
 
-- [ ] Axis set/clear and screen-to-detector round-trip are deterministic.
-- [ ] NumPy/pyFAI azimuth parity is proved before drag input is enabled.
-- [ ] Missing axis remains None and never becomes zero or an inferred axis.
-- [ ] Final and diagnostic values use distinct labels and no fallback.
-- [ ] Delta, q range, stability, and reliability are readable.
-- [ ] GUI contains no SAXS scientific branching.
-- [ ] Presets/retranslation preserve the axis; recent calibration excludes it.
+- [x] Axis set/clear and screen-to-detector round-trip are deterministic.
+- [ ] NumPy/pyFAI azimuth parity is proved before drag input is enabled; drag
+  remains disabled until this gate has evidence.
+- [x] Missing axis remains None and never becomes zero or an inferred axis.
+- [x] Final and diagnostic values use distinct labels and no fallback.
+- [x] Delta, q range, stability, and reliability are readable.
+- [x] GUI contains no SAXS scientific branching.
+- [x] Presets/retranslation preserve the axis; recent calibration excludes it.
 
 ## Verification
 
@@ -82,3 +83,16 @@ git diff --check
 
 Review current GUI/AI staged changes before editing overlapping files. Preserve
 them and keep the implementation checkpoint to this task's explicit allowlist.
+
+## Current Evidence
+
+- Core/config/binding/editor/table slice: `96 passed` in the agent's focused
+  GREEN run.
+- Additional binding/editor regression: `8 passed`; orientation table tests:
+  `3 passed`; table template tests: `10 passed`; axis persistence/retranslation:
+  `2 passed`.
+- The prescribed seven-file GUI focused command exceeded 124 seconds without a
+  pytest summary; it is not claimed as passed. Full SAXS matrix remains pending.
+- No pyFAI parity evidence is available in this checkout, so the editor accepts
+  direct normalized values but keeps drag input disabled with
+  `preview_transform_unverified`.
