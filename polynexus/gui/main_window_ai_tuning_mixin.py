@@ -609,13 +609,6 @@ class MainWindowAITuningMixin:
             widget = item.widget() if item is not None else None
             if widget is None:
                 continue
-            set_values = getattr(widget, "set_config_values", None)
-            if callable(set_values):
-                config_keys = getattr(widget, "config_keys", None)
-                if callable(config_keys) and not set(config_keys()).intersection(best_config):
-                    continue
-                set_values(best_config)
-                continue
             key = widget.property("config_key")
             if not key or key not in best_config:
                 continue
