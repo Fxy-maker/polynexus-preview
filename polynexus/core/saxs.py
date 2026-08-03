@@ -2111,6 +2111,7 @@ class SAXSEngine(BaseEngine):
                 "detector_quality_report",
                 "raw_detector_quality_report",
                 "orientation_evidence",
+                "orientation_tracking_evidence",
             ):
                 copied = _saxs_batch_helpers.copy_saxs_quality_evidence(sr).get(field_name)
                 if copied is not None:

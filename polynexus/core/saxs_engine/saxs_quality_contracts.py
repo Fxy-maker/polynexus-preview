@@ -2823,6 +2823,20 @@ def build_series_orientation_evidence(
     )
 
 
+def build_orientation_tracking_evidence(value: Any) -> dict[str, Any] | None:
+    """Return one detached sequence DTO without selecting a primary track."""
+
+    if value is None:
+        return None
+    if hasattr(value, "to_dict"):
+        payload = value.to_dict()
+    elif isinstance(value, Mapping):
+        payload = _contract_dict(value)
+    else:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
 def _audit_optional_bool(value: Any) -> bool | None:
     if isinstance(value, (bool, np.bool_)):
         return bool(value)
@@ -3210,6 +3224,7 @@ __all__ = [
     "metric_evidence_dataframe_fields",
     "build_series_detector_quality_report",
     "build_series_orientation_evidence",
+    "build_orientation_tracking_evidence",
     "build_detector_quality_report",
     "build_sector_map_quality_report",
     "build_annulus_quality_report",

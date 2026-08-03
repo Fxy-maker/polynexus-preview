@@ -104,6 +104,17 @@ from .saxs_orientation_reliability import (
     build_q_resolved_orientation,
     evaluate_orientation_sensitivity,
 )
+from .saxs_orientation_tracking import (
+    OrientationFeatureObservation,
+    OrientationFeatureTrack,
+    OrientationSequenceEvidence,
+    aggregate_common_m2,
+    build_orientation_feature_tracks,
+    compatible,
+    delta_interval,
+    ordered_common_q_bins,
+    track_orientation_features,
+)
 from .saxs_sequence_rescue import (
     build_sequence_rescue_candidates,
     resolve_sequence_rescue_candidate,
@@ -180,6 +191,10 @@ __all__ = [
     "QOrientationBin", "QResolvedOrientationEvidence", "axial_distance_deg",
     "build_correction_ledger", "build_q_resolved_orientation",
     "evaluate_orientation_sensitivity",
+    "OrientationFeatureObservation", "OrientationFeatureTrack",
+    "OrientationSequenceEvidence", "aggregate_common_m2",
+    "build_orientation_feature_tracks", "compatible", "delta_interval",
+    "ordered_common_q_bins", "track_orientation_features",
     "build_sequence_rescue_candidates", "resolve_sequence_rescue_candidate",
     "validate_sequence_rescue_candidate",
     "SAXSAIRescueDecision", "SAXSAIRescuePlan",

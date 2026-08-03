@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-03-saxs-orientation-feature-tracking
 kind: scientific
-status: planned
+status: implemented_pending_real_replay
 date: 2026-08-03
 title: Track same SAXS orientation features across strain
 ---
@@ -47,13 +47,13 @@ switches, promote local evidence, or assign material-vector semantics.
 
 ## Acceptance criteria
 
-- [ ] Only mutually unique compatible q bands share a track ID.
-- [ ] Ambiguity, gaps, and feature switching split tracks explicitly.
-- [ ] Delta requires a unique zero frame and common reference semantics.
-- [ ] Delta uses the exact common q-bin set, additive terms, and policy digest.
-- [ ] All tracks are transported without selecting a primary track.
-- [ ] Suspected systematic harmonic remains diagnostic and unsubtracted.
-- [ ] Transport is strict-JSON-safe and backward compatible.
+- [x] Only mutually unique compatible q bands share a track ID.
+- [x] Ambiguity, gaps, and feature switching split tracks explicitly.
+- [x] Delta requires a unique zero frame and common reference semantics.
+- [x] Delta uses the exact common q-bin set, additive terms, and policy digest.
+- [x] All tracks are transported without selecting a primary track.
+- [x] Suspected systematic harmonic remains diagnostic and unsubtracted.
+- [x] Transport is strict-JSON-safe and backward compatible.
 
 ## Verification
 
@@ -69,3 +69,12 @@ git diff --check
 
 Do not modify Task 1 semantics or unrelated staged, GUI, AI, calibration,
 memory, data, output, or artifact files.
+
+## Current Evidence
+
+- Tracking, transport, batch, and strain focused slice: `65 passed`.
+- Real-series acceptance: `1 skipped` because `POLYNEXUS_SAXS_REAL_ROOT` is not
+  configured; no source frame is substituted for missing real evidence.
+- Invalid and duplicate source-index mappings fail closed with explicit reason
+  codes; list position is never used as provenance.
+- Full SAXS matrix and task verifier are run after this checkpoint review.

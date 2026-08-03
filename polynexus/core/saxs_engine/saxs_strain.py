@@ -36,6 +36,7 @@ from .saxs_quality_contracts import (
     build_series_detector_quality_report,
     build_series_metric_evidence,
     build_series_orientation_evidence,
+    build_orientation_tracking_evidence,
     metric_evidence_dataframe_fields,
     sanitize_1d_profile,
 )
@@ -43,6 +44,7 @@ from .saxs_output_helpers import (
     _data_quality_csv_fields,
     _detector_provenance_csv_fields,
 )
+from .saxs_orientation_tracking import track_orientation_features
 
 
 def _aligned_source_values(values: Optional[List[str]], count: int) -> tuple[str, ...]:
@@ -51,6 +53,25 @@ def _aligned_source_values(values: Optional[List[str]], count: int) -> tuple[str
     if values is None or len(values) != count:
         return ()
     return tuple(str(value or "") for value in values)
+
+
+def _aligned_source_indices(values, count: int) -> tuple[int, ...]:
+    """Accept only an explicit, one-per-frame source-index mapping."""
+
+    if values is None or len(values) != count:
+        return ()
+    output: list[int] = []
+    for value in values:
+        if isinstance(value, (bool, np.bool_)):
+            return ()
+        try:
+            index = int(value)
+        except (TypeError, ValueError, OverflowError):
+            return ()
+        if index < 0 or float(value) != float(index):
+            return ()
+        output.append(index)
+    return tuple(output) if len(set(output)) == count else ()
 
 
 def _coerce_strain_value(value) -> float:
@@ -161,6 +182,7 @@ class StrainSeriesResult:
     raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
     q_resolved_orientation_evidence: List[object] = field(default_factory=list)
+    orientation_tracking_evidence: Dict = None
 
     def get_phase_transition(self) -> Dict:
         """Return phase transition strains."""
@@ -744,6 +766,7 @@ def analyze_strain_series(
     detector_quality_reports: Optional[List[Dict]] = None,
     source_ids: Optional[List[str]] = None,
     raw_data_refs: Optional[List[str]] = None,
+    frame_source_indices: Optional[List[int]] = None,
 ) -> StrainSeriesResult:
     """Analyze a complete in-situ tensile SAXS experiment.
 
@@ -773,6 +796,10 @@ def analyze_strain_series(
 
     source_ids_aligned = _aligned_source_values(source_ids, n_points)
     raw_data_refs_aligned = _aligned_source_values(raw_data_refs, n_points)
+    frame_source_indices_aligned = _aligned_source_indices(frame_source_indices, n_points)
+    frame_source_indices_invalid = (
+        frame_source_indices is not None and not frame_source_indices_aligned
+    )
 
     # Normalize strains
     strains_arr = np.asarray(
@@ -956,6 +983,39 @@ def analyze_strain_series(
         point.q_resolved_orientation_evidence
         for point in result.strain_points
     ]
+    if any(item is not None for item in result.q_resolved_orientation_evidence):
+        tracking_frames = [
+            {
+                "frame_source_index": (
+                    None
+                    if frame_source_indices_invalid
+                    else frame_source_indices_aligned[index]
+                    if frame_source_indices_aligned
+                    else (
+                        sector_data_list[index].get("frame_source_index")
+                        if sector_data_list is not None
+                        and index < len(sector_data_list)
+                        and isinstance(sector_data_list[index], Mapping)
+                        else None
+                    )
+                ),
+                "condition_value": result.strains[index],
+                "q_resolved_orientation_evidence": evidence,
+            }
+            for index, evidence in enumerate(result.q_resolved_orientation_evidence)
+        ]
+        tracking = track_orientation_features(
+            tracking_frames,
+            frame_source_indices=(
+                frame_source_indices_aligned
+                if frame_source_indices_aligned
+                else None
+            ),
+            max_axis_drift_deg=float(getattr(cfg, "orientation_max_axis_drift_deg", 20.0)),
+        )
+        result.orientation_tracking_evidence = build_orientation_tracking_evidence(
+            tracking
+        )
     result.phase_boundaries = phase_boundaries
 
     if verbose:
