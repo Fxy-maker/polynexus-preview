@@ -25,6 +25,10 @@ from .saxs_quality_contracts import (
     build_orientation_evidence,
     build_sector_map_quality_report,
 )
+from .saxs_orientation_reliability import (
+    QResolvedOrientationEvidence,
+    build_q_resolved_orientation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +106,7 @@ class AnisotropyResult:
     # authoritative for backwards-compatible callers.
     detector_quality_report: dict = None
     orientation_evidence: dict = None
+    q_resolved_orientation_evidence: QResolvedOrientationEvidence | None = None
 
 
 def _attach_orientation_evidence(
@@ -976,6 +981,21 @@ def analyze_anisotropy(
         )
         return result
     I_2d, q, chi, q_1d, I_1d = normalized
+    result.q_resolved_orientation_evidence = build_q_resolved_orientation(
+        I_2d,
+        q,
+        chi,
+        support_count=support_count,
+        cfg=cfg,
+        reference_axis_deg=(
+            result.tensile_axis_deg
+            if np.isfinite(result.tensile_axis_deg)
+            else None
+        ),
+        reference_axis_kind=(
+            "tensile_axis" if np.isfinite(result.tensile_axis_deg) else "unknown"
+        ),
+    )
 
     # 1. Azimuthal profile at Bragg peak position
     from .core import bragg_long_period

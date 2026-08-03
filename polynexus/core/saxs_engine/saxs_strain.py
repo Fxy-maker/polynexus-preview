@@ -138,6 +138,7 @@ class StrainPointResult:
     raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
     warnings: List[str] = field(default_factory=list)
+    q_resolved_orientation_evidence: object = None
 
 
 @dataclass
@@ -159,6 +160,7 @@ class StrainSeriesResult:
     detector_quality_report: Dict = None
     raw_detector_quality_report: Dict = None
     orientation_evidence: Dict = None
+    q_resolved_orientation_evidence: List[object] = field(default_factory=list)
 
     def get_phase_transition(self) -> Dict:
         """Return phase transition strains."""
@@ -467,6 +469,9 @@ def herman_from_sector_data(
                 ).to_dict(),
                 "raw_detector_quality_report": raw_detector_quality_report,
                 "orientation_evidence": orientation_evidence,
+                "q_resolved_orientation_evidence": getattr(
+                    orientation, "q_resolved_orientation_evidence", None
+                ),
                 "orientation_axis_deg": getattr(orientation, "orientation_axis_deg", np.nan),
                 "orientation_axis_source": getattr(orientation, "orientation_axis_source", "unavailable"),
                 "orientation_axis_strength": getattr(orientation, "orientation_axis_strength", np.nan),
@@ -911,6 +916,10 @@ def analyze_strain_series(
                     ]
                 if herman.get("orientation_evidence") is not None:
                     sp.orientation_evidence = herman["orientation_evidence"]
+                if herman.get("q_resolved_orientation_evidence") is not None:
+                    sp.q_resolved_orientation_evidence = herman[
+                        "q_resolved_orientation_evidence"
+                    ]
                 result.f_herman_array[i] = sp.f_herman
 
         result.strain_points.append(sp)
@@ -943,6 +952,10 @@ def analyze_strain_series(
         result.raw_detector_quality_report = raw_detector_quality
     if orientation is not None:
         result.orientation_evidence = orientation
+    result.q_resolved_orientation_evidence = [
+        point.q_resolved_orientation_evidence
+        for point in result.strain_points
+    ]
     result.phase_boundaries = phase_boundaries
 
     if verbose:

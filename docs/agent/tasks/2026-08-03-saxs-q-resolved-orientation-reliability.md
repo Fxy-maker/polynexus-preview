@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-03-saxs-q-resolved-orientation-reliability
 kind: scientific
-status: planned
+status: implemented_pending_real_replay
 date: 2026-08-03
 title: Implement q-resolved SAXS orientation reliability
 ---
@@ -48,15 +48,16 @@ material vector, or subtract a suspected instrument harmonic.
 
 ## Acceptance criteria
 
-- [ ] Supported q bins expose M2, axis, support, stability, and convention.
-- [ ] Q bins retain stable IDs, additive harmonic terms, and a policy digest.
-- [ ] NumPy and pyFAI azimuths share the detector-image clockwise convention.
-- [ ] Multiple neutral q bands are retained without replacing scalar Herman.
-- [ ] Sensitivity variants are bounded, deterministic, and non-mutating.
-- [ ] Every variant retains stable candidate and q-support identity.
-- [ ] No calibration input or candidate mask is silently applied.
+- [x] Supported q bins expose M2, axis, support, stability, and convention.
+- [x] Q bins retain stable IDs, additive harmonic terms, and a policy digest.
+- [ ] NumPy and pyFAI azimuth parity is still pending a pyFAI-backed regression.
+- [x] Multiple neutral q bands are retained without replacing scalar Herman.
+- [x] Sensitivity variants are bounded, deterministic, and non-mutating.
+- [x] Every variant retains stable candidate and q-support identity.
+- [x] No calibration input or candidate mask is silently applied.
 - [ ] Real zero/five-percent evidence states whether ordering is stable.
-- [ ] Existing final Herman and publication gates remain fail-closed.
+- [x] Synthetic q-resolved, transport, immutability, and candidate-only contracts pass.
+- [x] Existing final Herman and publication gates remain fail-closed.
 
 ## Verification
 
@@ -72,3 +73,15 @@ git diff --check
 
 Use the exact task allowlist. Do not touch current staged/parallel memory, GUI,
 AI, data, output, or test-artifact changes.
+
+## Current Evidence
+
+- Focused q-resolved/orientation transport slice: `83 passed`.
+- Structured verifier: quality gate `297 passed`, preprocessing gate `106 passed`,
+  Ruff, compile, changed-type baseline, and whitespace checks passed.
+- The full `tests/test_saxs_*.py` matrix exceeded the local 184-second command
+  limit without a pytest summary; it is not claimed as passed.
+- No external zero/five-percent EDF bundle is present in this checkout. The
+  real replay test therefore skips with an explicit reason until the reviewed
+  external fixture is mounted. No sample frame is treated as an instrument
+  baseline.

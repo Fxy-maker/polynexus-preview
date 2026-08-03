@@ -314,8 +314,18 @@ class SAXSConfig:
     save_figures: bool = True
     figure_format: str = "pdf"
 
+    # ---- q-resolved orientation reliability diagnostics ----
+    # These settings bound non-mutating sensitivity evidence. They do not
+    # change the legacy scalar Herman calculation or promote calibration.
+    orientation_reliability_enabled: bool = True
+    orientation_bootstrap_replicates: int = 256
+    orientation_center_offsets_px: Tuple[float, ...] = (-1.0, 0.0, 1.0)
+    orientation_mask_dilation_px: Tuple[int, ...] = (1, 2)
+    orientation_q_width_scales: Tuple[float, ...] = (0.75, 1.0, 1.25)
+    orientation_chi_bin_scales: Tuple[float, ...] = (0.5, 1.0, 2.0)
+
     # This is the explicit detector-plane projection of the tensile axis. None
-    # means no verified tensile reference for table-level Herman.  It remains
+    # means no verified tensile reference for table-level Herman. It remains
     # append-only to preserve positional construction of older configurations.
     tensile_axis_deg: Optional[float] = None
 
