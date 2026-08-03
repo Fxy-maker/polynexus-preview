@@ -23,6 +23,7 @@ _QUALITY_EVIDENCE_FIELDS = (
     "detector_quality_report",
     "raw_detector_quality_report",
     "orientation_evidence",
+    "q_resolved_orientation_evidence",
     "orientation_tracking_evidence",
     "guinier_sequence_evidence",
     "sequence_rescue_candidates",
@@ -39,6 +40,31 @@ _AI_RESCUE_EVIDENCE_FIELDS = (
 _ORIENTATION_ADVISORY_EVIDENCE_FIELDS = (
     "saxs_orientation_advisory_report",
 )
+
+
+def _detached_evidence(value: Any) -> Any:
+    """Detach DTOs while preserving the JSON contract used by persistence."""
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        try:
+            return _detached_evidence(to_dict())
+        except Exception:
+            return None
+    if isinstance(value, Mapping):
+        return {
+            str(key): _detached_evidence(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_detached_evidence(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return _detached_evidence(value.tolist())
+    if isinstance(value, np.generic):
+        return _detached_evidence(value.item())
+    return deepcopy(value)
 
 
 def batch_metric_evidence_scope(mode_or_experiment_type: Any) -> str:
@@ -65,7 +91,7 @@ def copy_saxs_quality_evidence(value: Any) -> Dict[str, Any]:
     for field in _QUALITY_EVIDENCE_FIELDS:
         item = getattr(value, field, None)
         if item is not None:
-            payload[field] = deepcopy(item)
+            payload[field] = _detached_evidence(item)
     return payload
 
 
@@ -96,7 +122,7 @@ def copy_saxs_orientation_advisory_evidence(*sources: Any) -> Dict[str, Any]:
                 continue
             item = getattr(source, field, None)
             if isinstance(item, Mapping):
-                payload[field] = deepcopy(item)
+                payload[field] = _detached_evidence(item)
                 break
     return payload
 

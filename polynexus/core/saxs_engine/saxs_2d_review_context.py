@@ -146,7 +146,10 @@ _REVIEW_RECORD_FIELDS = (
 _ADVISORY_CANDIDATE_FIELDS = (
     "candidate_id", "feature_kind", "q_min_nm1", "q_max_nm1", "q_center_nm1",
     "f_reference", "f_principal_raw", "reference_axis_kind", "reference_axis_deg",
-    "level", "reason_codes",
+    "level", "reliability_status", "reason_codes",
+)
+_ADVISORY_SENSITIVITY_FIELDS = (
+    "reliability_status", "reason_codes", "value_ranges",
 )
 _ADVISORY_TRACK_FIELDS = (
     "track_id", "feature_kind", "convention", "reference_axis_kind",
@@ -359,11 +362,25 @@ def _object_payload(value: Any) -> Mapping[str, Any]:
     return {}
 
 
-def _advisory_candidate_projection(value: Any) -> dict[str, Any]:
+def _advisory_sensitivity_projection(value: Any) -> dict[str, Any]:
+    source = _object_payload(value)
+    result = _fixed_fields(source, _ADVISORY_SENSITIVITY_FIELDS)
+    result["reason_codes"] = _reason_codes(source.get("reason_codes"))
+    return result
+
+
+def _advisory_candidate_projection(
+    value: Any,
+    *,
+    sensitivity_summary: Any = None,
+) -> dict[str, Any]:
     source = _object_payload(value)
     result = _fixed_fields(source, _ADVISORY_CANDIDATE_FIELDS)
     result["candidate_id"] = _safe_identifier(source.get("candidate_id")) or None
     result["reason_codes"] = _reason_codes(source.get("reason_codes"))
+    sensitivity = source.get("sensitivity_summary", sensitivity_summary)
+    if sensitivity is not None:
+        result["sensitivity_summary"] = _advisory_sensitivity_projection(sensitivity)
     return result if result.get("candidate_id") else {}
 
 
@@ -378,6 +395,7 @@ def _advisory_track_projection(value: Any) -> dict[str, Any]:
         projected = _fixed_fields(observation, _ADVISORY_OBSERVATION_FIELDS)
         projected["candidate_id"] = _safe_identifier(observation.get("candidate_id")) or None
         projected["reason_codes"] = _reason_codes(observation.get("reason_codes"))
+        projected.setdefault("reliability_status", result.get("reliability_status", "unavailable"))
         if projected["candidate_id"]:
             observations.append(projected)
     result["observations"] = observations
@@ -385,14 +403,25 @@ def _advisory_track_projection(value: Any) -> dict[str, Any]:
 
 
 def _sanitize_orientation_advisory_sources(value: Mapping[str, Any]) -> dict[str, Any]:
+    sensitivity_summary = _advisory_sensitivity_projection(value.get("sensitivity_summary"))
     candidates = [
-        item for item in (_advisory_candidate_projection(raw) for raw in value.get("q_band_candidates", ()))
+        item for item in (
+            _advisory_candidate_projection(raw, sensitivity_summary=sensitivity_summary)
+            for raw in value.get("q_band_candidates", ())
+        )
         if item
     ]
-    tracks = [
-        item for item in (_advisory_track_projection(raw) for raw in value.get("tracks", ()))
-        if item
-    ]
+    tracks = []
+    parent_status = _text(value.get("reliability_status")) or "unavailable"
+    for raw in value.get("tracks", ()):
+        item = _advisory_track_projection(raw)
+        if item and str(item.get("reliability_status") or "").lower() in {"", "unavailable"}:
+            item["reliability_status"] = parent_status
+            for observation in item.get("observations", ()):
+                if observation.get("reliability_status") == "unavailable":
+                    observation["reliability_status"] = parent_status
+        if item:
+            tracks.append(item)
     ledger = []
     for item in value.get("correction_ledger", ()):
         source = _object_payload(item)
@@ -406,6 +435,7 @@ def _sanitize_orientation_advisory_sources(value: Mapping[str, Any]) -> dict[str
         "correction_ledger": ledger,
         "reliability_status": _text(value.get("reliability_status")) or "unavailable",
         "reason_codes": _reason_codes(value.get("reason_codes")),
+        "sensitivity_summary": sensitivity_summary,
     }
 
 
@@ -650,7 +680,9 @@ def build_saxs_2d_review_context(
     detector_value = _read(source, parameters, "detector_quality_report")
     orientation_value = _read(source, parameters, "orientation_evidence")
     q_resolved_value = _read(source, parameters, "q_resolved_orientation_evidence")
-    tracking_value = _read(source, parameters, "orientation_sequence_evidence")
+    tracking_value = _read(source, parameters, "orientation_tracking_evidence")
+    if tracking_value is None:
+        tracking_value = _read(source, parameters, "orientation_sequence_evidence")
     detector, geometry, mask, detector_reasons = _project_detector(detector_value)
     orientation, orientation_reasons = _project_orientation(orientation_value)
     review_value = scientific_review
@@ -676,17 +708,73 @@ def build_saxs_2d_review_context(
         evidence_present=evidence_present,
         review_allowed=bool(review["decision"].get("allowed")),
     )
-    q_resolved = _object_payload(q_resolved_value)
+    q_resolved_values = (
+        list(q_resolved_value)
+        if isinstance(q_resolved_value, Sequence)
+        and not isinstance(q_resolved_value, (str, bytes, bytearray))
+        else [q_resolved_value]
+    )
+    q_resolved_values = [
+        _object_payload(item) for item in q_resolved_values if _object_payload(item)
+    ]
+    q_band_candidates = [
+        candidate
+        for item in q_resolved_values
+        for candidate in item.get("q_band_candidates", ())
+    ]
+    correction_ledger = [
+        entry
+        for item in q_resolved_values
+        for entry in item.get("correction_ledger", ())
+    ]
+    sensitivity_summaries = [
+        item.get("sensitivity_summary")
+        for item in q_resolved_values
+        if isinstance(item.get("sensitivity_summary"), Mapping)
+    ]
+    sensitivity_summary: dict[str, Any] = {}
+    if sensitivity_summaries:
+        statuses = {
+            _text(item.get("reliability_status")).lower()
+            for item in sensitivity_summaries
+        }
+        sensitivity_summary["reliability_status"] = (
+            "artifact_sensitive"
+            if "artifact_sensitive" in statuses
+            else "diagnostic"
+            if "diagnostic" in statuses
+            else "usable"
+        )
+        sensitivity_summary["reason_codes"] = _reason_codes(
+            code
+            for item in sensitivity_summaries
+            for code in _reason_codes(item.get("reason_codes"))
+        )
+        ranges: dict[str, Any] = {}
+        for item in sensitivity_summaries:
+            values = item.get("value_ranges")
+            if isinstance(values, Mapping):
+                ranges.update(_safe(values))
+        if ranges:
+            sensitivity_summary["value_ranges"] = ranges
     tracking = _object_payload(tracking_value)
     advisory_sources = _sanitize_orientation_advisory_sources({
-        "q_band_candidates": q_resolved.get("q_band_candidates", ()),
-        "correction_ledger": q_resolved.get("correction_ledger", ()),
+        "q_band_candidates": q_band_candidates,
+        "correction_ledger": correction_ledger,
         "tracks": tracking.get("tracks", ()),
-        "reliability_status": tracking.get("level", q_resolved.get("reliability_status")),
+        "reliability_status": tracking.get(
+            "level",
+            q_resolved_values[0].get("reliability_status") if q_resolved_values else None,
+        ),
         "reason_codes": [
-            *(_reason_codes(q_resolved.get("reason_codes"))),
+            *(
+                code
+                for item in q_resolved_values
+                for code in _reason_codes(item.get("reason_codes"))
+            ),
             *(_reason_codes(tracking.get("reason_codes"))),
         ],
+        "sensitivity_summary": sensitivity_summary,
     })
     return {
         "schema_version": "saxs-2d-review-v1",

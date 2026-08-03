@@ -54,6 +54,8 @@ from ..core.scientific_review import (
 from .scientific_review_dialog import ScientificReviewDialog
 from .saxs_mask_edit_service import build_saxs_mask_edit_context
 from .saxs_orientation_advisory_service import (
+    advisory_request_matches,
+    advisory_request_token,
     orientation_advisory_action_context,
     orientation_advisory_action_state,
     persist_orientation_advisory_report,
@@ -1165,20 +1167,40 @@ class MainWindowResultsMixin:
         if worker is not None and worker.isRunning():
             return
         context = orientation_advisory_action_context(source)
+        result = getattr(self, "_results", {}).get("saxs")
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "current")
+        request_token = advisory_request_token(result, run_id, context)
+        self._saxs_orientation_advisory_request_token = request_token
         self._saxs_orientation_advisory_worker = SAXSOrientationAdvisoryWorker(context)
         self._saxs_orientation_advisory_worker.finished.connect(
-            self._on_saxs_orientation_advisory_finished
+            lambda report, token=request_token: self._on_saxs_orientation_advisory_finished(
+                report, token
+            )
         )
         self._saxs_orientation_advisory_worker.error_msg.connect(
-            self._on_saxs_orientation_advisory_error
+            lambda message, token=request_token: self._on_saxs_orientation_advisory_error(
+                message, token
+            )
         )
         self._saxs_orientation_advisory_worker.cancelled.connect(
-            self._on_saxs_orientation_advisory_cancelled
+            lambda token=request_token: self._on_saxs_orientation_advisory_cancelled(token)
         )
         self._update_results_review_panel()
         self._saxs_orientation_advisory_worker.start()
 
-    def _on_saxs_orientation_advisory_finished(self, report) -> None:
+    def _saxs_orientation_advisory_callback_is_current(self, request_token) -> bool:
+        if bool(getattr(self, "_saxs_orientation_advisory_closing", False)):
+            return False
+        result = getattr(self, "_results", {}).get("saxs")
+        source = self._saxs_orientation_advisory_source()
+        context = orientation_advisory_action_context(source)
+        run_id = str(getattr(self, "_last_persisted_run_id", "") or "current")
+        return advisory_request_matches(result, run_id, context, request_token)
+
+    def _on_saxs_orientation_advisory_finished(self, report, request_token=None) -> None:
+        if request_token is None or not self._saxs_orientation_advisory_callback_is_current(request_token):
+            logger.info("Discarded detached SAXS orientation advisory for a stale result.")
+            return
         result = getattr(self, "_results", {}).get("saxs")
         source = self._saxs_orientation_advisory_source()
         parameters = persist_orientation_advisory_report(source, report)
@@ -1200,11 +1222,15 @@ class MainWindowResultsMixin:
         self._update_results_review_panel()
         self.log(f"SAXS orientation advisory ready: {getattr(report, 'status', 'limited')}.")
 
-    def _on_saxs_orientation_advisory_error(self, message: str) -> None:
+    def _on_saxs_orientation_advisory_error(self, message: str, request_token=None) -> None:
+        if request_token is None or not self._saxs_orientation_advisory_callback_is_current(request_token):
+            return
         self._update_results_review_panel()
         self.log(f"SAXS orientation advisory failed: {message}")
 
-    def _on_saxs_orientation_advisory_cancelled(self) -> None:
+    def _on_saxs_orientation_advisory_cancelled(self, request_token=None) -> None:
+        if request_token is None or not self._saxs_orientation_advisory_callback_is_current(request_token):
+            return
         self._update_results_review_panel()
         self.log("SAXS orientation advisory cancelled.")
 

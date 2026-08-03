@@ -86,7 +86,12 @@ class MainWindowRunMixin:
 
     def _cancel_run(self):
         worker = None
-        for attr in ("_worker", "_batch_worker", "_joint_worker"):
+        for attr in (
+            "_worker",
+            "_batch_worker",
+            "_joint_worker",
+            "_saxs_orientation_advisory_worker",
+        ):
             candidate = getattr(self, attr, None)
             if candidate is None:
                 continue
@@ -96,8 +101,14 @@ class MainWindowRunMixin:
                 break
         if worker is None:
             return False
-        self._transition_run_state("cancel")
         cancel = getattr(worker, "cancel", None)
+        if attr == "_saxs_orientation_advisory_worker":
+            if callable(cancel):
+                cancel()
+            elif hasattr(worker, "requestInterruption"):
+                worker.requestInterruption()
+            return True
+        self._transition_run_state("cancel")
         if callable(cancel):
             cancel()
         elif hasattr(worker, "requestInterruption"):

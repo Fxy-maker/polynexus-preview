@@ -137,6 +137,252 @@ def test_saxs_2d_review_context_bridges_bounded_q_band_and_track_sources() -> No
     assert context["correction_ledger"][0]["operation"] == "dark_correction"
 
 
+def test_review_bridge_reads_production_strain_keys_and_per_frame_q_evidence() -> None:
+    from polynexus.core.saxs_engine.saxs_2d_review_context import (
+        build_saxs_2d_review_context,
+        sanitize_saxs_2d_review_context,
+    )
+    from polynexus.core.saxs_engine.saxs_orientation_advisory import (
+        build_orientation_advisory_context,
+    )
+
+    q_frame = {
+        "q_band_candidates": [{
+            "candidate_id": "frame-band",
+            "feature_kind": "q_band",
+            "q_min_nm1": 0.2,
+            "q_max_nm1": 0.3,
+            "f_reference": 0.43,
+            "level": "Diagnostic",
+        }],
+        "sensitivity_summary": {
+            "reliability_status": "artifact_sensitive",
+            "reason_codes": ["orientation_sensitivity_changed_eligibility"],
+            "value_ranges": {"f_principal_raw": {"min": 0.40, "max": 0.51}},
+        },
+        "correction_ledger": [{
+            "operation": "beam_center_correction",
+            "status": "unavailable",
+            "reason_codes": ["calibration_input_unavailable"],
+        }],
+    }
+    review = build_saxs_2d_review_context({
+        "parameters": {
+            "detector_quality_report": {"level": "Trend", "reason_codes": []},
+            "orientation_evidence": {"level": "Trend", "reason_codes": []},
+            "q_resolved_orientation_evidence": [q_frame, None],
+            "orientation_tracking_evidence": {
+                "level": "Diagnostic",
+                "reason_codes": ["zero_reference_missing"],
+                "tracks": [{
+                    "track_id": "production-track",
+                    "feature_kind": "q_band",
+                    "observations": [{"candidate_id": "tracked-band", "f_reference": 0.41}],
+                }],
+            },
+        },
+    })
+    context = build_orientation_advisory_context({
+        "saxs_2d_review_context": sanitize_saxs_2d_review_context(review),
+    })
+
+    assert {item["candidate_id"] for item in context["candidates"]} == {
+        "frame-band", "tracked-band",
+    }
+    assert context["eligible_candidate_ids"] == ["frame-band", "tracked-band"]
+    frame_candidate = next(item for item in context["candidates"] if item["candidate_id"] == "frame-band")
+    assert frame_candidate["reliability_status"] == "diagnostic"
+    assert frame_candidate["sensitivity_summary"]["reliability_status"] == "artifact_sensitive"
+    assert context["correction_ledger"][0]["operation"] == "beam_center_correction"
+
+
+def test_advisory_parser_only_allows_eligible_candidates_and_preserves_diagnostic_status() -> None:
+    from polynexus.core.saxs_engine.saxs_orientation_advisory import (
+        OrientationAdvisoryValidationError,
+        build_orientation_advisory_context,
+        parse_orientation_advisory_response,
+    )
+
+    source = _context()
+    source["orientation_candidates"] = [
+        _candidate("diagnostic-band", level="Diagnostic"),
+        _candidate("unusable-band", level="Unusable"),
+    ]
+    context = build_orientation_advisory_context(source)
+    assert context["eligible_candidate_ids"] == ["diagnostic-band"]
+
+    valid = {
+        "schema_version": "saxs-orientation-advisory-response-v1",
+        "source_evidence_digest": context["source_evidence_digest"],
+        "ranked_candidate_ids": ["diagnostic-band"],
+        "candidate_rationale_codes": {
+            "diagnostic-band": ["local_evidence_diagnostic"],
+        },
+        "review_action_codes": ["request_scientific_review"],
+    }
+    assert parse_orientation_advisory_response(valid, context).ranked_candidate_ids == (
+        "diagnostic-band",
+    )
+
+    with pytest.raises(OrientationAdvisoryValidationError, match="candidate_id_not_eligible"):
+        parse_orientation_advisory_response(
+            {**valid, "ranked_candidate_ids": ["unusable-band"]},
+            context,
+        )
+
+
+def test_advisory_report_keeps_parent_artifact_sensitivity() -> None:
+    from polynexus.core.saxs_engine.saxs_orientation_advisory import (
+        build_orientation_advisory_context,
+        build_orientation_advisory_report,
+    )
+
+    source = _context()
+    source.pop("orientation_candidates")
+    source["q_resolved_orientation_evidence"] = {
+        "q_band_candidates": [{
+            key: value
+            for key, value in _candidate("q-parent-band").items()
+            if key != "sensitivity_summary"
+        }],
+        "sensitivity_summary": {
+            "reliability_status": "artifact_sensitive",
+            "reason_codes": ["orientation_sensitivity_changed_eligibility"],
+        },
+    }
+    context = build_orientation_advisory_context(source)
+    report = build_orientation_advisory_report(context, None)
+
+    assert "orientation_sensitivity_artifact_sensitive" in report.artifact_risk_codes
+
+
+def test_advisory_request_token_rejects_replaced_result_or_run() -> None:
+    from polynexus.gui.saxs_orientation_advisory_service import (
+        advisory_request_token,
+        advisory_request_matches,
+    )
+    from polynexus.core.saxs_engine.saxs_orientation_advisory import (
+        build_orientation_advisory_context,
+    )
+
+    first_result = {"parameters": _context()}
+    context = build_orientation_advisory_context(_context())
+    token = advisory_request_token(first_result, "run-a", context)
+
+    assert advisory_request_matches(first_result, "run-a", context, token)
+    assert not advisory_request_matches({"parameters": _context()}, "run-a", context, token)
+    assert not advisory_request_matches(first_result, "run-b", context, token)
+
+
+def test_stale_gui_advisory_callback_does_not_persist_or_refresh_current_result() -> None:
+    from polynexus.gui.main_window_results_mixin import MainWindowResultsMixin
+    from polynexus.gui.saxs_orientation_advisory_service import advisory_request_token
+    from polynexus.core.saxs_engine.saxs_orientation_advisory import (
+        build_orientation_advisory_context,
+    )
+
+    context = build_orientation_advisory_context(_context())
+    old_result = {"parameters": {"orientation_advisory_context": context}}
+    current_result = {"parameters": {"orientation_advisory_context": context}}
+
+    class Host:
+        _results = {"saxs": current_result}
+        _last_persisted_run_id = "run-b"
+        _saxs_orientation_advisory_closing = False
+
+        def _saxs_orientation_advisory_source(self):
+            return {
+                **self._results["saxs"]["parameters"],
+                "technique": "SAXS",
+                "experiment_type": "strain",
+            }
+
+        def _saxs_orientation_advisory_callback_is_current(self, token):
+            return MainWindowResultsMixin._saxs_orientation_advisory_callback_is_current(
+                self, token
+            )
+
+        def _display_results(self, *_args):
+            raise AssertionError("stale advisory refreshed the current result")
+
+        def _update_results_review_panel(self):
+            raise AssertionError("stale advisory refreshed the current panel")
+
+        def _ensure_sample_db(self):
+            raise AssertionError("stale advisory persisted to the current run")
+
+        def log(self, *_args):
+            raise AssertionError("stale advisory logged as current")
+
+    token = advisory_request_token(old_result, "run-a", context)
+    MainWindowResultsMixin._on_saxs_orientation_advisory_finished(
+        Host(), object(), token
+    )
+
+
+def test_cancel_run_handles_advisory_worker_without_analysis_state_callback() -> None:
+    from polynexus.gui.main_window_run_mixin import MainWindowRunMixin
+
+    class Worker:
+        def __init__(self):
+            self.cancelled = False
+
+        def isRunning(self):
+            return True
+
+        def cancel(self):
+            self.cancelled = True
+
+    worker = Worker()
+    host = MainWindowRunMixin()
+    host._worker = None
+    host._batch_worker = None
+    host._joint_worker = None
+    host._saxs_orientation_advisory_worker = worker
+    host._on_worker_cancelled = lambda **_kwargs: (_ for _ in ()).throw(
+        AssertionError("advisory cancellation entered analysis lifecycle")
+    )
+
+    assert host._cancel_run() is True
+    assert worker.cancelled is True
+
+
+def test_advisory_action_is_hidden_when_all_candidates_are_unusable() -> None:
+    from polynexus.gui.saxs_orientation_advisory_service import orientation_advisory_action_state
+
+    result = {
+        "technique": "SAXS",
+        "experiment_type": "strain",
+        "q_resolved_orientation_evidence": {
+            "q_band_candidates": [_candidate("unusable-only", level="Unusable")],
+        },
+    }
+
+    state = orientation_advisory_action_state(result)
+
+    assert state.visible is False
+    assert state.enabled is False
+
+
+def test_strain_quality_copy_transports_per_frame_q_resolved_evidence() -> None:
+    import json
+
+    from polynexus.core.saxs_batch_helpers import copy_saxs_quality_evidence
+
+    class Evidence:
+        def to_dict(self):
+            return {"q_band_candidates": [{"candidate_id": "band"}]}
+
+    class Series:
+        q_resolved_orientation_evidence = [Evidence()]
+        orientation_tracking_evidence = {"level": "Diagnostic"}
+
+    copied = copy_saxs_quality_evidence(Series())
+
+    assert copied["q_resolved_orientation_evidence"][0]["q_band_candidates"][0]["candidate_id"] == "band"
+    json.dumps(copied, allow_nan=False)
+
+
 def test_model_response_accepts_only_existing_ids_and_allowlisted_codes() -> None:
     from polynexus.core.saxs_engine.saxs_orientation_advisory import (
         build_orientation_advisory_context,

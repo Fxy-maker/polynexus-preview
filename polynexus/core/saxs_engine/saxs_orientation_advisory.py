@@ -40,6 +40,12 @@ _CANDIDATE_FIELDS = (
     "stability_interval", "sensitivity_summary", "reference_axis_kind",
     "reference_axis_deg", "convention", "reliability_status", "reason_codes",
 )
+_RELIABILITY_BY_LEVEL = {
+    "quantitative": "usable",
+    "trend": "usable",
+    "diagnostic": "diagnostic",
+    "unusable": "unavailable",
+}
 _LEDGER_FIELDS = (
     "operation", "status", "input_digest", "output_digest", "reason_codes",
 )
@@ -123,10 +129,27 @@ def _candidate_sources(source: Mapping[str, Any]) -> list[Any]:
             if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
                 candidates.extend(value)
     q_evidence = source.get("q_resolved_orientation_evidence")
-    if isinstance(q_evidence, Mapping):
-        value = q_evidence.get("q_band_candidates")
+    q_evidence_values = (
+        list(q_evidence)
+        if isinstance(q_evidence, Sequence)
+        and not isinstance(q_evidence, (str, bytes, bytearray))
+        else [q_evidence]
+    )
+    for evidence in q_evidence_values:
+        if not isinstance(evidence, Mapping):
+            continue
+        value = evidence.get("q_band_candidates")
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-            candidates.extend(value)
+            for item in value:
+                candidate = dict(_safe(item) or {})
+                if evidence.get("sensitivity_summary") is not None:
+                    candidate.setdefault(
+                        "sensitivity_summary", _safe(evidence.get("sensitivity_summary"))
+                    )
+                candidate.setdefault("reference_axis_deg", evidence.get("reference_axis_deg"))
+                candidate.setdefault("reference_axis_kind", evidence.get("reference_axis_kind", "unknown"))
+                candidate.setdefault("convention", evidence.get("convention", ""))
+                candidates.append(candidate)
     review = source.get("review_context", source.get("saxs_2d_review_context", {}))
     if isinstance(review, Mapping):
         advisory_sources = review.get("orientation_advisory_sources", {})
@@ -145,6 +168,7 @@ def _candidate_sources(source: Mapping[str, Any]) -> list[Any]:
                             candidate.setdefault("convention", _value(track, "convention", ""))
                             candidate.setdefault("reference_axis_kind", _value(track, "reference_axis_kind", "unknown"))
                             candidate.setdefault("reference_axis_deg", _value(track, "reference_axis_deg"))
+                            candidate.setdefault("reliability_status", _value(track, "reliability_status", "unavailable"))
                             candidates.append(candidate)
     tracks = source.get("tracks", source.get("orientation_sequence", {}))
     if isinstance(tracks, Mapping):
@@ -160,6 +184,7 @@ def _candidate_sources(source: Mapping[str, Any]) -> list[Any]:
                 candidate.setdefault("convention", _value(track, "convention", ""))
                 candidate.setdefault("reference_axis_kind", _value(track, "reference_axis_kind", "unknown"))
                 candidate.setdefault("reference_axis_deg", _value(track, "reference_axis_deg"))
+                candidate.setdefault("reliability_status", _value(track, "reliability_status", "unavailable"))
                 candidates.append(candidate)
     return candidates
 
@@ -174,6 +199,16 @@ def _project_candidate(candidate: Any, parent: Mapping[str, Any]) -> dict[str, A
     stability = _value(candidate, "stability_interval", {})
     if not isinstance(stability, Mapping):
         stability = {}
+    q_range = _value(candidate, "q_range_nm1")
+    q_min = _finite(_value(candidate, "q_min_nm1"))
+    q_max = _finite(_value(candidate, "q_max_nm1"))
+    if (q_min is None or q_max is None) and isinstance(q_range, Sequence) and len(q_range) >= 2:
+        q_min = _finite(q_range[0])
+        q_max = _finite(q_range[1])
+    raw_status = str(_value(candidate, "reliability_status", "") or "").strip().lower()
+    level = str(_value(candidate, "level", "") or "").strip().lower()
+    reliability_status = _RELIABILITY_BY_LEVEL.get(raw_status, raw_status)
+    reliability_status = reliability_status or _RELIABILITY_BY_LEVEL.get(level, "unavailable")
     output: dict[str, Any] = {"candidate_id": candidate_id}
     for field_name in _CANDIDATE_FIELDS[1:]:
         if field_name == "stability_interval":
@@ -187,12 +222,18 @@ def _project_candidate(candidate: Any, parent: Mapping[str, Any]) -> dict[str, A
                 for key in ("reliability_status", "reason_codes", "value_ranges")
                 if sensitivity.get(key) is not None
             }
-        elif field_name in {"track_id", "feature_kind", "reference_axis_kind", "convention", "reliability_status"}:
+        elif field_name in {"track_id", "feature_kind", "reference_axis_kind", "convention"}:
             output[field_name] = str(_value(candidate, field_name, "") or "")
+        elif field_name == "reliability_status":
+            output[field_name] = reliability_status
         elif field_name == "reason_codes":
             output[field_name] = _reasons(_value(candidate, field_name, ()))
         else:
-            output[field_name] = _finite(_value(candidate, field_name))
+            output[field_name] = (
+                q_min if field_name == "q_min_nm1" else
+                q_max if field_name == "q_max_nm1" else
+                _finite(_value(candidate, field_name))
+            )
     return output
 
 
@@ -239,7 +280,7 @@ def build_orientation_advisory_context(source: Any) -> dict[str, Any]:
     candidates.sort(key=lambda item: item["candidate_id"])
     eligible = [
         item for item in candidates
-        if str(item.get("reliability_status", "")).lower() not in {"unavailable", "unusable"}
+        if str(item.get("reliability_status", "")).lower() in {"usable", "diagnostic"}
     ]
     reason_codes: list[str] = []
     if not candidates:
@@ -296,6 +337,9 @@ def parse_orientation_advisory_response(
         for item in source_context.get("candidates", ())
         if isinstance(item, Mapping)
     }
+    eligible = {
+        str(item) for item in source_context.get("eligible_candidate_ids", ())
+    }
     ranked = response.get("ranked_candidate_ids")
     if not isinstance(ranked, list):
         reasons.append("ranked_candidate_ids_invalid")
@@ -303,8 +347,11 @@ def parse_orientation_advisory_response(
     ranked_ids = tuple(str(item) for item in ranked)
     if len(set(ranked_ids)) != len(ranked_ids):
         reasons.append("ranked_candidate_ids_duplicate")
-    if any(item not in known for item in ranked_ids):
-        reasons.append("candidate_id_unknown")
+    for item in ranked_ids:
+        if item not in known:
+            reasons.append("candidate_id_unknown")
+        elif item not in eligible:
+            reasons.append("candidate_id_not_eligible")
     rationale = response.get("candidate_rationale_codes")
     rationale_out: dict[str, tuple[str, ...]] = {}
     if not isinstance(rationale, Mapping):
@@ -313,6 +360,9 @@ def parse_orientation_advisory_response(
     for candidate_id, codes in rationale.items():
         if str(candidate_id) not in known:
             reasons.append("candidate_rationale_id_unknown")
+            continue
+        if str(candidate_id) not in eligible:
+            reasons.append("candidate_rationale_id_not_eligible")
             continue
         if not isinstance(codes, list) or any(str(code) not in RATIONALE_CODES for code in codes):
             reasons.append("rationale_code_invalid")
@@ -361,11 +411,17 @@ def _source_risks(context: Mapping[str, Any]) -> tuple[str, ...]:
     for item in context.get("correction_ledger", ()):
         if isinstance(item, Mapping) and str(item.get("status")) in {"unavailable", "rejected"}:
             risks.append(f"{item.get('operation')}_unavailable")
+    summaries = []
+    if isinstance(context.get("sensitivity_summary"), Mapping):
+        summaries.append(context["sensitivity_summary"])
     for candidate in context.get("candidates", ()):
         if isinstance(candidate, Mapping):
-            status = str(candidate.get("sensitivity_summary", {}).get("reliability_status", ""))
-            if status == "artifact_sensitive":
-                risks.append("orientation_sensitivity_artifact_sensitive")
+            if isinstance(candidate.get("sensitivity_summary"), Mapping):
+                summaries.append(candidate["sensitivity_summary"])
+    for summary in summaries:
+        status = str(summary.get("reliability_status", ""))
+        if status == "artifact_sensitive":
+            risks.append("orientation_sensitivity_artifact_sensitive")
     return tuple(dict.fromkeys(risks))
 
 
@@ -410,7 +466,13 @@ def build_orientation_advisory_report(
         actions.append("compare_mask_sensitivity")
     if limitations:
         actions.append("request_scientific_review")
-    status = "available" if ranked and source_context.get("status") == "available" and not reasons else "limited"
+    if any(
+        str(by_id[item].get("reliability_status", "")).lower() == "diagnostic"
+        for item in ranked
+        if item in by_id
+    ):
+        limitations.append("advisory_diagnostic_candidate")
+    status = "available" if ranked and source_context.get("status") == "available" and not reasons and "advisory_diagnostic_candidate" not in limitations else "limited"
     observations = tuple(by_id[item] for item in ranked if item in by_id) or candidates
     return OrientationAdvisoryReport(
         schema_version="saxs-orientation-advisory-report-v1",

@@ -13,6 +13,30 @@ class OrientationAdvisoryActionState:
     reason_codes: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class OrientationAdvisoryRequestToken:
+    run_id: str
+    result_identity: int
+    source_evidence_digest: str
+
+
+def advisory_request_token(result: Any, run_id: str, context: Mapping[str, Any]) -> OrientationAdvisoryRequestToken:
+    return OrientationAdvisoryRequestToken(
+        run_id=str(run_id or ""),
+        result_identity=id(result),
+        source_evidence_digest=str(context.get("source_evidence_digest") or ""),
+    )
+
+
+def advisory_request_matches(
+    result: Any,
+    run_id: str,
+    context: Mapping[str, Any],
+    token: OrientationAdvisoryRequestToken,
+) -> bool:
+    return advisory_request_token(result, run_id, context) == token
+
+
 _CODE_LABELS = {
     "stable_common_q_support": ("共同 q 支撑稳定", "stable common-q support"),
     "wide_stability_bound": ("稳定性区间较宽", "wide stability bound"),
@@ -57,8 +81,8 @@ def orientation_advisory_action_state(result: Any) -> OrientationAdvisoryActionS
     technique = str(payload.get("technique", getattr(result, "technique", "")) or "").strip().lower()
     mode = str(payload.get("mode", payload.get("experiment_type", "")) or "").strip().lower()
     context = orientation_advisory_action_context(result)
-    candidates = context.get("candidates", ())
-    visible = technique == "saxs" and mode in {"strain", "tensile"} and bool(candidates)
+    eligible = context.get("eligible_candidate_ids", ())
+    visible = technique == "saxs" and mode in {"strain", "tensile"} and bool(eligible)
     reasons = () if visible else ("orientation_advisory_context_ineligible",)
     return OrientationAdvisoryActionState(visible=visible, enabled=visible, reason_codes=reasons)
 
@@ -115,6 +139,9 @@ def render_orientation_advisory_report(report: Any, *, language: str = "zh") -> 
 
 __all__ = [
     "OrientationAdvisoryActionState",
+    "OrientationAdvisoryRequestToken",
+    "advisory_request_token",
+    "advisory_request_matches",
     "orientation_advisory_action_context",
     "orientation_advisory_action_state",
     "persist_orientation_advisory_report",
