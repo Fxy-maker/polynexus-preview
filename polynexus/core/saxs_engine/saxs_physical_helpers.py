@@ -81,15 +81,52 @@ def _tangent_lc(corr_result: Dict, L: float, cfg: SAXSConfig) -> float:
     return np.nan
 
 
-def _crystallinity_invariant(L: float, Q_invariant: float, Kp: float) -> float:
-    """Estimate linear crystallinity from the Porod invariant."""
+def _crystallinity_invariant(
+    L: float,
+    Q_invariant: float,
+    Kp: float,
+    *,
+    q_unit: str = "nm^-1",
+    length_unit: str = "nm",
+) -> float:
+    """Estimate crystallinity from the Porod invariant with explicit units.
+
+    ``Q*/(Kp*L)`` is dimensionless for a lamellar two-phase model.  The
+    length is converted into the reciprocal length represented by ``q_unit``
+    before forming that ratio, so equivalent nm and Angstrom profiles produce
+    the same result.
+    """
     if not (np.isfinite(L) and np.isfinite(Q_invariant) and np.isfinite(Kp)):
         return np.nan
     if L <= 0 or Q_invariant <= 0 or Kp <= 0:
         return np.nan
 
-    denom = 4.0 * np.pi**4 * Kp
-    c_term = Q_invariant * L / denom
+    unit_key = str(q_unit or "").strip().lower().replace("å", "a")
+    q_length_nm = {
+        "nm^-1": 1.0,
+        "nm-1": 1.0,
+        "1/nm": 1.0,
+        "angstrom^-1": 0.1,
+        "angstrom-1": 0.1,
+        "a^-1": 0.1,
+        "a-1": 0.1,
+        "1/a": 0.1,
+    }.get(unit_key)
+    length_key = str(length_unit or "").strip().lower().replace("å", "a")
+    length_nm = {
+        "nm": 1.0,
+        "nanometer": 1.0,
+        "nanometers": 1.0,
+        "angstrom": 0.1,
+        "angstroms": 0.1,
+        "a": 0.1,
+    }.get(length_key)
+    if q_length_nm is None or length_nm is None:
+        return np.nan
+    length_in_q_units = float(L) * length_nm / q_length_nm
+
+    denom = 4.0 * np.pi**4 * Kp * length_in_q_units
+    c_term = Q_invariant / denom
 
     disc = 1.0 - 4.0 * c_term
     if disc < 0:
@@ -154,7 +191,13 @@ def porod_analysis(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> Dict:  # no
     sanitized = sanitize_1d_profile(q, I)
     q = sanitized.q
     intensity = sanitized.intensity
-    mask = (q >= cfg.q_porod_min) & (q <= cfg.q_porod_max)
+    mask = (
+        (q >= cfg.q_porod_min)
+        & (q <= cfg.q_porod_max)
+        & np.isfinite(q)
+        & np.isfinite(intensity)
+        & (intensity > 0)
+    )
     if np.sum(mask) < 10:
         return {"Kp": np.nan, "Sv": np.nan}
 
@@ -191,6 +234,13 @@ def _porod_constant(q_ext, I_ext, q_raw=None, I_raw=None) -> float:
     else:
         return np.nan
 
+    finite_positive = (
+        np.isfinite(q_use) & np.isfinite(I_use) & (q_use > 0) & (I_use > 0)
+    )
+    q_use = q_use[finite_positive]
+    I_use = I_use[finite_positive]
+    if len(q_use) < 20:
+        return np.nan
     n_total = len(q_use)
     n_porod = max(10, n_total // 3)
     q_p = q_use[-n_porod:]

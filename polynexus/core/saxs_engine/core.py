@@ -59,6 +59,7 @@ class StructureParams:
     la: float = np.nan             # amorphous thickness (nm)
     phi_c: float = np.nan           # linear crystallinity (lc/L)
     phi_c_invariant: float = np.nan # Porod-invariant crystallinity
+    phi_c_invariant_reason: str = ""
     phi_c_vol: float = np.nan       # volumetric crystallinity
     Sv: float = np.nan              # specific surface (nm^-1)
     Q_invariant: float = np.nan     # scattering invariant
@@ -739,7 +740,7 @@ def correlation_function(
     except Exception as e:
         logger.warning("SAXS 积分背景校正失败: %s", e, exc_info=True)
     if Ib > 1e-12:
-        I_sel = np.maximum(I_sel - Ib, 1e-30)
+        I_sel = I_sel - Ib
 
     dq = q_sel[1] - q_sel[0]
 
@@ -1336,11 +1337,21 @@ def compute_structure_params(
 
     # Porod-invariant crystallinity (independent cross-check)
     if np.isfinite(L) and np.isfinite(Q) and np.isfinite(Kp_guess) and Q > 0 and Kp_guess > 0:
-        phi_c_inv = _crystallinity_invariant(L, Q, Kp_guess)
+        phi_c_inv = _crystallinity_invariant(
+            L,
+            Q,
+            Kp_guess,
+            q_unit="nm^-1",
+            length_unit="nm",
+        )
         sp.phi_c_invariant = phi_c_inv
+        if not np.isfinite(phi_c_inv):
+            sp.phi_c_invariant_reason = "dimensionless_invariant_contract_unavailable"
         # Diagnostic: lc from invariant (for comparison with tangent/IDF)
         if np.isfinite(phi_c_inv):
             sp.lc_porod_nm = phi_c_inv * L
+    else:
+        sp.phi_c_invariant_reason = "porod_invariant_inputs_unavailable"
 
     return sp
 
@@ -1349,8 +1360,10 @@ def _tangent_lc(corr_result: Dict, L: float, cfg: SAXSConfig) -> float:
     return _saxs_physical_helpers._tangent_lc(corr_result, L, cfg)
 
 
-def _crystallinity_invariant(L: float, Q_invariant: float, Kp: float) -> float:
-    return _saxs_physical_helpers._crystallinity_invariant(L, Q_invariant, Kp)
+def _crystallinity_invariant(L: float, Q_invariant: float, Kp: float, **kwargs) -> float:
+    return _saxs_physical_helpers._crystallinity_invariant(
+        L, Q_invariant, Kp, **kwargs
+    )
 
 
 # ======================================================================

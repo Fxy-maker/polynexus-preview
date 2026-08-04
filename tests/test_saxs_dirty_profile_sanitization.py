@@ -18,8 +18,8 @@ def test_sanitizer_drops_invalid_pairs_and_stably_sorts_without_mutating_inputs(
     assert callable(sanitizer)
     sanitized = sanitizer(q, intensity)
 
-    assert sanitized.q.tolist() == [0.02, 0.02, 0.03]
-    assert sanitized.intensity.tolist() == [2.0, 5.0, 3.0]
+    assert sanitized.q.tolist() == [0.01, 0.02, 0.02, 0.03]
+    assert sanitized.intensity.tolist() == [-1.0, 2.0, 5.0, 3.0]
     assert sanitized.actions == (
         "invalid_pairs_dropped",
         "q_sorted",
@@ -103,7 +103,7 @@ def test_analyze_single_uses_a_finite_positive_analysis_profile():
     assert np.all(np.isfinite(result.q))
     assert np.all(result.q > 0)
     assert np.all(np.isfinite(result.I))
-    assert np.all(result.I > 0)
+    assert np.any(result.I < 0)
     assert "invalid_pairs_dropped" in result.data_quality_report["actions"]
     assert "q_sorted" in result.data_quality_report["actions"]
     assert np.array_equal(q, q_before, equal_nan=True)

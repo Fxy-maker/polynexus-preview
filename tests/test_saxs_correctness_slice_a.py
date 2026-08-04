@@ -27,8 +27,8 @@ def test_polarisation_correction_has_correct_small_angle_limits() -> None:
 
 def test_cooling_phase_distinguishes_solid_from_melt() -> None:
     assert hasattr(TempPhase, "COOLING_SOLID")
-    assert detect_temperature_phase(100, 1.0, 1.0, 10.0, 10.0, "cooling") is TempPhase.COOLING_MELT
-    assert detect_temperature_phase(100, 0.1, 1.0, 10.0, 10.0, "cooling") is TempPhase.COOLING_SOLID
+    assert detect_temperature_phase(100, 1.0, 1.0, 10.0, 10.0, "cooling") is TempPhase.COOLING_SOLID
+    assert detect_temperature_phase(100, 0.1, 1.0, 10.0, 10.0, "cooling") is TempPhase.COOLING_MELT
 
 
 def test_cooling_series_preserves_acquisition_order_and_uses_coldest_reference() -> None:
@@ -165,5 +165,5 @@ def test_directory_truncation_is_recorded_as_condition_frame_limit(monkeypatch, 
 
     engine = SAXSEngine(SAXSConfig())
     assert engine.load(str(tmp_path)) is True
-    assert len(engine._q_list) == 10
-    assert any(item["reason"] == "condition_frame_limit" for item in engine._skipped_files)
+    assert len(engine._q_list) == 11
+    assert not any(item["reason"] == "condition_frame_limit" for item in engine._skipped_files)

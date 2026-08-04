@@ -77,7 +77,7 @@ def test_strain_helpers_match_sanitized_survivors_without_mutating_dirty_input()
     )
     actual_voids = detect_voids(dirty_q, dirty_i, cfg)
 
-    assert sanitized.q.size == clean_q.size - 4
+    assert sanitized.q.size == clean_q.size - 3
     assert np.all(np.isfinite(sanitized.q))
     assert np.all(sanitized.q > 0)
     assert np.all(np.diff(sanitized.q) >= 0)
@@ -130,4 +130,5 @@ def test_empty_strain_helper_inputs_keep_legacy_fail_closed_shapes() -> None:
         "void_Rg": np.nan,
         "excess_low_q": np.nan,
         "method": "none",
+        "reason": "absolute_contrast_required",
     }

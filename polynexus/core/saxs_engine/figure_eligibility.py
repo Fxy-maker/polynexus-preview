@@ -50,6 +50,39 @@ def _explicit_bool(values: Sequence[Any]) -> bool | None:
     return None
 
 
+def _geometry_gate(frame: SAXSFrameView) -> tuple[bool, str]:
+    """Require complete detector geometry when detector evidence is emitted."""
+    for source in _emitted_values(frame, "geometry_source"):
+        source_key = str(source or "").strip().lower()
+        if source_key in {"header_partial", "config_default", "missing"}:
+            return False, "geometry_incomplete"
+    for confidence in _emitted_values(frame, "geometry_confidence"):
+        try:
+            if np.isfinite(float(confidence)) and float(confidence) < 0.95:
+                return False, "geometry_incomplete"
+        except (TypeError, ValueError, OverflowError):
+            continue
+    reports = _emitted_values(frame, "detector_quality_report")
+    saw_report = False
+    for report in reports:
+        if not isinstance(report, Mapping):
+            continue
+        saw_report = True
+        geometry = report.get("geometry_provenance")
+        if not isinstance(geometry, Mapping):
+            return False, "geometry_provenance_missing"
+        validity = str(geometry.get("validity") or "").strip().lower()
+        field_sources = geometry.get("field_sources")
+        complete = validity in {"validated", "metadata_complete", "configured_shape_match"}
+        complete = complete and isinstance(field_sources, Mapping) and all(
+            str(field_sources.get(name) or "").strip()
+            for name in ("wavelength_m", "pixel_size_m", "sdd_m", "beam_center_x", "beam_center_y")
+        )
+        if not complete:
+            return False, "geometry_incomplete"
+    return True, "geometry_not_applicable" if not saw_report else "geometry_complete"
+
+
 def classify_frame_eligibility(
     frame: SAXSFrameView,
     *,
@@ -66,6 +99,18 @@ def classify_frame_eligibility(
     if any(token.startswith("ERROR") for token in quality_tokens):
         return FigureEligibilityDecision("diagnostic", ("analysis_error",))
 
+    geometry_ok, geometry_reason = _geometry_gate(frame)
+    if not geometry_ok:
+        return FigureEligibilityDecision("si", (geometry_reason,))
+
+    physical_gate = (
+        q_star_valid_for_invariant_panels(frame)
+        or "usable" in {
+            value.strip().lower()
+            for value in _emitted_values(frame, "lc_reliability_status")
+        }
+    )
+
     paper_candidate = _explicit_bool(
         _emitted_values(frame, "paper_figure_candidate")
     )
@@ -75,7 +120,9 @@ def classify_frame_eligibility(
             ("analysis_rejected_paper_figure",),
         )
     if paper_candidate is True:
-        return FigureEligibilityDecision("main", ("analysis_approved_paper_figure",))
+        if physical_gate:
+            return FigureEligibilityDecision("main", ("analysis_approved_paper_figure",))
+        return FigureEligibilityDecision("si", ("physical_eligibility_missing",))
 
     if require_explicit_publication_candidate:
         return FigureEligibilityDecision(
@@ -87,12 +134,13 @@ def classify_frame_eligibility(
         str(value or "").strip().lower()
         for value in _emitted_values(frame, "lc_reliability_status")
     )
-    if "usable" in reliability_values:
+    if "usable" in reliability_values and physical_gate:
         return FigureEligibilityDecision("main", ("usable_lamellar_result",))
 
-    if "OK" in quality_tokens:
+    if "OK" in quality_tokens and physical_gate:
         return FigureEligibilityDecision("main", ("quality_ok",))
-    return FigureEligibilityDecision("si", ("limited_or_unclassified_quality",))
+    reason = "limited_or_unclassified_quality" if "OK" not in quality_tokens else "physical_eligibility_missing"
+    return FigureEligibilityDecision("si", (reason,))
 
 
 def _is_finite(value: Any) -> bool:

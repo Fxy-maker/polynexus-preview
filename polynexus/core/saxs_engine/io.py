@@ -23,6 +23,55 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_2D_EXTENSIONS = {'.edf', '.cbf', '.tif', '.tiff', '.h5', '.hdf5', '.nxs'}
 SUPPORTED_1D_EXTENSIONS = {'.dat', '.txt', '.csv', '.xy'}
+SUPPORTED_HDF5_EXTENSIONS = {'.h5', '.hdf5', '.nxs'}
+
+
+class SAXSIOError(ValueError):
+    """Actionable input error for a declared but unreadable dataset."""
+
+
+class UnsupportedDatasetError(SAXSIOError):
+    """Raised when a container has no unambiguous numeric SAXS dataset."""
+
+
+def read_hdf5_dataset(filepath: str) -> Tuple[np.ndarray, dict]:
+    """Read the first unambiguous numeric HDF5/Nexus dataset.
+
+    The reader intentionally does not infer a calibration from arbitrary
+    attributes.  It selects a numeric dataset with at least two points and
+    reports a typed error when the container is ambiguous or empty.
+    """
+    try:
+        import h5py
+    except ImportError as exc:
+        raise SAXSIOError("hdf5_reader_unavailable: install h5py") from exc
+
+    candidates: list[tuple[str, np.ndarray]] = []
+    try:
+        with h5py.File(filepath, "r") as handle:
+            def visit(name, node):
+                if not hasattr(node, "shape") or not hasattr(node, "dtype"):
+                    return
+                if not np.issubdtype(node.dtype, np.number):
+                    return
+                if int(np.prod(node.shape)) < 2 or len(node.shape) > 2:
+                    return
+                candidates.append((str(name), np.asarray(node[()])))
+
+            handle.visititems(visit)
+    except OSError as exc:
+        raise SAXSIOError(f"hdf5_open_failed: {exc}") from exc
+
+    if not candidates:
+        raise UnsupportedDatasetError(
+            "hdf5_dataset_missing: expected a numeric 1D/2D SAXS dataset"
+        )
+    candidates.sort(key=lambda item: (0 if item[1].ndim == 2 else 1, item[0]))
+    dataset_name, data = candidates[0]
+    return np.asarray(data, dtype=np.float64), {
+        "dataset_path": dataset_name,
+        "container_format": "nexus" if Path(filepath).suffix.lower() == ".nxs" else "hdf5",
+    }
 
 
 def normalize_edf_detector_metadata(header: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -156,6 +205,12 @@ def read_image(filepath: str) -> Tuple[np.ndarray, dict]:
     if ext in ('.edf',):
         # Minimal EDF fallback (if fabio unavailable)
         return _read_edf_fallback(filepath)
+
+    if ext in ('.h5', '.hdf5', '.nxs', '.cbf'):
+        data, header = read_hdf5_dataset(filepath) if ext in ('.h5', '.hdf5', '.nxs') else (None, None)
+        if ext == '.cbf' and data is None:
+            raise SAXSIOError("cbf_reader_unavailable: install fabio")
+        return data, header or {}
 
     raise ValueError(f"Unsupported 2D image format: {ext}")
 

@@ -292,8 +292,6 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
     assert model.summary_kind == "batch"
     assert model.columns == [
         "Strain / %",
-        "Relative Q*",
-        "Void fraction",
         "Herman orientation",
         "Herman orientation (diagnostic)",
         "Herman delta from zero",
@@ -309,9 +307,9 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
         "Reliability",
     ]
     assert model.stored_rows == [
-        [8.0, 1.025, 0.04, 0.2, 0.3, None, None, None, None, None, None, None, None, "plastic_voiding", 0.82, "passed"]
+        [8.0, 0.2, 0.3, None, None, None, None, None, None, None, None, "plastic_voiding", 0.82, "passed"]
     ]
-    assert tuple(metric.raw for metric in model.hero_metrics) == (1.02, 0.04, 0.2, 0.3, 0.82)
+    assert tuple(metric.raw for metric in model.hero_metrics) == (0.2, 0.3, 0.82)
 
 
 def test_saxs_batch_frame_count_preserves_batch_summary_shape_without_sequence_rows():

@@ -463,8 +463,6 @@ def test_strain_primary_contains_only_strain_template_columns() -> None:
 
     assert tuple(column.key for column in presentation.primary.columns) == (
         "strain_pct",
-        "Q_star_rel",
-        "phi_void",
         "f_Herman",
         "f_Herman_raw",
         "delta_f_from_zero",
@@ -480,7 +478,6 @@ def test_strain_primary_contains_only_strain_template_columns() -> None:
         "strain_reliability_status",
     )
     assert _cell(presentation.primary, 0, "strain_pct").raw == 8.0
-    assert _cell(presentation.primary, 0, "Q_star_rel").raw == 1.025
     assert _cell(presentation.primary, 0, "phase_name").raw == "plastic_voiding"
     assert _cell(presentation.primary, 0, "strain_reliability_status").status == "reliable"
     assert "temperature_C" not in {column.key for column in presentation.primary.columns}

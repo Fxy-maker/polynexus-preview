@@ -44,17 +44,9 @@ def test_result_field_specs_are_immutable_and_expose_aliases_as_source_keys() ->
         (
             "saxs.strain",
             "saxs.strain",
-                (
-                    "Q_star_rel_mean",
-                    "phi_void_mean",
-                    "f_Herman_mean",
-                    "f_Herman_raw_mean",
-                    "phase_support_mean",
-                ),
+                    ("f_Herman_mean", "f_Herman_raw_mean", "phase_support_mean"),
             (
                 "strain_pct",
-                    "Q_star_rel",
-                    "phi_void",
                     "f_Herman",
                     "f_Herman_raw",
                     "delta_f_from_zero",
@@ -102,7 +94,7 @@ def test_saxs_mode_specific_aliases_are_kept_separate() -> None:
     assert static["phi_c"].source_keys == ("phi_c", "Xc")
     assert temperature["temperature_C"].source_keys == ("temperature_C", "condition_value")
     assert strain["strain_pct"].source_keys == ("strain_pct", "condition_value")
-    assert strain["Q_star_rel"].source_keys == ("Q_star_rel", "Q_rel")
+    assert "Q_star_rel" not in strain
     assert strain["phase_name"].source_keys == ("phase_name", "strain_phase")
     assert "temperature_C" not in static
     assert "strain_pct" not in temperature

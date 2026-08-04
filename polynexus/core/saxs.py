@@ -63,7 +63,11 @@ from .saxs_sequence_qa import build_sequence_qa_summary
 from .saxs_result_contract import publish_saxs_result_contract
 from .saxs_export_bundle import SAXSExportBundle, export_saxs_bundle
 from .saxs_engine.processed_profile import ProcessedProfile, _coerce_numeric_array
-from .saxs_engine.io import normalize_edf_detector_metadata
+from .saxs_engine.io import (
+    normalize_edf_detector_metadata,
+    SUPPORTED_2D_EXTENSIONS,
+    SUPPORTED_HDF5_EXTENSIONS,
+)
 from .saxs_engine.figure_common import frame_views_from_engine
 from .saxs_engine.figure_evidence import (
     sync_saxs_review_evidence_to_existing_figures,
@@ -566,11 +570,22 @@ class SAXSEngine(BaseEngine):
         self._source_path = str(filepath)
         self._file_list = []
 
-        if filepath.lower().endswith(".edf"):
+        suffix = Path(filepath).suffix.lower()
+        if suffix in SUPPORTED_2D_EXTENSIONS:
             self._img, self._header = read_image(filepath)
             if self._img is None:
-                self.log("Failed to read EDF file")
+                self.log(f"Failed to read {suffix} file")
                 return False
+            if np.asarray(self._img).ndim == 2 and np.asarray(self._img).shape[1] == 2 and suffix in SUPPORTED_HDF5_EXTENSIONS:
+                self._q = np.asarray(self._img)[:, 0]
+                self._I = np.asarray(self._img)[:, 1]
+                self._img = None
+                self._header = self._header or {}
+                self.cfg = extract_geometry_from_header(self._header, self.cfg)
+                self._processed_profile = None
+                self._processed_list = []
+                self.log(f"1D profile loaded: {len(self._q)} points from {suffix}")
+                return len(self._q) >= 5
             self.cfg = extract_geometry_from_header(self._header, self.cfg)
             self._processed_profile = None
             self._processed_list = []
@@ -626,19 +641,55 @@ class SAXSEngine(BaseEngine):
         self._skipped_files = []
 
         total_loaded = 0
+        per_condition_limit = getattr(self.cfg, "max_frames_per_condition", None)
+        total_limit = getattr(self.cfg, "max_total_frames", None)
+        try:
+            per_condition_limit = int(per_condition_limit) if per_condition_limit is not None else None
+            if per_condition_limit is not None and per_condition_limit <= 0:
+                per_condition_limit = None
+        except (TypeError, ValueError, OverflowError):
+            per_condition_limit = None
+        try:
+            total_limit = int(total_limit) if total_limit is not None else None
+            if total_limit is not None and total_limit <= 0:
+                total_limit = None
+        except (TypeError, ValueError, OverflowError):
+            total_limit = None
         for cond in conditions:
-            for filepath in cond.files[:10]:
-                if total_loaded >= 48:
-                    break
+            for frame_index, filepath in enumerate(cond.files):
+                if per_condition_limit is not None and frame_index >= per_condition_limit:
+                    self._skipped_files.append({
+                        "file": str(filepath),
+                        "reason": "condition_frame_limit",
+                        "limit": per_condition_limit,
+                    })
+                    continue
+                if total_limit is not None and total_loaded >= total_limit:
+                    self._skipped_files.append({
+                        "file": str(filepath),
+                        "reason": "total_frame_limit",
+                        "limit": total_limit,
+                    })
+                    continue
                 try:
                     suffix = Path(filepath).suffix.lower()
                     if suffix in {".dat", ".txt", ".csv", ".xy"}:
                         img, header = None, {}
                     else:
                         img, header = read_image(str(filepath))
+                    hdf5_profile = (
+                        suffix in SUPPORTED_HDF5_EXTENSIONS
+                        and img is not None
+                        and np.asarray(img).ndim == 2
+                        and np.asarray(img).shape[1] == 2
+                    )
                     cfg_copy = extract_geometry_from_header(header, self.cfg)
-                    if img is None:
-                        q, I, _ = read_1d_profile(str(filepath))
+                    if img is None or hdf5_profile:
+                        if hdf5_profile:
+                            profile_array = np.asarray(img, dtype=float)
+                            q, I = profile_array[:, 0], profile_array[:, 1]
+                        else:
+                            q, I, _ = read_1d_profile(str(filepath))
                         pp = {"q": q, "Iq": I, "Iq_smooth": I}
                         I_merid, I_equat = None, None
                         detector_quality_report = None
@@ -676,7 +727,7 @@ class SAXSEngine(BaseEngine):
                     )
                     if profile is not None:
                         self._processed_list.append(profile)
-                    if img is not None:
+                    if img is not None and not hdf5_profile:
                         q_pf, I_pf = _integrate_pyfai_shadow(img, cfg_copy)
                         self._q_pyfai_list.append(q_pf if len(q_pf) > 0 else np.array([]))
                         self._I_pyfai_list.append(I_pf if len(q_pf) > 0 else np.array([]))
@@ -705,14 +756,6 @@ class SAXSEngine(BaseEngine):
                     self._skipped_files.append({"file": str(filepath), "reason": "load_failed", "error": str(e)})
                     self.log(f"Warning: failed to load {os.path.basename(str(filepath))}: {e}")
                     logger.warning("SAXS batch file load failed.", exc_info=True)
-            for filepath in cond.files[10:]:
-                self._skipped_files.append({
-                    "file": str(filepath),
-                    "reason": "condition_frame_limit",
-                    "limit": 10,
-                })
-            if total_loaded >= 48:
-                break
 
         if total_loaded <= 1 and os.path.isdir(dirpath):
             import glob
@@ -734,7 +777,15 @@ class SAXSEngine(BaseEngine):
                 self._processed_list = []
                 self._geometry_sources = []
                 self._geometry_confidences = []
-                for edf in all_edf[:48]:
+                fallback_limit = total_limit
+                for fallback_index, edf in enumerate(all_edf):
+                    if fallback_limit is not None and fallback_index >= fallback_limit:
+                        self._skipped_files.append({
+                            "file": edf,
+                            "reason": "total_frame_limit",
+                            "limit": fallback_limit,
+                        })
+                        continue
                     try:
                         img, header = read_image(edf)
                         cfg_copy = extract_geometry_from_header(header, self.cfg)
@@ -1197,6 +1248,12 @@ class SAXSEngine(BaseEngine):
             payload["condition_source_text"] = source_text
         if np.isfinite(confidence):
             payload["condition_confidence"] = round(float(confidence), 2)
+        if index < len(self._geometry_sources):
+            payload["geometry_source"] = str(self._geometry_sources[index] or "")
+        if index < len(self._geometry_confidences):
+            geometry_confidence = self._geometry_confidences[index]
+            if np.isfinite(geometry_confidence):
+                payload["geometry_confidence"] = round(float(geometry_confidence), 2)
         return payload
 
     def _strain_phase_support_score(
@@ -1639,12 +1696,12 @@ class SAXSEngine(BaseEngine):
             and len(self._I_equat_list) == len(self._q_list)
             and any(x is not None for x in self._I_equat_list)
         )
-        I_use = [
-            self._I_equat_list[i] if (has_equat and self._I_equat_list[i] is not None) else self._I_list[i]
-            for i in range(len(self._q_list))
-        ]
+        # Full profiles own all scalar scattering metrics.  Equatorial and
+        # meridional channels are retained only in sector_data for orientation
+        # and anisotropy consumers.
+        I_use = list(self._I_list)
 
-        self.log(f"Strain series: {len(self._q_list)} frames, equatorial={'yes' if has_equat else 'no (fallback)'}")
+        self.log(f"Strain series: {len(self._q_list)} frames, orientation sectors={'yes' if has_equat else 'no (fallback)'}")
 
         strain_cfg = replace(self.cfg)
         strain_cfg.q_bragg_max = max(strain_cfg.q_bragg_max, 1.3)

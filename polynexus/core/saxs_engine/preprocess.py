@@ -548,8 +548,10 @@ def subtract_background(
             I_background,
         )
 
-    I_corr = I_sample - scale * I_bg_interp
-    return np.maximum(I_corr, 1e-12)
+    # Preserve signed residuals.  Positive-only fitting domains are selected
+    # explicitly by their consumers; clamping here biases invariants and
+    # background/Porod diagnostics upward.
+    return I_sample - scale * I_bg_interp
 
 
 def normalize_intensity(I: np.ndarray, cfg: SAXSConfig) -> np.ndarray:
@@ -592,7 +594,7 @@ def smooth_profile(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> np.ndarray:
 
         if len(transitions) == 0:
             result = savgol_filter(I, window, order)
-            return np.maximum(result, 0)
+            return result
 
         # Smooth each segment independently
         result = np.zeros_like(I)
@@ -613,9 +615,6 @@ def smooth_profile(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> np.ndarray:
             else:
                 result[seg_start:t_idx] = I[seg_start:t_idx]  # too short; keep raw
             seg_start = t_idx
-        # Clamp to non-negative and clip outliers that the savgol filter
-        # may have created at segment boundaries (Gibbs-like overshoot)
-        result = np.clip(result, 0, None)
         # Boundary blending: within 3 points of a segment edge, blend 50/50
         # with raw data to prevent artificial flat-lining
         for t_idx in transitions:
@@ -625,7 +624,7 @@ def smooth_profile(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> np.ndarray:
             if blend_len > 0:
                 alpha = np.linspace(0.5, 0.5, blend_len)  # simple 50/50 blend
                 result[lo:hi] = alpha * I[lo:hi] + (1 - alpha) * result[lo:hi]
-        return np.maximum(result, 0)
+        return result
 
     elif cfg.smooth_method == "moving_average":
         span = min(cfg.smooth_span, len(I) // 2)
@@ -633,7 +632,7 @@ def smooth_profile(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> np.ndarray:
             return I
         kernel = np.ones(span) / span
         result = np.convolve(I, kernel, mode='same')
-        return np.maximum(result, 0)
+        return result
 
     return I
 

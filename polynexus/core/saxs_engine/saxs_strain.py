@@ -160,6 +160,7 @@ class StrainPointResult:
     orientation_evidence: Dict = None
     warnings: List[str] = field(default_factory=list)
     q_resolved_orientation_evidence: object = None
+    metric_source_channel: str = "total"
 
 
 @dataclass
@@ -714,6 +715,7 @@ def detect_voids(
         'void_Rg': np.nan,        # radius of gyration (nm)
         'excess_low_q': np.nan,
         'method': 'none',
+        'reason': 'absolute_contrast_required',
     }
 
     # 1. Porod slope check: ideal 2-phase system has slope -4
@@ -806,10 +808,25 @@ def analyze_strain_series(
         [_coerce_strain_value(value) for value in strains],
         dtype=float,
     )
-    sanitized_profiles = [
-        sanitize_1d_profile(q_values, intensity_values)
-        for q_values, intensity_values in zip(q_list, I_list)
-    ]
+    sanitized_profiles = []
+    try:
+        q_floor = float(getattr(cfg, "q_min", np.nan))
+    except (TypeError, ValueError, OverflowError):
+        q_floor = np.nan
+    for q_values, intensity_values in zip(q_list, I_list):
+        profile = sanitize_1d_profile(q_values, intensity_values)
+        if np.isfinite(q_floor) and q_floor > 0:
+            keep = profile.q >= q_floor
+            if np.any(~keep):
+                profile = type(profile)(
+                    profile.q[keep],
+                    profile.intensity[keep],
+                    profile.original_point_count,
+                    profile.aligned_point_count,
+                    int(np.count_nonzero(keep)),
+                    tuple(profile.actions) + ("configured_q_min_applied",),
+                )
+        sanitized_profiles.append(profile)
 
     # Reference: first point (unstretched)
     if sanitized_profiles:
@@ -841,6 +858,10 @@ def analyze_strain_series(
         profile = sanitized_profiles[i]
 
         sp = StrainPointResult(strain_pct=float(strain))
+        # Invariant, Porod, Guinier, Kratky, long-period and structure
+        # metrics are always derived from the full scattering profile.
+        # Sector data below is an orientation-only input.
+        sp.metric_source_channel = "total"
         if not np.isfinite(strain):
             sp.warnings.append("Invalid strain axis value; retained as NaN")
         if detector_quality_reports is not None and len(detector_quality_reports) == n_points:

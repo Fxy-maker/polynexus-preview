@@ -360,6 +360,12 @@ class SAXSConfig:
     tensile_axis_deg: Optional[float] = None
     tensile_axis_convention: str | None = None
 
+    # ---- Batch ingestion ----
+    # Appended to preserve positional construction of older configurations.
+    # None means unlimited. Any configured limit is provenance-visible.
+    max_frames_per_condition: Optional[int] = None
+    max_total_frames: Optional[int] = None
+
 
 @dataclass
 class ExperimentCondition:

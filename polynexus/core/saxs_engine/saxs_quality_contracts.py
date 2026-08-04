@@ -1211,13 +1211,19 @@ class Sanitized1DProfile:
         object.__setattr__(self, "actions", tuple(dict.fromkeys(_string_tuple(self.actions))))
 
 
-def sanitize_1d_profile(q: Any, intensity: Any) -> Sanitized1DProfile:
-    """Build a finite, positive, stably ordered analysis copy of q/I.
+def sanitize_1d_profile(
+    q: Any,
+    intensity: Any,
+    *,
+    positive_only: bool = False,
+) -> Sanitized1DProfile:
+    """Build a finite, stably ordered analysis copy of q/I.
 
     The caller-owned arrays are never modified. Invalid pairs are excluded,
     surviving observations are stably sorted by q, and exact duplicate q
     observations are retained because no measurement-error model is available
-    for a scientifically justified aggregation.
+    for a scientifically justified aggregation.  Corrected intensity remains
+    signed by default; logarithmic consumers opt into ``positive_only``.
     """
 
     q_array = _as_1d_float_array(q)
@@ -1231,12 +1237,9 @@ def sanitize_1d_profile(q: Any, intensity: Any) -> Sanitized1DProfile:
 
     q_pair = q_array[:aligned_count]
     intensity_pair = intensity_array[:aligned_count]
-    valid = (
-        np.isfinite(q_pair)
-        & np.isfinite(intensity_pair)
-        & (q_pair > 0)
-        & (intensity_pair > 0)
-    )
+    valid = np.isfinite(q_pair) & np.isfinite(intensity_pair) & (q_pair > 0)
+    if positive_only:
+        valid &= intensity_pair > 0
     if int(np.count_nonzero(valid)) != aligned_count:
         actions.append("invalid_pairs_dropped")
 

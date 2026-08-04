@@ -92,8 +92,6 @@ _SAXS_TEMPERATURE = ResultTableTemplate(
 _SAXS_STRAIN = ResultTableTemplate(
     key="saxs.strain",
     hero_fields=(
-        ResultFieldSpec("Q_star_rel_mean", "TABLE_FIELD_Q_STAR_REL", digits=4),
-        ResultFieldSpec("phi_void_mean", "TABLE_FIELD_VOID_FRACTION", digits=4),
         ResultFieldSpec(
             "f_Herman_mean",
             "TABLE_FIELD_HERMAN",
@@ -117,13 +115,11 @@ _SAXS_STRAIN = ResultTableTemplate(
             aliases=("condition_value",),
         ),
         ResultFieldSpec(
-            "Q_star_rel",
-            "TABLE_FIELD_Q_STAR_REL",
+            "f_Herman",
+            "TABLE_FIELD_HERMAN",
             digits=4,
-            aliases=("Q_rel",),
+            status_key="orientation_reliability_status",
         ),
-        ResultFieldSpec("phi_void", "TABLE_FIELD_VOID_FRACTION", digits=4),
-        ResultFieldSpec("f_Herman", "TABLE_FIELD_HERMAN", digits=4),
         ResultFieldSpec(
             "f_Herman_raw",
             "TABLE_FIELD_HERMAN_DIAGNOSTIC",

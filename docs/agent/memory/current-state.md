@@ -1,5 +1,23 @@
 ---
 
+## SAXS scientific correctness closure - current checkpoint (2026-08-04)
+
+- Documentation checkpoint `0f7bf06f` records the approved design, task card,
+  and implementation plan for the 14 SAXS findings.
+- The current worktree implements unit-invariant Porod crystallinity, correct
+  Cooling phase semantics and acquisition order, signed corrected profiles,
+  explicit positive-only fitting, total-profile strain metrics, declared I/O
+  parity with typed HDF5/Nexus errors, explicit batch limits/provenance,
+  evidence-gated figure eligibility, and diagnostic-only relative Q-star/void
+  GUI fields.
+- Fresh evidence so far: closure tests `9 passed`; focused SAXS/GUI/strain
+  matrix `159 passed, 3 warnings`; quality gate `297 passed`; preprocessing
+  gate `106 passed`; Ruff/compile/whitespace passed.
+- Task verification is green. Fresh full/boundary reached pytest but timed out
+  after 3600 seconds (`124`) without a summary, so it is not claimed as pass.
+  Human scientific review remains open. Historical generated figures require
+  regeneration after acceptance.
+
 ## Full-goal release evidence refresh (2026-08-01)
 
 - The authoritative acceptance ledger records the SAXS 2D reviewer-context

@@ -1,5 +1,21 @@
 # Active Work
 
+## SAXS scientific correctness closure - implementation in progress (2026-08-04)
+
+- Design/task/plan checkpoint: `0f7bf06f`.
+- Implemented unit-safe Porod invariant crystallinity (`Q*/(Kp*L)` with
+  explicit q/length units), corrected Cooling labels, signed residual
+  preservation, positive-only fit masks, total-vs-sector strain routing,
+  HDF5/Nexus typed dataset errors, unlimited/configurable batch limits, strict
+  geometry/physical figure gates, and diagnostic GUI fields for relative Q-star
+  and unavailable void fraction.
+- Fresh focused closure coverage is `9 passed`; SAXS/GUI/strain compatibility
+  coverage is `159 passed`; quality gate is `297` and preprocessing gate `106`.
+- Task verifier is green. Fresh full/boundary verification reached the complete
+  pytest stage but timed out after 3600 seconds (`124`) without a summary; it is
+  explicitly incomplete. Next action is cumulative diff review and checkpoint.
+- Task card: `docs/agent/tasks/2026-08-04-saxs-scientific-correctness-closure.md`.
+
 ## SAXS configured q-min semantics - completed (2026-08-04)
 
 - `analyze_single()` now applies finite positive `SAXSConfig.q_min` to external

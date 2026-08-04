@@ -125,11 +125,13 @@ def test_strain_pack_orders_main_support_and_diagnostic_panels() -> None:
         "saxs.strain.sequence.1d",
         "saxs.strain.invariant",
         "saxs.strain.correlation",
+        "saxs.strain.kratky",
         "saxs.strain.low-q.diagnostic",
     ]
-    assert [item.display_order for item in definitions] == [10, 100, 105, 110, 220]
+    assert [item.display_order for item in definitions] == [10, 100, 105, 110, 115, 220]
     assert [item.publication_role for item in definitions] == [
         "main",
+        "si",
         "si",
         "si",
         "si",

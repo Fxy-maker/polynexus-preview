@@ -41,6 +41,11 @@ _BLOCKED_STATUSES = {"diagnostic_only", "post_end", "failed", "error", "unavaila
 
 _EXACT_DIAGNOSTIC_KEYS = {
     "Q_star_valid",
+    "Q_star_rel",
+    "Q_star_rel_mean",
+    "Q_rel",
+    "phi_void",
+    "phi_void_mean",
     "calibrated_fallback_active",
     "condition_confidence",
     "condition_continuity_score",

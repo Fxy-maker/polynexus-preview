@@ -12,13 +12,13 @@ def _strain_engine_with_evidence():
     q_list = [np.asarray([0.1, 0.2, 0.3])] * len(conditions)
     intensity_list = [np.asarray([10.0, 5.0, 2.0])] * len(conditions)
     params = [
-        {"paper_figure_candidate": True, "quality_flag": "OK", "file": "frame_0.dat"},
+        {"paper_figure_candidate": True, "quality_flag": "OK", "Q_star_valid": True, "file": "frame_0.dat"},
         {
             "paper_figure_candidate": False,
             "quality_flag": "WARN:low_snr",
             "file": "frame_1.dat",
         },
-        {"paper_figure_candidate": True, "quality_flag": "OK", "file": "frame_2.dat"},
+        {"paper_figure_candidate": True, "quality_flag": "OK", "Q_star_valid": True, "file": "frame_2.dat"},
     ]
     analyses = [
         SimpleNamespace(

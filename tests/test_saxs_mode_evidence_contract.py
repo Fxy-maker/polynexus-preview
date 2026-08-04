@@ -110,7 +110,7 @@ def test_provider_persists_emitted_evidence_role_on_frame_definition():
         q=np.asarray([0.1, 0.2, 0.3]),
         I=np.asarray([2.0, 4.0, 3.0]),
         I_smooth=np.asarray([2.0, 4.0, 3.0]),
-        final_parameters={"quality_flag": "OK", "paper_figure_candidate": True},
+        final_parameters={"quality_flag": "OK", "paper_figure_candidate": True, "Q_star_valid": True},
     )
     engine = _engine(
         _analysis=analysis,
@@ -133,7 +133,7 @@ def test_mixed_frame_roles_downgrade_series_and_preserve_evidence_reasons():
             condition_value=0.0,
             q=np.asarray([0.1, 0.2, 0.3]),
             I=np.asarray([2.0, 4.0, 3.0]),
-            final_parameters={"quality_flag": "OK", "paper_figure_candidate": True},
+            final_parameters={"quality_flag": "OK", "paper_figure_candidate": True, "Q_star_valid": True},
         ),
         SimpleNamespace(
             label="diagnostic-frame",

@@ -615,6 +615,9 @@ def detect_temperature_phase(
     L_solid = _coerce_optional_float(L_solid)
 
     Q_norm = Q_star / Q_star_solid if Q_star_solid > 0 else 1.0
+
+    if not np.isfinite(Q_star) or not np.isfinite(Q_star_solid) or Q_star_solid <= 0:
+        return TempPhase.COOLING_MELT if exp_type == "cooling" else TempPhase.HEATING_SOLID
     
     if exp_type == "heating":
         if Q_norm < 0.05:
@@ -631,11 +634,11 @@ def detect_temperature_phase(
     
     elif exp_type == "cooling":
         if Q_norm > 0.9:
-            return TempPhase.COOLING_MELT
+            return TempPhase.COOLING_SOLID
         elif Q_norm > 0.3:
             return TempPhase.CRYSTALLIZATION
         else:
-            return TempPhase.COOLING_SOLID
+            return TempPhase.COOLING_MELT
     
     elif exp_type == "isothermal":
         return TempPhase.ISOTHERMAL
@@ -1027,10 +1030,25 @@ def analyze_temperature_series(
     temps_arr = temps_arr[sort_idx]
     q_sorted = [q_list[i] for i in sort_idx]
     I_sorted = [I_list[i] for i in sort_idx]
-    sanitized_sorted = [
-        sanitize_1d_profile(q_values, intensity_values)
-        for q_values, intensity_values in zip(q_sorted, I_sorted)
-    ]
+    sanitized_sorted = []
+    for q_values, intensity_values in zip(q_sorted, I_sorted):
+        profile = sanitize_1d_profile(q_values, intensity_values)
+        try:
+            q_floor = float(getattr(cfg, "q_min", np.nan))
+        except (TypeError, ValueError, OverflowError):
+            q_floor = np.nan
+        if np.isfinite(q_floor) and q_floor > 0:
+            keep = profile.q >= q_floor
+            if np.any(~keep):
+                profile = type(profile)(
+                    profile.q[keep],
+                    profile.intensity[keep],
+                    profile.original_point_count,
+                    profile.aligned_point_count,
+                    int(np.count_nonzero(keep)),
+                    tuple(profile.actions) + ("configured_q_min_applied",),
+                )
+        sanitized_sorted.append(profile)
     reports_sorted = (
         [detector_quality_reports[i] for i in sort_idx]
         if detector_quality_reports is not None
