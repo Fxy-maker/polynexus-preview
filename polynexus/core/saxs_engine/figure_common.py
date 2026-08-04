@@ -80,8 +80,12 @@ def _sci_axis_label(label: str, *, y_axis: bool = False) -> str:
         return AXIS_LABELS["L"]
     if "correlation" in text or "gamma" in text:
         return AXIS_LABELS["gamma"] if y_axis else AXIS_LABELS["r"]
-    if "distance" in text or text in {"r", "r_nm"}:
+    if "distance" in text or text in {"r", "r_nm"} or "$r$" in text:
         return AXIS_LABELS["r"]
+    if y_axis and ("idf" in text or "g_1" in text or "g1" in text):
+        return r"$\mathrm{IDF}(r)$ (a.u.)"
+    if y_axis and ("q^2" in text or "q²" in text):
+        return r"$I(q)q^2$ (a.u. nm$^{-2}$)"
     if "intensity" in text or text in {"i", "i(q)"}:
         return AXIS_LABELS["I_saxs"]
     if "scattering" in text or text.startswith("q"):
@@ -135,6 +139,69 @@ def _coerce_numeric_array(values: Any) -> np.ndarray:
         except (OverflowError, TypeError, ValueError):
             continue
     return projected
+
+
+def kratky_projection_quality_from_frame(
+    frame: SAXSFrameView,
+) -> dict[str, Any] | None:
+    """Describe retained/non-finite pairs in an emitted Kratky payload."""
+    payload = getattr(frame.analysis, "kratky", None)
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        q = _coerce_numeric_array(payload.get("q", ()))
+        raw_iq2 = payload.get("kratky")
+        if raw_iq2 is None:
+            raw_iq2 = payload.get("iq2", ())
+        iq2 = _coerce_numeric_array(raw_iq2)
+    except (TypeError, ValueError):
+        return None
+    count = min(q.size, iq2.size)
+    q = q[:count]
+    iq2 = iq2[:count]
+    finite = np.isfinite(q) & np.isfinite(iq2)
+    return {
+        "input_pair_count": int(count),
+        "retained_pair_count": int(np.count_nonzero(finite)),
+        "nonfinite_pair_count": int(count - np.count_nonzero(finite)),
+        "status": (
+            "empty"
+            if count == 0
+            else "complete"
+            if np.all(finite)
+            else "partial_nonfinite"
+        ),
+        "source": "analysis.kratky",
+    }
+
+
+def kratky_curve_from_frame(
+    frame: SAXSFrameView,
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]] | None:
+    """Project an emitted Kratky curve without rerunning SAXS analysis."""
+
+    payload = getattr(frame.analysis, "kratky", None)
+    quality = kratky_projection_quality_from_frame(frame)
+    if not isinstance(payload, Mapping) or quality is None:
+        return None
+    try:
+        q = _coerce_numeric_array(payload.get("q", ()))
+        raw_iq2 = payload.get("kratky")
+        if raw_iq2 is None:
+            raw_iq2 = payload.get("iq2", ())
+        iq2 = _coerce_numeric_array(raw_iq2)
+    except (TypeError, ValueError):
+        return None
+    count = min(q.size, iq2.size)
+    q = q[:count]
+    iq2 = iq2[:count]
+    finite = np.isfinite(q) & np.isfinite(iq2)
+    if not np.any(finite):
+        return None
+    q = q[finite]
+    iq2 = iq2[finite]
+    order = np.argsort(q, kind="stable")
+    return q[order], iq2[order], quality
 
 
 def _freeze_value(value: Any) -> Any:

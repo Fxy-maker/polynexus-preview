@@ -467,6 +467,14 @@ def test_strain_primary_contains_only_strain_template_columns() -> None:
         "phi_void",
         "f_Herman",
         "f_Herman_raw",
+        "delta_f_from_zero",
+        "delta_f_stability_lower",
+        "delta_f_stability_upper",
+        "orientation_q_min_nm1",
+        "orientation_q_max_nm1",
+        "orientation_track_id",
+        "orientation_reliability_status",
+        "orientation_reason_summary",
         "phase_name",
         "phase_support_score",
         "strain_reliability_status",
@@ -499,6 +507,88 @@ def test_strain_herman_mixed_frames_keep_unavailable_cells_explicit() -> None:
     assert "f_Herman" not in heroes
     assert heroes["f_Herman_raw_mean"].label == "Herman orientation (diagnostic)"
     assert heroes["f_Herman_raw_mean"].display == "0.4700"
+
+
+def test_strain_missing_final_never_falls_back_to_raw_diagnostic() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [
+                {"strain_pct": 5.0, "f_Herman": None, "f_Herman_raw": 0.41},
+            ]
+        },
+        submodule="saxs.strain",
+    )
+
+    assert _cell(presentation.primary, 0, "f_Herman").raw is None
+    assert _cell(presentation.primary, 0, "f_Herman").display == "—"
+    assert _cell(presentation.primary, 0, "f_Herman_raw").raw == pytest.approx(0.41)
+
+
+def test_strain_detail_presents_all_detached_orientation_tracks() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [{"strain_pct": 5.0, "f_Herman": None, "f_Herman_raw": 0.41}],
+            "_orientation_tracking_rows": [
+                {"orientation_track_id": "track-a", "f_Herman": 0.21},
+                {"orientation_track_id": "track-b", "f_Herman": 0.31},
+            ],
+        },
+        submodule="saxs.strain",
+    )
+
+    track_ids = {
+        _cell(presentation.detail, row, "orientation_track_id").raw
+        for row in range(len(presentation.detail.rows))
+    }
+    assert {"track-a", "track-b"} <= track_ids
+
+
+def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliability_separate() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [
+                {
+                    "strain_pct": 5.0,
+                    "f_Herman": None,
+                    "f_Herman_raw": 0.41,
+                    "delta_f_from_zero": -0.02,
+                    "delta_f_stability_lower": -0.05,
+                    "delta_f_stability_upper": 0.01,
+                    "orientation_q_min_nm1": 0.20,
+                    "orientation_q_max_nm1": 0.35,
+                    "orientation_track_id": "track-a",
+                    "orientation_reliability_status": "diagnostic",
+                    "orientation_reason_summary": "delta_not_available",
+                },
+                {
+                    "strain_pct": 5.0,
+                    "orientation_track_id": "track-b",
+                    "orientation_reliability_status": "usable",
+                },
+            ]
+        },
+        submodule="saxs.strain",
+    )
+
+    primary_keys = {column.key for column in presentation.primary.columns}
+    assert {
+        "f_Herman",
+        "f_Herman_raw",
+        "delta_f_from_zero",
+        "delta_f_stability_lower",
+        "delta_f_stability_upper",
+        "orientation_q_min_nm1",
+        "orientation_q_max_nm1",
+        "orientation_track_id",
+        "orientation_reliability_status",
+        "orientation_reason_summary",
+    } <= primary_keys
+    assert _cell(presentation.primary, 0, "f_Herman").raw is None
+    assert _cell(presentation.primary, 0, "f_Herman_raw").raw == pytest.approx(0.41)
+    assert _cell(presentation.primary, 0, "delta_f_from_zero").raw == pytest.approx(-0.02)
+    assert _cell(presentation.primary, 0, "orientation_q_min_nm1").raw == pytest.approx(0.20)
+    assert _cell(presentation.primary, 0, "orientation_track_id").raw == "track-a"
+    assert _cell(presentation.primary, 1, "orientation_track_id").raw == "track-b"
 
 
 def test_empty_payload_builds_empty_sections_and_disabled_actions() -> None:

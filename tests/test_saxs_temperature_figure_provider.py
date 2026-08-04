@@ -523,13 +523,16 @@ def test_saxs_provider_emits_batch_profiles_and_static_waterfall():
         "saxs.frame.static.scattering.001",
         "saxs.frame.static.scattering.002",
         "saxs.series.static.waterfall",
+        "saxs.series.static.kratky",
     ]
-    waterfall = definitions[-1]
+    waterfall = next(item for item in definitions if item.figure_id == "saxs.series.static.waterfall")
     assert [obj["name"] for obj in waterfall.objects] == [
         "sample-a",
         "sample-b",
     ]
     assert len(waterfall.data_sources) == 2
+    kratky = next(item for item in definitions if item.figure_id == "saxs.series.static.kratky")
+    assert all(obj["y_column"] == "intensity_q2" for obj in kratky.objects)
     for definition in definitions:
         validate_figure_definition(definition)
 
@@ -550,11 +553,15 @@ def test_saxs_provider_emits_strain_profiles_and_waterfall_from_loaded_frames():
         "saxs.frame.strain.scattering.001",
         "saxs.frame.strain.scattering.002",
         "saxs.series.strain.waterfall",
+        "saxs.series.strain.kratky",
     ]
-    assert [obj["name"] for obj in definitions[-1].objects] == [
+    waterfall = next(item for item in definitions if item.figure_id == "saxs.series.strain.waterfall")
+    assert [obj["name"] for obj in waterfall.objects] == [
         "0% strain",
         "25% strain",
     ]
+    kratky = next(item for item in definitions if item.figure_id == "saxs.series.strain.kratky")
+    assert all(obj["y_column"] == "intensity_q2" for obj in kratky.objects)
     assert all(
         definition.recipe["function"] == "build_saxs_figure_definitions"
         for definition in definitions
@@ -635,6 +642,7 @@ def test_legacy_condition_axis_dirty_values_keep_frame_order():
         "saxs.frame.strain.scattering.002",
         "saxs.frame.strain.scattering.003",
         "saxs.series.strain.waterfall",
+        "saxs.series.strain.kratky",
     ]
     assert [item.title for item in definitions[:3]] == [
         "SAXS Scattering - 0% strain",

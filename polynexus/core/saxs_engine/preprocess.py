@@ -50,8 +50,9 @@ def apply_polarisation_correction(
 ) -> np.ndarray:
     """Apply synchrotron polarisation correction to 1D intensity.
 
-    For horizontally polarised synchrotron radiation:
-        I_corr = I_raw / (1 - P/2 * cos^2(2theta))
+    For horizontally polarised synchrotron radiation, the correction
+    denominator is the mixture of the unpolarised and polarised responses.
+    This keeps the zero-angle limit equal to one for fully polarised light.
 
     For lab sources (unpolarised), set polarisation_degree=0 to skip.
 
@@ -66,7 +67,7 @@ def apply_polarisation_correction(
     q_m_inv = q * 1e9  # q is stored as nm^-1; wavelength is stored in metres.
     theta = np.arcsin(np.clip(q_m_inv * cfg.wavelength_m / (4 * np.pi), -1, 1))
     cos2_2theta = np.cos(2 * theta) ** 2
-    correction = 1.0 - P * 0.5 * cos2_2theta
+    correction = (1.0 - P) + P * (1.0 + cos2_2theta) / 2.0
     correction = np.clip(correction, 0.01, None)
     return I / correction
 

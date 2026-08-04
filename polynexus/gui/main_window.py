@@ -415,6 +415,24 @@ class SideTuningReportDialog(QDialog):
         self.setWindowTitle(tr("AI_TUNING_REPORT_TITLE"))
         self.resize(1080, 760)
         layout = QVBoxLayout(self)
+        self._review_status_banner = QFrame()
+        self._review_status_banner.setObjectName("ai_tuning_review_status")
+        self._review_status_banner.setStyleSheet(
+            f"QFrame#ai_tuning_review_status {{ background-color: {C_BG_CARD}; border: 1px solid {C_BORDER_LIGHT}; "
+            "border-left: 4px solid #00b87c; border-radius: 6px; }}"
+        )
+        review_status_layout = QVBoxLayout(self._review_status_banner)
+        review_status_layout.setContentsMargins(14, 10, 14, 10)
+        review_status_layout.setSpacing(3)
+        self._review_status_title = QLabel(tr("AI_TUNING_REVIEW_COMPLETE"))
+        self._review_status_title.setStyleSheet(f"color: {C_TEXT_PRIMARY}; font-weight: 600;")
+        review_status_layout.addWidget(self._review_status_title)
+        completed_rounds = self._completed_round_count()
+        self._review_status_detail = QLabel(tr("AI_TUNING_REVIEW_COMPLETE_DETAIL", completed_rounds))
+        self._review_status_detail.setWordWrap(True)
+        self._review_status_detail.setStyleSheet(f"color: {C_TEXT_MUTED};")
+        review_status_layout.addWidget(self._review_status_detail)
+        layout.addWidget(self._review_status_banner)
         self._summary_label = QLabel(self._report_summary_text())
         self._summary_label.setWordWrap(True)
         self._summary_label.setStyleSheet(f"color: {C_TEXT_MUTED}; padding: 0 0 6px 0;")
@@ -483,6 +501,11 @@ class SideTuningReportDialog(QDialog):
         self._issue_target_label = self._build_review_label()
         self._issue_symptom_label = self._build_review_label()
         self._issue_risk_label = self._build_review_label()
+        self._issue_risk_label.setObjectName("ai_tuning_risk_notice")
+        self._issue_risk_label.setStyleSheet(
+            "QLabel#ai_tuning_risk_notice { background-color: #2c271d; border: 1px solid #6b5524; "
+            "border-radius: 4px; color: #e6c36a; padding: 8px; }"
+        )
         self._issue_stability_label = self._build_review_label()
         issues_layout.addWidget(self._issue_target_label)
         issues_layout.addWidget(self._issue_symptom_label)
@@ -591,8 +614,8 @@ class SideTuningReportDialog(QDialog):
         change_layout.addWidget(self._change_table)
         right_layout.addWidget(change_group, 1)
         self._buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self._buttons.button(QDialogButtonBox.Ok).setText(tr("AI_TUNING_APPLY"))
-        self._buttons.button(QDialogButtonBox.Cancel).setText(tr("COMMON_CANCEL"))
+        self._buttons.button(QDialogButtonBox.Ok).setText(tr("AI_TUNING_APPLY_AND_RERUN"))
+        self._buttons.button(QDialogButtonBox.Cancel).setText(tr("AI_TUNING_KEEP_CURRENT"))
         if self._preprocess_ui_decision is not None:
             view = self._preprocess_ui_decision
             self._buttons.button(QDialogButtonBox.Ok).setEnabled(
@@ -618,6 +641,16 @@ class SideTuningReportDialog(QDialog):
 
     def _report_technique(self):
         return str(self.report.get("technique") or getattr(self, "_current_technique", "") or "").strip().lower()
+
+    def _completed_round_count(self):
+        try:
+            rounds = int(self.report.get("rounds") or 0)
+        except (TypeError, ValueError):
+            rounds = 0
+        if rounds > 0:
+            return rounds
+        history = self.report.get("history")
+        return len(history) if isinstance(history, list) else 0
 
     def _report_summary_text(self):
         return build_ai_tuning_report_summary_text(self.report)

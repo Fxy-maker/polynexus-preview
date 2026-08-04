@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QDialog,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -44,7 +45,13 @@ from .widgets.wrapped_evidence_label import WrappedEvidenceLabel
 from .results_review_service import (
     build_result_review_panel_texts_from_window,
 )
-from .styles import C_TEXT_MUTED, C_TEXT_PRIMARY
+from .styles import (
+    C_BG_CARD,
+    C_BORDER_LIGHT,
+    C_TEXT_MUTED,
+    C_TEXT_PRIMARY,
+    C_TEXT_SECONDARY,
+)
 from .theme import ThemeEngine
 from ..core.engine import logger
 from ..core.scientific_review import (
@@ -697,6 +704,36 @@ class MainWindowResultsMixin:
         self._results_confirm_group.setVisible(False)
         layout.addWidget(self._results_confirm_group)
 
+        self._ai_tuning_entry_panel = QFrame()
+        self._ai_tuning_entry_panel.setObjectName("ai_tuning_entry_panel")
+        self._ai_tuning_entry_panel.setStyleSheet(
+            f"QFrame#ai_tuning_entry_panel {{ background-color: {C_BG_CARD}; border: 1px solid {C_BORDER_LIGHT}; "
+            "border-left: 4px solid #4f8ef7; border-radius: 6px; }}"
+        )
+        tuning_entry_layout = QHBoxLayout(self._ai_tuning_entry_panel)
+        tuning_entry_layout.setContentsMargins(16, 12, 14, 12)
+        tuning_entry_layout.setSpacing(16)
+        tuning_entry_text = QVBoxLayout()
+        tuning_entry_text.setContentsMargins(0, 0, 0, 0)
+        tuning_entry_text.setSpacing(3)
+        self._ai_tuning_entry_kicker = QLabel(tr("AI_TUNING_ENTRY_KICKER"))
+        self._ai_tuning_entry_kicker.setStyleSheet("color: #4f8ef7; font-size: 10px; font-weight: 700;")
+        tuning_entry_text.addWidget(self._ai_tuning_entry_kicker)
+        self._ai_tuning_entry_title = QLabel(tr("AI_TUNING_ENTRY_TITLE"))
+        self._ai_tuning_entry_title.setStyleSheet(f"color: {C_TEXT_PRIMARY}; font-weight: 600;")
+        tuning_entry_text.addWidget(self._ai_tuning_entry_title)
+        self._ai_tuning_entry_description = QLabel(tr("AI_TUNING_ENTRY_DESCRIPTION"))
+        self._ai_tuning_entry_description.setWordWrap(True)
+        self._ai_tuning_entry_description.setStyleSheet(f"color: {C_TEXT_SECONDARY};")
+        tuning_entry_text.addWidget(self._ai_tuning_entry_description)
+        tuning_entry_layout.addLayout(tuning_entry_text, 1)
+        self._ai_tuning_entry_button = QPushButton(tr("AI_TUNING_ENTRY_BUTTON"))
+        self._ai_tuning_entry_button.setObjectName("primary_btn")
+        self._ai_tuning_entry_button.setToolTip(tr("AI_TUNING_ENTRY_TOOLTIP"))
+        self._ai_tuning_entry_button.clicked.connect(self.on_ai_tune_clicked)
+        tuning_entry_layout.addWidget(self._ai_tuning_entry_button, 0, Qt.AlignVCenter)
+        layout.addWidget(self._ai_tuning_entry_panel)
+
         self._results_panel = ResultsTablePanel()
         self._results_panel.figure_link_requested.connect(self._on_results_figure_link)
         self._results_panel.review_action_requested.connect(self._on_results_profile_action)
@@ -727,6 +764,7 @@ class MainWindowResultsMixin:
         action_row.addStretch()
         self._btn_ai_tune = QPushButton(tr("AI_TUNING_BUTTON"))
         self._btn_ai_tune.setObjectName("secondary_btn")
+        self._btn_ai_tune.setToolTip(tr("AI_TUNING_ENTRY_TOOLTIP"))
         self._btn_ai_tune.clicked.connect(self.on_ai_tune_clicked)
         action_row.addWidget(self._btn_ai_tune)
         layout.addLayout(action_row)

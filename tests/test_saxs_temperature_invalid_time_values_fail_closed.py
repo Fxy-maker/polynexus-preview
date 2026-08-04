@@ -24,7 +24,9 @@ def test_invalid_time_values_are_retained_and_disable_avrami():
     )
 
     assert len(result.temp_points) == 2
-    assert [point.source_index for point in result.temp_points] == [1, 0]
+    # Cooling preserves acquisition order so the invalid time axis can be
+    # diagnosed without silently reordering the kinetic sequence.
+    assert [point.source_index for point in result.temp_points] == [0, 1]
     assert result.avrami == {
         "valid": False,
         "reason": "temperature_time_axis_invalid_values",

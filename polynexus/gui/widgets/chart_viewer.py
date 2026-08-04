@@ -980,6 +980,8 @@ class ChartGallery(QWidget):
         self._selected_path = ""
         self._selected_figure_id = ""
         self._selected_batch_ids = set()
+        self._gallery_max_columns = 3
+        self._gallery_min_card_width = 360
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1076,6 +1078,8 @@ class ChartGallery(QWidget):
         self._scroll.setStyleSheet("background: transparent; border: none;")
 
         self._grid = QWidget()
+        self._grid.setMinimumWidth(0)
+        self._grid.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self._grid_layout = QVBoxLayout(self._grid)
         self._grid_layout.setSpacing(8)
         self._grid_layout.addStretch()
@@ -1175,10 +1179,6 @@ class ChartGallery(QWidget):
         if not self._entries:
             return
 
-        row_widget = None
-        row_layout = None
-        col = 0
-
         for entry in self._entries:
             thumb = ChartThumbnail(entry)
             thumb.clicked.connect(self.select_figure)
@@ -1188,21 +1188,49 @@ class ChartGallery(QWidget):
             thumb.batch_checked_changed.connect(self._on_batch_checked)
             thumb.set_batch_checked(entry.figure_id in self._selected_batch_ids)
             self._thumbnails.append(thumb)
-
-            if col == 0:
-                row_widget = QWidget()
-                row_layout = QHBoxLayout(row_widget)
-                row_layout.setSpacing(8)
-                self._grid_layout.insertWidget(
-                    self._grid_layout.count() - 1, row_widget)
-
-            row_layout.addWidget(thumb, 1)
-            col = (col + 1) % 3
-
-        if row_layout is not None and col:
-            row_layout.addStretch(3 - col)
+        self._reflow_thumbnail_rows()
         if previous_selected_figure_id in self._entry_by_figure_id:
             self.select_figure(previous_selected_figure_id, emit=False)
+
+    def _gallery_column_count(self) -> int:
+        viewport_width = max(1, self._scroll.viewport().width())
+        slot_width = self._gallery_min_card_width + 8
+        return max(
+            1,
+            min(self._gallery_max_columns, (viewport_width + 8) // slot_width),
+        )
+
+    def _reflow_thumbnail_rows(self) -> None:
+        if not self._thumbnails:
+            return
+        while self._grid_layout.count() > 1:
+            item = self._grid_layout.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
+
+        columns = self._gallery_column_count()
+        row_widget = None
+        row_layout = None
+        for index, thumb in enumerate(self._thumbnails):
+            if index % columns == 0:
+                row_widget = QWidget(self._grid)
+                row_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+                row_layout = QHBoxLayout(row_widget)
+                row_layout.setContentsMargins(0, 0, 0, 0)
+                row_layout.setSpacing(8)
+                self._grid_layout.insertWidget(
+                    self._grid_layout.count() - 1,
+                    row_widget,
+                )
+            row_layout.addWidget(thumb, 1)
+        if row_layout is not None:
+            remainder = len(self._thumbnails) % columns
+            if remainder:
+                row_layout.addStretch(columns - remainder)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._reflow_thumbnail_rows()
 
     def current_file(self):
         return self._selected_path

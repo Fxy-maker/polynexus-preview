@@ -9,7 +9,7 @@ Reference: SAXS Design Document v1.0, Module 4C.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from collections.abc import Mapping
 from typing import Dict, List, Optional
 import numpy as np
@@ -125,6 +125,7 @@ class TempPhase(Enum):
     MELT = auto()                # fully molten
     COOLING_MELT = auto()        # above crystallization
     CRYSTALLIZATION = auto()     # crystallization range
+    COOLING_SOLID = auto()       # fully crystallized after cooling
     COLD_CRYSTALLIZATION = auto() # cold crystallization on heating
     ISOTHERMAL = auto()          # isothermal crystallization
 
@@ -634,7 +635,7 @@ def detect_temperature_phase(
         elif Q_norm > 0.3:
             return TempPhase.CRYSTALLIZATION
         else:
-            return TempPhase.HEATING_SOLID  # fully crystallized
+            return TempPhase.COOLING_SOLID
     
     elif exp_type == "isothermal":
         return TempPhase.ISOTHERMAL
@@ -693,19 +694,26 @@ def gibbs_thomson_analysis(
     inv_lc = 1.0 / lc_valid
 
     try:
-        p = np.polyfit(inv_lc, T_valid, 1)
-        Tm_inf = p[1]  # intercept -> Tm_inf
-        slope = p[0]   # = -2*Tm_inf*sigma_e/delta_Hf
+        fixed_tm_inf = Tm_inf is not None and np.isfinite(float(Tm_inf))
+        if fixed_tm_inf:
+            Tm_inf = float(Tm_inf) + 273.15
+            slope = float(np.dot(inv_lc, T_valid - Tm_inf) / np.dot(inv_lc, inv_lc))
+        else:
+            p = np.polyfit(inv_lc, T_valid, 1)
+            slope = p[0]
+            Tm_inf = p[1]
 
         # R-squared
-        T_pred = np.polyval(p, inv_lc)
+        T_pred = Tm_inf + slope * inv_lc
         ss_res = np.sum((T_valid - T_pred) ** 2)
         ss_tot = np.sum((T_valid - np.mean(T_valid)) ** 2)
         r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
 
         result['Tm_inf_K'] = Tm_inf
         result['Tm_inf_C'] = Tm_inf - 273.15
-        result['sigma_e_over_dHf'] = -slope / (2 * Tm_inf) if Tm_inf > 0 else np.nan
+        # inv_lc is expressed in nm^-1 while the thermodynamic equation uses
+        # m^-1, hence the explicit 1e9 conversion.
+        result['sigma_e_over_dHf'] = -slope / (2 * Tm_inf * 1e9) if Tm_inf > 0 else np.nan
         result['R2'] = r2
         result['valid'] = r2 > 0.8
 
@@ -963,6 +971,10 @@ def analyze_temperature_series(
     """
     if cfg is None:
         cfg = SAXSConfig()
+    if thermal_expansion_coeff is not None and np.isfinite(thermal_expansion_coeff):
+        # The public series argument is the authoritative override for this
+        # run; apply_thermal_correction reads the coefficient from config.
+        cfg = replace(cfg, alpha_thermal_expansion=float(thermal_expansion_coeff))
 
     n_points = len(temperatures)
     if len(q_list) != n_points or len(I_list) != n_points:
@@ -1008,8 +1020,10 @@ def analyze_temperature_series(
         dtype=float,
     )
 
-    # Sort by temperature
-    sort_idx = np.argsort(temps_arr)
+    # Heating is conventionally represented in ascending temperature order.
+    # Cooling and isothermal experiments must retain acquisition order because
+    # the time axis and kinetic interpretation are sequence-dependent.
+    sort_idx = np.argsort(temps_arr) if exp_type == "heating" else np.arange(n_points)
     temps_arr = temps_arr[sort_idx]
     q_sorted = [q_list[i] for i in sort_idx]
     I_sorted = [I_list[i] for i in sort_idx]
@@ -1056,8 +1070,10 @@ def analyze_temperature_series(
     result.Rg_array = np.full(n_points, np.nan)
     result.guinier_level_array = ["Unusable"] * n_points
 
-    # Reference: lowest temperature point (solid state)
-    ref_idx = 0
+    # Reference: coldest finite-temperature point (solid state), independent
+    # of the acquisition ordering used by cooling sequences.
+    finite_temperature_indices = np.flatnonzero(np.isfinite(temps_arr))
+    ref_idx = int(finite_temperature_indices[np.argmin(temps_arr[finite_temperature_indices])]) if finite_temperature_indices.size else 0
     reference_profile = sanitized_sorted[ref_idx]
     Q_solid, reference_invariant_warning = _safe_temperature_invariant(
         reference_profile.q,

@@ -546,6 +546,54 @@ def test_chart_gallery_publication_role_filter_separates_si_and_diagnostics(tmp_
     app.processEvents()
 
 
+def test_chart_gallery_reflows_cards_without_horizontal_clipping(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    paths = []
+    for index in range(3):
+        path = tmp_path / f"figure-{index}.png"
+        pixmap = QPixmap(320, 180)
+        pixmap.fill(QColor("white"))
+        assert pixmap.save(str(path))
+        paths.append(path)
+
+    gallery = ChartGallery()
+    gallery.resize(900, 640)
+    gallery.show()
+    gallery.load_entries(
+        [
+            FigureGalleryEntry(
+                figure_id=f"figure-{index}",
+                title=f"Figure {index}",
+                category=FIGURE_CATEGORY_SERIES_OVERVIEW,
+                state="static_background",
+                preview_path=str(path.resolve()),
+                primary_path=str(path.resolve()),
+                editable_path=str(path.resolve()),
+                document_mode="static_background",
+                asset_paths=(str(path.resolve()),),
+                assets=(),
+            )
+            for index, path in enumerate(paths)
+        ]
+    )
+    app.processEvents()
+
+    assert gallery._scroll.horizontalScrollBar().maximum() == 0
+    assert gallery._thumbnails[2].mapTo(gallery, gallery._thumbnails[2].rect().topLeft()).y() > (
+        gallery._thumbnails[0].mapTo(gallery, gallery._thumbnails[0].rect().topLeft()).y()
+    )
+
+    gallery.resize(1800, 640)
+    app.processEvents()
+    assert gallery._scroll.horizontalScrollBar().maximum() == 0
+    assert gallery._thumbnails[2].mapTo(gallery, gallery._thumbnails[2].rect().topLeft()).y() == (
+        gallery._thumbnails[0].mapTo(gallery, gallery._thumbnails[0].rect().topLeft()).y()
+    )
+
+    gallery.deleteLater()
+    app.processEvents()
+
+
 def test_chart_gallery_select_figure_populates_secondary_asset_panel(tmp_path):
     app = QApplication.instance() or QApplication([])
 

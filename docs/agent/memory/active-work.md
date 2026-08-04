@@ -1,5 +1,62 @@
 # Active Work
 
+## SAXS configured q-min semantics - completed (2026-08-04)
+
+- `analyze_single()` now applies finite positive `SAXSConfig.q_min` to external
+  1D profiles before smoothing and all downstream metrics, records
+  `configured_q_min_applied`, and preserves original input counts in the data
+  quality report.
+- An auto-detected edge within the retained boundary transition is reconciled
+  as configured truncation (`WARN:mask_truncated`); an independently higher edge
+  still reports `ERROR:qstar_contaminated`.
+- Focused regression passed `3`; compatibility matrix passed `22`. UTF-8 task
+  verification passed quality `297` and preprocessing `106` with Ruff,
+  compile, type-baseline, and whitespace checks passing.
+- Task card: `docs/agent/tasks/2026-08-04-saxs-configured-qmin-semantics.md`.
+
+## SAXS correlation/IDF axis-label regression - completed (2026-08-04)
+
+- Shared and public SAXS publication label normalizers now recognize formatted
+  distance labels such as `$r$ (nm)` and IDF labels instead of falling back to
+  generic `q`/`I` labels. Raw intensity remains `I(q)` and Kratky remains
+  `I(q)q^2`.
+- Focused SAXS figure/document/evidence coverage passed (`86 passed`, 4
+  pre-existing font warnings). UTF-8 task verification passed with quality
+  `297 passed` and preprocessing `106 passed`.
+- Task card: `docs/agent/tasks/2026-08-04-saxs-idf-axis-label-regression.md`.
+
+## SAXS gallery clipping and Kratky discoverability - completed (2026-08-04)
+
+- `ChartGallery` now reflows thumbnail rows to one, two, or three columns from
+  the available viewport width and repeats the layout on resize. This removes
+  the fixed-three-column right-edge clipping that hid the generated Kratky
+  card.
+- Focused ChartGallery/figure mixin/startup coverage passed (`29 passed`). Task
+  card: `docs/agent/tasks/2026-08-04-saxs-gallery-responsive-layout.md`.
+
+## AI tuning entry contrast - completed (2026-08-04)
+
+- The Results-page AI parameter recommendation description now uses the
+  existing secondary text token (`#8b92a8`) instead of the low-contrast muted
+  token (`#555d7a`) on the dark card. Button availability and tuning behavior
+  are unchanged.
+- The GUI regression reproduces the old style in RED and passes in GREEN;
+  focused Results/AI tuning coverage is `22 passed, 185 deselected`. Task card:
+  `docs/agent/tasks/2026-08-04-ai-tuning-entry-contrast.md`.
+
+## SAXS I(q)q^2 and Fourier figure coverage - completed (2026-08-04)
+
+- Added editable complete `I(q)q^2` curves for modern temperature and strain
+  series, selected-frame temperature evidence, and legacy static/temperature/
+  strain fallback providers. Existing static `lorentz` curve remains intact.
+- Figure providers consume emitted `analysis.kratky` arrays where available;
+  invalid pairs are omitted and projection quality is retained in recipe
+  metadata. Existing Fourier correlation remains `gamma(r)` on the distance
+  axis.
+- Focused figure coverage passed (`6`, `18`, and `59` tests); task verifier
+  passed quality `297` and preprocessing `106`. Task card:
+  `docs/agent/tasks/2026-08-04-saxs-iq2-fourier-figures.md`.
+
 ## PolyNexus HTML data-flow motion follow-up - ready for checkpoint (2026-08-01)
 
 - Lecture slides now expose a shared `raw input -> decision -> model -> quality
@@ -4661,6 +4718,44 @@
 
 ## In progress
 
+- HTML presentation recording controls are now implemented on the current
+  branch. The deck has a browser Fullscreen API button with F11 fallback, a
+  clean recording view that hides presentation chrome while keeping keyboard
+  navigation and captions, and a presenter mode opened from the main deck as
+  `?presenter=1`. The presenter window receives current-slide state through
+  `BroadcastChannel` with `postMessage` fallback and shows current/next slide
+  previews, notes, slide index, and an elapsed timer. Presenter arrow keys and
+  previous/next buttons now send a single reverse command to the main deck, so
+  both windows stay synchronized without double-advancing. The slideshow
+  window can be shared alone in Tencent Meeting. Focused presentation tests
+  pass (`7 passed`) and the repository verifier passes with quality `297` and
+  preprocessing `106`. Visual browser inspection remains limited by the
+  in-app browser localhost policy. The related files are
+  `docs/presentations/polynexus-overview.html` and
+  `tests/test_html_presentation.py`.
+
+- The presenter view now uses the full 46-page narration array for both the
+  private notes panel and the `N` notes panel. Its three-column layout gives
+  the on-air slide a 2.3fr share, keeps the next slide as a compact .48fr
+  preview, and reserves 320px for notes and controls. This is tuned for
+  sharing only the slideshow window in Tencent Meeting; direct browser
+  preview remains the final visual check.
+
+- PolyNexus HTML presentation deepening is implemented on the current branch.
+  The 46-slide deck now explains the SAXS input and preprocessing chain,
+  q-conversion dependencies, background/normalization, smoothing and mask
+  boundaries, simulated ideal/problem curves, six SAXS methods, independent
+  quality states, and partial sasmodels coverage. The AI chapter now shows
+  LLM API + RAG (Chroma / BM25) + structured JSON + deterministic orchestrator,
+  SAXS `PreprocessIntent`, candidate replay, physical/quality gates, shadow and
+  confirm-only review, user confirmation, and offline mock degradation. Focused
+  presentation tests pass (`6 passed`) and inline JavaScript parses; real
+  browser preview was attempted but the in-app browser blocks localhost URLs.
+  The local preview server is available at
+  `http://127.0.0.1:8765/docs/presentations/polynexus-overview.html` while the
+  current process remains active. See
+  `docs/superpowers/plans/2026-08-03-polynexus-presentation-saxs-ai-depth.md`.
+
 - SAXS Guinier source-index integrity is verified and ready for its local
   checkpoint on 2026-07-28. Duplicate, negative, and non-integral source
   mappings now remain explicit and force diagnostic sequence evidence; valid
@@ -4764,6 +4859,15 @@
 - GUI streamlining implementation completed on isolated branch `codex/gui-streamlining-interaction-plan`. The implementation adds explicit workspace modes, binds current results to persisted run IDs, makes the figure preview the canonical View route, fixes primary shortcuts and batch-manifest naming, removes verified duplicate top-bar routes, and preserves manifest-only gallery plus explicit legacy recovery. GUI focused regression matrix passes (452); evidence is recorded in `docs/superpowers/specs/2026-07-12-gui-streamlining-interaction-plan.md`, the implementation plan, and decision memory `docs/agent/memory/decisions/0004-gui-streamlining-last-wave.md`. Existing Ruff baseline findings remain in legacy GUI modules.
 
 ## Suggested next candidates
+
+- SAXS I(q)q² gallery label regression is fixed on 2026-08-04. The public
+  figure polish helpers previously converted specialized `I(q) q^2` labels to
+  generic `$I$ (a.u.)`, making the new Kratky previews look like raw intensity.
+  Both static/shared and public provider polish paths now preserve an explicit
+  `I(q)q^2` label; source objects remain bound to `intensity_q2`. Focused SAXS
+  figure/document/evidence tests pass (`85 passed`, 4 pre-existing font
+  warnings). A new run is required to regenerate historical preview assets.
+  See `docs/agent/tasks/2026-08-04-saxs-iq2-axis-polish-regression.md`.
 
 - Editor legend-box task completed on 2026-07-24 at `10d4c61`: generated
   legends now retain their rendered layout on selection, expose a transient

@@ -12,7 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtGui import QColor, QPixmap
-from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QMessageBox, QSpinBox
 
 import numpy as np
 
@@ -23,7 +23,9 @@ from polynexus.core.joint.coordinator import JointCoordinator
 from polynexus.core.joint.dataset import JointBatchRow, JointRunRecord
 from polynexus.gui.main_window import AITuneWorker, AnalysisWorker, MainWindow, JointHubWorker, SideTuningReportDialog, _data_file_dialog_filter
 from polynexus.gui.i18n import get_language, set_language, tr
+from polynexus.gui.styles import C_TEXT_SECONDARY
 from polynexus.gui.widgets.chart_editor import ChartEditor
+from polynexus.gui.widgets.saxs_tensile_axis_editor import SAXSTensileAxisEditor
 from polynexus.core.figure_document import save_generated_figure_document
 from polynexus.data.sample_db import SampleDB
 from rag.prompt_builder import PromptBuilder
@@ -1537,6 +1539,79 @@ def test_recent_calibration_round_trip_restores_saxs_values(tmp_path):
 
             window_reopened.deleteLater()
             app.processEvents()
+    finally:
+        set_language(previous)
+
+
+def test_strain_axis_custom_widget_round_trips_and_is_excluded_from_recent_calibration(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    settings_path = tmp_path / "strain_axis_custom_widget.ini"
+
+    def make_settings(*_args, **_kwargs):
+        return QSettings(str(settings_path), QSettings.IniFormat)
+
+    with patch("polynexus.gui.main_window.QSettings", side_effect=make_settings):
+        window = MainWindow()
+        window._current_technique = "saxs"
+        window._on_submodule_selected("saxs", "saxs.strain")
+
+        editor = _config_widget(window, "tensile_axis_deg")
+        assert isinstance(editor, SAXSTensileAxisEditor)
+        editor.set_axis(215.0, "detector_image_clockwise_deg_v1")
+
+        values = window._collect_config_panel_values()
+        assert values["tensile_axis_deg"] == pytest.approx(35.0)
+        assert values["tensile_axis_convention"] == "detector_image_clockwise_deg_v1"
+        assert "tensile_axis_deg" not in window._collect_calibration_panel_values()
+        assert "tensile_axis_convention" not in window._collect_calibration_panel_values()
+
+        window._settings.setValue(
+            window._calibration_settings_key("saxs", "saxs.strain"),
+            json.dumps(
+                {
+                    "wavelength_m": 1.23e-10,
+                    "tensile_axis_deg": 10.0,
+                    "tensile_axis_convention": "detector_image_clockwise_deg_v1",
+                }
+            ),
+        )
+        window._on_apply_recent_calibration()
+
+        assert editor.config_values() == {
+            "tensile_axis_deg": values["tensile_axis_deg"],
+            "tensile_axis_convention": values["tensile_axis_convention"],
+        }
+        window.deleteLater()
+        app.processEvents()
+
+
+def test_strain_axis_custom_widget_survives_retranslation_and_best_config_restore():
+    app = QApplication.instance() or QApplication([])
+    previous = get_language()
+    try:
+        window = MainWindow()
+        window._current_technique = "saxs"
+        window._on_submodule_selected("saxs", "saxs.strain")
+        editor = _config_widget(window, "tensile_axis_deg")
+        editor.set_axis(35.0, "detector_image_clockwise_deg_v1")
+
+        window._apply_best_config(
+            {
+                "tensile_axis_deg": 215.0,
+                "tensile_axis_convention": "detector_image_clockwise_deg_v1",
+            }
+        )
+        assert editor.config_values()["tensile_axis_deg"] == pytest.approx(35.0)
+
+        set_language("zh")
+        window._retranslate_ui()
+        restored = _config_widget(window, "tensile_axis_deg")
+        assert restored.config_values() == {
+            "tensile_axis_deg": pytest.approx(35.0),
+            "tensile_axis_convention": "detector_image_clockwise_deg_v1",
+        }
+        window.deleteLater()
+        app.processEvents()
     finally:
         set_language(previous)
 
@@ -4167,6 +4242,62 @@ def test_ai_tuning_report_score_table_marks_rolled_back_round():
         assert dialog._score_table.item(1, 0).text() == tr("AI_TUNING_ROUND_ROLLED_BACK", 2)
         assert dialog._score_table.item(0, 1).text() != ""
         assert dialog._score_table.item(0, 2).text() == tr("AI_TUNING_EMPTY_VALUE")
+
+        dialog.deleteLater()
+        app.processEvents()
+    finally:
+        set_language(previous)
+
+
+def test_results_page_exposes_ai_parameter_adjustment_entry():
+    app = QApplication.instance() or QApplication([])
+
+    previous = get_language()
+    try:
+        set_language("zh")
+        window = MainWindow()
+
+        assert window._ai_tuning_entry_button.text() == tr("AI_TUNING_ENTRY_BUTTON")
+        assert window._ai_tuning_entry_description.text() == tr("AI_TUNING_ENTRY_DESCRIPTION")
+        assert f"color: {C_TEXT_SECONDARY};" in window._ai_tuning_entry_description.styleSheet()
+        assert not window._ai_tuning_entry_panel.isHidden()
+
+        window.deleteLater()
+        app.processEvents()
+    finally:
+        set_language(previous)
+
+
+def test_ai_tuning_report_separates_completion_risk_and_apply_action():
+    app = QApplication.instance() or QApplication([])
+
+    previous = get_language()
+    try:
+        set_language("zh")
+        dialog = SideTuningReportDialog(
+            {
+                "rounds": 3,
+                "best_r_squared": 0.942,
+                "improvement": {"r_squared_abs": 0.018},
+                "history": [
+                    {
+                        "round_num": 1,
+                        "accepted": True,
+                        "r_squared_after": 0.942,
+                        "changes": {"q_corr_min": 0.18},
+                        "config_snapshot": {"q_corr_min": 0.15},
+                        "llm_advice": {"reasoning": "降低低 q 区域干扰"},
+                    }
+                ],
+            }
+        )
+
+        assert dialog._review_status_banner.objectName() == "ai_tuning_review_status"
+        assert dialog._review_status_title.text() == tr("AI_TUNING_REVIEW_COMPLETE")
+        assert "3" in dialog._review_status_detail.text()
+        assert dialog._issue_risk_label.objectName() == "ai_tuning_risk_notice"
+        assert dialog._buttons.button(QDialogButtonBox.Ok).text() == tr("AI_TUNING_APPLY_AND_RERUN")
+        assert dialog._buttons.button(QDialogButtonBox.Cancel).text() == tr("AI_TUNING_KEEP_CURRENT")
 
         dialog.deleteLater()
         app.processEvents()

@@ -307,7 +307,7 @@ def scan_experiment_dir(root_dir: str, cfg: SAXSConfig) -> List[ExperimentCondit
     """
     conditions: Dict[Any, ExperimentCondition] = {}
     root = Path(root_dir)
-    exts = SUPPORTED_2D_EXTENSIONS
+    exts = SUPPORTED_2D_EXTENSIONS | SUPPORTED_1D_EXTENSIONS
 
     entries: list[Path] = []
     for dirpath, dirnames, filenames in _os.walk(root):

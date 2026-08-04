@@ -1,15 +1,59 @@
 ---
 
-## Legacy test-storage roots (2026-07-28)
+## Full-goal release evidence refresh (2026-08-01)
 
-- `scripts/test_storage.py` now includes the exact historical Windows
-  `TempPolyNexus*` and malformed `UsersFANXUY~1AppDataLocalTemp*` prefixes on
-  the system drive, plus explicit `POLYNEXUS_LEGACY_TEST_ROOTS` and
-  `--legacy-root` configuration.
-- External legacy directories remain protected while pytest is active; the
-  cleanup command is still dry-run by default and retains the 24-hour
-  cooldown. The new pytest storage root remains on D:.
-- Focused regression evidence is pending task-scoped verification.
+- The authoritative acceptance ledger records the SAXS 2D reviewer-context
+  checkpoint `a9e0743` and independent full SAXS matrix `700 passed, 6
+  warnings in 530.15s`, exit `0`.
+- The latest full/boundary verifier remains incomplete after a 40-minute tool
+  timeout (`124`, no pytest summary; child manifest `exit_code=3`). The project
+  remains conditional because IR mapping, NMR solid-C, Joint, restarted-GUI,
+  and owner release gates are not closed.
+- Documentation checkpoint: `e295ad2`.
+
+## SAXS 2D review context projection (2026-08-01)
+
+- Checkpoint `a9e0743` adds a detached review DTO for existing 2D detector,
+  geometry/mask, beam-center, orientation, gate, and scientific-review data;
+  raw q/I, detector pixels, source paths, and unknown fields are excluded.
+- Fresh focused coverage passed `58`; the complete SAXS matrix passed `700
+  passed, 6 warnings in 530.15s`, exit `0`.
+- This is evidence-context transport only; it preserves diagnostic and
+  review-required states and does not authorize scientific or publication
+  promotion.
+
+## Historical test-storage name discovery (2026-07-31)
+
+- `scripts/test_storage.py` now discovers the observed `full_boundary*`,
+  `native_*_basetemp`, `gallery_*`, `saxs_*_matrix`, and `Saxs*` historical
+  test directory families while rejecting `测试数据`, archive, review,
+  evidence, and baseline names before cleanup planning.
+- Focused storage coverage passed `39 passed, 1 skipped`; structured verifier
+  passed quality `297` and preprocessing `106`, with task/memory/Ruff/compile/
+  type-baseline/whitespace checks passing.
+- The reviewed clean dry-run found `241` artifacts and `26,825,556,265`
+  eligible bytes, removed `0`, with `0` protected-name candidates eligible.
+- Explicit allowlist checkpoint: `a43e70e`; no `--apply` cleanup was run here.
+- Separate authorized follow-up apply removed `98` historical test
+  directories. A post-apply dry-run found `143` artifacts,
+  `32,242,122,672` bytes total, and `19` remaining eligible zero-byte paths
+  blocked by Windows `PermissionError`; no protected-name path was eligible.
+  D: now reports about `120.15 GB` free.
+
+## Results evidence wrap readability (2026-07-31)
+
+- `WrappedEvidenceLabel` now retains Qt `heightForWidth` after the Results
+  shrink policy is applied, while preserving exact source text and all
+  evidence content.
+- Focused Results/Workbench coverage passed `52`; structured quality and
+  preprocessing gates passed `297`/`106`; native NMR solid-H/solid-C route
+  recheck passed `2` with exit code `0`.
+- The explicit six-file checkpoint is `5f737c2`; parallel memory and scratch
+  changes remain outside that checkpoint.
+- This is a presentation/layout checkpoint only. IR mapping remains
+  diagnostic-only, NMR solid-C remains assignment-limited, Joint remains
+  blocked pending scientific conflict review, and overall release remains
+  conditional pending owner approval.
 
 ## SAXS strain dirty-frame post-processing (2026-07-28)
 

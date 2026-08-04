@@ -250,6 +250,8 @@ class SAXSConfig:
     # ---- IDF / correlation function ----
     q_corr_min: float = 0.15
     q_corr_max: float = 2.5  # use full experimental q range
+    extrapolate_q0: bool = True
+    extrapolate_qinf: bool = True
     n_z_points: int = 2048
     L_search_min: float = 9.0
     L_search_max: float = 50.0

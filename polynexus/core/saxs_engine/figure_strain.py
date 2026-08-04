@@ -25,6 +25,8 @@ from .figure_common import (
     SAXSFrameView,
     _coerce_numeric_array,
     frame_views_from_engine,
+    kratky_curve_from_frame,
+    kratky_projection_quality_from_frame,
 )
 from .figure_evidence import (
     attach_saxs_figure_evidence,
@@ -1457,6 +1459,102 @@ def _trace_definition(
     )
 
 
+def _kratky_definition(
+    frames: Sequence[SAXSFrameView],
+    decisions: Mapping[int, FigureEligibilityDecision],
+) -> FigureDefinition | None:
+    """Expose the emitted complete ``I(q)q^2`` trace for every strain frame."""
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, Any]] = []
+    projection_quality: dict[str, dict[str, Any]] = {}
+    for ordinal, frame in enumerate(frames):
+        curve = kratky_curve_from_frame(frame)
+        if curve is None:
+            quality = kratky_projection_quality_from_frame(frame)
+            if quality is not None:
+                projection_quality[str(frame.index)] = dict(quality)
+            continue
+        q_values, iq2_values, quality = curve
+        projection_quality[str(frame.index)] = dict(quality)
+        source_id = f"kratky-trace-{frame.index:03d}"
+        sources.append(
+            _data_source(
+                source_id,
+                (
+                    ("q_nm_inv", "nm^-1", "float64"),
+                    ("intensity_q2", "a.u. nm^-2", "float64"),
+                ),
+                {
+                    "q_nm_inv": q_values,
+                    "intensity_q2": iq2_values,
+                },
+                role="kratky_evidence",
+            )
+        )
+        objects.append(
+            _series_object(
+                f"kratky-{frame.index:03d}",
+                "kratky",
+                source_id,
+                "q_nm_inv",
+                "intensity_q2",
+                name=f"{_finite_number(frame.condition):g}%",
+                color=_COLORS[ordinal % len(_COLORS)],
+            )
+        )
+    if not sources:
+        return None
+    role = (
+        "diagnostic"
+        if all(decisions[frame.index].highest_role == "diagnostic" for frame in frames)
+        else "si"
+    )
+    return FigureDefinition(
+        figure_id="saxs.strain.kratky",
+        technique="saxs",
+        scope="series",
+        category="diagnostic" if role == "diagnostic" else "supplementary",
+        publication_role=role,
+        title="Strain SAXS Kratky evidence",
+        layout=FigureLayoutDefinition(
+            width_in=6.6,
+            height_in=4.2,
+            rows=1,
+            columns=1,
+            panels=(
+                _panel(
+                    "kratky",
+                    0,
+                    0,
+                    _axis("kratky-q", "q", "nm^-1"),
+                    _axis("kratky-y", "I(q) q^2", "a.u. nm^-2"),
+                    title="I(q) q^2 traces",
+                    show_legend=True,
+                    panel_label="(a)",
+                ),
+            ),
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": _MODULE,
+            "function": "build_strain_figure_definitions",
+            "inputs": {"source_paths": [frame.source_path for frame in frames]},
+            "parameters": {
+                "included_frame_indices": [frame.index for frame in frames],
+                "eligibility_reasons": _eligibility_payload(frames, decisions),
+                "projection_quality": projection_quality,
+                "source_path_by_frame": {
+                    str(frame.index): frame.source_path for frame in frames
+                },
+            },
+        },
+        style_profile="sci_default",
+        display_order=115,
+    )
+
+
 def _method_reason_codes(payload: Mapping[str, Any]) -> str | None:
     raw_reasons = payload.get("reason_codes")
     if isinstance(raw_reasons, str):
@@ -1989,6 +2087,7 @@ def build_strain_figure_definitions(
             y_label="Correlation",
             display_order=110,
         ),
+        _kratky_definition(evidence_frames, decisions),
         _trace_definition(
             evidence_frames,
             decisions,

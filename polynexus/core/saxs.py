@@ -63,6 +63,7 @@ from .saxs_sequence_qa import build_sequence_qa_summary
 from .saxs_result_contract import publish_saxs_result_contract
 from .saxs_export_bundle import SAXSExportBundle, export_saxs_bundle
 from .saxs_engine.processed_profile import ProcessedProfile, _coerce_numeric_array
+from .saxs_engine.io import normalize_edf_detector_metadata
 from .saxs_engine.figure_common import frame_views_from_engine
 from .saxs_engine.figure_evidence import (
     sync_saxs_review_evidence_to_existing_figures,
@@ -576,7 +577,7 @@ class SAXSEngine(BaseEngine):
             self.log(f"EDF loaded: {self._img.shape}, SDD={self.cfg.sdd_m:.3f}m")
             return True
 
-        if filepath.lower().endswith((".dat", ".txt", ".csv")):
+        if filepath.lower().endswith((".dat", ".txt", ".csv", ".xy")):
             q, I, meta = read_1d_profile(filepath)
             if q is None or len(q) < 5:
                 self.log("Failed to read 1D profile")
@@ -630,7 +631,11 @@ class SAXSEngine(BaseEngine):
                 if total_loaded >= 48:
                     break
                 try:
-                    img, header = read_image(str(filepath))
+                    suffix = Path(filepath).suffix.lower()
+                    if suffix in {".dat", ".txt", ".csv", ".xy"}:
+                        img, header = None, {}
+                    else:
+                        img, header = read_image(str(filepath))
                     cfg_copy = extract_geometry_from_header(header, self.cfg)
                     if img is None:
                         q, I, _ = read_1d_profile(str(filepath))
@@ -644,9 +649,13 @@ class SAXSEngine(BaseEngine):
                             **({"detector_header": header} if header else {}),
                         )
                         q = pp["q"]
-                        I = pp["Iq_smooth"]
-                        I_merid = pp.get("Iq_merid_smooth")
-                        I_equat = pp.get("Iq_equat_smooth")
+                        # The core owns the single smoothing boundary. Batch
+                        # inputs therefore use corrected/normalised but raw
+                        # (unsmoothed) intensity, matching the single-frame
+                        # analysis contract.
+                        I = pp.get("Iq_norm", pp.get("Iq"))
+                        I_merid = pp.get("Iq_merid_norm")
+                        I_equat = pp.get("Iq_equat_norm")
                         detector_quality_report = pp.get("detector_quality_report")
                     sector_data = pp.get("sector_data") if img is not None else None
                     if not isinstance(sector_data, dict):
@@ -688,13 +697,20 @@ class SAXSEngine(BaseEngine):
                     except (TypeError, ValueError):
                         conf = np.nan
                     self._condition_confidences.append(conf)
-                    self._geometry_sources.append("header" if header else "config_default")
-                    self._geometry_confidences.append(0.95 if header else 0.5)
+                    metadata_status = normalize_edf_detector_metadata(header).get("metadata_status") if header else "missing"
+                    self._geometry_sources.append("header_complete" if metadata_status == "complete" else "header_partial" if header else "config_default")
+                    self._geometry_confidences.append(0.95 if metadata_status == "complete" else 0.7 if header else 0.5)
                     total_loaded += 1
                 except Exception as e:
                     self._skipped_files.append({"file": str(filepath), "reason": "load_failed", "error": str(e)})
                     self.log(f"Warning: failed to load {os.path.basename(str(filepath))}: {e}")
                     logger.warning("SAXS batch file load failed.", exc_info=True)
+            for filepath in cond.files[10:]:
+                self._skipped_files.append({
+                    "file": str(filepath),
+                    "reason": "condition_frame_limit",
+                    "limit": 10,
+                })
             if total_loaded >= 48:
                 break
 
@@ -729,9 +745,9 @@ class SAXSEngine(BaseEngine):
                                 **({"detector_header": header} if header else {}),
                             )
                             self._q_list.append(pp["q"])
-                            self._I_list.append(pp["Iq_smooth"])
-                            self._I_merid_list.append(pp.get("Iq_merid_smooth"))
-                            self._I_equat_list.append(pp.get("Iq_equat_smooth"))
+                            self._I_list.append(pp.get("Iq_norm", pp["Iq"]))
+                            self._I_merid_list.append(pp.get("Iq_merid_norm"))
+                            self._I_equat_list.append(pp.get("Iq_equat_norm"))
                             sector_data = pp.get("sector_data")
                             self._sector_data_list.append(
                                 sector_data if isinstance(sector_data, dict) else None
@@ -768,8 +784,9 @@ class SAXSEngine(BaseEngine):
                         self._condition_source_keys.append("")
                         self._condition_source_texts.append(os.path.basename(str(edf)))
                         self._condition_confidences.append(0.0)
-                        self._geometry_sources.append("header" if header else "config_default")
-                        self._geometry_confidences.append(0.95 if header else 0.5)
+                        metadata_status = normalize_edf_detector_metadata(header).get("metadata_status") if header else "missing"
+                        self._geometry_sources.append("header_complete" if metadata_status == "complete" else "header_partial" if header else "config_default")
+                        self._geometry_confidences.append(0.95 if metadata_status == "complete" else 0.7 if header else 0.5)
                     except Exception as e:
                         self._skipped_files.append({"file": edf, "reason": "fallback_load_failed", "error": str(e)})
                         self.log(f"Warning: failed to load {os.path.basename(edf)}: {e}")
@@ -938,12 +955,12 @@ class SAXSEngine(BaseEngine):
             preprocess_kwargs["mask_edit_candidate"] = self._mask_edit_candidate
         pp = preprocess_pipeline(self._img, self.cfg, **preprocess_kwargs)
         self._q = pp["q"]
-        self._I = pp["Iq"]
+        self._I = pp.get("Iq_norm", pp["Iq"])
         self._I_smooth = pp.get("Iq_smooth", self._I)
-        self._I_merid = pp.get("Iq_merid_smooth")
-        self._I_equat = pp.get("Iq_equat_smooth")
+        self._I_merid = pp.get("Iq_merid_norm")
+        self._I_equat = pp.get("Iq_equat_norm")
         self.result.raw_data["q"] = self._q
-        self.result.raw_data["I"] = self._I
+        self.result.raw_data["I"] = pp["Iq"]
         self.result.raw_data["I_smooth"] = self._I_smooth
         self.result.raw_data["img"] = self._img
         self.result.raw_data["sector_data"] = pp.get("sector_data", {})

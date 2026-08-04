@@ -123,6 +123,52 @@ def test_opening_introduces_product_before_the_saxs_map():
     assert "data <span>→</span> models <span>→</span> quality <span>→</span> figures" in html
 
 
+def test_saxs_chapter_explains_processing_methods_and_quality_boundaries():
+    html = PRESENTATION.read_text(encoding="utf-8")
+
+    for term in (
+        "CSV / DAT / TXT / XY",
+        "pyFAI",
+        "manual integration",
+        "transmission / thickness",
+        "Savitzky-Golay",
+        "beamstop",
+        "q-window",
+        "simulated teaching data",
+        "ideal curve",
+        "problem curve",
+        "background drift",
+        "peak overlap",
+        "Quantitative",
+        "Trend",
+        "Diagnostic",
+        "Unusable",
+        "Q_star_valid",
+        "sasmodels",
+    ):
+        assert term in html
+
+
+def test_ai_chapter_explains_bounded_advisor_and_review_flow():
+    html = PRESENTATION.read_text(encoding="utf-8")
+
+    for term in (
+        "AI Advisor",
+        "LLM API",
+        "RAG",
+        "Chroma / BM25",
+        "deterministic orchestrator",
+        "PreprocessIntent",
+        "shadow",
+        "confirm-only",
+        "keep_original",
+        "user confirmation",
+        "reference_cases",
+        "offline mock",
+    ):
+        assert term in html
+
+
 def test_presentation_exposes_narration_navigation_and_motion_safety():
     html = PRESENTATION.read_text(encoding="utf-8")
 
@@ -133,3 +179,32 @@ def test_presentation_exposes_narration_navigation_and_motion_safety():
     assert "data-caption" in html
     assert "fit quality" in html
     assert "physical plausibility" in html
+
+
+def test_presentation_has_recording_and_presenter_mode_controls():
+    html = PRESENTATION.read_text(encoding="utf-8")
+
+    for term in (
+        'id="fullscreen"',
+        'id="speakerMode"',
+        'id="presenterShell"',
+        'id="presenterCurrent"',
+        'id="presenterNext"',
+        'id="presenterNotes"',
+        'id="presenterPrev"',
+        'id="presenterNextButton"',
+        "requestFullscreen",
+        "fullscreenchange",
+        "openPresenterMode",
+        "BroadcastChannel",
+        "presenter=1",
+        "recording-mode",
+        "presenter-ready",
+        "presenter-command",
+        "requestPresenterMove",
+        "SPEAKER_NOTES",
+        "getSpeakerNotes",
+        "2.3fr",
+        "minmax(150px, .48fr)",
+    ):
+        assert term in html

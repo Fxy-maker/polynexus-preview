@@ -77,8 +77,12 @@ def _sci_axis_label(label: str, *, y_axis: bool = False) -> str:
         return AXIS_LABELS["L"]
     if "correlation" in text or "gamma" in text:
         return AXIS_LABELS["gamma"] if y_axis else AXIS_LABELS["r"]
-    if "distance" in text or text in {"r", "r_nm"}:
+    if "distance" in text or text in {"r", "r_nm"} or "$r$" in text:
         return AXIS_LABELS["r"]
+    if y_axis and ("idf" in text or "g_1" in text or "g1" in text):
+        return r"$\mathrm{IDF}(r)$ (a.u.)"
+    if y_axis and ("q^2" in text or "q²" in text):
+        return r"$I(q)q^2$ (a.u. nm$^{-2}$)"
     if "intensity" in text or text in {"i", "i(q)"}:
         return AXIS_LABELS["I_saxs"]
     if "scattering" in text or text.startswith("q"):
@@ -276,6 +280,7 @@ def build_saxs_figure_definitions(engine_state) -> tuple[FigureDefinition, ...]:
     ]
     if len(frames) > 1:
         definitions.append(_build_series_waterfall(series_kind, frames))
+        definitions.append(_build_series_kratky(series_kind, frames))
     return _apply_publication_roles(engine_state, tuple(definitions))
 
 
@@ -477,6 +482,15 @@ def build_saxs_temperature_definitions(
         summary_role = "main" if main_indices else waterfall_role
         definitions.append(
             _build_temperature_waterfall(
+                temperatures,
+                cleaned_frames,
+                available_indices=available_indices,
+                publication_role=waterfall_role,
+                evidence=evidence,
+            )
+        )
+        definitions.append(
+            _build_temperature_kratky(
                 temperatures,
                 cleaned_frames,
                 available_indices=available_indices,
@@ -712,6 +726,88 @@ def _build_series_waterfall(
     )
 
 
+def _build_series_kratky(
+    series_kind: str,
+    frames: Sequence[tuple[np.ndarray, np.ndarray, str]],
+) -> FigureDefinition:
+    """Legacy fallback projection of complete per-frame Kratky curves."""
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, object]] = []
+    for display_index, (q, intensity, label) in enumerate(frames):
+        source_id = f"{series_kind}-kratky-{display_index + 1:03d}-data"
+        iq2 = intensity * np.square(q)
+        sources.append(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("q_nm_inv", "nm^-1"),
+                    DataColumnDefinition("intensity_q2", "a.u. nm^-2"),
+                ),
+                values={
+                    "q_nm_inv": _float_values(q),
+                    "intensity_q2": _float_values(iq2),
+                },
+                role="full_series_kratky",
+            )
+        )
+        objects.append(
+            {
+                "id": f"{series_kind}-kratky-{display_index + 1:03d}",
+                "type": "plot_series",
+                "panel_id": "main",
+                "name": label,
+                "data_ref": source_id,
+                "x_column": "q_nm_inv",
+                "y_column": "intensity_q2",
+                "style": {
+                    "color": _SERIES_COLORS[display_index % len(_SERIES_COLORS)],
+                    "line_width": 0.8,
+                },
+            }
+        )
+    return FigureDefinition(
+        figure_id=f"saxs.series.{series_kind}.kratky",
+        technique="saxs",
+        scope="series",
+        category="series_overview",
+        title=f"SAXS {series_kind.title()} Kratky Curves",
+        layout=FigureLayoutDefinition(
+            width_in=7.2,
+            height_in=4.2,
+            rows=1,
+            columns=1,
+            panels=(
+                PanelDefinition(
+                    panel_id="main",
+                    row=0,
+                    column=0,
+                    x_axis=AxisDefinition("x-kratky", "q", "nm^-1"),
+                    y_axis=AxisDefinition("y-kratky", "I(q) q^2", "a.u. nm^-2"),
+                    show_legend=True,
+                    panel_label="(a)",
+                ),
+            ),
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_figure_definitions",
+            "inputs": {"frame_count": len(frames)},
+            "parameters": {
+                "series_kind": series_kind,
+                "figure_kind": "kratky",
+                "projection": "provider_display_projection",
+                "formula": "I(q) * q**2",
+                "included_frame_indices": [index + 1 for index in range(len(frames))],
+            },
+            "v2_adapter": "saxs_strain" if series_kind == "strain" else "saxs_static",
+        },
+        style_profile="sci_default",
+    )
+
+
 def _build_temperature_frame(
     index: int,
     temperature: float,
@@ -834,6 +930,94 @@ def _build_temperature_waterfall(
                 "figure_kind": "waterfall",
                 "intensity_transform": "log10_offset",
                 "selected_frame_indices": [index + 1 for index in selected_indices],
+            },
+            "v2_adapter": "temperature_saxs",
+            **({"evidence": evidence} if evidence is not None else {}),
+        },
+        style_profile="sci_default",
+        publication_role=publication_role,
+    )
+
+
+def _build_temperature_kratky(
+    temperatures: np.ndarray,
+    frames: Sequence[tuple[np.ndarray, np.ndarray] | None],
+    *,
+    available_indices: Sequence[int],
+    publication_role: str,
+    evidence: dict[str, object] | None = None,
+) -> FigureDefinition:
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, object]] = []
+    for display_index, frame_index in enumerate(available_indices):
+        frame = frames[frame_index]
+        if frame is None:
+            continue
+        q, intensity = frame
+        source_id = f"temperature-kratky-{frame_index + 1:03d}-data"
+        sources.append(
+            FigureDataSourceDefinition(
+                source_id=source_id,
+                columns=(
+                    DataColumnDefinition("q_nm_inv", "nm^-1"),
+                    DataColumnDefinition("intensity_q2", "a.u. nm^-2"),
+                ),
+                values={
+                    "q_nm_inv": _float_values(q),
+                    "intensity_q2": _float_values(intensity * np.square(q)),
+                },
+                role="full_series_kratky",
+            )
+        )
+        objects.append(
+            {
+                "id": f"temperature-kratky-{frame_index + 1:03d}",
+                "type": "plot_series",
+                "panel_id": "main",
+                "name": _temperature_label(temperatures[frame_index], frame_index + 1),
+                "data_ref": source_id,
+                "x_column": "q_nm_inv",
+                "y_column": "intensity_q2",
+                "style": {
+                    "color": _SERIES_COLORS[display_index % len(_SERIES_COLORS)],
+                    "line_width": 0.8,
+                },
+            }
+        )
+    return FigureDefinition(
+        figure_id="saxs.series.temperature.kratky",
+        technique="saxs",
+        scope="series",
+        category="series_overview",
+        title="SAXS Temperature Kratky Curves",
+        layout=FigureLayoutDefinition(
+            width_in=7.2,
+            height_in=4.2,
+            rows=1,
+            columns=1,
+            panels=(
+                PanelDefinition(
+                    panel_id="main",
+                    row=0,
+                    column=0,
+                    x_axis=AxisDefinition("x-kratky", "q", "nm^-1"),
+                    y_axis=AxisDefinition("y-kratky", "I(q) q^2", "a.u. nm^-2"),
+                    show_legend=True,
+                    panel_label="(a)",
+                ),
+            ),
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_provider",
+            "function": "build_saxs_temperature_definitions",
+            "inputs": {"temperature_count": len(available_indices)},
+            "parameters": {
+                "figure_kind": "kratky",
+                "projection": "provider_display_projection",
+                "formula": "I(q) * q**2",
+                "included_frame_indices": [index + 1 for index in available_indices],
             },
             "v2_adapter": "temperature_saxs",
             **({"evidence": evidence} if evidence is not None else {}),

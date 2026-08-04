@@ -106,6 +106,12 @@ class MainWindowRetranslateMixin:
 
             self._btn_theme.setToolTip(tr("THEME_TOGGLE_TOOLTIP"))
             self._btn_ai_tune.setText(tr("AI_TUNING_BUTTON"))
+            self._btn_ai_tune.setToolTip(tr("AI_TUNING_ENTRY_TOOLTIP"))
+            self._ai_tuning_entry_kicker.setText(tr("AI_TUNING_ENTRY_KICKER"))
+            self._ai_tuning_entry_title.setText(tr("AI_TUNING_ENTRY_TITLE"))
+            self._ai_tuning_entry_description.setText(tr("AI_TUNING_ENTRY_DESCRIPTION"))
+            self._ai_tuning_entry_button.setText(tr("AI_TUNING_ENTRY_BUTTON"))
+            self._ai_tuning_entry_button.setToolTip(tr("AI_TUNING_ENTRY_TOOLTIP"))
             self._btn_results_export.setText(tr("RESULTS_EXPORT_TABLE"))
             self._btn_results_copy.setText(tr("RESULTS_COPY_TABLE"))
             self._btn_results_default_order.setText(tr("RESULTS_DEFAULT_ORDER"))
@@ -252,7 +258,12 @@ class MainWindowRetranslateMixin:
         try:
             technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
             if technique in {"dsc", "waxs", "saxs"}:
-                self._build_config_for_technique(technique)
+                config_values = self._collect_config_panel_values()
+                if getattr(self, "_current_submodule_id", None):
+                    self._update_config_panel()
+                else:
+                    self._build_config_for_technique(technique)
+                self._apply_best_config(config_values)
         except Exception:
             logger.warning("Failed to rebuild translated manual config form during retranslate.", exc_info=True)
 

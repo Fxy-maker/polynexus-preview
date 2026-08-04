@@ -743,12 +743,16 @@ def correlation_function(
 
     dq = q_sel[1] - q_sel[0]
 
-    # 3. Porod extrapolation to q->inf
+    # 3. Optional extrapolation at either integration boundary.
     r_max = cfg.L_search_max * 2
     n_r = cfg.n_z_points
-    q_target = max(5.0, q_sel[-1] * 2.0)
-    n_extra = int((q_target - q_sel[-1]) / dq) + 50
-    q_ext, I_ext = _extrapolate_porod(q_sel, I_sel, dq, n_extra=max(n_extra, 200))
+    q_ext, I_ext = q_sel, I_sel
+    if extrapolate_q0:
+        q_ext, I_ext = _extrapolate_guinier(q_ext, I_ext, dq, n_extra=15)
+    if extrapolate_qinf:
+        q_target = max(5.0, q_ext[-1] * 2.0)
+        n_extra = int((q_target - q_ext[-1]) / dq) + 50
+        q_ext, I_ext = _extrapolate_porod(q_ext, I_ext, dq, n_extra=max(n_extra, 200))
 
     # 4. Cosine-blend transition at Porod boundary
     porod_boundary_idx = int(np.searchsorted(q_ext, q_sel[-1]))
@@ -1795,6 +1799,21 @@ def analyze_single(
     sanitized = sanitize_1d_profile(q, I)
     q = sanitized.q
     I = sanitized.intensity
+    # ``q_min`` is the experiment's declared valid lower bound.  Apply it
+    # once at the shared 1D entry point so every downstream consumer sees the
+    # same physical domain (smoothing, invariant, correlation, IDF, etc.).
+    sanitized_actions = list(sanitized.actions)
+    configured_q_min = getattr(cfg, "q_min", np.nan)
+    try:
+        configured_q_min = float(configured_q_min)
+    except (TypeError, ValueError, OverflowError):
+        configured_q_min = np.nan
+    if np.isfinite(configured_q_min) and configured_q_min > 0 and q.size:
+        configured_mask = q >= configured_q_min
+        if np.any(~configured_mask):
+            q = q[configured_mask]
+            I = I[configured_mask]
+            sanitized_actions.append("configured_q_min_applied")
     result = SAXSResult(q=q, I=I)
 
     if q.size == 0:
@@ -1805,7 +1824,7 @@ def analyze_single(
             raw_data_ref=raw_data_ref,
             processed_data_ref="saxs_result:I_smooth",
             processing_config_ref="SAXSConfig",
-            actions=sanitized.actions,
+            actions=tuple(sanitized_actions),
         )
         condition_context = getattr(cfg, "condition_context", {}) or {}
         applicability = (
@@ -1837,6 +1856,20 @@ def analyze_single(
     # ---- Phase 1: Beamstop detection ----
     from .preprocess import detect_beamstop_edge
     eff_q_min, beam_contaminated, beam_diag = detect_beamstop_edge(q, I_smooth, cfg)
+    # A configured q floor can start inside the detector's transition band.
+    # Do not turn that expected truncation into a beamstop error merely because
+    # the first retained bin is still part of the edge.  A materially higher
+    # independently detected edge remains a hard contamination finding.
+    if beam_contaminated and "configured_q_min_applied" in sanitized_actions:
+        q_step = float(np.median(np.diff(q))) if q.size > 1 else 0.0
+        edge_tolerance = max(2.0 * q_step, 1e-9)
+        first_retained_q = float(q[0]) if q.size else configured_q_min
+        if np.isfinite(configured_q_min) and eff_q_min <= first_retained_q + edge_tolerance:
+            beam_contaminated = False
+            eff_q_min = configured_q_min
+            beam_diag = dict(beam_diag)
+            beam_diag["method"] = "configured_q_min"
+            beam_diag["configured_q_min"] = configured_q_min
     result.beam_stop_contaminated = beam_contaminated
     result.effective_q_min = eff_q_min
     if eff_q_min > getattr(cfg, 'mask_truncated_q_thresh', 0.10):
@@ -1871,6 +1904,8 @@ def analyze_single(
         q, I_smooth, cfg,
         q_min=q_analysis_min,
         q_max=getattr(cfg, 'q_corr_max', None),
+        extrapolate_q0=bool(getattr(cfg, "extrapolate_q0", True)),
+        extrapolate_qinf=bool(getattr(cfg, "extrapolate_qinf", True)),
     )
     result.correlation = corr
 
@@ -1889,7 +1924,7 @@ def analyze_single(
         processed_data_ref="saxs_result:I_smooth",
         processing_config_ref="SAXSConfig",
         low_q_truncated=bool(result.mask_truncated),
-        actions=sanitized.actions,
+        actions=tuple(sanitized_actions),
     )
     condition_context = getattr(cfg, "condition_context", {}) or {}
     applicability = (

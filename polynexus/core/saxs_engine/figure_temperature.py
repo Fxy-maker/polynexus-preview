@@ -21,6 +21,8 @@ from .figure_common import (
     SAXSFrameView,
     _coerce_numeric_array,
     frame_views_from_engine,
+    kratky_curve_from_frame,
+    kratky_projection_quality_from_frame,
 )
 from .figure_evidence import (
     attach_saxs_figure_evidence,
@@ -1103,6 +1105,99 @@ def _build_waterfall(
     )
 
 
+def _build_kratky_waterfall(
+    frames: Sequence[SAXSFrameView],
+    selection: RepresentativeFrameSelection,
+    axis: _ConditionAxis,
+) -> FigureDefinition | None:
+    """Expose each emitted complete ``I(q)q^2`` curve in the series."""
+
+    sources: list[FigureDataSourceDefinition] = []
+    objects: list[dict[str, Any]] = []
+    projection_quality: dict[str, dict[str, Any]] = {}
+    colors = ("#0072B2", "#56B4E9", "#009E73", "#E69F00", "#D55E00", "#CC79A7")
+    ordered_frames = sorted(frames, key=lambda frame: (_condition_value(frame), frame.index))
+    for order, frame in enumerate(ordered_frames):
+        curve = kratky_curve_from_frame(frame)
+        if curve is None:
+            quality = kratky_projection_quality_from_frame(frame)
+            if quality is not None:
+                projection_quality[str(frame.index)] = dict(quality)
+            continue
+        q, iq2, quality = curve
+        projection_quality[str(frame.index)] = dict(quality)
+        source_id = f"saxs-temperature-kratky-{frame.index:03d}"
+        sources.append(
+            _source(
+                source_id,
+                (_column("q_nm_inv", "nm^-1"), _column("intensity_q2", "a.u. nm^-2")),
+                {"q_nm_inv": q.tolist(), "intensity_q2": iq2.tolist()},
+                role="full_series_kratky",
+            )
+        )
+        objects.append(
+            {
+                "id": f"temperature-kratky-{frame.index:03d}",
+                "type": "plot_series",
+                "name": frame.label,
+                "panel_id": "kratky",
+                "data_ref": source_id,
+                "x_column": "q_nm_inv",
+                "y_column": "intensity_q2",
+                "chart_kind": "line",
+                "style": {"color": colors[order % len(colors)], "line_width": 0.8},
+            }
+        )
+    if not objects:
+        return None
+    return FigureDefinition(
+        figure_id="saxs.temperature.kratky",
+        technique="saxs",
+        scope="series",
+        category="supplementary",
+        publication_role="si",
+        title="Full SAXS Kratky series",
+        layout=FigureLayoutDefinition(
+            width_in=7.2,
+            height_in=4.2,
+            rows=1,
+            columns=1,
+            panels=(
+                PanelDefinition(
+                    panel_id="kratky",
+                    row=0,
+                    column=0,
+                    x_axis=_sci_axis("kratky-q", "q"),
+                    y_axis=AxisDefinition(
+                        "kratky-iq2",
+                        "I(q) q^2",
+                        unit="a.u. nm^-2",
+                    ),
+                    show_legend=True,
+                    panel_label="(a)",
+                ),
+            ),
+        ),
+        data_sources=tuple(sources),
+        objects=tuple(objects),
+        recipe={
+            "module": "polynexus.core.saxs_engine.figure_temperature",
+            "function": "build_temperature_figure_definitions",
+            **_selection_recipe(selection, axis),
+            "includes_all_frames": True,
+            "parameters": {
+                "projection_quality": projection_quality,
+                "source_path_by_frame": {
+                    str(frame.index): frame.source_path for frame in ordered_frames
+                },
+            },
+            "v2_adapter": "temperature_saxs",
+        },
+        style_profile="sci_default",
+        display_order=110,
+    )
+
+
 def _build_detector_figure(
     frames: Sequence[SAXSFrameView],
     selection: RepresentativeFrameSelection,
@@ -1240,12 +1335,16 @@ def _build_selected_evidence(
 ) -> FigureDefinition | None:
     correlation = _mapping_curve(getattr(frame.analysis, "correlation", None), "r", "gamma")
     idf = _mapping_curve(getattr(frame.analysis, "idf", None), "r_idf", "idf")
-    if correlation is None and idf is None:
+    kratky = kratky_curve_from_frame(frame)
+    if correlation is None and idf is None and kratky is None:
         return None
     sources: list[FigureDataSourceDefinition] = []
     objects: list[dict[str, Any]] = []
     panels: list[PanelDefinition] = []
     trace_projection_quality: dict[str, dict[str, Any]] = {}
+    kratky_quality = kratky_projection_quality_from_frame(frame)
+    if kratky_quality is not None:
+        trace_projection_quality["kratky"] = kratky_quality
     if correlation is not None:
         quality = _trace_projection_quality(
             getattr(frame.analysis, "correlation", None), "r", "gamma"
@@ -1323,6 +1422,52 @@ def _build_selected_evidence(
                 "style": {"color": "#D55E00", "line_width": 0.9},
             }
         )
+    if kratky is not None:
+        q_values, iq2_values, quality = kratky
+        trace_projection_quality["kratky"] = quality
+        column = len(panels)
+        source_id = f"saxs-temperature-kratky-{frame.index:03d}-selected"
+        sources.append(
+            _source(
+                source_id,
+                (
+                    _column("q_nm_inv", "nm^-1"),
+                    _column("intensity_q2", "a.u. nm^-2"),
+                ),
+                {
+                    "q_nm_inv": q_values.tolist(),
+                    "intensity_q2": iq2_values.tolist(),
+                },
+                role="kratky_evidence",
+            )
+        )
+        panels.append(
+            PanelDefinition(
+                panel_id="kratky",
+                row=0,
+                column=column,
+                x_axis=_sci_axis("kratky-q", "q"),
+                y_axis=AxisDefinition(
+                    "kratky-iq2",
+                    "I(q) q^2",
+                    unit="a.u. nm^-2",
+                ),
+                panel_label=f"({chr(ord('a') + column)})",
+            )
+        )
+        objects.append(
+            {
+                "id": f"temperature-kratky-{frame.index:03d}-selected",
+                "type": "plot_series",
+                "name": "I(q) q^2",
+                "panel_id": "kratky",
+                "data_ref": source_id,
+                "x_column": "q_nm_inv",
+                "y_column": "intensity_q2",
+                "chart_kind": "line",
+                "style": {"color": "#009E73", "line_width": 0.9},
+            }
+        )
     supported_parameters: list[str] = []
     if correlation is not None and np.isfinite(
         _finite_float(_first_final_value(frame, "L_nm", "L_nm_effective", "L_nm_measured"))
@@ -1344,9 +1489,9 @@ def _build_selected_evidence(
         scope="frame",
         category="supplementary" if supports_main else "diagnostic",
         publication_role=role,
-        title=f"Selected-frame correlation/IDF evidence: {frame.label}",
+        title=f"Selected-frame Fourier/Kratky evidence: {frame.label}",
         layout=FigureLayoutDefinition(
-            width_in=7.2 if len(panels) == 2 else 3.5,
+            width_in=3.5 * len(panels),
             height_in=3.0,
             rows=1,
             columns=len(panels),
@@ -1408,6 +1553,9 @@ def build_temperature_figure_definitions(
     waterfall = _build_waterfall(frames, selection, axis)
     if waterfall is not None:
         definitions.append(waterfall)
+    kratky_waterfall = _build_kratky_waterfall(frames, selection, axis)
+    if kratky_waterfall is not None:
+        definitions.append(kratky_waterfall)
     method_evidence = _build_temperature_method_evidence(
         frames,
         getattr(engine, "_temperature_result", None),
