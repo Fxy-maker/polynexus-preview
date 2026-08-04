@@ -518,14 +518,14 @@ def subtract_background(
     """Subtract background scattering: I_corr = I_sample - scale * I_bg.
 
     Scale determined by cfg.bg_scale_method:
-        "transmission" -> T_bg / T_sample
-        "thickness"     -> d_bg / d_sample
+        "transmission" -> T_sample / T_bg (raw-count measurement equation)
+        "thickness"     -> d_sample / d_bg (raw-count measurement equation)
         "manual"        -> cfg.bg_scale_value
     """
     if cfg.bg_scale_method == "transmission":
-        scale = cfg.transmission_background / max(cfg.transmission_sample, 1e-6)
+        scale = cfg.transmission_sample / max(cfg.transmission_background, 1e-6)
     elif cfg.bg_scale_method == "thickness":
-        scale = 1.0  # thickness normalized separately
+        scale = cfg.sample_thickness_m / max(cfg.background_thickness_m, 1e-12)
     else:
         scale = cfg.bg_scale_value
 

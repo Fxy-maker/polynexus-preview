@@ -33,7 +33,11 @@ from .saxs_quality_contracts import (
     build_invariant_evidence,
     build_lamellar_evidence,
     sanitize_1d_profile,
+    absolute_q_unit_status,
+    normalize_q_to_nm,
+    prepare_uniform_q_profile,
 )
+from .saxs_physical_helpers import specific_surface_from_porod
 
 
 # ======================================================================
@@ -78,6 +82,9 @@ class SAXSResult:
     q: np.ndarray = None
     I: np.ndarray = None  # noqa: E741
     I_smooth: np.ndarray = None
+    q_unit: str | None = "nm^-1"
+    q_unit_source: str = "config"
+    q_unit_status: Dict[str, Any] = field(default_factory=dict)
     long_period: LongPeriodResult = None
     structure: StructureParams = None
     raw_long_period: LongPeriodResult = None
@@ -695,7 +702,11 @@ def correlation_function(
     q_corr_min = cfg.q_corr_min
     if q_min is not None:
         q_corr_min = max(q_corr_min, float(q_min))
-    sanitized = sanitize_1d_profile(q, I)
+    # Correlation and Porod integration are positive-domain consumers.  Keep
+    # signed source data untouched, but make the exclusion explicit in this
+    # derived Fourier view so a negative residual cannot create a false Q*.
+    raw_sanitized = sanitize_1d_profile(q, I, positive_only=True)
+    sanitized = prepare_uniform_q_profile(raw_sanitized.q, raw_sanitized.intensity)
     q = sanitized.q
     intensity = sanitized.intensity
     if q.size == 0:
@@ -843,7 +854,7 @@ def correlation_function(
         'q_corr_min': q_corr_min,
         'q_corr_max': q_corr_max,
         'q_ext': q_ext, 'I_ext': I_ext,
-        'q_raw': q, 'I_raw': intensity,
+        'q_raw': raw_sanitized.q, 'I_raw': raw_sanitized.intensity,
     }
 
 
@@ -1300,6 +1311,11 @@ def compute_structure_params(
         if minority_fraction < 0.15:
             sp.confidence_lc = min(sp.confidence_lc, 0.15)
 
+    # Assign Q before any quality gates consume it.  Previously this field was
+    # filled after the anomaly checks, making both checks permanently inert.
+    Q = corr_result.get('Q_invariant', np.nan)
+    sp.Q_invariant = Q
+
     # Phase 5: Q* anomaly penalty (beamstop-contaminated / no-mask data)
     # When Q_invariant exceeds ~50 (likely direct-beam or mask-edge pollution),
     # the Porod/invariant analyses are unreliable → cap lc confidence at 0.5.
@@ -1324,16 +1340,13 @@ def compute_structure_params(
     if np.isfinite(cfg.crystallinity):
         sp.phi_c_vol = cfg.crystallinity
 
-    # Specific surface Sv = pi * Kp / Q*
-    Q = corr_result.get('Q_invariant', np.nan)
+    # Specific surface and invariant crystallinity share the same Porod
+    # constant.  Compute the invariant phase fraction first so Sv includes the
+    # required phi*(1-phi) factor.
     Kp_guess = _porod_constant(corr_result.get('q_ext', None),
                                 corr_result.get('I_ext', None),
                                 q_raw=corr_result.get('q_raw', None),
                                 I_raw=corr_result.get('I_raw', None))
-    if np.isfinite(Q) and np.isfinite(Kp_guess) and Q > 0:
-        sp.Sv = np.pi * Kp_guess / Q
-
-    sp.Q_invariant = Q
 
     # Porod-invariant crystallinity (independent cross-check)
     if np.isfinite(L) and np.isfinite(Q) and np.isfinite(Kp_guess) and Q > 0 and Kp_guess > 0:
@@ -1352,6 +1365,13 @@ def compute_structure_params(
             sp.lc_porod_nm = phi_c_inv * L
     else:
         sp.phi_c_invariant_reason = "porod_invariant_inputs_unavailable"
+
+    phase_fraction = np.nan
+    for candidate in (sp.phi_c_invariant, sp.phi_c_vol, sp.phi_c):
+        if np.isfinite(candidate) and 0.0 < candidate < 1.0:
+            phase_fraction = candidate
+            break
+    sp.Sv = specific_surface_from_porod(Q, Kp_guess, phase_fraction)
 
     return sp
 
@@ -1810,12 +1830,26 @@ def analyze_single(
     original_q = q
     original_I = I
     sanitized = sanitize_1d_profile(q, I)
-    q = sanitized.q
-    I = sanitized.intensity
+    q_status = absolute_q_unit_status(
+        getattr(cfg, "q_unit", None)
+        if bool(getattr(cfg, "q_unit_declared", True))
+        else None
+    )
+    if q_status["available"]:
+        q = normalize_q_to_nm(sanitized.q, q_status["unit"])
+        I = sanitized.intensity
+    else:
+        q = sanitized.q
+        I = sanitized.intensity
+    # Preserve the signed, caller-observable profile at this boundary.  The
+    # correlation service prepares its own uniform Fourier view below; doing
+    # interpolation here would erase isolated negative residuals from result.I.
     # ``q_min`` is the experiment's declared valid lower bound.  Apply it
     # once at the shared 1D entry point so every downstream consumer sees the
     # same physical domain (smoothing, invariant, correlation, IDF, etc.).
     sanitized_actions = list(sanitized.actions)
+    if not q_status["available"]:
+        sanitized_actions.append(q_status["reason"])
     configured_q_min = getattr(cfg, "q_min", np.nan)
     try:
         configured_q_min = float(configured_q_min)
@@ -1827,7 +1861,13 @@ def analyze_single(
             q = q[configured_mask]
             I = I[configured_mask]
             sanitized_actions.append("configured_q_min_applied")
-    result = SAXSResult(q=q, I=I)
+    result = SAXSResult(
+        q=q,
+        I=I,
+        q_unit=q_status.get("unit"),
+        q_unit_source=str(getattr(cfg, "q_unit_source", "unknown") or "unknown"),
+        q_unit_status=dict(q_status),
+    )
 
     if q.size == 0:
         quality_report = build_data_quality_report(
@@ -2074,6 +2114,23 @@ def analyze_single(
         q_star_manual = 2 * np.pi / lp.L_best if lp and np.isfinite(lp.L_best) and lp.L_best > 0 else None
         if q_star_manual and np.isfinite(q_peak_pf) and q_peak_pf > 0:
             result.pyfai_q_peak_diff_pct = round(float((q_peak_pf - q_star_manual) / q_star_manual * 100), 2)
+
+    if not q_status["available"]:
+        # Keep the measured profile and quality evidence inspectable, but do
+        # not expose length, Porod, invariant, or thermodynamic values from an
+        # undeclared reciprocal-length axis.
+        result.long_period = LongPeriodResult()
+        result.structure = StructureParams()
+        result.correlation = None
+        result.porod = None
+        result.Q_star_valid = False
+        result.validation_summary = "q_unit_required: absolute SAXS metrics unavailable"
+        for evidence in (result.metric_evidence or {}).values():
+            evidence["applicable"] = False
+            reasons = list(evidence.get("reason_codes") or [])
+            if "q_unit_required" not in reasons:
+                reasons.append("q_unit_required")
+            evidence["reason_codes"] = reasons
 
     return result
 

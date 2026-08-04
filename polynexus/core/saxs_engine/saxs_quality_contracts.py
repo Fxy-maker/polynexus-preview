@@ -26,6 +26,44 @@ class QualityLevel(str, Enum):
     UNUSABLE = "Unusable"
 
 
+_Q_UNIT_TO_NM_INV = {
+    "nm^-1": 1.0,
+    "nm-1": 1.0,
+    "1/nm": 1.0,
+    "nm⁻¹": 1.0,
+    "angstrom^-1": 10.0,
+    "angstrom-1": 10.0,
+    "1/angstrom": 10.0,
+    "a^-1": 10.0,
+    "a-1": 10.0,
+    "1/a": 10.0,
+    "å^-1": 10.0,
+}
+
+
+def _normalized_q_unit(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower().replace("å", "å")
+    return text if text in _Q_UNIT_TO_NM_INV else None
+
+
+def absolute_q_unit_status(q_unit: Any) -> dict[str, Any]:
+    """Return whether q-dependent absolute metrics have a declared unit."""
+    normalized = _normalized_q_unit(q_unit)
+    if normalized is None:
+        return {"available": False, "unit": None, "reason": "q_unit_required"}
+    return {"available": True, "unit": normalized, "reason": ""}
+
+
+def normalize_q_to_nm(q: Any, q_unit: Any) -> np.ndarray:
+    """Convert reciprocal q values to nm^-1 using an explicit unit alias."""
+    normalized = _normalized_q_unit(q_unit)
+    if normalized is None:
+        raise ValueError("q_unit_required")
+    return np.asarray(q, dtype=float) * _Q_UNIT_TO_NM_INV[normalized]
+
+
 def _quality_level(value: Any) -> QualityLevel:
     if isinstance(value, QualityLevel):
         return value
@@ -1261,6 +1299,75 @@ def sanitize_1d_profile(
         aligned_point_count=int(aligned_count),
         usable_point_count=int(q_valid.size),
         actions=tuple(actions),
+    )
+
+
+def prepare_uniform_q_profile(
+    q: Any,
+    intensity: Any,
+    *,
+    points: int | None = None,
+) -> Sanitized1DProfile:
+    """Prepare a monotonic, duplicate-free, uniformly spaced q analysis view.
+
+    The source profile is never mutated. Duplicate q observations are averaged
+    only in this derived Fourier view; the ordinary sanitizer continues to
+    retain them for quality reporting. Signed corrected intensities are kept.
+    """
+    sanitized = sanitize_1d_profile(q, intensity)
+    if sanitized.q.size < 2:
+        return sanitized
+
+    q_values = sanitized.q
+    intensity_values = sanitized.intensity
+    unique_q, inverse = np.unique(q_values, return_inverse=True)
+    if unique_q.size != q_values.size:
+        sums = np.zeros(unique_q.size, dtype=float)
+        counts = np.zeros(unique_q.size, dtype=float)
+        np.add.at(sums, inverse, intensity_values)
+        np.add.at(counts, inverse, 1.0)
+        intensity_values = sums / np.maximum(counts, 1.0)
+    if unique_q.size < 2:
+        return Sanitized1DProfile(
+            q=unique_q,
+            intensity=intensity_values,
+            original_point_count=sanitized.original_point_count,
+            aligned_point_count=sanitized.aligned_point_count,
+            usable_point_count=int(unique_q.size),
+            actions=tuple((*sanitized.actions, "duplicate_q_aggregated")),
+        )
+
+    diffs = np.diff(unique_q)
+    uniform = bool(np.allclose(diffs, diffs[0], rtol=1e-6, atol=1e-12))
+    if uniform:
+        return Sanitized1DProfile(
+            q=unique_q,
+            intensity=intensity_values,
+            original_point_count=sanitized.original_point_count,
+            aligned_point_count=sanitized.aligned_point_count,
+            usable_point_count=int(unique_q.size),
+            actions=tuple(
+                (*sanitized.actions,)
+                if unique_q.size == q_values.size
+                else (*sanitized.actions, "duplicate_q_aggregated")
+            ),
+        )
+
+    n_points = int(points or unique_q.size)
+    n_points = max(2, n_points)
+    q_uniform = np.linspace(unique_q[0], unique_q[-1], n_points)
+    i_uniform = np.interp(q_uniform, unique_q, intensity_values)
+    actions = list(sanitized.actions)
+    if unique_q.size != q_values.size:
+        actions.append("duplicate_q_aggregated")
+    actions.append("q_resampled_uniform")
+    return Sanitized1DProfile(
+        q=q_uniform,
+        intensity=i_uniform,
+        original_point_count=sanitized.original_point_count,
+        aligned_point_count=sanitized.aligned_point_count,
+        usable_point_count=int(q_uniform.size),
+        actions=tuple(dict.fromkeys(actions)),
     )
 
 

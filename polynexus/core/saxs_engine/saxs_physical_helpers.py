@@ -125,8 +125,12 @@ def _crystallinity_invariant(
         return np.nan
     length_in_q_units = float(L) * length_nm / q_length_nm
 
-    denom = 4.0 * np.pi**4 * Kp * length_in_q_units
-    c_term = Q_invariant / denom
+    # Q = 2*pi^2*drho^2*phi*(1-phi), Kp = 2*pi*drho^2*Sv.
+    # For a lamellar period with two interfaces, Sv = 2/L, so
+    # phi*(1-phi) = 2*Q/(pi*Kp*L).  Keep the convention explicit here;
+    # this is a dimensionless relation independent of the q unit system.
+    denom = np.pi * Kp * length_in_q_units
+    c_term = 2.0 * Q_invariant / denom
 
     disc = 1.0 - 4.0 * c_term
     if disc < 0:
@@ -139,6 +143,28 @@ def _crystallinity_invariant(
     if 0.5 < phi_c < 1.0:
         return float(phi_c)
     return np.nan
+
+
+def specific_surface_from_porod(
+    Q_invariant: float,
+    Kp: float,
+    phase_fraction: float,
+) -> float:
+    """Return specific interface area from Q, Kp, and a phase fraction.
+
+    With the documented invariant and Porod conventions,
+    ``Sv = pi*phi*(1-phi)*Kp/Q``.  The phase fraction is required; omitting
+    it reports the surface area per contrast-weighted volume instead.
+    """
+    if not (
+        np.isfinite(Q_invariant)
+        and np.isfinite(Kp)
+        and np.isfinite(phase_fraction)
+    ):
+        return np.nan
+    if Q_invariant <= 0 or Kp <= 0 or not (0.0 < phase_fraction < 1.0):
+        return np.nan
+    return float(np.pi * phase_fraction * (1.0 - phase_fraction) * Kp / Q_invariant)
 
 
 def guinier_analysis(

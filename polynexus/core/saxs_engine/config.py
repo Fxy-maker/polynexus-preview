@@ -185,6 +185,11 @@ class SAXSConfig:
     sdd_m: float = 0.450
     beam_center_x: float = 255.43
     beam_center_y: float = 549.73
+    # q values are normalized to nm^-1 at the core boundary.  File readers
+    # may replace this with an explicit Angstrom unit and provenance source.
+    q_unit: Optional[str] = "nm^-1"
+    q_unit_source: str = "config"
+    q_unit_declared: bool = True
 
     # ---- Beamstop / direct-beam detection ----
     auto_detect_beamstop: bool = True
@@ -233,6 +238,7 @@ class SAXSConfig:
     transmission_sample: float = 1.0
     transmission_background: float = 1.0
     sample_thickness_m: float = 1.0
+    background_thickness_m: float = 1.0
 
     # ---- Detector correction plugin ----
     # The production registry is intentionally empty. These fields document

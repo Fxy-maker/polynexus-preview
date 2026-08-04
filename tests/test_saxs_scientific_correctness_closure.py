@@ -19,7 +19,7 @@ def test_porod_invariant_crystallinity_is_unit_invariant() -> None:
     phi = 0.35
     length_nm = 10.0
     kp_nm = 2.5
-    q_nm = 4.0 * np.pi**4 * kp_nm * length_nm * phi * (1.0 - phi)
+    q_nm = (np.pi / 2.0) * kp_nm * length_nm * phi * (1.0 - phi)
 
     length_a = length_nm * 10.0
     kp_a = kp_nm * 1.0e-4
