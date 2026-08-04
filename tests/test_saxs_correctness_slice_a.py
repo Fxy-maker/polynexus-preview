@@ -56,7 +56,13 @@ def test_gibbs_thomson_converts_nm_to_si_and_honors_fixed_tm_inf() -> None:
     tm_k = (tm_inf_c + 273.15) * (1 - 2 * sigma / (delta_hf * lc_nm * 1e-9))
     temperatures = tm_k - 273.15
 
-    result = gibbs_thomson_analysis(temperatures, lc_nm, Tm_inf=tm_inf_c)
+    result = gibbs_thomson_analysis(
+        temperatures,
+        lc_nm,
+        Tm_inf=tm_inf_c,
+        melting_window_status=["within_window"] * len(lc_nm),
+        delta_Hf_Jm3=delta_hf,
+    )
 
     np.testing.assert_allclose(result["Tm_inf_C"], tm_inf_c, atol=1e-10)
     np.testing.assert_allclose(result["sigma_e_Jm2"], sigma, rtol=1e-6)

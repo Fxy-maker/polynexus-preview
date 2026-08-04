@@ -654,6 +654,9 @@ def gibbs_thomson_analysis(
     temperatures: np.ndarray,
     lc_array: np.ndarray,
     Tm_inf: float = None,
+    *,
+    melting_window_status: Optional[List[str]] = None,
+    delta_Hf_Jm3: float | None = None,
 ) -> Dict:
     """Gibbs-Thomson equation for lamellar thickness vs melting point.
 
@@ -677,6 +680,7 @@ def gibbs_thomson_analysis(
         'sigma_e_Jm2': np.nan,
         'R2': np.nan,
         'valid': False,
+        'reason': 'input_unavailable',
     }
 
     temperatures = _as_1d_float_array(temperatures)
@@ -685,9 +689,29 @@ def gibbs_thomson_analysis(
     temperatures = temperatures[:aligned_count]
     lc_array = lc_array[:aligned_count]
 
+    if melting_window_status is None:
+        result['reason'] = 'melting_window_required'
+        return result
+    if len(melting_window_status) < aligned_count:
+        result['reason'] = 'melting_window_length_mismatch'
+        return result
+    melting_window_status = list(melting_window_status[:aligned_count])
     # Filter valid points in melting region
-    valid = np.isfinite(lc_array) & (lc_array > 0) & np.isfinite(temperatures)
+    status_array = np.asarray(
+        [str(value or '').strip().lower() for value in melting_window_status],
+        dtype=object,
+    )
+    valid = (
+        np.isfinite(lc_array)
+        & (lc_array > 0)
+        & np.isfinite(temperatures)
+        & (status_array == 'within_window')
+    )
     if np.sum(valid) < 4:
+        result['reason'] = 'melting_window_required'
+        return result
+    if delta_Hf_Jm3 is None or not np.isfinite(float(delta_Hf_Jm3)) or float(delta_Hf_Jm3) <= 0:
+        result['reason'] = 'delta_Hf_required'
         return result
 
     T_valid = temperatures[valid] + 273.15  # to Kelvin
@@ -719,16 +743,38 @@ def gibbs_thomson_analysis(
         result['sigma_e_over_dHf'] = -slope / (2 * Tm_inf * 1e9) if Tm_inf > 0 else np.nan
         result['R2'] = r2
         result['valid'] = r2 > 0.8
+        result['reason'] = '' if result['valid'] else 'gibbs_thomson_fit_quality'
 
         # If delta_Hf known, estimate sigma_e
-        # Typical polymers: delta_Hf ~ 2e8 J/m^3
-        delta_Hf_typical = 2.0e8  # J/m^3
         if np.isfinite(result['sigma_e_over_dHf']):
-            result['sigma_e_Jm2'] = result['sigma_e_over_dHf'] * delta_Hf_typical
+            result['sigma_e_Jm2'] = result['sigma_e_over_dHf'] * float(delta_Hf_Jm3)
     except Exception:
         logger.warning("SAXS Gibbs-Thomson analysis failed.", exc_info=True)
 
     return result
+
+
+def _relative_crystallinity_from_sequence(
+    q_star: np.ndarray,
+    exp_type: str,
+) -> tuple[np.ndarray, float, float]:
+    """Normalize a complete invariant sequence against fixed endpoints."""
+    values = _as_1d_float_array(q_star)
+    result = np.full(values.size, np.nan, dtype=float)
+    finite = np.isfinite(values)
+    if not np.any(finite):
+        return result, np.nan, np.nan
+
+    q_melt = float(np.nanmin(values[finite]))
+    q_solid = float(np.nanmax(values[finite]))
+    if exp_type in ('cooling', 'isothermal'):
+        if q_solid > q_melt:
+            result[finite] = np.clip(
+                (values[finite] - q_melt) / (q_solid - q_melt), 0.0, 1.0
+            )
+    elif q_solid > 0:
+        result[finite] = np.clip(values[finite] / q_solid, 0.0, 1.0)
+    return result, q_melt, q_solid
 
 
 # ======================================================================
@@ -736,7 +782,7 @@ def gibbs_thomson_analysis(
 # ======================================================================
 
 def avrami_kinetics(
-    times: np.ndarray,
+    times: np.ndarray | None,
     Xc_relative: np.ndarray,
     auto_range: bool = True,
 ) -> Dict:
@@ -765,7 +811,12 @@ def avrami_kinetics(
         'R2': np.nan,
         'valid': False,
         'fit_range': None,
+        'reason': '',
     }
+
+    if times is None:
+        result['reason'] = 'time_axis_required'
+        return result
 
     times = _as_1d_float_array(times)
     Xc_relative = _as_1d_float_array(Xc_relative)
@@ -775,6 +826,7 @@ def avrami_kinetics(
 
     valid = np.isfinite(Xc_relative) & np.isfinite(times) & (times > 0)
     if np.sum(valid) < 5:
+        result['reason'] = 'insufficient_time_axis_points'
         return result
 
     t_valid = times[valid]
@@ -789,6 +841,7 @@ def avrami_kinetics(
         mask = np.ones(len(Xc_valid), dtype=bool)
 
     if np.sum(mask) < 4:
+        result['reason'] = 'insufficient_primary_crystallization_points'
         return result
 
     t_fit = t_valid[mask]
@@ -824,6 +877,7 @@ def avrami_kinetics(
         result['R2'] = r2
         result['valid'] = r2 > 0.9 and 1.0 <= n <= 4.0
         result['fit_range'] = (float(np.min(t_fit)), float(np.max(t_fit)))
+        result['reason'] = '' if result['valid'] else 'avrami_fit_quality'
     except Exception:
         logger.warning("SAXS Avrami kinetics fit failed.", exc_info=True)
 
@@ -1067,9 +1121,13 @@ def analyze_temperature_series(
             time_axis_invalid_values = bool(np.any(~np.isfinite(time_values)))
             times_arr = time_values[sort_idx]
     else:
-        times_arr = np.arange(n_points, dtype=float)
+        # Frame indices are not seconds.  Keep an explicit invalid axis so no
+        # downstream path can accidentally label synthetic values as time.
+        times_arr = np.full(n_points, np.nan, dtype=float)
 
     result = TempSeriesResult(experiment_type=exp_type)
+    if times is None and exp_type in ("cooling", "isothermal"):
+        result.avrami = {"valid": False, "reason": "time_axis_required"}
     if time_axis_length_mismatch:
         result.avrami = {
             "valid": False,
@@ -1209,22 +1267,6 @@ def analyze_temperature_series(
             tp.warnings.append(invariant_warning)
         result.Q_star_array[i] = Q_star
 
-        # ---- Relative crystallinity ----
-        if exp_type in ("cooling", "isothermal"):
-            # For crystallization: Xc = (Q - Q_melt) / (Q_solid - Q_melt)
-            Q_max = np.nanmax(result.Q_star_array[:i+1])
-            Q_min = np.nanmin(result.Q_star_array[:i+1])
-            if Q_max > Q_min:
-                tp.Xc_relative = (Q_star - Q_min) / (Q_max - Q_min)
-                tp.Xc_relative = np.clip(tp.Xc_relative, 0, 1)
-        elif exp_type == "heating":
-            # For melting: Xc decreases
-            if Q_solid > 0:
-                tp.Xc_relative = Q_star / Q_solid
-                tp.Xc_relative = np.clip(tp.Xc_relative, 0, 1)
-
-        result.Xc_array[i] = tp.Xc_relative
-
         # ---- Phase detection ----
         phase = detect_temperature_phase(T, Q_star, Q_solid, tp.L_nm, L_solid, exp_type)
         tp.phase = phase
@@ -1232,6 +1274,30 @@ def analyze_temperature_series(
         result.temp_points.append(tp)
         result.L_array[i] = tp.L_nm
         result.lc_array[i] = tp.lc_nm
+
+    # Relative crystallinity is a sequence property.  Compute it once after
+    # every frame has contributed Q*, so a new running maximum cannot relabel
+    # only the current frame as Xc=1.
+    Xc_values, _q_melt_sequence, q_solid_sequence = _relative_crystallinity_from_sequence(
+        result.Q_star_array,
+        exp_type,
+    )
+    result.Xc_array = Xc_values
+    if exp_type in ("cooling", "isothermal"):
+        Q_solid = q_solid_sequence
+        for idx, tp in enumerate(result.temp_points):
+            tp.Xc_relative = float(Xc_values[idx]) if np.isfinite(Xc_values[idx]) else np.nan
+            tp.phase = detect_temperature_phase(
+                tp.temperature_C,
+                tp.Q_star,
+                Q_solid,
+                tp.L_nm,
+                L_solid,
+                exp_type,
+            )
+    elif exp_type == "heating":
+        for idx, tp in enumerate(result.temp_points):
+            tp.Xc_relative = float(Xc_values[idx]) if np.isfinite(Xc_values[idx]) else np.nan
 
     frame_metric_evidence = []
     for point in result.temp_points:
@@ -1341,6 +1407,8 @@ def analyze_temperature_series(
         temps_arr,
         lc_for_gibbs_thomson,
         Tm_inf,
+        melting_window_status=[point.melting_window_status for point in result.temp_points],
+        delta_Hf_Jm3=getattr(cfg, "delta_Hf_Jm3", None),
     )
 
     # Avrami kinetics (for cooling/isothermal)
@@ -1348,6 +1416,7 @@ def analyze_temperature_series(
         not time_axis_length_mismatch
         and not time_axis_invalid_values
         and exp_type in ("cooling", "isothermal")
+        and times is not None
         and len(times_arr) > 5
     ):
         result.avrami = avrami_kinetics(times_arr, result.Xc_array)

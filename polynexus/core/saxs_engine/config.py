@@ -239,6 +239,8 @@ class SAXSConfig:
     transmission_background: float = 1.0
     sample_thickness_m: float = 1.0
     background_thickness_m: float = 1.0
+    # Required material parameter for absolute Gibbs-Thomson surface energy.
+    delta_Hf_Jm3: float = np.nan
 
     # ---- Detector correction plugin ----
     # The production registry is intentionally empty. These fields document

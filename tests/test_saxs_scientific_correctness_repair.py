@@ -16,6 +16,12 @@ from polynexus.core.saxs_engine.saxs_quality_contracts import (
     normalize_q_to_nm,
     prepare_uniform_q_profile,
 )
+from polynexus.core.saxs_engine.saxs_temperature import (
+    _relative_crystallinity_from_sequence,
+    analyze_temperature_series,
+    avrami_kinetics,
+    gibbs_thomson_analysis,
+)
 
 
 def test_transmission_background_scaling_uses_sample_over_background() -> None:
@@ -135,3 +141,49 @@ def test_analyze_single_hides_absolute_metrics_without_declared_q_unit() -> None
     assert result.q_unit_status["available"] is False
     assert result.structure.Q_invariant != result.structure.Q_invariant
     assert result.Q_star_valid is False
+
+
+def test_cooling_relative_crystallinity_uses_fixed_full_sequence_endpoints() -> None:
+    q_values = np.arange(1.0, 8.0)
+
+    Xc, q_melt, q_solid = _relative_crystallinity_from_sequence(q_values, "cooling")
+
+    np.testing.assert_allclose(Xc, np.linspace(0.0, 1.0, 7))
+    assert q_melt == pytest.approx(1.0)
+    assert q_solid == pytest.approx(7.0)
+
+
+def test_avrami_requires_explicit_seconds_axis() -> None:
+    result = avrami_kinetics(None, np.linspace(0.0, 1.0, 8))
+
+    assert result["valid"] is False
+    assert result["reason"] == "time_axis_required"
+
+
+def test_temperature_series_does_not_treat_frame_indices_as_seconds() -> None:
+    q = np.linspace(0.1, 2.0, 40)
+    intensity = 1.0 / (1.0 + q * q)
+
+    result = analyze_temperature_series(
+        [100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0],
+        [q] * 7,
+        [intensity] * 7,
+        cfg=SAXSConfig(smooth_method="none"),
+        exp_type="cooling",
+    )
+
+    assert result.avrami["valid"] is False
+    assert result.avrami["reason"] == "time_axis_required"
+
+
+def test_gibbs_thomson_requires_melting_window_and_enthalpy() -> None:
+    result = gibbs_thomson_analysis(
+        np.array([180.0, 185.0, 190.0, 195.0]),
+        np.array([4.0, 5.0, 6.0, 7.0]),
+        Tm_inf=220.0,
+        melting_window_status=["outside_window"] * 4,
+        delta_Hf_Jm3=None,
+    )
+
+    assert result["valid"] is False
+    assert result["reason"] == "melting_window_required"

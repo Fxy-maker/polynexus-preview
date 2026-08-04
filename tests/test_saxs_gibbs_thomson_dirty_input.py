@@ -27,6 +27,8 @@ def _assert_result_equal(actual: dict, expected: dict) -> None:
         expected_value = expected[key]
         if expected_value is None or isinstance(expected_value, bool):
             assert actual_value == expected_value
+        elif isinstance(expected_value, str):
+            assert actual_value == expected_value
         elif isinstance(expected_value, tuple):
             assert actual_value == pytest.approx(expected_value)
         elif np.isnan(expected_value):
@@ -55,8 +57,18 @@ def test_gibbs_thomson_coerces_dirty_pairs_without_mutating_inputs() -> None:
     temperatures_before = temperatures.copy()
     lc_before = lc_values.copy()
 
-    expected = gibbs_thomson_analysis(survivor_temperatures, survivor_lc)
-    actual = gibbs_thomson_analysis(temperatures, lc_values)
+    expected = gibbs_thomson_analysis(
+        survivor_temperatures,
+        survivor_lc,
+        melting_window_status=["within_window"] * len(survivor_lc),
+        delta_Hf_Jm3=2.0e8,
+    )
+    actual = gibbs_thomson_analysis(
+        temperatures,
+        lc_values,
+        melting_window_status=["within_window"] * len(lc_values),
+        delta_Hf_Jm3=2.0e8,
+    )
 
     _assert_result_equal(actual, expected)
     _assert_object_array_unchanged(temperatures, temperatures_before)
@@ -70,8 +82,15 @@ def test_gibbs_thomson_uses_common_prefix_for_mismatched_arrays() -> None:
     expected = gibbs_thomson_analysis(
         np.asarray([100.0, 110.0, 120.0, 130.0]),
         np.asarray([2.0, 2.2, 2.4, 2.6]),
+        melting_window_status=["within_window"] * 4,
+        delta_Hf_Jm3=2.0e8,
     )
-    actual = gibbs_thomson_analysis(temperatures, lc_values)
+    actual = gibbs_thomson_analysis(
+        temperatures,
+        lc_values,
+        melting_window_status=["within_window"] * len(temperatures),
+        delta_Hf_Jm3=2.0e8,
+    )
 
     _assert_result_equal(actual, expected)
 
