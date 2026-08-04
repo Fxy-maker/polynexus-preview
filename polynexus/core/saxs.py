@@ -220,7 +220,7 @@ def _orientation_tracking_rows(value: Any) -> list[dict[str, Any]]:
         },
     },
     output_parameters=[
-        {"key": "orientation_f", "label": "Herman 取向因子", "format": ".3f"},
+        {"key": "orientation_f", "label": "二维投影取向参数", "format": ".3f"},
         {"key": "void_volume_fraction", "label": "空穴体积分数", "format": ".3f"},
         {"key": "fibril_diameter_nm", "label": "微纤直径 (nm)", "format": ".2f"},
     ],
@@ -278,6 +278,7 @@ class SAXSEngine(BaseEngine):
         self._source_path: str = ""
         self._q_list: List[np.ndarray] = []
         self._I_list: List[np.ndarray] = []
+        self._cfg_list: List[SAXSConfig] = []
         self._I_merid_list: List[np.ndarray | None] = []
         self._I_equat_list: List[np.ndarray | None] = []
         self._sector_data_list: List[Dict[str, Any] | None] = []
@@ -581,7 +582,12 @@ class SAXSEngine(BaseEngine):
                 self._I = np.asarray(self._img)[:, 1]
                 self._img = None
                 self._header = self._header or {}
-                self.cfg = extract_geometry_from_header(self._header, self.cfg)
+                self.cfg = replace(
+                    extract_geometry_from_header(self._header, self.cfg),
+                    q_unit=None,
+                    q_unit_declared=False,
+                    q_unit_source="hdf5_missing",
+                )
                 self._processed_profile = None
                 self._processed_list = []
                 self.log(f"1D profile loaded: {len(self._q)} points from {suffix}")
@@ -601,7 +607,12 @@ class SAXSEngine(BaseEngine):
             self._I = I
             self._img = None
             self._header = meta
-            self.cfg = extract_geometry_from_header(meta, self.cfg)
+            self.cfg = replace(
+                extract_geometry_from_header(meta, self.cfg),
+                q_unit=meta.get("q_unit"),
+                q_unit_declared=meta.get("q_unit") is not None,
+                q_unit_source=str(meta.get("q_unit_source", "missing")),
+            )
             self._processed_profile = None
             self._processed_list = []
             self.log(f"1D profile loaded: {len(q)} points, q=[{q[0]:.3f}, {q[-1]:.3f}]")
@@ -621,6 +632,7 @@ class SAXSEngine(BaseEngine):
         self._conditions = []
         self._q_list = []
         self._I_list = []
+        self._cfg_list = []
         self._I_merid_list = []
         self._I_equat_list = []
         self._sector_data_list = []
@@ -685,11 +697,23 @@ class SAXSEngine(BaseEngine):
                     )
                     cfg_copy = extract_geometry_from_header(header, self.cfg)
                     if img is None or hdf5_profile:
+                        profile_meta = {}
                         if hdf5_profile:
                             profile_array = np.asarray(img, dtype=float)
                             q, I = profile_array[:, 0], profile_array[:, 1]
+                            profile_meta = {
+                                "q_unit": None,
+                                "q_unit_source": "hdf5_missing",
+                            }
                         else:
-                            q, I, _ = read_1d_profile(str(filepath))
+                            q, I, profile_meta = read_1d_profile(str(filepath))
+                        if "q_unit" in profile_meta:
+                            cfg_copy = replace(
+                                cfg_copy,
+                                q_unit=profile_meta.get("q_unit"),
+                                q_unit_declared=profile_meta.get("q_unit") is not None,
+                                q_unit_source=str(profile_meta.get("q_unit_source", "missing")),
+                            )
                         pp = {"q": q, "Iq": I, "Iq_smooth": I}
                         I_merid, I_equat = None, None
                         detector_quality_report = None
@@ -714,6 +738,7 @@ class SAXSEngine(BaseEngine):
 
                     self._q_list.append(q)
                     self._I_list.append(I)
+                    self._cfg_list.append(cfg_copy)
                     self._I_merid_list.append(I_merid)
                     self._I_equat_list.append(I_equat)
                     self._sector_data_list.append(sector_data)
@@ -763,6 +788,7 @@ class SAXSEngine(BaseEngine):
             if len(all_edf) > total_loaded:
                 self._q_list = []
                 self._I_list = []
+                self._cfg_list = []
                 self._I_merid_list = []
                 self._I_equat_list = []
                 self._sector_data_list = []
@@ -797,6 +823,7 @@ class SAXSEngine(BaseEngine):
                             )
                             self._q_list.append(pp["q"])
                             self._I_list.append(pp.get("Iq_norm", pp["Iq"]))
+                            self._cfg_list.append(cfg_copy)
                             self._I_merid_list.append(pp.get("Iq_merid_norm"))
                             self._I_equat_list.append(pp.get("Iq_equat_norm"))
                             sector_data = pp.get("sector_data")
@@ -813,10 +840,17 @@ class SAXSEngine(BaseEngine):
                             self._q_pyfai_list.append(q_pf if len(q_pf) > 0 else np.array([]))
                             self._I_pyfai_list.append(I_pf if len(q_pf) > 0 else np.array([]))
                         else:
-                            q, I, _ = read_1d_profile(edf)
+                            q, I, profile_meta = read_1d_profile(edf)
+                            cfg_copy = replace(
+                                cfg_copy,
+                                q_unit=profile_meta.get("q_unit"),
+                                q_unit_declared=profile_meta.get("q_unit") is not None,
+                                q_unit_source=str(profile_meta.get("q_unit_source", "missing")),
+                            )
                             pp = {"q": q, "Iq": I, "Iq_smooth": I}
                             self._q_list.append(q)
                             self._I_list.append(I)
+                            self._cfg_list.append(cfg_copy)
                             self._I_merid_list.append(None)
                             self._I_equat_list.append(None)
                             self._sector_data_list.append(None)
@@ -1965,7 +1999,9 @@ class SAXSEngine(BaseEngine):
                     q_pf_s = self._q_pyfai_list[i] if i < len(self._q_pyfai_list) else np.array([])
                     I_pf_s = self._I_pyfai_list[i] if i < len(self._I_pyfai_list) else np.array([])
                     analysis = analyze_single(
-                        self._q_list[i], self._I_list[i], self.cfg,
+                        self._q_list[i],
+                        self._I_list[i],
+                        self._cfg_list[i] if i < len(self._cfg_list) else self.cfg,
                         q_pyfai=(q_pf_s if len(q_pf_s) > 0 else None),
                         I_pyfai=(I_pf_s if len(I_pf_s) > 0 else None),
                         **self._quality_source_kwargs(i),

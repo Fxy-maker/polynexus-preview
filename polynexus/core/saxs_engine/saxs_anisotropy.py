@@ -614,6 +614,8 @@ def herman_from_azimuthal(
     """
     result = {
         'f': np.nan,
+        'metric_name': 'projected_order_parameter_2d',
+        'convention': 'detector_plane_2d_v1',
         'cos2_avg': np.nan,
         'sin2_avg': np.nan,
         'P2': np.nan,
@@ -662,6 +664,20 @@ def herman_from_azimuthal(
     result['P4'] = float((35 * cos4_avg - 30 * cos2_avg + 3) / 8) if np.isfinite(cos4_avg) else np.nan
 
     return result
+
+
+def detector_plane_sector_mask(
+    chi_rad: np.ndarray,
+    *,
+    axis_deg: float,
+    halfwidth_deg: float,
+) -> np.ndarray:
+    """Select a pi-periodic detector-plane sector around an axis."""
+    chi_array = np.asarray(chi_rad, dtype=float)
+    axis_rad = np.deg2rad(float(axis_deg))
+    halfwidth_rad = np.deg2rad(abs(float(halfwidth_deg)))
+    delta = (chi_array - axis_rad + np.pi / 2.0) % np.pi - np.pi / 2.0
+    return np.abs(delta) <= halfwidth_rad
 
 
 def herman_multi_q(
@@ -1144,8 +1160,12 @@ def analyze_anisotropy(
 
         # 3. Herman from sector regions
         # Meridional: chi ~ 0
-        mer_mask = np.abs(chi_prof) < np.pi / 12
-        eq_mask = np.abs(chi_prof - np.pi/2) < np.pi / 12
+        mer_mask = detector_plane_sector_mask(
+            chi_prof, axis_deg=0.0, halfwidth_deg=15.0
+        )
+        eq_mask = detector_plane_sector_mask(
+            chi_prof, axis_deg=90.0, halfwidth_deg=15.0
+        )
         result.f_herman_sub = np.nan
         result.f_herman_eq = np.nan
 
@@ -1181,8 +1201,12 @@ def analyze_anisotropy(
                 result.anisotropy_ratio = float(I_max / I_min)
 
             # Parallel vs perpendicular
-            par_mask = (np.abs(chi_prof) < np.pi/6) | (np.abs(chi_prof - np.pi) < np.pi/6)
-            perp_mask = np.abs(chi_prof - np.pi/2) < np.pi/6
+            par_mask = detector_plane_sector_mask(
+                chi_prof, axis_deg=0.0, halfwidth_deg=30.0
+            )
+            perp_mask = detector_plane_sector_mask(
+                chi_prof, axis_deg=90.0, halfwidth_deg=30.0
+            )
             I_par = np.mean(I_prof[par_mask]) if np.sum(par_mask) > 0 else 0
             I_perp = np.mean(I_prof[perp_mask]) if np.sum(perp_mask) > 0 else 0
             if I_par + I_perp > 0:

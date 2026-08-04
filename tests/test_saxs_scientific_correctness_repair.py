@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import h5py
 
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine import core as saxs_core
@@ -16,11 +17,21 @@ from polynexus.core.saxs_engine.saxs_quality_contracts import (
     normalize_q_to_nm,
     prepare_uniform_q_profile,
 )
+from polynexus.core.saxs_engine.io import (
+    UnsupportedDatasetError,
+    extract_geometry_from_header,
+    read_hdf5_dataset,
+    read_1d_profile,
+)
 from polynexus.core.saxs_engine.saxs_temperature import (
     _relative_crystallinity_from_sequence,
     analyze_temperature_series,
     avrami_kinetics,
     gibbs_thomson_analysis,
+)
+from polynexus.core.saxs_engine.saxs_anisotropy import (
+    detector_plane_sector_mask,
+    herman_from_azimuthal,
 )
 
 
@@ -187,3 +198,114 @@ def test_gibbs_thomson_requires_melting_window_and_enthalpy() -> None:
 
     assert result["valid"] is False
     assert result["reason"] == "melting_window_required"
+
+
+def test_geometry_header_parsing_does_not_mutate_the_base_config() -> None:
+    cfg = SAXSConfig()
+    original_wavelength = cfg.wavelength_m
+
+    header_cfg = extract_geometry_from_header(
+        {"WaveLength": 1.0, "PSize": 0.0001, "SampleDistance": 500.0, "Center_1": 10.0, "Center_2": 20.0},
+        cfg,
+    )
+    fallback_cfg = extract_geometry_from_header({}, cfg)
+
+    assert header_cfg is not cfg
+    assert header_cfg.wavelength_m != original_wavelength
+    assert fallback_cfg.wavelength_m == pytest.approx(original_wavelength)
+
+
+def test_directory_frames_keep_isolated_geometry_configs(monkeypatch, tmp_path) -> None:
+    import polynexus.core.saxs as saxs_module
+    from polynexus.core.saxs import SAXSEngine
+    from polynexus.core.saxs_engine.config import ExperimentCondition
+
+    paths = [tmp_path / "frame_a.edf", tmp_path / "frame_b.edf"]
+    for path in paths:
+        path.write_bytes(b"placeholder")
+
+    monkeypatch.setattr(
+        saxs_module,
+        "scan_experiment_dir",
+        lambda *_: [ExperimentCondition(value=0.0, files=[str(path) for path in paths])],
+    )
+    headers = {
+        str(paths[0]): {"WaveLength": 1.0, "PSize": 0.075, "SampleDistance": 450.0, "Center_1": 10.0, "Center_2": 20.0},
+        str(paths[1]): {},
+    }
+    monkeypatch.setattr(
+        saxs_module,
+        "read_image",
+        lambda path: (np.ones((4, 4)), headers[str(path)]),
+    )
+    monkeypatch.setattr(
+        saxs_module,
+        "preprocess_pipeline",
+        lambda _img, _cfg, **_kwargs: {
+            "q": np.linspace(0.1, 0.5, 5),
+            "Iq": np.ones(5),
+            "Iq_norm": np.ones(5),
+            "Iq_smooth": np.ones(5),
+            "sector_data": None,
+        },
+    )
+    monkeypatch.setattr(
+        saxs_module,
+        "_integrate_pyfai_shadow",
+        lambda *_args: (np.array([]), np.array([])),
+    )
+
+    engine = SAXSEngine(SAXSConfig())
+    assert engine.load(str(tmp_path)) is True
+
+    assert len(engine._cfg_list) == 2
+    assert engine._cfg_list[0].wavelength_m == pytest.approx(1.0e-10)
+    assert engine._cfg_list[1].wavelength_m == pytest.approx(SAXSConfig().wavelength_m)
+
+
+def test_hdf5_reader_rejects_equally_eligible_datasets(tmp_path) -> None:
+    path = tmp_path / "ambiguous.h5"
+    with h5py.File(path, "w") as handle:
+        handle.create_dataset("entry/data_a", data=np.ones((4, 4)))
+        handle.create_dataset("entry/data_b", data=np.ones((4, 4)))
+
+    with pytest.raises(UnsupportedDatasetError, match="ambiguous"):
+        read_hdf5_dataset(str(path))
+
+
+def test_text_reader_preserves_declared_q_unit_and_marks_missing_unit(tmp_path) -> None:
+    angstrom_path = tmp_path / "profile_a.dat"
+    angstrom_path.write_text(
+        "# q [A^-1] I\n0.01 10\n0.02 8\n0.03 6\n",
+        encoding="utf-8",
+    )
+    unitless_path = tmp_path / "profile_unknown.dat"
+    unitless_path.write_text("0.1 10\n0.2 8\n0.3 6\n", encoding="utf-8")
+
+    _q_a, _i_a, meta_a = read_1d_profile(str(angstrom_path))
+    _q_u, _i_u, meta_u = read_1d_profile(str(unitless_path))
+
+    assert meta_a["q_unit"] == "angstrom^-1"
+    assert meta_u["q_unit"] is None
+    assert meta_u["q_unit_reason"] == "q_unit_required"
+
+
+def test_detector_plane_sector_masks_include_both_mirrored_axes() -> None:
+    chi = np.deg2rad(np.array([-180.0, -90.0, 0.0, 90.0, 180.0]))
+
+    meridional = detector_plane_sector_mask(chi, axis_deg=0.0, halfwidth_deg=15.0)
+    equatorial = detector_plane_sector_mask(chi, axis_deg=90.0, halfwidth_deg=15.0)
+
+    np.testing.assert_array_equal(meridional, [True, False, True, False, True])
+    np.testing.assert_array_equal(equatorial, [False, True, False, True, False])
+
+
+def test_orientation_result_identifies_detector_plane_projection() -> None:
+    chi = np.linspace(-np.pi, np.pi, 73)
+    intensity = np.ones_like(chi)
+
+    result = herman_from_azimuthal(chi, intensity)
+
+    assert result["convention"] == "detector_plane_2d_v1"
+    assert result["metric_name"] == "projected_order_parameter_2d"
+    assert result["f"] == pytest.approx(0.25, abs=1e-3)

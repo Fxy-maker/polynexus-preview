@@ -6,6 +6,8 @@ xarray for multi-dimensional in-situ data management.
 """
 import logging
 import os as _os
+import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, List, Tuple, Optional, Dict, Mapping
 import numpy as np
@@ -66,8 +68,14 @@ def read_hdf5_dataset(filepath: str) -> Tuple[np.ndarray, dict]:
         raise UnsupportedDatasetError(
             "hdf5_dataset_missing: expected a numeric 1D/2D SAXS dataset"
         )
-    candidates.sort(key=lambda item: (0 if item[1].ndim == 2 else 1, item[0]))
-    dataset_name, data = candidates[0]
+    highest_ndim = max(item[1].ndim for item in candidates)
+    preferred = [item for item in candidates if item[1].ndim == highest_ndim]
+    if len(preferred) != 1:
+        names = ", ".join(item[0] for item in preferred[:8])
+        raise UnsupportedDatasetError(
+            f"hdf5_dataset_ambiguous: multiple {highest_ndim}D numeric datasets ({names})"
+        )
+    dataset_name, data = preferred[0]
     return np.asarray(data, dtype=np.float64), {
         "dataset_path": dataset_name,
         "container_format": "nexus" if Path(filepath).suffix.lower() == ".nxs" else "hdf5",
@@ -184,6 +192,11 @@ def read_image(filepath: str) -> Tuple[np.ndarray, dict]:
     path = Path(filepath)
     ext = path.suffix.lower()
 
+    # Container datasets have an explicit selection contract.  Route them
+    # before Fabio so a generic plugin cannot silently bypass it.
+    if ext in ('.h5', '.hdf5', '.nxs'):
+        return read_hdf5_dataset(filepath)
+
     try:
         import fabio
         img = fabio.open(str(path))
@@ -207,7 +220,7 @@ def read_image(filepath: str) -> Tuple[np.ndarray, dict]:
         return _read_edf_fallback(filepath)
 
     if ext in ('.h5', '.hdf5', '.nxs', '.cbf'):
-        data, header = read_hdf5_dataset(filepath) if ext in ('.h5', '.hdf5', '.nxs') else (None, None)
+        data, header = (None, None) if ext in ('.h5', '.hdf5', '.nxs') else (None, None)
         if ext == '.cbf' and data is None:
             raise SAXSIOError("cbf_reader_unavailable: install fabio")
         return data, header or {}
@@ -238,18 +251,35 @@ def read_1d_profile(filepath: str) -> Tuple[np.ndarray, np.ndarray, dict]:
     path = Path(filepath)
     ext = path.suffix.lower()
 
+    header_text = "\n".join(path.read_text(encoding="utf-8", errors="ignore").splitlines()[:20])
+    header_lower = header_text.lower()
+
+    def _q_unit_from_header() -> str | None:
+        if re.search(r"q[^\n]{0,40}(angstrom|å|a\s*\^?\s*-?1)", header_lower):
+            return "angstrom^-1"
+        if re.search(r"q[^\n]{0,40}(?:nm|nanometer)\s*\^?\s*-?1", header_lower):
+            return "nm^-1"
+        return None
+
+    q_unit = _q_unit_from_header()
+    meta = {
+        "q_unit": q_unit,
+        "q_unit_reason": "" if q_unit is not None else "q_unit_required",
+        "q_unit_source": "text_header" if q_unit is not None else "missing",
+    }
+
     if ext == '.csv':
         df = pd.read_csv(filepath)
         cols = df.columns
         q = df[cols[0]].values.astype(np.float64)
         intensity = df[cols[1]].values.astype(np.float64)
-        return q, intensity, {}
+        return q, intensity, meta
 
     # Generic text (dat, txt, xy)
     try:
-        data = np.genfromtxt(filepath, comments=['#', '%', '!'])
+        data = np.genfromtxt(filepath, comments="#")
         if data.ndim == 2 and data.shape[1] >= 2:
-            return data[:, 0].astype(np.float64), data[:, 1].astype(np.float64), {}
+            return data[:, 0].astype(np.float64), data[:, 1].astype(np.float64), meta
     except Exception:
         logger.warning("SAXS 1D profile text load failed; trying line-by-line parser.", exc_info=True)
 
@@ -269,7 +299,7 @@ def read_1d_profile(filepath: str) -> Tuple[np.ndarray, np.ndarray, dict]:
                     continue
     if len(x_list) < 2:
         raise ValueError(f"Could not parse 1D data from {filepath}")
-    return np.array(x_list), np.array(y_list), {}
+    return np.array(x_list), np.array(y_list), meta
 
 
 def extract_geometry_from_header(header: dict, cfg: SAXSConfig) -> SAXSConfig:
@@ -281,6 +311,8 @@ def extract_geometry_from_header(header: dict, cfg: SAXSConfig) -> SAXSConfig:
     """
     import re
     import warnings
+
+    cfg = replace(cfg)
 
     def _get(key_variants, default):
         for k in key_variants:

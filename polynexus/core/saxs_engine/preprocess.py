@@ -20,7 +20,10 @@ from scipy.signal import savgol_filter
 
 from .config import SAXSConfig
 from .io import normalize_edf_detector_metadata
-from .saxs_quality_contracts import build_detector_quality_report
+from .saxs_quality_contracts import (
+    build_detector_quality_report,
+    prepare_uniform_q_profile,
+)
 from .saxs_detector_correction import (
     DetectorCorrectionRegistry,
     DetectorCorrectionRequest,
@@ -577,6 +580,21 @@ def smooth_profile(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> np.ndarray:
     """
     if cfg.smooth_method == "none":
         return I
+
+    q_array = np.asarray(q, dtype=float).reshape(-1)
+    intensity_array = np.asarray(I, dtype=float).reshape(-1)
+    if q_array.size == intensity_array.size and q_array.size > 2:
+        q_sorted_order = np.argsort(q_array, kind="stable")
+        q_sorted = q_array[q_sorted_order]
+        i_sorted = intensity_array[q_sorted_order]
+        diffs = np.diff(q_sorted)
+        if np.any(diffs <= 0) or not np.allclose(diffs, diffs[0], rtol=1e-6, atol=1e-12):
+            uniform = prepare_uniform_q_profile(q_sorted, i_sorted, points=q_sorted.size)
+            smoothed_uniform = smooth_profile(uniform.q, uniform.intensity, cfg)
+            interpolated = np.interp(q_sorted, uniform.q, smoothed_uniform)
+            result = np.empty_like(interpolated)
+            result[q_sorted_order] = interpolated
+            return result
 
     if cfg.smooth_method == "savgol":
         window = min(cfg.savgol_window, len(I) - 2)
