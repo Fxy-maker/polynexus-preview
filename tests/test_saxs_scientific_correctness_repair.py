@@ -7,6 +7,7 @@ import h5py
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine import core as saxs_core
 from polynexus.core.saxs_engine.preprocess import normalize_intensity, subtract_background
+from polynexus.core.saxs_engine.preprocess import _manual_integrate
 from polynexus.core.saxs_engine.saxs_extrapolation_helpers import _extrapolate_guinier
 from polynexus.core.saxs_engine.saxs_physical_helpers import (
     _crystallinity_invariant,
@@ -138,6 +139,24 @@ def test_fourier_profile_is_deduplicated_and_resampled_to_uniform_q() -> None:
     assert prepared.intensity[1] == pytest.approx(0.7)
 
 
+def test_correlation_payload_keeps_declared_q_bounds_in_raw_view() -> None:
+    q = np.linspace(0.05, 1.8, 240)
+    intensity = 2.0 + 0.2 * np.sin(q * 8.0)
+    result = saxs_core.correlation_function(
+        q,
+        intensity,
+        SAXSConfig(q_corr_min=0.05, q_corr_max=1.8),
+        q_min=0.125,
+        q_max=1.5,
+        extrapolate_q0=False,
+        extrapolate_qinf=False,
+    )
+
+    assert "q_raw" in result
+    assert result["q_raw"][0] >= 0.125
+    assert result["q_raw"][-1] <= 1.5
+
+
 def test_analyze_single_hides_absolute_metrics_without_declared_q_unit() -> None:
     q = np.linspace(0.1, 2.0, 80)
     intensity = 1.0 / (1.0 + q * q)
@@ -152,6 +171,17 @@ def test_analyze_single_hides_absolute_metrics_without_declared_q_unit() -> None
     assert result.q_unit_status["available"] is False
     assert result.structure.Q_invariant != result.structure.Q_invariant
     assert result.Q_star_valid is False
+
+
+def test_analyze_single_normalizes_declared_angstrom_q_to_nm() -> None:
+    q_angstrom = np.linspace(0.01, 0.2, 80)
+    intensity = 1.0 / (1.0 + q_angstrom * q_angstrom)
+    cfg = SAXSConfig(q_unit="angstrom^-1", q_unit_declared=True, smooth_method="none")
+
+    result = saxs_core.analyze_single(q_angstrom, intensity, cfg)
+
+    assert result.q_unit_status["available"] is True
+    assert result.q[0] == pytest.approx(0.1)
 
 
 def test_cooling_relative_crystallinity_uses_fixed_full_sequence_endpoints() -> None:
@@ -309,3 +339,25 @@ def test_orientation_result_identifies_detector_plane_projection() -> None:
     assert result["convention"] == "detector_plane_2d_v1"
     assert result["metric_name"] == "projected_order_parameter_2d"
     assert result["f"] == pytest.approx(0.25, abs=1e-3)
+
+
+def test_manual_detector_integration_preserves_signed_residuals() -> None:
+    cfg = SAXSConfig(
+        beam_center_x=0.0,
+        beam_center_y=0.0,
+        pixel_size_m=1.0e-3,
+        sdd_m=0.1,
+        wavelength_m=1.0e-10,
+        q_min=0.01,
+        q_max=2.0,
+        n_pt=100,
+        dummy_val=-10.0,
+        ddummy=0.1,
+    )
+    image = np.ones((3, 3), dtype=float)
+    image[2, 1] = -0.5
+    image[1, 2] = -0.5
+
+    _q, integrated = _manual_integrate(image, cfg)
+
+    assert np.any(integrated < 0)

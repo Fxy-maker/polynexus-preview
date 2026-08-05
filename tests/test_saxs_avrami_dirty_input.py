@@ -21,6 +21,8 @@ def _assert_result_equal(actual: dict, expected: dict) -> None:
         expected_value = expected[key]
         if expected_value is None or isinstance(expected_value, bool):
             assert actual_value == expected_value
+        elif isinstance(expected_value, str):
+            assert actual_value == expected_value
         elif isinstance(expected_value, tuple):
             assert actual_value == pytest.approx(expected_value)
         elif np.isnan(expected_value):

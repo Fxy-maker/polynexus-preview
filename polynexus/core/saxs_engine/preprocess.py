@@ -143,9 +143,9 @@ def _manual_sector_integrate(
     # Exclude dummy / masked pixels (beam stop, dead pixels, etc.)
     dummy_mask = _build_mask(img, cfg) if mask is None else mask
     if dummy_mask is not None:
-        valid = np.isfinite(img) & (img > 0) & chi_mask & ~dummy_mask
+        valid = np.isfinite(img) & chi_mask & ~dummy_mask
     else:
-        valid = np.isfinite(img) & (img > 0) & chi_mask
+        valid = np.isfinite(img) & chi_mask
     q_v = q_map[valid].flatten()
     I_v = img[valid].flatten()
 
@@ -187,9 +187,9 @@ def _manual_integrate(
     # Exclude dummy / masked pixels (beam stop, dead pixels, etc.)
     dummy_mask = _build_mask(img, cfg) if mask is None else mask
     if dummy_mask is not None:
-        valid = np.isfinite(I_flat) & (I_flat > 0) & np.isfinite(q_flat) & ~dummy_mask.flatten()
+        valid = np.isfinite(I_flat) & np.isfinite(q_flat) & ~dummy_mask.flatten()
     else:
-        valid = np.isfinite(I_flat) & (I_flat > 0) & np.isfinite(q_flat)
+        valid = np.isfinite(I_flat) & np.isfinite(q_flat)
     q_v = q_flat[valid]
     I_v = I_flat[valid]
 

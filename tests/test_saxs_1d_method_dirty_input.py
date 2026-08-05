@@ -23,19 +23,14 @@ def _dirty_profile() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     return q, intensity, clean_q, clean_i
 
 
-def test_scattering_invariant_uses_sorted_positive_survivors_without_mutation():
+def test_scattering_invariant_uses_sorted_signed_survivors_without_mutation():
     q, intensity, clean_q, clean_i = _dirty_profile()
     q_before = q.copy()
     intensity_before = intensity.copy()
 
     value = scattering_invariant(q, intensity, q_min=0.1, q_max=1.5)
     del clean_q, clean_i
-    valid = (
-        np.isfinite(q_before)
-        & np.isfinite(intensity_before)
-        & (q_before > 0)
-        & (intensity_before > 0)
-    )
+    valid = np.isfinite(q_before) & np.isfinite(intensity_before) & (q_before > 0)
     order = np.argsort(q_before[valid], kind="stable")
     expected_q = q_before[valid][order]
     expected_i = intensity_before[valid][order]

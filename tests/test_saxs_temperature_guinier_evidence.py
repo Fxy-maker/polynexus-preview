@@ -166,6 +166,7 @@ def test_temperature_invariant_failure_isolated_to_middle_frame(monkeypatch):
         [q, q, q],
         [intensity, intensity, intensity],
         cfg=SAXSConfig(),
+        exp_type="cooling",
     )
 
     assert len(result.temp_points) == 3
@@ -204,6 +205,7 @@ def test_temperature_reference_failures_do_not_abort_later_frames(monkeypatch):
         [q, q, q],
         [intensity, intensity, intensity],
         cfg=SAXSConfig(),
+        exp_type="cooling",
     )
 
     assert len(result.temp_points) == 3

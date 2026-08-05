@@ -1,5 +1,19 @@
 ---
 
+## SAXS scientific correctness repair - current checkpoint (2026-08-05)
+
+- The 2026-08-04 SAXS repair task is implemented and has final acceptance
+  evidence in `docs/acceptance/2026-08-04-saxs-scientific-correctness-repair.md`.
+- Full SAXS verification passed `916 passed, 2 skipped, 15 warnings` in
+  `575.81s`; focused repair/closure passed `30`, and the changed-contract
+  matrix passed `177`.
+- The implementation preserves signed source profiles, uses positive-only
+  derived fits, enforces q-unit provenance, isolates frame geometry, rejects
+  ambiguous HDF5 datasets, and labels detector-plane orientation as projected
+  2D diagnostics.
+- Absolute contrast/calibration, lamellar interpretation, publication
+  promotion, and historical figure regeneration remain human-review limits.
+
 ## SAXS scientific correctness closure - current checkpoint (2026-08-04)
 
 - Documentation checkpoint `0f7bf06f` records the approved design, task card,

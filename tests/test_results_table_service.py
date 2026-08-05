@@ -292,8 +292,8 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
     assert model.summary_kind == "batch"
     assert model.columns == [
         "Strain / %",
-        "Herman orientation",
-        "Herman orientation (diagnostic)",
+        "Detector-plane projected orientation",
+        "Detector-plane projected orientation (diagnostic)",
         "Herman delta from zero",
         "Herman delta stability lower",
         "Herman delta stability upper",

@@ -24,7 +24,9 @@ def test_mismatched_times_preserves_frames_and_disables_avrami():
     )
 
     assert len(result.temp_points) == 2
-    assert [point.source_index for point in result.temp_points] == [1, 0]
+    # Cooling is sequence-dependent; a malformed time axis must not reorder
+    # frames or invent positional seconds.
+    assert [point.source_index for point in result.temp_points] == [0, 1]
     assert result.avrami == {
         "valid": False,
         "reason": "temperature_time_axis_length_mismatch",

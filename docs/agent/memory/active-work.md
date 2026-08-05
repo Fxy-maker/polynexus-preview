@@ -1,5 +1,18 @@
 # Active Work
 
+## SAXS scientific correctness repair - completed (2026-08-05)
+
+- Final repair implementation is complete under task card
+  `docs/agent/tasks/2026-08-04-saxs-scientific-correctness-repair.md`.
+- Full SAXS matrix passed `916 passed, 2 skipped, 15 warnings` in `575.81s`;
+  warnings are existing EDF geometry and font warnings. Focused repair/closure
+  passed `30`; changed-contract matrix passed `177`.
+- Final acceptance evidence is recorded in
+  `docs/acceptance/2026-08-04-saxs-scientific-correctness-repair.md`.
+- Remaining limits are human scientific review of calibration/contrast,
+  lamellar interpretation, and publication promotion; Ruland/Vonk remain
+  unsupported by design.
+
 ## SAXS scientific correctness closure - implementation in progress (2026-08-04)
 
 - Design/task/plan checkpoint: `0f7bf06f`.

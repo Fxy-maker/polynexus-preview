@@ -706,6 +706,23 @@ def correlation_function(
     # signed source data untouched, but make the exclusion explicit in this
     # derived Fourier view so a negative residual cannot create a false Q*.
     raw_sanitized = sanitize_1d_profile(q, I, positive_only=True)
+    # Preserve the direct helper's historical raw-view semantics when no
+    # explicit lower bound was requested; the main analysis path passes its
+    # effective boundary explicitly.
+    raw_mask = np.ones(raw_sanitized.q.size, dtype=bool)
+    if q_min is not None:
+        raw_mask &= raw_sanitized.q >= float(q_min)
+    if q_max is not None:
+        raw_mask &= raw_sanitized.q <= float(q_max)
+    if np.any(~raw_mask):
+        raw_sanitized = type(raw_sanitized)(
+            raw_sanitized.q[raw_mask],
+            raw_sanitized.intensity[raw_mask],
+            raw_sanitized.original_point_count,
+            raw_sanitized.aligned_point_count,
+            int(np.count_nonzero(raw_mask)),
+            tuple(raw_sanitized.actions) + ("correlation_q_bounds_applied",),
+        )
     sanitized = prepare_uniform_q_profile(raw_sanitized.q, raw_sanitized.intensity)
     q = sanitized.q
     intensity = sanitized.intensity
@@ -719,6 +736,8 @@ def correlation_function(
             'Q_invariant': np.nan,
             'q_corr_min': q_corr_min,
             'q_corr_max': q_corr_max,
+            'q_raw': raw_sanitized.q,
+            'I_raw': raw_sanitized.intensity,
         }
     q_corr_max = min(cfg.q_corr_max, q[-1])
     if q_max is not None:
@@ -734,6 +753,8 @@ def correlation_function(
             'Q_invariant': np.nan,
             'q_corr_min': q_corr_min,
             'q_corr_max': q_corr_max,
+            'q_raw': raw_sanitized.q,
+            'I_raw': raw_sanitized.intensity,
         }
 
     # 2. Estimate and subtract thermal fluctuation background Ib.
@@ -798,6 +819,8 @@ def correlation_function(
             'Q_invariant': Q,
             'q_corr_min': q_corr_min,
             'q_corr_max': q_corr_max,
+            'q_raw': raw_sanitized.q,
+            'I_raw': raw_sanitized.intensity,
         }
 
     # 6. Cosine transform

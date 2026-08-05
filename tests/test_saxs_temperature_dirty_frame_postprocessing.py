@@ -108,7 +108,7 @@ def test_temperature_postprocessing_uses_surviving_profile_and_keeps_quality_act
         [170.0, 180.0],
         [q, q.copy()],
         [intensity, intensity.copy()],
-        cfg=SAXSConfig(),
+        cfg=SAXSConfig(q_min=0.01),
     )
 
     assert result.Q_star_array.tolist() == [2.0, 2.0]

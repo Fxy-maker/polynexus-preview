@@ -27,7 +27,7 @@ def test_crystallinity_invariant_recovers_expected_fraction() -> None:
     phi_c = 0.35
     L = 10.0
     Kp = 2.5
-    Q_invariant = 4.0 * np.pi**4 * Kp * L * phi_c * (1.0 - phi_c)
+    Q_invariant = (np.pi / 2.0) * Kp * L * phi_c * (1.0 - phi_c)
 
     recovered = helpers._crystallinity_invariant(L, Q_invariant, Kp)
 

@@ -502,7 +502,7 @@ def test_strain_herman_mixed_frames_keep_unavailable_cells_explicit() -> None:
     assert _cell(presentation.primary, 1, "f_Herman_raw").display == "0.5200"
     heroes = {metric.key: metric for metric in presentation.hero_metrics}
     assert "f_Herman" not in heroes
-    assert heroes["f_Herman_raw_mean"].label == "Herman orientation (diagnostic)"
+    assert heroes["f_Herman_raw_mean"].label == "Detector-plane projected orientation (diagnostic)"
     assert heroes["f_Herman_raw_mean"].display == "0.4700"
 
 

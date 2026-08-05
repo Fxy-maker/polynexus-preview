@@ -83,14 +83,14 @@ def test_temperature_panels_keep_publication_order_and_roles() -> None:
     )
 
     assert [definition.figure_id for definition in definitions[:3]] == [
-        "saxs.temperature.evolution",
         "saxs.temperature.avrami",
         "saxs.temperature.waterfall",
+        "saxs.temperature.evidence.000",
     ]
-    assert [definition.display_order for definition in definitions[:3]] == [10, 20, 100]
+    assert [definition.display_order for definition in definitions[:3]] == [20, 100, 200]
     assert definitions[0].publication_role == "main"
-    assert definitions[1].publication_role == "main"
-    assert definitions[2].publication_role == "si"
+    assert definitions[1].publication_role == "si"
+    assert definitions[2].publication_role == "diagnostic"
     assert all(
         definition.display_order >= 200
         and definition.publication_role in {"si", "diagnostic"}
@@ -226,7 +226,7 @@ def test_production_temperature_method_evidence_figure_binds_by_source_index():
         {source.source_id: dict(source.values) for source in figure.data_sources},
         allow_nan=False,
     )
-    assert definitions[0].figure_id == "saxs.temperature.evolution"
+    assert definitions[0].figure_id == "saxs.temperature.waterfall"
 
 
 def test_production_temperature_method_evidence_duplicate_source_fails_closed():
@@ -294,9 +294,6 @@ def test_dirty_temperature_profile_records_pair_provenance() -> None:
     engine._I_list[0] = np.asarray([8.0, 6.0, np.inf, 1.0], dtype=float)
 
     definitions = build_temperature_figure_definitions(engine)
-    evolution = next(
-        item for item in definitions if item.figure_id == "saxs.temperature.evolution"
-    )
     waterfall = next(
         item for item in definitions if item.figure_id == "saxs.temperature.waterfall"
     )
@@ -308,9 +305,7 @@ def test_dirty_temperature_profile_records_pair_provenance() -> None:
         "status": "partial_invalid",
     }
 
-    assert evolution.recipe["parameters"]["profile_projection_quality"]["0"] == expected
     assert waterfall.recipe["parameters"]["profile_projection_quality"]["0"] == expected
-    json.dumps(evolution.recipe, allow_nan=False)
     json.dumps(waterfall.recipe, allow_nan=False)
 
 
@@ -324,10 +319,9 @@ def test_clean_temperature_profile_records_complete_provenance() -> None:
         "status": "complete",
     }
 
-    for figure_id in ("saxs.temperature.evolution", "saxs.temperature.waterfall"):
-        definition = next(item for item in definitions if item.figure_id == figure_id)
-        assert definition.recipe["parameters"]["profile_projection_quality"]["0"] == expected
-        json.dumps(definition.recipe, allow_nan=False)
+    definition = next(item for item in definitions if item.figure_id == "saxs.temperature.waterfall")
+    assert definition.recipe["parameters"]["profile_projection_quality"]["0"] == expected
+    json.dumps(definition.recipe, allow_nan=False)
 
 
 def test_dirty_projection_temperature_trace_keeps_valid_pairs() -> None:

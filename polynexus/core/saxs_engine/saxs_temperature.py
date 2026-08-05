@@ -1086,7 +1086,10 @@ def analyze_temperature_series(
     I_sorted = [I_list[i] for i in sort_idx]
     sanitized_sorted = []
     for q_values, intensity_values in zip(q_sorted, I_sorted):
-        profile = sanitize_1d_profile(q_values, intensity_values)
+        # Derived temperature consumers require physical (positive) intensity;
+        # the original signed arrays remain attached to each frame's quality
+        # provenance and still reach analyze_single unchanged.
+        profile = sanitize_1d_profile(q_values, intensity_values, positive_only=True)
         try:
             q_floor = float(getattr(cfg, "q_min", np.nan))
         except (TypeError, ValueError, OverflowError):

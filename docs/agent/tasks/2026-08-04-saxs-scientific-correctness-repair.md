@@ -50,22 +50,37 @@ diagnostic/unavailable result with a reason.
 
 ## Acceptance criteria
 
-- Independent analytic tests catch the background scale, Guinier boundary,
+- [x] Independent analytic tests catch the background scale, Guinier boundary,
   Porod/`Sv`, and q-unit behaviors.
-- Cooling `Q=[1,2,...]` does not produce `[NaN,1,1,...]`; Avrami is invalid
+- [x] Cooling `Q=[1,2,...]` does not produce `[NaN,1,1,...]`; Avrami is invalid
   without supplied seconds; Gibbs-Thomson rejects non-melting windows.
-- Unitless 1D input is marked unavailable for absolute metrics, while an
+- [x] Unitless 1D input is marked unavailable for absolute metrics, while an
   explicitly declared Angstrom profile converts consistently to nm.
-- Each frame receives an isolated geometry config; an incomplete later header
+- [x] Each frame receives an isolated geometry config; an incomplete later header
   cannot inherit a previous frame's geometry.
-- Uniform full-ring and mirrored sector data produce unbiased orientation and
+- [x] Uniform full-ring and mirrored sector data produce unbiased orientation and
   anisotropy metrics; projected orientation labels are no longer presented as
   an unqualified 3D Herman factor.
-- Duplicate/non-uniform q input is normalized or rejected before operations
+- [x] Duplicate/non-uniform q input is normalized or rejected before operations
   requiring a constant `dq`; ambiguous HDF5 containers raise a typed error.
-- `Q_invariant` anomaly confidence checks run after Q is assigned.
+- [x] `Q_invariant` anomaly confidence checks run after Q is assigned.
 
-## Verification commands
+## Implementation plan
+
+1. Lock the background, Guinier, Porod, invariant, and Q* confidence contracts
+   with independent analytic tests.
+2. Enforce q-unit provenance and prepare a stable uniform q view for Fourier
+   consumers while retaining signed source profiles.
+3. Gate temperature sequence crystallinity, Avrami time axes, and
+   Gibbs-Thomson melting-window/enthalpy inputs.
+4. Isolate per-frame geometry, dispatch HDF5/Nexus before Fabio, and reject
+   ambiguous containers.
+5. Apply pi-periodic sector masks and label detector-plane orientation as a
+   projected 2D diagnostic metric.
+6. Run the focused, full SAXS, structured, and boundary verification commands;
+   record evidence and create one local checkpoint commit.
+
+## Verification
 
 ```powershell
 python -m pytest -q tests/test_saxs_scientific_correctness_repair.py

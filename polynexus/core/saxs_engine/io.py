@@ -219,11 +219,8 @@ def read_image(filepath: str) -> Tuple[np.ndarray, dict]:
         # Minimal EDF fallback (if fabio unavailable)
         return _read_edf_fallback(filepath)
 
-    if ext in ('.h5', '.hdf5', '.nxs', '.cbf'):
-        data, header = (None, None) if ext in ('.h5', '.hdf5', '.nxs') else (None, None)
-        if ext == '.cbf' and data is None:
-            raise SAXSIOError("cbf_reader_unavailable: install fabio")
-        return data, header or {}
+    if ext == '.cbf':
+        raise SAXSIOError("cbf_reader_unavailable: install fabio")
 
     raise ValueError(f"Unsupported 2D image format: {ext}")
 

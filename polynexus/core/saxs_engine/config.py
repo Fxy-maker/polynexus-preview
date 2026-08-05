@@ -185,12 +185,6 @@ class SAXSConfig:
     sdd_m: float = 0.450
     beam_center_x: float = 255.43
     beam_center_y: float = 549.73
-    # q values are normalized to nm^-1 at the core boundary.  File readers
-    # may replace this with an explicit Angstrom unit and provenance source.
-    q_unit: Optional[str] = "nm^-1"
-    q_unit_source: str = "config"
-    q_unit_declared: bool = True
-
     # ---- Beamstop / direct-beam detection ----
     auto_detect_beamstop: bool = True
     beamstop_pollution_threshold: float = 100.0  # I(min_q)/I(0.2 nm⁻¹) ratio trigger
@@ -238,9 +232,6 @@ class SAXSConfig:
     transmission_sample: float = 1.0
     transmission_background: float = 1.0
     sample_thickness_m: float = 1.0
-    background_thickness_m: float = 1.0
-    # Required material parameter for absolute Gibbs-Thomson surface energy.
-    delta_Hf_Jm3: float = np.nan
 
     # ---- Detector correction plugin ----
     # The production registry is intentionally empty. These fields document
@@ -373,6 +364,16 @@ class SAXSConfig:
     # None means unlimited. Any configured limit is provenance-visible.
     max_frames_per_condition: Optional[int] = None
     max_total_frames: Optional[int] = None
+
+    # ---- Scientific-contract fields appended for positional compatibility ----
+    # q values are normalized to nm^-1 at the core boundary. File readers may
+    # replace this with an explicit Angstrom unit and provenance source.
+    q_unit: Optional[str] = "nm^-1"
+    q_unit_source: str = "config"
+    q_unit_declared: bool = True
+    background_thickness_m: float = 1.0
+    # Required material parameter for absolute Gibbs-Thomson surface energy.
+    delta_Hf_Jm3: float = np.nan
 
 
 @dataclass
