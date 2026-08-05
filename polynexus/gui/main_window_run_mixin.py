@@ -623,6 +623,15 @@ class MainWindowRunMixin:
             )
         self._update_workspace_context()
         self._update_results_compare_panel()
+        if (
+            transaction_pending
+            and getattr(transaction.state, "phase", "") == "applied"
+            and bool(getattr(self, "_preprocess_undo_requested", False))
+        ):
+            self._preprocess_undo_requested = False
+            undo = getattr(self, "_undo_last_preprocess_apply", None)
+            if callable(undo):
+                undo()
         if transaction_pending:
             record_audit = getattr(self, "_record_preprocess_transaction_audit", None)
             if callable(record_audit):

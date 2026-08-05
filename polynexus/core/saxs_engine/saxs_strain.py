@@ -14,7 +14,7 @@ lamellar+void decomposition, invariant conservation, full parameter tracking.
 Reference: SAXS Design Document v1.0, Module 4B.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Dict, List, Mapping, Optional, Tuple
 import numpy as np
 from scipy.integrate import trapezoid
@@ -858,6 +858,7 @@ def analyze_strain_series(
         profile = sanitized_profiles[i]
 
         sp = StrainPointResult(strain_pct=float(strain))
+        frame_cfg = replace(cfg)
         # Invariant, Porod, Guinier, Kratky, long-period and structure
         # metrics are always derived from the full scattering profile.
         # Sector data below is an orientation-only input.
@@ -872,14 +873,17 @@ def analyze_strain_series(
             # Use strain-aware peak search (constrain around reference)
             if np.isfinite(result.L_array[0]) and result.L_array[0] > 2 and result.L_array[0] < 50:
                 q_ref_0 = 2 * np.pi / result.L_array[0]
-                cfg.q_bragg_min = max(0.25, q_ref_0 * 0.50)
-                cfg.q_bragg_max = min(1.5, q_ref_0 * 1.50)
-                cfg.q_corr_min = max(0.10, q_ref_0 * 0.40)
-                cfg.q_corr_max = min(2.0, q_ref_0 * 1.60)
+                frame_cfg = replace(
+                    frame_cfg,
+                    q_bragg_min=max(0.25, q_ref_0 * 0.50),
+                    q_bragg_max=min(1.5, q_ref_0 * 1.50),
+                    q_corr_min=max(0.10, q_ref_0 * 0.40),
+                    q_corr_max=min(2.0, q_ref_0 * 1.60),
+                )
             # else: use cfg defaults (already 0.30-1.2)
             
             source_kwargs = _source_kwargs(source_ids_aligned, raw_data_refs_aligned, i)
-            saxs_result = analyze_single(q, I, cfg, **source_kwargs)
+            saxs_result = analyze_single(q, I, frame_cfg, **source_kwargs)
             lp = saxs_result.long_period
             struct = saxs_result.structure
             
@@ -903,7 +907,7 @@ def analyze_strain_series(
         Q_star = scattering_invariant(
             profile.q,
             profile.intensity,
-            cfg=cfg,
+            cfg=frame_cfg,
         )
         sp.Q_star = Q_star
         sp.Q_star_rel = Q_star / Q_ref if Q_ref > 0 else 1.0
@@ -918,7 +922,7 @@ def analyze_strain_series(
             Q_ref,
             profile.q,
             profile.intensity,
-            cfg,
+            frame_cfg,
         )
         sp.phase = phase
 
@@ -927,7 +931,7 @@ def analyze_strain_series(
             phase_boundaries[phase] = strain
 
         # ---- Void analysis ----
-        void = detect_voids(profile.q, profile.intensity, cfg)
+        void = detect_voids(profile.q, profile.intensity, frame_cfg)
         sp.has_voids = void['has_voids']
         sp.phi_void = void['phi_void']
         sp.void_ar = void['void_ar']
@@ -940,7 +944,7 @@ def analyze_strain_series(
                 try:
                     herman = herman_from_sector_data(
                         sd,
-                        cfg=cfg,
+                        cfg=frame_cfg,
                         data_quality_report=sp.data_quality_report,
                     )
                 except Exception:

@@ -252,9 +252,20 @@ def read_1d_profile(filepath: str) -> Tuple[np.ndarray, np.ndarray, dict]:
     header_lower = header_text.lower()
 
     def _q_unit_from_header() -> str | None:
-        if re.search(r"q[^\n]{0,40}(angstrom|å|a\s*\^?\s*-?1)", header_lower):
+        normalized_header = (
+            header_lower
+            .replace("⁻¹", "^-1")
+            .replace("−", "-")
+        )
+        if re.search(
+            r"q[^\n]{0,40}(angstrom|å|1\s*/\s*(?:angstrom|å|a)|a\s*\^?\s*-?1)",
+            normalized_header,
+        ):
             return "angstrom^-1"
-        if re.search(r"q[^\n]{0,40}(?:nm|nanometer)\s*\^?\s*-?1", header_lower):
+        if re.search(
+            r"q[^\n]{0,40}(?:1\s*/\s*)?(?:nm|nanometer)\s*\^?\s*-?1?",
+            normalized_header,
+        ):
             return "nm^-1"
         return None
 

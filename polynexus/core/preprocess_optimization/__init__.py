@@ -25,6 +25,16 @@ from .peak_metrics import PeakComparison, compare_peak_sets
 from .snapshot import AnalysisSnapshot
 from .adapters import TechniquePreprocessAdapter, get_preprocess_adapter
 from .replay import PreprocessReplayAudit, build_preprocess_replay_audit
+from .stability import (
+    BootstrapInterval,
+    ContinuityEvidence,
+    ParameterDomain,
+    PlateauSummary,
+    StabilityReport,
+    StabilityStudyRequest,
+    StabilityTrial,
+    run_stability_study,
+)
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -58,4 +68,12 @@ __all__ = [
     "parse_preprocess_intent",
     "PreprocessReplayAudit",
     "build_preprocess_replay_audit",
+    "BootstrapInterval",
+    "ContinuityEvidence",
+    "ParameterDomain",
+    "PlateauSummary",
+    "StabilityReport",
+    "StabilityStudyRequest",
+    "StabilityTrial",
+    "run_stability_study",
 ]

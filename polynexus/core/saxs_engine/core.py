@@ -705,7 +705,7 @@ def correlation_function(
     # Correlation and Porod integration are positive-domain consumers.  Keep
     # signed source data untouched, but make the exclusion explicit in this
     # derived Fourier view so a negative residual cannot create a false Q*.
-    raw_sanitized = sanitize_1d_profile(q, I, positive_only=True)
+    raw_sanitized = sanitize_1d_profile(q, I)
     # Preserve the direct helper's historical raw-view semantics when no
     # explicit lower bound was requested; the main analysis path passes its
     # effective boundary explicitly.
@@ -723,7 +723,16 @@ def correlation_function(
             int(np.count_nonzero(raw_mask)),
             tuple(raw_sanitized.actions) + ("correlation_q_bounds_applied",),
         )
-    sanitized = prepare_uniform_q_profile(raw_sanitized.q, raw_sanitized.intensity)
+    # Keep the signed profile as the auditable source channel, but use a
+    # positive-only survivor for Q* and Fourier-derived quantities. A
+    # negative background residual is an observation, not a physical
+    # scattering intensity and must not bias the invariant.
+    derived_sanitized = sanitize_1d_profile(
+        raw_sanitized.q,
+        raw_sanitized.intensity,
+        positive_only=True,
+    )
+    sanitized = prepare_uniform_q_profile(derived_sanitized.q, derived_sanitized.intensity)
     q = sanitized.q
     intensity = sanitized.intensity
     if q.size == 0:
@@ -1369,7 +1378,9 @@ def compute_structure_params(
     Kp_guess = _porod_constant(corr_result.get('q_ext', None),
                                 corr_result.get('I_ext', None),
                                 q_raw=corr_result.get('q_raw', None),
-                                I_raw=corr_result.get('I_raw', None))
+                                I_raw=corr_result.get('I_raw', None),
+                                q_min=getattr(cfg, "q_porod_min", None),
+                                q_max=getattr(cfg, "q_porod_max", None))
 
     # Porod-invariant crystallinity (independent cross-check)
     if np.isfinite(L) and np.isfinite(Q) and np.isfinite(Kp_guess) and Q > 0 and Kp_guess > 0:
@@ -1379,6 +1390,7 @@ def compute_structure_params(
             Kp_guess,
             q_unit="nm^-1",
             length_unit="nm",
+            crystallinity_gt_half=bool(getattr(cfg, "crystallinity_gt_half", False)),
         )
         sp.phi_c_invariant = phi_c_inv
         if not np.isfinite(phi_c_inv):
@@ -1991,7 +2003,12 @@ def analyze_single(
     result.idf = idf
 
     # Guinier
-    Rg, I0, q_guinier, lnI_guinier = guinier_analysis(q, I_smooth, q_min=q_analysis_min)
+    Rg, I0, q_guinier, lnI_guinier = guinier_analysis(
+        q,
+        I_smooth,
+        q_min=q_analysis_min,
+        q_max_factor=float(getattr(cfg, "guinier_q_max_factor", 1.3)),
+    )
     quality_report = build_data_quality_report(
         original_q,
         original_I,

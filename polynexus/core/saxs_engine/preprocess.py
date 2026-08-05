@@ -152,7 +152,7 @@ def _manual_sector_integrate(
     n_bins = cfg.n_pt
     q_bins = np.linspace(max(cfg.q_min, 0.01), min(cfg.q_max, q_map.max()), n_bins + 1)
     q_center = (q_bins[:-1] + q_bins[1:]) / 2
-    I_radial = np.zeros(n_bins)
+    I_radial = np.full(n_bins, np.nan, dtype=float)
 
     for i in range(n_bins):
         mask = (q_v >= q_bins[i]) & (q_v < q_bins[i + 1])
@@ -166,7 +166,9 @@ def _manual_integrate(
     img: np.ndarray,
     cfg: SAXSConfig,
     mask: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, np.ndarray]:
+    *,
+    return_support: bool = False,
+) -> Tuple[np.ndarray, np.ndarray] | Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Manual radial integration fallback (no pyFAI dependency for core functionality)."""
     # Guard against invalid geometry configuration
     if cfg.wavelength_m <= 0 or cfg.sdd_m <= 0:
@@ -196,13 +198,17 @@ def _manual_integrate(
     n_bins = cfg.n_pt
     q_bins = np.linspace(max(cfg.q_min, 0.01), min(cfg.q_max, q_map.max()), n_bins + 1)
     q_center = (q_bins[:-1] + q_bins[1:]) / 2
-    I_radial = np.zeros(n_bins)
+    I_radial = np.full(n_bins, np.nan, dtype=float)
+    support_count = np.zeros(n_bins, dtype=int)
 
     for i in range(n_bins):
         mask = (q_v >= q_bins[i]) & (q_v < q_bins[i + 1])
         if np.sum(mask) > 0:
             I_radial[i] = np.mean(I_v[mask])
+            support_count[i] = int(np.count_nonzero(mask))
 
+    if return_support:
+        return q_center, I_radial, support_count
     return q_center, I_radial
 
 
@@ -465,7 +471,7 @@ def integrate_chi_sectors(
         intensity = np.divide(
             intensity_sum,
             pixel_count,
-            out=np.zeros_like(intensity_sum),
+            out=np.full_like(intensity_sum, np.nan),
             where=pixel_count > 0,
         )
         q = 0.5 * (q_edges[:-1] + q_edges[1:])

@@ -176,6 +176,46 @@ class PreprocessTransactionService:
         original = deepcopy(previous_config or self._report_config(report, "original_preprocess_config"))
         if not original:
             return False
+        # SAXS stability reports are candidates until this same transaction
+        # applies the config, reruns the engine, validates the result, and
+        # records the audit.  Other techniques retain their legacy behavior:
+        # their orchestrator has already committed the selected candidate.
+        if self._is_saxs():
+            current_config = self._capture_config(list(original))
+            confirmation_metadata: dict[str, Any] = {}
+            if callable(self._validate_confirmation):
+                try:
+                    confirmation_metadata = self._validate_confirmation(
+                        report,
+                        current_config=current_config,
+                        mode=self._mode(report),
+                    )
+                except (TypeError, ValueError):
+                    return False
+            self.state = PreprocessTransactionState(
+                phase="apply_pending",
+                technique=self._technique,
+                mode=self._mode(report),
+                selected_config=selected,
+                previous_config=deepcopy(current_config),
+                previous_result=self._get_result() if previous_result is None else previous_result,
+                proposal=self._report_config(report, "experience_proposal"),
+                accepted_by="auto_accept",
+                candidate_id=str(confirmation_metadata.get("candidate_id", "") or ""),
+                candidate_base_config_hash=str(
+                    confirmation_metadata.get("candidate_base_config_hash", "") or ""
+                ),
+            )
+            self._new_audit(phase="apply_pending")
+            try:
+                self._apply_config(selected)
+                self._rerun()
+            except Exception as exc:
+                self.rollback_failure(reason=f"rerun_exception:{type(exc).__name__}")
+                return False
+            # GUI reruns are asynchronous.  The run-finished callback owns
+            # finalize_success(), just like the explicit confirmation path.
+            return True
         self.state = PreprocessTransactionState(
             phase="applied",
             previous_config=original,

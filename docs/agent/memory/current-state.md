@@ -1,5 +1,21 @@
 ---
 
+## SAXS stability map and scientific correctness - current checkpoint (2026-08-05)
+
+- Implementation is complete under task card
+  `docs/agent/tasks/2026-08-05-saxs-stability-map-scientific-correctness.md`.
+- The stability service uses seeded Latin-hypercube exploration, bounded local
+  refinement, typed config cloning, cache keys, plateau/bootstrap evidence, and
+  per-candidate cross-frame continuity. The GUI preserves the candidate-only
+  boundary until `PreprocessTransactionService` confirmation/finalization.
+- Focused evidence is `94 passed, 6 warnings`; structured verification passed
+  quality `297` and preprocessing `107`. The complete SAXS matrix returned
+  `916 passed, 2 skipped, 14 failed` in 235.91s, with failures concentrated in
+  real-data audit/EDF fixtures and legacy positive-only dirty-input assertions.
+  Scientific review limits are calibration/contrast, lamellar interpretation,
+  signed-source fixture semantics, auto-accept threshold policy, and
+  publication promotion.
+
 ## SAXS scientific correctness repair - current checkpoint (2026-08-05)
 
 - The 2026-08-04 SAXS repair task is implemented and has final acceptance

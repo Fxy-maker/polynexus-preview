@@ -38,13 +38,24 @@ _Q_UNIT_TO_NM_INV = {
     "a-1": 10.0,
     "1/a": 10.0,
     "å^-1": 10.0,
+    "å-1": 10.0,
+    "1/å": 10.0,
+    "a⁻¹": 10.0,
+    "å⁻¹": 10.0,
 }
 
 
 def _normalized_q_unit(value: Any) -> str | None:
     if value is None:
         return None
-    text = str(value).strip().lower().replace("å", "å")
+    text = (
+        str(value)
+        .strip()
+        .lower()
+        .replace("⁻¹", "^-1")
+        .replace("−", "-")
+        .replace(" ", "")
+    )
     return text if text in _Q_UNIT_TO_NM_INV else None
 
 
@@ -2178,15 +2189,25 @@ def build_porod_evidence(
         else None
     )
     slope_deviation = abs(float(slope) + 4.0) if isinstance(slope, (int, float)) else None
-    if slope_deviation is not None and slope_deviation > 0:
+    slope_valid = slope_deviation is not None and slope_deviation <= 0.5
+    plateau_valid = iq4_cv is not None and iq4_cv <= 0.15
+    if slope_deviation is not None and not slope_valid:
+        reasons.append("porod_slope_outside_tolerance")
         reasons.append("porod_slope_deviation_observed")
+    if iq4_cv is not None and not plateau_valid:
+        reasons.append("porod_iq4_plateau_unstable")
     return _finish_method_metric(
         method_name="Porod",
         value=kp,
         unit="a.u.",
         quality_report=quality_report,
         applicability=applicability,
-        physical_gate_passed=bool(q_fit.size >= 10 and kp is not None and slope is not None),
+        physical_gate_passed=bool(
+            q_fit.size >= 10
+            and kp is not None
+            and slope_valid
+            and plateau_valid
+        ),
         reasons=reasons,
         fit_evidence={
             "point_count": int(q_fit.size),

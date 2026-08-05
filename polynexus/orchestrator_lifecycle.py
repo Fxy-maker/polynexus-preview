@@ -3,7 +3,10 @@ from __future__ import annotations
 import math
 import threading
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    from rag.advisor import Advisor
 
 from polynexus.orchestrator_models import RoundRecord
 
@@ -65,6 +68,7 @@ def __init__(
         self.project_root / "results" / "audit" / "preprocess_experience.json"
     )
     self._last_preprocess_report: dict[str, Any] = {}
+    self._last_stability_report: dict[str, Any] = {}
 
 
 def _emit_progress(

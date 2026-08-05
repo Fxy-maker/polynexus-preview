@@ -672,7 +672,60 @@ def _final_report(
     preprocess_report = getattr(self, "_last_preprocess_report", {})
     if isinstance(preprocess_report, dict) and preprocess_report:
         report.update(self._to_plain_value(preprocess_report))
+    stability_report = getattr(self, "_last_stability_report", {})
+    if isinstance(stability_report, dict) and stability_report:
+        report["stability_report"] = self._to_plain_value(stability_report)
+        _attach_stability_confirmation_contract(report, stability_report)
     return self._to_plain_value(report)
+
+
+def _attach_stability_confirmation_contract(report: dict[str, Any], stability: dict[str, Any]) -> None:
+    """Expose stability evidence through the existing confirmation boundary."""
+    from polynexus.core.preprocess_optimization import stable_config_hash
+
+    baseline = stability.get("baseline_config", {})
+    selected = stability.get("selected_config", {})
+    if not isinstance(baseline, dict) or not isinstance(selected, dict):
+        return
+    changed_keys = sorted(
+        key for key in selected
+        if key in baseline and selected.get(key) != baseline.get(key)
+    )
+    original_subset = {key: deepcopy(baseline[key]) for key in changed_keys}
+    selected_subset = {key: deepcopy(selected[key]) for key in changed_keys}
+    candidate_id = stable_config_hash(
+        {"base": stable_config_hash(original_subset), "selected": selected_subset}
+    )[:24]
+    decision = str(stability.get("decision", "keep_original") or "keep_original")
+    guards = {
+        "stability_plateau": bool(stability.get("plateau", {}).get("connected", False)),
+        "physical_gate": bool(stability.get("physics_gate_passed", False)),
+        "quality_gate": bool(stability.get("quality_gate_passed", False)),
+        "cross_frame_continuity": bool(stability.get("continuity", {}).get("passed", False)),
+    }
+    report.update(
+        {
+            "mode": "static",
+            "selected_candidate_id": candidate_id,
+            "original_preprocess_config": original_subset,
+            "selected_preprocess_config": selected_subset,
+            "preprocess_candidates": [
+                {
+                    "candidate_id": candidate_id,
+                    "base_config_hash": stable_config_hash(original_subset),
+                    "config_delta": deepcopy(selected_subset),
+                    "generation_reason": "saxs_stability_map",
+                }
+            ],
+            "preprocess_decision": {
+                "decision": decision if changed_keys else "keep_original",
+                "simulated_decision": decision if changed_keys else "keep_original",
+                "confidence_band": "high" if decision == "auto_accept" else "medium" if decision == "request_confirmation" else "low",
+                "hard_guard_results": guards,
+                "reason_codes": list(stability.get("reason_codes", [])),
+            },
+        }
+    )
 
 
 def _can_converge_on_small_delta(self: Any, record: Any, round_num: int) -> bool:

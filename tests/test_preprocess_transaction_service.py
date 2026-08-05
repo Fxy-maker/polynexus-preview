@@ -117,6 +117,27 @@ def test_auto_accept_registers_existing_commit_without_second_apply() -> None:
     assert harness.service.state.phase == "applied"
 
 
+def test_saxs_auto_accept_uses_transaction_apply_rerun_and_persists_after_validation() -> None:
+    harness = Harness()
+    harness.service._technique = "SAXS"
+    harness.service._validate_confirmation = lambda report, *, current_config, mode: {
+        "candidate_id": "candidate-saxs",
+        "candidate_base_config_hash": "base-hash",
+    }
+
+    assert harness.service.register_auto_accept(
+        harness.report("auto_accept"),
+        previous_config=harness.config,
+        previous_result=harness.original_result,
+    )
+
+    assert harness.apply_calls == [{"smooth_window": 15}]
+    assert harness.rerun_calls == 1
+    assert harness.service.finalize_success() is True
+    assert harness.persisted == [("preprocess-c1", "auto_accept")]
+    assert harness.service.state.phase == "applied"
+
+
 def test_undo_revokes_experience_only_after_undo_rerun_success() -> None:
     harness = Harness()
     assert harness.service.begin_confirmation(

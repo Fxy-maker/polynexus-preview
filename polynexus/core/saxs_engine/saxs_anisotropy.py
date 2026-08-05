@@ -432,13 +432,26 @@ def _azimuthal_weights(
         return np.array([]), np.array([])
 
     order = np.argsort(chi_arr[valid])
-    chi_arr = chi_arr[valid][order]
+    # Detector azimuth is periodic. Normalize before sorting so a profile
+    # split at the -pi/pi seam has the same support as an unwrapped profile.
+    chi_arr = ((chi_arr[valid][order] + np.pi) % (2.0 * np.pi)) - np.pi
+    order = np.argsort(chi_arr)
+    chi_arr = chi_arr[order]
     intensity = intensity[valid][order]
     floor = float(np.nanpercentile(intensity, 10))
     weights = np.clip(intensity - floor, 0.0, None)
     if not np.isfinite(np.trapezoid(weights, chi_arr)) or np.sum(weights) <= 1e-12:
         weights = intensity
     return chi_arr, weights
+
+
+def _periodic_arrays(chi: np.ndarray, values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Close a sorted azimuthal profile across the 2*pi boundary."""
+    if len(chi) == 0:
+        return chi, values
+    unique, indices = np.unique(chi, return_index=True)
+    values = values[indices]
+    return np.r_[unique, unique[0] + 2.0 * np.pi], np.r_[values, values[0]]
 
 
 def _axis_difference_deg(first: float, second: float) -> float:
@@ -463,7 +476,8 @@ def _harmonic_diagnostics(
             "axis_drift_deg": np.nan,
         }
 
-    denominator = float(np.trapezoid(weights, chi))
+    chi_periodic, weights_periodic = _periodic_arrays(chi, weights)
+    denominator = float(np.trapezoid(weights_periodic, chi_periodic))
     weight_sum = float(np.sum(weights))
     weight_square_sum = float(np.sum(np.square(weights)))
     if denominator <= 1e-12 or weight_sum <= 1e-12 or weight_square_sum <= 0:
@@ -476,7 +490,7 @@ def _harmonic_diagnostics(
             "axis_drift_deg": np.nan,
         }
 
-    z2 = np.trapezoid(weights * np.exp(2j * chi), chi) / denominator
+    z2 = np.trapezoid(weights_periodic * np.exp(2j * chi_periodic), chi_periodic) / denominator
     strength = float(np.abs(z2))
     axis_deg = float((np.degrees(0.5 * np.angle(z2)) + 180.0) % 180.0)
     effective_bins = float(weight_sum**2 / weight_square_sum)
@@ -491,6 +505,7 @@ def _harmonic_diagnostics(
         split_weights = weights[split::2]
         if len(split_chi) < 3:
             continue
+        split_chi, split_weights = _periodic_arrays(split_chi, split_weights)
         split_denominator = float(np.trapezoid(split_weights, split_chi))
         if split_denominator <= 1e-12:
             continue
@@ -641,10 +656,10 @@ def herman_from_azimuthal(
     if len(chi_sel) < 5:
         return result
 
-    phi = np.angle(np.exp(1j * (chi_sel - np.deg2rad(reference_axis_deg))))
-    cos2_phi = np.cos(phi) ** 2
-    num = trapezoid(weights * cos2_phi, chi_sel)
-    den = trapezoid(weights, chi_sel)
+    chi_periodic, weights_periodic = _periodic_arrays(chi_sel, weights)
+    phi_periodic = np.angle(np.exp(1j * (chi_periodic - np.deg2rad(reference_axis_deg))))
+    num = trapezoid(weights_periodic * np.cos(phi_periodic) ** 2, chi_periodic)
+    den = trapezoid(weights_periodic, chi_periodic)
 
     if den <= 0:
         return result
@@ -658,8 +673,8 @@ def herman_from_azimuthal(
     result['P2'] = float(f)
 
     # P4: <P4> = (35<cos^4> - 30<cos^2> + 3) / 8
-    cos4_phi = np.cos(phi) ** 4
-    num4 = trapezoid(weights * cos4_phi, chi_sel)
+    cos4_phi = np.cos(phi_periodic) ** 4
+    num4 = trapezoid(weights_periodic * cos4_phi, chi_periodic)
     cos4_avg = num4 / den if den > 0 else np.nan
     result['P4'] = float((35 * cos4_avg - 30 * cos2_avg + 3) / 8) if np.isfinite(cos4_avg) else np.nan
 

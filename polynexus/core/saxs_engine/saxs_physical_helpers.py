@@ -88,6 +88,7 @@ def _crystallinity_invariant(
     *,
     q_unit: str = "nm^-1",
     length_unit: str = "nm",
+    crystallinity_gt_half: bool = False,
 ) -> float:
     """Estimate crystallinity from the Porod invariant with explicit units.
 
@@ -136,13 +137,9 @@ def _crystallinity_invariant(
     if disc < 0:
         return np.nan
 
-    phi_c = (1.0 - np.sqrt(disc)) / 2.0
-    if 0.0 < phi_c <= 0.5:
-        return float(phi_c)
-    phi_c = (1.0 + np.sqrt(disc)) / 2.0
-    if 0.5 < phi_c < 1.0:
-        return float(phi_c)
-    return np.nan
+    root_delta = float(np.sqrt(disc))
+    phi_c = (1.0 + root_delta) / 2.0 if crystallinity_gt_half else (1.0 - root_delta) / 2.0
+    return float(phi_c) if 0.0 < phi_c < 1.0 else np.nan
 
 
 def specific_surface_from_porod(
@@ -174,8 +171,6 @@ def guinier_analysis(
     q_max_factor: float = 1.3,
 ) -> Tuple[float, float, np.ndarray, np.ndarray]:
     """Guinier analysis: ln(I) vs q^2 in the low-q region."""
-    del q_max_factor
-
     sanitized = sanitize_1d_profile(q, I)
     q = sanitized.q
     intensity = sanitized.intensity
@@ -189,7 +184,15 @@ def guinier_analysis(
     if len(q_valid) < 10:
         return np.nan, np.nan, np.array([]), np.array([])
 
-    n_lowq = max(10, len(q_valid) // 5)
+    try:
+        factor = float(q_max_factor)
+    except (TypeError, ValueError):
+        factor = 1.3
+    # Keep the legacy 20% window at factor=1.3, while allowing a bounded
+    # sensitivity perturbation without letting the fit consume the full q
+    # range or fewer than the minimum number of points.
+    fraction = float(np.clip(0.2 * factor / 1.3, 0.05, 0.8))
+    n_lowq = max(10, min(len(q_valid), int(np.ceil(len(q_valid) * fraction))))
     q_low = q_valid[:n_lowq]
     I_low = I_valid[:n_lowq]
 
@@ -251,7 +254,7 @@ def porod_analysis(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> Dict:  # no
     }
 
 
-def _porod_constant(q_ext, I_ext, q_raw=None, I_raw=None) -> float:
+def _porod_constant(q_ext, I_ext, q_raw=None, I_raw=None, q_min=None, q_max=None) -> float:
     """Estimate Porod constant Kp via Porod-plot linear regression."""
     if q_raw is not None and I_raw is not None and len(q_raw) >= 20:
         q_use, I_use = q_raw, I_raw
@@ -263,6 +266,10 @@ def _porod_constant(q_ext, I_ext, q_raw=None, I_raw=None) -> float:
     finite_positive = (
         np.isfinite(q_use) & np.isfinite(I_use) & (q_use > 0) & (I_use > 0)
     )
+    if q_min is not None:
+        finite_positive &= q_use >= float(q_min)
+    if q_max is not None:
+        finite_positive &= q_use <= float(q_max)
     q_use = q_use[finite_positive]
     I_use = I_use[finite_positive]
     if len(q_use) < 20:

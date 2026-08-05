@@ -126,6 +126,11 @@ class MainWindowAITuningMixin:
         workspace_context = self._ai_tuning_workspace_context()
         workspace_context["tuning_goal"] = current_goal
         workspace_context["tuning_goal_label"] = self._ai_tuning_goal_label(current_goal)
+        # SAXS AI tuning always performs the bounded stability study. The
+        # report remains candidate-only until the existing confirmation
+        # transaction accepts it.
+        if str(self._current_technique or "").strip().lower() == "saxs":
+            workspace_context["stability_mode"] = "strict"
         ai_settings = self._current_ai_settings()
         worker_class = self._ai_tune_worker_class()
         self._ai_worker = worker_class(
@@ -377,7 +382,13 @@ class MainWindowAITuningMixin:
             elif view.mode == "auto_apply":
                 self._register_preprocess_auto_accept(report)
                 if dialog_result == QDialog.Accepted:
-                    self._undo_last_preprocess_apply()
+                    transaction = getattr(self, "_preprocess_transaction", None)
+                    if transaction is not None and getattr(transaction.state, "phase", "") == "apply_pending":
+                        # The auto-accept rerun is asynchronous; defer Undo
+                        # until its result has passed finalize_success().
+                        self._preprocess_undo_requested = True
+                    else:
+                        self._undo_last_preprocess_apply()
         elif dialog_result == QDialog.Accepted:
             self._apply_best_config(dialog.best_config())
             self._last_ai_tuned_run = True

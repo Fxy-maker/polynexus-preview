@@ -1,5 +1,26 @@
 # Active Work
 
+## SAXS stability map and scientific correctness - implementation complete (2026-08-05)
+
+- The AI tuning SAXS entry point now requests strict seeded stability evidence
+  across q/Porod/Guinier windows, background, beam center, mask dilation, and
+  azimuthal width. Reports include plateau bounds, bootstrap intervals,
+  per-trial frame continuity, physical/quality gates, and a deterministic
+  `auto_accept` / `request_confirmation` / `keep_original` decision.
+- Stability trials clone the typed `SAXSConfig`; candidate mappings no longer
+  fall back to engine defaults. SAXS auto-accept enters the existing
+  `PreprocessTransactionService` apply-pending state, reruns asynchronously,
+  finalizes through the worker callback, and supports deferred Undo.
+- Focused matrix passed `94 passed, 6 warnings`; structured verification passed
+  quality `297` and preprocessing `107`. The complete `test_saxs*.py` run
+  returned `916 passed, 2 skipped, 14 failed` in 235.91s. The failures are
+  concentrated in real-data audit/EDF fixtures and legacy dirty-input tests
+  that assert positive-only source channels, which conflicts with the signed
+  source contract now under review.
+- Human scientific review remains required for calibration/contrast, lamellar
+  interpretation, threshold policy, publication promotion, and resolution of
+  those fixture/contract expectations.
+
 ## SAXS scientific correctness repair - completed (2026-08-05)
 
 - Final repair implementation is complete under task card

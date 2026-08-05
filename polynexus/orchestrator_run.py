@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import inspect
+from typing import Any
 from polynexus.orchestrator_run_bootstrap import (
     _initialize_run_session,
 )
@@ -23,6 +23,9 @@ def run(self) -> dict[str, Any]:
             if reason:
                 convergence_reason = reason
             break
+
+    if self.technique == "saxs" and str((self.workspace_context or {}).get("stability_mode", "strict")):
+        self._run_saxs_stability_study(engine)
 
     return self._final_report(data_path, converged, convergence_reason)
 

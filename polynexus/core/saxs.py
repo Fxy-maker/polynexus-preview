@@ -2504,6 +2504,9 @@ class SAXSEngine(BaseEngine):
                 params["phi_c"] = round(float(sp.phi_c), 3)
             if np.isfinite(sp.Q_invariant):
                 params["Q_star"] = round(float(sp.Q_invariant), 4)
+            porod = getattr(self._analysis, "porod", None)
+            if isinstance(porod, dict) and np.isfinite(porod.get("Kp", np.nan)):
+                params["Kp"] = float(porod["Kp"])
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(self._analysis))
             return self._attach_scientific_acceptance_audit(params)
         if self._q is not None and self._I is not None:
@@ -2530,6 +2533,9 @@ class SAXSEngine(BaseEngine):
                 params["la_nm"] = round(float(sp.la), 2)
             if sp and np.isfinite(sp.phi_c):
                 params["phi_c"] = round(float(sp.phi_c), 3)
+            porod = getattr(result, "porod", None)
+            if isinstance(porod, dict) and np.isfinite(porod.get("Kp", np.nan)):
+                params["Kp"] = float(porod["Kp"])
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(result))
             return self._attach_scientific_acceptance_audit(params)
         return {}

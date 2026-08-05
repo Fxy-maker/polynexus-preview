@@ -5,14 +5,18 @@ import pytest
 
 from polynexus.core.saxs_engine import saxs_physical_helpers as helpers
 from polynexus.core.saxs_engine import saxs_quality_contracts as contracts
+from polynexus.core.saxs_engine import core as saxs_core
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.core import scattering_invariant
 from polynexus.core.saxs_engine.saxs_temperature import (
     TempPhase,
     detect_temperature_phase,
+    analyze_temperature_series,
 )
 from polynexus.core.saxs_engine.figure_common import SAXSFrameView
 from polynexus.core.saxs_engine.figure_eligibility import classify_frame_eligibility
+from polynexus.core.saxs_engine.io import read_1d_profile
+from polynexus.core.saxs_engine.saxs_anisotropy import herman_from_azimuthal
 
 
 def test_porod_invariant_crystallinity_is_unit_invariant() -> None:
@@ -34,6 +38,86 @@ def test_porod_invariant_crystallinity_is_unit_invariant() -> None:
 
     assert nm_value == pytest.approx(phi, rel=1e-6)
     assert angstrom_value == pytest.approx(nm_value, rel=1e-6)
+
+
+def test_porod_invariant_crystallinity_can_select_upper_root() -> None:
+    phi = 0.65
+    length_nm = 10.0
+    kp_nm = 2.5
+    q_nm = (np.pi / 2.0) * kp_nm * length_nm * phi * (1.0 - phi)
+
+    value = helpers._crystallinity_invariant(
+        length_nm,
+        q_nm,
+        kp_nm,
+        q_unit="nm^-1",
+        length_unit="nm",
+        crystallinity_gt_half=True,
+    )
+
+    assert value == pytest.approx(phi, rel=1e-6)
+
+
+def test_temperature_series_invariant_preserves_signed_residuals(monkeypatch) -> None:
+    import polynexus.core.saxs_engine.saxs_temperature as temperature_module
+
+    captured: list[np.ndarray] = []
+
+    def fake_invariant(q, intensity, cfg, **_kwargs):
+        del q, cfg
+        captured.append(np.asarray(intensity, dtype=float).copy())
+        return 1.0, None
+
+    monkeypatch.setattr(temperature_module, "_safe_temperature_invariant", fake_invariant)
+    q = np.linspace(0.1, 1.0, 20)
+    intensity = np.linspace(1.0, -0.2, 20)
+
+    analyze_temperature_series(
+        [100.0, 110.0],
+        [q, q],
+        [intensity, intensity],
+        cfg=SAXSConfig(smooth_method="none"),
+    )
+
+    assert captured
+    assert any(np.any(values < 0.0) for values in captured)
+
+
+def test_correlation_function_keeps_signed_raw_observations() -> None:
+    q = np.linspace(0.1, 1.5, 40)
+    intensity = np.exp(-q**2)
+    intensity[7] = -0.2
+
+    result = saxs_core.correlation_function(
+        q,
+        intensity,
+        SAXSConfig(q_corr_min=0.1, q_corr_max=1.5),
+        extrapolate_q0=False,
+        extrapolate_qinf=False,
+    )
+
+    assert np.any(np.asarray(result["I_raw"]) < 0.0)
+
+
+def test_text_reader_recognizes_common_reciprocal_length_spellings(tmp_path) -> None:
+    for suffix, header in (
+        ("a.dat", "# q [1/Å] I"),
+        ("b.dat", "# q [Å⁻¹] I"),
+        ("c.dat", "# q [1/nm] I"),
+    ):
+        path = tmp_path / suffix
+        path.write_text(f"{header}\n0.01 10\n0.02 8\n0.03 6\n", encoding="utf-8")
+        _q, _i, meta = read_1d_profile(str(path))
+        assert meta["q_unit"] in {"angstrom^-1", "nm^-1"}
+
+
+def test_periodic_azimuthal_centers_preserve_random_orientation_factor() -> None:
+    chi = np.linspace(-np.pi, np.pi, 36, endpoint=False) + np.pi / 36.0
+    intensity = np.ones_like(chi)
+
+    result = herman_from_azimuthal(chi, intensity)
+
+    assert result["f"] == pytest.approx(0.25, abs=1e-3)
 
 
 def test_cooling_phase_uses_low_temperature_solid_reference() -> None:

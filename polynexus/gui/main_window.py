@@ -1007,8 +1007,21 @@ class SideTuningReportDialog(QDialog):
         self._issue_target_label.setText(f"{tr('AI_TUNING_LABEL_TARGET')}: {self._display_text(target_symptom)}")
         self._issue_symptom_label.setText(f"{tr('AI_TUNING_LABEL_SYMPTOMS')}: {self._display_text(symptom_summary)}")
         self._issue_risk_label.setText(f"{tr('AI_TUNING_LABEL_REMAINING_RISKS')}: {self._remaining_risks_text()}")
+        stability_text = self._stability_summary_text(analysis_evidence)
+        stability_report = self.report.get("stability_report")
+        if isinstance(stability_report, dict):
+            plateau = stability_report.get("plateau", {})
+            bootstrap = stability_report.get("bootstrap", {})
+            score_interval = bootstrap.get("score", {}) if isinstance(bootstrap, dict) else {}
+            stability_text = (
+                f"{stability_text} | map={stability_report.get('decision', 'keep_original')}"
+                f" | trials={len(stability_report.get('trials', [])) if isinstance(stability_report.get('trials'), list) else 0}"
+                f" | plateau={len(plateau.get('trial_indices', [])) if isinstance(plateau, dict) else 0}"
+                f" | score95%={score_interval.get('lower', 'N/A')}..{score_interval.get('upper', 'N/A')}"
+                f" | continuity={'pass' if stability_report.get('continuity', {}).get('passed') else 'fail'}"
+            )
         self._issue_stability_label.setText(
-            f"{tr('AI_TUNING_LABEL_STABILITY')}: {self._stability_summary_text(analysis_evidence)}"
+            f"{tr('AI_TUNING_LABEL_STABILITY')}: {stability_text}"
         )
 
         self._recommendation_label.setText(
@@ -1025,7 +1038,7 @@ class SideTuningReportDialog(QDialog):
             f"{tr('AI_TUNING_LABEL_CONSTRAINT_GUARDS')}: {self._constraint_summary_text(analysis_evidence)}"
         )
         self._evidence_stability_label.setText(
-            f"{tr('AI_TUNING_LABEL_STABILITY')}: {self._stability_summary_text(analysis_evidence)}"
+            f"{tr('AI_TUNING_LABEL_STABILITY')}: {stability_text}"
         )
         self._rollback_boundary_label.setText(
             f"{tr('AI_TUNING_LABEL_ROLLBACK_BOUNDARY')}: {self._display_text(self._rollback_boundary_text())}"

@@ -157,6 +157,7 @@ def test_saxs_static_single_get_parameters_transports_existing_evidence() -> Non
     evidence = {"porod": {"level": "Trend", "value": 1.2}}
     result = SAXSResult(
         structure=StructureParams(L=12.0, lc=4.0, la=8.0, phi_c=1 / 3),
+        porod={"Kp": 2.75},
         data_quality_report={"level": "Trend"},
         guinier_evidence={"metric": {"level": "Trend", "rg_nm": 5.0}},
         metric_evidence=evidence,
@@ -167,6 +168,7 @@ def test_saxs_static_single_get_parameters_transports_existing_evidence() -> Non
     params = engine.get_parameters()
 
     assert params["L_nm"] == 12.0
+    assert params["Kp"] == 2.75
     assert params["data_quality_report"] == {"level": "Trend"}
     assert params["guinier_evidence"]["metric"]["rg_nm"] == 5.0
     assert params["metric_evidence"] == evidence

@@ -91,6 +91,20 @@ def test_unknown_applicability_never_promotes_method_evidence():
     )
 
 
+def test_porod_evidence_requires_slope_near_minus_four_and_iq4_plateau():
+    quality = _quality()
+    payload = _porod()
+    payload["slope"] = -3.0
+    payload["Iq4"] = np.linspace(1.0, 3.0, 20)
+
+    metric = build_porod_evidence(payload, quality_report=quality, applicability="supported")
+
+    assert metric.applicable is False
+    assert metric.level is QualityLevel.DIAGNOSTIC
+    assert "porod_slope_outside_tolerance" in metric.reason_codes
+    assert "porod_iq4_plateau_unstable" in metric.reason_codes
+
+
 def test_unusable_quality_and_missing_payloads_remain_unusable():
     q = np.asarray([0.1, 0.2, 0.3])
     quality = build_data_quality_report(q, np.ones_like(q))

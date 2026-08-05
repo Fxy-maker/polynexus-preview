@@ -375,6 +375,10 @@ class SAXSConfig:
     # Required material parameter for absolute Gibbs-Thomson surface energy.
     delta_Hf_Jm3: float = np.nan
 
+    # Appended for positional compatibility.  Relative size of the low-q
+    # Guinier fitting window; 1.3 preserves the historical default.
+    guinier_q_max_factor: float = 1.3
+
 
 @dataclass
 class ExperimentCondition:

@@ -361,3 +361,27 @@ def test_manual_detector_integration_preserves_signed_residuals() -> None:
     _q, integrated = _manual_integrate(image, cfg)
 
     assert np.any(integrated < 0)
+
+
+def test_manual_detector_integration_marks_unsupported_bins_unavailable() -> None:
+    cfg = SAXSConfig(
+        beam_center_x=0.0,
+        beam_center_y=0.0,
+        pixel_size_m=1.0e-3,
+        sdd_m=0.1,
+        wavelength_m=1.0e-10,
+        q_min=0.01,
+        q_max=2.0,
+        n_pt=100,
+        dummy_val=-10.0,
+        ddummy=0.1,
+    )
+    from polynexus.core.saxs_engine.preprocess import _manual_integrate
+
+    q, integrated, support = _manual_integrate(
+        np.ones((3, 3), dtype=float), cfg, return_support=True
+    )
+
+    assert len(q) == len(integrated) == len(support) == cfg.n_pt
+    assert np.any(support == 0)
+    assert np.all(np.isnan(integrated[support == 0]))

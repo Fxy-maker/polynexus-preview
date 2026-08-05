@@ -648,8 +648,11 @@ def validate_saxs_confirmation_report(
     if "orientation_advisory_report" in report:
         raise ValueError("orientation advisory has no confirmation authority")
     decision = report.get("preprocess_decision", {})
-    if not isinstance(decision, Mapping) or decision.get("decision") != "request_confirmation":
-        raise ValueError("SAXS confirmation requires request_confirmation")
+    if not isinstance(decision, Mapping) or decision.get("decision") not in {
+        "request_confirmation",
+        "auto_accept",
+    }:
+        raise ValueError("SAXS confirmation requires request_confirmation or auto_accept")
     candidate_id = str(report.get("selected_candidate_id", "") or "")
     if not candidate_id:
         raise ValueError("SAXS confirmation candidate is missing")
