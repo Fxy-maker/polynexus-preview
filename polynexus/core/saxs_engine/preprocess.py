@@ -589,6 +589,25 @@ def smooth_profile(q: np.ndarray, I: np.ndarray, cfg: SAXSConfig) -> np.ndarray:
 
     q_array = np.asarray(q, dtype=float).reshape(-1)
     intensity_array = np.asarray(I, dtype=float).reshape(-1)
+    # Sector integrations legitimately return NaN for q bins with no pixel
+    # support.  Keep those bins unavailable, but smooth each finite run
+    # independently so unsupported bins do not poison Savitzky-Golay.
+    if q_array.size == intensity_array.size and (
+        not np.all(np.isfinite(q_array)) or not np.all(np.isfinite(intensity_array))
+    ):
+        finite = np.isfinite(q_array) & np.isfinite(intensity_array)
+        result = np.full_like(intensity_array, np.nan, dtype=float)
+        start = None
+        for index, is_finite in enumerate(np.r_[finite, False]):
+            if is_finite and start is None:
+                start = index
+            elif not is_finite and start is not None:
+                if index - start >= 1:
+                    result[start:index] = smooth_profile(
+                        q_array[start:index], intensity_array[start:index], cfg
+                    )
+                start = None
+        return result
     if q_array.size == intensity_array.size and q_array.size > 2:
         q_sorted_order = np.argsort(q_array, kind="stable")
         q_sorted = q_array[q_sorted_order]

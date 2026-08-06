@@ -6,7 +6,7 @@ import h5py
 
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine import core as saxs_core
-from polynexus.core.saxs_engine.preprocess import normalize_intensity, subtract_background
+from polynexus.core.saxs_engine.preprocess import normalize_intensity, subtract_background, smooth_profile
 from polynexus.core.saxs_engine.preprocess import _manual_integrate
 from polynexus.core.saxs_engine.saxs_extrapolation_helpers import _extrapolate_guinier
 from polynexus.core.saxs_engine.saxs_physical_helpers import (
@@ -34,6 +34,17 @@ from polynexus.core.saxs_engine.saxs_anisotropy import (
     detector_plane_sector_mask,
     herman_from_azimuthal,
 )
+
+
+def test_smoothing_sparse_sector_profile_preserves_unsupported_bins() -> None:
+    cfg = SAXSConfig(smooth_method="savgol", savgol_window=7, savgol_order=2)
+    q = np.linspace(0.1, 0.8, 9)
+    intensity = np.asarray([1.0, 1.2, np.nan, np.nan, 2.0, 2.1, 2.2, np.nan, 2.4])
+
+    smoothed = smooth_profile(q, intensity, cfg)
+
+    assert np.isfinite(smoothed[[0, 1, 4, 5, 6, 8]]).all()
+    assert np.isnan(smoothed[[2, 3, 7]]).all()
 
 
 def test_transmission_background_scaling_uses_sample_over_background() -> None:
