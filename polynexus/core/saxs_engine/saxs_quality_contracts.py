@@ -3176,6 +3176,11 @@ def build_saxs_scientific_acceptance_audit(
     detector_provenance_audit: dict[str, list[dict[str, Any]]] = {}
     existing_reasons: list[str] = []
     provenance_blockers: list[str] = []
+    absolute_calibration_available = bool(
+        source.get("absolute_intensity_calibrated") is True
+        or source.get("absolute_contrast_calibrated") is True
+        or source.get("absolute_scale") is True
+    )
 
     def append_unique(items: list[str], value: Any) -> None:
         text = str(value or "").strip()
@@ -3308,6 +3313,33 @@ def build_saxs_scientific_acceptance_audit(
 
     for reason in existing_reasons:
         append_unique(reason_codes, reason)
+    quantitative_metrics = {
+        "porod",
+        "invariant",
+    }
+    quantitative_without_calibration = any(
+        isinstance(source.get("metric_evidence"), Mapping)
+        and isinstance(source.get("metric_evidence", {}).get(name), Mapping)
+        and source.get("metric_evidence", {}).get(name, {}).get("applicable") is True
+        and str(source.get("metric_evidence", {}).get(name, {}).get("level", "")).lower()
+        in {"quantitative", "trend"}
+        for name in quantitative_metrics
+    )
+    if not quantitative_without_calibration:
+        quantitative_without_calibration = any(
+            key in source
+            for key in (
+                "Q_star",
+                "Q_star_invariant",
+                "phi_c_invariant",
+                "Kp",
+                "Sv",
+                "phi_void",
+            )
+        )
+    if quantitative_without_calibration and not absolute_calibration_available:
+        append_unique(reason_codes, "absolute_contrast_required")
+        status = "diagnostic_only"
     audit_payload = {
         "status": status,
         "automated_validation_passed": validation,
@@ -3323,6 +3355,10 @@ def build_saxs_scientific_acceptance_audit(
         "reason_codes": reason_codes,
         "audit_scope": "existing_gates_only",
         "publication_decision_changed": False,
+        "absolute_calibration": {
+            "available": absolute_calibration_available,
+            "required_for": ["porod", "invariant_crystallinity", "void_fraction"],
+        },
     }
     if detector_provenance_audit:
         audit_payload["detector_provenance_audit"] = detector_provenance_audit

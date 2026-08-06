@@ -21,6 +21,22 @@
   interpretation, threshold policy, publication promotion, and resolution of
   those fixture/contract expectations.
 
+### Follow-up closure (2026-08-06)
+
+- Sparse sector q bins remain unavailable (`NaN`) without poisoning
+  Savitzky-Golay smoothing or dropping an otherwise valid EDF frame.
+- A discovered directory with zero surviving frames records `no_valid_frames`,
+  marks SAXS validation `ERROR`, and reports a diagnostic result instead of
+  defaulting to validation success.
+- SAXS stability studies force `request_confirmation`; generic stability
+  auto-accept remains available only for explicit non-SAXS policies.
+- Missing absolute intensity/contrast calibration is exposed in the scientific
+  acceptance audit and gates publication eligibility to SI/diagnostic output;
+  raw physical diagnostics remain inspectable.
+- Follow-up evidence: `122 passed, 6 warnings`; task quality `297`,
+  preprocessing `107`, Ruff, compile, and whitespace all pass. Full SAXS
+  re-verification remains open after this follow-up.
+
 ## SAXS scientific correctness repair - completed (2026-08-05)
 
 - Final repair implementation is complete under task card

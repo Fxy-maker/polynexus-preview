@@ -89,6 +89,13 @@ physical semantics.
   an explicit Guinier window factor, preserves signed raw correlation channels
   while using a positive derived Fourier view, and preserves per-trial
   cross-frame continuity semantics.
+- Follow-up closure now preserves valid frames when sparse sector bins are
+  unavailable, fails closed with `no_valid_frames` when a discovered directory
+  has no surviving frame, disables SAXS stability auto-accept by default, and
+  exposes missing absolute-contrast calibration as diagnostic-only evidence.
+- Follow-up focused matrix passed `122 passed, 6 warnings`; task verification
+  passed quality `297` and preprocessing `107` with Ruff, compile, type
+  baseline, and whitespace checks passing.
 - Remaining review limits: absolute contrast/calibration, lamellar
   interpretation, publication promotion, and whether auto-accept thresholds
   are appropriate for each beamline remain human scientific decisions.

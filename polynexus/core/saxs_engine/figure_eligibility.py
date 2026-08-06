@@ -103,6 +103,18 @@ def classify_frame_eligibility(
     if not geometry_ok:
         return FigureEligibilityDecision("si", (geometry_reason,))
 
+    acceptance_audits = _emitted_values(frame, "scientific_acceptance_audit")
+    for audit in acceptance_audits:
+        if isinstance(audit, Mapping):
+            calibration = audit.get("absolute_calibration")
+            reasons = audit.get("reason_codes") or ()
+            if (
+                isinstance(calibration, Mapping)
+                and calibration.get("available") is False
+                and "absolute_contrast_required" in reasons
+            ):
+                return FigureEligibilityDecision("si", ("absolute_contrast_required",))
+
     physical_gate = (
         q_star_valid_for_invariant_panels(frame)
         or "usable" in {

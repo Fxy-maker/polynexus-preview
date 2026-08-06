@@ -953,6 +953,17 @@ class SAXSEngine(BaseEngine):
             geometry_sources=self._geometry_sources,
             geometry_confidences=self._geometry_confidences,
         )
+        if discovered_files and not self._file_list:
+            reason_codes = list(self._sequence_qa_summary.get("reason_codes", ()))
+            if "no_valid_frames" not in reason_codes:
+                reason_codes.append("no_valid_frames")
+            self._sequence_qa_summary["reason_codes"] = reason_codes
+            self.result.validation_passed = False
+            self.result.quality_flags["saxs"] = "ERROR"
+            self.result.validation_summary = "no_valid_frames: no SAXS frame survived loading or preprocessing"
+            if "no_valid_frames" not in self.result.validation_warnings:
+                self.result.validation_warnings.append("no_valid_frames")
+            self.log("ERROR: no valid SAXS frames were loaded")
         self.result.metadata["sequence_qa"] = self._sequence_qa_summary
         self.result.raw_data["processed_profiles"] = tuple(self._processed_list)
 

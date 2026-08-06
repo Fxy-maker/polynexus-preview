@@ -34,6 +34,7 @@ from polynexus.core.saxs_engine.saxs_anisotropy import (
     detector_plane_sector_mask,
     herman_from_azimuthal,
 )
+from polynexus.core.saxs_engine.saxs_quality_contracts import build_saxs_scientific_acceptance_audit
 
 
 def test_smoothing_sparse_sector_profile_preserves_unsupported_bins() -> None:
@@ -45,6 +46,22 @@ def test_smoothing_sparse_sector_profile_preserves_unsupported_bins() -> None:
 
     assert np.isfinite(smoothed[[0, 1, 4, 5, 6, 8]]).all()
     assert np.isnan(smoothed[[2, 3, 7]]).all()
+
+
+def test_missing_absolute_contrast_keeps_saxs_acceptance_diagnostic_only() -> None:
+    audit = build_saxs_scientific_acceptance_audit(
+        True,
+        {
+            "metric_evidence": {
+                "porod": {"level": "Quantitative", "applicable": True},
+                "invariant": {"level": "Quantitative", "applicable": True},
+            }
+        },
+    )
+
+    assert audit["status"] == "diagnostic_only"
+    assert audit["absolute_calibration"]["available"] is False
+    assert "absolute_contrast_required" in audit["reason_codes"]
 
 
 def test_transmission_background_scaling_uses_sample_over_background() -> None:

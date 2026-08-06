@@ -82,6 +82,35 @@ def test_stability_study_requires_connected_multi_dimension_platform_for_auto_ac
     assert report.quality_gate_passed is True
 
 
+def test_saxs_stability_policy_requires_confirmation_even_at_auto_accept_score() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+
+    request = StabilityStudyRequest(
+        baseline_config={"q_min": 0.1},
+        domains=(ParameterDomain("q_min", 0.09, 0.11),),
+        global_trials=3,
+        active_trials=0,
+        confirmation_trials=0,
+        min_plateau_points=2,
+        allow_auto_accept=False,
+    )
+    report = run_stability_study(
+        request,
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": {"L_nm": [10.0, 10.0]},
+        },
+    )
+
+    assert report.decision == "request_confirmation"
+
+
 def test_stability_study_keeps_original_when_physics_or_continuity_fails() -> None:
     from polynexus.core.preprocess_optimization.stability import (
         ParameterDomain,

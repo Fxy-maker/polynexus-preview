@@ -10,6 +10,7 @@ from polynexus.core import get_engine
 from polynexus.core.saxs import SAXSEngine
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.saxs_temperature import TempSeriesResult
+from polynexus.core.saxs_engine.io import ExperimentCondition
 
 
 def _temperature_engine_with_prevalidation_payload() -> SAXSEngine:
@@ -65,3 +66,26 @@ def test_real_pa6_audit_matches_final_validation(tmp_path: Path) -> None:
         "guinier_sequence_evidence"
     ]["reason_codes"]
     json.dumps(audit, allow_nan=False)
+
+
+def test_directory_with_discovered_but_zero_valid_frames_fails_closed(monkeypatch, tmp_path: Path) -> None:
+    import polynexus.core.saxs as saxs_module
+
+    source = tmp_path / "invalid.edf"
+    source.write_bytes(b"not-an-edf")
+    condition = ExperimentCondition(
+        label="static",
+        value=0.0,
+        condition_key="static",
+        files=[str(source)],
+    )
+    monkeypatch.setattr(saxs_module, "scan_experiment_dir", lambda *_args: [condition])
+    monkeypatch.setattr(saxs_module, "read_image", lambda _path: (_ for _ in ()).throw(ValueError("bad frame")))
+
+    engine = SAXSEngine(SAXSConfig())
+
+    assert engine._load_directory(str(tmp_path)) is False
+    assert engine.result.validation_passed is False
+    assert engine.result.quality_flags["saxs"] == "ERROR"
+    assert engine.result.metadata["sequence_qa"]["loaded_frame_count"] == 0
+    assert "no_valid_frames" in engine.result.metadata["sequence_qa"]["reason_codes"]

@@ -135,6 +135,9 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         confirmation_trials=9 if mode == "strict" else 3,
         min_plateau_points=3,
         decision_mode="strict" if mode == "strict" else "quick",
+        # SAXS physical semantics require an explicit user confirmation even
+        # when the numerical stability score reaches the auto-accept band.
+        allow_auto_accept=False,
     )
     report = run_stability_study(request, evaluate).to_dict()
     self._last_stability_report = deepcopy(report)
