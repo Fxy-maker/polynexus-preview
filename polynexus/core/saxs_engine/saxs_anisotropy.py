@@ -257,6 +257,7 @@ def _normalize_anisotropy_inputs(
     chi: object,
     q_1d: object,
     I_1d: object,
+    support_count: object = None,
 ) -> tuple[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None, str | None]:
     """Return detached numeric inputs or an explicit structural failure reason."""
 
@@ -282,9 +283,26 @@ def _normalize_anisotropy_inputs(
     if q_1d_axis.size == 0:
         return None, "orientation_input_shape_mismatch"
     if any(not np.all(np.isfinite(array)) for array in (
-        image, q_axis, chi_axis, q_1d_axis, intensity_1d
+        q_axis, chi_axis, q_1d_axis, intensity_1d
     )):
         return None, "orientation_input_nonfinite"
+    if support_count is None:
+        if not np.all(np.isfinite(image)):
+            return None, "orientation_input_nonfinite"
+    else:
+        try:
+            support = np.asarray(support_count, dtype=float)
+        except (TypeError, ValueError):
+            return None, "orientation_input_nonfinite"
+        if (
+            support.shape != image.shape
+            or not np.all(np.isfinite(support))
+            or np.any(support < 0)
+        ):
+            return None, "orientation_input_nonfinite"
+        supported_nonfinite = (support > 0) & ~np.isfinite(image)
+        if np.any(supported_nonfinite):
+            return None, "orientation_input_nonfinite"
     return (image, q_axis, chi_axis, q_1d_axis, intensity_1d), None
 
 
@@ -342,12 +360,16 @@ def extract_azimuthal_profile(
         ):
             return chi, np.full(chi.shape, np.nan, dtype=float)
         selected_support = support[:, mask]
-        valid_weight = selected_support > 0
+        valid_weight = (selected_support > 0) & np.isfinite(I_2d[:, mask])
         denominator = np.sum(
             np.where(valid_weight, selected_support, 0.0), axis=1
         )
         numerator = np.sum(
-            np.where(valid_weight, I_2d[:, mask] * selected_support, 0.0),
+            np.where(
+                valid_weight,
+                np.nan_to_num(I_2d[:, mask], nan=0.0) * selected_support,
+                0.0,
+            ),
             axis=1,
         )
         I_profile = np.full(I_2d.shape[0], np.nan, dtype=float)
@@ -997,7 +1019,7 @@ def analyze_anisotropy(
         result.reference_axis_kind = "tensile_axis"
 
     normalized, invalid_reason = _normalize_anisotropy_inputs(
-        I_2d, q, chi, q_1d, I_1d
+        I_2d, q, chi, q_1d, I_1d, support_count
     )
     detector = _normalized_detector_quality(raw_detector_quality)
     sector_quality = build_sector_map_quality_report(I_2d, support_count)

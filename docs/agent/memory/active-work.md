@@ -1,5 +1,21 @@
 # Active Work
 
+## SAXS sparse sector orientation recovery - completed (2026-08-06)
+
+- Real EDF strain frames were producing `strain_canonical_sector_payload_invalid`
+  because the 36 x 1000 sector map contains legitimate NaN bins where
+  `support_count == 0`.
+- Canonical sector validation and anisotropy input validation now accept NaN
+  only in zero-support bins; supported non-finite bins remain fail-closed.
+  Azimuthal support-weighted extraction avoids `NaN * 0` contamination.
+- Real directory reproduction now reaches `analyze_anisotropy` and publishes
+  finite raw Herman evidence for 3/4 frames (`f_Herman_raw_mean=0.4729` in the
+  local run). Effective Herman remains unavailable when tensile-axis or
+  orientation reliability gates are not met; no scientific value is promoted.
+- Focused matrix: `109 passed`; structured verifier passed task check, Ruff,
+  compile, quality `297`, preprocessing `107`, and whitespace checks.
+- Task card: `docs/agent/tasks/2026-08-06-saxs-sparse-sector-orientation.md`.
+
 ## SAXS stability map and scientific correctness - implementation complete (2026-08-05)
 
 - The AI tuning SAXS entry point now requests strict seeded stability evidence

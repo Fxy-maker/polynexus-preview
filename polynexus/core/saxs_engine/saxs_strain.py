@@ -435,19 +435,37 @@ def herman_from_sector_data(
                 or I_2d.shape != (chi_rad.size, q_2d.size)
                 or chi_rad.size < 5
                 or q_2d.size == 0
-                or not np.all(np.isfinite(I_2d))
                 or not np.all(np.isfinite(q_2d))
                 or not np.all(np.isfinite(chi_rad))
             ):
                 return _invalid_sector_data_result(
                     "strain_canonical_sector_payload_invalid"
                 )
+            support_count = sector_data.get("support_count")
+            if support_count is None:
+                image_finite = np.all(np.isfinite(I_2d))
+            else:
+                try:
+                    support = np.asarray(support_count, dtype=float)
+                except (TypeError, ValueError):
+                    support = np.asarray([], dtype=float)
+                image_finite = bool(
+                    support.shape == I_2d.shape
+                    and np.all(np.isfinite(support))
+                    and np.all(support >= 0)
+                    and not np.any((support > 0) & ~np.isfinite(I_2d))
+                )
+            if not image_finite:
+                return _invalid_sector_data_result(
+                    "strain_canonical_sector_payload_invalid"
+                )
             q_1d = np.asarray(sector_data.get("q", q_2d), dtype=float)
             I_1d = np.asarray(
-                sector_data.get("I_full", np.nanmean(I_2d, axis=0)),
+                sector_data["I_full"]
+                if "I_full" in sector_data
+                else np.nanmean(I_2d, axis=0),
                 dtype=float,
             )
-            support_count = sector_data.get("support_count")
             raw_detector_quality = sector_data.get(
                 "raw_detector_quality_report"
             )

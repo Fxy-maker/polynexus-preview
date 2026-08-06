@@ -1,5 +1,13 @@
 ---
 
+## SAXS sparse sector orientation boundary (2026-08-06)
+
+The strain orientation path preserves sparse detector sector maps. Empty q/chi
+bins are represented as NaN with zero support and are excluded from azimuthal
+weights; a NaN in a supported bin is still an invalid canonical payload. A
+successful raw Herman diagnostic does not imply a publishable/effective Herman
+factor: explicit tensile-axis and orientation reliability gates remain required.
+
 ## SAXS stability map and scientific correctness - current checkpoint (2026-08-05)
 
 - Implementation is complete under task card
