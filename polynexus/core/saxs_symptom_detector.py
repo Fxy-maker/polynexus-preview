@@ -469,11 +469,6 @@ def detect_saxs_symptoms(
         or structure.get("lc_reliability_status")
         or output.get("lc_reliability_status")
     ).lower()
-    dominant_lc_reason = _string(
-        batch_structure_summary.get("dominant_lc_reliability_reason")
-        or structure.get("lc_reliability_reason")
-        or output.get("lc_reliability_reason")
-    )
     dominant_melting_status = _string(
         batch_structure_summary.get("dominant_melting_window_status")
         or structure.get("melting_window_status")
@@ -603,9 +598,13 @@ def detect_saxs_symptoms(
             )
 
     beamstop = bool(signal.get("beam_stop_contaminated") or output.get("beam_stop_contaminated"))
-    q_star_valid = signal.get("Q_star_valid")
+    q_star_valid = signal.get(
+        "invariant_Q_valid", signal.get("Q_star_valid")
+    )
     if q_star_valid is None:
-        q_star_valid = output.get("Q_star_valid")
+        q_star_valid = output.get(
+            "invariant_Q_valid", output.get("Q_star_valid")
+        )
     mask_truncated = bool(signal.get("mask_truncated") or output.get("mask_truncated"))
     if beamstop or q_star_valid is False or mask_truncated:
         add(
@@ -617,18 +616,31 @@ def detect_saxs_symptoms(
                 confidence=0.92 if beamstop else 0.78,
                 evidence_keys=[
                     "signal_evidence.beam_stop_contaminated",
-                    "signal_evidence.Q_star_valid",
+                    "signal_evidence.invariant_Q_valid",
                     "signal_evidence.mask_truncated",
                 ],
                 expected_evidence_change=[
                     "beam_stop_contaminated should clear or be masked out",
-                    "Q_star_valid should become True",
+                    "invariant_Q_valid should become True",
                 ],
             )
         )
 
-    q_star_rel = _clean_float(output.get("Q_star_rel_mean", output.get("Q_star_rel", output.get("Q_rel"))))
-    q_star_rel_span = _clean_float(output.get("Q_star_rel_span"))
+    q_star_rel = _clean_float(
+        output.get(
+            "invariant_Q_rel_mean",
+            output.get(
+                "Q_star_rel_mean",
+                output.get(
+                    "invariant_Q_rel",
+                    output.get("Q_star_rel", output.get("Q_rel")),
+                ),
+            ),
+        )
+    )
+    q_star_rel_span = _clean_float(
+        output.get("invariant_Q_rel_span", output.get("Q_star_rel_span"))
+    )
     phi_void = _clean_float(output.get("phi_void_mean", output.get("phi_void")))
     phi_void_span = _clean_float(output.get("phi_void_span"))
     porod_slope = _clean_float(output.get("porod_slope_mean", output.get("porod_slope")))
@@ -810,7 +822,7 @@ def detect_saxs_symptoms(
                 target_params=["q_corr_min", "q_corr_max", "savgol_window"],
                 confidence=0.84,
                 evidence_keys=[
-                    "structure_evidence.Q_star_rel",
+                    "structure_evidence.invariant_Q_rel",
                     "peak_evidence.L_bragg",
                     "transform_evidence.L_corr_peak",
                     "structure_evidence.L_best",
@@ -839,7 +851,7 @@ def detect_saxs_symptoms(
                 confidence=0.86,
                 evidence_keys=[
                     "structure_evidence.phi_void",
-                    "structure_evidence.Q_star_rel",
+                    "structure_evidence.invariant_Q_rel",
                     "peak_evidence.L_bragg",
                     "transform_evidence.L_corr_peak",
                     "structure_evidence.L_best",
@@ -901,7 +913,7 @@ def detect_saxs_symptoms(
                 evidence_keys=[
                     "structure_evidence.f_Herman",
                     "structure_evidence.f_Herman_span",
-                    "structure_evidence.Q_star_rel_span",
+                    "structure_evidence.invariant_Q_rel_span",
                 ],
                 expected_evidence_change=[
                     "f_Herman should stop swinging widely across the strain series",
@@ -927,7 +939,7 @@ def detect_saxs_symptoms(
                 confidence=0.93,
                 evidence_keys=[
                     "signal_evidence.beam_stop_contaminated",
-                    "signal_evidence.Q_star_valid",
+                    "signal_evidence.invariant_Q_valid",
                     "structure_evidence.calibrated_fallback_active",
                     "batch_evidence.batch_frames",
                     "batch_evidence.frame_condition_values",

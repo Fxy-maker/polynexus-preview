@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import math
-from typing import Callable, Iterable
+from typing import Iterable
 
 from .i18n import tr
 
@@ -66,8 +66,8 @@ SAXS_COMPARISON_KEYS: tuple[str, ...] = (
 )
 
 SAXS_STRAIN_COMPARISON_KEYS: tuple[str, ...] = (
-    "Q_star_rel_mean",
-    "Q_star_rel_span",
+    "invariant_Q_rel_mean",
+    "invariant_Q_rel_span",
     "phi_void_mean",
     "phi_void_span",
     "f_Herman_mean",
@@ -77,7 +77,7 @@ SAXS_STRAIN_COMPARISON_KEYS: tuple[str, ...] = (
 )
 
 STRAIN_REVIEW_METRIC_KEYS: tuple[str, ...] = (
-    "Q_star_rel_mean",
+    "invariant_Q_rel_mean",
     "phi_void_mean",
     "f_Herman_mean",
     "porod_slope_mean",
@@ -353,8 +353,10 @@ def measured_result_metric_parts(
                 metric_parts.append(f"paper_figure_candidate={str(bool(strain.get('paper_figure_candidate'))).lower()}")
             if strain.get("paper_conclusion_candidate") is not None:
                 metric_parts.append(f"paper_conclusion_candidate={str(bool(strain.get('paper_conclusion_candidate'))).lower()}")
-            for key in ("Q_star_rel_mean", "phi_void_mean", "f_Herman_mean", "porod_slope_mean", "void_detected_frames"):
+            for key in ("invariant_Q_rel_mean", "phi_void_mean", "f_Herman_mean", "porod_slope_mean", "void_detected_frames"):
                 value = metrics.get(key, "")
+                if not value and key == "invariant_Q_rel_mean":
+                    value = metrics.get("Q_star_rel_mean", "")
                 if value:
                     metric_parts.append(f"{key}={value}")
         else:

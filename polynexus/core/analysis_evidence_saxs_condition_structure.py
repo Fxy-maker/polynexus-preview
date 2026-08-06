@@ -18,9 +18,27 @@ def _saxs_strain_structure_layers(
 
     strain_structure_evidence = _non_empty_mapping(
         [
-            ("Q_star_rel", _clean_float(output.get("Q_star_rel", output.get("Q_rel")))),
-            ("Q_star_rel_mean", _clean_float(output.get("Q_star_rel_mean"))),
-            ("Q_star_rel_span", _clean_float(output.get("Q_star_rel_span"))),
+            (
+                "invariant_Q_rel",
+                _clean_float(
+                    output.get(
+                        "invariant_Q_rel",
+                        output.get("Q_star_rel", output.get("Q_rel")),
+                    )
+                ),
+            ),
+            (
+                "invariant_Q_rel_mean",
+                _clean_float(
+                    output.get("invariant_Q_rel_mean", output.get("Q_star_rel_mean"))
+                ),
+            ),
+            (
+                "invariant_Q_rel_span",
+                _clean_float(
+                    output.get("invariant_Q_rel_span", output.get("Q_star_rel_span"))
+                ),
+            ),
             ("has_voids", output.get("has_voids")),
             (
                 "void_detected_frames",

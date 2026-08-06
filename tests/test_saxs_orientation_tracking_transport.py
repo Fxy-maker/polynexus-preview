@@ -120,8 +120,15 @@ def _patch_strain_tracking_inputs(monkeypatch) -> None:
     monkeypatch.setattr(
         module,
         "analyze_single",
-        lambda q, intensity, cfg: SimpleNamespace(
-            long_period=SimpleNamespace(L_best=10.0, L_confidence=0.8, method_used="bragg"),
+        lambda q, intensity, cfg, **_kwargs: SimpleNamespace(
+            long_period=SimpleNamespace(
+                L_best=10.0,
+                L_bragg=10.0,
+                L_confidence=0.8,
+                method_used="bragg",
+                q_peak_nm1=2 * np.pi / 10.0,
+                peak_selection_reason="best_credible_lamellar",
+            ),
             structure=SimpleNamespace(lc=3.0, la=7.0, phi_c=0.3),
             data_quality_report={},
             metric_evidence={},

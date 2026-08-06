@@ -53,8 +53,14 @@ def _saxs_stability_domains(config: dict[str, Any]) -> tuple[ParameterDomain, ..
 
 def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]:
     values: dict[str, list[float]] = {}
-    for name in ("L_nm", "Q_star", "phi_c", "Kp", "Rg"):
-        raw = output.get(name)
+    for name, aliases in {
+        "L_nm": ("L_nm",),
+        "invariant_Q": ("invariant_Q", "Q_star"),
+        "phi_c": ("phi_c",),
+        "Kp": ("Kp",),
+        "Rg": ("Rg",),
+    }.items():
+        raw = next((output.get(alias) for alias in aliases if output.get(alias) is not None), None)
         if isinstance(raw, (int, float)):
             values[name] = [float(raw)]
     for owner_name, point_name in (("_temperature_result", "temp_points"), ("_strain_result", "strain_points")):
@@ -64,7 +70,12 @@ def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]
             continue
         for name, aliases in {
             "L_nm": ("L_nm",),
-            "Q_star": ("Q_star", "Q_star_rel"),
+            "invariant_Q": (
+                "invariant_Q",
+                "invariant_Q_rel",
+                "Q_star",
+                "Q_star_rel",
+            ),
             "phi_c": ("phi_c",),
         }.items():
             sequence = []
@@ -120,7 +131,11 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
             "score": score,
             "physical_passed": assessment.get("physical_gate_status") == "passed",
             "quality_passed": assessment.get("quality_gate_status") == "passed",
-            "metrics": {name: output[name] for name in ("L_nm", "Q_star", "phi_c", "Kp", "Rg") if name in output},
+            "metrics": {
+                name: values[0]
+                for name, values in _frame_values(trial_engine, output).items()
+                if values and name in {"L_nm", "invariant_Q", "phi_c", "Kp", "Rg"}
+            },
             "frame_values": _frame_values(trial_engine, output),
             "reason_codes": assessment.get("reason_codes", []),
         }

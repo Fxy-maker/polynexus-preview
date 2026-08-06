@@ -21,17 +21,42 @@ one authoritative tracked lamellar feature.
 - SAXS analyzer batch-row and figure inputs.
 - Strain result-table and figure parameter naming.
 
+## Implementation plan
+
+1. Add failing regressions for peak continuity, orientation q reuse, one core
+   result per frame, canonical invariant output, and detector display scaling.
+2. Make the series tracker authoritative, fail closed after loss or core
+   exceptions, and transport the accepted q to orientation and sector metrics.
+3. Reuse the series-owned core results in GUI rows and normalize legacy
+   invariant aliases at history, stability, evidence, and batch read boundaries.
+4. Replay the external EDF 8 sequence read-only, run focused and structured
+   verification, document evidence, and create an explicit-file checkpoint.
+
 ## Acceptance criteria
 
-- [ ] The strain series owns one core analysis result per frame.
-- [ ] Long-period values are continuous-feature results or explicit tracking loss.
-- [ ] Orientation uses the exact tracked total-profile q target.
-- [ ] Normal GUI runs supply deterministic frame source indices.
-- [ ] Meridional/equatorial q and L diagnostics are emitted explicitly.
-- [ ] Scattering invariant fields use invariant names in new strain output.
-- [ ] EDF 8 results no longer contain the identified 5% q-feature switch or
+- [x] The strain series owns one core analysis result per frame, including an
+      explicit failed result when core analysis raises.
+- [x] Long-period values are continuous-feature results or explicit,
+      irreversible tracking loss.
+- [x] Orientation uses the exact tracked total-profile q target.
+- [x] Normal GUI runs supply deterministic frame source indices.
+- [x] Meridional/equatorial q and L diagnostics are emitted explicitly.
+- [x] Scattering invariant fields use invariant names in new strain output;
+      legacy aliases remain read-only compatibility inputs.
+- [x] EDF 8 results no longer contain the identified 5% q-feature switch or
       200%/400% core-versus-GUI L disagreement.
-- [ ] Focused regressions and structured verification pass.
+- [x] Focused regressions and structured verification pass.
+
+## Focused evidence
+
+- Core/GUI/tracking/table matrix: `131 passed in 14.43s`.
+- Figure/orientation matrix: `245 passed, 2 skipped, 4 warnings in 40.95s`;
+  warnings are existing missing Arial CJK glyphs.
+- Evidence/history/stability matrix: `307 passed in 11.05s`.
+- Read-only external EDF 8 replay: `1 passed in 9.11s`.
+- Structured verifier passed task/memory checks, Ruff, compile, quality
+  `297 passed`, preprocessing `107 passed`, and whitespace checks.
+- Local explicit-file checkpoint remains pending.
 
 ## Verification
 

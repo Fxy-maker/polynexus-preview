@@ -174,8 +174,11 @@ def trend_panel_eligible(
 
 
 def q_star_valid_for_invariant_panels(frame: SAXSFrameView) -> bool:
-    """Read the emitted Q_star_valid gate; never infer validity from a value."""
+    """Read the emitted invariant validity gate without inferring from values."""
 
+    canonical = _emitted_values(frame, "invariant_Q_valid")
+    if canonical:
+        return _explicit_bool(canonical) is True
     return _explicit_bool(_emitted_values(frame, "Q_star_valid")) is True
 
 

@@ -206,6 +206,7 @@ def _build_batch_parameters_payload(batch_params, base_params: Optional[Dict[str
         """
 
         payload: Dict[str, Any] = dict(base_params or {})
+        is_strain = str(experiment_type or "").strip().lower() == "strain"
         batch_rows = [dict(row) for row in batch_params if isinstance(row, dict)]
         if not batch_rows:
             return payload
@@ -415,7 +416,9 @@ def _build_batch_parameters_payload(batch_params, base_params: Optional[Dict[str
             if raw_phi is not None and cal_phi is not None:
                 phi_gap_values.append(abs(cal_phi - raw_phi) / max(abs(cal_phi), abs(raw_phi), 1e-9))
 
-            q_star_rel = _float_or_none(row.get("Q_star_rel"))
+            q_star_rel = _float_or_none(row.get("invariant_Q_rel"))
+            if q_star_rel is None:
+                q_star_rel = _float_or_none(row.get("Q_star_rel"))
             if q_star_rel is None:
                 q_star_rel = _float_or_none(row.get("Q_rel"))
             if q_star_rel is not None:
@@ -538,8 +541,12 @@ def _build_batch_parameters_payload(batch_params, base_params: Optional[Dict[str
         if dominant_lc_reason:
             payload["lc_reliability_reason"] = dominant_lc_reason
         if q_star_rel_values:
-            payload["Q_star_rel_mean"] = q_star_rel_mean
-            payload["Q_star_rel_span"] = q_star_rel_span
+            if is_strain:
+                payload["invariant_Q_rel_mean"] = q_star_rel_mean
+                payload["invariant_Q_rel_span"] = q_star_rel_span
+            else:
+                payload["Q_star_rel_mean"] = q_star_rel_mean
+                payload["Q_star_rel_span"] = q_star_rel_span
         if porod_slope_values:
             payload["porod_slope_mean"] = porod_slope_mean
             payload["porod_slope_span"] = porod_slope_span

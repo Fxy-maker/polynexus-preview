@@ -265,7 +265,7 @@ def test_saxs_temperature_dispatch_qualifies_submodule_and_classifies_sequence_a
 def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
     model = _build(
         {
-            "Q_star_rel_mean": 1.02,
+            "invariant_Q_rel_mean": 1.02,
             "phi_void_mean": 0.04,
             "f_Herman_mean": 0.2,
             "f_Herman_raw_mean": 0.3,
@@ -273,7 +273,15 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
             "_batch_data": [
                 {
                     "condition_value": 8.0,
-                    "Q_rel": 1.025,
+                    "L_nm": 10.0,
+                    "q_peak_total_nm1": 0.6283,
+                    "L_meridional_nm": 9.5,
+                    "q_peak_meridional_nm1": 0.6614,
+                    "L_equatorial_nm": 10.5,
+                    "q_peak_equatorial_nm1": 0.5984,
+                    "feature_tracking_status": "tracked",
+                    "invariant_Q": 4.2,
+                    "invariant_Q_rel": 1.025,
                     "phi_void": 0.04,
                     "f_Herman": 0.2,
                     "f_Herman_raw": 0.3,
@@ -292,6 +300,15 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
     assert model.summary_kind == "batch"
     assert model.columns == [
         "Strain / %",
+        "Long period / nm",
+        "Tracked peak q / nm^-1",
+        "Meridional long period / nm",
+        "Meridional peak q / nm^-1",
+        "Equatorial long period / nm",
+        "Equatorial peak q / nm^-1",
+        "Feature tracking status",
+        "Scattering invariant Q / a.u.",
+        "Relative scattering invariant",
         "Detector-plane projected orientation",
         "Detector-plane projected orientation (diagnostic)",
         "Herman delta from zero",
@@ -307,7 +324,31 @@ def test_saxs_strain_dispatch_uses_exact_qualified_template_columns():
         "Reliability",
     ]
     assert model.stored_rows == [
-        [8.0, 0.2, 0.3, None, None, None, None, None, None, None, None, "plastic_voiding", 0.82, "passed"]
+        [
+            8.0,
+            10.0,
+            0.6283,
+            9.5,
+            0.6614,
+            10.5,
+            0.5984,
+            "tracked",
+            4.2,
+            1.025,
+            0.2,
+            0.3,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            "plastic_voiding",
+            0.82,
+            "passed",
+        ]
     ]
     assert tuple(metric.raw for metric in model.hero_metrics) == (0.2, 0.3, 0.82)
 

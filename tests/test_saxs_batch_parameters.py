@@ -734,24 +734,31 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
 
     def fake_strain_series(*, strains, q_list, I_list, sector_data_list=None, cfg=None, **_kwargs):
         captured["sector_data_list"] = sector_data_list
+        analyses = [fake_single(), fake_single()]
         return StrainSeriesResult(
             strain_points=[
                 StrainPointResult(
                     strain_pct=float(strains[0]),
                     phase=StrainPhase.ELASTIC,
+                    L_nm=12.0,
+                    Q_star=10.0,
                     Q_star_rel=1.0,
                     Q_star_normalized=1.0,
                     f_herman=0.25,
                     f_herman_raw=0.33,
                     confidence=0.8,
+                    analysis_result=analyses[0],
                 ),
                 StrainPointResult(
                     strain_pct=float(strains[1]),
                     phase=StrainPhase.ELASTIC,
+                    L_nm=12.0,
+                    Q_star=10.0,
                     Q_star_rel=1.0,
                     Q_star_normalized=1.0,
                     f_herman_raw=0.41,
                     confidence=0.8,
+                    analysis_result=analyses[1],
                 ),
             ],
             strains=np.asarray(strains, dtype=float),
@@ -892,7 +899,12 @@ def test_saxs_strain_keeps_1d_quality_defects_separate_from_supported_annulus(mo
 
     def fake_analyze_single(*_args, **_kwargs):
         return SAXSResult(
-            long_period=LongPeriodResult(L_best=14.0, L_confidence=0.8),
+            long_period=LongPeriodResult(
+                L_best=14.0,
+                L_confidence=0.8,
+                q_peak_nm1=2 * np.pi / 14.0,
+                peak_selection_reason="best_credible_lamellar",
+            ),
             structure=StructureParams(L=14.0, lc=3.0, la=11.0, phi_c=0.25),
             data_quality_report={
                 "level": "Diagnostic",
@@ -1040,8 +1052,14 @@ def test_saxs_strain_legacy_orientation_is_raw_only_without_tensile_axis(monkeyp
     monkeypatch.setattr(
         saxs_strain,
         "analyze_single",
-        lambda *_args, **_kwargs: SimpleNamespace(
-            long_period=SimpleNamespace(L_best=14.0, L_confidence=0.8, method_used="bragg"),
+            lambda *_args, **_kwargs: SimpleNamespace(
+                long_period=SimpleNamespace(
+                    L_best=14.0,
+                    L_confidence=0.8,
+                    method_used="bragg",
+                    q_peak_nm1=2 * np.pi / 14.0,
+                    peak_selection_reason="best_credible_lamellar",
+                ),
             structure=SimpleNamespace(lc=3.0, la=11.0, phi_c=0.25),
             data_quality_report={"level": "Trend"},
             metric_evidence={},
@@ -1237,7 +1255,7 @@ def test_saxs_strain_get_parameters_surfaces_phase_and_reliability_summary() -> 
     assert "f_Herman_range" not in params
 
 
-def test_saxs_strain_series_result_exposes_q_star_rel() -> None:
+def test_saxs_strain_series_result_exposes_invariant_q_rel() -> None:
     from polynexus.core.saxs_engine.saxs_strain import StrainPhase, StrainPointResult, StrainSeriesResult
 
     result = StrainSeriesResult(
@@ -1269,5 +1287,6 @@ def test_saxs_strain_series_result_exposes_q_star_rel() -> None:
 
     df = result.to_dataframe()
 
-    assert "Q_star_rel" in df.columns
-    assert float(df.iloc[1]["Q_star_rel"]) == 1.15
+    assert "invariant_Q_rel" in df.columns
+    assert "Q_star_rel" not in df.columns
+    assert float(df.iloc[1]["invariant_Q_rel"]) == 1.15

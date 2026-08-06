@@ -264,6 +264,7 @@ class SAXSConfig:
     # Constrain for strain series to prevent misidentification
     q_bragg_min: float = 0.15   # keep low-q candidates visible for diagnostics
     q_bragg_max: float = 0.9    # static/thermal first-order lamellar window
+    strain_peak_max_relative_step: float = 0.25
 
     # ---- Lorentz fitting ----
     apply_lorentz_full: bool = True

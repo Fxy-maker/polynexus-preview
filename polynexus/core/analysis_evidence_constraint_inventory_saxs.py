@@ -110,7 +110,7 @@ def _saxs_constraint_inventory() -> list[EvidenceConstraint]:
             source="SAXS",
             severity="WARN",
             description="Void growth conflicts with the lamellar long-period interpretation under strain.",
-            field="Q_star_rel",
+            field="invariant_Q_rel",
             rationale="A single lamellar explanation is too weak when void evidence rises at the same time.",
         ),
         EvidenceConstraint(
@@ -128,7 +128,7 @@ def _saxs_constraint_inventory() -> list[EvidenceConstraint]:
             source="SAXS",
             severity="WARN",
             description="Q* relative values are present, but lamellar support is weak.",
-            field="Q_star_rel",
+            field="invariant_Q_rel",
             rationale="Q* normalization should not outrun the long-period evidence chain.",
         ),
         EvidenceConstraint(

@@ -25,7 +25,7 @@ from .config import SAXSConfig
 from .core import (
     bragg_long_period, correlation_function, scattering_invariant,
     lorentz_fit_long_period, analyze_single,
-    LongPeriodResult, StructureParams, porod_analysis,
+    LongPeriodResult, SAXSResult, StructureParams, porod_analysis,
 )
 from .saxs_quality_contracts import (
     DetectorQualityReport,
@@ -72,6 +72,98 @@ def _aligned_source_indices(values, count: int) -> tuple[int, ...]:
             return ()
         output.append(index)
     return tuple(output) if len(set(output)) == count else ()
+
+
+def _tracked_sector_peak(
+    sector_data: Mapping[str, object],
+    intensity_key: str,
+    cfg: SAXSConfig,
+    q_anchor: float,
+) -> tuple[float, float]:
+    if not np.isfinite(q_anchor) or q_anchor <= 0:
+        return np.nan, np.nan
+    q_values = sector_data.get("q", sector_data.get("q_2d"))
+    intensity_values = sector_data.get(intensity_key)
+    if q_values is None or intensity_values is None:
+        return np.nan, np.nan
+    try:
+        q_array = np.asarray(q_values, dtype=float)
+        intensity_array = np.asarray(intensity_values, dtype=float)
+    except (TypeError, ValueError):
+        return np.nan, np.nan
+    if q_array.ndim != 1 or intensity_array.ndim != 1 or q_array.size != intensity_array.size:
+        return np.nan, np.nan
+    step_limit = getattr(cfg, "strain_peak_max_relative_step", 0.25)
+    try:
+        step_limit = float(step_limit)
+    except (TypeError, ValueError, OverflowError):
+        step_limit = 0.25
+    if not np.isfinite(step_limit):
+        step_limit = 0.25
+    length, q_peak, _ = bragg_long_period(
+        q_array,
+        intensity_array,
+        q_min=float(getattr(cfg, "q_bragg_min", 0.15)),
+        q_max=float(getattr(cfg, "q_bragg_max", 0.9)),
+        q_anchor=float(q_anchor),
+        max_anchor_relative_shift=min(max(step_limit, 0.0), 0.25),
+    )
+    return float(q_peak), float(length)
+
+
+def _fail_closed_tracked_lamellar_result(
+    saxs_result: SAXSResult,
+    *,
+    reason: str,
+) -> None:
+    """Remove feature-dependent values after the series tracker rejects a frame."""
+
+    long_period = saxs_result.long_period
+    if long_period is not None:
+        long_period.L_best = np.nan
+        long_period.L_bragg = np.nan
+        long_period.L_lorentz = np.nan
+        long_period.L_corr_peak = np.nan
+        long_period.L_guinier = np.nan
+        long_period.L_confidence = 0.0
+        long_period.q_peak_nm1 = np.nan
+        long_period.method_used = "tracking_lost" if reason == "tracking_already_lost" else "unavailable"
+        long_period.peak_selection_reason = reason
+
+    structure = saxs_result.structure
+    if structure is not None:
+        for name in (
+            "L",
+            "lc",
+            "la",
+            "phi_c",
+            "phi_c_invariant",
+            "lc_porod_nm",
+            "lc_tangent_nm",
+            "lc_idf_nm",
+            "lc_gamma_min_nm",
+            "confidence_lc",
+        ):
+            setattr(structure, name, np.nan)
+
+    metric_evidence = saxs_result.metric_evidence
+    if isinstance(metric_evidence, dict):
+        lamellar = metric_evidence.get("lamellar")
+        if isinstance(lamellar, dict):
+            lamellar["applicable"] = False
+            lamellar["valid"] = False
+            lamellar["level"] = "Unusable"
+            lamellar["value"] = None
+            reasons = [
+                str(item)
+                for item in lamellar.get("reason_codes", ())
+                if str(item)
+            ]
+            if "tracked_feature_unavailable" not in reasons:
+                reasons.append("tracked_feature_unavailable")
+            if reason not in reasons:
+                reasons.append(reason)
+            lamellar["reason_codes"] = reasons
 
 
 def _coerce_strain_value(value) -> float:
@@ -128,6 +220,14 @@ class StrainPointResult:
     # Long period
     L_nm: float = np.nan
     q_star_nm1: float = np.nan
+    q_peak_total_nm1: float = np.nan
+    q_peak_meridional_nm1: float = np.nan
+    L_meridional_nm: float = np.nan
+    q_peak_equatorial_nm1: float = np.nan
+    L_equatorial_nm: float = np.nan
+    feature_tracking_status: str = "unavailable"
+    feature_tracking_reason_codes: List[str] = field(default_factory=list)
+    analysis_result: Optional[SAXSResult] = field(default=None, repr=False)
     
     # Structure params
     lc_nm: float = np.nan
@@ -135,6 +235,9 @@ class StrainPointResult:
     phi_c: float = np.nan
     
     # Invariant
+    invariant_Q: float = np.nan
+    invariant_Q_rel: float = np.nan
+    # Legacy input aliases retained for detached historical results.
     Q_star: float = np.nan
     Q_star_rel: float = np.nan
     Q_star_normalized: float = np.nan
@@ -174,6 +277,9 @@ class StrainSeriesResult:
     L_array: np.ndarray = None
     lc_array: np.ndarray = None
     la_array: np.ndarray = None
+    invariant_Q_array: np.ndarray = None
+    invariant_Q_rel_array: np.ndarray = None
+    # Legacy input aliases retained for detached historical results.
     Q_star_array: np.ndarray = None
     Q_star_rel_array: np.ndarray = None
     f_herman_array: np.ndarray = None
@@ -209,6 +315,14 @@ class StrainSeriesResult:
 
         rows = []
         for sp in self.strain_points:
+            invariant_Q = (
+                sp.invariant_Q if np.isfinite(sp.invariant_Q) else sp.Q_star
+            )
+            invariant_Q_rel = (
+                sp.invariant_Q_rel
+                if np.isfinite(sp.invariant_Q_rel)
+                else sp.Q_star_rel
+            )
             row = {
                 'Strain(%)': sp.strain_pct,
                 'Phase': sp.phase.name,
@@ -216,9 +330,8 @@ class StrainSeriesResult:
                 'lc(nm)': round(sp.lc_nm, 2) if np.isfinite(sp.lc_nm) else None,
                 'la(nm)': round(sp.la_nm, 2) if np.isfinite(sp.la_nm) else None,
                 'phi_c': round(sp.phi_c, 3) if np.isfinite(sp.phi_c) else None,
-                'Q_star': f"{sp.Q_star:.4e}" if np.isfinite(sp.Q_star) else None,
-                'Q_star_rel': round(sp.Q_star_rel, 4) if np.isfinite(sp.Q_star_rel) else None,
-                'Q_star_norm': round(sp.Q_star_normalized, 4) if np.isfinite(sp.Q_star_normalized) else None,
+                'invariant_Q': f"{invariant_Q:.4e}" if np.isfinite(invariant_Q) else None,
+                'invariant_Q_rel': round(invariant_Q_rel, 4) if np.isfinite(invariant_Q_rel) else None,
                 'f_Herman': round(sp.f_herman, 3) if np.isfinite(sp.f_herman) else None,
                 'phi_void': round(sp.phi_void, 3) if np.isfinite(sp.phi_void) else None,
                 'void_AR': round(sp.void_ar, 2) if np.isfinite(sp.void_ar) else None,
@@ -403,6 +516,7 @@ def herman_from_sector_data(
     q_range: Tuple[float, float] = None,
     cfg: Optional[SAXSConfig] = None,
     data_quality_report: Mapping[str, object] | None = None,
+    q_target_nm1: float | None = None,
 ) -> Dict:
     """Compute Herman factor from sector-integrated data dictionary.
 
@@ -480,6 +594,7 @@ def herman_from_sector_data(
                 cfg=cfg,
                 support_count=support_count,
                 raw_detector_quality=raw_detector_quality,
+                q_target_nm1=q_target_nm1,
             )
             f_value = float(getattr(orientation, "f_herman", np.nan))
             f_raw = float(getattr(orientation, "f_herman_raw", np.nan))
@@ -787,6 +902,8 @@ def analyze_strain_series(
     source_ids: Optional[List[str]] = None,
     raw_data_refs: Optional[List[str]] = None,
     frame_source_indices: Optional[List[int]] = None,
+    q_pyfai_list: Optional[List[np.ndarray]] = None,
+    I_pyfai_list: Optional[List[np.ndarray]] = None,
 ) -> StrainSeriesResult:
     """Analyze a complete in-situ tensile SAXS experiment.
 
@@ -862,12 +979,15 @@ def analyze_strain_series(
     result.L_array = np.full(n_points, np.nan)
     result.lc_array = np.full(n_points, np.nan)
     result.la_array = np.full(n_points, np.nan)
-    result.Q_star_array = np.full(n_points, np.nan)
-    result.Q_star_rel_array = np.full(n_points, np.nan)
+    result.invariant_Q_array = np.full(n_points, np.nan)
+    result.invariant_Q_rel_array = np.full(n_points, np.nan)
     result.f_herman_array = np.full(n_points, np.nan)
     result.phi_void_array = np.full(n_points, np.nan)
 
     phase_boundaries = {}
+    previous_q_peak = np.nan
+    tracking_has_seed = False
+    tracking_lost = False
 
     for i in range(n_points):
         strain = strains_arr[i]
@@ -877,6 +997,8 @@ def analyze_strain_series(
 
         sp = StrainPointResult(strain_pct=float(strain))
         frame_cfg = replace(cfg)
+        q_anchor = float(previous_q_peak) if tracking_has_seed else None
+        tracking_locked_out = tracking_lost
         # Invariant, Porod, Guinier, Kratky, long-period and structure
         # metrics are always derived from the full scattering profile.
         # Sector data below is an orientation-only input.
@@ -901,12 +1023,69 @@ def analyze_strain_series(
             # else: use cfg defaults (already 0.30-1.2)
             
             source_kwargs = _source_kwargs(source_ids_aligned, raw_data_refs_aligned, i)
-            saxs_result = analyze_single(q, I, frame_cfg, **source_kwargs)
+            q_pyfai = (
+                q_pyfai_list[i]
+                if q_pyfai_list is not None and len(q_pyfai_list) == n_points
+                else None
+            )
+            I_pyfai = (
+                I_pyfai_list[i]
+                if I_pyfai_list is not None and len(I_pyfai_list) == n_points
+                else None
+            )
+            saxs_result = analyze_single(
+                q,
+                I,
+                frame_cfg,
+                q_anchor=q_anchor,
+                q_pyfai=q_pyfai,
+                I_pyfai=I_pyfai,
+                **source_kwargs,
+            )
             lp = saxs_result.long_period
             struct = saxs_result.structure
-            
-            sp.L_nm = lp.L_best
-            sp.q_star_nm1 = 2 * np.pi / lp.L_best if np.isfinite(lp.L_best) and lp.L_best > 0 else np.nan
+
+            sp.analysis_result = saxs_result
+            if (
+                not tracking_has_seed
+                and str(getattr(lp, "peak_selection_reason", "none"))
+                != "best_credible_lamellar"
+            ):
+                lp.q_peak_nm1 = np.nan
+                lp.L_bragg = np.nan
+                lp.L_best = np.nan
+                lp.method_used = "unseeded"
+            if tracking_locked_out:
+                lp.q_peak_nm1 = np.nan
+                lp.L_bragg = np.nan
+                lp.L_best = np.nan
+                lp.method_used = "tracking_lost"
+                lp.peak_selection_reason = "tracking_already_lost"
+            sp.q_peak_total_nm1 = float(getattr(lp, "q_peak_nm1", np.nan))
+            if np.isfinite(sp.q_peak_total_nm1) and sp.q_peak_total_nm1 > 0:
+                tracking_has_seed = True
+                previous_q_peak = sp.q_peak_total_nm1
+                sp.L_nm = 2 * np.pi / sp.q_peak_total_nm1
+                sp.q_star_nm1 = sp.q_peak_total_nm1
+                sp.feature_tracking_status = "seeded" if q_anchor is None else "tracked"
+            else:
+                if tracking_has_seed:
+                    tracking_lost = True
+                sp.L_nm = np.nan
+                sp.q_star_nm1 = np.nan
+                sp.feature_tracking_status = (
+                    "tracking_lost" if tracking_has_seed else "unseeded"
+                )
+                sp.feature_tracking_reason_codes.extend(
+                    [
+                        "tracked_feature_unavailable",
+                        str(getattr(lp, "peak_selection_reason", "none")),
+                    ]
+                )
+                _fail_closed_tracked_lamellar_result(
+                    saxs_result,
+                    reason=str(getattr(lp, "peak_selection_reason", "none")),
+                )
             sp.method = lp.method_used
             sp.confidence = lp.L_confidence
             
@@ -919,6 +1098,41 @@ def analyze_strain_series(
             sp.orientation_evidence = getattr(saxs_result, "orientation_evidence", None)
         except Exception as e:
             sp.warnings.append(f"Core analysis: {e}")
+            failure_reason = "core_analysis_failed"
+            if tracking_has_seed:
+                tracking_lost = True
+                sp.feature_tracking_status = "tracking_lost"
+            else:
+                sp.feature_tracking_status = "unseeded"
+            sp.feature_tracking_reason_codes.extend(
+                ["tracked_feature_unavailable", failure_reason]
+            )
+            sp.method = failure_reason
+            sp.analysis_result = SAXSResult(
+                q=profile.q,
+                I=profile.intensity,
+                I_smooth=profile.intensity,
+                long_period=LongPeriodResult(
+                    method_used=failure_reason,
+                    peak_selection_reason=failure_reason,
+                ),
+                structure=StructureParams(),
+                metric_evidence={
+                    "lamellar": {
+                        "applicable": False,
+                        "valid": False,
+                        "level": "Unusable",
+                        "value": None,
+                        "reason_codes": [
+                            "tracked_feature_unavailable",
+                            failure_reason,
+                        ],
+                    }
+                },
+                validation_summary=(
+                    f"strain_core_analysis_failed:{type(e).__name__}"
+                ),
+            )
             logger.warning("SAXS strain frame core analysis failed.", exc_info=True)
 
         # ---- Invariant ----
@@ -927,11 +1141,14 @@ def analyze_strain_series(
             profile.intensity,
             cfg=frame_cfg,
         )
-        sp.Q_star = Q_star
-        sp.Q_star_rel = Q_star / Q_ref if Q_ref > 0 else 1.0
-        sp.Q_star_normalized = sp.Q_star_rel
-        result.Q_star_array[i] = Q_star
-        result.Q_star_rel_array[i] = sp.Q_star_rel
+        sp.invariant_Q = Q_star
+        sp.invariant_Q_rel = (
+            Q_star / Q_ref
+            if np.isfinite(Q_star) and np.isfinite(Q_ref) and Q_ref > 0
+            else np.nan
+        )
+        result.invariant_Q_array[i] = Q_star
+        result.invariant_Q_rel_array[i] = sp.invariant_Q_rel
 
         # ---- Phase detection ----
         phase = detect_strain_phase(
@@ -959,18 +1176,36 @@ def analyze_strain_series(
         if sector_data_list is not None and i < len(sector_data_list):
             sd = sector_data_list[i]
             if sd is not None:
-                try:
-                    herman = herman_from_sector_data(
-                        sd,
-                        cfg=frame_cfg,
-                        data_quality_report=sp.data_quality_report,
+                (
+                    sp.q_peak_meridional_nm1,
+                    sp.L_meridional_nm,
+                ) = _tracked_sector_peak(
+                    sd, "I_merid", frame_cfg, sp.q_peak_total_nm1
+                )
+                (
+                    sp.q_peak_equatorial_nm1,
+                    sp.L_equatorial_nm,
+                ) = _tracked_sector_peak(
+                    sd, "I_equat", frame_cfg, sp.q_peak_total_nm1
+                )
+                if not np.isfinite(sp.q_peak_total_nm1):
+                    herman = _invalid_sector_data_result(
+                        "tracked_feature_unavailable"
                     )
-                except Exception:
-                    logger.warning(
-                        "SAXS strain sector payload failed closed.",
-                        exc_info=True,
-                    )
-                    herman = _invalid_sector_data_result()
+                else:
+                    try:
+                        herman = herman_from_sector_data(
+                            sd,
+                            cfg=frame_cfg,
+                            data_quality_report=sp.data_quality_report,
+                            q_target_nm1=sp.q_peak_total_nm1,
+                        )
+                    except Exception:
+                        logger.warning(
+                            "SAXS strain sector payload failed closed.",
+                            exc_info=True,
+                        )
+                        herman = _invalid_sector_data_result()
                 sp.f_herman = herman.get('f', np.nan)
                 sp.f_herman_raw = herman.get('f_raw', sp.f_herman)
                 sp.f_herman_sub = herman.get('f_sub', np.nan)

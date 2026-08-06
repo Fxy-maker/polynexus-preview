@@ -54,6 +54,8 @@ class LongPeriodResult:
     L_corr_peak: float = np.nan      # correlation function first maximum
     L_guinier: float = np.nan        # Guinier extrapolation
     method_used: str = "none"
+    q_peak_nm1: float = np.nan       # selected Bragg feature position
+    peak_selection_reason: str = "none"
 
 @dataclass
 class StructureParams:
@@ -133,6 +135,7 @@ def bragg_long_period(
     prominence: float = 0.02,
     q_anchor: float | None = None,
     anchor_width: float = 0.08,
+    max_anchor_relative_shift: float | None = None,
 ) -> Tuple[float, float, dict]:
     """Long period from Bragg peak: L = 2*pi / q_peak.
 
@@ -176,6 +179,9 @@ def bragg_long_period(
 
     if info["snr"] < 3.0:
         info["melt_flag"] = True
+        if q_anchor is not None and max_anchor_relative_shift is not None:
+            info["selected_reason"] = "anchor_tracking_lost"
+            return np.nan, np.nan, info
         if q_anchor is not None:
             anchor_mask = np.abs(q_sel - q_anchor) <= anchor_width
             if np.sum(anchor_mask) > 3:
@@ -194,6 +200,9 @@ def bragg_long_period(
     info["peak_q_list"] = [float(q_sel[p]) for p in peaks]
 
     if len(peaks) == 0:
+        if q_anchor is not None and max_anchor_relative_shift is not None:
+            info["selected_reason"] = "anchor_tracking_lost"
+            return np.nan, np.nan, info
         # Avoid choosing the beam-stop / void upturn when no formal peak is found.
         upper = q_sel >= max(0.25, np.median(q_sel))
         if np.sum(upper) > 2:
@@ -238,6 +247,12 @@ def bragg_long_period(
         for c in candidates:
             qp = c["q"]
             dist = abs(qp - q_anchor) / q_anchor
+            if (
+                max_anchor_relative_shift is not None
+                and np.isfinite(max_anchor_relative_shift)
+                and dist > max_anchor_relative_shift
+            ):
+                continue
             harmonic_penalty = 1.0 if abs(qp / q_anchor - 2.0) < 0.25 else 0.0
             low_q_penalty = 0.0 if dist < 0.30 else c["low_q_penalty"]
             score = (
@@ -251,6 +266,9 @@ def bragg_long_period(
         if best_peak is not None and best_score > -5:
             info["selected_reason"] = "anchor_score"
             return 2 * np.pi / best_peak, best_peak, info
+        if max_anchor_relative_shift is not None:
+            info["selected_reason"] = "anchor_tracking_lost"
+            return np.nan, np.nan, info
 
     # Default: choose the best credible lamellar peak.  Very-low-q peaks are
     # penalized because they often come from void/upturn scattering, not the
@@ -1970,11 +1988,22 @@ def analyze_single(
         q_bmin = eff_q_min
     q_bmax = getattr(cfg, 'q_bragg_max', 0.9)
     q_analysis_min = max(float(getattr(cfg, 'q_corr_min', 0.05)), float(eff_q_min))
+    strain_step_limit = getattr(cfg, "strain_peak_max_relative_step", 0.25)
+    try:
+        strain_step_limit = float(strain_step_limit)
+    except (TypeError, ValueError, OverflowError):
+        strain_step_limit = 0.25
+    if not np.isfinite(strain_step_limit):
+        strain_step_limit = 0.25
+    strain_step_limit = min(max(strain_step_limit, 0.0), 0.25)
     L_bragg, q_peak, bragg_info = bragg_long_period(
         q, I_smooth,
         q_min=q_bmin,
         q_max=q_bmax,
         q_anchor=q_anchor,
+        max_anchor_relative_shift=(
+            strain_step_limit if q_anchor is not None else None
+        ),
     )
 
     # Store lamellar SNR (Phase 2)
@@ -2051,6 +2080,8 @@ def analyze_single(
         bragg_snr=result.q_peak_snr,
         sasmodels_r2=sasmodels_r2_for_conf,
     )
+    lp.q_peak_nm1 = q_peak
+    lp.peak_selection_reason = str(bragg_info.get("selected_reason", "none"))
     result.long_period = lp
     fit_quality = _saxs_peak_region_fit_quality(
         q,

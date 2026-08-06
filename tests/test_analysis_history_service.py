@@ -1206,7 +1206,7 @@ def test_result_comparison_summary_uses_strain_keys_when_active():
         strain_active=True,
     )
 
-    assert "Q_star_rel_mean: 1.00 -> 1.20" in summary
+    assert "invariant_Q_rel_mean: 1.00 -> 1.20" in summary
     assert "lc_nm" not in summary
 
 
@@ -1233,7 +1233,7 @@ def test_result_review_metric_summary_uses_default_and_strain_keys():
         },
         technique="saxs",
         strain_active=True,
-    ) == "Q_star_rel_mean=1.03, phi_void_mean=0.02, f_Herman_mean=0.66, porod_slope_mean=-3.8"
+    ) == "invariant_Q_rel_mean=1.03, phi_void_mean=0.02, f_Herman_mean=0.66, porod_slope_mean=-3.8"
     assert result_review_metric_summary({}, technique="waxs") == ""
 
 
@@ -1626,7 +1626,7 @@ def test_measured_result_metric_parts_handles_saxs_strain_and_static_modes():
         "paper_figure_candidate=true",
         "paper_conclusion_candidate=false",
     ]
-    assert "Q_star_rel_mean=1.2" in strain_parts
+    assert "invariant_Q_rel_mean=1.2" in strain_parts
 
     static_parts = measured_result_metric_parts(
         {"lc_nm": "13.5", "lc_reliability_status": "review"},
@@ -2045,7 +2045,7 @@ def test_saxs_strain_evidence_snapshot_prefers_feature_evidence_and_sorts_sympto
     assert snapshot["active"] is True
     assert snapshot["condition_label"] == "strain"
     assert snapshot["strain_axis_confidence"] == 0.88
-    assert snapshot["Q_star_rel_mean"] == 0.1234
+    assert snapshot["invariant_Q_rel_mean"] == 0.1234
     assert snapshot["strain_reliability_status"] == "low_confidence"
     assert snapshot["paper_figure_candidate"] is True
     assert snapshot["paper_conclusion_candidate"] is False
@@ -2067,7 +2067,7 @@ def test_saxs_strain_evidence_snapshot_uses_params_fallback_and_active_detection
 
     assert snapshot["active"] is True
     assert snapshot["condition_label"] == "stretch"
-    assert snapshot["Q_star_rel_mean"] == 0.2
+    assert snapshot["invariant_Q_rel_mean"] == 0.2
     assert snapshot["void_detected_frames"] == 2
 
 

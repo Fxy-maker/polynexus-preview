@@ -1163,6 +1163,18 @@ def result_comparison_summary(
 
     current = current_metrics if isinstance(current_metrics, dict) else {}
     baseline = baseline_metrics if isinstance(baseline_metrics, dict) else {}
+    if strain_active:
+        current = dict(current)
+        baseline = dict(baseline)
+        for metrics in (current, baseline):
+            metrics.setdefault(
+                "invariant_Q_rel_mean",
+                metrics.get("Q_star_rel_mean", ""),
+            )
+            metrics.setdefault(
+                "invariant_Q_rel_span",
+                metrics.get("Q_star_rel_span", ""),
+            )
     key_changes = []
     for key in compare_keys:
         current_value = current.get(key, "")
@@ -1347,10 +1359,17 @@ def result_review_metric_summary(
 ) -> str:
     if not isinstance(metrics, dict) or not metrics:
         return ""
-    keys = STRAIN_REVIEW_METRIC_KEYS if str(technique or "").strip().lower() == "saxs" and strain_active else DEFAULT_REVIEW_METRIC_KEYS
+    is_strain = str(technique or "").strip().lower() == "saxs" and strain_active
+    keys = STRAIN_REVIEW_METRIC_KEYS if is_strain else DEFAULT_REVIEW_METRIC_KEYS
+    normalized_metrics = dict(metrics)
+    if is_strain:
+        normalized_metrics.setdefault(
+            "invariant_Q_rel_mean",
+            normalized_metrics.get("Q_star_rel_mean", ""),
+        )
     metric_parts = []
     for key in keys:
-        value = metrics.get(key, "")
+        value = normalized_metrics.get(key, "")
         if value:
             metric_parts.append(f"{key}={value}")
     return ", ".join(metric_parts[: max(1, int(limit or 0))])
@@ -1839,6 +1858,8 @@ def saxs_strain_evidence_snapshot(
         or ""
     ).strip().lower()
     strain_structure_keys = {
+        "invariant_Q_rel_mean",
+        "invariant_Q_rel_span",
         "Q_star_rel_mean",
         "Q_star_rel_span",
         "phi_void_mean",
@@ -1879,8 +1900,12 @@ def saxs_strain_evidence_snapshot(
         "strain_duplicate_count": condition.get("strain_duplicate_count"),
         "strain_min_pct": _as_float(condition.get("strain_min_pct")),
         "strain_max_pct": _as_float(condition.get("strain_max_pct")),
-        "Q_star_rel_mean": _as_float(structure.get("Q_star_rel_mean")),
-        "Q_star_rel_span": _as_float(structure.get("Q_star_rel_span")),
+        "invariant_Q_rel_mean": _as_float(
+            structure.get("invariant_Q_rel_mean", structure.get("Q_star_rel_mean"))
+        ),
+        "invariant_Q_rel_span": _as_float(
+            structure.get("invariant_Q_rel_span", structure.get("Q_star_rel_span"))
+        ),
         "phi_void_mean": _as_float(structure.get("phi_void_mean")),
         "phi_void_span": _as_float(structure.get("phi_void_span")),
         "void_detected_frames": structure.get("void_detected_frames"),
@@ -1939,10 +1964,10 @@ def saxs_strain_summary_text(
     dominant_phase = snapshot.get("dominant_phase")
     if dominant_phase:
         structure_bits.append(f"{'阶段' if zh else 'phase'}={dominant_phase}")
-    q_mean = snapshot.get("Q_star_rel_mean")
-    q_span = snapshot.get("Q_star_rel_span")
+    q_mean = snapshot.get("invariant_Q_rel_mean")
+    q_span = snapshot.get("invariant_Q_rel_span")
     if q_mean is not None:
-        text = f"Q*_rel={q_mean:.4f}"
+        text = f"invariant_Q_rel={q_mean:.4f}"
         if q_span is not None:
             text += f"±{q_span / 2:.4f}" if q_span is not None else ""
         structure_bits.append(text)
@@ -2024,7 +2049,7 @@ def saxs_strain_risk_summary_text(
         )
     )
     phi_void = snapshot.get("phi_void_mean")
-    q_span = snapshot.get("Q_star_rel_span")
+    q_span = snapshot.get("invariant_Q_rel_span")
     f_span = snapshot.get("f_Herman_span")
     strain_conf = snapshot.get("strain_axis_confidence")
     status = str(snapshot.get("strain_reliability_status") or "").strip().lower()
@@ -2621,6 +2646,14 @@ def history_result_metrics(record) -> dict[str, str]:
     elif isinstance(evidence, dict) and evidence and technique == "saxs":
         _merge_saxs_evidence_metrics(candidate, evidence)
 
+    for canonical, legacy in (
+        ("invariant_Q_rel_mean", "Q_star_rel_mean"),
+        ("invariant_Q_rel_span", "Q_star_rel_span"),
+    ):
+        if canonical not in candidate and legacy in candidate:
+            candidate[canonical] = candidate[legacy]
+        candidate.pop(legacy, None)
+
     candidate = {key: value for key, value in candidate.items() if key not in VALIDATION_KEYS}
     rows = {}
     for key, value in flatten_params(candidate):
@@ -2683,6 +2716,18 @@ def _merge_saxs_evidence_metrics(candidate: dict, evidence: dict) -> None:
     if not isinstance(strain_structure_evidence, dict):
         strain_structure_evidence = {}
     if condition_evidence.get("condition_label") == "strain" or strain_structure_evidence:
+        for canonical, legacy in (
+            ("invariant_Q_rel_mean", "Q_star_rel_mean"),
+            ("invariant_Q_rel_span", "Q_star_rel_span"),
+        ):
+            value = strain_structure_evidence.get(
+                canonical,
+                strain_structure_evidence.get(legacy),
+            )
+            if value is not None and canonical not in candidate:
+                candidate[canonical] = value
+            if legacy in candidate:
+                candidate.pop(legacy)
         for key in (
             "strain_axis_confidence",
             "strain_monotonic",
@@ -2697,8 +2742,6 @@ def _merge_saxs_evidence_metrics(candidate: dict, evidence: dict) -> None:
             if value is not None and key not in candidate:
                 candidate[key] = value
         for key in (
-            "Q_star_rel_mean",
-            "Q_star_rel_span",
             "phi_void_mean",
             "phi_void_span",
             "void_detected_frames",

@@ -4794,7 +4794,7 @@ def test_saxs_strain_review_summary_surfaces_tensile_specific_signals():
         metrics = window._history_result_metrics(window._results["saxs"])
 
         assert "Strain" in summary or "strain" in summary.lower()
-        assert "Q_star_rel_mean=1.032" in summary
+        assert "invariant_Q_rel_mean=1.032" in summary
         assert "phi_void_mean=0.028" in summary
         assert "status=low_confidence" in summary.lower()
         assert "paper_figure_candidate=true" in summary.lower()
@@ -4802,7 +4802,7 @@ def test_saxs_strain_review_summary_surfaces_tensile_specific_signals():
         assert "status=low_confidence" in risk.lower()
         assert "Next step" in next_step
         assert "strain axis" in next_step.lower() or "strain 轴" in next_step
-        assert metrics["Q_star_rel_mean"] == "1.032"
+        assert metrics["invariant_Q_rel_mean"] == "1.032"
         assert metrics["phi_void_mean"] == "0.028"
         assert metrics["void_detected_frames"] == "4"
 
@@ -6658,7 +6658,7 @@ def test_history_compare_uses_strain_specific_metrics_for_tensile_saxs(tmp_path)
         summary = window._result_comparison_summary()
 
         assert baseline_run != current_run
-        assert "Q_star_rel_mean" in summary
+        assert "invariant_Q_rel_mean" in summary
         assert "phi_void_mean" in summary
         assert "void_detected_frames" in summary
         assert "r_squared" not in summary

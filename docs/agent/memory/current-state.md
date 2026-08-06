@@ -1,5 +1,19 @@
 ---
 
+## SAXS strain feature tracking closure (2026-08-06)
+
+The strain series now owns one authoritative core result per frame and tracks
+one credible total-profile lamellar peak with a hard 25% adjacent-q limit.
+Once tracking is lost, later frames cannot restart it; failed/unseeded/lost
+frames publish no authoritative L/lc/la/phi_c or feature-local orientation.
+Orientation and detector-coordinate sector diagnostics share the accepted
+total q. New strain outputs use `invariant_Q*`; history and stability readers
+normalize legacy `Q_star*` inputs without republishing them. Explicit tensile
+axis evidence is still required before an effective Herman factor is exposed.
+
+Focused evidence is recorded in
+`docs/acceptance/2026-08-06-saxs-strain-feature-tracking-closure.md`.
+
 ## SAXS sparse sector orientation boundary (2026-08-06)
 
 The strain orientation path preserves sparse detector sector maps. Empty q/chi

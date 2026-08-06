@@ -14,8 +14,14 @@ def _saxs_core_feature_bundle(
     signal_evidence = _non_empty_mapping(
         [
             ("q_peak_snr", _clean_float(output.get("q_peak_snr"))),
-            ("Q_star", _clean_float(output.get("Q_star"))),
-            ("Q_star_valid", output.get("Q_star_valid")),
+            (
+                "invariant_Q",
+                _clean_float(output.get("invariant_Q", output.get("Q_star"))),
+            ),
+            (
+                "invariant_Q_valid",
+                output.get("invariant_Q_valid", output.get("Q_star_valid")),
+            ),
             ("beam_stop_contaminated", output.get("beam_stop_contaminated")),
             ("mask_truncated", output.get("mask_truncated")),
             ("quality_flag", quality_flag or None),
@@ -58,10 +64,36 @@ def _saxs_core_feature_bundle(
             ("lc_nm_raw", _clean_float(output.get("lc_nm_raw"))),
             ("la_nm_raw", _clean_float(output.get("la_nm_raw"))),
             ("Xc_raw", _clean_float(output.get("Xc_raw"))),
-            ("Q_star_abs", _clean_float(output.get("Q_star_abs", output.get("Q_star")))),
-            ("Q_star_rel", _clean_float(output.get("Q_star_rel", output.get("Q_rel")))),
-            ("Q_star_rel_mean", _clean_float(output.get("Q_star_rel_mean"))),
-            ("Q_star_rel_span", _clean_float(output.get("Q_star_rel_span"))),
+            (
+                "invariant_Q",
+                _clean_float(
+                    output.get(
+                        "invariant_Q",
+                        output.get("Q_star_abs", output.get("Q_star")),
+                    )
+                ),
+            ),
+            (
+                "invariant_Q_rel",
+                _clean_float(
+                    output.get(
+                        "invariant_Q_rel",
+                        output.get("Q_star_rel", output.get("Q_rel")),
+                    )
+                ),
+            ),
+            (
+                "invariant_Q_rel_mean",
+                _clean_float(
+                    output.get("invariant_Q_rel_mean", output.get("Q_star_rel_mean"))
+                ),
+            ),
+            (
+                "invariant_Q_rel_span",
+                _clean_float(
+                    output.get("invariant_Q_rel_span", output.get("Q_star_rel_span"))
+                ),
+            ),
             ("has_voids", output.get("has_voids")),
             ("phi_void", _clean_float(output.get("phi_void"))),
             ("phi_void_mean", _clean_float(output.get("phi_void_mean"))),

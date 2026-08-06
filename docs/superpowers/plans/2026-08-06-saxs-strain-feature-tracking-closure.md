@@ -17,15 +17,15 @@
 - Modify: `polynexus/core/saxs_engine/core.py`
 - Modify: `polynexus/core/saxs_engine/saxs_strain.py`
 
-- [ ] Write a failing synthetic two-peak test asserting that each point retains
+- [x] Write a failing synthetic two-peak test asserting that each point retains
   one `analysis_result`, a finite `q_peak_total_nm1`, and continuity from the
   previous accepted peak.
-- [ ] Run the exact test and confirm failure from missing result fields.
-- [ ] Add `q_peak_nm1` and selection evidence to `LongPeriodResult`; attach the
+- [x] Run the exact test and confirm failure from missing result fields.
+- [x] Add `q_peak_nm1` and selection evidence to `LongPeriodResult`; attach the
   authoritative `SAXSResult` and tracking fields to `StrainPointResult`.
-- [ ] Pass the previous accepted q into the next `analyze_single()` call and
+- [x] Pass the previous accepted q into the next `analyze_single()` call and
   fail closed when a credible continuous candidate is unavailable.
-- [ ] Run the focused test and existing core/strain tests.
+- [x] Run the focused test and existing core/strain tests.
 
 ### Task 2: Share the tracked q with orientation and sectors
 
@@ -34,13 +34,13 @@
 - Modify: `polynexus/core/saxs_engine/saxs_strain.py`
 - Test: `tests/test_saxs_strain_feature_tracking_closure.py`
 
-- [ ] Add a failing test where independent Bragg selection would choose a
+- [x] Add a failing test where independent Bragg selection would choose a
   competing peak but the orientation evidence must use `q_peak_total_nm1`.
-- [ ] Add a keyword-only `q_target_nm1` input to `analyze_anisotropy()` and
+- [x] Add a keyword-only `q_target_nm1` input to `analyze_anisotropy()` and
   `herman_from_sector_data()`; use internal peak selection only when absent.
-- [ ] Derive meridional/equatorial q and L against the same accepted feature
+- [x] Derive meridional/equatorial q and L against the same accepted feature
   anchor and preserve unavailable values when sectors are missing.
-- [ ] Run anisotropy, sector, and tracking regressions.
+- [x] Run anisotropy, sector, and tracking regressions.
 
 ### Task 3: Remove the second strain analysis chain
 
@@ -49,13 +49,13 @@
 - Test: `tests/test_saxs_strain_feature_tracking_closure.py`
 - Test: `tests/test_saxs_batch_parameters.py`
 
-- [ ] Add a failing engine test asserting one `analyze_single()` call per frame
+- [x] Add a failing engine test asserting one `analyze_single()` call per frame
   and equality between GUI row `L_nm` and series `L_array`.
-- [ ] Reuse each point's authoritative `analysis_result` in
+- [x] Reuse each point's authoritative `analysis_result` in
   `_run_strain_pipeline()` and remove the second per-frame analysis call.
-- [ ] Supply `frame_source_indices=range(frame_count)` to the strain series.
-- [ ] Project total and sector q/L plus tracking status into `_batch_data`.
-- [ ] Run focused engine and transport tests.
+- [x] Supply `frame_source_indices=range(frame_count)` to the strain series.
+- [x] Project total and sector q/L plus tracking status into `_batch_data`.
+- [x] Run focused engine and transport tests.
 
 ### Task 4: Correct invariant names and detector preview scaling
 
@@ -66,13 +66,13 @@
 - Test: `tests/test_saxs_strain_feature_tracking_closure.py`
 - Test: `tests/test_saxs_results_table_service.py`
 
-- [ ] Add failing output tests requiring `invariant_Q`/`invariant_Q_rel` and
+- [x] Add failing output tests requiring `invariant_Q`/`invariant_Q_rel` and
   rejecting reciprocal-length labeling for the invariant.
-- [ ] Emit explicit invariant fields from the series-owned value and update
+- [x] Emit explicit invariant fields from the series-owned value and update
   strain figures/tables to consume them.
-- [ ] Add a preview test proving nonpositive log sentinels do not determine
+- [x] Add a preview test proving nonpositive log sentinels do not determine
   detector heatmap display limits, then implement finite percentile bounds.
-- [ ] Run figure, table, and output tests.
+- [x] Run figure, table, and output tests.
 
 ### Task 5: Verify EDF 8 and create the checkpoint
 
@@ -82,12 +82,12 @@
 - Modify: `docs/agent/memory/current-state.md`
 - Create: `docs/acceptance/2026-08-06-saxs-strain-feature-tracking-closure.md`
 
-- [ ] Add a read-only external-data test that explicitly skips when
+- [x] Add a read-only external-data test that explicitly skips when
   `Desktop/edf/8` is absent and otherwise checks shared feature q, valid source
   indices, and core/GUI L equality.
-- [ ] Run the focused matrix and record exact outcomes.
-- [ ] Run the structured verifier and `git diff --check`.
-- [ ] Review the cumulative explicit allowlist and create one local checkpoint
+- [x] Run the focused matrix and record exact outcomes.
+- [x] Run the structured verifier and `git diff --check`.
+- [x] Review the cumulative explicit allowlist and create one local checkpoint
   with `scripts/auto_commit.py`; do not push or merge.
 
 ## Plan self-review

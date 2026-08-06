@@ -1,5 +1,24 @@
 # Active Work
 
+## SAXS strain feature tracking closure - completed (2026-08-06)
+
+- Total-profile q tracking, orientation annulus targeting, directional sector
+  diagnostics, GUI rows, figures, and canonical invariant naming now share one
+  strain-series result path.
+- Core exceptions after seeding cause irreversible tracking loss and retain an
+  explicit failed frame result. Unseeded/lost frames fail closed all dependent
+  lamellar structure and evidence.
+- Focused matrices pass: `131`, `245` (plus 2 skips and 4 existing font
+  warnings), and `307`; read-only EDF 8 replay passes `1`. The follow-up
+  history/result-table matrix passes `246`.
+- Structured verification passed task/memory checks, Ruff, compile, quality
+  `297`, preprocessing `107`, and whitespace checks. The cumulative diff was
+  reviewed and the implementation is included in the task's local explicit-
+  file checkpoint. Scientific semantics still require human review before
+  merge.
+- Task card:
+  `docs/agent/tasks/2026-08-06-saxs-strain-feature-tracking-closure.md`.
+
 ## SAXS sparse sector orientation recovery - completed (2026-08-06)
 
 - Real EDF strain frames were producing `strain_canonical_sector_payload_invalid`

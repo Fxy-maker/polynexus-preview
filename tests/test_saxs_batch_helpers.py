@@ -108,6 +108,29 @@ def test_build_batch_parameters_payload_aggregates_batch_metadata() -> None:
     assert "lc_reliability_status" not in batch_rows[0] or batch_rows[0]["lc_reliability_status"] == "usable"
 
 
+def test_strain_batch_payload_aggregates_canonical_invariant_names() -> None:
+    payload = _build_batch_parameters_payload(
+        [
+            {
+                "condition_label": "Strain",
+                "strain_pct": 0.0,
+                "invariant_Q_rel": 1.0,
+            },
+            {
+                "condition_label": "Strain",
+                "strain_pct": 20.0,
+                "invariant_Q_rel": 0.9,
+            },
+        ],
+        experiment_type="strain",
+    )
+
+    assert payload["invariant_Q_rel_mean"] == 0.95
+    assert payload["invariant_Q_rel_span"] == 0.1
+    assert "Q_star_rel_mean" not in payload
+    assert "Q_star_rel_span" not in payload
+
+
 def test_build_batch_parameters_payload_leaves_single_row_unwrapped() -> None:
     base_params = {"n_temperatures": 1, "T_range_C": "100-100"}
     batch_rows = [

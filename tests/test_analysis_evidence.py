@@ -296,7 +296,7 @@ def test_saxs_analysis_evidence_includes_structured_single_frame_sections() -> N
     ).to_dict()
 
     assert evidence["signal_evidence"]["beam_stop_contaminated"] is True
-    assert evidence["signal_evidence"]["Q_star_valid"] is False
+    assert evidence["signal_evidence"]["invariant_Q_valid"] is False
     assert evidence["peak_evidence"]["L_bragg"] == 12.4
     assert evidence["transform_evidence"]["lc_tangent_nm"] == 4.1
     assert evidence["structure_evidence"]["lc_method"] == "tangent_strain_qstar_warn"
@@ -394,14 +394,14 @@ def test_saxs_analysis_evidence_includes_strain_void_orientation_sections() -> N
     assert "low_q_void_dominant" in symptom_names
     assert "strain_void_lamellar_conflict" in symptom_names
     assert "qstar_rel_without_lamellar_support" in symptom_names
-    assert evidence["structure_evidence"]["Q_star_rel_mean"] == 1.08
+    assert evidence["structure_evidence"]["invariant_Q_rel_mean"] == 1.08
     assert evidence["structure_evidence"]["phi_void_mean"] == 0.034
     assert evidence["structure_evidence"]["f_Herman_span"] == 0.54
     assert evidence["structure_evidence"]["strain_reliability_status"] == "low_confidence"
     assert evidence["structure_evidence"]["paper_figure_candidate"] is True
     assert evidence["feature_evidence"]["strain_phase_evidence"]["dominant_phase"] == "microfibrillation"
     assert evidence["feature_evidence"]["strain_structure_evidence"]["void_detected_frames"] == 3
-    assert "Q_star_rel=1.08" in summary
+    assert "invariant_Q_rel=1.08" in summary
     assert "phi_void=0.034" in summary
     assert "f_Herman=0.21" in summary
     assert "void_frames=3" in summary
@@ -609,7 +609,7 @@ def test_saxs_summary_details_collect_strain_and_calibration_bits() -> None:
         "batch_frames=4",
         "condition_source=strain_series",
         "strain_axis=0.82",
-        "Q_star_rel=1.08",
+        "invariant_Q_rel=1.08",
         "phi_void=0.034",
         "f_Herman=0.21",
         "void_frames=3",
@@ -881,16 +881,16 @@ def test_evaluate_saxs_constraint_keeps_condition_sequence_and_void_rules() -> N
     assert low_q_triggered is True
     assert low_q_observed["has_voids"] is True
     assert low_q_observed["phi_void"] == 0.034
-    assert low_q_observed["Q_star_valid"] is False
+    assert low_q_observed["invariant_Q_valid"] is False
 
     assert anchor_triggered is True
     assert round(anchor_observed["l_spread"], 3) == 0.182
-    assert anchor_observed["Q_star_valid"] is False
+    assert anchor_observed["invariant_Q_valid"] is False
 
     assert orientation_triggered is True
     assert orientation_observed["f_Herman"] == 0.21
     assert orientation_observed["f_Herman_span"] == 0.54
-    assert orientation_observed["Q_star_rel_span"] == 0.11
+    assert orientation_observed["invariant_Q_rel_span"] == 0.11
 
 
 def test_analysis_evidence_reuses_saxs_condition_feature_bundle_from_saxs_module() -> None:
@@ -984,7 +984,7 @@ def test_saxs_condition_feature_bundle_collects_sequence_phase_and_structure_lay
     assert bundle["condition_evidence"]["sequence_direction"] == "increasing"
     assert bundle["condition_evidence"]["strain_values"] == [0.0, 8.0, 16.0]
     assert bundle["feature_evidence"]["sequence_evidence"]["strain_min_pct"] == 0.0
-    assert bundle["feature_evidence"]["strain_structure_evidence"]["Q_star_rel_mean"] == 1.08
+    assert bundle["feature_evidence"]["strain_structure_evidence"]["invariant_Q_rel_mean"] == 1.08
     assert bundle["feature_evidence"]["strain_phase_evidence"]["dominant_phase"] == "microfibrillation"
     assert bundle["structure_evidence"]["L_bragg"] == 11.8
     assert bundle["structure_evidence"]["strain_reliability_status"] == "low_confidence"
@@ -1105,12 +1105,12 @@ def test_saxs_core_feature_bundle_collects_signal_peak_transform_and_structure_l
     )
 
     assert bundle["signal_evidence"]["q_peak_snr"] == 2.7
-    assert bundle["signal_evidence"]["Q_star_valid"] is False
+    assert bundle["signal_evidence"]["invariant_Q_valid"] is False
     assert bundle["peak_evidence"]["L_bragg"] == 12.4
     assert bundle["peak_evidence"]["fit_regions"][1]["region"] == "correlation"
     assert bundle["transform_evidence"]["lc_tangent_nm"] == 4.1
     assert bundle["structure_evidence"]["lc_method"] == "tangent_strain_qstar_warn"
-    assert bundle["structure_evidence"]["Q_star_abs"] == 12.3
+    assert bundle["structure_evidence"]["invariant_Q"] == 12.3
     assert bundle["structure_evidence"]["sasmodels_model_used"] == "lamellar_hg"
 
 

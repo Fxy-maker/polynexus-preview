@@ -101,6 +101,7 @@ class AnisotropyResult:
     isotropic_baseline: float = 0.25
     q_star_candidate: float = np.nan
     selected_q_range_nm1: tuple[float, float] | None = None
+    feature_kind: str = "q_star_candidate"
 
     # JSON-safe 2D evidence contracts.  Legacy numeric fields above remain
     # authoritative for backwards-compatible callers.
@@ -186,7 +187,7 @@ def _attach_orientation_evidence(
             "orientation_reliability_reason_codes": (
                 result.orientation_reliability_reason_codes or []
             ),
-            "feature_kind": "q_star_candidate",
+            "feature_kind": result.feature_kind,
             "q_star_candidate": (
                 float(result.q_star_candidate)
                 if np.isfinite(result.q_star_candidate)
@@ -977,6 +978,14 @@ def _finite_axis_deg(value: Any) -> float:
     return float(axis % 180.0) if np.isfinite(axis) else np.nan
 
 
+def _finite_positive(value: Any) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return np.nan
+    return number if np.isfinite(number) and number > 0 else np.nan
+
+
 def analyze_anisotropy(
     I_2d: np.ndarray,
     q: np.ndarray,
@@ -987,6 +996,7 @@ def analyze_anisotropy(
     *,
     support_count: np.ndarray | None = None,
     raw_detector_quality: DetectorQualityReport | Mapping[str, Any] | None = None,
+    q_target_nm1: float | None = None,
 ) -> AnisotropyResult:
     """Complete anisotropy analysis of a 2D SAXS pattern.
 
@@ -1051,12 +1061,16 @@ def analyze_anisotropy(
     )
 
     # 1. Azimuthal profile at Bragg peak position
-    from .core import bragg_long_period
-    try:
-        _, q_star, _ = bragg_long_period(q_1d, I_1d)
-    except Exception:
-        q_star = q_1d[np.argmax(I_1d * q_1d**2)]
-        logger.warning("SAXS anisotropy Bragg period estimate failed; using maximum Iq2.", exc_info=True)
+    q_star = _finite_positive(q_target_nm1)
+    if np.isfinite(q_star) and q_star > 0:
+        result.feature_kind = "tracked_lamellar_peak"
+    else:
+        from .core import bragg_long_period
+        try:
+            _, q_star, _ = bragg_long_period(q_1d, I_1d)
+        except Exception:
+            q_star = q_1d[np.argmax(I_1d * q_1d**2)]
+            logger.warning("SAXS anisotropy Bragg period estimate failed; using maximum Iq2.", exc_info=True)
 
     q_window = 0.01
     annulus_quality = build_annulus_quality_report(

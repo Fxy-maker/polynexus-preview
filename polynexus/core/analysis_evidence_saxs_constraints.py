@@ -100,7 +100,9 @@ def _evaluate_saxs_constraint(
         phi_void = _clean_float(output.get("phi_void_mean", output.get("phi_void")))
         phi_void_span = _clean_float(output.get("phi_void_span"))
         porod_slope = _clean_float(output.get("porod_slope_mean", output.get("porod_slope")))
-        q_star_valid = output.get("Q_star_valid")
+        q_star_valid = output.get(
+            "invariant_Q_valid", output.get("Q_star_valid")
+        )
         if porod_slope is not None and porod_slope > -3.5:
             has_voids = True
         current_observed = {
@@ -108,7 +110,7 @@ def _evaluate_saxs_constraint(
             "phi_void": phi_void,
             "phi_void_span": phi_void_span,
             "porod_slope": porod_slope,
-            "Q_star_valid": q_star_valid,
+            "invariant_Q_valid": q_star_valid,
         }
         triggered = has_voids and (
             (phi_void is not None and phi_void >= 0.02)
@@ -127,9 +129,20 @@ def _evaluate_saxs_constraint(
         ) > 0
         phi_void = _clean_float(output.get("phi_void_mean", output.get("phi_void")))
         q_star_rel = _clean_float(
-            output.get("Q_star_rel_mean", output.get("Q_star_rel", output.get("Q_rel")))
+            output.get(
+                "invariant_Q_rel_mean",
+                output.get(
+                    "Q_star_rel_mean",
+                    output.get(
+                        "invariant_Q_rel",
+                        output.get("Q_star_rel", output.get("Q_rel")),
+                    ),
+                ),
+            )
         )
-        q_star_rel_span = _clean_float(output.get("Q_star_rel_span"))
+        q_star_rel_span = _clean_float(
+            output.get("invariant_Q_rel_span", output.get("Q_star_rel_span"))
+        )
         l_bragg = _clean_float(output.get("L_bragg"))
         l_corr = _clean_float(output.get("L_corr_peak", output.get("L_corr")))
         l_best = _clean_float(output.get("L_best", output.get("L_nm")))
@@ -139,15 +152,17 @@ def _evaluate_saxs_constraint(
             has_voids
             or bool(output.get("beam_stop_contaminated"))
             or bool(output.get("mask_truncated"))
-            or output.get("Q_star_valid") is False
+            or output.get(
+                "invariant_Q_valid", output.get("Q_star_valid")
+            ) is False
         )
         if porod_slope is not None and porod_slope > -3.5:
             void_proxy = True
         current_observed = {
             "has_voids": has_voids,
             "phi_void": phi_void,
-            "Q_star_rel": q_star_rel,
-            "Q_star_rel_span": q_star_rel_span,
+            "invariant_Q_rel": q_star_rel,
+            "invariant_Q_rel_span": q_star_rel_span,
             "L_bragg": l_bragg,
             "L_corr": l_corr,
             "L_best": l_best,
@@ -163,7 +178,9 @@ def _evaluate_saxs_constraint(
                 or (porod_slope is not None and porod_slope > -3.5)
                 or bool(output.get("beam_stop_contaminated"))
                 or bool(output.get("mask_truncated"))
-                or output.get("Q_star_valid") is False
+                or output.get(
+                    "invariant_Q_valid", output.get("Q_star_valid")
+                ) is False
             )
         )
         return triggered, current_observed
@@ -182,7 +199,9 @@ def _evaluate_saxs_constraint(
             has_voids
             or bool(output.get("beam_stop_contaminated"))
             or bool(output.get("mask_truncated"))
-            or output.get("Q_star_valid") is False
+            or output.get(
+                "invariant_Q_valid", output.get("Q_star_valid")
+            ) is False
         )
         current_observed = {
             "has_voids": has_voids,
@@ -190,7 +209,9 @@ def _evaluate_saxs_constraint(
             "L_corr": l_corr,
             "L_best": l_best,
             "l_spread": l_spread,
-            "Q_star_valid": output.get("Q_star_valid"),
+            "invariant_Q_valid": output.get(
+                "invariant_Q_valid", output.get("Q_star_valid")
+            ),
         }
         triggered = condition_label == "strain" and (
             len(l_values) < 2 or l_spread is None or l_spread > 0.08
@@ -199,17 +220,28 @@ def _evaluate_saxs_constraint(
 
     if item_name == "qstar_rel_without_lamellar_support":
         q_star_rel = _clean_float(
-            output.get("Q_star_rel_mean", output.get("Q_star_rel", output.get("Q_rel")))
+            output.get(
+                "invariant_Q_rel_mean",
+                output.get(
+                    "Q_star_rel_mean",
+                    output.get(
+                        "invariant_Q_rel",
+                        output.get("Q_star_rel", output.get("Q_rel")),
+                    ),
+                ),
+            )
         )
-        q_star_rel_span = _clean_float(output.get("Q_star_rel_span"))
+        q_star_rel_span = _clean_float(
+            output.get("invariant_Q_rel_span", output.get("Q_star_rel_span"))
+        )
         l_bragg = _clean_float(output.get("L_bragg"))
         l_corr = _clean_float(output.get("L_corr_peak", output.get("L_corr")))
         l_best = _clean_float(output.get("L_best", output.get("L_nm")))
         l_values = [value for value in (l_bragg, l_corr, l_best) if value is not None]
         l_spread = _relative_spread(l_values)
         current_observed = {
-            "Q_star_rel": q_star_rel,
-            "Q_star_rel_span": q_star_rel_span,
+            "invariant_Q_rel": q_star_rel,
+            "invariant_Q_rel_span": q_star_rel_span,
             "L_bragg": l_bragg,
             "L_corr": l_corr,
             "L_best": l_best,
@@ -226,11 +258,13 @@ def _evaluate_saxs_constraint(
     if item_name == "orientation_shift_breaks_lamellar_comparison":
         f_herman = _clean_float(output.get("f_Herman_mean", output.get("f_Herman", output.get("f_herman"))))
         f_herman_span = _clean_float(output.get("f_Herman_span"))
-        q_star_rel_span = _clean_float(output.get("Q_star_rel_span"))
+        q_star_rel_span = _clean_float(
+            output.get("invariant_Q_rel_span", output.get("Q_star_rel_span"))
+        )
         current_observed = {
             "f_Herman": f_herman,
             "f_Herman_span": f_herman_span,
-            "Q_star_rel_span": q_star_rel_span,
+            "invariant_Q_rel_span": q_star_rel_span,
         }
         triggered = (
             condition_label == "strain"

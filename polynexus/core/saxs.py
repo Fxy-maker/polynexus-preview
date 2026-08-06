@@ -1135,7 +1135,10 @@ class SAXSEngine(BaseEngine):
             la = _first_finite(params.get("la_nm"), params.get("la_nm_calibrated"))
             Xc = _first_finite(params.get("Xc"), params.get("Xc_calibrated"))
             lc_conf = _first_finite(params.get("lc_confidence"), params.get("lc_confidence_calibrated"))
-            Q_star = _num(params.get("Q_star"))
+            invariant_Q = _first_finite(
+                params.get("invariant_Q"),
+                params.get("Q_star"),
+            )
             L_raw = _num(getattr(raw_lp, "L_best", np.nan) if raw_lp is not None else None)
             lc_raw = _num(getattr(raw_sp, "lc", np.nan) if raw_sp is not None else None)
             la_raw = _num(getattr(raw_sp, "la", np.nan) if raw_sp is not None else None)
@@ -1163,8 +1166,8 @@ class SAXSEngine(BaseEngine):
                         sp.phi_c = lc / L
                     if np.isfinite(lc_conf):
                         sp.confidence_lc = lc_conf
-                    if np.isfinite(Q_star):
-                        sp.Q_invariant = Q_star
+                    if np.isfinite(invariant_Q):
+                        sp.Q_invariant = invariant_Q
                 if raw_sp is not None:
                     if np.isfinite(L_raw):
                         raw_sp.L = L_raw
@@ -1241,7 +1244,13 @@ class SAXSEngine(BaseEngine):
             if np.isfinite(lc_conf_raw):
                 params["lc_confidence_raw"] = round(lc_conf_raw, 2)
             if np.isfinite(Q_star_raw):
-                params["Q_star_raw"] = round(Q_star_raw, 3)
+                raw_invariant_key = (
+                    "invariant_Q_raw"
+                    if str(getattr(self.cfg, "experiment_type", "") or "").lower()
+                    == "strain"
+                    else "Q_star_raw"
+                )
+                params[raw_invariant_key] = round(Q_star_raw, 3)
             params.setdefault("raw_structure_available", bool(raw_snapshot))
 
             method_key = str(params.get("lc_method", "") or "").lower()
@@ -1754,7 +1763,6 @@ class SAXSEngine(BaseEngine):
         self._batch_results = []
         self._batch_params = []
         self._strain_result = None
-        _prev_q_star = None
         Q_ref = None
         Xc_ref_tangent = None
 
@@ -1767,6 +1775,9 @@ class SAXSEngine(BaseEngine):
                     I_list=I_use,
                     sector_data_list=self._sector_data_list,
                     cfg=replace(strain_cfg),
+                    frame_source_indices=list(range(len(self._q_list))),
+                    q_pyfai_list=self._q_pyfai_list,
+                    I_pyfai_list=self._I_pyfai_list,
                     **(
                         {"detector_quality_reports": self._detector_quality_reports}
                         if self._detector_quality_reports
@@ -1779,27 +1790,37 @@ class SAXSEngine(BaseEngine):
 
         for i in range(len(self._q_list)):
             try:
-                q_pf = self._q_pyfai_list[i] if i < len(self._q_pyfai_list) else np.array([])
-                I_pf = self._I_pyfai_list[i] if i < len(self._I_pyfai_list) else np.array([])
-                analysis = analyze_single(
-                    self._q_list[i], I_use[i], strain_cfg, q_anchor=_prev_q_star,
-                    q_pyfai=(q_pf if len(q_pf) > 0 else None),
-                    I_pyfai=(I_pf if len(I_pf) > 0 else None),
-                    **self._quality_source_kwargs(i),
+                strain_point = (
+                    self._strain_result.strain_points[i]
+                    if self._strain_result is not None
+                    and i < len(getattr(self._strain_result, "strain_points", []))
+                    else None
                 )
+                analysis = getattr(strain_point, "analysis_result", None)
+                if analysis is None:
+                    raise ValueError("authoritative strain-frame analysis unavailable")
                 analysis.raw_detector_quality_report = (
                     self._detector_quality_reports[i]
                     if i < len(self._detector_quality_reports)
                     else None
                 )
                 analysis.condition_value = self._conditions[i] if i < len(self._conditions) else np.nan
-                lp = analysis.long_period
                 self._batch_results.append(analysis)
                 sp = analysis.structure
-                L_bragg = lp.L_bragg if np.isfinite(lp.L_bragg) else lp.L_best
-                if np.isfinite(L_bragg) and L_bragg > 0:
-                    _prev_q_star = 2 * np.pi / L_bragg
-                L = round(float(L_bragg), 2) if np.isfinite(L_bragg) else None
+                tracked_L = _float_or_none(getattr(strain_point, "L_nm", np.nan))
+                L_bragg = tracked_L if tracked_L is not None else np.nan
+                L = round(float(tracked_L), 2) if tracked_L is not None else None
+                tracking_available = (
+                    str(
+                        getattr(
+                            strain_point,
+                            "feature_tracking_status",
+                            "unavailable",
+                        )
+                    )
+                    in {"seeded", "tracked"}
+                    and tracked_L is not None
+                )
 
                 lc_tangent = None
                 if sp is not None:
@@ -1807,24 +1828,51 @@ class SAXSEngine(BaseEngine):
                     if np.isfinite(lct) and L and 0 < lct < L * 0.7:
                         lc_tangent = round(float(lct), 2)
 
-                lc_raw, la_raw, phi_raw, method, model_used, sas_r2 = self._try_sasmodels_lc(
-                    self._q_list[i], I_use[i], L_bragg, sp
-                )
+                if tracking_available:
+                    (
+                        lc_raw,
+                        la_raw,
+                        phi_raw,
+                        method,
+                        model_used,
+                        sas_r2,
+                    ) = self._try_sasmodels_lc(
+                        self._q_list[i], I_use[i], L_bragg, sp
+                    )
+                else:
+                    lc_raw = la_raw = phi_raw = None
+                    method = "tracking_unavailable"
+                    model_used = ""
+                    sas_r2 = np.nan
 
-                q = self._q_list[i]
-                Ii = I_use[i]
-                q_min_inv = max(getattr(strain_cfg, "q_min", 0.08), 0.06)
-                q_max_inv = min(getattr(strain_cfg, "q_bragg_max", 1.3), q[-1]) if len(q) > 0 else 1.3
-                Q_raw = scattering_invariant(q, Ii, q_min=q_min_inv, q_max=q_max_inv)
+                Q_raw = _float_or_none(
+                    getattr(strain_point, "invariant_Q", np.nan)
+                )
+                if Q_raw is None:
+                    Q_raw = _float_or_none(
+                        getattr(strain_point, "Q_star", np.nan)
+                    )
 
                 if i == 0:
                     Q_ref = Q_raw if (Q_raw and Q_raw > 0) else None
                     if lc_tangent is not None and L and L > 0:
                         Xc_ref_tangent = round(lc_tangent / L, 4)
 
-                Q_rel = round(float(Q_raw) / float(Q_ref), 4) if Q_ref and Q_raw and Q_ref > 0 else None
+                Q_rel = (
+                    round(float(Q_raw) / float(Q_ref), 4)
+                    if Q_ref is not None
+                    and Q_raw is not None
+                    and np.isfinite(Q_ref)
+                    and np.isfinite(Q_raw)
+                    and Q_ref > 0
+                    else None
+                )
 
-                if method == "sasmodels":
+                if not tracking_available:
+                    lc = la = phi_c = None
+                    method_out = "tracking_unavailable"
+                    lc_c = 0.0
+                elif method == "sasmodels":
                     lc, la, phi_c = lc_raw, la_raw, phi_raw
                     method_out = "sasmodels"
                     lc_c = 0.70
@@ -1851,7 +1899,10 @@ class SAXSEngine(BaseEngine):
                     method_out = "raw"
                     lc_c = 0.10
 
-                if method_out == "sasmodels":
+                if method_out == "tracking_unavailable":
+                    interpretation_mode = "tracking_unavailable"
+                    effective_reason = "tracked lamellar feature unavailable"
+                elif method_out == "sasmodels":
                     interpretation_mode = "sasmodels_fit"
                     effective_reason = "sasmodels fit passed the strain gate"
                 elif method_out == "tangent_strain":
@@ -1873,9 +1924,6 @@ class SAXSEngine(BaseEngine):
                 porod_slope = None
                 if analysis is not None and isinstance(getattr(analysis, "porod", None), dict):
                     porod_slope = _float_or_none(analysis.porod.get("slope"))
-                strain_point = None
-                if self._strain_result is not None and i < len(getattr(self._strain_result, "strain_points", [])):
-                    strain_point = self._strain_result.strain_points[i]
                 f_herman = _float_or_none(getattr(strain_point, "f_herman", np.nan))
                 f_herman_raw = _float_or_none(
                     getattr(strain_point, "f_herman_raw", np.nan)
@@ -1913,16 +1961,35 @@ class SAXSEngine(BaseEngine):
                     "strain_pct": self._conditions[i] if i < len(self._conditions) else None,
                     "L_nm": L,
                     "L_nm_measured": L,
-                    "Q_star_abs": round(float(Q_raw), 3) if np.isfinite(Q_raw) else None,
-                    "Q_star_rel": Q_rel,
-                    "lc_nm_raw": round(float(lc_raw), 2) if np.isfinite(lc_raw) else None,
-                    "la_nm_raw": round(float(la_raw), 2) if np.isfinite(la_raw) else None,
-                    "Xc_raw": round(float(phi_raw), 3) if np.isfinite(phi_raw) else None,
+                    "q_peak_total_nm1": _float_or_none(
+                        getattr(strain_point, "q_peak_total_nm1", np.nan)
+                    ),
+                    "q_peak_meridional_nm1": _float_or_none(
+                        getattr(strain_point, "q_peak_meridional_nm1", np.nan)
+                    ),
+                    "L_meridional_nm": _float_or_none(
+                        getattr(strain_point, "L_meridional_nm", np.nan)
+                    ),
+                    "q_peak_equatorial_nm1": _float_or_none(
+                        getattr(strain_point, "q_peak_equatorial_nm1", np.nan)
+                    ),
+                    "L_equatorial_nm": _float_or_none(
+                        getattr(strain_point, "L_equatorial_nm", np.nan)
+                    ),
+                    "feature_tracking_status": str(
+                        getattr(strain_point, "feature_tracking_status", "unavailable")
+                    ),
+                    "feature_tracking_reason_codes": list(
+                        getattr(strain_point, "feature_tracking_reason_codes", []) or []
+                    ),
+                    "invariant_Q": round(float(Q_raw), 3) if Q_raw is not None else None,
+                    "invariant_Q_rel": Q_rel,
+                    "lc_nm_raw": round(float(lc_raw), 2) if lc_raw is not None and np.isfinite(lc_raw) else None,
+                    "la_nm_raw": round(float(la_raw), 2) if la_raw is not None and np.isfinite(la_raw) else None,
+                    "Xc_raw": round(float(phi_raw), 3) if phi_raw is not None and np.isfinite(phi_raw) else None,
                     "lc_nm": lc,
                     "la_nm": la,
                     "Xc": phi_c,
-                    "Q_star": round(float(Q_raw), 3) if np.isfinite(Q_raw) else None,
-                    "Q_rel": Q_rel,
                     "f_Herman": round(f_herman, 4) if f_herman is not None else None,
                     "f_Herman_raw": (
                         round(f_herman_raw, 4) if f_herman_raw is not None else None
@@ -1936,7 +2003,9 @@ class SAXSEngine(BaseEngine):
                     "lc_method": method_out,
                     "sasmodels_method": model_used,
                     "sasmodels_R2": round(float(sas_r2), 4) if np.isfinite(sas_r2) else None,
-                    "Q_star_valid": bool(Q_rel is None or Q_rel >= 0.3),
+                    "invariant_Q_valid": bool(
+                        Q_rel is not None and np.isfinite(Q_rel) and Q_rel >= 0.3
+                    ),
                     "porod_slope": round(float(porod_slope), 4) if porod_slope is not None else None,
                     "strain_phase": phase_name.lower() if phase_name else None,
                     "phase_name": phase_name.lower() if phase_name else None,
@@ -2317,15 +2386,24 @@ class SAXSEngine(BaseEngine):
                 params["strain_range_pct"] = f"{min(strains):.0f}-{max(strains):.0f}"
             if np.any(np.isfinite(sr.L_array)):
                 params["L_range_nm"] = f"{np.nanmin(sr.L_array):.2f}-{np.nanmax(sr.L_array):.2f}"
-            if np.any(np.isfinite(sr.Q_star_array)):
-                params["Q_star_range"] = f"{np.nanmin(sr.Q_star_array):.4g}-{np.nanmax(sr.Q_star_array):.4g}"
-            if sr.Q_star_rel_array is not None and np.any(np.isfinite(sr.Q_star_rel_array)):
-                valid_qrel = np.asarray(sr.Q_star_rel_array, dtype=float)
+            invariant_values = getattr(sr, "invariant_Q_array", None)
+            if invariant_values is None:
+                invariant_values = getattr(sr, "Q_star_array", None)
+            if invariant_values is not None and np.any(np.isfinite(invariant_values)):
+                invariant_values = np.asarray(invariant_values, dtype=float)
+                params["invariant_Q_range"] = (
+                    f"{np.nanmin(invariant_values):.4g}-{np.nanmax(invariant_values):.4g}"
+                )
+            invariant_rel_values = getattr(sr, "invariant_Q_rel_array", None)
+            if invariant_rel_values is None:
+                invariant_rel_values = getattr(sr, "Q_star_rel_array", None)
+            if invariant_rel_values is not None and np.any(np.isfinite(invariant_rel_values)):
+                valid_qrel = np.asarray(invariant_rel_values, dtype=float)
                 valid_qrel = valid_qrel[np.isfinite(valid_qrel)]
                 if valid_qrel.size:
-                    params["Q_star_rel_mean"] = round(float(np.mean(valid_qrel)), 4)
-                    params["Q_star_rel_span"] = round(float(np.max(valid_qrel) - np.min(valid_qrel)), 4)
-                    params["Q_star_rel_range"] = f"{np.min(valid_qrel):.4f}-{np.max(valid_qrel):.4f}"
+                    params["invariant_Q_rel_mean"] = round(float(np.mean(valid_qrel)), 4)
+                    params["invariant_Q_rel_span"] = round(float(np.max(valid_qrel) - np.min(valid_qrel)), 4)
+                    params["invariant_Q_rel_range"] = f"{np.min(valid_qrel):.4f}-{np.max(valid_qrel):.4f}"
             if sr.phi_void_array is not None and np.any(np.isfinite(sr.phi_void_array)):
                 valid_phi_void = np.asarray(sr.phi_void_array, dtype=float)
                 valid_phi_void = valid_phi_void[np.isfinite(valid_phi_void)]
@@ -2367,7 +2445,11 @@ class SAXSEngine(BaseEngine):
                 if phase_name:
                     phase_names.append(phase_name)
                     phase_counts[phase_name] = phase_counts.get(phase_name, 0) + 1
-                q_rel = _first_finite(getattr(point, "Q_star_rel", np.nan), getattr(point, "Q_star_normalized", np.nan))
+                q_rel = _first_finite(
+                    getattr(point, "invariant_Q_rel", np.nan),
+                    getattr(point, "Q_star_rel", np.nan),
+                    getattr(point, "Q_star_normalized", np.nan),
+                )
                 phi_void = _first_finite(getattr(point, "phi_void", np.nan))
                 f_herman = _first_finite(getattr(point, "f_herman", np.nan))
                 phase_support = self._strain_phase_support_score(

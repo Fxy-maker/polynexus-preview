@@ -98,6 +98,7 @@ class _DetectorProjection:
     pixel_x: np.ndarray
     pixel_y: np.ndarray
     log_intensity: np.ndarray
+    display_eligible: np.ndarray
     sampled_pixel_count: int
     retained_pixel_count: int
     nonfinite_pixel_count: int
@@ -265,8 +266,9 @@ def _heatmap_object(
     *,
     cmap: str,
     colorbar_label: str,
+    allow_partial_detector_grid: bool = False,
 ) -> dict[str, Any]:
-    return {
+    figure_object = {
         "id": object_id,
         "type": "heatmap",
         "panel_id": panel_id,
@@ -276,6 +278,9 @@ def _heatmap_object(
         "z_column": z_column,
         "style": {"cmap": cmap, "colorbar_label": colorbar_label},
     }
+    if allow_partial_detector_grid:
+        figure_object["allow_partial_detector_grid"] = True
+    return figure_object
 
 
 def _detector_capable(engine: Any) -> bool:
@@ -488,6 +493,8 @@ def _morphology_source(
         (
             ("strain_pct", "%", "float64"),
             ("L_nm", "nm", "float64"),
+            ("L_meridional_nm", "nm", "float64"),
+            ("L_equatorial_nm", "nm", "float64"),
             ("lc_nm", "nm", "float64"),
             ("la_nm", "nm", "float64"),
         ),
@@ -496,6 +503,12 @@ def _morphology_source(
             "L_nm": [
                 _emitted_parameter(frame, "L_nm", "L_nm_effective", "L_nm_measured")
                 for frame in frames
+            ],
+            "L_meridional_nm": [
+                _emitted_parameter(frame, "L_meridional_nm") for frame in frames
+            ],
+            "L_equatorial_nm": [
+                _emitted_parameter(frame, "L_equatorial_nm") for frame in frames
             ],
             "lc_nm": [_emitted_parameter(frame, "lc_nm_effective", "lc_nm") for frame in frames],
             "la_nm": [_emitted_parameter(frame, "la_nm_effective", "la_nm") for frame in frames],
@@ -510,8 +523,14 @@ def _metric_values(
 ) -> dict[str, list[float]]:
     values = {
         "strain_pct": [_finite_number(frame.condition) for frame in frames],
-        "Q_star": [_emitted_parameter(frame, "Q_star", "Q_star_abs") for frame in frames],
-        "Q_star_rel": [_emitted_parameter(frame, "Q_star_rel", "Q_rel") for frame in frames],
+        "invariant_Q": [
+            _emitted_parameter(frame, "invariant_Q", "Q_star", "Q_star_abs")
+            for frame in frames
+        ],
+        "invariant_Q_rel": [
+            _emitted_parameter(frame, "invariant_Q_rel", "Q_star_rel", "Q_rel")
+            for frame in frames
+        ],
         "Xc": [_emitted_parameter(frame, "Xc_effective", "Xc", "phi_c") for frame in frames],
         "phi_void": [_point_value(engine, frame, "phi_void") for frame in frames],
         "void_ar": [_point_value(engine, frame, "void_ar") for frame in frames],
@@ -519,7 +538,7 @@ def _metric_values(
     for index, frame in enumerate(frames):
         if q_star_valid_for_invariant_panels(frame):
             continue
-        for key in ("Q_star", "Q_star_rel", "Xc"):
+        for key in ("invariant_Q", "invariant_Q_rel", "Xc"):
             values[key][index] = np.nan
     return values
 
@@ -530,8 +549,8 @@ def _metrics_source(
 ) -> tuple[FigureDataSourceDefinition | None, tuple[str, ...]]:
     values = _metric_values(engine, frames)
     enabled: list[str] = []
-    if invariant_panel_eligible(frames, values["Q_star"]):
-        enabled.extend(("Q_star", "Q_star_rel"))
+    if invariant_panel_eligible(frames, values["invariant_Q"]):
+        enabled.extend(("invariant_Q", "invariant_Q_rel"))
     if crystallinity_panel_eligible(frames, values["Xc"]):
         enabled.append("Xc")
     if trend_panel_eligible(values["phi_void"]):
@@ -542,8 +561,8 @@ def _metrics_source(
     if not enabled:
         return None, ()
     units = {
-        "Q_star": "a.u.",
-        "Q_star_rel": "1",
+        "invariant_Q": "a.u.",
+        "invariant_Q_rel": "1",
         "Xc": "1",
         "phi_void": "1",
         "void_ar": "1",
@@ -570,13 +589,13 @@ def _invariant_definition(
 ) -> FigureDefinition | None:
     values = _metric_values(engine, frames)
     enabled: list[str] = []
-    if invariant_panel_eligible(frames, values["Q_star"]):
-        enabled.extend(("Q_star", "Q_star_rel"))
+    if invariant_panel_eligible(frames, values["invariant_Q"]):
+        enabled.extend(("invariant_Q", "invariant_Q_rel"))
     if crystallinity_panel_eligible(frames, values["Xc"]):
         enabled.append("Xc")
     if not enabled:
         return None
-    units = {"Q_star": "a.u.", "Q_star_rel": "1", "Xc": "1"}
+    units = {"invariant_Q": "a.u.", "invariant_Q_rel": "1", "Xc": "1"}
     columns = [("strain_pct", "%", "float64")]
     columns.extend((name, units[name], "float64") for name in enabled)
     selected_values = {"strain_pct": values["strain_pct"]}
@@ -638,7 +657,7 @@ def _invariant_definition(
             "parameters": {
                 "included_frame_indices": [frame.index for frame in frames],
                 "eligibility_reasons": _eligibility_payload(frames, decisions),
-                "Q_star_valid_required": True,
+                "invariant_valid_required": True,
             },
         },
         style_profile="sci_default",
@@ -750,10 +769,38 @@ def _downsample_detector(image: Any) -> _DetectorProjection | None:
         pixel_x=x_grid.reshape(-1)[finite],
         pixel_y=y_grid.reshape(-1)[finite],
         log_intensity=np.log10(positive),
+        display_eligible=sampled_values > 0.0,
         sampled_pixel_count=sampled_pixel_count,
         retained_pixel_count=retained_pixel_count,
         nonfinite_pixel_count=nonfinite_pixel_count,
     )
+
+
+def _detector_display_values(
+    log_intensity: np.ndarray,
+    display_eligible: np.ndarray,
+) -> np.ndarray:
+    evidence = np.asarray(log_intensity, dtype=float)
+    valid = np.asarray(display_eligible, dtype=bool) & np.isfinite(evidence)
+    eligible = evidence[valid]
+    display = np.zeros(evidence.shape, dtype=float)
+    if eligible.size == 0:
+        return display
+    lower, upper = np.percentile(eligible, [2.0, 98.0])
+    if not np.isfinite(lower) or not np.isfinite(upper):
+        return display
+    if upper <= lower:
+        margin = max(abs(float(lower)) * 0.01, np.finfo(float).eps)
+        lower = float(lower) - margin
+        upper = float(upper) + margin
+        display.fill(lower)
+        display[valid] = upper
+        if np.all(valid) and display.size > 1:
+            display.flat[0] = lower
+        return display
+    display.fill(lower)
+    display[valid] = np.clip(evidence[valid], lower, upper)
+    return display
 
 
 def _detector_evidence(
@@ -780,17 +827,23 @@ def _detector_evidence(
         pixel_x = sampled.pixel_x
         pixel_y = sampled.pixel_y
         log_intensity = sampled.log_intensity
+        display_log_intensity = _detector_display_values(
+            log_intensity,
+            sampled.display_eligible,
+        )
         source = _data_source(
             f"detector-image-{frame.index:03d}",
             (
                 ("pixel_x", "pixel", "int64"),
                 ("pixel_y", "pixel", "int64"),
                 ("log_intensity", "log10(counts)", "float64"),
+                ("display_log_intensity", "log10(counts)", "float64"),
             ),
             {
                 "pixel_x": pixel_x.tolist(),
                 "pixel_y": pixel_y.tolist(),
                 "log_intensity": log_intensity.tolist(),
+                "display_log_intensity": display_log_intensity.tolist(),
             },
             role="detector_image",
         )
@@ -918,9 +971,10 @@ def _main_definition(
                     item.source.source_id,
                     "pixel_x",
                     "pixel_y",
-                    "log_intensity",
+                    "display_log_intensity",
                     cmap="magma",
                     colorbar_label="log10(counts)",
+                    allow_partial_detector_grid=True,
                 )
             )
     else:
@@ -1007,6 +1061,8 @@ def _main_definition(
         )
         for column, label, color in (
             ("L_nm", "L", _COLORS[0]),
+            ("L_meridional_nm", "L meridional", _COLORS[3]),
+            ("L_equatorial_nm", "L equatorial", _COLORS[4]),
             ("lc_nm", "lc", _COLORS[1]),
             ("la_nm", "la", _COLORS[2]),
         )

@@ -20,10 +20,18 @@ def _saxs_summary_details(
         strain_conf = condition_evidence.get("strain_axis_confidence")
         if strain_conf is not None:
             summary_bits.append(f"strain_axis={strain_conf}")
-        if structure_evidence.get("Q_star_rel_mean") is not None:
-            summary_bits.append(f"Q_star_rel={structure_evidence.get('Q_star_rel_mean')}")
-        elif structure_evidence.get("Q_star_rel") is not None:
-            summary_bits.append(f"Q_star_rel={structure_evidence.get('Q_star_rel')}")
+        invariant_Q_rel_mean = structure_evidence.get(
+            "invariant_Q_rel_mean",
+            structure_evidence.get("Q_star_rel_mean"),
+        )
+        invariant_Q_rel = structure_evidence.get(
+            "invariant_Q_rel",
+            structure_evidence.get("Q_star_rel"),
+        )
+        if invariant_Q_rel_mean is not None:
+            summary_bits.append(f"invariant_Q_rel={invariant_Q_rel_mean}")
+        elif invariant_Q_rel is not None:
+            summary_bits.append(f"invariant_Q_rel={invariant_Q_rel}")
         if structure_evidence.get("phi_void_mean") is not None:
             summary_bits.append(f"phi_void={structure_evidence.get('phi_void_mean')}")
         elif structure_evidence.get("phi_void") is not None:

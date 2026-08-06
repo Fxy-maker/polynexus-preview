@@ -463,6 +463,15 @@ def test_strain_primary_contains_only_strain_template_columns() -> None:
 
     assert tuple(column.key for column in presentation.primary.columns) == (
         "strain_pct",
+        "L_nm",
+        "q_peak_total_nm1",
+        "L_meridional_nm",
+        "q_peak_meridional_nm1",
+        "L_equatorial_nm",
+        "q_peak_equatorial_nm1",
+        "feature_tracking_status",
+        "invariant_Q",
+        "invariant_Q_rel",
         "f_Herman",
         "f_Herman_raw",
         "delta_f_from_zero",
@@ -504,6 +513,64 @@ def test_strain_herman_mixed_frames_keep_unavailable_cells_explicit() -> None:
     assert "f_Herman" not in heroes
     assert heroes["f_Herman_raw_mean"].label == "Detector-plane projected orientation (diagnostic)"
     assert heroes["f_Herman_raw_mean"].display == "0.4700"
+
+
+def test_strain_primary_table_exposes_tracked_feature_and_invariant_names() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [
+                {
+                    "strain_pct": 20.0,
+                    "L_nm": 8.7,
+                    "q_peak_total_nm1": 0.722,
+                    "L_meridional_nm": 9.2,
+                    "q_peak_meridional_nm1": 0.683,
+                    "L_equatorial_nm": 8.1,
+                    "q_peak_equatorial_nm1": 0.776,
+                    "feature_tracking_status": "tracked",
+                    "invariant_Q": 5.4,
+                    "invariant_Q_rel": 0.91,
+                }
+            ]
+        },
+        submodule="saxs.strain",
+    )
+
+    keys = tuple(column.key for column in presentation.primary.columns)
+    assert keys[:11] == (
+        "strain_pct",
+        "L_nm",
+        "q_peak_total_nm1",
+        "L_meridional_nm",
+        "q_peak_meridional_nm1",
+        "L_equatorial_nm",
+        "q_peak_equatorial_nm1",
+        "feature_tracking_status",
+        "invariant_Q",
+        "invariant_Q_rel",
+        "f_Herman",
+    )
+    assert _cell(presentation.primary, 0, "q_peak_total_nm1").display == "0.7220"
+    assert _cell(presentation.primary, 0, "invariant_Q").display == "5.400"
+    assert "Q_star_abs" not in keys
+
+
+def test_strain_primary_table_reads_legacy_invariant_aliases() -> None:
+    presentation = _build(
+        {
+            "_batch_data": [
+                {
+                    "strain_pct": 20.0,
+                    "Q_star_abs": 5.4,
+                    "Q_rel": 0.91,
+                }
+            ]
+        },
+        submodule="saxs.strain",
+    )
+
+    assert _cell(presentation.primary, 0, "invariant_Q").raw == pytest.approx(5.4)
+    assert _cell(presentation.primary, 0, "invariant_Q_rel").raw == pytest.approx(0.91)
 
 
 def test_strain_missing_final_never_falls_back_to_raw_diagnostic() -> None:

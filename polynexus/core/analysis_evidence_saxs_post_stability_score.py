@@ -81,7 +81,7 @@ def _saxs_stability_core_scores(
         parameter_stability_score -= 0.08
     if output.get("mask_truncated"):
         parameter_stability_score -= 0.04
-    if output.get("Q_star_valid") is False:
+    if output.get("invariant_Q_valid", output.get("Q_star_valid")) is False:
         parameter_stability_score -= 0.05
     if "beamstop_or_low_q_contamination" in symptom_names:
         parameter_stability_score -= 0.04
