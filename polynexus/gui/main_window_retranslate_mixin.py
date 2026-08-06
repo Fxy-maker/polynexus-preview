@@ -86,6 +86,11 @@ class MainWindowRetranslateMixin:
             _safe_set(w, tr(key))
 
         try:
+            _safe_set(self._log_copy_button, tr("BTN_COPY_LOG"))
+        except Exception:
+            logger.warning("Failed to update log copy label during retranslate.", exc_info=True)
+
+        try:
 
             self._btn_replot.setToolTip(tr("REPLOT_TOOLTIP"))
 

@@ -124,3 +124,31 @@ def test_static_mode_does_not_interpret_strain_filename_or_directory_as_conditio
     assert np.isnan(recovered["value"])
     assert recovered["source"] == "unresolved"
     assert recovered["source_key"] == ""
+
+
+def test_recover_condition_axis_accepts_serialized_condition_patterns(tmp_path) -> None:
+    root = tmp_path / "temperature_180"
+    root.mkdir()
+    path = root / "sample_001.edf"
+
+    cfg = SAXSConfig(
+        experiment_type="temperature",
+        condition_label="Temperature",
+        condition_unit="C",
+    )
+    cfg.condition_patterns = [
+        {
+            "name": "temp_directory_label",
+            "regex": r"(?:temperature|temp)[_\-\s]*(-?\d+(?:\.\d+)?)",
+            "unit": "C",
+            "search_path": True,
+            "value_transform": "float",
+            "validator_expr": "-100 < x < 600",
+        }
+    ]
+
+    recovered = recover_condition_axis(path, cfg)
+
+    assert recovered["value"] == 180.0
+    assert recovered["source"] == "path_directory"
+    assert recovered["source_key"] == "temp_directory_label"

@@ -36,6 +36,14 @@ class UnsupportedDatasetError(SAXSIOError):
     """Raised when a container has no unambiguous numeric SAXS dataset."""
 
 
+def _condition_pattern_value(pattern: Any, key: str, default: Any = None) -> Any:
+    """Read a condition-pattern field from a dataclass or serialized mapping."""
+
+    if isinstance(pattern, Mapping):
+        return pattern.get(key, default)
+    return getattr(pattern, key, default)
+
+
 def read_hdf5_dataset(filepath: str) -> Tuple[np.ndarray, dict]:
     """Read the first unambiguous numeric HDF5/Nexus dataset.
 
@@ -620,16 +628,18 @@ def _parse_condition(entry: Path, cfg: "SAXSConfig") -> float:
     exp_type = cfg.experiment_type
 
     for p in patterns:
-        # ---- Skip if pattern doesn't match experiment type ----
-        if p.name.startswith("strain_") and exp_type != "strain":
+        pattern_name = str(_condition_pattern_value(p, "name", "") or "")
+        regex = str(_condition_pattern_value(p, "regex", "") or "")
+        if not regex:
             continue
-        if p.name.startswith("temp_") and exp_type != "temperature":
+        # ---- Skip if pattern doesn't match experiment type ----
+        if pattern_name.startswith("strain_") and exp_type != "strain":
+            continue
+        if pattern_name.startswith("temp_") and exp_type != "temperature":
             continue
 
         # ---- Search ----
-        regex = p.regex
-
-        if p.search_path:
+        if bool(_condition_pattern_value(p, "search_path", False)):
             # Search each path component individually
             match = None
             for part in entry.parts:
@@ -644,38 +654,41 @@ def _parse_condition(entry: Path, cfg: "SAXSConfig") -> float:
         captured = match.group(1)
 
         # ---- Lookup map ----
-        if p.lookup_map:
-            lookup = getattr(cfg, p.lookup_map, {})
+        lookup_map = str(_condition_pattern_value(p, "lookup_map", "") or "")
+        value_transform = str(_condition_pattern_value(p, "value_transform", "float") or "float")
+        if lookup_map:
+            lookup = getattr(cfg, lookup_map, {})
             if captured in lookup:
                 value = lookup[captured]
             else:
                 try:
-                    value = float(captured) if p.value_transform == "float" else int(captured)
+                    value = float(captured) if value_transform == "float" else int(captured)
                 except ValueError:
                     continue
         else:
             try:
-                value = float(captured) if p.value_transform == "float" else int(captured)
+                value = float(captured) if value_transform == "float" else int(captured)
             except ValueError:
-                _log.debug("Pattern %r matched but cannot convert %r", p.name, captured)
+                _log.debug("Pattern %r matched but cannot convert %r", pattern_name, captured)
                 continue
 
         # ---- Validation ----
-        if p.validator_expr:
+        validator_expr = str(_condition_pattern_value(p, "validator_expr", "") or "")
+        if validator_expr:
             try:
                 x = value
-                if not eval(p.validator_expr, {"x": x, "__builtins__": {}}):
+                if not eval(validator_expr, {"x": x, "__builtins__": {}}):
                     _log.debug(
                         "Pattern %r matched (%s=%s) but failed validation %r",
-                        p.name, captured, value, p.validator_expr,
+                        pattern_name, captured, value, validator_expr,
                     )
                     continue
             except Exception:
-                _log.debug("Validator eval error for pattern %r", p.name)
+                _log.debug("Validator eval error for pattern %r", pattern_name)
                 continue
 
         _log.debug("Condition extracted: %s=%s %s (pattern %r)",
-                    cfg.condition_label, value, cfg.condition_unit, p.name)
+                    cfg.condition_label, value, cfg.condition_unit, pattern_name)
         return float(value)
 
     # ---- No pattern matched ----
@@ -759,48 +772,55 @@ def _parse_condition_detail(entry: Path, cfg: "SAXSConfig") -> dict[str, Any]:
 
     exp_type = cfg.experiment_type
     for pattern in patterns:
-        if pattern.name.startswith("strain_") and exp_type != "strain":
+        pattern_name = str(_condition_pattern_value(pattern, "name", "") or "")
+        regex = str(_condition_pattern_value(pattern, "regex", "") or "")
+        if not regex:
             continue
-        if pattern.name.startswith("temp_") and exp_type != "temperature":
+        if pattern_name.startswith("strain_") and exp_type != "strain":
+            continue
+        if pattern_name.startswith("temp_") and exp_type != "temperature":
             continue
 
-        regex = pattern.regex
-        path_parts = entry.parts if pattern.search_path else (entry.stem,)
+        search_path = bool(_condition_pattern_value(pattern, "search_path", False))
+        path_parts = entry.parts if search_path else (entry.stem,)
         for part in path_parts:
             match = re.search(regex, part, re.IGNORECASE)
             if not match:
                 continue
 
             captured = match.group(1)
-            if pattern.lookup_map:
-                lookup = getattr(cfg, pattern.lookup_map, {})
+            lookup_map = str(_condition_pattern_value(pattern, "lookup_map", "") or "")
+            value_transform = str(_condition_pattern_value(pattern, "value_transform", "float") or "float")
+            if lookup_map:
+                lookup = getattr(cfg, lookup_map, {})
                 if captured in lookup:
                     value = lookup[captured]
                 else:
                     try:
-                        value = float(captured) if pattern.value_transform == "float" else int(captured)
+                        value = float(captured) if value_transform == "float" else int(captured)
                     except ValueError:
                         continue
             else:
                 try:
-                    value = float(captured) if pattern.value_transform == "float" else int(captured)
+                    value = float(captured) if value_transform == "float" else int(captured)
                 except ValueError:
                     continue
 
-            if pattern.validator_expr:
+            validator_expr = str(_condition_pattern_value(pattern, "validator_expr", "") or "")
+            if validator_expr:
                 try:
                     x = value
-                    if not eval(pattern.validator_expr, {"x": x, "__builtins__": {}}):
+                    if not eval(validator_expr, {"x": x, "__builtins__": {}}):
                         continue
                 except Exception:
                     continue
 
             return {
                 "value": float(value),
-                "source": "path_directory" if pattern.search_path else "path_filename",
-                "source_key": pattern.name,
+                "source": "path_directory" if search_path else "path_filename",
+                "source_key": pattern_name,
                 "source_text": entry.name,
-                "confidence": 0.72 if pattern.search_path else 0.64,
+                "confidence": 0.72 if search_path else 0.64,
             }
 
     return {

@@ -2444,6 +2444,10 @@ class MainWindow(
 
         self._log_panel.setReadOnly(True)
 
+        self._log_panel.setTextInteractionFlags(
+            Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard
+        )
+
         self._log_panel.setMaximumHeight(150)
 
         self._log_panel.setMinimumHeight(80)
@@ -2466,6 +2470,11 @@ class MainWindow(
         batch_actions.setContentsMargins(0, 0, 0, 0)
         batch_actions.setSpacing(6)
         batch_actions.addStretch(1)
+        self._log_copy_button = QPushButton(tr("BTN_COPY_LOG"))
+        self._log_copy_button.setObjectName("secondary_btn")
+        self._log_copy_button.setEnabled(False)
+        self._log_copy_button.clicked.connect(self._copy_log_to_clipboard)
+        batch_actions.addWidget(self._log_copy_button)
         self._batch_list_copy_button = QPushButton(tr("COMMON_COPY"))
         self._batch_list_copy_button.clicked.connect(self._copy_batch_list_to_clipboard)
         self._batch_list_copy_button.setVisible(False)
@@ -2879,6 +2888,9 @@ class MainWindow(
 
         self._log_panel.append(line)
 
+        if hasattr(self, "_log_copy_button"):
+            self._log_copy_button.setEnabled(bool(self._log_panel.toPlainText()))
+
         sb = self._log_panel.verticalScrollBar()
 
         sb.setValue(sb.maximum())
@@ -2906,6 +2918,9 @@ class MainWindow(
             f"</span>"
         )
         self._log_panel.append(line)
+
+        if hasattr(self, "_log_copy_button"):
+            self._log_copy_button.setEnabled(bool(self._log_panel.toPlainText()))
         sb = self._log_panel.verticalScrollBar()
         sb.setValue(sb.maximum())
 

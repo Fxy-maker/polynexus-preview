@@ -6,6 +6,7 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QTextEdit
 
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_run_mixin import MainWindowRunMixin
@@ -30,14 +31,39 @@ def test_main_window_reuses_run_workflow_helpers_from_run_mixin():
     assert MainWindow._on_batch_finished is MainWindowRunMixin._on_batch_finished
 
 
+def test_log_copy_action_copies_complete_plain_text_log():
+    app = QApplication.instance() or QApplication([])
+
+    class Harness:
+        def __init__(self):
+            self._log_panel = QTextEdit()
+            self.logged = []
+
+        def _main_window_module(self):
+            return SimpleNamespace(QApplication=QApplication)
+
+        def log(self, message):
+            self.logged.append(message)
+
+    harness = Harness()
+    harness._log_panel.setPlainText("Traceback line 1\nAttributeError: boom")
+
+    assert MainWindowRunMixin._copy_log_to_clipboard(harness) is True
+    assert QApplication.clipboard().text() == harness._log_panel.toPlainText()
+    assert harness.logged
+
+    app.processEvents()
+
+
 def test_run_error_diagnostics_can_be_copied_without_copying_ui_status_text():
     app = QApplication.instance() or QApplication([])
 
     class Harness:
-        _main_window_module = lambda self: SimpleNamespace(QApplication=QApplication)
-
         def __init__(self):
             self.logged = []
+
+        def _main_window_module(self):
+            return SimpleNamespace(QApplication=QApplication)
 
         def log(self, message):
             self.logged.append(message)

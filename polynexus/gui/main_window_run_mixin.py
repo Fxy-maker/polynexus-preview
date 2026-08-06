@@ -49,6 +49,19 @@ class MainWindowRunMixin:
         self.log(tr("LOG_DIAGNOSTICS_COPIED"))
         return True
 
+    def _copy_log_to_clipboard(self):
+        """Copy the complete visible log as plain text for external reports."""
+
+        panel = getattr(self, "_log_panel", None)
+        if panel is None:
+            return False
+        text = panel.toPlainText()
+        if not text:
+            return False
+        self._main_window_module().QApplication.clipboard().setText(text)
+        self.log(tr("LOG_LOG_COPIED"))
+        return True
+
     def _on_run_stage(self, stage):
         key = str(stage or "").strip().lower()
         if not key:
