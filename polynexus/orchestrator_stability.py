@@ -8,7 +8,12 @@ from typing import Any
 
 import numpy as np
 
-from polynexus.core.preprocess_optimization import ParameterDomain, StabilityStudyRequest, run_stability_study
+from polynexus.core.preprocess_optimization import (
+    ContinuityEvidence,
+    ParameterDomain,
+    StabilityStudyRequest,
+    run_stability_study,
+)
 from polynexus.core.saxs_mode import canonical_saxs_mode
 from polynexus.core.saxs_engine.saxs_ai_rescue import assess_saxs_confirmed_rerun
 
@@ -46,10 +51,21 @@ def _failed_saxs_stability_report(
     baseline_config: dict[str, Any],
     reason_code: str,
     domains: "SAXSStabilityDomains | None" = None,
+    *,
+    mode: str | None = None,
 ) -> dict[str, Any]:
+    continuity = (
+        ContinuityEvidence(True, status="not_applicable")
+        if mode == "static"
+        else ContinuityEvidence(
+            False,
+            reason_codes=("cross_frame_evidence_missing",),
+            status="insufficient",
+        )
+    )
     return {
         "schema_version": "saxs-stability-v1",
-        "mode": None,
+        "mode": mode,
         "decision": "keep_original",
         "complete": False,
         "baseline_config": deepcopy(baseline_config),
@@ -57,7 +73,7 @@ def _failed_saxs_stability_report(
         "trials": [],
         "plateau": {"connected": False},
         "bootstrap": {},
-        "continuity": {"passed": False},
+        "continuity": continuity.to_dict(),
         "physics_gate_passed": False,
         "quality_gate_passed": False,
         "reason_codes": [reason_code],
@@ -371,14 +387,16 @@ def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]
         }.items():
             sequence = []
             for point in points:
+                value_for_frame = float("nan")
                 for alias in aliases:
                     try:
                         value = float(getattr(point, alias))
                     except (AttributeError, TypeError, ValueError):
                         continue
                     if value == value:
-                        sequence.append(value)
+                        value_for_frame = value
                         break
+                sequence.append(value_for_frame)
             if sequence:
                 values[name] = sequence
     return values
@@ -401,6 +419,7 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
             base_config,
             mode_error or "unsupported_saxs_stability_mode",
             domain_result,
+            mode=scientific_mode,
         )
         self._last_stability_report = deepcopy(report)
         return report
@@ -410,8 +429,8 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
             base_config,
             "stability_domains_unavailable",
             domain_result,
+            mode=scientific_mode,
         )
-        report["mode"] = scientific_mode
         self._last_stability_report = deepcopy(report)
         return report
 
@@ -472,6 +491,7 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         # SAXS physical semantics require an explicit user confirmation even
         # when the numerical stability score reaches the auto-accept band.
         allow_auto_accept=False,
+        continuity_required=scientific_mode != "static",
     )
     raw_report = run_stability_study(request, evaluate)
     report = replace(

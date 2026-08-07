@@ -81,6 +81,7 @@ class StabilityStudyRequest:
     bootstrap_replicates: int = 256
     decision_mode: str = "strict"
     allow_auto_accept: bool = True
+    continuity_required: bool = True
 
     def __post_init__(self) -> None:
         if not self.baseline_config:
@@ -121,6 +122,19 @@ class ContinuityEvidence:
     metric_max_relative_step: dict[str, float] = field(default_factory=dict)
     frame_count: int = 0
     reason_codes: tuple[str, ...] = ()
+    status: str | None = None
+    metric_median_increment: dict[str, float] = field(default_factory=dict)
+    metric_mad_increment: dict[str, float] = field(default_factory=dict)
+    metric_max_robust_deviation: dict[str, float] = field(default_factory=dict)
+    metric_finite_frame_count: dict[str, int] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        status = self.status or ("passed" if self.passed else "failed")
+        if status not in {"passed", "failed", "insufficient", "not_applicable"}:
+            raise ValueError(f"invalid continuity status: {status}")
+        if self.passed != (status in {"passed", "not_applicable"}):
+            raise ValueError("continuity passed/status values are inconsistent")
+        object.__setattr__(self, "status", status)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -275,9 +289,10 @@ def _normalise_trial(index: int, config: dict[str, Any], raw: Any, *, cached: bo
             array = np.asarray(values, dtype=float).reshape(-1)
         except (TypeError, ValueError):
             continue
-        finite = array[np.isfinite(array)]
-        if finite.size:
-            frames[str(name)] = tuple(float(value) for value in finite)
+        if array.size:
+            # Preserve frame slots, including non-finite values.  Compressing
+            # them would fabricate adjacency across missing frames.
+            frames[str(name)] = tuple(float(value) for value in array)
     reasons = tuple(str(item) for item in payload.get("reason_codes", ()) if item is not None)
     return StabilityTrial(
         index=index,
@@ -299,40 +314,89 @@ def _continuity_for_trials(
     # Continuity is a frame-wise property.  Do not concatenate independent
     # parameter trials: the boundary between two trial results is not a
     # physical time/temperature step and would create a false discontinuity.
+    if not request.continuity_required:
+        return ContinuityEvidence(True, status="not_applicable")
+
     frame_count = 0
     max_steps: dict[str, float] = {}
+    median_steps: dict[str, float] = {}
+    mad_steps: dict[str, float] = {}
+    robust_deviations: dict[str, float] = {}
+    finite_counts: dict[str, int] = {}
     reasons: list[str] = []
-    observed = False
+    statuses: list[str] = []
     for trial in trials:
         for name, sequence in trial.frame_values.items():
-            observed = True
             frame_count = max(frame_count, len(sequence))
             array = np.asarray(sequence, dtype=float)
-            if array.size < 2:
-                max_steps.setdefault(name, 0.0)
+            finite = np.isfinite(array)
+            finite_count = int(np.count_nonzero(finite))
+            finite_counts[name] = min(
+                finite_counts.get(name, finite_count), finite_count
+            )
+            if finite_count < 4:
+                statuses.append("insufficient")
+                reasons.append(f"continuity_insufficient:{name}")
                 continue
-            scale = max(abs(float(np.nanmedian(array))), 1e-12)
-            step = float(np.nanmax(np.abs(np.diff(array))) / scale)
-            max_steps[name] = max(max_steps.get(name, 0.0), step)
-            if step > request.continuity_relative_tolerance:
-                reasons.append(f"continuity_break:{name}")
-    if not observed:
-        return ContinuityEvidence(False, {}, frame_count, ("cross_frame_evidence_missing",))
-    return ContinuityEvidence(not reasons, max_steps, frame_count, tuple(dict.fromkeys(reasons)))
-
-
-def _trial_continuity_passed(trial: StabilityTrial, request: StabilityStudyRequest) -> bool:
-    """Return whether one candidate's own frame sequence is continuous."""
-    if not trial.frame_values:
-        return False
-    for sequence in trial.frame_values.values():
-        array = np.asarray(sequence, dtype=float)
-        if array.size < 2:
-            continue
-        scale = max(abs(float(np.nanmedian(array))), 1e-12)
-        if float(np.nanmax(np.abs(np.diff(array))) / scale) > request.continuity_relative_tolerance:
-            return False
-    return True
+            if not bool(np.all(finite)):
+                statuses.append("insufficient")
+                reasons.append(f"continuity_nonfinite:{name}")
+                continue
+            increments = np.diff(array)
+            median_increment = float(np.median(increments))
+            deviations = np.abs(increments - median_increment)
+            mad_increment = float(np.median(deviations))
+            max_deviation = float(np.max(deviations))
+            response_scale = max(float(np.median(np.abs(array))), 1e-12)
+            median_absolute_increment = max(
+                float(np.median(np.abs(increments))), 1e-12
+            )
+            # MAD is the primary local increment scale.  When it collapses to
+            # zero, use a small fraction of the typical increment; the
+            # response's absolute offset must never relax the jump gate.
+            robust_scale = max(
+                1.4826 * mad_increment,
+                request.continuity_relative_tolerance
+                * median_absolute_increment,
+            )
+            robust_limit = 6.0 * robust_scale
+            max_relative_step = float(np.max(np.abs(increments)) / response_scale)
+            max_steps[name] = max(max_steps.get(name, 0.0), max_relative_step)
+            median_steps[name] = median_increment
+            mad_steps[name] = max(mad_steps.get(name, 0.0), mad_increment)
+            robust_deviations[name] = max(
+                robust_deviations.get(name, 0.0), max_deviation
+            )
+            if max_deviation > robust_limit:
+                statuses.append("failed")
+                reasons.append(f"continuity_jump:{name}")
+            else:
+                statuses.append("passed")
+    if not statuses:
+        return ContinuityEvidence(
+            False,
+            frame_count=frame_count,
+            reason_codes=("cross_frame_evidence_missing",),
+            status="insufficient",
+        )
+    status = (
+        "failed"
+        if "failed" in statuses
+        else "insufficient"
+        if "insufficient" in statuses
+        else "passed"
+    )
+    return ContinuityEvidence(
+        status == "passed",
+        max_steps,
+        frame_count,
+        tuple(dict.fromkeys(reasons)),
+        status,
+        median_steps,
+        mad_steps,
+        robust_deviations,
+        finite_counts,
+    )
 
 
 def _bootstrap(
@@ -454,20 +518,55 @@ def run_stability_study(
         cache[key] = trial
         trials.append(trial)
 
-    continuity = _continuity_for_trials(trials, request)
-    trials = [
-        StabilityTrial(
-            **{
-                **asdict(trial),
-                "continuity_passed": _trial_continuity_passed(trial, request),
-                "reason_codes": tuple(trial.reason_codes)
-                + (() if _trial_continuity_passed(trial, request) else ("cross_frame_continuity_failed",)),
-            }
+    annotated_trials: list[StabilityTrial] = []
+    for trial in trials:
+        trial_continuity = _continuity_for_trials((trial,), request)
+        required_failure = request.continuity_required and not trial_continuity.passed
+        annotated_trials.append(
+            StabilityTrial(
+                **{
+                    **asdict(trial),
+                    "continuity_passed": not required_failure,
+                    "reason_codes": tuple(
+                        dict.fromkeys(
+                            tuple(trial.reason_codes)
+                            + tuple(trial_continuity.reason_codes)
+                            + (
+                                ("cross_frame_continuity_failed",)
+                                if required_failure
+                                else ()
+                            )
+                        )
+                    ),
+                }
+            )
         )
-        for trial in trials
-    ]
+    trials = annotated_trials
     plateau = _plateau(trials, request)
     plateau_trials = [trial for trial in trials if trial.index in plateau.trial_indices]
+    continuity = _continuity_for_trials(plateau_trials, request)
+    if request.continuity_required and not plateau_trials:
+        # No sequence is eligible for study-level aggregation, but retain the
+        # observed raw frame count so insufficient evidence remains explicit.
+        observed_frame_count = max(
+            (
+                len(sequence)
+                for trial in trials
+                for sequence in trial.frame_values.values()
+            ),
+            default=0,
+        )
+        continuity = ContinuityEvidence(
+            continuity.passed,
+            continuity.metric_max_relative_step,
+            observed_frame_count,
+            continuity.reason_codes,
+            continuity.status,
+            continuity.metric_median_increment,
+            continuity.metric_mad_increment,
+            continuity.metric_max_robust_deviation,
+            continuity.metric_finite_frame_count,
+        )
     bootstrap = _bootstrap(plateau_trials, request, int(request.seed) + 1)
     physics_passed = bool(plateau_trials) and all(trial.physical_passed for trial in plateau_trials)
     quality_passed = bool(plateau_trials) and all(trial.quality_passed for trial in plateau_trials)
