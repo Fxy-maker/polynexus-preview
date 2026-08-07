@@ -301,7 +301,7 @@ def _saxs_stability_rows(stability: Mapping[str, Any]) -> dict[str, Any]:
         active_dimensions = _string_list(plateau.get("active_dimensions"))
     excluded_dimensions = _mapping(stability.get("excluded_dimensions"))
     continuity = _mapping(stability.get("continuity"))
-    continuity_passed = bool(continuity.get("passed", False))
+    continuity_passed = continuity.get("passed") is True
     continuity_status = _exact_string(
         continuity.get("status"),
         "passed" if continuity_passed else "failed",
@@ -324,8 +324,8 @@ def _saxs_stability_rows(stability: Mapping[str, Any]) -> dict[str, Any]:
         "continuity_frame_count": _nonnegative_int(
             continuity.get("frame_count", 0)
         ),
-        "physics_gate_passed": bool(stability.get("physics_gate_passed", False)),
-        "quality_gate_passed": bool(stability.get("quality_gate_passed", False)),
+        "physics_gate_passed": stability.get("physics_gate_passed") is True,
+        "quality_gate_passed": stability.get("quality_gate_passed") is True,
         "stability_decision": _exact_string(
             stability.get("decision"),
             "keep_original",
@@ -357,14 +357,13 @@ def _saxs_confirmation_contract_complete(
         "quality_gate",
         "cross_frame_continuity",
     }
-    mode_value = _exact_string(payload.get("mode")) or _exact_string(
-        stability.get("mode")
-    )
-    mode = canonical_saxs_mode(mode_value)
-    if mode is None:
+    payload_mode = canonical_saxs_mode(_exact_string(payload.get("mode")))
+    stability_mode = canonical_saxs_mode(_exact_string(stability.get("mode")))
+    if payload_mode is None or stability_mode is None or payload_mode != stability_mode:
         return False
+    mode = payload_mode
     continuity = _mapping(stability.get("continuity"))
-    continuity_passed = bool(continuity.get("passed", False)) or (
+    continuity_passed = continuity.get("passed") is True or (
         mode == "static"
         and _exact_string(continuity.get("status")) == "not_applicable"
     )
@@ -377,15 +376,15 @@ def _saxs_confirmation_contract_complete(
     except (TypeError, ValueError):
         return False
     return bool(
-        stability.get("complete", False)
+        stability.get("complete") is True
         and _exact_string(stability.get("decision"))
         in {"request_confirmation", "auto_accept"}
-        and _mapping(stability.get("plateau")).get("connected", False)
-        and stability.get("physics_gate_passed", False)
-        and stability.get("quality_gate_passed", False)
+        and _mapping(stability.get("plateau")).get("connected") is True
+        and stability.get("physics_gate_passed") is True
+        and stability.get("quality_gate_passed") is True
         and continuity_passed
         and required_guards.issubset(guards)
-        and all(bool(guards[name]) for name in required_guards)
+        and all(guards[name] is True for name in required_guards)
         and selected
         and original
     )

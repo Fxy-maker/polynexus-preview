@@ -33,28 +33,28 @@ continuity evidence are scientifically meaningful.
 
 ## Acceptance criteria
 
-- [ ] A complete, continuous filename-derived condition axis is not marked
+- [x] A complete, continuous filename-derived condition axis is not marked
   unstable solely because its source confidence is below 0.75.
-- [ ] Condition-axis symptoms cannot authorize q-crop changes.
-- [ ] Candidate plans bind an action-compatible symptom rather than inheriting
+- [x] Condition-axis symptoms cannot authorize q-crop changes.
+- [x] Candidate plans bind an action-compatible symptom rather than inheriting
   an unrelated global lead symptom.
-- [ ] Stability trials and confirmation reports use the active static,
+- [x] Stability trials and confirmation reports use the active static,
   temperature, or strain mode without silent fallback.
-- [ ] Inactive background, detector, and orientation dimensions are excluded
+- [x] Inactive background, detector, and orientation dimensions are excluded
   with explicit reason codes.
-- [ ] Beam-center and mask perturbations preserve typed configuration and
+- [x] Beam-center and mask perturbations preserve typed configuration and
   demonstrably change the trial input when active.
-- [ ] Smooth large strain evolution passes continuity while isolated jumps
+- [x] Smooth large strain evolution passes continuity while isolated jumps
   fail; insufficient short sequences remain explicit.
-- [ ] Strain stability transports Herman and orientation-axis evidence without
+- [x] Strain stability transports Herman and orientation-axis evidence without
   promoting missing tensile-axis metadata.
-- [ ] Plateau selection uses selected/eligible trials, active-dimension spread,
+- [x] Plateau selection uses selected/eligible trials, active-dimension spread,
   and perturbation-interval terminology.
-- [ ] `keep_original` exposes no applicable stability candidate; confirmed
+- [x] `keep_original` exposes no applicable stability candidate; confirmed
   reports retain hash, rerun, rollback, audit, and Undo protections.
-- [ ] SAXS GUI summaries display stability-specific evidence instead of
+- [x] SAXS GUI summaries display stability-specific evidence instead of
   `protected metrics available: 0`.
-- [ ] Every behavior change has a focused regression observed failing before
+- [x] Every behavior change has a focused regression observed failing before
   implementation.
 
 ## Implementation plan
@@ -72,8 +72,8 @@ continuity evidence are scientifically meaningful.
 
 ```powershell
 $env:QT_QPA_PLATFORM='offscreen'
-python -m pytest -p no:cacheprovider -q tests/test_saxs_symptom_detector.py tests/test_saxs_action_registry.py tests/test_saxs_orchestrator_loop.py tests/test_saxs_stability_map.py tests/test_saxs_ai_confirmed_rerun_safety.py tests/test_preprocess_decision_service.py tests/test_preprocess_decision_dialog.py tests/test_preprocess_transaction_service.py tests/test_main_window_ai_tuning_mixin.py
-python scripts/verify.py --task docs/agent/tasks/2026-08-07-saxs-ai-stability-decision-repair.md --changed --types
+python -m pytest -p no:cacheprovider -q tests/test_saxs_symptom_detector.py tests/test_saxs_action_registry.py tests/test_saxs_orchestrator_loop.py tests/test_saxs_stability_map.py tests/test_saxs_ai_confirmed_rerun_safety.py tests/test_preprocess_decision_service.py tests/test_preprocess_decision_dialog.py tests/test_preprocess_transaction_service.py tests/test_main_window_ai_tuning_mixin.py tests/test_saxs_config_binding.py tests/test_saxs_preprocess.py tests/test_saxs_scientific_correctness_repair.py tests/test_saxs_q_resolved_orientation_reliability.py
+python scripts/verify.py --task docs/agent/tasks/2026-08-07-saxs-ai-stability-decision-repair.md --changed --types --base 2d4092ab
 ```
 
 ## Design and plan
@@ -85,6 +85,19 @@ python scripts/verify.py --task docs/agent/tasks/2026-08-07-saxs-ai-stability-de
 
 ## Status
 
-- Status: planned; implementation not started
+- Status: implementation and local verification complete
+- Focused cumulative matrix: `257 passed, 7 warnings`.
+- Structured verification: task/memory checks, Ruff, compile, and whitespace
+  passed; quality gate `297 passed`; preprocessing gate `156 passed`.
+- Independent cumulative review found no Critical issue. All reported Important
+  confirmation, effective-perturbation, orientation-coverage, numeric-bound,
+  and continuity defects were repaired with focused RED/GREEN regressions.
+- The deterministic search remains seeded Latin-hypercube exploration plus
+  bounded local refinement. Bayesian optimization was not introduced.
+- SAXS stability decisions remain confirmation-only. A numerically eligible
+  `auto_accept` is downgraded to `request_confirmation` before the GUI.
+- `bg_scale_value` is explicitly excluded as
+  `background_curve_consumer_missing` until production loads and passes real
+  background q/I arrays; a filename alone does not activate the dimension.
 - Human review: required before merge because symptom, orientation, and
   sequence-continuity semantics are scientific behavior

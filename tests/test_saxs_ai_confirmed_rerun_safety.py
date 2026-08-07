@@ -315,6 +315,60 @@ def test_candidate_config_delta_is_bound_to_selected_config() -> None:
         )
 
 
+def test_confirmation_rejects_selected_change_missing_from_candidate_delta() -> None:
+    current = {"q_min": 0.01, "q_max": 0.30}
+    report = _report(config=current)
+    report["selected_preprocess_config"] = {"q_min": 0.02, "q_max": 9.0}
+    report["preprocess_candidates"][0]["config_delta"] = {"q_min": 0.02}
+
+    with pytest.raises(ValueError, match="undeclared config change"):
+        validate_saxs_confirmation_report(
+            report,
+            current_config=current,
+            mode="static",
+        )
+
+
+def test_confirmation_allows_unchanged_selected_fields_outside_delta() -> None:
+    current = {"q_min": 0.01, "q_max": 0.30}
+    report = _report(config=current)
+    report["selected_preprocess_config"] = {"q_min": 0.02, "q_max": 0.30}
+    report["preprocess_candidates"][0]["config_delta"] = {"q_min": 0.02}
+
+    validated = validate_saxs_confirmation_report(
+        report,
+        current_config=current,
+        mode="static",
+    )
+
+    assert validated["candidate_id"] == "candidate-1"
+
+
+def test_confirmation_rejects_non_boolean_guard_values() -> None:
+    report = _report()
+    report["preprocess_decision"]["hard_guard_results"]["physical_parameters"] = (
+        "false"
+    )
+
+    with pytest.raises(ValueError, match="hard guard failed"):
+        validate_saxs_confirmation_report(
+            report,
+            current_config={"smooth_window": 11},
+            mode="static",
+        )
+
+
+def test_confirmation_rejects_report_mode_mismatch() -> None:
+    report = _report(mode="strain")
+
+    with pytest.raises(ValueError, match="mode mismatch"):
+        validate_saxs_confirmation_report(
+            report,
+            current_config={"smooth_window": 11},
+            mode="static",
+        )
+
+
 def test_selected_config_hash_drift_rolls_back_and_never_persists() -> None:
     harness = _Harness({"smooth_window": 11}, _static_result(), _static_result())
 

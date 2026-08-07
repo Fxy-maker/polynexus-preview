@@ -516,6 +516,46 @@ def test_stability_continuity_does_not_compare_independent_trial_boundaries() ->
     assert report.continuity.passed is True
 
 
+def test_continuity_coverage_counts_missing_plateau_trial_metric_as_zero() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+
+    evaluations = iter(
+        (
+            {"orientation_axis_deg": [1.0, 2.0, 3.0, 4.0, 5.0]},
+            {"f_herman_raw": [0.1, 0.2, 0.3, 0.4, 0.5]},
+        )
+    )
+    report = run_stability_study(
+        StabilityStudyRequest(
+            baseline_config={"q_min": 0.1},
+            domains=(ParameterDomain("q_min", 0.09, 0.11),),
+            global_trials=2,
+            active_trials=0,
+            confirmation_trials=0,
+            min_plateau_points=2,
+            min_plateau_fraction=0.5,
+            bootstrap_replicates=16,
+            allow_auto_accept=False,
+        ),
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": next(evaluations),
+        },
+    )
+
+    assert report.plateau.connected is True
+    assert report.continuity.metric_finite_frame_count == {
+        "f_herman_raw": 0,
+        "orientation_axis_deg": 0,
+    }
+
+
 def test_stability_continuity_allows_large_smooth_curved_response() -> None:
     from polynexus.core.preprocess_optimization.stability import (
         ParameterDomain,
@@ -554,6 +594,40 @@ def test_stability_continuity_allows_large_smooth_curved_response() -> None:
     assert serialized["metric_median_increment"] == {"L_nm": 3.5}
 
 
+def test_stability_continuity_allows_smooth_accelerating_response() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+
+    report = run_stability_study(
+        StabilityStudyRequest(
+            baseline_config={"q_min": 0.1},
+            domains=(ParameterDomain("q_min", 0.09, 0.11),),
+            global_trials=1,
+            active_trials=0,
+            confirmation_trials=0,
+            min_plateau_points=1,
+            min_plateau_fraction=0.5,
+            bootstrap_replicates=16,
+            allow_auto_accept=False,
+        ),
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": {
+                "L_nm": [0.0, 1.0, 3.0, 7.0, 15.0, 31.0, 63.0, 127.0, 255.0]
+            },
+        },
+    )
+
+    assert report.decision == "request_confirmation"
+    assert report.continuity.passed is True
+    assert report.continuity.status == "passed"
+
+
 def test_stability_continuity_rejects_isolated_jump_with_typed_reason() -> None:
     from polynexus.core.preprocess_optimization.stability import (
         ParameterDomain,
@@ -588,6 +662,47 @@ def test_stability_continuity_rejects_isolated_jump_with_typed_reason() -> None:
     assert report.continuity.status == "failed"
     assert "continuity_jump:L_nm" in report.continuity.reason_codes
     assert report.continuity.frame_count == 5
+
+
+@pytest.mark.parametrize(
+    "sequence",
+    (
+        [10.0, 30.0, 31.0, 32.0, 33.0],
+        [10.0, 11.0, 12.0, 13.0, 33.0],
+        [10.0, 15.0, 16.0, 17.0, 18.0],
+        [10.0, 11.0, 12.0, 13.0, 18.0],
+        [10.0, 4.0, 10.0, 16.0, 22.0],
+        [10.0, 16.0, 22.0, 28.0, 22.0],
+    ),
+)
+def test_stability_continuity_rejects_isolated_endpoint_jump(sequence) -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+
+    report = run_stability_study(
+        StabilityStudyRequest(
+            baseline_config={"q_min": 0.1},
+            domains=(ParameterDomain("q_min", 0.09, 0.11),),
+            global_trials=1,
+            active_trials=0,
+            confirmation_trials=0,
+            min_plateau_points=1,
+            bootstrap_replicates=16,
+        ),
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": {"L_nm": sequence},
+        },
+    )
+
+    assert report.decision == "keep_original"
+    assert report.continuity.status == "failed"
+    assert "continuity_jump:L_nm" in report.continuity.reason_codes
 
 
 @pytest.mark.parametrize(
@@ -1888,6 +2003,8 @@ def _activity_domain_config(**overrides):
         "chi_halfwidth": 15.0,
         "chi_halfwidth_authoritative": False,
         "is_isotropic": False,
+        "dummy_val": -1.5,
+        "ddummy": 0.6,
         "mask_dilation_px": 0,
         "orientation_mask_dilation_px": (1, 2),
     }
@@ -1916,7 +2033,8 @@ def test_saxs_stability_domains_include_only_active_2d_perturbations() -> None:
     assert by_name["beam_center_offset_x_px"].maximum == 2.5
     assert by_name["beam_center_offset_y_px"].minimum == -2.5
     assert by_name["beam_center_offset_y_px"].maximum == 1.5
-    assert by_name["mask_dilation_px"].values == (0, 1)
+    assert "mask_dilation_px" not in by_name
+    assert result.excluded_dimensions["mask_dilation_px"] == "detector_mask_empty"
     assert "orientation_mask_dilation_px" not in by_name
     assert result.excluded_dimensions["orientation_mask_dilation_px"] == (
         "reliability_sensitivity_only"
@@ -1939,7 +2057,7 @@ def test_active_orientation_domains_require_any_orientation_metric() -> None:
         _activity_domain_config(),
         mode="strain",
         engine=SimpleNamespace(
-            _img=[[1.0, 2.0], [3.0, 4.0]],
+            _img=[[-1.5, 2.0], [3.0, 4.0]],
             _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
         ),
     )
@@ -2016,7 +2134,7 @@ def test_mask_dilation_domain_is_local_bounded_and_includes_current(
         _activity_domain_config(mask_dilation_px=current),
         mode="strain",
         engine=SimpleNamespace(
-            _img=[[1.0, 2.0], [3.0, 4.0]],
+            _img=[[-1.5, 2.0], [3.0, 4.0]],
             _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
         ),
     )
@@ -2207,7 +2325,7 @@ def test_sector_only_evidence_excludes_beam_offsets_but_keeps_orientation_domain
     )
 
 
-def test_saxs_stability_domains_include_manual_background_with_real_file() -> None:
+def test_saxs_stability_domains_exclude_manual_background_without_loaded_curve() -> None:
     from polynexus.orchestrator_stability import _saxs_stability_domains
 
     result = _saxs_stability_domains(
@@ -2217,7 +2335,23 @@ def test_saxs_stability_domains_include_manual_background_with_real_file() -> No
         )
     )
 
-    assert "bg_scale_value" in {domain.name for domain in result}
+    assert "bg_scale_value" not in {domain.name for domain in result}
+    assert result.excluded_dimensions["bg_scale_value"] == (
+        "background_curve_consumer_missing"
+    )
+
+
+def test_saxs_stability_domains_reject_out_of_range_numeric_baseline() -> None:
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    result = _saxs_stability_domains(
+        _activity_domain_config(guinier_q_max_factor=10.0)
+    )
+
+    assert "guinier_q_max_factor" not in {domain.name for domain in result}
+    assert result.excluded_dimensions["guinier_q_max_factor"] == (
+        "consumer_config_invalid"
+    )
 
 
 def test_saxs_stability_domains_exclude_detector_dimensions_for_1d_profile() -> None:

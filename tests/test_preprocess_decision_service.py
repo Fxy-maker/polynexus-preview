@@ -225,6 +225,42 @@ def test_saxs_evidence_does_not_enable_incomplete_confirmation_contract() -> Non
     assert view.apply_enabled is False
 
 
+@pytest.mark.parametrize(
+    ("path", "key"),
+    [
+        (("stability_report",), "complete"),
+        (("stability_report", "plateau"), "connected"),
+        (("stability_report",), "physics_gate_passed"),
+        (("stability_report",), "quality_gate_passed"),
+        (("stability_report", "continuity"), "passed"),
+        (("preprocess_decision", "hard_guard_results"), "physical_gate"),
+    ],
+)
+def test_saxs_confirmation_rejects_truthy_non_boolean_safety_values(
+    path: tuple[str, ...], key: str
+) -> None:
+    report = saxs_stability_report()
+    target = report
+    for part in path:
+        target = target[part]
+    target[key] = "false"
+
+    view = build_preprocess_ui_decision(report)
+
+    assert view.mode == "confirm"
+    assert view.apply_enabled is False
+
+
+def test_saxs_confirmation_rejects_conflicting_payload_and_stability_modes() -> None:
+    report = saxs_stability_report()
+    report["mode"] = "static"
+
+    view = build_preprocess_ui_decision(report)
+
+    assert view.mode == "confirm"
+    assert view.apply_enabled is False
+
+
 def test_static_not_applicable_continuity_is_a_complete_ui_contract() -> None:
     report = saxs_stability_report()
     report["mode"] = "static"

@@ -480,6 +480,50 @@ def _annotate_active_dimension_evidence(
     )
 
 
+def _has_isolated_increment_outlier(
+    increments: np.ndarray,
+    *,
+    global_center: float,
+    global_limit: float,
+    relative_tolerance: float,
+) -> bool:
+    """Return true only for a globally unusual, two-sided local trend break."""
+
+    if increments.size < 3:
+        return False
+    global_deviations = np.abs(increments - global_center)
+    for index in np.flatnonzero(global_deviations > global_limit):
+        if index <= 0 or index >= increments.size - 1:
+            if index <= 0:
+                neighbours = increments[1 : min(increments.size, 4)]
+            else:
+                neighbours = increments[max(0, increments.size - 4) : -1]
+            local_center = float(np.median(neighbours))
+            local_mad = float(np.median(np.abs(neighbours - local_center)))
+            local_typical = max(float(np.median(np.abs(neighbours))), 1e-12)
+            local_scale = max(
+                1.4826 * local_mad,
+                relative_tolerance * local_typical,
+            )
+            if abs(float(increments[index]) - global_center) > 6.0 * local_scale:
+                return True
+            continue
+        neighbours = np.asarray(
+            (increments[index - 1], increments[index + 1]),
+            dtype=float,
+        )
+        local_center = float(np.median(neighbours))
+        local_mad = float(np.median(np.abs(neighbours - local_center)))
+        local_typical = max(float(np.median(np.abs(neighbours))), 1e-12)
+        local_scale = max(
+            1.4826 * local_mad,
+            relative_tolerance * local_typical,
+        )
+        if abs(float(increments[index]) - local_center) > 6.0 * local_scale:
+            return True
+    return False
+
+
 def _continuity_for_trials(
     trials: Sequence[StabilityTrial], request: StabilityStudyRequest
 ) -> ContinuityEvidence:
@@ -495,6 +539,7 @@ def _continuity_for_trials(
     mad_steps: dict[str, float] = {}
     robust_deviations: dict[str, float] = {}
     finite_counts: dict[str, int] = {}
+    metric_trial_presence: dict[str, int] = {}
     reasons: list[str] = []
     statuses: list[str] = []
     for trial in trials:
@@ -503,6 +548,7 @@ def _continuity_for_trials(
             array = np.asarray(sequence, dtype=float)
             finite = np.isfinite(array)
             finite_count = int(np.count_nonzero(finite))
+            metric_trial_presence[name] = metric_trial_presence.get(name, 0) + 1
             finite_counts[name] = min(
                 finite_counts.get(name, finite_count), finite_count
             )
@@ -541,11 +587,19 @@ def _continuity_for_trials(
             robust_deviations[name] = max(
                 robust_deviations.get(name, 0.0), max_deviation
             )
-            if max_deviation > robust_limit:
+            if _has_isolated_increment_outlier(
+                increments,
+                global_center=median_increment,
+                global_limit=robust_limit,
+                relative_tolerance=request.continuity_relative_tolerance,
+            ):
                 statuses.append("failed")
                 reasons.append(f"continuity_jump:{name}")
             else:
                 statuses.append("passed")
+    for name, present_count in metric_trial_presence.items():
+        if present_count < len(trials):
+            finite_counts[name] = 0
     if not statuses:
         return ContinuityEvidence(
             False,

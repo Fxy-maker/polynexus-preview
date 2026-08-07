@@ -113,16 +113,25 @@ def _failed_saxs_stability_report(
 
 def _numeric_domain(config: dict[str, Any], name: str, *, relative: float, minimum: float, maximum: float):
     value = config.get(name)
+    if isinstance(value, bool):
+        return None
     try:
         current = float(value)
     except (TypeError, ValueError, OverflowError):
         return None
-    if not np.isfinite(current):
+    if (
+        not np.isfinite(current)
+        or not np.isfinite(minimum)
+        or not np.isfinite(maximum)
+        or minimum >= maximum
+        or current < minimum
+        or current > maximum
+    ):
         return None
     low = max(minimum, current * (1.0 - relative))
     high = min(maximum, current * (1.0 + relative))
-    if low > high:
-        low, high = high, low
+    if not np.isfinite(low) or not np.isfinite(high) or low >= high:
+        return None
     return ParameterDomain(name, low, high)
 
 
@@ -218,6 +227,43 @@ def _has_real_2d_detector_evidence(engine: Any) -> bool:
     return _has_raw_2d_detector_evidence(engine) or _has_sector_evidence(engine)
 
 
+def _has_nonempty_detector_mask(engine: Any, config: Mapping[str, Any]) -> bool:
+    if engine is None:
+        return False
+
+    raw_data = getattr(getattr(engine, "result", None), "raw_data", None)
+    if isinstance(raw_data, Mapping):
+        stored_mask = raw_data.get("mask_edit_base_mask")
+        if stored_mask is not None:
+            try:
+                return bool(np.any(np.asarray(stored_mask, dtype=bool)))
+            except (TypeError, ValueError):
+                return False
+
+    reports = getattr(engine, "_detector_quality_reports", ())
+    if isinstance(reports, (list, tuple)):
+        for report in reports:
+            if not isinstance(report, Mapping):
+                continue
+            for key in ("masked_pixel_count", "masked_sentinel_pixel_count"):
+                count = _finite_float(report.get(key))
+                if count is not None and count > 0:
+                    return True
+
+    dummy = _finite_float(config.get("dummy_val"))
+    tolerance = _finite_float(config.get("ddummy"))
+    if dummy is None or tolerance is None or tolerance <= 0:
+        return False
+    image = getattr(engine, "_img", None)
+    if image is None:
+        return False
+    try:
+        array = np.asarray(image, dtype=float)
+    except (TypeError, ValueError):
+        return False
+    return bool(array.ndim == 2 and array.size and np.any(np.abs(array - dummy) < tolerance))
+
+
 def _saxs_stability_domains(
     config: dict[str, Any],
     *,
@@ -273,11 +319,14 @@ def _saxs_stability_domains(
         )
         if domain is not None:
             domains.append(domain)
+        else:
+            excluded["guinier_q_max_factor"] = "consumer_config_invalid"
 
-    if (
+    manual_background_declared = (
         str(config.get("bg_scale_method", "") or "").strip().lower() == "manual"
         and str(config.get("background_file", "") or "").strip()
-    ):
+    )
+    if manual_background_declared:
         domain = _numeric_domain(
             config,
             "bg_scale_value",
@@ -288,7 +337,9 @@ def _saxs_stability_domains(
         if domain is None:
             excluded["bg_scale_value"] = "consumer_config_invalid"
         else:
-            domains.append(domain)
+            # Production SAXS calls do not load/pass q_background and
+            # I_background yet, so changing this scalar cannot affect a rerun.
+            excluded["bg_scale_value"] = "background_curve_consumer_missing"
     else:
         excluded["bg_scale_value"] = "manual_background_inactive"
 
@@ -322,6 +373,8 @@ def _saxs_stability_domains(
             or mask_dilation > 100
         ):
             excluded["mask_dilation_px"] = "consumer_config_invalid"
+        elif not _has_nonempty_detector_mask(engine, config):
+            excluded["mask_dilation_px"] = "detector_mask_empty"
         else:
             current_dilation = int(mask_dilation)
             local_dilations = tuple(

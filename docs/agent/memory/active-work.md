@@ -1,5 +1,29 @@
 # Active Work
 
+## SAXS AI tuning and stability decision repair - completed (2026-08-08)
+
+- The existing AI-tuning button now consumes the SAXS stability report through
+  one confirmation-only decision path. Stability evidence includes active and
+  excluded dimensions, connected plateau bounds, parameter-perturbation
+  intervals, cross-frame continuity, and orientation coverage.
+- Candidate application is fail-closed on config identity, exact booleans,
+  canonical-mode agreement, physics/quality/continuity guards, rerun evidence,
+  rollback, and Undo. No SAXS stability result is applied unattended.
+- Only effective consumers enter the stability map. Manual background scale is
+  excluded until real background q/I arrays are loaded; an empty detector mask
+  cannot activate dilation; invalid numeric baselines cannot create clipped
+  out-of-range domains.
+- Continuity uses robust local increment support: smooth large or accelerating
+  responses pass, while internal, endpoint, and endpoint-sign-reversal jumps
+  fail. A plateau trial missing an orientation metric contributes zero to that
+  metric's aggregate coverage.
+- Fresh cumulative coverage is `257 passed, 7 warnings`; structured verification
+  passed quality `297`, preprocessing `156`, Ruff, compile, and whitespace.
+  Scientific semantics still require human review before merge. Bayesian
+  optimization and background-file loading are separate future work.
+- Task card:
+  `docs/agent/tasks/2026-08-07-saxs-ai-stability-decision-repair.md`.
+
 ## SAXS results frame-row separation - completed (2026-08-07)
 
 - The strain result table now presents one primary row per real analyzed frame;

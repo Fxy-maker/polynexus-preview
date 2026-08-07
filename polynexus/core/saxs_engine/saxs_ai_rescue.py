@@ -31,6 +31,7 @@ from ..preprocess_optimization import (
 from ..preprocess_optimization.decision import decide_preprocess_candidate
 from ..preprocess_optimization.intent_schema import ContractValidationError
 from ..preprocess_optimization.policy import PolicyValidationError
+from ..saxs_mode import canonical_saxs_mode
 from .saxs_2d_review_context import (
     build_saxs_2d_review_context,
     sanitize_saxs_2d_review_context,
@@ -645,6 +646,9 @@ def validate_saxs_confirmation_report(
         raise ValueError("unsupported SAXS confirmation mode")
     if not isinstance(report, Mapping):
         raise ValueError("SAXS confirmation report must be a mapping")
+    report_mode = canonical_saxs_mode(report.get("mode"))
+    if report_mode is None or report_mode != normalized_mode:
+        raise ValueError("SAXS confirmation mode mismatch")
     if "orientation_advisory_report" in report:
         raise ValueError("orientation advisory has no confirmation authority")
     decision = report.get("preprocess_decision", {})
@@ -657,7 +661,11 @@ def validate_saxs_confirmation_report(
     if not candidate_id:
         raise ValueError("SAXS confirmation candidate is missing")
     guards = decision.get("hard_guard_results", {})
-    if not isinstance(guards, Mapping) or not guards or not all(bool(value) for value in guards.values()):
+    if (
+        not isinstance(guards, Mapping)
+        or not guards
+        or not all(value is True for value in guards.values())
+    ):
         raise ValueError("SAXS confirmation hard guard failed")
     candidates = report.get("preprocess_candidates", [])
     selected = next(
@@ -677,6 +685,11 @@ def validate_saxs_confirmation_report(
     for key, value in config_delta.items():
         if key not in selected_config or selected_config.get(key) != value:
             raise ValueError("SAXS confirmation candidate config mismatch")
+    for key, value in selected_config.items():
+        if key not in config_delta and (
+            key not in current_config or current_config.get(key) != value
+        ):
+            raise ValueError("SAXS confirmation undeclared config change")
     return _json_safe(
         {
             "technique": "SAXS",

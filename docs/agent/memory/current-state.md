@@ -1,5 +1,28 @@
 ---
 
+## SAXS AI tuning and stability decision repair (2026-08-08)
+
+The AI-tuning button now projects one confirmation-only SAXS stability flow:
+action-specific symptoms select candidate dimensions, deterministic seeded LHS
+plus bounded refinement evaluates only effective perturbations, and the GUI
+shows platform, perturbation intervals, cross-frame continuity, and orientation
+coverage. SAXS never applies a stability candidate unattended.
+
+Confirmation identity now rejects undeclared selected-config changes, truthy
+non-boolean safety fields, and conflicting canonical modes. Background scale is
+excluded until production owns real background q/I arrays; mask dilation is
+active only for a non-empty consumed mask. Out-of-range numeric baselines fail
+closed. Continuity allows smooth strong curvature but rejects internal and
+endpoint isolated jumps, including sign reversals. Missing orientation metrics
+in any plateau trial contribute zero aggregate coverage.
+
+Fresh cumulative coverage passed `257` tests with 7 existing geometry warnings.
+Structured verification passed Ruff/compile/whitespace, quality `297`, and
+preprocessing `156`. Bayesian optimization, unattended SAXS acceptance,
+absolute calibration inference, and scientific merge approval remain outside
+this checkpoint. Task card:
+`docs/agent/tasks/2026-08-07-saxs-ai-stability-decision-repair.md`.
+
 ## SAXS frame and orientation-tracking row separation (2026-08-07)
 
 SAXS strain result presentations now build tabular rows only from real
