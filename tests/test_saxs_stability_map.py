@@ -364,6 +364,10 @@ def test_stability_continuity_rejects_isolated_jump_with_typed_reason() -> None:
     assert all(
         "continuity_jump:L_nm" in trial.reason_codes for trial in report.trials
     )
+    assert report.continuity.passed is False
+    assert report.continuity.status == "failed"
+    assert "continuity_jump:L_nm" in report.continuity.reason_codes
+    assert report.continuity.frame_count == 5
 
 
 @pytest.mark.parametrize(
@@ -433,6 +437,7 @@ def test_stability_continuity_marks_short_sequence_insufficient() -> None:
     assert report.continuity.passed is False
     assert report.continuity.status == "insufficient"
     assert report.continuity.frame_count == 3
+    assert "continuity_insufficient:L_nm" in report.continuity.reason_codes
     assert all(
         "continuity_insufficient:L_nm" in trial.reason_codes
         for trial in report.trials
@@ -500,9 +505,191 @@ def test_static_stability_continuity_is_not_applicable() -> None:
     )
 
     assert report.decision == "request_confirmation"
-    assert report.continuity.passed is True
+    assert report.continuity.passed is False
     assert report.continuity.status == "not_applicable"
     assert report.continuity.frame_count == 0
+
+
+def test_frame_values_omits_phantom_metrics_without_finite_observations() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+    from polynexus.orchestrator_stability import _frame_values
+
+    points = [
+        SimpleNamespace(L_nm=value, invariant_Q=float("nan"), phi_c=None)
+        for value in (10.0, 12.0, 15.0, 19.0, 24.0)
+    ]
+    frame_values = _frame_values(
+        SimpleNamespace(
+            _temperature_result=SimpleNamespace(temp_points=points),
+            _strain_result=None,
+        ),
+        {},
+    )
+
+    assert frame_values == {"L_nm": [10.0, 12.0, 15.0, 19.0, 24.0]}
+
+    report = run_stability_study(
+        StabilityStudyRequest(
+            baseline_config={"q_min": 0.1},
+            domains=(ParameterDomain("q_min", 0.09, 0.11),),
+            global_trials=1,
+            active_trials=0,
+            confirmation_trials=0,
+            min_plateau_points=1,
+            bootstrap_replicates=16,
+            allow_auto_accept=False,
+        ),
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": frame_values,
+        },
+    )
+
+    assert report.continuity.status == "passed"
+    assert report.decision == "request_confirmation"
+
+
+def test_frame_values_excludes_scalar_aggregates_from_real_sequence() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+    from polynexus.orchestrator_stability import _frame_values, _stability_metrics
+
+    points = [
+        SimpleNamespace(L_nm=value, invariant_Q=float("nan"), phi_c=None)
+        for value in (10.0, 12.0, 15.0, 19.0, 24.0)
+    ]
+    output = {
+        "L_nm": 16.0,
+        "Kp": 3.5,
+        "Rg": 2.2,
+        "invariant_Q": float("nan"),
+        "phi_c": float("inf"),
+    }
+    frame_values = _frame_values(
+        SimpleNamespace(
+            _temperature_result=SimpleNamespace(temp_points=points),
+            _strain_result=None,
+        ),
+        output,
+    )
+    metrics = _stability_metrics(output)
+
+    assert frame_values == {"L_nm": [10.0, 12.0, 15.0, 19.0, 24.0]}
+    assert metrics == {"L_nm": 16.0, "Kp": 3.5, "Rg": 2.2}
+
+    report = run_stability_study(
+        StabilityStudyRequest(
+            baseline_config={"q_min": 0.1},
+            domains=(ParameterDomain("q_min", 0.09, 0.11),),
+            global_trials=1,
+            active_trials=0,
+            confirmation_trials=0,
+            min_plateau_points=1,
+            bootstrap_replicates=16,
+            allow_auto_accept=False,
+        ),
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "metrics": metrics,
+            "frame_values": frame_values,
+        },
+    )
+
+    assert report.continuity.status == "passed"
+    assert report.decision == "request_confirmation"
+
+
+def test_normalise_trial_drops_all_nonfinite_metric_sequence() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+
+    report = run_stability_study(
+        StabilityStudyRequest(
+            baseline_config={"q_min": 0.1},
+            domains=(ParameterDomain("q_min", 0.09, 0.11),),
+            global_trials=1,
+            active_trials=0,
+            confirmation_trials=0,
+            min_plateau_points=1,
+            bootstrap_replicates=16,
+            allow_auto_accept=False,
+        ),
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": {
+                "L_nm": [10.0, 12.0, 15.0, 19.0, 24.0],
+                "Kp": [float("nan")] * 5,
+            },
+        },
+    )
+
+    assert all("Kp" not in trial.frame_values for trial in report.trials)
+    assert report.continuity.status == "passed"
+    assert report.decision == "request_confirmation"
+
+
+def test_continuity_median_increment_is_order_invariant_across_trials() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        StabilityTrial,
+        _continuity_for_trials,
+    )
+
+    request = StabilityStudyRequest(
+        baseline_config={"q_min": 0.1},
+        domains=(ParameterDomain("q_min", 0.09, 0.11),),
+        global_trials=1,
+        active_trials=0,
+        confirmation_trials=0,
+        bootstrap_replicates=16,
+    )
+    trials = (
+        StabilityTrial(
+            index=0,
+            config={"q_min": 0.09},
+            score=1.0,
+            physical_passed=True,
+            quality_passed=True,
+            continuity_passed=True,
+            frame_values={"L_nm": (10.0, 11.0, 12.0, 13.0)},
+        ),
+        StabilityTrial(
+            index=1,
+            config={"q_min": 0.11},
+            score=1.0,
+            physical_passed=True,
+            quality_passed=True,
+            continuity_passed=True,
+            frame_values={"L_nm": (10.0, 13.0, 16.0, 19.0)},
+        ),
+    )
+
+    forward = _continuity_for_trials(trials, request)
+    reverse = _continuity_for_trials(tuple(reversed(trials)), request)
+
+    assert forward.to_dict() == reverse.to_dict()
+    assert forward.metric_median_increment == {"L_nm": 2.0}
 
 
 def test_static_stability_without_active_domains_reports_not_applicable(
@@ -537,7 +724,7 @@ def test_static_stability_without_active_domains_reports_not_applicable(
 
     assert report["decision"] == "keep_original"
     assert report["mode"] == "static"
-    assert report["continuity"]["passed"] is True
+    assert report["continuity"]["passed"] is False
     assert report["continuity"]["status"] == "not_applicable"
     assert report["continuity"]["frame_count"] == 0
 
@@ -850,7 +1037,7 @@ def test_stability_bridge_uses_active_mode_for_every_trial(monkeypatch) -> None:
         assert report["mode"] == expected
         assert report["decision"] != "auto_accept"
         if expected == "static":
-            assert report["continuity"]["passed"] is True
+            assert report["continuity"]["passed"] is False
             assert report["continuity"]["status"] == "not_applicable"
 
 

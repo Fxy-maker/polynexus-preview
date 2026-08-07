@@ -55,7 +55,7 @@ def _failed_saxs_stability_report(
     mode: str | None = None,
 ) -> dict[str, Any]:
     continuity = (
-        ContinuityEvidence(True, status="not_applicable")
+        ContinuityEvidence(False, status="not_applicable")
         if mode == "static"
         else ContinuityEvidence(
             False,
@@ -360,16 +360,6 @@ def _authoritative_saxs_candidate(
 
 def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]:
     values: dict[str, list[float]] = {}
-    for name, aliases in {
-        "L_nm": ("L_nm",),
-        "invariant_Q": ("invariant_Q", "Q_star"),
-        "phi_c": ("phi_c",),
-        "Kp": ("Kp",),
-        "Rg": ("Rg",),
-    }.items():
-        raw = next((output.get(alias) for alias in aliases if output.get(alias) is not None), None)
-        if isinstance(raw, (int, float)):
-            values[name] = [float(raw)]
     for owner_name, point_name in (("_temperature_result", "temp_points"), ("_strain_result", "strain_points")):
         owner = getattr(engine, owner_name, None)
         points = getattr(owner, point_name, None) if owner is not None else None
@@ -397,9 +387,31 @@ def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]
                         value_for_frame = value
                         break
                 sequence.append(value_for_frame)
-            if sequence:
+            if sequence and any(np.isfinite(value) for value in sequence):
                 values[name] = sequence
     return values
+
+
+def _stability_metrics(output: dict[str, Any]) -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    for name, aliases in {
+        "L_nm": ("L_nm",),
+        "invariant_Q": ("invariant_Q", "Q_star"),
+        "phi_c": ("phi_c",),
+        "Kp": ("Kp",),
+        "Rg": ("Rg",),
+    }.items():
+        value = next(
+            (
+                finite
+                for alias in aliases
+                if (finite := _finite_float(output.get(alias))) is not None
+            ),
+            None,
+        )
+        if value is not None:
+            metrics[name] = value
+    return metrics
 
 
 def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
@@ -463,16 +475,13 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         evidence = self._analysis_evidence(output, residuals)
         score = self._score_snapshot(output, residuals, evidence).get("objective_score", 0.0)
         assessment = assess_saxs_confirmed_rerun(trial_engine, mode=scientific_mode)
+        frame_values = _frame_values(trial_engine, output)
         return {
             "score": score,
             "physical_passed": assessment.get("physical_gate_status") == "passed",
             "quality_passed": assessment.get("quality_gate_status") == "passed",
-            "metrics": {
-                name: values[0]
-                for name, values in _frame_values(trial_engine, output).items()
-                if values and name in {"L_nm", "invariant_Q", "phi_c", "Kp", "Rg"}
-            },
-            "frame_values": _frame_values(trial_engine, output),
+            "metrics": _stability_metrics(output),
+            "frame_values": frame_values,
             "reason_codes": assessment.get("reason_codes", []),
         }
 

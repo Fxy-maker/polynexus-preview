@@ -132,7 +132,7 @@ class ContinuityEvidence:
         status = self.status or ("passed" if self.passed else "failed")
         if status not in {"passed", "failed", "insufficient", "not_applicable"}:
             raise ValueError(f"invalid continuity status: {status}")
-        if self.passed != (status in {"passed", "not_applicable"}):
+        if self.passed != (status == "passed"):
             raise ValueError("continuity passed/status values are inconsistent")
         object.__setattr__(self, "status", status)
 
@@ -289,7 +289,7 @@ def _normalise_trial(index: int, config: dict[str, Any], raw: Any, *, cached: bo
             array = np.asarray(values, dtype=float).reshape(-1)
         except (TypeError, ValueError):
             continue
-        if array.size:
+        if array.size and bool(np.any(np.isfinite(array))):
             # Preserve frame slots, including non-finite values.  Compressing
             # them would fabricate adjacency across missing frames.
             frames[str(name)] = tuple(float(value) for value in array)
@@ -315,11 +315,11 @@ def _continuity_for_trials(
     # parameter trials: the boundary between two trial results is not a
     # physical time/temperature step and would create a false discontinuity.
     if not request.continuity_required:
-        return ContinuityEvidence(True, status="not_applicable")
+        return ContinuityEvidence(False, status="not_applicable")
 
     frame_count = 0
     max_steps: dict[str, float] = {}
-    median_steps: dict[str, float] = {}
+    median_step_samples: dict[str, list[float]] = {}
     mad_steps: dict[str, float] = {}
     robust_deviations: dict[str, float] = {}
     finite_counts: dict[str, int] = {}
@@ -362,7 +362,7 @@ def _continuity_for_trials(
             robust_limit = 6.0 * robust_scale
             max_relative_step = float(np.max(np.abs(increments)) / response_scale)
             max_steps[name] = max(max_steps.get(name, 0.0), max_relative_step)
-            median_steps[name] = median_increment
+            median_step_samples.setdefault(name, []).append(median_increment)
             mad_steps[name] = max(mad_steps.get(name, 0.0), mad_increment)
             robust_deviations[name] = max(
                 robust_deviations.get(name, 0.0), max_deviation
@@ -386,6 +386,10 @@ def _continuity_for_trials(
         if "insufficient" in statuses
         else "passed"
     )
+    median_steps = {
+        name: float(np.median(values))
+        for name, values in median_step_samples.items()
+    }
     return ContinuityEvidence(
         status == "passed",
         max_steps,
@@ -544,29 +548,13 @@ def run_stability_study(
     trials = annotated_trials
     plateau = _plateau(trials, request)
     plateau_trials = [trial for trial in trials if trial.index in plateau.trial_indices]
-    continuity = _continuity_for_trials(plateau_trials, request)
-    if request.continuity_required and not plateau_trials:
-        # No sequence is eligible for study-level aggregation, but retain the
-        # observed raw frame count so insufficient evidence remains explicit.
-        observed_frame_count = max(
-            (
-                len(sequence)
-                for trial in trials
-                for sequence in trial.frame_values.values()
-            ),
-            default=0,
-        )
-        continuity = ContinuityEvidence(
-            continuity.passed,
-            continuity.metric_max_relative_step,
-            observed_frame_count,
-            continuity.reason_codes,
-            continuity.status,
-            continuity.metric_median_increment,
-            continuity.metric_mad_increment,
-            continuity.metric_max_robust_deviation,
-            continuity.metric_finite_frame_count,
-        )
+    # A non-empty plateau owns the study-level continuity decision.  When no
+    # plateau survives, retain all per-trial evidence as diagnostics instead
+    # of degrading a typed jump/insufficiency into "evidence missing".
+    continuity = _continuity_for_trials(
+        plateau_trials if plateau_trials else trials,
+        request,
+    )
     bootstrap = _bootstrap(plateau_trials, request, int(request.seed) + 1)
     physics_passed = bool(plateau_trials) and all(trial.physical_passed for trial in plateau_trials)
     quality_passed = bool(plateau_trials) and all(trial.quality_passed for trial in plateau_trials)
@@ -575,13 +563,16 @@ def run_stability_study(
         reasons.append("physical_gate_failed")
     if not quality_passed:
         reasons.append("quality_gate_failed")
-    if not continuity.passed:
+    continuity_gate_passed = (
+        not request.continuity_required or continuity.status == "passed"
+    )
+    if not continuity_gate_passed:
         reasons.append("cross_frame_continuity_failed")
     score_interval = bootstrap.get("score")
     stable = plateau.connected and plateau.coverage_fraction >= request.min_plateau_fraction
     if not stable:
         reasons.append("stable_plateau_insufficient")
-    if stable and physics_passed and quality_passed and continuity.passed:
+    if stable and physics_passed and quality_passed and continuity_gate_passed:
         if request.allow_auto_accept and score_interval is not None and score_interval.lower >= request.auto_accept_score:
             decision = "auto_accept"
         else:
