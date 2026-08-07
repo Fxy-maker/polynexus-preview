@@ -160,6 +160,171 @@ def test_stability_study_requires_connected_multi_dimension_platform_for_auto_ac
     assert report.quality_gate_passed is True
 
 
+def test_multi_dimension_plateau_rejects_line_with_insufficient_numeric_spread() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+
+    request = StabilityStudyRequest(
+        baseline_config={"q_min": 0.12, "q_max": 1.6},
+        domains=(
+            ParameterDomain("q_min", 0.10, 0.14),
+            ParameterDomain("q_max", 1.50, 1.70),
+        ),
+        global_trials=1,
+        active_trials=6,
+        confirmation_trials=6,
+        min_plateau_points=3,
+        bootstrap_replicates=16,
+        allow_auto_accept=False,
+    )
+
+    def evaluate(config: dict[str, float]) -> dict[str, object]:
+        eligible = config["q_max"] == request.baseline_config["q_max"]
+        return {
+            "score": 1.0,
+            "physical_passed": eligible,
+            "quality_passed": eligible,
+            "frame_values": {"L_nm": [10.0, 10.0, 10.0, 10.0]},
+        }
+
+    report = run_stability_study(request, evaluate)
+
+    assert report.plateau.connected is False
+    assert report.plateau.active_dimensions == ("q_min", "q_max")
+    assert report.plateau.spread_dimensions == ("q_min",)
+    assert report.plateau.to_dict()["spread_dimensions"] == ["q_min"]
+    assert "stable_plateau_dimension_spread_insufficient" in report.reason_codes
+
+
+def test_categorical_change_does_not_count_as_numeric_plateau_spread() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        StabilityTrial,
+        _plateau,
+    )
+
+    request = StabilityStudyRequest(
+        baseline_config={"q_min": 0.1, "method": "a"},
+        domains=(
+            ParameterDomain("q_min", 0.09, 0.11),
+            ParameterDomain("method", values=("a", "b")),
+        ),
+        global_trials=1,
+        active_trials=0,
+        confirmation_trials=0,
+        min_plateau_points=2,
+        neighbor_radius=1.0,
+        bootstrap_replicates=16,
+    )
+    trials = tuple(
+        StabilityTrial(
+            index=index,
+            config={"q_min": 0.1, "method": method},
+            score=1.0,
+            physical_passed=True,
+            quality_passed=True,
+            continuity_passed=True,
+        )
+        for index, method in enumerate(("a", "b"))
+    )
+
+    plateau = _plateau(trials, request)
+
+    assert plateau.connected is False
+    assert plateau.active_dimensions == ("q_min", "method")
+    assert plateau.spread_dimensions == ()
+
+
+def test_categorical_mismatch_cannot_be_diluted_by_ten_dimension_rms() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        StabilityTrial,
+        _plateau,
+    )
+
+    numeric_domains = tuple(
+        ParameterDomain(f"x{index}", 0.0, 1.0) for index in range(9)
+    )
+    request = StabilityStudyRequest(
+        baseline_config={
+            **{domain.name: 0.5 for domain in numeric_domains},
+            "method": "a",
+        },
+        domains=(
+            *numeric_domains,
+            ParameterDomain("method", values=("a", "b")),
+        ),
+        global_trials=1,
+        active_trials=0,
+        confirmation_trials=0,
+        min_plateau_points=2,
+        neighbor_radius=1.0,
+        bootstrap_replicates=16,
+    )
+    first_config = dict(request.baseline_config)
+    second_config = {
+        **request.baseline_config,
+        "x0": 0.51,
+        "x1": 0.51,
+        "method": "b",
+    }
+    trials = tuple(
+        StabilityTrial(
+            index=index,
+            config=config,
+            score=1.0,
+            physical_passed=True,
+            quality_passed=True,
+            continuity_passed=True,
+        )
+        for index, config in enumerate((first_config, second_config))
+    )
+
+    plateau = _plateau(trials, request)
+
+    assert plateau.connected is False
+    assert plateau.trial_indices == (0,)
+
+
+def test_same_categorical_value_uses_only_numeric_neighbor_dimensions() -> None:
+    import math
+
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        _normalised_distance,
+    )
+
+    numeric_domains = tuple(
+        ParameterDomain(f"x{index}", 0.0, 1.0) for index in range(9)
+    )
+    request = StabilityStudyRequest(
+        baseline_config={
+            **{domain.name: 0.5 for domain in numeric_domains},
+            "method": "a",
+        },
+        domains=(
+            *numeric_domains,
+            ParameterDomain("method", values=("a", "b")),
+        ),
+        global_trials=1,
+        active_trials=0,
+        confirmation_trials=0,
+        bootstrap_replicates=16,
+    )
+    first = dict(request.baseline_config)
+    second = {**first, "x0": 0.6, "x1": 0.7}
+
+    assert _normalised_distance(first, second, request) == pytest.approx(
+        math.sqrt((0.1**2 + 0.2**2) / 9.0)
+    )
+
+
 def test_stability_study_preserves_tuple_categorical_candidates() -> None:
     from polynexus.core.preprocess_optimization.stability import (
         ParameterDomain,
@@ -199,6 +364,61 @@ def test_stability_study_preserves_tuple_categorical_candidates() -> None:
         isinstance(trial.config["orientation_mask_dilation_px"], tuple)
         for trial in report.trials
     )
+
+
+def test_parameter_domain_rejects_zero_width_numeric_range() -> None:
+    from polynexus.core.preprocess_optimization.stability import ParameterDomain
+
+    with pytest.raises(ValueError, match="minimum.*maximum|exceeds"):
+        ParameterDomain("q_min", 0.1, 0.1)
+
+
+def test_stability_request_requires_baseline_value_for_every_active_domain() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+    )
+
+    with pytest.raises(ValueError, match="baseline_config.*q_max"):
+        StabilityStudyRequest(
+            baseline_config={"q_min": 0.1},
+            domains=(
+                ParameterDomain("q_min", 0.09, 0.11),
+                ParameterDomain("q_max", 1.0, 2.0),
+            ),
+            bootstrap_replicates=16,
+        )
+
+
+def test_cached_categorical_duplicates_do_not_create_platform_points() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+
+    report = run_stability_study(
+        StabilityStudyRequest(
+            baseline_config={"method": "only"},
+            domains=(ParameterDomain("method", values=("only",)),),
+            global_trials=5,
+            active_trials=0,
+            confirmation_trials=0,
+            min_plateau_points=2,
+            min_plateau_fraction=0.5,
+            bootstrap_replicates=16,
+            continuity_required=False,
+        ),
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+        },
+    )
+
+    assert report.trial_count == 1
+    assert report.plateau.connected is False
+    assert report.plateau.coverage_fraction == 1.0
 
 
 def test_saxs_stability_policy_requires_confirmation_even_at_auto_accept_score() -> None:
@@ -614,6 +834,365 @@ def test_frame_values_excludes_scalar_aggregates_from_real_sequence() -> None:
     assert report.decision == "request_confirmation"
 
 
+def test_frame_values_transports_strain_orientation_sequences_with_missing_slots() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.orchestrator_stability import _frame_values
+
+    points = [
+        SimpleNamespace(
+            f_herman=effective,
+            f_herman_raw=raw,
+            orientation_fit_evidence=SimpleNamespace(
+                orientation_axis_deg=axis,
+                orientation_axis_strength=strength,
+                orientation_harmonic_significance=significance,
+            ),
+        )
+        for effective, raw, axis, strength, significance in (
+            (0.10, 0.12, 2.0, 0.2, 1.0),
+            (0.35, 0.37, 3.0, 0.4, 2.0),
+            (0.60, 0.62, 4.0, 0.7, 3.0),
+        )
+    ]
+
+    values = _frame_values(
+        SimpleNamespace(
+            _temperature_result=None,
+            _strain_result=SimpleNamespace(strain_points=points),
+        ),
+        {},
+    )
+
+    assert values["f_herman"] == [0.10, 0.35, 0.60]
+    assert values["f_herman_raw"] == [0.12, 0.37, 0.62]
+    assert values["orientation_axis_deg"] == [2.0, 3.0, 4.0]
+    assert values["orientation_strength"] == [0.2, 0.4, 0.7]
+
+    missing = SimpleNamespace(
+        f_herman=float("nan"),
+        f_herman_raw=float("nan"),
+        orientation_fit_evidence={
+            "orientation_axis_deg": float("nan"),
+            "orientation_axis_strength": float("nan"),
+        },
+    )
+    with_gap = _frame_values(
+        SimpleNamespace(
+            _temperature_result=None,
+            _strain_result=SimpleNamespace(
+                strain_points=[points[0], missing, *points[1:]],
+            ),
+        ),
+        {},
+    )
+    assert all(len(sequence) == 4 for sequence in with_gap.values())
+    assert all(sequence[1] != sequence[1] for sequence in with_gap.values())
+
+
+def test_frame_values_keeps_raw_orientation_diagnostic_without_tensile_axis() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.orchestrator_stability import _frame_values
+
+    mapping_evidence = {
+        "fit_evidence": {
+            "f_herman_raw": 0.42,
+            "orientation_axis_deg": 11.0,
+            "orientation_axis_strength": 0.3,
+        },
+        "reason_codes": (
+            "legacy_orientation_unavailable",
+            "tensile_axis_unknown",
+        ),
+    }
+    object_evidence = SimpleNamespace(
+        fit_evidence=SimpleNamespace(
+            f_herman_raw=0.52,
+        ),
+        reason_codes=("tensile_axis_unknown",),
+    )
+    points = (
+        SimpleNamespace(
+            f_herman=0.41,
+            orientation_evidence=mapping_evidence,
+        ),
+        SimpleNamespace(
+            f_herman=0.51,
+            orientation_evidence=object_evidence,
+        ),
+    )
+
+    values = _frame_values(
+        SimpleNamespace(
+            _temperature_result=None,
+            _strain_result=SimpleNamespace(strain_points=points),
+        ),
+        {},
+    )
+
+    assert "f_herman" not in values
+    assert values["f_herman_raw"] == [0.42, 0.52]
+
+
+def test_saxs_bridge_aggregates_missing_tensile_axis_diagnostic(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    import polynexus.orchestrator_preprocess as preprocess_module
+    import polynexus.orchestrator_stability as stability_module
+
+    legacy_reason = "tensile_axis_unknown"
+    canonical_reason = "orientation_tensile_axis_missing"
+    points = [
+        SimpleNamespace(
+            L_nm=10.0,
+            f_herman=0.4,
+            orientation_evidence={
+                "fit_evidence": {"f_herman_raw": 0.42},
+                "reason_codes": (
+                    "legacy_orientation_unavailable",
+                    legacy_reason,
+                ),
+            },
+        )
+        for _ in range(4)
+    ]
+
+    monkeypatch.setattr(
+        preprocess_module,
+        "_new_trial_engine",
+        lambda _self, _engine, trial_config: SimpleNamespace(
+            cfg=trial_config,
+            _temperature_result=None,
+            _strain_result=SimpleNamespace(strain_points=points),
+        ),
+    )
+    monkeypatch.setattr(
+        preprocess_module,
+        "_run_trial_pipeline",
+        lambda _self, _engine: (True, ""),
+    )
+    monkeypatch.setattr(
+        stability_module,
+        "assess_saxs_confirmed_rerun",
+        lambda _engine, *, mode: {
+            "physical_gate_status": "passed",
+            "quality_gate_status": "passed",
+            "reason_codes": "assessment_reason",
+        },
+    )
+
+    class Harness:
+        technique = "saxs"
+        workspace_context = {"stability_mode": "quick"}
+        submodule_override = "saxs.strain"
+        _last_stability_report: dict[str, object] = {}
+
+        @staticmethod
+        def _engine_config(engine):
+            return engine.cfg
+
+        @staticmethod
+        def _config_to_dict(config):
+            return dict(vars(config))
+
+        @staticmethod
+        def _output_parameters(_engine):
+            return {"L_nm": 10.0}
+
+        @staticmethod
+        def _residual_pattern(_engine):
+            return {}
+
+        @staticmethod
+        def _analysis_evidence(_output, _residuals):
+            return {}
+
+        @staticmethod
+        def _score_snapshot(_output, _residuals, _evidence):
+            return {"objective_score": 1.0}
+
+    config = SimpleNamespace(
+        experiment_type="strain",
+        **_activity_domain_config(),
+    )
+    engine = SimpleNamespace(
+        cfg=config,
+        _img=[[1.0, 2.0], [3.0, 4.0]],
+        _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+    )
+
+    report = stability_module._run_saxs_stability_study(Harness(), engine)
+
+    assert report["trials"]
+    assert all(
+        legacy_reason in trial["reason_codes"]
+        and canonical_reason in trial["reason_codes"]
+        and "assessment_reason" in trial["reason_codes"]
+        for trial in report["trials"]
+    )
+    assert all("a" not in trial["reason_codes"] for trial in report["trials"])
+    assert legacy_reason in report["reason_codes"]
+    assert canonical_reason in report["reason_codes"]
+
+
+@pytest.mark.parametrize(
+    ("plateau_indices", "expects_diagnostic"),
+    [((0,), False), ((), True)],
+)
+def test_saxs_bridge_limits_orientation_diagnostics_to_selected_plateau(
+    monkeypatch,
+    plateau_indices,
+    expects_diagnostic,
+) -> None:
+    from types import SimpleNamespace
+
+    import polynexus.orchestrator_stability as stability_module
+    from polynexus.core.preprocess_optimization.stability import (
+        ContinuityEvidence,
+        PlateauSummary,
+        StabilityReport,
+        StabilityTrial,
+    )
+
+    canonical_reason = "orientation_tensile_axis_missing"
+    legacy_reason = "tensile_axis_unknown"
+    trials = (
+        StabilityTrial(
+            index=0,
+            config={"q_min": 0.1},
+            score=1.0,
+            physical_passed=True,
+            quality_passed=True,
+            continuity_passed=True,
+        ),
+        StabilityTrial(
+            index=1,
+            config={"q_min": 0.2},
+            score=0.1,
+            physical_passed=False,
+            quality_passed=False,
+            continuity_passed=True,
+            reason_codes=(legacy_reason, canonical_reason),
+        ),
+    )
+
+    monkeypatch.setattr(
+        stability_module,
+        "run_stability_study",
+        lambda _request, _evaluator: StabilityReport(
+            schema_version="saxs-stability-v1",
+            decision="request_confirmation" if plateau_indices else "keep_original",
+            complete=True,
+            baseline_config={"q_min": 0.1},
+            selected_config={"q_min": 0.1} if plateau_indices else {},
+            trials=trials,
+            plateau=PlateauSummary(
+                connected=bool(plateau_indices),
+                trial_indices=plateau_indices,
+            ),
+            perturbation_intervals={},
+            continuity=ContinuityEvidence(passed=True),
+            physics_gate_passed=bool(plateau_indices),
+            quality_gate_passed=bool(plateau_indices),
+            reason_codes=(
+                "existing_report_reason",
+                legacy_reason,
+                canonical_reason,
+            ),
+        ),
+    )
+
+    class Harness:
+        technique = "saxs"
+        workspace_context = {"stability_mode": "quick"}
+        submodule_override = "saxs.strain"
+        _last_stability_report: dict[str, object] = {}
+
+        @staticmethod
+        def _engine_config(engine):
+            return engine.cfg
+
+        @staticmethod
+        def _config_to_dict(config):
+            return dict(vars(config))
+
+    config = SimpleNamespace(
+        experiment_type="strain",
+        **_activity_domain_config(),
+    )
+    report = stability_module._run_saxs_stability_study(
+        Harness(),
+        SimpleNamespace(
+            cfg=config,
+            _img=[[1.0, 2.0], [3.0, 4.0]],
+            _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+        ),
+    )
+
+    assert (canonical_reason in report["reason_codes"]) is expects_diagnostic
+    assert (legacy_reason in report["reason_codes"]) is expects_diagnostic
+    assert "existing_report_reason" in report["reason_codes"]
+    assert canonical_reason in report["trials"][1]["reason_codes"]
+
+
+def test_orientation_axis_continuity_wraps_first_differences_at_180_degrees() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        StabilityTrial,
+        _continuity_for_trials,
+    )
+    from polynexus.orchestrator_stability import _frame_values
+
+    points = [
+        SimpleNamespace(
+            f_herman_raw=0.2 + 0.1 * index,
+            orientation_fit_evidence={
+                "orientation_axis_deg": axis,
+                "orientation_axis_strength": 0.5,
+            },
+        )
+        for index, axis in enumerate((179.0, 1.0, 3.0, 5.0, 7.0))
+    ]
+    values = _frame_values(
+        SimpleNamespace(
+            _temperature_result=None,
+            _strain_result=SimpleNamespace(strain_points=points),
+        ),
+        {},
+    )
+    request = StabilityStudyRequest(
+        baseline_config={"q_min": 0.1},
+        domains=(ParameterDomain("q_min", 0.09, 0.11),),
+        global_trials=1,
+        active_trials=0,
+        confirmation_trials=0,
+        bootstrap_replicates=16,
+    )
+    continuity = _continuity_for_trials(
+        (
+            StabilityTrial(
+                index=0,
+                config={"q_min": 0.1},
+                score=1.0,
+                physical_passed=True,
+                quality_passed=True,
+                continuity_passed=True,
+                frame_values={
+                    name: tuple(sequence) for name, sequence in values.items()
+                },
+            ),
+        ),
+        request,
+    )
+
+    assert continuity.status == "passed"
+    assert continuity.metric_median_increment["orientation_axis_deg"] == 2.0
+
+
 def test_normalise_trial_drops_all_nonfinite_metric_sequence() -> None:
     from polynexus.core.preprocess_optimization.stability import (
         ParameterDomain,
@@ -646,6 +1225,99 @@ def test_normalise_trial_drops_all_nonfinite_metric_sequence() -> None:
     assert all("Kp" not in trial.frame_values for trial in report.trials)
     assert report.continuity.status == "passed"
     assert report.decision == "request_confirmation"
+
+
+@pytest.mark.parametrize(
+    ("raw_reasons", "expected"),
+    [
+        ("whole_reason", ("whole_reason",)),
+        (None, ()),
+        (["", " first ", None, "first", "second"], ("first", "second")),
+    ],
+)
+def test_normalise_trial_reason_codes_are_atomic_and_deduplicated(
+    raw_reasons,
+    expected,
+) -> None:
+    from polynexus.core.preprocess_optimization.stability import _normalise_trial
+
+    trial = _normalise_trial(
+        0,
+        {"q_min": 0.1},
+        {"reason_codes": raw_reasons},
+        cached=False,
+    )
+
+    assert trial.reason_codes == expected
+
+
+def test_orientation_frame_summaries_feed_periodic_perturbation_intervals() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        _bootstrap,
+        _normalise_trial,
+    )
+
+    request = StabilityStudyRequest(
+        baseline_config={"q_min": 0.1},
+        domains=(ParameterDomain("q_min", 0.09, 0.11),),
+        global_trials=1,
+        active_trials=0,
+        confirmation_trials=0,
+        bootstrap_replicates=32,
+        allow_auto_accept=False,
+    )
+
+    def orientation_trial(index: int, axis: float):
+        return _normalise_trial(
+            index,
+            {"q_min": 0.09 + 0.02 * index},
+            {
+                "score": 1.0,
+                "physical_passed": True,
+                "quality_passed": True,
+                "frame_values": {
+                    "f_herman": [0.1, float("nan"), 0.3, 0.4],
+                    "f_herman_raw": [0.2, 0.3, 0.4, 0.5],
+                    "orientation_axis_deg": [axis] * 4,
+                    "orientation_strength": [0.2, 0.4, 0.6, 0.8],
+                },
+            },
+            cached=False,
+        )
+
+    boundary_trials = (
+        orientation_trial(0, 179.0),
+        orientation_trial(1, 1.0),
+    )
+
+    assert boundary_trials[0].metrics["f_herman"] == pytest.approx(
+        (0.1 + 0.3 + 0.4) / 3.0
+    )
+    assert boundary_trials[0].metrics["f_herman_raw"] == pytest.approx(0.35)
+    assert boundary_trials[0].metrics["orientation_strength"] == pytest.approx(0.5)
+    assert boundary_trials[0].metrics["orientation_axis_deg"] == pytest.approx(
+        179.0
+    )
+
+    boundary_intervals = _bootstrap(boundary_trials, request, seed=19)
+    assert {
+        "f_herman",
+        "f_herman_raw",
+        "orientation_axis_deg",
+        "orientation_strength",
+    }.issubset(boundary_intervals)
+    boundary_axis = boundary_intervals["orientation_axis_deg"]
+    assert boundary_axis.upper - boundary_axis.lower < 5.0
+
+    wide_intervals = _bootstrap(
+        (orientation_trial(0, 0.0), orientation_trial(1, 80.0)),
+        request,
+        seed=19,
+    )
+    wide_axis = wide_intervals["orientation_axis_deg"]
+    assert wide_axis.upper - wide_axis.lower > 60.0
 
 
 def test_continuity_median_increment_is_order_invariant_across_trials() -> None:
@@ -1017,6 +1689,131 @@ def test_stability_report_contract_serializes_optional_mode() -> None:
     }
 
 
+def test_stability_report_serializes_parameter_perturbation_interval_contract() -> None:
+    import json
+
+    from polynexus.core.preprocess_optimization.stability import (
+        BootstrapInterval,
+        ContinuityEvidence,
+        PlateauSummary,
+        StabilityReport,
+    )
+
+    interval = BootstrapInterval(
+        lower=0.82,
+        median=0.90,
+        upper=0.96,
+        replicates=32,
+    )
+    report = StabilityReport(
+        schema_version="saxs-stability-v1",
+        decision="request_confirmation",
+        complete=True,
+        baseline_config={"q_min": 0.1},
+        selected_config={"q_min": 0.11},
+        trials=(),
+        plateau=PlateauSummary(connected=True),
+        bootstrap={"score": interval},
+        continuity=ContinuityEvidence(passed=True),
+        physics_gate_passed=True,
+        quality_gate_passed=True,
+    )
+
+    assert report.perturbation_intervals == report.bootstrap
+
+    payload = json.loads(json.dumps(report.to_dict()))
+
+    assert payload["interval_semantics"] == "parameter_perturbation"
+    assert payload["perturbation_intervals"] == payload["bootstrap"]
+    legacy_persisted = {"bootstrap": payload["bootstrap"]}
+    assert legacy_persisted.get(
+        "perturbation_intervals",
+        legacy_persisted["bootstrap"],
+    ) == payload["perturbation_intervals"]
+
+    restored = StabilityReport(
+        schema_version="saxs-stability-v1",
+        decision="request_confirmation",
+        complete=True,
+        baseline_config={"q_min": 0.1},
+        selected_config={"q_min": 0.11},
+        trials=(),
+        plateau=PlateauSummary(connected=True),
+        perturbation_intervals={"score": interval},
+        continuity=ContinuityEvidence(passed=True),
+        physics_gate_passed=True,
+        quality_gate_passed=True,
+    )
+    assert restored.perturbation_intervals == restored.bootstrap == {
+        "score": interval
+    }
+
+    legacy_positional = StabilityReport(
+        "saxs-stability-v1",
+        "request_confirmation",
+        True,
+        {"q_min": 0.1},
+        {"q_min": 0.11},
+        (),
+        PlateauSummary(connected=True),
+        {"score": interval},
+        ContinuityEvidence(passed=True),
+        True,
+        True,
+    )
+    assert legacy_positional.perturbation_intervals == legacy_positional.bootstrap == {
+        "score": interval
+    }
+
+    with pytest.raises(ValueError, match="inconsistent"):
+        StabilityReport(
+            schema_version="saxs-stability-v1",
+            decision="request_confirmation",
+            complete=True,
+            baseline_config={"q_min": 0.1},
+            selected_config={"q_min": 0.11},
+            trials=(),
+            plateau=PlateauSummary(connected=True),
+            perturbation_intervals={},
+            bootstrap={"score": interval},
+            continuity=ContinuityEvidence(passed=True),
+            physics_gate_passed=True,
+            quality_gate_passed=True,
+        )
+
+
+
+def test_stability_report_bootstrap_alias_is_read_only() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        BootstrapInterval,
+        ContinuityEvidence,
+        PlateauSummary,
+        StabilityReport,
+    )
+
+    interval = BootstrapInterval(0.82, 0.90, 0.96, 32)
+    report = StabilityReport(
+        schema_version="saxs-stability-v1",
+        decision="request_confirmation",
+        complete=True,
+        baseline_config={"q_min": 0.1},
+        selected_config={"q_min": 0.11},
+        trials=(),
+        plateau=PlateauSummary(connected=True),
+        perturbation_intervals={"score": interval},
+        continuity=ContinuityEvidence(passed=True),
+        physics_gate_passed=True,
+        quality_gate_passed=True,
+    )
+
+    alias = report.bootstrap
+    with pytest.raises(TypeError):
+        alias["score"] = BootstrapInterval(0.0, 0.0, 0.0, 16)
+    with pytest.raises(AttributeError):
+        alias.clear()
+    assert report.perturbation_intervals == {"score": interval}
+
+
 def test_stability_bridge_uses_active_mode_for_every_trial(monkeypatch) -> None:
     cases = (
         ("static", "saxs.static", "static"),
@@ -1126,6 +1923,81 @@ def test_saxs_stability_domains_include_only_active_2d_perturbations() -> None:
     )
     assert result.excluded_dimensions["bg_scale_value"] == (
         "manual_background_inactive"
+    )
+
+
+def test_active_orientation_domains_require_any_orientation_metric() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.core.preprocess_optimization.stability import (
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    domains = _saxs_stability_domains(
+        _activity_domain_config(),
+        mode="strain",
+        engine=SimpleNamespace(
+            _img=[[1.0, 2.0], [3.0, 4.0]],
+            _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+        ),
+    )
+    by_name = {domain.name: domain for domain in domains}
+    required = (
+        "f_herman_raw",
+        "orientation_axis_deg",
+        "orientation_strength",
+    )
+
+    assert by_name["chi_halfwidth"].required_metrics == required
+    assert by_name["mask_dilation_px"].required_metrics == required
+    assert by_name["q_min"].required_metrics == ()
+
+    request = StabilityStudyRequest(
+        baseline_config={"chi_halfwidth": 15.0},
+        domains=(by_name["chi_halfwidth"],),
+        global_trials=1,
+        active_trials=0,
+        confirmation_trials=0,
+        min_plateau_points=1,
+        min_plateau_fraction=0.5,
+        bootstrap_replicates=16,
+        allow_auto_accept=False,
+    )
+    missing = run_stability_study(
+        request,
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": {"L_nm": [10.0, 10.0, 10.0, 10.0]},
+        },
+    )
+
+    assert missing.plateau.connected is False
+    assert all(
+        "active_dimension_evidence_missing:chi_halfwidth" in trial.reason_codes
+        for trial in missing.trials
+    )
+
+    present = run_stability_study(
+        request,
+        lambda _config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": {"f_herman_raw": [0.2, 0.2, 0.2, 0.2]},
+        },
+    )
+
+    assert present.plateau.connected is True
+    assert all(
+        not any(
+            reason.startswith("active_dimension_evidence_missing:")
+            for reason in trial.reason_codes
+        )
+        for trial in present.trials
     )
 
 

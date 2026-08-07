@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from typing import Any
@@ -14,8 +15,23 @@ from polynexus.core.preprocess_optimization import (
     StabilityStudyRequest,
     run_stability_study,
 )
+from polynexus.core.preprocess_optimization.stability import (
+    _normalise_reason_codes,
+)
 from polynexus.core.saxs_mode import canonical_saxs_mode
 from polynexus.core.saxs_engine.saxs_ai_rescue import assess_saxs_confirmed_rerun
+
+
+_ORIENTATION_STABILITY_METRICS = (
+    "f_herman_raw",
+    "orientation_axis_deg",
+    "orientation_strength",
+)
+_ORIENTATION_TENSILE_AXIS_MISSING = "orientation_tensile_axis_missing"
+_ORIENTATION_MISSING_AXIS_REASONS = {
+    _ORIENTATION_TENSILE_AXIS_MISSING,
+    "tensile_axis_unknown",
+}
 
 
 def _normalise_saxs_stability_mode(value: Any) -> str | None:
@@ -71,7 +87,16 @@ def _failed_saxs_stability_report(
         "baseline_config": deepcopy(baseline_config),
         "selected_config": {},
         "trials": [],
-        "plateau": {"connected": False},
+        "plateau": {
+            "connected": False,
+            "active_dimensions": [
+                domain.name for domain in domains.domains
+            ] if domains is not None else [],
+            "spread_dimensions": [],
+        },
+        "perturbation_intervals": {},
+        "interval_semantics": "parameter_perturbation",
+        # Persisted v1 readers still consume this read-only alias.
         "bootstrap": {},
         "continuity": continuity.to_dict(),
         "physics_gate_passed": False,
@@ -309,7 +334,11 @@ def _saxs_stability_domains(
                 )
             )
             domains.append(
-                ParameterDomain("mask_dilation_px", values=local_dilations)
+                ParameterDomain(
+                    "mask_dilation_px",
+                    values=local_dilations,
+                    required_metrics=_ORIENTATION_STABILITY_METRICS,
+                )
             )
     else:
         excluded["beam_center_offset_x_px"] = "raw_detector_2d_evidence_missing"
@@ -335,7 +364,12 @@ def _saxs_stability_domains(
         if chi is None:
             excluded["chi_halfwidth"] = "consumer_config_invalid"
         else:
-            domains.append(chi)
+            domains.append(
+                replace(
+                    chi,
+                    required_metrics=_ORIENTATION_STABILITY_METRICS,
+                )
+            )
 
     return SAXSStabilityDomains(tuple(domains), excluded)
 
@@ -356,6 +390,78 @@ def _authoritative_saxs_candidate(
     ):
         prepared["chi_halfwidth_authoritative"] = True
     return prepared
+
+
+def _member_value(owner: Any, name: str) -> Any:
+    if isinstance(owner, Mapping):
+        return owner.get(name)
+    return getattr(owner, name, None)
+
+
+def _first_finite_member(owners: tuple[Any, ...], aliases: tuple[str, ...]) -> float:
+    for owner in owners:
+        if owner is None:
+            continue
+        for alias in aliases:
+            value = _finite_float(_member_value(owner, alias))
+            if value is not None:
+                return value
+    return float("nan")
+
+
+def _orientation_evidence_owners(point: Any) -> tuple[Any, ...]:
+    owners: list[Any] = [point]
+    for evidence_name in ("orientation_evidence", "orientation_fit_evidence"):
+        evidence = _member_value(point, evidence_name)
+        if evidence is None:
+            continue
+        fit_evidence = _member_value(evidence, "fit_evidence")
+        value = _member_value(evidence, "value")
+        owners.extend(
+            owner for owner in (fit_evidence, value, evidence) if owner is not None
+        )
+    return tuple(owners)
+
+
+def _orientation_reason_codes(point: Any) -> tuple[str, ...]:
+    reasons: list[str] = []
+    pending: list[Any] = [point]
+    visited: set[int] = set()
+    while pending:
+        owner = pending.pop(0)
+        if owner is None or id(owner) in visited:
+            continue
+        visited.add(id(owner))
+        reasons.extend(
+            _normalise_reason_codes(_member_value(owner, "reason_codes"))
+        )
+        for name in (
+            "orientation_evidence",
+            "orientation_fit_evidence",
+            "fit_evidence",
+            "value",
+        ):
+            nested = _member_value(owner, name)
+            if nested is not None:
+                pending.append(nested)
+    normalized = list(dict.fromkeys(reasons))
+    if _ORIENTATION_MISSING_AXIS_REASONS.intersection(normalized):
+        normalized.append(_ORIENTATION_TENSILE_AXIS_MISSING)
+    return tuple(dict.fromkeys(normalized))
+
+
+def _strain_orientation_reason_codes(engine: Any) -> tuple[str, ...]:
+    owner = getattr(engine, "_strain_result", None)
+    points = getattr(owner, "strain_points", None) if owner is not None else None
+    if not isinstance(points, (list, tuple)):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            reason
+            for point in points
+            for reason in _orientation_reason_codes(point)
+        )
+    )
 
 
 def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]:
@@ -387,6 +493,35 @@ def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]
                         value_for_frame = value
                         break
                 sequence.append(value_for_frame)
+            if sequence and any(np.isfinite(value) for value in sequence):
+                values[name] = sequence
+        if owner_name != "_strain_result":
+            continue
+        for name, aliases in {
+            "f_herman": ("f_herman",),
+            "f_herman_raw": ("f_herman_raw",),
+            "orientation_axis_deg": ("orientation_axis_deg",),
+            "orientation_strength": (
+                "orientation_strength",
+                "orientation_axis_strength",
+                "orientation_harmonic_significance",
+            ),
+        }.items():
+            sequence: list[float] = []
+            for point in points:
+                owners = (
+                    (point,)
+                    if name == "f_herman"
+                    else _orientation_evidence_owners(point)
+                )
+                value = _first_finite_member(owners, aliases)
+                if (
+                    name == "f_herman"
+                    and _ORIENTATION_TENSILE_AXIS_MISSING
+                    in _orientation_reason_codes(point)
+                ):
+                    value = float("nan")
+                sequence.append(value)
             if sequence and any(np.isfinite(value) for value in sequence):
                 values[name] = sequence
     return values
@@ -476,13 +611,24 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         score = self._score_snapshot(output, residuals, evidence).get("objective_score", 0.0)
         assessment = assess_saxs_confirmed_rerun(trial_engine, mode=scientific_mode)
         frame_values = _frame_values(trial_engine, output)
+        orientation_reasons = _strain_orientation_reason_codes(trial_engine)
+        assessment_reasons = _normalise_reason_codes(
+            assessment.get("reason_codes")
+        )
         return {
             "score": score,
             "physical_passed": assessment.get("physical_gate_status") == "passed",
             "quality_passed": assessment.get("quality_gate_status") == "passed",
             "metrics": _stability_metrics(output),
             "frame_values": frame_values,
-            "reason_codes": assessment.get("reason_codes", []),
+            "reason_codes": list(
+                dict.fromkeys(
+                    (
+                        *assessment_reasons,
+                        *orientation_reasons,
+                    )
+                )
+            ),
         }
 
     decision_mode = str(
@@ -503,6 +649,33 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         continuity_required=scientific_mode != "static",
     )
     raw_report = run_stability_study(request, evaluate)
+    plateau_indices = set(raw_report.plateau.trial_indices)
+    diagnostic_trials = (
+        tuple(
+            trial
+            for trial in raw_report.trials
+            if trial.index in plateau_indices
+        )
+        if plateau_indices
+        else raw_report.trials
+    )
+    report_reasons = tuple(
+        dict.fromkeys(
+            (
+                *(
+                    reason
+                    for reason in raw_report.reason_codes
+                    if reason not in _ORIENTATION_MISSING_AXIS_REASONS
+                ),
+                *(
+                    reason
+                    for trial in diagnostic_trials
+                    for reason in trial.reason_codes
+                    if reason in _ORIENTATION_MISSING_AXIS_REASONS
+                ),
+            )
+        )
+    )
     report = replace(
         raw_report,
         selected_config=_authoritative_saxs_candidate(
@@ -519,6 +692,7 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         mode=scientific_mode,
         active_dimensions=tuple(domain.name for domain in domains),
         excluded_dimensions=dict(domain_result.excluded_dimensions),
+        reason_codes=report_reasons,
     ).to_dict()
     self._last_stability_report = deepcopy(report)
     return report

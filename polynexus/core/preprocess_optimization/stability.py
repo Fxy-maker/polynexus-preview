@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 import math
-from typing import Any, Callable, Mapping, Sequence
+from types import MappingProxyType
+from typing import Any, Callable, ClassVar, Mapping, Sequence
 
 import numpy as np
 
@@ -35,24 +36,57 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _normalise_reason_codes(value: Any) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    items = (value,) if isinstance(value, str) else value
+    if not isinstance(items, Sequence):
+        items = (items,)
+    reasons = [
+        reason
+        for item in items
+        if item is not None and (reason := str(item).strip())
+    ]
+    return tuple(dict.fromkeys(reasons))
+
+
+def _periodic_mean_180(values: np.ndarray) -> float:
+    doubled = np.deg2rad(2.0 * np.asarray(values, dtype=float))
+    sine = float(np.mean(np.sin(doubled)))
+    cosine = float(np.mean(np.cos(doubled)))
+    if abs(sine) < 1e-12 and abs(cosine) < 1e-12:
+        reference = float(values[0])
+        unwrapped = reference + (values - reference + 90.0) % 180.0 - 90.0
+        return float(np.mean(unwrapped) % 180.0)
+    return float((0.5 * np.rad2deg(np.arctan2(sine, cosine))) % 180.0)
+
+
+def _unwrap_180(values: np.ndarray) -> np.ndarray:
+    reference = _periodic_mean_180(values)
+    return reference + (values - reference + 90.0) % 180.0 - 90.0
+
+
 @dataclass(frozen=True)
 class ParameterDomain:
     name: str
     minimum: float | None = None
     maximum: float | None = None
     values: tuple[Any, ...] = ()
+    required_metrics: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not str(self.name).strip():
             raise ValueError("parameter domain name is required")
+        if any(not str(metric).strip() for metric in self.required_metrics):
+            raise ValueError(f"{self.name}: required metric names cannot be empty")
         if self.values:
             if self.minimum is not None or self.maximum is not None:
                 raise ValueError(f"{self.name}: categorical domain cannot have numeric bounds")
             return
         if not (_finite(self.minimum) and _finite(self.maximum)):
             raise ValueError(f"{self.name}: bounds must be finite")
-        if float(self.minimum) > float(self.maximum):
-            raise ValueError(f"{self.name}: minimum exceeds maximum")
+        if float(self.minimum) >= float(self.maximum):
+            raise ValueError(f"{self.name}: minimum must be less than maximum")
 
     @property
     def span(self) -> float:
@@ -91,6 +125,14 @@ class StabilityStudyRequest:
         names = [domain.name for domain in self.domains]
         if len(names) != len(set(names)):
             raise ValueError("parameter domain names must be unique")
+        missing_baseline = [
+            name for name in names if name not in self.baseline_config
+        ]
+        if missing_baseline:
+            raise ValueError(
+                "baseline_config missing active domain keys: "
+                + ", ".join(missing_baseline)
+            )
         if self.global_trials < 1 or self.active_trials < 0 or self.confirmation_trials < 0:
             raise ValueError("trial counts are invalid")
         if self.min_plateau_points < 1 or self.bootstrap_replicates < 16:
@@ -151,6 +193,8 @@ class PlateauSummary:
     score_max: float | None = None
     score_median: float | None = None
     coverage_fraction: float = 0.0
+    active_dimensions: tuple[str, ...] = ()
+    spread_dimensions: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -177,8 +221,10 @@ class StabilityTrial:
         return _json_safe(payload)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class StabilityReport:
+    interval_semantics: ClassVar[str] = "parameter_perturbation"
+
     schema_version: str
     decision: str
     complete: bool
@@ -186,7 +232,7 @@ class StabilityReport:
     selected_config: dict[str, Any]
     trials: tuple[StabilityTrial, ...]
     plateau: PlateauSummary
-    bootstrap: dict[str, BootstrapInterval]
+    perturbation_intervals: dict[str, BootstrapInterval]
     continuity: ContinuityEvidence
     physics_gate_passed: bool
     quality_gate_passed: bool
@@ -194,6 +240,73 @@ class StabilityReport:
     mode: str | None = None
     active_dimensions: tuple[str, ...] = ()
     excluded_dimensions: dict[str, str] = field(default_factory=dict)
+
+    def __init__(
+        self,
+        schema_version: str,
+        decision: str,
+        complete: bool,
+        baseline_config: dict[str, Any],
+        selected_config: dict[str, Any],
+        trials: tuple[StabilityTrial, ...],
+        plateau: PlateauSummary,
+        bootstrap: dict[str, BootstrapInterval] | None = None,
+        continuity: ContinuityEvidence | None = None,
+        physics_gate_passed: bool | None = None,
+        quality_gate_passed: bool | None = None,
+        reason_codes: tuple[str, ...] = (),
+        mode: str | None = None,
+        active_dimensions: tuple[str, ...] = (),
+        excluded_dimensions: dict[str, str] | None = None,
+        *,
+        perturbation_intervals: dict[str, BootstrapInterval] | None = None,
+    ) -> None:
+        if continuity is None:
+            raise TypeError("continuity is required")
+        if physics_gate_passed is None:
+            raise TypeError("physics_gate_passed is required")
+        if quality_gate_passed is None:
+            raise TypeError("quality_gate_passed is required")
+        if (
+            perturbation_intervals is not None
+            and bootstrap is not None
+            and perturbation_intervals != bootstrap
+        ):
+            raise ValueError(
+                "perturbation_intervals and bootstrap alias are inconsistent"
+            )
+        intervals = (
+            perturbation_intervals
+            if perturbation_intervals is not None
+            else bootstrap
+            if bootstrap is not None
+            else {}
+        )
+        object.__setattr__(self, "schema_version", schema_version)
+        object.__setattr__(self, "decision", decision)
+        object.__setattr__(self, "complete", complete)
+        object.__setattr__(self, "baseline_config", baseline_config)
+        object.__setattr__(self, "selected_config", selected_config)
+        object.__setattr__(self, "trials", trials)
+        object.__setattr__(self, "plateau", plateau)
+        object.__setattr__(self, "perturbation_intervals", dict(intervals))
+        object.__setattr__(self, "continuity", continuity)
+        object.__setattr__(self, "physics_gate_passed", physics_gate_passed)
+        object.__setattr__(self, "quality_gate_passed", quality_gate_passed)
+        object.__setattr__(self, "reason_codes", reason_codes)
+        object.__setattr__(self, "mode", mode)
+        object.__setattr__(self, "active_dimensions", active_dimensions)
+        object.__setattr__(
+            self,
+            "excluded_dimensions",
+            excluded_dimensions or {},
+        )
+
+    @property
+    def bootstrap(self) -> Mapping[str, BootstrapInterval]:
+        """Read-only compatibility alias for persisted v1 consumers."""
+
+        return MappingProxyType(self.perturbation_intervals)
 
     @property
     def trial_count(self) -> int:
@@ -208,6 +321,12 @@ class StabilityReport:
             "selected_config": _json_safe(self.selected_config),
             "trials": [trial.to_dict() for trial in self.trials],
             "plateau": self.plateau.to_dict(),
+            "perturbation_intervals": {
+                name: item.to_dict()
+                for name, item in self.perturbation_intervals.items()
+            },
+            "interval_semantics": self.interval_semantics,
+            # Read-only compatibility alias for persisted v1 consumers.
             "bootstrap": {name: item.to_dict() for name, item in self.bootstrap.items()},
             "continuity": self.continuity.to_dict(),
             "physics_gate_passed": self.physics_gate_passed,
@@ -243,12 +362,13 @@ def _latin_hypercube(request: StabilityStudyRequest, count: int, rng: np.random.
 def _normalised_distance(first: Mapping[str, Any], second: Mapping[str, Any], request: StabilityStudyRequest) -> float:
     distances = []
     for domain in request.domains:
-        span = max(domain.span, 1e-12)
         if domain.values:
-            distances.append(0.0 if first.get(domain.name) == second.get(domain.name) else 1.0)
-        else:
-            distances.append(abs(float(first[domain.name]) - float(second[domain.name])) / span)
-    return float(np.sqrt(np.mean(np.square(distances)))) if distances else float("inf")
+            if first.get(domain.name) != second.get(domain.name):
+                return float("inf")
+            continue
+        span = max(domain.span, 1e-12)
+        distances.append(abs(float(first[domain.name]) - float(second[domain.name])) / span)
+    return float(np.sqrt(np.mean(np.square(distances)))) if distances else 0.0
 
 
 def _local_configs(
@@ -293,7 +413,24 @@ def _normalise_trial(index: int, config: dict[str, Any], raw: Any, *, cached: bo
             # Preserve frame slots, including non-finite values.  Compressing
             # them would fabricate adjacency across missing frames.
             frames[str(name)] = tuple(float(value) for value in array)
-    reasons = tuple(str(item) for item in payload.get("reason_codes", ()) if item is not None)
+    for name in (
+        "f_herman",
+        "f_herman_raw",
+        "orientation_axis_deg",
+        "orientation_strength",
+    ):
+        if name in metrics or name not in frames:
+            continue
+        finite_values = np.asarray(frames[name], dtype=float)
+        finite_values = finite_values[np.isfinite(finite_values)]
+        if not finite_values.size:
+            continue
+        metrics[name] = (
+            _periodic_mean_180(finite_values)
+            if name == "orientation_axis_deg"
+            else float(np.mean(finite_values))
+        )
+    reasons = _normalise_reason_codes(payload.get("reason_codes"))
     return StabilityTrial(
         index=index,
         config=dict(config),
@@ -305,6 +442,41 @@ def _normalise_trial(index: int, config: dict[str, Any], raw: Any, *, cached: bo
         frame_values=frames,
         reason_codes=reasons,
         cached=cached,
+    )
+
+
+def _active_dimension_evidence_reasons(
+    trial: StabilityTrial,
+    request: StabilityStudyRequest,
+) -> tuple[str, ...]:
+    observed_metrics = set(trial.metrics) | set(trial.frame_values)
+    return tuple(
+        f"active_dimension_evidence_missing:{domain.name}"
+        for domain in request.domains
+        if domain.required_metrics
+        and not observed_metrics.intersection(domain.required_metrics)
+    )
+
+
+def _trial_has_active_dimension_evidence(trial: StabilityTrial) -> bool:
+    return not any(
+        reason.startswith("active_dimension_evidence_missing:")
+        for reason in trial.reason_codes
+    )
+
+
+def _annotate_active_dimension_evidence(
+    trial: StabilityTrial,
+    request: StabilityStudyRequest,
+) -> StabilityTrial:
+    reasons = _active_dimension_evidence_reasons(trial, request)
+    if not reasons:
+        return trial
+    return StabilityTrial(
+        **{
+            **asdict(trial),
+            "reason_codes": tuple(dict.fromkeys((*trial.reason_codes, *reasons))),
+        }
     )
 
 
@@ -343,6 +515,8 @@ def _continuity_for_trials(
                 reasons.append(f"continuity_nonfinite:{name}")
                 continue
             increments = np.diff(array)
+            if name == "orientation_axis_deg":
+                increments = (increments + 90.0) % 180.0 - 90.0
             median_increment = float(np.median(increments))
             deviations = np.abs(increments - median_increment)
             mad_increment = float(np.median(deviations))
@@ -416,6 +590,8 @@ def _bootstrap(
         if not values:
             continue
         array = np.asarray(values, dtype=float)
+        if name == "orientation_axis_deg":
+            array = _unwrap_180(array)
         if array.size == 1:
             boot = array
         else:
@@ -437,12 +613,29 @@ def _plateau(
         trial
         for trial in trials
         if trial.score is not None and trial.physical_passed and trial.quality_passed and trial.continuity_passed
+        and _trial_has_active_dimension_evidence(trial)
         and trial.score >= request.acceptance_score
     ]
+    unique_eligible: list[StabilityTrial] = []
+    seen_indices: set[int] = set()
+    seen_configs: set[str] = set()
+    for trial in eligible:
+        config_key = stable_config_hash(trial.config)
+        if trial.index in seen_indices or config_key in seen_configs:
+            continue
+        seen_indices.add(trial.index)
+        seen_configs.add(config_key)
+        unique_eligible.append(trial)
+    eligible = unique_eligible
+    active_dimensions = tuple(domain.name for domain in request.domains)
     if not eligible:
-        return PlateauSummary(False)
+        return PlateauSummary(False, active_dimensions=active_dimensions)
     best = max(eligible, key=lambda trial: float(trial.score))
     component = {best.index}
+    neighbor_radius = min(
+        request.neighbor_radius,
+        0.35 + 0.05 / math.sqrt(len(request.domains)),
+    )
     changed = True
     while changed:
         changed = False
@@ -450,7 +643,7 @@ def _plateau(
             if trial.index in component:
                 continue
             if any(
-                _normalised_distance(trial.config, other.config, request) <= request.neighbor_radius
+                _normalised_distance(trial.config, other.config, request) <= neighbor_radius
                 for other in eligible
                 if other.index in component
             ):
@@ -465,8 +658,24 @@ def _plateau(
         for domain in request.domains
         if not domain.values
     }
+    spread_dimensions = tuple(
+        domain.name
+        for domain in request.domains
+        if not domain.values
+        and (
+            bounds[domain.name][1] - bounds[domain.name][0]
+        ) / max(domain.span, 1e-12)
+        > 1e-12
+    )
     scores = np.asarray([float(trial.score) for trial in members], dtype=float)
-    connected = len(members) >= request.min_plateau_points
+    numeric_dimension_count = sum(not domain.values for domain in request.domains)
+    dimension_spread_sufficient = (
+        numeric_dimension_count < 2 or len(spread_dimensions) >= 2
+    )
+    connected = (
+        len(members) >= request.min_plateau_points
+        and dimension_spread_sufficient
+    )
     return PlateauSummary(
         connected=connected,
         trial_indices=tuple(sorted(component)),
@@ -475,6 +684,8 @@ def _plateau(
         score_max=float(np.max(scores)),
         score_median=float(np.median(scores)),
         coverage_fraction=float(len(members) / max(len(eligible), 1)),
+        active_dimensions=active_dimensions,
+        spread_dimensions=spread_dimensions,
     )
 
 
@@ -492,19 +703,21 @@ def run_stability_study(
         key = stable_config_hash(config)
         cached_trial = cache.get(key)
         if cached_trial is not None:
-            trials.append(cached_trial)
             continue
         try:
             raw = evaluator(dict(config))
         except Exception as exc:
             raw = {"reason_codes": [f"evaluation_error:{type(exc).__name__}"]}
-        trial = _normalise_trial(len(trials), config, raw, cached=False)
+        trial = _annotate_active_dimension_evidence(
+            _normalise_trial(len(trials), config, raw, cached=False),
+            request,
+        )
         cache[key] = trial
         trials.append(trial)
 
     best = max(
         trials,
-        key=lambda trial: trial.score if trial.score is not None and trial.physical_passed and trial.quality_passed else -float("inf"),
+        key=lambda trial: trial.score if trial.score is not None and trial.physical_passed and trial.quality_passed and _trial_has_active_dimension_evidence(trial) else -float("inf"),
     )
     local = _local_configs(best.config, request, request.active_trials, scale=0.20)
     local.extend(_local_configs(best.config, request, request.confirmation_trials, scale=0.08))
@@ -518,7 +731,10 @@ def run_stability_study(
             raw = evaluator(dict(config))
         except Exception as exc:
             raw = {"reason_codes": [f"evaluation_error:{type(exc).__name__}"]}
-        trial = _normalise_trial(len(trials), config, raw, cached=False)
+        trial = _annotate_active_dimension_evidence(
+            _normalise_trial(len(trials), config, raw, cached=False),
+            request,
+        )
         cache[key] = trial
         trials.append(trial)
 
@@ -572,6 +788,13 @@ def run_stability_study(
     stable = plateau.connected and plateau.coverage_fraction >= request.min_plateau_fraction
     if not stable:
         reasons.append("stable_plateau_insufficient")
+    numeric_dimension_count = sum(not domain.values for domain in request.domains)
+    if (
+        len(plateau.trial_indices) >= request.min_plateau_points
+        and numeric_dimension_count >= 2
+        and len(plateau.spread_dimensions) < 2
+    ):
+        reasons.append("stable_plateau_dimension_spread_insufficient")
     if stable and physics_passed and quality_passed and continuity_gate_passed:
         if request.allow_auto_accept and score_interval is not None and score_interval.lower >= request.auto_accept_score:
             decision = "auto_accept"
@@ -579,7 +802,11 @@ def run_stability_study(
             decision = "request_confirmation"
     else:
         decision = "keep_original"
-    selectable = plateau_trials or [trial for trial in trials if trial.score is not None]
+    selectable = plateau_trials or [
+        trial
+        for trial in trials
+        if trial.score is not None and _trial_has_active_dimension_evidence(trial)
+    ]
     selected_config = {}
     if selectable:
         selected = max(
