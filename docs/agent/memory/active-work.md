@@ -1,5 +1,22 @@
 # Active Work
 
+## SAXS results frame-row separation - completed (2026-08-07)
+
+- The strain result table now presents one primary row per real analyzed frame;
+  its detail and diagnostic sections no longer append flattened orientation
+  observations as extra sample rows.
+- Detached orientation tracking evidence remains available through the payload
+  and serialized batch-summary diagnostics. Scientific analysis and tracking
+  behavior did not change.
+- TDD reproduced the five-frame `11`-row symptom before the repair. Result-table
+  coverage passed `59`, workbench/transport coverage passed `29`, real EDF 8
+  replay produced `5/6/6` primary/detail/diagnostic rows, and structured
+  verification passed quality `297` plus preprocessing `107`.
+- One unrelated broader GUI integration test still shows a history-language
+  state defect (`Parameter` versus `歌方`); it remains a separate issue.
+- Task card:
+  `docs/agent/tasks/2026-08-07-saxs-results-frame-row-separation.md`.
+
 ## SAXS strain feature tracking closure - completed (2026-08-06)
 
 - Total-profile q tracking, orientation annulus targeting, directional sector

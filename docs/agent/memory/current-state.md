@@ -1,5 +1,19 @@
 ---
 
+## SAXS frame and orientation-tracking row separation (2026-08-07)
+
+SAXS strain result presentations now build tabular rows only from real
+`_batch_data` frames plus the existing batch summary. Flattened detached
+orientation-track observations remain in the payload and nested diagnostic
+evidence but no longer repeat strain values as fake frame rows with unavailable
+file/L/q fields. Row counts remain dynamic for arbitrary sequence lengths.
+
+Focused result-table coverage passed `59`; workbench/transport coverage passed
+`29`; the read-only EDF 8 replay produced 5 primary rows and 6 detail/diagnostic
+rows including the summary. Structured verification passed quality `297` and
+preprocessing `107`. Acceptance is recorded in
+`docs/acceptance/2026-08-07-saxs-results-frame-row-separation.md`.
+
 ## SAXS strain feature tracking closure (2026-08-06)
 
 The strain series now owns one authoritative core result per frame and tracks

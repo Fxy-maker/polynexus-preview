@@ -1562,9 +1562,6 @@ def build_saxs_results_presentation(
     target_language = _language_code(language)
     primary = _primary_section(rows, template, language=target_language)
     view_rows = _batch_view_rows(payload, rows)
-    tracking_rows = payload.get("_orientation_tracking_rows")
-    if isinstance(tracking_rows, list):
-        view_rows.extend(dict(row) for row in tracking_rows if isinstance(row, dict))
     detail = _dynamic_section(
         view_rows,
         _stable_scalar_keys(view_rows),

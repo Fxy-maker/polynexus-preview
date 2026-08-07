@@ -588,23 +588,66 @@ def test_strain_missing_final_never_falls_back_to_raw_diagnostic() -> None:
     assert _cell(presentation.primary, 0, "f_Herman_raw").raw == pytest.approx(0.41)
 
 
-def test_strain_detail_presents_all_detached_orientation_tracks() -> None:
-    presentation = _build(
-        {
-            "_batch_data": [{"strain_pct": 5.0, "f_Herman": None, "f_Herman_raw": 0.41}],
-            "_orientation_tracking_rows": [
-                {"orientation_track_id": "track-a", "f_Herman": 0.21},
-                {"orientation_track_id": "track-b", "f_Herman": 0.31},
-            ],
+def test_strain_tables_keep_dynamic_frame_rows_separate_from_orientation_tracks() -> None:
+    strains = [0.0, 5.0, 60.0, 200.0, 400.0]
+    params = {
+        "n_strains": len(strains),
+        "orientation_tracking_evidence": {
+            "tracks": [
+                {
+                    "track_id": "track-a",
+                    "observations": [
+                        {"condition_value": strain} for strain in strains
+                    ],
+                }
+            ]
         },
-        submodule="saxs.strain",
-    )
-
-    track_ids = {
-        _cell(presentation.detail, row, "orientation_track_id").raw
-        for row in range(len(presentation.detail.rows))
+        "_batch_data": [
+            {
+                "file": f"frame-{index}.edf",
+                "strain_pct": strain,
+                "L_nm": 6.5 + index / 100,
+                "q_peak_total_nm1": 0.95 + index / 1000,
+            }
+            for index, strain in enumerate(strains)
+        ],
+        "_orientation_tracking_rows": [
+            {
+                "strain_pct": strain,
+                "orientation_track_id": "track-a",
+                "f_Herman_raw": 0.2 + index / 100,
+            }
+            for index, strain in enumerate(strains)
+        ],
     }
-    assert {"track-a", "track-b"} <= track_ids
+    before = copy.deepcopy(params)
+
+    presentation = _build(params, submodule="saxs.strain")
+
+    assert presentation.summary_count == len(strains)
+    assert len(presentation.primary.rows) == len(strains)
+    assert [
+        _cell(presentation.primary, index, "strain_pct").raw
+        for index in range(len(strains))
+    ] == strains
+    assert len(presentation.detail.rows) == len(strains) + 1
+    assert len(presentation.diagnostics.rows) == len(strains) + 1
+    assert "orientation_track_id" not in {
+        column.key for column in presentation.detail.columns
+    }
+    diagnostic_summary_row = next(
+        index
+        for index in range(len(presentation.diagnostics.rows))
+        if _cell(presentation.diagnostics, index, "row_scope").raw
+        == "batch_summary"
+    )
+    serialized = _cell(
+        presentation.diagnostics,
+        diagnostic_summary_row,
+        "orientation_tracking_evidence",
+    ).raw
+    assert json.loads(serialized) == params["orientation_tracking_evidence"]
+    assert params == before
 
 
 def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliability_separate() -> None:
