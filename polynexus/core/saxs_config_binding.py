@@ -71,6 +71,24 @@ def _as_positive_int_tuple(value: Any) -> tuple[int, ...]:
     return tuple(sorted(set(converted)))
 
 
+def _as_nonnegative_int(value: Any) -> int:
+    if isinstance(value, bool):
+        raise ValueError("mask dilation must be a nonnegative integer")
+    if isinstance(value, Real):
+        number = float(value)
+        if not math.isfinite(number) or not number.is_integer():
+            raise ValueError("mask dilation must be a nonnegative integer")
+        converted = int(number)
+    else:
+        text = str(value).strip()
+        if not text.isdigit():
+            raise ValueError("mask dilation must be a nonnegative integer")
+        converted = int(text)
+    if converted < 0:
+        raise ValueError("mask dilation must be a nonnegative integer")
+    return converted
+
+
 _FIELD_BINDINGS: dict[str, tuple[str, Callable[[Any], Any]]] = {
     "baseline_method": ("baseline_method", str),
     "smooth_window": ("savgol_window", int),
@@ -85,6 +103,7 @@ _FIELD_BINDINGS: dict[str, tuple[str, Callable[[Any], Any]]] = {
         "orientation_mask_dilation_px",
         _as_positive_int_tuple,
     ),
+    "mask_dilation_px": ("mask_dilation_px", _as_nonnegative_int),
 }
 
 

@@ -110,6 +110,16 @@ def build_integrator(cfg: SAXSConfig):
     # Fallback: no pyFAI, use manual numpy integration
     return None
 
+def _sector_azimuth_range(cfg: SAXSConfig, sector: str) -> tuple[float, float]:
+    center_name = "chi_merid_center" if sector == "meridional" else "chi_equat_center"
+    center = float(getattr(cfg, center_name))
+    halfwidth = float(getattr(cfg, "chi_halfwidth"))
+    if not np.isfinite(center) or not np.isfinite(halfwidth) or halfwidth <= 0:
+        raise ValueError("sector center and chi_halfwidth must be finite and positive")
+    halfwidth = min(halfwidth, 90.0)
+    return center - halfwidth, center + halfwidth
+
+
 def _manual_sector_integrate(
     img: np.ndarray,
     cfg: SAXSConfig,
@@ -130,15 +140,16 @@ def _manual_sector_integrate(
     two_theta = np.arctan2(r_m, cfg.sdd_m)
     q_map = 4 * np.pi * np.sin(two_theta / 2) / cfg.wavelength_m * 1e-9
 
+    chi_min, chi_max = _sector_azimuth_range(cfg, sector)
     if sector == 'meridional':
-        chi_mask = (chi >= cfg.chi_merid_range[0]) & (chi <= cfg.chi_merid_range[1])
+        chi_mask = (chi >= chi_min) & (chi <= chi_max)
         # Also include opposite side (chi + 180)
-        chi_mask |= ((chi + 180 >= cfg.chi_merid_range[0]) & (chi + 180 <= cfg.chi_merid_range[1]))
-        chi_mask |= ((chi - 180 >= cfg.chi_merid_range[0]) & (chi - 180 <= cfg.chi_merid_range[1]))
+        chi_mask |= ((chi + 180 >= chi_min) & (chi + 180 <= chi_max))
+        chi_mask |= ((chi - 180 >= chi_min) & (chi - 180 <= chi_max))
     else:  # equatorial
-        chi_mask = (chi >= cfg.chi_equat_range[0]) & (chi <= cfg.chi_equat_range[1])
-        chi_mask |= ((chi + 180 >= cfg.chi_equat_range[0]) & (chi + 180 <= cfg.chi_equat_range[1]))
-        chi_mask |= ((chi - 180 >= cfg.chi_equat_range[0]) & (chi - 180 <= cfg.chi_equat_range[1]))
+        chi_mask = (chi >= chi_min) & (chi <= chi_max)
+        chi_mask |= ((chi + 180 >= chi_min) & (chi + 180 <= chi_max))
+        chi_mask |= ((chi - 180 >= chi_min) & (chi - 180 <= chi_max))
 
     # Exclude dummy / masked pixels (beam stop, dead pixels, etc.)
     dummy_mask = _build_mask(img, cfg) if mask is None else mask
@@ -335,18 +346,20 @@ def integrate_sectors(
     )
 
     # Meridional
+    meridional_range = _sector_azimuth_range(cfg, "meridional")
     _, I_merid = ai.integrate1d(
         img, n_pt,
         radial_range=(cfg.q_min, cfg.q_max),
-        azimuth_range=(cfg.chi_merid_range[0], cfg.chi_merid_range[1]),
+        azimuth_range=meridional_range,
         mask=mask, unit="q_nm^-1", method="csr",
     )
 
     # Equatorial
+    equatorial_range = _sector_azimuth_range(cfg, "equatorial")
     _, I_equat = ai.integrate1d(
         img, n_pt,
         radial_range=(cfg.q_min, cfg.q_max),
-        azimuth_range=(cfg.chi_equat_range[0], cfg.chi_equat_range[1]),
+        azimuth_range=equatorial_range,
         mask=mask, unit="q_nm^-1", method="csr",
     )
 
@@ -952,7 +965,16 @@ def _build_mask(img: np.ndarray, cfg: SAXSConfig) -> Optional[np.ndarray]:
     """Build a boolean mask for dummy pixels."""
     if np.isnan(cfg.dummy_val):
         return None
-    return np.abs(img - cfg.dummy_val) < cfg.ddummy
+    mask = np.abs(img - cfg.dummy_val) < cfg.ddummy
+    try:
+        dilation = int(getattr(cfg, "mask_dilation_px", 0))
+    except (TypeError, ValueError, OverflowError):
+        dilation = 0
+    if dilation > 0 and np.any(mask):
+        from scipy.ndimage import binary_dilation
+
+        mask = binary_dilation(mask, iterations=dilation)
+    return np.asarray(mask, dtype=bool)
 
 
 def _resolve_detector_mask(

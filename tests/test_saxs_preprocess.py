@@ -54,3 +54,92 @@ def test_preprocess_pipeline_keeps_isotropic_input_without_orientation_payload(m
     processed = preprocess_module.preprocess_pipeline(np.ones((32, 32), dtype=float), cfg)
 
     assert "I_2d" not in processed["sector_data"]
+
+
+def test_chi_halfwidth_changes_anisotropic_sector_output_without_pyfai(monkeypatch) -> None:
+    from polynexus.core.saxs_engine import preprocess as preprocess_module
+    from polynexus.core.saxs_engine.config import SAXSConfig
+
+    monkeypatch.setattr(preprocess_module, "build_integrator", lambda _cfg: None)
+    size = 101
+    center = 50.0
+    y, x = np.indices((size, size), dtype=float)
+    chi = np.degrees(np.arctan2(y - center, x - center))
+    off_axis = (np.abs(chi) >= 20.0) & (np.abs(chi) <= 30.0)
+    opposite = (np.abs(chi) >= 150.0) & (np.abs(chi) <= 160.0)
+    image = np.ones((size, size), dtype=float)
+    image[off_axis | opposite] = 20.0
+    common = dict(
+        experiment_type="strain",
+        is_isotropic=False,
+        analysis_priority="anisotropic",
+        beam_center_x=center,
+        beam_center_y=center,
+        pixel_size_m=1.0e-4,
+        sdd_m=0.45,
+        q_min=0.01,
+        q_max=0.6,
+        n_pt=32,
+        n_chi_sectors=12,
+        smooth_method="none",
+    )
+
+    narrow = preprocess_module.preprocess_pipeline(
+        image,
+        SAXSConfig(**common, chi_halfwidth=5.0),
+    )
+    wide = preprocess_module.preprocess_pipeline(
+        image,
+        SAXSConfig(**common, chi_halfwidth=35.0),
+    )
+
+    assert np.nanmean(wide["Iq_equat"]) > np.nanmean(narrow["Iq_equat"])
+
+
+def test_scalar_mask_dilation_changes_effective_mask_and_integration_support(
+    monkeypatch,
+) -> None:
+    from polynexus.core.saxs_engine import preprocess as preprocess_module
+    from polynexus.core.saxs_engine.config import SAXSConfig
+
+    monkeypatch.setattr(preprocess_module, "build_integrator", lambda _cfg: None)
+    image = np.ones((41, 41), dtype=float)
+    image[20, 30] = -1.5
+    image[19:22, 29:32] = 100.0
+    image[20, 30] = -1.5
+    common = dict(
+        experiment_type="strain",
+        is_isotropic=False,
+        analysis_priority="anisotropic",
+        beam_center_x=20.0,
+        beam_center_y=20.0,
+        pixel_size_m=1.0e-4,
+        sdd_m=0.45,
+        q_min=0.01,
+        q_max=0.5,
+        n_pt=24,
+        n_chi_sectors=12,
+        smooth_method="none",
+        dummy_val=-1.5,
+        ddummy=0.01,
+    )
+
+    baseline = preprocess_module.preprocess_pipeline(
+        image,
+        SAXSConfig(**common, mask_dilation_px=0),
+    )
+    dilated = preprocess_module.preprocess_pipeline(
+        image,
+        SAXSConfig(**common, mask_dilation_px=1),
+    )
+
+    assert baseline["mask_edit_base_mask"].sum() == 1
+    assert dilated["mask_edit_base_mask"].sum() > 1
+    assert np.nansum(dilated["sector_data"]["support_count"]) < np.nansum(
+        baseline["sector_data"]["support_count"]
+    )
+    assert not np.allclose(
+        baseline["Iq"],
+        dilated["Iq"],
+        equal_nan=True,
+    )

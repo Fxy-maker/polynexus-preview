@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 import h5py
@@ -288,6 +290,49 @@ def test_geometry_header_center_applies_finite_config_offsets_after_resolution()
     assert effective.beam_center_y == pytest.approx(199.0)
     assert cfg.beam_center_x == pytest.approx(255.43)
     assert cfg.beam_center_y == pytest.approx(549.73)
+
+
+def test_geometry_offsets_are_idempotent_with_present_header_center() -> None:
+    cfg = SAXSConfig(
+        beam_center_offset_x_px=2.0,
+        beam_center_offset_y_px=-1.0,
+    )
+    header = {"Center_1": 100.0, "Center_2": 200.0}
+
+    first = extract_geometry_from_header(header, cfg)
+    second = extract_geometry_from_header(header, first)
+
+    assert first.beam_center_x == pytest.approx(102.0)
+    assert first.beam_center_y == pytest.approx(199.0)
+    assert second.beam_center_x == pytest.approx(102.0)
+    assert second.beam_center_y == pytest.approx(199.0)
+
+
+def test_geometry_offsets_recompute_from_reference_when_header_center_is_missing() -> None:
+    cfg = SAXSConfig(
+        beam_center_x=100.0,
+        beam_center_y=200.0,
+        beam_center_offset_x_px=2.0,
+        beam_center_offset_y_px=-1.0,
+    )
+
+    first = extract_geometry_from_header({}, cfg)
+    repeated = extract_geometry_from_header({}, first)
+    changed = extract_geometry_from_header(
+        {},
+        replace(
+            repeated,
+            beam_center_offset_x_px=3.0,
+            beam_center_offset_y_px=-2.0,
+        ),
+    )
+
+    assert first.beam_center_x == pytest.approx(102.0)
+    assert first.beam_center_y == pytest.approx(199.0)
+    assert repeated.beam_center_x == pytest.approx(102.0)
+    assert repeated.beam_center_y == pytest.approx(199.0)
+    assert changed.beam_center_x == pytest.approx(103.0)
+    assert changed.beam_center_y == pytest.approx(198.0)
 
 
 def test_directory_frames_keep_isolated_geometry_configs(monkeypatch, tmp_path) -> None:

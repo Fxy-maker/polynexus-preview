@@ -130,14 +130,14 @@ def test_saxs_stability_geometry_and_mask_values_survive_panel_round_trip():
             {
                 "beam_center_offset_x_px": 1.23456789,
                 "beam_center_offset_y_px": -0.87654321,
-                "orientation_mask_dilation_px": (2,),
+                "mask_dilation_px": 2,
             }
         )
         config = window._build_run_config()
 
         assert config.beam_center_offset_x_px == 1.23456789
         assert config.beam_center_offset_y_px == -0.87654321
-        assert config.orientation_mask_dilation_px == (2,)
+        assert config.mask_dilation_px == 2
     finally:
         window.deleteLater()
         app.processEvents()

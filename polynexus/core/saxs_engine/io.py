@@ -340,6 +340,13 @@ def extract_geometry_from_header(header: dict, cfg: SAXSConfig) -> SAXSConfig:
                     pass
         return default
 
+    def _finite_center_value(value):
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return number if np.isfinite(number) else None
+
     missing = []
 
     # Wavelength: ESRF headers typically store in meters
@@ -381,25 +388,40 @@ def extract_geometry_from_header(header: dict, cfg: SAXSConfig) -> SAXSConfig:
     # Beam center
     cx = _get(['Center_1', 'Center_x', 'center_x', 'Beam_xy', 'beam_center_x'], -1)
     cy = _get(['Center_2', 'Center_y', 'center_y', 'Beam_xy', 'beam_center_y'], -1)
-    if cx > 0:
-        cfg.beam_center_x = cx
-    if cy > 0:
-        cfg.beam_center_y = cy
     if cx <= 0 and cy <= 0:
         missing.append("beam center")
 
     # Header values establish the per-frame center; finite configured offsets
-    # are an explicit perturbation of that resolved geometry.
-    for center_name, offset_name in (
-        ("beam_center_x", "beam_center_offset_x_px"),
-        ("beam_center_y", "beam_center_offset_y_px"),
+    # are an explicit perturbation of that resolved geometry.  When a header
+    # omits the center, retain the durable unoffset reference rather than
+    # adding the same offset to the prior effective center again.
+    for center_name, reference_name, offset_name, header_value in (
+        (
+            "beam_center_x",
+            "beam_center_reference_x_px",
+            "beam_center_offset_x_px",
+            cx,
+        ),
+        (
+            "beam_center_y",
+            "beam_center_reference_y_px",
+            "beam_center_offset_y_px",
+            cy,
+        ),
     ):
+        reference = _finite_center_value(getattr(cfg, reference_name, None))
+        if header_value > 0:
+            reference = float(header_value)
+        elif reference is None:
+            reference = float(getattr(cfg, center_name))
+        setattr(cfg, reference_name, reference)
         try:
             offset = float(getattr(cfg, offset_name, 0.0))
         except (TypeError, ValueError, OverflowError):
-            continue
-        if np.isfinite(offset):
-            setattr(cfg, center_name, float(getattr(cfg, center_name)) + offset)
+            offset = 0.0
+        if not np.isfinite(offset):
+            offset = 0.0
+        setattr(cfg, center_name, reference + offset)
 
     if missing:
         warnings.warn(

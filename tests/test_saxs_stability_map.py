@@ -605,6 +605,7 @@ def _activity_domain_config(**overrides):
         "beam_center_offset_x_px": 0.5,
         "beam_center_offset_y_px": -0.5,
         "chi_halfwidth": 15.0,
+        "mask_dilation_px": 0,
         "orientation_mask_dilation_px": (1, 2),
     }
     config.update(overrides)
@@ -632,10 +633,10 @@ def test_saxs_stability_domains_include_only_active_2d_perturbations() -> None:
     assert by_name["beam_center_offset_x_px"].maximum == 2.5
     assert by_name["beam_center_offset_y_px"].minimum == -2.5
     assert by_name["beam_center_offset_y_px"].maximum == 1.5
-    assert by_name["orientation_mask_dilation_px"].values == ((1,), (2,))
-    assert all(
-        isinstance(value, tuple)
-        for value in by_name["orientation_mask_dilation_px"].values
+    assert by_name["mask_dilation_px"].values == (0, 1, 2)
+    assert "orientation_mask_dilation_px" not in by_name
+    assert result.excluded_dimensions["orientation_mask_dilation_px"] == (
+        "reliability_sensitivity_only"
     )
     assert result.excluded_dimensions["bg_scale_value"] == (
         "manual_background_inactive"
@@ -658,13 +659,17 @@ def test_sector_only_evidence_excludes_beam_offsets_but_keeps_orientation_domain
 
     names = {domain.name for domain in result}
     assert "chi_halfwidth" in names
-    assert "orientation_mask_dilation_px" in names
+    assert "mask_dilation_px" not in names
+    assert "orientation_mask_dilation_px" not in names
     assert "beam_center_offset_x_px" not in names
     assert "beam_center_offset_y_px" not in names
     assert result.excluded_dimensions["beam_center_offset_x_px"] == (
         "raw_detector_2d_evidence_missing"
     )
     assert result.excluded_dimensions["beam_center_offset_y_px"] == (
+        "raw_detector_2d_evidence_missing"
+    )
+    assert result.excluded_dimensions["mask_dilation_px"] == (
         "raw_detector_2d_evidence_missing"
     )
 
@@ -698,12 +703,42 @@ def test_saxs_stability_domains_exclude_detector_dimensions_for_1d_profile() -> 
         "beam_center_offset_x_px",
         "beam_center_offset_y_px",
         "chi_halfwidth",
-        "orientation_mask_dilation_px",
+        "mask_dilation_px",
     }
     assert names.isdisjoint(detector_dimensions)
     assert {
         result.excluded_dimensions[name] for name in detector_dimensions
     } == {"detector_2d_evidence_missing"}
+    assert result.excluded_dimensions["orientation_mask_dilation_px"] == (
+        "reliability_sensitivity_only"
+    )
+
+
+def test_disabled_porod_consumer_does_not_invalidate_stale_porod_window() -> None:
+    from polynexus.orchestrator_stability import _valid_saxs_windows
+
+    config = _activity_domain_config(
+        do_porod=False,
+        q_porod_min=3.0,
+        q_porod_max=1.0,
+    )
+
+    assert _valid_saxs_windows(config) is True
+
+
+def test_nonfinite_manual_background_scale_is_excluded_without_raising() -> None:
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    result = _saxs_stability_domains(
+        _activity_domain_config(
+            background_file="C:/data/background.edf",
+            bg_scale_method="manual",
+            bg_scale_value=float("inf"),
+        )
+    )
+
+    assert "bg_scale_value" not in {domain.name for domain in result}
+    assert result.excluded_dimensions["bg_scale_value"] == "consumer_config_invalid"
 
 
 def test_invalid_coupled_q_window_fails_before_trial_engine_creation(

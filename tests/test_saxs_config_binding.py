@@ -143,3 +143,25 @@ def test_mask_dilation_binding_rejects_non_positive_integer_values(raw_value) ->
     assert report["unavailable"]["orientation_mask_dilation_px"].startswith(
         "invalid_value:"
     )
+
+
+@pytest.mark.parametrize(("raw_value", "expected"), [(0, 0), (2, 2), ("3", 3)])
+def test_scalar_mask_dilation_binding_preserves_nonnegative_integer(
+    raw_value, expected
+) -> None:
+    config = SAXSConfig()
+
+    report = apply_saxs_config_panel_values(config, {"mask_dilation_px": raw_value})
+
+    assert report["unavailable"] == {}
+    assert config.mask_dilation_px == expected
+
+
+@pytest.mark.parametrize("raw_value", [-1, "1.5", True])
+def test_scalar_mask_dilation_binding_rejects_invalid_values(raw_value) -> None:
+    config = SAXSConfig()
+
+    report = apply_saxs_config_panel_values(config, {"mask_dilation_px": raw_value})
+
+    assert config.mask_dilation_px == 0
+    assert report["unavailable"]["mask_dilation_px"].startswith("invalid_value:")

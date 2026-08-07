@@ -74,9 +74,9 @@ def _numeric_domain(config: dict[str, Any], name: str, *, relative: float, minim
     value = config.get(name)
     try:
         current = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
-    if current != current:
+    if not np.isfinite(current):
         return None
     low = max(minimum, current * (1.0 - relative))
     high = min(maximum, current * (1.0 + relative))
@@ -121,12 +121,17 @@ def _valid_window(config: dict[str, Any], low: str, high: str) -> bool:
 
 
 def _valid_saxs_windows(config: dict[str, Any]) -> bool:
-    for low, high in (
-        ("q_min", "q_max"),
-        ("q_corr_min", "q_corr_max"),
-        ("q_porod_min", "q_porod_max"),
+    for low, high, consumer_active in (
+        ("q_min", "q_max", True),
+        ("q_corr_min", "q_corr_max", True),
+        ("q_porod_min", "q_porod_max", config.get("do_porod", True) is not False),
     ):
-        if low in config and high in config and not _valid_window(config, low, high):
+        if (
+            consumer_active
+            and low in config
+            and high in config
+            and not _valid_window(config, low, high)
+        ):
             return False
     return True
 
@@ -246,11 +251,12 @@ def _saxs_stability_domains(
     else:
         excluded["bg_scale_value"] = "manual_background_inactive"
 
+    excluded["orientation_mask_dilation_px"] = "reliability_sensitivity_only"
     detector_dimensions = (
         "beam_center_offset_x_px",
         "beam_center_offset_y_px",
         "chi_halfwidth",
-        "orientation_mask_dilation_px",
+        "mask_dilation_px",
     )
     raw_detector_evidence = _has_raw_2d_detector_evidence(engine)
     if not _has_real_2d_detector_evidence(engine):
@@ -266,9 +272,20 @@ def _saxs_stability_domains(
                 excluded[name] = "consumer_config_invalid"
             else:
                 domains.append(ParameterDomain(name, current - 2.0, current + 2.0))
+        mask_dilation = _finite_float(config.get("mask_dilation_px"))
+        if (
+            isinstance(config.get("mask_dilation_px"), bool)
+            or mask_dilation is None
+            or not mask_dilation.is_integer()
+            or mask_dilation < 0
+        ):
+            excluded["mask_dilation_px"] = "consumer_config_invalid"
+        else:
+            domains.append(ParameterDomain("mask_dilation_px", values=(0, 1, 2)))
     else:
         excluded["beam_center_offset_x_px"] = "raw_detector_2d_evidence_missing"
         excluded["beam_center_offset_y_px"] = "raw_detector_2d_evidence_missing"
+        excluded["mask_dilation_px"] = "raw_detector_2d_evidence_missing"
 
     chi = _numeric_domain(
         config,
@@ -282,20 +299,6 @@ def _saxs_stability_domains(
     else:
         domains.append(chi)
 
-    dilation = config.get("orientation_mask_dilation_px")
-    try:
-        positive = tuple(sorted({int(item) for item in dilation if int(item) > 0}))
-    except (TypeError, ValueError, OverflowError):
-        positive = ()
-    if positive:
-        domains.append(
-            ParameterDomain(
-                "orientation_mask_dilation_px",
-                values=tuple((item,) for item in positive),
-            )
-        )
-    else:
-        excluded["orientation_mask_dilation_px"] = "consumer_config_invalid"
     return SAXSStabilityDomains(tuple(domains), excluded)
 
 

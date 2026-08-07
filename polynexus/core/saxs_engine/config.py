@@ -386,6 +386,16 @@ class SAXSConfig:
     beam_center_offset_x_px: float = 0.0
     beam_center_offset_y_px: float = 0.0
 
+    # Scalar detector-mask dilation consumed before radial/sector integration.
+    # The tuple-valued orientation_mask_dilation_px remains a reliability
+    # sensitivity list and is not the primary preprocessing mask control.
+    mask_dilation_px: int = 0
+
+    # Durable unoffset centers make offset application idempotent when a frame
+    # does not provide beam-center metadata.
+    beam_center_reference_x_px: Optional[float] = None
+    beam_center_reference_y_px: Optional[float] = None
+
 
 @dataclass
 class ExperimentCondition:
