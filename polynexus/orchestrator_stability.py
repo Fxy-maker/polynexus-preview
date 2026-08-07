@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any
+
+import numpy as np
 
 from polynexus.core.preprocess_optimization import ParameterDomain, StabilityStudyRequest, run_stability_study
 from polynexus.core.saxs_mode import canonical_saxs_mode
@@ -43,6 +45,7 @@ def _saxs_stability_mode(self: Any, engine: Any, config: Any) -> tuple[str | Non
 def _failed_saxs_stability_report(
     baseline_config: dict[str, Any],
     reason_code: str,
+    domains: "SAXSStabilityDomains | None" = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": "saxs-stability-v1",
@@ -58,6 +61,12 @@ def _failed_saxs_stability_report(
         "physics_gate_passed": False,
         "quality_gate_passed": False,
         "reason_codes": [reason_code],
+        "active_dimensions": [
+            domain.name for domain in domains.domains
+        ] if domains is not None else [],
+        "excluded_dimensions": (
+            dict(domains.excluded_dimensions) if domains is not None else {}
+        ),
     }
 
 
@@ -76,31 +85,204 @@ def _numeric_domain(config: dict[str, Any], name: str, *, relative: float, minim
     return ParameterDomain(name, low, high)
 
 
-def _saxs_stability_domains(config: dict[str, Any]) -> tuple[ParameterDomain, ...]:
-    specs = (
-        ("q_min", 0.20, 0.001, 2.0),
-        ("q_max", 0.15, 0.2, 8.0),
-        ("q_corr_min", 0.20, 0.01, 2.0),
-        ("q_corr_max", 0.15, 0.3, 8.0),
-        ("q_porod_min", 0.20, 0.2, 8.0),
-        ("q_porod_max", 0.15, 0.5, 12.0),
-        ("guinier_q_max_factor", 0.30, 0.5, 2.5),
-        ("bg_scale_value", 0.20, 0.5, 1.5),
-        ("beam_center_x", 0.02, -100000.0, 100000.0),
-        ("beam_center_y", 0.02, -100000.0, 100000.0),
-        ("chi_halfwidth", 0.35, 1.0, 90.0),
-    )
-    domains = [
-        domain
-        for name, relative, minimum, maximum in specs
-        if (domain := _numeric_domain(config, name, relative=relative, minimum=minimum, maximum=maximum)) is not None
+@dataclass(frozen=True)
+class SAXSStabilityDomains:
+    """Active perturbations plus explicit exclusions, with tuple compatibility."""
+
+    domains: tuple[ParameterDomain, ...]
+    excluded_dimensions: dict[str, str]
+
+    @property
+    def excluded(self) -> dict[str, str]:
+        return self.excluded_dimensions
+
+    def __iter__(self):
+        return iter(self.domains)
+
+    def __len__(self) -> int:
+        return len(self.domains)
+
+    def __getitem__(self, index):
+        return self.domains[index]
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if np.isfinite(number) else None
+
+
+def _valid_window(config: dict[str, Any], low: str, high: str) -> bool:
+    low_value = _finite_float(config.get(low))
+    high_value = _finite_float(config.get(high))
+    return low_value is not None and high_value is not None and low_value < high_value
+
+
+def _valid_saxs_windows(config: dict[str, Any]) -> bool:
+    for low, high in (
+        ("q_min", "q_max"),
+        ("q_corr_min", "q_corr_max"),
+        ("q_porod_min", "q_porod_max"),
+    ):
+        if low in config and high in config and not _valid_window(config, low, high):
+            return False
+    return True
+
+
+def _has_real_2d_detector_evidence(engine: Any) -> bool:
+    if engine is None:
+        return False
+
+    for image in (
+        getattr(engine, "_img", None),
+        getattr(getattr(engine, "result", None), "raw_data", {}).get("img")
+        if isinstance(getattr(getattr(engine, "result", None), "raw_data", None), dict)
+        else None,
+    ):
+        if image is None:
+            continue
+        try:
+            if np.asarray(image).ndim == 2 and np.asarray(image).size > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+
+    sector_candidates: list[Any] = [
+        getattr(engine, "_sector_data", None),
+        getattr(engine, "_sector_data_list", None),
     ]
+    raw_data = getattr(getattr(engine, "result", None), "raw_data", None)
+    if isinstance(raw_data, dict):
+        sector_candidates.append(raw_data.get("sector_data"))
+    for candidate in sector_candidates:
+        values = candidate if isinstance(candidate, (list, tuple)) else (candidate,)
+        if any(isinstance(value, dict) and bool(value) for value in values):
+            return True
+    return False
+
+
+def _saxs_stability_domains(
+    config: dict[str, Any],
+    *,
+    mode: str | None = None,
+    engine: Any = None,
+    context: Any = None,
+) -> SAXSStabilityDomains:
+    del mode, context  # reserved for compatible consumer-specific activity checks
+    domains: list[ParameterDomain] = []
+    excluded: dict[str, str] = {}
+
+    pair_specs = (
+        ("q_min", "q_max", (0.20, 0.001, 2.0), (0.15, 0.2, 8.0)),
+        ("q_corr_min", "q_corr_max", (0.20, 0.01, 2.0), (0.15, 0.3, 8.0)),
+        ("q_porod_min", "q_porod_max", (0.20, 0.2, 8.0), (0.15, 0.5, 12.0)),
+    )
+    for low, high, low_spec, high_spec in pair_specs:
+        if low.startswith("q_porod") and config.get("do_porod", True) is False:
+            excluded[low] = "porod_consumer_disabled"
+            excluded[high] = "porod_consumer_disabled"
+            continue
+        if low not in config or high not in config:
+            excluded[low] = "consumer_config_missing"
+            excluded[high] = "consumer_config_missing"
+            continue
+        if not _valid_window(config, low, high):
+            excluded[low] = "invalid_coupled_q_window"
+            excluded[high] = "invalid_coupled_q_window"
+            continue
+        for name, spec in ((low, low_spec), (high, high_spec)):
+            domain = _numeric_domain(
+                config,
+                name,
+                relative=spec[0],
+                minimum=spec[1],
+                maximum=spec[2],
+            )
+            if domain is None:
+                excluded[name] = "consumer_config_invalid"
+            else:
+                domains.append(domain)
+
+    guinier = _finite_float(config.get("guinier_q_max_factor"))
+    if guinier is None or guinier <= 0:
+        excluded["guinier_q_max_factor"] = "consumer_config_invalid"
+    else:
+        domain = _numeric_domain(
+            config,
+            "guinier_q_max_factor",
+            relative=0.30,
+            minimum=0.5,
+            maximum=2.5,
+        )
+        if domain is not None:
+            domains.append(domain)
+
+    if (
+        str(config.get("bg_scale_method", "") or "").strip().lower() == "manual"
+        and str(config.get("background_file", "") or "").strip()
+    ):
+        domain = _numeric_domain(
+            config,
+            "bg_scale_value",
+            relative=0.20,
+            minimum=0.5,
+            maximum=1.5,
+        )
+        if domain is None:
+            excluded["bg_scale_value"] = "consumer_config_invalid"
+        else:
+            domains.append(domain)
+    else:
+        excluded["bg_scale_value"] = "manual_background_inactive"
+
+    detector_dimensions = (
+        "beam_center_offset_x_px",
+        "beam_center_offset_y_px",
+        "chi_halfwidth",
+        "orientation_mask_dilation_px",
+    )
+    if not _has_real_2d_detector_evidence(engine):
+        excluded.update(
+            {name: "detector_2d_evidence_missing" for name in detector_dimensions}
+        )
+        return SAXSStabilityDomains(tuple(domains), excluded)
+
+    for name in ("beam_center_offset_x_px", "beam_center_offset_y_px"):
+        current = _finite_float(config.get(name))
+        if current is None:
+            excluded[name] = "consumer_config_invalid"
+        else:
+            domains.append(ParameterDomain(name, current - 2.0, current + 2.0))
+
+    chi = _numeric_domain(
+        config,
+        "chi_halfwidth",
+        relative=0.35,
+        minimum=1.0,
+        maximum=90.0,
+    )
+    if chi is None:
+        excluded["chi_halfwidth"] = "consumer_config_invalid"
+    else:
+        domains.append(chi)
+
     dilation = config.get("orientation_mask_dilation_px")
-    if isinstance(dilation, (list, tuple)) and dilation:
-        values = tuple(sorted({int(item) for item in dilation if int(item) > 0}))
-        if values:
-            domains.append(ParameterDomain("orientation_mask_dilation_px", values=values))
-    return tuple(domains)
+    try:
+        positive = tuple(sorted({int(item) for item in dilation if int(item) > 0}))
+    except (TypeError, ValueError, OverflowError):
+        positive = ()
+    if positive:
+        domains.append(
+            ParameterDomain(
+                "orientation_mask_dilation_px",
+                values=tuple((item,) for item in positive),
+            )
+        )
+    else:
+        excluded["orientation_mask_dilation_px"] = "consumer_config_invalid"
+    return SAXSStabilityDomains(tuple(domains), excluded)
 
 
 def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]:
@@ -151,16 +333,27 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
     config = self._engine_config(engine)
     base_config = self._config_to_dict(config)
     scientific_mode, mode_error = _saxs_stability_mode(self, engine, config)
+    domain_result = _saxs_stability_domains(
+        base_config,
+        mode=scientific_mode,
+        engine=engine,
+        context=getattr(self, "workspace_context", None),
+    )
     if scientific_mode is None:
         report = _failed_saxs_stability_report(
             base_config,
             mode_error or "unsupported_saxs_stability_mode",
+            domain_result,
         )
         self._last_stability_report = deepcopy(report)
         return report
-    domains = _saxs_stability_domains(base_config)
+    domains = domain_result.domains
     if not domains:
-        report = _failed_saxs_stability_report(base_config, "stability_domains_unavailable")
+        report = _failed_saxs_stability_report(
+            base_config,
+            "stability_domains_unavailable",
+            domain_result,
+        )
         report["mode"] = scientific_mode
         self._last_stability_report = deepcopy(report)
         return report
@@ -168,6 +361,12 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
     from polynexus.orchestrator_preprocess import _new_trial_engine, _run_trial_pipeline
 
     def evaluate(candidate_config: dict[str, Any]) -> dict[str, Any]:
+        if not _valid_saxs_windows(candidate_config):
+            return {
+                "physical_passed": False,
+                "quality_passed": False,
+                "reason_codes": ["invalid_coupled_q_window"],
+            }
         # Candidate configs are JSON-like snapshots; the engine requires a
         # typed SAXSConfig instance.  Clone the baseline object and apply only
         # known candidate fields so every trial really uses its perturbation.
@@ -216,6 +415,8 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
     report = replace(
         run_stability_study(request, evaluate),
         mode=scientific_mode,
+        active_dimensions=tuple(domain.name for domain in domains),
+        excluded_dimensions=dict(domain_result.excluded_dimensions),
     ).to_dict()
     self._last_stability_report = deepcopy(report)
     return report

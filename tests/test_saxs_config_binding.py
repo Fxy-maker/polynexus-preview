@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from polynexus.core.saxs_config_binding import (
     apply_saxs_config_panel_values,
     saxs_config_snapshot,
@@ -101,4 +103,43 @@ def test_tensile_axis_binding_rejects_unknown_convention_without_partial_apply()
     assert config.tensile_axis_convention is None
     assert report["unavailable"]["tensile_axis_deg"] == (
         "unsupported_tensile_axis_convention"
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected"),
+    [
+        ((1,), (1,)),
+        ([2, 1, 2], (1, 2)),
+        ("(1,)", (1,)),
+        ("1,2", (1, 2)),
+    ],
+)
+def test_mask_dilation_binding_preserves_positive_integer_tuple(
+    raw_value, expected
+) -> None:
+    config = SAXSConfig()
+
+    report = apply_saxs_config_panel_values(
+        config,
+        {"orientation_mask_dilation_px": raw_value},
+    )
+
+    assert report["unavailable"] == {}
+    assert config.orientation_mask_dilation_px == expected
+    assert report["normalized_values"]["orientation_mask_dilation_px"] == expected
+
+
+@pytest.mark.parametrize("raw_value", ["", "0,2", "-1", "1.5"])
+def test_mask_dilation_binding_rejects_non_positive_integer_values(raw_value) -> None:
+    config = SAXSConfig()
+
+    report = apply_saxs_config_panel_values(
+        config,
+        {"orientation_mask_dilation_px": raw_value},
+    )
+
+    assert config.orientation_mask_dilation_px == (1, 2)
+    assert report["unavailable"]["orientation_mask_dilation_px"].startswith(
+        "invalid_value:"
     )

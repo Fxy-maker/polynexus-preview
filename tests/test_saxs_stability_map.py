@@ -66,7 +66,13 @@ def _run_mode_stability_bridge(monkeypatch, *, experiment_type: str, submodule: 
     harness = Harness()
     report = stability_module._run_saxs_stability_study(
         harness,
-        SimpleNamespace(cfg=SimpleNamespace(experiment_type=experiment_type, q_min=0.1)),
+        SimpleNamespace(
+            cfg=SimpleNamespace(
+                experiment_type=experiment_type,
+                q_min=0.1,
+                q_max=3.0,
+            )
+        ),
     )
     return report, observed_modes
 
@@ -150,6 +156,47 @@ def test_stability_study_requires_connected_multi_dimension_platform_for_auto_ac
     assert report.continuity.passed is True
     assert report.physics_gate_passed is True
     assert report.quality_gate_passed is True
+
+
+def test_stability_study_preserves_tuple_categorical_candidates() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ParameterDomain,
+        StabilityStudyRequest,
+        run_stability_study,
+    )
+
+    request = StabilityStudyRequest(
+        baseline_config={"orientation_mask_dilation_px": (1,)},
+        domains=(
+            ParameterDomain(
+                "orientation_mask_dilation_px",
+                values=((1,), (2,)),
+            ),
+        ),
+        global_trials=3,
+        active_trials=0,
+        confirmation_trials=0,
+        min_plateau_points=1,
+        min_plateau_fraction=0.25,
+        acceptance_score=0.5,
+        bootstrap_replicates=16,
+    )
+
+    report = run_stability_study(
+        request,
+        lambda config: {
+            "score": 1.0,
+            "physical_passed": True,
+            "quality_passed": True,
+            "frame_values": {"L_nm": [10.0, 10.0]},
+        },
+    )
+
+    assert report.trials
+    assert all(
+        isinstance(trial.config["orientation_mask_dilation_px"], tuple)
+        for trial in report.trials
+    )
 
 
 def test_saxs_stability_policy_requires_confirmation_even_at_auto_accept_score() -> None:
@@ -424,9 +471,16 @@ def test_stability_report_contract_serializes_optional_mode() -> None:
         physics_gate_passed=False,
         quality_gate_passed=False,
         mode="temperature",
+        active_dimensions=("q_min", "q_max"),
+        excluded_dimensions={"bg_scale_value": "manual_background_inactive"},
     )
 
-    assert report.to_dict()["mode"] == "temperature"
+    payload = report.to_dict()
+    assert payload["mode"] == "temperature"
+    assert payload["active_dimensions"] == ["q_min", "q_max"]
+    assert payload["excluded_dimensions"] == {
+        "bg_scale_value": "manual_background_inactive"
+    }
 
 
 def test_stability_bridge_uses_active_mode_for_every_trial(monkeypatch) -> None:
@@ -462,6 +516,8 @@ def test_stability_bridge_fails_closed_for_unsupported_mode(monkeypatch) -> None
     assert report["complete"] is False
     assert report["decision"] == "keep_original"
     assert report["selected_config"] == {}
+    assert isinstance(report["active_dimensions"], list)
+    assert isinstance(report["excluded_dimensions"], dict)
     assert "unsupported_saxs_stability_mode" in report["reason_codes"]
 
 
@@ -480,29 +536,149 @@ def test_stability_bridge_fails_closed_for_conflicting_modes(monkeypatch) -> Non
     assert "conflicting_saxs_stability_mode" in report["reason_codes"]
 
 
-def test_saxs_stability_domains_include_guinier_window_and_scalar_mask_dilation() -> None:
+def _activity_domain_config(**overrides):
+    config = {
+        "q_min": 0.1,
+        "q_max": 2.0,
+        "q_corr_min": 0.05,
+        "q_corr_max": 2.0,
+        "q_porod_min": 1.0,
+        "q_porod_max": 2.0,
+        "do_porod": True,
+        "guinier_q_max_factor": 1.3,
+        "background_file": "",
+        "bg_scale_method": "transmission",
+        "bg_scale_value": 1.0,
+        "beam_center_offset_x_px": 0.5,
+        "beam_center_offset_y_px": -0.5,
+        "chi_halfwidth": 15.0,
+        "orientation_mask_dilation_px": (1, 2),
+    }
+    config.update(overrides)
+    return config
+
+
+def test_saxs_stability_domains_include_only_active_2d_perturbations() -> None:
+    from types import SimpleNamespace
+
     from polynexus.orchestrator_stability import _saxs_stability_domains
 
-    domains = _saxs_stability_domains(
-        {
-            "q_min": 0.1,
-            "q_max": 2.0,
-            "q_corr_min": 0.05,
-            "q_corr_max": 2.0,
-            "q_porod_min": 1.0,
-            "q_porod_max": 2.0,
-            "guinier_q_max_factor": 1.3,
-            "bg_scale_value": 1.0,
-            "beam_center_x": 10.0,
-            "beam_center_y": 20.0,
-            "chi_halfwidth": 15.0,
-            "orientation_mask_dilation_px": (1, 2),
-        }
+    result = _saxs_stability_domains(
+        _activity_domain_config(),
+        mode="strain",
+        engine=SimpleNamespace(
+            _img=[[1.0, 2.0], [3.0, 4.0]],
+            _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+        ),
     )
 
-    by_name = {domain.name: domain for domain in domains}
+    by_name = {domain.name: domain for domain in result}
     assert "guinier_q_max_factor" in by_name
-    assert by_name["orientation_mask_dilation_px"].values == (1, 2)
+    assert "bg_scale_value" not in by_name
+    assert by_name["beam_center_offset_x_px"].minimum == -1.5
+    assert by_name["beam_center_offset_x_px"].maximum == 2.5
+    assert by_name["beam_center_offset_y_px"].minimum == -2.5
+    assert by_name["beam_center_offset_y_px"].maximum == 1.5
+    assert by_name["orientation_mask_dilation_px"].values == ((1,), (2,))
+    assert all(
+        isinstance(value, tuple)
+        for value in by_name["orientation_mask_dilation_px"].values
+    )
+    assert result.excluded_dimensions["bg_scale_value"] == (
+        "manual_background_inactive"
+    )
+
+
+def test_saxs_stability_domains_include_manual_background_with_real_file() -> None:
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    result = _saxs_stability_domains(
+        _activity_domain_config(
+            background_file="C:/data/background.edf",
+            bg_scale_method="manual",
+        )
+    )
+
+    assert "bg_scale_value" in {domain.name for domain in result}
+
+
+def test_saxs_stability_domains_exclude_detector_dimensions_for_1d_profile() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    result = _saxs_stability_domains(
+        _activity_domain_config(),
+        mode="static",
+        engine=SimpleNamespace(_img=None, _sector_data_list=[]),
+    )
+
+    names = {domain.name for domain in result}
+    detector_dimensions = {
+        "beam_center_offset_x_px",
+        "beam_center_offset_y_px",
+        "chi_halfwidth",
+        "orientation_mask_dilation_px",
+    }
+    assert names.isdisjoint(detector_dimensions)
+    assert {
+        result.excluded_dimensions[name] for name in detector_dimensions
+    } == {"detector_2d_evidence_missing"}
+
+
+def test_invalid_coupled_q_window_fails_before_trial_engine_creation(
+    monkeypatch,
+) -> None:
+    from types import SimpleNamespace
+
+    import polynexus.orchestrator_preprocess as preprocess_module
+    import polynexus.orchestrator_stability as stability_module
+
+    created: list[object] = []
+
+    def create_trial(*args):
+        created.append(args)
+        raise AssertionError("trial engine must not be created")
+
+    monkeypatch.setattr(preprocess_module, "_new_trial_engine", create_trial)
+
+    class Harness:
+        technique = "saxs"
+        workspace_context = {"stability_mode": "quick"}
+        submodule_override = "saxs.strain"
+        _last_stability_report: dict[str, object] = {}
+
+        @staticmethod
+        def _engine_config(engine):
+            return engine.cfg
+
+        @staticmethod
+        def _config_to_dict(config):
+            return dict(vars(config))
+
+        def _public_submodule(self):
+            return self.submodule_override
+
+    config = SimpleNamespace(
+        experiment_type="strain",
+        **_activity_domain_config(q_min=2.0, q_max=1.0),
+    )
+    engine = SimpleNamespace(
+        cfg=config,
+        _img=[[1.0, 2.0], [3.0, 4.0]],
+        _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+    )
+
+    report = stability_module._run_saxs_stability_study(Harness(), engine)
+
+    assert created == []
+    assert report["trials"]
+    assert all(
+        "invalid_coupled_q_window" in trial["reason_codes"]
+        for trial in report["trials"]
+    )
+    assert report["decision"] == "keep_original"
+    assert report["selected_config"] == {}
 
 
 def test_guinier_q_max_factor_controls_the_low_q_window() -> None:

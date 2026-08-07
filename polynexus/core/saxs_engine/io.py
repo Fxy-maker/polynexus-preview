@@ -388,6 +388,19 @@ def extract_geometry_from_header(header: dict, cfg: SAXSConfig) -> SAXSConfig:
     if cx <= 0 and cy <= 0:
         missing.append("beam center")
 
+    # Header values establish the per-frame center; finite configured offsets
+    # are an explicit perturbation of that resolved geometry.
+    for center_name, offset_name in (
+        ("beam_center_x", "beam_center_offset_x_px"),
+        ("beam_center_y", "beam_center_offset_y_px"),
+    ):
+        try:
+            offset = float(getattr(cfg, offset_name, 0.0))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if np.isfinite(offset):
+            setattr(cfg, center_name, float(getattr(cfg, center_name)) + offset)
+
     if missing:
         warnings.warn(
             f"SAXS geometry not found in EDF header ({', '.join(missing)}). "

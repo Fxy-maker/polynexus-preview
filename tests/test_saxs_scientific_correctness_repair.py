@@ -273,6 +273,23 @@ def test_geometry_header_parsing_does_not_mutate_the_base_config() -> None:
     assert fallback_cfg.wavelength_m == pytest.approx(original_wavelength)
 
 
+def test_geometry_header_center_applies_finite_config_offsets_after_resolution() -> None:
+    cfg = SAXSConfig(
+        beam_center_offset_x_px=2.0,
+        beam_center_offset_y_px=-1.0,
+    )
+
+    effective = extract_geometry_from_header(
+        {"Center_1": 100.0, "Center_2": 200.0},
+        cfg,
+    )
+
+    assert effective.beam_center_x == pytest.approx(102.0)
+    assert effective.beam_center_y == pytest.approx(199.0)
+    assert cfg.beam_center_x == pytest.approx(255.43)
+    assert cfg.beam_center_y == pytest.approx(549.73)
+
+
 def test_directory_frames_keep_isolated_geometry_configs(monkeypatch, tmp_path) -> None:
     import polynexus.core.saxs as saxs_module
     from polynexus.core.saxs import SAXSEngine

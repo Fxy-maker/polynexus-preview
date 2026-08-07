@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from PySide6.QtWidgets import QApplication
+
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_ai_tuning_mixin import MainWindowAITuningMixin
 
@@ -115,3 +117,27 @@ def test_main_window_reuses_ai_tuning_helpers_from_ai_tuning_mixin():
     assert MainWindow._on_ai_tune_error is MainWindowAITuningMixin._on_ai_tune_error
     assert MainWindow._apply_best_config is MainWindowAITuningMixin._apply_best_config
     assert MainWindow._ai_tuning_chain_snapshot is MainWindowAITuningMixin._ai_tuning_chain_snapshot
+
+
+def test_saxs_stability_geometry_and_mask_values_survive_panel_round_trip():
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window._current_technique = "saxs"
+        window._on_submodule_selected("saxs", "saxs.strain")
+
+        window._apply_best_config(
+            {
+                "beam_center_offset_x_px": 1.23456789,
+                "beam_center_offset_y_px": -0.87654321,
+                "orientation_mask_dilation_px": (2,),
+            }
+        )
+        config = window._build_run_config()
+
+        assert config.beam_center_offset_x_px == 1.23456789
+        assert config.beam_center_offset_y_px == -0.87654321
+        assert config.orientation_mask_dilation_px == (2,)
+    finally:
+        window.deleteLater()
+        app.processEvents()

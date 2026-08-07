@@ -380,6 +380,12 @@ class SAXSConfig:
     # Guinier fitting window; 1.3 preserves the historical default.
     guinier_q_max_factor: float = 1.3
 
+    # Appended for positional compatibility.  These offsets are applied after
+    # resolving a per-frame header/config beam center, so detector metadata
+    # cannot overwrite a stability perturbation.
+    beam_center_offset_x_px: float = 0.0
+    beam_center_offset_y_px: float = 0.0
+
 
 @dataclass
 class ExperimentCondition:

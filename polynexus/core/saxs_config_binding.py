@@ -36,6 +36,41 @@ def _as_bool(value: Any) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on", "pyfai"}
 
 
+def _as_positive_int_tuple(value: Any) -> tuple[int, ...]:
+    if isinstance(value, str):
+        text = value.strip()
+        if len(text) >= 2 and text[0] in "([" and text[-1] in ")]":
+            text = text[1:-1].strip()
+        raw_items = [item.strip() for item in text.split(",") if item.strip()]
+    elif isinstance(value, (list, tuple)):
+        raw_items = list(value)
+    else:
+        raw_items = [value]
+
+    if not raw_items:
+        raise ValueError("at least one positive dilation radius is required")
+
+    converted: list[int] = []
+    for item in raw_items:
+        if isinstance(item, bool):
+            raise ValueError("dilation radii must be positive integers")
+        if isinstance(item, Real):
+            number = float(item)
+            if not math.isfinite(number) or not number.is_integer():
+                raise ValueError("dilation radii must be positive integers")
+            radius = int(number)
+        else:
+            text = str(item).strip()
+            if not text.isdigit():
+                raise ValueError("dilation radii must be positive integers")
+            radius = int(text)
+        if radius <= 0:
+            raise ValueError("dilation radii must be positive integers")
+        converted.append(radius)
+
+    return tuple(sorted(set(converted)))
+
+
 _FIELD_BINDINGS: dict[str, tuple[str, Callable[[Any], Any]]] = {
     "baseline_method": ("baseline_method", str),
     "smooth_window": ("savgol_window", int),
@@ -44,6 +79,12 @@ _FIELD_BINDINGS: dict[str, tuple[str, Callable[[Any], Any]]] = {
     "integration_mode": ("use_pyfai_integration", _as_bool),
     "crystallinity": ("crystallinity", _as_float_or_nan),
     "T_melt_expected": ("T_melt_expected", _as_optional_float),
+    "beam_center_offset_x_px": ("beam_center_offset_x_px", float),
+    "beam_center_offset_y_px": ("beam_center_offset_y_px", float),
+    "orientation_mask_dilation_px": (
+        "orientation_mask_dilation_px",
+        _as_positive_int_tuple,
+    ),
 }
 
 

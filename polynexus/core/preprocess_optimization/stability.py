@@ -178,6 +178,8 @@ class StabilityReport:
     quality_gate_passed: bool
     reason_codes: tuple[str, ...] = ()
     mode: str | None = None
+    active_dimensions: tuple[str, ...] = ()
+    excluded_dimensions: dict[str, str] = field(default_factory=dict)
 
     @property
     def trial_count(self) -> int:
@@ -198,6 +200,8 @@ class StabilityReport:
             "quality_gate_passed": self.quality_gate_passed,
             "reason_codes": list(self.reason_codes),
             "mode": self.mode,
+            "active_dimensions": list(self.active_dimensions),
+            "excluded_dimensions": _json_safe(self.excluded_dimensions),
         }
 
 
@@ -391,6 +395,7 @@ def _plateau(
             max(float(trial.config[domain.name]) for trial in members),
         )
         for domain in request.domains
+        if not domain.values
     }
     scores = np.asarray([float(trial.score) for trial in members], dtype=float)
     connected = len(members) >= request.min_plateau_points
@@ -484,13 +489,22 @@ def run_stability_study(
             decision = "request_confirmation"
     else:
         decision = "keep_original"
-    selected = max(plateau_trials or trials, key=lambda trial: trial.score if trial.score is not None else -float("inf"))
+    selectable = plateau_trials or [trial for trial in trials if trial.score is not None]
+    selected_config = {}
+    if selectable:
+        selected = max(
+            selectable,
+            key=lambda trial: trial.score
+            if trial.score is not None
+            else -float("inf"),
+        )
+        selected_config = dict(selected.config)
     return StabilityReport(
         schema_version="saxs-stability-v1",
         decision=decision,
         complete=True,
         baseline_config=dict(request.baseline_config),
-        selected_config=dict(selected.config),
+        selected_config=selected_config,
         trials=tuple(trials),
         plateau=plateau,
         bootstrap=bootstrap,

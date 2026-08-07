@@ -183,6 +183,8 @@ class MainWindowConfigPanelMixin:
                 "sdd_m": {"type": "float", "default": 0.450, "min": 0.01, "max": 10.0, "decimals": 4, "step": 0.01, "label": tr("CONFIG_SAXS_SDD")},
                 "beam_center_x": {"type": "float", "default": 255.43, "min": 0.0, "max": 10000.0, "decimals": 2, "step": 1.0, "label": tr("CONFIG_SAXS_BEAM_CENTER_X")},
                 "beam_center_y": {"type": "float", "default": 549.73, "min": 0.0, "max": 10000.0, "decimals": 2, "step": 1.0, "label": tr("CONFIG_SAXS_BEAM_CENTER_Y")},
+                "beam_center_offset_x_px": {"type": "float", "default": 0.0, "min": -100.0, "max": 100.0, "decimals": 12, "step": 0.25, "label": f"{tr('CONFIG_SAXS_BEAM_CENTER_X')} offset (px)"},
+                "beam_center_offset_y_px": {"type": "float", "default": 0.0, "min": -100.0, "max": 100.0, "decimals": 12, "step": 0.25, "label": f"{tr('CONFIG_SAXS_BEAM_CENTER_Y')} offset (px)"},
                 "poni_file": {"type": "string", "default": "", "label": tr("CONFIG_SAXS_PONI_FILE")},
             }
         if technique == "waxs":
@@ -200,6 +202,7 @@ class MainWindowConfigPanelMixin:
                 "beamstop_pollution_threshold": {"type": "float", "default": 100.0, "min": 5.0, "max": 5000.0, "decimals": 1, "step": 5.0, "label": tr("CONFIG_SAXS_BEAMSTOP_THRESHOLD")},
                 "dummy_val": {"type": "float", "default": -1.5, "min": -1e6, "max": 1e6, "decimals": 3, "step": 0.1, "label": tr("CONFIG_SAXS_DUMMY_VALUE")},
                 "ddummy": {"type": "float", "default": 0.6, "min": 0.0, "max": 1e4, "decimals": 3, "step": 0.1, "label": tr("CONFIG_SAXS_DDUMMY")},
+                "orientation_mask_dilation_px": {"type": "string", "default": "1,2", "label": "Orientation mask dilation (px)"},
             }
         return {}
 
