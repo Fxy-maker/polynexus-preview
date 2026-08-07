@@ -549,6 +549,116 @@ def test_expand_saxs_candidates_builds_multiple_guarded_peak_window_plans() -> N
     assert all(sorted(item["changes"].keys()) == ["q_bragg_max", "q_bragg_min"] for item in executable)
 
 
+def test_saxs_candidate_plan_binds_action_compatible_symptom() -> None:
+    orchestrator = ParameterOrchestrator(
+        technique="saxs",
+        data_file="dummy.dat",
+        polymer_name="PA6",
+        project_root=Path("."),
+    )
+
+    plans = orchestrator._expand_saxs_candidates(
+        {
+            "target_symptom": "condition_axis_unstable",
+            "recommended_actions": [{"name": "adjust_corr_window"}],
+        },
+        {
+            "current_config": {
+                "q_corr_min": 0.15,
+                "q_corr_max": 1.20,
+                "savgol_window": 7,
+            },
+            "allowed_actions": [
+                {
+                    "name": "adjust_corr_window",
+                    "label": "Adjust correlation window",
+                    "target_symptoms": ["thickness_chain_unreliable"],
+                    "allowed_params": ["q_corr_min", "q_corr_max", "savgol_window"],
+                }
+            ],
+            "allowed_changes": {
+                "q_corr_min": [0.05, 0.8],
+                "q_corr_max": [0.3, 3.0],
+                "savgol_window": [3, 31],
+            },
+            "symptom_names": [
+                "condition_axis_unstable",
+                "thickness_chain_unreliable",
+            ],
+        },
+    )
+
+    q_plans = [
+        row
+        for row in plans
+        if row["action_name"] == "adjust_corr_window" and row["executable"]
+    ]
+    assert q_plans
+    assert {row["target_symptom"] for row in q_plans} == {
+        "thickness_chain_unreliable"
+    }
+
+
+def test_saxs_candidate_execution_preserves_empty_action_target(monkeypatch) -> None:
+    orchestrator = ParameterOrchestrator(
+        technique="saxs",
+        data_file="dummy.dat",
+        polymer_name="PA6",
+        project_root=Path("."),
+    )
+    captured_advice: dict[str, Any] = {}
+
+    def _capture_trial(
+        engine: Any,
+        round_num: int,
+        previous_record: Any,
+        advice: dict[str, Any],
+        changes: dict[str, Any],
+        prompt: str,
+    ) -> dict[str, Any]:
+        captured_advice.update(advice)
+        return {"status": "rejected", "reason": "test rejection", "record": None}
+
+    monkeypatch.setattr(orchestrator, "_restore_best", lambda engine: None)
+    monkeypatch.setattr(orchestrator, "_execute_candidate_trial", _capture_trial)
+    monkeypatch.setattr(orchestrator, "_record_round", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        orchestrator,
+        "_restore_best_with_refresh",
+        lambda engine: None,
+    )
+
+    previous_record = type(
+        "PreviousRecord",
+        (),
+        {"r_squared": 0.8, "eval_score": 0.8},
+    )()
+    orchestrator._run_saxs_candidate_round(
+        object(),
+        1,
+        {"target_symptom": "condition_axis_unstable"},
+        previous_record,
+        [
+            {
+                "action_name": "adjust_corr_window",
+                "target_symptom": "",
+                "changes": {"q_corr_min": 0.1},
+                "executable": True,
+            }
+        ],
+        "",
+    )
+
+    assert captured_advice["target_symptom"] == ""
+    assert (
+        orchestrator._advice_target_symptom(
+            captured_advice,
+            {"symptoms": [{"name": "condition_axis_unstable"}]},
+        )
+        == ""
+    )
+
+
 def test_expand_saxs_candidates_marks_non_executable_actions() -> None:
     orchestrator = ParameterOrchestrator(
         technique="saxs",

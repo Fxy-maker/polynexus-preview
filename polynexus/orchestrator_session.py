@@ -449,12 +449,15 @@ def _run_saxs_candidate_round(
         self._restore_best(engine)
         trial_advice = dict(advice)
         trial_advice["changes"] = dict(plan_dict.get("changes", {}))
-        trial_advice["target_symptom"] = (
-            str(plan_dict.get("target_symptom", "") or "").strip()
-            or str(advice.get("target_symptom", "") or "").strip()
-        )
+        action_name = str(plan_dict.get("action_name", "") or "").strip()
+        action_target = str(plan_dict.get("target_symptom", "") or "").strip()
+        if action_name == "advisor_changes":
+            action_target = action_target or str(
+                advice.get("target_symptom", "") or ""
+            ).strip()
+        trial_advice["target_symptom"] = action_target
         trial_advice["candidate_plan"] = {
-            "action_name": str(plan_dict.get("action_name", "") or "").strip(),
+            "action_name": action_name,
             "label": str(plan_dict.get("label", "") or "").strip(),
             "reason": str(plan_dict.get("reason", "") or "").strip(),
             "expected_evidence_change": str(

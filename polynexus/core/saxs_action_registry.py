@@ -65,7 +65,6 @@ SAXS_ACTION_SPECS: tuple[SAXSActionSpec, ...] = (
             "strain_void_lamellar_conflict",
             "lamellar_anchor_lost_under_strain",
             "qstar_rel_without_lamellar_support",
-            "condition_axis_unstable",
             "batch_summary_conflicts_with_frame_evidence",
             "thickness_chain_unreliable",
         ),
@@ -194,7 +193,6 @@ SAXS_ACTION_SPECS: tuple[SAXSActionSpec, ...] = (
         summary="Exclude an obviously broken frame when one local artifact is poisoning the sequence.",
         target_symptoms=(
             "idf_artifact_regular_spacing",
-            "condition_axis_unstable",
         ),
         allowed_params=(),
         expected_evidence_change=(

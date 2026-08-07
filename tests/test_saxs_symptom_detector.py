@@ -84,6 +84,30 @@ def test_detect_saxs_symptoms_flags_batch_mixing_and_axis_instability() -> None:
     assert "batch_mixed_samples" in names
 
 
+def test_complete_filename_axis_is_not_unstable_from_source_confidence_alone() -> None:
+    symptoms = detect_saxs_symptoms(
+        output_parameters={
+            "batch_frames": 5,
+            "condition_label": "Strain",
+            "condition_missing_frames": 0,
+            "condition_continuity_score": 1.0,
+            "_batch_data": [
+                {"strain_pct": value, "condition_value": value}
+                for value in (0.0, 5.0, 60.0, 200.0, 400.0)
+            ],
+        },
+        residual_pattern={"residual_type": "noise"},
+        condition_evidence={
+            "condition_label": "Strain",
+            "condition_missing_frames": 0,
+            "condition_confidence": 0.64,
+            "condition_continuity_score": 1.0,
+        },
+    )
+
+    assert "condition_axis_unstable" not in {item["name"] for item in symptoms}
+
+
 def test_detect_saxs_symptoms_flags_temperature_fallback_conflict_chain() -> None:
     symptoms = detect_saxs_symptoms(
         output_parameters={

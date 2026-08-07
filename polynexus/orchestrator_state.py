@@ -178,10 +178,38 @@ def _advice_target_symptom(
 ) -> str:
     if isinstance(advice, dict):
         target = str(advice.get("target_symptom", "") or "").strip()
-        if target:
+        candidate_plan = (
+            advice.get("candidate_plan", {})
+            if isinstance(advice.get("candidate_plan"), dict)
+            else {}
+        )
+        action_name = str(candidate_plan.get("action_name", "") or "").strip()
+        if target or (action_name and action_name != "advisor_changes"):
             return target
     names = self._symptom_names(self._analysis_symptoms(analysis_evidence))
     return names[0] if names else ""
+
+
+def _target_for_action(
+    lead: str,
+    symptom_names: list[str],
+    action_spec: dict[str, Any],
+) -> str:
+    supported = {
+        str(item or "").strip()
+        for item in action_spec.get("target_symptoms", [])
+        if str(item or "").strip()
+    }
+    if lead in supported:
+        return lead
+    return next(
+        (
+            name
+            for item in symptom_names
+            if (name := str(item or "").strip()) in supported
+        ),
+        "",
+    )
 
 
 def _advice_rollback_detail(
@@ -399,13 +427,14 @@ def _expand_technique_candidates(
         if not action_name:
             continue
         spec = action_specs.get(action_name, {"name": action_name, "allowed_params": []})
+        action_target = _target_for_action(target_symptom, symptom_names, spec)
         plans.extend(
             self._candidate_plans_for_action(
                 action_name=action_name,
                 current_config=current_config,
                 allowed_changes=allowed_changes,
                 action_spec=spec,
-                target_symptom=target_symptom,
+                target_symptom=action_target,
                 reason=reason,
                 expected_evidence_change=expected,
             )

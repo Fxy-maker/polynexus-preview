@@ -357,7 +357,7 @@ def detect_saxs_symptoms(
     elif has_series_axis and (
         missing_frames > 0
         or (continuity is not None and continuity < 0.85)
-        or (condition_confidence is not None and condition_confidence < 0.75)
+        or (condition_confidence is not None and condition_confidence <= 0.0)
     ):
         add(
             _make_symptom(

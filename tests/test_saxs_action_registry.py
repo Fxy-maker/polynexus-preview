@@ -20,7 +20,8 @@ def test_saxs_action_registry_matches_condition_recovery_actions() -> None:
 
     names = {item["name"] for item in actions}
     assert "rerun_condition_recovery" in names
-    assert "adjust_q_crop" in names
+    assert "adjust_q_crop" not in names
+    assert "mark_frame_outlier" not in names
 
 
 def test_saxs_action_registry_matches_strain_axis_recovery_actions() -> None:
