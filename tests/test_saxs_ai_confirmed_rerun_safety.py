@@ -16,6 +16,7 @@ from polynexus.core.saxs_engine.saxs_ai_rescue import (
     validate_saxs_confirmation_report,
 )
 from polynexus.gui.preprocess_transaction_service import PreprocessTransactionService
+from polynexus.orchestrator_session import _attach_stability_confirmation_contract
 
 
 def _frame(
@@ -91,6 +92,85 @@ def _report(*, mode: str = "static", candidate_id: str = "candidate-1", config: 
         ],
         "experience_proposal": {"experience_id": "experience-1"},
     }
+
+
+def test_keep_original_stability_diagnostic_never_exposes_candidate_contract() -> None:
+    report: dict[str, Any] = {"submodule": "saxs.strain"}
+    stability = {
+        "mode": "strain",
+        "decision": "keep_original",
+        "complete": True,
+        "baseline_config": {"q_min": 0.01, "q_max": 0.30},
+        "selected_config": {"q_min": 0.02, "q_max": 0.30},
+        "plateau": {"connected": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "continuity": {"passed": True, "status": "passed"},
+        "reason_codes": ["stable_plateau_insufficient"],
+    }
+
+    _attach_stability_confirmation_contract(report, stability)
+
+    assert report["mode"] == "strain"
+    assert report["selected_candidate_id"] == ""
+    assert report["original_preprocess_config"] == {}
+    assert report["selected_preprocess_config"] == {}
+    assert report["preprocess_candidates"] == []
+    assert report["preprocess_decision"]["decision"] == "keep_original"
+    assert stability["selected_config"] == {"q_min": 0.02, "q_max": 0.30}
+
+
+def test_static_not_applicable_continuity_preserves_confirmation_contract() -> None:
+    report: dict[str, Any] = {"submodule": "saxs.static"}
+    stability = {
+        "mode": "static",
+        "decision": "request_confirmation",
+        "complete": True,
+        "baseline_config": {"q_min": 0.01, "q_max": 0.30},
+        "selected_config": {"q_min": 0.02, "q_max": 0.30},
+        "plateau": {"connected": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "continuity": {
+            "passed": False,
+            "status": "not_applicable",
+            "frame_count": 0,
+        },
+        "reason_codes": [],
+    }
+
+    _attach_stability_confirmation_contract(report, stability)
+
+    assert report["mode"] == "static"
+    assert report["preprocess_decision"]["decision"] == "request_confirmation"
+    assert report["preprocess_decision"]["hard_guard_results"][
+        "cross_frame_continuity"
+    ] is True
+    assert report["selected_preprocess_config"] == {"q_min": 0.02}
+    assert len(report["preprocess_candidates"]) == 1
+
+
+def test_stability_auto_accept_is_downgraded_to_explicit_confirmation() -> None:
+    report: dict[str, Any] = {"submodule": "saxs.strain"}
+    stability = {
+        "mode": "strain",
+        "decision": "auto_accept",
+        "complete": True,
+        "baseline_config": {"q_min": 0.01, "q_max": 0.30},
+        "selected_config": {"q_min": 0.02, "q_max": 0.30},
+        "plateau": {"connected": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "continuity": {"passed": True, "status": "passed", "frame_count": 5},
+        "reason_codes": [],
+    }
+
+    _attach_stability_confirmation_contract(report, stability)
+
+    assert report["preprocess_decision"]["decision"] == "request_confirmation"
+    assert report["preprocess_decision"]["simulated_decision"] == "request_confirmation"
+    assert report["preprocess_decision"]["confidence_band"] == "medium"
+    assert report["selected_preprocess_config"] == {"q_min": 0.02}
 
 
 def test_confirmed_rerun_evidence_is_detached_and_strict_json_safe() -> None:

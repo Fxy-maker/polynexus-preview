@@ -720,11 +720,20 @@ def _attach_stability_confirmation_contract(
     decision = str(
         stability.get("decision", "keep_original") or "keep_original"
     ).strip().lower()
+    if decision == "auto_accept":
+        decision = "request_confirmation"
+    continuity = stability.get("continuity", {})
+    if not isinstance(continuity, dict):
+        continuity = {}
+    continuity_guard = bool(continuity.get("passed", False)) or (
+        projected_mode == "static"
+        and str(continuity.get("status", "") or "") == "not_applicable"
+    )
     guards = {
         "stability_plateau": bool(stability.get("plateau", {}).get("connected", False)),
         "physical_gate": bool(stability.get("physics_gate_passed", False)),
         "quality_gate": bool(stability.get("quality_gate_passed", False)),
-        "cross_frame_continuity": bool(stability.get("continuity", {}).get("passed", False)),
+        "cross_frame_continuity": continuity_guard,
     }
     applicable = (
         bool(stability.get("complete", True))

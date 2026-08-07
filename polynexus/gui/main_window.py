@@ -43,6 +43,8 @@ Layout (matching the PolyNexus interface design):
 
 
 import logging
+import math
+from collections.abc import Mapping
 
 import os  # noqa: F401
 import json
@@ -408,6 +410,51 @@ class AITuningGoalDialog(QDialog):
         return self._selected_goal or "symptom"
 
 
+def _safe_dialog_text(value, *, max_chars=512, _depth=0):
+    def bounded(text):
+        if len(text) <= max_chars:
+            return text
+        return text[: max_chars - 3] + "..."
+
+    if type(value) is str:
+        return bounded(value)
+    if value is None:
+        return "None"
+    if type(value) is bool:
+        return "True" if value else "False"
+    if type(value) is int:
+        if value.bit_length() > 53:
+            return "N/A"
+        return format(value, "d")
+    if type(value) is float:
+        return format(value, ".15g") if math.isfinite(value) else "N/A"
+    if _depth >= 3:
+        return "..."
+    if type(value) is dict:
+        parts = []
+        for index, (key, item) in enumerate(value.items()):
+            if index >= 12:
+                parts.append("...")
+                break
+            parts.append(
+                f"{_safe_dialog_text(key, max_chars=128, _depth=_depth + 1)}: "
+                f"{_safe_dialog_text(item, max_chars=256, _depth=_depth + 1)}"
+            )
+        return bounded("{" + ", ".join(parts) + "}")
+    if type(value) in {list, tuple}:
+        parts = []
+        for index, item in enumerate(value):
+            if index >= 12:
+                parts.append("...")
+                break
+            parts.append(
+                _safe_dialog_text(item, max_chars=256, _depth=_depth + 1)
+            )
+        opening, closing = ("[", "]") if type(value) is list else ("(", ")")
+        return bounded(opening + ", ".join(parts) + closing)
+    return "N/A"
+
+
 class SideTuningReportDialog(QDialog):
     def __init__(self, report, parent=None):
         super().__init__(parent)
@@ -451,7 +498,8 @@ class SideTuningReportDialog(QDialog):
             self._preprocess_ui_decision = build_preprocess_ui_decision(self.report)
             view = self._preprocess_ui_decision
             metric_text = "\n".join(
-                f"{name}: {value}" for name, value in view.metric_rows.items()
+                f"{_safe_dialog_text(name)}: {_safe_dialog_text(value)}"
+                for name, value in view.metric_rows.items()
             )
             reason_text = ", ".join(view.reason_codes)
             self._preprocess_metrics_label.setText(
@@ -1011,14 +1059,47 @@ class SideTuningReportDialog(QDialog):
         stability_report = self.report.get("stability_report")
         if isinstance(stability_report, dict):
             plateau = stability_report.get("plateau", {})
-            bootstrap = stability_report.get("bootstrap", {})
-            score_interval = bootstrap.get("score", {}) if isinstance(bootstrap, dict) else {}
+            if "perturbation_intervals" in stability_report:
+                raw_intervals = stability_report.get("perturbation_intervals")
+            else:
+                raw_intervals = stability_report.get("bootstrap")
+            intervals = raw_intervals if isinstance(raw_intervals, Mapping) else {}
+            raw_score_interval = intervals.get("score")
+            score_interval = (
+                raw_score_interval if isinstance(raw_score_interval, Mapping) else {}
+            )
+
+            def interval_bound(name):
+                value = score_interval.get(name)
+                if isinstance(value, bool):
+                    return "N/A"
+                try:
+                    numeric = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    return "N/A"
+                return _safe_dialog_text(value) if math.isfinite(numeric) else "N/A"
+
+            raw_continuity = stability_report.get("continuity")
+            continuity = (
+                raw_continuity if isinstance(raw_continuity, Mapping) else {}
+            )
+            raw_plateau_indices = (
+                plateau.get("trial_indices")
+                if isinstance(plateau, Mapping)
+                else None
+            )
+            plateau_count = (
+                len(raw_plateau_indices)
+                if isinstance(raw_plateau_indices, (list, tuple))
+                else 0
+            )
+
             stability_text = (
-                f"{stability_text} | map={stability_report.get('decision', 'keep_original')}"
+                f"{stability_text} | map={_safe_dialog_text(stability_report.get('decision', 'keep_original'))}"
                 f" | trials={len(stability_report.get('trials', [])) if isinstance(stability_report.get('trials'), list) else 0}"
-                f" | plateau={len(plateau.get('trial_indices', [])) if isinstance(plateau, dict) else 0}"
-                f" | score95%={score_interval.get('lower', 'N/A')}..{score_interval.get('upper', 'N/A')}"
-                f" | continuity={'pass' if stability_report.get('continuity', {}).get('passed') else 'fail'}"
+                f" | plateau={plateau_count}"
+                f" | score95%={interval_bound('lower')}..{interval_bound('upper')}"
+                f" | continuity={'pass' if continuity.get('passed') else 'fail'}"
             )
         self._issue_stability_label.setText(
             f"{tr('AI_TUNING_LABEL_STABILITY')}: {stability_text}"

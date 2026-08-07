@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QApplication
+from types import SimpleNamespace
+
+from PySide6.QtWidgets import QApplication, QDialog
 
 from polynexus.gui.main_window import MainWindow
+from polynexus.gui import main_window_ai_tuning_mixin as ai_tuning_mixin_module
 from polynexus.gui.main_window_ai_tuning_mixin import MainWindowAITuningMixin
 from polynexus.core.preprocess_optimization.candidates import stable_config_hash
 
@@ -53,6 +56,142 @@ def _preprocess_report(decision="request_confirmation"):
             "config_delta": {"smooth_window": 15},
         },
     }
+
+
+class _FinishedDialog:
+    def __init__(self, _report, _parent):
+        pass
+
+    def exec(self):
+        return QDialog.Accepted
+
+
+class _FinishedWindow(MainWindowAITuningMixin):
+    def __init__(self, technique="saxs"):
+        self._current_technique = technique
+        self._ai_progress = None
+        self.begin_calls = 0
+        self.register_calls = 0
+        self.logs = []
+
+    @classmethod
+    def _side_tuning_report_dialog_class(cls):
+        return _FinishedDialog
+
+    def _update_workflow_task_card(self):
+        pass
+
+    def _ai_tuning_report_context(self, _report):
+        return {}
+
+    def _current_tuning_goal(self):
+        return "quality"
+
+    def _ai_tuning_goal_label(self, goal):
+        return goal
+
+    def _update_workspace_context(self):
+        pass
+
+    def _update_work_memory_panel(self):
+        pass
+
+    def _update_results_review_panel(self):
+        pass
+
+    def _begin_preprocess_confirmation(self, _report, *, accepted_by):
+        assert accepted_by == "user_confirmed"
+        self.begin_calls += 1
+        return True
+
+    def _register_preprocess_auto_accept(self, _report):
+        self.register_calls += 1
+        return True
+
+    def _undo_last_preprocess_apply(self):
+        return True
+
+    def log(self, message):
+        self.logs.append(message)
+
+
+def _saxs_stability_auto_report(*, complete=True, quality=True):
+    original = {"q_min": 0.01}
+    selected = {"q_min": 0.02}
+    candidate_id = "saxs-auto-1"
+    return {
+        "technique": "SAXS",
+        "mode": "strain",
+        "preprocess_decision": {
+            "decision": "auto_accept",
+            "simulated_decision": "auto_accept",
+            "confidence_band": "high",
+            "hard_guard_results": {
+                "stability_plateau": True,
+                "physical_gate": True,
+                "quality_gate": quality,
+                "cross_frame_continuity": True,
+            },
+        },
+        "selected_candidate_id": candidate_id if complete else "",
+        "original_preprocess_config": original,
+        "selected_preprocess_config": selected,
+        "preprocess_candidates": [
+            {
+                "candidate_id": candidate_id,
+                "base_config_hash": stable_config_hash(original),
+                "config_delta": selected,
+            }
+        ] if complete else [],
+        "stability_report": {
+            "mode": "strain",
+            "decision": "auto_accept",
+            "complete": True,
+            "plateau": {"connected": True, "trial_indices": [0]},
+            "continuity": {"passed": True, "status": "passed", "frame_count": 5},
+            "physics_gate_passed": True,
+            "quality_gate_passed": quality,
+            "reason_codes": [],
+        },
+    }
+
+
+def test_finished_saxs_stability_auto_accept_never_registers_unattended_apply():
+    for report in (
+        _saxs_stability_auto_report(),
+        _saxs_stability_auto_report(complete=False),
+        _saxs_stability_auto_report(quality=False),
+    ):
+        window = _FinishedWindow("saxs")
+
+        window._on_ai_tune_finished(report)
+
+        assert window.register_calls == 0
+        assert window.begin_calls <= 1
+
+
+def test_finished_generic_auto_accept_keeps_existing_registration_path():
+    window = _FinishedWindow("dsc")
+
+    window._on_ai_tune_finished(_preprocess_report("auto_accept"))
+
+    assert window.register_calls == 1
+
+
+def test_finished_mixin_defense_blocks_stale_saxs_auto_apply(monkeypatch):
+    window = _FinishedWindow("dsc")
+    report = _preprocess_report("auto_accept")
+    report["technique"] = "SAXS"
+    report["stability_report"] = "malformed-stale-report"
+    monkeypatch.setattr(
+        ai_tuning_mixin_module,
+        "build_preprocess_ui_decision",
+        lambda _report: SimpleNamespace(mode="auto_apply"),
+    )
+
+    window._on_ai_tune_finished(report)
+
+    assert window.register_calls == 0
 
 
 def test_confirmation_starts_transaction_but_defers_experience_until_success():

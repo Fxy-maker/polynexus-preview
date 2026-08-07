@@ -377,9 +377,19 @@ class MainWindowAITuningMixin:
         dialog_result = dialog.exec()
         if "preprocess_decision" in report:
             view = build_preprocess_ui_decision(report)
+            current_technique = str(
+                getattr(self, "_current_technique", "") or ""
+            ).strip().lower()
+            report_technique = str(
+                report.get("technique", "") or ""
+            ).strip().lower()
+            saxs_or_stability = (
+                "saxs" in {current_technique, report_technique}
+                or "stability_report" in report
+            )
             if view.mode == "confirm" and dialog_result == QDialog.Accepted:
                 self._begin_preprocess_confirmation(report, accepted_by="user_confirmed")
-            elif view.mode == "auto_apply":
+            elif view.mode == "auto_apply" and not saxs_or_stability:
                 self._register_preprocess_auto_accept(report)
                 if dialog_result == QDialog.Accepted:
                     transaction = getattr(self, "_preprocess_transaction", None)
