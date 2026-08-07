@@ -3,10 +3,74 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from typing import Any
 
 from polynexus.core.preprocess_optimization import ParameterDomain, StabilityStudyRequest, run_stability_study
 from polynexus.core.saxs_engine.saxs_ai_rescue import assess_saxs_confirmed_rerun
+
+
+_SAXS_STABILITY_MODE_ALIASES = {
+    "static": "static",
+    "strain": "strain",
+    "temperature": "temperature",
+    "heating": "temperature",
+    "cooling": "temperature",
+    "isothermal": "temperature",
+}
+
+
+def _normalise_saxs_stability_mode(value: Any) -> str | None:
+    raw = str(value or "").strip().lower()
+    if raw.startswith("saxs."):
+        raw = raw.split(".", 1)[1]
+    return _SAXS_STABILITY_MODE_ALIASES.get(raw)
+
+
+def _saxs_stability_mode(self: Any, engine: Any, config: Any) -> tuple[str | None, str | None]:
+    inputs: list[Any] = []
+    experiment_type = getattr(config, "experiment_type", "")
+    if str(experiment_type or "").strip():
+        inputs.append(experiment_type)
+
+    submodule_override = getattr(self, "submodule_override", None)
+    active_submodule = getattr(engine, "active_submodule", None)
+    for value in (submodule_override, active_submodule):
+        if str(value or "").strip():
+            inputs.append(value)
+
+    if not inputs:
+        public_submodule = getattr(self, "_public_submodule", None)
+        if callable(public_submodule):
+            inputs.append(public_submodule())
+
+    modes = [_normalise_saxs_stability_mode(value) for value in inputs]
+    if not modes or any(mode is None for mode in modes):
+        return None, "unsupported_saxs_stability_mode"
+    if len(set(modes)) != 1:
+        return None, "conflicting_saxs_stability_mode"
+    return modes[0], None
+
+
+def _failed_saxs_stability_report(
+    baseline_config: dict[str, Any],
+    reason_code: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "saxs-stability-v1",
+        "mode": None,
+        "decision": "keep_original",
+        "complete": False,
+        "baseline_config": deepcopy(baseline_config),
+        "selected_config": {},
+        "trials": [],
+        "plateau": {"connected": False},
+        "bootstrap": {},
+        "continuity": {"passed": False},
+        "physics_gate_passed": False,
+        "quality_gate_passed": False,
+        "reason_codes": [reason_code],
+    }
 
 
 def _numeric_domain(config: dict[str, Any], name: str, *, relative: float, minimum: float, maximum: float):
@@ -98,14 +162,20 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         return {}
     config = self._engine_config(engine)
     base_config = self._config_to_dict(config)
+    scientific_mode, mode_error = _saxs_stability_mode(self, engine, config)
+    if scientific_mode is None:
+        report = _failed_saxs_stability_report(
+            base_config,
+            mode_error or "unsupported_saxs_stability_mode",
+        )
+        self._last_stability_report = deepcopy(report)
+        return report
     domains = _saxs_stability_domains(base_config)
     if not domains:
-        return {
-            "schema_version": "saxs-stability-v1",
-            "decision": "keep_original",
-            "complete": False,
-            "reason_codes": ["stability_domains_unavailable"],
-        }
+        report = _failed_saxs_stability_report(base_config, "stability_domains_unavailable")
+        report["mode"] = scientific_mode
+        self._last_stability_report = deepcopy(report)
+        return report
 
     from polynexus.orchestrator_preprocess import _new_trial_engine, _run_trial_pipeline
 
@@ -125,8 +195,7 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         residuals = self._residual_pattern(trial_engine)
         evidence = self._analysis_evidence(output, residuals)
         score = self._score_snapshot(output, residuals, evidence).get("objective_score", 0.0)
-        mode = "static"
-        assessment = assess_saxs_confirmed_rerun(trial_engine, mode=mode)
+        assessment = assess_saxs_confirmed_rerun(trial_engine, mode=scientific_mode)
         return {
             "score": score,
             "physical_passed": assessment.get("physical_gate_status") == "passed",
@@ -140,20 +209,25 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
             "reason_codes": assessment.get("reason_codes", []),
         }
 
-    mode = str((self.workspace_context or {}).get("stability_mode", "strict") or "strict").lower()
+    decision_mode = str(
+        (self.workspace_context or {}).get("stability_mode", "strict") or "strict"
+    ).lower()
     request = StabilityStudyRequest(
         baseline_config=deepcopy(base_config),
         domains=domains,
         seed=17,
-        global_trials=12 if mode == "strict" else 6,
-        active_trials=8 if mode == "strict" else 3,
-        confirmation_trials=9 if mode == "strict" else 3,
+        global_trials=12 if decision_mode == "strict" else 6,
+        active_trials=8 if decision_mode == "strict" else 3,
+        confirmation_trials=9 if decision_mode == "strict" else 3,
         min_plateau_points=3,
-        decision_mode="strict" if mode == "strict" else "quick",
+        decision_mode="strict" if decision_mode == "strict" else "quick",
         # SAXS physical semantics require an explicit user confirmation even
         # when the numerical stability score reaches the auto-accept band.
         allow_auto_accept=False,
     )
-    report = run_stability_study(request, evaluate).to_dict()
+    report = replace(
+        run_stability_study(request, evaluate),
+        mode=scientific_mode,
+    ).to_dict()
     self._last_stability_report = deepcopy(report)
     return report

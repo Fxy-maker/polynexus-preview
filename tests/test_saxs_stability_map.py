@@ -1,5 +1,75 @@
 from __future__ import annotations
 
+
+def _run_mode_stability_bridge(monkeypatch, *, experiment_type: str, submodule: str | None):
+    from types import SimpleNamespace
+
+    import polynexus.orchestrator_preprocess as preprocess_module
+    import polynexus.orchestrator_stability as stability_module
+
+    observed_modes: list[str] = []
+
+    monkeypatch.setattr(
+        stability_module,
+        "assess_saxs_confirmed_rerun",
+        lambda _engine, *, mode: observed_modes.append(mode)
+        or {
+            "physical_gate_status": "passed",
+            "quality_gate_status": "passed",
+            "reason_codes": [],
+        },
+    )
+    monkeypatch.setattr(
+        preprocess_module,
+        "_new_trial_engine",
+        lambda _self, _engine, trial_config: SimpleNamespace(cfg=trial_config),
+    )
+    monkeypatch.setattr(
+        preprocess_module,
+        "_run_trial_pipeline",
+        lambda _self, _engine: (True, ""),
+    )
+
+    class Harness:
+        technique = "saxs"
+        workspace_context = {"stability_mode": "quick"}
+        submodule_override = submodule
+        _last_stability_report: dict[str, object] = {}
+
+        @staticmethod
+        def _engine_config(engine):
+            return engine.cfg
+
+        @staticmethod
+        def _config_to_dict(config):
+            return dict(vars(config))
+
+        @staticmethod
+        def _output_parameters(_engine):
+            return {"L_nm": 10.0}
+
+        @staticmethod
+        def _residual_pattern(_engine):
+            return {}
+
+        @staticmethod
+        def _analysis_evidence(_output, _residuals):
+            return {}
+
+        @staticmethod
+        def _score_snapshot(_output, _residuals, _evidence):
+            return {"objective_score": 1.0}
+
+        def _public_submodule(self):
+            return self.submodule_override or "saxs.static"
+
+    harness = Harness()
+    report = stability_module._run_saxs_stability_study(
+        harness,
+        SimpleNamespace(cfg=SimpleNamespace(experiment_type=experiment_type, q_min=0.1)),
+    )
+    return report, observed_modes
+
 def test_stability_study_is_deterministic_and_reuses_cached_trials() -> None:
     from polynexus.core.preprocess_optimization.stability import (
         ParameterDomain,
@@ -198,6 +268,149 @@ def test_stability_report_uses_existing_confirmation_contract_without_mutation()
     assert report["selected_preprocess_config"] == {"q_min": 0.12}
     assert report["original_preprocess_config"] == {"q_min": 0.10}
     assert report["preprocess_candidates"][0]["config_delta"] == {"q_min": 0.12}
+
+
+def test_stability_confirmation_projects_report_mode_without_static_fallback() -> None:
+    from polynexus.orchestrator_session import _attach_stability_confirmation_contract
+
+    report: dict[str, object] = {"submodule": "saxs.strain"}
+    stability = {
+        "mode": "strain",
+        "decision": "request_confirmation",
+        "complete": True,
+        "baseline_config": {"q_min": 0.10},
+        "selected_config": {"q_min": 0.12},
+        "plateau": {"connected": True},
+        "continuity": {"passed": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "reason_codes": [],
+    }
+
+    _attach_stability_confirmation_contract(report, stability)
+
+    assert report["mode"] == "strain"
+
+
+def test_stability_confirmation_accepts_explicit_compatible_mode() -> None:
+    from polynexus.orchestrator_session import _attach_stability_confirmation_contract
+
+    report: dict[str, object] = {"submodule": "saxs.temperature"}
+    stability = {
+        "decision": "request_confirmation",
+        "baseline_config": {"q_min": 0.10},
+        "selected_config": {"q_min": 0.12},
+        "plateau": {"connected": True},
+        "continuity": {"passed": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "reason_codes": [],
+    }
+
+    _attach_stability_confirmation_contract(report, stability, mode="temperature")
+
+    assert report["mode"] == "temperature"
+
+
+def test_stability_confirmation_keeps_unsupported_mode_non_applicable() -> None:
+    from polynexus.orchestrator_session import _attach_stability_confirmation_contract
+
+    report: dict[str, object] = {"submodule": "saxs.dynamic"}
+    stability = {
+        "mode": None,
+        "decision": "keep_original",
+        "complete": False,
+        "baseline_config": {"q_min": 0.10},
+        "selected_config": {},
+        "plateau": {"connected": False},
+        "continuity": {"passed": False},
+        "physics_gate_passed": False,
+        "quality_gate_passed": False,
+        "reason_codes": ["unsupported_saxs_stability_mode"],
+    }
+
+    _attach_stability_confirmation_contract(report, stability)
+
+    assert report["mode"] is None
+    assert report["selected_preprocess_config"] == {}
+    assert report["preprocess_candidates"] == []
+    assert report["preprocess_decision"]["decision"] == "keep_original"
+
+
+def test_stability_report_contract_serializes_optional_mode() -> None:
+    from polynexus.core.preprocess_optimization.stability import (
+        ContinuityEvidence,
+        PlateauSummary,
+        StabilityReport,
+    )
+
+    report = StabilityReport(
+        schema_version="saxs-stability-v1",
+        decision="keep_original",
+        complete=False,
+        baseline_config={},
+        selected_config={},
+        trials=(),
+        plateau=PlateauSummary(connected=False),
+        bootstrap={},
+        continuity=ContinuityEvidence(passed=False),
+        physics_gate_passed=False,
+        quality_gate_passed=False,
+        mode="temperature",
+    )
+
+    assert report.to_dict()["mode"] == "temperature"
+
+
+def test_stability_bridge_uses_active_mode_for_every_trial(monkeypatch) -> None:
+    cases = (
+        ("static", "saxs.static", "static"),
+        ("strain", "saxs.strain", "strain"),
+        ("temperature", "saxs.temperature", "temperature"),
+        ("heating", "saxs.temperature", "temperature"),
+        ("cooling", "saxs.temperature", "temperature"),
+        ("isothermal", "saxs.temperature", "temperature"),
+    )
+    for experiment_type, submodule, expected in cases:
+        report, observed_modes = _run_mode_stability_bridge(
+            monkeypatch,
+            experiment_type=experiment_type,
+            submodule=submodule,
+        )
+        assert observed_modes
+        assert observed_modes == [expected] * len(observed_modes)
+        assert report["mode"] == expected
+        assert report["decision"] != "auto_accept"
+
+
+def test_stability_bridge_fails_closed_for_unsupported_mode(monkeypatch) -> None:
+    report, observed_modes = _run_mode_stability_bridge(
+        monkeypatch,
+        experiment_type="dynamic",
+        submodule="saxs.dynamic",
+    )
+
+    assert observed_modes == []
+    assert report["mode"] is None
+    assert report["complete"] is False
+    assert report["decision"] == "keep_original"
+    assert report["selected_config"] == {}
+    assert "unsupported_saxs_stability_mode" in report["reason_codes"]
+
+
+def test_stability_bridge_fails_closed_for_conflicting_modes(monkeypatch) -> None:
+    report, observed_modes = _run_mode_stability_bridge(
+        monkeypatch,
+        experiment_type="strain",
+        submodule="saxs.temperature",
+    )
+
+    assert observed_modes == []
+    assert report["mode"] is None
+    assert report["complete"] is False
+    assert report["decision"] == "keep_original"
+    assert report["selected_config"] == {}
+    assert "conflicting_saxs_stability_mode" in report["reason_codes"]
 
 
 def test_saxs_stability_domains_include_guinier_window_and_scalar_mask_dilation() -> None:

@@ -177,6 +177,7 @@ class StabilityReport:
     physics_gate_passed: bool
     quality_gate_passed: bool
     reason_codes: tuple[str, ...] = ()
+    mode: str | None = None
 
     @property
     def trial_count(self) -> int:
@@ -196,6 +197,7 @@ class StabilityReport:
             "physics_gate_passed": self.physics_gate_passed,
             "quality_gate_passed": self.quality_gate_passed,
             "reason_codes": list(self.reason_codes),
+            "mode": self.mode,
         }
 
 

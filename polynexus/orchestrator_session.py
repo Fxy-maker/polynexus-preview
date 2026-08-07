@@ -685,9 +685,33 @@ def _final_report(
     return self._to_plain_value(report)
 
 
-def _attach_stability_confirmation_contract(report: dict[str, Any], stability: dict[str, Any]) -> None:
+def _attach_stability_confirmation_contract(
+    report: dict[str, Any],
+    stability: dict[str, Any],
+    mode: str | None = None,
+) -> None:
     """Expose stability evidence through the existing confirmation boundary."""
     from polynexus.core.preprocess_optimization import stable_config_hash
+
+    if "mode" in stability:
+        projected_mode = stability.get("mode")
+    elif mode is not None:
+        projected_mode = mode
+    elif "mode" in report:
+        projected_mode = report.get("mode")
+    else:
+        raw_submodule = str(report.get("submodule", "") or "").strip().lower()
+        if raw_submodule.startswith("saxs."):
+            raw_submodule = raw_submodule.split(".", 1)[1]
+        projected_mode = {
+            "strain": "strain",
+            "temperature": "temperature",
+            "heating": "temperature",
+            "cooling": "temperature",
+            "isothermal": "temperature",
+            "static": "static",
+            "": "static",
+        }.get(raw_submodule, raw_submodule)
 
     baseline = stability.get("baseline_config", {})
     selected = stability.get("selected_config", {})
@@ -709,20 +733,34 @@ def _attach_stability_confirmation_contract(report: dict[str, Any], stability: d
         "quality_gate": bool(stability.get("quality_gate_passed", False)),
         "cross_frame_continuity": bool(stability.get("continuity", {}).get("passed", False)),
     }
+    applicable = bool(stability.get("complete", True)) and projected_mode in {
+        "static",
+        "temperature",
+        "strain",
+    }
+    if applicable:
+        projected_original = original_subset
+        projected_selected = selected_subset
+        candidates = [
+            {
+                "candidate_id": candidate_id,
+                "base_config_hash": stable_config_hash(original_subset),
+                "config_delta": deepcopy(selected_subset),
+                "generation_reason": "saxs_stability_map",
+            }
+        ]
+    else:
+        decision = "keep_original"
+        projected_original = {}
+        projected_selected = {}
+        candidates = []
     report.update(
         {
-            "mode": "static",
-            "selected_candidate_id": candidate_id,
-            "original_preprocess_config": original_subset,
-            "selected_preprocess_config": selected_subset,
-            "preprocess_candidates": [
-                {
-                    "candidate_id": candidate_id,
-                    "base_config_hash": stable_config_hash(original_subset),
-                    "config_delta": deepcopy(selected_subset),
-                    "generation_reason": "saxs_stability_map",
-                }
-            ],
+            "mode": projected_mode,
+            "selected_candidate_id": candidate_id if applicable else "",
+            "original_preprocess_config": projected_original,
+            "selected_preprocess_config": projected_selected,
+            "preprocess_candidates": candidates,
             "preprocess_decision": {
                 "decision": decision if changed_keys else "keep_original",
                 "simulated_decision": decision if changed_keys else "keep_original",
