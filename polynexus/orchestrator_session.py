@@ -692,26 +692,17 @@ def _attach_stability_confirmation_contract(
 ) -> None:
     """Expose stability evidence through the existing confirmation boundary."""
     from polynexus.core.preprocess_optimization import stable_config_hash
+    from polynexus.core.saxs_mode import canonical_saxs_mode
 
     if "mode" in stability:
-        projected_mode = stability.get("mode")
+        raw_mode = stability.get("mode")
     elif mode is not None:
-        projected_mode = mode
+        raw_mode = mode
     elif "mode" in report:
-        projected_mode = report.get("mode")
+        raw_mode = report.get("mode")
     else:
-        raw_submodule = str(report.get("submodule", "") or "").strip().lower()
-        if raw_submodule.startswith("saxs."):
-            raw_submodule = raw_submodule.split(".", 1)[1]
-        projected_mode = {
-            "strain": "strain",
-            "temperature": "temperature",
-            "heating": "temperature",
-            "cooling": "temperature",
-            "isothermal": "temperature",
-            "static": "static",
-            "": "static",
-        }.get(raw_submodule, raw_submodule)
+        raw_mode = report.get("submodule") or "static"
+    projected_mode = canonical_saxs_mode(raw_mode)
 
     baseline = stability.get("baseline_config", {})
     selected = stability.get("selected_config", {})

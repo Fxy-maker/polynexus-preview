@@ -312,6 +312,73 @@ def test_stability_confirmation_accepts_explicit_compatible_mode() -> None:
     assert report["mode"] == "temperature"
 
 
+def test_stability_confirmation_normalizes_stability_report_alias() -> None:
+    from polynexus.orchestrator_session import _attach_stability_confirmation_contract
+
+    report: dict[str, object] = {}
+    stability = {
+        "mode": "heating",
+        "decision": "request_confirmation",
+        "complete": True,
+        "baseline_config": {"q_min": 0.10},
+        "selected_config": {"q_min": 0.12},
+        "plateau": {"connected": True},
+        "continuity": {"passed": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "reason_codes": [],
+    }
+
+    _attach_stability_confirmation_contract(report, stability)
+
+    assert report["mode"] == "temperature"
+    assert report["selected_preprocess_config"] == {"q_min": 0.12}
+
+
+def test_stability_confirmation_normalizes_explicit_qualified_alias() -> None:
+    from polynexus.orchestrator_session import _attach_stability_confirmation_contract
+
+    report: dict[str, object] = {}
+    stability = {
+        "decision": "request_confirmation",
+        "complete": True,
+        "baseline_config": {"q_min": 0.10},
+        "selected_config": {"q_min": 0.12},
+        "plateau": {"connected": True},
+        "continuity": {"passed": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "reason_codes": [],
+    }
+
+    _attach_stability_confirmation_contract(report, stability, mode="saxs.heating")
+
+    assert report["mode"] == "temperature"
+    assert report["selected_preprocess_config"] == {"q_min": 0.12}
+
+
+def test_stability_confirmation_normalizes_existing_report_mode_case() -> None:
+    from polynexus.orchestrator_session import _attach_stability_confirmation_contract
+
+    report: dict[str, object] = {"mode": "SAXS.TEMPERATURE"}
+    stability = {
+        "decision": "request_confirmation",
+        "complete": True,
+        "baseline_config": {"q_min": 0.10},
+        "selected_config": {"q_min": 0.12},
+        "plateau": {"connected": True},
+        "continuity": {"passed": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "reason_codes": [],
+    }
+
+    _attach_stability_confirmation_contract(report, stability)
+
+    assert report["mode"] == "temperature"
+    assert report["selected_preprocess_config"] == {"q_min": 0.12}
+
+
 def test_stability_confirmation_keeps_unsupported_mode_non_applicable() -> None:
     from polynexus.orchestrator_session import _attach_stability_confirmation_contract
 

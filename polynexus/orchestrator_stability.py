@@ -7,24 +7,12 @@ from dataclasses import replace
 from typing import Any
 
 from polynexus.core.preprocess_optimization import ParameterDomain, StabilityStudyRequest, run_stability_study
+from polynexus.core.saxs_mode import canonical_saxs_mode
 from polynexus.core.saxs_engine.saxs_ai_rescue import assess_saxs_confirmed_rerun
 
 
-_SAXS_STABILITY_MODE_ALIASES = {
-    "static": "static",
-    "strain": "strain",
-    "temperature": "temperature",
-    "heating": "temperature",
-    "cooling": "temperature",
-    "isothermal": "temperature",
-}
-
-
 def _normalise_saxs_stability_mode(value: Any) -> str | None:
-    raw = str(value or "").strip().lower()
-    if raw.startswith("saxs."):
-        raw = raw.split(".", 1)[1]
-    return _SAXS_STABILITY_MODE_ALIASES.get(raw)
+    return canonical_saxs_mode(value)
 
 
 def _saxs_stability_mode(self: Any, engine: Any, config: Any) -> tuple[str | None, str | None]:
