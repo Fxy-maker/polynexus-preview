@@ -317,6 +317,59 @@ def test_stability_report_uses_existing_confirmation_contract_without_mutation()
     assert report["preprocess_candidates"][0]["config_delta"] == {"q_min": 0.12}
 
 
+def test_keep_original_stability_diagnostic_never_exposes_confirmation_authority() -> None:
+    from polynexus.orchestrator_session import _attach_stability_confirmation_contract
+
+    report: dict[str, object] = {}
+    stability = {
+        "mode": "strain",
+        "decision": "keep_original",
+        "complete": True,
+        "baseline_config": {"q_min": 0.10},
+        "selected_config": {"q_min": 0.12},
+        "plateau": {"connected": True},
+        "continuity": {"passed": True},
+        "physics_gate_passed": True,
+        "quality_gate_passed": True,
+        "reason_codes": ["stable_plateau_insufficient"],
+    }
+
+    _attach_stability_confirmation_contract(report, stability)
+
+    assert report["selected_preprocess_config"] == {}
+    assert report["original_preprocess_config"] == {}
+    assert report["preprocess_candidates"] == []
+    assert report["selected_candidate_id"] == ""
+    assert report["preprocess_decision"]["decision"] == "keep_original"
+
+
+def test_empty_or_unchanged_stability_selection_never_exposes_confirmation_authority() -> None:
+    from polynexus.orchestrator_session import _attach_stability_confirmation_contract
+
+    for selected in ({}, {"q_min": 0.10}):
+        report: dict[str, object] = {}
+        stability = {
+            "mode": "static",
+            "decision": "request_confirmation",
+            "complete": True,
+            "baseline_config": {"q_min": 0.10},
+            "selected_config": selected,
+            "plateau": {"connected": True},
+            "continuity": {"passed": True},
+            "physics_gate_passed": True,
+            "quality_gate_passed": True,
+            "reason_codes": [],
+        }
+
+        _attach_stability_confirmation_contract(report, stability)
+
+        assert report["selected_preprocess_config"] == {}
+        assert report["original_preprocess_config"] == {}
+        assert report["preprocess_candidates"] == []
+        assert report["selected_candidate_id"] == ""
+        assert report["preprocess_decision"]["decision"] == "keep_original"
+
+
 def test_stability_confirmation_projects_report_mode_without_static_fallback() -> None:
     from polynexus.orchestrator_session import _attach_stability_confirmation_contract
 
@@ -586,6 +639,33 @@ def test_saxs_stability_domains_include_only_active_2d_perturbations() -> None:
     )
     assert result.excluded_dimensions["bg_scale_value"] == (
         "manual_background_inactive"
+    )
+
+
+def test_sector_only_evidence_excludes_beam_offsets_but_keeps_orientation_domains() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    result = _saxs_stability_domains(
+        _activity_domain_config(),
+        mode="strain",
+        engine=SimpleNamespace(
+            _img=None,
+            _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+        ),
+    )
+
+    names = {domain.name for domain in result}
+    assert "chi_halfwidth" in names
+    assert "orientation_mask_dilation_px" in names
+    assert "beam_center_offset_x_px" not in names
+    assert "beam_center_offset_y_px" not in names
+    assert result.excluded_dimensions["beam_center_offset_x_px"] == (
+        "raw_detector_2d_evidence_missing"
+    )
+    assert result.excluded_dimensions["beam_center_offset_y_px"] == (
+        "raw_detector_2d_evidence_missing"
     )
 
 

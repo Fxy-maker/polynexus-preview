@@ -717,18 +717,22 @@ def _attach_stability_confirmation_contract(
     candidate_id = stable_config_hash(
         {"base": stable_config_hash(original_subset), "selected": selected_subset}
     )[:24]
-    decision = str(stability.get("decision", "keep_original") or "keep_original")
+    decision = str(
+        stability.get("decision", "keep_original") or "keep_original"
+    ).strip().lower()
     guards = {
         "stability_plateau": bool(stability.get("plateau", {}).get("connected", False)),
         "physical_gate": bool(stability.get("physics_gate_passed", False)),
         "quality_gate": bool(stability.get("quality_gate_passed", False)),
         "cross_frame_continuity": bool(stability.get("continuity", {}).get("passed", False)),
     }
-    applicable = bool(stability.get("complete", True)) and projected_mode in {
-        "static",
-        "temperature",
-        "strain",
-    }
+    applicable = (
+        bool(stability.get("complete", True))
+        and projected_mode in {"static", "temperature", "strain"}
+        and decision in {"request_confirmation", "auto_accept"}
+        and bool(changed_keys)
+        and all(guards.values())
+    )
     if applicable:
         projected_original = original_subset
         projected_selected = selected_subset

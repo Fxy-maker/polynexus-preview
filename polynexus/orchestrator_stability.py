@@ -131,7 +131,7 @@ def _valid_saxs_windows(config: dict[str, Any]) -> bool:
     return True
 
 
-def _has_real_2d_detector_evidence(engine: Any) -> bool:
+def _has_raw_2d_detector_evidence(engine: Any) -> bool:
     if engine is None:
         return False
 
@@ -148,7 +148,12 @@ def _has_real_2d_detector_evidence(engine: Any) -> bool:
                 return True
         except (TypeError, ValueError):
             continue
+    return False
 
+
+def _has_sector_evidence(engine: Any) -> bool:
+    if engine is None:
+        return False
     sector_candidates: list[Any] = [
         getattr(engine, "_sector_data", None),
         getattr(engine, "_sector_data_list", None),
@@ -161,6 +166,10 @@ def _has_real_2d_detector_evidence(engine: Any) -> bool:
         if any(isinstance(value, dict) and bool(value) for value in values):
             return True
     return False
+
+
+def _has_real_2d_detector_evidence(engine: Any) -> bool:
+    return _has_raw_2d_detector_evidence(engine) or _has_sector_evidence(engine)
 
 
 def _saxs_stability_domains(
@@ -243,18 +252,23 @@ def _saxs_stability_domains(
         "chi_halfwidth",
         "orientation_mask_dilation_px",
     )
+    raw_detector_evidence = _has_raw_2d_detector_evidence(engine)
     if not _has_real_2d_detector_evidence(engine):
         excluded.update(
             {name: "detector_2d_evidence_missing" for name in detector_dimensions}
         )
         return SAXSStabilityDomains(tuple(domains), excluded)
 
-    for name in ("beam_center_offset_x_px", "beam_center_offset_y_px"):
-        current = _finite_float(config.get(name))
-        if current is None:
-            excluded[name] = "consumer_config_invalid"
-        else:
-            domains.append(ParameterDomain(name, current - 2.0, current + 2.0))
+    if raw_detector_evidence:
+        for name in ("beam_center_offset_x_px", "beam_center_offset_y_px"):
+            current = _finite_float(config.get(name))
+            if current is None:
+                excluded[name] = "consumer_config_invalid"
+            else:
+                domains.append(ParameterDomain(name, current - 2.0, current + 2.0))
+    else:
+        excluded["beam_center_offset_x_px"] = "raw_detector_2d_evidence_missing"
+        excluded["beam_center_offset_y_px"] = "raw_detector_2d_evidence_missing"
 
     chi = _numeric_domain(
         config,
