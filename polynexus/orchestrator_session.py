@@ -568,6 +568,7 @@ def _run_saxs_candidate_round(
     rejected_reason = ""
     rejected_detail = ""
     rejected_changes: dict[str, Any] = {}
+    rejected_trial_advice: dict[str, Any] | None = None
     if failed_trials:
         best_failed = max(
             failed_trials,
@@ -603,6 +604,8 @@ def _run_saxs_candidate_round(
             }
         rejected_reason = str(best_failed.get("reason", "") or "").strip()
         rejected_changes = dict(best_failed.get("plan", {}).get("changes", {}) or {})
+        if isinstance(best_failed.get("advice"), dict):
+            rejected_trial_advice = best_failed["advice"]
 
     if not rejected_reason:
         for item in trial_summaries:
@@ -621,7 +624,7 @@ def _run_saxs_candidate_round(
         f"The current action list did not yield a guarded {self.technique.upper()} re-run candidate that improved the objective score."
     )
 
-    rejected_advice = dict(advice)
+    rejected_advice = dict(rejected_trial_advice or advice)
     rejected_advice["rejected"] = True
     rejected_advice["rollback_reason"] = rejected_reason
     rejected_advice["rollback_detail"] = rejected_detail

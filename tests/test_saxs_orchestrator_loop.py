@@ -600,63 +600,67 @@ def test_saxs_candidate_plan_binds_action_compatible_symptom() -> None:
 
 
 def test_saxs_candidate_execution_preserves_empty_action_target(monkeypatch) -> None:
+    def _failing_corr_window_profile(
+        cfg: _FakeSAXSConfig,
+    ) -> dict[str, Any] | None:
+        if round(float(cfg.q_corr_min), 2) == 0.15 and round(
+            float(cfg.q_corr_max), 2
+        ) == 1.20:
+            return _peak_window_profile(cfg)
+        return None
+
+    fake_engine = _ScriptedSAXSEngine(_failing_corr_window_profile)
+    monkeypatch.setattr(
+        "polynexus.orchestrator.get_engine",
+        lambda *args, **kwargs: fake_engine,
+    )
+
+    class _ConditionLeadAdvisor:
+        def advise(self, state: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+            advice = _PeakWindowAdvisor().advise(state, **kwargs)
+            advice["diagnosis"] = "condition_axis_unstable"
+            advice["target_symptom"] = "condition_axis_unstable"
+            advice["recommended_actions"] = [{"name": "adjust_corr_window"}]
+            return advice
+
     orchestrator = ParameterOrchestrator(
         technique="saxs",
         data_file="dummy.dat",
         polymer_name="PA6",
+        max_rounds=1,
+        advisor=_ConditionLeadAdvisor(),
         project_root=Path("."),
     )
-    captured_advice: dict[str, Any] = {}
 
-    def _capture_trial(
-        engine: Any,
-        round_num: int,
-        previous_record: Any,
-        advice: dict[str, Any],
-        changes: dict[str, Any],
-        prompt: str,
-    ) -> dict[str, Any]:
-        captured_advice.update(advice)
-        return {"status": "rejected", "reason": "test rejection", "record": None}
-
-    monkeypatch.setattr(orchestrator, "_restore_best", lambda engine: None)
-    monkeypatch.setattr(orchestrator, "_execute_candidate_trial", _capture_trial)
-    monkeypatch.setattr(orchestrator, "_record_round", lambda *args, **kwargs: object())
-    monkeypatch.setattr(
-        orchestrator,
-        "_restore_best_with_refresh",
-        lambda engine: None,
-    )
-
-    previous_record = type(
-        "PreviousRecord",
-        (),
-        {"r_squared": 0.8, "eval_score": 0.8},
-    )()
-    orchestrator._run_saxs_candidate_round(
-        object(),
-        1,
-        {"target_symptom": "condition_axis_unstable"},
-        previous_record,
-        [
+    def _condition_lead_state(engine: Any, round_num: int) -> dict[str, Any]:
+        state = _peak_window_state(orchestrator, engine, round_num)
+        state["symptoms"] = [{"name": "condition_axis_unstable"}]
+        state["symptom_names"] = ["condition_axis_unstable"]
+        state["allowed_actions"] = [
             {
-                "action_name": "adjust_corr_window",
-                "target_symptom": "",
-                "changes": {"q_corr_min": 0.1},
-                "executable": True,
+                "name": "adjust_corr_window",
+                "label": "Adjust correlation window",
+                "target_symptoms": ["thickness_chain_unreliable"],
+                "allowed_params": ["q_corr_min", "q_corr_max", "savgol_window"],
             }
-        ],
-        "",
-    )
+        ]
+        state["allowed_changes"] = {
+            "q_corr_min": [0.05, 0.8],
+            "q_corr_max": [0.3, 3.0],
+            "savgol_window": [3, 31],
+        }
+        return state
 
-    assert captured_advice["target_symptom"] == ""
-    assert (
-        orchestrator._advice_target_symptom(
-            captured_advice,
-            {"symptoms": [{"name": "condition_axis_unstable"}]},
-        )
-        == ""
-    )
+    orchestrator._build_agent_state = _condition_lead_state  # type: ignore[method-assign]
+    orchestrator._residual_pattern = lambda engine: _scripted_residual(engine)  # type: ignore[method-assign]
+
+    report = orchestrator.run()
+
+    failed_round = report["history"][1]
+    trials = failed_round["llm_advice"]["candidate_trials"]
+    assert trials
+    assert {trial["target_symptom"] for trial in trials} == {""}
+    assert failed_round["target_symptom"] == ""
 
 
 def test_expand_saxs_candidates_marks_non_executable_actions() -> None:
