@@ -185,6 +185,8 @@ class MainWindowConfigPanelMixin:
                 "beam_center_y": {"type": "float", "default": 549.73, "min": 0.0, "max": 10000.0, "decimals": 2, "step": 1.0, "label": tr("CONFIG_SAXS_BEAM_CENTER_Y")},
                 "beam_center_offset_x_px": {"type": "float", "default": 0.0, "min": -100.0, "max": 100.0, "decimals": 12, "step": 0.25, "label": f"{tr('CONFIG_SAXS_BEAM_CENTER_X')} offset (px)"},
                 "beam_center_offset_y_px": {"type": "float", "default": 0.0, "min": -100.0, "max": 100.0, "decimals": 12, "step": 0.25, "label": f"{tr('CONFIG_SAXS_BEAM_CENTER_Y')} offset (px)"},
+                "chi_halfwidth": {"type": "float", "default": 15.0, "min": 1.0, "max": 90.0, "decimals": 2, "step": 1.0, "label": "Sector half-width (deg)"},
+                "chi_halfwidth_authoritative": {"type": "bool", "default": False, "label": "Use sector half-width instead of legacy ranges"},
                 "poni_file": {"type": "string", "default": "", "label": tr("CONFIG_SAXS_PONI_FILE")},
             }
         if technique == "waxs":

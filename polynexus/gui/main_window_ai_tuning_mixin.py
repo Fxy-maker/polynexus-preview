@@ -417,7 +417,8 @@ class MainWindowAITuningMixin:
         snapshot = {}
         for key in selected_config:
             widget_lookup = getattr(self, "_config_widget_by_key", None)
-            if callable(widget_lookup) and widget_lookup(key) is None:
+            widget = widget_lookup(key) if callable(widget_lookup) else None
+            if widget is None:
                 engine = getattr(getattr(self, "_worker", None), "engine", None)
                 if engine is None:
                     cache = getattr(self, "_engine_cache", {})
@@ -426,7 +427,10 @@ class MainWindowAITuningMixin:
                 if config is not None and hasattr(config, key):
                     snapshot[key] = deepcopy(getattr(config, key))
                 continue
-            snapshot[key] = deepcopy(self._config_value_by_key(key))
+            if isinstance(widget, QCheckBox):
+                snapshot[key] = bool(widget.isChecked())
+            else:
+                snapshot[key] = deepcopy(self._config_value_by_key(key))
         return snapshot
 
     def _saxs_preprocess_mode(self):

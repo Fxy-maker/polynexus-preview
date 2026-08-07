@@ -278,28 +278,68 @@ def _saxs_stability_domains(
             or mask_dilation is None
             or not mask_dilation.is_integer()
             or mask_dilation < 0
+            or mask_dilation > 100
         ):
             excluded["mask_dilation_px"] = "consumer_config_invalid"
         else:
-            domains.append(ParameterDomain("mask_dilation_px", values=(0, 1, 2)))
+            current_dilation = int(mask_dilation)
+            local_dilations = tuple(
+                sorted(
+                    {
+                        max(0, current_dilation - 1),
+                        current_dilation,
+                        min(100, current_dilation + 1),
+                    }
+                )
+            )
+            domains.append(
+                ParameterDomain("mask_dilation_px", values=local_dilations)
+            )
     else:
         excluded["beam_center_offset_x_px"] = "raw_detector_2d_evidence_missing"
         excluded["beam_center_offset_y_px"] = "raw_detector_2d_evidence_missing"
         excluded["mask_dilation_px"] = "raw_detector_2d_evidence_missing"
 
-    chi = _numeric_domain(
-        config,
-        "chi_halfwidth",
-        relative=0.35,
-        minimum=1.0,
-        maximum=90.0,
+    sector_integration_active = not bool(config.get("is_isotropic", False)) and (
+        str(config.get("analysis_priority", "anisotropic") or "anisotropic")
+        .strip()
+        .lower()
+        != "isotropic"
     )
-    if chi is None:
-        excluded["chi_halfwidth"] = "consumer_config_invalid"
+    if not sector_integration_active:
+        excluded["chi_halfwidth"] = "sector_integration_inactive"
     else:
-        domains.append(chi)
+        chi = _numeric_domain(
+            config,
+            "chi_halfwidth",
+            relative=0.35,
+            minimum=1.0,
+            maximum=90.0,
+        )
+        if chi is None:
+            excluded["chi_halfwidth"] = "consumer_config_invalid"
+        else:
+            domains.append(chi)
 
     return SAXSStabilityDomains(tuple(domains), excluded)
+
+
+def _authoritative_saxs_candidate(
+    candidate: dict[str, Any],
+    baseline: dict[str, Any],
+) -> dict[str, Any]:
+    """Mark changed half-width candidates as explicit sector-range authority."""
+
+    prepared = deepcopy(candidate)
+    candidate_halfwidth = _finite_float(prepared.get("chi_halfwidth"))
+    baseline_halfwidth = _finite_float(baseline.get("chi_halfwidth"))
+    if (
+        candidate_halfwidth is not None
+        and baseline_halfwidth is not None
+        and candidate_halfwidth != baseline_halfwidth
+    ):
+        prepared["chi_halfwidth_authoritative"] = True
+    return prepared
 
 
 def _frame_values(engine: Any, output: dict[str, Any]) -> dict[str, list[float]]:
@@ -378,7 +418,11 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
     from polynexus.orchestrator_preprocess import _new_trial_engine, _run_trial_pipeline
 
     def evaluate(candidate_config: dict[str, Any]) -> dict[str, Any]:
-        if not _valid_saxs_windows(candidate_config):
+        effective_candidate = _authoritative_saxs_candidate(
+            candidate_config,
+            base_config,
+        )
+        if not _valid_saxs_windows(effective_candidate):
             return {
                 "physical_passed": False,
                 "quality_passed": False,
@@ -388,7 +432,7 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         # typed SAXSConfig instance.  Clone the baseline object and apply only
         # known candidate fields so every trial really uses its perturbation.
         trial_config = deepcopy(config)
-        for name, value in candidate_config.items():
+        for name, value in effective_candidate.items():
             if hasattr(trial_config, name):
                 setattr(trial_config, name, deepcopy(value))
         trial_engine = _new_trial_engine(self, engine, trial_config)
@@ -429,8 +473,20 @@ def _run_saxs_stability_study(self: Any, engine: Any) -> dict[str, Any]:
         # when the numerical stability score reaches the auto-accept band.
         allow_auto_accept=False,
     )
+    raw_report = run_stability_study(request, evaluate)
     report = replace(
-        run_stability_study(request, evaluate),
+        raw_report,
+        selected_config=_authoritative_saxs_candidate(
+            raw_report.selected_config,
+            base_config,
+        ),
+        trials=tuple(
+            replace(
+                trial,
+                config=_authoritative_saxs_candidate(trial.config, base_config),
+            )
+            for trial in raw_report.trials
+        ),
         mode=scientific_mode,
         active_dimensions=tuple(domain.name for domain in domains),
         excluded_dimensions=dict(domain_result.excluded_dimensions),

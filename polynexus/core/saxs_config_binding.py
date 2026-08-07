@@ -99,6 +99,8 @@ _FIELD_BINDINGS: dict[str, tuple[str, Callable[[Any], Any]]] = {
     "T_melt_expected": ("T_melt_expected", _as_optional_float),
     "beam_center_offset_x_px": ("beam_center_offset_x_px", float),
     "beam_center_offset_y_px": ("beam_center_offset_y_px", float),
+    "chi_halfwidth": ("chi_halfwidth", float),
+    "chi_halfwidth_authoritative": ("chi_halfwidth_authoritative", _as_bool),
     "orientation_mask_dilation_px": (
         "orientation_mask_dilation_px",
         _as_positive_int_tuple,

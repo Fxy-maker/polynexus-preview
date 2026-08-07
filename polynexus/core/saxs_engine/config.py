@@ -396,6 +396,10 @@ class SAXSConfig:
     beam_center_reference_x_px: Optional[float] = None
     beam_center_reference_y_px: Optional[float] = None
 
+    # False preserves the legacy explicit sector ranges.  Stability or GUI
+    # selection sets this true when chi_halfwidth is the intended authority.
+    chi_halfwidth_authoritative: bool = False
+
 
 @dataclass
 class ExperimentCondition:

@@ -86,14 +86,65 @@ def test_chi_halfwidth_changes_anisotropic_sector_output_without_pyfai(monkeypat
 
     narrow = preprocess_module.preprocess_pipeline(
         image,
-        SAXSConfig(**common, chi_halfwidth=5.0),
+        SAXSConfig(
+            **common,
+            chi_halfwidth=5.0,
+            chi_halfwidth_authoritative=True,
+        ),
     )
     wide = preprocess_module.preprocess_pipeline(
         image,
-        SAXSConfig(**common, chi_halfwidth=35.0),
+        SAXSConfig(
+            **common,
+            chi_halfwidth=35.0,
+            chi_halfwidth_authoritative=True,
+        ),
     )
 
     assert np.nanmean(wide["Iq_equat"]) > np.nanmean(narrow["Iq_equat"])
+
+
+def test_custom_legacy_sector_ranges_remain_authoritative_by_default() -> None:
+    from polynexus.core.saxs_engine import preprocess as preprocess_module
+    from polynexus.core.saxs_engine.config import SAXSConfig
+
+    config = SAXSConfig(
+        chi_halfwidth=15.0,
+        chi_merid_range=(62.0, 118.0),
+        chi_equat_range=(-8.0, 12.0),
+    )
+
+    assert preprocess_module._sector_azimuth_range(config, "meridional") == (
+        62.0,
+        118.0,
+    )
+    assert preprocess_module._sector_azimuth_range(config, "equatorial") == (
+        -8.0,
+        12.0,
+    )
+
+
+def test_explicit_halfwidth_authority_uses_centered_sector_ranges() -> None:
+    from polynexus.core.saxs_engine import preprocess as preprocess_module
+    from polynexus.core.saxs_engine.config import SAXSConfig
+
+    config = SAXSConfig(
+        chi_halfwidth=12.0,
+        chi_halfwidth_authoritative=True,
+        chi_merid_center=88.0,
+        chi_equat_center=3.0,
+        chi_merid_range=(62.0, 118.0),
+        chi_equat_range=(-8.0, 12.0),
+    )
+
+    assert preprocess_module._sector_azimuth_range(config, "meridional") == (
+        76.0,
+        100.0,
+    )
+    assert preprocess_module._sector_azimuth_range(config, "equatorial") == (
+        -9.0,
+        15.0,
+    )
 
 
 def test_scalar_mask_dilation_changes_effective_mask_and_integration_support(

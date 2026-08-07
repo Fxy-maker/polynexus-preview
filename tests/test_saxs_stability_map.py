@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 
 def _run_mode_stability_bridge(monkeypatch, *, experiment_type: str, submodule: str | None):
     from types import SimpleNamespace
@@ -605,6 +607,8 @@ def _activity_domain_config(**overrides):
         "beam_center_offset_x_px": 0.5,
         "beam_center_offset_y_px": -0.5,
         "chi_halfwidth": 15.0,
+        "chi_halfwidth_authoritative": False,
+        "is_isotropic": False,
         "mask_dilation_px": 0,
         "orientation_mask_dilation_px": (1, 2),
     }
@@ -633,7 +637,7 @@ def test_saxs_stability_domains_include_only_active_2d_perturbations() -> None:
     assert by_name["beam_center_offset_x_px"].maximum == 2.5
     assert by_name["beam_center_offset_y_px"].minimum == -2.5
     assert by_name["beam_center_offset_y_px"].maximum == 1.5
-    assert by_name["mask_dilation_px"].values == (0, 1, 2)
+    assert by_name["mask_dilation_px"].values == (0, 1)
     assert "orientation_mask_dilation_px" not in by_name
     assert result.excluded_dimensions["orientation_mask_dilation_px"] == (
         "reliability_sensitivity_only"
@@ -641,6 +645,181 @@ def test_saxs_stability_domains_include_only_active_2d_perturbations() -> None:
     assert result.excluded_dimensions["bg_scale_value"] == (
         "manual_background_inactive"
     )
+
+
+@pytest.mark.parametrize(
+    ("current", "expected"),
+    [(10, (9, 10, 11)), (50, (49, 50, 51)), (100, (99, 100))],
+)
+def test_mask_dilation_domain_is_local_bounded_and_includes_current(
+    current, expected
+) -> None:
+    from types import SimpleNamespace
+
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    result = _saxs_stability_domains(
+        _activity_domain_config(mask_dilation_px=current),
+        mode="strain",
+        engine=SimpleNamespace(
+            _img=[[1.0, 2.0], [3.0, 4.0]],
+            _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+        ),
+    )
+
+    by_name = {domain.name: domain for domain in result}
+    assert by_name["mask_dilation_px"].values == expected
+
+
+def test_mask_dilation_domain_rejects_value_above_gui_limit() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    result = _saxs_stability_domains(
+        _activity_domain_config(mask_dilation_px=101),
+        mode="strain",
+        engine=SimpleNamespace(
+            _img=[[1.0, 2.0], [3.0, 4.0]],
+            _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+        ),
+    )
+
+    assert "mask_dilation_px" not in {domain.name for domain in result}
+    assert result.excluded_dimensions["mask_dilation_px"] == "consumer_config_invalid"
+
+
+def test_isotropic_config_excludes_chi_halfwidth_even_with_raw_detector() -> None:
+    from types import SimpleNamespace
+
+    from polynexus.orchestrator_stability import _saxs_stability_domains
+
+    result = _saxs_stability_domains(
+        _activity_domain_config(is_isotropic=True),
+        mode="static",
+        engine=SimpleNamespace(
+            _img=[[1.0, 2.0], [3.0, 4.0]],
+            _sector_data_list=[],
+        ),
+    )
+
+    assert "chi_halfwidth" not in {domain.name for domain in result}
+    assert result.excluded_dimensions["chi_halfwidth"] == "sector_integration_inactive"
+
+
+def test_changed_chi_candidate_executes_and_reports_explicit_authority(
+    monkeypatch,
+) -> None:
+    from types import SimpleNamespace
+
+    import polynexus.orchestrator_preprocess as preprocess_module
+    import polynexus.orchestrator_stability as stability_module
+    from polynexus.core.preprocess_optimization.stability import (
+        ContinuityEvidence,
+        PlateauSummary,
+        StabilityReport,
+        StabilityTrial,
+    )
+
+    executed_configs = []
+
+    def create_trial(_self, _engine, trial_config):
+        executed_configs.append(trial_config)
+        return SimpleNamespace(cfg=trial_config)
+
+    monkeypatch.setattr(preprocess_module, "_new_trial_engine", create_trial)
+    monkeypatch.setattr(
+        preprocess_module,
+        "_run_trial_pipeline",
+        lambda _self, _engine: (True, ""),
+    )
+    monkeypatch.setattr(
+        stability_module,
+        "assess_saxs_confirmed_rerun",
+        lambda _engine, *, mode: {
+            "physical_gate_status": "passed",
+            "quality_gate_status": "passed",
+            "reason_codes": [],
+        },
+    )
+
+    def run_one_candidate(request, evaluator):
+        candidate = dict(request.baseline_config)
+        candidate["chi_halfwidth"] = 21.0
+        result = evaluator(candidate)
+        trial = StabilityTrial(
+            index=0,
+            config=candidate,
+            score=float(result["score"]),
+            physical_passed=True,
+            quality_passed=True,
+            continuity_passed=True,
+        )
+        return StabilityReport(
+            schema_version="saxs-stability-v1",
+            decision="request_confirmation",
+            complete=True,
+            baseline_config=dict(request.baseline_config),
+            selected_config=candidate,
+            trials=(trial,),
+            plateau=PlateauSummary(connected=True, trial_indices=(0,)),
+            bootstrap={},
+            continuity=ContinuityEvidence(passed=True),
+            physics_gate_passed=True,
+            quality_gate_passed=True,
+        )
+
+    monkeypatch.setattr(stability_module, "run_stability_study", run_one_candidate)
+
+    class Harness:
+        technique = "saxs"
+        workspace_context = {"stability_mode": "quick"}
+        submodule_override = "saxs.strain"
+        _last_stability_report = {}
+
+        @staticmethod
+        def _engine_config(engine):
+            return engine.cfg
+
+        @staticmethod
+        def _config_to_dict(config):
+            return dict(vars(config))
+
+        @staticmethod
+        def _output_parameters(_engine):
+            return {"L_nm": 10.0}
+
+        @staticmethod
+        def _residual_pattern(_engine):
+            return {}
+
+        @staticmethod
+        def _analysis_evidence(_output, _residuals):
+            return {}
+
+        @staticmethod
+        def _score_snapshot(_output, _residuals, _evidence):
+            return {"objective_score": 1.0}
+
+    config = SimpleNamespace(
+        experiment_type="strain",
+        chi_merid_range=(62.0, 118.0),
+        chi_equat_range=(-8.0, 12.0),
+        **_activity_domain_config(),
+    )
+    engine = SimpleNamespace(
+        cfg=config,
+        _img=[[1.0, 2.0], [3.0, 4.0]],
+        _sector_data_list=[{"chi_centers_deg": [0.0, 90.0]}],
+    )
+
+    report = stability_module._run_saxs_stability_study(Harness(), engine)
+
+    assert config.chi_halfwidth_authoritative is False
+    assert executed_configs
+    assert executed_configs[0].chi_halfwidth_authoritative is True
+    assert report["selected_config"]["chi_halfwidth_authoritative"] is True
+    assert report["trials"][0]["config"]["chi_halfwidth_authoritative"] is True
 
 
 def test_sector_only_evidence_excludes_beam_offsets_but_keeps_orientation_domains() -> None:

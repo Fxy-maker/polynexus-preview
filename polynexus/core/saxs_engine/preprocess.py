@@ -111,6 +111,17 @@ def build_integrator(cfg: SAXSConfig):
     return None
 
 def _sector_azimuth_range(cfg: SAXSConfig, sector: str) -> tuple[float, float]:
+    if not bool(getattr(cfg, "chi_halfwidth_authoritative", False)):
+        range_name = "chi_merid_range" if sector == "meridional" else "chi_equat_range"
+        configured = getattr(cfg, range_name)
+        try:
+            lower, upper = (float(configured[0]), float(configured[1]))
+        except (TypeError, ValueError, IndexError, OverflowError):
+            raise ValueError("sector range must contain two finite bounds") from None
+        if not np.isfinite(lower) or not np.isfinite(upper) or lower >= upper:
+            raise ValueError("sector range must contain increasing finite bounds")
+        return lower, upper
+
     center_name = "chi_merid_center" if sector == "meridional" else "chi_equat_center"
     center = float(getattr(cfg, center_name))
     halfwidth = float(getattr(cfg, "chi_halfwidth"))

@@ -165,3 +165,21 @@ def test_scalar_mask_dilation_binding_rejects_invalid_values(raw_value) -> None:
 
     assert config.mask_dilation_px == 0
     assert report["unavailable"]["mask_dilation_px"].startswith("invalid_value:")
+
+
+def test_chi_halfwidth_and_authority_binding_preserve_typed_values() -> None:
+    config = SAXSConfig()
+
+    report = apply_saxs_config_panel_values(
+        config,
+        {
+            "chi_halfwidth": "22.5",
+            "chi_halfwidth_authoritative": True,
+        },
+    )
+
+    assert report["unavailable"] == {}
+    assert config.chi_halfwidth == pytest.approx(22.5)
+    assert config.chi_halfwidth_authoritative is True
+    assert report["normalized_values"]["chi_halfwidth"] == pytest.approx(22.5)
+    assert report["normalized_values"]["chi_halfwidth_authoritative"] is True

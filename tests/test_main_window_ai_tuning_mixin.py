@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QApplication
 
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_ai_tuning_mixin import MainWindowAITuningMixin
+from polynexus.core.preprocess_optimization.candidates import stable_config_hash
 
 
 class _PreprocessWindow(MainWindowAITuningMixin):
@@ -131,6 +132,9 @@ def test_saxs_stability_geometry_and_mask_values_survive_panel_round_trip():
                 "beam_center_offset_x_px": 1.23456789,
                 "beam_center_offset_y_px": -0.87654321,
                 "mask_dilation_px": 2,
+                "orientation_mask_dilation_px": (2, 4),
+                "chi_halfwidth": 22.5,
+                "chi_halfwidth_authoritative": True,
             }
         )
         config = window._build_run_config()
@@ -138,6 +142,16 @@ def test_saxs_stability_geometry_and_mask_values_survive_panel_round_trip():
         assert config.beam_center_offset_x_px == 1.23456789
         assert config.beam_center_offset_y_px == -0.87654321
         assert config.mask_dilation_px == 2
+        assert config.orientation_mask_dilation_px == (2, 4)
+        assert config.chi_halfwidth == 22.5
+        assert config.chi_halfwidth_authoritative is True
+
+        selected = {
+            "chi_halfwidth": 22.5,
+            "chi_halfwidth_authoritative": True,
+        }
+        captured = window._capture_preprocess_config(selected)
+        assert stable_config_hash(captured) == stable_config_hash(selected)
     finally:
         window.deleteLater()
         app.processEvents()
