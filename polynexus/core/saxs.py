@@ -2019,6 +2019,27 @@ class SAXSEngine(BaseEngine):
                     "L_equatorial_nm": _float_or_none(
                         getattr(strain_point, "L_equatorial_nm", np.nan)
                     ),
+                    "q_peak_tensile_nm1": _float_or_none(
+                        getattr(strain_point, "q_peak_tensile_nm1", np.nan)
+                    ),
+                    "L_tensile_nm": _float_or_none(
+                        getattr(strain_point, "L_tensile_nm", np.nan)
+                    ),
+                    "q_peak_transverse_nm1": _float_or_none(
+                        getattr(strain_point, "q_peak_transverse_nm1", np.nan)
+                    ),
+                    "L_transverse_nm": _float_or_none(
+                        getattr(strain_point, "L_transverse_nm", np.nan)
+                    ),
+                    "directional_peak_status": str(
+                        getattr(strain_point, "directional_peak_status", "unavailable")
+                    ),
+                    "directional_peak_reason": str(
+                        getattr(strain_point, "directional_peak_reason", "")
+                    ),
+                    "directional_axis_deg": _float_or_none(
+                        getattr(strain_point, "directional_axis_deg", np.nan)
+                    ),
                     "feature_tracking_status": str(
                         getattr(strain_point, "feature_tracking_status", "unavailable")
                     ),

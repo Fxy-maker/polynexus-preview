@@ -674,6 +674,13 @@ def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliabil
                     "orientation_effective_bins": 18.0,
                     "orientation_azimuthal_coverage": 0.92,
                     "orientation_cos2_avg": 0.58,
+                    "q_peak_tensile_nm1": 0.40,
+                    "L_tensile_nm": 15.71,
+                    "q_peak_transverse_nm1": 0.44,
+                    "L_transverse_nm": 14.28,
+                    "directional_peak_status": "usable",
+                    "directional_peak_reason": "",
+                    "directional_axis_deg": 90.0,
                     "orientation_track_id": "track-a",
                     "orientation_reliability_status": "diagnostic",
                     "orientation_reason_summary": "delta_not_available",
@@ -718,6 +725,13 @@ def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliabil
         "orientation_effective_bins",
         "orientation_azimuthal_coverage",
         "orientation_cos2_avg",
+        "q_peak_tensile_nm1",
+        "L_tensile_nm",
+        "q_peak_transverse_nm1",
+        "L_transverse_nm",
+        "directional_peak_status",
+        "directional_peak_reason",
+        "directional_axis_deg",
     } <= diagnostic_keys
 
 

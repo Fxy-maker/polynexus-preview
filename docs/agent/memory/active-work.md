@@ -5036,6 +5036,26 @@
 - Legacy gallery fallback strategy evaluation completed on isolated branch `codex/legacy-gallery-fallback-strategy`. The normal gallery remains manifest-only; historical recursive discovery stays behind the explicit recovery view and never silently changes the active run. Strategy evidence is recorded in `docs/superpowers/specs/2026-07-12-legacy-gallery-fallback-strategy.md` and decision memory `docs/agent/memory/decisions/0003-manifest-only-gallery-discovery.md`; no production code changed.
 - GUI streamlining implementation completed on isolated branch `codex/gui-streamlining-interaction-plan`. The implementation adds explicit workspace modes, binds current results to persisted run IDs, makes the figure preview the canonical View route, fixes primary shortcuts and batch-manifest naming, removes verified duplicate top-bar routes, and preserves manifest-only gallery plus explicit legacy recovery. GUI focused regression matrix passes (452); evidence is recorded in `docs/superpowers/specs/2026-07-12-gui-streamlining-interaction-plan.md`, the implementation plan, and decision memory `docs/agent/memory/decisions/0004-gui-streamlining-last-wave.md`. Existing Ruff baseline findings remain in legacy GUI modules.
 
+## SAXS tensile-aligned long-period tracking - checkpointed 2026-08-08
+
+- Explicit `tensile_axis_deg` now drives diagnostic q/L tracking along the
+  tensile axis and its transverse axis without replacing total `L_nm` or the
+  fixed meridional/equatorial fields. Missing axis, canonical 2D payload, or
+  support fails closed with explicit status/reason fields.
+- Arbitrary-axis sectors use support and fractional chi-bin overlap weights,
+  then the same normalization/smoothing stages as existing fixed sectors.
+  Exact 90/0-degree sector matches reuse the fixed profiles after canonical
+  validation, preventing discretized 36-bin chi maps from silently widening a
+  requested 30-degree sector.
+- Focused batch/result/orientation tests passed `175`; a read-only five-frame
+  EDF smoke run with `q_bragg_max=1.0` showed exact tensile-to-meridional and
+  transverse-to-equatorial equality at the configured 90-degree axis. The
+  final structured verifier passed with quality `297` and preprocessing `157`.
+  Independent review is `0 Critical / 0 Important`; the explicit allowlist was
+  checkpointed locally with no push or merge.
+- Task card:
+  `docs/agent/tasks/2026-08-08-saxs-tensile-aligned-peak-tracking.md`.
+
 ## Suggested next candidates
 
 - SAXS I(q)q² gallery label regression is fixed on 2026-08-04. The public

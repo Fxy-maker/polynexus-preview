@@ -45,6 +45,11 @@ from .saxs_output_helpers import (
     _detector_provenance_csv_fields,
 )
 from .saxs_orientation_tracking import track_orientation_features
+from .preprocess import (
+    _contains_invalid_pyfai_support_value,
+    normalize_intensity,
+    smooth_profile,
+)
 
 
 def _aligned_source_values(values: Optional[List[str]], count: int) -> tuple[str, ...]:
@@ -109,6 +114,212 @@ def _tracked_sector_peak(
         max_anchor_relative_shift=min(max(step_limit, 0.0), 0.25),
     )
     return float(q_peak), float(length)
+
+
+def _detector_plane_sector_overlap_weights(
+    chi_rad: np.ndarray,
+    *,
+    axis_deg: float,
+    halfwidth_deg: float,
+) -> np.ndarray:
+    """Estimate each azimuth-bin overlap with a pi-periodic target sector."""
+
+    chi_array = np.asarray(chi_rad, dtype=float)
+    if chi_array.ndim != 1 or chi_array.size == 0 or not np.all(np.isfinite(chi_array)):
+        return np.zeros(chi_array.shape, dtype=float)
+    axis_rad = np.deg2rad(float(axis_deg))
+    halfwidth_rad = min(np.deg2rad(abs(float(halfwidth_deg))), np.pi / 2.0)
+    if not np.isfinite(axis_rad) or not np.isfinite(halfwidth_rad) or halfwidth_rad <= 0:
+        return np.zeros(chi_array.shape, dtype=float)
+    if halfwidth_rad >= np.pi / 2.0:
+        return np.ones(chi_array.shape, dtype=float)
+
+    normalized = (chi_array + np.pi) % (2.0 * np.pi) - np.pi
+    ordered = np.sort(np.unique(normalized))
+    if ordered.size < 2:
+        return (
+            np.abs((normalized - axis_rad + np.pi / 2.0) % np.pi - np.pi / 2.0)
+            <= halfwidth_rad
+        ).astype(float)
+    spacings = np.diff(np.r_[ordered, ordered[0] + 2.0 * np.pi])
+    positive_spacings = spacings[np.isfinite(spacings) & (spacings > 1e-12)]
+    if positive_spacings.size == 0:
+        return np.zeros(chi_array.shape, dtype=float)
+    bin_width = float(np.median(positive_spacings))
+    half_bin_width = 0.5 * bin_width
+    delta = np.abs(
+        (normalized - axis_rad + np.pi / 2.0) % np.pi - np.pi / 2.0
+    )
+    overlap = np.maximum(
+        0.0,
+        np.minimum(delta + half_bin_width, halfwidth_rad)
+        - np.maximum(delta - half_bin_width, -halfwidth_rad),
+    )
+    return np.clip(overlap / bin_width, 0.0, 1.0)
+
+
+def _matching_legacy_sector_peak(
+    sector_data: Mapping[str, object],
+    cfg: SAXSConfig,
+    q_anchor: float,
+    axis_deg: float,
+) -> tuple[float, float] | None:
+    """Reuse an exactly matching fixed sector instead of re-binning its 2D map."""
+
+    authoritative = bool(getattr(cfg, "chi_halfwidth_authoritative", False))
+    requested_halfwidth = float(getattr(cfg, "chi_halfwidth", 15.0))
+    for sector_name, intensity_key in (
+        ("merid", "I_merid"),
+        ("equat", "I_equat"),
+    ):
+        if authoritative:
+            center = float(getattr(cfg, f"chi_{sector_name}_center"))
+            halfwidth = requested_halfwidth
+        else:
+            bounds = getattr(cfg, f"chi_{sector_name}_range")
+            try:
+                lower, upper = float(bounds[0]), float(bounds[1])
+            except (TypeError, ValueError, IndexError, OverflowError):
+                continue
+            center = 0.5 * (lower + upper)
+            halfwidth = 0.5 * (upper - lower)
+        axis_difference = abs((float(axis_deg) - center + 90.0) % 180.0 - 90.0)
+        if axis_difference <= 1e-9 and abs(halfwidth - requested_halfwidth) <= 1e-9:
+            q_peak, length = _tracked_sector_peak(
+                sector_data,
+                intensity_key,
+                cfg,
+                q_anchor,
+            )
+            if np.isfinite(q_peak) and np.isfinite(length):
+                return q_peak, length
+    return None
+
+
+def _tracked_tensile_sector_peak(
+    sector_data: Mapping[str, object],
+    cfg: SAXSConfig,
+    q_anchor: float,
+    axis_deg: float,
+) -> tuple[float, float, str]:
+    """Track a q peak in a canonical 2D sector aligned to ``axis_deg``."""
+
+    if not np.isfinite(axis_deg):
+        return np.nan, np.nan, "tensile_axis_missing"
+    required = ("I_2d", "q_2d", "chi_rad")
+    if not all(key in sector_data for key in required):
+        return np.nan, np.nan, "canonical_2d_payload_missing"
+    try:
+        image = np.asarray(sector_data["I_2d"], dtype=float)
+        q_values = np.asarray(sector_data["q_2d"], dtype=float)
+        chi_values = np.asarray(sector_data["chi_rad"], dtype=float)
+    except (TypeError, ValueError):
+        return np.nan, np.nan, "canonical_2d_payload_invalid"
+    if (
+        image.ndim != 2
+        or q_values.ndim != 1
+        or chi_values.ndim != 1
+        or image.shape != (chi_values.size, q_values.size)
+        or q_values.size < 3
+        or chi_values.size < 5
+        or not np.all(np.isfinite(q_values))
+        or not np.all(np.isfinite(chi_values))
+        or np.any(q_values <= 0)
+        or np.any(np.diff(q_values) <= 0)
+        or np.any(np.diff(chi_values) <= 0)
+        or np.any(chi_values < -np.pi)
+        or np.any(chi_values >= np.pi)
+    ):
+        return np.nan, np.nan, "canonical_2d_payload_invalid"
+    chi_spacings = np.diff(np.r_[chi_values, chi_values[0] + 2.0 * np.pi])
+    if not np.allclose(
+        chi_spacings,
+        np.median(chi_spacings),
+        rtol=1e-6,
+        atol=1e-10,
+    ):
+        return np.nan, np.nan, "canonical_2d_payload_invalid"
+
+    support_value = sector_data.get("support_count")
+    if support_value is None:
+        return np.nan, np.nan, "sector_support_missing"
+    if _contains_invalid_pyfai_support_value(support_value):
+        return np.nan, np.nan, "sector_support_invalid"
+    try:
+        raw_support = np.asarray(support_value)
+        support = np.asarray(raw_support, dtype=float)
+    except (TypeError, ValueError):
+        return np.nan, np.nan, "sector_support_invalid"
+    if (
+        support.shape != image.shape
+        or not np.all(np.isfinite(support))
+        or np.any(support < 0)
+    ):
+        return np.nan, np.nan, "sector_support_invalid"
+    if np.any((support > 0) & ~np.isfinite(image)):
+        return np.nan, np.nan, "canonical_2d_payload_invalid"
+
+    try:
+        halfwidth = float(getattr(cfg, "chi_halfwidth", 15.0))
+    except (TypeError, ValueError, OverflowError):
+        halfwidth = 15.0
+    if not np.isfinite(halfwidth) or halfwidth <= 0:
+        halfwidth = 15.0
+    halfwidth = min(halfwidth, 45.0)
+    angular_weights = _detector_plane_sector_overlap_weights(
+        chi_values,
+        axis_deg=float(axis_deg),
+        halfwidth_deg=halfwidth,
+    )
+    mask = angular_weights > 0
+    if np.count_nonzero(mask) < 2:
+        return np.nan, np.nan, "tensile_sector_support_missing"
+
+    selected = image[mask, :]
+    selected_support = support[mask, :]
+    selected_weights = angular_weights[mask, np.newaxis]
+    weighted_support = selected_support * selected_weights
+    supported_q = np.sum(weighted_support, axis=0) > 0
+    peak_search = (
+        (q_values >= float(getattr(cfg, "q_bragg_min", 0.15)))
+        & (q_values <= float(getattr(cfg, "q_bragg_max", 0.9)))
+    )
+    if np.count_nonzero(supported_q & peak_search) < 5:
+        return np.nan, np.nan, "tensile_sector_support_missing"
+
+    legacy_peak = _matching_legacy_sector_peak(
+        sector_data,
+        cfg,
+        q_anchor,
+        axis_deg,
+    )
+    if legacy_peak is not None:
+        return legacy_peak[0], legacy_peak[1], "usable"
+
+    valid = (selected_support > 0) & np.isfinite(selected)
+    denominator = np.sum(np.where(valid, weighted_support, 0.0), axis=0)
+    numerator = np.sum(
+        np.where(valid, np.nan_to_num(selected, nan=0.0) * weighted_support, 0.0),
+        axis=0,
+    )
+    profile = np.full(q_values.shape, np.nan, dtype=float)
+    usable = denominator > 0
+    profile[usable] = numerator[usable] / denominator[usable]
+    profile = normalize_intensity(profile, cfg)
+    profile = smooth_profile(q_values, profile, cfg)
+    finite = np.isfinite(profile) & np.isfinite(q_values)
+    if np.count_nonzero(finite) < 3:
+        return np.nan, np.nan, "tensile_sector_profile_unavailable"
+
+    q_peak, length = _tracked_sector_peak(
+        {"q": q_values[finite], "I_tensile": profile[finite]},
+        "I_tensile",
+        cfg,
+        q_anchor,
+    )
+    if not np.isfinite(q_peak) or not np.isfinite(length):
+        return np.nan, np.nan, "tensile_sector_peak_unavailable"
+    return q_peak, length, "usable"
 
 
 def _fail_closed_tracked_lamellar_result(
@@ -225,6 +436,13 @@ class StrainPointResult:
     L_meridional_nm: float = np.nan
     q_peak_equatorial_nm1: float = np.nan
     L_equatorial_nm: float = np.nan
+    q_peak_tensile_nm1: float = np.nan
+    L_tensile_nm: float = np.nan
+    q_peak_transverse_nm1: float = np.nan
+    L_transverse_nm: float = np.nan
+    directional_peak_status: str = "unavailable"
+    directional_peak_reason: str = "tensile_axis_missing"
+    directional_axis_deg: float = np.nan
     feature_tracking_status: str = "unavailable"
     feature_tracking_reason_codes: List[str] = field(default_factory=list)
     analysis_result: Optional[SAXSResult] = field(default=None, repr=False)
@@ -1173,59 +1391,107 @@ def analyze_strain_series(
         result.phi_void_array[i] = void['phi_void'] if np.isfinite(void['phi_void']) else np.nan
 
         # ---- Herman orientation factor ----
+        try:
+            directional_axis = float(
+                getattr(frame_cfg, "tensile_axis_deg", np.nan)
+            )
+        except (TypeError, ValueError, OverflowError):
+            directional_axis = np.nan
+        sp.directional_axis_deg = directional_axis
+        sd = None
         if sector_data_list is not None and i < len(sector_data_list):
             sd = sector_data_list[i]
-            if sd is not None:
-                (
-                    sp.q_peak_meridional_nm1,
-                    sp.L_meridional_nm,
-                ) = _tracked_sector_peak(
-                    sd, "I_merid", frame_cfg, sp.q_peak_total_nm1
+        if sd is None:
+            sp.directional_peak_status = "unavailable"
+            sp.directional_peak_reason = (
+                "tensile_axis_missing"
+                if not np.isfinite(directional_axis)
+                else "sector_data_missing"
+            )
+        else:
+            (
+                sp.q_peak_meridional_nm1,
+                sp.L_meridional_nm,
+            ) = _tracked_sector_peak(
+                sd, "I_merid", frame_cfg, sp.q_peak_total_nm1
+            )
+            (
+                sp.q_peak_equatorial_nm1,
+                sp.L_equatorial_nm,
+            ) = _tracked_sector_peak(
+                sd, "I_equat", frame_cfg, sp.q_peak_total_nm1
+            )
+            if np.isfinite(directional_axis):
+                tensile_q, tensile_L, tensile_status = _tracked_tensile_sector_peak(
+                    sd,
+                    frame_cfg,
+                    sp.q_peak_total_nm1,
+                    directional_axis,
                 )
-                (
-                    sp.q_peak_equatorial_nm1,
-                    sp.L_equatorial_nm,
-                ) = _tracked_sector_peak(
-                    sd, "I_equat", frame_cfg, sp.q_peak_total_nm1
+                transverse_q, transverse_L, transverse_status = _tracked_tensile_sector_peak(
+                    sd,
+                    frame_cfg,
+                    sp.q_peak_total_nm1,
+                    directional_axis + 90.0,
                 )
-                if not np.isfinite(sp.q_peak_total_nm1):
-                    herman = _invalid_sector_data_result(
-                        "tracked_feature_unavailable"
+                sp.q_peak_tensile_nm1 = tensile_q
+                sp.L_tensile_nm = tensile_L
+                sp.q_peak_transverse_nm1 = transverse_q
+                sp.L_transverse_nm = transverse_L
+                if tensile_status == "usable" and transverse_status == "usable":
+                    sp.directional_peak_status = "usable"
+                    sp.directional_peak_reason = ""
+                elif tensile_status == "usable" or transverse_status == "usable":
+                    sp.directional_peak_status = "partial"
+                    sp.directional_peak_reason = (
+                        f"tensile={tensile_status};transverse={transverse_status}"
                     )
                 else:
-                    try:
-                        herman = herman_from_sector_data(
-                            sd,
-                            cfg=frame_cfg,
-                            data_quality_report=sp.data_quality_report,
-                            q_target_nm1=sp.q_peak_total_nm1,
-                        )
-                    except Exception:
-                        logger.warning(
-                            "SAXS strain sector payload failed closed.",
-                            exc_info=True,
-                        )
-                        herman = _invalid_sector_data_result()
-                sp.f_herman = herman.get('f', np.nan)
-                sp.f_herman_raw = herman.get('f_raw', sp.f_herman)
-                sp.f_herman_sub = herman.get('f_sub', np.nan)
-                sp.f_herman_eq = herman.get('f_eq', np.nan)
-                if herman.get("detector_quality_report") is not None:
-                    sp.detector_quality_report = herman["detector_quality_report"]
-                if (
-                    sp.raw_detector_quality_report is None
-                    and herman.get("raw_detector_quality_report") is not None
-                ):
-                    sp.raw_detector_quality_report = herman[
-                        "raw_detector_quality_report"
-                    ]
-                if herman.get("orientation_evidence") is not None:
-                    sp.orientation_evidence = herman["orientation_evidence"]
-                if herman.get("q_resolved_orientation_evidence") is not None:
-                    sp.q_resolved_orientation_evidence = herman[
-                        "q_resolved_orientation_evidence"
-                    ]
-                result.f_herman_array[i] = sp.f_herman
+                    sp.directional_peak_status = "unavailable"
+                    sp.directional_peak_reason = (
+                        f"tensile={tensile_status};transverse={transverse_status}"
+                    )
+            else:
+                sp.directional_peak_status = "unavailable"
+                sp.directional_peak_reason = "tensile_axis_missing"
+            if not np.isfinite(sp.q_peak_total_nm1):
+                herman = _invalid_sector_data_result(
+                    "tracked_feature_unavailable"
+                )
+            else:
+                try:
+                    herman = herman_from_sector_data(
+                        sd,
+                        cfg=frame_cfg,
+                        data_quality_report=sp.data_quality_report,
+                        q_target_nm1=sp.q_peak_total_nm1,
+                    )
+                except Exception:
+                    logger.warning(
+                        "SAXS strain sector payload failed closed.",
+                        exc_info=True,
+                    )
+                    herman = _invalid_sector_data_result()
+            sp.f_herman = herman.get('f', np.nan)
+            sp.f_herman_raw = herman.get('f_raw', sp.f_herman)
+            sp.f_herman_sub = herman.get('f_sub', np.nan)
+            sp.f_herman_eq = herman.get('f_eq', np.nan)
+            if herman.get("detector_quality_report") is not None:
+                sp.detector_quality_report = herman["detector_quality_report"]
+            if (
+                sp.raw_detector_quality_report is None
+                and herman.get("raw_detector_quality_report") is not None
+            ):
+                sp.raw_detector_quality_report = herman[
+                    "raw_detector_quality_report"
+                ]
+            if herman.get("orientation_evidence") is not None:
+                sp.orientation_evidence = herman["orientation_evidence"]
+            if herman.get("q_resolved_orientation_evidence") is not None:
+                sp.q_resolved_orientation_evidence = herman[
+                    "q_resolved_orientation_evidence"
+                ]
+            result.f_herman_array[i] = sp.f_herman
 
         result.strain_points.append(sp)
         result.L_array[i] = sp.L_nm

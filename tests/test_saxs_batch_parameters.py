@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import numpy as np
+import pytest
 from types import SimpleNamespace
 
 from polynexus.core.engine import get_engine
@@ -746,6 +747,13 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                     Q_star_normalized=1.0,
                     f_herman=0.25,
                     f_herman_raw=0.33,
+                    q_peak_tensile_nm1=0.40,
+                    L_tensile_nm=15.71,
+                    q_peak_transverse_nm1=0.44,
+                    L_transverse_nm=14.28,
+                    directional_peak_status="usable",
+                    directional_peak_reason="",
+                    directional_axis_deg=90.0,
                     orientation_evidence={
                         "fit_evidence": {
                             "q_star_candidate": 0.42,
@@ -771,6 +779,13 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                     Q_star_rel=1.0,
                     Q_star_normalized=1.0,
                     f_herman_raw=0.41,
+                    q_peak_tensile_nm1=0.45,
+                    L_tensile_nm=13.96,
+                    q_peak_transverse_nm1=0.49,
+                    L_transverse_nm=12.82,
+                    directional_peak_status="usable",
+                    directional_peak_reason="",
+                    directional_axis_deg=90.0,
                     orientation_evidence={
                         "fit_evidence": {
                             "q_star_candidate": 0.47,
@@ -839,6 +854,12 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
     assert engine._batch_params[0]["orientation_azimuthal_coverage"] == 0.92  # type: ignore[attr-defined]
     assert engine._batch_params[1]["orientation_cos2_avg"] == 0.56  # type: ignore[attr-defined]
     assert engine._batch_params[0]["orientation_isotropic_baseline"] == 0.25  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["q_peak_tensile_nm1"] == 0.4  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["L_tensile_nm"] == 13.96  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["q_peak_transverse_nm1"] == 0.44  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["L_transverse_nm"] == 12.82  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["directional_peak_status"] == "usable"  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["directional_axis_deg"] == 90.0  # type: ignore[attr-defined]
 
     params = engine.get_parameters()
     assert params["f_Herman_mean"] == 0.25
@@ -944,6 +965,464 @@ def test_saxs_strain_series_passes_configured_orientation_axis_to_core() -> None
     point = result.strain_points[0]
     assert point.f_herman > 0.3
     assert point.orientation_evidence["fit_evidence"]["orientation_axis_source"] == "configured"
+
+
+def test_saxs_strain_series_tracks_tensile_and_transverse_q_from_canonical_2d() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.1, 180)
+    chi_rad = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    axial_profile = np.exp(-((q - 0.70) / 0.018) ** 2)
+    transverse_profile = np.exp(-((q - 0.80) / 0.018) ** 2)
+    axial_weight = 8.0 * np.exp(
+        -((np.angle(np.exp(1j * (chi_rad - np.pi / 2)))) / 0.20) ** 2
+    )
+    transverse_weight = 8.0 * np.exp(
+        -((np.angle(np.exp(1j * chi_rad)) / 0.20) ** 2)
+    )
+    I_2d = (
+        0.05
+        + np.outer(axial_weight, axial_profile)
+        + np.outer(transverse_weight, transverse_profile)
+    )
+    sector_data = {
+        "I_2d": I_2d,
+        "q_2d": q,
+        "chi_rad": chi_rad,
+        "I_full": np.mean(I_2d, axis=0),
+        "support_count": np.ones_like(I_2d),
+    }
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[np.mean(I_2d, axis=0)],
+        sector_data_list=[sector_data],
+        cfg=SAXSConfig(
+            smooth_method="none",
+            tensile_axis_deg=90.0,
+            q_bragg_min=0.3,
+            q_bragg_max=1.0,
+        ),
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_peak_status == "usable"
+    assert point.q_peak_tensile_nm1 == pytest.approx(0.70, abs=0.025)
+    assert point.q_peak_transverse_nm1 == pytest.approx(0.80, abs=0.025)
+    assert point.L_tensile_nm != pytest.approx(point.L_transverse_nm)
+
+
+def test_tensile_sector_overlap_weights_preserve_requested_angular_width() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import (
+        _detector_plane_sector_overlap_weights,
+    )
+
+    chi_rad = np.deg2rad(np.array([-25.0, -15.0, -5.0, 5.0, 15.0, 25.0]))
+
+    weights = _detector_plane_sector_overlap_weights(
+        chi_rad,
+        axis_deg=0.0,
+        halfwidth_deg=15.0,
+    )
+
+    np.testing.assert_allclose(weights, [0.0, 0.5, 1.0, 1.0, 0.5, 0.0])
+
+
+@pytest.mark.parametrize("n_chi", [8, 10])
+@pytest.mark.parametrize("axis_deg", [0.0, 11.25, 22.5, 37.0])
+def test_tensile_sector_overlap_weights_keep_coarse_bin_sector_width_constant(
+    n_chi: int,
+    axis_deg: float,
+) -> None:
+    from polynexus.core.saxs_engine.saxs_strain import (
+        _detector_plane_sector_overlap_weights,
+    )
+
+    bin_width_deg = 360.0 / n_chi
+    chi_rad = np.deg2rad(
+        np.linspace(-180.0, 180.0, n_chi, endpoint=False) + 0.5 * bin_width_deg
+    )
+
+    weights = _detector_plane_sector_overlap_weights(
+        chi_rad,
+        axis_deg=axis_deg,
+        halfwidth_deg=15.0,
+    )
+
+    assert np.sum(weights) * bin_width_deg == pytest.approx(60.0, abs=1e-10)
+
+
+def test_saxs_strain_aligned_peaks_match_legacy_sectors_after_profile_preprocessing() -> None:
+    from polynexus.core.saxs_engine.preprocess import (
+        normalize_intensity,
+        smooth_profile,
+    )
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.1, 180)
+    chi_rad = np.linspace(-np.pi, np.pi, 72, endpoint=False)
+    cfg = SAXSConfig(
+        tensile_axis_deg=90.0,
+        q_bragg_min=0.3,
+        q_bragg_max=1.0,
+        smooth_method="savgol",
+        savgol_window=7,
+        savgol_order=2,
+    )
+    meridional_raw = 0.05 + np.exp(-((q - 0.70) / 0.025) ** 2)
+    meridional_raw[np.argmin(np.abs(q - 0.68))] += 1.0
+    equatorial_raw = 0.05 + np.exp(-((q - 0.80) / 0.025) ** 2)
+    equatorial_raw[np.argmin(np.abs(q - 0.78))] += 1.0
+    meridional = smooth_profile(q, normalize_intensity(meridional_raw, cfg), cfg)
+    equatorial = smooth_profile(q, normalize_intensity(equatorial_raw, cfg), cfg)
+
+    meridional_mask = np.abs(
+        (chi_rad - np.pi / 2.0 + np.pi / 2.0) % np.pi - np.pi / 2.0
+    ) <= np.deg2rad(cfg.chi_halfwidth)
+    I_2d = np.tile(equatorial_raw, (chi_rad.size, 1))
+    I_2d[meridional_mask, :] = meridional_raw
+    total = 0.05 + np.exp(-((q - 0.72) / 0.025) ** 2)
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[total],
+        sector_data_list=[
+            {
+                "q": q,
+                "I_full": total,
+                "I_merid": meridional,
+                "I_equat": equatorial,
+                "I_2d": I_2d,
+                "q_2d": q,
+                "chi_rad": chi_rad,
+                "support_count": np.ones_like(I_2d),
+            }
+        ],
+        cfg=cfg,
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_peak_status == "usable"
+    assert point.q_peak_tensile_nm1 == pytest.approx(
+        point.q_peak_meridional_nm1, abs=1e-12
+    )
+    assert point.q_peak_transverse_nm1 == pytest.approx(
+        point.q_peak_equatorial_nm1, abs=1e-12
+    )
+
+
+def test_saxs_strain_series_keeps_aligned_peaks_unavailable_without_tensile_axis() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.0, 120)
+    intensity = 0.05 + np.exp(-((q - 0.7) / 0.02) ** 2)
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    I_2d = np.outer(np.ones_like(chi_rad), intensity)
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[
+            {
+                "I_2d": I_2d,
+                "q_2d": q,
+                "chi_rad": chi_rad,
+                "I_full": intensity,
+                "support_count": np.ones_like(I_2d),
+            }
+        ],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=None),
+    )
+
+    point = result.strain_points[0]
+    assert np.isfinite(point.q_peak_total_nm1)
+    assert point.directional_peak_status == "unavailable"
+    assert point.directional_peak_reason == "tensile_axis_missing"
+    assert not np.isfinite(point.q_peak_tensile_nm1)
+    assert not np.isfinite(point.q_peak_transverse_nm1)
+
+
+def test_saxs_strain_aligned_peaks_require_canonical_2d_even_for_fixed_axis() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.0, 120)
+    intensity = 0.05 + np.exp(-((q - 0.7) / 0.02) ** 2)
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[
+            {
+                "q": q,
+                "I_full": intensity,
+                "I_merid": intensity,
+                "I_equat": intensity,
+            }
+        ],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=90.0),
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_peak_status == "unavailable"
+    assert "canonical_2d_payload_missing" in point.directional_peak_reason
+    assert not np.isfinite(point.q_peak_tensile_nm1)
+    assert not np.isfinite(point.q_peak_transverse_nm1)
+
+
+def test_saxs_strain_aligned_peaks_fail_closed_without_sector_support() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.0, 120)
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    intensity = 0.05 + np.exp(-((q - 0.7) / 0.02) ** 2)
+    I_2d = np.outer(np.ones_like(chi_rad), intensity)
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[
+            {
+                "I_2d": I_2d,
+                "q_2d": q,
+                "chi_rad": chi_rad,
+                "I_full": intensity,
+            }
+        ],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=37.0),
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_peak_status == "unavailable"
+    assert "sector_support_missing" in point.directional_peak_reason
+    assert not np.isfinite(point.q_peak_tensile_nm1)
+    assert not np.isfinite(point.q_peak_transverse_nm1)
+
+
+@pytest.mark.filterwarnings(
+    "ignore:Casting complex values to real discards the imaginary part"
+)
+@pytest.mark.parametrize(
+    ("support_count", "expected_reason"),
+    [
+        (np.zeros((36, 120), dtype=float), "tensile_sector_support_missing"),
+        (np.ones((36, 120), dtype=bool), "sector_support_invalid"),
+        (np.ones((36, 120), dtype=complex), "sector_support_invalid"),
+        (np.full((36, 120), "1"), "sector_support_invalid"),
+        (np.full((36, 120), True, dtype=object), "sector_support_invalid"),
+    ],
+)
+def test_saxs_strain_fixed_axis_reuse_validates_real_numeric_support(
+    support_count: np.ndarray,
+    expected_reason: str,
+) -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.0, 120)
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    intensity = 0.05 + np.exp(-((q - 0.7) / 0.02) ** 2)
+    I_2d = np.outer(np.ones_like(chi_rad), intensity)
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[
+            {
+                "q": q,
+                "I_full": intensity,
+                "I_merid": intensity,
+                "I_equat": intensity,
+                "I_2d": I_2d,
+                "q_2d": q,
+                "chi_rad": chi_rad,
+                "support_count": support_count,
+            }
+        ],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=90.0),
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_peak_status == "unavailable"
+    assert expected_reason in point.directional_peak_reason
+    assert not np.isfinite(point.q_peak_tensile_nm1)
+    assert not np.isfinite(point.q_peak_transverse_nm1)
+
+
+@pytest.mark.parametrize("nonfinite_value", [np.nan, np.inf])
+def test_saxs_strain_fixed_axis_reuse_rejects_supported_nonfinite_intensity(
+    nonfinite_value: float,
+) -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.0, 120)
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    intensity = 0.05 + np.exp(-((q - 0.7) / 0.02) ** 2)
+    I_2d = np.full((chi_rad.size, q.size), nonfinite_value, dtype=float)
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[
+            {
+                "q": q,
+                "I_full": intensity,
+                "I_merid": intensity,
+                "I_equat": intensity,
+                "I_2d": I_2d,
+                "q_2d": q,
+                "chi_rad": chi_rad,
+                "support_count": np.ones_like(I_2d),
+            }
+        ],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=90.0),
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_peak_status == "unavailable"
+    assert "canonical_2d_payload_invalid" in point.directional_peak_reason
+    assert not np.isfinite(point.q_peak_tensile_nm1)
+    assert not np.isfinite(point.q_peak_transverse_nm1)
+
+
+def test_saxs_strain_fixed_axis_reuse_requires_support_in_peak_search_window() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.1, 180)
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    intensity = 0.05 + np.exp(-((q - 0.7) / 0.02) ** 2)
+    I_2d = np.outer(np.ones_like(chi_rad), intensity)
+    support_count = np.zeros_like(I_2d)
+    support_count[:, :3] = 1.0
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[
+            {
+                "q": q,
+                "I_full": intensity,
+                "I_merid": intensity,
+                "I_equat": intensity,
+                "I_2d": I_2d,
+                "q_2d": q,
+                "chi_rad": chi_rad,
+                "support_count": support_count,
+            }
+        ],
+        cfg=SAXSConfig(
+            smooth_method="none",
+            tensile_axis_deg=90.0,
+            q_bragg_min=0.3,
+            q_bragg_max=1.0,
+        ),
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_peak_status == "unavailable"
+    assert "tensile_sector_support_missing" in point.directional_peak_reason
+    assert not np.isfinite(point.q_peak_tensile_nm1)
+    assert not np.isfinite(point.q_peak_transverse_nm1)
+
+
+@pytest.mark.parametrize(
+    "invalid_axis",
+    [
+        "q_descending",
+        "q_duplicate",
+        "q_nonpositive",
+        "chi_descending",
+        "chi_duplicate",
+        "chi_nonuniform",
+        "chi_out_of_range",
+    ],
+)
+def test_saxs_strain_aligned_peaks_reject_noncanonical_2d_axes(
+    invalid_axis: str,
+) -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.0, 120)
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+    intensity = 0.05 + np.exp(-((q - 0.7) / 0.02) ** 2)
+    I_2d = np.outer(np.ones_like(chi_rad), intensity)
+    support_count = np.ones_like(I_2d)
+    q_2d = q.copy()
+    chi_2d = chi_rad.copy()
+    if invalid_axis == "q_descending":
+        q_2d = q_2d[::-1]
+        I_2d = I_2d[:, ::-1]
+        support_count = support_count[:, ::-1]
+    elif invalid_axis == "q_duplicate":
+        q_2d[1] = q_2d[0]
+    elif invalid_axis == "q_nonpositive":
+        q_2d[0] = 0.0
+    elif invalid_axis == "chi_descending":
+        chi_2d = chi_2d[::-1]
+        I_2d = I_2d[::-1, :]
+        support_count = support_count[::-1, :]
+    elif invalid_axis == "chi_duplicate":
+        chi_2d[1] = chi_2d[0]
+    elif invalid_axis == "chi_nonuniform":
+        chi_2d[1] += 0.01
+    else:
+        chi_2d += 2.0 * np.pi
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=[
+            {
+                "q": q,
+                "I_full": intensity,
+                "I_merid": intensity,
+                "I_equat": intensity,
+                "I_2d": I_2d,
+                "q_2d": q_2d,
+                "chi_rad": chi_2d,
+                "support_count": support_count,
+            }
+        ],
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=90.0),
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_peak_status == "unavailable"
+    assert "canonical_2d_payload_invalid" in point.directional_peak_reason
+    assert not np.isfinite(point.q_peak_tensile_nm1)
+    assert not np.isfinite(point.q_peak_transverse_nm1)
+
+
+@pytest.mark.parametrize("sector_data_list", [None, [], [None]])
+def test_saxs_strain_missing_sector_data_preserves_configured_directional_axis(
+    sector_data_list,
+) -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.2, 1.0, 120)
+    intensity = 0.05 + np.exp(-((q - 0.7) / 0.02) ** 2)
+
+    result = analyze_strain_series(
+        strains=[0.0],
+        q_list=[q],
+        I_list=[intensity],
+        sector_data_list=sector_data_list,
+        cfg=SAXSConfig(smooth_method="none", tensile_axis_deg=37.0),
+    )
+
+    point = result.strain_points[0]
+    assert point.directional_axis_deg == pytest.approx(37.0)
+    assert point.directional_peak_status == "unavailable"
+    assert point.directional_peak_reason == "sector_data_missing"
+    assert not np.isfinite(point.q_peak_tensile_nm1)
+    assert not np.isfinite(point.q_peak_transverse_nm1)
 
 
 def test_saxs_strain_keeps_1d_quality_defects_separate_from_supported_annulus(monkeypatch) -> None:

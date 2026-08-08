@@ -1557,3 +1557,15 @@ Task card:
 `docs/agent/tasks/2026-07-29-joint-history-project-identity.md`. Task-scoped
 verification passed; the atomic checkpoint is the allowlisted commit for this
 task.
+
+## Latest task update (2026-08-08)
+
+SAXS strain analysis now retains the total long-period peak while adding
+diagnostic tensile-axis and transverse-axis q/L fields for explicitly
+configured detector-image axes. The directional route requires canonical 2D
+intensity/q/chi/support, uses support and fractional chi-bin overlap weights,
+and applies the fixed-sector normalization/smoothing stages. Exact configured
+fixed-sector matches reuse the existing meridional/equatorial profiles after
+canonical validation. Missing scientific inputs fail closed, and the primary
+results-table contract is unchanged. Verification evidence is tracked in
+`docs/agent/tasks/2026-08-08-saxs-tensile-aligned-peak-tracking.md`.
