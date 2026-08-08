@@ -1928,6 +1928,27 @@ class SAXSEngine(BaseEngine):
                 f_herman_raw = _float_or_none(
                     getattr(strain_point, "f_herman_raw", np.nan)
                 )
+                orientation_fit_evidence = {}
+                orientation_evidence = getattr(
+                    strain_point, "orientation_evidence", None
+                )
+                if isinstance(orientation_evidence, dict):
+                    candidate_fit_evidence = orientation_evidence.get("fit_evidence")
+                    if isinstance(candidate_fit_evidence, dict):
+                        orientation_fit_evidence = candidate_fit_evidence
+                orientation_q_target = _float_or_none(
+                    orientation_fit_evidence.get("q_star_candidate")
+                )
+                orientation_q_range = orientation_fit_evidence.get(
+                    "selected_q_range_nm1"
+                )
+                orientation_q_min = None
+                orientation_q_max = None
+                if isinstance(orientation_q_range, (list, tuple)):
+                    if len(orientation_q_range) >= 1:
+                        orientation_q_min = _float_or_none(orientation_q_range[0])
+                    if len(orientation_q_range) >= 2:
+                        orientation_q_max = _float_or_none(orientation_q_range[1])
                 phase_name = str(getattr(getattr(strain_point, "phase", None), "name", "") or "").strip().upper()
                 if not phase_name:
                     phase_name = "ELASTIC"
@@ -1957,6 +1978,7 @@ class SAXSEngine(BaseEngine):
                 fname = self._file_list[i] if i < len(self._file_list) else f"frame_{i}"
                 self._batch_params.append({
                     "file": os.path.basename(str(fname)),
+                    "frame_source_index": i,
                     "condition_label": getattr(self.cfg, "condition_label", "Strain"),
                     "strain_pct": self._conditions[i] if i < len(self._conditions) else None,
                     "L_nm": L,
@@ -1993,6 +2015,21 @@ class SAXSEngine(BaseEngine):
                     "f_Herman": round(f_herman, 4) if f_herman is not None else None,
                     "f_Herman_raw": (
                         round(f_herman_raw, 4) if f_herman_raw is not None else None
+                    ),
+                    "orientation_q_target_nm1": (
+                        round(orientation_q_target, 4)
+                        if orientation_q_target is not None
+                        else None
+                    ),
+                    "orientation_q_min_nm1": (
+                        round(orientation_q_min, 4)
+                        if orientation_q_min is not None
+                        else None
+                    ),
+                    "orientation_q_max_nm1": (
+                        round(orientation_q_max, 4)
+                        if orientation_q_max is not None
+                        else None
                     ),
                     "lc_nm_effective": lc,
                     "la_nm_effective": la,

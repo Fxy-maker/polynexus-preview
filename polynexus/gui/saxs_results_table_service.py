@@ -40,6 +40,8 @@ _REVIEW_STATUSES = {
 _BLOCKED_STATUSES = {"diagnostic_only", "post_end", "failed", "error", "unavailable"}
 
 _EXACT_DIAGNOSTIC_KEYS = {
+    "frame_source_index",
+    "orientation_q_target_nm1",
     "invariant_Q_valid",
     "invariant_Q_rel",
     "invariant_Q_rel_mean",

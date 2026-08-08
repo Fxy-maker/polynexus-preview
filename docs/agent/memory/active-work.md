@@ -1,5 +1,19 @@
 # Active Work
 
+## SAXS orientation frame provenance diagnostics - in progress (2026-08-08)
+
+- Strain `_batch_data` rows now retain `frame_source_index`, the orientation
+  `q_star_candidate`, and the selected orientation q lower/upper bounds from
+  the consumed per-frame evidence. The diagnostic table classifies the source
+  index and q target for direct frame-by-frame comparison.
+- A synthetic regression confirms distinct 2D sector frames produce distinct
+  `f_Herman_raw` values; the code does not collapse different sector maps into
+  one orientation value. The user's 0%/5% discrepancy still needs a fresh
+  rerun with these fields to distinguish frame input duplication from q-window
+  selection differences.
+- Focused provenance/orientation coverage passes `111`; structured verification
+  passes quality `297`, preprocessing `157`, Ruff, compile, and whitespace.
+
 ## AI tuning report dialog usability - completed (2026-08-08)
 
 - Long AI-tuning evidence no longer pushes Apply/Keep Current outside the

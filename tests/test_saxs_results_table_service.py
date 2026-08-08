@@ -658,6 +658,10 @@ def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliabil
                     "strain_pct": 5.0,
                     "f_Herman": None,
                     "f_Herman_raw": 0.41,
+                    "frame_source_index": 1,
+                    "orientation_q_target_nm1": 0.31,
+                    "orientation_selected_q_min_nm1": 0.30,
+                    "orientation_selected_q_max_nm1": 0.32,
                     "delta_f_from_zero": -0.02,
                     "delta_f_stability_lower": -0.05,
                     "delta_f_stability_upper": 0.01,
@@ -696,6 +700,11 @@ def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliabil
     assert _cell(presentation.primary, 0, "orientation_q_min_nm1").raw == pytest.approx(0.20)
     assert _cell(presentation.primary, 0, "orientation_track_id").raw == "track-a"
     assert _cell(presentation.primary, 1, "orientation_track_id").raw == "track-b"
+    diagnostic_keys = {column.key for column in presentation.diagnostics.columns}
+    assert {
+        "frame_source_index",
+        "orientation_q_target_nm1",
+    } <= diagnostic_keys
 
 
 def test_empty_payload_builds_empty_sections_and_disabled_actions() -> None:

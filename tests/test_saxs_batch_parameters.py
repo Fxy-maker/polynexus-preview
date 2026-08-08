@@ -746,6 +746,12 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                     Q_star_normalized=1.0,
                     f_herman=0.25,
                     f_herman_raw=0.33,
+                    orientation_evidence={
+                        "fit_evidence": {
+                            "q_star_candidate": 0.42,
+                            "selected_q_range_nm1": [0.41, 0.43],
+                        }
+                    },
                     confidence=0.8,
                     analysis_result=analyses[0],
                 ),
@@ -757,6 +763,12 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                     Q_star_rel=1.0,
                     Q_star_normalized=1.0,
                     f_herman_raw=0.41,
+                    orientation_evidence={
+                        "fit_evidence": {
+                            "q_star_candidate": 0.47,
+                            "selected_q_range_nm1": [0.46, 0.48],
+                        }
+                    },
                     confidence=0.8,
                     analysis_result=analyses[1],
                 ),
@@ -798,6 +810,12 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
     assert engine._batch_params[1]["f_Herman"] is None  # type: ignore[attr-defined]
     assert engine._batch_params[0]["f_Herman_raw"] == 0.33  # type: ignore[attr-defined]
     assert engine._batch_params[1]["f_Herman_raw"] == 0.41  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["frame_source_index"] == 0  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["frame_source_index"] == 1  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["orientation_q_target_nm1"] == 0.42  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["orientation_q_target_nm1"] == 0.47  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["orientation_q_min_nm1"] == 0.41  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["orientation_q_max_nm1"] == 0.48  # type: ignore[attr-defined]
 
     params = engine.get_parameters()
     assert params["f_Herman_mean"] == 0.25
@@ -838,6 +856,36 @@ def test_saxs_strain_series_consumes_canonical_2d_sector_payload() -> None:
 
     assert np.isfinite(result.strain_points[0].f_herman)
     assert result.strain_points[0].f_herman > 0.0
+
+
+def test_saxs_strain_series_does_not_collapse_distinct_sector_frames() -> None:
+    from polynexus.core.saxs_engine.saxs_strain import analyze_strain_series
+
+    q = np.linspace(0.1, 1.0, 120)
+    peak = np.exp(-((q - 0.45) / 0.025) ** 2)
+    intensity = 0.1 + peak
+    chi_rad = np.linspace(-np.pi, np.pi, 36, endpoint=False)
+
+    def sector_map(power: int) -> dict[str, np.ndarray]:
+        return {
+            "I_2d": np.outer(1.0 + 3.0 * np.cos(chi_rad) ** power, intensity),
+            "q_2d": q,
+            "chi_rad": chi_rad,
+            "I_full": intensity,
+            "support_count": np.ones((chi_rad.size, q.size)),
+        }
+
+    result = analyze_strain_series(
+        strains=[0.0, 5.0],
+        q_list=[q, q],
+        I_list=[intensity, intensity],
+        sector_data_list=[sector_map(2), sector_map(4)],
+        cfg=SAXSConfig(smooth_method="none"),
+    )
+
+    raw_values = [point.f_herman_raw for point in result.strain_points]
+    assert all(np.isfinite(value) for value in raw_values)
+    assert raw_values[1] > raw_values[0] + 0.05
 
 
 def test_saxs_strain_series_passes_configured_orientation_axis_to_core() -> None:
