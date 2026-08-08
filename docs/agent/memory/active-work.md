@@ -1,5 +1,16 @@
 # Active Work
 
+## SAXS orientation evidence projection - completed (2026-08-08)
+
+- Per-frame strain `_batch_data` now exposes the detector-plane evidence behind
+  `f_Herman_raw`: axis degree/source, harmonic strength/significance, effective
+  azimuthal bins, coverage, `orientation_cos2_avg`, and isotropic baseline.
+- `orientation_cos2_avg` is preserved in the JSON orientation evidence contract;
+  the GUI shows these scalar values in Diagnostics only. Effective tensile-axis
+  Herman values and reliability gates are unchanged.
+- Focused orientation/batch/result-table matrix passes `150`; task card:
+  `docs/agent/tasks/2026-08-08-saxs-orientation-evidence-projection.md`.
+
 ## SAXS orientation frame provenance diagnostics - in progress (2026-08-08)
 
 - Strain `_batch_data` rows now retain `frame_source_index`, the orientation

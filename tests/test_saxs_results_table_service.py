@@ -667,6 +667,13 @@ def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliabil
                     "delta_f_stability_upper": 0.01,
                     "orientation_q_min_nm1": 0.20,
                     "orientation_q_max_nm1": 0.35,
+                    "orientation_axis_deg": 12.5,
+                    "orientation_axis_source": "auto_detected",
+                    "orientation_axis_strength": 0.31,
+                    "orientation_harmonic_significance": 4.2,
+                    "orientation_effective_bins": 18.0,
+                    "orientation_azimuthal_coverage": 0.92,
+                    "orientation_cos2_avg": 0.58,
                     "orientation_track_id": "track-a",
                     "orientation_reliability_status": "diagnostic",
                     "orientation_reason_summary": "delta_not_available",
@@ -704,6 +711,13 @@ def test_strain_orientation_fields_keep_final_raw_delta_q_stability_and_reliabil
     assert {
         "frame_source_index",
         "orientation_q_target_nm1",
+        "orientation_axis_deg",
+        "orientation_axis_source",
+        "orientation_axis_strength",
+        "orientation_harmonic_significance",
+        "orientation_effective_bins",
+        "orientation_azimuthal_coverage",
+        "orientation_cos2_avg",
     } <= diagnostic_keys
 
 

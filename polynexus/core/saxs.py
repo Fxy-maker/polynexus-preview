@@ -1949,6 +1949,27 @@ class SAXSEngine(BaseEngine):
                         orientation_q_min = _float_or_none(orientation_q_range[0])
                     if len(orientation_q_range) >= 2:
                         orientation_q_max = _float_or_none(orientation_q_range[1])
+                orientation_axis_deg = _float_or_none(
+                    orientation_fit_evidence.get("orientation_axis_deg")
+                )
+                orientation_axis_strength = _float_or_none(
+                    orientation_fit_evidence.get("orientation_axis_strength")
+                )
+                orientation_harmonic_significance = _float_or_none(
+                    orientation_fit_evidence.get("orientation_harmonic_significance")
+                )
+                orientation_effective_bins = _float_or_none(
+                    orientation_fit_evidence.get("orientation_effective_bins")
+                )
+                orientation_azimuthal_coverage = _float_or_none(
+                    orientation_fit_evidence.get("orientation_azimuthal_coverage")
+                )
+                orientation_cos2_avg = _float_or_none(
+                    orientation_fit_evidence.get("orientation_cos2_avg")
+                )
+                orientation_isotropic_baseline = _float_or_none(
+                    orientation_fit_evidence.get("isotropic_baseline")
+                )
                 phase_name = str(getattr(getattr(strain_point, "phase", None), "name", "") or "").strip().upper()
                 if not phase_name:
                     phase_name = "ELASTIC"
@@ -2029,6 +2050,46 @@ class SAXSEngine(BaseEngine):
                     "orientation_q_max_nm1": (
                         round(orientation_q_max, 4)
                         if orientation_q_max is not None
+                        else None
+                    ),
+                    "orientation_axis_deg": (
+                        round(orientation_axis_deg, 3)
+                        if orientation_axis_deg is not None
+                        else None
+                    ),
+                    "orientation_axis_source": (
+                        str(orientation_fit_evidence.get("orientation_axis_source"))
+                        if orientation_fit_evidence.get("orientation_axis_source") not in {None, ""}
+                        else None
+                    ),
+                    "orientation_axis_strength": (
+                        round(orientation_axis_strength, 4)
+                        if orientation_axis_strength is not None
+                        else None
+                    ),
+                    "orientation_harmonic_significance": (
+                        round(orientation_harmonic_significance, 4)
+                        if orientation_harmonic_significance is not None
+                        else None
+                    ),
+                    "orientation_effective_bins": (
+                        round(orientation_effective_bins, 3)
+                        if orientation_effective_bins is not None
+                        else None
+                    ),
+                    "orientation_azimuthal_coverage": (
+                        round(orientation_azimuthal_coverage, 4)
+                        if orientation_azimuthal_coverage is not None
+                        else None
+                    ),
+                    "orientation_cos2_avg": (
+                        round(orientation_cos2_avg, 4)
+                        if orientation_cos2_avg is not None
+                        else None
+                    ),
+                    "orientation_isotropic_baseline": (
+                        round(orientation_isotropic_baseline, 4)
+                        if orientation_isotropic_baseline is not None
                         else None
                     ),
                     "lc_nm_effective": lc,

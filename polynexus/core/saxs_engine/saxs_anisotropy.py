@@ -88,6 +88,7 @@ class AnisotropyResult:
     orientation_effective_bins: float = np.nan
     orientation_azimuthal_coverage: float = np.nan
     orientation_axis_drift_deg: float = np.nan
+    orientation_cos2_avg: float = np.nan
 
     # Explicit physical-axis semantics.  The legacy orientation axis remains a
     # principal-scattering diagnostic; final Herman values require a tensile
@@ -147,6 +148,7 @@ def _attach_orientation_evidence(
             "orientation_effective_bins": result.orientation_effective_bins,
             "orientation_azimuthal_coverage": result.orientation_azimuthal_coverage,
             "orientation_axis_drift_deg": result.orientation_axis_drift_deg,
+            "orientation_cos2_avg": result.orientation_cos2_avg,
             "principal_scattering_axis_deg": result.principal_scattering_axis_deg,
             "tensile_axis_deg": result.tensile_axis_deg,
             "reference_axis_deg": result.reference_axis_deg,
@@ -237,6 +239,11 @@ def _attach_orientation_evidence(
             "orientation_vector_kind": result.orientation_vector_kind,
             "herman_convention": result.herman_convention,
             "isotropic_baseline": float(result.isotropic_baseline),
+            "orientation_cos2_avg": (
+                float(result.orientation_cos2_avg)
+                if np.isfinite(result.orientation_cos2_avg)
+                else None
+            ),
         }
     )
     evidence_reasons = list(evidence_dict.get("reason_codes", ()))
@@ -1184,6 +1191,7 @@ def analyze_anisotropy(
                 reference_axis_deg=result.orientation_axis_deg,
             )
             result.f_herman_raw = raw_herman.get('f', np.nan)
+            result.orientation_cos2_avg = raw_herman.get("cos2_avg", np.nan)
 
         if np.isfinite(result.tensile_axis_deg):
             result.reference_axis_deg = result.tensile_axis_deg

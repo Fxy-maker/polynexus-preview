@@ -23,6 +23,14 @@ absolute calibration inference, and scientific merge approval remain outside
 this checkpoint. Task card:
 `docs/agent/tasks/2026-08-07-saxs-ai-stability-decision-repair.md`.
 
+## SAXS orientation evidence projection (2026-08-08)
+
+Per-frame strain rows now publish axis/source, harmonic strength/significance,
+effective bins, azimuthal coverage, `orientation_cos2_avg`, and isotropic
+baseline in Diagnostics. These remain detector-plane diagnostics; effective
+tensile-axis Herman gating is unchanged. See
+`docs/agent/tasks/2026-08-08-saxs-orientation-evidence-projection.md`.
+
 ## SAXS frame and orientation-tracking row separation (2026-08-07)
 
 SAXS strain result presentations now build tabular rows only from real

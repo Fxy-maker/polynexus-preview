@@ -2381,7 +2381,7 @@ def build_orientation_evidence(
         "anisotropy_index", "confidence", "orientation_axis_strength",
         "orientation_axis_confidence", "orientation_harmonic_significance",
         "orientation_effective_bins", "orientation_azimuthal_coverage",
-        "orientation_axis_drift_deg",
+        "orientation_axis_drift_deg", "orientation_cos2_avg",
     )
     fit_evidence: dict[str, Any] = {}
     for key in numeric_fields:

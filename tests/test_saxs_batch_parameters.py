@@ -750,6 +750,14 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                         "fit_evidence": {
                             "q_star_candidate": 0.42,
                             "selected_q_range_nm1": [0.41, 0.43],
+                            "orientation_axis_deg": 12.5,
+                            "orientation_axis_source": "auto_detected",
+                            "orientation_axis_strength": 0.31,
+                            "orientation_harmonic_significance": 4.2,
+                            "orientation_effective_bins": 18.0,
+                            "orientation_azimuthal_coverage": 0.92,
+                            "isotropic_baseline": 0.25,
+                            "orientation_cos2_avg": 0.58,
                         }
                     },
                     confidence=0.8,
@@ -767,6 +775,14 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
                         "fit_evidence": {
                             "q_star_candidate": 0.47,
                             "selected_q_range_nm1": [0.46, 0.48],
+                            "orientation_axis_deg": 13.0,
+                            "orientation_axis_source": "auto_detected",
+                            "orientation_axis_strength": 0.29,
+                            "orientation_harmonic_significance": 3.8,
+                            "orientation_effective_bins": 17.0,
+                            "orientation_azimuthal_coverage": 0.90,
+                            "isotropic_baseline": 0.25,
+                            "orientation_cos2_avg": 0.56,
                         }
                     },
                     confidence=0.8,
@@ -816,6 +832,13 @@ def test_saxs_strain_pipeline_passes_sector_data_and_publishes_herman(monkeypatc
     assert engine._batch_params[1]["orientation_q_target_nm1"] == 0.47  # type: ignore[attr-defined]
     assert engine._batch_params[0]["orientation_q_min_nm1"] == 0.41  # type: ignore[attr-defined]
     assert engine._batch_params[1]["orientation_q_max_nm1"] == 0.48  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["orientation_axis_deg"] == 12.5  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["orientation_axis_strength"] == 0.29  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["orientation_harmonic_significance"] == 4.2  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["orientation_effective_bins"] == 17.0  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["orientation_azimuthal_coverage"] == 0.92  # type: ignore[attr-defined]
+    assert engine._batch_params[1]["orientation_cos2_avg"] == 0.56  # type: ignore[attr-defined]
+    assert engine._batch_params[0]["orientation_isotropic_baseline"] == 0.25  # type: ignore[attr-defined]
 
     params = engine.get_parameters()
     assert params["f_Herman_mean"] == 0.25

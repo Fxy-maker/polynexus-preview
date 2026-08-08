@@ -50,10 +50,14 @@ def test_effective_herman_requires_explicit_tensile_axis() -> None:
     assert not np.isfinite(result.P2)
     assert not np.isfinite(result.P4)
     assert np.isfinite(result.principal_scattering_axis_deg)
+    assert np.isfinite(result.orientation_cos2_avg)
     assert result.reference_axis_kind == "unknown"
     assert result.herman_convention == "detector_plane_2d_v1"
     assert result.isotropic_baseline == 0.25
     assert result.orientation_evidence["fit_evidence"]["reference_axis_kind"] == "unknown"
+    assert result.orientation_evidence["fit_evidence"]["orientation_cos2_avg"] == pytest.approx(
+        result.orientation_cos2_avg
+    )
     assert "tensile_axis_unknown" in result.orientation_evidence["reason_codes"]
 
 
