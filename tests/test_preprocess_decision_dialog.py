@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QDialogButtonBox
+from PySide6.QtWidgets import QApplication, QDialogButtonBox, QScrollArea
 
 from polynexus.core.preprocess_optimization import stable_config_hash
 from polynexus.gui.main_window import SideTuningReportDialog
@@ -88,6 +88,29 @@ def test_confirm_dialog_enables_apply_and_uses_selected_config() -> None:
     assert dialog.best_config() == {"smooth_window": 15}
     assert dialog._buttons.button(QDialogButtonBox.Ok).isEnabled() is True
     assert "weak_peak_retention" in dialog._preprocess_metrics_label.text()
+
+    dialog.deleteLater()
+    app.processEvents()
+
+
+def test_long_report_keeps_action_buttons_outside_scrollable_content() -> None:
+    app = QApplication.instance() or QApplication([])
+    report = report_with("request_confirmation", "medium")
+    report["preprocess_evidence"] = [
+        {"candidate_id": f"candidate-{index}", "note": "detail " * 200}
+        for index in range(80)
+    ]
+
+    dialog = SideTuningReportDialog(report)
+    dialog.show()
+    app.processEvents()
+
+    assert isinstance(dialog._report_scroll_area, QScrollArea)
+    assert dialog._report_scroll_area.widgetResizable() is True
+    assert dialog._report_scroll_area.verticalScrollBar().isVisible() is True
+    assert dialog._buttons.parentWidget() is dialog
+    assert dialog._buttons.button(QDialogButtonBox.Ok).isVisible() is True
+    assert dialog._buttons.button(QDialogButtonBox.Cancel).isVisible() is True
 
     dialog.deleteLater()
     app.processEvents()

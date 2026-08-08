@@ -1,5 +1,16 @@
 # Active Work
 
+## AI tuning report dialog usability - completed (2026-08-08)
+
+- Long AI-tuning evidence no longer pushes Apply/Keep Current outside the
+  viewport. Report content is hosted in a bounded, resizable `QScrollArea`,
+  while the action button box remains fixed below it.
+- The dialog initial/max height follows the primary screen's available height,
+  preserving the existing confirmation and enable/disable behavior.
+- Focused dialog coverage passes `14`; structured verification passes quality
+  `297` and preprocessing `157`, including Ruff, compile, and whitespace.
+
+
 ## SAXS AI tuning and stability decision repair - completed (2026-08-08)
 
 - The existing AI-tuning button now consumes the SAXS stability report through

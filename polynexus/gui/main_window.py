@@ -460,8 +460,29 @@ class SideTuningReportDialog(QDialog):
         super().__init__(parent)
         self.report = report if isinstance(report, dict) else {}
         self.setWindowTitle(tr("AI_TUNING_REPORT_TITLE"))
-        self.resize(1080, 760)
-        layout = QVBoxLayout(self)
+        screen = QApplication.primaryScreen()
+        available_geometry = screen.availableGeometry() if screen is not None else None
+        if available_geometry is not None:
+            max_height = max(320, available_geometry.height() - 40)
+            initial_width = min(1080, max(640, available_geometry.width() - 40))
+            initial_height = min(760, max_height)
+            self.setMaximumHeight(max_height)
+            self.resize(initial_width, initial_height)
+        else:
+            self.resize(1080, 760)
+
+        root_layout = QVBoxLayout(self)
+        self._report_scroll_area = QScrollArea()
+        self._report_scroll_area.setObjectName("ai_tuning_report_scroll")
+        self._report_scroll_area.setWidgetResizable(True)
+        self._report_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._report_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._report_scroll_area.setFrameShape(QFrame.NoFrame)
+        report_content = QWidget()
+        layout = QVBoxLayout(report_content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self._report_scroll_area.setWidget(report_content)
+        root_layout.addWidget(self._report_scroll_area, 1)
         self._review_status_banner = QFrame()
         self._review_status_banner.setObjectName("ai_tuning_review_status")
         self._review_status_banner.setStyleSheet(
@@ -675,7 +696,7 @@ class SideTuningReportDialog(QDialog):
                 self._buttons.button(QDialogButtonBox.Cancel).setText("Close")
         self._buttons.accepted.connect(self.accept)
         self._buttons.rejected.connect(self.reject)
-        layout.addWidget(self._buttons)
+        root_layout.addWidget(self._buttons)
         self._populate_review_panels()
         self._fill_candidate_trials()
         self._fill_scores()
