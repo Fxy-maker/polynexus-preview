@@ -25,10 +25,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.6.0"]
 origin = ["pywin32>=306"]
+automation = ["mcp>=1.0"]
 
 [project.scripts]
 polynexus = "polynexus.__main__:main"
 polynexus-gui = "polynexus.app:main"
+polynexus-mcp = "polynexus.automation.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=68"]

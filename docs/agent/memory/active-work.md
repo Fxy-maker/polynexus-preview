@@ -1,5 +1,22 @@
 # Active Work
 
+## Local GUI automation MCP bridge - ready for checkpoint (2026-08-09)
+
+- `polynexus-mcp` now starts a separate visible GUI process and serves only
+  launch/import/select/run/wait/result/capture/close through a stdio MCP
+  server. The bridge is opt-in, uses a random session secret, binds only
+  `127.0.0.1`, and never attaches to an existing user window.
+- TDD bridge/MCP coverage passed `9`; focused startup/bridge/MCP coverage
+  passed `15`; a real local lifecycle smoke launched, queried, and closed the
+  dedicated session successfully. Structured verification passed changed-file
+  Ruff/compile, quality `303`, preprocessing `157`, task/memory checks, and
+  whitespace.
+- The clean worktree full pytest baseline remains blocked at collection by
+  three missing repository-external real-data fixtures. A real GUI scientific
+  run was intentionally not performed without a user-provided disposable
+  sample path because analysis creates output beside its input.
+- Task card: `docs/agent/tasks/2026-08-09-gui-automation-mcp.md`.
+
 ## GUI performance recovery - checkpoint pending (2026-08-09)
 
 - History now uses indexed header-only queries; full JSON hydrates only for a

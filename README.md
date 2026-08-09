@@ -106,6 +106,37 @@ annotations, use the included SVG/PDF/PNG assets for visual fidelity. PolyNexus
 never requires Origin at startup and never writes `.opju` files as raw bytes;
 Origin itself performs native project saves.
 
+## Local Codex GUI Automation
+
+PolyNexus can expose its main GUI analysis workflow to Codex through a local
+MCP server. Install the optional automation dependency on each computer that
+will use it:
+
+```powershell
+pip install -e ".[automation]"
+```
+
+Then register `polynexus-mcp` as a stdio MCP server in that computer's Codex
+configuration:
+
+```toml
+[mcp_servers.polynexus]
+command = "polynexus-mcp"
+args = []
+```
+
+Restart Codex after saving the configuration. The server starts a separate, visible PolyNexus window and
+provides only these actions: launch, import one local file, choose a technique,
+run, wait for completion, read the result, capture the window, and close the
+dedicated session.
+
+The automation listener exists only for that dedicated session, binds to
+`127.0.0.1` with a random per-session secret, and is not created by ordinary
+`polynexus --gui` launches. It never accepts LAN/Internet connections or
+controls an already-open user window. Configure the same local stdio command
+again after installing PolyNexus on another computer; there is no shared or
+remote service to deploy.
+
 ## Project Structure
 
 ```text
