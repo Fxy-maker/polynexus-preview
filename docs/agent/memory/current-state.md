@@ -1,5 +1,17 @@
 ---
 
+## GUI performance recovery (2026-08-09)
+
+The current worktree contains a scoped responsiveness checkpoint in progress:
+history lists read indexed headers instead of hydrating every run JSON, selected
+records/comparison/export hydrate on demand, GUI logs are timer-batched and
+bounded to 500 blocks, completion defers only the History redraw, and SAXS
+records load/preprocess/analyze/plot durations for diagnostics. Focused and
+structured verification are green; the local checkpoint commit is pending.
+The intentional comparison-header cap is 500 records per batch.
+
+Task card: `docs/agent/tasks/2026-08-09-gui-performance-recovery.md`.
+
 ## SAXS AI tuning and stability decision repair (2026-08-08)
 
 The AI-tuning button now projects one confirmation-only SAXS stability flow:

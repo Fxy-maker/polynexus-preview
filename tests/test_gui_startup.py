@@ -94,3 +94,49 @@ def test_deferred_window_is_interactive_before_optional_ui_finishes(qt_app):
     assert window._btn_legacy_recovery.isHidden() is False
 
     window.close()
+
+
+def test_gui_log_buffer_flushes_many_lines_as_one_bounded_document(qt_app):
+    window = MainWindow(defer_optional_ui=True)
+    try:
+        for index in range(700):
+            window.log(f"line {index}")
+
+        assert "line 699" not in window._log_panel.toPlainText()
+        assert window._log_copy_button.isEnabled()
+
+        window.flush_pending_log_messages()
+
+        assert "line 699" in window._log_panel.toPlainText()
+        assert window._log_panel.document().blockCount() <= 500
+    finally:
+        window.close()
+        window.deleteLater()
+        qt_app.processEvents()
+
+
+def test_gui_log_buffer_escapes_ordinary_messages(qt_app):
+    window = MainWindow(defer_optional_ui=True)
+    try:
+        window.log("<b>raw</b> & text")
+        window.flush_pending_log_messages()
+
+        assert "<b>raw</b> & text" in window._log_panel.toPlainText()
+        assert "<b>raw</b> &amp; text" not in window._log_panel.toHtml()
+    finally:
+        window.close()
+        window.deleteLater()
+        qt_app.processEvents()
+
+
+def test_gui_log_buffer_flushes_and_stops_timer_on_close(qt_app):
+    window = MainWindow(defer_optional_ui=True)
+    window.log("shutdown line")
+    assert window._pending_log_lines
+    window.close()
+
+    assert not window._pending_log_lines
+    assert not window._log_flush_timer.isActive()
+    assert "shutdown line" in window._log_panel.toPlainText()
+    window.deleteLater()
+    qt_app.processEvents()

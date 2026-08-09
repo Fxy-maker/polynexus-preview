@@ -69,6 +69,10 @@ class SampleDB:
         self._ensure_column("analysis_runs", "ai_tuned", "INTEGER DEFAULT 0")
         self._ensure_column("analysis_runs", "confirmed", "INTEGER DEFAULT 0")
         self._ensure_column("analysis_runs", "analysis_evidence", "TEXT")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_batches_sample_id ON batches(sample_id)")
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_analysis_runs_batch_created_at ON analysis_runs(batch_id, created_at)"
+        )
         self._conn.commit()
 
     def _ensure_column(self, table, column, definition):
@@ -409,6 +413,24 @@ class SampleDB:
                 data["scientific_release"] = release
             results.append(data)
         return results
+
+    def list_analysis_run_headers(self, *, limit: int = 500) -> list[dict]:
+        """Return recent analysis-run fields needed to populate History."""
+        rows = self._conn.execute(
+            "SELECT id,batch_id,technique,submodule,output_dir,status,ai_tuned,confirmed,created_at "
+            "FROM analysis_runs ORDER BY created_at DESC LIMIT ?",
+            (max(1, int(limit)),),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_analysis_run_headers_for_batch(self, batch_id, *, limit: int = 500) -> list[dict]:
+        """Return recent header fields for one batch without decoding JSON payloads."""
+        rows = self._conn.execute(
+            "SELECT id,batch_id,technique,submodule,output_dir,status,ai_tuned,confirmed,created_at "
+            "FROM analysis_runs WHERE batch_id=? ORDER BY created_at DESC LIMIT ?",
+            (batch_id, max(1, int(limit))),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def get_analysis_run(self, run_id):
         row = self._conn.execute(

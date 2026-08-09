@@ -44,6 +44,7 @@ Layout (matching the PolyNexus interface design):
 
 import logging
 import math
+import html
 from collections.abc import Mapping
 
 import os  # noqa: F401
@@ -1499,6 +1500,14 @@ class MainWindow(
         self._saxs_orientation_advisory_closing = False
         self._saxs_orientation_advisory_request_token = None
 
+        # GUI log messages are batched so high-volume worker output does not
+        # force a QTextEdit layout/scroll on every line.
+        self._pending_log_lines = []
+        self._log_flush_timer = QTimer(self)
+        self._log_flush_timer.setSingleShot(True)
+        self._log_flush_timer.setInterval(50)
+        self._log_flush_timer.timeout.connect(self.flush_pending_log_messages)
+
 
 
         self._settings = QSettings("PolyNexus", "PolyNexus")
@@ -1540,6 +1549,8 @@ class MainWindow(
     def closeEvent(self, event):
         """Stop the read-only advisory before Qt destroys the window."""
 
+        self._log_flush_timer.stop()
+        self.flush_pending_log_messages()
         self._saxs_orientation_advisory_closing = True
         worker = getattr(self, "_saxs_orientation_advisory_worker", None)
         if worker is not None:
@@ -2544,6 +2555,8 @@ class MainWindow(
 
         self._log_panel = QTextEdit()
 
+        self._log_panel.document().setMaximumBlockCount(500)
+
         self._log_panel.setReadOnly(True)
 
         self._log_panel.setTextInteractionFlags(
@@ -2986,16 +2999,31 @@ class MainWindow(
 
         ts = datetime.now().strftime("%H:%M:%S")
 
-        line = f"[{ts}] {msg}"
+        line = f"[{ts}] {html.escape(str(msg))}"
 
-        self._log_panel.append(line)
-
+        self._pending_log_lines.append(line)
         if hasattr(self, "_log_copy_button"):
-            self._log_copy_button.setEnabled(bool(self._log_panel.toPlainText()))
+            self._log_copy_button.setEnabled(True)
+        if not self._log_flush_timer.isActive():
+            self._log_flush_timer.start()
 
-        sb = self._log_panel.verticalScrollBar()
 
-        sb.setValue(sb.maximum())
+    def flush_pending_log_messages(self):
+        """Render queued log lines in one bounded QTextEdit update."""
+        self._log_flush_timer.stop()
+        if not self._pending_log_lines or not hasattr(self, "_log_panel"):
+            return
+        lines = self._pending_log_lines
+        self._pending_log_lines = []
+        self._log_panel.append("\n".join(lines))
+        self._log_panel.verticalScrollBar().setValue(
+            self._log_panel.verticalScrollBar().maximum()
+        )
+        if hasattr(self, "_log_copy_button"):
+            self._log_copy_button.setEnabled(
+                bool(self._pending_log_lines)
+                or self._log_panel.document().characterCount() > 1
+            )
 
 
     def _read_warning_count(self):
@@ -3019,12 +3047,25 @@ class MainWindow(
             f'! {tr("LOG_ANALYSIS_WARNINGS_SUMMARY", warning_count)}'
             f"</span>"
         )
-        self._log_panel.append(line)
-
+        self._pending_log_lines.append(line)
         if hasattr(self, "_log_copy_button"):
-            self._log_copy_button.setEnabled(bool(self._log_panel.toPlainText()))
-        sb = self._log_panel.verticalScrollBar()
-        sb.setValue(sb.maximum())
+            self._log_copy_button.setEnabled(True)
+        if not self._log_flush_timer.isActive():
+            self._log_flush_timer.start()
+
+
+    def _copy_log_to_clipboard(self):
+        """Copy the complete visible log, flushing queued lines first."""
+        panel = getattr(self, "_log_panel", None)
+        if panel is None:
+            return False
+        self.flush_pending_log_messages()
+        text = panel.toPlainText()
+        if not text:
+            return False
+        QApplication.clipboard().setText(text)
+        self.log(tr("LOG_LOG_COPIED"))
+        return True
 
 
     def _infer_sample_name(self) -> str:

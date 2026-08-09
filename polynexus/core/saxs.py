@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -487,13 +488,31 @@ class SAXSEngine(BaseEngine):
         """Publish SAXS evidence even when load or preprocessing exits early."""
         previous_candidate = self._mask_edit_candidate
         self._mask_edit_candidate = mask_edit_candidate
+        originals = {}
+
+        def timed_stage(stage, operation):
+            def run(*args, **kwargs):
+                started = time.perf_counter()
+                try:
+                    return operation(*args, **kwargs)
+                finally:
+                    self.log(f"[PERF] SAXS {stage}: {time.perf_counter() - started:.3f}s")
+
+            return run
+
         try:
+            for stage in ("load", "preprocess", "analyze", "plot"):
+                operation = getattr(self, stage)
+                originals[stage] = operation
+                setattr(self, stage, timed_stage(stage, operation))
             result = super().run_pipeline(
                 filepath,
                 output_dir=output_dir,
                 skip_to=skip_to,
             )
         finally:
+            for stage, operation in originals.items():
+                setattr(self, stage, operation)
             self._mask_edit_candidate = previous_candidate
         publish_saxs_result_contract(self)
         return result

@@ -179,10 +179,29 @@ class FakeParamRule:
         self.constraint = constraint
 
 
+class HeaderOnlyHistoryDB:
+    def __init__(self):
+        self.header_calls = 0
+
+    def list_analysis_run_headers(self):
+        self.header_calls += 1
+        return [{"id": "run-1", "technique": "saxs"}]
+
+    def list_samples(self, limit=50):
+        raise AssertionError("header query should avoid sample traversal")
+
+
 def test_collect_history_rows_flattens_and_sorts_runs_newest_first():
     rows = collect_history_rows(FakeDB())
 
     assert [row["id"] for row in rows] == ["new", "middle", "old", "missing-time"]
+
+
+def test_collect_history_rows_prefers_header_query_when_available():
+    db = HeaderOnlyHistoryDB()
+
+    assert collect_history_rows(db) == [{"id": "run-1", "technique": "saxs"}]
+    assert db.header_calls == 1
 
 
 def test_history_filter_items_keeps_base_order_and_appends_custom_techniques():

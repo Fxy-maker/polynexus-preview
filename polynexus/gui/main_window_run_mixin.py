@@ -624,7 +624,7 @@ class MainWindowRunMixin:
 
         self._populate_plots()
         self._tabs.setCurrentIndex(2)
-        self._persist_analysis_run(result)
+        self._persist_analysis_run(result, refresh_history=False)
         # Persistence assigns the stable run id; keep the in-memory result tied
         # to that exact workspace identity before any view is refreshed.
         record_context = getattr(self, "_record_result_context", None)
@@ -636,6 +636,7 @@ class MainWindowRunMixin:
             )
         self._update_workspace_context()
         self._update_results_compare_panel()
+        self._schedule_history_refresh()
         if (
             transaction_pending
             and getattr(transaction.state, "phase", "") == "applied"

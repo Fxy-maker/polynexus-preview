@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from pathlib import Path
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -154,18 +154,48 @@ class MainWindowHistoryMixin:
             return review
         return " | ".join(part for part in (review, release.text) if part)
 
-    def _history_compare_record(self, record):
+    def _history_compare_record(self, record, *, hydrate=True):
         if not isinstance(record, dict):
             return None
         batch_id = str(record.get("batch_id") or "")
         if not batch_id:
             return None
         db = self._ensure_sample_db()
-        runs = db.get_analysis_runs(batch_id)
-        return select_history_compare_record(record, runs)
+        list_batch_headers = getattr(db, "list_analysis_run_headers_for_batch", None)
+        list_headers = getattr(db, "list_analysis_run_headers", None)
+        if callable(list_batch_headers):
+            try:
+                runs = list_batch_headers(batch_id, limit=500)
+            except TypeError:
+                runs = list_batch_headers(batch_id)
+            if runs is None:
+                runs = db.get_analysis_runs(batch_id)
+        elif callable(list_headers):
+            try:
+                runs = list_headers(limit=500)
+            except TypeError:
+                runs = list_headers()
+            if runs is None:
+                runs = db.get_analysis_runs(batch_id)
+            else:
+                runs = list(runs)
+                if any(isinstance(run, dict) and "batch_id" in run for run in runs):
+                    runs = [
+                        run for run in runs
+                        if isinstance(run, dict) and str(run.get("batch_id") or "") == batch_id
+                    ]
+        else:
+            runs = db.get_analysis_runs(batch_id)
+
+        baseline = select_history_compare_record(record, runs)
+        if not hydrate or not isinstance(baseline, dict) or "parameters" in baseline:
+            return baseline
+
+        loaded = db.get_analysis_run(baseline.get("id"))
+        return loaded if loaded is not None else baseline
 
     def _history_has_comparison_target(self, record) -> bool:
-        return self._history_compare_record(record) is not None
+        return self._history_compare_record(record, hydrate=False) is not None
 
     def _history_status_text(self, record) -> str:
         status = self._history_status_label(record)
@@ -394,7 +424,7 @@ class MainWindowHistoryMixin:
         self._update_history_action_state()
         return w
 
-    def _persist_analysis_run(self, result):
+    def _persist_analysis_run(self, result, *, refresh_history=True):
         try:
             db = self._ensure_sample_db()
             project_label = self._project_label.text().strip()
@@ -430,10 +460,29 @@ class MainWindowHistoryMixin:
                 str(payload.get("technique") or context.technique or "unknown"),
                 self._analysis_run_result_r2_fn()(payload),
             )
-            self._refresh_history()
+            if refresh_history:
+                self._refresh_history()
         except Exception as e:
             logger.warning("Failed to persist analysis result: %s", e)
             logger.warning("Analysis persistence traceback follows.", exc_info=True)
+
+    def _schedule_history_refresh(self):
+        """Refresh the history table after the current UI event completes.
+
+        Persisting a completed run is part of the critical completion path, but
+        rebuilding the history table is a non-critical read/render operation.
+        Keep at most one refresh callback queued so repeated completion signals
+        do not create redundant table rebuilds.
+        """
+
+        if bool(getattr(self, "_history_refresh_scheduled", False)):
+            return
+        self._history_refresh_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_history_refresh)
+
+    def _run_scheduled_history_refresh(self):
+        self._history_refresh_scheduled = False
+        self._refresh_history()
 
     def _refresh_history(self):
 
@@ -562,7 +611,15 @@ class MainWindowHistoryMixin:
         cache = getattr(self, "_history_cache", [])
         if row < 0 or row >= len(cache):
             return None
-        return cache[row]
+        record = cache[row]
+        if not isinstance(record, dict) or "parameters" in record:
+            return record
+
+        loaded = self._ensure_sample_db().get_analysis_run(record.get("id"))
+        if loaded is not None:
+            cache[row] = loaded
+            return loaded
+        return record
 
 
     def _update_history_action_state(self):
@@ -726,8 +783,19 @@ class MainWindowHistoryMixin:
     def _history_table_text_matrix(self):
         return extract_table_text_matrix(self._history_table)
 
+    def _hydrate_history_cache_for_export(self):
+        cache = getattr(self, "_history_cache", [])
+        db = self._ensure_sample_db()
+        for row, record in enumerate(cache):
+            if not isinstance(record, dict) or "parameters" in record:
+                continue
+            loaded = db.get_analysis_run(record.get("id"))
+            if loaded is not None:
+                cache[row] = loaded
+
     def _history_export_rows(self):
 
+        self._hydrate_history_cache_for_export()
         headers, matrix = self._history_table_text_matrix()
         return build_history_export_rows(
             headers,

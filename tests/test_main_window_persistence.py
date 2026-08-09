@@ -31,6 +31,12 @@ from polynexus.data.sample_db import SampleDB
 from rag.prompt_builder import PromptBuilder
 
 
+def _log_text(window):
+    """Flush the buffered GUI log before asserting visible text."""
+    window.flush_pending_log_messages()
+    return window._log_panel.toPlainText()
+
+
 @pytest.fixture(autouse=True)
 def _cleanup_qt_widgets_between_tests():
     QApplication.instance() or QApplication([])
@@ -610,7 +616,7 @@ def test_history_confirmation_button_updates_record_state(tmp_path):
         assert run["confirmed"] == 1
         assert run["results_summary"]["confirmed"] is True
         assert window._history_confirm_btn.text() == "Clear confirmation"
-        assert "Marked as confirmed result" in window._log_panel.toPlainText()
+        assert "Marked as confirmed result" in _log_text(window)
 
         window._on_history_confirm_requested()
         run = db.get_analysis_runs(batch_id)[0]
@@ -1241,7 +1247,7 @@ def test_run_single_logs_single_file_mode(tmp_path):
                 worker.start = lambda: None
                 window._run_single()
 
-        assert window._log_panel.toPlainText().splitlines()[-1].endswith("Starting single-file analysis: sample.dat")
+        assert _log_text(window).splitlines()[-1].endswith("Starting single-file analysis: sample.dat")
 
         window.deleteLater()
         app.processEvents()
@@ -1272,7 +1278,7 @@ def test_run_batch_logs_native_directory_sequence_mode(tmp_path):
             worker.start = lambda: None
             window._run_batch()
 
-        assert window._log_panel.toPlainText().splitlines()[-1].endswith("Starting Sequence run: ir_temp")
+        assert _log_text(window).splitlines()[-1].endswith("Starting Sequence run: ir_temp")
 
         window.deleteLater()
         app.processEvents()
@@ -1306,7 +1312,7 @@ def test_run_batch_logs_standard_batch_mode(tmp_path):
             worker.start = lambda: None
             window._run_batch()
 
-        assert window._log_panel.toPlainText().splitlines()[-1].endswith("Starting batch processing: 2 files @ generic_batch")
+        assert _log_text(window).splitlines()[-1].endswith("Starting batch processing: 2 files @ generic_batch")
 
         window.deleteLater()
         app.processEvents()
@@ -2384,7 +2390,7 @@ def test_history_restore_loads_saved_data_file_and_parameters(tmp_path):
     assert window._output_input.text() == str(output_dir)
     assert "Static SAXS" in window._workspace_subtitle.text()
     assert "saxs.static" not in window._workspace_subtitle.text()
-    latest_log_line = window._log_panel.toPlainText().splitlines()[-1]
+    latest_log_line = _log_text(window).splitlines()[-1]
     assert "Static SAXS" in latest_log_line
     assert "saxs.static" not in latest_log_line
     db.close()
@@ -2603,7 +2609,7 @@ def test_history_rerun_uses_selected_record_context(tmp_path):
         "technique": "saxs",
         "submodule": "saxs.static",
     }
-    latest_log_line = window._log_panel.toPlainText().splitlines()[-1]
+    latest_log_line = _log_text(window).splitlines()[-1]
     assert "Static SAXS" in latest_log_line
 
     db.close()
@@ -2894,7 +2900,7 @@ def test_joint_hub_error_log_uses_translation_prefix():
         window = MainWindow()
         window._on_joint_hub_error("boom")
 
-        assert window._log_panel.toPlainText().splitlines()[-1].endswith("ERROR: boom")
+        assert _log_text(window).splitlines()[-1].endswith("ERROR: boom")
 
         window.deleteLater()
         app.processEvents()
@@ -2912,7 +2918,7 @@ def test_ai_tune_error_log_uses_translation_prefix():
         with patch("polynexus.gui.main_window.QMessageBox.critical"):
             window._on_ai_tune_error("boom")
 
-        assert window._log_panel.toPlainText().splitlines()[-1].endswith("ERROR: boom")
+        assert _log_text(window).splitlines()[-1].endswith("ERROR: boom")
 
         window.deleteLater()
         app.processEvents()
@@ -4329,7 +4335,7 @@ def test_ai_tune_finished_returns_to_config_before_rerun():
 
         assert window._tabs.currentIndex() == 1
         assert captured["ran"] is True
-        assert "returned to Config" in window._log_panel.toPlainText()
+        assert "returned to Config" in _log_text(window)
 
         window.deleteLater()
         app.processEvents()
@@ -4347,7 +4353,7 @@ def test_worker_error_log_uses_translation_prefix():
         with patch("polynexus.gui.main_window.QMessageBox.critical"):
             window._on_error("boom")
 
-        assert window._log_panel.toPlainText().splitlines()[-1].endswith("ERROR: boom")
+        assert _log_text(window).splitlines()[-1].endswith("ERROR: boom")
 
         window.deleteLater()
         app.processEvents()
@@ -4379,7 +4385,7 @@ def test_joint_validation_log_uses_translation_prefix():
                 with patch.object(window, "_populate_plots"):
                     window._on_joint_hub_finished(report)
 
-        lines = window._log_panel.toPlainText().splitlines()
+        lines = _log_text(window).splitlines()
         assert any(line.endswith("WARNING: missing waxs") for line in lines)
         assert any(line.endswith("ERROR: missing dsc") for line in lines)
 
@@ -4602,6 +4608,32 @@ def test_joint_hub_artifacts_include_condition_values_and_timeline(tmp_path):
     app.processEvents()
 
 
+def test_finished_run_schedules_history_refresh_after_persist():
+    app = QApplication.instance() or QApplication([])
+
+    window = MainWindow()
+    window._current_technique = "saxs"
+    result = type("Result", (), {"parameters": {}})()
+    scheduled = []
+    persist_calls = []
+
+    def fake_persist(*args, **kwargs):
+        persist_calls.append(kwargs)
+        window._last_persisted_run_id = "run-1"
+
+    window._start_run_lifecycle()
+    with patch.object(window, "_display_results"), patch.object(window, "_populate_plots"), patch.object(
+        window, "_persist_analysis_run", side_effect=fake_persist
+    ), patch.object(window, "_schedule_history_refresh", side_effect=lambda: scheduled.append(True)):
+        window._on_finished(result)
+
+    assert persist_calls == [{"refresh_history": False}]
+    assert scheduled == [True]
+
+    window.deleteLater()
+    app.processEvents()
+
+
 def test_finished_logs_saxs_mask_diagnostics():
     app = QApplication.instance() or QApplication([])
 
@@ -4629,7 +4661,7 @@ def test_finished_logs_saxs_mask_diagnostics():
                 with patch.object(window, "_persist_analysis_run"):
                     window._on_finished(result)
 
-        lines = window._log_panel.toPlainText().splitlines()
+        lines = _log_text(window).splitlines()
         assert any(line.endswith("Analysis diagnostics: Effective q_min > 0.10 nm^-1; Guinier region lost") for line in lines)
         assert any(line.endswith("SAXS mask note: effective q_min was pushed to 0.123 nm^-1, so the low-q Guinier region may be truncated.") for line in lines)
         assert any(line.endswith("SAXS beamstop note: low-q contamination was detected; use q_min >= 0.123 nm^-1 for this run.") for line in lines)
@@ -5462,7 +5494,7 @@ def test_finished_logs_sequence_completion_summary():
                 with patch.object(window, "_persist_analysis_run"):
                     window._on_finished(result)
 
-        lines = window._log_panel.toPlainText().splitlines()
+        lines = _log_text(window).splitlines()
         assert any(line.endswith("Sequence run complete: 12 frames @ ir_temp") for line in lines)
 
         window.deleteLater()
@@ -5499,7 +5531,7 @@ def test_finished_logs_directory_completion_fallback_summary():
                 with patch.object(window, "_persist_analysis_run"):
                     window._on_finished(result)
 
-        lines = window._log_panel.toPlainText().splitlines()
+        lines = _log_text(window).splitlines()
         assert any(line.endswith("Directory run complete: nmr_dir") for line in lines)
 
         window.deleteLater()
@@ -5594,7 +5626,7 @@ def test_copy_results_table_copies_single_frame_table_to_clipboard():
         assert "L_nm\t12.0000" in text
         assert "Xc\t0.3100" in text
         assert not window._btn_results_copy.isHidden()
-        assert "Copied results table: 2 rows x 2 columns" in window._log_panel.toPlainText()
+        assert "Copied results table: 2 rows x 2 columns" in _log_text(window)
 
         window.deleteLater()
         app.processEvents()
@@ -5621,7 +5653,7 @@ def test_export_results_table_writes_single_frame_tsv(tmp_path):
         assert "L_nm\t12.0000" in text
         assert "Xc\t0.3100" in text
         assert not window._btn_results_export.isHidden()
-        assert "Exported results table: 2 rows x 2 columns" in window._log_panel.toPlainText()
+        assert "Exported results table: 2 rows x 2 columns" in _log_text(window)
 
         window.deleteLater()
         app.processEvents()
@@ -5783,7 +5815,7 @@ def test_copy_results_table_prefers_selected_rows_over_full_table():
         assert lines[0] == "file\tL_nm\tXc_pct\tcustom_note"
         assert lines[1] == "b.csv\t10.8000\t39.2000\tquenched"
         assert len(lines) == 2
-        assert "Copied results table: 1 rows x 4 columns" in window._log_panel.toPlainText()
+        assert "Copied results table: 1 rows x 4 columns" in _log_text(window)
 
         window.deleteLater()
         app.processEvents()
@@ -6112,7 +6144,7 @@ def test_export_results_writes_html_report_into_report_directory(tmp_path):
                     window._export_results()
 
         bundle_root = export_parent / "PolyNexus_Export"
-        log_text = window._log_panel.toPlainText()
+        log_text = _log_text(window)
         assert report_calls == [str(bundle_root / "report")]
         assert "Report generation skipped:" not in log_text
         assert f"Report: {bundle_root / 'report' / 'polynexus_report.html'}" in log_text
@@ -7440,7 +7472,7 @@ def test_history_copy_summary_copies_selected_record_summary(tmp_path):
         assert "Run trace" in text or "运行轨迹" in text
         assert "lc_nm=5.8 | Xc_pct=0.35 | L_nm=12.0 | extra_tag=A | baseline_method=subtract" in text
         assert "Boundary" in text
-        assert "Copied history summary: Static SAXS" in window._log_panel.toPlainText()
+        assert "Copied history summary: Static SAXS" in _log_text(window)
 
         db.close()
         window.deleteLater()
@@ -7507,7 +7539,7 @@ def test_export_history_table_writes_current_history_rows(tmp_path):
         assert rows[1][9] == "Yes"
         assert rows[1][10] == str(data_file.resolve())
         assert rows[1][11] == str(tmp_path / "output_b")
-        assert f"Exported history list: {len(lines) - 1} rows ->" in window._log_panel.toPlainText()
+        assert f"Exported history list: {len(lines) - 1} rows ->" in _log_text(window)
 
         db.close()
         window.deleteLater()
@@ -8266,6 +8298,96 @@ def test_history_table_item_activation_restores_record(tmp_path):
     assert window._current_filepath == str(data_file.resolve())
     assert window._current_technique == "saxs"
     assert window._current_submodule_id == "saxs.static"
+
+    db.close()
+    window.deleteLater()
+    app.processEvents()
+
+
+def test_selected_history_header_hydrates_only_selected_record(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    window._sample_db = SampleDB(tmp_path / "samples.db")
+    db = window._ensure_sample_db()
+
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(
+        sample_id,
+        "annealed-01",
+        instrument="SAXS",
+        condition_type="analysis",
+        condition_values={"technique": "saxs"},
+    )
+    first_id = db.create_analysis_run(
+        batch_id,
+        "saxs",
+        submodule="saxs.static",
+        parameters={"baseline_method": "subtract"},
+        results_summary={"r2": 0.95},
+        analysis_evidence={"quality": "accepted"},
+    )
+    second_id = db.create_analysis_run(
+        batch_id,
+        "saxs",
+        submodule="saxs.static",
+        parameters={"baseline_method": "normalize"},
+        results_summary={"r2": 0.91},
+        analysis_evidence={"quality": "review"},
+    )
+
+    window._refresh_history()
+
+    assert len(window._history_cache) == 2
+    assert all("parameters" not in record for record in window._history_cache)
+    assert all("results_summary" not in record for record in window._history_cache)
+    assert all("analysis_evidence" not in record for record in window._history_cache)
+
+    selected_id = window._history_cache[0]["id"]
+    other_id = second_id if selected_id == first_id else first_id
+    calls = []
+    original_get_analysis_run = db.get_analysis_run
+    original_get_analysis_runs = db.get_analysis_runs
+    get_analysis_runs_calls = []
+    batch_header_calls = []
+
+    def get_analysis_run(run_id):
+        calls.append(run_id)
+        return original_get_analysis_run(run_id)
+
+    def get_analysis_runs(batch_id):
+        get_analysis_runs_calls.append(batch_id)
+        return original_get_analysis_runs(batch_id)
+
+    def list_analysis_run_headers_for_batch(batch_id, *, limit=500):
+        batch_header_calls.append(batch_id)
+        return [
+            header
+            for header in db.list_analysis_run_headers(limit=limit)
+            if header["batch_id"] == batch_id
+        ]
+
+    monkeypatch.setattr(db, "get_analysis_run", get_analysis_run)
+    monkeypatch.setattr(db, "get_analysis_runs", get_analysis_runs)
+    monkeypatch.setattr(db, "list_analysis_run_headers_for_batch", list_analysis_run_headers_for_batch)
+    window._history_table.selectRow(0)
+    selected = window._selected_history_record()
+
+    assert selected["id"] == selected_id
+    assert selected["parameters"]
+    assert selected["results_summary"]
+    assert selected["analysis_evidence"]
+    assert get_analysis_runs_calls == []
+    assert batch_header_calls
+    assert window._history_cache[0] == selected
+    other = next(record for record in window._history_cache if record["id"] == other_id)
+    assert "parameters" not in other
+    assert "results_summary" not in other
+    assert "analysis_evidence" not in other
+
+    baseline = window._history_compare_record(selected)
+    assert baseline["id"] == other_id
+    assert baseline["parameters"]
+    assert calls == [selected_id, other_id]
 
     db.close()
     window.deleteLater()

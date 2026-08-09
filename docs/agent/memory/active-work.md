@@ -1,5 +1,20 @@
 # Active Work
 
+## GUI performance recovery - checkpoint pending (2026-08-09)
+
+- History now uses indexed header-only queries; full JSON hydrates only for a
+  selected record, comparison baseline, or explicit export.
+- MainWindow batches logs through a single-shot timer, escapes ordinary text,
+  bounds the document at 500 blocks, and flushes/stops cleanly on close.
+- Analysis completion persists immediately but schedules the non-critical
+  History rebuild on the next event-loop turn. SAXS wraps its real
+  load/preprocess/analyze/plot boundaries with diagnostic wall-clock logs.
+- Focused history/startup/sample coverage passed `131`; completion scheduling
+  passed `2`; SAXS timing passed `2`. Structured task verification passed Ruff,
+  compile, type-baseline, quality `298`, preprocessing `157`, and whitespace.
+- Task card: `docs/agent/tasks/2026-08-09-gui-performance-recovery.md`.
+- Remaining: create the explicit local checkpoint commit; no push/merge.
+
 ## SAXS orientation evidence projection - completed (2026-08-08)
 
 - Per-frame strain `_batch_data` now exposes the detector-plane evidence behind

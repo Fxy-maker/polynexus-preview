@@ -204,6 +204,10 @@ class HistoryRecordContextRef:
 
 
 def collect_history_rows(db) -> list[dict]:
+    list_headers = getattr(db, "list_analysis_run_headers", None)
+    if callable(list_headers):
+        return list_headers()
+
     rows: list[dict] = []
     samples = db.list_samples(limit=10000)
     for sample in samples:
