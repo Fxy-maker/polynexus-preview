@@ -31,6 +31,44 @@ class _FakeDb:
         return list(self._runs_by_batch.get(batch_id, []))
 
 
+class _CompactSnapshotDb:
+    def __init__(self):
+        self.full_run_calls = []
+
+    def get_work_memory_snapshot(self):
+        return {
+            "sample_count": 1,
+            "batch_count": 1,
+            "recent_run": {
+                "id": "run-1",
+                "technique": "saxs",
+                "created_at": "2026-07-08 10:00:00",
+                "output_dir": r"D:\\runs\\output_b",
+            },
+            "recent_sample": {
+                "id": "sample-1",
+                "polymer_name": "PA6",
+                "family": "polyamide",
+                "aliases": ["nylon-6", "PA-6"],
+            },
+            "recent_batch": {"id": "batch-1", "label": "batch-01"},
+        }
+
+    def get_analysis_runs(self, batch_id):
+        raise AssertionError("compact snapshot must not hydrate batch histories")
+
+    def get_analysis_run(self, run_id):
+        self.full_run_calls.append(run_id)
+        return {
+            "id": run_id,
+            "technique": "saxs",
+            "created_at": "2026-07-08 10:00:00",
+            "output_dir": r"D:\\runs\\output_b",
+            "parameters": {"L_nm": 11.2},
+            "results_summary": {"Xc_pct": 0.31},
+        }
+
+
 class _FakeWindow:
     def __init__(self, db):
         self._db = db
@@ -167,6 +205,35 @@ def test_collect_work_memory_db_snapshot_returns_empty_on_sample_error():
     assert snapshot.recent_sample is None
     assert snapshot.recent_batch is None
     assert snapshot.recent_run is None
+
+
+def test_collect_work_memory_db_snapshot_prefers_compact_header_snapshot():
+    db = _CompactSnapshotDb()
+
+    snapshot = collect_work_memory_db_snapshot(db)
+
+    assert snapshot.sample_count == 1
+    assert snapshot.batch_count == 1
+    assert snapshot.recent_run == {
+        "id": "run-1",
+        "technique": "saxs",
+        "created_at": "2026-07-08 10:00:00",
+        "output_dir": r"D:\\runs\\output_b",
+    }
+    assert db.full_run_calls == []
+
+
+def test_build_work_memory_payload_hydrates_only_the_selected_compact_run_for_metrics():
+    previous = get_language()
+    set_language("en")
+    try:
+        db = _CompactSnapshotDb()
+
+        build_work_memory_payload(_FakeWindow(db))
+
+        assert db.full_run_calls == ["run-1"]
+    finally:
+        set_language(previous)
 
 
 def test_compose_current_work_memory_detail_appends_review_summary_once():

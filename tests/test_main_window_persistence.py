@@ -8870,6 +8870,15 @@ def test_results_compare_panel_prefers_same_sample_candidate(tmp_path):
             results_summary={"data_file": str(data_file.resolve()), "project_label": "PA6"},
             output_dir=str(tmp_path / "output_same"),
         )
+        db._conn.executemany(
+            "UPDATE analysis_runs SET created_at=? WHERE output_dir=?",
+            [
+                ("2026-08-09 11:56:00", str(tmp_path / "output_pet")),
+                ("2026-08-09 11:57:00", str(tmp_path / "output_old")),
+                ("2026-08-09 11:58:00", str(tmp_path / "output_same")),
+            ],
+        )
+        db._conn.commit()
 
         window._current_technique = "saxs"
         window._current_submodule_id = "saxs.static"
@@ -8890,7 +8899,7 @@ def test_results_compare_panel_prefers_same_sample_candidate(tmp_path):
         window._update_results_compare_panel()
 
         assert window._results_compare_group.isHidden() is False
-        assert "PA6" in window._results_compare_baseline.text()
+        assert "Static SAXS" in window._results_compare_baseline.text()
         assert "Static SAXS" in window._results_compare_current.text()
         assert window._results_compare_open_btn.isEnabled() is True
         assert window._results_compare_joint_btn.isHidden() is False
@@ -8956,6 +8965,14 @@ def test_results_compare_panel_can_switch_selected_candidate(tmp_path):
             results_summary={"data_file": str(tmp_path / "pa6_b.csv"), "project_label": "PA6"},
             output_dir=str(tmp_path / "output_b"),
         )
+        db._conn.executemany(
+            "UPDATE analysis_runs SET created_at=? WHERE id=?",
+            [
+                ("2026-08-09 11:58:00", first_run),
+                ("2026-08-09 11:57:00", second_run),
+            ],
+        )
+        db._conn.commit()
 
         window._current_technique = "saxs"
         window._current_submodule_id = "saxs.static"
@@ -8979,6 +8996,56 @@ def test_results_compare_panel_can_switch_selected_candidate(tmp_path):
         app.processEvents()
     finally:
         set_language(previous)
+
+
+def test_open_current_result_comparison_hydrates_selected_header_baseline_once(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    db = SampleDB(tmp_path / "samples.db")
+    window._sample_db = db
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "comparison", instrument="SAXS")
+    baseline_id = db.create_analysis_run(
+        batch_id,
+        "saxs",
+        submodule="saxs.static",
+        parameters={"L_nm": 10.0},
+        results_summary={"project_label": "PA6"},
+        output_dir=str(tmp_path / "output"),
+    )
+    window._current_technique = "saxs"
+    window._current_submodule_id = "saxs.static"
+    window._results["saxs"] = {
+        "parameters": {"L_nm": 12.5},
+        "results_summary": {"project_label": "PA6"},
+    }
+    window._update_results_compare_panel()
+    assert "parameters" not in window._current_result_comparison_baseline()
+
+    calls = []
+    original_get_analysis_run = db.get_analysis_run
+
+    def get_analysis_run(run_id):
+        calls.append(run_id)
+        return original_get_analysis_run(run_id)
+
+    captured = {}
+    monkeypatch.setattr(db, "get_analysis_run", get_analysis_run)
+    monkeypatch.setattr(
+        window,
+        "_show_history_comparison",
+        lambda current, baseline: captured.update(current=current, baseline=baseline),
+    )
+
+    window._open_current_result_comparison()
+
+    assert calls == [baseline_id]
+    assert captured["baseline"]["id"] == baseline_id
+    assert captured["baseline"]["parameters"] == {"L_nm": 10.0}
+
+    window.deleteLater()
+    db.close()
+    app.processEvents()
 
 
 def test_results_compare_selection_does_not_mutate_current_result(tmp_path):
@@ -9028,6 +9095,14 @@ def test_results_compare_selection_does_not_mutate_current_result(tmp_path):
             results_summary={"data_file": str(tmp_path / "pa6_b.csv"), "project_label": "PA6"},
             output_dir=str(tmp_path / "output_b"),
         )
+        db._conn.executemany(
+            "UPDATE analysis_runs SET created_at=? WHERE id=?",
+            [
+                ("2026-08-09 11:58:00", first_run),
+                ("2026-08-09 11:57:00", second_run),
+            ],
+        )
+        db._conn.commit()
 
         window._current_technique = "saxs"
         window._current_submodule_id = "saxs.static"

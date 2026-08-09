@@ -1,5 +1,17 @@
 ---
 
+## GUI import and AI-panel performance (2026-08-09)
+
+The import work-memory refresh now uses compact sample/batch counts and the
+latest run header, with narrow projections and ordering indexes. It no longer
+enumerates all batch runs; only one selected run is hydrated if metric text is
+needed. The Results comparison selector uses bounded run headers and preserves
+same-sample priority through relational header fields. Opening comparison
+hydrates only the selected baseline. Structured verification passed quality
+`303` and preprocessing `157`; the broad persistence suite retains 12
+pre-existing header-only History assertion failures outside this scope.
+Task card: `docs/agent/tasks/2026-08-09-gui-import-ai-panel-performance.md`.
+
 ## GUI performance recovery (2026-08-09)
 
 The current worktree contains a scoped responsiveness checkpoint in progress:

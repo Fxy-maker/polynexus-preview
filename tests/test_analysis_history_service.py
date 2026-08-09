@@ -174,6 +174,50 @@ class FakeCompareDB:
         return list(self.runs.get(batch_id, []))
 
 
+class HeaderOnlyComparisonDB:
+    def __init__(self):
+        self.header_calls = 0
+        self.full_run_calls = 0
+
+    def list_analysis_run_headers(self, *, limit=500):
+        self.header_calls += 1
+        assert limit == 500
+        return [
+            {"id": "same-old", "technique": "saxs", "submodule": "saxs.static", "created_at": "2026-07-01 10:00:00"},
+            {"id": "same-new", "technique": "saxs", "submodule": "saxs.static", "created_at": "2026-07-03 10:00:00"},
+            {"id": "same-empty-sub", "technique": "saxs", "submodule": "", "created_at": "2026-07-04 10:00:00"},
+            {"id": "wrong-sub", "technique": "saxs", "submodule": "saxs.temperature", "created_at": "2026-07-05 10:00:00"},
+            {"id": "wrong-tech", "technique": "waxs", "submodule": "waxs.static", "created_at": "2026-07-06 10:00:00"},
+            {"id": "fallback-new", "technique": "saxs", "submodule": "saxs.static", "created_at": "2026-07-07 10:00:00"},
+        ]
+
+    def list_samples(self, limit=50):
+        raise AssertionError("header query should avoid sample traversal")
+
+    def get_analysis_runs(self, batch_id):
+        self.full_run_calls += 1
+        raise AssertionError("header query should avoid full run reads")
+
+
+class UnavailableHeaderComparisonDB:
+    def __init__(self):
+        self.full_run_calls = 0
+
+    def list_analysis_run_headers(self, *, limit=500):
+        assert limit == 500
+        return None
+
+    def list_samples(self, limit=50):
+        return [{"id": "sample-a", "polymer_name": "PA6"}]
+
+    def get_batches(self, sample_id):
+        return [{"id": "batch-a"}]
+
+    def get_analysis_runs(self, batch_id):
+        self.full_run_calls += 1
+        raise AssertionError("an available header API must not fall back to full run reads")
+
+
 class FakeParamRule:
     def __init__(self, constraint):
         self.constraint = constraint
@@ -1138,6 +1182,67 @@ def test_result_comparison_candidates_falls_back_to_matching_technique_without_s
     assert [item["id"] for item in candidates] == ["fallback-new", "same-new", "same-old", "same-empty-sub"]
     assert result_comparison_candidates({}, FakeCompareDB(), inferred_sample_name="") == []
     assert result_comparison_candidates(current, None, inferred_sample_name="") == []
+
+
+def test_result_comparison_candidates_prefers_headers_without_full_run_reads():
+    current = {
+        "id": "current",
+        "technique": "saxs",
+        "submodule": "saxs.static",
+        "results_summary": {"project_label": "PA6"},
+    }
+    db = HeaderOnlyComparisonDB()
+
+    candidates = result_comparison_candidates(current, db)
+
+    assert [item["id"] for item in candidates] == ["fallback-new", "same-new", "same-old", "same-empty-sub"]
+    assert db.header_calls == 1
+    assert db.full_run_calls == 0
+    assert all("parameters" not in item for item in candidates)
+
+
+def test_result_comparison_candidates_prefer_same_sample_headers_without_payload_reads():
+    class SameSampleHeaderDB:
+        def get_analysis_runs(self, batch_id):
+            raise AssertionError("header query should avoid full run reads")
+
+        def list_analysis_run_headers(self, *, limit=500):
+            assert limit == 500
+            return [
+                {
+                    "id": "pet-new",
+                    "technique": "saxs",
+                    "submodule": "saxs.static",
+                    "sample_name": "PET",
+                    "created_at": "2026-07-05 10:00:00",
+                },
+                {
+                    "id": "pa6-old",
+                    "technique": "saxs",
+                    "submodule": "saxs.static",
+                    "sample_name": "PA6",
+                    "created_at": "2026-07-01 10:00:00",
+                },
+            ]
+
+    current = {
+        "id": "current",
+        "technique": "saxs",
+        "submodule": "saxs.static",
+        "results_summary": {"project_label": "PA6"},
+    }
+
+    candidates = result_comparison_candidates(current, SameSampleHeaderDB())
+
+    assert [item["id"] for item in candidates] == ["pa6-old"]
+
+
+def test_result_comparison_candidates_does_not_fall_back_when_header_query_is_unavailable():
+    current = {"id": "current", "technique": "saxs", "submodule": "saxs.static"}
+    db = UnavailableHeaderComparisonDB()
+
+    assert result_comparison_candidates(current, db) == []
+    assert db.full_run_calls == 0
 
 
 def test_result_to_jsonable_normalizes_nested_containers_paths_and_array_like_values(tmp_path):

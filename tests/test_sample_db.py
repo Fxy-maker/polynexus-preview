@@ -24,6 +24,8 @@ def test_list_analysis_run_headers_omits_large_json_payloads_and_uses_indexes(tm
         {
             "id": run_id,
             "batch_id": batch_id,
+            "sample_id": sample_id,
+            "sample_name": "PA6",
             "technique": "saxs",
             "submodule": "saxs.static",
             "output_dir": "",
@@ -35,6 +37,22 @@ def test_list_analysis_run_headers_omits_large_json_payloads_and_uses_indexes(tm
     ]
     assert {"parameters", "results_summary", "analysis_evidence", "plot_edits"}.isdisjoint(headers[0])
     assert {"idx_batches_sample_id", "idx_analysis_runs_batch_created_at"}.issubset(index_names)
+    db.close()
+
+
+def test_work_memory_snapshot_queries_have_ordering_indexes(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+
+    index_names = {
+        row["name"]
+        for row in db._conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
+    }
+
+    assert {
+        "idx_samples_updated_at",
+        "idx_batches_sample_created_at",
+        "idx_analysis_runs_created_at",
+    }.issubset(index_names)
     db.close()
 
 
@@ -74,6 +92,54 @@ def test_list_analysis_run_headers_for_batch_filters_before_limit(tmp_path):
     headers = db.list_analysis_run_headers_for_batch(target_batch, limit=1)
 
     assert [header["id"] for header in headers] == [target_id]
+    db.close()
+
+
+def test_get_work_memory_snapshot_returns_counts_and_latest_header_without_payload(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "work-memory")
+    run_id = db.create_analysis_run(
+        batch_id,
+        "saxs",
+        parameters={"large": "x" * 10_000},
+        results_summary={"large": "x" * 10_000},
+        analysis_evidence={"large": "x" * 10_000},
+    )
+
+    snapshot = db.get_work_memory_snapshot()
+
+    assert snapshot["sample_count"] == 1
+    assert snapshot["batch_count"] == 1
+    assert snapshot["recent_sample"]["id"] == sample_id
+    assert snapshot["recent_run"]["id"] == run_id
+    assert {"parameters", "results_summary", "analysis_evidence", "plot_edits"}.isdisjoint(
+        snapshot["recent_run"]
+    )
+    db.close()
+
+
+def test_get_work_memory_snapshot_uses_narrow_sample_and_batch_fields(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    sample_id = db.create_sample(
+        "PA6",
+        aliases=["nylon-6"],
+        tags=["engineering"],
+        metadata={"supplier": "Acme"},
+    )
+    batch_id = db.create_batch(
+        sample_id,
+        "work-memory",
+        condition_values={"temperature_C": 220},
+    )
+
+    snapshot = db.get_work_memory_snapshot()
+
+    assert set(snapshot["recent_sample"]) == {"id", "polymer_name", "family", "aliases"}
+    assert snapshot["recent_sample"]["id"] == sample_id
+    assert snapshot["recent_sample"]["polymer_name"] == "PA6"
+    assert snapshot["recent_sample"]["aliases"] == ["nylon-6"]
+    assert snapshot["recent_batch"] == {"id": batch_id, "label": "work-memory"}
     db.close()
 
 

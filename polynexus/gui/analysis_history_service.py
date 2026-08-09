@@ -1274,6 +1274,39 @@ def result_comparison_candidates(current, db, *, inferred_sample_name: str = "")
     if not current_technique:
         return []
 
+    list_headers = getattr(db, "list_analysis_run_headers", None)
+    if callable(list_headers):
+        headers = list_headers(limit=500)
+        if headers is None:
+            return []
+        scored_headers = []
+        for header in headers:
+            if not isinstance(header, dict):
+                continue
+            if str(header.get("id") or "") == "current":
+                continue
+            if str(header.get("technique") or "").strip().lower() != current_technique:
+                continue
+            header_submodule = str(header.get("submodule") or "").strip().lower()
+            if current_submodule and header_submodule not in {current_submodule, ""}:
+                continue
+            submodule_score = 0 if current_submodule and header_submodule == current_submodule else 1
+            scored_headers.append((
+                submodule_score,
+                -_comparison_created_score(header.get("created_at")),
+                header,
+            ))
+        same_sample_headers = [
+            item
+            for item in scored_headers
+            if sample_name
+            and str(item[2].get("sample_name") or "").strip().lower() == sample_name
+        ]
+        if same_sample_headers:
+            scored_headers = same_sample_headers
+        scored_headers.sort(key=lambda item: (item[0], item[1]))
+        return [item[2] for item in scored_headers]
+
     scored = []
     for sample in db.list_samples(limit=100):
         sample_score = 2

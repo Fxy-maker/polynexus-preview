@@ -1077,6 +1077,15 @@ class MainWindowResultsMixin:
         if baseline is None:
             self.log(tr("RESULTS_COMPARE_EMPTY"))
             return
+        if isinstance(baseline, dict) and "parameters" not in baseline:
+            try:
+                baseline = self._ensure_sample_db().get_analysis_run(baseline["id"])
+            except Exception:
+                logger.warning("Failed to load result comparison baseline.", exc_info=True)
+                baseline = None
+            if baseline is None:
+                self.log(tr("RESULTS_COMPARE_EMPTY"))
+                return
         self._show_history_comparison(current, baseline)
 
 

@@ -9,8 +9,8 @@ from typing import Any
 from .analysis_history_service import format_history_timestamp as format_history_timestamp_value
 from .i18n import tr
 from .workspace_context_service import (
-    work_memory_summary_text,
-    workspace_context_summary_text,
+    work_memory_summary_text,  # noqa: F401
+    workspace_context_summary_text,  # noqa: F401
 )
 
 
@@ -34,6 +34,33 @@ def build_work_memory_slice(label, detail, action_key="", callback=None, accent=
 
 
 def collect_work_memory_db_snapshot(db, *, sample_limit: int = 1000) -> WorkMemoryDbSnapshot:
+    get_compact_snapshot = getattr(db, "get_work_memory_snapshot", None)
+    if callable(get_compact_snapshot):
+        try:
+            compact_snapshot = get_compact_snapshot()
+        except Exception:
+            compact_snapshot = None
+        if isinstance(compact_snapshot, dict):
+            return WorkMemoryDbSnapshot(
+                sample_count=int(compact_snapshot.get("sample_count") or 0),
+                batch_count=int(compact_snapshot.get("batch_count") or 0),
+                recent_run=(
+                    compact_snapshot.get("recent_run")
+                    if isinstance(compact_snapshot.get("recent_run"), dict)
+                    else None
+                ),
+                recent_sample=(
+                    compact_snapshot.get("recent_sample")
+                    if isinstance(compact_snapshot.get("recent_sample"), dict)
+                    else None
+                ),
+                recent_batch=(
+                    compact_snapshot.get("recent_batch")
+                    if isinstance(compact_snapshot.get("recent_batch"), dict)
+                    else None
+                ),
+            )
+
     try:
         samples = db.list_samples(limit=sample_limit)
     except Exception:
@@ -252,6 +279,15 @@ def build_work_memory_payload(window) -> dict:
 
     recent_run = db_snapshot.recent_run
     if recent_run:
+        get_analysis_run = getattr(db, "get_analysis_run", None)
+        if (
+            callable(get_analysis_run)
+            and "parameters" not in recent_run
+            and "results_summary" not in recent_run
+        ):
+            loaded_run = get_analysis_run(str(recent_run.get("id") or ""))
+            if isinstance(loaded_run, dict):
+                recent_run = loaded_run
         technique = window._history_technique_text(str(recent_run.get("technique") or ""))
         context = window._history_record_context_text(recent_run) or technique
         created = format_history_timestamp_value(recent_run.get("created_at"))

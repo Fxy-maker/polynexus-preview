@@ -69,9 +69,16 @@ class SampleDB:
         self._ensure_column("analysis_runs", "ai_tuned", "INTEGER DEFAULT 0")
         self._ensure_column("analysis_runs", "confirmed", "INTEGER DEFAULT 0")
         self._ensure_column("analysis_runs", "analysis_evidence", "TEXT")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_samples_updated_at ON samples(updated_at)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_batches_sample_id ON batches(sample_id)")
         self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_batches_sample_created_at ON batches(sample_id, created_at)"
+        )
+        self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_analysis_runs_batch_created_at ON analysis_runs(batch_id, created_at)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_analysis_runs_created_at ON analysis_runs(created_at)"
         )
         self._conn.commit()
 
@@ -417,8 +424,14 @@ class SampleDB:
     def list_analysis_run_headers(self, *, limit: int = 500) -> list[dict]:
         """Return recent analysis-run fields needed to populate History."""
         rows = self._conn.execute(
-            "SELECT id,batch_id,technique,submodule,output_dir,status,ai_tuned,confirmed,created_at "
-            "FROM analysis_runs ORDER BY created_at DESC LIMIT ?",
+            "SELECT analysis_runs.id,analysis_runs.batch_id,batches.sample_id AS sample_id,"
+            "samples.polymer_name AS sample_name,analysis_runs.technique,analysis_runs.submodule,"
+            "analysis_runs.output_dir,analysis_runs.status,analysis_runs.ai_tuned,"
+            "analysis_runs.confirmed,analysis_runs.created_at "
+            "FROM analysis_runs "
+            "JOIN batches ON batches.id=analysis_runs.batch_id "
+            "JOIN samples ON samples.id=batches.sample_id "
+            "ORDER BY analysis_runs.created_at DESC LIMIT ?",
             (max(1, int(limit)),),
         ).fetchall()
         return [dict(row) for row in rows]
@@ -431,6 +444,40 @@ class SampleDB:
             (batch_id, max(1, int(limit))),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def get_work_memory_snapshot(self) -> dict:
+        """Return the compact database state needed by GUI work memory."""
+        sample_count = int(self._conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0])
+        batch_count = int(self._conn.execute("SELECT COUNT(*) FROM batches").fetchone()[0])
+        sample_row = self._conn.execute(
+            "SELECT id,polymer_name,family,aliases FROM samples ORDER BY updated_at DESC LIMIT 1"
+        ).fetchone()
+        recent_sample = dict(sample_row) if sample_row is not None else None
+        if recent_sample is not None:
+            try:
+                recent_sample["aliases"] = (
+                    json.loads(recent_sample["aliases"]) if recent_sample["aliases"] else []
+                )
+            except Exception:
+                recent_sample["aliases"] = []
+                logger.warning("Failed to decode stored sample aliases.", exc_info=True)
+        recent_batch = None
+        if recent_sample:
+            sample_id = str(recent_sample.get("id") or "")
+            row = self._conn.execute(
+                "SELECT id,label FROM batches WHERE sample_id=? ORDER BY created_at DESC LIMIT 1",
+                (sample_id,),
+            ).fetchone()
+            if row is not None:
+                recent_batch = dict(row)
+        recent_headers = self.list_analysis_run_headers(limit=1)
+        return {
+            "sample_count": sample_count,
+            "batch_count": batch_count,
+            "recent_run": recent_headers[0] if recent_headers else None,
+            "recent_sample": recent_sample,
+            "recent_batch": recent_batch,
+        }
 
     def get_analysis_run(self, run_id):
         row = self._conn.execute(
