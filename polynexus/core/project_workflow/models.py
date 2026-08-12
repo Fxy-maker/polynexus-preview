@@ -565,24 +565,38 @@ class ProjectPlan:
     request_hash: str
     steps: tuple[Mapping[str, Any], ...] = ()
     status: str = "proposed"
+    reason_codes: tuple[str, ...] = ()
+    required_context: tuple[str, ...] = ()
     plan_hash: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "steps", tuple(_freeze(x) for x in self.steps))
+        object.__setattr__(self, "reason_codes", tuple(str(x) for x in self.reason_codes))
+        object.__setattr__(self, "required_context", tuple(str(x) for x in self.required_context))
 
     @classmethod
     def create(
-        cls, *, request_hash: str, steps: Sequence[Mapping[str, Any]] = (), status: str = "proposed"
+        cls,
+        *,
+        request_hash: str,
+        steps: Sequence[Mapping[str, Any]] = (),
+        status: str = "proposed",
+        reason_codes: Sequence[str] = (),
+        required_context: Sequence[str] = (),
     ) -> "ProjectPlan":
         payload = {
             "request_hash": request_hash,
             "steps": [_public(x) for x in steps],
             "status": status,
+            "reason_codes": list(reason_codes),
+            "required_context": list(required_context),
         }
         return cls(
             request_hash=str(request_hash),
             steps=tuple(steps),
             status=str(status),
+            reason_codes=tuple(reason_codes),
+            required_context=tuple(required_context),
             plan_hash=_hash_payload(payload),
         )
 
@@ -591,6 +605,8 @@ class ProjectPlan:
             "request_hash": self.request_hash,
             "steps": [_public(x) for x in self.steps],
             "status": self.status,
+            "reason_codes": list(self.reason_codes),
+            "required_context": list(self.required_context),
             "plan_hash": self.plan_hash,
         }
 
@@ -600,6 +616,8 @@ class ProjectPlan:
             request_hash=str(value["request_hash"]),
             steps=value.get("steps", ()),
             status=str(value.get("status", "proposed")),
+            reason_codes=value.get("reason_codes", ()),
+            required_context=value.get("required_context", ()),
         )
         if not value.get("plan_hash"):
             raise ValueError("plan hash is missing")

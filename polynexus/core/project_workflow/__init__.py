@@ -12,6 +12,7 @@ from .models import (
     ProjectPlan,
     ResearchGraph,
 )
+from .service import ProjectWorkflowService
 
 __all__ = [
     "AnalysisRequest",
@@ -24,4 +25,5 @@ __all__ = [
     "ProjectFact",
     "ProjectPlan",
     "ResearchGraph",
+    "ProjectWorkflowService",
 ]
