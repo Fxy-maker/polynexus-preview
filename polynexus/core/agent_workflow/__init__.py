@@ -1,6 +1,25 @@
 """Public contracts for AI-orchestrated PolyNexus analysis workflows."""
 
-from .models import AnalysisRecipe, InputArtifact, RecipeStep
+from .models import (
+    AnalysisRecipe,
+    AnalysisRun,
+    EvidenceRecord,
+    InputArtifact,
+    RecipeProposal,
+    RecipeStep,
+    WorkflowStepResult,
+)
 from .inspection import inspect_artifact
+from .service import AgentWorkflowService
 
-__all__ = ["AnalysisRecipe", "InputArtifact", "RecipeStep", "inspect_artifact"]
+__all__ = [
+    "AgentWorkflowService",
+    "AnalysisRecipe",
+    "AnalysisRun",
+    "EvidenceRecord",
+    "InputArtifact",
+    "RecipeProposal",
+    "RecipeStep",
+    "WorkflowStepResult",
+    "inspect_artifact",
+]

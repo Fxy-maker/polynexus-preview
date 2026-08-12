@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from polynexus.core.agent_workflow import AnalysisRecipe, InputArtifact, RecipeStep
+import pytest
+
+from polynexus.core.agent_workflow import (
+    AgentWorkflowService,
+    AnalysisRecipe,
+    InputArtifact,
+    RecipeStep,
+)
 from polynexus.core.agent_workflow import inspect_artifact
 
 
@@ -47,3 +54,23 @@ def test_inspect_missing_file_returns_blocked_artifact(tmp_path: Path) -> None:
 
     assert artifact.inspection_status == "blocked"
     assert artifact.reason_codes == ("file_missing",)
+
+
+def test_run_blocks_before_provider_when_artifact_hash_changes(tmp_path: Path) -> None:
+    source = tmp_path / "dsc.csv"
+    source.write_text("original", encoding="utf-8")
+    artifact = inspect_artifact(source, technique="dsc")
+    recipe = AnalysisRecipe.create(
+        workflow_id="test.workflow",
+        artifacts=[artifact],
+        steps=[RecipeStep(step_id="dsc_isothermal", technique="dsc")],
+    )
+    source.write_text("changed", encoding="utf-8")
+
+    run = AgentWorkflowService(provider_runner=lambda *_: pytest.fail("provider called")).run_recipe(
+        recipe,
+        tmp_path / "out",
+    )
+
+    assert run.status == "blocked"
+    assert run.reason_codes == ("artifact_hash_mismatch",)

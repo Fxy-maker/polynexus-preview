@@ -11,6 +11,7 @@ from typing import Any, Mapping, Sequence
 
 CONTRACT_VERSION = "1"
 _VALID_INSPECTION_STATUSES = frozenset({"ready", "review_required", "blocked"})
+_VALID_RUN_STATUSES = frozenset({"completed", "review_required", "blocked", "failed"})
 
 
 def _json_safe(value: Any) -> Any:
@@ -216,3 +217,96 @@ class AnalysisRecipe:
         if expected != recipe.recipe_hash:
             raise ValueError("Recipe hash does not match its canonical public content")
         return recipe
+
+
+@dataclass(frozen=True)
+class RecipeProposal:
+    """The explicit proposal outcome avoids special return types for blockers."""
+
+    status: str
+    recipe: AnalysisRecipe | None = None
+    reason_codes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.status not in _VALID_INSPECTION_STATUSES:
+            raise ValueError(f"Unsupported proposal status: {self.status}")
+        object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "recipe": self.recipe.to_dict() if self.recipe else None,
+            "reason_codes": list(self.reason_codes),
+        }
+
+
+@dataclass(frozen=True)
+class AnalysisRun:
+    """Public run envelope that never contains provider-private state."""
+
+    recipe: AnalysisRecipe
+    status: str
+    reason_codes: tuple[str, ...] = ()
+    steps: tuple["WorkflowStepResult", ...] = ()
+    evidence: "EvidenceRecord | None" = None
+    validated: bool = False
+
+    def __post_init__(self) -> None:
+        if self.status not in _VALID_RUN_STATUSES:
+            raise ValueError(f"Unsupported run status: {self.status}")
+        object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "recipe": self.recipe.to_dict(),
+            "status": self.status,
+            "reason_codes": list(self.reason_codes),
+            "steps": [step.to_dict() for step in self.steps],
+            "evidence": self.evidence.to_dict() if self.evidence else None,
+            "validated": self.validated,
+        }
+
+
+@dataclass(frozen=True)
+class WorkflowStepResult:
+    """A provider result reduced to its stable public summary and evidence."""
+
+    step_id: str
+    technique: str
+    status: str
+    result_summary: Mapping[str, Any] = field(default_factory=dict)
+    analysis_evidence: Mapping[str, Any] = field(default_factory=dict)
+    reason_codes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.status not in _VALID_RUN_STATUSES:
+            raise ValueError(f"Unsupported step status: {self.status}")
+        object.__setattr__(self, "result_summary", _json_safe(dict(self.result_summary)))
+        object.__setattr__(self, "analysis_evidence", _json_safe(dict(self.analysis_evidence)))
+        object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "step_id": self.step_id,
+            "technique": self.technique,
+            "status": self.status,
+            "result_summary": dict(self.result_summary),
+            "analysis_evidence": dict(self.analysis_evidence),
+            "reason_codes": list(self.reason_codes),
+        }
+
+
+@dataclass(frozen=True)
+class EvidenceRecord:
+    """Explicit scopes prevent an agent from over-promoting a result."""
+
+    observed: tuple[str, ...] = ()
+    supported_interpretations: tuple[str, ...] = ()
+    disallowed_conclusions: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "observed": list(self.observed),
+            "supported_interpretations": list(self.supported_interpretations),
+            "disallowed_conclusions": list(self.disallowed_conclusions),
+        }
