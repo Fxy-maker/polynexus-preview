@@ -26,6 +26,7 @@ from polynexus.cli.batch_run_service import (
 )
 from polynexus.cli.run_ai_tune_service import run_ai_tune as _run_ai_tune_impl
 from polynexus.cli.run_agent_workflow_service import run_agent_workflow as _run_agent_workflow_impl
+from polynexus.cli.run_project_workflow_service import run_project_workflow as _run_project_workflow_impl
 from polynexus.cli.run_single_service import run_single as _run_single_impl
 from polynexus.cli.parser import build_parser
 from polynexus.utils import (
@@ -54,6 +55,8 @@ def main():
         return _run_ai_tune(args)
     if args.cmd == 'agent-workflow':
         return _run_agent_workflow(args)
+    if args.cmd == 'project-workflow':
+        return _run_project_workflow(args)
     if args.cmd == 'batch':
         return run_batch(args)
     if args.cmd == 'gui':
@@ -78,6 +81,10 @@ def _run_ai_tune(args) -> int:
 
 def _run_agent_workflow(args) -> int:
     return _run_agent_workflow_impl(args)
+
+
+def _run_project_workflow(args) -> int:
+    return _run_project_workflow_impl(args)
 
 
 def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -> None:
