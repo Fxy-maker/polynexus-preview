@@ -5,6 +5,7 @@ from pathlib import Path
 
 from polynexus.core.project_workflow.index import ProjectIndexer
 from polynexus.core.project_workflow.workspace import ProjectWorkspace
+import pytest
 
 
 def test_index_preserves_raw_condition_when_filename_disagrees(tmp_path: Path) -> None:
@@ -51,3 +52,42 @@ def test_index_orders_paths_deterministically(tmp_path: Path) -> None:
         "raw/a-first.raw",
         "raw/z-last.raw",
     ]
+
+
+def test_index_drops_deleted_artifacts_but_keeps_existing_partial_scope(tmp_path: Path) -> None:
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    deleted = raw / "deleted.raw"
+    retained = raw / "retained.raw"
+    deleted.write_text("method_temperature_C=184\n", encoding="utf-8")
+    retained.write_text("method_temperature_C=185\n", encoding="utf-8")
+    indexer = ProjectIndexer(ProjectWorkspace.open(tmp_path))
+    indexer.inspect([deleted, retained])
+    deleted.unlink()
+
+    index = indexer.inspect([retained])
+
+    assert [artifact.relative_path for artifact in index.artifacts] == ["raw/retained.raw"]
+
+
+def test_index_persists_missing_requested_input_as_blocked(tmp_path: Path) -> None:
+    missing = tmp_path / "raw" / "DSC_185C.txt"
+
+    index = ProjectIndexer(ProjectWorkspace.open(tmp_path)).inspect([missing])
+
+    artifact = index.artifacts[0]
+    assert artifact.sha256 is None
+    assert artifact.inspection_status == "blocked"
+    assert artifact.reason_codes == ("file_missing",)
+
+
+@pytest.mark.parametrize("directory", ("notes", "manuscript"))
+def test_index_rejects_context_documents_as_measurement_sources(
+    tmp_path: Path, directory: str
+) -> None:
+    source = tmp_path / directory / "context.txt"
+    source.parent.mkdir()
+    source.write_text("method_temperature_C=185\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="raw"):
+        ProjectIndexer(ProjectWorkspace.open(tmp_path)).inspect([source])

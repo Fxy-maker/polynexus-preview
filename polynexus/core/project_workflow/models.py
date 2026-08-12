@@ -149,16 +149,24 @@ class ProjectArtifact:
     artifact_id: str
     relative_path: str
     technique: str
-    sha256: str
+    sha256: str | None
     facts: Mapping[str, ProjectFact] = field(default_factory=dict)
     format: str = ""
+    inspection_status: str = "ready"
+    reason_codes: tuple[str, ...] = ()
     discrepancies: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "relative_path", str(self.relative_path))
         object.__setattr__(self, "technique", str(self.technique).lower())
-        object.__setattr__(self, "sha256", str(self.sha256))
+        object.__setattr__(self, "sha256", str(self.sha256) if self.sha256 else None)
         object.__setattr__(self, "format", str(self.format))
+        object.__setattr__(self, "inspection_status", str(self.inspection_status))
+        object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
+        if self.inspection_status not in {"ready", "review_required", "blocked"}:
+            raise ValueError(f"Unsupported inspection status: {self.inspection_status}")
+        if self.inspection_status == "blocked" and self.sha256 is not None:
+            raise ValueError("blocked artifacts cannot have a verifiable source hash")
         object.__setattr__(
             self,
             "facts",
@@ -190,10 +198,12 @@ class ProjectArtifact:
         project_root: str | Path,
         path: str | Path,
         technique: str,
-        sha256: str,
+        sha256: str | None,
         observed_facts: Mapping[str, Any] | None = None,
         facts: Mapping[str, ProjectFact] | None = None,
         format: str = "",
+        inspection_status: str = "ready",
+        reason_codes: Sequence[str] = (),
     ) -> "ProjectArtifact":
         root = Path(project_root).resolve()
         source = Path(path).resolve()
@@ -212,8 +222,10 @@ class ProjectArtifact:
         identity = {
             "relative_path": relative,
             "technique": str(technique).lower(),
-            "sha256": str(sha256),
+            "sha256": str(sha256) if sha256 else None,
             "facts": {k: v.to_dict() for k, v in fact_values.items()},
+            "inspection_status": str(inspection_status),
+            "reason_codes": [str(code) for code in reason_codes],
         }
         return cls(
             artifact_id=_hash_payload(identity),
@@ -222,6 +234,8 @@ class ProjectArtifact:
             sha256=sha256,
             facts=fact_values,
             format=format,
+            inspection_status=inspection_status,
+            reason_codes=tuple(reason_codes),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -232,6 +246,8 @@ class ProjectArtifact:
             "technique": self.technique,
             "sha256": self.sha256,
             "format": self.format,
+            "inspection_status": self.inspection_status,
+            "reason_codes": list(self.reason_codes),
             "facts": {k: v.to_dict() for k, v in self.facts.items()},
             "observed_facts": {k: v.to_dict() for k, v in self.facts.items()},
             "discrepancies": list(self.discrepancies),
@@ -252,9 +268,11 @@ class ProjectArtifact:
             artifact_id=str(value["artifact_id"]),
             relative_path=str(value.get("relative_path", value.get("path", ""))),
             technique=str(value.get("technique", "unknown")),
-            sha256=str(value.get("sha256", "")),
+            sha256=str(value["sha256"]) if value.get("sha256") else None,
             facts=facts,
             format=str(value.get("format", "")),
+            inspection_status=str(value.get("inspection_status", "ready")),
+            reason_codes=tuple(value.get("reason_codes", ())),
             discrepancies=tuple(value.get("discrepancies", ())),
         )
         identity = {
@@ -262,6 +280,8 @@ class ProjectArtifact:
             "technique": artifact.technique,
             "sha256": artifact.sha256,
             "facts": {k: v.to_dict() for k, v in artifact.facts.items()},
+            "inspection_status": artifact.inspection_status,
+            "reason_codes": list(artifact.reason_codes),
         }
         if artifact.artifact_id != _hash_payload(identity):
             raise ValueError("artifact hash does not match its content")

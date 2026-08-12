@@ -39,6 +39,24 @@ def test_project_artifact_identity_is_stable_and_json_safe(tmp_path):
     assert json.loads(json.dumps(artifact.to_dict()))["technique"] == "dsc"
     assert ProjectArtifact.from_dict(artifact.to_dict()).artifact_id == artifact.artifact_id
 
+    blocked = ProjectArtifact.create(
+        project_root=tmp_path,
+        path=tmp_path / "raw" / "missing.txt",
+        technique="dsc",
+        sha256=None,
+        inspection_status="blocked",
+        reason_codes=("file_missing",),
+    )
+    assert blocked.sha256 is None
+    assert blocked.inspection_status == "blocked"
+    assert blocked.reason_codes == ("file_missing",)
+    assert ProjectArtifact.from_dict(blocked.to_dict()).artifact_id == blocked.artifact_id
+
+    changed_status = blocked.to_dict()
+    changed_status["inspection_status"] = "ready"
+    with pytest.raises(ValueError, match="artifact hash"):
+        ProjectArtifact.from_dict(changed_status)
+
     missing_hash = artifact.to_dict()
     missing_hash.pop("artifact_id")
     with pytest.raises(ValueError, match="artifact hash"):

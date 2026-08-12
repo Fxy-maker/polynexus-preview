@@ -43,8 +43,9 @@ class ProjectIndexer:
         for path in paths:
             artifact = self._inspect_one(path)
             current[artifact.relative_path] = artifact
-        existing.update(current)
-        artifacts = tuple(existing[key] for key in sorted(existing))
+        refreshed = self._refresh_existing(existing, excluded=set(current))
+        refreshed.update(current)
+        artifacts = tuple(refreshed[key] for key in sorted(refreshed))
         graph = ResearchGraph.create(
             study_id=self._study_id(),
             artifacts=artifacts,
@@ -59,6 +60,23 @@ class ProjectIndexer:
         graph = ResearchGraph.from_dict(payload)
         return {artifact.relative_path: artifact for artifact in graph.artifacts}
 
+    def _refresh_existing(
+        self,
+        existing: dict[str, ProjectArtifact],
+        *,
+        excluded: set[str],
+    ) -> dict[str, ProjectArtifact]:
+        refreshed: dict[str, ProjectArtifact] = {}
+        for relative_path in sorted(existing):
+            if relative_path in excluded:
+                continue
+            source = self.workspace.root / relative_path
+            if not source.exists():
+                continue
+            artifact = self._inspect_one(source)
+            refreshed[artifact.relative_path] = artifact
+        return refreshed
+
     def _inspect_one(self, path: str | Path) -> ProjectArtifact:
         source = Path(path).expanduser().resolve()
         self._require_source_path(source)
@@ -72,9 +90,11 @@ class ProjectIndexer:
             project_root=self.workspace.root,
             path=source,
             technique=inspected.technique,
-            sha256=inspected.sha256 or "",
+            sha256=inspected.sha256,
             facts=facts,
             format=inspected.format,
+            inspection_status=inspected.inspection_status,
+            reason_codes=inspected.reason_codes,
         )
         return ProjectArtifact(
             artifact_id=base.artifact_id,
@@ -83,6 +103,8 @@ class ProjectIndexer:
             sha256=base.sha256,
             facts=base.facts,
             format=base.format,
+            inspection_status=base.inspection_status,
+            reason_codes=base.reason_codes,
             discrepancies=discrepancies,
         )
 
@@ -91,8 +113,8 @@ class ProjectIndexer:
             relative = source.relative_to(self.workspace.root)
         except ValueError as exc:
             raise ValueError("source path must be inside the project root") from exc
-        if not relative.parts or relative.parts[0] == ".polynexus":
-            raise ValueError("source path must be primary project material")
+        if not relative.parts or relative.parts[0] != "raw":
+            raise ValueError("source path must be inside raw project data")
 
     @staticmethod
     def _infer_technique(source: Path) -> str:
