@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-12-agent-native-core-tpae-golden-path
 kind: architecture
-status: design_review
+status: implementation_complete
 date: 2026-08-12
 title: Establish an agent-native analysis core with a TPAE golden path
 ---
@@ -52,21 +52,22 @@ consumer of that contract.
 
 ## Acceptance criteria
 
-- [ ] `inspect` returns artifact identity, format, file hash, header-derived
+- [x] `inspect` returns artifact identity, format, file hash, header-derived
   facts, and explicit unsupported/missing reasons.
-- [ ] `propose` returns a JSON-safe, versioned, replayable recipe and never
-  mutates input files or engine configuration.
-- [ ] `run` produces a run envelope whose technique steps reference existing
+- [x] `propose` returns a recursively immutable, JSON-safe, versioned,
+  replayable recipe and never mutates input files or engine configuration.
+- [x] `run` produces a run envelope whose technique steps reference existing
   `AnalysisResult`/evidence outputs without exposing engine internals.
-- [ ] `validate` distinguishes pass, review-required, and blocked outcomes;
+- [x] `validate` distinguishes pass, review-required, and blocked outcomes;
   each outcome records allowed and disallowed conclusion scopes.
-- [ ] `export` writes a self-contained manifest/result bundle outside the input
-  data directory and records every artifact/recipe hash.
-- [ ] A missing file, unsupported format, missing calibration, or failed step
+- [x] `export` writes a self-contained manifest/result bundle outside the input
+  data directory, records every artifact/recipe hash, and preserves public
+  figure references without copying raw inputs or figure assets.
+- [x] A missing file, unsupported format, missing calibration, or failed step
   is represented as structured data rather than an unclassified exception.
-- [ ] The TPAE manifest can refer to external data but no real dataset is
+- [x] The TPAE manifest can refer to external data but no real dataset is
   committed to this repository.
-- [ ] Existing `AnalysisResult.to_dict()`, current CLI routes, and GUI-facing
+- [x] Existing `AnalysisResult.to_dict()`, current CLI routes, and GUI-facing
   engine boundaries retain backward-compatible behavior.
 
 ## Verification
@@ -82,3 +83,42 @@ git diff --check
 The initial worktree had no tracked modifications. Git reported only existing
 unreadable historical test-artifact directories; they are not part of this
 task and must remain untouched.
+
+## Implementation evidence
+
+- `polynexus.core.agent_workflow` now provides immutable JSON-safe artifact,
+  recipe, proposal, run, step-result, and evidence contracts. Recipe hashes are
+  canonical SHA-256 identities; legacy non-finite public result scalars are
+  normalized to JSON `null` only at the new agent boundary.
+- TPAE manifest inspection preserves separate evidence for EDF geometry and
+  absent background handling. It does not infer a calibration or discard
+  coordinate evidence because absolute intensity evidence is incomplete.
+- `tpae.characterization.v1` requires an isothermal DSC directory sequence,
+  validates declared technique/step compatibility, and orders optional FTIR,
+  WAXS, and SAXS steps deterministically. Directory identities are a stable
+  manifest hash of sorted relative paths and child hashes; replays compare those
+  artifact hashes before any provider call.
+- Default execution invokes existing `get_engine(...).run_pipeline(...)` public
+  boundaries and records only `AnalysisResult.to_dict()`, public evidence, and
+  figure references. Provider error logs become failed workflow steps even when
+  legacy validation defaults are true; no engine-private arrays are exposed.
+- Each executed run receives a local HMAC execution receipt. Validation and
+  export verify its recipe, status, reasons, step summaries, evidence, and
+  validation state before writing provenance; fabricated runs or edited evidence
+  are blocked. Duplicate artifacts for one technique are rejected to keep every
+  step's raw input unambiguous.
+- `polynexus agent-workflow {inspect,propose,run,validate,export}` prints one
+  JSON envelope, requires an explicit output directory, can replay a persisted
+  recipe without a manifest, persists a replayable `run.json`, and exports JSON
+  evidence without copying raw inputs. Run/export destinations inside input-data
+  directories are rejected.
+- Review repairs are regression-covered: nested recipe mappings cannot mutate,
+  directory hashes are stable/change-sensitive, mismatched manifest techniques
+  and non-directory DSC input block early, raw-data output writes block, engine
+  error logs fail, figure references export as a manifest, and fabricated or
+  tampered persisted runs cannot validate or export.
+- Focused agent/TPAE/CLI/legacy-CLI suite: `47 passed`.
+- Structured verifier passed on 2026-08-12: Ruff, py_compile, task/memory
+  checks, quality gate `303 passed`, preprocessing gate `157 passed`, and
+  whitespace check. No real TPAE scientific acceptance is claimed; an external
+  read-only manifest replay and human scientific review remain required.

@@ -20,6 +20,7 @@ _EDF_REQUIRED_GEOMETRY = (
     "sampledistance",
     "wavelength",
 )
+_DIRECTORY_TECHNIQUES = frozenset({"dsc", "ir"})
 
 
 def _file_sha256(path: Path) -> str:
@@ -34,6 +35,18 @@ def _artifact_id(path: Path, sha256: str | None) -> str:
     return hashlib.sha256(
         canonical_json({"path": str(path.resolve()), "sha256": sha256}).encode("utf-8")
     ).hexdigest()
+
+
+def _directory_sha256(path: Path) -> tuple[str, int]:
+    """Hash sorted relative paths and content hashes without copying raw data."""
+    entries: list[dict[str, str]] = []
+    for candidate in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()):
+        if candidate.is_symlink() or not candidate.is_file():
+            raise OSError("Directory contains an unsupported entry")
+        entries.append({"path": candidate.relative_to(path).as_posix(), "sha256": _file_sha256(candidate)})
+    if not entries:
+        raise OSError("Directory contains no files")
+    return hashlib.sha256(canonical_json(entries).encode("utf-8")).hexdigest(), len(entries)
 
 
 def _edf_header_facts(path: Path) -> tuple[dict[str, object], tuple[str, ...]]:
@@ -72,6 +85,33 @@ def inspect_artifact(path: str | Path, *, technique: str = "unknown") -> InputAr
     technique_key = str(technique or "unknown").lower()
     suffix = source.suffix.lower().lstrip(".")
     resolved = source.resolve()
+
+    if source.is_dir():
+        if technique_key not in _DIRECTORY_TECHNIQUES:
+            return InputArtifact(
+                artifact_id=_artifact_id(resolved, None), path=str(resolved), technique=technique_key,
+                format="directory", sha256=None, inspection_status="blocked",
+                reason_codes=("directory_unsupported",),
+            )
+        try:
+            check_file_format(technique_key, str(source))
+            source_hash, file_count = _directory_sha256(source)
+        except ValueError:
+            return InputArtifact(
+                artifact_id=_artifact_id(resolved, None), path=str(resolved), technique=technique_key,
+                format="directory", sha256=None, inspection_status="blocked",
+                reason_codes=("format_unsupported",),
+            )
+        except OSError:
+            return InputArtifact(
+                artifact_id=_artifact_id(resolved, None), path=str(resolved), technique=technique_key,
+                format="directory", sha256=None, inspection_status="blocked",
+                reason_codes=("directory_unreadable_or_empty",),
+            )
+        return InputArtifact(
+            artifact_id=_artifact_id(resolved, source_hash), path=str(resolved), technique=technique_key,
+            format="directory", sha256=source_hash, header_facts={"directory_file_count": file_count},
+        )
 
     if not source.is_file():
         return InputArtifact(

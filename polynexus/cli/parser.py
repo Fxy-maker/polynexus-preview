@@ -54,6 +54,14 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--reasoning", default="low", help="Reasoning effort label for reporting/compatibility")
     pa.add_argument("--output", default="ai_tune_report.json", help="Output JSON report path")
 
+    paw = sub.add_parser("agent-workflow", help="Machine-readable agent workflow operations")
+    paw.add_argument("operation", choices=["inspect", "propose", "run", "validate", "export"])
+    paw.add_argument("--manifest", help="External workflow manifest JSON")
+    paw.add_argument("--recipe", help="Persisted recipe JSON for deterministic replay")
+    paw.add_argument("--run", help="Persisted run JSON for validate or export")
+    paw.add_argument("--output-dir", default=None, help="Output directory for run/export operations")
+    paw.add_argument("--export-dir", default=None, help="Destination for an exported workflow bundle")
+
     pb = sub.add_parser("batch", help="Batch-analyze all supported files in a directory")
     pb.add_argument("input_dir", nargs="?", help="Input directory path")
     pb.add_argument("--technique", choices=["saxs", "waxs", "dsc", "ir", "nmr"], help="Technique to analyze")
@@ -71,4 +79,3 @@ def build_parser() -> argparse.ArgumentParser:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return build_parser().parse_args(argv)
-

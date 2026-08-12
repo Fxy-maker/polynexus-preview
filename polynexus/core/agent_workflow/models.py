@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import hashlib
 import json
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Mapping, Sequence
 
 
@@ -29,6 +30,16 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_json_safe(item) for item in value]
     raise TypeError(f"Agent workflow contracts do not support {type(value).__name__}")
+
+
+def _freeze_json_value(value: Any) -> Any:
+    """Recursively freeze JSON-safe data retained by a public contract."""
+    normalized = _json_safe(value)
+    if isinstance(normalized, Mapping):
+        return MappingProxyType({str(key): _freeze_json_value(item) for key, item in normalized.items()})
+    if isinstance(normalized, list):
+        return tuple(_freeze_json_value(item) for item in normalized)
+    return normalized
 
 
 def canonical_json(value: Any) -> str:
@@ -62,7 +73,7 @@ class InputArtifact:
     def __post_init__(self) -> None:
         if self.inspection_status not in _VALID_INSPECTION_STATUSES:
             raise ValueError(f"Unsupported inspection status: {self.inspection_status}")
-        object.__setattr__(self, "header_facts", _json_safe(dict(self.header_facts)))
+        object.__setattr__(self, "header_facts", _freeze_json_value(dict(self.header_facts)))
         object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
 
     @classmethod
@@ -87,7 +98,7 @@ class InputArtifact:
             "technique": self.technique,
             "format": self.format,
             "sha256": self.sha256,
-            "header_facts": dict(self.header_facts),
+            "header_facts": _json_safe(self.header_facts),
             "inspection_status": self.inspection_status,
             "reason_codes": list(self.reason_codes),
         }
@@ -117,11 +128,11 @@ class RecipeStep:
     parameter_sources: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "parameters", _json_safe(dict(self.parameters)))
+        object.__setattr__(self, "parameters", _freeze_json_value(dict(self.parameters)))
         object.__setattr__(
             self,
             "parameter_sources",
-            {str(key): str(value) for key, value in self.parameter_sources.items()},
+            _freeze_json_value({str(key): str(value) for key, value in self.parameter_sources.items()}),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -129,8 +140,8 @@ class RecipeStep:
             "step_id": self.step_id,
             "technique": self.technique,
             "evidence_role": self.evidence_role,
-            "parameters": dict(self.parameters),
-            "parameter_sources": dict(self.parameter_sources),
+            "parameters": _json_safe(self.parameters),
+            "parameter_sources": _json_safe(self.parameter_sources),
         }
 
     @classmethod
@@ -250,6 +261,7 @@ class AnalysisRun:
     steps: tuple["WorkflowStepResult", ...] = ()
     evidence: "EvidenceRecord | None" = None
     validated: bool = False
+    execution_receipt: str | None = None
 
     def __post_init__(self) -> None:
         if self.status not in _VALID_RUN_STATUSES:
@@ -264,7 +276,22 @@ class AnalysisRun:
             "steps": [step.to_dict() for step in self.steps],
             "evidence": self.evidence.to_dict() if self.evidence else None,
             "validated": self.validated,
+            "execution_receipt": self.execution_receipt,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "AnalysisRun":
+        evidence_payload = payload.get("evidence")
+        evidence = EvidenceRecord.from_dict(evidence_payload) if isinstance(evidence_payload, Mapping) else None
+        return cls(
+            recipe=AnalysisRecipe.from_dict(payload["recipe"]),
+            status=str(payload["status"]),
+            reason_codes=tuple(payload.get("reason_codes", ())),
+            steps=tuple(WorkflowStepResult.from_dict(item) for item in payload.get("steps", ())),
+            evidence=evidence,
+            validated=bool(payload.get("validated", False)),
+            execution_receipt=str(payload["execution_receipt"]) if payload.get("execution_receipt") else None,
+        )
 
 
 @dataclass(frozen=True)
@@ -276,13 +303,15 @@ class WorkflowStepResult:
     status: str
     result_summary: Mapping[str, Any] = field(default_factory=dict)
     analysis_evidence: Mapping[str, Any] = field(default_factory=dict)
+    figure_references: Mapping[str, Any] = field(default_factory=dict)
     reason_codes: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.status not in _VALID_RUN_STATUSES:
             raise ValueError(f"Unsupported step status: {self.status}")
-        object.__setattr__(self, "result_summary", _json_safe(dict(self.result_summary)))
-        object.__setattr__(self, "analysis_evidence", _json_safe(dict(self.analysis_evidence)))
+        object.__setattr__(self, "result_summary", _freeze_json_value(dict(self.result_summary)))
+        object.__setattr__(self, "analysis_evidence", _freeze_json_value(dict(self.analysis_evidence)))
+        object.__setattr__(self, "figure_references", _freeze_json_value(dict(self.figure_references)))
         object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
 
     def to_dict(self) -> dict[str, Any]:
@@ -290,10 +319,23 @@ class WorkflowStepResult:
             "step_id": self.step_id,
             "technique": self.technique,
             "status": self.status,
-            "result_summary": dict(self.result_summary),
-            "analysis_evidence": dict(self.analysis_evidence),
+            "result_summary": _json_safe(self.result_summary),
+            "analysis_evidence": _json_safe(self.analysis_evidence),
+            "figure_references": _json_safe(self.figure_references),
             "reason_codes": list(self.reason_codes),
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "WorkflowStepResult":
+        return cls(
+            step_id=str(payload["step_id"]),
+            technique=str(payload["technique"]),
+            status=str(payload["status"]),
+            result_summary=payload.get("result_summary", {}),
+            analysis_evidence=payload.get("analysis_evidence", {}),
+            figure_references=payload.get("figure_references", {}),
+            reason_codes=tuple(payload.get("reason_codes", ())),
+        )
 
 
 @dataclass(frozen=True)
@@ -310,3 +352,11 @@ class EvidenceRecord:
             "supported_interpretations": list(self.supported_interpretations),
             "disallowed_conclusions": list(self.disallowed_conclusions),
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "EvidenceRecord":
+        return cls(
+            observed=tuple(payload.get("observed", ())),
+            supported_interpretations=tuple(payload.get("supported_interpretations", ())),
+            disallowed_conclusions=tuple(payload.get("disallowed_conclusions", ())),
+        )

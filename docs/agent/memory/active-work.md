@@ -1,20 +1,35 @@
 # Active Work
 
-## Agent-native core and TPAE golden path - design review (2026-08-12)
+## Agent-native core and TPAE golden path - checkpoint pending review (2026-08-12)
 
 - The approved product direction is a general agent-workflow architecture with
   one complete TPAE characterization workflow, rather than a simultaneous
   rewrite of all technique engines or the GUI.
-- The proposed public operations are `inspect_data`, `propose_recipe`,
-  `run_recipe`, `validate_run`, and `export_run`. They adapt existing
-  `AnalysisResult`, evidence, and figure recipe boundaries rather than replacing
-  them.
+- Public operations `inspect_data`, `propose_recipe`, `run_recipe`,
+  `validate_run`, and `export_run` now adapt existing `AnalysisResult`, evidence,
+  and figure recipe boundaries rather than replacing them. Contracts recursively
+  freeze retained JSON data; the CLI persists a replayable run and emits exactly
+  one JSON envelope per operation.
+- Isothermal DSC is intentionally directory-sequence input. Inspection computes
+  a deterministic directory-manifest hash, proposal validates manifest technique
+  and format against its step, run/export prevent writes inside raw-data
+  directories, and legacy pipeline error logs fail the public workflow step.
+- A persisted recipe can be replayed without re-proposing from a manifest;
+  exports keep figure references in `figures/manifest.json` and never copy raw
+  or figure assets. The CLI requires an explicit output directory.
+- Executed runs carry a local HMAC receipt across recipe, status, step results,
+  evidence, and validation state; fabricated or evidence-tampered persisted
+  runs cannot validate or export. Duplicate artifacts for a technique are
+  rejected, so each workflow step has one deterministic raw input.
 - Real TPAE data remains external and will be referenced through path/hash
   manifests; only synthetic fixtures and recipe contracts may enter Git.
 - Design: `docs/superpowers/specs/2026-08-12-agent-native-core-tpae-golden-path-design.md`.
   Task: `docs/agent/tasks/2026-08-12-agent-native-core-tpae-golden-path.md`.
-- Next action: review the written architecture, then implement the contract and
-  manifest/replay slice through test-first development.
+- Focused agent/TPAE/CLI/legacy-CLI suite passed `47`; structured verification
+  passed Ruff, compile, quality `303`, preprocessing `157`, task/memory, and
+  whitespace gates. The first implementation does not change scientific methods
+  or GUI behavior; it requires an external, read-only TPAE manifest replay and
+  scientific review before any manuscript or publication promotion.
 
 ## GUI performance recovery - checkpoint pending (2026-08-09)
 

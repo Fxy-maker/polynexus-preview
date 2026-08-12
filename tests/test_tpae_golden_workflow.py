@@ -3,14 +3,38 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
 
 
 def _write_artifact(tmp_path: Path, name: str) -> Path:
-    path = tmp_path / name
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    path = data_dir / name
     path.write_text(name, encoding="utf-8")
     return path
+
+
+def _write_dsc_series(tmp_path: Path) -> Path:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    series = data_dir / "dsc-isothermal"
+    series.mkdir()
+    (series / "run-1.csv").write_text("time,heat\n0,0\n", encoding="utf-8")
+    (series / "run-2.csv").write_text("time,heat\n0,1\n", encoding="utf-8")
+    return series
+
+
+def _write_ftir_series(tmp_path: Path) -> Path:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    series = data_dir / "ftir-temperature"
+    series.mkdir()
+    (series / "20C.csv").write_text("wavenumber,intensity\n1000,1\n", encoding="utf-8")
+    (series / "40C.csv").write_text("wavenumber,intensity\n1000,2\n", encoding="utf-8")
+    return series
 
 
 def _write_manifest(
@@ -30,7 +54,13 @@ def _write_manifest(
     ):
         if enabled:
             artifacts[step_id] = {
-                "path": str(_write_artifact(tmp_path, filename)),
+                "path": str(
+                    _write_dsc_series(tmp_path)
+                    if step_id == "dsc_isothermal"
+                    else _write_ftir_series(tmp_path)
+                    if step_id == "ftir_temperature"
+                    else _write_artifact(tmp_path, filename)
+                ),
                 "technique": technique,
             }
     manifest = tmp_path / "tpae.json"
@@ -55,6 +85,7 @@ def test_tpae_proposal_requires_dsc_and_orders_available_steps(tmp_path: Path) -
         "saxs_profile",
     ]
     assert proposal.recipe.steps[0].evidence_role == "primary"
+    assert proposal.recipe.steps[1].parameters["submodule_id"] == "ir.temperature_2d"
 
 
 def test_tpae_proposal_blocks_when_required_dsc_is_missing(tmp_path: Path) -> None:
@@ -66,6 +97,42 @@ def test_tpae_proposal_blocks_when_required_dsc_is_missing(tmp_path: Path) -> No
     assert proposal.status == "blocked"
     assert proposal.recipe is None
     assert proposal.reason_codes == ("required_artifact_missing:dsc_isothermal",)
+
+
+def test_tpae_proposal_blocks_when_declared_technique_disagrees_with_step(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, ftir=False, saxs=False)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["artifacts"]["dsc_isothermal"]["technique"] = "ir"
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    proposal = AgentWorkflowService().propose_recipe("tpae.characterization.v1", manifest)
+
+    assert proposal.status == "blocked"
+    assert proposal.reason_codes == ("artifact_technique_mismatch:dsc_isothermal",)
+
+
+def test_tpae_proposal_requires_a_directory_for_isothermal_dsc(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, ftir=False, saxs=False)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["artifacts"]["dsc_isothermal"]["path"] = str(_write_artifact(tmp_path, "dsc.csv"))
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    proposal = AgentWorkflowService().propose_recipe("tpae.characterization.v1", manifest)
+
+    assert proposal.status == "blocked"
+    assert proposal.reason_codes == ("artifact_format_mismatch:dsc_isothermal",)
+
+
+def test_tpae_proposal_requires_a_directory_for_temperature_ftir(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, dsc=True, ftir=True, saxs=False)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["artifacts"]["ftir_temperature"]["path"] = str(_write_artifact(tmp_path, "ftir.csv"))
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    proposal = AgentWorkflowService().propose_recipe("tpae.characterization.v1", manifest)
+
+    assert proposal.status == "blocked"
+    assert proposal.reason_codes == ("artifact_format_mismatch:ftir_temperature",)
 
 
 def test_run_normalizes_public_result_and_preserves_conclusion_limits(tmp_path: Path) -> None:
@@ -125,4 +192,81 @@ def test_export_writes_replay_bundle_without_copying_raw_artifact(tmp_path: Path
     assert (bundle / "recipe.json").is_file()
     assert (bundle / "artifacts.json").is_file()
     assert (bundle / "evidence.json").is_file()
-    assert not any(path.name == "dsc.csv" for path in bundle.rglob("*"))
+    assert (bundle / "figures" / "manifest.json").is_file()
+    assert not any(path.name == "run-1.csv" for path in bundle.rglob("*"))
+
+
+def test_export_records_public_figure_references_without_copying_assets(tmp_path: Path) -> None:
+    proposal = AgentWorkflowService().propose_recipe(
+        "tpae.characterization.v1",
+        _write_manifest(tmp_path, ftir=False, saxs=False),
+    )
+    assert proposal.recipe is not None
+    figure_path = tmp_path / "published" / "dsc.png"
+    result = AnalysisResult(technique="dsc", validation_passed=True)
+    result.figures = {"dsc": str(figure_path)}
+    run = AgentWorkflowService(provider_runner=lambda *_: result).validate_run(
+        AgentWorkflowService(provider_runner=lambda *_: result).run_recipe(proposal.recipe, tmp_path / "run")
+    )
+
+    bundle = AgentWorkflowService().export_run(run, tmp_path / "bundle")
+    manifest = json.loads((bundle / "figures" / "manifest.json").read_text(encoding="utf-8"))
+
+    assert manifest["steps"][0]["assets"]["dsc"] == str(figure_path)
+    assert not (bundle / "figures" / "dsc.png").exists()
+
+
+def test_default_provider_calls_existing_engine_public_pipeline(tmp_path: Path) -> None:
+    proposal = AgentWorkflowService().propose_recipe(
+        "tpae.characterization.v1",
+        _write_manifest(tmp_path, ftir=False, saxs=False),
+    )
+    assert proposal.recipe is not None
+
+    class Engine:
+        active_submodule = None
+
+        def run_pipeline(self, path, output_dir):
+            assert Path(path).name == "dsc-isothermal"
+            assert Path(output_dir).name == "dsc_isothermal"
+            assert self.active_submodule == "dsc.isothermal"
+            return AnalysisResult(technique="dsc", validation_passed=True)
+
+    run = AgentWorkflowService(get_engine_fn=lambda technique: Engine()).run_recipe(
+        proposal.recipe,
+        tmp_path / "run",
+    )
+
+    assert run.status == "completed"
+    assert run.steps[0].result_summary["technique"] == "dsc"
+
+
+def test_run_rejects_output_inside_raw_data_directory(tmp_path: Path) -> None:
+    proposal = AgentWorkflowService().propose_recipe(
+        "tpae.characterization.v1",
+        _write_manifest(tmp_path, ftir=False, saxs=False),
+    )
+    assert proposal.recipe is not None
+    raw_directory = Path(proposal.recipe.artifacts[0].path)
+
+    run = AgentWorkflowService(provider_runner=lambda *_: pytest.fail("provider called")).run_recipe(
+        proposal.recipe,
+        raw_directory / "output",
+    )
+
+    assert run.status == "blocked"
+    assert run.reason_codes == ("output_inside_input_directory",)
+
+
+def test_run_marks_engine_error_logs_as_failed_even_when_validation_default_is_true(tmp_path: Path) -> None:
+    proposal = AgentWorkflowService().propose_recipe(
+        "tpae.characterization.v1",
+        _write_manifest(tmp_path, ftir=False, saxs=False),
+    )
+    assert proposal.recipe is not None
+    result = AnalysisResult(technique="dsc", validation_passed=True, logs=["ERROR: Preprocessing failed"])
+
+    run = AgentWorkflowService(provider_runner=lambda *_: result).run_recipe(proposal.recipe, tmp_path / "run")
+
+    assert run.status == "failed"
+    assert run.steps[0].status == "failed"

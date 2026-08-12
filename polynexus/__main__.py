@@ -1,8 +1,6 @@
 """PolyNexus CLI entry point."""
 
 import logging
-logger = logging.getLogger(__name__)
-
 import sys
 
 from polynexus.cli.output import (
@@ -27,17 +25,21 @@ from polynexus.cli.batch_run_service import (
     run_batch_one as _run_batch_one_impl,
 )
 from polynexus.cli.run_ai_tune_service import run_ai_tune as _run_ai_tune_impl
+from polynexus.cli.run_agent_workflow_service import run_agent_workflow as _run_agent_workflow_impl
 from polynexus.cli.run_single_service import run_single as _run_single_impl
 from polynexus.cli.parser import build_parser
 from polynexus.utils import (
-    delete_batch_preset,
-    list_batch_presets,
-    load_batch_last_run,
-    load_batch_preset,
-    save_batch_preset,
+    delete_batch_preset,  # noqa: F401 - legacy CLI re-export
+    list_batch_presets,  # noqa: F401 - legacy CLI re-export
+    load_batch_last_run,  # noqa: F401 - legacy CLI re-export
+    load_batch_preset,  # noqa: F401 - legacy CLI re-export
+    save_batch_preset,  # noqa: F401 - legacy CLI re-export
     save_batch_last_run,
 )
 from polynexus.core.engine import get_engine
+
+
+logger = logging.getLogger(__name__)
 
 def main():
     _configure_console_encoding()
@@ -50,6 +52,8 @@ def main():
 
     if args.cmd == 'ai-tune':
         return _run_ai_tune(args)
+    if args.cmd == 'agent-workflow':
+        return _run_agent_workflow(args)
     if args.cmd == 'batch':
         return run_batch(args)
     if args.cmd == 'gui':
@@ -72,44 +76,8 @@ def _run_ai_tune(args) -> int:
     return _run_ai_tune_impl(args)
 
 
-def _allowed_extensions(technique: str) -> set[str]:
-    technique = str(technique or "").lower()
-    allowed = set(SUPPORTED_FORMATS.get(technique, []))
-    return {ext.lower() for ext in (allowed or FALLBACK_EXTS)}
-
-
-def _extract_result_r2(result) -> float | None:
-    if result is None:
-        return None
-    value = getattr(result, "r_squared", None)
-    if value is None and isinstance(result, dict):
-        value = result.get("r_squared")
-    if value is None and hasattr(result, "parameters"):
-        params = getattr(result, "parameters", {}) or {}
-        if isinstance(params, dict):
-            value = params.get("r_squared") or params.get("r2")
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _analysis_evidence_from_result(result) -> dict:
-    if result is None:
-        return {}
-    if isinstance(result, dict):
-        evidence = result.get("analysis_evidence")
-    else:
-        evidence = getattr(result, "analysis_evidence", {})
-    return dict(evidence) if isinstance(evidence, dict) else {}
-
-
-def _analysis_evidence_from_ai_report(report: dict) -> dict:
-    best_record = report.get("best_record", {}) if isinstance(report, dict) else {}
-    if isinstance(best_record, dict) and isinstance(best_record.get("analysis_evidence"), dict):
-        return dict(best_record["analysis_evidence"])
-    evidence = report.get("analysis_evidence", {}) if isinstance(report, dict) else {}
-    return dict(evidence) if isinstance(evidence, dict) else {}
+def _run_agent_workflow(args) -> int:
+    return _run_agent_workflow_impl(args)
 
 
 def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -> None:
