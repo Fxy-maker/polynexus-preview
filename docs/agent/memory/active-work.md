@@ -5186,6 +5186,17 @@ link here when that information will matter to a later agent.
   produced. Acceptance: `docs/acceptance/2026-08-13-project-technique-series-v3.md`.
 - V4 remains open for cross-technique package assembly and retry/resume.
 
+## Project workflow recovery V4 - checkpointed 2026-08-13
+
+- `ProjectWorkflowService.resume(run_id)` validates persisted request/plan
+  manifests and current source hashes before replaying the same plan.
+- `approve_context_correction()` creates a new request with explicit approval,
+  approver, and correction metadata; raw inventory facts remain unchanged.
+- Writing-input includes approved corrections as provenance metadata only.
+- Focused recovery/project matrix passed `28`; acceptance:
+  `docs/acceptance/2026-08-13-project-workflow-recovery-v4.md`.
+- Final cross-technique ARS integration and local mainline closeout remain open.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

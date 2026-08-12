@@ -296,6 +296,11 @@ class ProjectEvidencePackager:
                 lines.append(f"  Do not conclude: {conclusion}")
         lines.extend(("", "## Limitations"))
         lines.extend(f"- {value}" for value in limitations)
+        parameters = manifest.get("request_parameters", {})
+        corrections = parameters.get("approved_context_corrections") if isinstance(parameters, Mapping) else None
+        if isinstance(corrections, Mapping) and corrections:
+            lines.extend(("", "## Approved context corrections", "- User-approved request metadata; not raw instrument facts."))
+            lines.extend(f"- {key}: {value}" for key, value in corrections.items())
         return "\n".join(lines) + "\n"
 
     @staticmethod

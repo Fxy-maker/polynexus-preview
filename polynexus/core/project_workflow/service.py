@@ -307,6 +307,47 @@ class ProjectWorkflowService:
             reason_codes=analysis_run.reason_codes,
         )
 
+    def resume(self, run_id: str) -> ProjectWorkflowRun:
+        """Replay a persisted request after validating its recorded sources."""
+        payload = self.workspace.read_json(self.workspace.runs_dir / f"{str(run_id)}.json")
+        if not isinstance(payload, Mapping) or payload.get("run_id") != str(run_id):
+            return self._blocked_project_run(ProjectPlan.create(request_hash="resume-missing"), "run_manifest_missing")
+        try:
+            request = self._load_request(str(payload["request_hash"]))
+            plan_payload = self.workspace.read_json(self.workspace.requests_dir / f"{payload['request_hash']}.plan.json")
+            plan = ProjectPlan.from_dict(plan_payload) if isinstance(plan_payload, Mapping) else None
+        except (KeyError, TypeError, ValueError, OSError, UnicodeError):
+            request, plan = None, None
+        if request is None or plan is None or plan.plan_hash != payload.get("plan_hash"):
+            return self._blocked_project_run(plan or ProjectPlan.create(request_hash=str(payload.get("request_hash", "resume-invalid"))), "run_manifest_mismatch")
+        for step in plan.steps:
+            paths = tuple(str(path) for path in step.get("artifact_paths", ()))
+            expected_values = step.get("artifact_sha256", ())
+            if isinstance(expected_values, str):
+                expected_values = (expected_values,)
+            for path, expected in zip(paths, expected_values, strict=False):
+                current = inspect_artifact(self.workspace.root / path, technique=str(step.get("technique", "unknown")))
+                if expected and current.sha256 != str(expected):
+                    return self._blocked_project_run(plan, "source_hash_changed")
+        return self.run(plan)
+
+    def approve_context_correction(
+        self,
+        request: AnalysisRequest,
+        corrections: Mapping[str, Any],
+        *,
+        approved: bool = False,
+        approver: str = "",
+    ) -> AnalysisRequest:
+        """Create a new request with explicit, auditable user-approved context."""
+        if approved is not True or not isinstance(corrections, Mapping) or not corrections:
+            raise ValueError("context correction requires explicit approval and non-empty mapping")
+        if not str(approver).strip():
+            raise ValueError("context correction approver is required")
+        parameters = dict(request.parameters)
+        parameters.update({"approved_context_corrections": dict(corrections), "approved_context_corrections_status": "approved", "approved_context_approver": str(approver)})
+        return AnalysisRequest.create(question=request.question, purpose=request.purpose, requested_outputs=request.requested_outputs, data_scope=request.data_scope, context_sources=request.context_sources, parameters=parameters)
+
     def _run_single_technique(
         self,
         request: AnalysisRequest,
@@ -530,6 +571,7 @@ class ProjectWorkflowService:
         return {
             "run_id": run_id,
             "request_hash": request.request_hash,
+            "request_parameters": request.to_dict().get("parameters", {}),
             "plan_hash": plan.plan_hash,
             "recipe_hash": recipe.recipe_hash,
             "source_hashes": list(source_hashes),
