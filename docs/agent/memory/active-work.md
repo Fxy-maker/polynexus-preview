@@ -5158,3 +5158,17 @@
 
 Every active task should record its status, blocker, next action, and evidence
 link here when that information will matter to a later agent.
+
+## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
+
+- The project-local workflow now supports `inspect`, `plan`, `run`, and
+  `package` through JSON-safe contracts and the CLI command
+  `polynexus project-workflow ...`.
+- The DSC vertical slice creates immutable `.polynexus/evidence` snapshots,
+  preserves provider review limits, validates source/run hashes, and never
+  copies raw inputs.
+- External PA6 `PA6-DWJJ.txt` replay passed through a read-only project `raw`
+  junction. Acceptance evidence is recorded in
+  `docs/acceptance/2026-08-12-agent-native-pa6-project-evidence-loop.md`.
+- FTIR/SAXS/WAXS adapters remain separate follow-up work; the current workflow
+  reports `converter_unregistered` instead of fabricating analysis.

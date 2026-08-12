@@ -165,7 +165,7 @@ class ProjectWorkflowService:
         if not dsc_steps:
             return self._blocked_project_run(plan, "dsc_step_missing")
         source_paths = tuple(
-            str((self.workspace.root / str(path)).resolve())
+            str((self.workspace.root / str(path)).absolute())
             for step in dsc_steps
             for path in step.get("artifact_paths", ())
         )
@@ -387,7 +387,7 @@ class ProjectWorkflowService:
             return None
         for item in scope:
             candidate = Path(item).expanduser()
-            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).resolve()
+            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).absolute()
             try:
                 resolved.relative_to(self.workspace.root)
             except ValueError:
@@ -403,7 +403,7 @@ class ProjectWorkflowService:
     def _scope_boundary_error(self, scope: tuple[str, ...]) -> str | None:
         for item in scope:
             candidate = Path(item).expanduser()
-            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).resolve()
+            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).absolute()
             try:
                 resolved.relative_to(self.workspace.root)
             except ValueError:
