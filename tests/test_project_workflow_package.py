@@ -50,6 +50,10 @@ def test_package_contains_ars_entrypoint_and_provenance(tmp_path: Path) -> None:
     manifest = json.loads((package.path / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "review_required"
     assert manifest["run_manifests"]
+    assert manifest["evidence_item_hashes"]
+    assert manifest["relations_hash"]
+    assert (package.path / "figures").is_dir()
+    assert (package.path / "tables").is_dir()
 
 
 def test_new_package_version_does_not_replace_previous_snapshot(tmp_path: Path) -> None:

@@ -87,6 +87,8 @@ class ProjectEvidencePackager:
         package_path = self.workspace.evidence_dir / f"{package_id}-v{version:03d}"
         package_path.mkdir(parents=True, exist_ok=False)
         try:
+            (package_path / "figures").mkdir()
+            (package_path / "tables").mkdir()
             package_manifest = {
                 "package_id": package_id,
                 "version": version,
@@ -98,6 +100,13 @@ class ProjectEvidencePackager:
                 "conversion_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("conversion_hashes", ())}),
                 "evidence_count": len(evidence),
                 "asset_count": len(copied_assets),
+                "evidence_item_hashes": [
+                    str(item.get("item_hash", "")) for item in evidence
+                ],
+                "relations_hash": hashlib.sha256(
+                    canonical_json({"relations": relation_values}).encode("utf-8")
+                ).hexdigest(),
+                "asset_hashes": self._asset_hashes(copied_assets),
                 "limitations": limitations,
             }
             package_hash = hashlib.sha256(canonical_json(package_manifest).encode("utf-8")).hexdigest()
@@ -208,13 +217,24 @@ class ProjectEvidencePackager:
         return assets
 
     @staticmethod
-    def _copy_assets(assets: list[dict[str, str]], package_path: Path) -> None:
-        seen: set[tuple[str, str]] = set()
+    def _asset_hashes(assets: list[dict[str, str]]) -> list[dict[str, str]]:
+        values: list[dict[str, str]] = []
+        destinations: set[tuple[str, str]] = set()
         for asset in assets:
-            key = (asset["kind"], asset["name"])
-            if key in seen:
-                continue
-            seen.add(key)
+            destination = (asset["kind"], asset["name"])
+            if destination in destinations:
+                raise ValueError("package asset destination collides")
+            destinations.add(destination)
+            values.append({
+                "kind": asset["kind"],
+                "name": asset["name"],
+                "sha256": _sha256_file(Path(asset["source"])),
+            })
+        return values
+
+    @staticmethod
+    def _copy_assets(assets: list[dict[str, str]], package_path: Path) -> None:
+        for asset in assets:
             destination = package_path / asset["kind"] / asset["name"]
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(asset["source"], destination)
