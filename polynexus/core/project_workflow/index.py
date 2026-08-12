@@ -136,6 +136,13 @@ class ProjectIndexer:
                 header = ""
             if "sample weight" in header or "curve values" in header:
                 return "dsc"
+        if source.is_file() and source.suffix.lower() in {".csv", ".spc", ".spa", ".dpt"}:
+            try:
+                header = source.read_bytes()[:8192].decode("latin-1", errors="replace").lower()
+            except OSError:
+                header = ""
+            if "wavenumber" in header or "absorbance" in header or "infrared" in header:
+                return "ir"
         return "unknown"
 
     def _facts_for(self, source: Path, header_facts: dict[str, object]) -> dict[str, ProjectFact]:

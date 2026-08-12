@@ -5218,6 +5218,19 @@ link here when that information will matter to a later agent.
   `technique_series_evidence_set` relations from explicit package membership;
   it never infers sample identity.
 
+## AI-native project entrypoint - checkpointed 2026-08-14
+
+- `project-workflow analyze-project` now provides one AI/ARS-facing route from
+  a project directory and question to runs, figures/tables, and an evidence
+  package; callers no longer orchestrate inspect/plan/run/package manually.
+- Output separates `computation`, `data_quality`, and `publication`, retaining
+  raw reason codes and review limits for machines while avoiding a misleading
+  single "failed" state for users.
+- Header-based FTIR discovery recognizes `Wavenumber`/`Absorbance` files where
+  the folder name lacks `IR`; same-stem SPC/SPA companion files are skipped to
+  avoid duplicate analysis.
+- Acceptance: `docs/acceptance/2026-08-14-ai-native-project-entrypoint.md`.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

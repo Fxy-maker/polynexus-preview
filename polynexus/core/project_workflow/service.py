@@ -13,7 +13,7 @@ from typing import Any, Iterable, Mapping
 from polynexus.core.agent_workflow import AgentWorkflowService, inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe
 
-from .evidence import ProjectWorkflowRun, evidence_items_from_run, stable_run_id
+from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .index import ProjectIndexer
 from .models import AnalysisRequest, ProjectPlan, ResearchGraph
@@ -56,6 +56,51 @@ class ProjectWorkflowService:
             for path in paths
         )
         return self.indexer.inspect(resolved)
+
+    def analyze_project(
+        self,
+        *,
+        question: str,
+        data_scope: Iterable[str | Path] = (),
+        requested_outputs: Iterable[str] = ("figures", "tables", "writing_input"),
+        package_id: str = "research-evidence",
+    ) -> ProjectAnalysisSummary:
+        """Run the ordinary project workflow through one AI/ARS-facing call."""
+        scope = tuple(str(value) for value in data_scope)
+        discovered, discovery_reasons = self._discover_project_files(scope)
+        if not discovered:
+            return self._analysis_summary((), (*discovery_reasons, "raw_data_missing"))
+        try:
+            graph = self.inspect(discovered)
+        except (OSError, TypeError, ValueError, UnicodeError):
+            return self._analysis_summary((), (*discovery_reasons, "inspection_invalid"))
+        grouped: dict[str, list[str]] = {}
+        reasons: list[str] = list(discovery_reasons)
+        for artifact in graph.artifacts:
+            if artifact.technique in {"dsc", "ir", "waxs", "saxs"}:
+                grouped.setdefault(artifact.technique, []).append(artifact.relative_path)
+            else:
+                reasons.extend(artifact.reason_codes or ("technique_unrecognized",))
+        runs: list[ProjectWorkflowRun] = []
+        for technique in sorted(grouped):
+            request = AnalysisRequest.create(
+                question=question,
+                requested_outputs=tuple(requested_outputs),
+                data_scope=tuple(sorted(grouped[technique])),
+                parameters={"requested_by": "ai_native_project_entrypoint"},
+            )
+            result = self.run(request)
+            if result.status in {"completed", "review_required"}:
+                runs.append(result)
+            else:
+                reasons.extend(result.reason_codes)
+        package: ResearchEvidencePackage | None = None
+        if runs:
+            try:
+                package = self.package(tuple(runs), package_id=package_id)
+            except (OSError, TypeError, ValueError, UnicodeError):
+                reasons.append("evidence_package_failed")
+        return self._analysis_summary(tuple(runs), tuple(reasons), package=package)
 
     def plan(self, request: AnalysisRequest) -> ProjectPlan:
         """Resolve a request against inventory and select registered routes only."""
@@ -176,6 +221,65 @@ class ProjectWorkflowService:
         self.workspace.write_json(self.workspace.requests_dir / f"{request.request_hash}.request.json", request.to_dict())
         self.workspace.write_json(self.workspace.requests_dir / f"{request.request_hash}.plan.json", plan.to_dict())
         return plan
+
+    def _discover_project_files(self, scope: tuple[str, ...]) -> tuple[tuple[Path, ...], tuple[str, ...]]:
+        candidates = scope or ("raw",)
+        paths: list[Path] = []
+        for item in candidates:
+            source = (self.workspace.root / item if not Path(item).is_absolute() else Path(item)).absolute()
+            try:
+                source.relative_to(self.workspace.root)
+            except ValueError:
+                continue
+            if source.is_file():
+                paths.append(source)
+            elif source.is_dir():
+                paths.extend(path for path in source.rglob("*") if path.is_file())
+        ordered = tuple(sorted(set(paths), key=lambda path: path.as_posix().lower()))
+        selected: list[Path] = []
+        skipped_companions = 0
+        seen_stems: set[str] = set()
+        for path in ordered:
+            stem_key = str(path.with_suffix("")).lower()
+            if path.suffix.lower() in {".spc", ".spa"} and stem_key in seen_stems:
+                skipped_companions += 1
+                continue
+            selected.append(path)
+            seen_stems.add(stem_key)
+        reasons = ("duplicate_format_skipped",) if skipped_companions else ()
+        return tuple(selected), reasons
+
+    @staticmethod
+    def _analysis_summary(
+        runs: tuple[ProjectWorkflowRun, ...],
+        reason_codes: Iterable[str],
+        *,
+        package: ResearchEvidencePackage | None = None,
+    ) -> ProjectAnalysisSummary:
+        reasons = tuple(dict.fromkeys(str(value) for value in reason_codes if value))
+        if not runs:
+            return ProjectAnalysisSummary(
+                computation="blocked",
+                data_quality="failed",
+                publication="blocked",
+                reason_codes=reasons or ("analysis_route_unavailable",),
+                messages=("No usable analysis route was found. Check the raw files or ask for the missing condition.",),
+            )
+        review_bound = any(run.status == "review_required" for run in runs) or bool(reasons)
+        publication = "review_required" if review_bound or package is None else "ready"
+        messages = (
+            "Analysis completed; figures, tables, and evidence package are ready for AI/ARS.",
+            "Review-bound evidence has explicit limits; do not promote it to a manuscript conclusion automatically.",
+        ) if review_bound else ("Analysis and evidence package are ready for AI/ARS.",)
+        return ProjectAnalysisSummary(
+            computation="passed",
+            data_quality="warning" if review_bound else "passed",
+            publication=publication,
+            runs=runs,
+            package=package.to_dict() if package else None,
+            reason_codes=reasons,
+            messages=messages,
+        )
 
     def run(self, request_or_plan: AnalysisRequest | ProjectPlan) -> ProjectWorkflowRun:
         """Execute a planned project request through existing agent providers."""

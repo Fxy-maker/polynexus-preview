@@ -46,6 +46,34 @@ class ProjectWorkflowRun:
         }
 
 
+@dataclass(frozen=True)
+class ProjectAnalysisSummary:
+    """AI-facing projection of a project analysis without provider internals."""
+
+    computation: str
+    data_quality: str
+    publication: str
+    runs: tuple[ProjectWorkflowRun, ...] = ()
+    package: Mapping[str, Any] | None = None
+    reason_codes: tuple[str, ...] = ()
+    messages: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        evidence_items = tuple(item for run in self.runs for item in run.evidence_items)
+        return {
+            "computation": self.computation,
+            "data_quality": self.data_quality,
+            "publication": self.publication,
+            "runs": [run.to_dict() for run in self.runs],
+            "package": dict(self.package) if self.package else None,
+            "evidence_count": len(evidence_items),
+            "figures": list(dict.fromkeys(path for item in evidence_items for path in item.figures)),
+            "tables": list(dict.fromkeys(path for item in evidence_items for path in item.tables)),
+            "reason_codes": list(self.reason_codes),
+            "messages": list(self.messages),
+        }
+
+
 def evidence_items_from_run(
     run: AnalysisRun,
     *,
@@ -121,4 +149,4 @@ def stable_run_id(request_hash: str, recipe_hash: str, source_hashes: Iterable[s
     return f"run-{digest[:24]}"
 
 
-__all__ = ["ProjectWorkflowRun", "evidence_items_from_run", "stable_run_id"]
+__all__ = ["ProjectAnalysisSummary", "ProjectWorkflowRun", "evidence_items_from_run", "stable_run_id"]

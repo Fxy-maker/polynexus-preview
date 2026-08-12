@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from contextlib import redirect_stdout
 from pathlib import Path
+import sys
 from typing import Any, Mapping
 
 from polynexus.core.project_workflow import (
@@ -34,6 +36,20 @@ def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = 
         except (OSError, TypeError, ValueError, UnicodeError):
             return _emit(operation, "blocked", ["inspection_invalid"])
         return _emit(operation, "completed", graph=graph.to_dict())
+
+    if operation == "analyze-project":
+        try:
+            with redirect_stdout(sys.stderr):
+                summary = workflow.analyze_project(
+                    question=str(getattr(args, "question", "Analyze this research project.")),
+                    data_scope=tuple(getattr(args, "paths", ()) or ()),
+                    package_id=str(getattr(args, "package_id", "research-evidence")),
+                )
+        except (OSError, TypeError, ValueError, UnicodeError):
+            return _emit(operation, "blocked", ["analysis_failed"])
+        payload = summary.to_dict()
+        status = "completed" if payload["computation"] == "passed" else "blocked"
+        return _emit(operation, status, payload["reason_codes"], analysis=payload)
 
     if operation == "plan":
         request = _load_request(getattr(args, "request", None))

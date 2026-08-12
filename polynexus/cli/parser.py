@@ -65,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
     ppw = sub.add_parser("project-workflow", help="Codex project evidence workflow")
     ppw.add_argument(
         "operation",
-        choices=["inspect", "plan", "run", "package"],
+        choices=["inspect", "plan", "run", "package", "analyze-project"],
         help="Project operation to execute",
     )
     ppw.add_argument(
@@ -104,6 +104,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--relations",
         default=None,
         help="Optional relations JSON path for package",
+    )
+    ppw.add_argument(
+        "--question",
+        default="Analyze this research project and prepare evidence for writing.",
+        help="Research question for analyze-project",
     )
 
     pb = sub.add_parser("batch", help="Batch-analyze all supported files in a directory")
