@@ -20,3 +20,6 @@ def test_cli_parser_exposes_primary_entry_points():
     assert single.cmd == "waxs"
     assert single.input == "sample.raw"
 
+    workflow = parser.parse_args(["agent-workflow", "inspect", "--manifest", "tpae.json"])
+    assert workflow.cmd == "agent-workflow"
+    assert workflow.operation == "inspect"

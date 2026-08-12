@@ -32,6 +32,7 @@ from .dsc_engine import (
     analyze_kinetics,
     AvramiResult,
 )
+from .dsc_engine.dsc_kinetics import IsothermalKineticsResult, IsothermalSegment, avrami_from_dsc
 from .dsc_engine.figure_provider import build_dsc_figure_definitions
 
 logger = logging.getLogger(__name__)
@@ -258,9 +259,6 @@ class DSCEngine(BaseEngine):
 
     def get_parameters(self) -> Dict[str, Any]:
         """Return merged parameters from all scans."""
-        if not self._results:
-            return self._validation_parameter_payload()
-
         sub = getattr(self, 'active_submodule', '')
         if sub == 'dsc.isothermal' and self._kinetics_data:
             rows: Dict[str, Any] = {}
@@ -280,6 +278,9 @@ class DSCEngine(BaseEngine):
             rows = self._nonisothermal_parameter_rows()
             rows.update(self._validation_parameter_payload())
             return rows
+
+        if not self._results:
+            return self._validation_parameter_payload()
 
         merged = {}
         for r in self._results:
@@ -565,6 +566,150 @@ class DSCEngine(BaseEngine):
                 self.log(f"Non-isothermal cooling curves fitted: {len(curves)} rate(s): {rates} K/min")
 
         return self._kinetics_data
+
+    def run_isothermal_template(self, template: Any) -> Dict[str, Any]:
+        """Run the existing isothermal kinetics algorithm from a canonical template."""
+        from .canonical_experiments import CanonicalExperiment
+
+        if not isinstance(template, CanonicalExperiment):
+            raise TypeError("DSC canonical execution requires a CanonicalExperiment")
+        validated_template = CanonicalExperiment.from_dict(template.to_dict())
+        if validated_template.template_id != "dsc.isothermal.v1":
+            raise ValueError("DSC canonical execution requires dsc.isothermal.v1")
+        payload = validated_template.payload
+        segments = payload.get("segments") if isinstance(payload, dict) else payload.get("segments")
+        if not isinstance(segments, tuple) or not segments:
+            raise ValueError("DSC canonical template has no isothermal segments")
+        sample = payload.get("sample", {})
+        mass_value = sample.get("mass_mg")
+        if mass_value is None:
+            raise ValueError("DSC canonical template has no sample mass")
+        mass_mg = float(mass_value)
+        if not np.isfinite(mass_mg) or mass_mg <= 0:
+            raise ValueError("DSC canonical template has an invalid sample mass")
+
+        scans: List[DSCScan] = []
+        for segment in segments:
+            if segment.get("role") != "isothermal_crystallization":
+                raise ValueError("DSC canonical template contains an unsupported segment role")
+            time_s = np.asarray(segment.get("time_s", ()), dtype=float)
+            temperature = np.asarray(segment.get("sample_temperature_C", ()), dtype=float)
+            heat_flow_mw = np.asarray(segment.get("heat_flow_mW", ()), dtype=float)
+            if len(time_s) < 2 or len(time_s) != len(temperature) or len(time_s) != len(heat_flow_mw):
+                raise ValueError("DSC canonical segment has inconsistent arrays")
+            if not (
+                np.all(np.isfinite(time_s))
+                and np.all(np.isfinite(temperature))
+                and np.all(np.isfinite(heat_flow_mw))
+                and np.all(np.diff(time_s) > 0)
+            ):
+                raise ValueError("DSC canonical segment arrays are invalid")
+            if not self._canonical_segment_is_qualified(time_s, temperature, segment.get("setpoint_C")):
+                raise ValueError("DSC canonical segment does not meet canonical kinetic qualification")
+            scans.append(
+                DSCScan(
+                    label=str(segment.get("segment_id", "isothermal")),
+                    T_C=temperature,
+                    HF_mW=heat_flow_mw,
+                    HF_Wg=heat_flow_mw / mass_mg,
+                    t_min=time_s / 60.0,
+                    mass_mg=mass_mg,
+                    rate_K_per_min=0.0,
+                    metadata={
+                        "canonical_template_id": validated_template.template_id,
+                        "source_range": dict(segment.get("source_range", {})),
+                    },
+                )
+            )
+
+        self.active_submodule = "dsc.isothermal"
+        self._scans = scans
+        self._raw_scans = copy.deepcopy(scans)
+        kinetics = IsothermalKineticsResult()
+        min_enthalpy = getattr(self._dsc_config, "isothermal_min_enthalpy_Jg", 0.01)
+        for scan in scans:
+            segment = IsothermalSegment(
+                label=scan.label,
+                temperature_C=float(np.nanmedian(scan.T_C)),
+                start_index=0,
+                end_index=len(scan.T_C) - 1,
+                start_time_min=float(scan.t_min[0]),
+                end_time_min=float(scan.t_min[-1]),
+                duration_min=float(scan.t_min[-1] - scan.t_min[0]),
+                T_C=scan.T_C.copy(),
+                HF_Wg=scan.HF_Wg.copy(),
+                t_min=scan.t_min.copy(),
+            )
+            avrami = avrami_from_dsc(segment.t_min, segment.HF_Wg)
+            avrami.label = segment.label
+            avrami.temperature_C = segment.temperature_C
+            if np.isnan(avrami.start_time_min):
+                avrami.start_time_min = segment.start_time_min
+            if np.isnan(avrami.end_time_min):
+                avrami.end_time_min = segment.end_time_min
+            if (
+                np.isfinite(avrami.crystallisation_enthalpy_Jg)
+                and avrami.crystallisation_enthalpy_Jg < min_enthalpy
+            ):
+                avrami.quality_flags.append("low_crystallisation_enthalpy")
+            kinetics.segments.append(segment)
+            kinetics.avrami_results.append(avrami)
+        valid = [
+            item for item in kinetics.avrami_results
+            if np.isfinite(item.n)
+            and np.isfinite(item.r_squared)
+            and "low_crystallisation_enthalpy" not in item.quality_flags
+        ]
+        if valid:
+            kinetics.best = max(
+                valid,
+                key=lambda item: (
+                    len(item.quality_flags) == 0,
+                    item.r_squared,
+                    item.crystallisation_enthalpy_Jg
+                    if np.isfinite(item.crystallisation_enthalpy_Jg)
+                    else 0.0,
+                ),
+            )
+        else:
+            kinetics.quality_flags.append("no_valid_avrami_fit")
+        self._kinetics_data = {"isothermal": kinetics, "avrami_series": kinetics.avrami_results}
+        if np.isfinite(kinetics.best.n):
+            self._kinetics_data["avrami"] = kinetics.best
+        output = self._kinetics_data
+        output["canonical_provenance"] = {
+            "template_id": validated_template.template_id,
+            "template_hash": validated_template.content_hash,
+            "conversion_hash": validated_template.conversion_record.conversion_hash,
+            "source_artifact_id": validated_template.source_artifact_id,
+        }
+        return output
+
+    def _canonical_segment_is_qualified(
+        self,
+        time_s: np.ndarray,
+        temperature_C: np.ndarray,
+        setpoint_C: Any,
+    ) -> bool:
+        """Validate already-mapped holds without re-segmenting their provenance."""
+        try:
+            setpoint = float(setpoint_C)
+        except (TypeError, ValueError):
+            return False
+        min_points = 30
+        min_duration_s = float(getattr(self._dsc_config, "isothermal_min_duration_min", 1.0)) * 60.0
+        max_drift_C_per_min = float(getattr(self._dsc_config, "isothermal_max_drift_C_per_min", 0.12))
+        max_offset_C = 0.5
+        if len(time_s) < min_points or float(time_s[-1] - time_s[0]) < min_duration_s:
+            return False
+        if np.max(np.abs(temperature_C - setpoint)) > max_offset_C:
+            return False
+        if float(np.ptp(temperature_C)) > max_offset_C:
+            return False
+        if float(np.std(temperature_C)) > 0.05:
+            return False
+        slope_C_per_s = float(np.polyfit(time_s, temperature_C, 1)[0])
+        return abs(slope_C_per_s) * 60.0 <= max_drift_C_per_min
 
     @property
     def results(self) -> List[DSCResult]:

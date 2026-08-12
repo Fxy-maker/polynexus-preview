@@ -17,6 +17,63 @@
   sample path because analysis creates output beside its input.
 - Task card: `docs/agent/tasks/2026-08-09-gui-automation-mcp.md`.
 
+## Canonical experiment templates and PA6 multi-program DSC - review required (2026-08-12)
+
+- The agent-native workflow now consumes immutable, versioned canonical
+  experiment templates rather than assuming a file or directory directly
+  represents one experiment. The first implementation is a deterministic
+  Mettler multi-program DSC converter with a reusable conversion record.
+- Read-only inspection of external
+  `C:\Users\Fan Xuyi\Desktop\文件夹\弹性体\弹性体中文\DSC-等温结晶\PA6-DWJJ.txt`
+  confirmed multi-program holds at 180, 181, 182, 183, 184, and 185 C, preceded
+  by 255 C preparation holds. The source is external and must remain unchanged.
+- The converter records raw artifact identity, source row/time ranges, melt
+  holds, and ramps. Only validated crystallisation holds reach the existing
+  Avrami function; the template execution path maintains one template segment
+  to one fit, rather than heuristically splitting it again.
+- A read-only TPAE replay wrote only to
+  `D:\PolyNexus-pa6-canonical-smoke-20260812-review-final\bundle`: six holds at 180--185 C,
+  5.9500 mg sample mass, template hash
+  `29659c6757fd98454e678cb4202739a2e2f95cb59c54e64592ab38f8a182331f`, and
+  conversion hash `b80c477d93bddb76ff16b7be6bc06874b1a4ab3a9010160dfbc32f7bb6c5cb0f`.
+  This remains scientific-review-required; no publication claim was made.
+- AI may later propose the same template mapping DTO, but validation,
+  provenance, and deterministic providers remain mandatory. No LLM call or
+  AI-generated scientific numeric data is in this path.
+- Design: `docs/superpowers/specs/2026-08-12-canonical-template-conversion-dsc-isothermal-design.md`.
+  Task: `docs/agent/tasks/2026-08-12-canonical-template-conversion-dsc-isothermal.md`.
+
+## Agent-native core and TPAE golden path - checkpoint pending review (2026-08-12)
+
+- The approved product direction is a general agent-workflow architecture with
+  one complete TPAE characterization workflow, rather than a simultaneous
+  rewrite of all technique engines or the GUI.
+- Public operations `inspect_data`, `propose_recipe`, `run_recipe`,
+  `validate_run`, and `export_run` now adapt existing `AnalysisResult`, evidence,
+  and figure recipe boundaries rather than replacing them. Contracts recursively
+  freeze retained JSON data; the CLI persists a replayable run and emits exactly
+  one JSON envelope per operation.
+- Isothermal DSC is intentionally directory-sequence input. Inspection computes
+  a deterministic directory-manifest hash, proposal validates manifest technique
+  and format against its step, run/export prevent writes inside raw-data
+  directories, and legacy pipeline error logs fail the public workflow step.
+- A persisted recipe can be replayed without re-proposing from a manifest;
+  exports keep figure references in `figures/manifest.json` and never copy raw
+  or figure assets. The CLI requires an explicit output directory.
+- Executed runs carry a local HMAC receipt across recipe, status, step results,
+  evidence, and validation state; fabricated or evidence-tampered persisted
+  runs cannot validate or export. Duplicate artifacts for a technique are
+  rejected, so each workflow step has one deterministic raw input.
+- Real TPAE data remains external and will be referenced through path/hash
+  manifests; only synthetic fixtures and recipe contracts may enter Git.
+- Design: `docs/superpowers/specs/2026-08-12-agent-native-core-tpae-golden-path-design.md`.
+  Task: `docs/agent/tasks/2026-08-12-agent-native-core-tpae-golden-path.md`.
+- Focused agent/TPAE/CLI/legacy-CLI suite passed `47`; structured verification
+  passed Ruff, compile, quality `303`, preprocessing `157`, task/memory, and
+  whitespace gates. The first implementation does not change scientific methods
+  or GUI behavior; it requires an external, read-only TPAE manifest replay and
+  scientific review before any manuscript or publication promotion.
+
 ## GUI performance recovery - checkpoint pending (2026-08-09)
 
 - History now uses indexed header-only queries; full JSON hydrates only for a
@@ -5118,3 +5175,17 @@
 
 Every active task should record its status, blocker, next action, and evidence
 link here when that information will matter to a later agent.
+
+## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
+
+- The project-local workflow now supports `inspect`, `plan`, `run`, and
+  `package` through JSON-safe contracts and the CLI command
+  `polynexus project-workflow ...`.
+- The DSC vertical slice creates immutable `.polynexus/evidence` snapshots,
+  preserves provider review limits, validates source/run hashes, and never
+  copies raw inputs.
+- External PA6 `PA6-DWJJ.txt` replay passed through a read-only project `raw`
+  junction. Acceptance evidence is recorded in
+  `docs/acceptance/2026-08-12-agent-native-pa6-project-evidence-loop.md`.
+- FTIR/SAXS/WAXS adapters remain separate follow-up work; the current workflow
+  reports `converter_unregistered` instead of fabricating analysis.

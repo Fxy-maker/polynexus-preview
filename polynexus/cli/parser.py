@@ -54,6 +54,58 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--reasoning", default="low", help="Reasoning effort label for reporting/compatibility")
     pa.add_argument("--output", default="ai_tune_report.json", help="Output JSON report path")
 
+    paw = sub.add_parser("agent-workflow", help="Machine-readable agent workflow operations")
+    paw.add_argument("operation", choices=["inspect", "propose", "run", "validate", "export"])
+    paw.add_argument("--manifest", help="External workflow manifest JSON")
+    paw.add_argument("--recipe", help="Persisted recipe JSON for deterministic replay")
+    paw.add_argument("--run", help="Persisted run JSON for validate or export")
+    paw.add_argument("--output-dir", default=None, help="Output directory for run/export operations")
+    paw.add_argument("--export-dir", default=None, help="Destination for an exported workflow bundle")
+
+    ppw = sub.add_parser("project-workflow", help="Codex project evidence workflow")
+    ppw.add_argument(
+        "operation",
+        choices=["inspect", "plan", "run", "package"],
+        help="Project operation to execute",
+    )
+    ppw.add_argument(
+        "--project-root",
+        required=True,
+        help="Paper/project directory containing raw data and .polynexus outputs",
+    )
+    ppw.add_argument(
+        "--request",
+        default=None,
+        help="AnalysisRequest JSON path (required for plan, or run without --plan)",
+    )
+    ppw.add_argument(
+        "--paths",
+        nargs="+",
+        default=(),
+        help="Raw project paths to inspect (files or directories)",
+    )
+    ppw.add_argument(
+        "--plan",
+        default=None,
+        help="Persisted ProjectPlan JSON path for run",
+    )
+    ppw.add_argument(
+        "--runs",
+        nargs="+",
+        default=(),
+        help="Persisted project workflow run JSON paths for package",
+    )
+    ppw.add_argument(
+        "--package-id",
+        default="pa6-crystallization",
+        help="Evidence package identifier",
+    )
+    ppw.add_argument(
+        "--relations",
+        default=None,
+        help="Optional relations JSON path for package",
+    )
+
     pb = sub.add_parser("batch", help="Batch-analyze all supported files in a directory")
     pb.add_argument("input_dir", nargs="?", help="Input directory path")
     pb.add_argument("--technique", choices=["saxs", "waxs", "dsc", "ir", "nmr"], help="Technique to analyze")
@@ -71,4 +123,3 @@ def build_parser() -> argparse.ArgumentParser:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return build_parser().parse_args(argv)
-
