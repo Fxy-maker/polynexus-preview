@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-13-project-technique-adapters-v2
 kind: architecture
-status: implementation_pending
+status: implementation_complete_review_required
 date: 2026-08-13
 title: Add registered project technique adapters
 ---

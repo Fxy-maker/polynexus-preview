@@ -5159,6 +5159,18 @@
 Every active task should record its status, blocker, next action, and evidence
 link here when that information will matter to a later agent.
 
+## Project technique adapters V2 - checkpointed 2026-08-13
+
+- Registered `project.technique.single.v1` routes one IR, WAXS, or SAXS input
+  through existing engines and emits validated ARS evidence packages.
+- External PA6 FTIR, WAXS, and SAXS inputs were replayed read-only through
+  project-local raw junctions. SAXS retains `background_unknown`; all three
+  packages remain `review_required`.
+- Replay plans bind indexed source hashes; IR aliases and directory source
+  hashing are covered; duplicate derived figure names are disambiguated.
+- Acceptance: `docs/acceptance/2026-08-13-project-technique-adapters-v2.md`.
+- V3 remains open for multi-file series and cross-technique package relations.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and
