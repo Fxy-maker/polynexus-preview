@@ -239,6 +239,8 @@ class ProjectArtifact:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "ProjectArtifact":
+        if not value.get("artifact_id"):
+            raise ValueError("artifact hash is missing")
         raw_facts = value.get("facts", value.get("observed_facts", {}))
         facts = {
             str(k): ProjectFact.from_dict(v)
@@ -246,7 +248,7 @@ class ProjectArtifact:
             else ProjectFact.from_sources(key=str(k), raw_value=v)
             for k, v in raw_facts.items()
         }
-        return cls(
+        artifact = cls(
             artifact_id=str(value["artifact_id"]),
             relative_path=str(value.get("relative_path", value.get("path", ""))),
             technique=str(value.get("technique", "unknown")),
@@ -255,6 +257,15 @@ class ProjectArtifact:
             format=str(value.get("format", "")),
             discrepancies=tuple(value.get("discrepancies", ())),
         )
+        identity = {
+            "relative_path": artifact.relative_path,
+            "technique": artifact.technique,
+            "sha256": artifact.sha256,
+            "facts": {k: v.to_dict() for k, v in artifact.facts.items()},
+        }
+        if artifact.artifact_id != _hash_payload(identity):
+            raise ValueError("artifact hash does not match its content")
+        return artifact
 
 
 @dataclass(frozen=True)
@@ -325,29 +336,42 @@ class Measurement:
     measurement_id: str
     condition_id: str
     technique: str
-    artifact_id: str
+    artifact_ids: tuple[str, ...] | str = ()
     segment: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if isinstance(self.artifact_ids, str):
+            object.__setattr__(self, "artifact_ids", (self.artifact_ids,))
+        else:
+            object.__setattr__(self, "artifact_ids", tuple(str(x) for x in self.artifact_ids))
         object.__setattr__(self, "segment", _freeze(self.segment))
+
+    @property
+    def artifact_id(self) -> str:
+        """Compatibility accessor for the primary raw artifact."""
+        return self.artifact_ids[0] if self.artifact_ids else ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "measurement_id": self.measurement_id,
             "condition_id": self.condition_id,
             "technique": self.technique,
+            "artifact_ids": list(self.artifact_ids),
             "artifact_id": self.artifact_id,
             "segment": _public(self.segment),
         }
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "Measurement":
+        artifact_ids = value.get("artifact_ids")
+        if artifact_ids is None:
+            artifact_ids = (value["artifact_id"],) if value.get("artifact_id") else ()
         return cls(
-            str(value["measurement_id"]),
-            str(value["condition_id"]),
-            str(value["technique"]),
-            str(value["artifact_id"]),
-            value.get("segment", {}),
+            measurement_id=str(value["measurement_id"]),
+            condition_id=str(value["condition_id"]),
+            technique=str(value["technique"]),
+            artifact_ids=artifact_ids,
+            segment=value.get("segment", {}),
         )
 
 
@@ -411,7 +435,9 @@ class ResearchGraph:
             measurements=tuple(Measurement.from_dict(x) for x in value.get("measurements", ())),
             artifacts=tuple(ProjectArtifact.from_dict(x) for x in value.get("artifacts", ())),
         )
-        if value.get("graph_hash") and value["graph_hash"] != graph.graph_hash:
+        if not value.get("graph_hash"):
+            raise ValueError("graph hash is missing")
+        if value["graph_hash"] != graph.graph_hash:
             raise ValueError("Research graph hash does not match its content")
         return graph
 
@@ -481,7 +507,9 @@ class AnalysisRequest:
             parameters=value.get("parameters", {}),
             request_id=str(value.get("request_id", "")) or None,
         )
-        if value.get("request_hash") and value["request_hash"] != request.request_hash:
+        if not value.get("request_hash"):
+            raise ValueError("request hash is missing")
+        if value["request_hash"] != request.request_hash:
             raise ValueError("Analysis request hash does not match its content")
         return request
 
@@ -527,7 +555,9 @@ class ProjectPlan:
             steps=value.get("steps", ()),
             status=str(value.get("status", "proposed")),
         )
-        if value.get("plan_hash") and value["plan_hash"] != plan.plan_hash:
+        if not value.get("plan_hash"):
+            raise ValueError("plan hash is missing")
+        if value["plan_hash"] != plan.plan_hash:
             raise ValueError("Project plan hash does not match its content")
         return plan
 
@@ -567,7 +597,10 @@ class EvidenceItem:
     def create(cls, **values: Any) -> "EvidenceItem":
         payload = dict(values)
         payload.pop("item_hash", None)
-        return cls(item_hash=_hash_payload(payload), **payload)
+        provisional = cls(item_hash="", **payload)
+        identity = provisional.to_dict()
+        identity.pop("item_hash", None)
+        return cls(item_hash=_hash_payload(identity), **payload)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -623,7 +656,9 @@ class EvidenceItem:
                 )
             }
         )
-        if value.get("item_hash") and value["item_hash"] != item.item_hash:
+        if not value.get("item_hash"):
+            raise ValueError("evidence hash is missing")
+        if value["item_hash"] != item.item_hash:
             raise ValueError("Evidence item hash does not match its content")
         return item
 
