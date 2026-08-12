@@ -15,7 +15,7 @@ from .models import (
 from .service import ProjectWorkflowService
 from .evidence import ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
-from .adapters import SingleInputTechniqueAdapter
+from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 
 __all__ = [
     "AnalysisRequest",
@@ -35,4 +35,5 @@ __all__ = [
     "ProjectEvidencePackager",
     "ResearchEvidencePackage",
     "SingleInputTechniqueAdapter",
+    "TechniqueSeriesAdapter",
 ]

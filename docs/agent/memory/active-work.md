@@ -5171,6 +5171,21 @@ link here when that information will matter to a later agent.
 - Acceptance: `docs/acceptance/2026-08-13-project-technique-adapters-v2.md`.
 - V3 remains open for multi-file series and cross-technique package relations.
 
+## Project technique series V3 - checkpointed 2026-08-13
+
+- Registered `project.technique.series.v1` executes same-technique IR/WAXS/SAXS
+  files as deterministic ordered steps. Each step binds an `artifact_index` and
+  source order; mixed techniques and one-file series requests fail closed.
+- Agent workflow execution now resolves indexed artifacts instead of collapsing
+  same-technique artifacts to the last file.
+- Packages add conservative `run_part_of_request` relations when no explicit
+  relations are supplied. No sample, batch, formulation, or cross-technique
+  identity is inferred.
+- Real PA6 FTIR replay used a read-only raw junction and three CSV files;
+  plan was `ready`, run/package `review_required`, and three evidence items were
+  produced. Acceptance: `docs/acceptance/2026-08-13-project-technique-series-v3.md`.
+- V4 remains open for cross-technique package assembly and retry/resume.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

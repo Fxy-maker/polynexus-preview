@@ -81,6 +81,16 @@ class ProjectEvidencePackager:
         copied_assets = self._disambiguate_assets(copied_assets)
 
         relation_values = [dict(value) for value in relations]
+        if not relation_values:
+            relation_values = [
+                {
+                    "type": "run_part_of_request",
+                    "run_id": run.run_id,
+                    "request_hash": run.request_hash,
+                    "evidence_scope": "explicit_project_request",
+                }
+                for run in run_values
+            ]
         status = "review_required" if any(value == "review_required" for value in statuses) else "completed"
         if any(value not in {"completed", "review_required"} for value in statuses):
             raise ValueError("only completed or review_required runs may be packaged")

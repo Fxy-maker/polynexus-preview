@@ -106,4 +106,70 @@ class SingleInputTechniqueAdapter:
         return ()
 
 
-__all__ = ["SingleInputTechniqueAdapter"]
+class TechniqueSeriesAdapter:
+    """Build one provider step per ordered artifact in a same-technique series."""
+
+    workflow_id = "project.technique.series.v1"
+    _SPECS = SingleInputTechniqueAdapter._SPECS
+
+    def propose_recipe(self, manifest: Mapping[str, object] | Path | str) -> RecipeProposal:
+        payload = SingleInputTechniqueAdapter._load_manifest(manifest)
+        if payload is None:
+            return RecipeProposal(status="blocked", reason_codes=("manifest_invalid",))
+        if payload.get("workflow_id") != self.workflow_id:
+            return RecipeProposal(status="blocked", reason_codes=("workflow_id_mismatch",))
+        technique = str(payload.get("technique") or "").strip().lower()
+        spec = self._SPECS.get(technique)
+        if spec is None:
+            return RecipeProposal(status="blocked", reason_codes=("technique_unsupported",))
+        paths = tuple(sorted(SingleInputTechniqueAdapter._paths(payload), key=lambda value: Path(value).as_posix().lower()))
+        if len(paths) < 2:
+            return RecipeProposal(status="blocked", reason_codes=("series_requires_multiple_artifacts",))
+        technique_markers = {marker for path in paths for marker in ("ir", "ftir", "waxs", "saxs") if marker in " ".join(Path(path).parts).lower()}
+        if any(marker in {"ir", "ftir"} for marker in technique_markers) and technique != "ir":
+            return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
+        if "waxs" in technique_markers and technique != "waxs":
+            return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
+        if "saxs" in technique_markers and technique != "saxs":
+            return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
+        artifacts = tuple(inspect_artifact(path, technique=technique) for path in paths)
+        if any(artifact.technique != technique for artifact in artifacts):
+            return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
+        blocked = tuple(code for artifact in artifacts if artifact.inspection_status == "blocked" for code in artifact.reason_codes)
+        if blocked:
+            return RecipeProposal(status="blocked", reason_codes=tuple(dict.fromkeys(("artifact_blocked", *blocked))))
+        submodule_id, step_id, role = spec
+        steps = tuple(
+            RecipeStep(
+                step_id=f"{step_id}.{index:03d}",
+                technique=technique,
+                evidence_role=role,
+                parameters={"submodule_id": submodule_id, "artifact_index": index, "source_order": index},
+                parameter_sources={"submodule_id": "registered_project_recipe", "artifact_index": "series_path_order", "source_order": "series_path_order"},
+            )
+            for index in range(len(artifacts))
+        )
+        status = "review_required" if any(artifact.inspection_status == "review_required" for artifact in artifacts) else "ready"
+        return RecipeProposal(status=status, recipe=AnalysisRecipe.create(workflow_id=self.workflow_id, artifacts=artifacts, steps=steps))
+
+    @classmethod
+    def is_valid_recipe(cls, recipe: AnalysisRecipe) -> bool:
+        if recipe.workflow_id != cls.workflow_id or len(recipe.artifacts) < 2 or len(recipe.steps) != len(recipe.artifacts):
+            return False
+        technique = recipe.artifacts[0].technique
+        spec = cls._SPECS.get(technique)
+        if spec is None or any(artifact.technique != technique for artifact in recipe.artifacts):
+            return False
+        submodule_id, step_prefix, role = spec
+        return all(
+            step.step_id == f"{step_prefix}.{index:03d}"
+            and step.technique == technique
+            and step.evidence_role == role
+            and step.parameters.get("submodule_id") == submodule_id
+            and step.parameters.get("artifact_index") == index
+            and step.parameters.get("source_order") == index
+            for index, step in enumerate(recipe.steps)
+        )
+
+
+__all__ = ["SingleInputTechniqueAdapter", "TechniqueSeriesAdapter"]

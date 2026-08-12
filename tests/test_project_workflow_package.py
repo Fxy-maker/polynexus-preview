@@ -56,6 +56,13 @@ def test_package_contains_ars_entrypoint_and_provenance(tmp_path: Path) -> None:
     assert manifest["relations_hash"]
     assert (package.path / "figures").is_dir()
     assert (package.path / "tables").is_dir()
+    relations = json.loads((package.path / "relations.json").read_text(encoding="utf-8"))
+    assert relations["relations"] == [{
+        "type": "run_part_of_request",
+        "run_id": run.run_id,
+        "request_hash": run.request_hash,
+        "evidence_scope": "explicit_project_request",
+    }]
 
 
 def test_new_package_version_does_not_replace_previous_snapshot(tmp_path: Path) -> None:

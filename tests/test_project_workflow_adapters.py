@@ -4,7 +4,7 @@ from pathlib import Path
 
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
-from polynexus.core.project_workflow.adapters import SingleInputTechniqueAdapter
+from polynexus.core.project_workflow.adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from polynexus.core.project_workflow.models import AnalysisRequest
 from polynexus.core.project_workflow.service import ProjectWorkflowService
 
@@ -104,3 +104,57 @@ def test_ir_directory_alias_is_indexed_as_ir_and_stale_source_blocks_run(tmp_pat
     result = service.run(plan)
     assert result.status == "blocked"
     assert "source_hash_changed" in result.reason_codes
+
+
+def test_series_adapter_orders_paths_and_binds_each_step(tmp_path: Path) -> None:
+    paths = [_source(tmp_path, "waxs", name) for name in ("b.dat", "a.dat")]
+    adapter = TechniqueSeriesAdapter()
+    proposal = adapter.propose_recipe({
+        "workflow_id": adapter.workflow_id,
+        "technique": "waxs",
+        "paths": [str(path) for path in paths],
+    })
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert [step.parameters["artifact_index"] for step in proposal.recipe.steps] == [0, 1]
+    assert [Path(item.path).name for item in proposal.recipe.artifacts] == ["a.dat", "b.dat"]
+    assert TechniqueSeriesAdapter.is_valid_recipe(proposal.recipe)
+
+
+def test_series_adapter_requires_at_least_two_same_technique_inputs(tmp_path: Path) -> None:
+    adapter = TechniqueSeriesAdapter()
+    one = adapter.propose_recipe({
+        "workflow_id": adapter.workflow_id,
+        "technique": "saxs",
+        "paths": [str(_source(tmp_path, "saxs", "a.dat"))],
+    })
+    mixed = adapter.propose_recipe({
+        "workflow_id": adapter.workflow_id,
+        "technique": "saxs",
+        "paths": [str(_source(tmp_path, "saxs", "a.dat")), str(_source(tmp_path, "ir", "b.dat"))],
+    })
+
+    assert one.status == "blocked"
+    assert one.reason_codes == ("series_requires_multiple_artifacts",)
+    assert mixed.status == "blocked"
+    assert mixed.reason_codes == ("series_technique_mismatch",)
+
+
+def test_project_series_run_binds_each_file_in_stable_order(tmp_path: Path) -> None:
+    paths = [_source(tmp_path, "waxs", name) for name in ("b.dat", "a.dat")]
+    calls: list[str] = []
+
+    def provider(step, artifact, output_dir):
+        calls.append(Path(artifact.path).name)
+        return AnalysisResult(technique=step.technique, validation_passed=True)
+
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(provider_runner=provider)
+    service.inspect(paths)
+    result = service.run(AnalysisRequest.create(question="Analyze WAXS series", data_scope=("raw/WAXS",)))
+
+    assert result.status == "review_required"
+    assert calls == ["a.dat", "b.dat"]
+    assert result.analysis_run is not None
+    assert [step.parameters["artifact_index"] for step in result.analysis_run.recipe.steps] == [0, 1]
