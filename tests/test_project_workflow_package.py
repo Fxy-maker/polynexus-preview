@@ -138,6 +138,16 @@ def test_package_keeps_same_named_derived_figures_from_distinct_sources(tmp_path
     assert figures[0].name != figures[1].name
 
 
+def test_package_projects_cross_technique_membership_without_sample_inference(tmp_path: Path) -> None:
+    first = _run_dsc_request(tmp_path)
+    second = _run_dsc_request(tmp_path)
+    package = ProjectWorkflowService.open(tmp_path).package((first, second), package_id="joint-evidence")
+    relations = json.loads((package.path / "relations.json").read_text(encoding="utf-8"))["relations"]
+    relation = next(item for item in relations if item["type"] in {"cross_technique_evidence_set", "technique_series_evidence_set"})
+    assert relation["run_ids"] == [first.run_id, second.run_id]
+    assert "sample_id" not in relation
+
+
 def test_package_validates_ir_directory_source_without_copying_raw(tmp_path: Path) -> None:
     source = tmp_path / "raw" / "IR" / "series"
     source.mkdir(parents=True)

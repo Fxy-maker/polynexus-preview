@@ -5197,6 +5197,10 @@ link here when that information will matter to a later agent.
   `docs/acceptance/2026-08-13-project-workflow-recovery-v4.md`.
 - Final cross-technique ARS integration and local mainline closeout remain open.
 
+- Multi-run packaging now projects `cross_technique_evidence_set` or
+  `technique_series_evidence_set` relations from explicit package membership;
+  it never infers sample identity.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

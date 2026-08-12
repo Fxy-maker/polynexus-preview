@@ -9,6 +9,10 @@ Context corrections require an explicit approval marker and approver, are
 stored as new request parameters, and are shown in writing input as metadata,
 never as raw instrument facts.
 
+Packaging multiple runs also emits a `cross_technique_evidence_set` (or
+same-technique series) membership relation. This is a relation between
+explicitly selected evidence runs, not an inferred sample or batch identity.
+
 ## Verification
 
 - Recovery plus project workflow matrix: `28 passed`.

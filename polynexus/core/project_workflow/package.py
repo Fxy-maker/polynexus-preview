@@ -91,6 +91,14 @@ class ProjectEvidencePackager:
                 }
                 for run in run_values
             ]
+            techniques = sorted({item.technique for run in run_values for item in run.evidence_items})
+            if len(run_values) > 1:
+                relation_values.append({
+                    "type": "cross_technique_evidence_set" if len(techniques) > 1 else "technique_series_evidence_set",
+                    "run_ids": [run.run_id for run in run_values],
+                    "techniques": techniques,
+                    "evidence_scope": "explicit_package_membership",
+                })
         status = "review_required" if any(value == "review_required" for value in statuses) else "completed"
         if any(value not in {"completed", "review_required"} for value in statuses):
             raise ValueError("only completed or review_required runs may be packaged")
