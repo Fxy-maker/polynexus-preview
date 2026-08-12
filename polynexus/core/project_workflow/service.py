@@ -500,7 +500,9 @@ class ProjectWorkflowService:
             return None
         for item in scope:
             candidate = Path(item).expanduser()
-            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).resolve()
+            if ".." in candidate.parts:
+                return "scope_outside_project"
+            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).absolute()
             try:
                 resolved.relative_to(self.workspace.root)
             except ValueError:
@@ -516,7 +518,9 @@ class ProjectWorkflowService:
     def _scope_boundary_error(self, scope: tuple[str, ...]) -> str | None:
         for item in scope:
             candidate = Path(item).expanduser()
-            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).resolve()
+            if ".." in candidate.parts:
+                return "scope_outside_project"
+            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).absolute()
             try:
                 resolved.relative_to(self.workspace.root)
             except ValueError:

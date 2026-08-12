@@ -78,6 +78,8 @@ class ProjectEvidencePackager:
 
             copied_assets.extend(self._asset_descriptors(run, package_id))
 
+        copied_assets = self._disambiguate_assets(copied_assets)
+
         relation_values = [dict(value) for value in relations]
         status = "review_required" if any(value == "review_required" for value in statuses) else "completed"
         if any(value not in {"completed", "review_required"} for value in statuses):
@@ -231,6 +233,26 @@ class ProjectEvidencePackager:
                 "sha256": _sha256_file(Path(asset["source"])),
             })
         return values
+
+    @staticmethod
+    def _disambiguate_assets(assets: list[dict[str, str]]) -> list[dict[str, str]]:
+        """Give same-named derived assets stable names instead of overwriting."""
+        grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+        for asset in assets:
+            grouped.setdefault((asset["kind"], asset["name"]), []).append(asset)
+        result: list[dict[str, str]] = []
+        for (_, original_name), values in grouped.items():
+            sources = {value["source"] for value in values}
+            if len(sources) == 1:
+                result.append(dict(values[0]))
+                continue
+            for value in values:
+                source = Path(value["source"])
+                digest = hashlib.sha256(str(source).encode("utf-8")).hexdigest()[:10]
+                updated = dict(value)
+                updated["name"] = f"{source.stem}-{digest}{source.suffix}"
+                result.append(updated)
+        return result
 
     @staticmethod
     def _copy_assets(assets: list[dict[str, str]], package_path: Path) -> None:

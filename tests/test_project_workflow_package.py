@@ -109,3 +109,21 @@ def test_package_copies_derived_assets_without_copying_raw_data(tmp_path: Path) 
 
     assert (package.path / "figures" / "kinetics.png").read_bytes() == b"derived figure"
     assert not list(package.path.rglob("PA6-DWJJ.txt"))
+
+
+def test_package_keeps_same_named_derived_figures_from_distinct_sources(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    first = tmp_path / ".polynexus" / "runs" / run.run_id / "first" / "figure.svg"
+    second = tmp_path / ".polynexus" / "runs" / run.run_id / "second" / "figure.svg"
+    first.parent.mkdir(parents=True)
+    second.parent.mkdir(parents=True)
+    first.write_text("<svg>same</svg>", encoding="utf-8")
+    second.write_text("<svg>same</svg>", encoding="utf-8")
+
+    package = ProjectWorkflowService.open(tmp_path).package(
+        replace(run, outputs=(*run.outputs, str(first), str(second)))
+    )
+
+    figures = sorted((package.path / "figures").glob("*.svg"))
+    assert len(figures) == 2
+    assert figures[0].name != figures[1].name
