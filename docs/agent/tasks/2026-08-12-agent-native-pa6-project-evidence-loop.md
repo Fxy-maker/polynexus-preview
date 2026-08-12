@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-12-agent-native-pa6-project-evidence-loop
 kind: architecture
-status: design_review_required
+status: implementation_complete_review_required
 date: 2026-08-12
 title: Build a Codex-managed PA6 project evidence loop
 ---
@@ -32,18 +32,18 @@ folders, run registered deterministic providers, and create a versioned
 
 ## Acceptance criteria
 
-- [ ] A selected paper root gets derived output only under `.polynexus/`.
-- [ ] The index represents formulations, batches, conditions, artifacts,
+- [x] A selected paper root gets derived output only under `.polynexus/`.
+- [x] The index represents formulations, batches, conditions, artifacts,
   measurements, runs, and evidence without a one-file/one-sample assumption.
-- [ ] Raw instrument facts override directory/file labels; lower-priority
+- [x] Raw instrument facts override directory/file labels; lower-priority
   mismatches become audit discrepancies.
-- [ ] Missing context does not block single-technique analysis.
-- [ ] Codex/ARS submit JSON-safe analysis requests and receive `inspect`,
+- [x] Missing context does not block single-technique analysis.
+- [x] Codex/ARS submit JSON-safe analysis requests and receive `inspect`,
   `plan`, `run`, and `package` results.
-- [ ] Run/package identities are immutable and replayable.
-- [ ] The DSC PA6 path yields an ARS-readable evidence package with figure/table
+- [x] Run/package identities are immutable and replayable.
+- [x] The DSC PA6 path yields an ARS-readable evidence package with figure/table
   pointers, scope, provenance, status, and limits.
-- [ ] Unsupported FTIR/SAXS/WAXS inputs remain explicit blockers until adapters
+- [x] Unsupported FTIR/SAXS/WAXS inputs remain explicit blockers until adapters
   are separately implemented.
 
 ## Design
