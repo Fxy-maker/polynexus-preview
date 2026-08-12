@@ -41,6 +41,11 @@ class ProjectWorkspace:
         if not resolved.is_dir():
             raise ValueError("project root must be an existing directory")
         workspace = cls(resolved)
+        if workspace.derived_root.exists():
+            try:
+                workspace.derived_root.resolve().relative_to(resolved)
+            except ValueError as exc:
+                raise ValueError(".polynexus must resolve inside the project root") from exc
         workspace.derived_root.mkdir(exist_ok=True)
         for directory in workspace.derived_directories:
             directory.mkdir(exist_ok=True)
