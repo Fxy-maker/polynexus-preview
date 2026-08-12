@@ -13,6 +13,7 @@ from .models import (
     ResearchGraph,
 )
 from .service import ProjectWorkflowService
+from .evidence import ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 
 __all__ = [
     "AnalysisRequest",
@@ -26,4 +27,7 @@ __all__ = [
     "ProjectPlan",
     "ResearchGraph",
     "ProjectWorkflowService",
+    "ProjectWorkflowRun",
+    "evidence_items_from_run",
+    "stable_run_id",
 ]

@@ -8,8 +8,12 @@ by a later task.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 
+from polynexus.core.agent_workflow import AgentWorkflowService
+from polynexus.core.agent_workflow.models import AnalysisRecipe
+
+from .evidence import ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .index import ProjectIndexer
 from .models import AnalysisRequest, ProjectPlan, ResearchGraph
 from .workspace import ProjectWorkspace
@@ -22,9 +26,15 @@ _DSC_TEMPLATE = "dsc.isothermal.v1"
 class ProjectWorkflowService:
     """Persisted project inventory and deterministic analysis-request planner."""
 
-    def __init__(self, workspace: ProjectWorkspace) -> None:
+    def __init__(
+        self,
+        workspace: ProjectWorkspace,
+        *,
+        agent_service: AgentWorkflowService | None = None,
+    ) -> None:
         self.workspace = workspace
         self.indexer = ProjectIndexer(workspace)
+        self.agent_service = agent_service or AgentWorkflowService()
 
     @classmethod
     def open(cls, root: str | Path) -> "ProjectWorkflowService":
@@ -44,6 +54,8 @@ class ProjectWorkflowService:
         techniques = sorted({artifact.technique for artifact in artifacts})
         if not techniques:
             techniques = self._techniques_from_scope(request.data_scope)
+        if not techniques and self._request_mentions_dsc(request):
+            techniques = ["dsc"]
 
         reason_codes: list[str] = []
         steps: list[dict[str, object]] = []
@@ -110,6 +122,189 @@ class ProjectWorkflowService:
         self.workspace.write_json(self.workspace.requests_dir / f"{request.request_hash}.plan.json", plan.to_dict())
         return plan
 
+    def run(self, request_or_plan: AnalysisRequest | ProjectPlan) -> ProjectWorkflowRun:
+        """Execute a planned project request through existing agent providers."""
+        if isinstance(request_or_plan, AnalysisRequest):
+            request = request_or_plan
+            plan = self.plan(request)
+        elif isinstance(request_or_plan, ProjectPlan):
+            plan = request_or_plan
+            request = self._load_request(plan.request_hash)
+            if request is None:
+                return self._blocked_project_run(plan, "request_manifest_missing")
+        else:
+            raise TypeError("run expects AnalysisRequest or ProjectPlan")
+
+        if plan.status == "blocked":
+            return self._blocked_project_run(plan, *plan.reason_codes)
+        dsc_steps = tuple(step for step in plan.steps if step.get("technique") == "dsc")
+        if not dsc_steps:
+            return self._blocked_project_run(plan, "dsc_step_missing")
+        source_paths = tuple(
+            str((self.workspace.root / str(path)).resolve())
+            for step in dsc_steps
+            for path in step.get("artifact_paths", ())
+        )
+        if len(source_paths) != 1:
+            return self._blocked_project_run(plan, "dsc_source_count_invalid")
+        source = Path(source_paths[0])
+        graph = self._load_or_discover(request.data_scope)
+        artifacts = {artifact.relative_path: artifact for artifact in graph.artifacts}
+        relative_source = source.relative_to(self.workspace.root).as_posix()
+        artifact = artifacts.get(relative_source)
+        if artifact is None:
+            return self._blocked_project_run(plan, "dsc_source_not_indexed")
+
+        manifest = {
+            "workflow_id": _DSC_WORKFLOW,
+            "artifacts": {
+                "dsc_isothermal": {
+                    "path": str(source),
+                    "technique": "dsc",
+                }
+            },
+        }
+        proposal = self.agent_service.propose_recipe(_DSC_WORKFLOW, manifest)
+        if proposal.recipe is None:
+            return self._blocked_project_run(plan, *proposal.reason_codes)
+        recipe = proposal.recipe
+        source_hashes = tuple(
+            str(item.sha256) for item in recipe.artifacts if item.sha256
+        )
+        run_id = stable_run_id(request.request_hash, recipe.recipe_hash, source_hashes)
+        output_dir = self.workspace.runs_dir / run_id
+        analysis_run = self.agent_service.run_recipe(recipe, output_dir)
+        limitations = tuple(
+            code for code in analysis_run.reason_codes
+            if code not in {"provider_execution_failed"}
+        )
+        evidence_items = evidence_items_from_run(
+            analysis_run,
+            run_id=run_id,
+            raw_sources=source_hashes,
+            limitations=limitations,
+        )
+        outputs = self._derived_outputs(output_dir, analysis_run)
+        manifest_payload = self._run_manifest(
+            request=request,
+            plan=plan,
+            recipe=recipe,
+            run=analysis_run,
+            run_id=run_id,
+            source_hashes=source_hashes,
+            evidence_items=evidence_items,
+            outputs=outputs,
+        )
+        manifest_path = self.workspace.write_json(
+            self.workspace.runs_dir / f"{run_id}.json", manifest_payload
+        )
+        return ProjectWorkflowRun(
+            run_id=run_id,
+            request_hash=request.request_hash,
+            plan_hash=plan.plan_hash,
+            recipe_hash=recipe.recipe_hash,
+            status=analysis_run.status,
+            outputs=tuple(str(path) for path in outputs) + (str(manifest_path),),
+            evidence_items=evidence_items,
+            manifest_path=str(manifest_path),
+            analysis_run=analysis_run,
+            reason_codes=analysis_run.reason_codes,
+        )
+
+    def _load_request(self, request_hash: str) -> AnalysisRequest | None:
+        payload = self.workspace.read_json(
+            self.workspace.requests_dir / f"{request_hash}.request.json"
+        )
+        if payload is None:
+            return None
+        try:
+            return AnalysisRequest.from_dict(payload)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def _blocked_project_run(self, plan: ProjectPlan, *reason_codes: str) -> ProjectWorkflowRun:
+        codes = tuple(dict.fromkeys(str(code) for code in reason_codes if code))
+        run_id = f"blocked-{plan.plan_hash[:24]}"
+        payload = {
+            "run_id": run_id,
+            "request_hash": plan.request_hash,
+            "plan_hash": plan.plan_hash,
+            "recipe_hash": None,
+            "source_hashes": [],
+            "canonical_template_hashes": [],
+            "conversion_hashes": [],
+            "provider_version": _DSC_WORKFLOW,
+            "status": "blocked",
+            "reason_codes": list(codes),
+            "figures": [],
+            "tables": [],
+            "limitations": list(codes),
+            "evidence_items": [],
+        }
+        path = self.workspace.write_json(self.workspace.runs_dir / f"{run_id}.json", payload)
+        return ProjectWorkflowRun(
+            run_id=run_id,
+            request_hash=plan.request_hash,
+            plan_hash=plan.plan_hash,
+            recipe_hash=None,
+            status="blocked",
+            outputs=(str(path),),
+            manifest_path=str(path),
+            reason_codes=codes,
+        )
+
+    @staticmethod
+    def _derived_outputs(output_dir: Path, run: Any) -> tuple[Path, ...]:
+        outputs: list[Path] = []
+        if output_dir.exists():
+            outputs.extend(path for path in output_dir.rglob("*") if path.is_file())
+        return tuple(sorted(set(outputs), key=lambda path: path.as_posix()))
+
+    @staticmethod
+    def _run_manifest(
+        *,
+        request: AnalysisRequest,
+        plan: ProjectPlan,
+        recipe: AnalysisRecipe,
+        run: Any,
+        run_id: str,
+        source_hashes: tuple[str, ...],
+        evidence_items: tuple[Any, ...],
+        outputs: tuple[Path, ...],
+    ) -> dict[str, Any]:
+        canonical_hashes: list[str] = []
+        conversion_hashes: list[str] = []
+        figures: list[str] = []
+        tables: list[str] = []
+        for step in run.steps:
+            summary = step.result_summary
+            if summary.get("canonical_template_hash"):
+                canonical_hashes.append(str(summary["canonical_template_hash"]))
+            conversion = summary.get("canonical_conversion")
+            if isinstance(conversion, Mapping) and conversion.get("conversion_hash"):
+                conversion_hashes.append(str(conversion["conversion_hash"]))
+            figures.extend(str(value) for value in step.figure_references.values() if isinstance(value, str))
+        return {
+            "run_id": run_id,
+            "request_hash": request.request_hash,
+            "plan_hash": plan.plan_hash,
+            "recipe_hash": recipe.recipe_hash,
+            "source_hashes": list(source_hashes),
+            "canonical_template_hashes": list(dict.fromkeys(canonical_hashes)),
+            "conversion_hashes": list(dict.fromkeys(conversion_hashes)),
+            "provider_version": _DSC_WORKFLOW,
+            "status": run.status,
+            "reason_codes": list(run.reason_codes),
+            "figures": list(dict.fromkeys(figures)),
+            "tables": tables,
+            "limitations": list(dict.fromkeys(
+                [*run.reason_codes, *[limit for item in evidence_items for limit in item.limitations]]
+            )),
+            "outputs": [str(path) for path in outputs],
+            "evidence_items": [item.to_dict() for item in evidence_items],
+            "analysis_run": run.to_dict(),
+        }
+
     def _load_or_discover(self, scope: tuple[str, ...]) -> ResearchGraph:
         payload = self.workspace.read_json(self.workspace.inventory_dir / "index.json")
         if payload is not None:
@@ -141,6 +336,13 @@ class ProjectWorkflowService:
         text = " ".join(scope).lower()
         aliases = (("waxs", "waxs"), ("saxs", "saxs"), ("ftir", "ir"), ("ir", "ir"), ("dsc", "dsc"))
         return sorted({technique for marker, technique in aliases if marker in text})
+
+    @staticmethod
+    def _request_mentions_dsc(request: AnalysisRequest) -> bool:
+        text = " ".join(
+            (request.question, request.purpose, *request.requested_outputs, *request.data_scope)
+        ).lower()
+        return "dsc" in text or "avrami" in text or "crystall" in text or "结晶" in text
 
 
 __all__ = ["ProjectWorkflowService"]

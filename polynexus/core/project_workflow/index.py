@@ -122,6 +122,13 @@ class ProjectIndexer:
         for marker, technique in _TECHNIQUE_ALIASES:
             if marker in label:
                 return technique
+        if source.is_file() and source.suffix.lower() in {".txt", ".dat", ".asc"}:
+            try:
+                header = source.read_bytes()[:65536].decode("latin-1", errors="replace").lower()
+            except OSError:
+                header = ""
+            if "sample weight" in header or "curve values" in header:
+                return "dsc"
         return "unknown"
 
     def _facts_for(self, source: Path, header_facts: dict[str, object]) -> dict[str, ProjectFact]:
