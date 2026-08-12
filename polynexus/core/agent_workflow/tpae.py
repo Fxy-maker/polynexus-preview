@@ -9,6 +9,7 @@ from typing import Any
 
 from .inspection import inspect_artifact
 from .models import AnalysisRecipe, RecipeProposal, RecipeStep
+from polynexus.core.canonical_experiments import CanonicalExperiment, convert_mettler_isothermal_text
 
 
 class TpaeCharacterizationWorkflow:
@@ -50,7 +51,13 @@ class TpaeCharacterizationWorkflow:
                 reasons.append(f"artifact_technique_mismatch:{step_id}")
                 continue
             artifact = inspect_artifact(raw["path"], technique=technique)
-            if step_id in {"dsc_isothermal", "ftir_temperature"} and artifact.format != "directory":
+            dsc_template = None
+            if step_id == "dsc_isothermal" and artifact.format != "directory":
+                dsc_template = self._convert_dsc_artifact(artifact)
+                if dsc_template is None:
+                    reasons.append(f"artifact_format_mismatch:{step_id}")
+                    continue
+            if step_id == "ftir_temperature" and artifact.format != "directory":
                 reasons.append(f"artifact_format_mismatch:{step_id}")
                 continue
             artifacts.append(artifact)
@@ -58,6 +65,12 @@ class TpaeCharacterizationWorkflow:
                 "dsc_isothermal": {"submodule_id": "dsc.isothermal"},
                 "ftir_temperature": {"submodule_id": "ir.temperature_2d"},
             }.get(step_id, {})
+            if dsc_template is not None:
+                parameters = {
+                    **parameters,
+                    "canonical_converter": "mettler.dsc-isothermal.v1",
+                    "canonical_template": dsc_template.to_dict(),
+                }
             sources = {"submodule_id": "workflow"} if parameters else {}
             steps.append(
                 RecipeStep(
@@ -111,9 +124,32 @@ class TpaeCharacterizationWorkflow:
             }.get(step.step_id)
             if expected_submodule and step.parameters.get("submodule_id") != expected_submodule:
                 return False
-            if step.step_id in {"dsc_isothermal", "ftir_temperature"} and artifact.format != "directory":
+            if step.step_id == "dsc_isothermal" and artifact.format != "directory":
+                template_payload = step.parameters.get("canonical_template")
+                if not isinstance(template_payload, Mapping):
+                    return False
+                try:
+                    template = CanonicalExperiment.from_dict(template_payload)
+                except (KeyError, TypeError, ValueError):
+                    return False
+                if (
+                    template.template_id != "dsc.isothermal.v1"
+                    or template.source_artifact_id != artifact.artifact_id
+                    or step.parameters.get("canonical_converter") != "mettler.dsc-isothermal.v1"
+                ):
+                    return False
+            elif step.step_id == "ftir_temperature" and artifact.format != "directory":
                 return False
         return True
+
+    @staticmethod
+    def _convert_dsc_artifact(artifact: Any) -> CanonicalExperiment | None:
+        try:
+            source_text = Path(artifact.path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        outcome = convert_mettler_isothermal_text(source_text, source_artifact_id=artifact.artifact_id)
+        return outcome.template if outcome.status == "ready" else None
 
     @staticmethod
     def _load_manifest(manifest: Mapping[str, object] | Path | str) -> Mapping[str, Any] | None:

@@ -1,5 +1,31 @@
 # Active Work
 
+## Canonical experiment templates and PA6 multi-program DSC - review required (2026-08-12)
+
+- The agent-native workflow now consumes immutable, versioned canonical
+  experiment templates rather than assuming a file or directory directly
+  represents one experiment. The first implementation is a deterministic
+  Mettler multi-program DSC converter with a reusable conversion record.
+- Read-only inspection of external
+  `C:\Users\Fan Xuyi\Desktop\文件夹\弹性体\弹性体中文\DSC-等温结晶\PA6-DWJJ.txt`
+  confirmed multi-program holds at 180, 181, 182, 183, 184, and 185 C, preceded
+  by 255 C preparation holds. The source is external and must remain unchanged.
+- The converter records raw artifact identity, source row/time ranges, melt
+  holds, and ramps. Only validated crystallisation holds reach the existing
+  Avrami function; the template execution path maintains one template segment
+  to one fit, rather than heuristically splitting it again.
+- A read-only TPAE replay wrote only to
+  `D:\PolyNexus-pa6-canonical-smoke-20260812-review-final\bundle`: six holds at 180--185 C,
+  5.9500 mg sample mass, template hash
+  `29659c6757fd98454e678cb4202739a2e2f95cb59c54e64592ab38f8a182331f`, and
+  conversion hash `b80c477d93bddb76ff16b7be6bc06874b1a4ab3a9010160dfbc32f7bb6c5cb0f`.
+  This remains scientific-review-required; no publication claim was made.
+- AI may later propose the same template mapping DTO, but validation,
+  provenance, and deterministic providers remain mandatory. No LLM call or
+  AI-generated scientific numeric data is in this path.
+- Design: `docs/superpowers/specs/2026-08-12-canonical-template-conversion-dsc-isothermal-design.md`.
+  Task: `docs/agent/tasks/2026-08-12-canonical-template-conversion-dsc-isothermal.md`.
+
 ## Agent-native core and TPAE golden path - checkpoint pending review (2026-08-12)
 
 - The approved product direction is a general agent-workflow architecture with

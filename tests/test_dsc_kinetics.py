@@ -1,5 +1,11 @@
 import numpy as np
+import pytest
 
+from polynexus.core.canonical_experiments import (
+    CanonicalExperiment,
+    ConversionRecord,
+    convert_mettler_isothermal_text,
+)
 from polynexus.core.dsc import DSCEngine
 from polynexus.core.dsc_engine.core import DSCResult
 from polynexus.core.dsc_engine.dsc_kinetics import (
@@ -104,3 +110,189 @@ def test_dsc_isothermal_parameters_show_avrami_rows_first():
     assert params["best_avrami"]["Avrami_n"] == 2.5
     assert params["best_avrami"]["Avrami_k"] == 0.03
     assert params["best_avrami"]["Avrami_R2"] == 0.99
+
+
+def test_dsc_engine_runs_existing_isothermal_kinetics_from_canonical_template():
+    rows = []
+    rows.append("Sample Weight: 5.95 mg")
+    for index in range(121):
+        rows.append(f"{index} {index} 255.02 255.0 1.0")
+    for index in range(121, 302):
+        elapsed = index - 121
+        rows.append(f"{index} {index} 180.05 180.0 {_avrami_heat_flow(elapsed / 60.0):.8f}")
+    template = convert_mettler_isothermal_text("\n".join(rows), source_artifact_id="raw-sha256").template
+
+    engine = DSCEngine()
+    result = engine.run_isothermal_template(template)
+
+    assert template is not None
+    assert result["canonical_provenance"]["template_hash"] == template.content_hash
+    assert result["canonical_provenance"]["conversion_hash"] == template.conversion_record.conversion_hash
+    assert len(result["avrami_series"]) == 1
+    assert [item.label for item in result["avrami_series"]] == ["iso-180C-001"]
+    assert "segment_01_180.1C" in engine.get_parameters()
+
+
+def test_dsc_engine_rejects_canonical_template_without_sample_mass():
+    record = ConversionRecord.create(
+        conversion_id="mettler.dsc-isothermal.v1",
+        source_artifact_id="raw-sha256",
+    )
+    template = CanonicalExperiment.create(
+        template_id="dsc.isothermal.v1",
+        source_artifact_id="raw-sha256",
+        conversion_record=record,
+        payload={
+            "sample": {"mass_mg": None},
+            "segments": [{
+                "segment_id": "iso-180C-001",
+                "role": "isothermal_crystallization",
+                "setpoint_C": 180.0,
+                "time_s": list(range(61)),
+                "sample_temperature_C": [180.05] * 61,
+                "heat_flow_mW": [1.0] * 61,
+                "source_range": {},
+            }],
+        },
+    )
+
+    with pytest.raises(ValueError, match="sample mass"):
+        DSCEngine().run_isothermal_template(template)
+
+
+def test_dsc_engine_rejects_canonical_template_below_kinetic_minimums():
+    record = ConversionRecord.create(
+        conversion_id="mettler.dsc-isothermal.v1",
+        source_artifact_id="raw-sha256",
+    )
+    template = CanonicalExperiment.create(
+        template_id="dsc.isothermal.v1",
+        source_artifact_id="raw-sha256",
+        conversion_record=record,
+        payload={
+            "sample": {"mass_mg": 5.95},
+            "segments": [{
+                "segment_id": "iso-180C-001",
+                "role": "isothermal_crystallization",
+                "setpoint_C": 180.0,
+                "time_s": [0.0, 1.0],
+                "sample_temperature_C": [180.05, 180.05],
+                "heat_flow_mW": [1.0, 1.0],
+                "source_range": {},
+            }],
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not meet canonical kinetic qualification"):
+        DSCEngine().run_isothermal_template(template)
+
+
+def test_dsc_engine_accepts_stable_canonical_hold_with_point_noise():
+    record = ConversionRecord.create(
+        conversion_id="mettler.dsc-isothermal.v1",
+        source_artifact_id="raw-sha256",
+    )
+    time_s = list(range(61))
+    temperatures = [180.05 + (0.04 if index % 2 else -0.04) + index * 0.001 for index in time_s]
+    template = CanonicalExperiment.create(
+        template_id="dsc.isothermal.v1",
+        source_artifact_id="raw-sha256",
+        conversion_record=record,
+        payload={
+            "sample": {"mass_mg": 5.95},
+            "segments": [{
+                "segment_id": "iso-180C-001",
+                "role": "isothermal_crystallization",
+                "setpoint_C": 180.0,
+                "time_s": time_s,
+                "sample_temperature_C": temperatures,
+                "heat_flow_mW": [1.0] * 61,
+                "source_range": {},
+            }],
+        },
+    )
+
+    result = DSCEngine().run_isothermal_template(template)
+
+    assert len(result["avrami_series"]) == 1
+
+
+def test_dsc_engine_rejects_canonical_hold_with_excessive_temperature_span():
+    record = ConversionRecord.create(
+        conversion_id="mettler.dsc-isothermal.v1",
+        source_artifact_id="raw-sha256",
+    )
+    template = CanonicalExperiment.create(
+        template_id="dsc.isothermal.v1",
+        source_artifact_id="raw-sha256",
+        conversion_record=record,
+        payload={
+            "sample": {"mass_mg": 5.95},
+            "segments": [{
+                "segment_id": "iso-180C-001",
+                "role": "isothermal_crystallization",
+                "setpoint_C": 180.0,
+                "time_s": list(range(61)),
+                "sample_temperature_C": [179.6 if index % 2 else 180.4 for index in range(61)],
+                "heat_flow_mW": [1.0] * 61,
+                "source_range": {},
+            }],
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not meet canonical kinetic qualification"):
+        DSCEngine().run_isothermal_template(template)
+
+
+def test_dsc_engine_rejects_high_frequency_canonical_temperature_oscillation():
+    record = ConversionRecord.create(
+        conversion_id="mettler.dsc-isothermal.v1",
+        source_artifact_id="raw-sha256",
+    )
+    template = CanonicalExperiment.create(
+        template_id="dsc.isothermal.v1",
+        source_artifact_id="raw-sha256",
+        conversion_record=record,
+        payload={
+            "sample": {"mass_mg": 5.95},
+            "segments": [{
+                "segment_id": "iso-180C-001",
+                "role": "isothermal_crystallization",
+                "setpoint_C": 180.0,
+                "time_s": list(range(61)),
+                "sample_temperature_C": [179.8 if index % 2 else 180.2 for index in range(61)],
+                "heat_flow_mW": [1.0] * 61,
+                "source_range": {},
+            }],
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not meet canonical kinetic qualification"):
+        DSCEngine().run_isothermal_template(template)
+
+
+def test_dsc_engine_rejects_narrow_high_frequency_temperature_oscillation():
+    record = ConversionRecord.create(
+        conversion_id="mettler.dsc-isothermal.v1",
+        source_artifact_id="raw-sha256",
+    )
+    template = CanonicalExperiment.create(
+        template_id="dsc.isothermal.v1",
+        source_artifact_id="raw-sha256",
+        conversion_record=record,
+        payload={
+            "sample": {"mass_mg": 5.95},
+            "segments": [{
+                "segment_id": "iso-180C-001",
+                "role": "isothermal_crystallization",
+                "setpoint_C": 180.0,
+                "time_s": list(range(61)),
+                "sample_temperature_C": [179.94 if index % 2 else 180.06 for index in range(61)],
+                "heat_flow_mW": [1.0] * 61,
+                "source_range": {},
+            }],
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not meet canonical kinetic qualification"):
+        DSCEngine().run_isothermal_template(template)

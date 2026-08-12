@@ -24,6 +24,7 @@ from .models import (
 )
 from .registry import WorkflowRegistry
 from .tpae import TpaeCharacterizationWorkflow
+from polynexus.core.canonical_experiments import CanonicalExperiment, convert_mettler_isothermal_text
 
 
 class AgentWorkflowService:
@@ -105,8 +106,18 @@ class AgentWorkflowService:
             if artifact is None:
                 return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("step_artifact_missing",))
             try:
+                canonical_template = self._replay_canonical_template(step, artifact)
+                if canonical_template is False:
+                    return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("canonical_conversion_mismatch",))
                 output = self.provider_runner(step, artifact, destination)
-                results.append(self._public_step_result(step.step_id, step.technique, output))
+                results.append(
+                    self._public_step_result(
+                        step.step_id,
+                        step.technique,
+                        output,
+                        canonical_template=canonical_template if isinstance(canonical_template, CanonicalExperiment) else None,
+                    )
+                )
             except Exception:
                 return AnalysisRun(recipe=recipe, status="failed", reason_codes=("provider_execution_failed",))
         status = (
@@ -180,7 +191,13 @@ class AgentWorkflowService:
         return bundle
 
     @staticmethod
-    def _public_step_result(step_id: str, technique: str, output: Any) -> WorkflowStepResult:
+    def _public_step_result(
+        step_id: str,
+        technique: str,
+        output: Any,
+        *,
+        canonical_template: CanonicalExperiment | None = None,
+    ) -> WorkflowStepResult:
         if hasattr(output, "to_dict") and hasattr(output, "analysis_evidence"):
             summary = AgentWorkflowService._normalize_public_value(output.to_dict())
             evidence = getattr(output, "analysis_evidence", {})
@@ -189,11 +206,20 @@ class AgentWorkflowService:
             evidence = summary.get("analysis_evidence", {})
         else:
             raise TypeError("Provider must return AnalysisResult or public result mapping")
+        if canonical_template is not None:
+            summary["canonical_template_hash"] = canonical_template.content_hash
+            summary["canonical_conversion"] = canonical_template.conversion_record.to_dict()
         validation_passed = bool(summary.get("validation_passed", True))
         warnings = summary.get("validation_warnings", [])
         logs = summary.get("logs", [])
         provider_error = any("ERROR:" in str(entry).upper() for entry in logs)
-        status = "failed" if provider_error else "completed" if validation_passed and not warnings else "review_required"
+        status = (
+            "failed"
+            if provider_error
+            else "completed"
+            if validation_passed and not warnings and canonical_template is None
+            else "review_required"
+        )
         figure_references = getattr(output, "figures", {})
         if not isinstance(figure_references, Mapping):
             figure_references = {}
@@ -224,7 +250,35 @@ class AgentWorkflowService:
         submodule_id = step.parameters.get("submodule_id")
         if submodule_id:
             engine.active_submodule = str(submodule_id)
+        canonical_payload = step.parameters.get("canonical_template")
+        if canonical_payload is not None:
+            template = CanonicalExperiment.from_dict(canonical_payload)
+            engine.run_isothermal_template(template)
+            engine.result.parameters = engine.get_parameters()
+            engine.result.metadata.update({
+                "canonical_template_hash": template.content_hash,
+                "canonical_conversion_hash": template.conversion_record.conversion_hash,
+            })
+            return engine.result
         return engine.run_pipeline(artifact.path, str(output_dir / step.step_id))
+
+    @staticmethod
+    def _replay_canonical_template(step: Any, artifact: InputArtifact) -> CanonicalExperiment | bool | None:
+        """Reconvert a single-file DSC source after artifact hash verification."""
+        payload = step.parameters.get("canonical_template")
+        if payload is None:
+            return None
+        if artifact.technique != "dsc" or artifact.format == "directory":
+            return False
+        try:
+            registered = CanonicalExperiment.from_dict(payload)
+            source_text = Path(artifact.path).read_text(encoding="utf-8", errors="replace")
+        except (KeyError, OSError, TypeError, ValueError):
+            return False
+        outcome = convert_mettler_isothermal_text(source_text, source_artifact_id=artifact.artifact_id)
+        if outcome.status != "ready" or outcome.template is None:
+            return False
+        return outcome.template if hmac.compare_digest(outcome.template.content_hash, registered.content_hash) else False
 
     @staticmethod
     def _load_manifest(manifest: Mapping[str, object] | Path | str) -> Mapping[str, Any] | None:

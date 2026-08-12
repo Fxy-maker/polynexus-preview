@@ -27,6 +27,19 @@ def _write_dsc_series(tmp_path: Path) -> Path:
     return series
 
 
+def _write_dsc_program(tmp_path: Path) -> Path:
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(exist_ok=True)
+    path = data_dir / "dsc-program.txt"
+    rows = []
+    for index in range(61):
+        rows.append(f"{index} {index} 255.02 255.0 1.0")
+    for index in range(61, 142):
+        rows.append(f"{index} {index} 180.05 180.0 {1.0 + 5.0 / (index - 56):.6f}")
+    path.write_text("\n".join(["Sample Weight: 5.95 mg", *rows]), encoding="utf-8")
+    return path
+
+
 def _write_ftir_series(tmp_path: Path) -> Path:
     data_dir = tmp_path / "data"
     data_dir.mkdir(exist_ok=True)
@@ -121,6 +134,41 @@ def test_tpae_proposal_requires_a_directory_for_isothermal_dsc(tmp_path: Path) -
 
     assert proposal.status == "blocked"
     assert proposal.reason_codes == ("artifact_format_mismatch:dsc_isothermal",)
+
+
+def test_tpae_accepts_a_single_dsc_file_only_after_canonical_conversion(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, ftir=False, saxs=False)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["artifacts"]["dsc_isothermal"]["path"] = str(_write_dsc_program(tmp_path))
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    proposal = AgentWorkflowService().propose_recipe("tpae.characterization.v1", manifest)
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert proposal.recipe.artifacts[0].format == "txt"
+    assert proposal.recipe.steps[0].parameters["canonical_converter"] == "mettler.dsc-isothermal.v1"
+
+
+def test_tpae_single_dsc_run_signs_canonical_conversion_provenance(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path, ftir=False, saxs=False)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["artifacts"]["dsc_isothermal"]["path"] = str(_write_dsc_program(tmp_path))
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    proposal = AgentWorkflowService().propose_recipe("tpae.characterization.v1", manifest)
+    assert proposal.recipe is not None
+
+    def provider(step, artifact, output_dir):
+        assert step.parameters["canonical_template"]["template_id"] == "dsc.isothermal.v1"
+        assert artifact.format == "txt"
+        return AnalysisResult(technique="dsc", validation_passed=True)
+
+    run = AgentWorkflowService(provider_runner=provider).run_recipe(proposal.recipe, tmp_path / "run")
+
+    assert run.status == "review_required"
+    assert run.steps[0].status == "review_required"
+    assert run.steps[0].result_summary["canonical_template_hash"]
+    assert run.steps[0].result_summary["canonical_conversion"]["extracted_segments"][0]["setpoint_C"] == 180.0
 
 
 def test_tpae_proposal_requires_a_directory_for_temperature_ftir(tmp_path: Path) -> None:
