@@ -78,7 +78,13 @@ class ProjectIndexer:
         return refreshed
 
     def _inspect_one(self, path: str | Path) -> ProjectArtifact:
-        source = Path(path).expanduser().resolve()
+        # Preserve the logical project path for a raw-directory link. This
+        # allows read-only access to laboratory data without copying it into
+        # the project, while output remains constrained to `.polynexus`.
+        source = Path(path).expanduser()
+        if not source.is_absolute():
+            source = self.workspace.root / source
+        source = source.absolute()
         self._require_source_path(source)
         technique = self._infer_technique(source)
         inspected = inspect_artifact(source, technique=technique)

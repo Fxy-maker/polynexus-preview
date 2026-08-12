@@ -203,8 +203,11 @@ class ProjectArtifact:
         inspection_status: str = "ready",
         reason_codes: Sequence[str] = (),
     ) -> "ProjectArtifact":
-        root = Path(project_root).resolve()
-        source = Path(path).resolve()
+        # Use lexical absolute paths here. A project may expose an external
+        # read-only laboratory directory through a `raw/` junction/symlink;
+        # the indexer has already enforced the lexical project boundary.
+        root = Path(project_root).expanduser().absolute()
+        source = Path(path).expanduser().absolute()
         try:
             relative = source.relative_to(root).as_posix()
         except ValueError as exc:

@@ -40,6 +40,23 @@ def test_index_writes_raw_inventory_and_repeated_inspection_is_stable(tmp_path: 
     assert persisted["graph_hash"] == first.graph_hash
 
 
+def test_index_reads_raw_file_through_project_local_directory_link(tmp_path: Path) -> None:
+    external_raw = tmp_path.parent / "external-pa6"
+    external_raw.mkdir()
+    source = external_raw / "PA6-DWJJ.txt"
+    source.write_text("Sample Weight: 5.95 mg\n", encoding="utf-8")
+    raw_link = tmp_path / "raw"
+    try:
+        raw_link.symlink_to(external_raw, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory links are unavailable on this Windows test host")
+
+    graph = ProjectIndexer(ProjectWorkspace.open(tmp_path)).inspect((raw_link / source.name,))
+
+    assert graph.artifacts[0].relative_path == "raw/PA6-DWJJ.txt"
+    assert graph.artifacts[0].sha256
+
+
 def test_index_orders_paths_deterministically(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
