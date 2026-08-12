@@ -1,5 +1,21 @@
 # Active Work
 
+## Agent-native core and TPAE golden path - design review (2026-08-12)
+
+- The approved product direction is a general agent-workflow architecture with
+  one complete TPAE characterization workflow, rather than a simultaneous
+  rewrite of all technique engines or the GUI.
+- The proposed public operations are `inspect_data`, `propose_recipe`,
+  `run_recipe`, `validate_run`, and `export_run`. They adapt existing
+  `AnalysisResult`, evidence, and figure recipe boundaries rather than replacing
+  them.
+- Real TPAE data remains external and will be referenced through path/hash
+  manifests; only synthetic fixtures and recipe contracts may enter Git.
+- Design: `docs/superpowers/specs/2026-08-12-agent-native-core-tpae-golden-path-design.md`.
+  Task: `docs/agent/tasks/2026-08-12-agent-native-core-tpae-golden-path.md`.
+- Next action: review the written architecture, then implement the contract and
+  manifest/replay slice through test-first development.
+
 ## GUI performance recovery - checkpoint pending (2026-08-09)
 
 - History now uses indexed header-only queries; full JSON hydrates only for a
