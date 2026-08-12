@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -54,8 +55,11 @@ def test_project_artifact_identity_is_stable_and_json_safe(tmp_path):
 
     changed_status = blocked.to_dict()
     changed_status["inspection_status"] = "ready"
-    with pytest.raises(ValueError, match="artifact hash"):
-        ProjectArtifact.from_dict(changed_status)
+    changed_artifact = ProjectArtifact.from_dict(changed_status)
+    assert changed_artifact.artifact_id == blocked.artifact_id
+    assert ResearchGraph.create(study_id="status", artifacts=(blocked,)).graph_hash != (
+        ResearchGraph.create(study_id="status", artifacts=(changed_artifact,)).graph_hash
+    )
 
     missing_hash = artifact.to_dict()
     missing_hash.pop("artifact_id")
@@ -66,6 +70,64 @@ def test_project_artifact_identity_is_stable_and_json_safe(tmp_path):
     changed_hash["artifact_id"] = "tampered"
     with pytest.raises(ValueError, match="artifact hash"):
         ProjectArtifact.from_dict(changed_hash)
+
+
+def test_blocked_artifact_retains_hash_when_raw_bytes_are_readable(tmp_path):
+    artifact = ProjectArtifact.create(
+        project_root=tmp_path,
+        path=tmp_path / "raw" / "unreadable-header.edf",
+        technique="saxs",
+        sha256="a" * 64,
+        inspection_status="blocked",
+        reason_codes=("header_unreadable",),
+    )
+
+    assert artifact.sha256 == "a" * 64
+    assert artifact.inspection_status == "blocked"
+    assert artifact.reason_codes == ("header_unreadable",)
+
+
+def test_legacy_artifact_and_graph_snapshot_loads_with_default_inspection_fields():
+    facts = {"setpoint_C": ProjectFact.from_sources(key="setpoint_C", raw_value=180.0)}
+    identity = {
+        "relative_path": "raw/DSC_180.txt",
+        "technique": "dsc",
+        "sha256": "abc123",
+        "facts": {key: fact.to_dict() for key, fact in facts.items()},
+    }
+    legacy_artifact = {
+        "artifact_id": hashlib.sha256(
+            json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest(),
+        "relative_path": identity["relative_path"],
+        "path": identity["relative_path"],
+        "technique": identity["technique"],
+        "sha256": identity["sha256"],
+        "format": "txt",
+        "facts": identity["facts"],
+        "observed_facts": identity["facts"],
+        "discrepancies": [],
+    }
+    legacy_graph_payload = {
+        "study_id": "legacy-study",
+        "formulations": [],
+        "batches": [],
+        "conditions": [],
+        "measurements": [],
+        "artifacts": [legacy_artifact],
+    }
+    legacy_graph_payload["graph_hash"] = hashlib.sha256(
+        json.dumps(legacy_graph_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+    artifact = ProjectArtifact.from_dict(legacy_artifact)
+    graph = ResearchGraph.from_dict(legacy_graph_payload)
+
+    assert artifact.inspection_status == "ready"
+    assert artifact.reason_codes == ()
+    assert graph.artifacts[0].inspection_status == "ready"
 
 
 def test_raw_fact_wins_over_filename_label_and_records_discrepancy():

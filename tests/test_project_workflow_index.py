@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
+from polynexus.core.agent_workflow.models import InputArtifact
 from polynexus.core.project_workflow.index import ProjectIndexer
 from polynexus.core.project_workflow.workspace import ProjectWorkspace
-import pytest
 
 
 def test_index_preserves_raw_condition_when_filename_disagrees(tmp_path: Path) -> None:
@@ -79,6 +82,40 @@ def test_index_persists_missing_requested_input_as_blocked(tmp_path: Path) -> No
     assert artifact.sha256 is None
     assert artifact.inspection_status == "blocked"
     assert artifact.reason_codes == ("file_missing",)
+
+
+def test_index_persists_hash_for_readable_artifact_with_unreadable_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "raw" / "WAXS_185C.edf"
+    source.parent.mkdir()
+    source.write_bytes(b"readable raw bytes")
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    def blocked_header_inspection(path: Path, *, technique: str) -> InputArtifact:
+        return InputArtifact(
+            artifact_id="inspection-id",
+            path=str(path),
+            technique=technique,
+            format="edf",
+            sha256=source_hash,
+            inspection_status="blocked",
+            reason_codes=("header_unreadable",),
+        )
+
+    monkeypatch.setattr(
+        "polynexus.core.project_workflow.index.inspect_artifact", blocked_header_inspection
+    )
+    workspace = ProjectWorkspace.open(tmp_path)
+    graph = ProjectIndexer(workspace).inspect([source])
+    persisted = json.loads((workspace.inventory_dir / "index.json").read_text(encoding="utf-8"))
+
+    assert graph.artifacts[0].sha256 == source_hash
+    assert graph.artifacts[0].inspection_status == "blocked"
+    assert graph.artifacts[0].reason_codes == ("header_unreadable",)
+    assert persisted["artifacts"][0]["sha256"] == source_hash
+    assert persisted["artifacts"][0]["inspection_status"] == "blocked"
+    assert persisted["artifacts"][0]["reason_codes"] == ["header_unreadable"]
 
 
 @pytest.mark.parametrize("directory", ("notes", "manuscript"))

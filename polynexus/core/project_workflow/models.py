@@ -165,8 +165,6 @@ class ProjectArtifact:
         object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
         if self.inspection_status not in {"ready", "review_required", "blocked"}:
             raise ValueError(f"Unsupported inspection status: {self.inspection_status}")
-        if self.inspection_status == "blocked" and self.sha256 is not None:
-            raise ValueError("blocked artifacts cannot have a verifiable source hash")
         object.__setattr__(
             self,
             "facts",
@@ -219,14 +217,12 @@ class ProjectArtifact:
                 for k, v in (observed_facts or {}).items()
             }
         )
-        identity = {
-            "relative_path": relative,
-            "technique": str(technique).lower(),
-            "sha256": str(sha256) if sha256 else None,
-            "facts": {k: v.to_dict() for k, v in fact_values.items()},
-            "inspection_status": str(inspection_status),
-            "reason_codes": [str(code) for code in reason_codes],
-        }
+        identity = cls._identity_payload(
+            relative_path=relative,
+            technique=technique,
+            sha256=sha256,
+            facts=fact_values,
+        )
         return cls(
             artifact_id=_hash_payload(identity),
             relative_path=relative,
@@ -253,6 +249,22 @@ class ProjectArtifact:
             "discrepancies": list(self.discrepancies),
         }
 
+    @staticmethod
+    def _identity_payload(
+        *,
+        relative_path: str,
+        technique: str,
+        sha256: str | None,
+        facts: Mapping[str, ProjectFact],
+    ) -> dict[str, Any]:
+        """Raw identity excludes inspection outcomes, which are graph state."""
+        return {
+            "relative_path": str(relative_path),
+            "technique": str(technique).lower(),
+            "sha256": str(sha256) if sha256 else None,
+            "facts": {key: fact.to_dict() for key, fact in facts.items()},
+        }
+
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "ProjectArtifact":
         if not value.get("artifact_id"):
@@ -275,14 +287,12 @@ class ProjectArtifact:
             reason_codes=tuple(value.get("reason_codes", ())),
             discrepancies=tuple(value.get("discrepancies", ())),
         )
-        identity = {
-            "relative_path": artifact.relative_path,
-            "technique": artifact.technique,
-            "sha256": artifact.sha256,
-            "facts": {k: v.to_dict() for k, v in artifact.facts.items()},
-            "inspection_status": artifact.inspection_status,
-            "reason_codes": list(artifact.reason_codes),
-        }
+        identity = cls._identity_payload(
+            relative_path=artifact.relative_path,
+            technique=artifact.technique,
+            sha256=artifact.sha256,
+            facts=artifact.facts,
+        )
         if artifact.artifact_id != _hash_payload(identity):
             raise ValueError("artifact hash does not match its content")
         return artifact
@@ -458,7 +468,23 @@ class ResearchGraph:
         if not value.get("graph_hash"):
             raise ValueError("graph hash is missing")
         if value["graph_hash"] != graph.graph_hash:
-            raise ValueError("Research graph hash does not match its content")
+            legacy_artifacts = value.get("artifacts", ())
+            if not any(
+                "inspection_status" not in artifact or "reason_codes" not in artifact
+                for artifact in legacy_artifacts
+                if isinstance(artifact, Mapping)
+            ):
+                raise ValueError("Research graph hash does not match its content")
+            legacy_payload = {
+                "study_id": str(value["study_id"]),
+                "formulations": list(value.get("formulations", ())),
+                "batches": list(value.get("batches", ())),
+                "conditions": list(value.get("conditions", ())),
+                "measurements": list(value.get("measurements", ())),
+                "artifacts": list(legacy_artifacts),
+            }
+            if value["graph_hash"] != _hash_payload(legacy_payload):
+                raise ValueError("Research graph hash does not match its content")
         return graph
 
 
