@@ -67,6 +67,11 @@ def evidence_items_from_run(
         summary_text = analysis_evidence.get("summary")
         if isinstance(summary_text, str) and summary_text:
             supported = (f"{step.step_id}:{summary_text}",)
+        elif summary:
+            # This is an observed provider output, not a scientific conclusion.
+            supported = (
+                f"Observed {step.technique} provider result for {step.step_id}; interpretation requires review.",
+            )
         figures = _referenced_paths(step.figure_references)
         item = EvidenceItem.create(
             evidence_id=f"{run_id}:{step.step_id}",

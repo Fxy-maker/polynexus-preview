@@ -16,6 +16,7 @@ from polynexus.core.agent_workflow.models import AnalysisRecipe
 from .evidence import ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .index import ProjectIndexer
 from .models import AnalysisRequest, ProjectPlan, ResearchGraph
+from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .workspace import ProjectWorkspace
 
 
@@ -244,6 +245,21 @@ class ProjectWorkflowService:
             manifest_path=str(manifest_path),
             analysis_run=analysis_run,
             reason_codes=analysis_run.reason_codes,
+        )
+
+    def package(
+        self,
+        runs: Iterable[ProjectWorkflowRun] | ProjectWorkflowRun,
+        *,
+        relations: Iterable[Mapping[str, Any]] = (),
+        package_id: str = "pa6-crystallization",
+    ) -> ResearchEvidencePackage:
+        """Materialize validated runs as an immutable ARS evidence snapshot."""
+        values = (runs,) if isinstance(runs, ProjectWorkflowRun) else tuple(runs)
+        return ProjectEvidencePackager(self.workspace).create(
+            values,
+            relations=relations,
+            package_id=package_id,
         )
 
     def _persist_blocked_plan(self, request: AnalysisRequest, reason: str) -> ProjectPlan:

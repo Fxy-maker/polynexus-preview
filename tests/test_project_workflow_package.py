@@ -1,0 +1,107 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from dataclasses import replace
+
+import pytest
+
+from polynexus.core.project_workflow.models import AnalysisRequest
+from polynexus.core.project_workflow.package import ProjectEvidencePackager
+from polynexus.core.project_workflow.service import ProjectWorkflowService
+from polynexus.core.project_workflow.workspace import ProjectWorkspace
+
+
+def _write_mettler_fixture(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = ["Sample Weight: 5.95 mg"]
+    index = 0
+    for setpoint, duration in ((255.0, 70), (180.0, 80), (255.0, 70), (181.0, 85)):
+        for second in range(duration + 1):
+            sample_temperature = setpoint + 0.05 if setpoint < 200 else setpoint + 0.02
+            heat_flow = 1.0 + (20.0 / (second + 5) if setpoint < 200 else 0.0)
+            rows.append(f"{index} {index} {sample_temperature:.3f} {setpoint:.3f} {heat_flow:.6f}")
+            index += 1
+    path.write_text("\n".join(rows), encoding="utf-8")
+    return path
+
+
+def _run_dsc_request(tmp_path: Path):
+    source = _write_mettler_fixture(tmp_path / "raw" / "PA6-DWJJ.txt")
+    service = ProjectWorkflowService.open(tmp_path)
+    request = AnalysisRequest.create(
+        question="Compare PA6 kinetics",
+        requested_outputs=("avrami_parameter_table",),
+        data_scope=(str(source.relative_to(tmp_path)),),
+    )
+    return service.run(request)
+
+
+def test_package_contains_ars_entrypoint_and_provenance(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+    assert (package.path / "writing-input.md").exists()
+    payload = json.loads((package.path / "evidence.json").read_text(encoding="utf-8"))
+    assert payload["items"]
+    assert payload["items"][0]["source_runs"]
+    assert payload["items"][0]["supported_interpretations"]
+    assert payload["items"][0]["disallowed_conclusions"]
+    manifest = json.loads((package.path / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "review_required"
+    assert manifest["run_manifests"]
+
+
+def test_new_package_version_does_not_replace_previous_snapshot(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    workspace = ProjectWorkspace.open(tmp_path)
+    first = ProjectEvidencePackager(workspace).create((run,))
+    first_manifest = (first.path / "manifest.json").read_bytes()
+    second = ProjectEvidencePackager(workspace).create((run,))
+
+    assert first.path != second.path
+    assert first.path.exists()
+    assert (first.path / "manifest.json").read_bytes() == first_manifest
+    assert second.version == 2
+
+
+def test_package_rejects_blocked_run(tmp_path: Path) -> None:
+    service = ProjectWorkflowService.open(tmp_path)
+    request = AnalysisRequest.create(question="Analyze WAXS", data_scope=("raw/missing",))
+    run = service.run(request)
+
+    with pytest.raises(ValueError, match="blocked"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_rejects_tampered_run_manifest(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    manifest_path = Path(run.manifest_path or "")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["run_id"] = "tampered"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="run manifest"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_rejects_changed_raw_input(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    source = tmp_path / "raw" / "PA6-DWJJ.txt"
+    source.write_text("changed", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="source hash"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_copies_derived_assets_without_copying_raw_data(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    figure = tmp_path / ".polynexus" / "runs" / run.run_id / "kinetics.png"
+    figure.parent.mkdir(parents=True, exist_ok=True)
+    figure.write_bytes(b"derived figure")
+    enriched = replace(run, outputs=(*run.outputs, str(figure)))
+
+    package = ProjectWorkflowService.open(tmp_path).package(enriched)
+
+    assert (package.path / "figures" / "kinetics.png").read_bytes() == b"derived figure"
+    assert not list(package.path.rglob("PA6-DWJJ.txt"))

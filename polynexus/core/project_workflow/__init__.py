@@ -14,6 +14,7 @@ from .models import (
 )
 from .service import ProjectWorkflowService
 from .evidence import ProjectWorkflowRun, evidence_items_from_run, stable_run_id
+from .package import ProjectEvidencePackager, ResearchEvidencePackage
 
 __all__ = [
     "AnalysisRequest",
@@ -30,4 +31,6 @@ __all__ = [
     "ProjectWorkflowRun",
     "evidence_items_from_run",
     "stable_run_id",
+    "ProjectEvidencePackager",
+    "ResearchEvidencePackage",
 ]
