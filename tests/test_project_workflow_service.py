@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 from polynexus.core.project_workflow.models import AnalysisRequest
 from polynexus.core.project_workflow.service import ProjectWorkflowService
@@ -69,3 +70,82 @@ def test_run_dsc_request_writes_derived_outputs_only(tmp_path: Path) -> None:
     assert source.exists()
     assert result.outputs
     assert all(Path(path).is_relative_to(tmp_path / ".polynexus") for path in result.outputs)
+
+
+def test_plan_blocks_explicit_scope_outside_project(tmp_path: Path) -> None:
+    service = ProjectWorkflowService.open(tmp_path)
+    request = AnalysisRequest.create(
+        question="Analyze DSC",
+        data_scope=(str((tmp_path.parent / "outside.txt").resolve()),),
+    )
+
+    plan = service.plan(request)
+
+    assert plan.status == "blocked"
+    assert "scope_outside_project" in plan.reason_codes
+
+
+def test_plan_blocks_parent_scope_and_missing_scope_after_index(tmp_path: Path) -> None:
+    source = _write_mettler_fixture(tmp_path / "raw" / "PA6-DWJJ.txt")
+    service = ProjectWorkflowService.open(tmp_path)
+    service.inspect((source,))
+
+    for scope, expected in (("../raw", "scope_outside_project"), ("raw/missing.txt", "scope_not_indexed")):
+        request = AnalysisRequest.create(question="Analyze DSC", data_scope=(scope,))
+        plan = service.plan(request)
+        assert plan.status == "blocked"
+        assert expected in plan.reason_codes
+
+
+def test_plan_fails_closed_on_tampered_inventory(tmp_path: Path) -> None:
+    source = _write_mettler_fixture(tmp_path / "raw" / "PA6-DWJJ.txt")
+    service = ProjectWorkflowService.open(tmp_path)
+    service.inspect((source,))
+    index_path = tmp_path / ".polynexus" / "inventory" / "index.json"
+    payload = json.loads(index_path.read_text(encoding="utf-8"))
+    payload["artifacts"][0]["sha256"] = "tampered"
+    index_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    plan = service.plan(AnalysisRequest.create(question="Analyze DSC", data_scope=("raw",)))
+
+    assert plan.status == "blocked"
+    assert "inventory_invalid" in plan.reason_codes
+
+
+def test_run_rejects_supplied_plan_that_differs_from_persisted_plan(tmp_path: Path) -> None:
+    source = _write_mettler_fixture(tmp_path / "raw" / "PA6-DWJJ.txt")
+    service = ProjectWorkflowService.open(tmp_path)
+    request = AnalysisRequest.create(
+        question="Compare PA6 kinetics",
+        data_scope=(str(source.relative_to(tmp_path)),),
+    )
+    persisted = service.plan(request)
+    supplied = type(persisted).create(
+        request_hash=persisted.request_hash,
+        steps=persisted.steps,
+        status="blocked",
+        reason_codes=("tampered",),
+        required_context=persisted.required_context,
+    )
+
+    result = service.run(supplied)
+
+    assert result.status == "blocked"
+    assert "plan_manifest_mismatch" in result.reason_codes
+
+
+def test_run_projects_provider_limits_into_evidence(tmp_path: Path) -> None:
+    source = _write_mettler_fixture(tmp_path / "raw" / "PA6-DWJJ.txt")
+    service = ProjectWorkflowService.open(tmp_path)
+    request = AnalysisRequest.create(
+        question="Compare PA6 kinetics",
+        data_scope=(str(source.relative_to(tmp_path)),),
+    )
+
+    result = service.run(request)
+
+    assert result.evidence_items
+    assert any(
+        "unique_hydrogen_bond_species" in item.disallowed_conclusions
+        for item in result.evidence_items
+    )

@@ -49,7 +49,16 @@ class ProjectWorkflowService:
 
     def plan(self, request: AnalysisRequest) -> ProjectPlan:
         """Resolve a request against inventory and select registered routes only."""
-        graph = self._load_or_discover(request.data_scope)
+        scope_boundary_error = self._scope_boundary_error(request.data_scope)
+        if scope_boundary_error:
+            return self._persist_blocked_plan(request, scope_boundary_error)
+        try:
+            graph = self._load_or_discover(request.data_scope)
+        except (ValueError, KeyError, TypeError, OSError, UnicodeError):
+            return self._persist_blocked_plan(request, "inventory_invalid")
+        scope_error = self._scope_error(graph, request.data_scope)
+        if scope_error:
+            return self._persist_blocked_plan(request, scope_error)
         artifacts = self._resolve_scope(graph, request.data_scope)
         techniques = sorted({artifact.technique for artifact in artifacts})
         if not techniques:
@@ -132,6 +141,20 @@ class ProjectWorkflowService:
             request = self._load_request(plan.request_hash)
             if request is None:
                 return self._blocked_project_run(plan, "request_manifest_missing")
+            try:
+                persisted_payload = self.workspace.read_json(
+                    self.workspace.requests_dir / f"{plan.request_hash}.plan.json"
+                )
+                if persisted_payload is None:
+                    return self._blocked_project_run(plan, "plan_manifest_missing")
+                persisted_plan = ProjectPlan.from_dict(persisted_payload)
+            except (ValueError, KeyError, TypeError, OSError, UnicodeError):
+                persisted_plan = None
+            if persisted_plan is None or (
+                persisted_plan.plan_hash != plan.plan_hash
+                or persisted_plan.to_dict() != plan.to_dict()
+            ):
+                return self._blocked_project_run(plan, "plan_manifest_mismatch")
         else:
             raise TypeError("run expects AnalysisRequest or ProjectPlan")
 
@@ -148,7 +171,10 @@ class ProjectWorkflowService:
         if len(source_paths) != 1:
             return self._blocked_project_run(plan, "dsc_source_count_invalid")
         source = Path(source_paths[0])
-        graph = self._load_or_discover(request.data_scope)
+        try:
+            graph = self._load_or_discover(request.data_scope)
+        except (ValueError, KeyError, TypeError, OSError, UnicodeError):
+            return self._blocked_project_run(plan, "inventory_invalid")
         artifacts = {artifact.relative_path: artifact for artifact in graph.artifacts}
         relative_source = source.relative_to(self.workspace.root).as_posix()
         artifact = artifacts.get(relative_source)
@@ -173,10 +199,19 @@ class ProjectWorkflowService:
         )
         run_id = stable_run_id(request.request_hash, recipe.recipe_hash, source_hashes)
         output_dir = self.workspace.runs_dir / run_id
-        analysis_run = self.agent_service.run_recipe(recipe, output_dir)
+        raw_analysis_run = self.agent_service.run_recipe(recipe, output_dir)
+        analysis_run = self.agent_service.validate_run(raw_analysis_run)
         limitations = tuple(
-            code for code in analysis_run.reason_codes
-            if code not in {"provider_execution_failed"}
+            dict.fromkeys(
+                [
+                    *analysis_run.reason_codes,
+                    *(
+                        analysis_run.evidence.disallowed_conclusions
+                        if analysis_run.evidence
+                        else ()
+                    ),
+                ]
+            )
         )
         evidence_items = evidence_items_from_run(
             analysis_run,
@@ -210,6 +245,16 @@ class ProjectWorkflowService:
             analysis_run=analysis_run,
             reason_codes=analysis_run.reason_codes,
         )
+
+    def _persist_blocked_plan(self, request: AnalysisRequest, reason: str) -> ProjectPlan:
+        plan = ProjectPlan.create(
+            request_hash=request.request_hash,
+            status="blocked",
+            reason_codes=(reason,),
+        )
+        self.workspace.write_json(self.workspace.requests_dir / f"{request.request_hash}.request.json", request.to_dict())
+        self.workspace.write_json(self.workspace.requests_dir / f"{request.request_hash}.plan.json", plan.to_dict())
+        return plan
 
     def _load_request(self, request_hash: str) -> AnalysisRequest | None:
         payload = self.workspace.read_json(
@@ -320,6 +365,34 @@ class ProjectWorkflowService:
         if paths:
             return self.inspect(paths)
         return ResearchGraph.create(study_id=f"project-{self.workspace.root.name or 'root'}")
+
+    def _scope_error(self, graph: ResearchGraph, scope: tuple[str, ...]) -> str | None:
+        if not scope:
+            return None
+        for item in scope:
+            candidate = Path(item).expanduser()
+            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).resolve()
+            try:
+                resolved.relative_to(self.workspace.root)
+            except ValueError:
+                return "scope_outside_project"
+        if self.workspace.read_json(self.workspace.inventory_dir / "index.json") is None:
+            return None
+        if not graph.artifacts:
+            return "scope_not_indexed"
+        if not self._resolve_scope(graph, scope):
+            return "scope_not_indexed"
+        return None
+
+    def _scope_boundary_error(self, scope: tuple[str, ...]) -> str | None:
+        for item in scope:
+            candidate = Path(item).expanduser()
+            resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).resolve()
+            try:
+                resolved.relative_to(self.workspace.root)
+            except ValueError:
+                return "scope_outside_project"
+        return None
 
     @staticmethod
     def _resolve_scope(graph: ResearchGraph, scope: tuple[str, ...]):
