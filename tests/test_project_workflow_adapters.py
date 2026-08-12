@@ -87,3 +87,20 @@ def test_project_run_delegates_single_waxs_input_to_existing_service(tmp_path: P
     assert result.evidence_items[0].technique == "waxs"
     assert result.analysis_run is not None
     assert result.analysis_run.recipe.steps[0].parameters["submodule_id"] == "waxs.static"
+
+
+def test_ir_directory_alias_is_indexed_as_ir_and_stale_source_blocks_run(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "IR" / "series"
+    source.mkdir(parents=True)
+    (source / "20C.csv").write_text("wavenumber,intensity\n1000,1\n", encoding="utf-8")
+    service = ProjectWorkflowService.open(tmp_path)
+    graph = service.inspect((source,))
+    assert graph.artifacts[0].technique == "ir"
+    plan = service.plan(AnalysisRequest.create(
+        question="Analyze IR",
+        data_scope=(source.relative_to(tmp_path).as_posix(),),
+    ))
+    (source / "20C.csv").write_text("wavenumber,intensity\n1000,2\n", encoding="utf-8")
+    result = service.run(plan)
+    assert result.status == "blocked"
+    assert "source_hash_changed" in result.reason_codes

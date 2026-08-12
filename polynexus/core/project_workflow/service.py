@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from polynexus.core.agent_workflow import AgentWorkflowService
+from polynexus.core.agent_workflow import AgentWorkflowService, inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe
 
 from .evidence import ProjectWorkflowRun, evidence_items_from_run, stable_run_id
@@ -99,6 +99,7 @@ class ProjectWorkflowService:
                             for artifact in artifacts
                             if artifact.technique == technique
                         ],
+                        "artifact_sha256": None,
                         "requested_outputs": list(request.requested_outputs),
                     })
                     continue
@@ -130,6 +131,7 @@ class ProjectWorkflowService:
                     "provider_id": provider_id,
                     "template_id": template_id,
                     "artifact_paths": [artifact.relative_path for artifact in selected],
+                    "artifact_sha256": selected[0].sha256 if len(selected) == 1 else None,
                     "requested_outputs": list(request.requested_outputs),
                 })
                 continue
@@ -141,6 +143,7 @@ class ProjectWorkflowService:
                 "provider_id": _DSC_WORKFLOW,
                 "template_id": _DSC_TEMPLATE,
                 "artifact_paths": [artifact.relative_path for artifact in selected],
+                "artifact_sha256": selected[0].sha256 if len(selected) == 1 else None,
                 "requested_outputs": list(request.requested_outputs),
             })
 
@@ -212,6 +215,12 @@ class ProjectWorkflowService:
         artifact = artifacts.get(relative_source)
         if artifact is None:
             return self._blocked_project_run(plan, "dsc_source_not_indexed")
+        expected_hash = dsc_steps[0].get("artifact_sha256")
+        if expected_hash and artifact.sha256 != expected_hash:
+            return self._blocked_project_run(plan, "stale_plan_source_hash")
+        current = inspect_artifact(source, technique="dsc")
+        if current.sha256 != artifact.sha256:
+            return self._blocked_project_run(plan, "source_hash_changed")
 
         manifest = {
             "workflow_id": _DSC_WORKFLOW,
@@ -302,6 +311,12 @@ class ProjectWorkflowService:
         artifact = artifacts.get(relative_source)
         if artifact is None:
             return self._blocked_project_run(plan, "source_not_indexed")
+        expected_hash = plan_step.get("artifact_sha256")
+        if expected_hash and artifact.sha256 != expected_hash:
+            return self._blocked_project_run(plan, "stale_plan_source_hash")
+        current = inspect_artifact(source, technique=technique)
+        if current.sha256 != artifact.sha256:
+            return self._blocked_project_run(plan, "source_hash_changed")
         proposal = self.single_input_adapter.propose_recipe({
             "workflow_id": _SINGLE_WORKFLOW,
             "technique": technique,

@@ -10,6 +10,8 @@ from polynexus.core.project_workflow.models import AnalysisRequest
 from polynexus.core.project_workflow.package import ProjectEvidencePackager
 from polynexus.core.project_workflow.service import ProjectWorkflowService
 from polynexus.core.project_workflow.workspace import ProjectWorkspace
+from polynexus.core.agent_workflow import AgentWorkflowService
+from polynexus.core.engine import AnalysisResult
 
 
 def _write_mettler_fixture(path: Path) -> Path:
@@ -127,3 +129,22 @@ def test_package_keeps_same_named_derived_figures_from_distinct_sources(tmp_path
     figures = sorted((package.path / "figures").glob("*.svg"))
     assert len(figures) == 2
     assert figures[0].name != figures[1].name
+
+
+def test_package_validates_ir_directory_source_without_copying_raw(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "IR" / "series"
+    source.mkdir(parents=True)
+    (source / "20C.csv").write_text("wavenumber,intensity\n1000,1\n", encoding="utf-8")
+    agent = AgentWorkflowService(provider_runner=lambda step, artifact, output: AnalysisResult(
+        technique=step.technique, validation_passed=True,
+    ))
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = agent
+    service.inspect((source,))
+    run = service.run(AnalysisRequest.create(
+        question="Analyze IR series",
+        data_scope=(source.relative_to(tmp_path).as_posix(),),
+    ))
+    package = service.package(run, package_id="ir-series")
+    assert package.status == "review_required"
+    assert not any(path.name == "20C.csv" for path in package.path.rglob("*"))

@@ -179,7 +179,13 @@ class ProjectEvidencePackager:
             if not artifact.sha256:
                 raise ValueError("run manifest source hash is missing")
             source = Path(artifact.path).expanduser()
-            if not source.is_file() or _sha256_file(source) != artifact.sha256:
+            if source.is_file():
+                current_hash = _sha256_file(source)
+            elif source.is_dir():
+                current_hash = _sha256_directory(source)
+            else:
+                current_hash = None
+            if current_hash != artifact.sha256:
                 raise ValueError("run manifest source hash no longer matches")
         return manifest
 
@@ -318,6 +324,23 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sha256_directory(path: Path) -> str:
+    """Hash a directory by sorted relative file names and file digests."""
+    entries: list[dict[str, str]] = []
+    for candidate in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()):
+        if candidate.is_symlink():
+            raise ValueError("directory source contains symlink")
+        if not candidate.is_file():
+            continue
+        entries.append({
+            "path": candidate.relative_to(path).as_posix(),
+            "sha256": _sha256_file(candidate),
+        })
+    if not entries:
+        return ""
+    return hashlib.sha256(canonical_json(entries).encode("utf-8")).hexdigest()
 
 
 __all__ = ["ProjectEvidencePackager", "ResearchEvidencePackage"]
