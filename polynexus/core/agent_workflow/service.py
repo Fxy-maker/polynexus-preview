@@ -102,7 +102,12 @@ class AgentWorkflowService:
         artifacts_by_technique = {artifact.technique: artifact for artifact in recipe.artifacts}
         results: list[WorkflowStepResult] = []
         for step in recipe.steps:
-            artifact = artifacts_by_technique.get(step.technique)
+            artifact_index = step.parameters.get("artifact_index")
+            artifact = (
+                recipe.artifacts[int(artifact_index)]
+                if isinstance(artifact_index, int) and 0 <= artifact_index < len(recipe.artifacts)
+                else artifacts_by_technique.get(step.technique)
+            )
             if artifact is None:
                 return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("step_artifact_missing",))
             try:

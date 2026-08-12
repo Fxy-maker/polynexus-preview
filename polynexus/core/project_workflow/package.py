@@ -78,7 +78,27 @@ class ProjectEvidencePackager:
 
             copied_assets.extend(self._asset_descriptors(run, package_id))
 
+        copied_assets = self._disambiguate_assets(copied_assets)
+
         relation_values = [dict(value) for value in relations]
+        if not relation_values:
+            relation_values = [
+                {
+                    "type": "run_part_of_request",
+                    "run_id": run.run_id,
+                    "request_hash": run.request_hash,
+                    "evidence_scope": "explicit_project_request",
+                }
+                for run in run_values
+            ]
+            techniques = sorted({item.technique for run in run_values for item in run.evidence_items})
+            if len(run_values) > 1:
+                relation_values.append({
+                    "type": "cross_technique_evidence_set" if len(techniques) > 1 else "technique_series_evidence_set",
+                    "run_ids": [run.run_id for run in run_values],
+                    "techniques": techniques,
+                    "evidence_scope": "explicit_package_membership",
+                })
         status = "review_required" if any(value == "review_required" for value in statuses) else "completed"
         if any(value not in {"completed", "review_required"} for value in statuses):
             raise ValueError("only completed or review_required runs may be packaged")
@@ -177,7 +197,13 @@ class ProjectEvidencePackager:
             if not artifact.sha256:
                 raise ValueError("run manifest source hash is missing")
             source = Path(artifact.path).expanduser()
-            if not source.is_file() or _sha256_file(source) != artifact.sha256:
+            if source.is_file():
+                current_hash = _sha256_file(source)
+            elif source.is_dir():
+                current_hash = _sha256_directory(source)
+            else:
+                current_hash = None
+            if current_hash != artifact.sha256:
                 raise ValueError("run manifest source hash no longer matches")
         return manifest
 
@@ -233,6 +259,26 @@ class ProjectEvidencePackager:
         return values
 
     @staticmethod
+    def _disambiguate_assets(assets: list[dict[str, str]]) -> list[dict[str, str]]:
+        """Give same-named derived assets stable names instead of overwriting."""
+        grouped: dict[tuple[str, str], list[dict[str, str]]] = {}
+        for asset in assets:
+            grouped.setdefault((asset["kind"], asset["name"]), []).append(asset)
+        result: list[dict[str, str]] = []
+        for (_, original_name), values in grouped.items():
+            sources = {value["source"] for value in values}
+            if len(sources) == 1:
+                result.append(dict(values[0]))
+                continue
+            for value in values:
+                source = Path(value["source"])
+                digest = hashlib.sha256(str(source).encode("utf-8")).hexdigest()[:10]
+                updated = dict(value)
+                updated["name"] = f"{source.stem}-{digest}{source.suffix}"
+                result.append(updated)
+        return result
+
+    @staticmethod
     def _copy_assets(assets: list[dict[str, str]], package_path: Path) -> None:
         for asset in assets:
             destination = package_path / asset["kind"] / asset["name"]
@@ -258,6 +304,11 @@ class ProjectEvidencePackager:
                 lines.append(f"  Do not conclude: {conclusion}")
         lines.extend(("", "## Limitations"))
         lines.extend(f"- {value}" for value in limitations)
+        parameters = manifest.get("request_parameters", {})
+        corrections = parameters.get("approved_context_corrections") if isinstance(parameters, Mapping) else None
+        if isinstance(corrections, Mapping) and corrections:
+            lines.extend(("", "## Approved context corrections", "- User-approved request metadata; not raw instrument facts."))
+            lines.extend(f"- {key}: {value}" for key, value in corrections.items())
         return "\n".join(lines) + "\n"
 
     @staticmethod
@@ -296,6 +347,23 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sha256_directory(path: Path) -> str:
+    """Hash a directory by sorted relative file names and file digests."""
+    entries: list[dict[str, str]] = []
+    for candidate in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()):
+        if candidate.is_symlink():
+            raise ValueError("directory source contains symlink")
+        if not candidate.is_file():
+            continue
+        entries.append({
+            "path": candidate.relative_to(path).as_posix(),
+            "sha256": _sha256_file(candidate),
+        })
+    if not entries:
+        return ""
+    return hashlib.sha256(canonical_json(entries).encode("utf-8")).hexdigest()
 
 
 __all__ = ["ProjectEvidencePackager", "ResearchEvidencePackage"]

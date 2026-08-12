@@ -15,6 +15,7 @@ from .workspace import ProjectWorkspace
 _TECHNIQUE_ALIASES = (
     ("ftir", "ir"),
     ("infrared", "ir"),
+    ("ir", "ir"),
     ("dsc", "dsc"),
     ("waxs", "waxs"),
     ("saxs", "saxs"),

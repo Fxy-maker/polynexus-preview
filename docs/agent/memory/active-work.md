@@ -5176,6 +5176,48 @@
 Every active task should record its status, blocker, next action, and evidence
 link here when that information will matter to a later agent.
 
+## Project technique adapters V2 - checkpointed 2026-08-13
+
+- Registered `project.technique.single.v1` routes one IR, WAXS, or SAXS input
+  through existing engines and emits validated ARS evidence packages.
+- External PA6 FTIR, WAXS, and SAXS inputs were replayed read-only through
+  project-local raw junctions. SAXS retains `background_unknown`; all three
+  packages remain `review_required`.
+- Replay plans bind indexed source hashes; IR aliases and directory source
+  hashing are covered; duplicate derived figure names are disambiguated.
+- Acceptance: `docs/acceptance/2026-08-13-project-technique-adapters-v2.md`.
+- V3 remains open for multi-file series and cross-technique package relations.
+
+## Project technique series V3 - checkpointed 2026-08-13
+
+- Registered `project.technique.series.v1` executes same-technique IR/WAXS/SAXS
+  files as deterministic ordered steps. Each step binds an `artifact_index` and
+  source order; mixed techniques and one-file series requests fail closed.
+- Agent workflow execution now resolves indexed artifacts instead of collapsing
+  same-technique artifacts to the last file.
+- Packages add conservative `run_part_of_request` relations when no explicit
+  relations are supplied. No sample, batch, formulation, or cross-technique
+  identity is inferred.
+- Real PA6 FTIR replay used a read-only raw junction and three CSV files;
+  plan was `ready`, run/package `review_required`, and three evidence items were
+  produced. Acceptance: `docs/acceptance/2026-08-13-project-technique-series-v3.md`.
+- V4 remains open for cross-technique package assembly and retry/resume.
+
+## Project workflow recovery V4 - checkpointed 2026-08-13
+
+- `ProjectWorkflowService.resume(run_id)` validates persisted request/plan
+  manifests and current source hashes before replaying the same plan.
+- `approve_context_correction()` creates a new request with explicit approval,
+  approver, and correction metadata; raw inventory facts remain unchanged.
+- Writing-input includes approved corrections as provenance metadata only.
+- Focused recovery/project matrix passed `28`; acceptance:
+  `docs/acceptance/2026-08-13-project-workflow-recovery-v4.md`.
+- Final cross-technique ARS integration and local mainline closeout remain open.
+
+- Multi-run packaging now projects `cross_technique_evidence_set` or
+  `technique_series_evidence_set` relations from explicit package membership;
+  it never infers sample identity.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

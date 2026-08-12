@@ -10,10 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from polynexus.core.agent_workflow import AgentWorkflowService
+from polynexus.core.agent_workflow import AgentWorkflowService, inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe
 
 from .evidence import ProjectWorkflowRun, evidence_items_from_run, stable_run_id
+from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .index import ProjectIndexer
 from .models import AnalysisRequest, ProjectPlan, ResearchGraph
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
@@ -22,6 +23,8 @@ from .workspace import ProjectWorkspace
 
 _DSC_WORKFLOW = "tpae.characterization.v1"
 _DSC_TEMPLATE = "dsc.isothermal.v1"
+_SINGLE_WORKFLOW = SingleInputTechniqueAdapter.workflow_id
+_SERIES_WORKFLOW = TechniqueSeriesAdapter.workflow_id
 
 
 class ProjectWorkflowService:
@@ -36,6 +39,12 @@ class ProjectWorkflowService:
         self.workspace = workspace
         self.indexer = ProjectIndexer(workspace)
         self.agent_service = agent_service or AgentWorkflowService()
+        self.single_input_adapter = SingleInputTechniqueAdapter()
+        self.series_adapter = TechniqueSeriesAdapter()
+        if self.agent_service.registry.get(_SINGLE_WORKFLOW) is None:
+            self.agent_service.registry.register(self.single_input_adapter)
+        if self.agent_service.registry.get(_SERIES_WORKFLOW) is None:
+            self.agent_service.registry.register(self.series_adapter)
 
     @classmethod
     def open(cls, root: str | Path) -> "ProjectWorkflowService":
@@ -69,6 +78,8 @@ class ProjectWorkflowService:
 
         reason_codes: list[str] = []
         steps: list[dict[str, object]] = []
+        if len(techniques) > 1:
+            reason_codes.append("mixed_technique_inputs")
         for technique in techniques:
             selected = tuple(
                 artifact for artifact in artifacts
@@ -92,18 +103,51 @@ class ProjectWorkflowService:
                             for artifact in artifacts
                             if artifact.technique == technique
                         ],
+                        "artifact_sha256": None,
                         "requested_outputs": list(request.requested_outputs),
                     })
                     continue
             if technique != "dsc":
-                reason_codes.append("converter_unregistered")
-                steps.append({
-                    "step_id": f"{technique}.unregistered",
+                if len(selected) > 1:
+                    proposal = self.series_adapter.propose_recipe({
+                        "workflow_id": _SERIES_WORKFLOW,
+                        "technique": technique,
+                        "paths": [str((self.workspace.root / artifact.relative_path).absolute()) for artifact in selected],
+                    })
+                    if proposal.recipe is None:
+                        reason_codes.extend(proposal.reason_codes or ("adapter_blocked",))
+                        steps.append({"step_id": f"{technique}.series.blocked", "technique": technique, "status": "blocked", "provider_id": None, "template_id": None, "artifact_paths": [artifact.relative_path for artifact in selected], "artifact_sha256": [artifact.sha256 for artifact in selected]})
+                    else:
+                        steps.append({"step_id": "series", "technique": technique, "status": "review_required" if proposal.status == "review_required" else "ready", "provider_id": _SERIES_WORKFLOW, "template_id": str(proposal.recipe.steps[0].parameters.get("submodule_id", "")), "artifact_paths": [artifact.relative_path for artifact in selected], "artifact_sha256": [artifact.sha256 for artifact in selected], "source_order": list(range(len(proposal.recipe.artifacts)))})
+                    continue
+                proposal = self.single_input_adapter.propose_recipe({
+                    "workflow_id": _SINGLE_WORKFLOW,
                     "technique": technique,
-                    "status": "blocked",
-                    "provider_id": None,
-                    "template_id": None,
+                    "paths": [
+                        str((self.workspace.root / artifact.relative_path).absolute())
+                        for artifact in selected
+                    ],
+                })
+                if proposal.recipe is None:
+                    reason_codes.extend(proposal.reason_codes or ("adapter_blocked",))
+                    step_id = f"{technique}.blocked"
+                    step_status = "blocked"
+                    provider_id = None
+                    template_id = None
+                else:
+                    recipe_step = proposal.recipe.steps[0]
+                    step_id = recipe_step.step_id
+                    step_status = "review_required" if proposal.status == "review_required" else "ready"
+                    provider_id = _SINGLE_WORKFLOW
+                    template_id = str(recipe_step.parameters.get("submodule_id", ""))
+                steps.append({
+                    "step_id": step_id,
+                    "technique": technique,
+                    "status": step_status,
+                    "provider_id": provider_id,
+                    "template_id": template_id,
                     "artifact_paths": [artifact.relative_path for artifact in selected],
+                    "artifact_sha256": selected[0].sha256 if len(selected) == 1 else None,
                     "requested_outputs": list(request.requested_outputs),
                 })
                 continue
@@ -115,6 +159,7 @@ class ProjectWorkflowService:
                 "provider_id": _DSC_WORKFLOW,
                 "template_id": _DSC_TEMPLATE,
                 "artifact_paths": [artifact.relative_path for artifact in selected],
+                "artifact_sha256": selected[0].sha256 if len(selected) == 1 else None,
                 "requested_outputs": list(request.requested_outputs),
             })
 
@@ -134,6 +179,10 @@ class ProjectWorkflowService:
 
     def run(self, request_or_plan: AnalysisRequest | ProjectPlan) -> ProjectWorkflowRun:
         """Execute a planned project request through existing agent providers."""
+        if self.agent_service.registry.get(_SINGLE_WORKFLOW) is None:
+            self.agent_service.registry.register(self.single_input_adapter)
+        if self.agent_service.registry.get(_SERIES_WORKFLOW) is None:
+            self.agent_service.registry.register(self.series_adapter)
         if isinstance(request_or_plan, AnalysisRequest):
             request = request_or_plan
             plan = self.plan(request)
@@ -162,6 +211,11 @@ class ProjectWorkflowService:
         if plan.status == "blocked":
             return self._blocked_project_run(plan, *plan.reason_codes)
         dsc_steps = tuple(step for step in plan.steps if step.get("technique") == "dsc")
+        non_dsc_steps = tuple(step for step in plan.steps if step.get("technique") != "dsc")
+        if non_dsc_steps:
+            if any(str(step.get("provider_id")) == _SERIES_WORKFLOW for step in non_dsc_steps):
+                return self._run_series_technique(request, plan, non_dsc_steps)
+            return self._run_single_technique(request, plan, non_dsc_steps)
         if not dsc_steps:
             return self._blocked_project_run(plan, "dsc_step_missing")
         source_paths = tuple(
@@ -181,6 +235,12 @@ class ProjectWorkflowService:
         artifact = artifacts.get(relative_source)
         if artifact is None:
             return self._blocked_project_run(plan, "dsc_source_not_indexed")
+        expected_hash = dsc_steps[0].get("artifact_sha256")
+        if expected_hash and artifact.sha256 != expected_hash:
+            return self._blocked_project_run(plan, "stale_plan_source_hash")
+        current = inspect_artifact(source, technique="dsc")
+        if current.sha256 != artifact.sha256:
+            return self._blocked_project_run(plan, "source_hash_changed")
 
         manifest = {
             "workflow_id": _DSC_WORKFLOW,
@@ -247,6 +307,165 @@ class ProjectWorkflowService:
             reason_codes=analysis_run.reason_codes,
         )
 
+    def resume(self, run_id: str) -> ProjectWorkflowRun:
+        """Replay a persisted request after validating its recorded sources."""
+        payload = self.workspace.read_json(self.workspace.runs_dir / f"{str(run_id)}.json")
+        if not isinstance(payload, Mapping) or payload.get("run_id") != str(run_id):
+            return self._blocked_project_run(ProjectPlan.create(request_hash="resume-missing"), "run_manifest_missing")
+        try:
+            request = self._load_request(str(payload["request_hash"]))
+            plan_payload = self.workspace.read_json(self.workspace.requests_dir / f"{payload['request_hash']}.plan.json")
+            plan = ProjectPlan.from_dict(plan_payload) if isinstance(plan_payload, Mapping) else None
+        except (KeyError, TypeError, ValueError, OSError, UnicodeError):
+            request, plan = None, None
+        if request is None or plan is None or plan.plan_hash != payload.get("plan_hash"):
+            return self._blocked_project_run(plan or ProjectPlan.create(request_hash=str(payload.get("request_hash", "resume-invalid"))), "run_manifest_mismatch")
+        for step in plan.steps:
+            paths = tuple(str(path) for path in step.get("artifact_paths", ()))
+            expected_values = step.get("artifact_sha256", ())
+            if isinstance(expected_values, str):
+                expected_values = (expected_values,)
+            for path, expected in zip(paths, expected_values, strict=False):
+                current = inspect_artifact(self.workspace.root / path, technique=str(step.get("technique", "unknown")))
+                if expected and current.sha256 != str(expected):
+                    return self._blocked_project_run(plan, "source_hash_changed")
+        return self.run(plan)
+
+    def approve_context_correction(
+        self,
+        request: AnalysisRequest,
+        corrections: Mapping[str, Any],
+        *,
+        approved: bool = False,
+        approver: str = "",
+    ) -> AnalysisRequest:
+        """Create a new request with explicit, auditable user-approved context."""
+        if approved is not True or not isinstance(corrections, Mapping) or not corrections:
+            raise ValueError("context correction requires explicit approval and non-empty mapping")
+        if not str(approver).strip():
+            raise ValueError("context correction approver is required")
+        parameters = dict(request.parameters)
+        parameters.update({"approved_context_corrections": dict(corrections), "approved_context_corrections_status": "approved", "approved_context_approver": str(approver)})
+        return AnalysisRequest.create(question=request.question, purpose=request.purpose, requested_outputs=request.requested_outputs, data_scope=request.data_scope, context_sources=request.context_sources, parameters=parameters)
+
+    def _run_single_technique(
+        self,
+        request: AnalysisRequest,
+        plan: ProjectPlan,
+        steps: tuple[Mapping[str, object], ...],
+    ) -> ProjectWorkflowRun:
+        """Execute exactly one registered IR/WAXS/SAXS input through the provider."""
+        if len(steps) != 1:
+            return self._blocked_project_run(plan, "mixed_technique_inputs")
+        plan_step = steps[0]
+        technique = str(plan_step.get("technique", "")).lower()
+        paths = tuple(str(path) for path in plan_step.get("artifact_paths", ()))
+        if len(paths) != 1:
+            return self._blocked_project_run(plan, f"{technique}_source_count_invalid")
+        source = (self.workspace.root / paths[0]).absolute()
+        try:
+            graph = self._load_or_discover(request.data_scope)
+        except (ValueError, KeyError, TypeError, OSError, UnicodeError):
+            return self._blocked_project_run(plan, "inventory_invalid")
+        artifacts = {artifact.relative_path: artifact for artifact in graph.artifacts}
+        relative_source = source.relative_to(self.workspace.root).as_posix()
+        artifact = artifacts.get(relative_source)
+        if artifact is None:
+            return self._blocked_project_run(plan, "source_not_indexed")
+        expected_hash = plan_step.get("artifact_sha256")
+        if expected_hash and artifact.sha256 != expected_hash:
+            return self._blocked_project_run(plan, "stale_plan_source_hash")
+        current = inspect_artifact(source, technique=technique)
+        if current.sha256 != artifact.sha256:
+            return self._blocked_project_run(plan, "source_hash_changed")
+        proposal = self.single_input_adapter.propose_recipe({
+            "workflow_id": _SINGLE_WORKFLOW,
+            "technique": technique,
+            "paths": (str(source),),
+        })
+        if proposal.recipe is None:
+            return self._blocked_project_run(plan, *proposal.reason_codes)
+        recipe = proposal.recipe
+        recipe_step = recipe.steps[0]
+        if recipe_step.step_id != str(plan_step.get("step_id")):
+            return self._blocked_project_run(plan, "recipe_step_mismatch")
+        source_hashes = tuple(str(item.sha256) for item in recipe.artifacts if item.sha256)
+        run_id = stable_run_id(request.request_hash, recipe.recipe_hash, source_hashes)
+        output_dir = self.workspace.runs_dir / run_id
+        analysis_run = self.agent_service.validate_run(
+            self.agent_service.run_recipe(recipe, output_dir)
+        )
+        limitations = tuple(dict.fromkeys([
+            *analysis_run.reason_codes,
+            *(analysis_run.evidence.disallowed_conclusions if analysis_run.evidence else ()),
+        ]))
+        evidence_items = evidence_items_from_run(
+            analysis_run,
+            run_id=run_id,
+            raw_sources=source_hashes,
+            limitations=limitations,
+        )
+        outputs = self._derived_outputs(output_dir, analysis_run)
+        manifest_payload = self._run_manifest(
+            request=request,
+            plan=plan,
+            recipe=recipe,
+            run=analysis_run,
+            run_id=run_id,
+            source_hashes=source_hashes,
+            evidence_items=evidence_items,
+            outputs=outputs,
+        )
+        manifest_path = self.workspace.write_json(
+            self.workspace.runs_dir / f"{run_id}.json", manifest_payload
+        )
+        return ProjectWorkflowRun(
+            run_id=run_id,
+            request_hash=request.request_hash,
+            plan_hash=plan.plan_hash,
+            recipe_hash=recipe.recipe_hash,
+            status=analysis_run.status,
+            outputs=tuple(str(path) for path in outputs) + (str(manifest_path),),
+            evidence_items=evidence_items,
+            manifest_path=str(manifest_path),
+            analysis_run=analysis_run,
+            reason_codes=analysis_run.reason_codes,
+        )
+
+    def _run_series_technique(self, request: AnalysisRequest, plan: ProjectPlan, steps: tuple[Mapping[str, object], ...]) -> ProjectWorkflowRun:
+        if len(steps) != 1:
+            return self._blocked_project_run(plan, "mixed_technique_inputs")
+        plan_step = steps[0]
+        technique = str(plan_step.get("technique", "")).lower()
+        paths = tuple(str(path) for path in plan_step.get("artifact_paths", ()))
+        if len(paths) < 2:
+            return self._blocked_project_run(plan, "series_source_count_invalid")
+        source_paths = tuple((self.workspace.root / path).absolute() for path in paths)
+        try:
+            graph = self._load_or_discover(request.data_scope)
+        except (ValueError, KeyError, TypeError, OSError, UnicodeError):
+            return self._blocked_project_run(plan, "inventory_invalid")
+        by_path = {artifact.relative_path: artifact for artifact in graph.artifacts}
+        for path, expected in zip(paths, plan_step.get("artifact_sha256", ()), strict=False):
+            artifact = by_path.get(path)
+            if artifact is None or (expected and artifact.sha256 != expected):
+                return self._blocked_project_run(plan, "stale_plan_source_hash")
+            current = inspect_artifact(self.workspace.root / path, technique=technique)
+            if current.sha256 != artifact.sha256:
+                return self._blocked_project_run(plan, "source_hash_changed")
+        proposal = self.series_adapter.propose_recipe({"workflow_id": _SERIES_WORKFLOW, "technique": technique, "paths": [str(path) for path in source_paths]})
+        if proposal.recipe is None:
+            return self._blocked_project_run(plan, *proposal.reason_codes)
+        recipe = proposal.recipe
+        run_id = stable_run_id(request.request_hash, recipe.recipe_hash, [artifact.sha256 for artifact in recipe.artifacts if artifact.sha256])
+        output_dir = self.workspace.runs_dir / run_id
+        analysis_run = self.agent_service.validate_run(self.agent_service.run_recipe(recipe, output_dir))
+        limitations = tuple(dict.fromkeys([*analysis_run.reason_codes, *(analysis_run.evidence.disallowed_conclusions if analysis_run.evidence else ())]))
+        evidence_items = evidence_items_from_run(analysis_run, run_id=run_id, raw_sources=[artifact.sha256 for artifact in recipe.artifacts if artifact.sha256], limitations=limitations)
+        outputs = self._derived_outputs(output_dir, analysis_run)
+        manifest_path = self.workspace.write_json(self.workspace.runs_dir / f"{run_id}.json", self._run_manifest(request=request, plan=plan, recipe=recipe, run=analysis_run, run_id=run_id, source_hashes=[artifact.sha256 for artifact in recipe.artifacts if artifact.sha256], evidence_items=evidence_items, outputs=outputs))
+        return ProjectWorkflowRun(run_id=run_id, request_hash=request.request_hash, plan_hash=plan.plan_hash, recipe_hash=recipe.recipe_hash, status=analysis_run.status, outputs=tuple(str(path) for path in outputs) + (str(manifest_path),), evidence_items=evidence_items, manifest_path=str(manifest_path), analysis_run=analysis_run, reason_codes=analysis_run.reason_codes)
+
     def package(
         self,
         runs: Iterable[ProjectWorkflowRun] | ProjectWorkflowRun,
@@ -294,7 +513,11 @@ class ProjectWorkflowService:
             "source_hashes": [],
             "canonical_template_hashes": [],
             "conversion_hashes": [],
-            "provider_version": _DSC_WORKFLOW,
+            "provider_version": (
+                _DSC_WORKFLOW
+                if all(str(step.get("technique")) == "dsc" for step in plan.steps)
+                else _SINGLE_WORKFLOW
+            ),
             "status": "blocked",
             "reason_codes": list(codes),
             "figures": [],
@@ -348,12 +571,13 @@ class ProjectWorkflowService:
         return {
             "run_id": run_id,
             "request_hash": request.request_hash,
+            "request_parameters": request.to_dict().get("parameters", {}),
             "plan_hash": plan.plan_hash,
             "recipe_hash": recipe.recipe_hash,
             "source_hashes": list(source_hashes),
             "canonical_template_hashes": list(dict.fromkeys(canonical_hashes)),
             "conversion_hashes": list(dict.fromkeys(conversion_hashes)),
-            "provider_version": _DSC_WORKFLOW,
+            "provider_version": recipe.workflow_id,
             "status": run.status,
             "reason_codes": list(run.reason_codes),
             "figures": list(dict.fromkeys(figures)),
@@ -387,6 +611,8 @@ class ProjectWorkflowService:
             return None
         for item in scope:
             candidate = Path(item).expanduser()
+            if ".." in candidate.parts:
+                return "scope_outside_project"
             resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).absolute()
             try:
                 resolved.relative_to(self.workspace.root)
@@ -403,6 +629,8 @@ class ProjectWorkflowService:
     def _scope_boundary_error(self, scope: tuple[str, ...]) -> str | None:
         for item in scope:
             candidate = Path(item).expanduser()
+            if ".." in candidate.parts:
+                return "scope_outside_project"
             resolved = (candidate if candidate.is_absolute() else self.workspace.root / candidate).absolute()
             try:
                 resolved.relative_to(self.workspace.root)

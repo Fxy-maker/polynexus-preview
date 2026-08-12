@@ -51,7 +51,7 @@ def test_plan_reports_missing_converter_as_blocker_without_fabrication(tmp_path:
     plan = service.plan(request)
 
     assert plan.status == "blocked"
-    assert "converter_unregistered" in plan.reason_codes
+    assert "artifact_missing" in plan.reason_codes
     assert all(step["technique"] != "waxs" or step["status"] == "blocked" for step in plan.steps)
 
 
