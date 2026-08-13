@@ -180,13 +180,13 @@ class ProjectEvidencePackager:
                 if run.run_id not in entry["run_ids"]:
                     entry["run_ids"].append(run.run_id)
                 entry["statuses"].append(run.status)
-                entry["evidence_count"] += sum(
-                    1 for item in evidence if item.get("technique") == technique and item.get("run_id") == run.run_id
-                )
-                entry["limitations"].extend(
-                    item.get("limitations", ()) for item in evidence
-                    if item.get("technique") == technique and item.get("run_id") == run.run_id
-                )
+                matching = [
+                    item for item in evidence
+                    if item.get("technique") == technique
+                    and run.run_id in item.get("source_runs", ())
+                ]
+                entry["evidence_count"] += len(matching)
+                entry["limitations"].extend(item.get("limitations", ()) for item in matching)
         for entry in result.values():
             entry["statuses"] = list(dict.fromkeys(entry["statuses"]))
             entry["limitations"] = list(dict.fromkeys(

@@ -64,6 +64,8 @@ def test_analyze_project_packages_explicit_cross_technique_evidence_index(tmp_pa
     index = json.loads((package_path / "techniques.json").read_text(encoding="utf-8"))
     assert set(index["techniques"]) == {"ir", "waxs"}
     assert all(value["run_ids"] for value in index["techniques"].values())
+    assert index["techniques"]["ir"]["evidence_count"] >= 1
+    assert index["techniques"]["waxs"]["evidence_count"] == 1
 
 
 def test_analyze_project_reports_actionable_blocker_without_fake_package(tmp_path: Path) -> None:

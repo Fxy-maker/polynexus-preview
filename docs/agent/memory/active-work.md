@@ -5275,6 +5275,11 @@ statuses, and limitations by technique for mixed IR/WAXS/SAXS/DSC packages;
 it does not infer sample identity or scientific conclusions. Focused entrypoint
 and package coverage passed `15`.
 
+Read-only PA6 FTIR+WAXS replay completed in
+`D:\PolyNexus-pa6-cross-technique-smoke-20260814`: three IR files and one WAXS
+file produced one `review_required` package with explicit cross-technique
+membership. Provider limitations remain; no scientific merge was inferred.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and
