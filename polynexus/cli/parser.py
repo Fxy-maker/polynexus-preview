@@ -54,6 +54,10 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--reasoning", default="low", help="Reasoning effort label for reporting/compatibility")
     pa.add_argument("--output", default="ai_tune_report.json", help="Output JSON report path")
 
+    pe = sub.add_parser("evaluate-analysis-plans", help="Project a shared analysis-plan evaluation")
+    pe.add_argument("--plan", required=True, help="AnalysisPlan JSON path")
+    pe.add_argument("--evaluation", required=True, help="AnalysisPlanEvaluation JSON path")
+
     paw = sub.add_parser("agent-workflow", help="Machine-readable agent workflow operations")
     paw.add_argument("operation", choices=["inspect", "propose", "run", "validate", "export"])
     paw.add_argument("--manifest", help="External workflow manifest JSON")

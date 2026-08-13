@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from .analysis_plan_evaluation import project_analysis_plan_evaluation
+
+
+def analysis_plan_evaluation_for_ars(plan: Any, evaluation: Any) -> dict[str, Any]:
+    """Expose the same bounded plan view to ARS without adding prose."""
+    return project_analysis_plan_evaluation(plan, evaluation)
+
 
 def build_ars_writing_input(
     *,
@@ -110,4 +117,4 @@ def validate_ars_writing_input(payload: Mapping[str, Any], *, citation_metrics: 
                     raise ValueError("Results metric projected as diagnostic")
 
 
-__all__ = ["build_ars_writing_input", "validate_ars_writing_input"]
+__all__ = ["build_ars_writing_input", "validate_ars_writing_input", "analysis_plan_evaluation_for_ars"]

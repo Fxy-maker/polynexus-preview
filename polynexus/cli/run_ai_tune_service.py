@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import hashlib
 from pathlib import Path
 from typing import Any, Callable
 
 from polynexus.cli.batch_run_service import analysis_evidence_from_ai_report
+from polynexus.core.project_workflow import AnalysisPlan, AnalysisPlanEvaluation, CandidateEvaluation, project_analysis_plan_evaluation
 from polynexus.utils import detect_polymer_type, load_defaults
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,8 @@ def run_ai_tune(
         print(f"AI tune engine error: {exc}", file=sys.stderr)
         return 1
 
+    _attach_compatibility_plan(args, report)
+
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -80,6 +84,52 @@ def run_ai_tune(
     if report["best_r_squared"] < report["baseline_r_squared"]:
         return 2
     return 0 if report.get("converged") else 2
+
+
+def _attach_compatibility_plan(args: Any, report: dict) -> None:
+    """Wrap legacy tuning output in the public immutable plan/evaluation DTOs."""
+    source_path = Path(args.file).resolve()
+    source_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    technique = str(args.technique or "unknown").strip().lower()
+    default_config = dict(report.get("baseline_config") or {})
+    best_config = dict(report.get("best_config") or {})
+    candidate_configs = ({"id": "legacy_best", "config": best_config, "generation_rule": "legacy_ai_tune_compatibility"},)
+    plan = AnalysisPlan.create(
+        source_files=({"path": str(source_path), "sha256": source_hash, "byte_size": source_path.stat().st_size, "source_order": 0},),
+        canonical_template={"template_id": f"{technique}.legacy-input", "conversion_version": "legacy-v1"},
+        algorithm={"algorithm_id": f"{technique}.legacy-ai-tune", "algorithm_version": "legacy-v1"},
+        default_config=default_config,
+        candidate_configs=candidate_configs,
+        protected_metrics=("source_integrity",),
+        scientific_constraints=("human_scientific_review",),
+        review_thresholds={"legacy_report": True},
+        selected_candidate_id="legacy_best",
+        approval={"state": "pending_human_review"},
+        replay={"status": "not_replayed", "source_manifest_hash": source_hash, "replayed_from_run_id": None},
+    )
+    improvement = _finite_float(report.get("improvement", {}).get("absolute") if isinstance(report.get("improvement"), dict) else None)
+    score = max(0.0, 1.0 - improvement) if improvement is not None else 0.0
+    status = "stable" if bool(report.get("converged")) else "sensitive"
+    evaluation = AnalysisPlanEvaluation.create(
+        plan_id=plan.plan_id,
+        plan_hash=plan.plan_hash,
+        plan_version=plan.plan_version,
+        candidates=(CandidateEvaluation("legacy_best", status, score, ("source_integrity",), ("legacy_ai_tune_compatibility",)),),
+        selected_candidate_id="legacy_best",
+        review_required=True,
+        review_limits=("human_scientific_review", "legacy_single_score_not_scientific_acceptance"),
+        replay=dict(plan.replay),
+    )
+    report["analysis_plan"] = plan.to_dict()
+    report["analysis_plan_evaluation"] = project_analysis_plan_evaluation(plan, evaluation)
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number and abs(number) != float("inf") else None
 
 
 def _persist_ai_tune_run(args, report: dict, output_path: Path) -> str:

@@ -40,23 +40,69 @@ class CandidateEvaluation:
 @dataclass(frozen=True)
 class AnalysisPlanEvaluation:
     plan_id: str
+    plan_hash: str = ""
+    plan_version: str = ""
     symptoms: tuple[AnalysisSymptom, ...] = ()
     candidates: tuple[CandidateEvaluation, ...] = ()
     selected_candidate_id: str | None = None
     review_required: bool = True
+    review_limits: tuple[str, ...] = ()
+    replay: Mapping[str, Any] = None
 
     @classmethod
-    def create(cls, *, plan_id: str, symptoms=(), candidates=(), selected_candidate_id=None, review_required=True):
-        return cls(str(plan_id), tuple(symptoms), tuple(candidates), selected_candidate_id, bool(review_required))
+    def create(
+        cls,
+        *,
+        plan_id: str,
+        plan_hash: str = "",
+        plan_version: str = "",
+        symptoms=(),
+        candidates=(),
+        selected_candidate_id=None,
+        review_required=True,
+        review_limits=(),
+        replay=None,
+    ):
+        return cls(
+            str(plan_id),
+            str(plan_hash or ""),
+            str(plan_version or ""),
+            tuple(symptoms),
+            tuple(candidates),
+            selected_candidate_id,
+            bool(review_required),
+            tuple(str(value) for value in review_limits),
+            dict(replay or {}),
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        return {"plan_id": self.plan_id, "symptoms": [{"code": item.code, "severity": item.severity, "priority": item.priority, "value": item.value} for item in self.symptoms], "candidates": [item.to_dict() for item in self.candidates], "selected_candidate_id": self.selected_candidate_id, "review_required": self.review_required}
+        return {
+            "plan_id": self.plan_id,
+            "plan_hash": self.plan_hash,
+            "plan_version": self.plan_version,
+            "symptoms": [{"code": item.code, "severity": item.severity, "priority": item.priority, "value": item.value} for item in self.symptoms],
+            "candidates": [item.to_dict() for item in self.candidates],
+            "selected_candidate_id": self.selected_candidate_id,
+            "review_required": self.review_required,
+            "review_limits": list(self.review_limits),
+            "replay": dict(self.replay or {}),
+        }
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "AnalysisPlanEvaluation":
         symptoms = tuple(AnalysisSymptom(str(item["code"]), float(item["severity"]), int(item["priority"]), float(item["value"])) for item in value.get("symptoms", ()))
         candidates = tuple(CandidateEvaluation.from_dict(item) for item in value.get("candidates", ()))
-        return cls.create(plan_id=str(value["plan_id"]), symptoms=symptoms, candidates=candidates, selected_candidate_id=value.get("selected_candidate_id"), review_required=bool(value.get("review_required", True)))
+        return cls.create(
+            plan_id=str(value["plan_id"]),
+            plan_hash=str(value.get("plan_hash", "")),
+            plan_version=str(value.get("plan_version", "")),
+            symptoms=symptoms,
+            candidates=candidates,
+            selected_candidate_id=value.get("selected_candidate_id"),
+            review_required=bool(value.get("review_required", True)),
+            review_limits=value.get("review_limits", ()),
+            replay=value.get("replay", {}),
+        )
 
 
 def diagnose_symptoms(observations: Mapping[str, Any]) -> tuple[AnalysisSymptom, ...]:
@@ -144,4 +190,32 @@ def _finite_metrics(observations: Mapping[str, Any]) -> dict[str, float]:
     return result
 
 
-__all__ = ["AnalysisSymptom", "CandidateEvaluation", "AnalysisPlanEvaluation", "diagnose_symptoms", "evaluate_candidates"]
+def project_analysis_plan_evaluation(plan: Any, evaluation: AnalysisPlanEvaluation) -> dict[str, Any]:
+    """Project one plan and its evaluation into the shared AI/GUI/ARS JSON view."""
+    plan_id = str(getattr(plan, "plan_id", ""))
+    plan_hash = str(getattr(plan, "plan_hash", ""))
+    if not plan_id or not plan_hash or evaluation.plan_id != plan_id:
+        raise ValueError("analysis plan and evaluation identity do not match")
+    if evaluation.plan_hash and evaluation.plan_hash != plan_hash:
+        raise ValueError("analysis plan and evaluation hash do not match")
+    plan_replay = getattr(plan, "replay", {})
+    replay = dict(evaluation.replay or plan_replay or {})
+    return {
+        "version": 1,
+        "plan_id": plan_id,
+        "plan_hash": plan_hash,
+        "plan_version": str(getattr(plan, "plan_version", "")),
+        "analysis_intent": getattr(plan, "analysis_intent", None),
+        "candidates": [item.to_dict() for item in evaluation.candidates],
+        "symptoms": [
+            {"code": item.code, "severity": item.severity, "priority": item.priority, "value": item.value}
+            for item in evaluation.symptoms
+        ],
+        "selected_candidate_id": evaluation.selected_candidate_id,
+        "review_required": bool(evaluation.review_required),
+        "review_limits": list(evaluation.review_limits),
+        "replay": replay,
+    }
+
+
+__all__ = ["AnalysisSymptom", "CandidateEvaluation", "AnalysisPlanEvaluation", "diagnose_symptoms", "evaluate_candidates", "project_analysis_plan_evaluation"]

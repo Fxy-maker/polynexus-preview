@@ -27,12 +27,16 @@ def test_run_ai_tune_writes_report_and_formats_progress(tmp_path, capsys):
                 "converged": True,
                 "best_config": {"alpha": 1},
                 "analysis_evidence": {"note": "ok"},
+                "history": [{"round_num": 1, "accepted": True, "changes": {"alpha": 1}}],
             }
 
     def fake_persist(args, report, output_path):
         assert args.polymer == "PA6"
         assert output_path.exists()
         assert report["best_r_squared"] == 0.9
+        assert report["analysis_plan"]["plan_id"] == report["analysis_plan_evaluation"]["plan_id"]
+        assert report["analysis_plan"]["plan_hash"] == report["analysis_plan_evaluation"]["plan_hash"]
+        assert report["analysis_plan_evaluation"]["candidates"][0]["status"] == "stable"
         return "run-42"
 
     report_path = tmp_path / "ai_tune_report.json"

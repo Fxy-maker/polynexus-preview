@@ -15,11 +15,27 @@ from polynexus.core.project_workflow import (
     ProjectWorkflowRun,
     ProjectWorkflowService,
     FigureSelectionRequest,
+    AnalysisPlan,
+    AnalysisPlanEvaluation,
+    project_analysis_plan_evaluation,
 )
 from polynexus.core.agent_workflow.models import AnalysisRun
 
 
 _SUCCESS_STATUSES = frozenset({"ready", "completed", "review_required"})
+
+
+def run_analysis_plan_evaluation(args: Any) -> int:
+    """Emit the shared plan/evaluation projection for CLI and ARS callers."""
+    try:
+        plan_payload = json.loads(Path(args.plan).expanduser().read_text(encoding="utf-8"))
+        evaluation_payload = json.loads(Path(args.evaluation).expanduser().read_text(encoding="utf-8"))
+        plan = AnalysisPlan.from_dict(plan_payload)
+        evaluation = AnalysisPlanEvaluation.from_dict(evaluation_payload)
+        projection = project_analysis_plan_evaluation(plan, evaluation)
+    except (OSError, UnicodeError, TypeError, ValueError, KeyError, json.JSONDecodeError):
+        return _emit("evaluate-analysis-plans", "blocked", ["analysis_plan_evaluation_invalid"])
+    return _emit("evaluate-analysis-plans", "completed", analysis_plan_evaluation=projection)
 
 
 def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = None) -> int:
@@ -201,4 +217,4 @@ def _load_relations(path: str | None) -> tuple[Mapping[str, Any], ...] | None:
     return tuple(item for item in raw if isinstance(item, Mapping)) if len(raw) == sum(isinstance(item, Mapping) for item in raw) else None
 
 
-__all__ = ["run_project_workflow"]
+__all__ = ["run_project_workflow", "run_analysis_plan_evaluation"]

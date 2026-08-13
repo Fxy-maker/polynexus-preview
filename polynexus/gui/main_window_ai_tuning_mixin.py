@@ -20,6 +20,7 @@ from .analysis_history_service import (
     ai_tuning_tunable_summary_text,
 )
 from .i18n import get_language, tr
+from .analysis_plan_view_service import analysis_plan_evaluation_context
 from .preprocess_decision_service import build_preprocess_ui_decision
 from .preprocess_transaction_service import PreprocessTransactionService
 
@@ -378,6 +379,7 @@ class MainWindowAITuningMixin:
         self._ai_tuning_active = False
         self._update_workflow_task_card()
         tuning_context = self._ai_tuning_report_context(report)
+        tuning_context.update(analysis_plan_evaluation_context(report))
         tuning_context["tuning_goal"] = self._current_tuning_goal()
         tuning_context["tuning_goal_label"] = self._ai_tuning_goal_label(self._current_tuning_goal())
         self._last_ai_tuning_context = tuning_context
