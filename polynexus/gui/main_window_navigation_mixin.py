@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .i18n import tr
+from .contextual_tools_service import contextual_tool_state
 from .workspace_mode import WorkspaceMode, normalize_workspace_mode
 
 
@@ -96,13 +97,37 @@ class MainWindowNavigationMixin:
         self._on_samples_selected()
 
     def _jump_to_joint_hub(self):
-        self._on_joint_selected("joint.compare")
+        state = self._contextual_tool_state()
+        if state["joint"]["available"]:
+            self._on_joint_selected("joint.compare")
 
     def _jump_to_results(self):
         self._jump_to_tab(2)
 
     def _jump_to_history(self):
         self._jump_to_tab(4)
+
+    def _contextual_tool_state(self):
+        return contextual_tool_state(
+            getattr(self, "_workspace_context", None),
+            getattr(self, "_last_ai_tuning_context", {}),
+        )
+
+    def _update_contextual_tool_actions(self):
+        state = self._contextual_tool_state()
+        joint_available = bool(state["joint"]["available"])
+        for key in ("joint.quick", "joint.compare"):
+            button = getattr(self, "_nav_buttons", {}).get(key)
+            if button is not None:
+                button.setVisible(joint_available)
+                button.setEnabled(joint_available)
+        joint_title = getattr(self, "_sidebar_section_labels", {}).get("joint")
+        if joint_title is not None:
+            joint_title.setVisible(joint_available)
+        convergence = getattr(self, "action_convergence_viewer", None)
+        if convergence is not None:
+            convergence.setEnabled(bool(state["convergence"]["available"]))
+        return state
 
     def _on_quick_analysis_selected(self, *, announce=True):
         """Return to the standalone human-facing quick analysis entry."""

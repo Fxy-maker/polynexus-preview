@@ -200,6 +200,9 @@ class MainWindowWorkspaceMixin:
                 self._workflow_metric_state.setText(self._idle_workflow_state_text())
 
         self._update_workflow_task_card()
+        update_tools = getattr(self, "_update_contextual_tool_actions", None)
+        if callable(update_tools):
+            update_tools()
         self._update_context_suggestions()
         self._update_work_memory_panel()
         self._update_results_compare_panel()
