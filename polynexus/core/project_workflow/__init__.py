@@ -13,6 +13,7 @@ from .models import (
     ProjectPlan,
     ResearchGraph,
 )
+from .analysis_plan_evaluation import AnalysisSymptom, CandidateEvaluation, diagnose_symptoms, evaluate_candidates
 from .service import ProjectWorkflowService
 from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
@@ -22,6 +23,10 @@ from .selection import FigureSelectionRequest, ResolvedFigureSelection, resolve_
 from .evidence_view import EvidencePackageView, load_evidence_package_view
 
 __all__ = [
+    "AnalysisSymptom",
+    "CandidateEvaluation",
+    "diagnose_symptoms",
+    "evaluate_candidates",
     "AnalysisPlan",
     "AnalysisRequest",
     "Condition",
