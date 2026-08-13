@@ -65,6 +65,21 @@ def test_package_contains_ars_entrypoint_and_provenance(tmp_path: Path) -> None:
     }]
 
 
+def test_package_writing_evidence_groups_claim_boundaries_by_technique(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+    payload = json.loads((package.path / "writing-evidence.json").read_text(encoding="utf-8"))
+    assert set(payload["techniques"]) == {"dsc"}
+    item = payload["techniques"]["dsc"]["evidence"][0]
+    assert item["source_runs"] == [run.run_id]
+    assert item["supported_interpretations"]
+    assert item["disallowed_conclusions"]
+    writing = (package.path / "writing-input.md").read_text(encoding="utf-8")
+    assert "## Writing evidence by technique" in writing
+    assert "### DSC" in writing
+
+
 def test_new_package_version_does_not_replace_previous_snapshot(tmp_path: Path) -> None:
     run = _run_dsc_request(tmp_path)
     workspace = ProjectWorkspace.open(tmp_path)

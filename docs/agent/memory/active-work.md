@@ -5280,6 +5280,13 @@ Read-only PA6 FTIR+WAXS replay completed in
 file produced one `review_required` package with explicit cross-technique
 membership. Provider limitations remain; no scientific merge was inferred.
 
+## ARS writing evidence handoff - checkpointed 2026-08-14
+
+Packages now emit `writing-evidence.json` and a technique-grouped writing
+section. The handoff preserves observed results, source runs, figures, tables,
+supported interpretations, disallowed conclusions, and limitations without
+drafting scientific prose or adding cross-technique claims.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

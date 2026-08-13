@@ -143,19 +143,22 @@ class ProjectEvidencePackager:
             }
             technique_index = self._technique_index(run_values, evidence, limitations)
             package_manifest["techniques"] = technique_index
+            writing_evidence = self._writing_evidence(evidence, technique_index)
+            package_manifest["writing_evidence"] = "writing-evidence.json"
             package_hash = hashlib.sha256(canonical_json(package_manifest).encode("utf-8")).hexdigest()
             package_manifest["package_hash"] = package_hash
             self._write_json(package_path / "manifest.json", package_manifest)
             self._write_json(package_path / "evidence.json", {"items": evidence})
             self._write_json(package_path / "relations.json", {"relations": relation_values})
             self._write_json(package_path / "techniques.json", {"techniques": technique_index})
+            self._write_json(package_path / "writing-evidence.json", writing_evidence)
             self._write_json(package_path / "limitations.json", {"limitations": limitations})
             self._copy_assets(copied_assets, package_path)
             if figure_candidate_payload is not None:
                 self._write_json(package_path / "figure-candidates.json", figure_candidate_payload)
             self._write_text(
                 package_path / "writing-input.md",
-                self._writing_input(package_manifest, evidence, limitations),
+                self._writing_input(package_manifest, evidence, limitations, writing_evidence),
             )
         except Exception:
             shutil.rmtree(package_path, ignore_errors=True)
@@ -193,6 +196,35 @@ class ProjectEvidencePackager:
                 value for values in entry["limitations"] for value in (values if isinstance(values, list) else [values]) if value
             ))
         return result
+
+    @staticmethod
+    def _writing_evidence(
+        evidence: list[dict[str, Any]], technique_index: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        grouped: dict[str, list[dict[str, Any]]] = {str(key): [] for key in technique_index}
+        for item in evidence:
+            technique = str(item.get("technique", "unknown")).lower()
+            grouped.setdefault(technique, []).append({
+                "evidence_id": item.get("evidence_id"),
+                "status": item.get("status", "unknown"),
+                "claim_scope": item.get("claim_scope", ""),
+                "source_runs": list(item.get("source_runs", ())),
+                "raw_sources": list(item.get("raw_sources", ())),
+                "figures": list(item.get("figures", ())),
+                "tables": list(item.get("tables", ())),
+                "supported_interpretations": list(item.get("supported_interpretations", ())),
+                "disallowed_conclusions": list(item.get("disallowed_conclusions", ())),
+                "limitations": list(item.get("limitations", ())),
+                "observed_results": item.get("observed_results", {}),
+            })
+        return {"version": 1, "techniques": {
+            technique: {
+                "run_ids": list(technique_index.get(technique, {}).get("run_ids", ())),
+                "statuses": list(technique_index.get(technique, {}).get("statuses", ())),
+                "evidence": values,
+            }
+            for technique, values in grouped.items()
+        }}
 
     def _validate_run(self, run: ProjectWorkflowRun) -> dict[str, Any]:
         if run.status == "blocked":
@@ -379,7 +411,12 @@ class ProjectEvidencePackager:
             shutil.copy2(asset["source"], destination)
 
     @staticmethod
-    def _writing_input(manifest: Mapping[str, Any], evidence: list[Mapping[str, Any]], limitations: list[str]) -> str:
+    def _writing_input(
+        manifest: Mapping[str, Any],
+        evidence: list[Mapping[str, Any]],
+        limitations: list[str],
+        writing_evidence: Mapping[str, Any] | None = None,
+    ) -> str:
         lines = [
             "# Research evidence package",
             "",
@@ -397,6 +434,18 @@ class ProjectEvidencePackager:
                 lines.append(f"  Do not conclude: {conclusion}")
         lines.extend(("", "## Limitations"))
         lines.extend(f"- {value}" for value in limitations)
+        if isinstance(writing_evidence, Mapping):
+            lines.extend(("", "## Writing evidence by technique"))
+            for technique, group in writing_evidence.get("techniques", {}).items():
+                lines.extend((f"### {str(technique).upper()}", f"- Status: {', '.join(group.get('statuses', ())) }"))
+                for item in group.get("evidence", ()):
+                    lines.append(f"- Evidence: {item.get('claim_scope', '')}")
+                    for figure in item.get("figures", ()):
+                        lines.append(f"  Figure: {figure}")
+                    for supported in item.get("supported_interpretations", ()):
+                        lines.append(f"  Supported: {supported}")
+                    for blocked in item.get("disallowed_conclusions", ()):
+                        lines.append(f"  Do not conclude: {blocked}")
         candidates = manifest.get("figure_candidates")
         if isinstance(candidates, Mapping):
             lines.extend(("", "## Manuscript figure candidates"))
