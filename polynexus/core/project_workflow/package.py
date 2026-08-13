@@ -17,6 +17,7 @@ from polynexus.core.agent_workflow.models import AnalysisRun
 from .evidence import ProjectWorkflowRun
 from .ir_group_figures import FigureCandidateSet
 from .models import EvidenceItem, canonical_json
+from .writing_metrics import CitationMetric, extract_package_metrics, with_package_assets
 from .workspace import ProjectWorkspace
 
 
@@ -146,14 +147,25 @@ class ProjectEvidencePackager:
             }
             technique_index = self._technique_index(run_values, evidence, limitations)
             package_manifest["techniques"] = technique_index
-            writing_evidence = self._writing_evidence(evidence, technique_index, copied_assets)
+            citation_metrics = self._package_metrics(
+                extract_package_metrics(evidence), copied_assets
+            )
+            writing_evidence = self._writing_evidence(
+                evidence, technique_index, copied_assets, citation_metrics
+            )
             package_manifest["writing_evidence"] = "writing-evidence.json"
+            package_manifest["citation_metrics"] = "citation-metrics.json"
             package_hash = hashlib.sha256(canonical_json(package_manifest).encode("utf-8")).hexdigest()
             package_manifest["package_hash"] = package_hash
             self._write_json(package_path / "manifest.json", package_manifest)
             self._write_json(package_path / "evidence.json", {"items": evidence})
             self._write_json(package_path / "relations.json", {"relations": relation_values})
             self._write_json(package_path / "techniques.json", {"techniques": technique_index})
+            self._write_json(package_path / "citation-metrics.json", {
+                "version": 1,
+                "records": [record.to_dict() for record in citation_metrics],
+                "omissions": [],
+            })
             self._write_json(package_path / "writing-evidence.json", writing_evidence)
             self._write_json(package_path / "limitations.json", {"limitations": limitations})
             self._copy_assets(copied_assets, package_path)
@@ -205,13 +217,23 @@ class ProjectEvidencePackager:
         evidence: list[dict[str, Any]],
         technique_index: Mapping[str, Any],
         assets: list[dict[str, str]],
+        citation_metrics: Iterable[CitationMetric] = (),
     ) -> dict[str, Any]:
         grouped: dict[str, list[dict[str, Any]]] = {str(key): [] for key in technique_index}
         asset_paths = {
             str(item["source"]): f"{item['kind']}/{item['name']}" for item in assets
         }
+        metric_by_evidence: dict[str, list[CitationMetric]] = {}
+        for metric in citation_metrics:
+            metric_by_evidence.setdefault(metric.evidence_id, []).append(metric)
         for item in evidence:
             technique = str(item.get("technique", "unknown")).lower()
+            metrics = metric_by_evidence.get(str(item.get("evidence_id", "")), [])
+            eligibility_counts: dict[str, int] = {}
+            for metric in metrics:
+                eligibility_counts[metric.writing_eligibility] = (
+                    eligibility_counts.get(metric.writing_eligibility, 0) + 1
+                )
             grouped.setdefault(technique, []).append({
                 "evidence_id": item.get("evidence_id"),
                 "status": item.get("status", "unknown"),
@@ -225,6 +247,8 @@ class ProjectEvidencePackager:
                 "limitations": list(item.get("limitations", ())),
                 "observed_results": item.get("observed_results", {}),
                 "observed_metrics": ProjectEvidencePackager._observed_metrics(item.get("observed_results", {})),
+                "citation_metric_ids": [metric.metric_id for metric in metrics],
+                "citation_metric_counts": eligibility_counts,
             })
         return {"version": 1, "techniques": {
             technique: {
@@ -234,6 +258,16 @@ class ProjectEvidencePackager:
             }
             for technique, values in grouped.items()
         }}
+
+    @staticmethod
+    def _package_metrics(
+        metrics: Iterable[CitationMetric], assets: list[dict[str, str]]
+    ) -> tuple[CitationMetric, ...]:
+        """Rewrite source asset paths so all ledger links are package-relative."""
+        asset_paths = {
+            str(item["source"]): f"{item['kind']}/{item['name']}" for item in assets
+        }
+        return with_package_assets(metrics, asset_paths)
 
     @staticmethod
     def _observed_metrics(value: Any) -> dict[str, float | int]:
@@ -461,11 +495,17 @@ class ProjectEvidencePackager:
         lines.extend(("", "## Limitations"))
         lines.extend(f"- {value}" for value in limitations)
         if isinstance(writing_evidence, Mapping):
-            lines.extend(("", "## Writing evidence by technique"))
+            lines.extend(("", "Citation metrics: citation-metrics.json", "", "## Writing evidence by technique"))
             for technique, group in writing_evidence.get("techniques", {}).items():
                 lines.extend((f"### {str(technique).upper()}", f"- Status: {', '.join(group.get('statuses', ())) }"))
                 for item in group.get("evidence", ()):
                     lines.append(f"- Evidence: {item.get('claim_scope', '')}")
+                    counts = item.get("citation_metric_counts", {})
+                    if isinstance(counts, Mapping) and counts:
+                        lines.append(
+                            "  Citation metrics: "
+                            + ", ".join(f"{key}={value}" for key, value in counts.items())
+                        )
                     for figure in item.get("figures", ()):
                         lines.append(f"  Figure: {figure}")
                     for supported in item.get("supported_interpretations", ()):

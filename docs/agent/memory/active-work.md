@@ -5310,6 +5310,20 @@ and structured gates (`303` / `157`).
   provenance.  Verification and scientific boundaries are recorded in
   `docs/acceptance/2026-08-13-unified-canonical-evidence-provenance.md`.
 
+## Writing metric provenance - checkpointed 2026-08-13
+
+- Project evidence packages now write `citation-metrics.json`, a deterministic
+  numerical ledger linking each documented provider value to its evidence item,
+  run, raw-source hash, method, source locator, package-relative assets, status,
+  and writing eligibility.  `writing-evidence.json` links metric IDs back to
+  each technique evidence item, while `writing-input.md` directs ARS to the
+  ledger.
+- Real PA6 four-technique replay is recorded in
+  `docs/acceptance/2026-08-13-writing-metric-provenance.md`.  DSC values are
+  Results candidates but remain review-required; FTIR crystallinity stays an
+  uncalibrated index, while SAXS and low-support WAXS metrics remain diagnostic.
+- This adds no scientific calculation and makes no publication conclusion.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-13-writing-metric-provenance
 kind: scientific
-status: proposed
+status: completed
 date: 2026-08-13
 title: Project writing metric provenance and evidence relations
 ---
@@ -51,19 +51,19 @@ figure/table links.
 
 ## Acceptance criteria
 
-- [ ] A package writes versioned `citation-metrics.json` and declares it in
+- [x] A package writes versioned `citation-metrics.json` and declares it in
   `manifest.json`.
-- [ ] Each metric has a stable ID, technique, value, unit, method, evidence ID,
+- [x] Each metric has a stable ID, technique, value, unit, method, evidence ID,
   run ID, raw source hash, status, writing eligibility, and figure/table links.
-- [ ] DSC/FTIR/SAXS/WAXS synthetic evidence produces the correct unit/method
+- [x] DSC/FTIR/SAXS/WAXS synthetic evidence produces the correct unit/method
   projection and eligibility boundary.
-- [ ] FTIR uncalibrated `Xc_pct` is never emitted as a percent crystallinity
+- [x] FTIR uncalibrated `Xc_pct` is never emitted as a percent crystallinity
   Results value.
-- [ ] SAXS/WAXS unsupported values remain diagnostic-only with existing
+- [x] SAXS/WAXS unsupported values remain diagnostic-only with existing
   reasons, not omitted or promoted.
-- [ ] `writing-evidence.json` references its metric IDs, and `writing-input.md`
+- [x] `writing-evidence.json` references its metric IDs, and `writing-input.md`
   gives ARS the path and the count by eligibility.
-- [ ] External PA6 four-technique replay proves the package contains all four
+- [x] External PA6 four-technique replay proves the package contains all four
   techniques' records and preserves their review boundaries.
 
 ## Implementation plan

@@ -83,6 +83,25 @@ def test_package_writing_evidence_groups_claim_boundaries_by_technique(tmp_path:
     assert "### DSC" in writing
 
 
+def test_package_writes_citation_metrics_with_writing_evidence_links(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+    metrics = json.loads((package.path / "citation-metrics.json").read_text(encoding="utf-8"))
+    writing = json.loads((package.path / "writing-evidence.json").read_text(encoding="utf-8"))
+    manifest = json.loads((package.path / "manifest.json").read_text(encoding="utf-8"))
+
+    assert metrics["version"] == 1
+    assert metrics["records"]
+    assert metrics["records"][0]["evidence_id"]
+    assert metrics["records"][0]["raw_source_hashes"]
+    assert manifest["citation_metrics"] == "citation-metrics.json"
+    item = writing["techniques"]["dsc"]["evidence"][0]
+    assert item["citation_metric_ids"]
+    assert "results_candidate" in item["citation_metric_counts"]
+    assert "Citation metrics: citation-metrics.json" in (package.path / "writing-input.md").read_text(encoding="utf-8")
+
+
 def test_step_evidence_does_not_inherit_run_wide_disallowed_conclusions() -> None:
     artifact = InputArtifact.ready(path="source.csv", technique="ir", sha256="source-sha256")
     recipe = AnalysisRecipe.create(
