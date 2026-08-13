@@ -564,6 +564,132 @@ class AnalysisRequest:
 
 
 @dataclass(frozen=True)
+class AnalysisPlan:
+    """Frozen, replayable description of one deterministic analysis request."""
+
+    source_files: tuple[Mapping[str, Any], ...] = ()
+    scope: Mapping[str, Any] = field(default_factory=dict)
+    analysis_intent: str | None = None
+    requested_metrics: tuple[str, ...] = ()
+    requested_figures: tuple[str, ...] = ()
+    canonical_template: Mapping[str, Any] = field(default_factory=dict)
+    algorithm: Mapping[str, Any] = field(default_factory=dict)
+    default_config: Mapping[str, Any] = field(default_factory=dict)
+    candidate_configs: tuple[Mapping[str, Any], ...] = ()
+    protected_metrics: tuple[str, ...] = ()
+    scientific_constraints: tuple[str, ...] = ()
+    review_thresholds: Mapping[str, Any] = field(default_factory=dict)
+    ai_context: Mapping[str, Any] = field(default_factory=dict)
+    random_seed: int | None = None
+    selected_candidate_id: str | None = None
+    approval: Mapping[str, Any] = field(default_factory=dict)
+    parent_run_id: str | None = None
+    replan_of: str | None = None
+    replay: Mapping[str, Any] = field(default_factory=dict)
+    plan_version: str = CONTRACT_VERSION
+    plan_id: str = ""
+    plan_hash: str = ""
+
+    def __post_init__(self) -> None:
+        normalized_sources = tuple(_freeze(dict(item)) for item in self.source_files)
+        object.__setattr__(self, "source_files", normalized_sources)
+        object.__setattr__(self, "scope", _freeze(self.scope))
+        object.__setattr__(self, "analysis_intent", None if self.analysis_intent is None else str(self.analysis_intent))
+        for name in ("requested_metrics", "requested_figures", "protected_metrics", "scientific_constraints"):
+            object.__setattr__(self, name, tuple(str(item) for item in getattr(self, name)))
+        for name in ("canonical_template", "algorithm", "default_config", "review_thresholds", "ai_context", "approval", "replay"):
+            object.__setattr__(self, name, _freeze(getattr(self, name)))
+        if self.ai_context:
+            required_ai = {"provider", "model_version", "input_hash", "output_hash", "decision_hash"}
+            if not required_ai.issubset(set(self.ai_context)):
+                raise ValueError("Analysis plan AI provenance is incomplete")
+        object.__setattr__(self, "candidate_configs", tuple(_freeze(dict(item)) for item in self.candidate_configs))
+        object.__setattr__(self, "plan_version", str(self.plan_version))
+        object.__setattr__(self, "plan_id", str(self.plan_id))
+        if self.random_seed is not None:
+            object.__setattr__(self, "random_seed", int(self.random_seed))
+        for name in ("selected_candidate_id", "parent_run_id", "replan_of"):
+            value = getattr(self, name)
+            object.__setattr__(self, name, None if value is None else str(value))
+
+    @classmethod
+    def create(cls, *, source_files: Sequence[Mapping[str, Any]], canonical_template: Mapping[str, Any], algorithm: Mapping[str, Any], **values: Any) -> "AnalysisPlan":
+        sources = tuple(dict(item) for item in source_files)
+        for source in sources:
+            if not source.get("path") or not source.get("sha256"):
+                raise ValueError("Analysis plan source hash is required")
+        if not canonical_template.get("template_id") or not canonical_template.get("conversion_version"):
+            raise ValueError("Analysis plan canonical template version is required")
+        if not algorithm.get("algorithm_id"):
+            raise ValueError("Analysis plan algorithm id is required")
+        if not algorithm.get("algorithm_version"):
+            raise ValueError("Analysis plan algorithm version is required")
+        ai_context = values.get("ai_context", {})
+        if ai_context:
+            required_ai = {"provider", "model_version", "input_hash", "output_hash", "decision_hash"}
+            if not required_ai.issubset(set(ai_context)):
+                raise ValueError("Analysis plan AI provenance is incomplete")
+        payload = {
+            "source_files": [_public(item) for item in sources],
+            "scope": _public(values.get("scope", {})),
+            "analysis_intent": values.get("analysis_intent"),
+            "requested_metrics": list(values.get("requested_metrics", ())),
+            "requested_figures": list(values.get("requested_figures", ())),
+            "canonical_template": _public(canonical_template),
+            "algorithm": _public(algorithm),
+            "default_config": _public(values.get("default_config", {})),
+            "candidate_configs": [_public(item) for item in values.get("candidate_configs", ())],
+            "protected_metrics": list(values.get("protected_metrics", ())),
+            "scientific_constraints": list(values.get("scientific_constraints", ())),
+            "review_thresholds": _public(values.get("review_thresholds", {})),
+            "ai_context": _public(values.get("ai_context", {})),
+            "random_seed": values.get("random_seed"),
+            "selected_candidate_id": values.get("selected_candidate_id"),
+            "approval": _public(values.get("approval", {})),
+            "parent_run_id": values.get("parent_run_id"),
+            "replan_of": values.get("replan_of"),
+            "replay": _public(values.get("replay", {})),
+            "plan_version": str(values.get("plan_version", CONTRACT_VERSION)),
+        }
+        digest = _hash_payload(payload)
+        return cls(
+            source_files=sources,
+            canonical_template=canonical_template,
+            algorithm=algorithm,
+            plan_id=str(values.get("plan_id") or f"plan-{digest[:16]}"),
+            plan_hash=digest,
+            **{key: value for key, value in values.items() if key not in {"plan_id", "plan_hash"}},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_files": [_public(item) for item in self.source_files], "scope": _public(self.scope),
+            "analysis_intent": self.analysis_intent, "requested_metrics": list(self.requested_metrics),
+            "requested_figures": list(self.requested_figures), "canonical_template": _public(self.canonical_template),
+            "algorithm": _public(self.algorithm), "default_config": _public(self.default_config),
+            "candidate_configs": [_public(item) for item in self.candidate_configs],
+            "protected_metrics": list(self.protected_metrics), "scientific_constraints": list(self.scientific_constraints),
+            "review_thresholds": _public(self.review_thresholds), "ai_context": _public(self.ai_context),
+            "random_seed": self.random_seed, "selected_candidate_id": self.selected_candidate_id,
+            "approval": _public(self.approval), "parent_run_id": self.parent_run_id, "replan_of": self.replan_of,
+            "replay": _public(self.replay), "plan_version": self.plan_version, "plan_id": self.plan_id,
+            "plan_hash": self.plan_hash,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "AnalysisPlan":
+        payload = dict(value)
+        supplied_hash = str(payload.pop("plan_hash", ""))
+        supplied_id = str(payload.pop("plan_id", ""))
+        if not supplied_hash:
+            raise ValueError("Analysis plan hash is missing")
+        plan = cls.create(plan_id=supplied_id or None, **payload)
+        if supplied_hash != plan.plan_hash:
+            raise ValueError("Analysis plan hash does not match its content")
+        return plan
+
+
+@dataclass(frozen=True)
 class ProjectPlan:
     request_hash: str
     steps: tuple[Mapping[str, Any], ...] = ()
@@ -731,6 +857,7 @@ class EvidenceItem:
 
 
 __all__ = [
+    "AnalysisPlan",
     "AnalysisRequest",
     "Condition",
     "EvidenceItem",

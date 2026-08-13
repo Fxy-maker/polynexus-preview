@@ -18,6 +18,7 @@ from polynexus.core.project_workflow.models import (
     ResearchGraph,
     EvidenceItem,
     ProjectPlan,
+    AnalysisPlan,
 )
 
 
@@ -194,3 +195,67 @@ def test_plan_and_evidence_hashes_are_required_and_verified():
     item_payload.pop("item_hash")
     with pytest.raises(ValueError, match="evidence hash"):
         EvidenceItem.from_dict(item_payload)
+
+
+def test_analysis_plan_round_trips_and_hashes_all_replay_inputs():
+    plan = AnalysisPlan.create(
+        source_files=({"path": "raw/a.csv", "sha256": "a" * 64, "byte_size": 12},),
+        scope={"project_id": "pa6", "group_id": "jw", "technique": "ir"},
+        requested_metrics=("peak_position",),
+        requested_figures=("overlay",),
+        canonical_template={"template_id": "ir.v1", "conversion_version": "conv-1"},
+        algorithm={"algorithm_id": "ftir.peaks", "algorithm_version": "2"},
+        default_config={"baseline": "rubberband"},
+        candidate_configs=({"config": {"baseline": "linear"}, "generation_rule": "bounded"},),
+        protected_metrics=("peak_position",),
+        scientific_constraints=("finite_peak_positions",),
+        review_thresholds={"max_peak_shift": 2.0},
+        random_seed=7,
+    )
+
+    restored = AnalysisPlan.from_dict(plan.to_dict())
+    assert restored.plan_hash == plan.plan_hash
+    assert restored.to_dict() == plan.to_dict()
+
+    changed = plan.to_dict()
+    changed["source_files"][0]["sha256"] = "b" * 64
+    with pytest.raises(ValueError, match="Analysis plan hash"):
+        AnalysisPlan.from_dict(changed)
+
+
+def test_analysis_plan_requires_source_hashes_and_versioned_algorithm_contract():
+    with pytest.raises(ValueError, match="source hash"):
+        AnalysisPlan.create(
+            source_files=({"path": "raw/a.csv"},),
+            canonical_template={"template_id": "ir.v1", "conversion_version": "conv-1"},
+            algorithm={"algorithm_id": "ftir.peaks", "algorithm_version": "2"},
+        )
+
+    with pytest.raises(ValueError, match="algorithm version"):
+        AnalysisPlan.create(
+            source_files=({"path": "raw/a.csv", "sha256": "a" * 64},),
+            canonical_template={"template_id": "ir.v1", "conversion_version": "conv-1"},
+            algorithm={"algorithm_id": "ftir.peaks"},
+        )
+
+
+def test_analysis_plan_requires_complete_ai_provenance_when_ai_context_is_present():
+    base = {
+        "source_files": ({"path": "raw/a.csv", "sha256": "a" * 64},),
+        "canonical_template": {"template_id": "ir.v1", "conversion_version": "conv-1"},
+        "algorithm": {"algorithm_id": "ftir.peaks", "algorithm_version": "2"},
+    }
+    with pytest.raises(ValueError, match="AI provenance"):
+        AnalysisPlan.create(**base, ai_context={"provider": "codex"})
+
+    plan = AnalysisPlan.create(
+        **base,
+        ai_context={
+            "provider": "codex",
+            "model_version": "gpt-test",
+            "input_hash": "i" * 64,
+            "output_hash": "o" * 64,
+            "decision_hash": "d" * 64,
+        },
+    )
+    assert plan.ai_context["decision_hash"] == "d" * 64

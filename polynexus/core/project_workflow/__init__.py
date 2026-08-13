@@ -1,6 +1,7 @@
 """Public project-local workflow contracts."""
 
 from .models import (
+    AnalysisPlan,
     AnalysisRequest,
     Condition,
     EvidenceItem,
@@ -21,6 +22,7 @@ from .selection import FigureSelectionRequest, ResolvedFigureSelection, resolve_
 from .evidence_view import EvidencePackageView, load_evidence_package_view
 
 __all__ = [
+    "AnalysisPlan",
     "AnalysisRequest",
     "Condition",
     "EvidenceItem",
