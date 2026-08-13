@@ -18,6 +18,7 @@ from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .grouping import CandidateExperimentGroup, candidate_groups
 from .selection import FigureSelectionRequest, ResolvedFigureSelection, resolve_figure_selection
+from .evidence_view import EvidencePackageView, load_evidence_package_view
 
 __all__ = [
     "AnalysisRequest",
@@ -44,4 +45,6 @@ __all__ = [
     "FigureSelectionRequest",
     "ResolvedFigureSelection",
     "resolve_figure_selection",
+    "EvidencePackageView",
+    "load_evidence_package_view",
 ]

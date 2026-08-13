@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-13-evidence-package-view
 kind: architecture
-status: proposed
+status: completed
 date: 2026-08-13
 title: Technique-neutral evidence package view model
 ---
@@ -27,13 +27,13 @@ materialized evidence package.
 
 ## Acceptance criteria
 
-- [ ] Loading a package yields package status, techniques, evidence rows,
+- [x] Loading a package yields package status, techniques, evidence rows,
   metrics, figure/table paths, limitations, and human-review rows.
-- [ ] DTOs contain no technique algorithm state and expose stable JSON-safe
+- [x] DTOs contain no technique algorithm state and expose stable JSON-safe
   values only.
-- [ ] Loader rejects missing or inconsistent package references.
-- [ ] GUI adapter consumes only the DTO and has no technique-specific branch.
-- [ ] Real PA6 package loads with all four techniques and review boundaries.
+- [x] Loader rejects missing or inconsistent package references.
+- [x] GUI adapter consumes only the DTO and has no technique-specific branch.
+- [x] Real PA6 package loads with all four techniques and review boundaries.
 
 ## Implementation plan
 

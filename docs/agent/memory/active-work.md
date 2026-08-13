@@ -5336,6 +5336,18 @@ and structured gates (`303` / `157`).
 - This is an ARS preparation contract, not an automatic manuscript writer;
   literature, narrative, and final scientific review remain in ARS/human scope.
 
+## Evidence package view model - checkpointed 2026-08-13
+
+- `EvidencePackageView` now loads the immutable package into technique-neutral
+  DTOs for package status, technique membership, evidence rows, metric
+  provenance, package-relative assets, limitations, and human-review actions.
+  The GUI adapter reads only this DTO.
+- Loader validation requires writing evidence, citation metrics, and ARS
+  Results/Discussion metric partitions to agree exactly, preventing a
+  diagnostic metric from reaching a Results presentation path.
+- Real PA6 package loading is recorded in
+  `docs/acceptance/2026-08-13-evidence-package-view.md`.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and
