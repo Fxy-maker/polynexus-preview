@@ -17,6 +17,7 @@ from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .grouping import CandidateExperimentGroup, candidate_groups
+from .selection import FigureSelectionRequest, ResolvedFigureSelection, resolve_figure_selection
 
 __all__ = [
     "AnalysisRequest",
@@ -40,4 +41,7 @@ __all__ = [
     "TechniqueSeriesAdapter",
     "CandidateExperimentGroup",
     "candidate_groups",
+    "FigureSelectionRequest",
+    "ResolvedFigureSelection",
+    "resolve_figure_selection",
 ]

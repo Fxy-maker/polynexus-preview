@@ -14,6 +14,7 @@ from typing import Any, Iterable, Mapping
 from polynexus.core.agent_workflow.models import AnalysisRun
 
 from .evidence import ProjectWorkflowRun
+from .ir_group_figures import FigureCandidateSet
 from .models import EvidenceItem, canonical_json
 from .workspace import ProjectWorkspace
 
@@ -55,6 +56,7 @@ class ProjectEvidencePackager:
         *,
         relations: Iterable[Mapping[str, Any]] = (),
         package_id: str = "pa6-crystallization",
+        figure_candidates: FigureCandidateSet | None = None,
     ) -> ResearchEvidencePackage:
         run_values = tuple(runs)
         if not run_values:
@@ -76,9 +78,18 @@ class ProjectEvidencePackager:
             for item in run.evidence_items:
                 limitations.extend(item.limitations)
 
-            copied_assets.extend(self._asset_descriptors(run, package_id))
+            copied_assets.extend(
+                self._asset_descriptors(run, package_id, include_figures=figure_candidates is None)
+            )
 
+        figure_candidate_payload = figure_candidates.to_dict() if figure_candidates else None
+        if figure_candidates:
+            copied_assets.extend(self._candidate_asset_descriptors(figure_candidates))
         copied_assets = self._disambiguate_assets(copied_assets)
+        if figure_candidates and figure_candidate_payload is not None:
+            figure_candidate_payload = self._package_figure_candidate_payload(
+                figure_candidate_payload, copied_assets
+            )
 
         relation_values = [dict(value) for value in relations]
         if not relation_values:
@@ -120,6 +131,7 @@ class ProjectEvidencePackager:
                 "conversion_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("conversion_hashes", ())}),
                 "evidence_count": len(evidence),
                 "asset_count": len(copied_assets),
+                "figure_candidates": figure_candidate_payload,
                 "evidence_item_hashes": [
                     str(item.get("item_hash", "")) for item in evidence
                 ],
@@ -136,7 +148,12 @@ class ProjectEvidencePackager:
             self._write_json(package_path / "relations.json", {"relations": relation_values})
             self._write_json(package_path / "limitations.json", {"limitations": limitations})
             self._copy_assets(copied_assets, package_path)
-            self._write_text(package_path / "writing-input.md", self._writing_input(package_manifest, evidence, limitations))
+            if figure_candidate_payload is not None:
+                self._write_json(package_path / "figure-candidates.json", figure_candidate_payload)
+            self._write_text(
+                package_path / "writing-input.md",
+                self._writing_input(package_manifest, evidence, limitations),
+            )
         except Exception:
             shutil.rmtree(package_path, ignore_errors=True)
             raise
@@ -221,7 +238,9 @@ class ProjectEvidencePackager:
                         pass
         return max(versions, default=0) + 1
 
-    def _asset_descriptors(self, run: ProjectWorkflowRun, package_id: str) -> list[dict[str, str]]:
+    def _asset_descriptors(
+        self, run: ProjectWorkflowRun, package_id: str, *, include_figures: bool = True
+    ) -> list[dict[str, str]]:
         assets: list[dict[str, str]] = []
         for output in run.outputs:
             source = Path(output).expanduser().resolve()
@@ -234,6 +253,8 @@ class ProjectEvidencePackager:
             lower_parts = {part.lower() for part in relative.parts}
             suffix = source.suffix.lower()
             if suffix in _FIGURE_SUFFIXES or "figures" in lower_parts or "figure" in source.stem.lower():
+                if not include_figures:
+                    continue
                 kind = "figures"
             elif suffix in _TABLE_SUFFIXES or "tables" in lower_parts or "table" in source.stem.lower():
                 kind = "tables"
@@ -241,6 +262,43 @@ class ProjectEvidencePackager:
                 continue
             assets.append({"source": str(source), "kind": kind, "name": source.name})
         return assets
+
+    def _candidate_asset_descriptors(self, candidates: FigureCandidateSet) -> list[dict[str, str]]:
+        """Return only main/supporting candidate assets from project-local figures."""
+        assets: list[dict[str, str]] = []
+        figures_root = self.workspace.figures_dir.resolve()
+        for candidate in (*candidates.main_candidates, *candidates.supporting_candidates):
+            for value in candidate.paths:
+                source = Path(value).expanduser().resolve()
+                try:
+                    source.relative_to(figures_root)
+                except ValueError as exc:
+                    raise ValueError("figure candidate asset must be inside .polynexus/figures") from exc
+                if not source.is_file() or source.suffix.lower() not in _FIGURE_SUFFIXES:
+                    raise ValueError("figure candidate asset is invalid")
+                assets.append({"source": str(source), "kind": "figures", "name": source.name})
+        return assets
+
+    @staticmethod
+    def _package_figure_candidate_payload(
+        payload: Mapping[str, Any], assets: list[dict[str, str]]
+    ) -> dict[str, Any]:
+        """Point packaged candidate metadata at the copied package assets."""
+        by_source = {str(item["source"]): f"{item['kind']}/{item['name']}" for item in assets}
+        result = dict(payload)
+        for key in ("main_candidates", "supporting_candidates"):
+            candidates = []
+            for value in payload.get(key, ()):
+                candidate = dict(value)
+                candidate["paths"] = [
+                    by_source.get(str(path), str(path)) for path in candidate.get("paths", ())
+                ]
+                candidates.append(candidate)
+            result[key] = candidates
+        manifest_path = result.get("manifest_path")
+        if manifest_path:
+            result["manifest_path"] = "figure-candidates.json"
+        return result
 
     @staticmethod
     def _asset_hashes(assets: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -304,6 +362,17 @@ class ProjectEvidencePackager:
                 lines.append(f"  Do not conclude: {conclusion}")
         lines.extend(("", "## Limitations"))
         lines.extend(f"- {value}" for value in limitations)
+        candidates = manifest.get("figure_candidates")
+        if isinstance(candidates, Mapping):
+            lines.extend(("", "## Manuscript figure candidates"))
+            for candidate in candidates.get("main_candidates", ()):
+                if isinstance(candidate, Mapping):
+                    lines.append(
+                        f"- {candidate.get('kind', 'figure')}: "
+                        f"{', '.join(str(path) for path in candidate.get('paths', ())) }"
+                    )
+            for reason in candidates.get("omission_reasons", ()):
+                lines.append(f"- Omitted: {reason}")
         parameters = manifest.get("request_parameters", {})
         corrections = parameters.get("approved_context_corrections") if isinstance(parameters, Mapping) else None
         if isinstance(corrections, Mapping) and corrections:

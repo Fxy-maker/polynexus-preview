@@ -8,6 +8,7 @@ by a later task.
 from __future__ import annotations
 
 from pathlib import Path
+import math
 import re
 from typing import Any, Iterable, Mapping
 
@@ -18,8 +19,10 @@ from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items
 from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .index import ProjectIndexer
 from .grouping import CandidateExperimentGroup, candidate_groups
+from .ir_group_figures import FigureCandidateSet, render_ftir_group_candidates
 from .models import AnalysisRequest, ProjectPlan, ResearchGraph
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
+from .selection import FigureSelectionRequest, resolve_figure_selection
 from .workspace import ProjectWorkspace
 
 
@@ -66,6 +69,7 @@ class ProjectWorkflowService:
         data_scope: Iterable[str | Path] = (),
         requested_outputs: Iterable[str] = ("figures", "tables", "writing_input"),
         package_id: str = "research-evidence",
+        figure_selection: FigureSelectionRequest | None = None,
     ) -> ProjectAnalysisSummary:
         """Run the ordinary project workflow through one AI/ARS-facing call."""
         scope = tuple(str(value) for value in data_scope)
@@ -77,10 +81,38 @@ class ProjectWorkflowService:
         except (OSError, TypeError, ValueError, UnicodeError):
             return self._analysis_summary((), (*discovery_reasons, "inspection_invalid"))
         candidates = candidate_groups(graph.artifacts)
+        resolved_selection = (
+            resolve_figure_selection(figure_selection, candidates)
+            if figure_selection is not None
+            else None
+        )
+        if resolved_selection is not None and resolved_selection.status == "blocked":
+            return ProjectAnalysisSummary(
+                computation="blocked",
+                data_quality="warning",
+                publication="blocked",
+                reason_codes=resolved_selection.reason_codes,
+                messages=("ARS figure selection must name compatible candidate groups from this project inventory.",),
+                candidate_groups=tuple(group.to_dict() for group in candidates),
+                selected_groups=resolved_selection.request.selected_groups,
+            )
+        if (
+            resolved_selection is not None
+            and resolved_selection.request.figure_intent == "compare_groups"
+        ):
+            return ProjectAnalysisSummary(
+                computation="blocked",
+                data_quality="warning",
+                publication="blocked",
+                reason_codes=("group_comparison_not_implemented",),
+                messages=("FTIR group comparison candidates are not implemented in this vertical slice.",),
+                candidate_groups=tuple(group.to_dict() for group in candidates),
+                selected_groups=resolved_selection.request.selected_groups,
+            )
         selected_group = None
-        if not scope:
+        if resolved_selection is None and not scope:
             selected_group = candidates[0] if len(candidates) == 1 else self._select_candidate_group(candidates, question)
-        if not scope and len(candidates) > 1 and selected_group is None:
+        if resolved_selection is None and not scope and len(candidates) > 1 and selected_group is None:
             return ProjectAnalysisSummary(
                 computation="blocked",
                 data_quality="warning",
@@ -89,7 +121,12 @@ class ProjectWorkflowService:
                 messages=("Select one candidate experiment group before analysis; filenames are only inferred grouping hints.",),
                 candidate_groups=tuple(group.to_dict() for group in candidates),
             )
-        if selected_group is not None:
+        if resolved_selection is not None:
+            graph_artifact_paths = {
+                path for group in resolved_selection.groups for path in group.artifact_paths
+            }
+            graph = ResearchGraph.create(study_id=graph.study_id, artifacts=tuple(artifact for artifact in graph.artifacts if artifact.relative_path in graph_artifact_paths))
+        elif selected_group is not None:
             graph_artifact_paths = set(selected_group.artifact_paths)
             graph = ResearchGraph.create(study_id=graph.study_id, artifacts=tuple(artifact for artifact in graph.artifacts if artifact.relative_path in graph_artifact_paths))
         grouped: dict[str, list[str]] = {}
@@ -112,10 +149,22 @@ class ProjectWorkflowService:
                 runs.append(result)
             else:
                 reasons.extend(result.reason_codes)
+        figure_candidates: FigureCandidateSet | None = None
+        if resolved_selection is not None and runs:
+            figure_candidates = render_ftir_group_candidates(
+                selection=resolved_selection,
+                project_root=self.workspace.root,
+                output_dir=self.workspace.figures_dir / resolved_selection.selection_id,
+                metric_values=self._metric_values_from_runs(tuple(runs)),
+            )
         package: ResearchEvidencePackage | None = None
         if runs:
             try:
-                package = self.package(tuple(runs), package_id=package_id)
+                package = self.package(
+                    tuple(runs),
+                    package_id=package_id,
+                    figure_candidates=figure_candidates,
+                )
             except (OSError, TypeError, ValueError, UnicodeError):
                 reasons.append("evidence_package_failed")
         return self._analysis_summary(
@@ -124,6 +173,8 @@ class ProjectWorkflowService:
             package=package,
             candidate_groups=tuple(group.to_dict() for group in candidates),
             selected_group=selected_group.to_dict() if selected_group else None,
+            selected_groups=resolved_selection.request.selected_groups if resolved_selection else (),
+            figure_candidates=figure_candidates.to_dict() if figure_candidates else None,
         )
 
     def plan(self, request: AnalysisRequest) -> ProjectPlan:
@@ -283,6 +334,8 @@ class ProjectWorkflowService:
         package: ResearchEvidencePackage | None = None,
         candidate_groups: tuple[Mapping[str, Any], ...] = (),
         selected_group: Mapping[str, Any] | None = None,
+        selected_groups: tuple[str, ...] = (),
+        figure_candidates: Mapping[str, Any] | None = None,
     ) -> ProjectAnalysisSummary:
         reasons = tuple(dict.fromkeys(str(value) for value in reason_codes if value))
         if not runs:
@@ -294,6 +347,8 @@ class ProjectWorkflowService:
                 messages=("No usable analysis route was found. Check the raw files or ask for the missing condition.",),
                 candidate_groups=candidate_groups,
                 selected_group=selected_group,
+                selected_groups=selected_groups,
+                figure_candidates=figure_candidates,
             )
         review_bound = any(run.status == "review_required" for run in runs) or bool(reasons)
         publication = "review_required" if review_bound or package is None else "ready"
@@ -311,7 +366,41 @@ class ProjectWorkflowService:
             messages=messages,
             candidate_groups=candidate_groups,
             selected_group=selected_group,
+            selected_groups=selected_groups,
+            figure_candidates=figure_candidates,
         )
+
+    def _metric_values_from_runs(self, runs: tuple[ProjectWorkflowRun, ...]) -> dict[str, tuple[float, str]]:
+        """Return only explicit finite per-artifact IR Xc values from validated runs."""
+        values: dict[str, tuple[float, str]] = {}
+        for run in runs:
+            analysis_run = run.analysis_run
+            if analysis_run is None or not analysis_run.validated:
+                continue
+            artifacts = analysis_run.recipe.artifacts
+            for step in analysis_run.steps:
+                if step.technique != "ir" or step.status not in {"completed", "review_required"}:
+                    continue
+                index = step.result_summary.get("artifact_index")
+                if not isinstance(index, int):
+                    recipe_step = next(
+                        (item for item in analysis_run.recipe.steps if item.step_id == step.step_id),
+                        None,
+                    )
+                    index = recipe_step.parameters.get("artifact_index") if recipe_step else None
+                if not isinstance(index, int) or not 0 <= index < len(artifacts):
+                    continue
+                parameters = step.result_summary.get("parameters")
+                if not isinstance(parameters, Mapping) or not parameters.get("Xc_method"):
+                    continue
+                try:
+                    value = float(parameters["Xc_pct"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if math.isfinite(value):
+                    relative = Path(artifacts[index].path).resolve().relative_to(self.workspace.root).as_posix()
+                    values[relative] = (value, str(parameters["Xc_method"]))
+        return values
 
     @staticmethod
     def _select_candidate_group(
@@ -628,6 +717,7 @@ class ProjectWorkflowService:
         *,
         relations: Iterable[Mapping[str, Any]] = (),
         package_id: str = "pa6-crystallization",
+        figure_candidates: FigureCandidateSet | None = None,
     ) -> ResearchEvidencePackage:
         """Materialize validated runs as an immutable ARS evidence snapshot."""
         values = (runs,) if isinstance(runs, ProjectWorkflowRun) else tuple(runs)
@@ -635,6 +725,7 @@ class ProjectWorkflowService:
             values,
             relations=relations,
             package_id=package_id,
+            figure_candidates=figure_candidates,
         )
 
     def _persist_blocked_plan(self, request: AnalysisRequest, reason: str) -> ProjectPlan:

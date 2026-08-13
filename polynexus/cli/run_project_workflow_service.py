@@ -14,6 +14,7 @@ from polynexus.core.project_workflow import (
     ProjectPlan,
     ProjectWorkflowRun,
     ProjectWorkflowService,
+    FigureSelectionRequest,
 )
 from polynexus.core.agent_workflow.models import AnalysisRun
 
@@ -38,12 +39,17 @@ def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = 
         return _emit(operation, "completed", graph=graph.to_dict())
 
     if operation == "analyze-project":
+        selection_path = getattr(args, "figure_selection", None)
+        figure_selection = _load_figure_selection(selection_path)
+        if selection_path and figure_selection is None:
+            return _emit(operation, "blocked", ["figure_selection_invalid"])
         try:
             with redirect_stdout(sys.stderr):
                 summary = workflow.analyze_project(
                     question=str(getattr(args, "question", "Analyze this research project.")),
                     data_scope=tuple(getattr(args, "paths", ()) or ()),
                     package_id=str(getattr(args, "package_id", "research-evidence")),
+                    figure_selection=figure_selection,
                 )
         except (OSError, TypeError, ValueError, UnicodeError):
             return _emit(operation, "blocked", ["analysis_failed"])
@@ -120,6 +126,24 @@ def _load_request(path: str | None) -> AnalysisRequest | None:
     try:
         return AnalysisRequest.from_dict(value)
     except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _load_figure_selection(path: str | None) -> FigureSelectionRequest | None:
+    payload = _read_object(path)
+    if payload is None:
+        return None
+    groups = payload.get("selected_groups")
+    if not isinstance(groups, (list, tuple)):
+        return None
+    try:
+        return FigureSelectionRequest.create(
+            question=str(payload.get("question", "")),
+            selected_groups=tuple(str(value) for value in groups),
+            figure_intent=str(payload.get("figure_intent", "describe_group")),
+            main_figure_limit=int(payload.get("main_figure_limit", 2)),
+        )
+    except (TypeError, ValueError):
         return None
 
 

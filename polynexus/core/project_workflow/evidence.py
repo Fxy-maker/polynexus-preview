@@ -59,6 +59,8 @@ class ProjectAnalysisSummary:
     messages: tuple[str, ...] = ()
     candidate_groups: tuple[Mapping[str, Any], ...] = ()
     selected_group: Mapping[str, Any] | None = None
+    selected_groups: tuple[str, ...] = ()
+    figure_candidates: Mapping[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         evidence_items = tuple(item for run in self.runs for item in run.evidence_items)
@@ -75,6 +77,8 @@ class ProjectAnalysisSummary:
             "messages": list(self.messages),
             "candidate_groups": [dict(value) for value in self.candidate_groups],
             "selected_group": dict(self.selected_group) if self.selected_group else None,
+            "selected_groups": list(self.selected_groups),
+            "figure_candidates": dict(self.figure_candidates) if self.figure_candidates else None,
         }
 
 

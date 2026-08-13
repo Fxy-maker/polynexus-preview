@@ -5242,6 +5242,25 @@ link here when that information will matter to a later agent.
   remain `inferred_from_filename`, not verified laboratory identity.
 - Acceptance: `docs/acceptance/2026-08-14-ai-project-candidate-groups.md`.
 
+## ARS-selected FTIR group figure candidates - checkpointed 2026-08-14
+
+- ARS can supply one or two candidate group IDs and a figure intent to
+  `analyze-project`; invalid selection blocks before any provider execution.
+- The V1 FTIR renderer produces an overlay only for selected sources, returns
+  no more than two main figure candidates, and produces an `Xc_pct` trend only
+  when every condition has an explicit finite, method-bearing provider value.
+- Candidate metadata and assets are copied into the immutable evidence package;
+  provider single-file outputs remain traceable internal evidence.
+- A three-file PA6 JW read-only render smoke produced an inspected overlay;
+  the trend correctly remained absent because no provider metrics were run.
+- Acceptance: `docs/acceptance/2026-08-14-ars-selected-group-figure-candidates.md`.
+
+Post-review repair: `compare_groups` now fails closed before provider execution
+until a true comparison renderer exists. Metric trends retain the provider
+`Xc_method` and require one common method across all selected artifacts. Package
+candidate paths are rewritten to package-relative paths; provider single-file
+figures remain excluded when candidate figures are supplied.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

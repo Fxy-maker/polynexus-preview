@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-14-ars-selected-group-figure-candidates
 kind: architecture
-status: planned
+status: implementation_complete_review_required
 date: 2026-08-14
 title: Generate ARS-selected FTIR group figure candidates
 ---
@@ -30,23 +30,29 @@ provenance.
 
 ## Acceptance criteria
 
-- [ ] An ARS request selects one or two inventory candidate group IDs.
-- [ ] Invalid, stale, mixed-technique, or incompatible group selections block
+- [x] An ARS request selects one or two inventory candidate group IDs; the
+  two-group comparison intent is accepted as a contract but fails closed before
+  provider execution until a comparison renderer is implemented.
+- [x] Invalid, stale, mixed-technique, or incompatible group selections block
   before provider execution.
-- [ ] Only selected FTIR group artifacts are analyzed.
-- [ ] A valid selected FTIR group with two spectra produces an overlay figure.
-- [ ] A trend figure appears only for a shared finite provider metric and a
+- [x] Only selected FTIR group artifacts are analyzed.
+- [x] A valid selected FTIR group with two spectra produces an overlay figure.
+- [x] A trend figure appears only for a shared finite provider metric and a
   valid group condition axis.
-- [ ] The public result has no more than two `main_candidate` figures.
-- [ ] Single-file provider outputs remain internal evidence with provenance.
-- [ ] Candidate metadata is copied into the evidence package.
+- [x] The public result has no more than two `main_candidate` figures.
+- [x] Single-file provider outputs remain internal evidence with provenance.
+- [x] Candidate metadata is copied into the evidence package.
+
+The first vertical slice implements one-group FTIR overlay/trend candidates.
+`compare_groups` remains an explicit, provider-free omission with reason code
+`group_comparison_not_implemented`; it is reserved for the next figure slice.
 
 ## Implementation plan
 
-1. Add JSON-safe ARS figure-selection and candidate-figure contracts.
-2. Render selected FTIR group overlays and strictly gated metric trends.
-3. Integrate selection, manifests, evidence packaging, and CLI JSON input.
-4. Verify synthetic and bounded read-only PA6 cases, record acceptance, and
+1. [x] Add JSON-safe ARS figure-selection and candidate-figure contracts.
+2. [x] Render selected FTIR group overlays and strictly gated metric trends.
+3. [x] Integrate selection, manifests, evidence packaging, and CLI JSON input.
+4. [x] Verify synthetic and bounded read-only PA6 cases, record acceptance, and
    checkpoint the allowlisted task files.
 
 ## Verification

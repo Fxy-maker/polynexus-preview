@@ -110,6 +110,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="Analyze this research project and prepare evidence for writing.",
         help="Research question for analyze-project",
     )
+    ppw.add_argument(
+        "--figure-selection",
+        default=None,
+        help="ARS FigureSelectionRequest JSON path for analyze-project",
+    )
 
     pb = sub.add_parser("batch", help="Batch-analyze all supported files in a directory")
     pb.add_argument("input_dir", nargs="?", help="Input directory path")
