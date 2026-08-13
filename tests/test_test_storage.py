@@ -22,6 +22,7 @@ from scripts.test_storage import (
     finalize_run_state,
     is_path_referenced,
     main,
+    pytest_process_active,
     reconcile_run_state,
     read_run_state,
     resolve_legacy_test_roots,
@@ -463,6 +464,37 @@ def test_discover_historical_test_directories_but_protects_data_and_evidence(
         "PolyNexus_saxs_evidence_matrix",
         "PolyNexus_release_baseline",
         "PolyNexus_demo_archive",
+        "PolyNexus-pa6-four-technique-smoke-20260814",
+        "PolyNexus-origin-main",
+    ]
+    for name in disposable + protected:
+        (legacy_root / name).mkdir(parents=True)
+
+    artifacts = discover_artifacts(
+        tmp_path,
+        test_root=tmp_path / "managed",
+        legacy_roots=[legacy_root],
+    )
+
+    assert [artifact.path.name for artifact in artifacts] == sorted(disposable, key=str.casefold)
+
+
+def test_discover_root_level_historical_test_run_prefix_but_not_projects(tmp_path: Path):
+    legacy_root = tmp_path / "drive-root"
+    disposable = [
+        "PolyNexus-test-runs-full-goal-20260731",
+        "PolyNexus-test-runs-saxs-2d-ai-saxs-20260731",
+        "PolyNexus_full_native_visual_basetemp_20260730_rerun",
+        "PolyNexus_joint_real_probe",
+        "PolyNexus_dsc_real_publication_acceptance_20260730",
+        "PolyNexus_nmr_peak_label_lanes_capture_20260729",
+        "PolyNexus_saxs_1d_review_saxs_matrix_20260729",
+        "PolyNexus_saxs_post_review_walkthrough",
+    ]
+    protected = [
+        "PolyNexus-pa6-four-technique-smoke-20260814",
+        "PolyNexus-origin-main",
+        "PolyNexus_test_artifacts_archive_20260729",
     ]
     for name in disposable + protected:
         (legacy_root / name).mkdir(parents=True)
@@ -644,6 +676,16 @@ def test_is_path_referenced_normalizes_windows_slashes():
 
     assert is_path_referenced(path, ['python -m pytest --basetemp="D:\\PolyNexus-test-runs\\pytest\\run-123"'])
     assert not is_path_referenced(path, ["python -m pytest tests/test_core.py"])
+
+
+def test_pytest_process_detection_ignores_shell_text_mentions():
+    assert pytest_process_active(["python -m pytest tests/test_core.py"])
+    assert pytest_process_active(["C:\\Python\\Scripts\\pytest.exe -q"])
+    assert not pytest_process_active([
+        "powershell -Command python scripts/test_storage.py --legacy-root D:\\",
+        "powershell -Command python -m pytest tests/test_core.py",
+        "rg pytest scripts/test_storage.py",
+    ])
 
 
 def test_cleanup_plan_skips_young_active_tracked_and_protected_artifacts(tmp_path: Path):

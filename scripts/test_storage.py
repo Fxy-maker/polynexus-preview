@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -393,7 +394,18 @@ def is_path_referenced(path: Path, command_lines: Iterable[str]) -> bool:
 def pytest_process_active(command_lines: Iterable[str]) -> bool:
     """Return whether any supplied process command line is running pytest."""
 
-    return any("pytest" in line.lower() for line in command_lines)
+    python_pytest = re.compile(
+        r'^\s*(?:"[^"]*python(?:\.exe)?"|\S*python(?:\.exe)?)\s+-m\s+pytest(?:\s|$)',
+        re.IGNORECASE,
+    )
+    for line in command_lines:
+        lowered = line.lower().replace("/", "\\")
+        if python_pytest.match(lowered):
+            return True
+        executable = lowered.split(maxsplit=1)[0].strip('"')
+        if executable.endswith("\\pytest.exe") or executable.endswith("\\pytest"):
+            return True
+    return False
 
 
 def running_process_ids() -> set[int]:
@@ -524,8 +536,31 @@ def _is_known_legacy_name(lowered: str) -> bool:
     """Recognize disposable test names without treating archives as tests."""
 
     if lowered == "测试数据" or any(
-        token in lowered for token in ("archive", "evidence", "review", "baseline")
+        token in lowered for token in ("archive", "evidence", "baseline")
     ):
+        return False
+    if lowered.startswith("polynexus_saxs_"):
+        dated_run = re.search(r"_20\d{6,}", lowered) is not None
+        disposable_marker = any(
+            token in lowered
+            for token in (
+                "_saxs_matrix",
+                "_post_review",
+                "_review_consumer_full",
+                "_review_focus",
+            )
+        )
+        if dated_run or disposable_marker:
+            return True
+    if lowered.startswith((
+        "polynexus-test-runs-",
+        "polynexus_full_",
+        "polynexus_joint_",
+        "polynexus_dsc_",
+        "polynexus_nmr_",
+    )):
+        return True
+    if "review" in lowered:
         return False
     if "pytest_tmp" in lowered or "tmp_pytest" in lowered:
         return True
