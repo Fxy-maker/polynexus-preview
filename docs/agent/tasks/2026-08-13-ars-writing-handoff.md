@@ -20,7 +20,7 @@ evidence without promoting diagnostic observations into scientific claims.
 - Do not change analysis calculations, raw data, or existing provider gates.
 - Do not infer cross-technique sample identity or conclusions.
 
-## Boundaries
+## Affected boundaries
 
 - `polynexus/core/project_workflow/`: package-local ARS contract and
   validation.
@@ -48,3 +48,11 @@ python -m pytest -p no:cacheprovider -q tests/test_project_ars_writing_handoff.p
 python scripts/verify.py --task docs/agent/tasks/2026-08-13-ars-writing-handoff.md --changed --types
 git diff --check
 ```
+
+## Implementation plan
+
+1. Define a synthetic package regression that demonstrates ARS can distinguish
+   Result candidates from diagnostic-only observations.
+2. Build and validate the immutable JSON handoff from package artifacts only.
+3. Replay the real PA6 package read-only, record acceptance, verify, and
+   checkpoint the explicit changed-file allowlist.
