@@ -112,3 +112,29 @@ def test_persist_analysis_run_keeps_public_saxs_quality_dto_condition_axis(tmp_p
     assert run["parameters"]["metric_evidence"]["porod"] == expected
     assert run["results_summary"]["result"]["parameters"]["metric_evidence"]["porod"] == expected
     db.close()
+
+
+def test_persisted_run_history_context_can_be_rebound_to_its_own_run_id(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    data_file = tmp_path / "pa6.csv"
+    data_file.write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    run_id = persist_analysis_run(
+        db,
+        {"technique": "saxs", "parameters": {}},
+        AnalysisRunPersistenceContext(
+            technique="saxs",
+            data_file=str(data_file),
+            history_context={"tuning_context": {"analysis_plan_evaluation": {"version": 1}}},
+        ),
+    )
+    bound_context = {
+        "tuning_context": {
+            "analysis_plan_evaluation": {"version": 1},
+            "analysis_plan_evaluation_run_id": run_id,
+        }
+    }
+
+    assert db.update_analysis_history_context(run_id, bound_context) is True
+
+    assert db.get_analysis_run(run_id)["results_summary"]["history_context"] == bound_context
+    db.close()

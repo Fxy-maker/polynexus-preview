@@ -53,6 +53,8 @@ class MainWindowRetranslateMixin:
                 (self._act_toggle_theme, "ACTION_TOGGLE_THEME"),
                 (self._act_toggle_lang, "ACTION_TOGGLE_LANG"),
                 (self._act_about, "ACTION_ABOUT"),
+                (self._act_view_analysis_plan_evaluation, "ACTION_VIEW_ANALYSIS_PLAN_EVALUATION"),
+                (self._act_attach_quick_run, "ACTION_ATTACH_QUICK_RUN"),
             ]:
 
                 _safe_set(action, tr(key))

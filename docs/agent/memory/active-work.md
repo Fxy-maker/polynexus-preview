@@ -5316,7 +5316,7 @@ and structured gates (`303` / `157`).
   `task-template.md`, and `testing-matrix.md`. Task card:
   `docs/agent/tasks/2026-08-13-dual-entry-workbench-contract.md`.
 
-## Flexible AI analysis workbench - design checkpoint 2026-08-13
+## Flexible AI analysis workbench - implementation complete, review required 2026-08-13
 
 - The superseding design is
   `docs/superpowers/specs/2026-08-13-flexible-ai-analysis-workbench-design.md`;
@@ -5334,10 +5334,39 @@ and structured gates (`303` / `157`).
 - Sample Hub, Joint, convergence, plan evaluation, RAG, NMR, and Origin are
   retained with contextual roles. RAG removal/optionalization is deferred until
   the adaptive-plan replacement is proven.
-- Implementation plan:
-  `docs/superpowers/plans/2026-08-13-flexible-ai-analysis-workbench.md`.
-  Runtime work has not started; architecture/schema/scientific changes remain
-  human-review-required before merge.
+- The approved implementation plan is complete. Quick Analysis remains the
+  first human entry, including automatic detection, folder batch selection,
+  NMR, chart editing, and Origin export. Project/Evidence remains the AI/ARS
+ path. A persisted completed run can now be attached to an existing project
+ from a contextual GUI action; it writes a reference-only manifest and neither
+ copies data nor reruns the provider. The UI calls this “Attach Current Run”
+ because the shared attachment manifest does not claim a run origin it cannot
+ prove.
+ - The GUI now exposes a context-bound plan-evaluation summary that reads the
+   same `AnalysisPlanEvaluation` DTO as CLI/ARS. The evaluation is usable only
+   when its explicit `analysis_plan_evaluation_run_id` matches the current
+   completed run; malformed or stale cached payloads fail closed. Persisted
+   AI-tuned runs rebind this ID in their own history context after creation.
+   Nested cached fields are also type-checked: replay is a mapping, candidates
+   are mappings, and review limits are non-empty strings. This prevents a
+   malformed payload from enabling a summary action that cannot be rendered;
+   the malformed optional projection is dropped without interrupting ordinary
+   AI-tuning completion.
+   Joint, convergence, and attachment actions remain unavailable until there is
+   a current completed run.
+- Vector RAG is optional (`polynexus[rag]`); default installs retain the
+  deterministic polymer reference tables without Chroma.
+- Read-only loading of
+  `D:\PolyNexus-pa6-four-technique-smoke-20260814\.polynexus\evidence\final-pa6-e2e-audit-v001`
+  confirmed four techniques, 96 metrics, 42 Results candidates, 54
+  Discussion-only diagnostics, six review actions, and no copied raw data.
+- Task: `docs/agent/tasks/2026-08-13-workbench-surface-convergence.md`.
+  Architecture and scientific boundaries remain human-review-required before
+  merge. Final integration on 2026-08-14 was `3942 passed, 33 failed, 21
+  skipped`; a generic batch token initialization regression found in that run
+  was repaired and covered by focused GUI tests. The remaining chart gallery,
+  historical GUI persistence/sample-browser, and SAXS failures are outside this
+  task and remain a separate release-readiness backlog.
 
 ## Unified canonical evidence provenance - checkpointed 2026-08-13
 

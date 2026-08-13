@@ -152,10 +152,14 @@ def test_main_window_shell_mixin_build_menubar_wires_core_actions() -> None:
             self.text = text
             self.parent = parent
             self.object_name = ""
+            self.enabled = True
             self.triggered = _Signal()
 
         def setObjectName(self, name):
             self.object_name = name
+
+        def setEnabled(self, value):
+            self.enabled = bool(value)
 
     class _Menu:
         def __init__(self, title):
@@ -215,6 +219,12 @@ def test_main_window_shell_mixin_build_menubar_wires_core_actions() -> None:
         def _open_convergence_viewer(self):
             pass
 
+        def _attach_current_quick_run_to_project(self):
+            pass
+
+        def _show_analysis_plan_evaluation(self):
+            pass
+
         def _on_help(self):
             pass
 
@@ -238,7 +248,12 @@ def test_main_window_shell_mixin_build_menubar_wires_core_actions() -> None:
     assert window._act_toggle_lang.triggered.callbacks == [window._toggle_language]
     assert window.action_convergence_viewer.object_name == "action_convergence_viewer"
     assert window.action_convergence_viewer.triggered.callbacks == [window._open_convergence_viewer]
+    assert window._act_attach_quick_run.triggered.callbacks == [window._attach_current_quick_run_to_project]
+    assert window._act_view_analysis_plan_evaluation.triggered.callbacks == [window._show_analysis_plan_evaluation]
+    assert window._act_attach_quick_run.enabled is False
+    assert window._act_view_analysis_plan_evaluation.enabled is False
     assert window._act_about.triggered.callbacks == [window._on_help]
+    assert module.tr("ACTION_ATTACH_QUICK_RUN") == "Attach Current Run to Project"
 
 
 def test_main_window_shell_mixin_toggle_sidebar_expands_hidden_sidebar() -> None:

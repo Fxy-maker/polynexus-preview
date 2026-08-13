@@ -121,6 +121,20 @@ class MainWindowShellMixin:
         self.action_convergence_viewer.triggered.connect(self._open_convergence_viewer)
         self._menu_view.addAction(self.action_convergence_viewer)
 
+        self._act_view_analysis_plan_evaluation = main_window_module.QAction(
+            tr("ACTION_VIEW_ANALYSIS_PLAN_EVALUATION"), self
+        )
+        self._act_view_analysis_plan_evaluation.setObjectName("action_view_analysis_plan_evaluation")
+        self._act_view_analysis_plan_evaluation.setEnabled(False)
+        self._act_view_analysis_plan_evaluation.triggered.connect(self._show_analysis_plan_evaluation)
+        self._menu_view.addAction(self._act_view_analysis_plan_evaluation)
+
+        self._act_attach_quick_run = main_window_module.QAction(tr("ACTION_ATTACH_QUICK_RUN"), self)
+        self._act_attach_quick_run.setObjectName("action_attach_quick_run")
+        self._act_attach_quick_run.setEnabled(False)
+        self._act_attach_quick_run.triggered.connect(self._attach_current_quick_run_to_project)
+        self._menu_view.addAction(self._act_attach_quick_run)
+
         self._menu_help = menubar.addMenu(tr("MENU_HELP"))
         self._act_about = self._menu_help.addAction(tr("ACTION_ABOUT"))
         self._act_about.triggered.connect(self._on_help)
@@ -171,6 +185,66 @@ class MainWindowShellMixin:
     def _on_help(self):
         """Show about dialog."""
         self._main_window_module().QMessageBox.about(self, tr("ACTION_ABOUT"), tr("ABOUT_TEXT"))
+
+    def _show_analysis_plan_evaluation(self):
+        state = self._contextual_tool_state()
+        robustness = state["robustness"]
+        if not robustness["available"]:
+            return False
+        from .analysis_plan_view_service import analysis_plan_evaluation_summary
+
+        report = getattr(self, "_last_ai_tuning_context", {})
+        try:
+            summary = analysis_plan_evaluation_summary(report["analysis_plan_evaluation"])
+        except (KeyError, TypeError, ValueError):
+            return False
+        review_limits = ", ".join(summary["review_limits"]) or tr("COMMON_NONE")
+        message = tr(
+            "ANALYSIS_PLAN_EVALUATION_SUMMARY",
+            summary["plan_id"],
+            summary["candidate_count"],
+            summary["stable_candidate_count"],
+            summary["replay_status"],
+            review_limits,
+        )
+        self._main_window_module().QMessageBox.information(
+            self,
+            tr("ACTION_VIEW_ANALYSIS_PLAN_EVALUATION"),
+            message,
+        )
+        return True
+
+    def _attach_current_quick_run_to_project(self):
+        state = self._contextual_tool_state()
+        attachment_state = state["project_attachment"]
+        if not attachment_state["available"]:
+            return False
+        main_window_module = self._main_window_module()
+        project_root = main_window_module.QFileDialog.getExistingDirectory(
+            self,
+            tr("FILE_DIALOG_PROJECT_DIRECTORY"),
+            self._get_last_dir(),
+        )
+        if not project_root:
+            return False
+        try:
+            from .quick_run_attachment_service import attach_current_run_to_project
+
+            attachment = attach_current_run_to_project(self._workspace_context, project_root)
+        except (OSError, TypeError, ValueError, UnicodeError) as exc:
+            main_window_module.QMessageBox.warning(
+                self,
+                tr("ACTION_ATTACH_QUICK_RUN"),
+                tr("QUICK_RUN_ATTACHMENT_FAILED", str(exc)),
+            )
+            return False
+        self.log(tr("LOG_QUICK_RUN_ATTACHED", attachment.manifest_path))
+        main_window_module.QMessageBox.information(
+            self,
+            tr("ACTION_ATTACH_QUICK_RUN"),
+            tr("QUICK_RUN_ATTACHMENT_DONE", attachment.manifest_path),
+        )
+        return True
 
     def _on_quit(self):
         """Quit application."""

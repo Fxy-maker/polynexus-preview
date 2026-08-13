@@ -127,6 +127,12 @@ class MainWindowNavigationMixin:
         convergence = getattr(self, "action_convergence_viewer", None)
         if convergence is not None:
             convergence.setEnabled(bool(state["convergence"]["available"]))
+        attachment = getattr(self, "_act_attach_quick_run", None)
+        if attachment is not None:
+            attachment.setEnabled(bool(state["project_attachment"]["available"]))
+        evaluation = getattr(self, "_act_view_analysis_plan_evaluation", None)
+        if evaluation is not None:
+            evaluation.setEnabled(bool(state["robustness"]["available"]))
         return state
 
     def _on_quick_analysis_selected(self, *, announce=True):

@@ -534,6 +534,33 @@ class SampleDB:
         self._conn.commit()
         return True
 
+    def update_analysis_history_context(self, run_id, history_context):
+        """Replace the history context for one existing completed analysis run."""
+
+        row = self._conn.execute(
+            "SELECT results_summary FROM analysis_runs WHERE id=?",
+            (run_id,),
+        ).fetchone()
+        if not row:
+            return False
+        if not isinstance(history_context, dict):
+            raise ValueError("analysis history context must be a mapping")
+        try:
+            summary = json.loads(row["results_summary"]) if row["results_summary"] else {}
+        except (TypeError, json.JSONDecodeError):
+            summary = {}
+        if not isinstance(summary, dict):
+            summary = {}
+        summary["history_context"] = history_context
+        self._conn.execute(
+            "UPDATE analysis_runs SET results_summary=? WHERE id=?",
+            # Existing provider summaries may include legacy NaN diagnostics;
+            # this method only replaces their history-context field.
+            (json.dumps(summary, ensure_ascii=False), run_id),
+        )
+        self._conn.commit()
+        return True
+
     def update_analysis_confirmation(self, run_id, confirmed=True):
         row = self._conn.execute(
             "SELECT results_summary FROM analysis_runs WHERE id=?",

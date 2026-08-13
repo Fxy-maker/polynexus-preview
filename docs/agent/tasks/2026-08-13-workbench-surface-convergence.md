@@ -1,6 +1,6 @@
 task_id: 2026-08-13-workbench-surface-convergence
 kind: architecture
-status: proposed
+status: implementation_complete_review_required
 date: 2026-08-13
 title: Converge flexible quick and AI analysis workbench
 
@@ -100,7 +100,42 @@ python scripts/auto_commit.py `
 
 ## Completion evidence
 
-- Exact commands and outcomes: to be filled after the document checkpoint.
-- Known limitations: runtime implementation and PA6 replay remain follow-up
-  stages; human architecture review is required before merge.
+- Completed stages: Quick Analysis is the default entry; versioned frozen
+  `AnalysisPlan`/`replan_of` contracts and bounded candidate evaluation are
+  shared by GUI, CLI, and ARS; Sample Hub is optional metadata/history; Joint,
+  convergence, and plan evaluation are context-bound; vector RAG is optional;
+  and a completed current run can now be attached to a project by reference
+  from the GUI without copying source data or rerunning analysis. The shared
+  attachment API retains its historical compatibility name, while GUI text
+  deliberately says “current run” because origin is not inferred.
+- The GUI plan-evaluation action reads only the shared
+  `AnalysisPlanEvaluation` projection, and only when its run binding matches
+  the current completed run. Malformed or stale cached evaluations fail closed.
+  Nested payload validation now also rejects non-mapping `replay` values,
+  non-mapping candidate items, and non-string review-limit items before the
+  contextual action can be enabled. A malformed report drops only this optional
+  evaluation projection; it cannot interrupt the ordinary AI-tuning completion
+  path.
+  The attachment action calls the public project workflow service and writes
+  only its project-local reference manifest.
+- Read-only PA6 package loading on 2026-08-13 confirmed `dsc`, `ir`, `saxs`,
+  and `waxs`; 96 metrics (42 Results candidates and 54 Discussion-only); six
+  human-review actions; and no `raw` directory in
+  `D:\PolyNexus-pa6-four-technique-smoke-20260814\.polynexus\evidence\final-pa6-e2e-audit-v001`.
+- Focused outcomes: GUI contextual/plan/attachment matrix `27 passed`; quick
+  navigation/run matrix `21 passed`; project evidence/package matrix
+  `59 passed`. `python scripts/verify.py --task
+  docs/agent/tasks/2026-08-13-workbench-surface-convergence.md --changed
+  --types` passed on 2026-08-14 with quality/preprocess gates `303`/`157`;
+  `boundary_audit.py --json` passed.
+- Full integration evidence on 2026-08-14: `3942 passed, 33 failed, 21 skipped`
+  in 2050.77 seconds. The run surfaced and then verified the batch token
+  initialization regression introduced by stale-worker isolation. The remaining
+  failures are chart gallery, historical GUI persistence/sample browser, and
+  SAXS paths outside this task's changed boundaries; this task does not claim a
+  release-green full suite.
+- Known limitations: the PA6 package remains `review_required`; scientific
+  interpretation and publication require human review. The historical full
+  repository boundary suite has unrelated legacy failures and must not be
+  described as release-green unless a fresh full/boundary run proves otherwise.
 - Pre-existing changes left untouched: `.superpowers/` and `tests/_tmp_phase3/`.

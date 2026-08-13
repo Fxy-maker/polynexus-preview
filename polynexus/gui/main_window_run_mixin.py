@@ -483,8 +483,11 @@ class MainWindowRunMixin:
             config=self._build_run_config(),
             submodule_id=submodule_id,
         )
-        self._batch_worker.log_msg.connect(lambda message, token=token: self.log(message) if self._run_request_is_current(token) else None)
         token = self._begin_run_request()
+        self._batch_worker.log_msg.connect(
+            lambda message, token=token: self.log(message)
+            if self._run_request_is_current(token) else None
+        )
         self._connect_worker_lifecycle(self._batch_worker, token)
         self._batch_worker.progress.connect(
             lambda current, total: self._progress.setValue(current)

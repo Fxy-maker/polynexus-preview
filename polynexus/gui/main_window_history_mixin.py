@@ -447,6 +447,19 @@ class MainWindowHistoryMixin:
                 history_context=self._result_to_jsonable(self._history_context_snapshot()),
             )
             self._last_persisted_run_id = self._persist_gui_analysis_run_fn()(db, result, context)
+            if context.ai_tuned:
+                from .analysis_plan_view_service import bind_analysis_plan_evaluation_to_run
+
+                self._last_ai_tuning_context = bind_analysis_plan_evaluation_to_run(
+                    getattr(self, "_last_ai_tuning_context", {}),
+                    self._last_persisted_run_id,
+                )
+                update_history_context = getattr(db, "update_analysis_history_context", None)
+                if callable(update_history_context):
+                    update_history_context(
+                        self._last_persisted_run_id,
+                        self._result_to_jsonable(self._history_context_snapshot()),
+                    )
             record_context = getattr(self, "_record_result_context", None)
             if callable(record_context):
                 record_context(
