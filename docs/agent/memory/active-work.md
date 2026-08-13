@@ -5292,6 +5292,19 @@ paths and exposes finite scalar `observed_metrics` alongside full observed
 results. This was verified with the project writing/figure matrix (`32 passed`)
 and structured gates (`303` / `157`).
 
+## Dual-entry workbench contract - checkpointed 2026-08-13
+
+- Product direction is now explicit: PolyNexus is one AI-controllable and
+  independently usable polymer research workbench, not an AI-only tool or a
+  GUI-only application.
+- AI/Codex and GUI operate on the same project, run, chart, evidence, and
+  export objects. Future shared-object changes require focused producer and
+  affected-consumer verification; the full GUI or repository matrix is not the
+  default proof for a scoped task.
+- Workflow assets are `docs/agent/workflow.md`, `definition-of-done.md`,
+  `task-template.md`, and `testing-matrix.md`. Task card:
+  `docs/agent/tasks/2026-08-13-dual-entry-workbench-contract.md`.
+
 ## Unified canonical evidence provenance - checkpointed 2026-08-13
 
 - The project workflow now requires a replayable canonical template for DSC,

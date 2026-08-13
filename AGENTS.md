@@ -3,6 +3,11 @@
 This file is the repository-level contract for coding agents. Read it before
 editing files. Detailed procedures live under `docs/agent/`.
 
+PolyNexus is an AI-controllable polymer research workbench that users can also
+operate independently. Codex/AI and the GUI work on the same project, run,
+chart, evidence, and export objects. Neither entry point may create a private
+analysis, provenance, or persistence representation.
+
 ## 1. Choose the lightest workflow
 
 - Daily task: describe the goal and acceptance result in the prompt; a task card
@@ -16,7 +21,10 @@ editing files. Detailed procedures live under `docs/agent/`.
 2. Check `git status --short --branch` and preserve pre-existing changes.
 3. State the goal, non-goals, affected boundaries, acceptance criteria, and
    verification commands for any non-trivial task.
-4. Ask one concise question when an unresolved decision would materially change
+4. Name affected shared objects and entry points. When a project, run, chart,
+   evidence package, or export contract changes, verify the producer and each
+   affected AI/CLI or GUI consumer.
+5. Ask one concise question when an unresolved decision would materially change
    the implementation. Do not guess about scientific semantics or destructive actions.
 
 ## 3. While editing
@@ -26,6 +34,9 @@ editing files. Detailed procedures live under `docs/agent/`.
 - Put analysis behavior in core/services, not GUI event handlers.
 - GUI code consumes `AnalysisResult`, DTOs, or view models; it must not branch on
   technique-specific internal algorithm state.
+- AI/CLI and GUI must use the same public object contracts. AI can organize and
+  request deterministic work, but cannot bypass canonical validation or invent
+  scientific values.
 - Add or update a focused regression test for every behavior change.
 - Do not edit generated outputs, real regression datasets, secrets, or local
   runtime directories unless explicitly required.
@@ -38,6 +49,9 @@ editing files. Detailed procedures live under `docs/agent/`.
 - Implementation plans: `docs/superpowers/plans/`
 - Task cards: `docs/agent/tasks/`
 - Agent memory: `docs/agent/memory/`
+- Workflow, completion criteria, task template, and test selection:
+  `docs/agent/workflow.md`, `docs/agent/definition-of-done.md`,
+  `docs/agent/task-template.md`, `docs/agent/testing-matrix.md`
 - Baselines: `docs/baselines/`
 - Acceptance notes: `docs/acceptance/`
 - Temporary diagnostics: ignored local output directories, never the repository root

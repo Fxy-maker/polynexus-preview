@@ -1,5 +1,14 @@
 ---
 
+## Product contract (2026-08-13)
+
+PolyNexus is an AI-controllable polymer research workbench that users can also
+operate independently. AI/Codex and GUI entry points share project, run, chart,
+evidence, and export objects. Canonical conversion and deterministic analysis
+own scientific values and provenance; AI and GUI are consumers or authorized
+editors of public contracts, not alternate analysis systems. See
+`docs/agent/workflow.md` and `docs/agent/definition-of-done.md`.
+
 ## GUI import and AI-panel performance (2026-08-09)
 
 The import work-memory refresh now uses compact sample/batch counts and the

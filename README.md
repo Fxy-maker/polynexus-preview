@@ -1,8 +1,13 @@
 # PolyNexus
 
-PolyNexus is a multi-technique polymer characterization platform for local data analysis, plotting, reporting, sample tracking, and AI-assisted parameter tuning.
+PolyNexus is an AI-controllable polymer research workbench that users can also
+operate independently. Codex/AI and the user interface work on the same
+projects, analysis runs, charts, evidence packages, and exports.
 
-The project currently centers on a desktop GUI built with `PySide6`, plus a CLI for single-file analysis, batch processing, and AI tuning workflows.
+It combines deterministic multi-technique polymer characterization with a
+PySide6 desktop GUI and CLI/project-workflow entry points. AI can organize and
+request work, while scientific values, provenance, and review boundaries remain
+in shared deterministic project objects.
 
 ## Supported Techniques
 
