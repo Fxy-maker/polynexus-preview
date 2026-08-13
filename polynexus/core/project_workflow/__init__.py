@@ -16,6 +16,7 @@ from .service import ProjectWorkflowService
 from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
+from .grouping import CandidateExperimentGroup, candidate_groups
 
 __all__ = [
     "AnalysisRequest",
@@ -37,4 +38,6 @@ __all__ = [
     "ResearchEvidencePackage",
     "SingleInputTechniqueAdapter",
     "TechniqueSeriesAdapter",
+    "CandidateExperimentGroup",
+    "candidate_groups",
 ]

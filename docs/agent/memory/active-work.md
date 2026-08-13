@@ -5231,6 +5231,17 @@ link here when that information will matter to a later agent.
   avoid duplicate analysis.
 - Acceptance: `docs/acceptance/2026-08-14-ai-native-project-entrypoint.md`.
 
+## AI project candidate groups - checkpointed 2026-08-14
+
+- Mixed project directories now produce filename-derived candidate groups before
+  unscoped analysis. Questions that uniquely identify a group select it; other
+  questions return `candidate_group_selection_required` without starting a
+  provider run.
+- Real PA6 FTIR discovery found PA6 JW (22 CSV), PA6 SW (23 CSV), and PA6 250 C time
+  (3 CSV) candidates through the read-only junction. All candidate semantics
+  remain `inferred_from_filename`, not verified laboratory identity.
+- Acceptance: `docs/acceptance/2026-08-14-ai-project-candidate-groups.md`.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

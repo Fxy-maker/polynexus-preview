@@ -8,6 +8,7 @@ by a later task.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any, Iterable, Mapping
 
 from polynexus.core.agent_workflow import AgentWorkflowService, inspect_artifact
@@ -16,6 +17,7 @@ from polynexus.core.agent_workflow.models import AnalysisRecipe
 from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .index import ProjectIndexer
+from .grouping import CandidateExperimentGroup, candidate_groups
 from .models import AnalysisRequest, ProjectPlan, ResearchGraph
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .workspace import ProjectWorkspace
@@ -74,6 +76,22 @@ class ProjectWorkflowService:
             graph = self.inspect(discovered)
         except (OSError, TypeError, ValueError, UnicodeError):
             return self._analysis_summary((), (*discovery_reasons, "inspection_invalid"))
+        candidates = candidate_groups(graph.artifacts)
+        selected_group = None
+        if not scope:
+            selected_group = candidates[0] if len(candidates) == 1 else self._select_candidate_group(candidates, question)
+        if not scope and len(candidates) > 1 and selected_group is None:
+            return ProjectAnalysisSummary(
+                computation="blocked",
+                data_quality="warning",
+                publication="blocked",
+                reason_codes=("candidate_group_selection_required",),
+                messages=("Select one candidate experiment group before analysis; filenames are only inferred grouping hints.",),
+                candidate_groups=tuple(group.to_dict() for group in candidates),
+            )
+        if selected_group is not None:
+            graph_artifact_paths = set(selected_group.artifact_paths)
+            graph = ResearchGraph.create(study_id=graph.study_id, artifacts=tuple(artifact for artifact in graph.artifacts if artifact.relative_path in graph_artifact_paths))
         grouped: dict[str, list[str]] = {}
         reasons: list[str] = list(discovery_reasons)
         for artifact in graph.artifacts:
@@ -100,7 +118,13 @@ class ProjectWorkflowService:
                 package = self.package(tuple(runs), package_id=package_id)
             except (OSError, TypeError, ValueError, UnicodeError):
                 reasons.append("evidence_package_failed")
-        return self._analysis_summary(tuple(runs), tuple(reasons), package=package)
+        return self._analysis_summary(
+            tuple(runs),
+            tuple(reasons),
+            package=package,
+            candidate_groups=tuple(group.to_dict() for group in candidates),
+            selected_group=selected_group.to_dict() if selected_group else None,
+        )
 
     def plan(self, request: AnalysisRequest) -> ProjectPlan:
         """Resolve a request against inventory and select registered routes only."""
@@ -236,6 +260,8 @@ class ProjectWorkflowService:
             elif source.is_dir():
                 paths.extend(path for path in source.rglob("*") if path.is_file())
         ordered = tuple(sorted(set(paths), key=lambda path: path.as_posix().lower()))
+        if scope:
+            return ordered, ()
         selected: list[Path] = []
         skipped_companions = 0
         seen_stems: set[str] = set()
@@ -255,6 +281,8 @@ class ProjectWorkflowService:
         reason_codes: Iterable[str],
         *,
         package: ResearchEvidencePackage | None = None,
+        candidate_groups: tuple[Mapping[str, Any], ...] = (),
+        selected_group: Mapping[str, Any] | None = None,
     ) -> ProjectAnalysisSummary:
         reasons = tuple(dict.fromkeys(str(value) for value in reason_codes if value))
         if not runs:
@@ -264,6 +292,8 @@ class ProjectWorkflowService:
                 publication="blocked",
                 reason_codes=reasons or ("analysis_route_unavailable",),
                 messages=("No usable analysis route was found. Check the raw files or ask for the missing condition.",),
+                candidate_groups=candidate_groups,
+                selected_group=selected_group,
             )
         review_bound = any(run.status == "review_required" for run in runs) or bool(reasons)
         publication = "review_required" if review_bound or package is None else "ready"
@@ -279,7 +309,29 @@ class ProjectWorkflowService:
             package=package.to_dict() if package else None,
             reason_codes=reasons,
             messages=messages,
+            candidate_groups=candidate_groups,
+            selected_group=selected_group,
         )
+
+    @staticmethod
+    def _select_candidate_group(
+        candidates: tuple[CandidateExperimentGroup, ...],
+        question: str,
+    ) -> CandidateExperimentGroup | None:
+        question_words = set(re.findall(r"[a-z0-9]+", question.lower()))
+        requested_kind = (
+            "time_min" if "time" in question_words else
+            "temperature_C" if "temperature" in question_words else
+            None
+        )
+        matches = [
+            group for group in candidates
+            if (requested_kind is None or group.condition_kind == requested_kind) and any(
+                token in question_words and token not in {"c", "temperature", "time", "series"}
+                for token in re.findall(r"[a-z0-9]+", group.label.lower())
+            )
+        ]
+        return matches[0] if len(matches) == 1 else None
 
     def run(self, request_or_plan: AnalysisRequest | ProjectPlan) -> ProjectWorkflowRun:
         """Execute a planned project request through existing agent providers."""

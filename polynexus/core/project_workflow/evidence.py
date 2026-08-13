@@ -57,6 +57,8 @@ class ProjectAnalysisSummary:
     package: Mapping[str, Any] | None = None
     reason_codes: tuple[str, ...] = ()
     messages: tuple[str, ...] = ()
+    candidate_groups: tuple[Mapping[str, Any], ...] = ()
+    selected_group: Mapping[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         evidence_items = tuple(item for run in self.runs for item in run.evidence_items)
@@ -71,6 +73,8 @@ class ProjectAnalysisSummary:
             "tables": list(dict.fromkeys(path for item in evidence_items for path in item.tables)),
             "reason_codes": list(self.reason_codes),
             "messages": list(self.messages),
+            "candidate_groups": [dict(value) for value in self.candidate_groups],
+            "selected_group": dict(self.selected_group) if self.selected_group else None,
         }
 
 
