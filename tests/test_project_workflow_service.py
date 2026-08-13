@@ -134,7 +134,7 @@ def test_run_rejects_supplied_plan_that_differs_from_persisted_plan(tmp_path: Pa
     assert "plan_manifest_mismatch" in result.reason_codes
 
 
-def test_run_projects_provider_limits_into_evidence(tmp_path: Path) -> None:
+def test_run_keeps_provider_wide_limits_at_package_scope(tmp_path: Path) -> None:
     source = _write_mettler_fixture(tmp_path / "raw" / "PA6-DWJJ.txt")
     service = ProjectWorkflowService.open(tmp_path)
     request = AnalysisRequest.create(
@@ -145,7 +145,8 @@ def test_run_projects_provider_limits_into_evidence(tmp_path: Path) -> None:
     result = service.run(request)
 
     assert result.evidence_items
-    assert any(
-        "unique_hydrogen_bond_species" in item.disallowed_conclusions
+    assert all(
+        "unique_hydrogen_bond_species" not in item.disallowed_conclusions
         for item in result.evidence_items
     )
+    assert all(item.disallowed_conclusions == ("human_review_required",) for item in result.evidence_items)

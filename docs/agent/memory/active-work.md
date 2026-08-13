@@ -5348,6 +5348,19 @@ and structured gates (`303` / `157`).
 - Real PA6 package loading is recorded in
   `docs/acceptance/2026-08-13-evidence-package-view.md`.
 
+## PA6 AI-native loop final audit - 2026-08-13
+
+- Fresh real PA6 replay to `final-pa6-e2e-audit-v001` proves the complete
+  project route: DSC/FTIR/SAXS/WAXS canonical replay, immutable package,
+  citable provenance ledger, ARS Results/Discussion handoff, and technique-
+  neutral GUI view loading.  Full evidence is in
+  `docs/acceptance/2026-08-13-pa6-ai-native-e2e-audit.md`.
+- Final project-focused matrix passed 62 and package-boundary matrix passed 11.
+  The structured quality/preprocessing gates passed 303/157.
+- Full repository boundary test run is not green: 3907 passed, 31 failed, 21
+  skipped. Remaining failures are unrelated GUI/SAXS historical paths; no
+  claim of release-wide green status is made until that separate backlog closes.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and
