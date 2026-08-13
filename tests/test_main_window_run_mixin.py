@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QTextEdit
 
 from polynexus.gui.main_window import MainWindow
 from polynexus.gui.main_window_run_mixin import MainWindowRunMixin
+from polynexus.gui.run_state_service import RunState
 
 
 def test_main_window_reuses_run_workflow_helpers_from_run_mixin():
@@ -77,3 +78,28 @@ def test_run_error_diagnostics_can_be_copied_without_copying_ui_status_text():
     assert harness.logged
 
     app.processEvents()
+
+
+class _StaleWorkerHarness(MainWindowRunMixin):
+    def __init__(self):
+        self._run_request_token = 2
+        self._results = {}
+        self._batch_results = []
+        self._run_state = RunState()
+        self._current_technique = "saxs"
+
+
+def test_stale_single_worker_completion_does_not_publish_after_quick_switch():
+    harness = _StaleWorkerHarness()
+
+    harness._on_finished({"parameters": {"r2": 0.99}}, token=1)
+
+    assert harness._results == {}
+
+
+def test_stale_batch_worker_completion_does_not_publish_after_quick_switch():
+    harness = _StaleWorkerHarness()
+
+    harness._on_batch_finished([{"file": "old.csv", "params": {"r2": 0.99}}], token=1)
+
+    assert harness._batch_results == []

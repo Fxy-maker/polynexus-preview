@@ -86,6 +86,18 @@ def test_quick_analysis_is_the_first_entry_and_returns_to_data_without_technique
     assert ("joint", False) in harness.events
 
 
+def test_quick_analysis_invalidates_active_worker_request_token():
+    harness = _NavigationHarness()
+    harness._run_request_token = 4
+    harness._cancel_workers_for_context_switch = lambda: harness.events.append(("cancel", None))
+    harness._begin_run_request = lambda: setattr(harness, "_run_request_token", 5)
+
+    harness._on_quick_analysis_selected(announce=False)
+
+    assert ("cancel", None) in harness.events
+    assert harness._run_request_token == 5
+
+
 def test_main_window_places_quick_analysis_before_technique_navigation():
     app = QApplication.instance() or QApplication([])
     window = MainWindow(defer_optional_ui=True)
@@ -96,6 +108,31 @@ def test_main_window_places_quick_analysis_before_technique_navigation():
         assert window._nav_buttons["quick_analysis"].property("technique") == "quick_analysis"
         assert window._workspace_title.text() == "Quick Analysis"
         assert window._btn_run.isEnabled() is False
+    finally:
+        window.close()
+        window.deleteLater()
+        app.processEvents()
+
+
+def test_quick_analysis_clears_old_output_results_and_chart_views():
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    try:
+        window._output_dir = "D:/old-output"
+        window._output_input.setText(window._output_dir)
+        window._btn_replot.setEnabled(True)
+        window._results_table.setRowCount(1)
+        window._chart_gallery.setVisible(True)
+        window._figure_preview.setVisible(True)
+
+        window._on_quick_analysis_selected(announce=False)
+
+        assert window._output_dir == ""
+        assert window._output_input.text() == ""
+        assert window._btn_replot.isEnabled() is False
+        assert window._results_table.rowCount() == 0
+        assert window._chart_gallery.isHidden() is True
+        assert window._figure_preview.isHidden() is True
     finally:
         window.close()
         window.deleteLater()

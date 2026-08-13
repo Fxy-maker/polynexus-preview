@@ -13,6 +13,28 @@ from .workspace_mode import WorkspaceMode
 
 
 class MainWindowRunMixin:
+    def _begin_run_request(self):
+        token = int(getattr(self, "_run_request_token", 0) or 0) + 1
+        self._run_request_token = token
+        return token
+
+    def _run_request_is_current(self, token):
+        return token is None or int(token) == int(getattr(self, "_run_request_token", 0) or 0)
+
+    def _cancel_workers_for_context_switch(self):
+        for attr in ("_worker", "_batch_worker", "_joint_worker"):
+            worker = getattr(self, attr, None)
+            if worker is None:
+                continue
+            is_running = getattr(worker, "isRunning", None)
+            if callable(is_running) and not is_running():
+                continue
+            cancel = getattr(worker, "cancel", None)
+            if callable(cancel):
+                cancel()
+            elif hasattr(worker, "requestInterruption"):
+                worker.requestInterruption()
+
     def _transition_run_state(self, event):
         self._run_state = transition_run_state(getattr(self, "_run_state", None), event)
         return self._run_state
@@ -77,11 +99,11 @@ class MainWindowRunMixin:
         if hasattr(self, "_progress"):
             self._progress.setToolTip(label)
 
-    def _connect_worker_lifecycle(self, worker):
-        worker.stage.connect(self._on_run_stage)
+    def _connect_worker_lifecycle(self, worker, token=None):
+        worker.stage.connect(lambda stage: self._on_run_stage(stage) if self._run_request_is_current(token) else None)
         cancelled = getattr(worker, "cancelled", None)
         if cancelled is not None:
-            cancelled.connect(self._on_worker_cancelled)
+            cancelled.connect(lambda: self._on_worker_cancelled() if self._run_request_is_current(token) else None)
 
     def _on_worker_cancelled(self, *, clear_request=True):
         self._transition_run_state("cancelled")
@@ -226,6 +248,7 @@ class MainWindowRunMixin:
 
         self._hide_error_diagnostics()
         self._start_run_lifecycle()
+        token = self._begin_run_request()
         self._btn_run.setEnabled(False)
         if hasattr(self, "_btn_cancel"):
             self._btn_cancel.setVisible(True)
@@ -236,11 +259,13 @@ class MainWindowRunMixin:
 
         worker_class = self._joint_hub_worker_class()
         self._joint_worker = worker_class(rows, self._output_dir)
-        self._joint_worker.finished.connect(self._on_joint_hub_finished)
-        self._joint_worker.error_msg.connect(self._on_joint_hub_error)
+        self._joint_worker.finished.connect(lambda report: self._on_joint_hub_finished(report, token=token))
+        self._joint_worker.error_msg.connect(lambda msg: self._on_joint_hub_error(msg, token=token))
         self._joint_worker.start()
 
-    def _on_joint_hub_finished(self, report):
+    def _on_joint_hub_finished(self, report, *, token=None):
+        if not self._run_request_is_current(token):
+            return
         self._transition_run_state("complete")
         if not should_publish_result(self._run_state):
             return self._on_worker_cancelled()
@@ -291,6 +316,7 @@ class MainWindowRunMixin:
 
     def _run_single(self, *, mask_edit_candidate=None):
         self._start_run_lifecycle()
+        token = self._begin_run_request()
         self._hide_error_diagnostics()
         self._set_results_summary("")
         self._set_results_export_control_visible(False)
@@ -351,9 +377,9 @@ class MainWindowRunMixin:
             ),
         )
         self._worker.log_msg.connect(self.log)
-        self._connect_worker_lifecycle(self._worker)
-        self._worker.finished.connect(self._on_finished)
-        self._worker.error_msg.connect(self._on_error)
+        self._connect_worker_lifecycle(self._worker, token)
+        self._worker.finished.connect(lambda result: self._on_finished(result, token=token))
+        self._worker.error_msg.connect(lambda msg: self._on_error(msg, token=token))
         self._worker.start()
 
     def _run_batch(self):
@@ -399,9 +425,10 @@ class MainWindowRunMixin:
                 submodule_id=submodule_id,
             )
             self._worker.log_msg.connect(self.log)
-            self._connect_worker_lifecycle(self._worker)
-            self._worker.finished.connect(self._on_finished)
-            self._worker.error_msg.connect(self._on_error)
+            token = self._begin_run_request()
+            self._connect_worker_lifecycle(self._worker, token)
+            self._worker.finished.connect(lambda result: self._on_finished(result, token=token))
+            self._worker.error_msg.connect(lambda msg: self._on_error(msg, token=token))
             self._worker.start()
             return
 
@@ -447,11 +474,19 @@ class MainWindowRunMixin:
             submodule_id=submodule_id,
         )
         self._batch_worker.log_msg.connect(self.log)
-        self._connect_worker_lifecycle(self._batch_worker)
-        self._batch_worker.progress.connect(lambda current, total: self._progress.setValue(current))
-        self._batch_worker.file_done.connect(self._on_batch_file_done)
-        self._batch_worker.batch_finished.connect(self._on_batch_finished)
-        self._batch_worker.error_msg.connect(self._on_error)
+        token = self._begin_run_request()
+        self._connect_worker_lifecycle(self._batch_worker, token)
+        self._batch_worker.progress.connect(
+            lambda current, total: self._progress.setValue(current)
+            if self._run_request_is_current(token) else None
+        )
+        self._batch_worker.file_done.connect(
+            lambda filename, params: self._on_batch_file_done(filename, params, token=token)
+        )
+        self._batch_worker.batch_finished.connect(
+            lambda results: self._on_batch_finished(results, token=token)
+        )
+        self._batch_worker.error_msg.connect(lambda msg: self._on_error(msg, token=token))
         self._batch_worker.start()
 
     def _replot(self):
@@ -469,6 +504,7 @@ class MainWindowRunMixin:
 
         self._hide_error_diagnostics()
         self._start_run_lifecycle()
+        token = self._begin_run_request()
         self._btn_replot.setEnabled(False)
         self._btn_replot.setText(tr("BTN_REPLOTTING"))
         if hasattr(self, "_workflow_metric_state"):
@@ -491,9 +527,9 @@ class MainWindowRunMixin:
             engine=cached_engine,
         )
         self._worker.log_msg.connect(self.log)
-        self._connect_worker_lifecycle(self._worker)
-        self._worker.finished.connect(self._on_replot_finished)
-        self._worker.error_msg.connect(self._on_error)
+        self._connect_worker_lifecycle(self._worker, token)
+        self._worker.finished.connect(lambda result: self._on_replot_finished(result, token=token))
+        self._worker.error_msg.connect(lambda msg: self._on_error(msg, token=token))
         self._worker.skip_to = "plot" if cached_engine is not None else None
         self._worker.start()
 
@@ -502,7 +538,9 @@ class MainWindowRunMixin:
         else:
             self.log(tr("LOG_REPLOT_START_FALLBACK"))
 
-    def _on_replot_finished(self, result):
+    def _on_replot_finished(self, result, *, token=None):
+        if not self._run_request_is_current(token):
+            return
         self._transition_run_state("complete")
         if not should_publish_result(self._run_state):
             return self._on_worker_cancelled()
@@ -581,7 +619,9 @@ class MainWindowRunMixin:
         else:
             self.log(tr("LOG_DIRECTORY_RUN_DONE_FALLBACK", source_name))
 
-    def _on_finished(self, result):
+    def _on_finished(self, result, *, token=None):
+        if not self._run_request_is_current(token):
+            return
         self._transition_run_state("complete")
         if not should_publish_result(self._run_state):
             return self._on_worker_cancelled()
@@ -652,7 +692,9 @@ class MainWindowRunMixin:
                 record_audit(getattr(transaction.state, "audit", {}))
         self._last_ai_tuned_run = False
 
-    def _on_joint_hub_error(self, msg):
+    def _on_joint_hub_error(self, msg, *, token=None):
+        if not self._run_request_is_current(token):
+            return
         if self._run_cancellation_requested():
             return self._on_worker_cancelled()
         self._transition_run_state("fail")
@@ -673,7 +715,9 @@ class MainWindowRunMixin:
             self._btn_copy_diagnostics.setVisible(True)
         self.log(tr("LOG_ERROR_DETAIL", msg))
 
-    def _on_error(self, msg):
+    def _on_error(self, msg, *, token=None):
+        if not self._run_request_is_current(token):
+            return
         if self._run_cancellation_requested():
             return self._on_worker_cancelled()
         self._transition_run_state("fail")
@@ -695,10 +739,14 @@ class MainWindowRunMixin:
         if callable(rollback_preprocess):
             rollback_preprocess()
 
-    def _on_batch_file_done(self, filename, params):
+    def _on_batch_file_done(self, filename, params, *, token=None):
+        if not self._run_request_is_current(token):
+            return
         self._batch_results.append({"file": filename, "params": params})
 
-    def _on_batch_finished(self, all_results):
+    def _on_batch_finished(self, all_results, *, token=None):
+        if not self._run_request_is_current(token):
+            return
         self._transition_run_state("complete")
         if not should_publish_result(self._run_state):
             return self._on_worker_cancelled()

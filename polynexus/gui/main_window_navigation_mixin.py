@@ -106,6 +106,12 @@ class MainWindowNavigationMixin:
 
     def _on_quick_analysis_selected(self, *, announce=True):
         """Return to the standalone human-facing quick analysis entry."""
+        cancel_workers = getattr(self, "_cancel_workers_for_context_switch", None)
+        if callable(cancel_workers):
+            cancel_workers()
+        begin_request = getattr(self, "_begin_run_request", None)
+        if callable(begin_request):
+            begin_request()
         self._set_workspace_mode(WorkspaceMode.ANALYSIS)
         self._quick_analysis_active = True
         self._invalidate_context_bound_views()
@@ -113,6 +119,7 @@ class MainWindowNavigationMixin:
         self._current_submodule_id = ""
         self._current_filepath = ""
         self._current_input_mode = ""
+        self._output_dir = ""
         self._last_persisted_run_id = ""
         if hasattr(self, "_results"):
             self._results = {}
@@ -125,6 +132,36 @@ class MainWindowNavigationMixin:
             self._path_input.setText("")
         if hasattr(self, "_project_label"):
             self._project_label.setText(tr("NO_PROJECT"))
+        if hasattr(self, "_output_input"):
+            self._output_input.setText("")
+        if hasattr(self, "_btn_replot"):
+            self._btn_replot.setEnabled(False)
+            self._btn_replot.setText(tr("BTN_REPLOT"))
+        if hasattr(self, "_batch_list"):
+            self._batch_list.clear()
+            self._batch_list.setVisible(False)
+        if hasattr(self, "_update_batch_list_copy_button"):
+            self._update_batch_list_copy_button()
+        if hasattr(self, "_set_results_summary"):
+            self._set_results_summary("")
+        if hasattr(self, "_set_results_export_control_visible"):
+            self._set_results_export_control_visible(False)
+        if hasattr(self, "_set_results_copy_control_visible"):
+            self._set_results_copy_control_visible(False)
+        if hasattr(self, "_clear_results_table_default_order"):
+            self._clear_results_table_default_order()
+        if hasattr(self, "_results_table"):
+            self._results_table.clearContents()
+            self._results_table.setRowCount(0)
+        if hasattr(self, "_chart_gallery"):
+            self._chart_gallery.clear()
+            self._chart_gallery.setVisible(False)
+        if hasattr(self, "_plots_label"):
+            self._plots_label.setVisible(True)
+        if hasattr(self, "_figure_preview"):
+            self._figure_preview.clear()
+            self._figure_preview.setVisible(False)
+        self._current_figure_path = ""
         self._set_sample_browser_visible(False)
         self._set_joint_hub_visible(False)
         if hasattr(self, "_tabs"):
