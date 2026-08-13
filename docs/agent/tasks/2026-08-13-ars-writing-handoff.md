@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-13-ars-writing-handoff
 kind: scientific
-status: in_progress
+status: completed
 date: 2026-08-13
 title: Versioned ARS Results and Discussion evidence handoff
 ---
@@ -28,18 +28,18 @@ evidence without promoting diagnostic observations into scientific claims.
 
 ## Acceptance criteria
 
-- [ ] Package manifest declares `ars_writing_input` and package materializes a
+- [x] Package manifest declares `ars_writing_input` and package materializes a
   versioned JSON handoff.
-- [ ] Each technique section carries source/run/evidence links, citable metric
+- [x] Each technique section carries source/run/evidence links, citable metric
   IDs, figure/table links, Result eligibility, Discussion-only evidence, and
   prohibited claims.
-- [ ] Diagnostic-only values are excluded from Results candidate metric IDs but
+- [x] Diagnostic-only values are excluded from Results candidate metric IDs but
   remain visible as Discussion/audit diagnostics with their provider reasons.
-- [ ] The handoff names package-level limitations and mandatory human review
+- [x] The handoff names package-level limitations and mandatory human review
   requirements without leaking unrelated technique-local limitations.
-- [ ] A validator rejects malformed IDs, missing package files, or any metric
+- [x] A validator rejects malformed IDs, missing package files, or any metric
   promoted beyond its citation ledger eligibility.
-- [ ] Real four-technique PA6 replay writes and validates the handoff.
+- [x] Real four-technique PA6 replay writes and validates the handoff.
 
 ## Verification
 

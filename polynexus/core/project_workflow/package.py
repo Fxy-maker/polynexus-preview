@@ -18,6 +18,7 @@ from .evidence import ProjectWorkflowRun
 from .ir_group_figures import FigureCandidateSet
 from .models import EvidenceItem, canonical_json
 from .writing_metrics import CitationMetric, extract_package_metrics, with_package_assets
+from .ars_handoff import build_ars_writing_input
 from .workspace import ProjectWorkspace
 
 
@@ -129,6 +130,9 @@ class ProjectEvidencePackager:
                 "version": version,
                 "status": status,
                 "run_ids": [run.run_id for run in run_values],
+                "questions": list(dict.fromkeys(
+                    str(manifest.get("question", "")) for manifest in manifests if manifest.get("question")
+                )),
                 "run_manifests": [str(run.manifest_path) for run in run_values],
                 "source_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("source_hashes", ())}),
                 "canonical_template_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("canonical_template_hashes", ())}),
@@ -153,8 +157,15 @@ class ProjectEvidencePackager:
             writing_evidence = self._writing_evidence(
                 evidence, technique_index, copied_assets, citation_metrics
             )
+            ars_writing_input = build_ars_writing_input(
+                package_manifest=package_manifest,
+                writing_evidence=writing_evidence,
+                citation_metrics={"records": [record.to_dict() for record in citation_metrics]},
+                limitations={"limitations": limitations},
+            )
             package_manifest["writing_evidence"] = "writing-evidence.json"
             package_manifest["citation_metrics"] = "citation-metrics.json"
+            package_manifest["ars_writing_input"] = "ars-writing-input.json"
             package_hash = hashlib.sha256(canonical_json(package_manifest).encode("utf-8")).hexdigest()
             package_manifest["package_hash"] = package_hash
             self._write_json(package_path / "manifest.json", package_manifest)
@@ -167,6 +178,7 @@ class ProjectEvidencePackager:
                 "omissions": [],
             })
             self._write_json(package_path / "writing-evidence.json", writing_evidence)
+            self._write_json(package_path / "ars-writing-input.json", ars_writing_input)
             self._write_json(package_path / "limitations.json", {"limitations": limitations})
             self._copy_assets(copied_assets, package_path)
             if figure_candidate_payload is not None:

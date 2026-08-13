@@ -96,6 +96,11 @@ def test_package_writes_citation_metrics_with_writing_evidence_links(tmp_path: P
     assert metrics["records"][0]["evidence_id"]
     assert metrics["records"][0]["raw_source_hashes"]
     assert manifest["citation_metrics"] == "citation-metrics.json"
+    assert manifest["ars_writing_input"] == "ars-writing-input.json"
+    assert manifest["questions"] == ["Compare PA6 kinetics"]
+    ars = json.loads((package.path / "ars-writing-input.json").read_text(encoding="utf-8"))
+    assert ars["citation_metrics"] == "citation-metrics.json"
+    assert ars["techniques"]["dsc"]["evidence"][0]["results_metric_ids"]
     item = writing["techniques"]["dsc"]["evidence"][0]
     assert item["citation_metric_ids"]
     assert "results_candidate" in item["citation_metric_counts"]

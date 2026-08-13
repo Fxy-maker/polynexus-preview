@@ -790,6 +790,8 @@ class ProjectWorkflowService:
         return {
             "run_id": run_id,
             "request_hash": request.request_hash,
+            "question": request.question,
+            "purpose": request.purpose,
             "request_parameters": request.to_dict().get("parameters", {}),
             "plan_hash": plan.plan_hash,
             "recipe_hash": recipe.recipe_hash,

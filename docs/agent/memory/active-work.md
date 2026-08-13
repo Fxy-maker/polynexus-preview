@@ -5324,6 +5324,18 @@ and structured gates (`303` / `157`).
   uncalibrated index, while SAXS and low-support WAXS metrics remain diagnostic.
 - This adds no scientific calculation and makes no publication conclusion.
 
+## ARS Results/Discussion handoff - checkpointed 2026-08-13
+
+- Packages now emit and validate `ars-writing-input.json`.  It is a versioned
+  evidence map with technique sections, source/run/evidence links, Results
+  candidate metric IDs, Discussion-only diagnostic IDs, figures/tables,
+  prohibited conclusions, package limitations, and mandatory human review.
+- Real PA6 four-technique replay is recorded in
+  `docs/acceptance/2026-08-13-ars-writing-handoff.md`: 42 Results candidates,
+  54 diagnostic values, and 6 review items across DSC/FTIR/SAXS/WAXS.
+- This is an ARS preparation contract, not an automatic manuscript writer;
+  literature, narrative, and final scientific review remain in ARS/human scope.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and
