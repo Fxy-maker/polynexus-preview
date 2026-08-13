@@ -5267,6 +5267,14 @@ condition-matched difference plots, unmatched-condition warnings, and mixed
 metric-method limitations are covered by the project workflow matrix (`63
 passed`) and structured gates (`303` quality, `157` preprocessing).
 
+## Cross-technique project evidence index - checkpointed 2026-08-14
+
+The AI-facing project package now writes `techniques.json` and a matching
+`manifest.json` projection. It indexes explicit run IDs, evidence counts,
+statuses, and limitations by technique for mixed IR/WAXS/SAXS/DSC packages;
+it does not infer sample identity or scientific conclusions. Focused entrypoint
+and package coverage passed `15`.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

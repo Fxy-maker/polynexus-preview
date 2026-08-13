@@ -7,6 +7,7 @@ from polynexus.core.engine import AnalysisResult
 from polynexus.core.project_workflow import ProjectWorkflowService
 from polynexus.cli.parser import build_parser
 from polynexus.cli.run_project_workflow_service import run_project_workflow
+import json
 
 
 def _source(root: Path, technique: str, name: str) -> Path:
@@ -37,6 +38,32 @@ def test_analyze_project_is_one_call_with_three_status_layers(tmp_path: Path) ->
     assert payload["package"]["path"]
     assert payload["evidence_count"] == 2
     assert payload["runs"]
+
+
+def test_analyze_project_packages_explicit_cross_technique_evidence_index(tmp_path: Path) -> None:
+    ir = _source(tmp_path, "ir", "PA6-JW-180.csv")
+    ir.write_text("XLabel,Wavenumber\nYLabel,Absorbance\n1000,1\n900,2\n", encoding="utf-8")
+    waxs = _source(tmp_path, "waxs", "PA6.raw")
+    calls: list[str] = []
+
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, artifact, output: (
+            calls.append(step.technique)
+            or AnalysisResult(technique=step.technique, validation_passed=True)
+        )
+    )
+    summary = service.analyze_project(
+        question="Prepare cross-technique PA6 evidence",
+        data_scope=(ir.relative_to(tmp_path).as_posix(), waxs.relative_to(tmp_path).as_posix()),
+    )
+
+    assert summary.computation == "passed"
+    assert calls == ["ir", "waxs"]
+    package_path = Path(summary.to_dict()["package"]["path"])
+    index = json.loads((package_path / "techniques.json").read_text(encoding="utf-8"))
+    assert set(index["techniques"]) == {"ir", "waxs"}
+    assert all(value["run_ids"] for value in index["techniques"].values())
 
 
 def test_analyze_project_reports_actionable_blocker_without_fake_package(tmp_path: Path) -> None:

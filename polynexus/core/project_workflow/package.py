@@ -141,11 +141,14 @@ class ProjectEvidencePackager:
                 "asset_hashes": self._asset_hashes(copied_assets),
                 "limitations": limitations,
             }
+            technique_index = self._technique_index(run_values, evidence, limitations)
+            package_manifest["techniques"] = technique_index
             package_hash = hashlib.sha256(canonical_json(package_manifest).encode("utf-8")).hexdigest()
             package_manifest["package_hash"] = package_hash
             self._write_json(package_path / "manifest.json", package_manifest)
             self._write_json(package_path / "evidence.json", {"items": evidence})
             self._write_json(package_path / "relations.json", {"relations": relation_values})
+            self._write_json(package_path / "techniques.json", {"techniques": technique_index})
             self._write_json(package_path / "limitations.json", {"limitations": limitations})
             self._copy_assets(copied_assets, package_path)
             if figure_candidate_payload is not None:
@@ -158,6 +161,38 @@ class ProjectEvidencePackager:
             shutil.rmtree(package_path, ignore_errors=True)
             raise
         return ResearchEvidencePackage(package_id, version, package_path, status, package_hash)
+
+    @staticmethod
+    def _technique_index(
+        runs: tuple[ProjectWorkflowRun, ...],
+        evidence: list[dict[str, Any]],
+        limitations: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Project explicit run membership into an ARS-friendly technique index."""
+        result: dict[str, dict[str, Any]] = {}
+        for run in runs:
+            techniques = sorted({item.technique for item in run.evidence_items})
+            for technique in techniques:
+                entry = result.setdefault(
+                    technique,
+                    {"run_ids": [], "evidence_count": 0, "statuses": [], "limitations": []},
+                )
+                if run.run_id not in entry["run_ids"]:
+                    entry["run_ids"].append(run.run_id)
+                entry["statuses"].append(run.status)
+                entry["evidence_count"] += sum(
+                    1 for item in evidence if item.get("technique") == technique and item.get("run_id") == run.run_id
+                )
+                entry["limitations"].extend(
+                    item.get("limitations", ()) for item in evidence
+                    if item.get("technique") == technique and item.get("run_id") == run.run_id
+                )
+        for entry in result.values():
+            entry["statuses"] = list(dict.fromkeys(entry["statuses"]))
+            entry["limitations"] = list(dict.fromkeys(
+                value for values in entry["limitations"] for value in (values if isinstance(values, list) else [values]) if value
+            ))
+        return result
 
     def _validate_run(self, run: ProjectWorkflowRun) -> dict[str, Any]:
         if run.status == "blocked":
