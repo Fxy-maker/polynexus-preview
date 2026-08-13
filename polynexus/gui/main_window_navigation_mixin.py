@@ -112,6 +112,19 @@ class MainWindowNavigationMixin:
         begin_request = getattr(self, "_begin_run_request", None)
         if callable(begin_request):
             begin_request()
+        transition = getattr(self, "_transition_run_state", None)
+        if hasattr(self, "_run_state") and callable(transition):
+            transition("cancel")
+        if hasattr(self, "_progress"):
+            self._stop_progress_animation_fn()(self._progress)
+            self._progress.setVisible(False)
+        if hasattr(self, "_btn_cancel"):
+            self._btn_cancel.setVisible(False)
+        if hasattr(self, "_set_running_ui"):
+            self._set_running_ui(False)
+        cancel_ai = getattr(self, "_cancel_ai_tuning_for_context_switch", None)
+        if callable(cancel_ai):
+            cancel_ai()
         self._set_workspace_mode(WorkspaceMode.ANALYSIS)
         self._quick_analysis_active = True
         self._invalidate_context_bound_views()

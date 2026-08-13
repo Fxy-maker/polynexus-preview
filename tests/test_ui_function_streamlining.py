@@ -13,6 +13,7 @@ from polynexus.gui.main_window_sample_hub_mixin import MainWindowSampleHubMixin
 from polynexus.gui.main_window_workspace_mixin import MainWindowWorkspaceMixin
 from polynexus.gui.shortcuts import SHORTCUTS
 from polynexus.gui.workspace_mode import WorkspaceMode
+from polynexus.gui.run_state_service import RunState
 
 
 class _FakeTabs:
@@ -96,6 +97,21 @@ def test_quick_analysis_invalidates_active_worker_request_token():
 
     assert ("cancel", None) in harness.events
     assert harness._run_request_token == 5
+
+
+def test_quick_analysis_resets_running_ui_after_context_switch():
+    harness = _NavigationHarness()
+    harness._progress = SimpleNamespace(setVisible=lambda value: harness.events.append(("progress", value)))
+    harness._btn_cancel = SimpleNamespace(setVisible=lambda value: harness.events.append(("cancel_button", value)))
+    harness._set_running_ui = lambda value: harness.events.append(("running", value))
+    harness._stop_progress_animation_fn = lambda: (lambda progress: harness.events.append(("stop", progress)))
+    harness._run_state = RunState()
+
+    harness._on_quick_analysis_selected(announce=False)
+
+    assert ("progress", False) in harness.events
+    assert ("cancel_button", False) in harness.events
+    assert ("running", False) in harness.events
 
 
 def test_main_window_places_quick_analysis_before_technique_navigation():

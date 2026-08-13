@@ -133,6 +133,7 @@ class MainWindowAITuningMixin:
             workspace_context["stability_mode"] = "strict"
         ai_settings = self._current_ai_settings()
         worker_class = self._ai_tune_worker_class()
+        token = self._begin_run_request() if hasattr(self, "_begin_run_request") else None
         self._ai_worker = worker_class(
             self._current_technique,
             self._current_filepath,
@@ -143,9 +144,15 @@ class MainWindowAITuningMixin:
             ai_settings=ai_settings,
         )
         self._ai_progress.canceled.connect(self._ai_worker.cancel)
-        self._ai_worker.signals.progress_msg.connect(self._on_ai_tune_progress)
-        self._ai_worker.signals.finished.connect(self._on_ai_tune_finished)
-        self._ai_worker.signals.error_msg.connect(self._on_ai_tune_error)
+        self._ai_worker.signals.progress_msg.connect(
+            lambda message, token=token: self._on_ai_tune_progress(message, token=token)
+        )
+        self._ai_worker.signals.finished.connect(
+            lambda report, token=token: self._on_ai_tune_finished(report, token=token)
+        )
+        self._ai_worker.signals.error_msg.connect(
+            lambda message, token=token: self._on_ai_tune_error(message, token=token)
+        )
         self._ai_progress.show()
         self._thread_pool_class().globalInstance().start(self._ai_worker)
 
@@ -356,12 +363,16 @@ class MainWindowAITuningMixin:
                 return "-"
         return "-"
 
-    def _on_ai_tune_progress(self, message):
+    def _on_ai_tune_progress(self, message, *, token=None):
+        if token is not None and not self._run_request_is_current(token):
+            return
         if hasattr(self, "_ai_progress") and self._ai_progress is not None:
             self._ai_progress.setLabelText(message)
         self.log(message)
 
-    def _on_ai_tune_finished(self, report):
+    def _on_ai_tune_finished(self, report, *, token=None):
+        if token is not None and not self._run_request_is_current(token):
+            return
         if hasattr(self, "_ai_progress") and self._ai_progress is not None:
             self._ai_progress.close()
         self._ai_tuning_active = False
@@ -415,7 +426,9 @@ class MainWindowAITuningMixin:
         except Exception:
             self._logger().warning("Failed to refresh AI tuning convergence runs.", exc_info=True)
 
-    def _on_ai_tune_error(self, message):
+    def _on_ai_tune_error(self, message, *, token=None):
+        if token is not None and not self._run_request_is_current(token):
+            return
         if hasattr(self, "_ai_progress") and self._ai_progress is not None:
             self._ai_progress.close()
         self._ai_tuning_active = False

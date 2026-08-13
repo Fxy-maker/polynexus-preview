@@ -35,6 +35,16 @@ class MainWindowRunMixin:
             elif hasattr(worker, "requestInterruption"):
                 worker.requestInterruption()
 
+    def _cancel_ai_tuning_for_context_switch(self):
+        worker = getattr(self, "_ai_worker", None)
+        cancel = getattr(worker, "cancel", None)
+        if callable(cancel):
+            cancel()
+        self._ai_tuning_active = False
+        progress = getattr(self, "_ai_progress", None)
+        if progress is not None:
+            progress.close()
+
     def _transition_run_state(self, event):
         self._run_state = transition_run_state(getattr(self, "_run_state", None), event)
         return self._run_state
@@ -376,7 +386,7 @@ class MainWindowRunMixin:
                 mask_edit_candidate=mask_edit_candidate,
             ),
         )
-        self._worker.log_msg.connect(self.log)
+        self._worker.log_msg.connect(lambda message, token=token: self.log(message) if self._run_request_is_current(token) else None)
         self._connect_worker_lifecycle(self._worker, token)
         self._worker.finished.connect(lambda result: self._on_finished(result, token=token))
         self._worker.error_msg.connect(lambda msg: self._on_error(msg, token=token))
@@ -424,8 +434,8 @@ class MainWindowRunMixin:
                 config=self._build_run_config(),
                 submodule_id=submodule_id,
             )
-            self._worker.log_msg.connect(self.log)
             token = self._begin_run_request()
+            self._worker.log_msg.connect(lambda message, token=token: self.log(message) if self._run_request_is_current(token) else None)
             self._connect_worker_lifecycle(self._worker, token)
             self._worker.finished.connect(lambda result: self._on_finished(result, token=token))
             self._worker.error_msg.connect(lambda msg: self._on_error(msg, token=token))
@@ -473,7 +483,7 @@ class MainWindowRunMixin:
             config=self._build_run_config(),
             submodule_id=submodule_id,
         )
-        self._batch_worker.log_msg.connect(self.log)
+        self._batch_worker.log_msg.connect(lambda message, token=token: self.log(message) if self._run_request_is_current(token) else None)
         token = self._begin_run_request()
         self._connect_worker_lifecycle(self._batch_worker, token)
         self._batch_worker.progress.connect(

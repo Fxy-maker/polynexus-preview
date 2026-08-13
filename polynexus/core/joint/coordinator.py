@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import math
 from pathlib import Path
 from typing import Optional
@@ -54,10 +55,14 @@ class JointCoordinator:
         rows: list[JointBatchRow],
         *,
         run_id: str | None = None,
+        cancel_event=None,
     ):
         """Publish a Joint hub snapshot through the shared figure lifecycle."""
 
         from ..figures.production import FigureProductionPublisher
+
+        if cancel_event is not None and cancel_event.is_set():
+            raise RuntimeError("Joint publication cancelled before figure generation")
 
         definitions = self.build_figure_definitions(rows)
         if not definitions:
@@ -75,18 +80,25 @@ class JointCoordinator:
         output_dir,
         *,
         run_id: str | None = None,
+        cancel_event=None,
     ) -> dict:
         """Build the hub report and attach its Manifest publication context."""
 
         from .dataset import build_joint_hub_report
 
         report = build_joint_hub_report(rows)
+        if cancel_event is not None and cancel_event.is_set():
+            raise RuntimeError("Joint publication cancelled before figure publication")
         publication = self.publish_figure_definitions(
             output_dir,
             rows,
             run_id=run_id,
+            cancel_event=cancel_event,
         )
         run_root = Path(output_dir).resolve() / "runs" / publication.run_id
+        if cancel_event is not None and cancel_event.is_set():
+            shutil.rmtree(run_root, ignore_errors=True)
+            raise RuntimeError("Joint publication cancelled after figure publication")
         report["figure_publication"] = {
             "run_id": publication.run_id,
             "manifest": str(run_root / "figure_manifest.json"),

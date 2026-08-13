@@ -181,13 +181,26 @@ class JointHubWorker(QThread):
         super().__init__()
         self.rows = rows
         self.output_dir = output_dir
+        self._cancel_event = threading.Event()
+
+    def cancel(self):
+        self._cancel_event.set()
+        self.requestInterruption()
 
     def run(self):
         main_window_module = _main_window_module()
         try:
             from ..core.joint.coordinator import JointCoordinator
 
-            report = JointCoordinator().publish_hub_report(self.rows, self.output_dir)
+            if self._cancel_event.is_set() or self.isInterruptionRequested():
+                return
+            report = JointCoordinator().publish_hub_report(
+                self.rows,
+                self.output_dir,
+                cancel_event=self._cancel_event,
+            )
+            if self._cancel_event.is_set() or self.isInterruptionRequested():
+                return
             self.finished.emit(report)
         except Exception as exc:
             self.error_msg.emit(tr("JOINT_OVERVIEW_FAILED", exc))
