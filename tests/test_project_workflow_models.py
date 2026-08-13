@@ -201,6 +201,7 @@ def test_analysis_plan_round_trips_and_hashes_all_replay_inputs():
     plan = AnalysisPlan.create(
         source_files=({"path": "raw/a.csv", "sha256": "a" * 64, "byte_size": 12},),
         scope={"project_id": "pa6", "group_id": "jw", "technique": "ir"},
+        request_hash="request-1",
         requested_metrics=("peak_position",),
         requested_figures=("overlay",),
         canonical_template={"template_id": "ir.v1", "conversion_version": "conv-1"},

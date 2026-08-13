@@ -569,6 +569,7 @@ class AnalysisPlan:
 
     source_files: tuple[Mapping[str, Any], ...] = ()
     scope: Mapping[str, Any] = field(default_factory=dict)
+    request_hash: str | None = None
     analysis_intent: str | None = None
     requested_metrics: tuple[str, ...] = ()
     requested_figures: tuple[str, ...] = ()
@@ -594,6 +595,7 @@ class AnalysisPlan:
         normalized_sources = tuple(_freeze(dict(item)) for item in self.source_files)
         object.__setattr__(self, "source_files", normalized_sources)
         object.__setattr__(self, "scope", _freeze(self.scope))
+        object.__setattr__(self, "request_hash", None if self.request_hash is None else str(self.request_hash))
         object.__setattr__(self, "analysis_intent", None if self.analysis_intent is None else str(self.analysis_intent))
         for name in ("requested_metrics", "requested_figures", "protected_metrics", "scientific_constraints"):
             object.__setattr__(self, name, tuple(str(item) for item in getattr(self, name)))
@@ -632,6 +634,7 @@ class AnalysisPlan:
         payload = {
             "source_files": [_public(item) for item in sources],
             "scope": _public(values.get("scope", {})),
+            "request_hash": values.get("request_hash"),
             "analysis_intent": values.get("analysis_intent"),
             "requested_metrics": list(values.get("requested_metrics", ())),
             "requested_figures": list(values.get("requested_figures", ())),
@@ -664,6 +667,7 @@ class AnalysisPlan:
     def to_dict(self) -> dict[str, Any]:
         return {
             "source_files": [_public(item) for item in self.source_files], "scope": _public(self.scope),
+            "request_hash": self.request_hash,
             "analysis_intent": self.analysis_intent, "requested_metrics": list(self.requested_metrics),
             "requested_figures": list(self.requested_figures), "canonical_template": _public(self.canonical_template),
             "algorithm": _public(self.algorithm), "default_config": _public(self.default_config),

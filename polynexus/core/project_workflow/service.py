@@ -20,7 +20,7 @@ from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .index import ProjectIndexer
 from .grouping import CandidateExperimentGroup, candidate_groups
 from .ir_group_figures import FigureCandidateSet, render_ftir_group_candidates
-from .models import AnalysisRequest, ProjectPlan, ResearchGraph
+from .models import AnalysisPlan, AnalysisRequest, ProjectPlan, ResearchGraph
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .selection import FigureSelectionRequest, resolve_figure_selection
 from .workspace import ProjectWorkspace
@@ -525,6 +525,53 @@ class ProjectWorkflowService:
             analysis_run=analysis_run,
             reason_codes=analysis_run.reason_codes,
         )
+
+    def freeze_analysis_plan(
+        self,
+        plan: AnalysisPlan,
+        *,
+        request: AnalysisRequest | None = None,
+    ) -> Path:
+        """Persist one immutable adaptive-analysis plan under project requests."""
+        if request is not None and plan.request_hash not in {None, request.request_hash}:
+            raise ValueError("analysis plan request hash does not match request")
+        payload = plan.to_dict()
+        path = self.workspace.requests_dir / f"{plan.plan_id}.analysis-plan.json"
+        return self.workspace.write_json(path, payload)
+
+    def replay_analysis_plan(self, plan_id: str) -> ProjectWorkflowRun:
+        """Replay a frozen plan without consulting an AI planner."""
+        payload = self.workspace.read_json(self.workspace.requests_dir / f"{str(plan_id)}.analysis-plan.json")
+        if not isinstance(payload, Mapping):
+            return self._blocked_project_run(ProjectPlan.create(request_hash="analysis-plan-missing"), "analysis_plan_manifest_missing")
+        try:
+            plan = AnalysisPlan.from_dict(payload)
+        except (KeyError, TypeError, ValueError, OSError, UnicodeError):
+            return self._blocked_project_run(ProjectPlan.create(request_hash="analysis-plan-invalid"), "analysis_plan_manifest_mismatch")
+        if plan.plan_id != str(plan_id) or not plan.request_hash:
+            return self._blocked_project_run(ProjectPlan.create(request_hash=plan.request_hash or "analysis-plan-invalid"), "analysis_plan_request_missing")
+        request = self._load_request(plan.request_hash)
+        if request is None:
+            return self._blocked_project_run(ProjectPlan.create(request_hash=plan.request_hash), "request_manifest_missing")
+        for source in plan.source_files:
+            path = self.workspace.root / str(source["path"])
+            current = inspect_artifact(path, technique=str(plan.scope.get("technique", "unknown")))
+            if current.sha256 != str(source["sha256"]):
+                return self._blocked_project_run(ProjectPlan.create(request_hash=plan.request_hash), "analysis_plan_source_hash_changed")
+        return self.run(request)
+
+    def replan_analysis(self, plan: AnalysisPlan, *, ai_context: Mapping[str, Any], **changes: Any) -> AnalysisPlan:
+        """Create a new plan lineage; never mutate or overwrite the frozen plan."""
+        if not ai_context:
+            raise ValueError("replan requires AI provenance")
+        values = plan.to_dict()
+        values.pop("plan_id", None)
+        values.pop("plan_hash", None)
+        values.update(changes)
+        values["ai_context"] = dict(ai_context)
+        values["replan_of"] = plan.plan_id
+        values["parent_run_id"] = plan.parent_run_id or plan.plan_id
+        return AnalysisPlan.create(**values)
 
     def resume(self, run_id: str) -> ProjectWorkflowRun:
         """Replay a persisted request after validating its recorded sources."""
