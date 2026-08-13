@@ -29,6 +29,35 @@ class CandidateEvaluation:
         object.__setattr__(self, "reasons", tuple(str(value) for value in self.reasons))
         object.__setattr__(self, "metrics", dict(self.metrics or {}))
 
+    def to_dict(self) -> dict[str, Any]:
+        return {"candidate_id": self.candidate_id, "status": self.status, "score": self.score, "protected_metrics": list(self.protected_metrics), "reasons": list(self.reasons), "metrics": dict(self.metrics)}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "CandidateEvaluation":
+        return cls(str(value["candidate_id"]), str(value["status"]), float(value["score"]), tuple(value.get("protected_metrics", ())), tuple(value.get("reasons", ())), value.get("metrics", {}))
+
+
+@dataclass(frozen=True)
+class AnalysisPlanEvaluation:
+    plan_id: str
+    symptoms: tuple[AnalysisSymptom, ...] = ()
+    candidates: tuple[CandidateEvaluation, ...] = ()
+    selected_candidate_id: str | None = None
+    review_required: bool = True
+
+    @classmethod
+    def create(cls, *, plan_id: str, symptoms=(), candidates=(), selected_candidate_id=None, review_required=True):
+        return cls(str(plan_id), tuple(symptoms), tuple(candidates), selected_candidate_id, bool(review_required))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"plan_id": self.plan_id, "symptoms": [{"code": item.code, "severity": item.severity, "priority": item.priority, "value": item.value} for item in self.symptoms], "candidates": [item.to_dict() for item in self.candidates], "selected_candidate_id": self.selected_candidate_id, "review_required": self.review_required}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "AnalysisPlanEvaluation":
+        symptoms = tuple(AnalysisSymptom(str(item["code"]), float(item["severity"]), int(item["priority"]), float(item["value"])) for item in value.get("symptoms", ()))
+        candidates = tuple(CandidateEvaluation.from_dict(item) for item in value.get("candidates", ()))
+        return cls.create(plan_id=str(value["plan_id"]), symptoms=symptoms, candidates=candidates, selected_candidate_id=value.get("selected_candidate_id"), review_required=bool(value.get("review_required", True)))
+
 
 def diagnose_symptoms(observations: Mapping[str, Any]) -> tuple[AnalysisSymptom, ...]:
     rules = (
@@ -115,4 +144,4 @@ def _finite_metrics(observations: Mapping[str, Any]) -> dict[str, float]:
     return result
 
 
-__all__ = ["AnalysisSymptom", "CandidateEvaluation", "diagnose_symptoms", "evaluate_candidates"]
+__all__ = ["AnalysisSymptom", "CandidateEvaluation", "AnalysisPlanEvaluation", "diagnose_symptoms", "evaluate_candidates"]

@@ -5,6 +5,7 @@ import pytest
 from polynexus.core.project_workflow.analysis_plan_evaluation import (
     AnalysisSymptom,
     CandidateEvaluation,
+    AnalysisPlanEvaluation,
     evaluate_candidates,
     diagnose_symptoms,
 )
@@ -45,3 +46,22 @@ def test_evaluate_candidates_rejects_unbounded_ai_values():
             thresholds={},
             protected_metrics=(),
         )
+
+
+def test_evaluation_projection_is_shared_json_for_gui_cli_and_ars():
+    projection = AnalysisPlanEvaluation.create(
+        plan_id="plan-1",
+        symptoms=diagnose_symptoms({"baseline_drift": 0.8}),
+        candidates=evaluate_candidates(
+            default_config={"smooth_window": 5},
+            candidates=({"id": "base", "config": {"smooth_window": 5}},),
+            observations={"peak_retention": 1.0},
+            thresholds={},
+            protected_metrics=("peak_position",),
+        ),
+        selected_candidate_id="base",
+        review_required=True,
+    )
+    restored = AnalysisPlanEvaluation.from_dict(projection.to_dict())
+    assert restored.to_dict() == projection.to_dict()
+    assert restored.candidates[0].candidate_id == "base"
