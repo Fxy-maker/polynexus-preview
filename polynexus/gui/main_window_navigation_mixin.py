@@ -104,23 +104,39 @@ class MainWindowNavigationMixin:
     def _jump_to_history(self):
         self._jump_to_tab(4)
 
-    def _on_quick_analysis_selected(self):
+    def _on_quick_analysis_selected(self, *, announce=True):
         """Return to the standalone human-facing quick analysis entry."""
         self._set_workspace_mode(WorkspaceMode.ANALYSIS)
         self._quick_analysis_active = True
+        self._invalidate_context_bound_views()
         self._current_technique = ""
         self._current_submodule_id = ""
+        self._current_filepath = ""
+        self._current_input_mode = ""
+        self._last_persisted_run_id = ""
+        if hasattr(self, "_results"):
+            self._results = {}
+        if hasattr(self, "_batch_results"):
+            self._batch_results = []
+        if hasattr(self, "_joint_report"):
+            self._joint_report = None
+        self._clear_sample_batch_context()
+        if hasattr(self, "_path_input"):
+            self._path_input.setText("")
+        if hasattr(self, "_project_label"):
+            self._project_label.setText(tr("NO_PROJECT"))
         self._set_sample_browser_visible(False)
         self._set_joint_hub_visible(False)
         if hasattr(self, "_tabs"):
             self._tabs.setCurrentIndex(0)
-        self._set_nav_visual_state(None, "")
+        self._set_nav_visual_state("quick_analysis", "quick_analysis")
         if hasattr(self, "_btn_run"):
             self._btn_run.setText(tr("BTN_RUN"))
-            self._btn_run.setEnabled(True)
+            self._btn_run.setEnabled(False)
         self._update_workspace_context()
         self._refresh_config_preset_controls()
-        self.log(tr("LOG_QUICK_ANALYSIS_OPENED"))
+        if announce:
+            self.log(tr("LOG_QUICK_ANALYSIS_OPENED"))
 
     def _on_tech_saxs(self):
         self._on_technique_selected("saxs")

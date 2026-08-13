@@ -29,6 +29,15 @@ class _NavigationHarness(MainWindowNavigationMixin, MainWindowSampleHubMixin):
         self._current_submodule_id = ""
         self._workspace_mode = WorkspaceMode.ANALYSIS
         self._tabs = _FakeTabs()
+        self._current_filepath = "D:/old.csv"
+        self._current_input_mode = "single"
+        self._last_persisted_run_id = "old-run"
+        self._path_input = SimpleNamespace(setText=lambda value: self.events.append(("path", value)))
+        self._project_label = SimpleNamespace(setText=lambda value: self.events.append(("project", value)))
+        self._btn_run = SimpleNamespace(
+            setText=lambda value: self.events.append(("run_text", value)),
+            setEnabled=lambda value: self.events.append(("run_enabled", value)),
+        )
         self.events = []
 
     def _set_nav_visual_state(self, *args):
@@ -45,6 +54,9 @@ class _NavigationHarness(MainWindowNavigationMixin, MainWindowSampleHubMixin):
 
     def _refresh_config_preset_controls(self):
         self.events.append(("presets", None))
+
+    def _invalidate_context_bound_views(self):
+        self.events.append(("invalidate", None))
 
     def log(self, message):
         self.events.append(("log", message))
@@ -65,6 +77,10 @@ def test_quick_analysis_is_the_first_entry_and_returns_to_data_without_technique
     assert harness._quick_analysis_active is True
     assert harness._current_technique == ""
     assert harness._current_submodule_id == ""
+    assert harness._current_filepath == ""
+    assert harness._current_input_mode == ""
+    assert harness._last_persisted_run_id == ""
+    assert ("run_enabled", False) in harness.events
     assert harness._tabs.current_index == 0
     assert ("samples", False) in harness.events
     assert ("joint", False) in harness.events
@@ -75,6 +91,11 @@ def test_main_window_places_quick_analysis_before_technique_navigation():
     window = MainWindow(defer_optional_ui=True)
     try:
         assert next(iter(window._nav_buttons)) == "quick_analysis"
+        assert window._quick_analysis_active is True
+        assert window._nav_buttons["quick_analysis"].isChecked() is True
+        assert window._nav_buttons["quick_analysis"].property("technique") == "quick_analysis"
+        assert window._workspace_title.text() == "Quick Analysis"
+        assert window._btn_run.isEnabled() is False
     finally:
         window.close()
         window.deleteLater()

@@ -1455,6 +1455,7 @@ class MainWindow(
 
 
         self._workspace_mode = WorkspaceMode.ANALYSIS
+        self._quick_analysis_active = False
         self._current_technique = ""
         self._current_submodule_id = ""
 
@@ -1531,6 +1532,10 @@ class MainWindow(
         self._retranslate_ui()
 
         self._update_workspace_context()
+
+        # Quick Analysis is the default human-facing entry.  Activate it only
+        # after the core widgets and translated labels exist.
+        self._on_quick_analysis_selected(announce=False)
 
 
 
@@ -1982,7 +1987,7 @@ class MainWindow(
         quick_btn.setMaximumHeight(32)
         quick_btn.setCheckable(True)
         quick_btn.setCursor(Qt.PointingHandCursor)
-        quick_btn.setProperty("technique", "joint")
+        quick_btn.setProperty("technique", "quick_analysis")
         quick_btn.setProperty("nav_id", "quick_analysis")
         quick_btn.setToolTip(_lang_text(SIDEBAR_MODULE_TOOLTIPS["quick_analysis"]))
         quick_btn.setStyleSheet(self._nav_sub_style("joint", False))
@@ -2234,7 +2239,10 @@ class MainWindow(
 
         t = self._theme_engine.tokens
 
-        accent = technique_accent(technique if technique != "samples" else "joint", t)
+        accent = technique_accent(
+            technique if technique not in {"samples", "quick_analysis"} else "joint",
+            t,
+        )
 
         bg = t.bg_card if active else "transparent"
 

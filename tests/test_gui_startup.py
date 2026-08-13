@@ -76,6 +76,10 @@ def test_deferred_window_is_interactive_before_optional_ui_finishes(qt_app):
     assert window.windowTitle()
     assert window._path_input.isEnabled()
     assert window._btn_run.isVisible()
+    assert window._quick_analysis_active is True
+    assert window._nav_buttons["quick_analysis"].isChecked() is True
+    assert window._btn_run.isEnabled() is False
+    assert window._workspace_title.text() == tr("WORKSPACE_TITLE_QUICK_ANALYSIS")
     assert window._tabs.count() >= 1
     assert window._startup_deferred is True
     assert window._deferred_startup_finished is False
