@@ -27,6 +27,20 @@ analysis, provenance, or persistence representation.
 5. Ask one concise question when an unresolved decision would materially change
    the implementation. Do not guess about scientific semantics or destructive actions.
 
+## 2a. Token-efficient context
+
+- Read in layers: start with the relevant memory index, task card, public
+  contract, and targeted symbols or sections. Do not load entire historical
+  memory files, broad source trees, or large generated artifacts by default.
+- Scope `rg`, Git diff, and file reads to the affected boundary. Expand only
+  when the first result is insufficient or the task is architecture, security,
+  scientific semantics, or a repeated failure.
+- Run commands with concise output. On failure, inspect the relevant failure
+  tail and named files before collecting broader logs.
+- Keep progress notes and completion reports short: state outcome, changed
+  files, exact verification result, limitations, and untouched pre-existing
+  changes. Do not repeat long command output or historical context.
+
 ## 3. While editing
 
 - Keep changes within the requested scope; do not clean up unrelated files.
@@ -37,6 +51,8 @@ analysis, provenance, or persistence representation.
 - AI/CLI and GUI must use the same public object contracts. AI can organize and
   request deterministic work, but cannot bypass canonical validation or invent
   scientific values.
+- Prefer existing concise DTOs, manifests, indexes, and task/memory summaries
+  over reparsing raw artifacts or reconstructing context from source code.
 - Add or update a focused regression test for every behavior change.
 - Do not edit generated outputs, real regression datasets, secrets, or local
   runtime directories unless explicitly required.

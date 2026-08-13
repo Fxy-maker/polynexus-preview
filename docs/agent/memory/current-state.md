@@ -9,6 +9,15 @@ own scientific values and provenance; AI and GUI are consumers or authorized
 editors of public contracts, not alternate analysis systems. See
 `docs/agent/workflow.md` and `docs/agent/definition-of-done.md`.
 
+## Token-efficient agent policy (2026-08-13)
+
+Agents begin with concise task/memory indexes, public contracts, and scoped
+searches, then expand source or logs only when required by evidence. Passing
+command output is summarized, not copied into memory. This policy does not
+reduce required verification or constrain broader inspection for architecture,
+security, scientific semantics, release work, or repeated failures. See
+`docs/agent/workflow.md` and `docs/agent/testing-matrix.md`.
+
 ## GUI import and AI-panel performance (2026-08-09)
 
 The import work-memory refresh now uses compact sample/batch counts and the

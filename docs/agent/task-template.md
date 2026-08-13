@@ -24,6 +24,15 @@ One observable outcome.
 - Cross-entry rule: name the producer and every changed consumer. If all are
   unchanged, say why this task is isolated.
 
+## Context and output budget
+
+- Read first: task/memory index, public contract, and named module sections.
+- Search scope: exact directories, symbols, and test files.
+- Expand only for: insufficient evidence | repeated failure | architecture |
+  security | scientific semantics | release review.
+- Report: outcome, changed files, exact verification result, limitations, and
+  untouched changes; do not paste routine command output.
+
 ## Acceptance criteria
 
 - [ ] Observable behavior and failure behavior.

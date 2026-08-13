@@ -20,3 +20,8 @@ Use `-q -p no:cacheprovider` for ordinary focused runs. On failure, inspect the
 failure tail and repair the specific defect; do not expand into an unrelated
 full-suite investigation. Set `POLYNEXUS_TEST_RETENTION=review` only when a
 person needs the artifacts, and `evidence` only for a deliberate audit record.
+
+Keep test output compact: run one named test or focused file before a larger
+matrix, use `-q`, and collect `--tb=short` or a log tail only after failure.
+Do not attach passing test logs to memory or completion reports; record the
+command, pass/fail count, duration when useful, and any warning that matters.

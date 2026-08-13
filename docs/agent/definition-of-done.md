@@ -18,6 +18,8 @@ An atomic PolyNexus task is complete only when all applicable statements hold.
   integration, or explicitly broad work.
 - Durable project state, decisions, limitations, or lessons were updated when
   they changed.
+- Investigation, test selection, and reporting stayed scoped to the changed
+  boundary. Any broader context or log collection has a stated reason.
 - A local allowlisted checkpoint was created after verification. It has not
   pushed, merged, deployed, deleted data, or bypassed required human review.
 

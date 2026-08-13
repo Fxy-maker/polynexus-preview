@@ -19,6 +19,25 @@ objects. A feature is not complete merely because one entry point works.
 The loop never auto-pushes, auto-merges, deploys, deletes data, or promotes a
 diagnostic value into a scientific conclusion.
 
+## Token-efficient context
+
+Use the smallest context that can support a correct decision:
+
+1. Start from the task card, concise memory index, public contract, and named
+   module documentation.
+2. Use scoped search and line/section reads to identify the exact producer,
+   consumer, and test files.
+3. Read the relevant implementations and tests, not whole directories or long
+   historical ledgers.
+4. Run concise commands. On failure, inspect the error tail and named failure
+   first; expand logs or context only when that evidence is insufficient.
+5. Reuse persisted manifests, DTOs, and acceptance summaries instead of
+   recomputing or narrating data already available in structured form.
+
+Architecture, security, scientific semantics, release work, and repeated
+failures may require broader inspection. Token efficiency never permits an
+agent to skip evidence needed to make a safe decision.
+
 ## Shared-object rule
 
 The following are shared first-class objects, not AI-only or GUI-only copies:
@@ -39,7 +58,8 @@ branch on technique-private algorithm state.
 
 Run only the smallest matrix that proves the changed behavior. Use
 `POLYNEXUS_TEST_RETENTION=ephemeral` unless output must be reviewed or retained
-as evidence. Read verbose test output only when a command fails.
+as evidence. Read verbose test output only when a command fails, beginning with
+the relevant failure tail rather than the complete log.
 
 | Change type | Default proof |
 | --- | --- |

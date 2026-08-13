@@ -5292,6 +5292,17 @@ paths and exposes finite scalar `observed_metrics` alongside full observed
 results. This was verified with the project writing/figure matrix (`32 passed`)
 and structured gates (`303` / `157`).
 
+## Token-efficient agent workflow - checkpointed 2026-08-13
+
+- Routine agent work now begins from concise indexes, public contracts, and
+  scoped searches. It expands source context and command output only when the
+  narrow evidence is insufficient.
+- Focused pytest remains the default with `-q`; passing logs are summarized,
+  while failures start from their relevant tail. Architecture, security,
+  scientific semantics, release work, and repeated failures retain authority to
+  broaden inspection.
+- Task card: `docs/agent/tasks/2026-08-13-token-efficient-agent-workflow.md`.
+
 ## Dual-entry workbench contract - checkpointed 2026-08-13
 
 - Product direction is now explicit: PolyNexus is one AI-controllable and
