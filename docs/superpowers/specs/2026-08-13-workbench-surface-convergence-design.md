@@ -15,10 +15,17 @@ adjust an analysis, compare alternatives, edit a figure, or export a result.
 
 ### Project Workbench: default
 
-The default entry starts with a project directory and a research question. It
-uses `ProjectWorkflowService.analyze_project()` and presents discovered files,
+The default entry starts with a project directory. It presents discovered files,
 candidate experiment groups, the execution plan, three-layer status, generated
 runs, figures/tables, evidence packages, and required human review.
+
+The research question and manuscript intent belong to the upstream ARS/Codex
+conversation, not to a mandatory PolyNexus GUI form. Codex/ARS may provide an
+existing analysis request to `ProjectWorkflowService.analyze_project()`. When a
+person operates the GUI independently, they select an explicit file scope or
+candidate experiment group; PolyNexus then uses a narrow operational request
+such as "analyze selected project data" without claiming to define the
+scientific question.
 
 Both a researcher and Codex can start here. The GUI is a public-object client;
 it must not reimplement discovery, grouping, canonical conversion, or analysis
@@ -82,10 +89,12 @@ initially link to existing views rather than recreate them.
 
 ## Migration Sequence
 
-1. **Project Workbench shell**: add a small GUI entry that accepts a directory
-   and question, invokes the existing public project-workflow service, and
-   displays its status and selection-required outcome. It does not duplicate
-   old result, chart, or export views.
+1. **Project Workbench shell**: add a small GUI entry that opens a project
+   directory, displays discovered candidate groups, and runs an explicit
+   selected scope through the existing public project-workflow service. A
+   Codex/ARS-supplied request remains acceptable, but the GUI does not require
+   a user-authored research question. The shell does not duplicate old result,
+   chart, or export views.
 2. **Shared-object handoff**: link project-generated runs, evidence packages,
    and figure assets to existing Results, evidence dialog, gallery, and export
    consumers.
@@ -104,9 +113,11 @@ initially link to existing views rather than recreate them.
 
 The first implementation task is a **minimal Project Workbench entry**. It
 will consume the existing `ProjectWorkflowService.analyze_project()` public
-result and expose selection-required, completed, and review-required states.
-It will not reorganize the complete navigation, retire old pages, or change a
-project/run/evidence schema.
+result and expose candidate-group selection, completed, and review-required
+states. It receives a Codex/ARS analysis request when one exists, otherwise it
+runs only an explicit user-selected data scope with a narrow operational
+purpose. It will not reorganize the complete navigation, retire old pages, or
+change a project/run/evidence schema.
 
 Its affected shared objects are `Project`, `Run`, and `Evidence package`; the
 producer is the existing project workflow. Required proof will include the
@@ -114,8 +125,11 @@ workflow service/CLI contract and a focused GUI view-model or widget test.
 
 ## Boundaries
 
-- AI can choose a question, request analysis, and summarize public result
-  objects. It cannot bypass canonical conversion or promote diagnostics.
+- AI can define a research question upstream, request analysis, and summarize
+  public result objects. It cannot bypass canonical conversion or promote
+  diagnostics.
+- A GUI user chooses project data and operational scope; the GUI does not
+  solicit or own manuscript intent, scientific hypotheses, or paper narrative.
 - The GUI can inspect and request operations through public DTOs. It cannot
   maintain a second analysis/provenance model.
 - Cross-technique association remains explicit project evidence membership; no
@@ -126,6 +140,6 @@ workflow service/CLI contract and a focused GUI view-model or widget test.
 ## Review Outcome Required
 
 Before implementing the Project Workbench entry, a human reviewer must confirm
-that Project Workbench is the default surface, Quick Analysis remains an
-independent expert path, and RAG removal is deferred until the candidate-plan
-workflow has a tested replacement.
+that Project Workbench is the default surface without a mandatory research
+question form, Quick Analysis remains an independent expert path, and RAG
+removal is deferred until the candidate-plan workflow has a tested replacement.

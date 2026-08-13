@@ -59,7 +59,8 @@ modules to one AI-controllable, independently usable research workbench.
   task that changes GUI behavior.
 - [x] Record that RAG is a candidate for later optionalization, not the first
   removal action.
-- [x] Record human architecture review requirement before implementation.
+- [x] Record human architecture review requirement before implementation,
+  including that GUI scope selection does not own research-question entry.
 
 ## Implementation plan
 
@@ -90,7 +91,7 @@ python scripts/auto_commit.py `
   docs/agent/tasks/2026-08-13-workbench-surface-convergence.md --changed
   --types` passed; the selected quality gates passed 303 and 157 tests.
 - Known limitations or follow-up: runtime migration is blocked on human
-  architecture review of the Project Workbench default surface, Quick Analysis
-  expert path, and RAG deferral decision.
+  architecture review of the Project Workbench default surface without a
+  research-question form, Quick Analysis expert path, and RAG deferral decision.
 - Pre-existing changes left untouched: `.superpowers/` and
   `tests/_tmp_phase3/`.

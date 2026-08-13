@@ -5321,7 +5321,9 @@ and structured gates (`303` / `157`).
 - The product-surface design is documented in
   `docs/superpowers/specs/2026-08-13-workbench-surface-convergence-design.md`.
   It defines Project Workbench as the default, Quick Analysis as the direct
-  expert path, and Advanced Tools as contextual specialist capability.
+  expert path, and Advanced Tools as contextual specialist capability. The GUI
+  selects project data but does not solicit manuscript intent or a research
+  question; ARS/Codex owns that upstream context.
 - No runtime module is removed by this decision. RAG/vector retrieval is frozen
   as a candidate optional feature until the adviser replacement is proven;
   deterministic polymer reference data remains core support.
