@@ -5348,6 +5348,15 @@ and structured gates (`303` / `157`).
 - Real PA6 package loading is recorded in
   `docs/acceptance/2026-08-13-evidence-package-view.md`.
 
+## Evidence package dialog - checkpointed 2026-08-13
+
+- `EvidencePackageDialog` provides read-only Overview, Evidence, Metrics, and
+  Review tabs directly from the technique-neutral `EvidencePackageView` DTO.
+  It cannot invoke provider analysis or modify package JSON.
+- The final four-technique PA6 package opened with 96 metric rows and six
+  human-review rows. Acceptance:
+  `docs/acceptance/2026-08-13-evidence-package-dialog.md`.
+
 ## PA6 AI-native loop final audit - 2026-08-13
 
 - Fresh real PA6 replay to `final-pa6-e2e-audit-v001` proves the complete

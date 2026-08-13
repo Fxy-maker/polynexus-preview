@@ -4,9 +4,10 @@ import json
 from pathlib import Path
 
 import pytest
+from PySide6.QtWidgets import QApplication, QAbstractItemView
 
 from polynexus.core.project_workflow.evidence_view import EvidencePackageView, load_evidence_package_view
-from polynexus.gui.evidence_package_view import EvidencePackageViewAdapter
+from polynexus.gui.evidence_package_view import EvidencePackageDialog, EvidencePackageViewAdapter
 
 
 def _package(tmp_path: Path) -> Path:
@@ -62,6 +63,22 @@ def test_gui_adapter_returns_only_the_view_model(tmp_path: Path) -> None:
     view = load_evidence_package_view(_package(tmp_path))
     summary = EvidencePackageViewAdapter(view).summary()
     assert summary == {"status": "review_required", "techniques": ("dsc",), "metric_count": 2, "human_review_count": 1}
+
+
+def test_dialog_renders_read_only_package_tabs_and_metric_provenance(tmp_path: Path) -> None:
+    QApplication.instance() or QApplication([])
+    view = load_evidence_package_view(_package(tmp_path))
+    dialog = EvidencePackageDialog(view)
+
+    assert [dialog.tabs.tabText(index) for index in range(dialog.tabs.count())] == [
+        "Overview", "Evidence", "Metrics", "Review",
+    ]
+    assert dialog.metrics_table.columnCount() == 7
+    assert dialog.metrics_table.item(0, 3).text() == "dsc.isothermal_avrami_fit"
+    assert dialog.review_table.item(0, 1).text() == "human_scientific_review"
+    assert dialog.metrics_table.editTriggers() == QAbstractItemView.NoEditTriggers
+    assert dialog.review_table.editTriggers() == QAbstractItemView.NoEditTriggers
+    assert dialog.package_limitations.wordWrap()
 
 
 def test_loader_rejects_metric_evidence_mismatch(tmp_path: Path) -> None:

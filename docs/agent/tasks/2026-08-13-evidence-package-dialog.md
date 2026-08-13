@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-13-evidence-package-dialog
 kind: architecture
-status: in_progress
+status: completed
 date: 2026-08-13
 title: Read-only evidence package GUI dialog
 ---
@@ -26,11 +26,11 @@ mandatory review actions.
 
 ## Acceptance criteria
 
-- [ ] Dialog renders overview, evidence, metrics, and review tabs from DTOs.
-- [ ] Metric rows show value/unit/method/source/eligibility and reason codes.
-- [ ] Review actions and package-level limitations remain visible.
-- [ ] The surface is read-only and accepts no provider internal data.
-- [ ] A real PA6 package opens with all four techniques.
+- [x] Dialog renders overview, evidence, metrics, and review tabs from DTOs.
+- [x] Metric rows show value/unit/method/source/eligibility and reason codes.
+- [x] Review actions and package-level limitations remain visible.
+- [x] The surface is read-only and accepts no provider internal data.
+- [x] A real PA6 package opens with all four techniques.
 
 ## Implementation plan
 
