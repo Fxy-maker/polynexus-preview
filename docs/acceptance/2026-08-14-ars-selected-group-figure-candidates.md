@@ -13,9 +13,10 @@ candidates. The first implemented route is same-technique FTIR group plotting.
 candidate group IDs, a figure intent, and a main-candidate limit of one or two.
 It blocks duplicate/unknown IDs, invalid intents or limits, intent/count
 mismatches, mixed techniques, and incompatible condition kinds before provider
-execution. The two-group `compare_groups` contract is currently fail-closed
-before provider execution with `group_comparison_not_implemented`; no false
-comparison figure is emitted in this FTIR-only vertical slice.
+execution. The two-group `compare_groups` path is best-effort: selected
+providers run and an overlay is emitted when both groups have usable spectra.
+Condition mismatches suppress only difference output and remain explicit
+review warnings.
 
 `project-workflow analyze-project` accepts the JSON request through
 `--figure-selection <path>`. The JSON result reports `selected_groups` and
@@ -34,6 +35,11 @@ for callers that do not submit a selection.
   non-finite, or mixed-method metrics, duplicate conditions, or an exhausted
   figure limit suppress the trend and record an omission reason.
 - Provider single-file figures are not promoted into the main candidate list.
+- A two-group comparison overlay is emitted when both groups provide usable
+  spectra; unmatched conditions suppress only the difference candidate.
+- A complete two-group comparison can also emit a condition-matched difference
+  candidate and a review-required metric trend. Method differences are visible
+  in candidate limitations rather than silently rejected.
 - All generated candidates are `review_required`; no scientific conclusion or
   sample/batch identity is inferred from the filename-derived group.
 

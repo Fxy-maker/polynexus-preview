@@ -87,10 +87,20 @@ def render_ftir_group_candidates(
             selection_id=selection.selection_id,
             omission_reasons=("figure_candidate_technique_unsupported",),
         )
+    if len(selection.groups) == 2:
+        return _render_ftir_group_comparison(
+            selection=selection,
+            project_root=project_root,
+            output_dir=output_dir,
+            metric_values=metric_values or {},
+        )
     if len(selection.groups) != 1:
-        return FigureCandidateSet(
-            selection_id=selection.selection_id,
-            omission_reasons=("group_comparison_not_implemented",),
+        return _write_manifest(
+            FigureCandidateSet(
+                selection_id=selection.selection_id,
+                omission_reasons=("group_comparison_group_count_invalid",),
+            ),
+            output_dir,
         )
 
     group = selection.groups[0]
@@ -156,6 +166,214 @@ def render_ftir_group_candidates(
             omission_reasons=tuple(omissions),
         ),
         output_dir,
+    )
+
+
+def _render_ftir_group_comparison(
+    *,
+    selection: ResolvedFigureSelection,
+    project_root: Path,
+    output_dir: Path,
+    metric_values: Mapping[str, float | tuple[float, str]],
+) -> FigureCandidateSet:
+    groups = selection.groups
+    loaded = tuple(
+        _load_group_spectra(group.artifact_paths, group.condition_values, project_root)
+        for group in groups
+    )
+    omissions: list[str] = []
+    if any(not spectra for spectra in loaded):
+        return _write_manifest(
+            FigureCandidateSet(
+                selection_id=selection.selection_id,
+                omission_reasons=("group_comparison_insufficient_usable_spectra",),
+            ),
+            output_dir,
+        )
+    all_spectra = [item for spectra in loaded for item in spectra]
+    overlap = _shared_grid(all_spectra)
+    if overlap is None:
+        return _write_manifest(
+            FigureCandidateSet(
+                selection_id=selection.selection_id,
+                omission_reasons=("group_comparison_no_common_wavenumber_range",),
+            ),
+            output_dir,
+        )
+    main_dir = output_dir / "main"
+    main_dir.mkdir(parents=True, exist_ok=True)
+    source_artifacts = tuple(path for group in groups for path in group.artifact_paths)
+    candidates: list[FigureCandidate] = [
+        FigureCandidate(
+            candidate_id=f"{selection.selection_id}:group_comparison_overlay",
+            kind="group_comparison_overlay",
+            role="main_candidate",
+            group_ids=tuple(group.group_id for group in groups),
+            technique="ir",
+            condition_kind=groups[0].condition_kind,
+            source_artifacts=source_artifacts,
+            paths=_render_comparison_overlay(main_dir, groups, loaded, overlap),
+            limitations=("group_condition_alignment_not_assumed",),
+        )
+    ]
+    if not _same_conditions(loaded[0], loaded[1]):
+        omissions.append("comparison_conditions_unmatched")
+    elif selection.request.main_figure_limit > len(candidates):
+        candidates.append(
+            FigureCandidate(
+                candidate_id=f"{selection.selection_id}:group_difference",
+                kind="group_difference",
+                role="main_candidate",
+                group_ids=tuple(group.group_id for group in groups),
+                technique="ir",
+                condition_kind=groups[0].condition_kind,
+                source_artifacts=source_artifacts,
+                paths=_render_group_difference(main_dir, groups, loaded, overlap),
+                limitations=("difference_is_group_a_minus_group_b",),
+            )
+        )
+    else:
+        omissions.append("group_difference_main_figure_limit_reached")
+    trend = _render_comparison_metric_trend(
+        output_dir=main_dir,
+        selection=selection,
+        groups=groups,
+        metric_values=metric_values,
+    )
+    if trend is None:
+        omissions.append("metric_trend_metric_unavailable")
+    elif len(candidates) < selection.request.main_figure_limit:
+        candidates.append(trend)
+    else:
+        omissions.append("metric_trend_main_figure_limit_reached")
+    return _write_manifest(
+        FigureCandidateSet(
+            selection_id=selection.selection_id,
+            main_candidates=tuple(candidates[: selection.request.main_figure_limit]),
+            omission_reasons=tuple(dict.fromkeys(omissions)),
+        ),
+        output_dir,
+    )
+
+
+def _render_comparison_overlay(
+    output_dir: Path,
+    groups: tuple,
+    loaded: tuple[list[tuple[float, str, np.ndarray, np.ndarray]], ...],
+    grid: np.ndarray,
+) -> tuple[str, ...]:
+    figure, axis = plt.subplots(figsize=(7.5, 4.2))
+    axis.set_title(f"FTIR group comparison: {groups[0].label} vs {groups[1].label}")
+    axis.set_xlabel("Wavenumber (cm$^{-1}$)")
+    axis.set_ylabel("Normalized absorbance (a.u.)")
+    colors = ("#0072B2", "#D55E00")
+    unit = "C" if groups[0].condition_kind == "temperature_C" else "min"
+    for group, spectra, color in zip(groups, loaded, colors, strict=True):
+        for condition, _path, x, y in spectra:
+            axis.plot(
+                grid,
+                np.interp(grid, x, y),
+                linewidth=1.1,
+                color=color,
+                label=f"{group.label}: {condition:g} {unit}",
+            )
+    axis.invert_xaxis()
+    axis.legend(fontsize=7)
+    axis.grid(alpha=0.2)
+    figure.tight_layout()
+    paths = tuple(str(output_dir / f"ftir_group_comparison.{suffix}") for suffix in ("png", "svg"))
+    figure.savefig(paths[0], dpi=300)
+    figure.savefig(paths[1])
+    plt.close(figure)
+    return paths
+
+
+def _same_conditions(
+    first: list[tuple[float, str, np.ndarray, np.ndarray]],
+    second: list[tuple[float, str, np.ndarray, np.ndarray]],
+) -> bool:
+    return {item[0] for item in first} == {item[0] for item in second}
+
+
+def _render_group_difference(
+    output_dir: Path,
+    groups: tuple,
+    loaded: tuple[list[tuple[float, str, np.ndarray, np.ndarray]], ...],
+    grid: np.ndarray,
+) -> tuple[str, ...]:
+    figure, axis = plt.subplots(figsize=(7.5, 4.2))
+    axis.set_title(f"FTIR difference: {groups[0].label} - {groups[1].label}")
+    axis.set_xlabel("Wavenumber (cm$^{-1}$)")
+    axis.set_ylabel("Absorbance difference (a.u.)")
+    right = {condition: (x, y) for condition, _path, x, y in loaded[1]}
+    for condition, _path, x, y in loaded[0]:
+        other_x, other_y = right[condition]
+        axis.plot(grid, np.interp(grid, x, y) - np.interp(grid, other_x, other_y), label=f"{condition:g}")
+    axis.axhline(0.0, color="#666666", linewidth=0.7)
+    axis.invert_xaxis()
+    axis.legend(title=groups[0].condition_kind, fontsize=8)
+    axis.grid(alpha=0.2)
+    figure.tight_layout()
+    paths = tuple(str(output_dir / f"ftir_group_difference.{suffix}") for suffix in ("png", "svg"))
+    figure.savefig(paths[0], dpi=300)
+    figure.savefig(paths[1])
+    plt.close(figure)
+    return paths
+
+
+def _render_comparison_metric_trend(
+    *,
+    output_dir: Path,
+    selection: ResolvedFigureSelection,
+    groups: tuple,
+    metric_values: Mapping[str, float | tuple[float, str]],
+) -> FigureCandidate | None:
+    series: list[tuple[list[float], list[float], set[str]]] = []
+    for group in groups:
+        values: list[float] = []
+        methods: set[str] = set()
+        for condition, path in zip(group.condition_values, group.artifact_paths, strict=True):
+            raw = metric_values.get(path)
+            if raw is None:
+                return None
+            if isinstance(raw, tuple):
+                value, method = float(raw[0]), str(raw[1]).strip()
+            else:
+                value, method = float(raw), ""
+            if not math.isfinite(value) or not method:
+                return None
+            values.append(value)
+            methods.add(method)
+        series.append((list(group.condition_values), values, methods))
+    figure, axis = plt.subplots(figsize=(5.8, 4.0))
+    for group, (conditions, values, _methods), color in zip(groups, series, ("#0072B2", "#D55E00"), strict=True):
+        axis.plot(conditions, values, marker="o", linewidth=1.2, color=color, label=group.label)
+    axis.set_title("FTIR crystallinity trend comparison")
+    axis.set_xlabel("Temperature (C)" if groups[0].condition_kind == "temperature_C" else "Time (min)")
+    axis.set_ylabel("IR crystallinity index (%)")
+    axis.legend(fontsize=8)
+    axis.grid(alpha=0.2)
+    figure.tight_layout()
+    paths = tuple(str(output_dir / f"ftir_group_comparison_trend.{suffix}") for suffix in ("png", "svg"))
+    figure.savefig(paths[0], dpi=300)
+    figure.savefig(paths[1])
+    plt.close(figure)
+    methods = set().union(*(methods for _, _, methods in series))
+    limitations = ["metric_is_provider_reported_ir_xc_pct"]
+    if len(methods) != 1:
+        limitations.append("metric_methods_differ")
+    else:
+        limitations.append(f"metric_method:{next(iter(methods))}")
+    return FigureCandidate(
+        candidate_id=f"{selection.selection_id}:group_comparison_trend",
+        kind="group_comparison_trend",
+        role="main_candidate",
+        group_ids=tuple(group.group_id for group in groups),
+        technique="ir",
+        condition_kind=groups[0].condition_kind,
+        source_artifacts=tuple(path for group in groups for path in group.artifact_paths),
+        paths=paths,
+        limitations=tuple(limitations),
     )
 
 

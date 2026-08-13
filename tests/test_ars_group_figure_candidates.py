@@ -64,9 +64,14 @@ def test_figure_selection_blocks_mixed_condition_kinds() -> None:
     assert resolved.reason_codes == ("selected_groups_condition_kind_mismatch",)
 
 
-def test_compare_groups_is_explicitly_omitted_until_renderer_supports_it(tmp_path: Path) -> None:
+def test_compare_groups_renders_overlay_for_two_usable_groups(tmp_path: Path) -> None:
     first = _group("ir:pa6-jw:temperature_C")
     second = _group("ir:pa6-sw:temperature_C")
+    (tmp_path / "raw").mkdir()
+    for path in ("a.csv", "b.csv"):
+        (tmp_path / "raw" / path).write_text("Wavenumber,Absorbance\n1000,1\n900,2\n800,3\n", encoding="utf-8")
+    first = CandidateExperimentGroup(**{**first.to_dict(), "artifact_paths": ("raw/a.csv", "raw/b.csv")})
+    second = CandidateExperimentGroup(**{**second.to_dict(), "artifact_paths": ("raw/a.csv", "raw/b.csv")})
     request = FigureSelectionRequest.create(
         question="Compare PA6 JW and SW",
         selected_groups=(first.group_id, second.group_id),
@@ -80,8 +85,83 @@ def test_compare_groups_is_explicitly_omitted_until_renderer_supports_it(tmp_pat
         output_dir=tmp_path / ".polynexus" / "figures" / selection.selection_id,
     )
 
-    assert result.main_candidates == ()
-    assert result.omission_reasons == ("group_comparison_not_implemented",)
+    assert [candidate.kind for candidate in result.main_candidates] == [
+        "group_comparison_overlay",
+        "group_difference",
+    ]
+    assert set(result.main_candidates[0].group_ids) == {first.group_id, second.group_id}
+
+
+def test_compare_groups_keeps_overlay_when_conditions_do_not_match(tmp_path: Path) -> None:
+    first = _group("ir:pa6-jw:temperature_C")
+    second = CandidateExperimentGroup(
+        group_id="ir:pa6-sw:temperature_C",
+        label="ir pa6 sw",
+        technique="ir",
+        condition_kind="temperature_C",
+        condition_values=(50.0, 60.0),
+        artifact_paths=("raw/c.csv", "raw/d.csv"),
+    )
+    source_dir = tmp_path / "raw"
+    source_dir.mkdir()
+    for path in ("a.csv", "b.csv", "c.csv", "d.csv"):
+        (source_dir / path).write_text("Wavenumber,Absorbance\n1000,1\n900,2\n800,3\n", encoding="utf-8")
+    selection = resolve_figure_selection(
+        FigureSelectionRequest.create(
+            question="Compare PA6 JW and SW",
+            selected_groups=(first.group_id, second.group_id),
+            figure_intent="compare_groups",
+        ),
+        (first, second),
+    )
+    result = render_ftir_group_candidates(
+        selection=selection,
+        project_root=tmp_path,
+        output_dir=tmp_path / ".polynexus" / "figures" / selection.selection_id,
+    )
+    assert result.main_candidates
+    assert result.main_candidates[0].kind == "group_comparison_overlay"
+    assert "comparison_conditions_unmatched" in result.omission_reasons
+
+
+def test_compare_groups_retains_mixed_metric_method_limitation(tmp_path: Path) -> None:
+    groups = (_group("ir:pa6-jw:temperature_C"), _group("ir:pa6-sw:temperature_C"))
+    source_dir = tmp_path / "raw"
+    source_dir.mkdir()
+    for index in range(4):
+        (source_dir / f"{chr(97 + index)}.csv").write_text("Wavenumber,Absorbance\n1000,1\n900,2\n800,3\n", encoding="utf-8")
+    groups = tuple(
+        CandidateExperimentGroup(
+            group_id=group.group_id,
+            label=group.label,
+            technique=group.technique,
+            condition_kind=group.condition_kind,
+            condition_values=group.condition_values if index == 0 else (50.0, 60.0),
+            artifact_paths=("raw/a.csv", "raw/b.csv") if index == 0 else ("raw/c.csv", "raw/d.csv"),
+        )
+        for index, group in enumerate(groups)
+    )
+    selection = resolve_figure_selection(
+        FigureSelectionRequest.create(
+            question="Compare PA6 JW and SW",
+            selected_groups=tuple(group.group_id for group in groups),
+            figure_intent="compare_groups",
+        ),
+        groups,
+    )
+    result = render_ftir_group_candidates(
+        selection=selection,
+        project_root=tmp_path,
+        output_dir=tmp_path / ".polynexus" / "figures" / selection.selection_id,
+        metric_values={
+            "raw/a.csv": (30.0, "method_a"), "raw/b.csv": (40.0, "method_a"),
+            "raw/c.csv": (20.0, "method_b"), "raw/d.csv": (35.0, "method_b"),
+        },
+    )
+    assert any(candidate.kind == "group_comparison_overlay" for candidate in result.main_candidates)
+    trend = next((candidate for candidate in result.main_candidates if candidate.kind == "group_comparison_trend"), None)
+    assert trend is not None
+    assert "metric_methods_differ" in trend.limitations
 
 
 def test_figure_selection_is_stable_for_one_selected_group() -> None:
@@ -272,16 +352,20 @@ def test_compare_selection_blocks_before_provider_execution(tmp_path: Path) -> N
         (source_dir / name).write_text("Wavenumber,Absorbance\n1000,1\n900,2\n", encoding="utf-8")
     calls: list[str] = []
     service = ProjectWorkflowService.open(tmp_path)
-    service.agent_service = AgentWorkflowService(provider_runner=lambda step, artifact, output: calls.append(artifact.path))
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, artifact, output: (
+            calls.append(artifact.path)
+            or AnalysisResult(technique=step.technique, validation_passed=True)
+        )
+    )
     request = FigureSelectionRequest.create(
         question="Compare PA6 JW and SW",
         selected_groups=("ir:pa6-jw:temperature_C", "ir:pa6-sw:temperature_C"),
         figure_intent="compare_groups",
     )
     summary = service.analyze_project(question=request.question, figure_selection=request)
-    assert summary.computation == "blocked"
-    assert summary.reason_codes == ("group_comparison_not_implemented",)
-    assert calls == []
+    assert summary.computation in {"passed", "completed", "review_required"}
+    assert len(calls) == 2
 
 
 def test_analyze_project_with_ars_selection_runs_selected_group_and_limits_main_figures(

@@ -43,9 +43,16 @@ provenance.
 - [x] Single-file provider outputs remain internal evidence with provenance.
 - [x] Candidate metadata is copied into the evidence package.
 
-The first vertical slice implements one-group FTIR overlay/trend candidates.
-`compare_groups` remains an explicit, provider-free omission with reason code
-`group_comparison_not_implemented`; it is reserved for the next figure slice.
+The comparison extension is best-effort: a two-group FTIR overlay is generated
+when both groups have usable spectra; unmatched condition axes suppress only
+the difference candidate and are retained as warning metadata. Comparison
+metric trends may span different provider methods, but record
+`metric_methods_differ` and remain review-required.
+
+The first comparison slice is best-effort FTIR: two selected groups execute
+their providers and produce a comparison overlay whenever both have usable
+spectra. Condition mismatch suppresses only difference output and is recorded
+as a warning; all comparison candidates remain `review_required`.
 
 ## Implementation plan
 

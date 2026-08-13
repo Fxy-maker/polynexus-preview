@@ -5255,11 +5255,17 @@ link here when that information will matter to a later agent.
   the trend correctly remained absent because no provider metrics were run.
 - Acceptance: `docs/acceptance/2026-08-14-ars-selected-group-figure-candidates.md`.
 
-Post-review repair: `compare_groups` now fails closed before provider execution
-until a true comparison renderer exists. Metric trends retain the provider
-`Xc_method` and require one common method across all selected artifacts. Package
-candidate paths are rewritten to package-relative paths; provider single-file
-figures remain excluded when candidate figures are supplied.
+Post-review repair: comparison is now best-effort. Two selected FTIR groups run
+their providers and produce a comparison overlay when usable spectra exist;
+unmatched conditions suppress only difference output. Comparison trends retain
+provider methods and mark method differences as limitations. Package candidate
+paths are rewritten to package-relative paths; provider single-file figures
+remain excluded when candidate figures are supplied.
+
+Flexible comparison extension is verified on 2026-08-14: two-group overlays,
+condition-matched difference plots, unmatched-condition warnings, and mixed
+metric-method limitations are covered by the project workflow matrix (`63
+passed`) and structured gates (`303` quality, `157` preprocessing).
 
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 

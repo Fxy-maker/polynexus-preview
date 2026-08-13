@@ -96,19 +96,6 @@ class ProjectWorkflowService:
                 candidate_groups=tuple(group.to_dict() for group in candidates),
                 selected_groups=resolved_selection.request.selected_groups,
             )
-        if (
-            resolved_selection is not None
-            and resolved_selection.request.figure_intent == "compare_groups"
-        ):
-            return ProjectAnalysisSummary(
-                computation="blocked",
-                data_quality="warning",
-                publication="blocked",
-                reason_codes=("group_comparison_not_implemented",),
-                messages=("FTIR group comparison candidates are not implemented in this vertical slice.",),
-                candidate_groups=tuple(group.to_dict() for group in candidates),
-                selected_groups=resolved_selection.request.selected_groups,
-            )
         selected_group = None
         if resolved_selection is None and not scope:
             selected_group = candidates[0] if len(candidates) == 1 else self._select_candidate_group(candidates, question)
