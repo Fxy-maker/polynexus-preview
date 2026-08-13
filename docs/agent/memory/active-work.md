@@ -5316,19 +5316,28 @@ and structured gates (`303` / `157`).
   `task-template.md`, and `testing-matrix.md`. Task card:
   `docs/agent/tasks/2026-08-13-dual-entry-workbench-contract.md`.
 
-## Workbench surface convergence - active 2026-08-13
+## Flexible AI analysis workbench - design checkpoint 2026-08-13
 
-- The product-surface design is documented in
-  `docs/superpowers/specs/2026-08-13-workbench-surface-convergence-design.md`.
-  It defines Project Workbench as the default, Quick Analysis as the direct
-  expert path, and Advanced Tools as contextual specialist capability. The GUI
-  selects project data but does not solicit manuscript intent or a research
-  question; ARS/Codex owns that upstream context.
-- No runtime module is removed by this decision. RAG/vector retrieval is frozen
-  as a candidate optional feature until the adviser replacement is proven;
-  deterministic polymer reference data remains core support.
-- Next action after human architecture review: implement the minimal Project
-  Workbench GUI entry over the existing project-workflow public contract.
+- The superseding design is
+  `docs/superpowers/specs/2026-08-13-flexible-ai-analysis-workbench-design.md`;
+  the older surface-convergence path remains only as a historical reference.
+- Quick Analysis is the default human entry and retains automatic detection,
+  folder batch selection, NMR, chart editing, and Origin export. Project and
+  Evidence is the multi-file/multi-technique ARS/Codex enhancement path.
+- AI now has a bounded adaptive-analysis role: diagnose deterministic symptoms,
+  request finite robustness candidates, explain trade-offs, and freeze an
+  `AnalysisPlan`. Frozen plans replay without AI; a new decision creates a
+  `replan_of` run. No single score or arbitrary AI parameter mutation is valid.
+- GUI, CLI, and ARS must consume the same `Project`, `Run`, `Chart`,
+  `EvidencePackage`, `Export`, and `AnalysisPlan` objects. Scientific values and
+  publication boundaries remain deterministic/review-required.
+- Sample Hub, Joint, convergence, plan evaluation, RAG, NMR, and Origin are
+  retained with contextual roles. RAG removal/optionalization is deferred until
+  the adaptive-plan replacement is proven.
+- Implementation plan:
+  `docs/superpowers/plans/2026-08-13-flexible-ai-analysis-workbench.md`.
+  Runtime work has not started; architecture/schema/scientific changes remain
+  human-review-required before merge.
 
 ## Unified canonical evidence provenance - checkpointed 2026-08-13
 
