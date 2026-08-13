@@ -50,6 +50,37 @@ class _NavigationHarness(MainWindowNavigationMixin, MainWindowSampleHubMixin):
         self.events.append(("log", message))
 
 
+def test_quick_analysis_is_the_first_entry_and_returns_to_data_without_technique_state():
+    harness = _NavigationHarness()
+    harness._current_technique = "saxs"
+    harness._current_submodule_id = "saxs.static"
+    harness._nav_buttons = {
+        "quick_analysis": SimpleNamespace(setChecked=lambda value: None),
+        "saxs.static": SimpleNamespace(setChecked=lambda value: None),
+    }
+
+    harness._on_quick_analysis_selected()
+
+    assert harness._workspace_mode is WorkspaceMode.ANALYSIS
+    assert harness._quick_analysis_active is True
+    assert harness._current_technique == ""
+    assert harness._current_submodule_id == ""
+    assert harness._tabs.current_index == 0
+    assert ("samples", False) in harness.events
+    assert ("joint", False) in harness.events
+
+
+def test_main_window_places_quick_analysis_before_technique_navigation():
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(defer_optional_ui=True)
+    try:
+        assert next(iter(window._nav_buttons)) == "quick_analysis"
+    finally:
+        window.close()
+        window.deleteLater()
+        app.processEvents()
+
+
 def test_joint_alias_enters_one_canonical_joint_workspace():
     harness = _NavigationHarness()
 

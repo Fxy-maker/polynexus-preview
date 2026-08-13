@@ -13,6 +13,7 @@ def test_main_window_reuses_navigation_and_mode_selection_helpers_from_navigatio
     assert MainWindow._jump_to_joint_hub is MainWindowNavigationMixin._jump_to_joint_hub
     assert MainWindow._jump_to_results is MainWindowNavigationMixin._jump_to_results
     assert MainWindow._jump_to_history is MainWindowNavigationMixin._jump_to_history
+    assert MainWindow._on_quick_analysis_selected is MainWindowNavigationMixin._on_quick_analysis_selected
     assert MainWindow._on_tech_saxs is MainWindowNavigationMixin._on_tech_saxs
     assert MainWindow._on_tech_waxs is MainWindowNavigationMixin._on_tech_waxs
     assert MainWindow._on_tech_dsc is MainWindowNavigationMixin._on_tech_dsc

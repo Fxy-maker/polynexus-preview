@@ -590,6 +590,7 @@ _ZH: Dict[str, str] = {
     'FIGURE_SETTINGS_WINDOW': '\u56fe\u8868\u8bbe\u7f6e - {}',
     'FIGURE_SETTINGS_REPLOT_HINT': '\u56fe\u8868\u8bbe\u7f6e\u5df2\u4fdd\u5b58\uff0c\u70b9\u51fb\u201c\u4ec5\u91cd\u65b0\u7ed8\u56fe\u201d\u540e\u751f\u6548\u3002',
     'WORKSPACE_TITLE_DEFAULT': '\u79d1\u7814\u5206\u6790',
+    'WORKSPACE_TITLE_QUICK_ANALYSIS': '\u5feb\u901f\u5206\u6790',
     'WORKSPACE_SUBTITLE_DEFAULT': '\u9009\u62e9\u65b9\u6cd5\u5e76\u52a0\u8f7d\u6570\u636e',
     'WORKFLOW_NO_DATA': '\u672a\u52a0\u8f7d\u6570\u636e',
     'WORKFLOW_READY': '\u5c31\u7eea',
@@ -671,6 +672,7 @@ _ZH: Dict[str, str] = {
     'WORKFLOW_EXISTING_RUNS': '\u5df2\u6709\u5206\u6790\u7ed3\u679c',
     'WORKFLOW_SELECTED_BATCHES': '\u5df2\u9009 {} \u6279\u6b21',
     'WORKFLOW_TECH_SAMPLES': '\u6837\u54c1',
+    'WORKFLOW_TECH_QUICK_ANALYSIS': '\u5feb\u901f\u5206\u6790',
     'WORKFLOW_TECH_JOINT': '\u8054\u5408',
     'WORKSPACE_TITLE_ANALYSIS': '{} \u5206\u6790',
     'WORKSPACE_TITLE_SAMPLES': '\u6837\u54c1\u5e93',
@@ -1202,6 +1204,7 @@ _ZH: Dict[str, str] = {
     'LOG_RECENT_CALIBRATION_INCOMPATIBLE': '\u6700\u8fd1\u6821\u51c6\u65e0\u6cd5\u5957\u7528\u5230\u5f53\u524d\u4f5c\u7528\u57df: {}',
     'LOG_RECENT_CALIBRATION_PARTIAL': '\u6700\u8fd1\u6821\u51c6\u4e2d\u7684\u8fd9\u4e9b\u5b57\u6bb5\u672a\u5957\u7528: {}',
     'TAB_HISTORY': '\u5386\u53f2',
+    'LOG_QUICK_ANALYSIS_OPENED': '\u5df2\u6253\u5f00\u5feb\u901f\u5206\u6790',
 }
 
 _EN: Dict[str, str] = {
@@ -1867,6 +1870,7 @@ _EN: Dict[str, str] = {
     'FIGURE_SETTINGS_WINDOW': 'Figure Settings - {}',
     'FIGURE_SETTINGS_REPLOT_HINT': "Figure settings were saved. Click 'Re-plot Only' to apply them.",
     'WORKSPACE_TITLE_DEFAULT': 'Research Analysis',
+    'WORKSPACE_TITLE_QUICK_ANALYSIS': 'Quick Analysis',
     'WORKSPACE_SUBTITLE_DEFAULT': 'Select a method and load data',
     'WORKFLOW_NO_DATA': 'No data loaded',
     'WORKFLOW_READY': 'Ready',
@@ -1948,6 +1952,7 @@ _EN: Dict[str, str] = {
     'WORKFLOW_EXISTING_RUNS': 'Existing analysis runs',
     'WORKFLOW_SELECTED_BATCHES': '{} batches selected',
     'WORKFLOW_TECH_SAMPLES': 'Samples',
+    'WORKFLOW_TECH_QUICK_ANALYSIS': 'Quick analysis',
     'WORKFLOW_TECH_JOINT': 'Joint',
     'WORKSPACE_TITLE_ANALYSIS': '{} Analysis',
     'WORKSPACE_TITLE_SAMPLES': 'Sample Library',
@@ -2393,6 +2398,7 @@ _EN: Dict[str, str] = {
     'LOG_RECENT_CALIBRATION_INCOMPATIBLE': 'Recent calibration values do not match the current scope: {}',
     'LOG_RECENT_CALIBRATION_PARTIAL': 'Skipped recent calibration fields that do not apply here: {}',
     'TAB_HISTORY': 'History',
+    'LOG_QUICK_ANALYSIS_OPENED': 'Quick analysis opened',
 }
 
 _ANALYSIS_LABELS_ZH = {

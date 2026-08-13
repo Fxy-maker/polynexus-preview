@@ -240,6 +240,7 @@ SIDEBAR_SECTIONS = {
 }
 
 SIDEBAR_MODULE_TEXT = {
+    "quick_analysis": {"zh": "快速分析", "en": "Quick analysis"},
     "saxs.temperature": {"zh": "\u539f\u4f4d\u53d8\u6e29 SAXS", "en": "Temperature SAXS"},
     "saxs.strain": {"zh": "\u539f\u4f4d\u62c9\u4f38 SAXS", "en": "Tensile SAXS"},
     "saxs.static": {"zh": "\u9759\u6001 SAXS", "en": "Static SAXS"},
@@ -263,6 +264,7 @@ SIDEBAR_MODULE_TEXT = {
 }
 
 SIDEBAR_MODULE_TOOLTIPS = {
+    "quick_analysis": {"zh": "拖入或选择文件，立即开始分析", "en": "Drop or choose data to start an analysis"},
     "ir.temperature_2d": {"zh": "\u53d8\u6e29\u7ea2\u5916\u5e8f\u5217\u30012D-COS \u540c\u6b65/\u5f02\u6b65\u76f8\u5173\u8c31\u548c\u7279\u5f81\u5e26\u8ffd\u8e2a", "en": "Variable-temperature IR sequence, 2D-COS synchronous/asynchronous maps, and band tracking"},
     "joint.quick": {"zh": "\u57fa\u4e8e\u5f53\u524d\u7ed3\u679c", "en": "Use current in-memory results"},
     "joint.compare": {"zh": "\u57fa\u4e8e\u6570\u636e\u5e93\u6837\u54c1", "en": "Compare selected samples from the database"},
@@ -1966,10 +1968,6 @@ class MainWindow(
         exp_lbl.setMinimumHeight(28)
         exp_lbl.setMaximumHeight(28)
         self._sidebar_section_labels["experiment"] = exp_lbl
-        layout.addWidget(exp_lbl)
-
-
-
         self._nav_buttons = {}
 
         self._nav_parent_buttons = {}
@@ -1977,6 +1975,24 @@ class MainWindow(
         self._nav_group = QButtonGroup(self)
 
         self._nav_group.setExclusive(True)
+
+        quick_btn = QPushButton(_lang_text(SIDEBAR_MODULE_TEXT["quick_analysis"]))
+        quick_btn.setObjectName("nav_sub_btn")
+        quick_btn.setMinimumHeight(32)
+        quick_btn.setMaximumHeight(32)
+        quick_btn.setCheckable(True)
+        quick_btn.setCursor(Qt.PointingHandCursor)
+        quick_btn.setProperty("technique", "joint")
+        quick_btn.setProperty("nav_id", "quick_analysis")
+        quick_btn.setToolTip(_lang_text(SIDEBAR_MODULE_TOOLTIPS["quick_analysis"]))
+        quick_btn.setStyleSheet(self._nav_sub_style("joint", False))
+        quick_btn.clicked.connect(lambda checked: self._on_quick_analysis_selected())
+        self._nav_group.addButton(quick_btn)
+        self._nav_buttons["quick_analysis"] = quick_btn
+        layout.addWidget(quick_btn)
+
+        layout.addSpacing(8)
+        layout.addWidget(exp_lbl)
 
 
 

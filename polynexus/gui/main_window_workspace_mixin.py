@@ -125,6 +125,10 @@ class MainWindowWorkspaceMixin:
         label = TECHNIQUE_LABELS.get(tech, tech.upper())
         title_key = "WORKSPACE_TITLE_ANALYSIS"
 
+        if getattr(self, "_quick_analysis_active", False) and not is_samples and not is_joint:
+            label = tr("WORKFLOW_TECH_QUICK_ANALYSIS")
+            title_key = "WORKSPACE_TITLE_QUICK_ANALYSIS"
+
         if is_samples:
             label = tr("WORKFLOW_TECH_SAMPLES")
             title_key = "WORKSPACE_TITLE_SAMPLES"

@@ -104,6 +104,24 @@ class MainWindowNavigationMixin:
     def _jump_to_history(self):
         self._jump_to_tab(4)
 
+    def _on_quick_analysis_selected(self):
+        """Return to the standalone human-facing quick analysis entry."""
+        self._set_workspace_mode(WorkspaceMode.ANALYSIS)
+        self._quick_analysis_active = True
+        self._current_technique = ""
+        self._current_submodule_id = ""
+        self._set_sample_browser_visible(False)
+        self._set_joint_hub_visible(False)
+        if hasattr(self, "_tabs"):
+            self._tabs.setCurrentIndex(0)
+        self._set_nav_visual_state(None, "")
+        if hasattr(self, "_btn_run"):
+            self._btn_run.setText(tr("BTN_RUN"))
+            self._btn_run.setEnabled(True)
+        self._update_workspace_context()
+        self._refresh_config_preset_controls()
+        self.log(tr("LOG_QUICK_ANALYSIS_OPENED"))
+
     def _on_tech_saxs(self):
         self._on_technique_selected("saxs")
 
@@ -122,6 +140,7 @@ class MainWindowNavigationMixin:
     def _on_technique_selected(self, technique):
         main_window_module = self._main_window_module()
 
+        self._quick_analysis_active = False
         if technique != getattr(self, "_current_technique", ""):
             self._invalidate_context_bound_views()
         self._set_workspace_mode(WorkspaceMode.ANALYSIS)
@@ -158,6 +177,7 @@ class MainWindowNavigationMixin:
         )
 
     def _on_submodule_selected(self, technique, submodule_id):
+        self._quick_analysis_active = False
         if (
             technique != getattr(self, "_current_technique", "")
             or submodule_id != getattr(self, "_current_submodule_id", "")
