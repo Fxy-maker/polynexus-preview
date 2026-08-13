@@ -13,6 +13,7 @@ from typing import Any
 
 from polynexus.core.agent_workflow import inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe, RecipeProposal, RecipeStep
+from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
 
 
 class SingleInputTechniqueAdapter:
@@ -46,6 +47,13 @@ class SingleInputTechniqueAdapter:
                 status="blocked",
                 reason_codes=tuple(dict.fromkeys(("artifact_blocked", *artifact.reason_codes))),
             )
+        outcome = default_converter_registry().convert_path(
+            artifact.path,
+            technique=technique,
+            source_artifact_id=artifact.artifact_id,
+        )
+        if outcome.status != "ready" or outcome.template is None:
+            return RecipeProposal(status="blocked", reason_codes=outcome.reason_codes)
         submodule_id, step_id, role = spec
         recipe = AnalysisRecipe.create(
             workflow_id=self.workflow_id,
@@ -55,8 +63,16 @@ class SingleInputTechniqueAdapter:
                     step_id=step_id,
                     technique=technique,
                     evidence_role=role,
-                    parameters={"submodule_id": submodule_id},
-                    parameter_sources={"submodule_id": "registered_project_recipe"},
+                    parameters={
+                        "submodule_id": submodule_id,
+                        "canonical_converter": outcome.record.conversion_id,
+                        "canonical_template": outcome.template.to_dict(),
+                    },
+                    parameter_sources={
+                        "submodule_id": "registered_project_recipe",
+                        "canonical_converter": "registered_canonical_converter",
+                        "canonical_template": "registered_canonical_converter",
+                    },
                 ),
             ),
         )
@@ -73,11 +89,27 @@ class SingleInputTechniqueAdapter:
         if spec is None:
             return False
         submodule_id, step_id, role = spec
-        return (
+        if not (
             step.step_id == step_id
             and step.technique == artifact.technique
             and step.evidence_role == role
             and step.parameters.get("submodule_id") == submodule_id
+        ):
+            return False
+        return cls._has_matching_canonical_template(step, artifact)
+
+    @staticmethod
+    def _has_matching_canonical_template(step: RecipeStep, artifact: Any) -> bool:
+        payload = step.parameters.get("canonical_template")
+        if not isinstance(payload, Mapping):
+            return False
+        try:
+            template = CanonicalExperiment.from_dict(payload)
+        except (KeyError, TypeError, ValueError):
+            return False
+        return (
+            template.source_artifact_id == artifact.artifact_id
+            and step.parameters.get("canonical_converter") == template.conversion_record.conversion_id
         )
 
     @staticmethod
@@ -138,14 +170,42 @@ class TechniqueSeriesAdapter:
         blocked = tuple(code for artifact in artifacts if artifact.inspection_status == "blocked" for code in artifact.reason_codes)
         if blocked:
             return RecipeProposal(status="blocked", reason_codes=tuple(dict.fromkeys(("artifact_blocked", *blocked))))
+        outcomes = tuple(
+            default_converter_registry().convert_path(
+                artifact.path,
+                technique=technique,
+                source_artifact_id=artifact.artifact_id,
+            )
+            for artifact in artifacts
+        )
+        blocked_outcomes = tuple(
+            reason
+            for outcome in outcomes
+            if outcome.status != "ready" or outcome.template is None
+            for reason in outcome.reason_codes
+        )
+        if blocked_outcomes:
+            return RecipeProposal(status="blocked", reason_codes=tuple(dict.fromkeys(blocked_outcomes)))
         submodule_id, step_id, role = spec
         steps = tuple(
             RecipeStep(
                 step_id=f"{step_id}.{index:03d}",
                 technique=technique,
                 evidence_role=role,
-                parameters={"submodule_id": submodule_id, "artifact_index": index, "source_order": index},
-                parameter_sources={"submodule_id": "registered_project_recipe", "artifact_index": "series_path_order", "source_order": "series_path_order"},
+                parameters={
+                    "submodule_id": submodule_id,
+                    "artifact_index": index,
+                    "source_order": index,
+                    "canonical_converter": outcomes[index].record.conversion_id,
+                    "canonical_template": outcomes[index].template.to_dict(),
+                },
+                parameter_sources={
+                    "submodule_id": "registered_project_recipe",
+                    "artifact_index": "series_path_order",
+                    "source_order": "series_path_order",
+                    "canonical_converter": "registered_canonical_converter",
+                    "canonical_template": "registered_canonical_converter",
+                },
             )
             for index in range(len(artifacts))
         )
@@ -168,6 +228,7 @@ class TechniqueSeriesAdapter:
             and step.parameters.get("submodule_id") == submodule_id
             and step.parameters.get("artifact_index") == index
             and step.parameters.get("source_order") == index
+            and SingleInputTechniqueAdapter._has_matching_canonical_template(step, recipe.artifacts[index])
             for index, step in enumerate(recipe.steps)
         )
 

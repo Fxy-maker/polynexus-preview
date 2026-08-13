@@ -87,12 +87,9 @@ def evidence_items_from_run(
     *,
     run_id: str,
     raw_sources: Iterable[str],
-    limitations: Iterable[str] = (),
 ) -> tuple[EvidenceItem, ...]:
     """Convert public provider steps to constrained project evidence records."""
     raw_refs = tuple(str(value) for value in raw_sources)
-    global_limits = tuple(str(value) for value in limitations)
-    disallowed = tuple(run.evidence.disallowed_conclusions) if run.evidence else ()
     items: list[EvidenceItem] = []
     for step in run.steps:
         if step.status not in {"completed", "review_required"}:
@@ -119,13 +116,18 @@ def evidence_items_from_run(
                 "analysis_evidence": analysis_evidence,
             },
             supported_interpretations=supported,
-            disallowed_conclusions=disallowed,
+            # Run-wide workflow boundaries remain package-level.  A single
+            # observation may only state its own provider limitations plus its
+            # own review status.
+            disallowed_conclusions=("human_review_required",)
+            if step.status == "review_required"
+            else (),
             source_runs=(run_id,),
             raw_sources=raw_refs,
             figures=figures,
             tables=(),
             status=step.status,
-            limitations=tuple(dict.fromkeys((*global_limits, *step.reason_codes))),
+            limitations=tuple(dict.fromkeys(step.reason_codes)),
         )
         items.append(item)
     return tuple(items)

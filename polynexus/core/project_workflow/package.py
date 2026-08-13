@@ -76,6 +76,8 @@ class ProjectEvidencePackager:
             statuses.append(run.status)
             evidence.extend(item.to_dict() for item in run.evidence_items)
             limitations.extend(run.reason_codes)
+            if run.analysis_run is not None and run.analysis_run.evidence is not None:
+                limitations.extend(run.analysis_run.evidence.disallowed_conclusions)
             for item in run.evidence_items:
                 limitations.extend(item.limitations)
 

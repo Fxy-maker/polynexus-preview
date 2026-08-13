@@ -5292,6 +5292,24 @@ paths and exposes finite scalar `observed_metrics` alongside full observed
 results. This was verified with the project writing/figure matrix (`32 passed`)
 and structured gates (`303` / `157`).
 
+## Unified canonical evidence provenance - checkpointed 2026-08-13
+
+- The project workflow now requires a replayable canonical template for DSC,
+  IR, SAXS, and WAXS.  DSC keeps its existing isothermal converter; IR/SAXS/
+  WAXS use deterministic source-content envelope converters and do not change
+  existing provider algorithms.
+- Removed/tampered templates make the route invalid and source changes fail
+  replay before the provider can execute.  Supported IR directory inputs use a
+  deterministic directory content envelope.
+- Package-wide workflow limits now stay in `limitations.json`; individual
+  technique writing items retain only their own step reasons and
+  `human_review_required`, preventing cross-technique limitation leakage.
+- External PA6 four-technique replay wrote
+  `D:\PolyNexus-pa6-four-technique-smoke-20260814\.polynexus\evidence\canonical-provenance-replay-v001`.
+  All four techniques are `review_required` and include template/conversion
+  provenance.  Verification and scientific boundaries are recorded in
+  `docs/acceptance/2026-08-13-unified-canonical-evidence-provenance.md`.
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and

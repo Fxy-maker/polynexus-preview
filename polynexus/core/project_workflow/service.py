@@ -494,23 +494,10 @@ class ProjectWorkflowService:
         output_dir = self.workspace.runs_dir / run_id
         raw_analysis_run = self.agent_service.run_recipe(recipe, output_dir)
         analysis_run = self.agent_service.validate_run(raw_analysis_run)
-        limitations = tuple(
-            dict.fromkeys(
-                [
-                    *analysis_run.reason_codes,
-                    *(
-                        analysis_run.evidence.disallowed_conclusions
-                        if analysis_run.evidence
-                        else ()
-                    ),
-                ]
-            )
-        )
         evidence_items = evidence_items_from_run(
             analysis_run,
             run_id=run_id,
             raw_sources=source_hashes,
-            limitations=limitations,
         )
         outputs = self._derived_outputs(output_dir, analysis_run)
         manifest_payload = self._run_manifest(
@@ -627,15 +614,10 @@ class ProjectWorkflowService:
         analysis_run = self.agent_service.validate_run(
             self.agent_service.run_recipe(recipe, output_dir)
         )
-        limitations = tuple(dict.fromkeys([
-            *analysis_run.reason_codes,
-            *(analysis_run.evidence.disallowed_conclusions if analysis_run.evidence else ()),
-        ]))
         evidence_items = evidence_items_from_run(
             analysis_run,
             run_id=run_id,
             raw_sources=source_hashes,
-            limitations=limitations,
         )
         outputs = self._derived_outputs(output_dir, analysis_run)
         manifest_payload = self._run_manifest(
@@ -692,8 +674,11 @@ class ProjectWorkflowService:
         run_id = stable_run_id(request.request_hash, recipe.recipe_hash, [artifact.sha256 for artifact in recipe.artifacts if artifact.sha256])
         output_dir = self.workspace.runs_dir / run_id
         analysis_run = self.agent_service.validate_run(self.agent_service.run_recipe(recipe, output_dir))
-        limitations = tuple(dict.fromkeys([*analysis_run.reason_codes, *(analysis_run.evidence.disallowed_conclusions if analysis_run.evidence else ())]))
-        evidence_items = evidence_items_from_run(analysis_run, run_id=run_id, raw_sources=[artifact.sha256 for artifact in recipe.artifacts if artifact.sha256], limitations=limitations)
+        evidence_items = evidence_items_from_run(
+            analysis_run,
+            run_id=run_id,
+            raw_sources=[artifact.sha256 for artifact in recipe.artifacts if artifact.sha256],
+        )
         outputs = self._derived_outputs(output_dir, analysis_run)
         manifest_path = self.workspace.write_json(self.workspace.runs_dir / f"{run_id}.json", self._run_manifest(request=request, plan=plan, recipe=recipe, run=analysis_run, run_id=run_id, source_hashes=[artifact.sha256 for artifact in recipe.artifacts if artifact.sha256], evidence_items=evidence_items, outputs=outputs))
         return ProjectWorkflowRun(run_id=run_id, request_hash=request.request_hash, plan_hash=plan.plan_hash, recipe_hash=recipe.recipe_hash, status=analysis_run.status, outputs=tuple(str(path) for path in outputs) + (str(manifest_path),), evidence_items=evidence_items, manifest_path=str(manifest_path), analysis_run=analysis_run, reason_codes=analysis_run.reason_codes)

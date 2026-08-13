@@ -12,6 +12,8 @@ from polynexus.core.project_workflow.service import ProjectWorkflowService
 from polynexus.core.project_workflow.workspace import ProjectWorkspace
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
+from polynexus.core.agent_workflow.models import AnalysisRecipe, AnalysisRun, EvidenceRecord, InputArtifact, RecipeStep, WorkflowStepResult
+from polynexus.core.project_workflow.evidence import evidence_items_from_run
 
 
 def _write_mettler_fixture(path: Path) -> Path:
@@ -79,6 +81,51 @@ def test_package_writing_evidence_groups_claim_boundaries_by_technique(tmp_path:
     writing = (package.path / "writing-input.md").read_text(encoding="utf-8")
     assert "## Writing evidence by technique" in writing
     assert "### DSC" in writing
+
+
+def test_step_evidence_does_not_inherit_run_wide_disallowed_conclusions() -> None:
+    artifact = InputArtifact.ready(path="source.csv", technique="ir", sha256="source-sha256")
+    recipe = AnalysisRecipe.create(
+        workflow_id="test.workflow.v1",
+        artifacts=(artifact,),
+        steps=(RecipeStep(step_id="ir_spectrum", technique="ir"),),
+    )
+    run = AnalysisRun(
+        recipe=recipe,
+        status="review_required",
+        steps=(WorkflowStepResult(
+            step_id="ir_spectrum",
+            technique="ir",
+            status="review_required",
+            reason_codes=("ir_xc_uncalibrated",),
+        ),),
+        evidence=EvidenceRecord(
+            disallowed_conclusions=(
+                "unique_hydrogen_bond_species",
+                "absolute_scattering_quantity_without_background",
+            ),
+        ),
+    )
+
+    item = evidence_items_from_run(
+        run,
+        run_id="run-ir",
+        raw_sources=("source-sha256",),
+    )[0]
+
+    assert item.limitations == ("ir_xc_uncalibrated",)
+    assert item.disallowed_conclusions == ("human_review_required",)
+
+
+def test_package_keeps_run_wide_limitations_outside_technique_items(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+    package_limits = json.loads((package.path / "limitations.json").read_text(encoding="utf-8"))["limitations"]
+    item = json.loads((package.path / "writing-evidence.json").read_text(encoding="utf-8"))["techniques"]["dsc"]["evidence"][0]
+
+    assert "unique_hydrogen_bond_species" in package_limits
+    assert "unique_hydrogen_bond_species" not in item["limitations"]
 
 
 def test_new_package_version_does_not_replace_previous_snapshot(tmp_path: Path) -> None:

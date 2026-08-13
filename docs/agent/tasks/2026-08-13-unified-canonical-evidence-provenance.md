@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-13-unified-canonical-evidence-provenance
 kind: architecture
-status: proposed
+status: implementation_complete_review_required
 date: 2026-08-13
 title: Register canonical technique conversion and scoped evidence provenance
 ---
@@ -34,20 +34,20 @@ index expose only their own limitations and provenance.
 
 ## Acceptance criteria
 
-- [ ] A registered DSC, IR, SAXS, or WAXS source produces a canonical template
+- [x] A registered DSC, IR, SAXS, or WAXS source produces a canonical template
   whose source artifact ID, conversion hash, and content hash are valid.
-- [ ] IR, SAXS, and WAXS project routes cannot execute directly from a raw
+- [x] IR, SAXS, and WAXS project routes cannot execute directly from a raw
   single-file artifact when their canonical converter is unavailable or the
   replayed conversion mismatches.
-- [ ] Existing provider algorithms receive the same source representation and
+- [x] Existing provider algorithms receive the same source representation and
   remain behaviorally unchanged apart from canonical provenance.
-- [ ] Each run manifest records the template and conversion hash for every
+- [x] Each run manifest records the template and conversion hash for every
   canonical provider step.
-- [ ] A technique index and writing evidence item contain only limitations from
+- [x] A technique index and writing evidence item contain only limitations from
   the matching technique/run, never package-wide unrelated limitations.
-- [ ] Focused regressions cover success, unregistered converter, mismatch,
+- [x] Focused regressions cover success, unregistered converter, mismatch,
   technique-local limitation isolation, and existing DSC replay compatibility.
-- [ ] A bounded external PA6 four-technique read-only replay records all four
+- [x] A bounded external PA6 four-technique read-only replay records all four
   template identities without claiming scientific publication readiness.
 
 ## Implementation plan

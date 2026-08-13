@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from polynexus.core.agent_workflow import AgentWorkflowService
@@ -29,6 +30,9 @@ def test_single_input_adapter_proposes_registered_static_recipe(tmp_path: Path) 
     assert proposal.recipe.workflow_id == "project.technique.single.v1"
     assert proposal.recipe.steps[0].step_id == "waxs_profile"
     assert proposal.recipe.steps[0].parameters["submodule_id"] == "waxs.static"
+    assert proposal.recipe.steps[0].parameters["canonical_converter"] == "raw-file-envelope.waxs.v1"
+    assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "waxs.profile.v1"
+    assert proposal.recipe.steps[0].parameters["canonical_template"]["source_artifact_id"] == proposal.recipe.artifacts[0].artifact_id
 
 
 def test_single_input_adapter_blocks_unsupported_and_multiple_inputs(tmp_path: Path) -> None:
@@ -48,6 +52,27 @@ def test_single_input_adapter_blocks_unsupported_and_multiple_inputs(tmp_path: P
     assert unsupported.reason_codes == ("technique_unsupported",)
     assert multiple.status == "blocked"
     assert multiple.reason_codes == ("multiple_artifacts",)
+
+
+def test_single_recipe_without_canonical_template_is_invalid(tmp_path: Path) -> None:
+    source = _source(tmp_path, "waxs")
+    proposal = SingleInputTechniqueAdapter().propose_recipe({
+        "workflow_id": "project.technique.single.v1",
+        "technique": "waxs",
+        "path": str(source),
+    })
+
+    assert proposal.recipe is not None
+    step = proposal.recipe.steps[0]
+    invalid = replace(
+        proposal.recipe,
+        steps=(replace(step, parameters={"submodule_id": "waxs.static"}),),
+    )
+
+    run = AgentWorkflowService().run_recipe(invalid, tmp_path / "derived")
+
+    assert run.status == "blocked"
+    assert run.reason_codes == ("recipe_invalid",)
 
 
 def test_project_plan_uses_single_input_adapter_for_waxs(tmp_path: Path) -> None:
@@ -119,6 +144,8 @@ def test_series_adapter_orders_paths_and_binds_each_step(tmp_path: Path) -> None
     assert proposal.recipe is not None
     assert [step.parameters["artifact_index"] for step in proposal.recipe.steps] == [0, 1]
     assert [Path(item.path).name for item in proposal.recipe.artifacts] == ["a.dat", "b.dat"]
+    assert all(step.parameters["canonical_converter"] == "raw-file-envelope.waxs.v1" for step in proposal.recipe.steps)
+    assert all(step.parameters["canonical_template"]["template_id"] == "waxs.profile.v1" for step in proposal.recipe.steps)
     assert TechniqueSeriesAdapter.is_valid_recipe(proposal.recipe)
 
 

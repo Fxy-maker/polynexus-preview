@@ -24,7 +24,7 @@ from .models import (
 )
 from .registry import WorkflowRegistry
 from .tpae import TpaeCharacterizationWorkflow
-from polynexus.core.canonical_experiments import CanonicalExperiment, convert_mettler_isothermal_text
+from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
 
 
 class AgentWorkflowService:
@@ -256,7 +256,7 @@ class AgentWorkflowService:
         if submodule_id:
             engine.active_submodule = str(submodule_id)
         canonical_payload = step.parameters.get("canonical_template")
-        if canonical_payload is not None:
+        if canonical_payload is not None and step.technique == "dsc":
             template = CanonicalExperiment.from_dict(canonical_payload)
             engine.run_isothermal_template(template)
             engine.result.parameters = engine.get_parameters()
@@ -269,19 +269,24 @@ class AgentWorkflowService:
 
     @staticmethod
     def _replay_canonical_template(step: Any, artifact: InputArtifact) -> CanonicalExperiment | bool | None:
-        """Reconvert a single-file DSC source after artifact hash verification."""
+        """Reconvert a registered source after artifact hash verification."""
         payload = step.parameters.get("canonical_template")
         if payload is None:
             return None
-        if artifact.technique != "dsc" or artifact.format == "directory":
+        if artifact.format == "directory" and artifact.technique != "ir":
             return False
         try:
             registered = CanonicalExperiment.from_dict(payload)
-            source_text = Path(artifact.path).read_text(encoding="utf-8", errors="replace")
         except (KeyError, OSError, TypeError, ValueError):
             return False
-        outcome = convert_mettler_isothermal_text(source_text, source_artifact_id=artifact.artifact_id)
+        outcome = default_converter_registry().replay_path(
+            artifact.path,
+            technique=artifact.technique,
+            source_artifact_id=artifact.artifact_id,
+        )
         if outcome.status != "ready" or outcome.template is None:
+            return False
+        if outcome.record.conversion_id != step.parameters.get("canonical_converter"):
             return False
         return outcome.template if hmac.compare_digest(outcome.template.content_hash, registered.content_hash) else False
 

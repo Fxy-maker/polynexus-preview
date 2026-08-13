@@ -23,7 +23,7 @@
   limitations into technique-local sections.
 - `tests/test_canonical_converter_registry.py`: converter selection, source
   identity, and replay mismatch contracts.
-- `tests/test_project_technique_adapters.py`: recipe provenance and direct-route
+- `tests/test_project_workflow_adapters.py`: recipe provenance and direct-route
   blocking checks.
 - `tests/test_project_workflow_package.py`: limitation isolation regression.
 - `docs/acceptance/2026-08-13-unified-canonical-evidence-provenance.md`:
@@ -122,7 +122,7 @@ Expected: PASS.
 **Files:**
 - Modify: `polynexus/core/project_workflow/adapters.py`
 - Modify: `polynexus/core/agent_workflow/service.py`
-- Test: `tests/test_project_technique_adapters.py`
+- Test: `tests/test_project_workflow_adapters.py`
 
 - [ ] **Step 1: Write the failing project adapter tests**
 
@@ -149,7 +149,7 @@ def test_single_route_blocks_when_canonical_template_is_removed(tmp_path):
 
 - [ ] **Step 2: Run adapter tests to verify RED**
 
-Run: `python -m pytest -p no:cacheprovider -q tests/test_project_technique_adapters.py -k canonical`
+Run: `python -m pytest -p no:cacheprovider -q tests/test_project_workflow_adapters.py -k canonical`
 
 Expected: FAIL because IR/WAXS/SAXS adapters do not add canonical templates.
 
@@ -175,7 +175,7 @@ canonical replay has passed.
 
 - [ ] **Step 4: Run adapter and workflow tests to verify GREEN**
 
-Run: `python -m pytest -p no:cacheprovider -q tests/test_project_technique_adapters.py tests/test_agent_workflow_cli.py tests/test_tpae_golden_workflow.py`
+Run: `python -m pytest -p no:cacheprovider -q tests/test_project_workflow_adapters.py tests/test_agent_workflow_cli.py tests/test_tpae_golden_workflow.py`
 
 Expected: PASS.
 
@@ -230,7 +230,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Run the complete focused regression matrix**
 
-Run: `python -m pytest -p no:cacheprovider -q tests/test_canonical_converter_registry.py tests/test_canonical_experiment_templates.py tests/test_dsc_canonical_isothermal_conversion.py tests/test_project_technique_adapters.py tests/test_project_workflow_package.py tests/test_ai_native_project_entrypoint.py`
+Run: `python -m pytest -p no:cacheprovider -q tests/test_canonical_converter_registry.py tests/test_canonical_experiment_templates.py tests/test_dsc_canonical_isothermal_conversion.py tests/test_project_workflow_adapters.py tests/test_project_workflow_package.py tests/test_ai_native_project_entrypoint.py`
 
 Expected: PASS.
 
@@ -262,7 +262,7 @@ Run:
 ```powershell
 python scripts/verify.py --task docs/agent/tasks/2026-08-13-unified-canonical-evidence-provenance.md --changed --types
 git diff --check
-python scripts/auto_commit.py --message "feat(project): enforce canonical evidence provenance" --files polynexus/core/canonical_experiments/__init__.py polynexus/core/canonical_experiments/registry.py polynexus/core/project_workflow/adapters.py polynexus/core/agent_workflow/service.py polynexus/core/project_workflow/package.py tests/test_canonical_converter_registry.py tests/test_project_technique_adapters.py tests/test_project_workflow_package.py docs/agent/tasks/2026-08-13-unified-canonical-evidence-provenance.md docs/acceptance/2026-08-13-unified-canonical-evidence-provenance.md docs/agent/memory/active-work.md docs/superpowers/plans/2026-08-13-unified-canonical-evidence-provenance.md
+python scripts/auto_commit.py --message "feat(project): enforce canonical evidence provenance" --files polynexus/core/canonical_experiments/__init__.py polynexus/core/canonical_experiments/registry.py polynexus/core/project_workflow/adapters.py polynexus/core/agent_workflow/service.py polynexus/core/project_workflow/package.py tests/test_canonical_converter_registry.py tests/test_project_workflow_adapters.py tests/test_project_workflow_package.py docs/agent/tasks/2026-08-13-unified-canonical-evidence-provenance.md docs/acceptance/2026-08-13-unified-canonical-evidence-provenance.md docs/agent/memory/active-work.md docs/superpowers/plans/2026-08-13-unified-canonical-evidence-provenance.md
 ```
 
 Expected: selected checks pass and one local commit is created with no push or
