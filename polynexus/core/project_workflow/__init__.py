@@ -14,6 +14,7 @@ from .models import (
     ResearchGraph,
 )
 from .analysis_plan_evaluation import AnalysisPlanEvaluation, AnalysisSymptom, CandidateEvaluation, diagnose_symptoms, evaluate_candidates, project_analysis_plan_evaluation
+from .quick_run_attachment import QuickRunAttachment, attach_quick_run
 from .service import ProjectWorkflowService
 from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
@@ -29,6 +30,8 @@ __all__ = [
     "diagnose_symptoms",
     "evaluate_candidates",
     "project_analysis_plan_evaluation",
+    "QuickRunAttachment",
+    "attach_quick_run",
     "AnalysisPlan",
     "AnalysisRequest",
     "Condition",

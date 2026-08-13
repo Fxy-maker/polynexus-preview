@@ -33,6 +33,10 @@ def _args(operation: str, project_root: Path, **values: object) -> argparse.Name
         "runs": (),
         "package_id": "pa6-crystallization",
         "relations": None,
+        "quick_run_id": None,
+        "technique": None,
+        "source_file": None,
+        "output_dir": None,
     }
     defaults.update(values)
     return argparse.Namespace(**defaults)
@@ -46,7 +50,7 @@ def _one_envelope(capsys) -> dict:
 
 def test_project_workflow_parser_accepts_all_operations(tmp_path: Path) -> None:
     parser = build_parser()
-    for operation in ("inspect", "plan", "run", "package"):
+    for operation in ("inspect", "plan", "run", "package", "attach-quick-run"):
         args = parser.parse_args(["project-workflow", operation, "--project-root", str(tmp_path)])
         assert args.cmd == "project-workflow"
         assert args.operation == operation
@@ -104,3 +108,22 @@ def test_project_workflow_cli_blocks_invalid_root_and_missing_request(capsys, tm
     payload = _one_envelope(capsys)
     assert code == 2
     assert payload["reason_codes"] == ["request_invalid"]
+
+
+def test_project_workflow_cli_attaches_existing_quick_run_by_reference(capsys, tmp_path: Path) -> None:
+    source = tmp_path / "sample.csv"
+    source.write_text("q,I\n0.1,1\n", encoding="utf-8")
+
+    assert run_project_workflow(
+        _args(
+            "attach-quick-run",
+            tmp_path,
+            quick_run_id="quick-42",
+            technique="saxs",
+            source_file=str(source),
+        )
+    ) == 0
+
+    payload = _one_envelope(capsys)
+    assert payload["attachment"]["quick_run_id"] == "quick-42"
+    assert payload["attachment"]["attachment_kind"] == "reference_only"

@@ -54,6 +54,30 @@ def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = 
             return _emit(operation, "blocked", ["inspection_invalid"])
         return _emit(operation, "completed", graph=graph.to_dict())
 
+    if operation == "attach-quick-run":
+        try:
+            attachment = workflow.attach_quick_run(
+                quick_run_id=str(getattr(args, "quick_run_id", "") or ""),
+                technique=str(getattr(args, "technique", "") or ""),
+                source_file=str(getattr(args, "source_file", "") or ""),
+                output_dir=str(getattr(args, "output_dir", "") or ""),
+            )
+        except (OSError, TypeError, ValueError, UnicodeError):
+            return _emit(operation, "blocked", ["quick_run_attachment_invalid"])
+        return _emit(
+            operation,
+            "completed",
+            attachment={
+                "quick_run_id": attachment.quick_run_id,
+                "technique": attachment.technique,
+                "source_file": attachment.source_file,
+                "source_sha256": attachment.source_sha256,
+                "output_dir": attachment.output_dir,
+                "manifest_path": str(attachment.manifest_path),
+                "attachment_kind": "reference_only",
+            },
+        )
+
     if operation == "analyze-project":
         selection_path = getattr(args, "figure_selection", None)
         figure_selection = _load_figure_selection(selection_path)

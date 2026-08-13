@@ -23,6 +23,7 @@ from .ir_group_figures import FigureCandidateSet, render_ftir_group_candidates
 from .models import AnalysisPlan, AnalysisRequest, ProjectPlan, ResearchGraph
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .selection import FigureSelectionRequest, resolve_figure_selection
+from .quick_run_attachment import QuickRunAttachment, attach_quick_run
 from .workspace import ProjectWorkspace
 
 
@@ -61,6 +62,23 @@ class ProjectWorkflowService:
             for path in paths
         )
         return self.indexer.inspect(resolved)
+
+    def attach_quick_run(
+        self,
+        *,
+        quick_run_id: str,
+        technique: str,
+        source_file: str | Path,
+        output_dir: str | Path = "",
+    ) -> QuickRunAttachment:
+        """Record a standalone quick run as a project-local reference."""
+        return attach_quick_run(
+            self.workspace,
+            quick_run_id=quick_run_id,
+            technique=technique,
+            source_file=source_file,
+            output_dir=output_dir,
+        )
 
     def analyze_project(
         self,
