@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import tempfile
+import math
 from typing import Any, Iterable, Mapping
 
 from polynexus.core.agent_workflow.models import AnalysisRun
@@ -143,7 +144,7 @@ class ProjectEvidencePackager:
             }
             technique_index = self._technique_index(run_values, evidence, limitations)
             package_manifest["techniques"] = technique_index
-            writing_evidence = self._writing_evidence(evidence, technique_index)
+            writing_evidence = self._writing_evidence(evidence, technique_index, copied_assets)
             package_manifest["writing_evidence"] = "writing-evidence.json"
             package_hash = hashlib.sha256(canonical_json(package_manifest).encode("utf-8")).hexdigest()
             package_manifest["package_hash"] = package_hash
@@ -199,9 +200,14 @@ class ProjectEvidencePackager:
 
     @staticmethod
     def _writing_evidence(
-        evidence: list[dict[str, Any]], technique_index: Mapping[str, Any]
+        evidence: list[dict[str, Any]],
+        technique_index: Mapping[str, Any],
+        assets: list[dict[str, str]],
     ) -> dict[str, Any]:
         grouped: dict[str, list[dict[str, Any]]] = {str(key): [] for key in technique_index}
+        asset_paths = {
+            str(item["source"]): f"{item['kind']}/{item['name']}" for item in assets
+        }
         for item in evidence:
             technique = str(item.get("technique", "unknown")).lower()
             grouped.setdefault(technique, []).append({
@@ -210,12 +216,13 @@ class ProjectEvidencePackager:
                 "claim_scope": item.get("claim_scope", ""),
                 "source_runs": list(item.get("source_runs", ())),
                 "raw_sources": list(item.get("raw_sources", ())),
-                "figures": list(item.get("figures", ())),
-                "tables": list(item.get("tables", ())),
+                "figures": [asset_paths[path] for path in item.get("figures", ()) if path in asset_paths],
+                "tables": [asset_paths[path] for path in item.get("tables", ()) if path in asset_paths],
                 "supported_interpretations": list(item.get("supported_interpretations", ())),
                 "disallowed_conclusions": list(item.get("disallowed_conclusions", ())),
                 "limitations": list(item.get("limitations", ())),
                 "observed_results": item.get("observed_results", {}),
+                "observed_metrics": ProjectEvidencePackager._observed_metrics(item.get("observed_results", {})),
             })
         return {"version": 1, "techniques": {
             technique: {
@@ -225,6 +232,23 @@ class ProjectEvidencePackager:
             }
             for technique, values in grouped.items()
         }}
+
+    @staticmethod
+    def _observed_metrics(value: Any) -> dict[str, float | int]:
+        """Extract finite scalar values without interpreting their meaning."""
+        result: dict[str, float | int] = {}
+        if not isinstance(value, Mapping):
+            return result
+        summaries = value.get("result_summary", value)
+        if not isinstance(summaries, Mapping):
+            return result
+        for key, raw in summaries.items():
+            if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+                continue
+            if isinstance(raw, float) and not math.isfinite(raw):
+                continue
+            result[str(key)] = raw
+        return result
 
     def _validate_run(self, run: ProjectWorkflowRun) -> dict[str, Any]:
         if run.status == "blocked":

@@ -75,6 +75,7 @@ def test_package_writing_evidence_groups_claim_boundaries_by_technique(tmp_path:
     assert item["source_runs"] == [run.run_id]
     assert item["supported_interpretations"]
     assert item["disallowed_conclusions"]
+    assert isinstance(item["observed_metrics"], dict)
     writing = (package.path / "writing-input.md").read_text(encoding="utf-8")
     assert "## Writing evidence by technique" in writing
     assert "### DSC" in writing

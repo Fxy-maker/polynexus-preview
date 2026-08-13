@@ -70,6 +70,12 @@ def test_analyze_project_packages_explicit_cross_technique_evidence_index(tmp_pa
     assert set(writing_evidence["techniques"]) == {"ir", "waxs"}
     assert all(group["evidence"] for group in writing_evidence["techniques"].values())
     assert all(item["source_runs"] for group in writing_evidence["techniques"].values() for item in group["evidence"])
+    assert all(
+        not path.startswith("D:\\")
+        for group in writing_evidence["techniques"].values()
+        for item in group["evidence"]
+        for path in item["figures"] + item["tables"]
+    )
 
 
 def test_analyze_project_reports_actionable_blocker_without_fake_package(tmp_path: Path) -> None:

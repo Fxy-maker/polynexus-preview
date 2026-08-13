@@ -5287,6 +5287,11 @@ section. The handoff preserves observed results, source runs, figures, tables,
 supported interpretations, disallowed conclusions, and limitations without
 drafting scientific prose or adding cross-technique claims.
 
+Writing evidence now rewrites copied figure/table references to package-relative
+paths and exposes finite scalar `observed_metrics` alongside full observed
+results. This was verified with the project writing/figure matrix (`32 passed`)
+and structured gates (`303` / `157`).
+
 ## Agent-native PA6 project evidence loop - checkpointed 2026-08-12
 
 - The project-local workflow now supports `inspect`, `plan`, `run`, and
