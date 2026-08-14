@@ -1,13 +1,16 @@
 import os
 
 from polynexus.core.figure_document import save_generated_figure_document
+from polynexus.core.project_workflow.figure_index import FigureIndexEntry
 from polynexus.gui.plot_gallery_service import (
     FIGURE_CATEGORY_OTHER_EXPORTS,
     FIGURE_CATEGORY_PER_FRAME,
     FIGURE_CATEGORY_SERIES_OVERVIEW,
     FIGURE_STATE_OBJECT,
+    FIGURE_STATE_STATIC,
     FIGURE_STATE_UNLINKED_EXPORT,
     FigureGalleryEntry,
+    build_evidence_package_gallery_entries,
     build_plot_gallery_entries,
     build_active_manifest_gallery_entries,
     collect_plot_figure_paths,
@@ -437,9 +440,22 @@ def test_active_manifest_gallery_ignores_unrelated_historical_files(
     assert entry.capability_report["editing_mode"] == "object"
     assert entry.working_revision == 1
     assert entry.published_revision == 1
-    assert {asset.role for asset in entry.assets} == {
-        "preview",
-        "svg",
-        "png",
-        "pdf",
-    }
+    assert {asset.role for asset in entry.assets} == {"svg"}
+
+
+def test_evidence_package_gallery_uses_one_svg_entry_for_static_figure(tmp_path):
+    svg = tmp_path / "figures" / "group.svg"
+    svg.parent.mkdir()
+    svg.write_text("<svg/>", encoding="utf-8")
+    entry = FigureIndexEntry(
+        id="group", role="supporting", technique="IR", group="ir:pa6-jw",
+        writing_eligibility="Discussion", svg="figures/group.svg",
+        document=None, data=None, metadata="figures/group.metadata.json",
+    )
+
+    entries = build_evidence_package_gallery_entries(tmp_path, (entry,))
+
+    assert len(entries) == 1
+    assert entries[0].primary_path == str(svg.resolve())
+    assert entries[0].state == FIGURE_STATE_STATIC
+    assert entries[0].document_path == ""

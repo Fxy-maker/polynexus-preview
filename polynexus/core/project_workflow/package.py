@@ -205,7 +205,7 @@ class ProjectEvidencePackager:
         grouped: dict[str, list[dict[str, str]]] = {}
         for item in figures:
             grouped.setdefault(
-                str(Path(item["source"]).with_suffix("")), []
+                str(Path(item["source"]).parent), []
             ).append(item)
         retained = [item for item in assets if item["kind"] != "figures"]
         index_entries: list[dict[str, Any]] = []

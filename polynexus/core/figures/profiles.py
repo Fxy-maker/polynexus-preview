@@ -15,6 +15,8 @@ class FigureOutputProfile:
     background: str = "white"
     svg_font_policy: str = "editable_text"
     pdf_font_policy: str = "embedded"
+    publication_profile_id: str | None = None
+    working_preview_filename: str = "preview.png"
 
 
 _PROFILES = {
@@ -24,6 +26,7 @@ _PROFILES = {
         preview_dpi=150,
         publication_png_dpi=600,
         formal_assets={"svg": "figure.svg"},
+        publication_profile_id="paper_complete",
     ),
     "paper_complete": FigureOutputProfile(
         profile_id="paper_complete",

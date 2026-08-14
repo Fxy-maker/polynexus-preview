@@ -212,12 +212,14 @@ def test_package_indexes_svg_once_when_derived_figure_has_png_sibling(tmp_path: 
     figure_dir = tmp_path / ".polynexus" / "runs" / run.run_id
     png = figure_dir / "kinetics.png"
     svg = figure_dir / "kinetics.svg"
+    preview = figure_dir / "preview.png"
     figure_dir.mkdir(parents=True, exist_ok=True)
     png.write_bytes(b"derived preview")
     svg.write_text("<svg>derived figure</svg>", encoding="utf-8")
+    preview.write_bytes(b"editor preview")
 
     package = ProjectWorkflowService.open(tmp_path).package(
-        replace(run, outputs=(*run.outputs, str(png), str(svg)))
+        replace(run, outputs=(*run.outputs, str(png), str(svg), str(preview)))
     )
 
     index = json.loads((package.path / "figure-index.json").read_text(encoding="utf-8"))
@@ -229,6 +231,7 @@ def test_package_indexes_svg_once_when_derived_figure_has_png_sibling(tmp_path: 
     assert entry["data"] is None
     assert (package.path / entry["metadata"]).is_file()
     assert not (package.path / "figures" / "kinetics.png").exists()
+    assert not (package.path / "figures" / "preview.png").exists()
 
 
 def test_package_keeps_same_named_derived_figures_from_distinct_sources(tmp_path: Path) -> None:

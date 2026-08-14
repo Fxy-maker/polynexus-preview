@@ -12,6 +12,7 @@ from ..core.figure_assets import discover_figure_asset
 from ..core.figure_document import OBJECT_MODE, STATIC_BACKGROUND_MODE, load_figure_document
 from ..core.figures.manifest import RunFigureManifestRepository
 from ..core.figures.legacy_recovery import discover_legacy_figure_paths
+from ..core.project_workflow.figure_index import FigureIndexEntry
 
 
 DEFAULT_FIGURE_EXTENSIONS: tuple[str, ...] = (".svg", ".png", ".pdf", ".jpg", ".jpeg")
@@ -154,12 +155,65 @@ def build_active_manifest_gallery_entries(
     return entries
 
 
+def build_evidence_package_gallery_entries(
+    package_root: str | Path,
+    figures: Iterable[FigureIndexEntry],
+) -> list[FigureGalleryEntry]:
+    """Adapt one package-level logical figure index to gallery entries."""
+    root = Path(package_root).resolve()
+    entries: list[FigureGalleryEntry] = []
+    for item in figures:
+        svg = _resolve_package_figure_path(root, item.svg)
+        if not svg.is_file():
+            continue
+        document_path = ""
+        if item.document:
+            candidate = _resolve_package_figure_path(root, item.document)
+            if candidate.is_file():
+                document_path = str(candidate)
+        # The package index intentionally has no capability report yet; do not
+        # infer object editing from a document payload alone.
+        object_editing = False
+        state = FIGURE_STATE_STATIC
+        svg_path = str(svg)
+        entries.append(FigureGalleryEntry(
+            figure_id=item.id,
+            title=item.id.replace("_", " "),
+            category=FIGURE_CATEGORY_OTHER_EXPORTS,
+            state=state,
+            preview_path=svg_path,
+            primary_path=svg_path,
+            editable_path=svg_path,
+            document_mode=OBJECT_MODE if object_editing else STATIC_BACKGROUND_MODE,
+            asset_paths=(svg_path,),
+            assets=(FigureGalleryAsset("svg", "SVG master", "master", svg_path),),
+            output_root=str(root),
+            document_path=document_path,
+            capability_report={
+                "editing_mode": "object" if object_editing else "static",
+                "object_editing": object_editing,
+            },
+            status="ready",
+            publication_role="diagnostic",
+        ))
+    return entries
+
+
 def _resolve_run_manifest_path(run_root: Path, relative_path: str) -> Path:
     path = (Path(run_root).resolve() / Path(relative_path)).resolve()
     try:
         path.relative_to(Path(run_root).resolve())
     except ValueError as exc:
         raise ValueError(f"manifest path escapes run root: {relative_path}") from exc
+    return path
+
+
+def _resolve_package_figure_path(package_root: Path, relative_path: str) -> Path:
+    path = (Path(package_root).resolve() / Path(relative_path)).resolve()
+    try:
+        path.relative_to(Path(package_root).resolve())
+    except ValueError as exc:
+        raise ValueError(f"figure index path escapes package: {relative_path}") from exc
     return path
 
 

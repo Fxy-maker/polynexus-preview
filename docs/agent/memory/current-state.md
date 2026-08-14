@@ -1611,3 +1611,16 @@ fixed-sector matches reuse the existing meridional/equatorial profiles after
 canonical validation. Missing scientific inputs fail closed, and the primary
 results-table contract is unchanged. Verification evidence is tracked in
 `docs/agent/tasks/2026-08-08-saxs-tensile-aligned-peak-tracking.md`.
+
+## Canonical figure assets - checkpointed 2026-08-14
+
+- New evidence runs retain SVG by default.  PNG/PDF are explicit publication
+  exports; editor working previews are private interaction artifacts.
+- Evidence packages now expose `figure-index.json`, deduplicate SVG/PNG/preview
+  siblings by assets directory, and map ARS candidates to package-relative SVG.
+  GUI and package readers share the same logical figure DTO; old packages use a
+  read-only fallback.
+- A real PA6 DSC/IR/SAXS/WAXS replay produced
+  `canonical-figure-assets-pa6-v002` with 112 SVG/index entries, zero package
+  PNG/PDF files, and intact ARS writing input.  Acceptance:
+  `docs/acceptance/2026-08-14-canonical-figure-assets.md`.

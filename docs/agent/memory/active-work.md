@@ -5459,3 +5459,13 @@ and structured gates (`303` / `157`).
   `docs/acceptance/2026-08-12-agent-native-pa6-project-evidence-loop.md`.
 - FTIR/SAXS/WAXS adapters remain separate follow-up work; the current workflow
   reports `converter_unregistered` instead of fabricating analysis.
+
+## Canonical figure assets - implementation complete, review required 2026-08-14
+
+- Evidence package asset/index architecture is implemented and locally
+  checkpointed.  Architecture review is required before merge because Chart,
+  Export, and Evidence Package contracts changed.
+- Direct ARS group figures remain static; no Figure Project object model was
+  fabricated. Index v1 package-gallery entries fail closed to static viewing
+  because capability reports are not yet indexed. Acceptance:
+  `docs/acceptance/2026-08-14-canonical-figure-assets.md`.
