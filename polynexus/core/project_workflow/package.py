@@ -91,6 +91,7 @@ class ProjectEvidencePackager:
         if figure_candidates:
             copied_assets.extend(self._candidate_asset_descriptors(figure_candidates))
         copied_assets = self._disambiguate_assets(copied_assets)
+        copied_assets, figure_index = self._canonical_figure_assets(copied_assets, evidence)
         if figure_candidates and figure_candidate_payload is not None:
             figure_candidate_payload = self._package_figure_candidate_payload(
                 figure_candidate_payload, copied_assets
@@ -139,6 +140,8 @@ class ProjectEvidencePackager:
                 "conversion_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("conversion_hashes", ())}),
                 "evidence_count": len(evidence),
                 "asset_count": len(copied_assets),
+                "figure_count": len(figure_index["figures"]),
+                "figure_index": "figure-index.json",
                 "figure_candidates": figure_candidate_payload,
                 "evidence_item_hashes": [
                     str(item.get("item_hash", "")) for item in evidence
@@ -181,6 +184,7 @@ class ProjectEvidencePackager:
             self._write_json(package_path / "ars-writing-input.json", ars_writing_input)
             self._write_json(package_path / "limitations.json", {"limitations": limitations})
             self._copy_assets(copied_assets, package_path)
+            self._write_figure_index(package_path, figure_index)
             if figure_candidate_payload is not None:
                 self._write_json(package_path / "figure-candidates.json", figure_candidate_payload)
             self._write_text(
@@ -191,6 +195,55 @@ class ProjectEvidencePackager:
             shutil.rmtree(package_path, ignore_errors=True)
             raise
         return ResearchEvidencePackage(package_id, version, package_path, status, package_hash)
+
+    @staticmethod
+    def _canonical_figure_assets(
+        assets: list[dict[str, str]], evidence: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, str]], dict[str, Any]]:
+        """Keep one SVG asset per directly rendered logical figure."""
+        figures = [item for item in assets if item["kind"] == "figures"]
+        grouped: dict[str, list[dict[str, str]]] = {}
+        for item in figures:
+            grouped.setdefault(
+                str(Path(item["source"]).with_suffix("")), []
+            ).append(item)
+        retained = [item for item in assets if item["kind"] != "figures"]
+        index_entries: list[dict[str, Any]] = []
+        technique = str(evidence[0].get("technique", "unknown")).upper() if evidence else "UNKNOWN"
+        for _source_key, values in grouped.items():
+            svg = next((item for item in values if Path(item["source"]).suffix.lower() == ".svg"), None)
+            if svg is None:
+                retained.extend(values)
+                continue
+            retained.append(svg)
+            safe_id = Path(svg["name"]).with_suffix("").name
+            metadata = f"figures/{Path(svg['name']).with_suffix('').name}.metadata.json"
+            index_entries.append({
+                "id": safe_id,
+                "role": "diagnostic",
+                "technique": technique,
+                "group": None,
+                "writing_eligibility": "review_only",
+                "svg": f"figures/{svg['name']}",
+                "document": None,
+                "data": None,
+                "metadata": metadata,
+            })
+        return retained, {"version": 1, "figures": index_entries}
+
+    def _write_figure_index(self, package_path: Path, payload: Mapping[str, Any]) -> None:
+        self._write_json(package_path / "figure-index.json", dict(payload))
+        for entry in payload.get("figures", ()):
+            if not isinstance(entry, Mapping):
+                continue
+            self._write_json(package_path / str(entry["metadata"]), {
+                "figure_id": entry["id"],
+                "technique": entry["technique"],
+                "role": entry["role"],
+                "svg": entry["svg"],
+                "document": entry["document"],
+                "data": entry["data"],
+            })
 
     @staticmethod
     def _technique_index(
@@ -430,7 +483,9 @@ class ProjectEvidencePackager:
             for value in payload.get(key, ()):
                 candidate = dict(value)
                 candidate["paths"] = [
-                    by_source.get(str(path), str(path)) for path in candidate.get("paths", ())
+                    by_source[str(path)]
+                    for path in candidate.get("paths", ())
+                    if str(path) in by_source
                 ]
                 candidates.append(candidate)
             result[key] = candidates

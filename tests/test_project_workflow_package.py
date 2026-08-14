@@ -207,6 +207,30 @@ def test_package_copies_derived_assets_without_copying_raw_data(tmp_path: Path) 
     assert not list(package.path.rglob("PA6-DWJJ.txt"))
 
 
+def test_package_indexes_svg_once_when_derived_figure_has_png_sibling(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    figure_dir = tmp_path / ".polynexus" / "runs" / run.run_id
+    png = figure_dir / "kinetics.png"
+    svg = figure_dir / "kinetics.svg"
+    figure_dir.mkdir(parents=True, exist_ok=True)
+    png.write_bytes(b"derived preview")
+    svg.write_text("<svg>derived figure</svg>", encoding="utf-8")
+
+    package = ProjectWorkflowService.open(tmp_path).package(
+        replace(run, outputs=(*run.outputs, str(png), str(svg)))
+    )
+
+    index = json.loads((package.path / "figure-index.json").read_text(encoding="utf-8"))
+    assert index["version"] == 1
+    assert len(index["figures"]) == 1
+    entry = index["figures"][0]
+    assert entry["svg"] == "figures/kinetics.svg"
+    assert entry["document"] is None
+    assert entry["data"] is None
+    assert (package.path / entry["metadata"]).is_file()
+    assert not (package.path / "figures" / "kinetics.png").exists()
+
+
 def test_package_keeps_same_named_derived_figures_from_distinct_sources(tmp_path: Path) -> None:
     run = _run_dsc_request(tmp_path)
     first = tmp_path / ".polynexus" / "runs" / run.run_id / "first" / "figure.svg"

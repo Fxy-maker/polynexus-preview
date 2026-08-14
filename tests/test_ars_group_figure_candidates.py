@@ -498,7 +498,5 @@ def test_evidence_package_copies_figure_candidate_manifest(tmp_path: Path) -> No
     candidate_manifest = json.loads((package_path / "figure-candidates.json").read_text(encoding="utf-8"))
     assert candidate_manifest["main_candidates"][0]["role"] == "main_candidate"
     assert candidate_manifest["main_candidates"][0]["paths"] == [
-        "figures/ftir_group_overlay.png",
         "figures/ftir_group_overlay.svg",
     ]
-    assert (package_path / "figures" / "ftir_group_overlay.png").is_file()
