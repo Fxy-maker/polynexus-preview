@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+from .figure_index import FigureIndexEntry, load_figure_index
+
 
 @dataclass(frozen=True)
 class EvidenceTechniqueView:
@@ -72,6 +74,7 @@ class EvidencePackageView:
     tables: tuple[str, ...]
     limitations: tuple[str, ...]
     human_review: tuple[HumanReviewView, ...]
+    figure_views: tuple[FigureIndexEntry, ...] = ()
 
 
 def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
@@ -168,6 +171,7 @@ def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
         figures=tuple(f"figures/{path.name}" for path in (root / "figures").iterdir() if path.is_file()) if (root / "figures").is_dir() else (),
         tables=tuple(f"tables/{path.name}" for path in (root / "tables").iterdir() if path.is_file()) if (root / "tables").is_dir() else (),
         limitations=tuple(str(value) for value in limitations), human_review=human_review,
+        figure_views=load_figure_index(root),
     )
 
 

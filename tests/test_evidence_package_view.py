@@ -59,6 +59,25 @@ def test_load_package_view_exposes_technique_neutral_rows_and_review(tmp_path: P
     assert view.evidence[0].discussion_metric_ids == ("metric-diagnostic",)
 
 
+def test_load_package_view_exposes_indexed_logical_figures(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    (package / "figures").mkdir()
+    (package / "figures" / "dsc.svg").write_text("<svg/>", encoding="utf-8")
+    (package / "figure-index.json").write_text(json.dumps({
+        "version": 1,
+        "figures": [{
+            "id": "dsc", "role": "supporting", "technique": "DSC",
+            "group": None, "writing_eligibility": "Results",
+            "svg": "figures/dsc.svg", "document": None, "data": None,
+            "metadata": "figures/dsc.metadata.json",
+        }],
+    }), encoding="utf-8")
+    view = load_evidence_package_view(package)
+    assert len(view.figure_views) == 1
+    assert view.figure_views[0].svg == "figures/dsc.svg"
+    assert view.figure_views[0].document is None
+
+
 def test_gui_adapter_returns_only_the_view_model(tmp_path: Path) -> None:
     view = load_evidence_package_view(_package(tmp_path))
     summary = EvidencePackageViewAdapter(view).summary()
