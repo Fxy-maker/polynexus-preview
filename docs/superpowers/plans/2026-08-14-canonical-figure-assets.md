@@ -24,6 +24,11 @@
 | `polynexus/gui/plot_gallery_service.py` and package-view adapter | Prefer indexed SVG/document entries and preserve object-editor capabilities. |
 | Focused tests named below | Prove export, package, GUI, ARS/CLI, and old-package compatibility boundaries. |
 
+**Confirmed boundary:** Existing ARS group renderers produce direct Matplotlib
+SVGs rather than Figure Project object documents.  They are indexed as
+viewable/static logical figures with no fabricated `figure.pnfig.json`; only
+manifest-backed figures with a valid document enter Chart Editor object mode.
+
 ### Task 1: Add An Evidence-Only Export Profile
 
 **Files:**
@@ -167,9 +172,10 @@ identity.
 Use frozen dataclasses with `to_dict()`/`from_dict()` and strict
 package-relative POSIX-path validation.  Required entry fields are `id`,
 `role`, `technique`, `group`, `writing_eligibility`, `svg`, `document`, `data`,
-and `metadata`.  Provide `FigureIndex.from_package(...)` only for a valid new
-index, and a separate `derive_legacy_figure_index(...)` adapter that reads
-existing package manifest/candidates/assets without writing anything.
+and `metadata`; `document` is `None` only for an explicitly static
+direct-render figure.  Provide `FigureIndex.from_package(...)` only for a
+valid new index, and a separate `derive_legacy_figure_index(...)` adapter that
+reads existing package manifest/candidates/assets without writing anything.
 
 ```python
 @dataclass(frozen=True)
@@ -180,7 +186,7 @@ class FigureIndexEntry:
     group: str | None
     writing_eligibility: str
     svg: str
-    document: str
+    document: str | None
     data: str
     metadata: str
 ```
@@ -229,14 +235,13 @@ python scripts/auto_commit.py --message "feat(evidence): index canonical figure 
 - [ ] **Step 1: Write failing reader tests**
 
 Add an index-backed package fixture and assert `load_evidence_package_view()`
-returns one neutral figure view with `svg_path`, `document_path`, role,
-technique, group, and writing eligibility.  Add an old-package fixture with no
-index and legacy SVG/PNG/PDF siblings; assert it returns one derived logical
-figure and does not create `figure-index.json`.
+returns one neutral figure view with `svg_path`, optional `document_path`,
+role, technique, group, and writing eligibility.  Add an old-package fixture
+with no index and legacy SVG/PNG/PDF siblings; assert it returns one derived
+logical figure and does not create `figure-index.json`.
 
 ```python
 view = load_evidence_package_view(indexed_package)
-assert view.figures[0].document_path.endswith("figure.pnfig.json")
 assert view.figures[0].svg_path.endswith("figure.svg")
 assert not (legacy_package / "figure-index.json").exists()
 ```
@@ -296,10 +301,11 @@ python scripts/auto_commit.py --message "feat(evidence): load canonical figure i
 - [ ] **Step 1: Write failing GUI contract tests**
 
 Add a gallery-entry fixture populated from `EvidenceFigureView`.  Assert it
-uses the indexed SVG as `primary_path`, the PN figure document as
+uses the indexed SVG as `primary_path`, an available PN figure document as
 `document_path`, and yields one entry regardless of legacy sibling formats.
 Add an editor-open test proving its valid object-editing capability opens
-without `force_static`; add a corrupt document fixture that forces static mode.
+without `force_static`; add an ARS-group/static fixture and a corrupt document
+fixture that force static mode.
 
 ```python
 request = resolve_chart_editor_entry(indexed.svg_path, entry=indexed_entry)

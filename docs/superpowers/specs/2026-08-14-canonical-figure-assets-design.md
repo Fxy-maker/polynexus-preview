@@ -102,7 +102,8 @@ Each new package writes `figure-index.json` at its root and references it from
 `manifest.json`.  It contains a version field and a `figures` array.  Every row
 describes one logical figure, never one image format.
 
-Required row fields:
+Required row fields (the `document` value is `null` for a static direct-render
+figure):
 
 ```json
 {
@@ -112,7 +113,7 @@ Required row fields:
   "group": "explicit group id or null",
   "writing_eligibility": "Results | Discussion | review_only",
   "svg": "figures/<figure-id>/figure.svg",
-  "document": "figures/<figure-id>/figure.pnfig.json",
+  "document": "figures/<figure-id>/figure.pnfig.json | null",
   "data": "figures/<figure-id>/data.csv",
   "metadata": "figures/<figure-id>/metadata.json"
 }
@@ -121,8 +122,9 @@ Required row fields:
 `group` and `writing_eligibility` may be unknown or review-bound, but they may
 not be invented.  Their values are projected from the existing candidate,
 evidence, and writing contracts.  A missing or unreadable required path makes
-the new index entry invalid; consumers fail closed for object editing and do
-not silently treat a broken document as editable.
+the new index entry invalid.  A missing document is valid only for an explicitly
+static direct-render figure; a broken non-null document disables object editing
+and must not be silently treated as editable.
 
 The index is the package's figure discovery surface.  `figure-candidates.json`
 continues to describe selection intent where it exists; the new index maps that
@@ -168,6 +170,11 @@ readers; those readers are updated at the same time.
 - A legacy or external bare SVG opens viewable/static.  It may support limited
   annotations but must not claim editable axes, curves, legends, or provenance
   that it cannot recover.
+- Current ARS-generated group figures that are rendered directly from
+  Matplotlib are treated as this static class.  They enter the index with their
+  SVG, structured group data where available, and metadata, but no fabricated
+  object-level Figure Project document.  Converting those generators into
+  editable Figure Projects is a separate, technique-by-technique enhancement.
 - The existing explicit publication/export action is where the user requests
   PNG, PDF, or TIFF.
 
