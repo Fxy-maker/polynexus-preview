@@ -223,7 +223,7 @@ def test_manifest_save_edits_creates_working_revision_without_legacy_export(
     document["objects"][0]["style"]["color"] = "#D55E00"
     formal_before = {
         role: (run_root / initial.figures[0].assets[role]).read_bytes()
-        for role in ("svg", "png", "pdf")
+        for role in ("svg",)
     }
     window = _manifest_save_harness(module.ChartEditorSaveMixin, entry, document)
 

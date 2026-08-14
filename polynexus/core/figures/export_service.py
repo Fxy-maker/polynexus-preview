@@ -80,12 +80,11 @@ class FigureArtifactExportService:
             tempfile.mkdtemp(prefix=".assets.staging-", dir=figure_dir)
         )
         staged_assets = {
-            "preview": staging_dir / profile.preview_filename,
-            **{
-                role: staging_dir / filename
-                for role, filename in profile.formal_assets.items()
-            },
+            role: staging_dir / filename
+            for role, filename in profile.formal_assets.items()
         }
+        if profile.preview_filename:
+            staged_assets["preview"] = staging_dir / profile.preview_filename
 
         try:
             with matplotlib.rc_context(
@@ -96,10 +95,14 @@ class FigureArtifactExportService:
                     "savefig.bbox": None,
                 }
             ):
-                self._save_preview(plan, staged_assets["preview"], profile)
-                self._save_svg(plan, staged_assets["svg"], profile)
-                self._save_png(plan, staged_assets["png"], profile)
-                self._save_pdf(plan, staged_assets["pdf"], profile)
+                if "preview" in staged_assets:
+                    self._save_preview(plan, staged_assets["preview"], profile)
+                if "svg" in staged_assets:
+                    self._save_svg(plan, staged_assets["svg"], profile)
+                if "png" in staged_assets:
+                    self._save_png(plan, staged_assets["png"], profile)
+                if "pdf" in staged_assets:
+                    self._save_pdf(plan, staged_assets["pdf"], profile)
                 if "tiff" in staged_assets:
                     self._save_tiff(plan, staged_assets["tiff"], profile)
 

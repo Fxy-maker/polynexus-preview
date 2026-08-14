@@ -7,6 +7,39 @@ from polynexus.core.figures.pipeline import FigurePipeline
 from polynexus.core.figures.project_service import FigureProjectService
 
 
+def test_evidence_run_uses_private_working_preview_and_explicit_publication_assets(
+    ir_definition,
+    tmp_path,
+):
+    initial = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="run-evidence",
+        technique="ir",
+        definitions=(ir_definition,),
+    )
+    run_root = tmp_path / "runs" / "run-evidence"
+    document = __import__("json").loads(
+        (run_root / initial.figures[0].document).read_text("utf-8")
+    )
+    document["objects"][0]["style"]["line_width"] = 1.7
+    service = FigureProjectService(tmp_path)
+
+    working = service.save_working(
+        run_id="run-evidence",
+        figure_id=initial.figures[0].figure_id,
+        document=document,
+    )
+    published = service.publish(
+        run_id="run-evidence",
+        figure_id=initial.figures[0].figure_id,
+    )
+
+    assert working.entry.assets["preview"].endswith("preview.png")
+    assert (run_root / working.entry.assets["preview"]).is_file()
+    assert set(published.entry.assets) == {"preview", "svg", "png", "pdf"}
+    assert published.document["export"]["profile"] == "paper_complete"
+
+
 def test_save_working_advances_only_working_revision(ir_definition, tmp_path):
     initial = FigurePipeline().run(
         output_root=tmp_path,
@@ -18,7 +51,7 @@ def test_save_working_advances_only_working_revision(ir_definition, tmp_path):
     run_root = tmp_path / "runs" / "run-1"
     formal_before = {
         role: (run_root / initial_entry.assets[role]).read_bytes()
-        for role in ("svg", "png", "pdf")
+        for role in ("svg",)
     }
     document = deepcopy(
         __import__("json").loads(

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class FigureOutputProfile:
     profile_id: str
-    preview_filename: str
+    preview_filename: str | None
     preview_dpi: int
     publication_png_dpi: int
     formal_assets: dict[str, str]
@@ -18,6 +18,13 @@ class FigureOutputProfile:
 
 
 _PROFILES = {
+    "evidence": FigureOutputProfile(
+        profile_id="evidence",
+        preview_filename=None,
+        preview_dpi=150,
+        publication_png_dpi=600,
+        formal_assets={"svg": "figure.svg"},
+    ),
     "paper_complete": FigureOutputProfile(
         profile_id="paper_complete",
         preview_filename="preview.png",

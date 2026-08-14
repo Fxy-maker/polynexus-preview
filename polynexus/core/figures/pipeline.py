@@ -47,7 +47,7 @@ class FigurePipeline:
         run_id: str,
         technique: str,
         definitions: Iterable[FigureDefinition],
-        profile_id: str = "paper_complete",
+        profile_id: str = "evidence",
     ) -> RunFigureManifest:
         run_id = str(run_id)
         if not _RUN_ID_PATTERN.fullmatch(run_id):

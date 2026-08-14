@@ -5,6 +5,30 @@ import pytest
 from polynexus.core.figures.pipeline import FigurePipeline
 
 
+def test_pipeline_default_profile_writes_svg_evidence_assets_only(
+    ir_definition,
+    tmp_path,
+):
+    manifest = FigurePipeline().run(
+        output_root=tmp_path,
+        run_id="evidence-default",
+        technique="ir",
+        definitions=(ir_definition,),
+    )
+
+    entry = manifest.figures[0]
+    run_root = tmp_path / "runs" / "evidence-default"
+    assert manifest.output_profile == "evidence"
+    assert entry.status == "ready"
+    assert set(entry.assets) == {"svg"}
+    assert (run_root / entry.assets["svg"]).is_file()
+    assert (run_root / entry.document).is_file()
+    assert all((run_root / path).is_file() for path in entry.data_sources)
+    assert not list(run_root.rglob("*.png"))
+    assert not list(run_root.rglob("*.pdf"))
+    assert not list(run_root.rglob("*.tiff"))
+
+
 def test_pipeline_commits_complete_run_and_active_pointer(
     ir_definition,
     tmp_path,

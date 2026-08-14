@@ -78,7 +78,7 @@ class FigureProjectService:
                 updated_document,
             )
             profile = get_figure_output_profile(manifest.output_profile)
-            preview_path = revision_dir / profile.preview_filename
+            preview_path = revision_dir / (profile.preview_filename or "preview.png")
             self.exporter.export_preview(
                 plan=plan,
                 path=preview_path,
@@ -126,7 +126,11 @@ class FigureProjectService:
         document_path = self._absolute_path(run_root, entry.document)
         document = self._read_json(document_path)
         plan = FigureRenderPlanBuilder(run_root).build(document_path, document)
-        profile = get_figure_output_profile(manifest.output_profile)
+        profile = get_figure_output_profile(
+            "paper_complete"
+            if manifest.output_profile == "evidence"
+            else manifest.output_profile
+        )
         publication_dir = (
             run_root
             / "figures"

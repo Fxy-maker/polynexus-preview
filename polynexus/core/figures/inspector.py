@@ -35,7 +35,9 @@ class FigureArtifactInspector:
     ) -> FigureArtifactInspection:
         errors: list[str] = []
         dimensions: dict[str, tuple[int, int, int]] = {}
-        required_roles = ("preview", *profile.formal_assets.keys())
+        required_roles = tuple(profile.formal_assets)
+        if profile.preview_filename:
+            required_roles = ("preview", *required_roles)
 
         for role in required_roles:
             path = assets.get(role)
@@ -45,7 +47,7 @@ class FigureArtifactInspector:
             dimensions[role] = read_figure_asset_dimensions(path)
 
         png_dpi = dimensions.get("png", (0, 0, 0))[2]
-        if png_dpi != profile.publication_png_dpi:
+        if "png" in profile.formal_assets and png_dpi != profile.publication_png_dpi:
             errors.append(
                 f"publication PNG DPI is {png_dpi}, "
                 f"expected {profile.publication_png_dpi}"
