@@ -16,6 +16,22 @@
   run was intentionally not performed without a user-provided disposable
   sample path because analysis creates output beside its input.
 - Task card: `docs/agent/tasks/2026-08-09-gui-automation-mcp.md`.
+## Evidence figure role projection - implementation complete, review required (2026-08-21)
+
+- The evidence packager now projects the declared ARS candidate role,
+  technique, and explicit single group ID into `figure-index.json`, instead of
+  assigning every package SVG `diagnostic` and the first evidence technique.
+  Candidate entries remain `review_only`; unselected run figures remain
+  diagnostic.
+- Figure stem, rather than renderer directory, separates distinct group
+  overlays/trends. Same SVG/PNG candidate siblings still create one canonical
+  SVG index entry; missing SVGs and candidate role/technique/group conflicts
+  fail closed.
+- Focused producer/ARS/package-view/AI-entry/Gallery coverage passed `64`.
+  Read-only PA6 FTIR replay created `pa6-role-projection-smoke-v002` with one
+  `manuscript_candidate / IR` overlay plus 18 diagnostics for
+  `ir:pa6-jw:temperature_C`. Acceptance:
+  `docs/acceptance/2026-08-21-evidence-figure-role-projection.md`.
 
 ## Canonical experiment templates and PA6 multi-program DSC - review required (2026-08-12)
 

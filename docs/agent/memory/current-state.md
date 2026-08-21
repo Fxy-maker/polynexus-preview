@@ -1624,3 +1624,18 @@ results-table contract is unchanged. Verification evidence is tracked in
   `canonical-figure-assets-pa6-v002` with 112 SVG/index entries, zero package
   PNG/PDF files, and intact ARS writing input.  Acceptance:
   `docs/acceptance/2026-08-14-canonical-figure-assets.md`.
+
+## Evidence figure role projection - review required 2026-08-21
+
+- Evidence package indexing now preserves ARS-selected main/supporting
+  candidate intent: selected FTIR group SVGs become `manuscript_candidate` or
+  `supporting_candidate`, while unselected run output remains `diagnostic`.
+  Candidate figures remain `review_only`; this is not a scientific promotion.
+- Index technique is no longer copied from the first package evidence item; it
+  comes from the producing run or candidate. Candidate group IDs are retained
+  only when explicit. Same candidate PNG/SVG siblings deduplicate safely, and
+  missing SVGs or role/technique/group conflicts fail closed.
+- A read-only real PA6 FTIR replay produced
+  `pa6-role-projection-smoke-v002` with one `manuscript_candidate / IR` group
+  overlay plus 18 diagnostics. Acceptance:
+  `docs/acceptance/2026-08-21-evidence-figure-role-projection.md`.

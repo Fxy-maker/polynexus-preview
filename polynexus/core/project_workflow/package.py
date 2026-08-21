@@ -84,7 +84,7 @@ class ProjectEvidencePackager:
                 limitations.extend(item.limitations)
 
             copied_assets.extend(
-                self._asset_descriptors(run, package_id, include_figures=figure_candidates is None)
+                self._asset_descriptors(run, package_id)
             )
 
         figure_candidate_payload = figure_candidates.to_dict() if figure_candidates else None
@@ -198,18 +198,17 @@ class ProjectEvidencePackager:
 
     @staticmethod
     def _canonical_figure_assets(
-        assets: list[dict[str, str]], evidence: list[dict[str, Any]]
+        assets: list[dict[str, Any]], evidence: list[dict[str, Any]]
     ) -> tuple[list[dict[str, str]], dict[str, Any]]:
         """Keep one SVG asset per directly rendered logical figure."""
         figures = [item for item in assets if item["kind"] == "figures"]
-        grouped: dict[str, list[dict[str, str]]] = {}
+        grouped: dict[str, list[dict[str, Any]]] = {}
         for item in figures:
             grouped.setdefault(
-                str(Path(item["source"]).parent), []
+                str(item.get("logical_figure_key") or Path(item["source"]).parent), []
             ).append(item)
         retained = [item for item in assets if item["kind"] != "figures"]
         index_entries: list[dict[str, Any]] = []
-        technique = str(evidence[0].get("technique", "unknown")).upper() if evidence else "UNKNOWN"
         for _source_key, values in grouped.items():
             svg = next((item for item in values if Path(item["source"]).suffix.lower() == ".svg"), None)
             if svg is None:
@@ -220,10 +219,10 @@ class ProjectEvidencePackager:
             metadata = f"figures/{Path(svg['name']).with_suffix('').name}.metadata.json"
             index_entries.append({
                 "id": safe_id,
-                "role": "diagnostic",
-                "technique": technique,
-                "group": None,
-                "writing_eligibility": "review_only",
+                "role": str(svg.get("role") or "diagnostic"),
+                "technique": str(svg.get("technique") or "UNKNOWN").upper(),
+                "group": str(svg.get("group") or "").strip() or None,
+                "writing_eligibility": str(svg.get("writing_eligibility") or "review_only"),
                 "svg": f"figures/{svg['name']}",
                 "document": None,
                 "data": None,
@@ -432,8 +431,14 @@ class ProjectEvidencePackager:
 
     def _asset_descriptors(
         self, run: ProjectWorkflowRun, package_id: str, *, include_figures: bool = True
-    ) -> list[dict[str, str]]:
-        assets: list[dict[str, str]] = []
+    ) -> list[dict[str, Any]]:
+        assets: list[dict[str, Any]] = []
+        techniques = {
+            str(item.technique).upper()
+            for item in run.evidence_items
+            if str(item.technique).strip()
+        }
+        technique = next(iter(techniques)) if len(techniques) == 1 else "UNKNOWN"
         for output in run.outputs:
             source = Path(output).expanduser().resolve()
             if not source.is_file() or source.name.endswith(".json") and source.name == f"{run.run_id}.json":
@@ -452,23 +457,56 @@ class ProjectEvidencePackager:
                 kind = "tables"
             else:
                 continue
-            assets.append({"source": str(source), "kind": kind, "name": source.name})
+            assets.append({
+                "source": str(source),
+                "kind": kind,
+                "name": source.name,
+                "role": "diagnostic",
+                "technique": technique,
+                "group": None,
+                "writing_eligibility": "review_only",
+            })
         return assets
 
-    def _candidate_asset_descriptors(self, candidates: FigureCandidateSet) -> list[dict[str, str]]:
+    def _candidate_asset_descriptors(self, candidates: FigureCandidateSet) -> list[dict[str, Any]]:
         """Return only main/supporting candidate assets from project-local figures."""
-        assets: list[dict[str, str]] = []
+        assets: list[dict[str, Any]] = []
+        metadata_by_logical_figure: dict[str, tuple[str, str, str | None]] = {}
         figures_root = self.workspace.figures_dir.resolve()
-        for candidate in (*candidates.main_candidates, *candidates.supporting_candidates):
-            for value in candidate.paths:
-                source = Path(value).expanduser().resolve()
-                try:
-                    source.relative_to(figures_root)
-                except ValueError as exc:
-                    raise ValueError("figure candidate asset must be inside .polynexus/figures") from exc
-                if not source.is_file() or source.suffix.lower() not in _FIGURE_SUFFIXES:
-                    raise ValueError("figure candidate asset is invalid")
-                assets.append({"source": str(source), "kind": "figures", "name": source.name})
+        for candidate_role, values in (
+            ("manuscript_candidate", candidates.main_candidates),
+            ("supporting_candidate", candidates.supporting_candidates),
+        ):
+            for candidate in values:
+                candidate_paths = tuple(Path(value).expanduser().resolve() for value in candidate.paths)
+                if not any(path.suffix.lower() == ".svg" for path in candidate_paths):
+                    raise ValueError("figure candidate svg is missing")
+                group = candidate.group_ids[0] if len(candidate.group_ids) == 1 else None
+                for source in candidate_paths:
+                    try:
+                        source.relative_to(figures_root)
+                    except ValueError as exc:
+                        raise ValueError("figure candidate asset must be inside .polynexus/figures") from exc
+                    if not source.is_file() or source.suffix.lower() not in _FIGURE_SUFFIXES:
+                        raise ValueError("figure candidate asset is invalid")
+                    logical_figure_key = str(source.parent / source.stem)
+                    metadata = (candidate_role, str(candidate.technique).upper(), group)
+                    existing_metadata = metadata_by_logical_figure.get(logical_figure_key)
+                    if existing_metadata is not None and existing_metadata != metadata:
+                        if existing_metadata[0] != candidate_role:
+                            raise ValueError("conflicting figure candidate role")
+                        raise ValueError("conflicting figure candidate metadata")
+                    metadata_by_logical_figure[logical_figure_key] = metadata
+                    assets.append({
+                        "source": str(source),
+                        "kind": "figures",
+                        "name": source.name,
+                        "role": candidate_role,
+                        "technique": str(candidate.technique).upper(),
+                        "group": group,
+                        "writing_eligibility": "review_only",
+                        "logical_figure_key": logical_figure_key,
+                    })
         return assets
 
     @staticmethod

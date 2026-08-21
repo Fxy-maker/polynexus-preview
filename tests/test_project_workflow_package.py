@@ -14,6 +14,7 @@ from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.agent_workflow.models import AnalysisRecipe, AnalysisRun, EvidenceRecord, InputArtifact, RecipeStep, WorkflowStepResult
 from polynexus.core.project_workflow.evidence import evidence_items_from_run
+from polynexus.core.project_workflow.ir_group_figures import FigureCandidate, FigureCandidateSet
 
 
 def _write_mettler_fixture(path: Path) -> Path:
@@ -227,11 +228,246 @@ def test_package_indexes_svg_once_when_derived_figure_has_png_sibling(tmp_path: 
     assert len(index["figures"]) == 1
     entry = index["figures"][0]
     assert entry["svg"] == "figures/kinetics.svg"
+    assert entry["role"] == "diagnostic"
+    assert entry["technique"] == "DSC"
     assert entry["document"] is None
     assert entry["data"] is None
     assert (package.path / entry["metadata"]).is_file()
     assert not (package.path / "figures" / "kinetics.png").exists()
     assert not (package.path / "figures" / "preview.png").exists()
+
+
+def test_package_index_preserves_ars_selected_figure_role_and_technique(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    dsc_figure = tmp_path / ".polynexus" / "runs" / run.run_id / "dsc-output.svg"
+    dsc_figure.parent.mkdir(parents=True, exist_ok=True)
+    dsc_figure.write_text("<svg>unselected DSC output</svg>", encoding="utf-8")
+    figure_dir = tmp_path / ".polynexus" / "figures" / "selection"
+    figure_dir.mkdir(parents=True)
+    svg = figure_dir / "ftir_group_overlay.svg"
+    png = figure_dir / "ftir_group_overlay.png"
+    svg.write_text("<svg>selected FTIR group figure</svg>", encoding="utf-8")
+    png.write_bytes(b"selected FTIR group preview")
+    candidates = FigureCandidateSet(
+        selection_id="selection",
+        main_candidates=(FigureCandidate(
+            candidate_id="selection:group_overlay",
+            kind="group_overlay",
+            role="main_candidate",
+            group_ids=("ir:pa6-jw:temperature_C",),
+            technique="ir",
+            condition_kind="temperature_C",
+            source_artifacts=("raw/PA6-JW-100.csv", "raw/PA6-JW-110.csv"),
+            paths=(str(png), str(svg)),
+        ),),
+    )
+
+    package = ProjectWorkflowService.open(tmp_path).package(
+        replace(run, outputs=(*run.outputs, str(dsc_figure))), figure_candidates=candidates
+    )
+
+    index = json.loads((package.path / "figure-index.json").read_text(encoding="utf-8"))
+    assert index["figures"] == [
+        {
+            "id": "dsc-output",
+            "role": "diagnostic",
+            "technique": "DSC",
+            "group": None,
+            "writing_eligibility": "review_only",
+            "svg": "figures/dsc-output.svg",
+            "document": None,
+            "data": None,
+            "metadata": "figures/dsc-output.metadata.json",
+        },
+        {
+            "id": "ftir_group_overlay",
+            "role": "manuscript_candidate",
+            "technique": "IR",
+            "group": "ir:pa6-jw:temperature_C",
+            "writing_eligibility": "review_only",
+            "svg": "figures/ftir_group_overlay.svg",
+            "document": None,
+            "data": None,
+            "metadata": "figures/ftir_group_overlay.metadata.json",
+        }
+    ]
+
+
+def test_package_rejects_conflicting_candidate_roles_for_same_figure(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    figure = tmp_path / ".polynexus" / "figures" / "selection" / "figure.svg"
+    figure.parent.mkdir(parents=True)
+    figure.write_text("<svg>candidate</svg>", encoding="utf-8")
+    candidate = FigureCandidate(
+        candidate_id="selection:figure",
+        kind="group_overlay",
+        role="main_candidate",
+        group_ids=("ir:pa6-jw:temperature_C",),
+        technique="ir",
+        condition_kind="temperature_C",
+        source_artifacts=("raw/PA6-JW-100.csv",),
+        paths=(str(figure),),
+    )
+
+    with pytest.raises(ValueError, match="conflicting figure candidate role"):
+        ProjectWorkflowService.open(tmp_path).package(
+            run,
+            figure_candidates=FigureCandidateSet(
+                selection_id="selection",
+                main_candidates=(candidate,),
+                supporting_candidates=(candidate,),
+            ),
+        )
+
+
+def test_package_rejects_conflicting_candidate_roles_for_figure_siblings(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    figure_dir = tmp_path / ".polynexus" / "figures" / "selection"
+    figure_dir.mkdir(parents=True)
+    svg = figure_dir / "figure.svg"
+    png = figure_dir / "figure.png"
+    svg.write_text("<svg>candidate</svg>", encoding="utf-8")
+    png.write_bytes(b"candidate preview")
+    common = {
+        "kind": "group_overlay",
+        "group_ids": ("ir:pa6-jw:temperature_C",),
+        "technique": "ir",
+        "condition_kind": "temperature_C",
+        "source_artifacts": ("raw/PA6-JW-100.csv",),
+    }
+
+    with pytest.raises(ValueError, match="conflicting figure candidate role"):
+        ProjectWorkflowService.open(tmp_path).package(
+            run,
+            figure_candidates=FigureCandidateSet(
+                selection_id="selection",
+                main_candidates=(FigureCandidate(
+                    candidate_id="selection:main", role="main_candidate", paths=(str(svg),), **common
+                ),),
+                supporting_candidates=(FigureCandidate(
+                    candidate_id="selection:support", role="supporting_candidate", paths=(str(png), str(svg)), **common
+                ),),
+            ),
+        )
+
+
+def test_package_indexes_distinct_selected_figures_from_one_output_directory(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    figure_dir = tmp_path / ".polynexus" / "figures" / "selection" / "main"
+    figure_dir.mkdir(parents=True)
+    overlay = figure_dir / "ftir_group_overlay.svg"
+    trend = figure_dir / "ftir_metric_trend.svg"
+    overlay.write_text("<svg>overlay</svg>", encoding="utf-8")
+    trend.write_text("<svg>trend</svg>", encoding="utf-8")
+    common = {
+        "role": "main_candidate",
+        "group_ids": ("ir:pa6-jw:temperature_C",),
+        "technique": "ir",
+        "condition_kind": "temperature_C",
+        "source_artifacts": ("raw/PA6-JW-100.csv", "raw/PA6-JW-110.csv"),
+    }
+    candidates = FigureCandidateSet(
+        selection_id="selection",
+        main_candidates=(
+            FigureCandidate(candidate_id="selection:overlay", kind="group_overlay", paths=(str(overlay),), **common),
+            FigureCandidate(candidate_id="selection:trend", kind="metric_trend", paths=(str(trend),), **common),
+        ),
+    )
+
+    package = ProjectWorkflowService.open(tmp_path).package(run, figure_candidates=candidates)
+
+    index = json.loads((package.path / "figure-index.json").read_text(encoding="utf-8"))
+    assert {(entry["svg"], entry["role"]) for entry in index["figures"]} == {
+        ("figures/ftir_group_overlay.svg", "manuscript_candidate"),
+        ("figures/ftir_metric_trend.svg", "manuscript_candidate"),
+    }
+
+
+def test_package_rejects_candidate_without_svg(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    png = tmp_path / ".polynexus" / "figures" / "selection" / "figure.png"
+    png.parent.mkdir(parents=True)
+    png.write_bytes(b"PNG-only candidate")
+    candidate = FigureCandidate(
+        candidate_id="selection:figure",
+        kind="group_overlay",
+        role="main_candidate",
+        group_ids=("ir:pa6-jw:temperature_C",),
+        technique="ir",
+        condition_kind="temperature_C",
+        source_artifacts=("raw/PA6-JW-100.csv",),
+        paths=(str(png),),
+    )
+
+    with pytest.raises(ValueError, match="figure candidate svg is missing"):
+        ProjectWorkflowService.open(tmp_path).package(
+            run,
+            figure_candidates=FigureCandidateSet(
+                selection_id="selection", main_candidates=(candidate,)
+            ),
+        )
+
+
+def test_package_deduplicates_same_role_candidate_siblings_with_different_ids(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    figure_dir = tmp_path / ".polynexus" / "figures" / "selection"
+    figure_dir.mkdir(parents=True)
+    svg = figure_dir / "figure.svg"
+    png = figure_dir / "figure.png"
+    svg.write_text("<svg>candidate</svg>", encoding="utf-8")
+    png.write_bytes(b"candidate preview")
+    common = {
+        "role": "main_candidate",
+        "group_ids": ("ir:pa6-jw:temperature_C",),
+        "technique": "ir",
+        "condition_kind": "temperature_C",
+        "source_artifacts": ("raw/PA6-JW-100.csv",),
+    }
+    package = ProjectWorkflowService.open(tmp_path).package(
+        run,
+        figure_candidates=FigureCandidateSet(
+            selection_id="selection",
+            main_candidates=(
+                FigureCandidate(candidate_id="selection:one", kind="group_overlay", paths=(str(svg),), **common),
+                FigureCandidate(candidate_id="selection:two", kind="group_overlay", paths=(str(png), str(svg)), **common),
+            ),
+        ),
+    )
+
+    index = json.loads((package.path / "figure-index.json").read_text(encoding="utf-8"))
+    assert [entry["svg"] for entry in index["figures"] if entry["id"] == "figure"] == ["figures/figure.svg"]
+    assert not (package.path / "figures" / "figure.png").exists()
+
+
+def test_package_rejects_conflicting_candidate_group_for_same_figure(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    svg = tmp_path / ".polynexus" / "figures" / "selection" / "figure.svg"
+    svg.parent.mkdir(parents=True)
+    svg.write_text("<svg>candidate</svg>", encoding="utf-8")
+    common = {
+        "kind": "group_overlay",
+        "role": "main_candidate",
+        "technique": "ir",
+        "condition_kind": "temperature_C",
+        "source_artifacts": ("raw/PA6-JW-100.csv",),
+        "paths": (str(svg),),
+    }
+
+    with pytest.raises(ValueError, match="conflicting figure candidate metadata"):
+        ProjectWorkflowService.open(tmp_path).package(
+            run,
+            figure_candidates=FigureCandidateSet(
+                selection_id="selection",
+                main_candidates=(
+                    FigureCandidate(
+                        candidate_id="selection:one", group_ids=("ir:pa6-jw:temperature_C",), **common
+                    ),
+                    FigureCandidate(
+                        candidate_id="selection:two", group_ids=("ir:pa6-sw:temperature_C",), **common
+                    ),
+                ),
+            ),
+        )
 
 
 def test_package_keeps_same_named_derived_figures_from_distinct_sources(tmp_path: Path) -> None:
