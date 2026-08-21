@@ -439,6 +439,36 @@ def test_package_deduplicates_same_role_candidate_siblings_with_different_ids(tm
     assert not (package.path / "figures" / "figure.png").exists()
 
 
+def test_package_omits_preview_named_candidate_sibling(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    figure_dir = tmp_path / ".polynexus" / "figures" / "selection" / "figure"
+    figure_dir.mkdir(parents=True)
+    svg = figure_dir / "figure.svg"
+    preview = figure_dir / "preview.png"
+    svg.write_text("<svg>candidate</svg>", encoding="utf-8")
+    preview.write_bytes(b"private preview")
+    candidate = FigureCandidate(
+        candidate_id="selection:figure",
+        kind="group_overlay",
+        role="main_candidate",
+        group_ids=("ir:pa6-jw:temperature_C",),
+        technique="ir",
+        condition_kind="temperature_C",
+        source_artifacts=("raw/PA6-JW-100.csv",),
+        paths=(str(svg), str(preview)),
+    )
+
+    package = ProjectWorkflowService.open(tmp_path).package(
+        run, figure_candidates=FigureCandidateSet(
+            selection_id="selection", main_candidates=(candidate,)
+        )
+    )
+
+    index = json.loads((package.path / "figure-index.json").read_text(encoding="utf-8"))
+    assert [entry["svg"] for entry in index["figures"] if entry["id"] == "figure"] == ["figures/figure.svg"]
+    assert not (package.path / "figures" / "preview.png").exists()
+
+
 def test_package_rejects_conflicting_candidate_group_for_same_figure(tmp_path: Path) -> None:
     run = _run_dsc_request(tmp_path)
     svg = tmp_path / ".polynexus" / "figures" / "selection" / "figure.svg"
@@ -464,6 +494,41 @@ def test_package_rejects_conflicting_candidate_group_for_same_figure(tmp_path: P
                     ),
                     FigureCandidate(
                         candidate_id="selection:two", group_ids=("ir:pa6-sw:temperature_C",), **common
+                    ),
+                ),
+            ),
+        )
+
+
+def test_package_rejects_conflicting_multi_group_candidate_for_same_figure(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    svg = tmp_path / ".polynexus" / "figures" / "selection" / "figure.svg"
+    svg.parent.mkdir(parents=True)
+    svg.write_text("<svg>candidate</svg>", encoding="utf-8")
+    common = {
+        "kind": "group_comparison_overlay",
+        "role": "main_candidate",
+        "technique": "ir",
+        "condition_kind": "temperature_C",
+        "source_artifacts": ("raw/PA6-JW-100.csv",),
+        "paths": (str(svg),),
+    }
+
+    with pytest.raises(ValueError, match="conflicting figure candidate metadata"):
+        ProjectWorkflowService.open(tmp_path).package(
+            run,
+            figure_candidates=FigureCandidateSet(
+                selection_id="selection",
+                main_candidates=(
+                    FigureCandidate(
+                        candidate_id="selection:one",
+                        group_ids=("ir:pa6-jw:temperature_C", "ir:pa6-sw:temperature_C"),
+                        **common,
+                    ),
+                    FigureCandidate(
+                        candidate_id="selection:two",
+                        group_ids=("ir:pa6-jw:temperature_C", "ir:pa6-rw:temperature_C"),
+                        **common,
                     ),
                 ),
             ),

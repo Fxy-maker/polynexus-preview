@@ -79,9 +79,9 @@ python scripts/auto_commit.py --message "fix(evidence): preserve selected figure
   - Focused red regression before implementation:
     `python -m pytest -p no:cacheprovider -q tests/test_project_workflow_package.py -k "preserves_ars_selected_figure_role_and_technique"` -> expected failure: index emitted `diagnostic`, `DSC`, and no group for a selected IR candidate.
   - Focused producer and consumer matrix:
-    `python -m pytest -p no:cacheprovider -q tests/test_project_workflow_package.py tests/test_ars_group_figure_candidates.py tests/test_evidence_package_view.py tests/test_ai_native_project_entrypoint.py tests/test_plot_gallery_service.py` -> `64 passed`.
+    `python -m pytest -p no:cacheprovider -q tests/test_project_workflow_package.py tests/test_ars_group_figure_candidates.py tests/test_evidence_package_view.py tests/test_ai_native_project_entrypoint.py tests/test_plot_gallery_service.py` -> `66 passed`.
   - `ruff check polynexus/core/project_workflow/package.py tests/test_project_workflow_package.py`, `python -m compileall -q polynexus/core/project_workflow/package.py`, and `git diff --check` -> passed.
-  - Read-only real PA6 FTIR replay created `D:\PolyNexus-pa6-four-technique-smoke-20260814\.polynexus\evidence\pa6-role-projection-smoke-v002`; its selected FTIR overlay is indexed as `manuscript_candidate`, `IR`, group `ir:pa6-jw:temperature_C`, and `review_only`, alongside 18 IR diagnostic entries. The raw input junction was not modified.
+  - Read-only real PA6 FTIR replay created `D:\PolyNexus-pa6-four-technique-smoke-20260814\.polynexus\evidence\pa6-role-projection-smoke-v003`; its selected FTIR overlay is indexed as `manuscript_candidate`, `IR`, group `ir:pa6-jw:temperature_C`, and `review_only`, alongside 27 IR diagnostic entries. All indexed SVG and metadata paths exist; the raw input junction was not modified.
 - Known limitations or follow-up: only FTIR has an ARS group-figure renderer;
   DSC/SAXS/WAXS/WAXS group-level candidate generators remain future work.
 - Pre-existing changes left untouched: `.superpowers/`, `tests/_tmp_phase3/`.

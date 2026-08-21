@@ -24,12 +24,14 @@
   Candidate entries remain `review_only`; unselected run figures remain
   diagnostic.
 - Figure stem, rather than renderer directory, separates distinct group
-  overlays/trends. Same SVG/PNG candidate siblings still create one canonical
-  SVG index entry; missing SVGs and candidate role/technique/group conflicts
-  fail closed.
-- Focused producer/ARS/package-view/AI-entry/Gallery coverage passed `64`.
-  Read-only PA6 FTIR replay created `pa6-role-projection-smoke-v002` with one
-  `manuscript_candidate / IR` overlay plus 18 diagnostics for
+  overlays/trends. Same SVG/PNG/preview candidate siblings still create one
+  canonical SVG index entry; missing SVGs and candidate
+  role/technique/full-group-set conflicts fail closed. Index v1 leaves
+  multi-group comparison `group` null, while its candidate manifest retains
+  the full set.
+- Focused producer/ARS/package-view/AI-entry/Gallery coverage passed `66`.
+  Read-only PA6 FTIR replay created `pa6-role-projection-smoke-v003` with one
+  `manuscript_candidate / IR` overlay plus 27 diagnostics for
   `ir:pa6-jw:temperature_C`. Acceptance:
   `docs/acceptance/2026-08-21-evidence-figure-role-projection.md`.
 

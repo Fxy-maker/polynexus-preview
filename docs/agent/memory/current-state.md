@@ -1634,8 +1634,10 @@ results-table contract is unchanged. Verification evidence is tracked in
 - Index technique is no longer copied from the first package evidence item; it
   comes from the producing run or candidate. Candidate group IDs are retained
   only when explicit. Same candidate PNG/SVG siblings deduplicate safely, and
-  missing SVGs or role/technique/group conflicts fail closed.
+  missing SVGs or role/technique/full-group-set conflicts fail closed. Index
+  v1 preserves a single group only; multi-group comparison membership remains
+  in the candidate manifest rather than being invented in the index.
 - A read-only real PA6 FTIR replay produced
-  `pa6-role-projection-smoke-v002` with one `manuscript_candidate / IR` group
-  overlay plus 18 diagnostics. Acceptance:
+  `pa6-role-projection-smoke-v003` with one `manuscript_candidate / IR` group
+  overlay plus 27 diagnostics. Acceptance:
   `docs/acceptance/2026-08-21-evidence-figure-role-projection.md`.

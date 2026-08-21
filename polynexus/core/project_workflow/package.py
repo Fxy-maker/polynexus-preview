@@ -471,7 +471,7 @@ class ProjectEvidencePackager:
     def _candidate_asset_descriptors(self, candidates: FigureCandidateSet) -> list[dict[str, Any]]:
         """Return only main/supporting candidate assets from project-local figures."""
         assets: list[dict[str, Any]] = []
-        metadata_by_logical_figure: dict[str, tuple[str, str, str | None]] = {}
+        metadata_by_logical_figure: dict[str, tuple[str, str, tuple[str, ...]]] = {}
         figures_root = self.workspace.figures_dir.resolve()
         for candidate_role, values in (
             ("manuscript_candidate", candidates.main_candidates),
@@ -489,8 +489,12 @@ class ProjectEvidencePackager:
                         raise ValueError("figure candidate asset must be inside .polynexus/figures") from exc
                     if not source.is_file() or source.suffix.lower() not in _FIGURE_SUFFIXES:
                         raise ValueError("figure candidate asset is invalid")
-                    logical_figure_key = str(source.parent / source.stem)
-                    metadata = (candidate_role, str(candidate.technique).upper(), group)
+                    logical_figure_key = self._candidate_logical_figure_key(source)
+                    metadata = (
+                        candidate_role,
+                        str(candidate.technique).upper(),
+                        tuple(str(value) for value in candidate.group_ids),
+                    )
                     existing_metadata = metadata_by_logical_figure.get(logical_figure_key)
                     if existing_metadata is not None and existing_metadata != metadata:
                         if existing_metadata[0] != candidate_role:
@@ -508,6 +512,13 @@ class ProjectEvidencePackager:
                         "logical_figure_key": logical_figure_key,
                     })
         return assets
+
+    @staticmethod
+    def _candidate_logical_figure_key(source: Path) -> str:
+        """Normalize the renderer's conventional ``preview`` sibling name."""
+        stem = source.stem.lower()
+        logical_stem = "figure" if stem in {"preview", "thumbnail"} else source.stem
+        return str(source.parent / logical_stem)
 
     @staticmethod
     def _package_figure_candidate_payload(

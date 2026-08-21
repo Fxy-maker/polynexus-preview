@@ -16,12 +16,15 @@ source metadata through its existing asset descriptors:
 - selected group figures keep their single explicit group ID;
 - all such entries remain `review_only` until human review.
 
-Candidate PNG/SVG siblings remain one logical SVG entry. Different candidates
-in the same renderer output directory remain distinct by their figure stem,
-while a role, technique, or group conflict for the same logical figure fails
-package construction rather than silently promoting or demoting it. A
-candidate lacking an SVG also fails rather than producing an unindexed PNG/PDF
-asset.
+Candidate PNG/SVG and `preview.png` siblings remain one logical SVG entry.
+Different candidates in the same renderer output directory remain distinct by
+their figure stem, while a role, technique, or complete group-set conflict for
+the same logical figure fails package construction rather than silently
+promoting or demoting it. A candidate lacking an SVG also fails rather than
+producing an unindexed PNG/PDF asset. Index v1 has one `group` field, so a
+multi-group comparison keeps `group: null`; its complete group set still
+participates in conflict validation and remains available in
+`figure-candidates.json`.
 
 ## Verification
 
@@ -36,7 +39,7 @@ After the repair, the shared producer/consumer matrix passed:
 
 ```text
 python -m pytest -p no:cacheprovider -q tests/test_project_workflow_package.py tests/test_ars_group_figure_candidates.py tests/test_evidence_package_view.py tests/test_ai_native_project_entrypoint.py tests/test_plot_gallery_service.py
-64 passed in 7.05s
+66 passed in 7.88s
 ```
 
 `ruff check polynexus/core/project_workflow/package.py
@@ -57,8 +60,8 @@ python -m polynexus project-workflow analyze-project `
 ```
 
 The fresh package
-`D:\PolyNexus-pa6-four-technique-smoke-20260814\.polynexus\evidence\pa6-role-projection-smoke-v002`
-has 19 index entries: 18 `diagnostic` IR run figures and one selected group
+`D:\PolyNexus-pa6-four-technique-smoke-20260814\.polynexus\evidence\pa6-role-projection-smoke-v003`
+has 28 index entries: 27 `diagnostic` IR run figures and one selected group
 overlay:
 
 ```json
