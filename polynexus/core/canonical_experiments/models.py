@@ -484,6 +484,7 @@ class CanonicalExperiment:
     mapping_proposal: MappingProposal | None = None
     contract_version: str = CONTRACT_VERSION
     content_hash: str = ""
+    _legacy_serialization: bool = field(default=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "payload", _freeze(self.payload))
@@ -492,6 +493,10 @@ class CanonicalExperiment:
             raise TypeError("Canonical experiment measurements must be Measurement values")
         if self.mapping_proposal is not None and not isinstance(self.mapping_proposal, MappingProposal):
             raise TypeError("Canonical experiment mapping proposal must be a MappingProposal")
+        if not isinstance(self._legacy_serialization, bool):
+            raise TypeError("Canonical experiment legacy serialization flag must be a boolean")
+        if self._legacy_serialization and (self.measurements or self.mapping_proposal is not None):
+            raise ValueError("Canonical experiment legacy serialization cannot contain new contract fields")
 
     @classmethod
     def create(
@@ -550,6 +555,17 @@ class CanonicalExperiment:
         }
 
     def to_dict(self) -> dict[str, Any]:
+        if self._legacy_serialization:
+            return {
+                **self._legacy_payload(
+                    template_id=self.template_id,
+                    source_artifact_id=self.source_artifact_id,
+                    payload=self.payload,
+                    conversion_record=self.conversion_record,
+                    contract_version=self.contract_version,
+                ),
+                "content_hash": self.content_hash,
+            }
         return {
             **self._payload(
                 template_id=self.template_id,
@@ -616,6 +632,18 @@ class CanonicalExperiment:
             )
         if str(value.get("content_hash", "")) != expected_hash:
             raise ValueError("Canonical template content hash does not match its content")
+        if not has_measurements:
+            return cls(
+                template_id=template.template_id,
+                source_artifact_id=template.source_artifact_id,
+                payload=template.payload,
+                conversion_record=template.conversion_record,
+                measurements=template.measurements,
+                mapping_proposal=template.mapping_proposal,
+                contract_version=template.contract_version,
+                content_hash=str(value["content_hash"]),
+                _legacy_serialization=True,
+            )
         return template
 
 
