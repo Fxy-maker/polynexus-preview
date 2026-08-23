@@ -14,6 +14,36 @@ from typing import Any
 
 
 COMPUTE_STATUSES = frozenset({"ready", "needs_input", "failed", "completed"})
+_FORBIDDEN_LEGACY_PROJECTION_KEYS = frozenset(
+    {
+        "analysis_evidence",
+        "writing_eligibility",
+        "manuscript_role",
+        "manuscript_candidate",
+        "review_required",
+        "evidence",
+    }
+)
+
+
+def _string_value(value: Any, field_name: str, *, allow_empty: bool = False) -> str:
+    if isinstance(value, Path):
+        value = str(value)
+    if not isinstance(value, str):
+        raise TypeError(f"{field_name} must be a string or path")
+    if not allow_empty and not value:
+        raise ValueError(f"{field_name} must not be empty")
+    return value
+
+
+def _freeze_strings(value: Sequence[str] | None, field_name: str) -> tuple[str, ...]:
+    if (
+        value is None
+        or isinstance(value, (str, bytes, bytearray))
+        or not isinstance(value, Sequence)
+    ):
+        raise TypeError(f"{field_name} must be a sequence of strings")
+    return tuple(_string_value(item, f"{field_name} item") for item in value)
 
 
 def _freeze_json(value: Any) -> Any:
@@ -46,10 +76,29 @@ def _freeze_mapping(value: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return frozen
 
 
+def _scrub_legacy_projection(value: Any) -> Any:
+    """Remove paper and review fields from recursively projected legacy data."""
+    if isinstance(value, Mapping):
+        return {
+            key: _scrub_legacy_projection(item)
+            for key, item in value.items()
+            if not (
+                isinstance(key, str)
+                and key.casefold().replace("-", "_") in _FORBIDDEN_LEGACY_PROJECTION_KEYS
+            )
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return tuple(_scrub_legacy_projection(item) for item in value)
+    return value
+
+
 def _json_value(value: Any) -> Any:
     """Return a fresh standard-library JSON value from a frozen contract value."""
     if is_dataclass(value):
-        return {field_info.name: _json_value(getattr(value, field_info.name)) for field_info in fields(value)}
+        return {
+            field_info.name: _json_value(getattr(value, field_info.name))
+            for field_info in fields(value)
+        }
     if isinstance(value, Mapping):
         return {key: _json_value(item) for key, item in value.items()}
     if isinstance(value, tuple):
@@ -101,6 +150,11 @@ class RawArtifact:
     observed_facts: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "artifact_id", _string_value(self.artifact_id, "artifact_id"))
+        object.__setattr__(self, "path", _string_value(self.path, "path"))
+        object.__setattr__(self, "technique", _string_value(self.technique, "technique"))
+        object.__setattr__(self, "format", _string_value(self.format, "format"))
+        object.__setattr__(self, "sha256", _string_value(self.sha256, "sha256", allow_empty=True))
         object.__setattr__(self, "observed_facts", _freeze_mapping(self.observed_facts))
 
     @classmethod
@@ -112,7 +166,9 @@ class RawArtifact:
         observed_facts: Mapping[str, Any] | None = None,
     ) -> RawArtifact:
         source = Path(path).expanduser().resolve(strict=True)
-        content_hash = _directory_manifest_sha256(source) if source.is_dir() else _file_sha256(source)
+        content_hash = (
+            _directory_manifest_sha256(source) if source.is_dir() else _file_sha256(source)
+        )
         artifact_format = _artifact_format(source)
         frozen_facts = _freeze_mapping(observed_facts)
         artifact_id = _canonical_hash(
@@ -168,8 +224,14 @@ class CanonicalDataset:
     warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "dataset_id", _string_value(self.dataset_id, "dataset_id"))
+        object.__setattr__(
+            self, "source_artifact_id", _string_value(self.source_artifact_id, "source_artifact_id")
+        )
+        object.__setattr__(self, "technique", _string_value(self.technique, "technique"))
+        object.__setattr__(self, "template_id", _string_value(self.template_id, "template_id"))
         object.__setattr__(self, "payload", _freeze_mapping(self.payload))
-        object.__setattr__(self, "warnings", tuple(str(item) for item in self.warnings))
+        object.__setattr__(self, "warnings", _freeze_strings(self.warnings, "warnings"))
 
     @classmethod
     def direct_envelope(cls, artifact: RawArtifact) -> CanonicalDataset:
@@ -177,7 +239,7 @@ class CanonicalDataset:
             raise ValueError("A direct envelope requires an artifact content hash")
         if artifact.format == "directory":
             raise ValueError("A direct envelope requires a raw file artifact")
-        template_id = "direct_raw_file_v1"
+        template_id = "raw-file-envelope.v1"
         payload = {
             "kind": "raw_file",
             "path": artifact.path,
@@ -216,6 +278,10 @@ class AnalysisPlan:
     parameter_sources: Mapping[str, str]
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "plan_id", _string_value(self.plan_id, "plan_id"))
+        object.__setattr__(self, "dataset_id", _string_value(self.dataset_id, "dataset_id"))
+        object.__setattr__(self, "technique", _string_value(self.technique, "technique"))
+        object.__setattr__(self, "output_dir", _string_value(self.output_dir, "output_dir"))
         frozen_options = _freeze_mapping(self.pipeline_options)
         frozen_sources = _freeze_mapping(self.parameter_sources)
         if any(not isinstance(value, str) for value in frozen_sources.values()):
@@ -271,7 +337,7 @@ class ComputeResult:
         object.__setattr__(self, "metrics", frozen_metrics)
         object.__setattr__(self, "figures", frozen_figures)
         object.__setattr__(self, "metadata", _freeze_mapping(self.metadata))
-        object.__setattr__(self, "warnings", tuple(str(item) for item in self.warnings))
+        object.__setattr__(self, "warnings", _freeze_strings(self.warnings, "warnings"))
 
     @classmethod
     def from_legacy_result(cls, value: Any) -> ComputeResult:
@@ -292,9 +358,9 @@ class ComputeResult:
         if validation_summary and str(validation_summary) != "All checks passed":
             warnings.append(str(validation_summary))
         return cls(
-            metrics=metrics if isinstance(metrics, Mapping) else {},
-            figures=figures if isinstance(figures, Mapping) else {},
-            metadata=metadata if isinstance(metadata, Mapping) else {},
+            metrics=_scrub_legacy_projection(metrics) if isinstance(metrics, Mapping) else {},
+            figures=_scrub_legacy_projection(figures) if isinstance(figures, Mapping) else {},
+            metadata=_scrub_legacy_projection(metadata) if isinstance(metadata, Mapping) else {},
             warnings=tuple(warnings),
         )
 
@@ -312,9 +378,19 @@ class ComputeRun:
     legacy_result: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.status, str):
+            raise TypeError("status must be a string")
         if self.status not in COMPUTE_STATUSES:
             raise ValueError(f"Unsupported compute status: {self.status}")
-        object.__setattr__(self, "reasons", tuple(str(item) for item in self.reasons))
+        if not isinstance(self.artifact, RawArtifact):
+            raise TypeError("artifact must be a RawArtifact")
+        if self.dataset is not None and not isinstance(self.dataset, CanonicalDataset):
+            raise TypeError("dataset must be a CanonicalDataset")
+        if self.plan is not None and not isinstance(self.plan, AnalysisPlan):
+            raise TypeError("plan must be an AnalysisPlan")
+        if self.result is not None and not isinstance(self.result, ComputeResult):
+            raise TypeError("result must be a ComputeResult")
+        object.__setattr__(self, "reasons", _freeze_strings(self.reasons, "reasons"))
         has_execution_context = self.dataset is not None or self.plan is not None
         if self.status == "completed":
             if self.dataset is None or self.plan is None or self.result is None:
@@ -322,6 +398,13 @@ class ComputeRun:
         elif self.status == "ready":
             if self.dataset is None or self.plan is None or self.result is not None:
                 raise ValueError("Ready compute runs require dataset and plan without a result")
+        elif self.status == "failed":
+            if self.result is not None:
+                raise ValueError("Failed compute runs cannot include a result")
+            if (self.dataset is None) != (self.plan is None):
+                raise ValueError(
+                    "Failed compute runs require both dataset and plan when retaining provenance"
+                )
         elif has_execution_context or self.result is not None:
             raise ValueError(f"{self.status} compute runs cannot include dataset, plan, or result")
 
