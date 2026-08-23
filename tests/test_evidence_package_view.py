@@ -76,6 +76,7 @@ def test_load_package_view_exposes_indexed_logical_figures(tmp_path: Path) -> No
     assert len(view.figure_views) == 1
     assert view.figure_views[0].svg == "figures/dsc.svg"
     assert view.figure_views[0].document is None
+    assert view.package_root == str(package.resolve())
 
 
 def test_gui_adapter_returns_only_the_view_model(tmp_path: Path) -> None:
@@ -84,14 +85,37 @@ def test_gui_adapter_returns_only_the_view_model(tmp_path: Path) -> None:
     assert summary == {"status": "review_required", "techniques": ("dsc",), "metric_count": 2, "human_review_count": 1}
 
 
+def test_gui_adapter_projects_package_gallery_from_index(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    (package / "figures").mkdir()
+    (package / "figures" / "dsc.svg").write_text("<svg/>", encoding="utf-8")
+    view = load_evidence_package_view(package)
+    entries = EvidencePackageViewAdapter(view).gallery_entries()
+
+    assert [entry.figure_id for entry in entries] == ["dsc"]
+    assert entries[0].primary_path.endswith("figures\\dsc.svg")
+    assert entries[0].state == "static_background"
+
+
 def test_dialog_renders_read_only_package_tabs_and_metric_provenance(tmp_path: Path) -> None:
     QApplication.instance() or QApplication([])
-    view = load_evidence_package_view(_package(tmp_path))
+    package = _package(tmp_path)
+    (package / "figures").mkdir()
+    (package / "figures" / "dsc.svg").write_text("<svg/>", encoding="utf-8")
+    view = load_evidence_package_view(package)
     dialog = EvidencePackageDialog(view)
 
     assert [dialog.tabs.tabText(index) for index in range(dialog.tabs.count())] == [
-        "Overview", "Evidence", "Metrics", "Review",
+        "Overview", "Evidence", "Metrics", "Review", "Gallery",
     ]
+    assert dialog.gallery.figure_ids() == ["dsc"]
+    assert dialog.gallery.is_read_only
+    edit_requests: list[object] = []
+    dialog.gallery.edit_requested.connect(edit_requests.append)
+    dialog.gallery._thumbnails[0]._emit_primary_action()
+    assert edit_requests == []
+    dialog.gallery._on_batch_checked("dsc", True)
+    assert dialog.gallery._btn_batch_edit.isHidden()
     assert dialog.metrics_table.columnCount() == 7
     assert dialog.metrics_table.item(0, 3).text() == "dsc.isothermal_avrami_fit"
     assert dialog.review_table.item(0, 1).text() == "human_scientific_review"

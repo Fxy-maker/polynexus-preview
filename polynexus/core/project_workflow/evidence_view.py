@@ -75,6 +75,7 @@ class EvidencePackageView:
     limitations: tuple[str, ...]
     human_review: tuple[HumanReviewView, ...]
     figure_views: tuple[FigureIndexEntry, ...] = ()
+    package_root: str = ""
 
 
 def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
@@ -172,6 +173,7 @@ def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
         tables=tuple(f"tables/{path.name}" for path in (root / "tables").iterdir() if path.is_file()) if (root / "tables").is_dir() else (),
         limitations=tuple(str(value) for value in limitations), human_review=human_review,
         figure_views=load_figure_index(root),
+        package_root=str(root),
     )
 
 

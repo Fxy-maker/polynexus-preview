@@ -163,13 +163,19 @@ def build_evidence_package_gallery_entries(
     root = Path(package_root).resolve()
     entries: list[FigureGalleryEntry] = []
     for item in figures:
-        svg = _resolve_package_figure_path(root, item.svg)
-        if not svg.is_file():
+        try:
+            svg = _resolve_package_figure_path(root, item.svg)
+        except ValueError:
+            continue
+        if svg.suffix.lower() != ".svg" or not svg.is_file():
             continue
         document_path = ""
         if item.document:
-            candidate = _resolve_package_figure_path(root, item.document)
-            if candidate.is_file():
+            try:
+                candidate = _resolve_package_figure_path(root, item.document)
+            except ValueError:
+                candidate = None
+            if candidate is not None and candidate.is_file():
                 document_path = str(candidate)
         # The package index intentionally has no capability report yet; do not
         # infer object editing from a document payload alone.
@@ -192,9 +198,15 @@ def build_evidence_package_gallery_entries(
             capability_report={
                 "editing_mode": "object" if object_editing else "static",
                 "object_editing": object_editing,
+                "package_role": item.role,
+                "technique": item.technique,
+                "group": item.group,
+                "writing_eligibility": item.writing_eligibility,
+                "metadata": item.metadata,
+                "data": item.data,
             },
             status="ready",
-            publication_role="diagnostic",
+            publication_role=_package_figure_publication_role(item.role),
         ))
     return entries
 
@@ -215,6 +227,18 @@ def _resolve_package_figure_path(package_root: Path, relative_path: str) -> Path
     except ValueError as exc:
         raise ValueError(f"figure index path escapes package: {relative_path}") from exc
     return path
+
+
+def _package_figure_publication_role(package_role: str) -> str:
+    """Map package-candidate roles to the shared gallery vocabulary."""
+
+    roles = {
+        "manuscript_candidate": FIGURE_ROLE_MAIN,
+        "supporting": FIGURE_ROLE_SI,
+        "supporting_candidate": FIGURE_ROLE_SI,
+        "diagnostic": FIGURE_ROLE_DIAGNOSTIC,
+    }
+    return roles.get(str(package_role or "").strip().lower(), FIGURE_ROLE_DIAGNOSTIC)
 
 
 def collect_plot_figure_paths(

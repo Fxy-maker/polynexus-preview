@@ -459,3 +459,46 @@ def test_evidence_package_gallery_uses_one_svg_entry_for_static_figure(tmp_path)
     assert entries[0].primary_path == str(svg.resolve())
     assert entries[0].state == FIGURE_STATE_STATIC
     assert entries[0].document_path == ""
+    assert entries[0].publication_role == "si"
+    assert entries[0].capability_report["package_role"] == "supporting"
+    assert entries[0].capability_report["technique"] == "IR"
+    assert entries[0].capability_report["group"] == "ir:pa6-jw"
+    assert entries[0].capability_report["writing_eligibility"] == "Discussion"
+    assert entries[0].capability_report["metadata"] == "figures/group.metadata.json"
+    assert entries[0].capability_report["data"] is None
+
+
+def test_evidence_package_gallery_skips_missing_or_unsafe_svg_and_stays_static(tmp_path):
+    figures = tmp_path / "figures"
+    figures.mkdir()
+    svg = figures / "candidate.svg"
+    svg.write_text("<svg/>", encoding="utf-8")
+    document = figures / "candidate.figure.pnfig.json"
+    document.write_text("{}", encoding="utf-8")
+
+    entries = build_evidence_package_gallery_entries(tmp_path, (
+        FigureIndexEntry(
+            id="candidate", role="manuscript_candidate", technique="DSC", group=None,
+            writing_eligibility="review_only", svg="figures/candidate.svg",
+            document="figures/candidate.figure.pnfig.json", data=None,
+            metadata="figures/candidate.metadata.json",
+        ),
+        FigureIndexEntry(
+            id="missing", role="diagnostic", technique="SAXS", group=None,
+            writing_eligibility="review_only", svg="figures/missing.svg",
+            document=None, data=None, metadata="figures/missing.metadata.json",
+        ),
+        FigureIndexEntry(
+            id="unsafe", role="diagnostic", technique="WAXS", group=None,
+            writing_eligibility="review_only", svg="../unsafe.svg",
+            document=None, data=None, metadata="figures/unsafe.metadata.json",
+        ),
+    ))
+
+    assert [entry.figure_id for entry in entries] == ["candidate"]
+    assert entries[0].document_path == str(document.resolve())
+    assert entries[0].state == FIGURE_STATE_STATIC
+    assert entries[0].document_mode == "static_background"
+    assert entries[0].editable_path == str(svg.resolve())
+    assert entries[0].publication_role == "main"
+    assert entries[0].assets[0].format == "svg"

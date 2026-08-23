@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from polynexus.core.project_workflow.evidence_view import EvidencePackageView
+from polynexus.gui.plot_gallery_service import build_evidence_package_gallery_entries
+from polynexus.gui.widgets.chart_viewer import ChartGallery
 
 
 class EvidencePackageViewAdapter:
@@ -43,6 +45,12 @@ class EvidencePackageViewAdapter:
     def human_review(self):
         return self.view.human_review
 
+    def gallery_entries(self):
+        return build_evidence_package_gallery_entries(
+            self.view.package_root,
+            self.view.figure_views,
+        )
+
 
 class EvidencePackageDialog(QDialog):
     """Read-only package inspector built exclusively from the public DTO."""
@@ -58,6 +66,7 @@ class EvidencePackageDialog(QDialog):
         self.tabs.addTab(self._evidence_tab(), "Evidence")
         self.tabs.addTab(self._metrics_tab(), "Metrics")
         self.tabs.addTab(self._review_tab(), "Review")
+        self.tabs.addTab(self._gallery_tab(), "Gallery")
         layout.addWidget(self.tabs)
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         buttons.rejected.connect(self.reject)
@@ -115,6 +124,11 @@ class EvidencePackageDialog(QDialog):
         self.package_limitations.setWordWrap(True)
         layout.addWidget(self.package_limitations)
         return page
+
+    def _gallery_tab(self) -> QWidget:
+        self.gallery = ChartGallery(read_only=True)
+        self.gallery.load_entries(EvidencePackageViewAdapter(self.view).gallery_entries())
+        return self.gallery
 
     @staticmethod
     def _table(headers: list[str]) -> QTableWidget:

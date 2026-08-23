@@ -57,9 +57,10 @@ class ChartThumbnail(QWidget):
     copy_clicked = Signal(str)
     batch_checked_changed = Signal(str, bool)
 
-    def __init__(self, entry: FigureGalleryEntry, parent=None):
+    def __init__(self, entry: FigureGalleryEntry, parent=None, *, read_only: bool = False):
         super().__init__(parent)
         self.entry = entry
+        self._read_only = bool(read_only)
         self.filepath = entry.preview_path
         self._source_pixmap = QPixmap()
         self._selected = False
@@ -120,7 +121,11 @@ class ChartThumbnail(QWidget):
         actions = QHBoxLayout()
         actions.setContentsMargins(0, 0, 0, 0)
         actions.setSpacing(6)
-        self._btn_primary = QPushButton(_gallery_primary_label(entry.state))
+        primary_label = (
+            _gallery_secondary_label(entry.state)
+            if self._read_only else _gallery_primary_label(entry.state)
+        )
+        self._btn_primary = QPushButton(primary_label)
         self._btn_primary.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._btn_primary.clicked.connect(self._emit_primary_action)
         actions.addWidget(self._btn_primary)
@@ -234,6 +239,9 @@ class ChartThumbnail(QWidget):
         self._update_thumbnail_pixmap()
 
     def _emit_primary_action(self):
+        if self._read_only:
+            self.clicked.emit(self.entry.preview_path)
+            return
         if self.entry.state in {FIGURE_STATE_OBJECT, FIGURE_STATE_STATIC} and self.entry.editable_path:
             self.edit_clicked.emit(self.entry)
             return
@@ -271,7 +279,10 @@ class ChartThumbnail(QWidget):
         self._role_badge.setText(_gallery_role_text(self.entry.publication_role))
         self._version_badge.setText(_gallery_revision_text(self.entry))
         self._batch_check.setText(tr("CHART_SELECT"))
-        self._btn_primary.setText(_gallery_primary_label(self.entry.state))
+        self._btn_primary.setText(
+            _gallery_secondary_label(self.entry.state)
+            if self._read_only else _gallery_primary_label(self.entry.state)
+        )
         self._btn_secondary.setText(_gallery_secondary_label(self.entry.state))
         self._btn_copy.setText(tr("COMMON_COPY"))
 
@@ -967,9 +978,10 @@ class ChartGallery(QWidget):
     status_message = Signal(str, str)
     summary_changed = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, read_only: bool = False):
         super().__init__(parent)
         self.setObjectName("chart_gallery")
+        self._read_only = bool(read_only)
         self._viewer = None
         self._comparison_view = None
         self._all_entries = []
@@ -1180,7 +1192,7 @@ class ChartGallery(QWidget):
             return
 
         for entry in self._entries:
-            thumb = ChartThumbnail(entry)
+            thumb = ChartThumbnail(entry, read_only=self._read_only)
             thumb.clicked.connect(self.select_figure)
             thumb.double_clicked.connect(self._open_viewer)
             thumb.edit_clicked.connect(self.edit_requested.emit)
@@ -1301,6 +1313,12 @@ class ChartGallery(QWidget):
     def figure_ids(self):
         """Return manifest/logical IDs currently available for direct selection."""
         return [entry.figure_id for entry in self._all_entries]
+
+    @property
+    def is_read_only(self) -> bool:
+        """Whether this gallery blocks write-capable batch editing."""
+
+        return self._read_only
 
     def select_figure(self, filepath, emit=True):
         lookup = str(filepath or "")
@@ -1535,7 +1553,11 @@ class ChartGallery(QWidget):
         has_entries = bool(self._entries)
         for button, visible, enabled in (
             (getattr(self, "_btn_export_selected", None), has_selected, has_selected),
-            (getattr(self, "_btn_batch_edit", None), has_selected, has_selected),
+            (
+                getattr(self, "_btn_batch_edit", None),
+                has_selected and not self._read_only,
+                has_selected and not self._read_only,
+            ),
             (getattr(self, "_btn_compare_selected", None), selected_count == 2, selected_count == 2),
             (getattr(self, "_btn_compare_revisions", None), selected_count == 1, selected_count == 1),
             (getattr(self, "_btn_export_all", None), has_entries, has_entries),
