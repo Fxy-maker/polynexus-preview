@@ -568,7 +568,7 @@ class ProjectEvidencePackager:
                 "sha256": _sha256_file(path),
             }
             for path in sorted(package_path.rglob("*"))
-            if path.is_file() and path.name != "manifest.json"
+            if path.is_file() and path.relative_to(package_path).as_posix() != "manifest.json"
         ]
 
     @staticmethod

@@ -66,7 +66,7 @@ def test_package_contains_ars_entrypoint_and_provenance(tmp_path: Path) -> None:
     assert {entry["path"] for entry in manifest["artifact_hashes"]} == {
         path.relative_to(package.path).as_posix()
         for path in package.path.rglob("*")
-        if path.is_file() and path.name != "manifest.json"
+        if path.is_file() and path.relative_to(package.path).as_posix() != "manifest.json"
     }
     assert (package.path / "figures").is_dir()
     assert (package.path / "tables").is_dir()
@@ -217,6 +217,20 @@ def test_package_copies_derived_assets_without_copying_raw_data(tmp_path: Path) 
 
     assert (package.path / "figures" / "kinetics.png").read_bytes() == b"derived figure"
     assert not list(package.path.rglob("PA6-DWJJ.txt"))
+
+
+def test_package_integrity_hashes_nested_manifest_named_table_asset(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    table = tmp_path / ".polynexus" / "runs" / run.run_id / "manifest.json"
+    table.parent.mkdir(parents=True, exist_ok=True)
+    table.write_text('{"table": "derived"}', encoding="utf-8")
+    enriched = replace(run, outputs=(*run.outputs, str(table)))
+
+    package = ProjectWorkflowService.open(tmp_path).package(enriched)
+    manifest = json.loads((package.path / "manifest.json").read_text(encoding="utf-8"))
+
+    assert (package.path / "tables" / "manifest.json").read_text(encoding="utf-8") == '{"table": "derived"}'
+    assert "tables/manifest.json" in {entry["path"] for entry in manifest["artifact_hashes"]}
 
 
 def test_package_indexes_svg_once_when_derived_figure_has_png_sibling(tmp_path: Path) -> None:

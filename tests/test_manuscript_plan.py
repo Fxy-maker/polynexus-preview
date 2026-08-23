@@ -21,7 +21,7 @@ def _artifact_hashes(package: Path) -> list[dict[str, str]]:
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         }
         for path in sorted(package.rglob("*"))
-        if path.is_file() and path.name != "manifest.json"
+        if path.is_file() and path.relative_to(package).as_posix() != "manifest.json"
     ]
 
 

@@ -229,7 +229,7 @@ def _validate_package_artifacts(root: Path, manifest: Mapping[str, Any]) -> None
     actual = {
         path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in root.rglob("*")
-        if path.is_file() and path.name != "manifest.json"
+        if path.is_file() and path.relative_to(root).as_posix() != "manifest.json"
     }
     if actual != expected:
         raise ValueError("package artifact integrity is invalid")
