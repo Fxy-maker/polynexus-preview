@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from dataclasses import replace
 
 import pytest
 
 from polynexus.core.project_workflow.models import AnalysisRequest
+from polynexus.core.project_workflow.models import canonical_json
 from polynexus.core.project_workflow.package import ProjectEvidencePackager
 from polynexus.core.project_workflow.service import ProjectWorkflowService
 from polynexus.core.project_workflow.workspace import ProjectWorkspace
@@ -57,6 +59,15 @@ def test_package_contains_ars_entrypoint_and_provenance(tmp_path: Path) -> None:
     assert manifest["run_manifests"]
     assert manifest["evidence_item_hashes"]
     assert manifest["relations_hash"]
+    assert manifest["artifact_hashes"]
+    assert manifest["package_hash"] == hashlib.sha256(
+        canonical_json({key: value for key, value in manifest.items() if key != "package_hash"}).encode("utf-8")
+    ).hexdigest()
+    assert {entry["path"] for entry in manifest["artifact_hashes"]} == {
+        path.relative_to(package.path).as_posix()
+        for path in package.path.rglob("*")
+        if path.is_file() and path.name != "manifest.json"
+    }
     assert (package.path / "figures").is_dir()
     assert (package.path / "tables").is_dir()
     relations = json.loads((package.path / "relations.json").read_text(encoding="utf-8"))

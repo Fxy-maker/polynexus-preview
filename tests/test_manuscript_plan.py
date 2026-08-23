@@ -14,6 +14,26 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
 
 
+def _artifact_hashes(package: Path) -> list[dict[str, str]]:
+    return [
+        {
+            "path": path.relative_to(package).as_posix(),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+        for path in sorted(package.rglob("*"))
+        if path.is_file() and path.name != "manifest.json"
+    ]
+
+
+def _seal_package(package: Path) -> None:
+    manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+    manifest["artifact_hashes"] = _artifact_hashes(package)
+    manifest["package_hash"] = hashlib.sha256(
+        canonical_json({key: value for key, value in manifest.items() if key != "package_hash"}).encode("utf-8")
+    ).hexdigest()
+    _write_json(package / "manifest.json", manifest)
+
+
 def _package(tmp_path: Path) -> Path:
     package = tmp_path / "package"
     package.mkdir()
@@ -109,6 +129,7 @@ def _package(tmp_path: Path) -> Path:
         "data": None,
         "metadata": "figures/dsc.metadata.json",
     }]})
+    _seal_package(package)
     return package
 
 
@@ -179,3 +200,30 @@ def test_builder_rejects_unknown_figure_and_figure_budget_overflow(tmp_path: Pat
         build_manuscript_plan(package, _brief(figure_intent={"missing": "main"}))
     with pytest.raises(ValueError, match="budget"):
         build_manuscript_plan(package, _brief(figure_budget={"main_max": 0, "supporting_max": 1}))
+
+
+def test_builder_rejects_a_package_with_changed_writing_artifact(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    metrics = json.loads((package / "citation-metrics.json").read_text(encoding="utf-8"))
+    metrics["records"][0]["value"] = 99.0
+    _write_json(package / "citation-metrics.json", metrics)
+
+    with pytest.raises(ValueError, match="package artifact"):
+        build_manuscript_plan(package, _brief())
+
+
+def test_builder_requires_a_concrete_figure_index(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    (package / "figure-index.json").unlink()
+    _seal_package(package)
+
+    with pytest.raises(ValueError, match="figure index"):
+        build_manuscript_plan(package, _brief())
+
+
+def test_builder_rejects_an_unknown_technique_role(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="technique role"):
+        build_manuscript_plan(
+            _package(tmp_path),
+            _brief(technique_roles={"not-a-package-technique": "observed_result"}),
+        )

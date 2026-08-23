@@ -169,9 +169,6 @@ class ProjectEvidencePackager:
             package_manifest["writing_evidence"] = "writing-evidence.json"
             package_manifest["citation_metrics"] = "citation-metrics.json"
             package_manifest["ars_writing_input"] = "ars-writing-input.json"
-            package_hash = hashlib.sha256(canonical_json(package_manifest).encode("utf-8")).hexdigest()
-            package_manifest["package_hash"] = package_hash
-            self._write_json(package_path / "manifest.json", package_manifest)
             self._write_json(package_path / "evidence.json", {"items": evidence})
             self._write_json(package_path / "relations.json", {"relations": relation_values})
             self._write_json(package_path / "techniques.json", {"techniques": technique_index})
@@ -191,6 +188,10 @@ class ProjectEvidencePackager:
                 package_path / "writing-input.md",
                 self._writing_input(package_manifest, evidence, limitations, writing_evidence),
             )
+            package_manifest["artifact_hashes"] = self._package_artifact_hashes(package_path)
+            package_hash = hashlib.sha256(canonical_json(package_manifest).encode("utf-8")).hexdigest()
+            package_manifest["package_hash"] = package_hash
+            self._write_json(package_path / "manifest.json", package_manifest)
         except Exception:
             shutil.rmtree(package_path, ignore_errors=True)
             raise
@@ -558,6 +559,17 @@ class ProjectEvidencePackager:
                 "sha256": _sha256_file(Path(asset["source"])),
             })
         return values
+
+    @staticmethod
+    def _package_artifact_hashes(package_path: Path) -> list[dict[str, str]]:
+        return [
+            {
+                "path": path.relative_to(package_path).as_posix(),
+                "sha256": _sha256_file(path),
+            }
+            for path in sorted(package_path.rglob("*"))
+            if path.is_file() and path.name != "manifest.json"
+        ]
 
     @staticmethod
     def _disambiguate_assets(assets: list[dict[str, str]]) -> list[dict[str, str]]:

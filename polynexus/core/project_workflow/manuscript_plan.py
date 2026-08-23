@@ -122,9 +122,14 @@ def build_manuscript_plan(package_path: str | Path, brief: PaperBrief) -> Manusc
     """Build a writing plan from package facts without altering the package."""
     root = Path(package_path).expanduser().resolve()
     manifest = _read_manifest(root)
-    package_hash = _validate_package_pin(manifest)
+    package_hash = _validate_package_pin(root, manifest)
+    if not (root / "figure-index.json").is_file():
+        raise ValueError("figure index is invalid")
     view = load_evidence_package_view(root)
-    techniques = _require_known(brief.selected_techniques, (item.key for item in view.techniques), "technique")
+    known_techniques = tuple(item.key for item in view.techniques)
+    techniques = _require_known(brief.selected_techniques, known_techniques, "technique")
+    if any(key not in known_techniques or key not in techniques for key in brief.technique_roles):
+        raise ValueError("technique role selection is invalid")
     evidence = _require_known(brief.selected_evidence_ids, (item.evidence_id for item in view.evidence), "evidence")
     metrics = _require_known(brief.selected_metric_ids, (item.metric_id for item in view.metrics), "metric")
     metric_by_id = {item.metric_id: item for item in view.metrics}
@@ -193,13 +198,41 @@ def _read_manifest(root: Path) -> Mapping[str, Any]:
     return value
 
 
-def _validate_package_pin(manifest: Mapping[str, Any]) -> str:
+def _validate_package_pin(root: Path, manifest: Mapping[str, Any]) -> str:
     expected = str(manifest.get("package_hash", ""))
     unsigned = {key: value for key, value in manifest.items() if key != "package_hash"}
     actual = hashlib.sha256(canonical_json(unsigned).encode("utf-8")).hexdigest()
     if not expected or not hmac.compare_digest(expected, actual):
         raise ValueError("evidence package hash is invalid")
+    _validate_package_artifacts(root, manifest)
     return expected
+
+
+def _validate_package_artifacts(root: Path, manifest: Mapping[str, Any]) -> None:
+    values = manifest.get("artifact_hashes")
+    if not isinstance(values, list):
+        raise ValueError("package artifact integrity is invalid")
+    expected: dict[str, str] = {}
+    for value in values:
+        if not isinstance(value, Mapping):
+            raise ValueError("package artifact integrity is invalid")
+        relative = str(value.get("path", ""))
+        digest = str(value.get("sha256", ""))
+        path = Path(relative)
+        if (
+            not relative or Path(relative).is_absolute() or "\\" in relative
+            or ".." in path.parts or relative in expected
+            or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest)
+        ):
+            raise ValueError("package artifact integrity is invalid")
+        expected[relative] = digest
+    actual = {
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in root.rglob("*")
+        if path.is_file() and path.name != "manifest.json"
+    }
+    if actual != expected:
+        raise ValueError("package artifact integrity is invalid")
 
 
 def _require_known(requested: tuple[str, ...], available: Iterable[str], kind: str) -> tuple[str, ...]:
