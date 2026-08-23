@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-24-universal-canonical-templates-phase1
 kind: architecture
-status: active
+status: implementation_complete_review_required
 date: 2026-08-24
 title: Add generic one-dimensional canonical conversion
 ---
@@ -64,3 +64,15 @@ git diff --check
 python scripts/task_check.py --task docs/agent/tasks/2026-08-24-universal-canonical-templates-phase1.md
 git diff --check
 ```
+
+## Completion evidence
+
+- `python -m pytest -q -p no:cacheprovider tests/test_canonical_measurements.py tests/test_canonical_one_dimensional.py tests/test_canonical_experiment_templates.py tests/test_dsc_canonical_isothermal_conversion.py tests/test_canonical_converter_registry.py` — 58 passed.
+- `python scripts/verify.py --task docs/agent/tasks/2026-08-24-universal-canonical-templates-phase1.md --changed --types` — selected checks passed; quality gate 309 passed and preprocessing 157 passed.
+- `git diff --check` — passed.
+- `python scripts/task_check.py --task docs/agent/tasks/2026-08-24-universal-canonical-templates-phase1.md` — valid task card after documentation update.
+
+Known limitations: capability item results are not wired into ComputeRun; the
+registry, direct-run, GUI, CLI, Batch, and Codex entry points are unchanged;
+DSC generalization, NMR, and real six-sample replay are deferred. Architecture
+review remains required.

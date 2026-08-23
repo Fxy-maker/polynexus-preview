@@ -5526,3 +5526,15 @@ and structured gates (`303` / `157`).
   fabricated. Index v1 package-gallery entries fail closed to static viewing
   because capability reports are not yet indexed. Acceptance:
   `docs/acceptance/2026-08-14-canonical-figure-assets.md`.
+
+## Universal canonical templates phase 1 - checkpointed 2026-08-24
+
+- Generic 1D CSV/TXT/Excel conversion produces immutable
+  `spectrum_1d.v1`/`scattering_1d.v1` measurements with locators, declared or
+  unknown units, and observed/user/AI mapping provenance.
+- Ambiguous mappings return `needs_input`; a validated source-bound proposal
+  resolves the ambiguity.
+- No material-label numerical algorithm, engine registry, GUI, CLI, Batch, or
+  Codex changes were made; DSC and NMR remain unchanged.
+- Capability item contracts are not attached to `ComputeRun`.
+- Next: separate general DSC or capability routing, then consumer migration.
