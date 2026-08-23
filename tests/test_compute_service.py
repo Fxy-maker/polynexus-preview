@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from polynexus.core.compute.service import ComputeRunService
 
 
@@ -50,7 +52,7 @@ def test_direct_run_completes_with_projected_legacy_warnings(tmp_path: Path) -> 
         technique="dsc",
         path=source,
         output_dir=tmp_path / "out",
-        pipeline_options={"skip_to": None, "plot_mode": "preview"},
+        pipeline_options={"skip_to": None},
     )
 
     assert run.status == "completed"
@@ -59,8 +61,8 @@ def test_direct_run_completes_with_projected_legacy_warnings(tmp_path: Path) -> 
     assert run.dataset.template_id == "raw-file-envelope.v1"
     assert run.plan is not None
     assert run.plan.output_dir == str((tmp_path / "out").resolve())
-    assert dict(run.plan.pipeline_options) == {"skip_to": None, "plot_mode": "preview"}
-    assert dict(run.plan.parameter_sources) == {"skip_to": "user", "plot_mode": "user"}
+    assert dict(run.plan.pipeline_options) == {"skip_to": None}
+    assert dict(run.plan.parameter_sources) == {"skip_to": "user"}
     assert run.result is not None
     assert run.result.metrics == {"t_half_s": 12.5}
     assert run.result.figures == {"curve": "curve.svg"}
@@ -74,9 +76,9 @@ def test_direct_run_completes_with_projected_legacy_warnings(tmp_path: Path) -> 
     assert "legacy_result" not in run.to_dict()
     assert engine.calls == [
         (
-            str(source),
-            str(tmp_path / "out"),
-            {"skip_to": None, "plot_mode": "preview"},
+            str(source.resolve()),
+            str((tmp_path / "out").resolve()),
+            {"skip_to": None},
         )
     ]
 
@@ -141,6 +143,122 @@ def test_direct_run_returns_opaque_failure_with_constructed_provenance(tmp_path:
     assert run.plan is not None
     assert run.result is None
     assert "provider internals" not in run.to_dict()["reasons"]
+
+
+@pytest.mark.parametrize("source_kind", ("normal", "relative", "home"))
+def test_direct_run_uses_one_canonical_source_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source_kind: str
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    raw_path: str | Path = source
+    if source_kind == "relative":
+        monkeypatch.chdir(tmp_path)
+        raw_path = Path("input.csv")
+    elif source_kind == "home":
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        raw_path = Path("~") / "input.csv"
+
+    engine = FakeEngine(SimpleNamespace())
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir", path=raw_path, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "completed"
+    assert run.artifact.path == str(source.resolve())
+    assert engine.calls[0][0] == run.artifact.path
+
+
+def test_direct_run_resolves_symlink_source_for_artifact_and_provider(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    link = tmp_path / "linked-input.csv"
+    try:
+        link.symlink_to(source)
+    except OSError as error:
+        pytest.skip(f"symlink creation unavailable: {error}")
+
+    engine = FakeEngine(SimpleNamespace())
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir", path=link, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "completed"
+    assert run.artifact.path == str(source.resolve())
+    assert engine.calls[0][0] == run.artifact.path
+
+
+@pytest.mark.parametrize("output_dir", (Path("relative-output"), Path("")))
+def test_direct_run_uses_resolved_plan_output_dir_for_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, output_dir: Path
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    engine = FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir", path=source, output_dir=output_dir
+    )
+
+    assert run.status == "completed"
+    assert run.plan is not None
+    assert run.plan.output_dir == str(output_dir.resolve())
+    assert engine.calls[0][1] == run.plan.output_dir
+
+
+def test_direct_run_returns_needs_input_when_artifact_hashing_becomes_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(SimpleNamespace())
+
+    def unreadable_from_path(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("input disappeared after existence check")
+
+    monkeypatch.setattr(
+        "polynexus.core.compute.service.RawArtifact.from_path", unreadable_from_path
+    )
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir", path=source, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("raw_artifact_unreadable",)
+    assert engine.calls == []
+
+
+def test_direct_run_rejects_non_regular_source_without_invoking_provider(tmp_path: Path) -> None:
+    directory = tmp_path / "raw-directory"
+    directory.mkdir()
+    engine = FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir", path=directory, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("raw_artifact_unreadable",)
+    assert engine.calls == []
+
+
+def test_direct_run_rejects_unsupported_option_before_provider_execution(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir",
+        path=source,
+        output_dir=tmp_path / "out",
+        pipeline_options={"bad_option": True},
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("pipeline_option_unsupported",)
+    assert engine.calls == []
 
 
 def test_compute_sources_do_not_import_removed_runtime_boundaries() -> None:

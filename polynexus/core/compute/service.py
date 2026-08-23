@@ -9,6 +9,9 @@ from ..engine import get_engine
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 
 
+_SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to"})
+
+
 class ComputeRunService:
     """Create one canonical direct run and delegate its calculation to an engine."""
 
@@ -26,15 +29,50 @@ class ComputeRunService:
         engine: Any = None,
         pipeline_options: Mapping[str, Any] | None = None,
     ) -> ComputeRun:
-        source = Path(path).expanduser()
-        if not source.exists():
+        try:
+            source = Path(path).expanduser().resolve(strict=False)
+            source_exists = source.exists()
+            is_regular_file = source.is_file()
+        except (OSError, ValueError, TypeError):
             return ComputeRun(
                 status="needs_input",
                 artifact=RawArtifact.missing(path, technique=technique),
+                reasons=("raw_artifact_unreadable",),
+            )
+        if not source_exists:
+            return ComputeRun(
+                status="needs_input",
+                artifact=RawArtifact.missing(source, technique=technique),
                 reasons=("raw_artifact_missing",),
             )
+        if not is_regular_file:
+            return ComputeRun(
+                status="needs_input",
+                artifact=RawArtifact.missing(source, technique=technique),
+                reasons=("raw_artifact_unreadable",),
+            )
 
-        artifact = RawArtifact.from_path(path, technique=technique)
+        try:
+            artifact = RawArtifact.from_path(source, technique=technique)
+        except (OSError, ValueError, TypeError):
+            return ComputeRun(
+                status="needs_input",
+                artifact=RawArtifact.missing(source, technique=technique),
+                reasons=("raw_artifact_unreadable",),
+            )
+        try:
+            options = dict(pipeline_options or {})
+        except (TypeError, ValueError):
+            options = {}
+            unsupported_options = True
+        else:
+            unsupported_options = any(name not in _SUPPORTED_PIPELINE_OPTIONS for name in options)
+        if unsupported_options:
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("pipeline_option_unsupported",),
+            )
         dataset: CanonicalDataset | None = None
         plan: AnalysisPlan | None = None
         try:
@@ -42,7 +80,7 @@ class ComputeRunService:
             plan = AnalysisPlan.direct(
                 dataset,
                 output_dir=output_dir,
-                pipeline_options=pipeline_options,
+                pipeline_options=options,
             )
             selected_engine = engine
             if selected_engine is None:
@@ -58,8 +96,8 @@ class ComputeRunService:
                     reasons=("technique_unknown",),
                 )
             legacy_result = selected_engine.run_pipeline(
-                str(path),
-                str(output_dir),
+                artifact.path,
+                plan.output_dir,
                 **dict(plan.pipeline_options),
             )
             return ComputeRun.completed(
