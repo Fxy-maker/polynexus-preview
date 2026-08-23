@@ -4,12 +4,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import hmac
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from .evidence_view import EvidencePackageView, load_evidence_package_view
 from .models import canonical_json
+
+
+_BRIEF_FIELDS = frozenset({
+    "version", "title_hint", "research_question", "comparison_scope",
+    "figure_budget", "figure_intent", "technique_roles", "notes",
+})
+_SCOPE_FIELDS = frozenset({"selected_techniques", "selected_evidence_ids", "selected_metric_ids"})
+_BUDGET_FIELDS = frozenset({"main_max", "supporting_max"})
+_FIGURE_ROLES = frozenset({"main", "supporting"})
+_TECHNIQUE_ROLES = frozenset({"observed_result", "structural_context", "diagnostic_context"})
 
 
 @dataclass(frozen=True)
@@ -30,19 +41,37 @@ class PaperBrief:
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "PaperBrief":
-        scope = payload.get("comparison_scope", {})
-        budget = payload.get("figure_budget", {})
+        if set(payload) - _BRIEF_FIELDS:
+            raise ValueError("paper brief fields are invalid")
+        scope = _mapping(payload.get("comparison_scope", {}), "comparison scope")
+        budget = _mapping(payload.get("figure_budget", {}), "figure budget")
+        figure_intent = _mapping(payload.get("figure_intent", {}), "figure intent")
+        technique_roles = _mapping(payload.get("technique_roles", {}), "technique roles")
+        if set(scope) - _SCOPE_FIELDS or set(budget) - _BUDGET_FIELDS:
+            raise ValueError("paper brief fields are invalid")
+        version = _integer(payload.get("version"), "version")
+        research_question = _required_text(payload.get("research_question"), "research question")
+        main_max = _integer(budget.get("main_max", 6), "main figure budget")
+        supporting_max = _integer(budget.get("supporting_max", 12), "supporting figure budget")
+        if version != 1 or main_max < 0 or supporting_max < 0:
+            raise ValueError("paper brief is invalid")
+        intents = {str(key): _required_text(value, "figure intent") for key, value in figure_intent.items()}
+        roles = {str(key).lower(): _required_text(value, "technique role") for key, value in technique_roles.items()}
+        if any(value not in _FIGURE_ROLES for value in intents.values()):
+            raise ValueError("figure intent is invalid")
+        if any(value not in _TECHNIQUE_ROLES for value in roles.values()):
+            raise ValueError("technique role is invalid")
         return cls(
-            version=int(payload.get("version", 0)),
+            version=version,
             title_hint=_optional_text(payload.get("title_hint")),
-            research_question=str(payload.get("research_question", "")).strip(),
-            selected_techniques=tuple(str(value).lower() for value in scope.get("selected_techniques", ())),
-            selected_evidence_ids=tuple(str(value) for value in scope.get("selected_evidence_ids", ())),
-            selected_metric_ids=tuple(str(value) for value in scope.get("selected_metric_ids", ())),
-            main_max=int(budget.get("main_max", 6)),
-            supporting_max=int(budget.get("supporting_max", 12)),
-            figure_intent={str(key): str(value) for key, value in payload.get("figure_intent", {}).items()},
-            technique_roles={str(key).lower(): str(value) for key, value in payload.get("technique_roles", {}).items()},
+            research_question=research_question,
+            selected_techniques=tuple(value.lower() for value in _string_list(scope.get("selected_techniques", ()), "technique")),
+            selected_evidence_ids=_string_list(scope.get("selected_evidence_ids", ()), "evidence"),
+            selected_metric_ids=_string_list(scope.get("selected_metric_ids", ()), "metric"),
+            main_max=main_max,
+            supporting_max=supporting_max,
+            figure_intent=intents,
+            technique_roles=roles,
             notes=_optional_text(payload.get("notes")),
         )
 
@@ -93,15 +122,20 @@ def build_manuscript_plan(package_path: str | Path, brief: PaperBrief) -> Manusc
     """Build a writing plan from package facts without altering the package."""
     root = Path(package_path).expanduser().resolve()
     manifest = _read_manifest(root)
+    package_hash = _validate_package_pin(manifest)
     view = load_evidence_package_view(root)
-    techniques = _selected(brief.selected_techniques, tuple(item.key for item in view.techniques))
-    evidence = _selected(brief.selected_evidence_ids, tuple(item.evidence_id for item in view.evidence))
-    metrics = _selected(brief.selected_metric_ids, tuple(item.metric_id for item in view.metrics))
+    techniques = _require_known(brief.selected_techniques, (item.key for item in view.techniques), "technique")
+    evidence = _require_known(brief.selected_evidence_ids, (item.evidence_id for item in view.evidence), "evidence")
+    metrics = _require_known(brief.selected_metric_ids, (item.metric_id for item in view.metrics), "metric")
     metric_by_id = {item.metric_id: item for item in view.metrics}
     results = tuple(item for item in metrics if metric_by_id[item].writing_eligibility == "results_candidate")
     discussion = tuple(item for item in metrics if metric_by_id[item].writing_eligibility != "results_candidate")
+    figure_ids = {item.id for item in view.figure_views}
+    _require_known(tuple(brief.figure_intent), figure_ids, "figure")
     main_figures = tuple(key for key, role in brief.figure_intent.items() if role == "main")
     supporting_figures = tuple(key for key, role in brief.figure_intent.items() if role == "supporting")
+    if len(main_figures) > brief.main_max or len(supporting_figures) > brief.supporting_max:
+        raise ValueError("figure budget is invalid")
     evidence_by_id = {item.evidence_id: item for item in view.evidence}
     prohibited = tuple(dict.fromkeys(
         value for evidence_id in evidence for value in evidence_by_id[evidence_id].prohibited_conclusions
@@ -113,7 +147,7 @@ def build_manuscript_plan(package_path: str | Path, brief: PaperBrief) -> Manusc
     package = {
         "package_id": view.package_id,
         "version": view.version,
-        "package_hash": str(manifest.get("package_hash", "")),
+        "package_hash": package_hash,
         "path": str(root),
     }
     selection = {
@@ -159,8 +193,45 @@ def _read_manifest(root: Path) -> Mapping[str, Any]:
     return value
 
 
-def _selected(requested: tuple[str, ...], available: tuple[str, ...]) -> tuple[str, ...]:
-    return requested or available
+def _validate_package_pin(manifest: Mapping[str, Any]) -> str:
+    expected = str(manifest.get("package_hash", ""))
+    unsigned = {key: value for key, value in manifest.items() if key != "package_hash"}
+    actual = hashlib.sha256(canonical_json(unsigned).encode("utf-8")).hexdigest()
+    if not expected or not hmac.compare_digest(expected, actual):
+        raise ValueError("evidence package hash is invalid")
+    return expected
+
+
+def _require_known(requested: tuple[str, ...], available: Iterable[str], kind: str) -> tuple[str, ...]:
+    known = tuple(dict.fromkeys(str(value) for value in available))
+    selected = requested or known
+    if any(value not in known for value in selected):
+        raise ValueError(f"{kind} selection is invalid")
+    return tuple(dict.fromkeys(selected))
+
+
+def _mapping(value: Any, label: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{label} is invalid")
+    return value
+
+
+def _integer(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{label} is invalid")
+    return value
+
+
+def _string_list(value: Any, label: str) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)) or any(not isinstance(item, str) or not item.strip() for item in value):
+        raise ValueError(f"{label} selection is invalid")
+    return tuple(dict.fromkeys(item.strip() for item in value))
+
+
+def _required_text(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} is invalid")
+    return value.strip()
 
 
 def _optional_text(value: Any) -> str | None:

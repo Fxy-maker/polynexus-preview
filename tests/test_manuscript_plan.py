@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from polynexus.core.project_workflow.manuscript_plan import PaperBrief, build_manuscript_plan
 from polynexus.core.project_workflow.models import canonical_json
 
@@ -134,3 +136,46 @@ def test_build_manuscript_plan_pins_package_and_inherits_boundaries(tmp_path: Pa
     assert plan.selection["main_figure_ids"] == ("dsc",)
     assert plan.writing_boundaries["limitations"] == ("background_review",)
     assert plan.writing_boundaries["human_review"][0]["action"] == "human_scientific_review"
+
+
+def _brief(**updates: object) -> PaperBrief:
+    payload: dict[str, object] = {
+        "version": 1,
+        "research_question": "Compare PA6 crystallization kinetics.",
+        "comparison_scope": {
+            "selected_techniques": ["dsc"],
+            "selected_evidence_ids": ["run-dsc:step"],
+            "selected_metric_ids": ["metric-dsc", "metric-diagnostic"],
+        },
+        "figure_budget": {"main_max": 1, "supporting_max": 1},
+        "figure_intent": {"dsc": "main"},
+        "technique_roles": {"dsc": "observed_result"},
+    }
+    payload.update(updates)
+    return PaperBrief.from_dict(payload)
+
+
+def test_builder_rejects_a_tampered_package_hash(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+    manifest["package_hash"] = "tampered"
+    _write_json(package / "manifest.json", manifest)
+
+    with pytest.raises(ValueError, match="package hash"):
+        build_manuscript_plan(package, _brief())
+
+
+def test_builder_rejects_unknown_metric_references(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="metric"):
+        build_manuscript_plan(
+            _package(tmp_path),
+            _brief(comparison_scope={"selected_metric_ids": ["missing"]}),
+        )
+
+
+def test_builder_rejects_unknown_figure_and_figure_budget_overflow(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    with pytest.raises(ValueError, match="figure"):
+        build_manuscript_plan(package, _brief(figure_intent={"missing": "main"}))
+    with pytest.raises(ValueError, match="budget"):
+        build_manuscript_plan(package, _brief(figure_budget={"main_max": 0, "supporting_max": 1}))
