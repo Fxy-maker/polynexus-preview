@@ -93,22 +93,31 @@ def test_directory_artifact_uses_a_manifest_hash_and_directory_envelope(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "series"
-    source.mkdir()
-    (source / "frame-001.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+    nested = source / "temperature-80C"
+    sibling = source / "temperature-90C"
+    nested.mkdir(parents=True)
+    sibling.mkdir()
+    nested_frame = nested / "frame-001.csv"
+    nested_frame.write_text("x,y\n1,2\n", encoding="utf-8")
+    (sibling / "frame-002.csv").write_text("x,y\n3,4\n", encoding="utf-8")
 
     artifact = RawArtifact.from_path(source, technique="ir")
     repeated = RawArtifact.from_path(source, technique="ir")
     dataset = CanonicalDataset.direct_envelope(artifact)
     payload = dataset.payload
+    nested_frame.write_text("x,y\n1,3\n", encoding="utf-8")
+    changed = RawArtifact.from_path(source, technique="ir")
 
     assert artifact.path == str(source.resolve())
     assert artifact.format == "directory"
     assert artifact.sha256 == repeated.sha256
+    assert artifact.sha256 != changed.sha256
     assert dataset.template_id == "raw-directory-envelope.v1"
     assert payload["kind"] == "raw_directory"
     assert payload["path"] == artifact.path
     assert payload["sha256"] == artifact.sha256
     assert "entries" not in payload
+    assert "temperature-80C" not in str(payload)
     assert "frame-001.csv" not in payload
 
 

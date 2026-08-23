@@ -149,18 +149,41 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _is_reparse_point(path_stat: os.stat_result) -> bool:
+    reparse_point = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(getattr(path_stat, "st_file_attributes", 0) & reparse_point)
+
+
 def _directory_manifest_sha256(path: Path) -> str:
-    entries = []
-    for child in sorted(path.iterdir(), key=lambda item: item.name):
-        child_stat = child.lstat()
-        reparse_point = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
-        if not stat.S_ISREG(child_stat.st_mode) or (
-            getattr(child_stat, "st_file_attributes", 0) & reparse_point
-        ):
-            raise ValueError("Directory artifacts support only direct regular files")
-        entries.append({"path": child.name, "sha256": _file_sha256(child)})
+    root_stat = path.lstat()
+    if not stat.S_ISDIR(root_stat.st_mode) or _is_reparse_point(root_stat):
+        raise ValueError("Directory artifacts require a non-reparse directory")
+
+    entries: list[dict[str, str]] = []
+
+    def collect(directory: Path) -> None:
+        directory_stat = directory.lstat()
+        if not stat.S_ISDIR(directory_stat.st_mode) or _is_reparse_point(directory_stat):
+            raise ValueError("Directory artifacts reject reparse-point directories")
+        children = list(directory.iterdir())
+        if not children:
+            raise ValueError("Directory artifacts must not contain empty directories")
+        for child in children:
+            child_stat = child.lstat()
+            if _is_reparse_point(child_stat):
+                raise ValueError("Directory artifacts reject reparse-point entries")
+            if stat.S_ISDIR(child_stat.st_mode):
+                collect(child)
+                continue
+            if not stat.S_ISREG(child_stat.st_mode):
+                raise ValueError("Directory artifacts support only regular files")
+            relative_path = child.relative_to(path).as_posix()
+            entries.append({"path": relative_path, "sha256": _file_sha256(child)})
+
+    collect(path)
     if not entries:
         raise ValueError("Directory artifacts must not be empty")
+    entries.sort(key=lambda entry: entry["path"])
     return _canonical_hash({"kind": "directory_manifest", "entries": entries})
 
 

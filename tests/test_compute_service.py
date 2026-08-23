@@ -413,8 +413,13 @@ def test_direct_run_completes_for_a_directory_with_a_manifest_backed_envelope(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "raw-directory"
-    source.mkdir()
-    (source / "frame-001.csv").write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    nested = source / "temperature-80C"
+    sibling = source / "temperature-90C"
+    nested.mkdir(parents=True)
+    sibling.mkdir()
+    nested_frame = nested / "frame-001.csv"
+    nested_frame.write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    (sibling / "frame-002.csv").write_text("q,I\n0.2,2.0\n", encoding="utf-8")
     engine = FakeEngine(EmptyLegacyResult())
 
     run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
@@ -430,8 +435,11 @@ def test_direct_run_completes_for_a_directory_with_a_manifest_backed_envelope(
     assert run.plan is not None
     assert engine.calls == [(run.artifact.path, run.plan.output_dir, {})]
     payload = run.to_dict()
-    assert "q,I" not in json.dumps(payload)
-    assert "frame-001.csv" not in json.dumps(payload)
+    public_json = json.dumps(payload)
+    assert "q,I" not in public_json
+    assert "0.1,1.0" not in public_json
+    assert "temperature-80C" not in public_json
+    assert "frame-001.csv" not in public_json
 
 
 def test_direct_run_rejects_empty_directory_without_invoking_provider(tmp_path: Path) -> None:
@@ -448,23 +456,16 @@ def test_direct_run_rejects_empty_directory_without_invoking_provider(tmp_path: 
     assert engine.calls == []
 
 
-@pytest.mark.parametrize("entry_kind", ("nested-directory", "symlink"))
-def test_direct_run_rejects_directory_with_unsupported_entries_without_provider(
-    tmp_path: Path, entry_kind: str
-) -> None:
+def test_direct_run_rejects_nested_symlink_in_directory_without_provider(tmp_path: Path) -> None:
     directory = tmp_path / "raw-directory"
-    directory.mkdir()
-    if entry_kind == "nested-directory":
-        nested = directory / "nested"
-        nested.mkdir()
-        (nested / "frame.csv").write_text("q,I\n0.1,1.0\n", encoding="utf-8")
-    else:
-        target = tmp_path / "frame.csv"
-        target.write_text("q,I\n0.1,1.0\n", encoding="utf-8")
-        try:
-            (directory / "linked-frame.csv").symlink_to(target)
-        except OSError as error:
-            pytest.skip(f"symlink creation unavailable: {error}")
+    nested = directory / "temperature-80C"
+    nested.mkdir(parents=True)
+    target = tmp_path / "frame.csv"
+    target.write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    try:
+        (nested / "linked-frame.csv").symlink_to(target)
+    except OSError as error:
+        pytest.skip(f"symlink creation unavailable: {error}")
     engine = FakeEngine(SimpleNamespace())
 
     run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(

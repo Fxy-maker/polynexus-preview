@@ -116,7 +116,11 @@ def test_analysis_worker_accepts_a_directory_through_the_shared_service(tmp_path
         metadata = {}
 
     class FakeEngine:
+        def __init__(self):
+            self.calls = []
+
         def run_pipeline(self, input_path, output_path, **kwargs):
+            self.calls.append((input_path, output_path, kwargs))
             return FakeResult()
 
     class FakeComputeRunService:
@@ -127,13 +131,18 @@ def test_analysis_worker_accepts_a_directory_through_the_shared_service(tmp_path
             return ComputeRunService(self.engine_factory).run_direct(**kwargs)
 
     directory = tmp_path / "sequence"
-    directory.mkdir()
-    (directory / "frame-001.csv").write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    nested = directory / "temperature-80C"
+    sibling = directory / "temperature-90C"
+    nested.mkdir(parents=True)
+    sibling.mkdir()
+    (nested / "frame-001.csv").write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    (sibling / "frame-002.csv").write_text("q,I\n0.2,2.0\n", encoding="utf-8")
+    engine = FakeEngine()
     worker = AnalysisWorker(
         "saxs",
         str(directory),
         str(tmp_path / "out"),
-        engine=FakeEngine(),
+        engine=engine,
         compute_service_factory=FakeComputeRunService,
     )
     received = []
@@ -146,6 +155,9 @@ def test_analysis_worker_accepts_a_directory_through_the_shared_service(tmp_path
     assert errors == []
     assert received[0].status == "completed"
     assert received[0].artifact.path == str(directory.resolve())
+    assert engine.calls == [
+        (str(directory.resolve()), str((tmp_path / "out").resolve()), {"skip_to": None})
+    ]
     assert worker.compute_run is received[0]
 
 
