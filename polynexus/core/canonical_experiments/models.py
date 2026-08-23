@@ -130,6 +130,18 @@ class MappingProposal:
             raise ValueError("Mapping proposal selections must use the proposal source")
         if any(selection.source not in {self.source, "observed"} for selection in self.alternatives):
             raise ValueError("Mapping proposal alternatives must be observed or use the proposal source")
+        expected_proposal_id = _hash(
+            self._identity_payload(
+                source_artifact_id=self.source_artifact_id,
+                technique=self.technique,
+                selections=self.selections,
+                source=self.source,
+                warnings=self.warnings,
+                alternatives=self.alternatives,
+            )
+        )
+        if self.proposal_id != expected_proposal_id:
+            raise ValueError("Mapping proposal ID does not match its identity fields")
 
     @classmethod
     def create(
@@ -233,6 +245,30 @@ class Measurement:
         missing_locator_keys = self._SOURCE_LOCATOR_KEYS.difference(self.source_locator)
         if missing_locator_keys:
             raise ValueError(f"Measurement source locator is missing: {', '.join(sorted(missing_locator_keys))}")
+        source_path = self.source_locator["source_path"]
+        if not isinstance(source_path, str) or not source_path:
+            raise ValueError("Measurement source path must be a nonempty string")
+        sheet_name = self.source_locator["sheet_name"]
+        if sheet_name is not None and not isinstance(sheet_name, str):
+            raise ValueError("Measurement sheet name must be a string or null")
+        sheet_index = self.source_locator["sheet_index"]
+        if sheet_index is not None and (type(sheet_index) is not int or sheet_index < 0):
+            raise ValueError("Measurement sheet index must be a nonnegative integer or null")
+        for key in (
+            "table_index",
+            "header_row",
+            "data_row_start",
+            "data_row_end",
+            "point_start",
+            "point_end",
+        ):
+            locator_value = self.source_locator[key]
+            if type(locator_value) is not int or locator_value < 0:
+                raise ValueError(f"Measurement {key.replace('_', ' ')} must be a nonnegative integer")
+        if self.source_locator["data_row_start"] > self.source_locator["data_row_end"]:
+            raise ValueError("Measurement data row start must not exceed data row end")
+        if self.source_locator["point_start"] > self.source_locator["point_end"]:
+            raise ValueError("Measurement point start must not exceed point end")
         object.__setattr__(self, "source_locator", _freeze(self.source_locator))
         if not isinstance(self.acquisition_metadata, Mapping):
             raise ValueError("Measurement acquisition metadata must be a mapping")
