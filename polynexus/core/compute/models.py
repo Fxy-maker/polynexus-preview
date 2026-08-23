@@ -175,7 +175,7 @@ class RawArtifact:
         object.__setattr__(self, "artifact_id", _string_value(self.artifact_id, "artifact_id"))
         object.__setattr__(self, "path", _string_value(self.path, "path"))
         object.__setattr__(self, "technique", _string_value(self.technique, "technique"))
-        object.__setattr__(self, "format", _string_value(self.format, "format"))
+        object.__setattr__(self, "format", _string_value(self.format, "format", allow_empty=True))
         object.__setattr__(self, "sha256", _string_value(self.sha256, "sha256", allow_empty=True))
         object.__setattr__(self, "observed_facts", _freeze_mapping(self.observed_facts))
 
@@ -214,19 +214,24 @@ class RawArtifact:
 
     @classmethod
     def missing(cls, path: str | Path, *, technique: str) -> RawArtifact:
-        candidate = Path(path).expanduser().resolve(strict=False)
-        artifact_format = _artifact_format(candidate)
+        try:
+            candidate = Path(path).expanduser().resolve(strict=False)
+            artifact_path = str(candidate)
+            artifact_format = _artifact_format(candidate)
+        except (OSError, ValueError):
+            artifact_path = str(path)
+            artifact_format = ""
         artifact_id = _canonical_hash(
             {
                 "kind": "missing_raw_artifact",
-                "path": str(candidate),
+                "path": artifact_path,
                 "technique": technique,
                 "format": artifact_format,
             }
         )
         return cls(
             artifact_id=artifact_id,
-            path=str(candidate),
+            path=artifact_path,
             technique=technique,
             format=artifact_format,
             sha256="",

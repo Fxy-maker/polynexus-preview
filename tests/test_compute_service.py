@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -228,6 +229,23 @@ def test_direct_run_returns_needs_input_when_artifact_hashing_becomes_unreadable
     assert run.status == "needs_input"
     assert run.reasons == ("raw_artifact_unreadable",)
     assert engine.calls == []
+
+
+def test_direct_run_returns_json_safe_needs_input_for_malformed_source_path(
+    tmp_path: Path,
+) -> None:
+    run = ComputeRunService().run_direct(
+        technique="ir",
+        path="\x00",
+        output_dir=tmp_path / "out",
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("raw_artifact_unreadable",)
+    assert run.artifact.path == "\x00"
+    assert run.artifact.format == ""
+    assert run.artifact.sha256 == ""
+    assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
 
 
 def test_direct_run_rejects_non_regular_source_without_invoking_provider(tmp_path: Path) -> None:
