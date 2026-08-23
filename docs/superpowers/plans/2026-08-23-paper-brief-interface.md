@@ -138,7 +138,7 @@ Expected: one local commit with only the listed files; no push.
 
 - [ ] **Step 1: Write failing validation tests**
 
-Add separate tests that prove the contract rejects a tampered package pin, missing metric, promotion of a diagnostic metric to Results, missing figure, and figure-budget overflow:
+Add separate tests that prove the contract rejects a tampered package pin, a missing metric, a missing figure, and figure-budget overflow. The happy-path test already proves that a selected diagnostic metric remains in the Discussion partition rather than being promoted:
 
 ```python
 def test_builder_rejects_a_tampered_package_hash(tmp_path: Path) -> None:
@@ -149,12 +149,10 @@ def test_builder_rejects_a_tampered_package_hash(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="package hash"):
         build_manuscript_plan(package, _brief())
 
-def test_builder_rejects_unknown_and_promoted_metric_references(tmp_path: Path) -> None:
+def test_builder_rejects_unknown_metric_references(tmp_path: Path) -> None:
     package = _package(tmp_path)
     with pytest.raises(ValueError, match="metric"):
         build_manuscript_plan(package, _brief(selected_metric_ids=("missing",)))
-    with pytest.raises(ValueError, match="Results"):
-        build_manuscript_plan(package, _brief(results_metric_ids=("metric-diagnostic",)))
 
 def test_builder_rejects_missing_figure_and_figure_budget_overflow(tmp_path: Path) -> None:
     package = _package(tmp_path)
@@ -190,7 +188,7 @@ def _validate_package_pin(root: Path, manifest: Mapping[str, Any]) -> str:
 def _require_known(requested: Iterable[str], known: Collection[str], kind: str) -> tuple[str, ...]: ...
 ```
 
-`PaperBrief.from_dict` must reject empty research questions, versions other than `1`, negative budgets, non-string selections, unsupported roles, unsupported figure intents, source/raw-data paths, analysis parameters, and a supplied `status`. Validate requested techniques, evidence IDs, metric IDs, explicit results metric IDs, explicit discussion metric IDs, and figure IDs against the package view. Results references must have `results_candidate` eligibility; Discussion references must not. Permit only `main` and `supporting` figure roles and reject counts beyond either budget.
+`PaperBrief.from_dict` must reject empty research questions, versions other than `1`, negative budgets, non-string selections, unsupported roles, unsupported figure intents, source/raw-data paths, analysis parameters, and a supplied `status`. Validate requested techniques, evidence IDs, metric IDs, and figure IDs against the package view. Do not accept a Results/Discussion override in the brief: the builder always partitions selected metrics by existing package eligibility. Permit only `main` and `supporting` figure roles and reject counts beyond either budget.
 
 - [ ] **Step 4: Run the core suite and observe green**
 

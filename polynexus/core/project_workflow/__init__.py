@@ -23,6 +23,7 @@ from .grouping import CandidateExperimentGroup, candidate_groups
 from .selection import FigureSelectionRequest, ResolvedFigureSelection, resolve_figure_selection
 from .evidence_view import EvidencePackageView, load_evidence_package_view
 from .figure_index import FigureIndexEntry, load_figure_index
+from .manuscript_plan import ManuscriptPlan, PaperBrief, build_manuscript_plan
 
 __all__ = [
     "AnalysisSymptom",
@@ -62,4 +63,7 @@ __all__ = [
     "load_evidence_package_view",
     "FigureIndexEntry",
     "load_figure_index",
+    "ManuscriptPlan",
+    "PaperBrief",
+    "build_manuscript_plan",
 ]
