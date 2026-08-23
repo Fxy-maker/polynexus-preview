@@ -279,6 +279,57 @@ def test_direct_run_rejects_unsupported_option_before_provider_execution(tmp_pat
     assert engine.calls == []
 
 
+@pytest.mark.parametrize("output_dir", ("\x00", None))
+def test_direct_run_rejects_invalid_output_dir_before_plan_or_provider(
+    tmp_path: Path, output_dir: object
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir",
+        path=source,
+        output_dir=output_dir,  # type: ignore[arg-type]
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("output_directory_invalid",)
+    assert run.artifact.sha256
+    assert run.dataset is None
+    assert run.plan is None
+    assert run.result is None
+    assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
+    assert engine.calls == []
+
+
+@pytest.mark.parametrize(
+    "skip_to",
+    (pytest.param("unknown", id="unknown-string"), pytest.param(object(), id="object")),
+)
+def test_direct_run_rejects_invalid_skip_to_before_plan_or_provider(
+    tmp_path: Path, skip_to: object
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir",
+        path=source,
+        output_dir=tmp_path / "out",
+        pipeline_options={"skip_to": skip_to},
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("pipeline_option_invalid",)
+    assert run.dataset is None
+    assert run.plan is None
+    assert run.result is None
+    assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
+    assert engine.calls == []
+
+
 def test_compute_sources_do_not_import_removed_runtime_boundaries() -> None:
     import polynexus.core.compute.models as models
     import polynexus.core.compute.service as service

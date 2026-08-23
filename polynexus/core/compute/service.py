@@ -2,14 +2,46 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable
 
 from ..engine import get_engine
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 
 
 _SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to"})
+_SUPPORTED_SKIP_TO_VALUES = frozenset({"preprocess", "analyze", "plot"})
+
+
+def _resolve_output_dir(value: str | Path) -> str | None:
+    """Return a canonical output directory only when it is path-valid."""
+    try:
+        return str(Path(value).expanduser().resolve(strict=False))
+    except (OSError, TypeError, ValueError):
+        return None
+
+
+def _validated_pipeline_options(
+    value: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Return supported JSON-safe direct-pipeline options or a public reason."""
+    if value is None:
+        return {}, None
+    if not isinstance(value, Mapping):
+        return None, "pipeline_option_invalid"
+    try:
+        options = dict(value)
+    except (OSError, TypeError, ValueError):
+        return None, "pipeline_option_invalid"
+    if any(name not in _SUPPORTED_PIPELINE_OPTIONS for name in options):
+        return None, "pipeline_option_unsupported"
+    skip_to = options.get("skip_to")
+    if "skip_to" in options and not (
+        skip_to is None or (isinstance(skip_to, str) and skip_to in _SUPPORTED_SKIP_TO_VALUES)
+    ):
+        return None, "pipeline_option_invalid"
+    return options, None
 
 
 class ComputeRunService:
@@ -60,28 +92,28 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(source, technique=technique),
                 reasons=("raw_artifact_unreadable",),
             )
-        try:
-            options = dict(pipeline_options or {})
-        except (TypeError, ValueError):
-            options = {}
-            unsupported_options = True
-        else:
-            unsupported_options = any(name not in _SUPPORTED_PIPELINE_OPTIONS for name in options)
-        if unsupported_options:
+        resolved_output_dir = _resolve_output_dir(output_dir)
+        if resolved_output_dir is None:
             return ComputeRun(
                 status="needs_input",
                 artifact=artifact,
-                reasons=("pipeline_option_unsupported",),
+                reasons=("output_directory_invalid",),
             )
-        dataset: CanonicalDataset | None = None
-        plan: AnalysisPlan | None = None
+        options, options_reason = _validated_pipeline_options(pipeline_options)
+        if options_reason is not None:
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=(options_reason,),
+            )
+        assert options is not None
+        dataset = CanonicalDataset.direct_envelope(artifact)
+        plan = AnalysisPlan.direct(
+            dataset,
+            output_dir=resolved_output_dir,
+            pipeline_options=options,
+        )
         try:
-            dataset = CanonicalDataset.direct_envelope(artifact)
-            plan = AnalysisPlan.direct(
-                dataset,
-                output_dir=output_dir,
-                pipeline_options=options,
-            )
             selected_engine = engine
             if selected_engine is None:
                 selected_engine = self._engine_factory(
