@@ -9,6 +9,7 @@ import json
 import math
 from numbers import Real
 from pathlib import Path
+import re
 from types import MappingProxyType
 from typing import Any
 
@@ -81,7 +82,8 @@ def _freeze_mapping(value: Mapping[str, Any] | None) -> Mapping[str, Any]:
 
 
 def _normalized_compute_key(value: str) -> str:
-    return "_".join(value.casefold().replace("-", "_").replace("_", " ").split())
+    camel_separated = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", value)
+    return "_".join(camel_separated.casefold().replace("-", "_").replace("_", " ").split())
 
 
 def _is_forbidden_compute_result_key(key: object) -> bool:

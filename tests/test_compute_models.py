@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+import re
 from types import MappingProxyType
 
 import pytest
@@ -32,7 +33,8 @@ _FORBIDDEN_RESULT_KEY_NAMES = frozenset(
 
 
 def _normalize_result_key(key: str) -> str:
-    return "_".join(key.casefold().replace("-", "_").replace("_", " ").split())
+    camel_separated = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", key)
+    return "_".join(camel_separated.casefold().replace("-", "_").replace("_", " ").split())
 
 
 def assert_no_forbidden_result_keys(value: object) -> None:
@@ -263,17 +265,20 @@ def test_legacy_projection_scrubs_nested_forbidden_aliases(tmp_path: Path) -> No
     class FakeResult:
         parameters = {
             "peak_cm-1": 1630.0,
-            "Analysis-Evidence": {"hidden": True},
+            "analysisEvidence": {"hidden": True},
             "nested": {
-                "writing_status": "blocked",
-                "values": [{"manuscript_role": "results", "intensity": 4.2}],
+                "writingEligibility": "blocked",
+                "values": [{"manuscriptRole": "results", "intensity": 4.2}],
             },
         }
-        figures = {"spectrum": "spectrum.svg", "Review-Notes": "internal.svg"}
+        figures = {
+            "spectrum": "spectrum.svg",
+            "reviewNotes": "internal.svg",
+            "evidencePackage": "internal-package.svg",
+        }
         metadata = {
-            "review_required": True,
-            "evidence_package": {"hidden": True},
-            "nested": {"manuscript_status": True, "provider": "legacy"},
+            "reviewRequired": True,
+            "nested": {"reviewNotes": "private", "provider": "legacy"},
         }
         validation_warnings = ()
         quality_flags = {}
@@ -310,7 +315,7 @@ def test_legacy_projection_scrubs_nested_forbidden_aliases(tmp_path: Path) -> No
     assert "analysis_evidence" not in payload_text
 
 
-def test_direct_compute_result_scrubs_forbidden_aliases_from_public_projection(
+def test_direct_compute_result_scrubs_camel_case_aliases_from_public_projection(
     tmp_path: Path,
 ) -> None:
     artifact = RawArtifact(
@@ -326,13 +331,23 @@ def test_direct_compute_result_scrubs_forbidden_aliases_from_public_projection(
     result = ComputeResult(
         metrics={
             "nested": {
-                "Review-Notes": "private",
-                "writing_status": "private",
+                "analysisEvidence": {"private": True},
+                "writingEligibility": "private",
+                "manuscriptRole": "results",
+                "reviewNotes": "private",
                 "intensity": 4.2,
             }
         },
-        figures={"evidence_package": "private.svg", "spectrum": "spectrum.svg"},
-        metadata={"nested": [{"manuscript_status": "draft"}], "provider": "direct"},
+        figures={
+            "evidencePackage": "private.svg",
+            "preview": "preview.svg",
+            "spectrum": "spectrum.svg",
+        },
+        metadata={
+            "reviewRequired": True,
+            "nested": [{"reviewNotes": "draft"}],
+            "provider": "direct",
+        },
         warnings=("retained_warning",),
     )
 
@@ -344,7 +359,10 @@ def test_direct_compute_result_scrubs_forbidden_aliases_from_public_projection(
     ).to_dict()
 
     assert payload["result"]["metrics"]["nested"] == {"intensity": 4.2}
-    assert payload["result"]["figures"] == {"spectrum": "spectrum.svg"}
+    assert payload["result"]["figures"] == {
+        "preview": "preview.svg",
+        "spectrum": "spectrum.svg",
+    }
     assert payload["result"]["metadata"] == {"nested": [{}], "provider": "direct"}
     assert payload["result"]["warnings"] == ["retained_warning"]
     assert_no_forbidden_result_keys(payload["result"])
