@@ -131,3 +131,15 @@ def test_needs_input_conversion_cannot_contain_a_template() -> None:
     assert ConversionOutcome(status="needs_input", record=record).status == "needs_input"
     with pytest.raises(ValueError, match="needs_input"):
         ConversionOutcome(status="needs_input", record=record, template=template)
+
+
+@pytest.mark.parametrize("status", ("ready", "review_required", "blocked", "needs_input"))
+def test_conversion_outcome_requires_record_reason_codes_to_match(status: str) -> None:
+    record = ConversionRecord.create(
+        conversion_id="converter.v1",
+        source_artifact_id="raw-sha256",
+        reason_codes=("record_reason",),
+    )
+
+    with pytest.raises(ValueError, match="reason codes"):
+        ConversionOutcome(status=status, record=record, reason_codes=("outcome_reason",))

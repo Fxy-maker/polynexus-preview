@@ -597,4 +597,7 @@ class ConversionOutcome:
             raise ValueError(f"Unsupported conversion status: {self.status}")
         if self.status in {"blocked", "needs_input"} and self.template is not None:
             raise ValueError(f"{self.status} conversion cannot contain a canonical template")
-        object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
+        reason_codes = tuple(str(code) for code in self.reason_codes)
+        if reason_codes != self.record.reason_codes:
+            raise ValueError("Canonical conversion outcome reason codes must match its record")
+        object.__setattr__(self, "reason_codes", reason_codes)
