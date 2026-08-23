@@ -16,6 +16,19 @@
   run was intentionally not performed without a user-provided disposable
   sample path because analysis creates output beside its input.
 - Task card: `docs/agent/tasks/2026-08-09-gui-automation-mcp.md`.
+## Paper-brief interface - implementation complete, review required (2026-08-23)
+
+- `PaperBrief` and `ManuscriptPlan` are a separate ARS/CLI export pinned to an
+  immutable evidence-package hash. The builder selects existing techniques,
+  evidence IDs, metrics, and logical figures only; results and diagnostic
+  metric partitions remain inherited from the package.
+- `polynexus project-workflow manuscript-plan --package ... --brief ... --output ...`
+  writes a separate JSON plan outside the package. It does not mutate package
+  files, rerun analysis, generate prose, or provide GUI editing.
+- Focused shared-contract coverage passed `17`. Architecture and scientific
+  boundary review remain required before merge. Task:
+  `docs/agent/tasks/2026-08-23-paper-brief-interface.md`.
+
 ## Evidence figure role projection - implementation complete, review required (2026-08-21)
 
 - The evidence packager now projects the declared ARS candidate role,
