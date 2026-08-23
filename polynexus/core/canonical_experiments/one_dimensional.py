@@ -35,6 +35,8 @@ class _Table:
     sheet_name: str | None
     sheet_index: int | None
     table_index: int
+    header_row: int = 0
+    data_rows: tuple[int, ...] = ()
 
 
 def convert_one_dimensional_table(
@@ -61,8 +63,16 @@ def convert_one_dimensional_table(
         for header in table.frame.columns
     )
     normalized_technique = technique.strip().upper()
+    observed_by_table = {
+        (table.sheet_index, table.table_index): _observed_selection(table, normalized_technique)
+        for table in tables
+    }
     if mapping_proposal is not None and not _valid_proposal(
-        mapping_proposal, tables=tables, technique=normalized_technique, source_artifact_id=source_artifact_id
+        mapping_proposal,
+        tables=tables,
+        observed_by_table=observed_by_table,
+        technique=normalized_technique,
+        source_artifact_id=source_artifact_id,
     ):
         return _outcome(
             "needs_input", source_artifact_id, "conversion_mapping_proposal_invalid", observed_columns=observed_columns
@@ -74,8 +84,9 @@ def convert_one_dimensional_table(
         if mapping_proposal is not None
         else {}
     )
+    proposal_used = False
     for table in tables:
-        observed = _observed_selection(table, normalized_technique)
+        observed = observed_by_table[(table.sheet_index, table.table_index)]
         if observed is not None:
             selected.append(observed)
             continue
@@ -85,6 +96,7 @@ def convert_one_dimensional_table(
                 "needs_input", source_artifact_id, "conversion_mapping_ambiguous", observed_columns=observed_columns
             )
         selected.append(proposal_selection)
+        proposal_used = True
 
     measurements: list[Measurement] = []
     for table, selection in zip(tables, selected, strict=True):
@@ -135,14 +147,16 @@ def convert_one_dimensional_table(
         payload={"technique": normalized_technique},
         conversion_record=record,
         measurements=measurements,
-        mapping_proposal=mapping_proposal,
+        mapping_proposal=mapping_proposal if proposal_used else None,
     )
     return ConversionOutcome(status="ready", record=record, template=template)
 
 
 def _load_tables(path: Path, extension: str) -> tuple[_Table, ...]:
     if extension not in _WORKBOOK_EXTENSIONS:
-        return (_Table(_string_headers(pd.read_csv(path, sep=None, engine="python", comment="#")), None, None, 0),)
+        frame = _string_headers(pd.read_csv(path, sep=None, engine="python", comment="#"))
+        header_row, data_rows = _flat_source_rows(path, expected_rows=len(frame))
+        return (_Table(frame, None, None, 0, header_row=header_row, data_rows=data_rows),)
     with pd.ExcelFile(path) as workbook:
         return tuple(
             _Table(_string_headers(pd.read_excel(workbook, sheet_name=sheet_name)), str(sheet_name), index, 0)
@@ -155,10 +169,22 @@ def _string_headers(frame: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _flat_source_rows(path: Path, *, expected_rows: int) -> tuple[int, tuple[int, ...]]:
+    physical_content_rows = tuple(
+        index
+        for index, line in enumerate(path.read_bytes().splitlines())
+        if line.strip() and not line.lstrip().startswith(b"#")
+    )
+    if not physical_content_rows or len(physical_content_rows) != expected_rows + 1:
+        raise ValueError("Flat source rows cannot be mapped to physical lines")
+    return physical_content_rows[0], physical_content_rows[1:]
+
+
 def _valid_proposal(
     proposal: MappingProposal,
     *,
     tables: tuple[_Table, ...],
+    observed_by_table: dict[tuple[int | None, int], MappingSelection | None],
     technique: str,
     source_artifact_id: str,
 ) -> bool:
@@ -168,6 +194,8 @@ def _valid_proposal(
         return False
     table_by_key = {(table.sheet_index, table.table_index): table for table in tables}
     if len({(selection.sheet_index, selection.table_index) for selection in proposal.selections}) != len(tables):
+        return False
+    if all(observed_by_table[(table.sheet_index, table.table_index)] is not None for table in tables):
         return False
     for selection in proposal.selections:
         table = table_by_key.get((selection.sheet_index, selection.table_index))
@@ -185,10 +213,30 @@ def _valid_proposal(
             return False
         if selection.intensity_unit != _intensity_unit(selection.intensity_column):
             return False
-        start, end = _table_row_range(table.frame)
+        observed = observed_by_table[(table.sheet_index, table.table_index)]
+        if observed is not None and not _matches_observed_mapping(selection, observed):
+            return False
+        start, end = _table_row_range(table)
         if selection.data_row_start != start or selection.data_row_end != end:
             return False
     return True
+
+
+def _matches_observed_mapping(proposed: MappingSelection, observed: MappingSelection) -> bool:
+    return (
+        proposed.measurement_id == observed.measurement_id
+        and proposed.sheet_name == observed.sheet_name
+        and proposed.sheet_index == observed.sheet_index
+        and proposed.table_index == observed.table_index
+        and proposed.header_row == observed.header_row
+        and proposed.data_row_start == observed.data_row_start
+        and proposed.data_row_end == observed.data_row_end
+        and proposed.x_column == observed.x_column
+        and proposed.intensity_column == observed.intensity_column
+        and proposed.x_kind == observed.x_kind
+        and proposed.x_unit == observed.x_unit
+        and proposed.intensity_unit == observed.intensity_unit
+    )
 
 
 def _observed_selection(table: _Table, technique: str) -> MappingSelection | None:
@@ -206,13 +254,13 @@ def _observed_selection(table: _Table, technique: str) -> MappingSelection | Non
     intensity_column = intensity_candidates[0]
     if x_column == intensity_column:
         return None
-    start, end = _table_row_range(table.frame)
+    start, end = _table_row_range(table)
     return MappingSelection(
         measurement_id=_measurement_id(table),
         sheet_name=table.sheet_name,
         sheet_index=table.sheet_index,
         table_index=table.table_index,
-        header_row=0,
+        header_row=table.header_row,
         data_row_start=start,
         data_row_end=end,
         x_column=x_column,
@@ -228,10 +276,12 @@ def _measurement_id(table: _Table) -> str:
     return f"sheet-{table.sheet_index if table.sheet_index is not None else 0}-table-{table.table_index}"
 
 
-def _table_row_range(frame: pd.DataFrame) -> tuple[int, int]:
-    if frame.empty:
+def _table_row_range(table: _Table) -> tuple[int, int]:
+    if table.frame.empty:
         return 0, 0
-    return int(frame.index[0]) + 1, int(frame.index[-1]) + 1
+    if table.data_rows:
+        return table.data_rows[0], table.data_rows[-1]
+    return int(table.frame.index[0]) + 1, int(table.frame.index[-1]) + 1
 
 
 def _source_locator(
@@ -242,7 +292,7 @@ def _source_locator(
         "sheet_name": table.sheet_name,
         "sheet_index": table.sheet_index,
         "table_index": table.table_index,
-        "header_row": 0,
+        "header_row": table.header_row,
         "data_row_start": selection.data_row_start,
         "data_row_end": selection.data_row_end,
         "point_start": 0,

@@ -32,6 +32,25 @@ def test_ir_csv_curve_preserves_order_units_and_source_rows(tmp_path: Path) -> N
     assert outcome.record.observed_columns == ("flat:Wavenumber cm-1", "flat:Absorbance a.u.")
 
 
+def test_flat_file_locator_uses_physical_lines_with_comments(tmp_path: Path) -> None:
+    path = tmp_path / "commented.csv"
+    path.write_text(
+        "# instrument preamble\nWavenumber,Absorbance\n4000,0.1\n# between rows\n2000,0.3\n",
+        encoding="utf-8",
+    )
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-comments")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    measurement = outcome.template.measurements[0]
+    assert measurement.mapping is not None
+    assert measurement.mapping.header_row == 1
+    assert (measurement.mapping.data_row_start, measurement.mapping.data_row_end) == (2, 4)
+    assert measurement.source_locator["header_row"] == 1
+    assert (measurement.source_locator["data_row_start"], measurement.source_locator["data_row_end"]) == (2, 4)
+
+
 def test_saxs_q_without_unit_retains_raw_values_and_warns(tmp_path: Path) -> None:
     path = tmp_path / "curve.tsv"
     path.write_text("q\tintensity\n0.3\t8\n0.1\t4\n", encoding="utf-8")
@@ -115,6 +134,61 @@ def test_valid_ai_proposal_resolves_ambiguous_table(tmp_path: Path) -> None:
     assert outcome.template is not None
     assert outcome.template.mapping_proposal == proposal
     assert outcome.template.measurements[0].mapping == selection
+
+
+def test_proposal_for_an_unambiguous_table_is_invalid(tmp_path: Path) -> None:
+    path = tmp_path / "curve.csv"
+    path.write_text("Wavenumber,Absorbance\n4000,0.1\n2000,0.3\n", encoding="utf-8")
+    selection = MappingSelection(
+        measurement_id="sheet-0-table-0", sheet_name=None, sheet_index=None, table_index=0,
+        header_row=0, data_row_start=1, data_row_end=2, x_column="Wavenumber", intensity_column="Absorbance",
+        x_kind="wavenumber", x_unit="unknown", intensity_unit="absorbance", source="AI proposal",
+    )
+    proposal = MappingProposal.create(
+        source_artifact_id="artifact-observed", technique="IR", source="AI proposal", selections=(selection,)
+    )
+
+    outcome = convert_one_dimensional_table(
+        path, technique="IR", source_artifact_id="artifact-observed", mapping_proposal=proposal
+    )
+
+    assert outcome.status == "needs_input"
+    assert outcome.template is None
+    assert outcome.reason_codes == ("conversion_mapping_proposal_invalid",)
+
+
+def test_mixed_workbook_proposal_must_match_an_observed_table(tmp_path: Path) -> None:
+    path = tmp_path / "mixed.xlsx"
+    with pd.ExcelWriter(path) as writer:
+        pd.DataFrame({"Wavenumber": [4000.0, 2000.0], "Absorbance": [0.1, 0.2]}).to_excel(
+            writer, sheet_name="observed", index=False
+        )
+        pd.DataFrame({"A": [1.0, 2.0], "B": [3.0, 4.0]}).to_excel(
+            writer, sheet_name="ambiguous", index=False
+        )
+    selections = (
+        MappingSelection(
+            measurement_id="sheet-0-table-0", sheet_name="observed", sheet_index=0, table_index=0,
+            header_row=0, data_row_start=1, data_row_end=2, x_column="Wavenumber", intensity_column="Absorbance",
+            x_kind="wavenumber", x_unit="unknown", intensity_unit="unknown", source="AI proposal",
+        ),
+        MappingSelection(
+            measurement_id="sheet-1-table-0", sheet_name="ambiguous", sheet_index=1, table_index=0,
+            header_row=0, data_row_start=1, data_row_end=2, x_column="A", intensity_column="B",
+            x_kind="wavenumber", x_unit="unknown", intensity_unit="unknown", source="AI proposal",
+        ),
+    )
+    proposal = MappingProposal.create(
+        source_artifact_id="artifact-mixed", technique="IR", source="AI proposal", selections=selections
+    )
+
+    outcome = convert_one_dimensional_table(
+        path, technique="IR", source_artifact_id="artifact-mixed", mapping_proposal=proposal
+    )
+
+    assert outcome.status == "needs_input"
+    assert outcome.template is None
+    assert outcome.reason_codes == ("conversion_mapping_proposal_invalid",)
 
 
 def test_invalid_proposal_missing_column_needs_input(tmp_path: Path) -> None:
