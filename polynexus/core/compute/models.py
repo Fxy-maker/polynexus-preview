@@ -14,12 +14,19 @@ from typing import Any
 
 
 COMPUTE_STATUSES = frozenset({"ready", "needs_input", "failed", "completed"})
-_FORBIDDEN_COMPUTE_RESULT_KEY_TOKENS = (
-    "analysis_evidence",
-    "evidence",
-    "writing",
-    "manuscript",
-    "review",
+_FORBIDDEN_COMPUTE_RESULT_KEY_NAMES = frozenset(
+    {
+        "analysis_evidence",
+        "evidence",
+        "evidence_package",
+        "writing_eligibility",
+        "writing_status",
+        "manuscript_role",
+        "manuscript_candidate",
+        "manuscript_status",
+        "review_required",
+        "review_notes",
+    }
 )
 
 
@@ -73,11 +80,19 @@ def _freeze_mapping(value: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return frozen
 
 
+def _normalized_compute_key(value: str) -> str:
+    return "_".join(value.casefold().replace("-", "_").replace("_", " ").split())
+
+
 def _is_forbidden_compute_result_key(key: object) -> bool:
     if not isinstance(key, str):
         return False
-    normalized_key = key.casefold().replace("-", "_")
-    return any(token in normalized_key for token in _FORBIDDEN_COMPUTE_RESULT_KEY_TOKENS)
+    # Exact aliases preserve valid compute fields such as preview and chart_preview.
+    return _normalized_compute_key(key) in _FORBIDDEN_COMPUTE_RESULT_KEY_NAMES
+
+
+def _normalized_technique(value: str) -> str:
+    return " ".join(value.casefold().split())
 
 
 def _scrub_compute_result_projection(value: Any) -> Any:
@@ -400,6 +415,24 @@ class ComputeRun:
         if self.result is not None and not isinstance(self.result, ComputeResult):
             raise TypeError("result must be a ComputeResult")
         object.__setattr__(self, "reasons", _freeze_strings(self.reasons, "reasons"))
+        if self.dataset is not None and self.plan is not None:
+            linkage_mismatches: list[str] = []
+            if self.artifact.artifact_id != self.dataset.source_artifact_id:
+                linkage_mismatches.append("artifact/dataset")
+            if self.plan.dataset_id != self.dataset.dataset_id:
+                linkage_mismatches.append("plan/dataset")
+            if _normalized_technique(self.plan.technique) != _normalized_technique(
+                self.dataset.technique
+            ):
+                linkage_mismatches.append("plan/dataset technique")
+            if _normalized_technique(self.artifact.technique) != _normalized_technique(
+                self.dataset.technique
+            ):
+                linkage_mismatches.append("artifact/dataset technique")
+            if linkage_mismatches:
+                raise ValueError(
+                    "Compute run provenance linkage mismatch: " + ", ".join(linkage_mismatches)
+                )
         has_execution_context = self.dataset is not None or self.plan is not None
         if self.status == "completed":
             if self.dataset is None or self.plan is None or self.result is None:

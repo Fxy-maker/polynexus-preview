@@ -15,20 +15,30 @@ from polynexus.core.compute.models import (
 )
 
 
-_FORBIDDEN_RESULT_KEY_TOKENS = (
-    "analysis_evidence",
-    "evidence",
-    "writing",
-    "manuscript",
-    "review",
+_FORBIDDEN_RESULT_KEY_NAMES = frozenset(
+    {
+        "analysis_evidence",
+        "evidence",
+        "evidence_package",
+        "writing_eligibility",
+        "writing_status",
+        "manuscript_role",
+        "manuscript_candidate",
+        "manuscript_status",
+        "review_required",
+        "review_notes",
+    }
 )
+
+
+def _normalize_result_key(key: str) -> str:
+    return "_".join(key.casefold().replace("-", "_").replace("_", " ").split())
 
 
 def assert_no_forbidden_result_keys(value: object) -> None:
     if isinstance(value, dict):
         for key, item in value.items():
-            normalized_key = key.casefold().replace("-", "_")
-            assert not any(token in normalized_key for token in _FORBIDDEN_RESULT_KEY_TOKENS)
+            assert _normalize_result_key(key) not in _FORBIDDEN_RESULT_KEY_NAMES
             assert_no_forbidden_result_keys(item)
     elif isinstance(value, list):
         for item in value:
@@ -124,6 +134,92 @@ def test_failed_compute_run_retains_pre_provider_provenance(tmp_path: Path) -> N
             plan=plan,
             result=ComputeResult(),
         )
+
+
+def _mismatched_compute_context(
+    tmp_path: Path,
+    mismatch: str,
+) -> tuple[RawArtifact, CanonicalDataset, AnalysisPlan]:
+    artifact = RawArtifact(
+        artifact_id="artifact",
+        path="curve.csv",
+        technique="ir",
+        format="csv",
+        sha256="digest",
+    )
+    dataset = CanonicalDataset.direct_envelope(artifact)
+    plan = AnalysisPlan.direct(dataset, output_dir=tmp_path / "out")
+
+    if mismatch == "artifact_dataset":
+        artifact = RawArtifact(
+            artifact_id="other-artifact",
+            path="other.csv",
+            technique="ir",
+            format="csv",
+            sha256="other-digest",
+        )
+    elif mismatch == "plan_dataset":
+        plan = AnalysisPlan(
+            plan_id="other-plan",
+            dataset_id="other-dataset",
+            technique="ir",
+            output_dir=tmp_path / "out",
+            pipeline_options={},
+            parameter_sources={},
+        )
+    elif mismatch == "plan_technique":
+        plan = AnalysisPlan(
+            plan_id="other-plan",
+            dataset_id=dataset.dataset_id,
+            technique="dsc",
+            output_dir=tmp_path / "out",
+            pipeline_options={},
+            parameter_sources={},
+        )
+    elif mismatch == "artifact_technique":
+        artifact = RawArtifact(
+            artifact_id=artifact.artifact_id,
+            path=artifact.path,
+            technique="dsc",
+            format=artifact.format,
+            sha256=artifact.sha256,
+        )
+    else:
+        raise AssertionError(f"Unexpected mismatch: {mismatch}")
+    return artifact, dataset, plan
+
+
+@pytest.mark.parametrize(
+    "mismatch",
+    ("artifact_dataset", "plan_dataset", "plan_technique", "artifact_technique"),
+)
+def test_completed_compute_run_rejects_provenance_linkage_mismatches(
+    tmp_path: Path,
+    mismatch: str,
+) -> None:
+    artifact, dataset, plan = _mismatched_compute_context(tmp_path, mismatch)
+
+    with pytest.raises(ValueError, match="linkage mismatch"):
+        ComputeRun.completed(
+            artifact=artifact,
+            dataset=dataset,
+            plan=plan,
+            result=ComputeResult(),
+        )
+
+
+@pytest.mark.parametrize(
+    "mismatch",
+    ("artifact_dataset", "plan_dataset", "plan_technique", "artifact_technique"),
+)
+def test_failed_compute_run_with_context_rejects_provenance_linkage_mismatches(
+    tmp_path: Path,
+    mismatch: str,
+) -> None:
+    artifact, dataset, plan = _mismatched_compute_context(tmp_path, mismatch)
+
+    with pytest.raises(ValueError, match="linkage mismatch"):
+        ComputeRun(status="failed", artifact=artifact, dataset=dataset, plan=plan)
 
 
 def test_missing_artifact_cannot_make_a_direct_envelope(tmp_path: Path) -> None:
@@ -255,6 +351,22 @@ def test_direct_compute_result_scrubs_forbidden_aliases_from_public_projection(
     assert payload["artifact"]["observed_facts"] == {"review_notes": "raw scientific metadata"}
     assert payload["dataset"]["payload"]["observed_facts"] == {
         "review_notes": "raw scientific metadata"
+    }
+
+
+def test_direct_compute_result_retains_preview_figures_and_removes_explicit_aliases() -> None:
+    result = ComputeResult(
+        figures={
+            "preview": "preview.svg",
+            "chart_preview": "chart-preview.svg",
+            "review_notes": "private.svg",
+            "evidence_package": "private-package.svg",
+        }
+    )
+
+    assert dict(result.figures) == {
+        "preview": "preview.svg",
+        "chart_preview": "chart-preview.svg",
     }
 
 
