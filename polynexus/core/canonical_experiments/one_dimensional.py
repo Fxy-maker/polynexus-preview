@@ -203,7 +203,7 @@ def _valid_proposal(
             return False
         if selection.measurement_id != _measurement_id(table):
             return False
-        if selection.sheet_name != table.sheet_name or selection.header_row != 0:
+        if selection.sheet_name != table.sheet_name or selection.header_row != table.header_row:
             return False
         if selection.x_column not in table.frame.columns or selection.intensity_column not in table.frame.columns:
             return False

@@ -136,6 +136,27 @@ def test_valid_ai_proposal_resolves_ambiguous_table(tmp_path: Path) -> None:
     assert outcome.template.measurements[0].mapping == selection
 
 
+def test_valid_ai_proposal_binds_physical_rows_in_commented_flat_table(tmp_path: Path) -> None:
+    path = tmp_path / "ambiguous.csv"
+    path.write_text("# preamble\nA,B,C\n1,2,3\n# between rows\n4,5,6\n", encoding="utf-8")
+    selection = MappingSelection(
+        measurement_id="sheet-0-table-0", sheet_name=None, sheet_index=None, table_index=0,
+        header_row=1, data_row_start=2, data_row_end=4, x_column="A", intensity_column="B",
+        x_kind="wavenumber", x_unit="unknown", intensity_unit="unknown", source="AI proposal",
+    )
+    proposal = MappingProposal.create(
+        source_artifact_id="artifact-comment-proposal", technique="IR", source="AI proposal", selections=(selection,)
+    )
+
+    outcome = convert_one_dimensional_table(
+        path, technique="IR", source_artifact_id="artifact-comment-proposal", mapping_proposal=proposal
+    )
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert outcome.template.measurements[0].mapping == selection
+
+
 def test_proposal_for_an_unambiguous_table_is_invalid(tmp_path: Path) -> None:
     path = tmp_path / "curve.csv"
     path.write_text("Wavenumber,Absorbance\n4000,0.1\n2000,0.3\n", encoding="utf-8")
