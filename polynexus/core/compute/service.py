@@ -44,6 +44,19 @@ def _validated_pipeline_options(
     return options, None
 
 
+def _has_legacy_result_shape(value: Any) -> bool:
+    """Return whether a provider result exposes the required legacy mappings."""
+    if value is None:
+        return False
+    try:
+        return all(
+            isinstance(getattr(value, attribute), Mapping)
+            for attribute in ("parameters", "figures", "metadata")
+        )
+    except Exception:
+        return False
+
+
 class ComputeRunService:
     """Create one canonical direct run and delegate its calculation to an engine."""
 
@@ -132,6 +145,14 @@ class ComputeRunService:
                 plan.output_dir,
                 **dict(plan.pipeline_options),
             )
+            if not _has_legacy_result_shape(legacy_result):
+                return ComputeRun(
+                    status="failed",
+                    artifact=artifact,
+                    dataset=dataset,
+                    plan=plan,
+                    reasons=("provider_execution_failed",),
+                )
             return ComputeRun.completed(
                 artifact=artifact,
                 dataset=dataset,

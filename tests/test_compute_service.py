@@ -29,6 +29,30 @@ class ExplodingProvider:
         raise RuntimeError("provider internals must not escape")
 
 
+class NoneResultProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run_pipeline(self, path: str, output_dir: str, **options: Any) -> None:
+        self.calls += 1
+        return None
+
+
+class MissingResultAttributesProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run_pipeline(self, path: str, output_dir: str, **options: Any) -> object:
+        self.calls += 1
+        return object()
+
+
+class EmptyLegacyResult:
+    parameters: dict[str, Any] = {}
+    figures: dict[str, str] = {}
+    metadata: dict[str, Any] = {}
+
+
 class LegacyResultWithoutEvidenceAccess:
     parameters = {"t_half_s": 12.5}
     figures = {"curve": "curve.svg"}
@@ -146,6 +170,51 @@ def test_direct_run_returns_opaque_failure_with_constructed_provenance(tmp_path:
     assert "provider internals" not in run.to_dict()["reasons"]
 
 
+@pytest.mark.parametrize(
+    "provider",
+    (NoneResultProvider(), MissingResultAttributesProvider()),
+    ids=("none-result", "missing-standard-attributes"),
+)
+def test_direct_run_rejects_malformed_provider_result_with_opaque_failure(
+    tmp_path: Path, provider: NoneResultProvider | MissingResultAttributesProvider
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+
+    run = ComputeRunService().run_direct(
+        technique="ir",
+        path=source,
+        output_dir=tmp_path / "out",
+        engine=provider,
+    )
+
+    assert run.status == "failed"
+    assert run.reasons == ("provider_execution_failed",)
+    assert run.dataset is not None
+    assert run.plan is not None
+    assert run.result is None
+    assert provider.calls == 1
+    payload = run.to_dict()
+    assert json.loads(json.dumps(payload, sort_keys=True)) == payload
+    assert "Traceback" not in json.dumps(payload)
+
+
+def test_direct_run_accepts_legacy_result_with_empty_required_mappings(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(EmptyLegacyResult())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir", path=source, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "completed"
+    assert run.result is not None
+    assert run.result.metrics == {}
+    assert run.result.figures == {}
+    assert run.result.metadata == {}
+
+
 @pytest.mark.parametrize("source_kind", ("normal", "relative", "home"))
 def test_direct_run_uses_one_canonical_source_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source_kind: str
@@ -161,7 +230,7 @@ def test_direct_run_uses_one_canonical_source_path(
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
         raw_path = Path("~") / "input.csv"
 
-    engine = FakeEngine(SimpleNamespace())
+    engine = FakeEngine(EmptyLegacyResult())
     run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
         technique="ir", path=raw_path, output_dir=tmp_path / "out"
     )
@@ -180,7 +249,7 @@ def test_direct_run_resolves_symlink_source_for_artifact_and_provider(tmp_path: 
     except OSError as error:
         pytest.skip(f"symlink creation unavailable: {error}")
 
-    engine = FakeEngine(SimpleNamespace())
+    engine = FakeEngine(EmptyLegacyResult())
     run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
         technique="ir", path=link, output_dir=tmp_path / "out"
     )
@@ -197,7 +266,7 @@ def test_direct_run_uses_resolved_plan_output_dir_for_provider(
     source = tmp_path / "input.csv"
     source.write_text("data", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
-    engine = FakeEngine(SimpleNamespace())
+    engine = FakeEngine(EmptyLegacyResult())
 
     run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
         technique="ir", path=source, output_dir=output_dir
