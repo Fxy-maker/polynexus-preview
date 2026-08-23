@@ -87,11 +87,13 @@ python scripts/auto_commit.py `
 ## Completion evidence
 
 - Exact commands and outcomes:
-  - `python -m pytest -p no:cacheprovider -q tests/test_manuscript_plan.py tests/test_project_workflow_cli.py tests/test_project_ars_writing_handoff.py tests/test_evidence_package_view.py` — `17 passed`.
+  - `python -m pytest -p no:cacheprovider -q tests/test_manuscript_plan.py tests/test_project_workflow_package.py tests/test_project_workflow_cli.py tests/test_project_ars_writing_handoff.py tests/test_evidence_package_view.py` — `44 passed` after the post-review integrity repair.
   - `python scripts/verify.py --task docs/agent/tasks/2026-08-23-paper-brief-interface.md --changed --types` — passed; quality `304 passed`, preprocessing `157 passed`, compile and whitespace passed.
   - `git diff --check` — passed.
 - Known limitations or follow-up: GUI plan display and ARS document generation
-  are deliberately later tasks.
+  are deliberately later tasks. Existing package snapshots without the new
+  `artifact_hashes` integrity record cannot create a manuscript plan and must
+  be regenerated; evidence packages remain readable by existing consumers.
 - Pre-existing changes left untouched: evidence-review, gallery, and temporary
   test artifacts in the original `D:\PolyNexus` checkout; this isolated
   worktree began clean and did not modify those files or real datasets.
