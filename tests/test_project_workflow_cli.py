@@ -37,6 +37,9 @@ def _args(operation: str, project_root: Path, **values: object) -> argparse.Name
         "technique": None,
         "source_file": None,
         "output_dir": None,
+        "package": None,
+        "brief": None,
+        "output": None,
     }
     defaults.update(values)
     return argparse.Namespace(**defaults)
@@ -50,7 +53,7 @@ def _one_envelope(capsys) -> dict:
 
 def test_project_workflow_parser_accepts_all_operations(tmp_path: Path) -> None:
     parser = build_parser()
-    for operation in ("inspect", "plan", "run", "package", "attach-quick-run"):
+    for operation in ("inspect", "plan", "run", "package", "manuscript-plan", "attach-quick-run"):
         args = parser.parse_args(["project-workflow", operation, "--project-root", str(tmp_path)])
         assert args.cmd == "project-workflow"
         assert args.operation == operation
@@ -127,3 +130,35 @@ def test_project_workflow_cli_attaches_existing_quick_run_by_reference(capsys, t
     payload = _one_envelope(capsys)
     assert payload["attachment"]["quick_run_id"] == "quick-42"
     assert payload["attachment"]["attachment_kind"] == "reference_only"
+
+
+def test_project_workflow_cli_exports_manuscript_plan_outside_package(capsys, tmp_path: Path) -> None:
+    source = _write_mettler_fixture(tmp_path / "raw" / "PA6-DWJJ.txt")
+    request = AnalysisRequest.create(
+        question="Compare PA6 crystallization kinetics",
+        requested_outputs=("avrami_parameter_table",),
+        data_scope=(str(source.relative_to(tmp_path)),),
+    )
+    request_path = tmp_path / "request.json"
+    request_path.write_text(json.dumps(request.to_dict()), encoding="utf-8")
+    assert run_project_workflow(_args("run", tmp_path, request=str(request_path))) == 0
+    run_path = Path(_one_envelope(capsys)["run"]["manifest_path"])
+    assert run_project_workflow(_args("package", tmp_path, runs=(str(run_path),))) == 0
+    package = Path(_one_envelope(capsys)["package"]["path"])
+    brief = tmp_path / "brief.json"
+    brief.write_text(json.dumps({
+        "version": 1,
+        "research_question": "Compare PA6 crystallization kinetics.",
+    }), encoding="utf-8")
+    output = tmp_path / "exports" / "manuscript-plan.json"
+
+    assert run_project_workflow(_args(
+        "manuscript-plan", tmp_path, package=str(package), brief=str(brief), output=str(output)
+    )) == 0
+
+    payload = _one_envelope(capsys)
+    assert payload["operation"] == "manuscript-plan"
+    assert payload["status"] == "completed"
+    assert Path(payload["manuscript_plan"]["path"]) == output
+    assert json.loads(output.read_text(encoding="utf-8"))["status"] == "draft"
+    assert not (package / "manuscript-plan.json").exists()

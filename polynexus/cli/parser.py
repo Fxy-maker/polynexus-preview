@@ -69,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     ppw = sub.add_parser("project-workflow", help="Codex project evidence workflow")
     ppw.add_argument(
         "operation",
-        choices=["inspect", "plan", "run", "package", "analyze-project", "attach-quick-run"],
+        choices=["inspect", "plan", "run", "package", "manuscript-plan", "analyze-project", "attach-quick-run"],
         help="Project operation to execute",
     )
     ppw.add_argument(
@@ -123,6 +123,9 @@ def build_parser() -> argparse.ArgumentParser:
     ppw.add_argument("--technique", default=None, help="Technique for an attached quick run")
     ppw.add_argument("--source-file", default=None, help="Existing quick-run source file")
     ppw.add_argument("--output-dir", default=None, help="Existing quick-run output directory")
+    ppw.add_argument("--package", default=None, help="Immutable evidence package directory for manuscript-plan")
+    ppw.add_argument("--brief", default=None, help="PaperBrief JSON path for manuscript-plan")
+    ppw.add_argument("--output", default=None, help="Destination JSON path for manuscript-plan")
 
     pb = sub.add_parser("batch", help="Batch-analyze all supported files in a directory")
     pb.add_argument("input_dir", nargs="?", help="Input directory path")

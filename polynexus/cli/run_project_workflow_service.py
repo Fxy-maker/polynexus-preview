@@ -17,6 +17,8 @@ from polynexus.core.project_workflow import (
     FigureSelectionRequest,
     AnalysisPlan,
     AnalysisPlanEvaluation,
+    PaperBrief,
+    build_manuscript_plan,
     project_analysis_plan_evaluation,
 )
 from polynexus.core.agent_workflow.models import AnalysisRun
@@ -41,6 +43,8 @@ def run_analysis_plan_evaluation(args: Any) -> int:
 def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = None) -> int:
     """Execute one project operation and emit exactly one JSON envelope."""
     operation = str(getattr(args, "operation", ""))
+    if operation == "manuscript-plan":
+        return _run_manuscript_plan(args)
     try:
         workflow = service or ProjectWorkflowService.open(args.project_root)
     except (OSError, TypeError, ValueError):
@@ -136,6 +140,45 @@ def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = 
         return _emit(operation, package.status, package=package.to_dict())
 
     return _emit(operation, "blocked", ["operation_unknown"])
+
+
+def _run_manuscript_plan(args: Any) -> int:
+    brief_payload = _read_object(getattr(args, "brief", None))
+    if brief_payload is None:
+        return _emit("manuscript-plan", "blocked", ["paper_brief_invalid"])
+    try:
+        brief = PaperBrief.from_dict(brief_payload)
+    except (TypeError, ValueError):
+        return _emit("manuscript-plan", "blocked", ["paper_brief_invalid"])
+    package_value = str(getattr(args, "package", "") or "").strip()
+    if not package_value:
+        return _emit("manuscript-plan", "blocked", ["evidence_package_invalid"])
+    output_value = str(getattr(args, "output", "") or "").strip()
+    if not output_value:
+        return _emit("manuscript-plan", "blocked", ["manuscript_plan_output_invalid"])
+    package_path = Path(package_value).expanduser().resolve()
+    output_path = Path(output_value).expanduser().resolve()
+    try:
+        output_path.relative_to(package_path)
+    except ValueError:
+        pass
+    else:
+        return _emit("manuscript-plan", "blocked", ["manuscript_plan_output_invalid"])
+    try:
+        plan = build_manuscript_plan(package_path, brief)
+    except (OSError, TypeError, ValueError, UnicodeError):
+        return _emit("manuscript-plan", "blocked", ["evidence_package_invalid"])
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = output_path.with_name(f".{output_path.name}.tmp")
+        temporary.write_text(
+            json.dumps(plan.to_dict(), ensure_ascii=False, sort_keys=True, allow_nan=False),
+            encoding="utf-8",
+        )
+        temporary.replace(output_path)
+    except (OSError, TypeError, ValueError, UnicodeError):
+        return _emit("manuscript-plan", "blocked", ["manuscript_plan_output_invalid"])
+    return _emit("manuscript-plan", "completed", manuscript_plan={"path": str(output_path), **plan.to_dict()})
 
 
 def _emit(operation: str, status: str, reason_codes: list[str] | tuple[str, ...] = (), **payload: Any) -> int:
