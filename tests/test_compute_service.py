@@ -506,6 +506,40 @@ def test_direct_run_rejects_root_directory_symlink_before_factory(tmp_path: Path
     assert factory_calls == []
 
 
+def test_direct_run_validates_raw_artifact_before_resolving_the_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "raw-directory"
+    source.mkdir()
+
+    calls: list[str] = []
+    original_resolve = Path.resolve
+
+    def record_source_resolution(
+        candidate: Path, *args: Any, **kwargs: Any
+    ) -> Path:
+        if candidate == source:
+            calls.append("resolve")
+        return original_resolve(candidate, *args, **kwargs)
+
+    def reject_root_path(*args: Any, **kwargs: Any) -> Any:
+        calls.append("raw_artifact")
+        raise ValueError("Raw artifact paths reject a symlink or reparse point")
+
+    monkeypatch.setattr(Path, "resolve", record_source_resolution)
+    monkeypatch.setattr(
+        "polynexus.core.compute.service.RawArtifact.from_path", reject_root_path
+    )
+
+    run = ComputeRunService().run_direct(
+        technique="ir", path=source, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("raw_artifact_unreadable",)
+    assert calls[0] == "raw_artifact"
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows junction behavior")
 def test_direct_run_rejects_root_directory_junction_before_factory(tmp_path: Path) -> None:
     target = tmp_path / "raw-directory"

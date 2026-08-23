@@ -120,13 +120,21 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(path, technique="unknown"),
                 reasons=("technique_invalid",),
             )
-        source = _resolve_path(path)
-        if source is None:
+        try:
+            artifact = RawArtifact.from_path(path, technique=normalized_technique)
+        except FileNotFoundError:
+            return ComputeRun(
+                status="needs_input",
+                artifact=RawArtifact.missing(path, technique=normalized_technique),
+                reasons=("raw_artifact_missing",),
+            )
+        except Exception:
             return ComputeRun(
                 status="needs_input",
                 artifact=RawArtifact.missing(path, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
+        source = Path(artifact.path)
         try:
             source_exists = source.exists()
             is_regular_file = source.is_file()
@@ -134,7 +142,7 @@ class ComputeRunService:
         except Exception:
             return ComputeRun(
                 status="needs_input",
-                artifact=RawArtifact.missing(path, technique=normalized_technique),
+                artifact=RawArtifact.missing(source, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
         if not source_exists:
@@ -147,15 +155,6 @@ class ComputeRunService:
             return ComputeRun(
                 status="needs_input",
                 artifact=RawArtifact.missing(source, technique=normalized_technique),
-                reasons=("raw_artifact_unreadable",),
-            )
-
-        try:
-            artifact = RawArtifact.from_path(path, technique=normalized_technique)
-        except Exception:
-            return ComputeRun(
-                status="needs_input",
-                artifact=RawArtifact.missing(path, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
         resolved_output_path = _resolve_path(output_dir)
