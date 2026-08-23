@@ -33,12 +33,29 @@ before source migration begins.
 - Persistence/export: the database schema remains unchanged; old legacy-result
   persistence is a temporary adapter.
 
+## Shared objects and entry points
+
+- Shared objects: `RawArtifact`, `CanonicalDataset`, `AnalysisPlan`, and
+  `ComputeResult`; `ComputeRun` is the new direct-run record. Legacy
+  `AnalysisResult` remains only as a temporary in-memory compatibility
+  projection while consumers migrate.
+- Changed entry points: the single-technique CLI route and GUI
+  `AnalysisWorker` both move to `ComputeRunService.run_direct`.
+- Unchanged compatibility consumers: `AgentWorkflowService` and the batch CLI
+  remain on their legacy paths in this first CLI/Quick Analysis vertical slice.
+  Each requires a separate migration task with focused contract tests.
+- Persistence is unchanged and remains a temporary legacy-result bridge. No UI
+  surface or paper-workflow contract changes are included.
+
 ## Acceptance criteria
 
 - [ ] A missing path produces `needs_input`, not a review state.
 - [ ] A legacy engine validation warning produces a `completed` run with
   warnings.
 - [ ] CLI and GUI both call `ComputeRunService.run_direct`.
+- [ ] `AgentWorkflowService` and the batch CLI remain unchanged compatibility
+  consumers; this task does not claim that either route uses
+  `ComputeRunService.run_direct`.
 - [ ] Public compute JSON contains no `analysis_evidence`, writing eligibility,
   or manuscript fields.
 - [ ] The façade preserves the legacy `AnalysisResult` only as an in-memory
@@ -69,6 +86,6 @@ reserved for the implementation and acceptance tasks in this migration slice.
 
 ```powershell
 python scripts/auto_commit.py `
-  --message "docs(core): define direct-run migration boundary" `
+  --message "docs(core): complete direct-run migration inventory" `
   --files docs/agent/tasks/2026-08-24-core-foundation-direct-run.md docs/agent/inventories/2026-08-24-core-simplification-import-inventory.md docs/agent/memory/active-work.md
 ```

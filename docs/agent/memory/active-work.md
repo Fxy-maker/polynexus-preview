@@ -1,10 +1,13 @@
 # Active Work
 
-## Core direct-run foundation - active (2026-08-24)
+## Core direct-run foundation - architecture review required (2026-08-24)
 
-- This slice is a temporary compatibility bridge: no legacy code is deleted.
-  Deletion depends on focused CLI/AI contract tests and Quick Analysis tests.
-  Task: `docs/agent/tasks/2026-08-24-core-foundation-direct-run.md`.
+- Review state: the migration inventory and protected direct-run boundary are
+  ready for architecture review; no legacy code is deleted.
+- Next action: complete architecture review, then execute the ComputeRun
+  contracts and direct-run CLI/Quick Analysis task. `AgentWorkflowService` and
+  the batch CLI remain separate compatibility-consumer migrations.
+- Task: `docs/agent/tasks/2026-08-24-core-foundation-direct-run.md`.
 
 ## Local GUI automation MCP bridge - ready for checkpoint (2026-08-09)
 

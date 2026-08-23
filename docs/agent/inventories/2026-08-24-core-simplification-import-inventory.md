@@ -18,7 +18,7 @@ generated-output path is recorded here.
 
 | Area | Current producer | Current consumers | First migration action |
 | --- | --- | --- | --- |
-| Single run | `polynexus/core/engine.py`: `BaseEngine.run_pipeline` | `polynexus/cli/run_single_service.py`: `run_single`; `polynexus/gui/main_window_workers.py`: `AnalysisWorker.run` | Route both through `ComputeRunService.run_direct`. |
+| Single run | `polynexus/core/engine.py`: `BaseEngine.run_pipeline` | `polynexus/cli/run_single_service.py`: `run_single`; `polynexus/gui/main_window_workers.py`: `AnalysisWorker.run`; retained compatibility consumers listed below | Route the single-technique CLI and GUI Quick Analysis paths through `ComputeRunService.run_direct`. |
 | Canonical conversion | `polynexus/core/canonical_experiments/models.py`: `CanonicalExperiment`; `polynexus/core/canonical_experiments/registry.py`: `default_converter_registry` (both re-exported by `canonical_experiments/__init__.py`) | `polynexus/core/agent_workflow/tpae.py`: `TpaeCharacterizationWorkflow`; `polynexus/core/agent_workflow/service.py`: `AgentWorkflowService`; `polynexus/core/project_workflow/adapters.py`: technique adapters | Keep unchanged in this slice; replace the status model in a dedicated conversion task. |
 | Evidence/review | `polynexus/core/analysis_evidence.py`: `AnalysisEvidence`; `polynexus/core/engine.py`: `AnalysisResult.analysis_evidence` | `polynexus/core/agent_workflow/service.py`: `AgentWorkflowService._public_step_result`; `polynexus/core/project_workflow/evidence.py` and `writing_metrics.py`; `polynexus/gui/results_review_service.py` and `scientific_review_presentation.py` | Do not import from `core.compute`; drain in a later deletion batch. |
 | Paper workflow | `polynexus/core/project_workflow`: `ProjectWorkflowService`, evidence and figure-index contracts | `polynexus/cli/run_project_workflow_service.py`: `run_project_workflow`; `polynexus/gui/evidence_package_view.py`: `EvidencePackageView`; `polynexus/gui/plot_gallery_service.py`: `FigureIndexEntry` | Do not modify in this slice. |
@@ -30,3 +30,16 @@ generated-output path is recorded here.
 The planned `polynexus.core.compute` package is a direct-run façade only. It
 must not import evidence/review, paper workflow, agent workflow, Joint, or RAG
 modules while the listed consumers are migrated independently.
+
+## Retained `BaseEngine.run_pipeline` compatibility consumers
+
+The following direct legacy consumers are outside the first CLI/Quick Analysis
+vertical slice and remain unchanged here:
+
+- `polynexus/cli/batch_run_service.py:148` invokes
+  `BaseEngine.run_pipeline` for batch CLI processing.
+- `polynexus/core/agent_workflow/service.py:268` invokes
+  `BaseEngine.run_pipeline` for `AgentWorkflowService` steps.
+
+Future tasks must migrate each compatibility consumer separately and add
+focused tests for its public contract before removing the legacy projection.
