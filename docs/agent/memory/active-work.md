@@ -1,12 +1,18 @@
 # Active Work
 
-## Core direct-run foundation - architecture review required (2026-08-24)
+## Core direct-run foundation - implementation complete, human architecture review required (2026-08-24)
 
-- Review state: the migration inventory and protected direct-run boundary are
-  ready for architecture review; no legacy code is deleted.
-- Next action: complete architecture review, then execute the ComputeRun
-  contracts and direct-run CLI/Quick Analysis task. `AgentWorkflowService` and
-  the batch CLI remain separate compatibility-consumer migrations.
+- The direct CLI commands and Quick Analysis `AnalysisWorker` share
+  `ComputeRunService.run_direct`; legacy `AnalysisResult` persistence remains
+  a temporary GUI bridge. The direct envelope is source identity plus format,
+  not universal canonical conversion; the engine adapter still imports legacy
+  core transitively.
+- `batch_run_service` and `AgentWorkflowService` remain explicit legacy
+  consumers. No evidence, RAG, or Joint modules were removed, and no raw data
+  was edited, pushed, or merged.
+- Next action: human architecture review, then plan Task 6 universal conversion
+  and migrate batch plus agent consumers before any deletion. Do not delete old
+  modules yet.
 - Task: `docs/agent/tasks/2026-08-24-core-foundation-direct-run.md`.
 
 ## Local GUI automation MCP bridge - ready for checkpoint (2026-08-09)
