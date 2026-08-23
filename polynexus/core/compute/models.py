@@ -8,6 +8,7 @@ from hashlib import sha256
 import json
 import math
 from numbers import Real
+import os
 from pathlib import Path
 import re
 from types import MappingProxyType
@@ -160,6 +161,25 @@ def _artifact_format(path: Path) -> str:
     return "directory" if path.is_dir() else path.suffix.removeprefix(".").lower() or "unknown"
 
 
+def _invalid_path_marker(path: object) -> str:
+    try:
+        type_name = type(path).__name__
+    except Exception:
+        type_name = "unknown"
+    return f"<invalid-path:{type_name}>"
+
+
+def _safe_path_reference(path: object) -> str:
+    """Return a stable JSON-safe path reference without exposing object reprs."""
+    if isinstance(path, str):
+        return path
+    try:
+        path_value = os.fspath(path)
+    except Exception:
+        return _invalid_path_marker(path)
+    return path_value if isinstance(path_value, str) else _invalid_path_marker(path)
+
+
 @dataclass(frozen=True)
 class RawArtifact:
     """A content-addressed raw input or an unresolved candidate reference."""
@@ -213,13 +233,13 @@ class RawArtifact:
         )
 
     @classmethod
-    def missing(cls, path: str | Path, *, technique: str) -> RawArtifact:
+    def missing(cls, path: object, *, technique: str) -> RawArtifact:
         try:
             candidate = Path(path).expanduser().resolve(strict=False)
             artifact_path = str(candidate)
             artifact_format = _artifact_format(candidate)
-        except (OSError, ValueError):
-            artifact_path = str(path)
+        except Exception:
+            artifact_path = _safe_path_reference(path)
             artifact_format = ""
         artifact_id = _canonical_hash(
             {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -51,6 +52,11 @@ class EmptyLegacyResult:
     parameters: dict[str, Any] = {}
     figures: dict[str, str] = {}
     metadata: dict[str, Any] = {}
+
+
+class BadPath(os.PathLike[str]):
+    def __fspath__(self) -> str:
+        raise RuntimeError("path protocol must not escape")
 
 
 class LegacyResultWithoutEvidenceAccess:
@@ -315,6 +321,39 @@ def test_direct_run_returns_json_safe_needs_input_for_malformed_source_path(
     assert run.artifact.format == ""
     assert run.artifact.sha256 == ""
     assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_path"),
+    (
+        pytest.param(None, "<invalid-path:NoneType>", id="none"),
+        pytest.param(object(), "<invalid-path:object>", id="object"),
+        pytest.param(BadPath(), "<invalid-path:BadPath>", id="exploding-pathlike"),
+    ),
+)
+def test_direct_run_contains_malformed_path_types_before_engine_factory(
+    tmp_path: Path, path: object, expected_path: str
+) -> None:
+    factory_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def factory(*args: Any, **kwargs: Any) -> FakeEngine:
+        factory_calls.append((args, kwargs))
+        return FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(factory).run_direct(
+        technique="ir",
+        path=path,  # type: ignore[arg-type]
+        output_dir=tmp_path / "out",
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("raw_artifact_unreadable",)
+    assert run.artifact.path == expected_path
+    assert run.artifact.format == ""
+    assert run.artifact.sha256 == ""
+    payload = run.to_dict()
+    assert json.loads(json.dumps(payload, sort_keys=True)) == payload
+    assert factory_calls == []
 
 
 def test_direct_run_rejects_non_regular_source_without_invoking_provider(tmp_path: Path) -> None:

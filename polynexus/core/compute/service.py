@@ -78,7 +78,7 @@ class ComputeRunService:
             source = Path(path).expanduser().resolve(strict=False)
             source_exists = source.exists()
             is_regular_file = source.is_file()
-        except (OSError, ValueError, TypeError):
+        except Exception:
             return ComputeRun(
                 status="needs_input",
                 artifact=RawArtifact.missing(path, technique=technique),
@@ -99,7 +99,7 @@ class ComputeRunService:
 
         try:
             artifact = RawArtifact.from_path(source, technique=technique)
-        except (OSError, ValueError, TypeError):
+        except Exception:
             return ComputeRun(
                 status="needs_input",
                 artifact=RawArtifact.missing(source, technique=technique),
