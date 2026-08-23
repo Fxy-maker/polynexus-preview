@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 
+from polynexus.core.compute import ComputeRun
+
 from .i18n import tr
 from .error_diagnostic_service import build_error_diagnostic
 from .run_state_service import (
@@ -13,6 +15,28 @@ from .workspace_mode import WorkspaceMode
 
 
 class MainWindowRunMixin:
+    def _legacy_result_from_compute_run(self, compute_run):
+        """Return the temporary legacy projection for completed shared runs."""
+        if not isinstance(compute_run, ComputeRun):
+            return compute_run
+        if compute_run.status != "completed":
+            self._on_error(", ".join(compute_run.reasons) or compute_run.status)
+            return None
+        legacy_result = compute_run.legacy_result
+        if legacy_result is None:
+            self._on_error("compute_run_legacy_result_missing")
+            return None
+        technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+        if not technique:
+            self._on_error("compute_run_technique_missing")
+            return None
+        compute_runs = getattr(self, "_compute_runs", None)
+        if not isinstance(compute_runs, dict):
+            compute_runs = {}
+            self._compute_runs = compute_runs
+        compute_runs[technique] = compute_run
+        return legacy_result
+
     def _begin_run_request(self):
         token = int(getattr(self, "_run_request_token", 0) or 0) + 1
         self._run_request_token = token
@@ -554,6 +578,9 @@ class MainWindowRunMixin:
     def _on_replot_finished(self, result, *, token=None):
         if not self._run_request_is_current(token):
             return
+        result = self._legacy_result_from_compute_run(result)
+        if result is None:
+            return
         self._transition_run_state("complete")
         if not should_publish_result(self._run_state):
             return self._on_worker_cancelled()
@@ -634,6 +661,9 @@ class MainWindowRunMixin:
 
     def _on_finished(self, result, *, token=None):
         if not self._run_request_is_current(token):
+            return
+        result = self._legacy_result_from_compute_run(result)
+        if result is None:
             return
         self._transition_run_state("complete")
         if not should_publish_result(self._run_state):

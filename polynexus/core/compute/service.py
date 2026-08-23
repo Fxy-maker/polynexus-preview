@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import json
 from pathlib import Path
 from typing import Any, Callable
 
@@ -10,7 +11,7 @@ from ..engine import get_engine
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 
 
-_SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to"})
+_SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to", "mask_edit_candidate"})
 _SUPPORTED_SKIP_TO_VALUES = frozenset({"preprocess", "analyze", "plot"})
 
 
@@ -48,9 +49,38 @@ def _normalize_pipeline_options(
             or (isinstance(skip_to, str) and skip_to in _SUPPORTED_SKIP_TO_VALUES)
         ):
             return None, "pipeline_option_invalid"
-        return ({"skip_to": skip_to} if "skip_to" in options else {}), None
+        mask_edit_candidate = options.get("mask_edit_candidate")
+        if "mask_edit_candidate" in options and not _is_json_safe(
+            mask_edit_candidate
+        ):
+            return None, "pipeline_option_invalid"
+        normalized: dict[str, Any] = {}
+        if "skip_to" in options:
+            normalized["skip_to"] = skip_to
+        if "mask_edit_candidate" in options:
+            normalized["mask_edit_candidate"] = mask_edit_candidate
+        return normalized, None
     except Exception:
         return None, "pipeline_option_invalid"
+
+
+def _is_json_safe(value: object) -> bool:
+    """Return whether a pipeline option can be stored in an AnalysisPlan."""
+    try:
+        json.dumps(value, allow_nan=False)
+    except (TypeError, ValueError, OverflowError, RecursionError):
+        return False
+    if isinstance(value, Mapping):
+        try:
+            return all(
+                isinstance(key, str) and _is_json_safe(item)
+                for key, item in value.items()
+            )
+        except Exception:
+            return False
+    if isinstance(value, list):
+        return all(_is_json_safe(item) for item in value)
+    return value is None or isinstance(value, (str, bool, int, float))
 
 
 def _has_legacy_result_shape(value: Any) -> bool:
@@ -165,7 +195,7 @@ class ComputeRunService:
             legacy_result = selected_engine.run_pipeline(
                 artifact.path,
                 plan.output_dir,
-                **dict(plan.pipeline_options),
+                **options,
             )
             if not _has_legacy_result_shape(legacy_result):
                 return ComputeRun(

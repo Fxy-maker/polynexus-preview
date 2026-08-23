@@ -4,6 +4,8 @@ import threading
 
 from PySide6.QtCore import QObject, QRunnable, QThread, Signal
 
+from polynexus.core.compute import ComputeRunService
+
 from .i18n import tr
 
 
@@ -32,6 +34,7 @@ class AnalysisWorker(QThread):
         submodule_id=None,
         engine=None,
         mask_edit_candidate=None,
+        compute_service_factory=ComputeRunService,
     ):
         super().__init__()
         self.technique = technique
@@ -41,6 +44,8 @@ class AnalysisWorker(QThread):
         self.submodule_id = submodule_id
         self.engine = engine
         self.mask_edit_candidate = mask_edit_candidate
+        self.compute_service_factory = compute_service_factory
+        self.compute_run = None
         self.skip_to = None
         self._cancel_requested = False
 
@@ -77,16 +82,33 @@ class AnalysisWorker(QThread):
             pipeline_kwargs = {"skip_to": self.skip_to}
             if self.mask_edit_candidate is not None:
                 pipeline_kwargs["mask_edit_candidate"] = self.mask_edit_candidate
-            result = engine.run_pipeline(
-                self.filepath,
-                self.output_dir,
-                **pipeline_kwargs,
+            service = self.compute_service_factory(
+                lambda technique, config=None, submodule_id=None: main_window_module.get_engine(
+                    technique,
+                    config=config,
+                    submodule_id=submodule_id,
+                )
             )
+            compute_run = service.run_direct(
+                technique=self.technique,
+                path=self.filepath,
+                output_dir=self.output_dir,
+                config=self.config,
+                submodule_id=self.submodule_id,
+                engine=engine,
+                pipeline_options=pipeline_kwargs,
+            )
+            self.compute_run = compute_run
             if self._cancel_requested or self.isInterruptionRequested():
                 self.cancelled.emit()
                 return
+            if compute_run.status != "completed":
+                self.error_msg.emit(
+                    ", ".join(compute_run.reasons) or compute_run.status
+                )
+                return
             self.stage.emit("exporting")
-            self.finished.emit(result)
+            self.finished.emit(compute_run)
         except Exception as exc:
             msg = tr("ANALYSIS_WORKER_ERROR", exc, main_window_module.traceback.format_exc())
             logger.error(msg)

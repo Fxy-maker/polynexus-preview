@@ -1,3 +1,5 @@
+import pytest
+
 from polynexus.cli.parser import build_parser, parse_args
 
 
@@ -23,3 +25,11 @@ def test_cli_parser_exposes_primary_entry_points():
     workflow = parser.parse_args(["agent-workflow", "inspect", "--manifest", "tpae.json"])
     assert workflow.cmd == "agent-workflow"
     assert workflow.operation == "inspect"
+
+
+@pytest.mark.parametrize("technique", ["saxs", "dsc", "ir", "waxs", "nmr"])
+def test_cli_parser_accepts_json_for_single_technique(technique: str) -> None:
+    args = build_parser().parse_args([technique, "sample.csv", "--json"])
+
+    assert args.cmd == technique
+    assert args.json is True

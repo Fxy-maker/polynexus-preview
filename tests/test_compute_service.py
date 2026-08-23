@@ -131,6 +131,42 @@ def test_direct_run_completes_with_projected_legacy_warnings(tmp_path: Path) -> 
     ]
 
 
+def test_direct_run_forwards_json_safe_mask_edit_candidate_unchanged(tmp_path: Path) -> None:
+    source = tmp_path / "input.txt"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(EmptyLegacyResult())
+    candidate = {"regions": [{"q_min": 0.1, "q_max": 0.2}], "enabled": True}
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="saxs",
+        path=source,
+        output_dir=tmp_path / "out",
+        pipeline_options={"skip_to": "plot", "mask_edit_candidate": candidate},
+    )
+
+    assert run.status == "completed"
+    assert run.plan is not None
+    assert run.to_dict()["plan"]["pipeline_options"]["mask_edit_candidate"] == candidate
+    assert engine.calls[0][2]["mask_edit_candidate"] is candidate
+
+
+def test_direct_run_rejects_non_json_safe_mask_edit_candidate(tmp_path: Path) -> None:
+    source = tmp_path / "input.txt"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(EmptyLegacyResult())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="saxs",
+        path=source,
+        output_dir=tmp_path / "out",
+        pipeline_options={"mask_edit_candidate": object()},
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("pipeline_option_invalid",)
+    assert engine.calls == []
+
+
 def test_direct_run_returns_needs_input_without_factory_for_missing_path(tmp_path: Path) -> None:
     factory_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
 

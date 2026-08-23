@@ -19,26 +19,31 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument("-o", "--output", default="")
     ps.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
     ps.add_argument("--type", default="temperature", choices=["static", "strain", "temperature"])
+    ps.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     pd = sub.add_parser("dsc", help="DSC")
     pd.add_argument("input")
     pd.add_argument("-o", "--output", default="")
     pd.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    pd.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     pi = sub.add_parser("ir", help="IR")
     pi.add_argument("input")
     pi.add_argument("-o", "--output", default="")
     pi.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    pi.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     pw = sub.add_parser("waxs", help="WAXS")
     pw.add_argument("input")
     pw.add_argument("-o", "--output", default="")
     pw.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    pw.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     pn = sub.add_parser("nmr", help="NMR")
     pn.add_argument("input")
     pn.add_argument("-o", "--output", default="")
     pn.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    pn.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
