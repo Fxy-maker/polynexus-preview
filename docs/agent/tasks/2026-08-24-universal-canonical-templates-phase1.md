@@ -50,8 +50,17 @@ locators.
 
 ## Verification
 
+### Final verification (after Tasks 2 and 3)
+
 ```text
 python -m pytest -q -p no:cacheprovider tests/test_canonical_measurements.py tests/test_canonical_one_dimensional.py tests/test_canonical_experiment_templates.py tests/test_dsc_canonical_isothermal_conversion.py
 python scripts/verify.py --task docs/agent/tasks/2026-08-24-universal-canonical-templates-phase1.md --changed --types
+git diff --check
+```
+
+### Current documentation validation
+
+```text
+python scripts/task_check.py --task docs/agent/tasks/2026-08-24-universal-canonical-templates-phase1.md
 git diff --check
 ```
