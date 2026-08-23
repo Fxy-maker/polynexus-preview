@@ -6,6 +6,7 @@ import ast
 import inspect
 import json
 import os
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -57,6 +58,22 @@ class EmptyLegacyResult:
 class BadPath(os.PathLike[str]):
     def __fspath__(self) -> str:
         raise RuntimeError("path protocol must not escape")
+
+
+class BadMapping(Mapping[str, Any]):
+    def __getitem__(self, key: str) -> Any:
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        raise RuntimeError("mapping materialization must not escape")
+
+    def __len__(self) -> int:
+        return 0
+
+
+class StringableTechnique:
+    def __str__(self) -> str:
+        raise RuntimeError("technique coercion must not escape")
 
 
 class LegacyResultWithoutEvidenceAccess:
@@ -409,6 +426,103 @@ def test_direct_run_rejects_invalid_output_dir_before_plan_or_provider(
     assert run.result is None
     assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
     assert engine.calls == []
+
+
+def test_direct_run_contains_exploding_pathlike_output_before_engine_factory(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    factory_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def factory(*args: Any, **kwargs: Any) -> FakeEngine:
+        factory_calls.append((args, kwargs))
+        return FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(factory).run_direct(
+        technique="ir", path=source, output_dir=BadPath()
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("output_directory_invalid",)
+    assert run.dataset is None
+    assert run.plan is None
+    assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
+    assert factory_calls == []
+
+
+def test_direct_run_contains_exploding_pipeline_mapping_before_engine_factory(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    factory_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def factory(*args: Any, **kwargs: Any) -> FakeEngine:
+        factory_calls.append((args, kwargs))
+        return FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(factory).run_direct(
+        technique="ir",
+        path=source,
+        output_dir=tmp_path / "out",
+        pipeline_options=BadMapping(),
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("pipeline_option_invalid",)
+    assert run.dataset is None
+    assert run.plan is None
+    assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
+    assert factory_calls == []
+
+
+@pytest.mark.parametrize("technique", ("", None, object(), StringableTechnique()))
+def test_direct_run_contains_invalid_technique_before_engine_factory(
+    tmp_path: Path, technique: object
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    factory_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def factory(*args: Any, **kwargs: Any) -> FakeEngine:
+        factory_calls.append((args, kwargs))
+        return FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(factory).run_direct(
+        technique=technique,  # type: ignore[arg-type]
+        path=source,
+        output_dir=tmp_path / "out",
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("technique_invalid",)
+    assert run.artifact.technique == "unknown"
+    assert run.dataset is None
+    assert run.plan is None
+    assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
+    assert factory_calls == []
+
+
+def test_direct_run_normalizes_technique_once_for_all_compute_boundaries(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(EmptyLegacyResult())
+    factory_techniques: list[str] = []
+
+    def factory(technique: str, **kwargs: Any) -> FakeEngine:
+        factory_techniques.append(technique)
+        return engine
+
+    run = ComputeRunService(factory).run_direct(
+        technique="  IR  ", path=source, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "completed"
+    assert run.dataset is not None
+    assert run.plan is not None
+    assert run.artifact.technique == run.dataset.technique == run.plan.technique == "ir"
+    assert factory_techniques == ["ir"]
 
 
 @pytest.mark.parametrize(

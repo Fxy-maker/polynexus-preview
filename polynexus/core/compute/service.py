@@ -14,16 +14,24 @@ _SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to"})
 _SUPPORTED_SKIP_TO_VALUES = frozenset({"preprocess", "analyze", "plot"})
 
 
-def _resolve_output_dir(value: str | Path) -> str | None:
-    """Return a canonical output directory only when it is path-valid."""
+def _safe_technique(value: object) -> str | None:
+    """Return one normalized technique string without coercing arbitrary objects."""
+    if not isinstance(value, str):
+        return None
+    normalized = str.lower(str.strip(value))
+    return normalized or None
+
+
+def _resolve_path(value: object) -> Path | None:
+    """Return a canonical path only when path normalization is safe."""
     try:
-        return str(Path(value).expanduser().resolve(strict=False))
-    except (OSError, TypeError, ValueError):
+        return Path(value).expanduser().resolve(strict=False)
+    except Exception:
         return None
 
 
-def _validated_pipeline_options(
-    value: Mapping[str, Any] | None,
+def _normalize_pipeline_options(
+    value: object,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Return supported JSON-safe direct-pipeline options or a public reason."""
     if value is None:
@@ -32,16 +40,17 @@ def _validated_pipeline_options(
         return None, "pipeline_option_invalid"
     try:
         options = dict(value)
-    except (OSError, TypeError, ValueError):
+        if any(name not in _SUPPORTED_PIPELINE_OPTIONS for name in options):
+            return None, "pipeline_option_unsupported"
+        skip_to = options.get("skip_to")
+        if "skip_to" in options and not (
+            skip_to is None
+            or (isinstance(skip_to, str) and skip_to in _SUPPORTED_SKIP_TO_VALUES)
+        ):
+            return None, "pipeline_option_invalid"
+        return ({"skip_to": skip_to} if "skip_to" in options else {}), None
+    except Exception:
         return None, "pipeline_option_invalid"
-    if any(name not in _SUPPORTED_PIPELINE_OPTIONS for name in options):
-        return None, "pipeline_option_unsupported"
-    skip_to = options.get("skip_to")
-    if "skip_to" in options and not (
-        skip_to is None or (isinstance(skip_to, str) and skip_to in _SUPPORTED_SKIP_TO_VALUES)
-    ):
-        return None, "pipeline_option_invalid"
-    return options, None
 
 
 def _has_legacy_result_shape(value: Any) -> bool:
@@ -66,53 +75,66 @@ class ComputeRunService:
     def run_direct(
         self,
         *,
-        technique: str,
-        path: str | Path,
-        output_dir: str | Path,
+        technique: object,
+        path: object,
+        output_dir: object,
         config: Any = None,
         submodule_id: str | None = None,
         engine: Any = None,
-        pipeline_options: Mapping[str, Any] | None = None,
+        pipeline_options: object = None,
     ) -> ComputeRun:
+        normalized_technique = _safe_technique(technique)
+        if normalized_technique is None:
+            return ComputeRun(
+                status="needs_input",
+                artifact=RawArtifact.missing(path, technique="unknown"),
+                reasons=("technique_invalid",),
+            )
+        source = _resolve_path(path)
+        if source is None:
+            return ComputeRun(
+                status="needs_input",
+                artifact=RawArtifact.missing(path, technique=normalized_technique),
+                reasons=("raw_artifact_unreadable",),
+            )
         try:
-            source = Path(path).expanduser().resolve(strict=False)
             source_exists = source.exists()
             is_regular_file = source.is_file()
         except Exception:
             return ComputeRun(
                 status="needs_input",
-                artifact=RawArtifact.missing(path, technique=technique),
+                artifact=RawArtifact.missing(path, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
         if not source_exists:
             return ComputeRun(
                 status="needs_input",
-                artifact=RawArtifact.missing(source, technique=technique),
+                artifact=RawArtifact.missing(source, technique=normalized_technique),
                 reasons=("raw_artifact_missing",),
             )
         if not is_regular_file:
             return ComputeRun(
                 status="needs_input",
-                artifact=RawArtifact.missing(source, technique=technique),
+                artifact=RawArtifact.missing(source, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
 
         try:
-            artifact = RawArtifact.from_path(source, technique=technique)
+            artifact = RawArtifact.from_path(source, technique=normalized_technique)
         except Exception:
             return ComputeRun(
                 status="needs_input",
-                artifact=RawArtifact.missing(source, technique=technique),
+                artifact=RawArtifact.missing(source, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
-        resolved_output_dir = _resolve_output_dir(output_dir)
-        if resolved_output_dir is None:
+        resolved_output_path = _resolve_path(output_dir)
+        if resolved_output_path is None:
             return ComputeRun(
                 status="needs_input",
                 artifact=artifact,
                 reasons=("output_directory_invalid",),
             )
-        options, options_reason = _validated_pipeline_options(pipeline_options)
+        options, options_reason = _normalize_pipeline_options(pipeline_options)
         if options_reason is not None:
             return ComputeRun(
                 status="needs_input",
@@ -123,14 +145,14 @@ class ComputeRunService:
         dataset = CanonicalDataset.direct_envelope(artifact)
         plan = AnalysisPlan.direct(
             dataset,
-            output_dir=resolved_output_dir,
+            output_dir=resolved_output_path,
             pipeline_options=options,
         )
         try:
             selected_engine = engine
             if selected_engine is None:
                 selected_engine = self._engine_factory(
-                    technique,
+                    normalized_technique,
                     config=config,
                     submodule_id=submodule_id,
                 )
