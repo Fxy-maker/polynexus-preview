@@ -1,6 +1,7 @@
 """Canonical data templates and deterministic conversion boundaries."""
 
 from .dsc_isothermal import convert_mettler_isothermal_text
+from .one_dimensional import convert_one_dimensional_table
 from .models import (
     CAPABILITY_ITEM_STATUSES,
     MAPPING_SOURCES,
@@ -26,5 +27,6 @@ __all__ = [
     "MAPPING_SOURCES",
     "CanonicalConverterRegistry",
     "convert_mettler_isothermal_text",
+    "convert_one_dimensional_table",
     "default_converter_registry",
 ]

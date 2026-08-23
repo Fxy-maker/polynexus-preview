@@ -1,0 +1,204 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+
+from polynexus.core.canonical_experiments import (
+    MappingProposal,
+    MappingSelection,
+    convert_one_dimensional_table,
+)
+
+
+def test_ir_csv_curve_preserves_order_units_and_source_rows(tmp_path: Path) -> None:
+    path = tmp_path / "curve.csv"
+    path.write_text("Wavenumber cm-1,Absorbance a.u.\n4000,0.1\n2000,0.3\n", encoding="utf-8")
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-1")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert outcome.template.template_id == "spectrum_1d.v1"
+    measurement = outcome.template.measurements[0]
+    assert measurement.family == "spectrum_1d"
+    assert measurement.channels == {"x": (4000.0, 2000.0), "intensity": (0.1, 0.3)}
+    assert measurement.units == {"x": "cm^-1", "intensity": "a.u."}
+    assert measurement.mapping is not None
+    assert measurement.mapping.source == "observed"
+    assert measurement.source_locator["data_row_start"] == 1
+    assert measurement.source_locator["data_row_end"] == 2
+    assert (measurement.source_locator["point_start"], measurement.source_locator["point_end"]) == (0, 1)
+    assert outcome.record.observed_columns == ("flat:Wavenumber cm-1", "flat:Absorbance a.u.")
+
+
+def test_saxs_q_without_unit_retains_raw_values_and_warns(tmp_path: Path) -> None:
+    path = tmp_path / "curve.tsv"
+    path.write_text("q\tintensity\n0.3\t8\n0.1\t4\n", encoding="utf-8")
+
+    outcome = convert_one_dimensional_table(path, technique="SAXS", source_artifact_id="artifact-2")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    measurement = outcome.template.measurements[0]
+    assert measurement.family == "scattering_1d"
+    assert measurement.channels["x"] == (0.3, 0.1)
+    assert measurement.units["x"] == "unknown"
+    assert "coordinate_unit_unknown" in measurement.warnings
+    assert measurement.acquisition_metadata == {
+        "background_state": "unknown",
+        "normalization_state": "unknown",
+    }
+
+
+def test_waxs_workbook_keeps_sheet_order_and_sheet_locators(tmp_path: Path) -> None:
+    path = tmp_path / "curves.xlsx"
+    with pd.ExcelWriter(path) as writer:
+        pd.DataFrame({"2theta deg": [10.0, 20.0], "counts": [4.0, 5.0]}).to_excel(
+            writer, sheet_name="first", index=False
+        )
+        pd.DataFrame({"q nm-1": [0.2, 0.1], "cps": [9.0, 8.0]}).to_excel(
+            writer, sheet_name="second", index=False
+        )
+
+    outcome = convert_one_dimensional_table(path, technique="WAXS", source_artifact_id="artifact-3")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert outcome.template.template_id == "scattering_1d.v1"
+    first, second = outcome.template.measurements
+    assert (first.source_locator["sheet_name"], first.source_locator["sheet_index"]) == ("first", 0)
+    assert (second.source_locator["sheet_name"], second.source_locator["sheet_index"]) == ("second", 1)
+    assert (first.mapping.x_kind, first.units["x"]) == ("two_theta", "deg")
+    assert (second.mapping.x_kind, second.units["x"]) == ("q", "nm^-1")
+
+
+def test_ambiguous_ir_columns_needs_mapping_input(tmp_path: Path) -> None:
+    path = tmp_path / "ambiguous.csv"
+    path.write_text("A,B,C\n1,2,3\n4,5,6\n", encoding="utf-8")
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-4")
+
+    assert outcome.status == "needs_input"
+    assert outcome.template is None
+    assert outcome.reason_codes == ("conversion_mapping_ambiguous",)
+    assert outcome.record.reason_codes == outcome.reason_codes
+
+
+def test_valid_ai_proposal_resolves_ambiguous_table(tmp_path: Path) -> None:
+    path = tmp_path / "ambiguous.csv"
+    path.write_text("A,B,C\n1,2,3\n4,5,6\n", encoding="utf-8")
+    selection = MappingSelection(
+        measurement_id="sheet-0-table-0",
+        sheet_name=None,
+        sheet_index=None,
+        table_index=0,
+        header_row=0,
+        data_row_start=1,
+        data_row_end=2,
+        x_column="A",
+        intensity_column="B",
+        x_kind="wavenumber",
+        x_unit="unknown",
+        intensity_unit="unknown",
+        source="AI proposal",
+    )
+    proposal = MappingProposal.create(
+        source_artifact_id="artifact-5", technique="IR", source="AI proposal", selections=(selection,)
+    )
+
+    outcome = convert_one_dimensional_table(
+        path, technique="IR", source_artifact_id="artifact-5", mapping_proposal=proposal
+    )
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert outcome.template.mapping_proposal == proposal
+    assert outcome.template.measurements[0].mapping == selection
+
+
+def test_invalid_proposal_missing_column_needs_input(tmp_path: Path) -> None:
+    path = tmp_path / "ambiguous.csv"
+    path.write_text("A,B,C\n1,2,3\n4,5,6\n", encoding="utf-8")
+    selection = MappingSelection(
+        measurement_id="sheet-0-table-0", sheet_name=None, sheet_index=None, table_index=0,
+        header_row=0, data_row_start=1, data_row_end=2, x_column="missing", intensity_column="B",
+        x_kind="wavenumber", x_unit="unknown", intensity_unit="unknown", source="AI proposal",
+    )
+    proposal = MappingProposal.create(
+        source_artifact_id="artifact-6", technique="IR", source="AI proposal", selections=(selection,)
+    )
+
+    outcome = convert_one_dimensional_table(
+        path, technique="IR", source_artifact_id="artifact-6", mapping_proposal=proposal
+    )
+
+    assert outcome.status == "needs_input"
+    assert outcome.template is None
+    assert outcome.reason_codes == ("conversion_mapping_proposal_invalid",)
+
+
+def test_unsupported_format_is_blocked(tmp_path: Path) -> None:
+    path = tmp_path / "curve.bin"
+    path.write_bytes(b"not a table")
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-7")
+
+    assert outcome.status == "blocked"
+    assert outcome.reason_codes == ("conversion_unsupported_format",)
+    assert outcome.record.reason_codes == outcome.reason_codes
+
+
+def test_unreadable_supported_source_is_blocked(tmp_path: Path) -> None:
+    path = tmp_path / "unreadable.csv"
+    path.mkdir()
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-read-error")
+
+    assert outcome.status == "blocked"
+    assert outcome.reason_codes == ("conversion_source_unreadable",)
+    assert outcome.record.reason_codes == outcome.reason_codes
+
+
+def test_bad_proposal_artifact_technique_or_selection_source_is_invalid(tmp_path: Path) -> None:
+    path = tmp_path / "ambiguous.csv"
+    path.write_text("A,B,C\n1,2,3\n4,5,6\n", encoding="utf-8")
+    base = dict(
+        measurement_id="sheet-0-table-0", sheet_name=None, sheet_index=None, table_index=0,
+        header_row=0, data_row_start=1, data_row_end=2, x_column="A", intensity_column="B",
+        x_kind="wavenumber", x_unit="unknown", intensity_unit="unknown",
+    )
+    wrong_artifact = MappingProposal.create(
+        source_artifact_id="other", technique="IR", source="AI proposal",
+        selections=(MappingSelection(**base, source="AI proposal"),),
+    )
+    wrong_technique = MappingProposal.create(
+        source_artifact_id="artifact-8", technique="SAXS", source="AI proposal",
+        selections=(MappingSelection(**base, source="AI proposal"),),
+    )
+    wrong_selection_source = MappingProposal.create(
+        source_artifact_id="artifact-8", technique="IR", source="user",
+        selections=(MappingSelection(**base, source="user"),),
+    )
+    object.__setattr__(wrong_selection_source.selections[0], "source", "AI proposal")
+
+    for proposal in (wrong_artifact, wrong_technique, wrong_selection_source):
+        outcome = convert_one_dimensional_table(
+            path, technique="IR", source_artifact_id="artifact-8", mapping_proposal=proposal
+        )
+        assert outcome.status == "needs_input"
+        assert outcome.reason_codes == ("conversion_mapping_proposal_invalid",)
+
+
+def test_nonfinite_rows_are_dropped_but_locator_covers_original_rows(tmp_path: Path) -> None:
+    path = tmp_path / "curve.csv"
+    path.write_text("Wavenumber,Absorbance\n4000,0.1\nbad,0.2\n2000,inf\n1000,0.3\n", encoding="utf-8")
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-9")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    measurement = outcome.template.measurements[0]
+    assert measurement.channels["x"] == (4000.0, 1000.0)
+    assert measurement.source_locator["data_row_start"] == 1
+    assert measurement.source_locator["data_row_end"] == 4

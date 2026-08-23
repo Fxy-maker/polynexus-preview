@@ -1,0 +1,338 @@
+"""Deterministic conversion of generic material-neutral one-dimensional tables."""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from pathlib import Path
+import re
+from typing import Any
+
+import pandas as pd
+
+from .models import (
+    CanonicalExperiment,
+    ConversionOutcome,
+    ConversionRecord,
+    MappingProposal,
+    MappingSelection,
+    Measurement,
+)
+
+
+_CONVERTER_ID = "generic.one-dimensional.v1"
+_SUPPORTED_EXTENSIONS = frozenset({".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi", ".xls", ".xlsx", ".xlsm"})
+_WORKBOOK_EXTENSIONS = frozenset({".xls", ".xlsx", ".xlsm"})
+_INTENSITY_ALIASES = frozenset({"absorbance", "transmittance", "intensity", "i", "counts", "count", "cps"})
+_IR_X_ALIASES = frozenset({"wavenumber", "wavenumbercm1", "cm1"})
+_Q_ALIASES = frozenset({"q", "qnm1", "qangstrom1"})
+_TWO_THETA_ALIASES = frozenset({"2theta", "twotheta", "theta2"})
+
+
+@dataclass(frozen=True)
+class _Table:
+    frame: pd.DataFrame
+    sheet_name: str | None
+    sheet_index: int | None
+    table_index: int
+
+
+def convert_one_dimensional_table(
+    path: str | Path,
+    *,
+    technique: str,
+    source_artifact_id: str,
+    mapping_proposal: MappingProposal | None = None,
+) -> ConversionOutcome:
+    """Convert supported generic two-column tables without scientific transformation."""
+    source_path = Path(path)
+    extension = source_path.suffix.casefold()
+    if extension not in _SUPPORTED_EXTENSIONS:
+        return _outcome("blocked", source_artifact_id, "conversion_unsupported_format")
+
+    try:
+        tables = _load_tables(source_path, extension)
+    except Exception:
+        return _outcome("blocked", source_artifact_id, "conversion_source_unreadable")
+
+    observed_columns = tuple(
+        f"{table.sheet_name if table.sheet_name is not None else 'flat'}:{header}"
+        for table in tables
+        for header in table.frame.columns
+    )
+    normalized_technique = technique.strip().upper()
+    if mapping_proposal is not None and not _valid_proposal(
+        mapping_proposal, tables=tables, technique=normalized_technique, source_artifact_id=source_artifact_id
+    ):
+        return _outcome(
+            "needs_input", source_artifact_id, "conversion_mapping_proposal_invalid", observed_columns=observed_columns
+        )
+
+    selected: list[MappingSelection] = []
+    proposal_by_table = (
+        {(selection.sheet_index, selection.table_index): selection for selection in mapping_proposal.selections}
+        if mapping_proposal is not None
+        else {}
+    )
+    for table in tables:
+        observed = _observed_selection(table, normalized_technique)
+        if observed is not None:
+            selected.append(observed)
+            continue
+        proposal_selection = proposal_by_table.get((table.sheet_index, table.table_index))
+        if proposal_selection is None:
+            return _outcome(
+                "needs_input", source_artifact_id, "conversion_mapping_ambiguous", observed_columns=observed_columns
+            )
+        selected.append(proposal_selection)
+
+    measurements: list[Measurement] = []
+    for table, selection in zip(tables, selected, strict=True):
+        x_values = pd.to_numeric(table.frame[selection.x_column], errors="coerce")
+        intensity_values = pd.to_numeric(table.frame[selection.intensity_column], errors="coerce")
+        pairs = [
+            (float(x_value), float(intensity_value))
+            for x_value, intensity_value in zip(x_values, intensity_values, strict=True)
+            if _finite_pair(x_value, intensity_value)
+        ]
+        if len(pairs) < 2:
+            return _outcome(
+                "needs_input", source_artifact_id, "conversion_no_numeric_table", observed_columns=observed_columns
+            )
+        locator = _source_locator(source_path, table, selection, point_count=len(pairs))
+        warnings = _unit_warnings(selection)
+        measurements.append(
+            Measurement(
+                measurement_id=selection.measurement_id,
+                family="spectrum_1d" if normalized_technique == "IR" else "scattering_1d",
+                role="primary",
+                channels={"x": tuple(pair[0] for pair in pairs), "intensity": tuple(pair[1] for pair in pairs)},
+                units={"x": selection.x_unit, "intensity": selection.intensity_unit},
+                source_locator=locator,
+                acquisition_metadata=(
+                    {} if normalized_technique == "IR"
+                    else {"background_state": "unknown", "normalization_state": "unknown"}
+                ),
+                mapping=selection,
+                warnings=warnings,
+            )
+        )
+
+    warnings = tuple(warning for measurement in measurements for warning in measurement.warnings)
+    record = ConversionRecord.create(
+        conversion_id=_CONVERTER_ID,
+        source_artifact_id=source_artifact_id,
+        observed_columns=observed_columns,
+        extracted_segments=tuple(
+            {"measurement_id": measurement.measurement_id, "source_locator": measurement.source_locator}
+            for measurement in measurements
+        ),
+        warnings=warnings,
+    )
+    template = CanonicalExperiment.create(
+        template_id="spectrum_1d.v1" if normalized_technique == "IR" else "scattering_1d.v1",
+        source_artifact_id=source_artifact_id,
+        payload={"technique": normalized_technique},
+        conversion_record=record,
+        measurements=measurements,
+        mapping_proposal=mapping_proposal,
+    )
+    return ConversionOutcome(status="ready", record=record, template=template)
+
+
+def _load_tables(path: Path, extension: str) -> tuple[_Table, ...]:
+    if extension not in _WORKBOOK_EXTENSIONS:
+        return (_Table(_string_headers(pd.read_csv(path, sep=None, engine="python", comment="#")), None, None, 0),)
+    with pd.ExcelFile(path) as workbook:
+        return tuple(
+            _Table(_string_headers(pd.read_excel(workbook, sheet_name=sheet_name)), str(sheet_name), index, 0)
+            for index, sheet_name in enumerate(workbook.sheet_names)
+        )
+
+
+def _string_headers(frame: pd.DataFrame) -> pd.DataFrame:
+    frame.columns = [str(header) for header in frame.columns]
+    return frame
+
+
+def _valid_proposal(
+    proposal: MappingProposal,
+    *,
+    tables: tuple[_Table, ...],
+    technique: str,
+    source_artifact_id: str,
+) -> bool:
+    if proposal.source_artifact_id != source_artifact_id or proposal.technique.strip().upper() != technique:
+        return False
+    if len(proposal.selections) != len(tables):
+        return False
+    table_by_key = {(table.sheet_index, table.table_index): table for table in tables}
+    if len({(selection.sheet_index, selection.table_index) for selection in proposal.selections}) != len(tables):
+        return False
+    for selection in proposal.selections:
+        table = table_by_key.get((selection.sheet_index, selection.table_index))
+        if table is None or selection.source != proposal.source:
+            return False
+        if selection.measurement_id != _measurement_id(table):
+            return False
+        if selection.sheet_name != table.sheet_name or selection.header_row != 0:
+            return False
+        if selection.x_column not in table.frame.columns or selection.intensity_column not in table.frame.columns:
+            return False
+        if selection.x_column == selection.intensity_column or not _kind_allowed(selection.x_kind, technique):
+            return False
+        if selection.x_unit != _x_unit(selection.x_column, selection.x_kind):
+            return False
+        if selection.intensity_unit != _intensity_unit(selection.intensity_column):
+            return False
+        start, end = _table_row_range(table.frame)
+        if selection.data_row_start != start or selection.data_row_end != end:
+            return False
+    return True
+
+
+def _observed_selection(table: _Table, technique: str) -> MappingSelection | None:
+    x_candidates = [
+        (str(header), _x_kind(str(header), technique))
+        for header in table.frame.columns
+        if _x_kind(str(header), technique) is not None
+    ]
+    intensity_candidates = [
+        str(header) for header in table.frame.columns if _is_intensity_header(str(header))
+    ]
+    if len(x_candidates) != 1 or len(intensity_candidates) != 1:
+        return None
+    x_column, x_kind = x_candidates[0]
+    intensity_column = intensity_candidates[0]
+    if x_column == intensity_column:
+        return None
+    start, end = _table_row_range(table.frame)
+    return MappingSelection(
+        measurement_id=_measurement_id(table),
+        sheet_name=table.sheet_name,
+        sheet_index=table.sheet_index,
+        table_index=table.table_index,
+        header_row=0,
+        data_row_start=start,
+        data_row_end=end,
+        x_column=x_column,
+        intensity_column=intensity_column,
+        x_kind=x_kind,
+        x_unit=_x_unit(x_column, x_kind),
+        intensity_unit=_intensity_unit(intensity_column),
+        source="observed",
+    )
+
+
+def _measurement_id(table: _Table) -> str:
+    return f"sheet-{table.sheet_index if table.sheet_index is not None else 0}-table-{table.table_index}"
+
+
+def _table_row_range(frame: pd.DataFrame) -> tuple[int, int]:
+    if frame.empty:
+        return 0, 0
+    return int(frame.index[0]) + 1, int(frame.index[-1]) + 1
+
+
+def _source_locator(
+    path: Path, table: _Table, selection: MappingSelection, *, point_count: int
+) -> dict[str, Any]:
+    return {
+        "source_path": str(path.resolve()),
+        "sheet_name": table.sheet_name,
+        "sheet_index": table.sheet_index,
+        "table_index": table.table_index,
+        "header_row": 0,
+        "data_row_start": selection.data_row_start,
+        "data_row_end": selection.data_row_end,
+        "point_start": 0,
+        "point_end": point_count - 1,
+    }
+
+
+def _finite_pair(x_value: Any, intensity_value: Any) -> bool:
+    return bool(pd.notna(x_value) and pd.notna(intensity_value) and math.isfinite(float(x_value)) and math.isfinite(float(intensity_value)))
+
+
+def _normalize_header(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.casefold().replace("θ", "theta"))
+
+
+def _x_kind(header: str, technique: str) -> str | None:
+    normalized = _normalize_header(header)
+    if technique == "IR":
+        without_wavenumber_unit = _normalize_header(
+            re.sub(r"(?:cm\s*(?:\^?\s*-\s*1|⁻¹)|1\s*/\s*cm)", "", header.casefold())
+        )
+        return "wavenumber" if {normalized, without_wavenumber_unit}.intersection(_IR_X_ALIASES) else None
+    if technique in {"SAXS", "WAXS"}:
+        without_q_unit = _normalize_header(
+            re.sub(r"(?:nm|angstrom|å|a)\s*(?:\^?\s*-\s*1|⁻¹)", "", header.casefold())
+        )
+        without_angle_unit = _normalize_header(
+            re.sub(r"(?:degrees?|deg|°)", "", header.casefold())
+        )
+        if {normalized, without_q_unit}.intersection(_Q_ALIASES):
+            return "q"
+        if {normalized, without_angle_unit}.intersection(_TWO_THETA_ALIASES):
+            return "two_theta"
+    return None
+
+
+def _is_intensity_header(header: str) -> bool:
+    without_au = _normalize_header(re.sub(r"a\s*\.\s*u\s*\.", "", header.casefold()))
+    return _normalize_header(header) in _INTENSITY_ALIASES or without_au in _INTENSITY_ALIASES
+
+
+def _kind_allowed(x_kind: str, technique: str) -> bool:
+    return (technique == "IR" and x_kind == "wavenumber") or (
+        technique in {"SAXS", "WAXS"} and x_kind in {"q", "two_theta"}
+    )
+
+
+def _x_unit(header: str, x_kind: str) -> str:
+    text = header.casefold()
+    if x_kind == "wavenumber" and re.search(r"(?:cm\s*(?:\^?\s*-\s*1|⁻¹)|1\s*/\s*cm)", text):
+        return "cm^-1"
+    if x_kind == "q" and re.search(r"nm\s*(?:\^?\s*-\s*1|⁻¹)", text):
+        return "nm^-1"
+    if x_kind == "q" and re.search(r"(?:a|å|angstrom)\s*(?:\^?\s*-\s*1|⁻¹)", text):
+        return "angstrom^-1"
+    if x_kind == "two_theta" and re.search(r"(?:degrees?|deg|°)", text):
+        return "deg"
+    return "unknown"
+
+
+def _intensity_unit(header: str) -> str:
+    text = header.casefold()
+    if re.search(r"a\s*\.\s*u\s*\.", text):
+        return "a.u."
+    for unit in ("absorbance", "transmittance", "counts", "cps"):
+        if re.search(rf"\b{re.escape(unit)}\b", text):
+            return unit
+    return "unknown"
+
+
+def _unit_warnings(selection: MappingSelection) -> tuple[str, ...]:
+    warnings: list[str] = []
+    if selection.x_unit == "unknown":
+        warnings.append("coordinate_unit_unknown")
+    if selection.intensity_unit == "unknown":
+        warnings.append("intensity_unit_unknown")
+    return tuple(warnings)
+
+
+def _outcome(
+    status: str,
+    source_artifact_id: str,
+    reason: str,
+    *,
+    observed_columns: tuple[str, ...] = (),
+) -> ConversionOutcome:
+    record = ConversionRecord.create(
+        conversion_id=_CONVERTER_ID,
+        source_artifact_id=source_artifact_id,
+        observed_columns=observed_columns,
+        reason_codes=(reason,),
+    )
+    return ConversionOutcome(status=status, record=record, reason_codes=(reason,))
