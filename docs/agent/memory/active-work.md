@@ -1,5 +1,15 @@
 # Active Work
 
+## Universal canonical templates - design review required (2026-08-24)
+
+- The approved next architecture uses universal thermal-program and 1D curve
+  families, immutable measurements/provenance, finite capability routing, and
+  independent `completed`/`needs_input`/`failed`/`not_applicable` item results.
+- Next implementation order: contracts plus generic 1D, then general DSC,
+  capabilities, Batch/Agent migration, six-sample replay, and only then legacy
+  deletion. Preserve Mettler PA6 converter regression behavior; no legacy
+  removal now. Task: `docs/agent/tasks/2026-08-24-universal-canonical-templates-architecture.md`.
+
 ## Core direct-run foundation - implementation complete, human architecture review required (2026-08-24)
 
 - The direct CLI commands and Quick Analysis `AnalysisWorker` share
