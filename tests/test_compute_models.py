@@ -15,6 +15,26 @@ from polynexus.core.compute.models import (
 )
 
 
+_FORBIDDEN_RESULT_KEY_TOKENS = (
+    "analysis_evidence",
+    "evidence",
+    "writing",
+    "manuscript",
+    "review",
+)
+
+
+def assert_no_forbidden_result_keys(value: object) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            normalized_key = key.casefold().replace("-", "_")
+            assert not any(token in normalized_key for token in _FORBIDDEN_RESULT_KEY_TOKENS)
+            assert_no_forbidden_result_keys(item)
+    elif isinstance(value, list):
+        for item in value:
+            assert_no_forbidden_result_keys(item)
+
+
 def test_direct_contract_hashes_are_stable_json_safe_and_provenance_linked(
     tmp_path: Path,
 ) -> None:
@@ -143,21 +163,21 @@ def test_legacy_projection_collects_warnings_without_reading_analysis_evidence()
     assert "analysis_evidence" not in str(payload)
 
 
-def test_legacy_projection_scrubs_nested_paper_and_review_fields(tmp_path: Path) -> None:
+def test_legacy_projection_scrubs_nested_forbidden_aliases(tmp_path: Path) -> None:
     class FakeResult:
         parameters = {
             "peak_cm-1": 1630.0,
-            "analysis_evidence": {"hidden": True},
+            "Analysis-Evidence": {"hidden": True},
             "nested": {
-                "writing_eligibility": "blocked",
+                "writing_status": "blocked",
                 "values": [{"manuscript_role": "results", "intensity": 4.2}],
             },
         }
-        figures = {"spectrum": "spectrum.svg", "review_required": "internal.svg"}
+        figures = {"spectrum": "spectrum.svg", "Review-Notes": "internal.svg"}
         metadata = {
             "review_required": True,
-            "evidence": {"hidden": True},
-            "nested": {"manuscript_candidate": True, "provider": "legacy"},
+            "evidence_package": {"hidden": True},
+            "nested": {"manuscript_status": True, "provider": "legacy"},
         }
         validation_warnings = ()
         quality_flags = {}
@@ -190,15 +210,52 @@ def test_legacy_projection_scrubs_nested_paper_and_review_fields(tmp_path: Path)
     assert payload["result"]["metrics"]["nested"]["values"] == [{"intensity": 4.2}]
     assert payload["result"]["figures"] == {"spectrum": "spectrum.svg"}
     assert payload["result"]["metadata"]["nested"] == {"provider": "legacy"}
-    for forbidden_key in (
-        "analysis_evidence",
-        "writing_eligibility",
-        "manuscript_role",
-        "manuscript_candidate",
-        "review_required",
-        "evidence",
-    ):
-        assert f'"{forbidden_key}"' not in payload_text
+    assert_no_forbidden_result_keys(payload["result"])
+    assert "analysis_evidence" not in payload_text
+
+
+def test_direct_compute_result_scrubs_forbidden_aliases_from_public_projection(
+    tmp_path: Path,
+) -> None:
+    artifact = RawArtifact(
+        artifact_id="artifact",
+        path="curve.csv",
+        technique="ir",
+        format="csv",
+        sha256="digest",
+        observed_facts={"review_notes": "raw scientific metadata"},
+    )
+    dataset = CanonicalDataset.direct_envelope(artifact)
+    plan = AnalysisPlan.direct(dataset, output_dir=tmp_path / "out")
+    result = ComputeResult(
+        metrics={
+            "nested": {
+                "Review-Notes": "private",
+                "writing_status": "private",
+                "intensity": 4.2,
+            }
+        },
+        figures={"evidence_package": "private.svg", "spectrum": "spectrum.svg"},
+        metadata={"nested": [{"manuscript_status": "draft"}], "provider": "direct"},
+        warnings=("retained_warning",),
+    )
+
+    payload = ComputeRun.completed(
+        artifact=artifact,
+        dataset=dataset,
+        plan=plan,
+        result=result,
+    ).to_dict()
+
+    assert payload["result"]["metrics"]["nested"] == {"intensity": 4.2}
+    assert payload["result"]["figures"] == {"spectrum": "spectrum.svg"}
+    assert payload["result"]["metadata"] == {"nested": [{}], "provider": "direct"}
+    assert payload["result"]["warnings"] == ["retained_warning"]
+    assert_no_forbidden_result_keys(payload["result"])
+    assert payload["artifact"]["observed_facts"] == {"review_notes": "raw scientific metadata"}
+    assert payload["dataset"]["payload"]["observed_facts"] == {
+        "review_notes": "raw scientific metadata"
+    }
 
 
 def test_contracts_reject_nonfinite_floats(tmp_path: Path) -> None:

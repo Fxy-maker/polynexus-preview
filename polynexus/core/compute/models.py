@@ -14,15 +14,12 @@ from typing import Any
 
 
 COMPUTE_STATUSES = frozenset({"ready", "needs_input", "failed", "completed"})
-_FORBIDDEN_LEGACY_PROJECTION_KEYS = frozenset(
-    {
-        "analysis_evidence",
-        "writing_eligibility",
-        "manuscript_role",
-        "manuscript_candidate",
-        "review_required",
-        "evidence",
-    }
+_FORBIDDEN_COMPUTE_RESULT_KEY_TOKENS = (
+    "analysis_evidence",
+    "evidence",
+    "writing",
+    "manuscript",
+    "review",
 )
 
 
@@ -76,19 +73,27 @@ def _freeze_mapping(value: Mapping[str, Any] | None) -> Mapping[str, Any]:
     return frozen
 
 
-def _scrub_legacy_projection(value: Any) -> Any:
-    """Remove paper and review fields from recursively projected legacy data."""
+def _is_forbidden_compute_result_key(key: object) -> bool:
+    if not isinstance(key, str):
+        return False
+    normalized_key = key.casefold().replace("-", "_")
+    return any(token in normalized_key for token in _FORBIDDEN_COMPUTE_RESULT_KEY_TOKENS)
+
+
+def _scrub_compute_result_projection(value: Any) -> Any:
+    """Remove non-compute fields from the public compute-only result projection.
+
+    This boundary applies only to ``ComputeResult`` public fields, never raw
+    artifact facts or canonical dataset payloads that retain scientific metadata.
+    """
     if isinstance(value, Mapping):
         return {
-            key: _scrub_legacy_projection(item)
+            key: _scrub_compute_result_projection(item)
             for key, item in value.items()
-            if not (
-                isinstance(key, str)
-                and key.casefold().replace("-", "_") in _FORBIDDEN_LEGACY_PROJECTION_KEYS
-            )
+            if not _is_forbidden_compute_result_key(key)
         }
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return tuple(_scrub_legacy_projection(item) for item in value)
+        return tuple(_scrub_compute_result_projection(item) for item in value)
     return value
 
 
@@ -330,13 +335,17 @@ class ComputeResult:
     warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        frozen_metrics = _freeze_mapping(self.metrics)
-        frozen_figures = _freeze_mapping(self.figures)
+        frozen_metrics = _freeze_mapping(_scrub_compute_result_projection(self.metrics))
+        frozen_figures = _freeze_mapping(_scrub_compute_result_projection(self.figures))
         if any(not isinstance(value, str) for value in frozen_figures.values()):
             raise TypeError("Compute result figure references must be strings")
         object.__setattr__(self, "metrics", frozen_metrics)
         object.__setattr__(self, "figures", frozen_figures)
-        object.__setattr__(self, "metadata", _freeze_mapping(self.metadata))
+        object.__setattr__(
+            self,
+            "metadata",
+            _freeze_mapping(_scrub_compute_result_projection(self.metadata)),
+        )
         object.__setattr__(self, "warnings", _freeze_strings(self.warnings, "warnings"))
 
     @classmethod
@@ -358,9 +367,9 @@ class ComputeResult:
         if validation_summary and str(validation_summary) != "All checks passed":
             warnings.append(str(validation_summary))
         return cls(
-            metrics=_scrub_legacy_projection(metrics) if isinstance(metrics, Mapping) else {},
-            figures=_scrub_legacy_projection(figures) if isinstance(figures, Mapping) else {},
-            metadata=_scrub_legacy_projection(metadata) if isinstance(metadata, Mapping) else {},
+            metrics=metrics if isinstance(metrics, Mapping) else {},
+            figures=figures if isinstance(figures, Mapping) else {},
+            metadata=metadata if isinstance(metadata, Mapping) else {},
             warnings=tuple(warnings),
         )
 
