@@ -1,5 +1,11 @@
 # Active Work
 
+## Core direct-run foundation - active (2026-08-24)
+
+- This slice is a temporary compatibility bridge: no legacy code is deleted.
+  Deletion depends on focused CLI/AI contract tests and Quick Analysis tests.
+  Task: `docs/agent/tasks/2026-08-24-core-foundation-direct-run.md`.
+
 ## Local GUI automation MCP bridge - ready for checkpoint (2026-08-09)
 
 - `polynexus-mcp` now starts a separate visible GUI process and serves only
