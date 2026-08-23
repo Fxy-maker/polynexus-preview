@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from polynexus.core.canonical_experiments import (
     MappingProposal,
@@ -49,6 +50,77 @@ def test_flat_file_locator_uses_physical_lines_with_comments(tmp_path: Path) -> 
     assert (measurement.mapping.data_row_start, measurement.mapping.data_row_end) == (2, 4)
     assert measurement.source_locator["header_row"] == 1
     assert (measurement.source_locator["data_row_start"], measurement.source_locator["data_row_end"]) == (2, 4)
+
+
+@pytest.mark.parametrize("suffix", (".csv", ".xlsx"))
+def test_duplicate_intensity_headers_need_mapping_input(tmp_path: Path, suffix: str) -> None:
+    path = tmp_path / f"duplicate{suffix}"
+    if suffix == ".csv":
+        path.write_text("Wavenumber,Absorbance,Absorbance\n4000,0.1,0.2\n2000,0.3,0.4\n", encoding="utf-8")
+    else:
+        with pd.ExcelWriter(path) as writer:
+            pd.DataFrame([["Wavenumber", "Absorbance", "Absorbance"], [4000, 0.1, 0.2], [2000, 0.3, 0.4]]).to_excel(
+                writer, index=False, header=False
+            )
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id=f"artifact-duplicate-{suffix}")
+
+    assert outcome.status == "needs_input"
+    assert outcome.reason_codes == ("conversion_mapping_ambiguous",)
+    prefix = "flat" if suffix == ".csv" else "Sheet1"
+    assert outcome.record.observed_columns[-2:] == (f"{prefix}:Absorbance", f"{prefix}:Absorbance")
+
+
+def test_blank_header_needs_mapping_input_without_pandas_alias(tmp_path: Path) -> None:
+    path = tmp_path / "blank.csv"
+    path.write_text("Wavenumber,,Absorbance\n4000,0.1,0.2\n2000,0.3,0.4\n", encoding="utf-8")
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-blank")
+
+    assert outcome.status == "needs_input"
+    assert outcome.reason_codes == ("conversion_mapping_ambiguous",)
+    assert outcome.record.observed_columns == ("flat:Wavenumber", "flat:", "flat:Absorbance")
+
+
+@pytest.mark.parametrize(
+    ("header", "expected_unit"),
+    (("Intensity (counts)", "counts"), ("Intensity (cps)", "cps"), ("Intensity (a.u.)", "a.u.")),
+)
+def test_intensity_header_unit_suffix_is_mapped_and_preserved(
+    tmp_path: Path, header: str, expected_unit: str
+) -> None:
+    path = tmp_path / "intensity.csv"
+    path.write_text(f"Wavenumber,{header}\n4000,1\n2000,2\n", encoding="utf-8")
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id=f"artifact-{expected_unit}")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert outcome.template.measurements[0].units["intensity"] == expected_unit
+
+
+def test_leading_whitespace_comment_keeps_physical_locator(tmp_path: Path) -> None:
+    path = tmp_path / "whitespace-comment.csv"
+    path.write_text("  # preamble\nWavenumber,Absorbance\n4000,0.1\n2000,0.2\n", encoding="utf-8")
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-whitespace-comment")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    locator = outcome.template.measurements[0].source_locator
+    assert (locator["header_row"], locator["data_row_start"], locator["data_row_end"]) == (1, 2, 3)
+
+
+def test_quoted_multiline_field_keeps_its_physical_record_range(tmp_path: Path) -> None:
+    path = tmp_path / "quoted.csv"
+    path.write_text("Wavenumber,Absorbance,Note\n4000,0.1,\"first line\ncontinued\"\n2000,0.2,done\n", encoding="utf-8")
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-quoted")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    locator = outcome.template.measurements[0].source_locator
+    assert (locator["header_row"], locator["data_row_start"], locator["data_row_end"]) == (0, 1, 3)
 
 
 def test_saxs_q_without_unit_retains_raw_values_and_warns(tmp_path: Path) -> None:

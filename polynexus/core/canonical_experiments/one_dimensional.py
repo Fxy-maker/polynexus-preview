@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,7 +37,8 @@ class _Table:
     sheet_index: int | None
     table_index: int
     header_row: int = 0
-    data_rows: tuple[int, ...] = ()
+    data_rows: tuple[tuple[int, int], ...] = ()
+    raw_headers: tuple[str, ...] = ()
 
 
 def convert_one_dimensional_table(
@@ -60,9 +62,13 @@ def convert_one_dimensional_table(
     observed_columns = tuple(
         f"{table.sheet_name if table.sheet_name is not None else 'flat'}:{header}"
         for table in tables
-        for header in table.frame.columns
+        for header in table.raw_headers
     )
     normalized_technique = technique.strip().upper()
+    if any(_raw_headers_ambiguous(table, normalized_technique) for table in tables):
+        return _outcome(
+            "needs_input", source_artifact_id, "conversion_mapping_ambiguous", observed_columns=observed_columns
+        )
     observed_by_table = {
         (table.sheet_index, table.table_index): _observed_selection(table, normalized_technique)
         for table in tables
@@ -154,30 +160,109 @@ def convert_one_dimensional_table(
 
 def _load_tables(path: Path, extension: str) -> tuple[_Table, ...]:
     if extension not in _WORKBOOK_EXTENSIONS:
-        frame = _string_headers(pd.read_csv(path, sep=None, engine="python", comment="#"))
-        header_row, data_rows = _flat_source_rows(path, expected_rows=len(frame))
-        return (_Table(frame, None, None, 0, header_row=header_row, data_rows=data_rows),)
+        raw_headers, header_row, data_rows, whitespace_comment_rows = _flat_source_records(path)
+        frame = _string_headers(
+            pd.read_csv(path, sep=None, engine="python", comment="#", skiprows=whitespace_comment_rows), raw_headers
+        )
+        if len(frame) != len(data_rows):
+            raise ValueError("Flat source records cannot be mapped to pandas rows")
+        return (_Table(frame, None, None, 0, header_row, data_rows, raw_headers),)
     with pd.ExcelFile(path) as workbook:
         return tuple(
-            _Table(_string_headers(pd.read_excel(workbook, sheet_name=sheet_name)), str(sheet_name), index, 0)
+            _workbook_table(workbook, sheet_name=str(sheet_name), sheet_index=index)
             for index, sheet_name in enumerate(workbook.sheet_names)
         )
 
 
-def _string_headers(frame: pd.DataFrame) -> pd.DataFrame:
-    frame.columns = [str(header) for header in frame.columns]
+def _workbook_table(workbook: pd.ExcelFile, *, sheet_name: str, sheet_index: int) -> _Table:
+    raw_header_row = pd.read_excel(workbook, sheet_name=sheet_name, header=None, nrows=1)
+    raw_headers = tuple(_display_header(value) for value in raw_header_row.iloc[0].tolist()) if not raw_header_row.empty else ()
+    frame = _string_headers(pd.read_excel(workbook, sheet_name=sheet_name), raw_headers)
+    return _Table(frame, sheet_name, sheet_index, 0, raw_headers=raw_headers)
+
+
+def _string_headers(frame: pd.DataFrame, raw_headers: tuple[str, ...] | None = None) -> pd.DataFrame:
+    headers = raw_headers if raw_headers is not None else tuple(str(header) for header in frame.columns)
+    if len(headers) != len(frame.columns):
+        raise ValueError("Raw header count does not match pandas columns")
+    frame.columns = list(headers)
     return frame
 
 
-def _flat_source_rows(path: Path, *, expected_rows: int) -> tuple[int, tuple[int, ...]]:
-    physical_content_rows = tuple(
-        index
-        for index, line in enumerate(path.read_bytes().splitlines())
-        if line.strip() and not line.lstrip().startswith(b"#")
+class _PhysicalLineIterator:
+    def __init__(self, lines: list[tuple[int, str]]) -> None:
+        self._lines = lines
+        self._position = 0
+        self.last_line = -1
+
+    @property
+    def next_line(self) -> int:
+        return self._lines[self._position][0] if self._position < len(self._lines) else -1
+
+    def __iter__(self) -> "_PhysicalLineIterator":
+        return self
+
+    def __next__(self) -> str:
+        if self._position >= len(self._lines):
+            raise StopIteration
+        line_index, line = self._lines[self._position]
+        self._position += 1
+        self.last_line = line_index
+        return line
+
+
+def _flat_source_records(path: Path) -> tuple[tuple[str, ...], int, tuple[tuple[int, int], ...], tuple[int, ...]]:
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        physical_lines = list(enumerate(handle))
+    whitespace_comment_rows = tuple(
+        index for index, line in physical_lines if line[:1].isspace() and line.lstrip().startswith("#")
     )
-    if not physical_content_rows or len(physical_content_rows) != expected_rows + 1:
-        raise ValueError("Flat source rows cannot be mapped to physical lines")
-    return physical_content_rows[0], physical_content_rows[1:]
+    records = _PhysicalLineIterator(
+        [(index, line) for index, line in physical_lines if not line.lstrip().startswith("#")]
+    )
+    sample = "".join(line for _, line in records._lines[:20])
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",\t;| ") if sample else csv.excel
+        reader = csv.reader(records, dialect)
+    except csv.Error:
+        reader = csv.reader(records, delimiter=_fallback_delimiter(sample))
+    parsed: list[tuple[list[str], int, int]] = []
+    while True:
+        start = records.next_line
+        try:
+            row = next(reader)
+        except StopIteration:
+            break
+        if row:
+            parsed.append((row, start, records.last_line))
+    if not parsed:
+        raise ValueError("Flat source has no table records")
+    header, header_start, _ = parsed[0]
+    data_rows = tuple((start, end) for _, start, end in parsed[1:])
+    return tuple(_display_header(value) for value in header), header_start, data_rows, whitespace_comment_rows
+
+
+def _display_header(value: Any) -> str:
+    return "" if pd.isna(value) else str(value)
+
+
+def _fallback_delimiter(sample: str) -> str:
+    first_line = sample.splitlines()[0] if sample else ""
+    for delimiter in (",", "\t", ";", "|"):
+        if delimiter in first_line:
+            return delimiter
+    return " "
+
+
+def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
+    if any(not header.strip() for header in table.raw_headers):
+        return True
+    relevant = [
+        _normalize_header(header)
+        for header in table.raw_headers
+        if _x_kind(header, technique) is not None or _is_intensity_header(header)
+    ]
+    return len(relevant) != len(set(relevant))
 
 
 def _valid_proposal(
@@ -280,7 +365,7 @@ def _table_row_range(table: _Table) -> tuple[int, int]:
     if table.frame.empty:
         return 0, 0
     if table.data_rows:
-        return table.data_rows[0], table.data_rows[-1]
+        return table.data_rows[0][0], table.data_rows[-1][1]
     return int(table.frame.index[0]) + 1, int(table.frame.index[-1]) + 1
 
 
@@ -330,8 +415,17 @@ def _x_kind(header: str, technique: str) -> str | None:
 
 
 def _is_intensity_header(header: str) -> bool:
-    without_au = _normalize_header(re.sub(r"a\s*\.\s*u\s*\.", "", header.casefold()))
-    return _normalize_header(header) in _INTENSITY_ALIASES or without_au in _INTENSITY_ALIASES
+    return _intensity_alias(header) in _INTENSITY_ALIASES
+
+
+def _intensity_alias(header: str) -> str:
+    normalized = _normalize_header(header)
+    if normalized in _INTENSITY_ALIASES:
+        return normalized
+    without_unit_suffix = re.sub(
+        r"\s*[\(\[]?\s*(?:counts|cps|a\s*\.\s*u\s*\.)\s*[\)\]]?\s*$", "", header.casefold()
+    )
+    return _normalize_header(without_unit_suffix)
 
 
 def _kind_allowed(x_kind: str, technique: str) -> bool:
