@@ -23,9 +23,11 @@ def _safe_technique(value: object) -> str | None:
     return normalized or None
 
 
-def _resolve_path(value: object) -> Path | None:
-    """Return a canonical path only when path normalization is safe."""
+def _resolve_output_dir(value: object) -> Path | None:
+    """Return a canonical output path only when normalization is safe."""
     try:
+        if "\x00" in str(value):
+            return None
         return Path(value).expanduser().resolve(strict=False)
     except Exception:
         return None
@@ -157,7 +159,7 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(source, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
-        resolved_output_path = _resolve_path(output_dir)
+        resolved_output_path = _resolve_output_dir(output_dir)
         if resolved_output_path is None:
             return ComputeRun(
                 status="needs_input",

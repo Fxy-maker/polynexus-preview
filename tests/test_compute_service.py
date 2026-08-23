@@ -590,7 +590,7 @@ def test_direct_run_rejects_unsupported_option_before_provider_execution(tmp_pat
     assert engine.calls == []
 
 
-@pytest.mark.parametrize("output_dir", ("\x00", None))
+@pytest.mark.parametrize("output_dir", (None,))
 def test_direct_run_rejects_invalid_output_dir_before_plan_or_provider(
     tmp_path: Path, output_dir: object
 ) -> None:
@@ -612,6 +612,41 @@ def test_direct_run_rejects_invalid_output_dir_before_plan_or_provider(
     assert run.result is None
     assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
     assert engine.calls == []
+
+
+def test_direct_run_rejects_nul_output_dir_before_engine_factory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    factory_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    original_resolve = Path.resolve
+
+    def allow_nul_resolve(candidate: Path, *args: Any, **kwargs: Any) -> Path:
+        if "\x00" in str(candidate):
+            return candidate
+        return original_resolve(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", allow_nul_resolve)
+
+    def factory(*args: Any, **kwargs: Any) -> FakeEngine:
+        factory_calls.append((args, kwargs))
+        return FakeEngine(SimpleNamespace())
+
+    run = ComputeRunService(factory).run_direct(
+        technique="ir",
+        path=source,
+        output_dir="\x00",
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("output_directory_invalid",)
+    assert run.artifact.sha256
+    assert run.dataset is None
+    assert run.plan is None
+    assert run.result is None
+    assert json.loads(json.dumps(run.to_dict(), sort_keys=True)) == run.to_dict()
+    assert factory_calls == []
 
 
 def test_direct_run_contains_exploding_pathlike_output_before_engine_factory(
