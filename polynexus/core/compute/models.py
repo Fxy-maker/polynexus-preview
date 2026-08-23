@@ -11,6 +11,7 @@ from numbers import Real
 import os
 from pathlib import Path
 import re
+import stat
 from types import MappingProxyType
 from typing import Any
 
@@ -149,11 +150,17 @@ def _file_sha256(path: Path) -> str:
 
 
 def _directory_manifest_sha256(path: Path) -> str:
-    entries = [
-        {"path": child.relative_to(path).as_posix(), "sha256": _file_sha256(child)}
-        for child in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix())
-        if child.is_file()
-    ]
+    entries = []
+    for child in sorted(path.iterdir(), key=lambda item: item.name):
+        child_stat = child.lstat()
+        reparse_point = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        if not stat.S_ISREG(child_stat.st_mode) or (
+            getattr(child_stat, "st_file_attributes", 0) & reparse_point
+        ):
+            raise ValueError("Directory artifacts support only direct regular files")
+        entries.append({"path": child.name, "sha256": _file_sha256(child)})
+    if not entries:
+        raise ValueError("Directory artifacts must not be empty")
     return _canonical_hash({"kind": "directory_manifest", "entries": entries})
 
 
@@ -284,11 +291,10 @@ class CanonicalDataset:
     def direct_envelope(cls, artifact: RawArtifact) -> CanonicalDataset:
         if not artifact.sha256:
             raise ValueError("A direct envelope requires an artifact content hash")
-        if artifact.format == "directory":
-            raise ValueError("A direct envelope requires a raw file artifact")
-        template_id = "raw-file-envelope.v1"
+        is_directory = artifact.format == "directory"
+        template_id = "raw-directory-envelope.v1" if is_directory else "raw-file-envelope.v1"
         payload = {
-            "kind": "raw_file",
+            "kind": "raw_directory" if is_directory else "raw_file",
             "path": artifact.path,
             "format": artifact.format,
             "sha256": artifact.sha256,

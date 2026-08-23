@@ -130,6 +130,7 @@ class ComputeRunService:
         try:
             source_exists = source.exists()
             is_regular_file = source.is_file()
+            is_directory = source.is_dir()
         except Exception:
             return ComputeRun(
                 status="needs_input",
@@ -142,7 +143,7 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(source, technique=normalized_technique),
                 reasons=("raw_artifact_missing",),
             )
-        if not is_regular_file:
+        if not (is_regular_file or is_directory):
             return ComputeRun(
                 status="needs_input",
                 artifact=RawArtifact.missing(source, technique=normalized_technique),

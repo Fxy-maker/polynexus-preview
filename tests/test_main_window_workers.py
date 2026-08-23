@@ -109,6 +109,46 @@ def test_analysis_worker_emits_compute_run_from_shared_service(tmp_path) -> None
     }
 
 
+def test_analysis_worker_accepts_a_directory_through_the_shared_service(tmp_path) -> None:
+    class FakeResult:
+        parameters = {}
+        figures = {}
+        metadata = {}
+
+    class FakeEngine:
+        def run_pipeline(self, input_path, output_path, **kwargs):
+            return FakeResult()
+
+    class FakeComputeRunService:
+        def __init__(self, engine_factory):
+            self.engine_factory = engine_factory
+
+        def run_direct(self, **kwargs):
+            return ComputeRunService(self.engine_factory).run_direct(**kwargs)
+
+    directory = tmp_path / "sequence"
+    directory.mkdir()
+    (directory / "frame-001.csv").write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    worker = AnalysisWorker(
+        "saxs",
+        str(directory),
+        str(tmp_path / "out"),
+        engine=FakeEngine(),
+        compute_service_factory=FakeComputeRunService,
+    )
+    received = []
+    errors = []
+    worker.finished.connect(received.append)
+    worker.error_msg.connect(errors.append)
+
+    worker.run()
+
+    assert errors == []
+    assert received[0].status == "completed"
+    assert received[0].artifact.path == str(directory.resolve())
+    assert worker.compute_run is received[0]
+
+
 def test_run_mixin_unwraps_completed_compute_run_and_rejects_missing_legacy_result(
     tmp_path,
 ) -> None:

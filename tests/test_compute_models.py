@@ -89,6 +89,29 @@ def test_direct_contract_hashes_are_stable_json_safe_and_provenance_linked(
     assert "writing_eligibility" not in str(payload)
 
 
+def test_directory_artifact_uses_a_manifest_hash_and_directory_envelope(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "series"
+    source.mkdir()
+    (source / "frame-001.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+
+    artifact = RawArtifact.from_path(source, technique="ir")
+    repeated = RawArtifact.from_path(source, technique="ir")
+    dataset = CanonicalDataset.direct_envelope(artifact)
+    payload = dataset.payload
+
+    assert artifact.path == str(source.resolve())
+    assert artifact.format == "directory"
+    assert artifact.sha256 == repeated.sha256
+    assert dataset.template_id == "raw-directory-envelope.v1"
+    assert payload["kind"] == "raw_directory"
+    assert payload["path"] == artifact.path
+    assert payload["sha256"] == artifact.sha256
+    assert "entries" not in payload
+    assert "frame-001.csv" not in payload
+
+
 def test_compute_run_rejects_review_required_status(tmp_path: Path) -> None:
     source = tmp_path / "curve.csv"
     source.write_text("x,y\n1,2\n", encoding="utf-8")
