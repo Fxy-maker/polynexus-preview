@@ -237,7 +237,11 @@ class RawArtifact:
         technique: str,
         observed_facts: Mapping[str, Any] | None = None,
     ) -> RawArtifact:
-        source = Path(path).expanduser().resolve(strict=True)
+        unresolved_source = Path(path).expanduser()
+        unresolved_stat = unresolved_source.lstat()
+        if unresolved_source.is_symlink() or _is_reparse_point(unresolved_stat):
+            raise ValueError("Raw artifact paths reject a symlink or reparse point")
+        source = unresolved_source.resolve(strict=True)
         content_hash = (
             _directory_manifest_sha256(source) if source.is_dir() else _file_sha256(source)
         )
@@ -265,6 +269,16 @@ class RawArtifact:
     @classmethod
     def missing(cls, path: object, *, technique: str) -> RawArtifact:
         try:
+            candidate = Path(path).expanduser()
+            candidate_stat = candidate.lstat()
+            if candidate.is_symlink() or _is_reparse_point(candidate_stat):
+                artifact_path = str(candidate)
+                artifact_format = ""
+            else:
+                candidate = candidate.resolve(strict=False)
+                artifact_path = str(candidate)
+                artifact_format = _artifact_format(candidate)
+        except FileNotFoundError:
             candidate = Path(path).expanduser().resolve(strict=False)
             artifact_path = str(candidate)
             artifact_format = _artifact_format(candidate)

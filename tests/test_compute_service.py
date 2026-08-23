@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import ast
+import errno
 import inspect
 import json
 import os
 from collections.abc import Iterator, Mapping
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 from typing import Any
 
@@ -475,6 +477,66 @@ def test_direct_run_rejects_nested_symlink_in_directory_without_provider(tmp_pat
     assert run.status == "needs_input"
     assert run.reasons == ("raw_artifact_unreadable",)
     assert engine.calls == []
+
+
+def test_direct_run_rejects_root_directory_symlink_before_factory(tmp_path: Path) -> None:
+    target = tmp_path / "raw-directory"
+    target.mkdir()
+    (target / "frame.csv").write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    linked_root = tmp_path / "linked-raw-directory"
+    try:
+        linked_root.symlink_to(target, target_is_directory=True)
+    except OSError as error:
+        if error.errno in {errno.EACCES, errno.EPERM} or error.winerror in {5, 1314}:
+            pytest.skip(f"directory symlink creation unavailable: {error}")
+        raise
+    factory_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def factory(*args: Any, **kwargs: Any) -> FakeEngine:
+        factory_calls.append((args, kwargs))
+        return FakeEngine(EmptyLegacyResult())
+
+    run = ComputeRunService(factory).run_direct(
+        technique="ir", path=linked_root, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("raw_artifact_unreadable",)
+    assert run.artifact.path == str(linked_root)
+    assert factory_calls == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction behavior")
+def test_direct_run_rejects_root_directory_junction_before_factory(tmp_path: Path) -> None:
+    target = tmp_path / "raw-directory"
+    target.mkdir()
+    (target / "frame.csv").write_text("q,I\n0.1,1.0\n", encoding="utf-8")
+    linked_root = tmp_path / "linked-raw-directory"
+    result = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(linked_root), str(target)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode:
+        diagnostic = f"{result.stdout}\n{result.stderr}".casefold()
+        if "access is denied" in diagnostic or "privilege" in diagnostic:
+            pytest.skip(f"junction creation unavailable: {diagnostic.strip()}")
+        pytest.fail(f"junction setup failed: {diagnostic.strip()}")
+    factory_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def factory(*args: Any, **kwargs: Any) -> FakeEngine:
+        factory_calls.append((args, kwargs))
+        return FakeEngine(EmptyLegacyResult())
+
+    run = ComputeRunService(factory).run_direct(
+        technique="ir", path=linked_root, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("raw_artifact_unreadable",)
+    assert run.artifact.path == str(linked_root)
+    assert factory_calls == []
 
 
 def test_direct_run_rejects_unsupported_option_before_provider_execution(tmp_path: Path) -> None:

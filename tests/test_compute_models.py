@@ -1,8 +1,12 @@
 """Contract tests for the direct-run compute DTOs."""
 
 import json
+import errno
+import os
 from pathlib import Path
 import re
+import stat
+import subprocess
 from types import MappingProxyType
 
 import pytest
@@ -119,6 +123,46 @@ def test_directory_artifact_uses_a_manifest_hash_and_directory_envelope(
     assert "entries" not in payload
     assert "temperature-80C" not in str(payload)
     assert "frame-001.csv" not in payload
+
+
+def test_raw_artifact_rejects_a_root_directory_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "raw-directory"
+    target.mkdir()
+    (target / "frame.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+    linked_root = tmp_path / "linked-raw-directory"
+    try:
+        linked_root.symlink_to(target, target_is_directory=True)
+    except OSError as error:
+        if error.errno in {errno.EACCES, errno.EPERM} or error.winerror in {5, 1314}:
+            pytest.skip(f"directory symlink creation unavailable: {error}")
+        raise
+
+    with pytest.raises(ValueError, match="symlink or reparse"):
+        RawArtifact.from_path(linked_root, technique="ir")
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction behavior")
+def test_raw_artifact_rejects_a_root_directory_junction(tmp_path: Path) -> None:
+    target = tmp_path / "raw-directory"
+    target.mkdir()
+    (target / "frame.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+    linked_root = tmp_path / "linked-raw-directory"
+    result = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(linked_root), str(target)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode:
+        diagnostic = f"{result.stdout}\n{result.stderr}".casefold()
+        if "access is denied" in diagnostic or "privilege" in diagnostic:
+            pytest.skip(f"junction creation unavailable: {diagnostic.strip()}")
+        pytest.fail(f"junction setup failed: {diagnostic.strip()}")
+
+    attributes = getattr(linked_root.lstat(), "st_file_attributes", 0)
+    assert attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    with pytest.raises(ValueError, match="symlink or reparse"):
+        RawArtifact.from_path(linked_root, technique="ir")
 
 
 def test_compute_run_rejects_review_required_status(tmp_path: Path) -> None:

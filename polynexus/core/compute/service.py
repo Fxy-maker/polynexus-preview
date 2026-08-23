@@ -151,11 +151,11 @@ class ComputeRunService:
             )
 
         try:
-            artifact = RawArtifact.from_path(source, technique=normalized_technique)
+            artifact = RawArtifact.from_path(path, technique=normalized_technique)
         except Exception:
             return ComputeRun(
                 status="needs_input",
-                artifact=RawArtifact.missing(source, technique=normalized_technique),
+                artifact=RawArtifact.missing(path, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
         resolved_output_path = _resolve_path(output_dir)
