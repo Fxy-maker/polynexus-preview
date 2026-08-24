@@ -497,6 +497,27 @@ class CanonicalExperiment:
             raise TypeError("Canonical experiment legacy serialization flag must be a boolean")
         if self._legacy_serialization and (self.measurements or self.mapping_proposal is not None):
             raise ValueError("Canonical experiment legacy serialization cannot contain new contract fields")
+        identity_payload = (
+            self._legacy_payload(
+                template_id=self.template_id,
+                source_artifact_id=self.source_artifact_id,
+                payload=self.payload,
+                conversion_record=self.conversion_record,
+                contract_version=self.contract_version,
+            )
+            if self._legacy_serialization
+            else self._payload(
+                template_id=self.template_id,
+                source_artifact_id=self.source_artifact_id,
+                payload=self.payload,
+                conversion_record=self.conversion_record,
+                measurements=self.measurements,
+                mapping_proposal=self.mapping_proposal,
+                contract_version=self.contract_version,
+            )
+        )
+        if self.content_hash != _hash(identity_payload):
+            raise ValueError("Canonical template content hash does not match its content")
 
     @classmethod
     def create(

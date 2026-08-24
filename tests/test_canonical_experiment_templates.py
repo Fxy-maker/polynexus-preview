@@ -263,6 +263,60 @@ def test_legacy_canonical_template_cannot_gain_new_hash_bearing_fields() -> None
         replace(legacy, measurements=(_measurement(),))
 
 
+def test_direct_legacy_canonical_template_rejects_an_invalid_content_hash() -> None:
+    record = ConversionRecord.create(
+        conversion_id="legacy.converter.v1",
+        source_artifact_id="legacy-sha",
+    )
+
+    with pytest.raises(ValueError, match="content hash"):
+        CanonicalExperiment(
+            template_id="legacy.template.v1",
+            source_artifact_id="legacy-sha",
+            payload={},
+            conversion_record=record,
+            content_hash="not-the-legacy-hash",
+            _legacy_serialization=True,
+        )
+
+
+def test_replacing_a_legacy_canonical_template_content_hash_is_rejected() -> None:
+    record = ConversionRecord.create(
+        conversion_id="legacy.converter.v1",
+        source_artifact_id="legacy-sha",
+    )
+    template = CanonicalExperiment.create(
+        template_id="legacy.template.v1",
+        source_artifact_id="legacy-sha",
+        payload={},
+        conversion_record=record,
+    )
+    legacy_payload = template.to_dict()
+    legacy_payload.pop("measurements")
+    legacy_payload.pop("mapping_proposal")
+    legacy_payload["content_hash"] = _legacy_content_hash(legacy_payload)
+    legacy = CanonicalExperiment.from_dict(legacy_payload)
+
+    with pytest.raises(ValueError, match="content hash"):
+        replace(legacy, content_hash="not-the-legacy-hash")
+
+
+def test_replacing_a_new_template_with_legacy_serialization_is_rejected() -> None:
+    record = ConversionRecord.create(
+        conversion_id="converter.v1",
+        source_artifact_id="raw-sha256",
+    )
+    template = CanonicalExperiment.create(
+        template_id="template.v1",
+        source_artifact_id="raw-sha256",
+        payload={},
+        conversion_record=record,
+    )
+
+    with pytest.raises(ValueError, match="content hash"):
+        replace(template, _legacy_serialization=True)
+
+
 @pytest.mark.parametrize("removed_key", ("measurements", "mapping_proposal"))
 def test_new_canonical_template_rejects_removal_of_serialized_contract_fields(removed_key: str) -> None:
     record = ConversionRecord.create(
