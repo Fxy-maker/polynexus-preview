@@ -123,7 +123,7 @@ def convert_one_dimensional_table(
             Measurement(
                 measurement_id=selection.measurement_id,
                 family="spectrum_1d" if normalized_technique == "IR" else "scattering_1d",
-                role="primary",
+                role="raw_curve",
                 channels={"x": tuple(pair[0] for pair in pairs), "intensity": tuple(pair[1] for pair in pairs)},
                 units={"x": selection.x_unit, "intensity": selection.intensity_unit},
                 source_locator=locator,

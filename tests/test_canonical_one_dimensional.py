@@ -23,6 +23,7 @@ def test_ir_csv_curve_preserves_order_units_and_source_rows(tmp_path: Path) -> N
     assert outcome.template.template_id == "spectrum_1d.v1"
     measurement = outcome.template.measurements[0]
     assert measurement.family == "spectrum_1d"
+    assert measurement.role == "raw_curve"
     assert measurement.channels == {"x": (4000.0, 2000.0), "intensity": (0.1, 0.3)}
     assert measurement.units == {"x": "cm^-1", "intensity": "a.u."}
     assert measurement.mapping is not None
@@ -133,6 +134,7 @@ def test_saxs_q_without_unit_retains_raw_values_and_warns(tmp_path: Path) -> Non
     assert outcome.template is not None
     measurement = outcome.template.measurements[0]
     assert measurement.family == "scattering_1d"
+    assert measurement.role == "raw_curve"
     assert measurement.channels["x"] == (0.3, 0.1)
     assert measurement.units["x"] == "unknown"
     assert "coordinate_unit_unknown" in measurement.warnings
