@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from polynexus.cli.run_ai_tune_service import run_ai_tune
+from polynexus.cli.run_ai_tune_service import _persist_ai_tune_run, run_ai_tune
 
 
 def test_run_ai_tune_writes_report_and_formats_progress(tmp_path, capsys):
@@ -87,3 +87,48 @@ def test_run_ai_tune_reports_engine_errors(tmp_path, capsys):
     assert run_ai_tune(args, parameter_orchestrator_cls=BoomOrchestrator) == 1
     captured = capsys.readouterr()
     assert "AI tune engine error: boom" in captured.err
+
+
+def test_persist_ai_tune_run_keeps_shared_compute_run_projection(tmp_path, monkeypatch):
+    captured = {}
+
+    class _DB:
+        def __init__(self):
+            pass
+
+        def create_sample(self, *args, **kwargs):
+            return "sample-1"
+
+        def create_batch(self, *args, **kwargs):
+            return "batch-1"
+
+        def add_data_file(self, *args, **kwargs):
+            return None
+
+        def create_analysis_run(self, *args, **kwargs):
+            captured["summary"] = kwargs["results_summary"]
+            return "run-1"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr("polynexus.data.sample_db.SampleDB", _DB)
+    source = tmp_path / "sample.dat"
+    source.write_text("data", encoding="utf-8")
+    args = SimpleNamespace(
+        technique="waxs",
+        file=str(source),
+        polymer="PA6",
+        rounds=1,
+        submodule=None,
+    )
+    report = {
+        "best_config": {},
+        "compute_run": {
+            "status": "completed",
+            "canonical_template": {"template_id": "scattering_1d.v1"},
+        },
+    }
+
+    assert _persist_ai_tune_run(args, report, tmp_path / "report.json") == "run-1"
+    assert captured["summary"]["compute_run"]["canonical_template"]["template_id"] == "scattering_1d.v1"

@@ -197,6 +197,7 @@ def _persist_ai_tune_run(args, report: dict, output_path: Path) -> str:
                 "converged": report.get("converged"),
                 "convergence_reason": report.get("convergence_reason"),
                 "rounds": report.get("rounds"),
+                "compute_run": report.get("compute_run"),
             },
             analysis_evidence=analysis_evidence_from_ai_report(report),
             output_dir=str(output_path.resolve().parent),

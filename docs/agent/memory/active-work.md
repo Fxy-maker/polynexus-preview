@@ -13,6 +13,9 @@
 - Focused matrix passed `133` with `3` skips; task verification passed quality
   `310` and preprocessing `157`. Task:
   `docs/agent/tasks/2026-08-27-orchestrator-compute-run-bootstrap.md`.
+- AI-tune CLI persistence now stores the report's `compute_run` projection
+  alongside legacy summary fields, so restored runs do not lose canonical
+  provenance.
 
 ## DSC thermal-program ComputeRun migration - implementation complete, review required (2026-08-27)
 

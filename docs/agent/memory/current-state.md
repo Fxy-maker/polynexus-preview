@@ -28,6 +28,8 @@ JSON-safe `compute_run` projection in the final report. Empty output strings
 remain analysis-only at the provider boundary. Missing synthetic paths remain
 compatibility-only; ambiguous canonical mappings fail closed. Legacy candidate
 round adapters and full-boundary release review remain open.
+AI-tune CLI persistence also stores this projection alongside the legacy
+summary fields.
 
 ## Product contract (2026-08-13)
 

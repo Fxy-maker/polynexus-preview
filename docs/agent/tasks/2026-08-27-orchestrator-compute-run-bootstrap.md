@@ -24,7 +24,8 @@ subsequent controlled candidate trials.
 ## Shared objects and entry points
 
 - Producer: `ComputeRunService`.
-- Consumer: `ParameterOrchestrator` bootstrap and its final report.
+- Consumers: `ParameterOrchestrator` bootstrap/final report and AI-tune CLI
+  persistence.
 - AI/CLI: keeps the existing tuning report and round history; records the
   shared run projection when a valid source is available.
 - GUI: unchanged; it consumes the existing AI-tuning report/persistence path.
@@ -55,6 +56,8 @@ subsequent controlled candidate trials.
 - [x] Missing or synthetic compatibility inputs retain the old test-friendly
   behavior without fabricating a canonical run.
 - [x] Final reports expose the shared run only as a JSON-safe projection.
+- [x] AI-tune persistence retains the same projection alongside legacy summary
+  fields.
 
 ## Verification
 
@@ -69,12 +72,12 @@ git diff --check
 ```powershell
 python scripts/auto_commit.py `
   --message "feat(orchestrator): attach shared compute run at bootstrap" `
-  --files polynexus/orchestrator_run_bootstrap.py polynexus/orchestrator_lifecycle.py polynexus/orchestrator_session.py tests/test_orchestrator_compute_run.py docs/agent/tasks/2026-08-27-orchestrator-compute-run-bootstrap.md
+  --files polynexus/core/compute/service.py polynexus/orchestrator_run_bootstrap.py polynexus/orchestrator_lifecycle.py polynexus/orchestrator_session.py polynexus/cli/run_ai_tune_service.py tests/test_orchestrator_compute_run.py tests/test_cli_run_ai_tune_service.py docs/agent/tasks/2026-08-27-orchestrator-compute-run-bootstrap.md
 ```
 
 ## Completion evidence
 
-- Exact commands and outcomes: focused producer/consumer matrix `133 passed,
+- Exact commands and outcomes: focused producer/consumer matrix `134 passed,
   3 skipped`; task verifier passed including quality `310` and preprocessing
   `157` checks.
 - Known limitations or follow-up: AI-tuning directory inputs and legacy
