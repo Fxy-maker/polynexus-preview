@@ -12,6 +12,7 @@ from polynexus.core.canonical_experiments import (
     Measurement,
     default_capability_registry,
 )
+from polynexus.core.canonical_experiments.registry import default_converter_registry
 
 
 def _measurement(*, measurement_id: str = "m-1", family: str = "spectrum_1d") -> Measurement:
@@ -104,6 +105,22 @@ def test_executor_isolates_unsupported_and_failed_items() -> None:
 def test_unknown_requested_capability_is_rejected() -> None:
     with pytest.raises(ValueError, match="Unknown capability"):
         CapabilityExecutor().execute(_template(_measurement()), capability_ids=("missing.v1",))
+
+
+def test_registry_executes_finite_items_for_a_ready_generic_template(tmp_path) -> None:
+    path = tmp_path / "curve.csv"
+    path.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+
+    outcome = default_converter_registry().convert_path(
+        path,
+        technique="ir",
+        source_artifact_id="source-sha256",
+    )
+
+    assert outcome.template is not None
+    items = default_converter_registry().execute_capabilities(outcome.template)
+    assert [item.capability_id for item in items] == ["curve.extrema.v1", "curve.summary.v1"]
+    assert all(item.status == "completed" for item in items)
 
 
 def test_capability_spec_rejects_a_single_family_string() -> None:

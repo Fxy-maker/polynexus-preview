@@ -19,6 +19,19 @@
   review is still required before merge.
 - Task: `docs/agent/tasks/2026-08-26-capability-execution.md`.
 
+## Optional vendor converter boundary - implementation complete, review required (2026-08-26)
+
+- IR/SAXS/WAXS table files supported by the generic converter now route to
+  `spectrum_1d.v1`/`scattering_1d.v1` through `CanonicalConverterRegistry`.
+  Ambiguous or invalid mappings remain `needs_input` instead of falling back.
+- Vendor-like extensions and directories retain the old raw compatibility
+  envelopes. This keeps the Core small while leaving an explicit future
+  adapter boundary; no vendor parser was added or removed.
+- Ready generic templates expose the finite capability handoff and produce the
+  same immutable item results used by direct capability tests. Focused canonical
+  and DSC regression coverage passed `85`.
+- Task: `docs/agent/tasks/2026-08-26-optional-vendor-converters.md`.
+
 ## Universal canonical templates - design review required (2026-08-24)
 
 - The approved next architecture uses universal thermal-program and 1D curve

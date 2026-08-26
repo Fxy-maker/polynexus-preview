@@ -6,8 +6,10 @@ import hashlib
 import json
 from pathlib import Path
 
+from .capabilities import CapabilityExecutor
 from .dsc_isothermal import convert_mettler_isothermal_text
 from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord
+from .one_dimensional import convert_one_dimensional_table
 
 
 _STATIC_TEMPLATE_IDS = {
@@ -15,6 +17,11 @@ _STATIC_TEMPLATE_IDS = {
     "saxs": "saxs.profile.v1",
     "waxs": "waxs.profile.v1",
 }
+_GENERIC_TABLE_EXTENSIONS = frozenset({
+    ".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi",
+    ".xls", ".xlsx", ".xlsm",
+})
+_GENERIC_TECHNIQUES = frozenset({"ir", "saxs", "waxs"})
 
 
 class CanonicalConverterRegistry:
@@ -35,6 +42,16 @@ class CanonicalConverterRegistry:
             except OSError:
                 return self._blocked(normalized_technique, source_artifact_id, "canonical_source_unreadable")
             return convert_mettler_isothermal_text(text, source_artifact_id=source_artifact_id)
+        if (
+            normalized_technique in _GENERIC_TECHNIQUES
+            and source.is_file()
+            and source.suffix.casefold() in _GENERIC_TABLE_EXTENSIONS
+        ):
+            return convert_one_dimensional_table(
+                source,
+                technique=normalized_technique,
+                source_artifact_id=source_artifact_id,
+            )
         template_id = _STATIC_TEMPLATE_IDS.get(normalized_technique)
         if template_id is None:
             return self._blocked(normalized_technique, source_artifact_id, "canonical_converter_unregistered")
@@ -68,6 +85,12 @@ class CanonicalConverterRegistry:
     ) -> ConversionOutcome:
         """Recreate a template from a source already bound by a recipe."""
         return self.convert_path(path, technique=technique, source_artifact_id=source_artifact_id)
+
+    @staticmethod
+    def execute_capabilities(template: CanonicalExperiment):
+        """Execute the finite generic capabilities for a ready template."""
+
+        return CapabilityExecutor().execute(template)
 
     @staticmethod
     def _blocked(technique: str, source_artifact_id: str, reason: str) -> ConversionOutcome:
