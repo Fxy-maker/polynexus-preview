@@ -5648,3 +5648,10 @@ and structured gates (`303` / `157`).
 - Task card: `docs/agent/tasks/2026-08-27-ftir-metadata-preamble-template.md`.
 - Next: focused verifier, rerun real six-sample FTIR through `ComputeRun`, then
   diagnose the remaining DSC samples without relaxing quality gates.
+- Six-sample replay v002 is recorded at
+  `D:\PolyNexus-six-sample-replay-20260827-v002\replay-report.json`; all
+  selected FTIR files convert successfully, SAXS/WAXS retain envelopes, and
+  three DSC files remain quality-gated.
+- Full boundary verification on 2026-08-27 returned `4131 passed, 38 failed,
+  25 skipped`; historical GUI/chart/SAXS failures keep this goal
+  implementation-complete but review-required rather than release-green.

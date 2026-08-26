@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-27-shared-object-migration
 kind: architecture
-status: active
+status: implementation_complete_review_required
 date: 2026-08-27
 title: Migrate all entry points to shared ComputeRun objects
 ---
@@ -34,12 +34,16 @@ and DSC multi-program conversion without deleting user-facing features.
 
 ## Acceptance criteria
 
-- [ ] Each entry point has a focused migration task and shared-object tests.
-- [ ] New Batch runs persist a `ComputeRun` projection and retain legacy read compatibility.
-- [ ] GUI persistence can round-trip canonical template/capability fields.
-- [ ] Codex/Agent steps expose the same run fields without reparsing raw data.
-- [ ] DSC multi-program input has a `thermal_program.v1` template with protected Avrami results.
+- [x] Each entry point has a focused migration task and shared-object tests.
+- [x] New Batch runs persist a `ComputeRun` projection and retain legacy read compatibility.
+- [x] GUI persistence can round-trip canonical template/capability fields.
+- [x] Codex/Agent steps expose the same run fields without reparsing raw data.
+- [x] DSC multi-program input has a `thermal_program.v1` template with protected Avrami results.
 - [ ] Redundant producers are removed only after consumer and six-sample acceptance.
+
+The final deletion criterion remains intentionally open: compatibility readers
+and legacy result fields are still needed for historical records and must not
+be removed until full-boundary verification and human review authorize it.
 
 ## Phase tasks
 
@@ -53,3 +57,10 @@ and DSC multi-program conversion without deleting user-facing features.
 Each phase uses its own focused task verifier; the final migration requires
 `python scripts/verify.py --changed --types --full --boundary` and the six
 sample replay acceptance record.
+
+## Completion evidence
+
+The six-sample replay and focused shared-object matrix are recorded in
+`docs/acceptance/2026-08-27-shared-compute-run-migration.md`. The migration is
+implementation-complete but remains review-required because legacy full-suite
+failures and scientific acceptance are not closed.
