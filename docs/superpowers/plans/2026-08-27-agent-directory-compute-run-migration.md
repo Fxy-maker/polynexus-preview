@@ -35,4 +35,4 @@
 
 - [x] **Step 1: Run the Agent/project/ComputeRun matrix.**
 - [x] **Step 2: Run the task-scoped structured verifier and `git diff --check`.**
-- [ ] **Step 3: Create the explicit allowlisted checkpoint with `scripts/auto_commit.py`.**
+- [x] **Step 3: Create the explicit allowlisted checkpoint with `scripts/auto_commit.py`.**
