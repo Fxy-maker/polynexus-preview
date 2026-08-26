@@ -84,4 +84,4 @@ Expected: FAIL because the real-source recovery path still invokes
 - [x] **Step 1: Run focused SAXS/orchestrator tests.**
 - [x] **Step 2: Run `python scripts/verify.py --task docs/agent/tasks/2026-08-27-saxs-recovery-compute-run-migration.md --changed --types`.**
 - [x] **Step 3: Run `git diff --check`.**
-- [ ] **Step 4: Create the explicit allowlisted checkpoint with `scripts/auto_commit.py`.**
+- [x] **Step 4: Create the explicit allowlisted checkpoint with `scripts/auto_commit.py`.**
