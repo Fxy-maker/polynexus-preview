@@ -6,12 +6,35 @@ import logging
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable
 
 from polynexus.core.engine import SUPPORTED_FORMATS
+from polynexus.core.compute import ComputeRun, ComputeRunService
 from polynexus.utils import detect_polymer_type
 
 logger = logging.getLogger(__name__)
+
+
+class _BatchEngineAdapter:
+    """Give legacy Batch-only result objects the shared provider shape."""
+
+    def __init__(self, engine: Any) -> None:
+        self._engine = engine
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._engine, name)
+
+    def run_pipeline(self, path: str, output_dir: str, **options: Any) -> Any:
+        result = self._engine.run_pipeline(path, output_dir, **options)
+        if all(hasattr(result, name) for name in ("parameters", "figures", "metadata")):
+            return result
+        return SimpleNamespace(
+            parameters=getattr(result, "parameters", {}) or {},
+            figures=getattr(result, "figures", {}) or {},
+            metadata=getattr(result, "metadata", {}) or {},
+            r_squared=getattr(result, "r_squared", None),
+        )
 
 
 FALLBACK_EXTS = {".dat", ".csv", ".txt", ".edf", ".raw", ".fio", ".nxs", ".h5"}
@@ -69,15 +92,21 @@ def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -
         polymer_name = detect_polymer_type(data_file.stem) or "unknown"
         db = SampleDB()
         try:
+            compute_run = result if isinstance(result, ComputeRun) else None
+            legacy_result = compute_run.legacy_result if compute_run is not None else result
             parameters = {}
-            result_params = getattr(result, "parameters", {}) or {}
+            result_params = (
+                compute_run.result.metrics
+                if compute_run is not None and compute_run.result is not None
+                else getattr(legacy_result, "parameters", {}) or {}
+            )
             if isinstance(result_params, dict):
                 parameters = dict(result_params)
             parameters.update(
                 {
                     "source": "batch_cli",
                     "technique": technique,
-                    "r_squared": extract_result_r2(result),
+                    "r_squared": extract_result_r2(legacy_result),
                     "elapsed_s": round(elapsed, 3),
                     "polymer_type": polymer_name,
                 }
@@ -116,7 +145,7 @@ def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -
                     "elapsed_s": round(elapsed, 3),
                     "r_squared": extract_result_r2(result),
                 },
-                analysis_evidence=analysis_evidence_from_result(result),
+                analysis_evidence=analysis_evidence_from_result(legacy_result),
                 output_dir=str(data_file.parent.resolve()),
                 ai_tuned=False,
             )
@@ -133,6 +162,7 @@ def run_batch_one(
     persist_batch_run_fn: Callable[[str, str, Any, float], None],
     logger,
     extract_result_r2_fn: Callable[[Any], float | None] = extract_result_r2,
+    compute_run_service_factory: Callable[..., ComputeRunService] = ComputeRunService,
 ) -> dict:
     file_path_str, technique, output_dir_str = task
     file_path = Path(file_path_str)
@@ -145,7 +175,17 @@ def run_batch_one(
         if engine is None:
             raise RuntimeError(f"Unknown technique: {technique}")
         out_path = output_dir / file_path.stem
-        result = engine.run_pipeline(str(file_path), str(out_path))
+        service = compute_run_service_factory(
+            lambda selected_technique, config=None, submodule_id=None: _BatchEngineAdapter(engine)
+        )
+        result = service.run_direct(
+            technique=technique,
+            path=file_path,
+            output_dir=out_path,
+            engine=_BatchEngineAdapter(engine),
+        )
+        if result.status != "completed":
+            raise RuntimeError(", ".join(result.reasons) or result.status)
         elapsed = time.time() - started
         persist_batch_run_fn(str(file_path), technique, result, elapsed)
     except Exception as exc:
@@ -155,8 +195,11 @@ def run_batch_one(
         "file": file_path.name,
         "technique": technique,
         "status": status,
-        "r2": extract_result_r2_fn(result),
+        "r2": extract_result_r2_fn(
+            result.legacy_result if isinstance(result, ComputeRun) else result
+        ),
         "elapsed": round(time.time() - started, 2),
+        "compute_run": result,
     }
 
 

@@ -1,5 +1,17 @@
 # Active Work
 
+## Batch ComputeRun migration - implementation complete, review required (2026-08-27)
+
+- Batch CLI `run_batch_one` now invokes `ComputeRunService` and passes the
+  shared `ComputeRun` to persistence. Generic table files expose canonical
+  templates/capability items; ambiguous mappings stop before provider execution.
+- A narrow adapter preserves legacy Batch provider results missing the standard
+  `figures`/`metadata` fields. Existing summary fields and database read paths
+  remain compatible; no schema deletion occurred.
+- Focused Batch/output coverage passed `21`; structured quality/preprocessing
+  gates passed `309`/`157`.
+- Task: `docs/agent/tasks/2026-08-27-batch-compute-run-migration.md`.
+
 ## Shared ComputeRun canonical routing - implementation complete, review required (2026-08-27)
 
 - `ComputeRunService` now attempts generic IR/SAXS/WAXS table conversion before
