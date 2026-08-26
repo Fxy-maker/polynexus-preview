@@ -22,7 +22,12 @@ _EDF_REQUIRED_GEOMETRY = (
     "sampledistance",
     "wavelength",
 )
-_DIRECTORY_TECHNIQUES = frozenset({"dsc", "ir"})
+# Directory identity inspection is shared by the Agent/Codex workflow and
+# ComputeRun.  SAXS/WAXS directory providers already own frame discovery, so
+# this boundary only hashes the directory and must not reject their input
+# before the provider can run.  NMR remains outside this migration because it
+# has no registered canonical directory converter yet.
+_DIRECTORY_TECHNIQUES = frozenset({"dsc", "ir", "saxs", "waxs"})
 
 
 def _file_sha256(path: Path) -> str:
@@ -59,7 +64,11 @@ def _directory_sha256(path: Path) -> tuple[str, int]:
         entries.append({"path": candidate.relative_to(path).as_posix(), "sha256": _file_sha256(candidate)})
     if not entries:
         raise OSError("Directory contains no files")
-    return hashlib.sha256(canonical_json(entries).encode("utf-8")).hexdigest(), len(entries)
+    # Keep the directory content hash byte-for-byte aligned with
+    # ``RawArtifact.from_path`` so Agent recipes and ComputeRun share one
+    # source identity across entry points.
+    manifest = {"kind": "directory_manifest", "entries": entries}
+    return hashlib.sha256(canonical_json(manifest).encode("utf-8")).hexdigest(), len(entries)
 
 
 def _edf_header_facts(path: Path) -> tuple[dict[str, object], tuple[str, ...]]:

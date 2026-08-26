@@ -223,6 +223,9 @@ class AgentWorkflowService:
         canonical_template: CanonicalExperiment | None = None,
         compute_run: ComputeRun | None = None,
     ) -> WorkflowStepResult:
+        effective_template = canonical_template
+        if effective_template is None and isinstance(compute_run, ComputeRun):
+            effective_template = compute_run.canonical_template
         if hasattr(output, "to_dict") and hasattr(output, "analysis_evidence"):
             summary = AgentWorkflowService._normalize_public_value(output.to_dict())
             evidence = getattr(output, "analysis_evidence", {})
@@ -231,9 +234,9 @@ class AgentWorkflowService:
             evidence = summary.get("analysis_evidence", {})
         else:
             raise TypeError("Provider must return AnalysisResult or public result mapping")
-        if canonical_template is not None:
-            summary["canonical_template_hash"] = canonical_template.content_hash
-            summary["canonical_conversion"] = canonical_template.conversion_record.to_dict()
+        if effective_template is not None:
+            summary["canonical_template_hash"] = effective_template.content_hash
+            summary["canonical_conversion"] = effective_template.conversion_record.to_dict()
         validation_passed = bool(summary.get("validation_passed", True))
         warnings = summary.get("validation_warnings", [])
         logs = summary.get("logs", [])
@@ -242,7 +245,7 @@ class AgentWorkflowService:
             "failed"
             if provider_error
             else "completed"
-            if validation_passed and not warnings and canonical_template is None
+            if validation_passed and not warnings and effective_template is None
             else "review_required"
         )
         figure_references = getattr(output, "figures", {})
@@ -274,8 +277,56 @@ class AgentWorkflowService:
         Generic one-dimensional files already have a registered converter and
         therefore produce the same ComputeRun consumed by Batch and GUI.
         """
-        if artifact.format == "directory":
+        if artifact.format == "directory" and step.technique == "dsc":
+            # DSC directories carry multi-program semantics that are still
+            # owned by the protected legacy adapter until a directory-aware
+            # thermal_program.v1 converter exists.
             return self.provider_runner(step, artifact, output_dir), None
+
+        if artifact.format == "directory":
+            # Non-DSC directory inputs use the same shared run envelope as
+            # files.  The opaque canonical template records source identity and
+            # format; it intentionally does not fabricate measurements from
+            # provider-specific directory bytes.
+            service_provider = self.provider_runner
+            if self._uses_default_provider_runner:
+                engine = self._engine_for_step(step)
+                if engine is None:
+                    raise RuntimeError("engine unavailable")
+
+                def service_provider(_step, _artifact, step_output_dir):
+                    return engine.run_pipeline(
+                        _artifact.path,
+                        str(step_output_dir / _step.step_id),
+                    )
+
+            class _DirectoryEngine:
+                def run_pipeline(inner_self, _path, _step_output_dir, **_options):
+                    provider_output = service_provider(step, artifact, output_dir)
+                    if isinstance(provider_output, Mapping):
+                        class _MappingResult:
+                            parameters = provider_output.get("parameters", provider_output)
+                            figures = provider_output.get("figures", {})
+                            metadata = provider_output.get("metadata", {})
+                            validation_passed = provider_output.get("validation_passed", True)
+                            validation_warnings = provider_output.get("validation_warnings", ())
+                            quality_flags = provider_output.get("quality_flags", {})
+                            validation_summary = provider_output.get("validation_summary", "")
+                            logs = provider_output.get("logs", ())
+
+                        return _MappingResult()
+                    return provider_output
+
+            compute_run = ComputeRunService(
+                lambda *args, **kwargs: _DirectoryEngine(),
+            ).run_direct(
+                technique=step.technique,
+                path=artifact.path,
+                output_dir=output_dir / step.step_id,
+                submodule_id=step.parameters.get("submodule_id"),
+                canonical_template=canonical_template,
+            )
+            return compute_run.legacy_result, compute_run
 
         if self._uses_default_provider_runner:
             engine = self._engine_for_step(step)
@@ -364,8 +415,6 @@ class AgentWorkflowService:
         payload = step.parameters.get("canonical_template")
         if payload is None:
             return None
-        if artifact.format == "directory" and artifact.technique != "ir":
-            return False
         try:
             registered = CanonicalExperiment.from_dict(payload)
         except (KeyError, OSError, TypeError, ValueError):

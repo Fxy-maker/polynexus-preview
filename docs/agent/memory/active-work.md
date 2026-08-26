@@ -5711,6 +5711,20 @@ and structured gates (`303` / `157`).
 - Next: separate general DSC or capability routing, then consumer migration.
 ## Universal template migration continuation - 2026-08-27
 
+### Agent directory ComputeRun migration - completed, review required
+
+- Non-DSC Agent/Codex directory steps for IR, SAXS, and WAXS now execute via
+  the shared `ComputeRunService` with opaque source-bound canonical envelopes;
+  custom providers and the default engine are each invoked once.
+- Directory inspection accepts SAXS/WAXS and uses the same
+  `directory_manifest` hash contract as ComputeRun; project evidence packaging
+  validates that hash consistently.
+- DSC directories remain on the established multi-segment provider path until
+  a directory-aware `thermal_program.v1` converter exists; NMR is unchanged.
+- Focused Agent/project/ComputeRun matrix passed `115 passed, 4 skipped`.
+- Task: `docs/agent/tasks/2026-08-27-agent-directory-compute-run-migration.md`;
+  acceptance: `docs/acceptance/2026-08-27-agent-directory-compute-run-migration.md`.
+
 - Current shared-object migration checkpoints are complete for Batch, GUI
   persistence, Agent/Codex workflow, and DSC `thermal_program.v1`; legacy
   compatibility paths remain until six-sample acceptance is complete.

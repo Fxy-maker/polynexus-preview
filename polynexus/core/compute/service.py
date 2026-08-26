@@ -212,7 +212,11 @@ class ComputeRunService:
             if canonical_template is not None and canonical_template.measurements
             else ()
         )
-        if canonical_template is None and normalized_technique in {"dsc", "ir", "saxs", "waxs"} and source.is_file():
+        if (
+            canonical_template is None
+            and normalized_technique in {"dsc", "ir", "saxs", "waxs"}
+            and (source.is_file() or (source.is_dir() and normalized_technique != "dsc"))
+        ):
             conversion = default_converter_registry().convert_path(
                 source,
                 technique=normalized_technique,

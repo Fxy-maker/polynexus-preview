@@ -710,7 +710,12 @@ def _sha256_directory(path: Path) -> str:
         })
     if not entries:
         return ""
-    return hashlib.sha256(canonical_json(entries).encode("utf-8")).hexdigest()
+    # Match the shared RawArtifact directory-manifest contract.  Package
+    # validation must accept the same source hash that Agent and ComputeRun
+    # recorded, otherwise a valid directory run cannot be packaged.
+    return hashlib.sha256(
+        canonical_json({"kind": "directory_manifest", "entries": entries}).encode("utf-8")
+    ).hexdigest()
 
 
 __all__ = ["ProjectEvidencePackager", "ResearchEvidencePackage"]
