@@ -1668,5 +1668,5 @@ The generic `spectrum_1d.v1` converter accepts the real vendor CSV layout with
 It preserves source physical row locators and remains deterministic; provider
 algorithms are unchanged. Six-sample replay v002 confirms all selected FTIR
 files convert; three DSC samples remain gated by existing qualification rules.
-The full boundary suite is not green (`4131 passed, 38 failed, 25 skipped`),
+The full boundary suite is not green (`4133 passed, 38 failed, 25 skipped`),
 so legacy producer deletion and release remain open.

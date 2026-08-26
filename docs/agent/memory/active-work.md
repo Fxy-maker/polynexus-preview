@@ -5652,7 +5652,7 @@ and structured gates (`303` / `157`).
   `D:\PolyNexus-six-sample-replay-20260827-v002\replay-report.json`; all
   selected FTIR files convert successfully, SAXS/WAXS retain envelopes, and
   three DSC files remain quality-gated.
-- Full boundary verification on 2026-08-27 returned `4131 passed, 38 failed,
+- Full boundary verification on 2026-08-27 returned `4133 passed, 38 failed,
   25 skipped`; historical GUI/chart/SAXS failures keep this goal
   implementation-complete but review-required rather than release-green.
 - GUI folder BatchWorker and default Agent/Codex file steps now use one shared

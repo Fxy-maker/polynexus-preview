@@ -61,7 +61,7 @@ Command:
 python scripts/verify.py --changed --types --full --boundary
 ```
 
-Result: `4131 passed, 38 failed, 25 skipped, 25 warnings` in approximately
+Result: `4133 passed, 38 failed, 25 skipped, 25 warnings` in approximately
 34 minutes. The failures are pre-existing release-readiness issues in chart
 gallery/figure pipeline, historical GUI persistence and sample browser,
 manifest/result-table, and SAXS legacy paths. They prevent a release-green
