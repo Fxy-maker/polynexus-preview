@@ -1,5 +1,22 @@
 # Active Work
 
+## Agent prevalidated-template reuse — implementation complete, review required (2026-08-27)
+
+- Agent/Codex replay now passes the validated canonical template directly into
+  `ComputeRunService`; the provider path no longer reconverts the same source.
+- Agent `InputArtifact` and Compute `RawArtifact` now share the same
+  content-addressed identity, including normalized path, technique, format,
+  source hash, and observed facts. This fixes false
+  `canonical_template_mismatch` blocks at the shared boundary.
+- Invalid or source-mismatched templates still fail closed before provider
+  execution. TPAE and generic Agent steps retain the same public
+  `compute_run` projection and capability items.
+- Focused migration/consumer matrix passed `91` with `1` skip; the narrower
+  Agent/Compute/TPAE matrix passed `68` with `3` skips. Task:
+  `docs/agent/tasks/2026-08-27-agent-prevalidated-template-reuse.md`.
+- Architecture/scientific review, full-boundary historical failures, and
+  legacy producer deletion remain open for the overall goal.
+
 ## AI-tuning bootstrap ComputeRun migration - implementation complete, review required (2026-08-27)
 
 - Valid AI-tuning source files now initialize through `ComputeRunService` and

@@ -116,7 +116,16 @@ class AgentWorkflowService:
                 canonical_template = self._replay_canonical_template(step, artifact)
                 if canonical_template is False:
                     return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("canonical_conversion_mismatch",))
-                output, compute_run = self._run_shared_compute(step, artifact, destination)
+                output, compute_run = self._run_shared_compute(
+                    step,
+                    artifact,
+                    destination,
+                    canonical_template=(
+                        canonical_template
+                        if isinstance(canonical_template, CanonicalExperiment)
+                        else None
+                    ),
+                )
                 if isinstance(compute_run, ComputeRun) and compute_run.status != "completed":
                     status = "blocked" if compute_run.status == "needs_input" else "failed"
                     return AnalysisRun(
@@ -255,6 +264,8 @@ class AgentWorkflowService:
         step: Any,
         artifact: InputArtifact,
         output_dir: Path,
+        *,
+        canonical_template: CanonicalExperiment | None = None,
     ) -> tuple[Any, ComputeRun | None]:
         """Execute table-backed workflow steps through the shared run service.
 
@@ -276,6 +287,7 @@ class AgentWorkflowService:
                 output_dir=output_dir / step.step_id,
                 submodule_id=step.parameters.get("submodule_id"),
                 engine=engine,
+                canonical_template=canonical_template,
             )
             return compute_run.legacy_result, compute_run
 
@@ -301,6 +313,7 @@ class AgentWorkflowService:
             path=artifact.path,
             output_dir=output_dir / step.step_id,
             submodule_id=step.parameters.get("submodule_id"),
+            canonical_template=canonical_template,
         )
         return compute_run.legacy_result, compute_run
 

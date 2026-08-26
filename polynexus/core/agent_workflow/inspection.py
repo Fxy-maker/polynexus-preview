@@ -9,7 +9,7 @@ import re
 
 from polynexus.core.engine import check_file_format
 
-from .models import InputArtifact, canonical_json
+from .models import InputArtifact, _raw_artifact_id, canonical_json
 
 
 _EDF_REQUIRED_GEOMETRY = (
@@ -31,10 +31,21 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _artifact_id(path: Path, sha256: str | None) -> str:
-    return hashlib.sha256(
-        canonical_json({"path": str(path.resolve()), "sha256": sha256}).encode("utf-8")
-    ).hexdigest()
+def _artifact_id(
+    path: Path,
+    sha256: str | None,
+    *,
+    technique: str,
+    format: str,
+    observed_facts: dict[str, object] | None = None,
+) -> str:
+    return _raw_artifact_id(
+        path,
+        technique=technique,
+        format=format,
+        sha256=sha256,
+        observed_facts=observed_facts,
+    )
 
 
 def _directory_sha256(path: Path) -> tuple[str, int]:
@@ -89,7 +100,7 @@ def inspect_artifact(path: str | Path, *, technique: str = "unknown") -> InputAr
     if source.is_dir():
         if technique_key not in _DIRECTORY_TECHNIQUES:
             return InputArtifact(
-                artifact_id=_artifact_id(resolved, None), path=str(resolved), technique=technique_key,
+                artifact_id=_artifact_id(resolved, None, technique=technique_key, format="directory"), path=str(resolved), technique=technique_key,
                 format="directory", sha256=None, inspection_status="blocked",
                 reason_codes=("directory_unsupported",),
             )
@@ -98,24 +109,24 @@ def inspect_artifact(path: str | Path, *, technique: str = "unknown") -> InputAr
             source_hash, file_count = _directory_sha256(source)
         except ValueError:
             return InputArtifact(
-                artifact_id=_artifact_id(resolved, None), path=str(resolved), technique=technique_key,
+                artifact_id=_artifact_id(resolved, None, technique=technique_key, format="directory"), path=str(resolved), technique=technique_key,
                 format="directory", sha256=None, inspection_status="blocked",
                 reason_codes=("format_unsupported",),
             )
         except OSError:
             return InputArtifact(
-                artifact_id=_artifact_id(resolved, None), path=str(resolved), technique=technique_key,
+                artifact_id=_artifact_id(resolved, None, technique=technique_key, format="directory"), path=str(resolved), technique=technique_key,
                 format="directory", sha256=None, inspection_status="blocked",
                 reason_codes=("directory_unreadable_or_empty",),
             )
         return InputArtifact(
-            artifact_id=_artifact_id(resolved, source_hash), path=str(resolved), technique=technique_key,
+            artifact_id=_artifact_id(resolved, source_hash, technique=technique_key, format="directory"), path=str(resolved), technique=technique_key,
             format="directory", sha256=source_hash, header_facts={"directory_file_count": file_count},
         )
 
     if not source.is_file():
         return InputArtifact(
-            artifact_id=_artifact_id(resolved, None),
+            artifact_id=_artifact_id(resolved, None, technique=technique_key, format=suffix),
             path=str(resolved),
             technique=technique_key,
             format=suffix,
@@ -129,7 +140,7 @@ def inspect_artifact(path: str | Path, *, technique: str = "unknown") -> InputAr
             check_file_format(technique_key, str(source))
     except ValueError:
         return InputArtifact(
-            artifact_id=_artifact_id(resolved, None),
+            artifact_id=_artifact_id(resolved, None, technique=technique_key, format=suffix),
             path=str(resolved),
             technique=technique_key,
             format=suffix,
@@ -142,7 +153,7 @@ def inspect_artifact(path: str | Path, *, technique: str = "unknown") -> InputAr
         source_hash = _file_sha256(source)
     except OSError:
         return InputArtifact(
-            artifact_id=_artifact_id(resolved, None),
+            artifact_id=_artifact_id(resolved, None, technique=technique_key, format=suffix),
             path=str(resolved),
             technique=technique_key,
             format=suffix,
@@ -160,7 +171,7 @@ def inspect_artifact(path: str | Path, *, technique: str = "unknown") -> InputAr
             status = "review_required"
         except OSError:
             return InputArtifact(
-                artifact_id=_artifact_id(resolved, source_hash),
+                artifact_id=_artifact_id(resolved, source_hash, technique=technique_key, format=suffix),
                 path=str(resolved),
                 technique=technique_key,
                 format=suffix,
@@ -170,7 +181,7 @@ def inspect_artifact(path: str | Path, *, technique: str = "unknown") -> InputAr
             )
 
     return InputArtifact(
-        artifact_id=_artifact_id(resolved, source_hash),
+        artifact_id=_artifact_id(resolved, source_hash, technique=technique_key, format=suffix),
         path=str(resolved),
         technique=technique_key,
         format=suffix,

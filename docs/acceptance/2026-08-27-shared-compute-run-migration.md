@@ -39,6 +39,10 @@ analysis rows retain that projection beside the legacy report summary.
 - Default file-backed Agent/Codex steps now invoke the provider through the
   shared service exactly once; explicit custom provider runners remain
   compatibility adapters.
+- Agent replay-validated templates are passed directly to the shared service
+  without reconversion. Agent and Compute now use the same source artifact
+  identity, while mismatched templates still fail closed before provider
+  execution.
 - AI-tuning bootstrap now uses the shared service for valid source files and
   publishes its JSON-safe run projection; ambiguous canonical mappings fail
   closed before provider execution.

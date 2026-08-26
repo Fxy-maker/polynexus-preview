@@ -31,6 +31,16 @@ round adapters and full-boundary release review remain open.
 AI-tune CLI persistence also stores this projection alongside the legacy
 summary fields.
 
+## Agent prevalidated-template reuse checkpoint (2026-08-27)
+
+Agent/Codex replay-validated canonical templates are now reused directly by
+`ComputeRunService`, avoiding a second conversion before capability execution.
+The Agent `InputArtifact` identity algorithm is aligned with Compute's
+`RawArtifact` identity, so source-bound templates no longer false-block when
+crossing the shared boundary. Hash, technique, and template validation remain
+mandatory; directory compatibility adapters and legacy fields remain
+unchanged.
+
 ## Product contract (2026-08-13)
 
 PolyNexus is an AI-controllable polymer research workbench that users can also

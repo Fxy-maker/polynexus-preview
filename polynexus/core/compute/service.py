@@ -115,6 +115,7 @@ class ComputeRunService:
         submodule_id: str | None = None,
         engine: Any = None,
         pipeline_options: object = None,
+        canonical_template: CanonicalExperiment | None = None,
     ) -> ComputeRun:
         normalized_technique = _safe_technique(technique)
         if normalized_technique is None:
@@ -185,9 +186,33 @@ class ComputeRunService:
         # analysis-only execution.  Keep it empty at the engine boundary even
         # though the immutable plan stores a resolved path for provenance.
         provider_output_dir = "" if isinstance(output_dir, str) and not output_dir.strip() else plan.output_dir
-        canonical_template: CanonicalExperiment | None = None
-        capability_items = ()
-        if normalized_technique in {"dsc", "ir", "saxs", "waxs"} and source.is_file():
+        if canonical_template is not None:
+            try:
+                canonical_template = CanonicalExperiment.from_dict(canonical_template.to_dict())
+            except (AttributeError, KeyError, TypeError, ValueError):
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("canonical_template_invalid",),
+                )
+            if canonical_template.source_artifact_id != artifact.artifact_id:
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("canonical_template_mismatch",),
+                )
+            if str(canonical_template.payload.get("technique", normalized_technique)).lower() != normalized_technique:
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("canonical_template_technique_mismatch",),
+                )
+        capability_items = (
+            CapabilityExecutor().execute(canonical_template)
+            if canonical_template is not None and canonical_template.measurements
+            else ()
+        )
+        if canonical_template is None and normalized_technique in {"dsc", "ir", "saxs", "waxs"} and source.is_file():
             conversion = default_converter_registry().convert_path(
                 source,
                 technique=normalized_technique,

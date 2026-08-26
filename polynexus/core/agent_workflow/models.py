@@ -57,6 +57,32 @@ def _hash_payload(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
 
+def _raw_artifact_id(
+    path: str | Path,
+    *,
+    technique: str,
+    format: str,
+    sha256: str | None,
+    observed_facts: Mapping[str, Any] | None = None,
+) -> str:
+    """Use the same content-addressed identity as ``ComputeRun`` artifacts.
+
+    Agent recipes and direct ComputeRuns must agree on the source identity for
+    a file.  Keeping this small identity helper here avoids a private
+    agent-only hash dialect while preserving the public contract shape.
+    """
+    return _hash_payload(
+        {
+            "kind": "raw_artifact",
+            "path": str(Path(path).expanduser().resolve(strict=False)),
+            "technique": str(technique),
+            "format": str(format),
+            "sha256": sha256,
+            "observed_facts": dict(observed_facts or {}),
+        }
+    )
+
+
 @dataclass(frozen=True)
 class InputArtifact:
     """A raw input identity and directly observed inspection facts."""
@@ -78,15 +104,19 @@ class InputArtifact:
 
     @classmethod
     def ready(cls, *, path: str, technique: str, sha256: str, format: str = "") -> "InputArtifact":
-        normalized_path = str(path)
-        suffix = format or Path(normalized_path).suffix.lower().lstrip(".")
-        artifact_id = hashlib.sha256(
-            canonical_json({"path": normalized_path, "sha256": sha256}).encode("utf-8")
-        ).hexdigest()
+        normalized_path = str(Path(path).expanduser().resolve(strict=False))
+        suffix = (format or ("directory" if Path(normalized_path).is_dir() else Path(normalized_path).suffix.lower().lstrip("."))).lower()
+        technique_key = str(technique).lower()
+        artifact_id = _raw_artifact_id(
+            normalized_path,
+            technique=technique_key,
+            format=suffix,
+            sha256=sha256,
+        )
         return cls(
             artifact_id=artifact_id,
             path=normalized_path,
-            technique=str(technique).lower(),
+            technique=technique_key,
             format=suffix,
             sha256=sha256,
         )
