@@ -9,6 +9,8 @@
 - Each item independently reports `completed`, `needs_input`, `failed`, or
   `not_applicable`; exceptions do not suppress sibling items. Stable item IDs
   include the canonical template hash, measurement ID, and capability ID.
+- Review repairs now reject duplicate measurement IDs (which could collide
+  item IDs) and scalar capability-family declarations.
 - `ComputeRun` now persists optional capability items without changing legacy
   provider execution. Consumer migration, DSC `thermal_program.v1`, and the
   six-sample replay remain follow-up tasks.

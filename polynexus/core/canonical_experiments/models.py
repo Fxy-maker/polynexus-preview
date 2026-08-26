@@ -491,6 +491,9 @@ class CanonicalExperiment:
         object.__setattr__(self, "measurements", tuple(self.measurements))
         if not all(isinstance(measurement, Measurement) for measurement in self.measurements):
             raise TypeError("Canonical experiment measurements must be Measurement values")
+        measurement_ids = tuple(measurement.measurement_id for measurement in self.measurements)
+        if len(set(measurement_ids)) != len(measurement_ids):
+            raise ValueError("Canonical experiment measurement IDs must be unique measurement IDs")
         if self.mapping_proposal is not None and not isinstance(self.mapping_proposal, MappingProposal):
             raise TypeError("Canonical experiment mapping proposal must be a MappingProposal")
         if not isinstance(self._legacy_serialization, bool):

@@ -17,6 +17,21 @@ from polynexus.core.canonical_experiments import (
 )
 
 
+def test_canonical_template_rejects_duplicate_measurement_ids() -> None:
+    record = ConversionRecord.create(
+        conversion_id="converter.v1",
+        source_artifact_id="raw-sha256",
+    )
+    with pytest.raises(ValueError, match="unique measurement IDs"):
+        CanonicalExperiment.create(
+            template_id="spectrum_1d.v1",
+            source_artifact_id="raw-sha256",
+            payload={},
+            conversion_record=record,
+            measurements=(_measurement(), _measurement()),
+        )
+
+
 def _legacy_content_hash(serialized: dict[str, object]) -> str:
     identity = {
         key: serialized[key]

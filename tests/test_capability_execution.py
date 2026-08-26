@@ -104,3 +104,8 @@ def test_executor_isolates_unsupported_and_failed_items() -> None:
 def test_unknown_requested_capability_is_rejected() -> None:
     with pytest.raises(ValueError, match="Unknown capability"):
         CapabilityExecutor().execute(_template(_measurement()), capability_ids=("missing.v1",))
+
+
+def test_capability_spec_rejects_a_single_family_string() -> None:
+    with pytest.raises(TypeError, match="sequence of family strings"):
+        CapabilitySpec("invalid.v1", "spectrum_1d", lambda _: {})

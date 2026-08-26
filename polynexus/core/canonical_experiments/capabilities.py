@@ -26,9 +26,15 @@ class CapabilitySpec:
         capability_id = str(self.capability_id).strip()
         if not capability_id:
             raise ValueError("Capability id must not be empty")
+        if isinstance(self.measurement_families, (str, bytes, bytearray)):
+            raise TypeError("Capability measurement families must be a sequence of family strings")
+        if not isinstance(self.measurement_families, Sequence):
+            raise TypeError("Capability measurement families must be a sequence of family strings")
         families = tuple(str(family).strip() for family in self.measurement_families)
         if not families or any(not family for family in families):
             raise ValueError("Capability measurement families must not be empty")
+        if any(not isinstance(family, str) for family in self.measurement_families):
+            raise TypeError("Capability measurement families must be a sequence of family strings")
         if not callable(self.calculator):
             raise TypeError("Capability calculator must be callable")
         object.__setattr__(self, "capability_id", capability_id)

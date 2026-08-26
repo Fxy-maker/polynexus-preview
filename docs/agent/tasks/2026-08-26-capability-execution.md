@@ -78,6 +78,10 @@ python scripts/auto_commit.py `
   structured verification passed task-check, Ruff, compile, quality `309`,
   preprocessing `157`, and whitespace via
   `python scripts/verify.py --task docs/agent/tasks/2026-08-26-capability-execution.md --changed --types`.
+- Review repair: duplicate canonical measurement IDs are rejected, preventing
+  colliding capability item IDs; capability family declarations reject scalar
+  strings and require an explicit sequence. Follow-up focused coverage is
+  `96 passed, 4 skipped`.
 - Known limitations or follow-up: consumer migration and DSC thermal
   capabilities are separate tasks.
 - Pre-existing changes left untouched: historical permission-denied pytest
