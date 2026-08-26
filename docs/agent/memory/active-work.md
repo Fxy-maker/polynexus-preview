@@ -5745,3 +5745,21 @@ and structured gates (`303` / `157`).
 - GUI folder BatchWorker and default Agent/Codex file steps now use one shared
   ComputeRun producer; custom provider-runner and directory/DSC compatibility
   paths remain by design. Focused Agent/project matrix: 98 passed, 1 skipped.
+
+## Six-sample v003 ComputeRun replay and evidence package - 2026-08-27
+
+- Replayed the frozen six-sample project read-only at
+  `D:\PolyNexus-six-sample-replay-20260827-v003` and persisted 42 planned run
+  manifests. 33 valid manifests are packageable (3 DSC, 18 FTIR, 6 SAXS, 6
+  WAXS); nine DSC manifests remain blocked by the existing
+  `artifact_format_mismatch:dsc_isothermal` quality rule.
+- Rebuilt the evidence package from persisted manifests without provider
+  reruns at
+  `D:\PolyNexus-six-sample-replay-20260827-v003\.polynexus\evidence\pa6-six-sample-v003-final-v001`.
+  It contains 33 runs, 261 evidence items, 2,478 citation metrics, and 730
+  indexed figures. `load_evidence_package_view` succeeds and the package
+  exposes all four techniques with shared ComputeRun template records.
+- The earlier incomplete generated directory
+  `pa6-six-sample-v003-v001` has no manifest and is intentionally left outside
+  the repository for later local cleanup; no raw data or tracked files were
+  touched.

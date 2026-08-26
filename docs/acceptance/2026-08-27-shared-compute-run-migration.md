@@ -19,8 +19,10 @@ analysis rows retain that projection beside the legacy report summary.
 - DSC thermal-program checkpoint: `8df35b4b`.
 - Canonical routing checkpoint: `bc650989`.
 - FTIR preamble and vendor-envelope checkpoint: `675824af`.
-- Six-sample read-only replay:
-  `D:\PolyNexus-six-sample-replay-20260827-v002\replay-report.json`.
+- Six-sample read-only replay v003:
+  `D:\PolyNexus-six-sample-replay-20260827-v003\replay-run-summary.json`.
+- Rebuilt evidence package (without rerunning providers):
+  `D:\PolyNexus-six-sample-replay-20260827-v003\.polynexus\evidence\pa6-six-sample-v003-final-v001`.
 
 ## Replay observations
 
@@ -53,6 +55,27 @@ analysis rows retain that projection beside the legacy report summary.
   compatibility fallback without changing candidate-round behavior.
 - Agent and Compute raw-artifact producers now share one neutral identity
   helper, with cross-entry IDs, paths, and source hashes verified equal.
+
+## Six-sample v003 replay and package
+
+- The replay scheduled 42 runs. 33 valid `review_required` manifests were
+  packageable: 3 DSC isothermal runs, 18 FTIR group runs (246 files), 6 SAXS
+  runs, and 6 WAXS runs. Nine DSC inputs remain explicitly blocked by
+  `artifact_format_mismatch:dsc_isothermal`; they were not forced into the
+  package and no quality gate was relaxed.
+- Every packageable manifest contains the shared `compute_run` projection with
+  a canonical template (`thermal_program.v1`, `spectrum_1d.v1`,
+  `saxs.profile.v1`, or `waxs.profile.v1`) and its capability-items/result
+  record. The package was created from those persisted manifests, so provider
+  execution count remained zero during packaging.
+- Package summary: status `review_required`, 33 runs, 261 evidence items,
+  2,478 citation metrics, and 730 indexed logical SVG figures. The package
+  includes `manifest.json`, `figure-index.json`, `citation-metrics.json`,
+  `ars-writing-input.json`, `writing-evidence.json`, `limitations.json`, and
+  `writing-input.md`; `load_evidence_package_view` loads it successfully.
+- The large figure/asset count reflects the current per-file FTIR outputs and
+  is a presentation-layer follow-up; it does not indicate duplicated provider
+  execution or a broken ComputeRun migration.
 
 ## Focused verification
 
