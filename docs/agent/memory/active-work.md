@@ -10,7 +10,7 @@
   provenance path.
 - Missing synthetic paths remain provider-only compatibility calls; ambiguous
   canonical mappings fail closed before provider execution.
-- Focused matrix passed `133` with `3` skips; task verification passed quality
+- Focused matrix passed `134` with `3` skips; task verification passed quality
   `310` and preprocessing `157`. Task:
   `docs/agent/tasks/2026-08-27-orchestrator-compute-run-bootstrap.md`.
 - AI-tune CLI persistence now stores the report's `compute_run` projection
