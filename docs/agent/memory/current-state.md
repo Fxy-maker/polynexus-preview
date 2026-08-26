@@ -49,6 +49,13 @@ template identity and conversion version, with source/content hashes retained
 when present. Reports without a usable projection continue to use the legacy
 compatibility template; candidate-round execution remains unchanged.
 
+## Shared raw-artifact identity checkpoint (2026-08-27)
+
+Agent and Compute ready-artifact producers now use the neutral
+`polynexus.core.artifacts.raw_artifact_id` helper. The existing identity
+payload fields and hashes are preserved; this removes a duplicate hash
+implementation and prevents future entry-point drift.
+
 ## Product contract (2026-08-13)
 
 PolyNexus is an AI-controllable polymer research workbench that users can also

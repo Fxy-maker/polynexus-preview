@@ -9,7 +9,9 @@ import re
 
 from polynexus.core.engine import check_file_format
 
-from .models import InputArtifact, _raw_artifact_id, canonical_json
+from polynexus.core.artifacts import raw_artifact_id
+
+from .models import InputArtifact, canonical_json
 
 
 _EDF_REQUIRED_GEOMETRY = (
@@ -39,7 +41,7 @@ def _artifact_id(
     format: str,
     observed_facts: dict[str, object] | None = None,
 ) -> str:
-    return _raw_artifact_id(
+    return raw_artifact_id(
         path,
         technique=technique,
         format=format,

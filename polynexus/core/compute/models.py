@@ -15,6 +15,7 @@ import stat
 from types import MappingProxyType
 from typing import Any
 
+from ..artifacts import raw_artifact_id
 from ..canonical_experiments.models import CanonicalExperiment, CapabilityItemResult
 
 
@@ -249,15 +250,12 @@ class RawArtifact:
         )
         artifact_format = _artifact_format(source)
         frozen_facts = _freeze_mapping(observed_facts)
-        artifact_id = _canonical_hash(
-            {
-                "kind": "raw_artifact",
-                "path": str(source),
-                "technique": technique,
-                "format": artifact_format,
-                "sha256": content_hash,
-                "observed_facts": frozen_facts,
-            }
+        artifact_id = raw_artifact_id(
+            source,
+            technique=technique,
+            format=artifact_format,
+            sha256=content_hash,
+            observed_facts=frozen_facts,
         )
         return cls(
             artifact_id=artifact_id,

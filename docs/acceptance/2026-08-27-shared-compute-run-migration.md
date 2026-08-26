@@ -51,6 +51,8 @@ analysis rows retain that projection beside the legacy report summary.
 - AI-tune adaptive plans now reference the shared run's canonical template
   identity when available; malformed or absent projections retain a legacy
   compatibility fallback without changing candidate-round behavior.
+- Agent and Compute raw-artifact producers now share one neutral identity
+  helper, with cross-entry IDs, paths, and source hashes verified equal.
 
 ## Focused verification
 

@@ -1,5 +1,16 @@
 # Active Work
 
+## Shared raw-artifact identity centralization — implementation complete, review required (2026-08-27)
+
+- Added `polynexus/core/artifacts.py` as the neutral raw-artifact identity
+  producer. Agent inspection/recipes and Compute `RawArtifact.from_path` now
+  call the same helper without changing the identity payload or serialized
+  schema.
+- Cross-entry coverage passed `47` with `1` skip. Task:
+  `docs/agent/tasks/2026-08-27-shared-artifact-identity.md`.
+- Legacy missing-artifact and result/persistence compatibility paths remain
+  intentionally unchanged pending full-boundary and human review.
+
 ## AI-tune plan canonical-link migration — implementation complete, review required (2026-08-27)
 
 - Adaptive AI-tuning plans now project the actual shared
