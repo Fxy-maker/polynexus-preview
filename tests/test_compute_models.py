@@ -18,6 +18,7 @@ from polynexus.core.compute.models import (
     ComputeRun,
     RawArtifact,
 )
+from polynexus.core.canonical_experiments import CapabilityItemResult
 
 
 _FORBIDDEN_RESULT_KEY_NAMES = frozenset(
@@ -91,6 +92,34 @@ def test_direct_contract_hashes_are_stable_json_safe_and_provenance_linked(
     assert payload["result"]["metrics"] == {"peak_cm-1": 1630.0}
     assert "analysis_evidence" not in str(payload)
     assert "writing_eligibility" not in str(payload)
+
+
+def test_compute_run_persists_capability_items_only_on_completed_runs(tmp_path: Path) -> None:
+    source = tmp_path / "curve.csv"
+    source.write_text("x,y\n1,2\n2,3\n", encoding="utf-8")
+    artifact = RawArtifact.from_path(source, technique="ir")
+    dataset = CanonicalDataset.direct_envelope(artifact)
+    plan = AnalysisPlan.direct(dataset, output_dir=tmp_path / "out")
+    item = CapabilityItemResult(
+        item_id="item-1",
+        measurement_id="measurement-1",
+        capability_id="curve.summary.v1",
+        status="completed",
+        result={"point_count": 2},
+    )
+
+    run = ComputeRun.completed(
+        artifact=artifact,
+        dataset=dataset,
+        plan=plan,
+        result=ComputeResult(),
+        capability_items=(item,),
+    )
+
+    assert run.capability_items == (item,)
+    assert run.to_dict()["capability_items"] == [item.to_dict()]
+    with pytest.raises(ValueError, match="cannot include a result"):
+        ComputeRun(status="failed", artifact=artifact, capability_items=(item,))
 
 
 def test_directory_artifact_uses_a_manifest_hash_and_directory_envelope(

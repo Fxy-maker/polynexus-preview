@@ -1,6 +1,12 @@
 """Canonical data templates and deterministic conversion boundaries."""
 
 from .dsc_isothermal import convert_mettler_isothermal_text
+from .capabilities import (
+    CapabilityExecutor,
+    CapabilityRegistry,
+    CapabilitySpec,
+    default_capability_registry,
+)
 from .one_dimensional import convert_one_dimensional_table
 from .models import (
     CAPABILITY_ITEM_STATUSES,
@@ -29,4 +35,8 @@ __all__ = [
     "convert_mettler_isothermal_text",
     "convert_one_dimensional_table",
     "default_converter_registry",
+    "CapabilityExecutor",
+    "CapabilityRegistry",
+    "CapabilitySpec",
+    "default_capability_registry",
 ]

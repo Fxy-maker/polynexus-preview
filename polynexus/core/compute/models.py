@@ -15,6 +15,8 @@ import stat
 from types import MappingProxyType
 from typing import Any
 
+from ..canonical_experiments.models import CapabilityItemResult
+
 
 COMPUTE_STATUSES = frozenset({"ready", "needs_input", "failed", "completed"})
 _FORBIDDEN_COMPUTE_RESULT_KEY_NAMES = frozenset(
@@ -468,6 +470,7 @@ class ComputeRun:
     dataset: CanonicalDataset | None = None
     plan: AnalysisPlan | None = None
     result: ComputeResult | None = None
+    capability_items: tuple[CapabilityItemResult, ...] = ()
     reasons: tuple[str, ...] = ()
     legacy_result: Any = field(default=None, repr=False, compare=False)
 
@@ -484,6 +487,9 @@ class ComputeRun:
             raise TypeError("plan must be an AnalysisPlan")
         if self.result is not None and not isinstance(self.result, ComputeResult):
             raise TypeError("result must be a ComputeResult")
+        object.__setattr__(self, "capability_items", tuple(self.capability_items))
+        if not all(isinstance(item, CapabilityItemResult) for item in self.capability_items):
+            raise TypeError("capability_items must contain CapabilityItemResult values")
         object.__setattr__(self, "reasons", _freeze_strings(self.reasons, "reasons"))
         if self.dataset is not None and self.plan is not None:
             linkage_mismatches: list[str] = []
@@ -508,16 +514,16 @@ class ComputeRun:
             if self.dataset is None or self.plan is None or self.result is None:
                 raise ValueError("Completed compute runs require dataset, plan, and result")
         elif self.status == "ready":
-            if self.dataset is None or self.plan is None or self.result is not None:
+            if self.dataset is None or self.plan is None or self.result is not None or self.capability_items:
                 raise ValueError("Ready compute runs require dataset and plan without a result")
         elif self.status == "failed":
-            if self.result is not None:
+            if self.result is not None or self.capability_items:
                 raise ValueError("Failed compute runs cannot include a result")
             if (self.dataset is None) != (self.plan is None):
                 raise ValueError(
                     "Failed compute runs require both dataset and plan when retaining provenance"
                 )
-        elif has_execution_context or self.result is not None:
+        elif has_execution_context or self.result is not None or self.capability_items:
             raise ValueError(f"{self.status} compute runs cannot include dataset, plan, or result")
 
     @classmethod
@@ -528,6 +534,7 @@ class ComputeRun:
         dataset: CanonicalDataset,
         plan: AnalysisPlan,
         result: ComputeResult,
+        capability_items: tuple[CapabilityItemResult, ...] = (),
         reasons: tuple[str, ...] = (),
         legacy_result: Any = None,
     ) -> ComputeRun:
@@ -537,6 +544,7 @@ class ComputeRun:
             dataset=dataset,
             plan=plan,
             result=result,
+            capability_items=capability_items,
             reasons=reasons,
             legacy_result=legacy_result,
         )
