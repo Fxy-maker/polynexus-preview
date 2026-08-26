@@ -41,6 +41,16 @@ class _Table:
     raw_headers: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class _FlatSource:
+    raw_headers: tuple[str, ...]
+    header_row: int
+    data_rows: tuple[tuple[int, int], ...]
+    whitespace_comment_rows: tuple[int, ...]
+    records: tuple[tuple[str, ...], ...] = ()
+    metadata_preamble: bool = False
+
+
 def convert_one_dimensional_table(
     path: str | Path,
     *,
@@ -160,13 +170,23 @@ def convert_one_dimensional_table(
 
 def _load_tables(path: Path, extension: str) -> tuple[_Table, ...]:
     if extension not in _WORKBOOK_EXTENSIONS:
-        raw_headers, header_row, data_rows, whitespace_comment_rows = _flat_source_records(path)
-        frame = _string_headers(
-            pd.read_csv(path, sep=None, engine="python", comment="#", skiprows=whitespace_comment_rows), raw_headers
-        )
-        if len(frame) != len(data_rows):
+        flat = _flat_source_records(path)
+        if flat.metadata_preamble:
+            frame = pd.DataFrame(flat.records, columns=flat.raw_headers)
+        else:
+            frame = _string_headers(
+                pd.read_csv(
+                    path,
+                    sep=None,
+                    engine="python",
+                    comment="#",
+                    skiprows=flat.whitespace_comment_rows,
+                ),
+                flat.raw_headers,
+            )
+        if len(frame) != len(flat.data_rows):
             raise ValueError("Flat source records cannot be mapped to pandas rows")
-        return (_Table(frame, None, None, 0, header_row, data_rows, raw_headers),)
+        return (_Table(frame, None, None, 0, flat.header_row, flat.data_rows, flat.raw_headers),)
     with pd.ExcelFile(path) as workbook:
         return tuple(
             _workbook_table(workbook, sheet_name=str(sheet_name), sheet_index=index)
@@ -211,7 +231,7 @@ class _PhysicalLineIterator:
         return line
 
 
-def _flat_source_records(path: Path) -> tuple[tuple[str, ...], int, tuple[tuple[int, int], ...], tuple[int, ...]]:
+def _flat_source_records(path: Path) -> _FlatSource:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         physical_lines = list(enumerate(handle))
     whitespace_comment_rows = tuple(
@@ -237,9 +257,68 @@ def _flat_source_records(path: Path) -> tuple[tuple[str, ...], int, tuple[tuple[
             parsed.append((row, start, records.last_line))
     if not parsed:
         raise ValueError("Flat source has no table records")
+    metadata = _metadata_preamble(parsed)
+    if metadata is not None:
+        raw_headers, header_row, data_start = metadata
+        selected = parsed[data_start:]
+        return _FlatSource(
+            raw_headers=raw_headers,
+            header_row=header_row,
+            data_rows=tuple((start, end) for _, start, end in selected),
+            whitespace_comment_rows=whitespace_comment_rows,
+            records=tuple(tuple(_display_header(value) for value in row[: len(raw_headers)]) for row, _, _ in selected),
+            metadata_preamble=True,
+        )
     header, header_start, _ = parsed[0]
     data_rows = tuple((start, end) for _, start, end in parsed[1:])
-    return tuple(_display_header(value) for value in header), header_start, data_rows, whitespace_comment_rows
+    return _FlatSource(
+        raw_headers=tuple(_display_header(value) for value in header),
+        header_row=header_start,
+        data_rows=data_rows,
+        whitespace_comment_rows=whitespace_comment_rows,
+    )
+
+
+def _metadata_preamble(
+    parsed: list[tuple[list[str], int, int]],
+) -> tuple[tuple[str, str], int, int] | None:
+    """Recognize vendor FTIR XLabel/YLabel rows before the numeric curve."""
+    x_row: tuple[list[str], int, int] | None = None
+    y_row: tuple[list[str], int, int] | None = None
+    for row in parsed[: min(len(parsed), 12)]:
+        if len(row[0]) < 2:
+            continue
+        key = _normalize_header(row[0][0])
+        if key == "xlabel" and not _display_header(row[0][1]).strip() == "":
+            x_row = row
+        elif key == "ylabel" and not _display_header(row[0][1]).strip() == "":
+            y_row = row
+    if x_row is None or y_row is None:
+        return None
+    x_header = _display_header(x_row[0][1]).strip()
+    intensity_header = _display_header(y_row[0][1]).strip()
+    if not x_header or not intensity_header:
+        return None
+    metadata_end = max(parsed.index(x_row), parsed.index(y_row)) + 1
+    data_start = next(
+        (
+            index
+            for index, (row, _, _) in enumerate(parsed[metadata_end:], start=metadata_end)
+            if len(row) >= 2 and _numeric_text(row[0]) and _numeric_text(row[1])
+        ),
+        None,
+    )
+    if data_start is None:
+        return None
+    return (x_header, intensity_header), min(x_row[1], y_row[1]), data_start
+
+
+def _numeric_text(value: Any) -> bool:
+    try:
+        numeric = float(str(value).strip())
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(numeric)
 
 
 def _display_header(value: Any) -> str:

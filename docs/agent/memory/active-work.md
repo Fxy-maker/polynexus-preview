@@ -5636,3 +5636,15 @@ and structured gates (`303` / `157`).
   Codex changes were made; DSC and NMR remain unchanged.
 - Capability item contracts are not attached to `ComputeRun`.
 - Next: separate general DSC or capability routing, then consumer migration.
+## Universal template migration continuation - 2026-08-27
+
+- Current shared-object migration checkpoints are complete for Batch, GUI
+  persistence, Agent/Codex workflow, and DSC `thermal_program.v1`; legacy
+  compatibility paths remain until six-sample acceptance is complete.
+- The real six-sample replay found that vendor FTIR CSV files begin with
+  `XLabel/Wavenumber`, `YLabel/Absorbance`, and additional metadata rows. The
+  universal converter now recognizes this preamble, skips metadata until the
+  first finite numeric pair, and preserves physical row locators.
+- Task card: `docs/agent/tasks/2026-08-27-ftir-metadata-preamble-template.md`.
+- Next: focused verifier, rerun real six-sample FTIR through `ComputeRun`, then
+  diagnose the remaining DSC samples without relaxing quality gates.

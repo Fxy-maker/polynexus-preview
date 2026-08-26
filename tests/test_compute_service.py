@@ -161,7 +161,7 @@ def test_direct_run_blocks_ambiguous_generic_mapping_before_provider(tmp_path: P
     assert engine.calls == []
 
 
-def test_direct_run_vendor_compatibility_has_no_generic_items(tmp_path: Path) -> None:
+def test_direct_run_vendor_compatibility_retains_envelope_without_generic_items(tmp_path: Path) -> None:
     source = tmp_path / "sample.spa"
     source.write_bytes(b"vendor")
     engine = FakeEngine(EmptyLegacyResult())
@@ -171,9 +171,25 @@ def test_direct_run_vendor_compatibility_has_no_generic_items(tmp_path: Path) ->
     )
 
     assert run.status == "completed"
-    assert run.canonical_template is None
+    assert run.canonical_template is not None
+    assert run.canonical_template.template_id == "ir.spectrum.v1"
     assert run.capability_items == ()
     assert len(engine.calls) == 1
+
+
+def test_direct_run_vendor_compatibility_retains_canonical_envelope(tmp_path: Path) -> None:
+    source = tmp_path / "sample.edf"
+    source.write_bytes(b"vendor")
+    engine = FakeEngine(EmptyLegacyResult())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="saxs", path=source, output_dir=tmp_path / "out"
+    )
+
+    assert run.status == "completed"
+    assert run.canonical_template is not None
+    assert run.canonical_template.template_id == "saxs.profile.v1"
+    assert run.capability_items == ()
 
 
 def test_direct_run_provider_failure_retains_canonical_items(tmp_path: Path) -> None:

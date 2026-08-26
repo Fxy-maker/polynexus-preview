@@ -34,6 +34,28 @@ def test_ir_csv_curve_preserves_order_units_and_source_rows(tmp_path: Path) -> N
     assert outcome.record.observed_columns == ("flat:Wavenumber cm-1", "flat:Absorbance a.u.")
 
 
+def test_ir_csv_with_axis_metadata_preamble_maps_numeric_rows(tmp_path: Path) -> None:
+    path = tmp_path / "vendor-ftir.csv"
+    path.write_text(
+        "XLabel,Wavenumber\nYLabel,Absorbance\n1000,0.1\n900,0.3\n",
+        encoding="utf-8",
+    )
+
+    outcome = convert_one_dimensional_table(path, technique="IR", source_artifact_id="artifact-metadata")
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    measurement = outcome.template.measurements[0]
+    assert measurement.channels == {"x": (1000.0, 900.0), "intensity": (0.1, 0.3)}
+    assert measurement.mapping is not None
+    assert measurement.mapping.x_column == "Wavenumber"
+    assert measurement.mapping.intensity_column == "Absorbance"
+    assert measurement.mapping.header_row == 0
+    assert (measurement.mapping.data_row_start, measurement.mapping.data_row_end) == (2, 3)
+    assert (measurement.source_locator["header_row"], measurement.source_locator["data_row_start"], measurement.source_locator["data_row_end"]) == (0, 2, 3)
+    assert outcome.record.observed_columns == ("flat:Wavenumber", "flat:Absorbance")
+
+
 def test_flat_file_locator_uses_physical_lines_with_comments(tmp_path: Path) -> None:
     path = tmp_path / "commented.csv"
     path.write_text(

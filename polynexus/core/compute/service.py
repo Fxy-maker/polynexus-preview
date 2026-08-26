@@ -198,7 +198,6 @@ class ComputeRunService:
             if (
                 conversion.status == "ready"
                 and conversion.template is not None
-                and (conversion.template.measurements or normalized_technique == "dsc")
             ):
                 canonical_template = conversion.template
                 if canonical_template.measurements:

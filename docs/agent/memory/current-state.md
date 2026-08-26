@@ -1661,3 +1661,9 @@ results-table contract is unchanged. Verification evidence is tracked in
   `pa6-role-projection-smoke-v003` with one `manuscript_candidate / IR` group
   overlay plus 27 diagnostics. Acceptance:
   `docs/acceptance/2026-08-21-evidence-figure-role-projection.md`.
+## Universal FTIR metadata preamble - 2026-08-27
+
+The generic `spectrum_1d.v1` converter accepts the real vendor CSV layout with
+`XLabel/Wavenumber` and `YLabel/Absorbance` metadata rows before numeric data.
+It preserves source physical row locators and remains deterministic; provider
+algorithms are unchanged. Follow-up replay and DSC diagnosis remain open.
