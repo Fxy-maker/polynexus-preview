@@ -7,6 +7,10 @@ Codex/Agent workflow, DSC multi-program conversion, universal 1-D templates,
 and opaque vendor-format envelopes to the shared
 `CanonicalTemplate → CapabilityItems → ComputeRun` path.
 
+The continuation also covers the AI-tuning bootstrap and CLI persistence:
+valid tuning inputs now create one shared run projection, and persisted
+analysis rows retain that projection beside the legacy report summary.
+
 ## Evidence
 
 - Batch checkpoint: `570b0fc3`.
@@ -35,12 +39,18 @@ and opaque vendor-format envelopes to the shared
 - Default file-backed Agent/Codex steps now invoke the provider through the
   shared service exactly once; explicit custom provider runners remain
   compatibility adapters.
+- AI-tuning bootstrap now uses the shared service for valid source files and
+  publishes its JSON-safe run projection; ambiguous canonical mappings fail
+  closed before provider execution.
+- AI-tune CLI persistence stores the same projection under
+  `results_summary.compute_run` without removing historical fields.
 
 ## Focused verification
 
 ```text
 canonical templates: 23 passed
 shared producer/consumer matrix: 91 passed, 4 skipped
+AI-tuning producer/persistence matrix: 134 passed, 3 skipped
 quality gate: 310 passed
 preprocessing gate: 157 passed
 structured task verifier: passed
