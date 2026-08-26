@@ -10,6 +10,7 @@ from polynexus.core.agent_workflow import (
     InputArtifact,
     RecipeStep,
 )
+from polynexus.core.agent_workflow.registry import WorkflowRegistry
 from polynexus.core.agent_workflow import inspect_artifact
 
 
@@ -174,3 +175,38 @@ def test_tpae_recipe_rejects_duplicate_artifacts_for_one_technique(tmp_path: Pat
 
     assert run.status == "blocked"
     assert run.reason_codes == ("recipe_invalid",)
+
+
+def test_generic_file_mapping_blocks_before_default_provider_runs(tmp_path: Path) -> None:
+    source = tmp_path / "ambiguous.csv"
+    source.write_text("A,B,C\n1,2,3\n4,5,6\n", encoding="utf-8")
+    artifact = inspect_artifact(source, technique="ir")
+
+    class Adapter:
+        workflow_id = "test.generic"
+
+        @staticmethod
+        def is_valid_recipe(recipe):
+            return recipe.workflow_id == "test.generic"
+
+    registry = WorkflowRegistry()
+    registry.register(Adapter())
+    provider_calls = []
+
+    class Provider:
+        def run_pipeline(self, *_args, **_kwargs):
+            provider_calls.append(True)
+            raise AssertionError("provider must not run before canonical mapping")
+
+    recipe = AnalysisRecipe.create(
+        workflow_id="test.generic",
+        artifacts=(artifact,),
+        steps=(RecipeStep(step_id="ir", technique="ir"),),
+    )
+    run = AgentWorkflowService(registry=registry, get_engine_fn=lambda _technique: Provider()).run_recipe(
+        recipe, tmp_path.parent / "derived"
+    )
+
+    assert run.status == "blocked"
+    assert run.reason_codes == ("conversion_mapping_ambiguous",)
+    assert provider_calls == []

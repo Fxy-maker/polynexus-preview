@@ -42,6 +42,7 @@ class AgentWorkflowService:
         if self.registry.get(TpaeCharacterizationWorkflow.workflow_id) is None:
             self.registry.register(TpaeCharacterizationWorkflow())
         self.get_engine_fn = get_engine_fn
+        self._uses_default_provider_runner = provider_runner is None
         self.provider_runner = provider_runner or self._run_existing_pipeline
 
     def inspect_data(self, path: str | Path, *, technique: str = "unknown") -> InputArtifact:
@@ -116,6 +117,13 @@ class AgentWorkflowService:
                 if canonical_template is False:
                     return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("canonical_conversion_mismatch",))
                 output, compute_run = self._run_shared_compute(step, artifact, destination)
+                if isinstance(compute_run, ComputeRun) and compute_run.status != "completed":
+                    status = "blocked" if compute_run.status == "needs_input" else "failed"
+                    return AnalysisRun(
+                        recipe=recipe,
+                        status=status,
+                        reason_codes=compute_run.reasons or (compute_run.status,),
+                    )
                 results.append(
                     self._public_step_result(
                         step.step_id,
@@ -258,24 +266,35 @@ class AgentWorkflowService:
         if artifact.format == "directory":
             return self.provider_runner(step, artifact, output_dir), None
 
-        provider_output = self.provider_runner(step, artifact, output_dir)
-        legacy_output = provider_output
-        if isinstance(provider_output, Mapping):
-            class _MappingResult:
-                parameters = provider_output.get("parameters", provider_output)
-                figures = provider_output.get("figures", {})
-                metadata = provider_output.get("metadata", {})
-                validation_passed = provider_output.get("validation_passed", True)
-                validation_warnings = provider_output.get("validation_warnings", ())
-                quality_flags = provider_output.get("quality_flags", {})
-                validation_summary = provider_output.get("validation_summary", "")
-                logs = provider_output.get("logs", ())
-
-            legacy_output = _MappingResult()
+        if self._uses_default_provider_runner:
+            engine = self._engine_for_step(step)
+            if engine is None:
+                raise RuntimeError("engine unavailable")
+            compute_run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+                technique=step.technique,
+                path=artifact.path,
+                output_dir=output_dir / step.step_id,
+                submodule_id=step.parameters.get("submodule_id"),
+                engine=engine,
+            )
+            return compute_run.legacy_result, compute_run
 
         class _WorkflowEngine:
             def run_pipeline(inner_self, path, step_output_dir, **options):
-                return legacy_output
+                provider_output = self.provider_runner(step, artifact, output_dir)
+                if isinstance(provider_output, Mapping):
+                    class _MappingResult:
+                        parameters = provider_output.get("parameters", provider_output)
+                        figures = provider_output.get("figures", {})
+                        metadata = provider_output.get("metadata", {})
+                        validation_passed = provider_output.get("validation_passed", True)
+                        validation_warnings = provider_output.get("validation_warnings", ())
+                        quality_flags = provider_output.get("quality_flags", {})
+                        validation_summary = provider_output.get("validation_summary", "")
+                        logs = provider_output.get("logs", ())
+
+                    return _MappingResult()
+                return provider_output
 
         compute_run = ComputeRunService(lambda *args, **kwargs: _WorkflowEngine()).run_direct(
             technique=step.technique,
@@ -283,9 +302,19 @@ class AgentWorkflowService:
             output_dir=output_dir / step.step_id,
             submodule_id=step.parameters.get("submodule_id"),
         )
-        if compute_run.status != "completed":
-            return provider_output, None
-        return provider_output, compute_run
+        return compute_run.legacy_result, compute_run
+
+    def _engine_for_step(self, step: Any) -> Any:
+        """Resolve the default provider exactly once for shared execution."""
+        if self.get_engine_fn is None:
+            from polynexus.core.engine import get_engine
+
+            engine = get_engine(step.technique)
+        else:
+            engine = self.get_engine_fn(step.technique)
+        if engine is not None and step.parameters.get("submodule_id"):
+            engine.active_submodule = str(step.parameters["submodule_id"])
+        return engine
 
     @staticmethod
     def _write_json(path: Path, payload: Any) -> None:

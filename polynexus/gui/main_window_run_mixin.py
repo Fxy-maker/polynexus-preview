@@ -807,6 +807,9 @@ class MainWindowRunMixin:
         self.log(tr("LOG_BATCH_DONE").format(len(all_results)))
         self._hide_joint_diagnostics()
         self._set_results_summary("")
+        # Retain complete shared-run rows for subsequent GUI/AI consumers;
+        # the table still renders only the compatibility ``params`` field.
+        self._batch_results = list(all_results)
         self._results_table.setSortingEnabled(False)
         self._set_results_export_control_visible(False)
         self._set_results_copy_control_visible(False)

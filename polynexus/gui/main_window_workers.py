@@ -127,13 +127,22 @@ class BatchWorker(QThread):
     stage = Signal(str)
     cancelled = Signal()
 
-    def __init__(self, technique, file_list, output_dir, config=None, submodule_id=None):
+    def __init__(
+        self,
+        technique,
+        file_list,
+        output_dir,
+        config=None,
+        submodule_id=None,
+        compute_service_factory=ComputeRunService,
+    ):
         super().__init__()
         self.technique = technique
         self.file_list = file_list
         self.output_dir = output_dir
         self.config = config
         self.submodule_id = submodule_id
+        self.compute_service_factory = compute_service_factory
         self.skip_to = None
         self._cancel_requested = False
 
@@ -170,15 +179,41 @@ class BatchWorker(QThread):
                     self.output_dir,
                     main_window_module.os.path.splitext(fname)[0],
                 )
-                engine.run_pipeline(fp, file_out)
+                service = self.compute_service_factory(
+                    lambda technique, config=None, submodule_id=None: main_window_module.get_engine(
+                        technique,
+                        config=config,
+                        submodule_id=submodule_id,
+                    )
+                )
+                compute_run = service.run_direct(
+                    technique=self.technique,
+                    path=fp,
+                    output_dir=file_out,
+                    config=self.config,
+                    submodule_id=self.submodule_id,
+                    engine=engine,
+                )
+                if compute_run.status != "completed":
+                    raise RuntimeError(
+                        ", ".join(compute_run.reasons) or compute_run.status
+                    )
                 if self._cancel_requested or self.isInterruptionRequested():
                     self.cancelled.emit()
                     return
                 self.stage.emit("exporting")
-                params = engine.get_parameters()
+                params = (
+                    dict(compute_run.result.metrics)
+                    if compute_run.result is not None
+                    else {}
+                )
+                if not params and hasattr(engine, "get_parameters"):
+                    params = engine.get_parameters()
                 self.file_done.emit(fname, params)
                 logger.info(f"[{i+1}/{total}] {fname} - OK")
-                all_results.append({"file": fname, "params": params})
+                all_results.append(
+                    {"file": fname, "params": params, "compute_run": compute_run}
+                )
             except Exception as exc:
                 logger.error(f"[{i+1}/{total}] {fname} - FAILED: {exc}")
                 main_window_module.logger.warning(

@@ -5655,3 +5655,6 @@ and structured gates (`303` / `157`).
 - Full boundary verification on 2026-08-27 returned `4131 passed, 38 failed,
   25 skipped`; historical GUI/chart/SAXS failures keep this goal
   implementation-complete but review-required rather than release-green.
+- GUI folder BatchWorker and default Agent/Codex file steps now use one shared
+  ComputeRun producer; custom provider-runner and directory/DSC compatibility
+  paths remain by design. Focused Agent/project matrix: 98 passed, 1 skipped.

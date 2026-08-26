@@ -29,6 +29,12 @@ and opaque vendor-format envelopes to the shared
   qualified holds exist. PA11, PA11-50, and PA12-50 remain blocked by the
   existing qualification rules; this is a scientific-data limitation, not a
   reason to relax the gate or invent segments.
+- GUI folder batch execution now uses `ComputeRunService` per file. Its
+  displayed rows retain the compatibility `params` projection and the shared
+  `compute_run` object together.
+- Default file-backed Agent/Codex steps now invoke the provider through the
+  shared service exactly once; explicit custom provider runners remain
+  compatibility adapters.
 
 ## Focused verification
 
