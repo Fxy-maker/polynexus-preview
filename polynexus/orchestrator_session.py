@@ -7,6 +7,7 @@ from dataclasses import asdict
 from typing import Any
 
 from polynexus.config_bridge import apply_changes
+from polynexus.core.compute import ComputeRunService
 
 logger = logging.getLogger(__name__)
 
@@ -141,12 +142,54 @@ def _execute_candidate_trial(
         config.condition_context = merged_context
 
         data_path = str(self._resolve_data_file(self.data_file))
+        candidate_compute_run = None
+        shared_compute_run = getattr(self, "_compute_run", None)
         try:
-            run_result = engine.run_pipeline(data_path, output_dir="")
+            if shared_compute_run is not None:
+                # Keep the same canonical template that produced the baseline
+                # run.  The recovery context belongs to the controlled engine
+                # config, not to a second source conversion.
+                candidate_compute_run = ComputeRunService(
+                    lambda *args, **kwargs: engine,
+                ).run_direct(
+                    technique=self.technique,
+                    path=data_path,
+                    output_dir="",
+                    submodule_id=self._submodule_id(),
+                    engine=engine,
+                    canonical_template=getattr(
+                        shared_compute_run,
+                        "canonical_template",
+                        None,
+                    ),
+                )
+                if candidate_compute_run.status != "completed":
+                    reason = ", ".join(candidate_compute_run.reasons) or candidate_compute_run.status
+                    rejected = dict(advice)
+                    rejected["rejected"] = True
+                    rejected["rollback_reason"] = reason
+                    rejected["rollback_detail"] = (
+                        "Condition recovery could not rebuild the SAXS batch through the shared compute run."
+                    )
+                    return {
+                        "status": "rejected",
+                        "reason": reason,
+                        "record": None,
+                        "advice": rejected,
+                    }
+                run_result = candidate_compute_run.legacy_result
+            else:
+                # Synthetic and missing-path callers intentionally retain the
+                # historical provider-only compatibility boundary.
+                run_result = engine.run_pipeline(data_path, output_dir="")
         except Exception as exc:
             rejected = dict(advice)
             rejected["rejected"] = True
-            rejected["rollback_reason"] = f"engine.run_pipeline() failed: {exc}"
+            rejected["rollback_reason"] = (
+                f"shared compute run failed: {exc}"
+                if shared_compute_run is not None
+                else f"engine.run_pipeline() failed: {exc}"
+            )
             rejected["rollback_detail"] = (
                 "Condition recovery could not rebuild the SAXS batch, so the trial was rolled back."
             )
@@ -160,7 +203,11 @@ def _execute_candidate_trial(
         if run_result is None:
             rejected = dict(advice)
             rejected["rejected"] = True
-            rejected["rollback_reason"] = "engine.run_pipeline() returned no result"
+            rejected["rollback_reason"] = (
+                "shared compute run returned no result"
+                if shared_compute_run is not None
+                else "engine.run_pipeline() returned no result"
+            )
             rejected["rollback_detail"] = "Condition recovery did not produce a usable SAXS rerun."
             return {
                 "status": "rejected",
@@ -223,6 +270,7 @@ def _execute_candidate_trial(
                     if isinstance(candidate.llm_advice, dict)
                     else dict(advice)
                 ),
+                "compute_run": candidate_compute_run,
             }
 
         rejected = dict(candidate.llm_advice or advice)
@@ -428,6 +476,7 @@ def _run_saxs_candidate_round(
     accepted_trials: list[dict[str, Any]] = []
     failed_trials: list[dict[str, Any]] = []
     attempted_execution = False
+    baseline_compute_run = getattr(self, "_compute_run", None)
 
     for index, plan in enumerate(candidate_plans, start=1):
         plan_dict = dict(plan or {})
@@ -447,6 +496,7 @@ def _run_saxs_candidate_round(
 
         attempted_execution = True
         self._restore_best(engine)
+        self._compute_run = baseline_compute_run
         trial_advice = dict(advice)
         trial_advice["changes"] = dict(plan_dict.get("changes", {}))
         action_name = str(plan_dict.get("action_name", "") or "").strip()
@@ -497,7 +547,13 @@ def _run_saxs_candidate_round(
             )
         )
         if isinstance(trial_record, RoundRecord) and str(outcome.get("status")) == "accepted":
-            accepted_trials.append({"plan": plan_dict, "record": trial_record})
+            accepted_trials.append(
+                {
+                    "plan": plan_dict,
+                    "record": trial_record,
+                    "compute_run": outcome.get("compute_run"),
+                }
+            )
         elif isinstance(trial_record, RoundRecord):
             failed_trials.append({"plan": plan_dict, "record": trial_record})
         else:
@@ -513,6 +569,7 @@ def _run_saxs_candidate_round(
         best_trial = max(accepted_trials, key=lambda item: self._candidate_rank(item["record"]))
         best_plan = best_trial["plan"]
         best_record = best_trial["record"]
+        selected_compute_run = best_trial.get("compute_run")
         selected_advice = dict(best_record.llm_advice or advice)
         selected_advice["candidate_trials"] = self._to_plain_value(trial_summaries)
         selected_advice["selected_candidate"] = self._to_plain_value(
@@ -546,6 +603,8 @@ def _run_saxs_candidate_round(
         )
         if ok and engine.analyze():
             engine.result.parameters = engine.get_parameters()
+            if selected_compute_run is not None:
+                self._compute_run = selected_compute_run
         else:
             logger.warning(
                 "Failed to replay the accepted %s candidate; restoring the previous best state. error=%s",
@@ -553,6 +612,7 @@ def _run_saxs_candidate_round(
                 error or "engine.analyze() failed",
             )
             self._restore_best_with_refresh(engine)
+            self._compute_run = baseline_compute_run
 
         self._best_r_squared = best_record.r_squared
         self._best_eval_score = best_record.eval_score
@@ -640,6 +700,7 @@ def _run_saxs_candidate_round(
     )
     if attempted_execution:
         self._restore_best_with_refresh(engine)
+    self._compute_run = baseline_compute_run
     return {
         "record": record,
         "status": "rejected",
