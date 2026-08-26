@@ -105,3 +105,33 @@ def test_run_single_json_prints_only_shared_compute_run(tmp_path, capsys):
     assert code == 0
     assert json.loads(capsys.readouterr().out)["status"] == "completed"
     assert _FakeComputeRunService.instances[0].run_direct_kwargs["technique"] == "ir"
+
+
+def test_run_single_json_exposes_canonical_template_and_capabilities(tmp_path, capsys):
+    class FakeResult:
+        parameters = {"peak": 1}
+        figures = {}
+        metadata = {}
+
+    class FakeEngine:
+        def run_pipeline(self, input_path, output_path, **kwargs):
+            return FakeResult()
+
+    input_file = tmp_path / "sample.csv"
+    input_file.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    args = SimpleNamespace(
+        cmd="ir", input=str(input_file), output=str(tmp_path / "out"), skip_to=None, json=True
+    )
+    _FakeComputeRunService.instances.clear()
+
+    assert run_single(
+        args,
+        get_engine_fn=lambda technique: FakeEngine(),
+        compute_run_service_factory=_FakeComputeRunService,
+    ) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["canonical_template"]["template_id"] == "spectrum_1d.v1"
+    assert [item["capability_id"] for item in payload["capability_items"]] == [
+        "curve.extrema.v1", "curve.summary.v1"
+    ]

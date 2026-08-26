@@ -19,6 +19,7 @@ from polynexus.core.compute.models import (
     RawArtifact,
 )
 from polynexus.core.canonical_experiments import CapabilityItemResult
+from polynexus.core.canonical_experiments import default_converter_registry
 
 
 _FORBIDDEN_RESULT_KEY_NAMES = frozenset(
@@ -120,6 +121,29 @@ def test_compute_run_persists_capability_items_only_on_completed_runs(tmp_path: 
     assert run.to_dict()["capability_items"] == [item.to_dict()]
     with pytest.raises(ValueError, match="cannot include a result"):
         ComputeRun(status="failed", artifact=artifact, capability_items=(item,))
+
+
+def test_compute_run_persists_source_bound_canonical_template(tmp_path: Path) -> None:
+    source = tmp_path / "curve.csv"
+    source.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    artifact = RawArtifact.from_path(source, technique="ir")
+    outcome = default_converter_registry().convert_path(
+        source, technique="ir", source_artifact_id=artifact.artifact_id
+    )
+    assert outcome.template is not None
+    dataset = CanonicalDataset.direct_envelope(artifact)
+    plan = AnalysisPlan.direct(dataset, output_dir=tmp_path / "out")
+
+    run = ComputeRun.completed(
+        artifact=artifact,
+        dataset=dataset,
+        plan=plan,
+        result=ComputeResult(),
+        canonical_template=outcome.template,
+    )
+
+    assert run.canonical_template is outcome.template
+    assert run.to_dict()["canonical_template"]["content_hash"] == outcome.template.content_hash
 
 
 def test_directory_artifact_uses_a_manifest_hash_and_directory_envelope(

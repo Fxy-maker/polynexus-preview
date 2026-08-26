@@ -109,6 +109,41 @@ def test_analysis_worker_emits_compute_run_from_shared_service(tmp_path) -> None
     }
 
 
+def test_analysis_worker_exposes_canonical_template_and_capabilities(tmp_path) -> None:
+    class FakeResult:
+        parameters = {}
+        figures = {}
+        metadata = {}
+
+    class FakeEngine:
+        def run_pipeline(self, input_path, output_path, **kwargs):
+            return FakeResult()
+
+    class FakeComputeRunService:
+        def __init__(self, engine_factory):
+            self.engine_factory = engine_factory
+
+        def run_direct(self, **kwargs):
+            return ComputeRunService(self.engine_factory).run_direct(**kwargs)
+
+    input_file = tmp_path / "sample.csv"
+    input_file.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    worker = AnalysisWorker(
+        "ir", str(input_file), str(tmp_path / "out"), engine=FakeEngine(),
+        compute_service_factory=FakeComputeRunService,
+    )
+    received = []
+    errors = []
+    worker.finished.connect(received.append)
+    worker.error_msg.connect(errors.append)
+
+    worker.run()
+
+    assert errors == []
+    assert received[0].canonical_template.template_id == "spectrum_1d.v1"
+    assert len(received[0].capability_items) == 2
+
+
 def test_analysis_worker_accepts_a_directory_through_the_shared_service(tmp_path) -> None:
     class FakeResult:
         parameters = {}

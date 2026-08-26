@@ -15,7 +15,7 @@ import stat
 from types import MappingProxyType
 from typing import Any
 
-from ..canonical_experiments.models import CapabilityItemResult
+from ..canonical_experiments.models import CanonicalExperiment, CapabilityItemResult
 
 
 COMPUTE_STATUSES = frozenset({"ready", "needs_input", "failed", "completed"})
@@ -470,6 +470,7 @@ class ComputeRun:
     dataset: CanonicalDataset | None = None
     plan: AnalysisPlan | None = None
     result: ComputeResult | None = None
+    canonical_template: CanonicalExperiment | None = None
     capability_items: tuple[CapabilityItemResult, ...] = ()
     reasons: tuple[str, ...] = ()
     legacy_result: Any = field(default=None, repr=False, compare=False)
@@ -487,6 +488,10 @@ class ComputeRun:
             raise TypeError("plan must be an AnalysisPlan")
         if self.result is not None and not isinstance(self.result, ComputeResult):
             raise TypeError("result must be a ComputeResult")
+        if self.canonical_template is not None and not isinstance(
+            self.canonical_template, CanonicalExperiment
+        ):
+            raise TypeError("canonical_template must be a CanonicalExperiment")
         object.__setattr__(self, "capability_items", tuple(self.capability_items))
         if not all(isinstance(item, CapabilityItemResult) for item in self.capability_items):
             raise TypeError("capability_items must contain CapabilityItemResult values")
@@ -509,6 +514,11 @@ class ComputeRun:
                 raise ValueError(
                     "Compute run provenance linkage mismatch: " + ", ".join(linkage_mismatches)
                 )
+        if self.canonical_template is not None:
+            if self.canonical_template.source_artifact_id != self.artifact.artifact_id:
+                raise ValueError("Compute run canonical template must use the run artifact")
+            if _normalized_technique(self.canonical_template.payload.get("technique", self.artifact.technique)) != _normalized_technique(self.artifact.technique):
+                raise ValueError("Compute run canonical template technique mismatch")
         has_execution_context = self.dataset is not None or self.plan is not None
         if self.status == "completed":
             if self.dataset is None or self.plan is None or self.result is None:
@@ -517,7 +527,9 @@ class ComputeRun:
             if self.dataset is None or self.plan is None or self.result is not None or self.capability_items:
                 raise ValueError("Ready compute runs require dataset and plan without a result")
         elif self.status == "failed":
-            if self.result is not None or self.capability_items:
+            if self.result is not None or (
+                self.capability_items and self.canonical_template is None
+            ):
                 raise ValueError("Failed compute runs cannot include a result")
             if (self.dataset is None) != (self.plan is None):
                 raise ValueError(
@@ -534,6 +546,7 @@ class ComputeRun:
         dataset: CanonicalDataset,
         plan: AnalysisPlan,
         result: ComputeResult,
+        canonical_template: CanonicalExperiment | None = None,
         capability_items: tuple[CapabilityItemResult, ...] = (),
         reasons: tuple[str, ...] = (),
         legacy_result: Any = None,
@@ -544,6 +557,7 @@ class ComputeRun:
             dataset=dataset,
             plan=plan,
             result=result,
+            canonical_template=canonical_template,
             capability_items=capability_items,
             reasons=reasons,
             legacy_result=legacy_result,

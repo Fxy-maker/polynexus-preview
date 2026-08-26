@@ -1,5 +1,21 @@
 # Active Work
 
+## Shared ComputeRun canonical routing - implementation complete, review required (2026-08-27)
+
+- `ComputeRunService` now attempts generic IR/SAXS/WAXS table conversion before
+  invoking the existing provider. Ready generic templates are attached to the
+  run and their finite capability items are stored on the same `ComputeRun`.
+- Ambiguous generic mappings return `needs_input` without creating a provider
+  or running it. Vendor-like formats/directories retain the old compatibility
+  envelope and provider behavior. Provider failures after conversion retain the
+  canonical template and capability items.
+- Quick Analysis `AnalysisWorker` and single-file CLI already use this service,
+  and focused tests prove they expose the same fields. Batch, Agent/Codex, GUI
+  persistence migration, and DSC remain separate follow-up work.
+- Focused consumer coverage passed `73` with `4` skips; structured verification
+  passed quality `309` and preprocessing `157`.
+- Task: `docs/agent/tasks/2026-08-27-shared-compute-run-canonical-routing.md`.
+
 ## Finite canonical capability execution - implementation complete, review required (2026-08-26)
 
 - Added a closed `CapabilityRegistry` and `CapabilityExecutor` for immutable

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..engine import get_engine
+from ..canonical_experiments import CapabilityExecutor, CanonicalExperiment, default_converter_registry
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 
 
@@ -180,6 +181,23 @@ class ComputeRunService:
             output_dir=resolved_output_path,
             pipeline_options=options,
         )
+        canonical_template: CanonicalExperiment | None = None
+        capability_items = ()
+        if normalized_technique in {"ir", "saxs", "waxs"} and source.is_file():
+            conversion = default_converter_registry().convert_path(
+                source,
+                technique=normalized_technique,
+                source_artifact_id=artifact.artifact_id,
+            )
+            if conversion.status == "needs_input":
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=conversion.reason_codes,
+                )
+            if conversion.status == "ready" and conversion.template is not None and conversion.template.measurements:
+                canonical_template = conversion.template
+                capability_items = CapabilityExecutor().execute(canonical_template)
         try:
             selected_engine = engine
             if selected_engine is None:
@@ -205,6 +223,8 @@ class ComputeRunService:
                     artifact=artifact,
                     dataset=dataset,
                     plan=plan,
+                    canonical_template=canonical_template,
+                    capability_items=capability_items,
                     reasons=("provider_execution_failed",),
                 )
             return ComputeRun.completed(
@@ -212,6 +232,8 @@ class ComputeRunService:
                 dataset=dataset,
                 plan=plan,
                 result=ComputeResult.from_legacy_result(legacy_result),
+                canonical_template=canonical_template,
+                capability_items=capability_items,
                 legacy_result=legacy_result,
             )
         except Exception:
@@ -220,5 +242,7 @@ class ComputeRunService:
                 artifact=artifact,
                 dataset=dataset,
                 plan=plan,
+                canonical_template=canonical_template,
+                capability_items=capability_items,
                 reasons=("provider_execution_failed",),
             )

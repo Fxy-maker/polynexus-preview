@@ -10,6 +10,14 @@ templates through the executor, then adding DSC `thermal_program.v1`; do not
 remove legacy paths until consumer migration and six-sample replay are green.
 Task: `docs/agent/tasks/2026-08-26-capability-execution.md`.
 
+## Shared ComputeRun canonical routing checkpoint (2026-08-27)
+
+The common Quick Analysis/single-file CLI `ComputeRunService` now carries
+generic IR/SAXS/WAXS canonical templates and finite capability items. Generic
+mapping ambiguity blocks before provider execution; vendor formats continue
+through compatibility envelopes. Batch, Agent/Codex, GUI persistence, and DSC
+are not migrated yet.
+
 ## Product contract (2026-08-13)
 
 PolyNexus is an AI-controllable polymer research workbench that users can also
