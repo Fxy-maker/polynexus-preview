@@ -1,5 +1,19 @@
 # Active Work
 
+## AI-tuning bootstrap ComputeRun migration - implementation complete, review required (2026-08-27)
+
+- Valid AI-tuning source files now initialize through `ComputeRunService` and
+  retain the shared run on the orchestrator; the final report exposes only its
+  JSON-safe projection.
+- Empty output strings remain analysis-only at the provider boundary, avoiding
+  accidental figure generation while the immutable plan records a resolved
+  provenance path.
+- Missing synthetic paths remain provider-only compatibility calls; ambiguous
+  canonical mappings fail closed before provider execution.
+- Focused matrix passed `133` with `3` skips; task verification passed quality
+  `310` and preprocessing `157`. Task:
+  `docs/agent/tasks/2026-08-27-orchestrator-compute-run-bootstrap.md`.
+
 ## DSC thermal-program ComputeRun migration - implementation complete, review required (2026-08-27)
 
 - Registry and TPAE DSC file routes now emit `thermal_program.v1`; the old

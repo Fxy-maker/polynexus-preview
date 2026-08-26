@@ -46,6 +46,7 @@ def __init__(
     self.history: list[RoundRecord] = []
 
     self._engine = None
+    self._compute_run = None
     self._best_config = None
     self._best_output: dict[str, Any] = {}
     self._best_record: RoundRecord | None = None

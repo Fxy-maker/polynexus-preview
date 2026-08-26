@@ -20,6 +20,15 @@ Agent/Codex workflow steps, and registry-driven DSC file runs now migrate new
 runs through the shared `ComputeRun` projection. DSC keeps the old template ID
 as a compatibility alias.
 
+## AI-tuning bootstrap ComputeRun checkpoint (2026-08-27)
+
+The initial run for a valid AI-tuning source now uses `ComputeRunService`,
+retains the in-memory engine for controlled candidate rounds, and publishes a
+JSON-safe `compute_run` projection in the final report. Empty output strings
+remain analysis-only at the provider boundary. Missing synthetic paths remain
+compatibility-only; ambiguous canonical mappings fail closed. Legacy candidate
+round adapters and full-boundary release review remain open.
+
 ## Product contract (2026-08-13)
 
 PolyNexus is an AI-controllable polymer research workbench that users can also

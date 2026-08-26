@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from polynexus.core.compute import ComputeRunService
+
 
 def _initialize_run_session(self):
     from polynexus import orchestrator as orchestrator_module
@@ -13,7 +15,29 @@ def _initialize_run_session(self):
         raise RuntimeError(f"{self.technique.upper()} engine is not registered.")
     self._engine = engine
 
-    engine.run_pipeline(str(data_path), output_dir="")
+    # Valid source files use the same canonical run producer as Quick Analysis,
+    # Batch, and Agent/Codex.  The in-memory engine is still supplied so later
+    # candidate rounds can mutate and replay its controlled configuration.
+    self._compute_run = None
+    if data_path.exists():
+        compute_run = ComputeRunService(
+            lambda *args, **kwargs: engine,
+        ).run_direct(
+            technique=self.technique,
+            path=data_path,
+            output_dir="",
+            submodule_id=submodule_id,
+            engine=engine,
+        )
+        if compute_run.status != "completed":
+            raise RuntimeError(
+                ", ".join(compute_run.reasons) or compute_run.status
+            )
+        self._compute_run = compute_run
+    else:
+        # Existing synthetic callers use a provider-only fake path.  Do not
+        # fabricate a canonical artifact for a source that cannot be hashed.
+        engine.run_pipeline(str(data_path), output_dir="")
     baseline = self._record_round(engine, 0, None, changes={}, accepted=True)
     self.history.append(baseline)
     self._baseline_r_squared = baseline.r_squared

@@ -181,6 +181,10 @@ class ComputeRunService:
             output_dir=resolved_output_path,
             pipeline_options=options,
         )
+        # An empty output string is the public provider convention for
+        # analysis-only execution.  Keep it empty at the engine boundary even
+        # though the immutable plan stores a resolved path for provenance.
+        provider_output_dir = "" if isinstance(output_dir, str) and not output_dir.strip() else plan.output_dir
         canonical_template: CanonicalExperiment | None = None
         capability_items = ()
         if normalized_technique in {"dsc", "ir", "saxs", "waxs"} and source.is_file():
@@ -234,7 +238,7 @@ class ComputeRunService:
             else:
                 legacy_result = selected_engine.run_pipeline(
                     artifact.path,
-                    plan.output_dir,
+                    provider_output_dir,
                     **options,
                 )
             if not _has_legacy_result_shape(legacy_result):

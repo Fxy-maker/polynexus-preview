@@ -675,6 +675,11 @@ def _final_report(
         "best_output_parameters": self._to_plain_value(self._best_output),
         "history": [self._to_plain_value(asdict(record)) for record in self.history],
     }
+    compute_run = getattr(self, "_compute_run", None)
+    if compute_run is not None:
+        to_dict = getattr(compute_run, "to_dict", None)
+        if callable(to_dict):
+            report["compute_run"] = self._to_plain_value(to_dict())
     preprocess_report = getattr(self, "_last_preprocess_report", {})
     if isinstance(preprocess_report, dict) and preprocess_report:
         report.update(self._to_plain_value(preprocess_report))
