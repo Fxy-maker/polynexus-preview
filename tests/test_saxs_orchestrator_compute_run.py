@@ -8,6 +8,7 @@ from polynexus.core.compute import ComputeRunService
 from polynexus.core.engine import AnalysisResult
 from polynexus.orchestrator import ParameterOrchestrator
 from polynexus.orchestrator_session import _execute_candidate_trial
+from polynexus.orchestrator_session import _merge_saxs_recovery_context
 
 
 class _Engine:
@@ -168,3 +169,22 @@ def test_recovery_service_failure_keeps_baseline_run(monkeypatch, tmp_path: Path
     assert outcome["reason"] == "canonical_template_mismatch"
     assert orchestrator._compute_run is initial
     assert engine.pipeline_calls == 1
+
+
+def test_recovery_context_merge_is_replayable_after_baseline_restore() -> None:
+    config = SimpleNamespace(
+        condition_context={"sample_id": "S-01", "batch": {"existing": True}}
+    )
+
+    _merge_saxs_recovery_context(
+        config,
+        {"batch": {"condition_values": {"temperature": 120.0}}},
+    )
+
+    assert config.condition_context == {
+        "sample_id": "S-01",
+        "batch": {
+            "existing": True,
+            "condition_values": {"temperature": 120.0},
+        },
+    }

@@ -18,6 +18,10 @@ locally until candidate scoring accepts it. On acceptance it replaces
 `self._compute_run`; on rejection or rollback the previous run remains the
 authoritative report object.
 
+When the winning candidate is replayed after restoring the baseline engine
+configuration, its selected recovery context is merged again before analysis.
+This keeps the final engine state aligned with the accepted shared run.
+
 If the session has no shared run (the established missing/synthetic compatibility
 case), the current provider-only call remains unchanged. Service failures are
 reported as rejected candidate reasons and never fall through to a second

@@ -72,6 +72,7 @@ Expected: FAIL because the real-source recovery path still invokes
 - [x] **Step 1: Call `ComputeRunService.run_direct` with the existing engine and canonical template when `_compute_run` is present.**
 - [x] **Step 2: Convert service failure into the existing rejected-candidate payload.**
 - [x] **Step 3: Replace `_compute_run` only after candidate scoring accepts; leave it unchanged on rollback.**
+- [x] **Step 4: Reapply the winning recovery context after baseline restore before final replay.**
 
 ### Task 3: Verify and record the checkpoint
 

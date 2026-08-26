@@ -6,9 +6,10 @@
   existing engine and baseline canonical template, avoiding duplicate source
   conversion and a private provider-result path.
 - Candidate runs are held until final candidate selection and successful engine
-  replay; rollback and shared-service failures preserve the baseline run.
+  replay; the winning recovery context is reapplied after baseline restore, and
+  rollback/service failures preserve the baseline run.
 - Missing/synthetic paths retain the provider-only compatibility call.
-- Focused migration/orchestrator/ComputeRun matrix passed `83` with `4` skips.
+- Focused migration/orchestrator/ComputeRun matrix passed `84` with `4` skips.
   Task and acceptance: `docs/agent/tasks/2026-08-27-saxs-recovery-compute-run-migration.md`.
 - Legacy producers and full-boundary historical GUI/chart/SAXS failures remain
   open for human architecture/scientific review.

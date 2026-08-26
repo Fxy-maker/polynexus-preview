@@ -14,7 +14,9 @@ Missing or synthetic test paths retain the established provider-only fallback.
   shared-service failure with baseline-run preservation.
 - `polynexus/orchestrator_session.py` returns a candidate run only after the
   service completes and commits it to `_compute_run` only after final candidate
-  selection and successful engine replay.
+  selection and successful engine replay. The selected recovery context is
+  merged again after baseline restore so the final engine state matches the
+  accepted run.
 
 ## Verification
 
@@ -23,7 +25,7 @@ python -m pytest -q tests/test_saxs_orchestrator_compute_run.py
 3 passed
 
 python -m pytest -q tests/test_saxs_orchestrator_compute_run.py tests/test_saxs_orchestrator_loop.py tests/test_orchestrator_compute_run.py tests/test_compute_service.py tests/test_compute_models.py
-83 passed, 4 skipped
+84 passed, 4 skipped
 
 python scripts/verify.py --task docs/agent/tasks/2026-08-27-saxs-recovery-compute-run-migration.md --changed --types
 passed (quality/preprocessing/type/compile/task gates)

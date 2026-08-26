@@ -12,6 +12,26 @@ from polynexus.core.compute import ComputeRunService
 logger = logging.getLogger(__name__)
 
 
+def _merge_saxs_recovery_context(config: Any, recovery_context: Any) -> dict[str, Any]:
+    """Merge non-destructive condition facts into a controlled SAXS config."""
+    merged_context = deepcopy(getattr(config, "condition_context", {}))
+    if not isinstance(merged_context, dict):
+        merged_context = {}
+
+    def merge_missing(target: dict[str, Any], incoming: dict[str, Any]) -> None:
+        for key, value in incoming.items():
+            current = target.get(key)
+            if isinstance(current, dict) and isinstance(value, dict):
+                merge_missing(current, value)
+            elif key not in target or current in (None, "", {}, []):
+                target[key] = deepcopy(value)
+
+    if isinstance(recovery_context, dict):
+        merge_missing(merged_context, recovery_context)
+    config.condition_context = merged_context
+    return merged_context
+
+
 def _restore_best(self: Any, engine: Any) -> None:
     if self._best_config is not None:
         if self.technique == "dsc":
@@ -133,13 +153,7 @@ def _execute_candidate_trial(
                 "advice": rejected,
             }
 
-        merged_context = deepcopy(getattr(config, "condition_context", {}))
-        if not isinstance(merged_context, dict):
-            merged_context = {}
-        for key, value in recovery_context.items():
-            if key not in merged_context or merged_context[key] in (None, "", {}, []):
-                merged_context[key] = deepcopy(value)
-        config.condition_context = merged_context
+        _merge_saxs_recovery_context(config, recovery_context)
 
         data_path = str(self._resolve_data_file(self.data_file))
         candidate_compute_run = None
@@ -596,6 +610,11 @@ def _run_saxs_candidate_round(
         )
 
         self._restore_best(engine)
+        if str(best_plan.get("action_name", "") or "").strip() == "rerun_condition_recovery":
+            _merge_saxs_recovery_context(
+                self._engine_config(engine),
+                best_plan.get("recovery_context", {}),
+            )
         ok, error = apply_changes(
             self._engine_config(engine),
             dict(best_plan.get("changes", {})),

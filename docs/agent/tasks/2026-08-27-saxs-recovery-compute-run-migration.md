@@ -59,6 +59,9 @@ compatibility path used by missing or synthetic test inputs.
 - [x] The recovery candidate updates `_compute_run` only when the candidate is
   accepted; rejected/rolled-back candidates leave the previous shared run in
   place.
+- [x] Final candidate replay reapplies the selected recovery context after
+  restoring the baseline configuration, keeping engine state and shared-run
+  provenance aligned.
 - [x] Missing or synthetic paths retain the existing direct provider fallback.
 - [x] Recovery failures expose the shared service reason and do not call the
   provider a second time outside the service.
@@ -79,7 +82,7 @@ git diff --check
 
 - TDD RED: the real-source test initially observed zero shared-service calls;
   the synthetic fallback test remained green.
-- Focused migration/orchestrator/ComputeRun matrix: `83 passed, 4 skipped`.
+- Focused migration/orchestrator/ComputeRun matrix: `84 passed, 4 skipped`.
 - Focused recovery subset: `3 passed`.
 - Structured verifier and allowlisted checkpoint are recorded in the
   acceptance note below.
