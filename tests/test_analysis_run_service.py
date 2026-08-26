@@ -1,6 +1,19 @@
 from polynexus.data.sample_db import SampleDB
 from polynexus.gui.analysis_run_service import AnalysisRunPersistenceContext, persist_analysis_run
 from polynexus.core.saxs_engine.saxs_quality_contracts import MetricEvidenceSummary
+from polynexus.core.compute import ComputeRunService
+
+
+class _LegacyResult:
+    def __init__(self):
+        self.parameters = {"peak": 1.0}
+        self.figures = {}
+        self.metadata = {}
+
+
+class _Engine:
+    def run_pipeline(self, path, output_dir, **options):
+        return _LegacyResult()
 
 
 def test_persist_analysis_run_reuses_existing_sample_and_batch(tmp_path):
@@ -137,4 +150,29 @@ def test_persisted_run_history_context_can_be_rebound_to_its_own_run_id(tmp_path
     assert db.update_analysis_history_context(run_id, bound_context) is True
 
     assert db.get_analysis_run(run_id)["results_summary"]["history_context"] == bound_context
+    db.close()
+
+
+def test_persist_analysis_run_stores_shared_compute_run_projection(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    data_file = tmp_path / "pa6.csv"
+    data_file.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    compute_run = ComputeRunService(lambda *args, **kwargs: _Engine()).run_direct(
+        technique="ir", path=data_file, output_dir=tmp_path / "output"
+    )
+
+    run_id = persist_analysis_run(
+        db,
+        compute_run.legacy_result,
+        AnalysisRunPersistenceContext(
+            technique="ir",
+            data_file=str(data_file),
+            compute_run=compute_run,
+        ),
+    )
+
+    summary = db.get_analysis_run(run_id)["results_summary"]
+    assert summary["compute_run"]["canonical_template"]["template_id"] == "spectrum_1d.v1"
+    assert len(summary["compute_run"]["capability_items"]) == 2
+    assert summary["result"]["parameters"] == {"peak": 1.0}
     db.close()

@@ -1,5 +1,19 @@
 # Active Work
 
+## GUI persistence ComputeRun migration - implementation complete, review required (2026-08-27)
+
+- GUI history persistence now accepts the live shared `ComputeRun` from the
+  current technique map and stores its JSON-safe canonical template and finite
+  capability items under `results_summary.compute_run`.
+- Legacy `result`/`parameters` fields and database rows without the projection
+  remain readable. History restore retains the projection in a GUI cache but
+  does not fabricate a provider `legacy_result` from serialized data.
+- Focused migration coverage passed `13`; structured verification passed task
+  checks, quality `310`, preprocessing `157`, Ruff/compile, and whitespace.
+- The broader historical GUI persistence file retains unrelated pre-existing
+  failures; no release-wide green claim is made.
+- Task: `docs/agent/tasks/2026-08-27-gui-persistence-compute-run-migration.md`.
+
 ## Batch ComputeRun migration - implementation complete, review required (2026-08-27)
 
 - Batch CLI `run_batch_one` now invokes `ComputeRunService` and passes the

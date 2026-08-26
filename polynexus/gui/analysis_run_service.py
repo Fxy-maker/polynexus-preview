@@ -27,6 +27,10 @@ class AnalysisRunPersistenceContext:
     ai_tuned: bool = False
     confirmed: bool = False
     history_context: dict[str, Any] = field(default_factory=dict)
+    # Shared deterministic run produced by ComputeRunService.  The legacy
+    # result remains the display-compatible adapter, while this projection is
+    # the canonical persistence contract for new GUI runs.
+    compute_run: Any = None
 
 
 def to_jsonable(value):
@@ -243,6 +247,10 @@ def persist_analysis_run(db, result, context: AnalysisRunPersistenceContext) -> 
         "confirmed": bool(context.confirmed),
         "history_context": to_jsonable(context.history_context),
     }
+    if context.compute_run is not None:
+        compute_run_payload = to_jsonable(context.compute_run)
+        if isinstance(compute_run_payload, dict):
+            summary["compute_run"] = compute_run_payload
 
     return db.create_analysis_run(
         batch_id,

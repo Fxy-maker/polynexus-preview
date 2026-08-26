@@ -1470,6 +1470,11 @@ class MainWindow(
 
         self._results = {}
 
+        # JSON-safe projections restored from shared ComputeRun history.  A
+        # legacy provider object is intentionally not fabricated from a
+        # persisted projection; a fresh run recreates the live ComputeRun.
+        self._compute_run_projections = {}
+
         self._batch_results = []
 
         self._current_figure_path = ""

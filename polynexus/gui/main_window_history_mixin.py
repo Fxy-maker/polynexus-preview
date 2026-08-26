@@ -432,6 +432,9 @@ class MainWindowHistoryMixin:
                 display_project_label = resolve_joint_history_project_label(project_label, result)
                 if display_project_label and hasattr(self, "_project_label"):
                     self._project_label.setText(display_project_label)
+            current_technique = str(getattr(self, "_current_technique", "") or "").strip().lower()
+            compute_runs = getattr(self, "_compute_runs", None)
+            compute_run = compute_runs.get(current_technique) if isinstance(compute_runs, dict) else None
             context = self._analysis_run_persistence_context_class()(
                 technique=str(getattr(self, "_current_technique", "") or ""),
                 submodule=str(getattr(self, "_current_submodule_id", "") or ""),
@@ -445,6 +448,7 @@ class MainWindowHistoryMixin:
                 ai_tuned=bool(getattr(self, "_last_ai_tuned_run", False)),
                 confirmed=bool(getattr(self, "_current_result_confirmed_flag", False)),
                 history_context=self._result_to_jsonable(self._history_context_snapshot()),
+                compute_run=compute_run,
             )
             self._last_persisted_run_id = self._persist_gui_analysis_run_fn()(db, result, context)
             if context.ai_tuned:
@@ -711,6 +715,14 @@ class MainWindowHistoryMixin:
 
         if parameters:
             self._apply_best_config(parameters)
+
+        compute_run_projection = summary.get("compute_run")
+        if isinstance(compute_run_projection, dict):
+            projections = getattr(self, "_compute_run_projections", None)
+            if not isinstance(projections, dict):
+                projections = {}
+                self._compute_run_projections = projections
+            projections[str(technique).strip().lower()] = self._result_to_jsonable(compute_run_projection)
 
         self._current_result_confirmed_flag = history_record_confirmed(record)
         self._update_results_confirm_panel()

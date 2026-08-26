@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDialogButtonBox
 import numpy as np
 
 from polynexus.core.figures.pipeline import FigurePipeline
+from polynexus.core.compute import ComputeRunService
 from polynexus.core.ir_engine.core import IRResult
 from polynexus.core.ir_engine.figure_provider import build_ir_figure_definitions
 from polynexus.core.joint.coordinator import JointCoordinator
@@ -114,6 +115,78 @@ def test_persist_analysis_run_reuses_existing_sample_and_batch(tmp_path):
     batches = db.get_batches(sample_id)
 
     assert len(batches) == 1
+
+
+def test_persist_analysis_run_includes_current_shared_compute_run(tmp_path):
+    class LegacyResult:
+        def __init__(self):
+            self.parameters = {"peak": 1.0}
+            self.figures = {}
+            self.metadata = {}
+
+    class Engine:
+        def run_pipeline(self, path, output_dir, **options):
+            return LegacyResult()
+
+    data_file = tmp_path / "pa6_ir.csv"
+    data_file.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    compute_run = ComputeRunService(lambda *args, **kwargs: Engine()).run_direct(
+        technique="ir", path=data_file, output_dir=tmp_path / "output"
+    )
+
+    window = MainWindow()
+    window._sample_db = SampleDB(tmp_path / "samples.db")
+    window._current_filepath = str(data_file)
+    window._current_technique = "ir"
+    window._current_submodule_id = "ir.static"
+    window._output_dir = str(tmp_path / "output")
+    window._project_label.setText("PA6")
+    window._compute_runs = {"ir": compute_run}
+
+    window._persist_analysis_run(compute_run.legacy_result)
+
+    db = window._ensure_sample_db()
+    sample_id = db.list_samples(limit=10)[0]["id"]
+    batch_id = db.get_batches(sample_id)[0]["id"]
+    run = db.get_analysis_runs(batch_id)[0]
+    assert run["results_summary"]["compute_run"]["canonical_template"]["template_id"] == "spectrum_1d.v1"
+    assert len(run["results_summary"]["compute_run"]["capability_items"]) == 2
+    assert run["results_summary"]["result"]["parameters"] == {"peak": 1.0}
+    db.close()
+    window.deleteLater()
+
+
+def test_restore_history_record_keeps_shared_compute_run_projection(tmp_path):
+    data_file = tmp_path / "pa6_ir.csv"
+    data_file.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    window = MainWindow()
+    window._sample_db = SampleDB(tmp_path / "samples.db")
+    db = window._ensure_sample_db()
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(sample_id, "pa6_ir", instrument="IR", condition_type="analysis", condition_values={"technique": "ir"})
+    db.add_data_file(batch_id, str(data_file.resolve()), "ir", file_type="csv", import_order=0)
+    run_id = db.create_analysis_run(
+        batch_id,
+        "ir",
+        submodule="ir.static",
+        parameters={"polymer_type": "PA6"},
+        results_summary={
+            "data_file": str(data_file.resolve()),
+            "compute_run": {
+                "status": "completed",
+                "canonical_template": {"template_id": "spectrum_1d.v1"},
+                "capability_items": [{"capability_id": "curve.summary.v1"}],
+            },
+        },
+        output_dir=str(tmp_path / "output"),
+    )
+
+    record = db.get_analysis_run(run_id)
+    assert window._restore_history_record(record)
+    assert window._compute_run_projections["ir"]["canonical_template"]["template_id"] == "spectrum_1d.v1"
+    assert window._compute_run_projections["ir"]["capability_items"][0]["capability_id"] == "curve.summary.v1"
+    db.close()
+    window.deleteLater()
 
 
 def test_persist_analysis_run_stores_analysis_evidence(tmp_path):
