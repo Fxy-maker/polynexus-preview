@@ -15,9 +15,9 @@ Task: `docs/agent/tasks/2026-08-26-capability-execution.md`.
 The common Quick Analysis/single-file CLI `ComputeRunService` now carries
 generic IR/SAXS/WAXS canonical templates and finite capability items. Generic
 mapping ambiguity blocks before provider execution; vendor formats continue
-through compatibility envelopes. Batch and GUI persistence now migrate new
-runs through the shared `ComputeRun` projection; Agent/Codex workflow and DSC
-remain follow-up phases.
+through compatibility envelopes. Batch, GUI persistence, and generic
+file-backed Agent/Codex workflow steps now migrate new runs through the shared
+`ComputeRun` projection; DSC remains the follow-up thermal-program phase.
 
 ## Product contract (2026-08-13)
 

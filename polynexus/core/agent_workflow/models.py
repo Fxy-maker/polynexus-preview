@@ -304,6 +304,9 @@ class WorkflowStepResult:
     result_summary: Mapping[str, Any] = field(default_factory=dict)
     analysis_evidence: Mapping[str, Any] = field(default_factory=dict)
     figure_references: Mapping[str, Any] = field(default_factory=dict)
+    # JSON-safe projection of the shared ComputeRun.  It is optional so
+    # historical workflow bundles remain byte-for-byte readable.
+    compute_run: Mapping[str, Any] | None = None
     reason_codes: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -312,10 +315,14 @@ class WorkflowStepResult:
         object.__setattr__(self, "result_summary", _freeze_json_value(dict(self.result_summary)))
         object.__setattr__(self, "analysis_evidence", _freeze_json_value(dict(self.analysis_evidence)))
         object.__setattr__(self, "figure_references", _freeze_json_value(dict(self.figure_references)))
+        if self.compute_run is not None:
+            if not isinstance(self.compute_run, Mapping):
+                raise TypeError("Workflow compute_run must be a mapping or null")
+            object.__setattr__(self, "compute_run", _freeze_json_value(dict(self.compute_run)))
         object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "step_id": self.step_id,
             "technique": self.technique,
             "status": self.status,
@@ -324,6 +331,9 @@ class WorkflowStepResult:
             "figure_references": _json_safe(self.figure_references),
             "reason_codes": list(self.reason_codes),
         }
+        if self.compute_run is not None:
+            payload["compute_run"] = _json_safe(self.compute_run)
+        return payload
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "WorkflowStepResult":
@@ -334,6 +344,7 @@ class WorkflowStepResult:
             result_summary=payload.get("result_summary", {}),
             analysis_evidence=payload.get("analysis_evidence", {}),
             figure_references=payload.get("figure_references", {}),
+            compute_run=payload.get("compute_run"),
             reason_codes=tuple(payload.get("reason_codes", ())),
         )
 

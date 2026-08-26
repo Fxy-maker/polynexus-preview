@@ -1,5 +1,18 @@
 # Active Work
 
+## Agent/Codex workflow ComputeRun migration - implementation complete, review required (2026-08-27)
+
+- Generic file-backed IR/SAXS/WAXS workflow steps now execute through
+  `ComputeRunService`; `WorkflowStepResult` exposes an optional JSON-safe
+  `compute_run` projection containing shared artifact/dataset/plan/result,
+  canonical template, and capability items.
+- Existing result/evidence/figure/recipe/receipt fields and old serialized
+  steps remain compatible. Directory workflows and DSC template execution are
+  intentionally deferred to the thermal-program phase.
+- Focused workflow coverage passed `51`; structured quality/preprocessing
+  gates passed `310`/`157`. Task:
+  `docs/agent/tasks/2026-08-27-agent-workflow-compute-run-migration.md`.
+
 ## GUI persistence ComputeRun migration - implementation complete, review required (2026-08-27)
 
 - GUI history persistence now accepts the live shared `ComputeRun` from the

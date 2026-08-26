@@ -25,6 +25,7 @@ from .models import (
 from .registry import WorkflowRegistry
 from .tpae import TpaeCharacterizationWorkflow
 from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
+from polynexus.core.compute import ComputeRun, ComputeRunService
 
 
 class AgentWorkflowService:
@@ -114,13 +115,14 @@ class AgentWorkflowService:
                 canonical_template = self._replay_canonical_template(step, artifact)
                 if canonical_template is False:
                     return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("canonical_conversion_mismatch",))
-                output = self.provider_runner(step, artifact, destination)
+                output, compute_run = self._run_shared_compute(step, artifact, destination)
                 results.append(
                     self._public_step_result(
                         step.step_id,
                         step.technique,
                         output,
                         canonical_template=canonical_template if isinstance(canonical_template, CanonicalExperiment) else None,
+                        compute_run=compute_run,
                     )
                 )
             except Exception:
@@ -202,6 +204,7 @@ class AgentWorkflowService:
         output: Any,
         *,
         canonical_template: CanonicalExperiment | None = None,
+        compute_run: ComputeRun | None = None,
     ) -> WorkflowStepResult:
         if hasattr(output, "to_dict") and hasattr(output, "analysis_evidence"):
             summary = AgentWorkflowService._normalize_public_value(output.to_dict())
@@ -235,8 +238,39 @@ class AgentWorkflowService:
             result_summary=summary,
             analysis_evidence=evidence if isinstance(evidence, Mapping) else {},
             figure_references=AgentWorkflowService._normalize_public_value(dict(figure_references)),
+            compute_run=(compute_run.to_dict() if isinstance(compute_run, ComputeRun) else None),
             reason_codes=("provider_reported_error",) if provider_error else (),
         )
+
+    def _run_shared_compute(
+        self,
+        step: Any,
+        artifact: InputArtifact,
+        output_dir: Path,
+    ) -> tuple[Any, ComputeRun | None]:
+        """Execute table-backed workflow steps through the shared run service.
+
+        Directory workflows and the protected DSC template route retain their
+        existing adapters until their dedicated canonical migrations land.
+        Generic one-dimensional files already have a registered converter and
+        therefore produce the same ComputeRun consumed by Batch and GUI.
+        """
+        if artifact.format == "directory" or step.technique == "dsc":
+            return self.provider_runner(step, artifact, output_dir), None
+
+        class _WorkflowEngine:
+            def run_pipeline(inner_self, path, step_output_dir, **options):
+                return self.provider_runner(step, artifact, Path(step_output_dir))
+
+        compute_run = ComputeRunService(lambda *args, **kwargs: _WorkflowEngine()).run_direct(
+            technique=step.technique,
+            path=artifact.path,
+            output_dir=output_dir / step.step_id,
+            submodule_id=step.parameters.get("submodule_id"),
+        )
+        if compute_run.status != "completed":
+            raise RuntimeError("shared_compute_run:" + ",".join(compute_run.reasons))
+        return compute_run.legacy_result, compute_run
 
     @staticmethod
     def _write_json(path: Path, payload: Any) -> None:

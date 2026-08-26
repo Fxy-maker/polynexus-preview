@@ -30,8 +30,8 @@ def test_single_input_adapter_proposes_registered_static_recipe(tmp_path: Path) 
     assert proposal.recipe.workflow_id == "project.technique.single.v1"
     assert proposal.recipe.steps[0].step_id == "waxs_profile"
     assert proposal.recipe.steps[0].parameters["submodule_id"] == "waxs.static"
-    assert proposal.recipe.steps[0].parameters["canonical_converter"] == "raw-file-envelope.waxs.v1"
-    assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "waxs.profile.v1"
+    assert proposal.recipe.steps[0].parameters["canonical_converter"] == "generic.one-dimensional.v1"
+    assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "scattering_1d.v1"
     assert proposal.recipe.steps[0].parameters["canonical_template"]["source_artifact_id"] == proposal.recipe.artifacts[0].artifact_id
 
 
@@ -114,6 +114,33 @@ def test_project_run_delegates_single_waxs_input_to_existing_service(tmp_path: P
     assert result.analysis_run.recipe.steps[0].parameters["submodule_id"] == "waxs.static"
 
 
+def test_project_run_step_exposes_shared_compute_run_projection(tmp_path: Path) -> None:
+    source = _source(tmp_path, "waxs")
+
+    def provider(step, artifact, output_dir):
+        return AnalysisResult(
+            technique=step.technique,
+            validation_passed=True,
+            parameters={"peak": 1.0},
+        )
+
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(provider_runner=provider)
+    service.inspect((source,))
+    result = service.run(AnalysisRequest.create(
+        question="Analyze WAXS profile",
+        data_scope=(source.relative_to(tmp_path).as_posix(),),
+    ))
+
+    assert result.analysis_run is not None
+    step = result.analysis_run.steps[0]
+    assert step.compute_run["status"] == "completed"
+    assert step.compute_run["artifact"]["sha256"]
+    assert step.compute_run["canonical_template"]["template_id"] == "scattering_1d.v1"
+    assert step.compute_run["capability_items"]
+    assert step.compute_run["result"]["metrics"] == {"peak": 1.0}
+
+
 def test_ir_directory_alias_is_indexed_as_ir_and_stale_source_blocks_run(tmp_path: Path) -> None:
     source = tmp_path / "raw" / "IR" / "series"
     source.mkdir(parents=True)
@@ -144,8 +171,8 @@ def test_series_adapter_orders_paths_and_binds_each_step(tmp_path: Path) -> None
     assert proposal.recipe is not None
     assert [step.parameters["artifact_index"] for step in proposal.recipe.steps] == [0, 1]
     assert [Path(item.path).name for item in proposal.recipe.artifacts] == ["a.dat", "b.dat"]
-    assert all(step.parameters["canonical_converter"] == "raw-file-envelope.waxs.v1" for step in proposal.recipe.steps)
-    assert all(step.parameters["canonical_template"]["template_id"] == "waxs.profile.v1" for step in proposal.recipe.steps)
+    assert all(step.parameters["canonical_converter"] == "generic.one-dimensional.v1" for step in proposal.recipe.steps)
+    assert all(step.parameters["canonical_template"]["template_id"] == "scattering_1d.v1" for step in proposal.recipe.steps)
     assert TechniqueSeriesAdapter.is_valid_recipe(proposal.recipe)
 
 
