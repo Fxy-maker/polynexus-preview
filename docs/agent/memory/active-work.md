@@ -1,5 +1,22 @@
 # Active Work
 
+## Finite canonical capability execution - implementation complete, review required (2026-08-26)
+
+- Added a closed `CapabilityRegistry` and `CapabilityExecutor` for immutable
+  `spectrum_1d`/`scattering_1d` measurements. The first explicit capabilities
+  are `curve.extrema.v1` and `curve.summary.v1`; outputs are finite,
+  deterministic, and source-measurement bound.
+- Each item independently reports `completed`, `needs_input`, `failed`, or
+  `not_applicable`; exceptions do not suppress sibling items. Stable item IDs
+  include the canonical template hash, measurement ID, and capability ID.
+- `ComputeRun` now persists optional capability items without changing legacy
+  provider execution. Consumer migration, DSC `thermal_program.v1`, and the
+  six-sample replay remain follow-up tasks.
+- Focused coverage passed `61` with `4` skips; structured verification passed
+  quality `309` and preprocessing `157`. Architecture/scientific boundary
+  review is still required before merge.
+- Task: `docs/agent/tasks/2026-08-26-capability-execution.md`.
+
 ## Universal canonical templates - design review required (2026-08-24)
 
 - The approved next architecture uses universal thermal-program and 1D curve

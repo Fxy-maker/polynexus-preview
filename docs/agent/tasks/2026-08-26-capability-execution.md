@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-26-capability-execution
 kind: architecture
-status: active
+status: implementation_complete_review_required
 date: 2026-08-26
 title: Add finite canonical capability execution
 ---
@@ -48,13 +48,13 @@ measurements and persist the item results on the shared `ComputeRun` object.
 
 ## Acceptance criteria
 
-- [ ] The default registry exposes only explicit capability ids.
-- [ ] Summary and extrema capabilities return deterministic finite values.
-- [ ] Unsupported families become `not_applicable`; item exceptions become
+- [x] The default registry exposes only explicit capability ids.
+- [x] Summary and extrema capabilities return deterministic finite values.
+- [x] Unsupported families become `not_applicable`; item exceptions become
   `failed`; other items still execute.
-- [ ] Capability item ids are stable for the same canonical template.
-- [ ] `ComputeRun` serializes items and rejects items on non-completed runs.
-- [ ] Existing direct-run tests remain green.
+- [x] Capability item ids are stable for the same canonical template.
+- [x] `ComputeRun` serializes items and rejects items on non-completed runs.
+- [x] Existing direct-run tests remain green.
 
 ## Verification
 
@@ -74,7 +74,11 @@ python scripts/auto_commit.py `
 
 ## Completion evidence
 
-- Exact commands and outcomes: pending implementation.
+- Exact commands and outcomes: focused tests `61 passed, 4 skipped`;
+  structured verification passed task-check, Ruff, compile, quality `309`,
+  preprocessing `157`, and whitespace via
+  `python scripts/verify.py --task docs/agent/tasks/2026-08-26-capability-execution.md --changed --types`.
 - Known limitations or follow-up: consumer migration and DSC thermal
   capabilities are separate tasks.
-- Pre-existing changes left untouched: none; working tree was clean.
+- Pre-existing changes left untouched: historical permission-denied pytest
+  artifact directories remain untouched; no source data was changed.

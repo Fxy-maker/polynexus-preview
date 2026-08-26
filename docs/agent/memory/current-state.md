@@ -1,5 +1,15 @@
 ---
 
+## Finite capability execution checkpoint (2026-08-26)
+
+The shared canonical layer now has a finite capability registry/executor for
+1-D spectrum/scattering measurements and `ComputeRun.capability_items` for
+immutable item results. This is an additive skeleton: existing providers and
+entry points still execute as before. The next boundary is routing canonical
+templates through the executor, then adding DSC `thermal_program.v1`; do not
+remove legacy paths until consumer migration and six-sample replay are green.
+Task: `docs/agent/tasks/2026-08-26-capability-execution.md`.
+
 ## Product contract (2026-08-13)
 
 PolyNexus is an AI-controllable polymer research workbench that users can also
