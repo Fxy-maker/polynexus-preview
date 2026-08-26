@@ -183,7 +183,7 @@ class ComputeRunService:
         )
         canonical_template: CanonicalExperiment | None = None
         capability_items = ()
-        if normalized_technique in {"ir", "saxs", "waxs"} and source.is_file():
+        if normalized_technique in {"dsc", "ir", "saxs", "waxs"} and source.is_file():
             conversion = default_converter_registry().convert_path(
                 source,
                 technique=normalized_technique,
@@ -195,9 +195,14 @@ class ComputeRunService:
                     artifact=artifact,
                     reasons=conversion.reason_codes,
                 )
-            if conversion.status == "ready" and conversion.template is not None and conversion.template.measurements:
+            if (
+                conversion.status == "ready"
+                and conversion.template is not None
+                and (conversion.template.measurements or normalized_technique == "dsc")
+            ):
                 canonical_template = conversion.template
-                capability_items = CapabilityExecutor().execute(canonical_template)
+                if canonical_template.measurements:
+                    capability_items = CapabilityExecutor().execute(canonical_template)
         try:
             selected_engine = engine
             if selected_engine is None:
@@ -212,11 +217,27 @@ class ComputeRunService:
                     artifact=artifact,
                     reasons=("technique_unknown",),
                 )
-            legacy_result = selected_engine.run_pipeline(
-                artifact.path,
-                plan.output_dir,
-                **options,
-            )
+            if (
+                canonical_template is not None
+                and normalized_technique == "dsc"
+                and hasattr(selected_engine, "run_isothermal_template")
+            ):
+                template_output = selected_engine.run_isothermal_template(canonical_template)
+                legacy_result = template_output
+                if not _has_legacy_result_shape(legacy_result):
+                    legacy_result = getattr(selected_engine, "result", None)
+                if legacy_result is not None:
+                    get_parameters = getattr(selected_engine, "get_parameters", None)
+                    if callable(get_parameters):
+                        parameters = get_parameters()
+                        if isinstance(parameters, Mapping):
+                            legacy_result.parameters = dict(parameters)
+            else:
+                legacy_result = selected_engine.run_pipeline(
+                    artifact.path,
+                    plan.output_dir,
+                    **options,
+                )
             if not _has_legacy_result_shape(legacy_result):
                 return ComputeRun(
                     status="failed",

@@ -1,5 +1,16 @@
 # Active Work
 
+## DSC thermal-program ComputeRun migration - implementation complete, review required (2026-08-27)
+
+- Registry and TPAE DSC file routes now emit `thermal_program.v1`; the old
+  `dsc.isothermal.v1` converter/execution ID remains accepted for compatibility.
+- `ComputeRunService` attaches valid DSC templates and calls the existing
+  `run_isothermal_template` boundary, preserving all accepted segments and
+  Avrami qualification/calculation behavior.
+- Focused DSC/compute/TPAE coverage passed `76` with `3` skips; structured
+  quality/preprocessing gates passed `310`/`157`. Task:
+  `docs/agent/tasks/2026-08-27-dsc-thermal-program-migration.md`.
+
 ## Agent/Codex workflow ComputeRun migration - implementation complete, review required (2026-08-27)
 
 - Generic file-backed IR/SAXS/WAXS workflow steps now execute through

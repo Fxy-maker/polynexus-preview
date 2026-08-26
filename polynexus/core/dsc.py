@@ -574,8 +574,8 @@ class DSCEngine(BaseEngine):
         if not isinstance(template, CanonicalExperiment):
             raise TypeError("DSC canonical execution requires a CanonicalExperiment")
         validated_template = CanonicalExperiment.from_dict(template.to_dict())
-        if validated_template.template_id != "dsc.isothermal.v1":
-            raise ValueError("DSC canonical execution requires dsc.isothermal.v1")
+        if validated_template.template_id not in {"dsc.isothermal.v1", "thermal_program.v1"}:
+            raise ValueError("DSC canonical execution requires dsc.isothermal.v1 or thermal_program.v1")
         payload = validated_template.payload
         segments = payload.get("segments") if isinstance(payload, dict) else payload.get("segments")
         if not isinstance(segments, tuple) or not segments:

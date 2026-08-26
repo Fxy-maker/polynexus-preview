@@ -41,7 +41,11 @@ class CanonicalConverterRegistry:
                 text = source.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 return self._blocked(normalized_technique, source_artifact_id, "canonical_source_unreadable")
-            return convert_mettler_isothermal_text(text, source_artifact_id=source_artifact_id)
+            return convert_mettler_isothermal_text(
+                text,
+                source_artifact_id=source_artifact_id,
+                template_id="thermal_program.v1",
+            )
         if (
             normalized_technique in _GENERIC_TECHNIQUES
             and source.is_file()

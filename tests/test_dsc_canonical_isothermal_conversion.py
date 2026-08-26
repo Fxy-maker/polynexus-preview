@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from polynexus.core.canonical_experiments import convert_mettler_isothermal_text
+from polynexus.core.canonical_experiments import convert_mettler_isothermal_text, default_converter_registry
 
 
 def _fixture() -> str:
@@ -35,6 +35,22 @@ def test_converter_selects_lower_temperature_holds_and_keeps_melt_provenance() -
         "end_time_s": 151.0,
     }
     assert [entry["role"] for entry in outcome.record.excluded_segments] == ["melt_hold", "melt_hold"]
+
+
+def test_dsc_registry_uses_generic_thermal_program_template(tmp_path) -> None:
+    source = tmp_path / "pa6.txt"
+    source.write_text(_fixture(), encoding="utf-8")
+
+    outcome = default_converter_registry().convert_path(
+        source,
+        technique="dsc",
+        source_artifact_id="source-sha256",
+    )
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert outcome.template.template_id == "thermal_program.v1"
+    assert outcome.template.payload["segments"][0]["role"] == "isothermal_crystallization"
 
 
 def test_converter_blocks_when_no_hold_reaches_minimum_duration() -> None:

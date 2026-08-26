@@ -19,8 +19,20 @@ _MAX_SAMPLE_NOISE_C = 0.05
 _MELT_PREPARATION_C = 200.0
 
 
-def convert_mettler_isothermal_text(text: str, *, source_artifact_id: str) -> ConversionOutcome:
-    """Convert one Mettler ASCII export into the DSC isothermal canonical template."""
+def convert_mettler_isothermal_text(
+    text: str,
+    *,
+    source_artifact_id: str,
+    template_id: str = "dsc.isothermal.v1",
+) -> ConversionOutcome:
+    """Convert one Mettler ASCII export into a validated thermal-program template.
+
+    ``dsc.isothermal.v1`` remains the compatibility default for callers that
+    explicitly use the original converter.  Registry-driven routes request the
+    generic ``thermal_program.v1`` identity.
+    """
+    if template_id not in {"dsc.isothermal.v1", "thermal_program.v1"}:
+        raise ValueError(f"Unsupported DSC template id: {template_id}")
     rows, sample_mass_mg, parse_reason = _parse_rows(text)
     if parse_reason:
         record = ConversionRecord.create(
@@ -100,7 +112,7 @@ def convert_mettler_isothermal_text(text: str, *, source_artifact_id: str) -> Co
     if not accepted:
         return ConversionOutcome(status="blocked", record=record, reason_codes=reasons)
     template = CanonicalExperiment.create(
-        template_id="dsc.isothermal.v1",
+        template_id=template_id,
         source_artifact_id=source_artifact_id,
         payload={
             "sample": {"mass_mg": sample_mass_mg},

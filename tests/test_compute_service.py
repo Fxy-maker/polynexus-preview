@@ -57,6 +57,39 @@ class EmptyLegacyResult:
     metadata: dict[str, Any] = {}
 
 
+def test_dsc_direct_run_attaches_thermal_program_and_uses_template_execution(tmp_path: Path) -> None:
+    source = tmp_path / "program.txt"
+    rows = ["Sample Weight: 5.95 mg"]
+    rows.extend(f"{index} {index} 255.02 255.0 1.0" for index in range(61))
+    rows.extend(f"{index} {index} 180.05 180.0 1.0" for index in range(61, 122))
+    source.write_text("\n".join(rows), encoding="utf-8")
+
+    class TemplateEngine(FakeEngine):
+        def __init__(self) -> None:
+            super().__init__(EmptyLegacyResult())
+            self.template_calls = 0
+
+        def run_isothermal_template(self, template: Any) -> Any:
+            self.template_calls += 1
+            self.result.parameters = {"template_id": template.template_id}
+            return {"ignored": True}
+
+        def get_parameters(self) -> dict[str, Any]:
+            return dict(self.result.parameters)
+
+    engine = TemplateEngine()
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="dsc", path=source, output_dir=tmp_path / "output", engine=engine
+    )
+
+    assert run.status == "completed"
+    assert run.canonical_template is not None
+    assert run.canonical_template.template_id == "thermal_program.v1"
+    assert engine.template_calls == 1
+    assert run.result is not None
+    assert run.result.metrics["template_id"] == "thermal_program.v1"
+
+
 class BadPath(os.PathLike[str]):
     def __fspath__(self) -> str:
         raise RuntimeError("path protocol must not escape")

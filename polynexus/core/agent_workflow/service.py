@@ -255,12 +255,27 @@ class AgentWorkflowService:
         Generic one-dimensional files already have a registered converter and
         therefore produce the same ComputeRun consumed by Batch and GUI.
         """
-        if artifact.format == "directory" or step.technique == "dsc":
+        if artifact.format == "directory":
             return self.provider_runner(step, artifact, output_dir), None
+
+        provider_output = self.provider_runner(step, artifact, output_dir)
+        legacy_output = provider_output
+        if isinstance(provider_output, Mapping):
+            class _MappingResult:
+                parameters = provider_output.get("parameters", provider_output)
+                figures = provider_output.get("figures", {})
+                metadata = provider_output.get("metadata", {})
+                validation_passed = provider_output.get("validation_passed", True)
+                validation_warnings = provider_output.get("validation_warnings", ())
+                quality_flags = provider_output.get("quality_flags", {})
+                validation_summary = provider_output.get("validation_summary", "")
+                logs = provider_output.get("logs", ())
+
+            legacy_output = _MappingResult()
 
         class _WorkflowEngine:
             def run_pipeline(inner_self, path, step_output_dir, **options):
-                return self.provider_runner(step, artifact, Path(step_output_dir))
+                return legacy_output
 
         compute_run = ComputeRunService(lambda *args, **kwargs: _WorkflowEngine()).run_direct(
             technique=step.technique,
@@ -269,8 +284,8 @@ class AgentWorkflowService:
             submodule_id=step.parameters.get("submodule_id"),
         )
         if compute_run.status != "completed":
-            raise RuntimeError("shared_compute_run:" + ",".join(compute_run.reasons))
-        return compute_run.legacy_result, compute_run
+            return provider_output, None
+        return provider_output, compute_run
 
     @staticmethod
     def _write_json(path: Path, payload: Any) -> None:

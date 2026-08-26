@@ -133,7 +133,7 @@ class TpaeCharacterizationWorkflow:
                 except (KeyError, TypeError, ValueError):
                     return False
                 if (
-                    template.template_id != "dsc.isothermal.v1"
+                    template.template_id not in {"dsc.isothermal.v1", "thermal_program.v1"}
                     or template.source_artifact_id != artifact.artifact_id
                     or step.parameters.get("canonical_converter") != "mettler.dsc-isothermal.v1"
                 ):
@@ -148,7 +148,11 @@ class TpaeCharacterizationWorkflow:
             source_text = Path(artifact.path).read_text(encoding="utf-8", errors="replace")
         except OSError:
             return None
-        outcome = convert_mettler_isothermal_text(source_text, source_artifact_id=artifact.artifact_id)
+        outcome = convert_mettler_isothermal_text(
+            source_text,
+            source_artifact_id=artifact.artifact_id,
+            template_id="thermal_program.v1",
+        )
         return outcome.template if outcome.status == "ready" else None
 
     @staticmethod

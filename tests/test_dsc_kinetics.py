@@ -133,6 +133,25 @@ def test_dsc_engine_runs_existing_isothermal_kinetics_from_canonical_template():
     assert "segment_01_180.1C" in engine.get_parameters()
 
 
+def test_dsc_engine_accepts_generic_thermal_program_template():
+    rows = ["Sample Weight: 5.95 mg"]
+    rows.extend(f"{index} {index} 255.02 255.0 1.0" for index in range(61))
+    rows.extend(
+        f"{index} {index} 180.05 180.0 {_avrami_heat_flow((index - 61) / 60.0):.8f}"
+        for index in range(61, 242)
+    )
+    template = convert_mettler_isothermal_text(
+        "\n".join(rows), source_artifact_id="raw-sha256", template_id="thermal_program.v1"
+    ).template
+
+    result = DSCEngine().run_isothermal_template(template)
+
+    assert template is not None
+    assert template.template_id == "thermal_program.v1"
+    assert result["canonical_provenance"]["template_id"] == "thermal_program.v1"
+    assert len(result["avrami_series"]) == 1
+
+
 def test_dsc_engine_rejects_canonical_template_without_sample_mass():
     record = ConversionRecord.create(
         conversion_id="mettler.dsc-isothermal.v1",
