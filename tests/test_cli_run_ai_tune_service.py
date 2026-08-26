@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from polynexus.cli.run_ai_tune_service import _persist_ai_tune_run, run_ai_tune
+from polynexus.cli.run_ai_tune_service import _attach_compatibility_plan, _persist_ai_tune_run, run_ai_tune
 
 
 def test_run_ai_tune_writes_report_and_formats_progress(tmp_path, capsys):
@@ -87,6 +87,42 @@ def test_run_ai_tune_reports_engine_errors(tmp_path, capsys):
     assert run_ai_tune(args, parameter_orchestrator_cls=BoomOrchestrator) == 1
     captured = capsys.readouterr()
     assert "AI tune engine error: boom" in captured.err
+
+
+def test_ai_tune_plan_reuses_shared_compute_template(tmp_path) -> None:
+    source = tmp_path / "sample.csv"
+    source.write_text("x,y\n1,2\n", encoding="utf-8")
+    args = SimpleNamespace(
+        technique="waxs",
+        file=str(source),
+        polymer="PA6",
+    )
+    report = {
+        "baseline_config": {},
+        "best_config": {},
+        "compute_run": {
+            "status": "completed",
+            "canonical_template": {
+                "template_id": "scattering_1d.v1",
+                "source_artifact_id": "artifact-1",
+                "content_hash": "template-hash",
+                "conversion_record": {
+                    "conversion_id": "generic.one-dimensional.v1",
+                    "conversion_hash": "conversion-hash",
+                },
+            },
+        },
+    }
+
+    _attach_compatibility_plan(args, report)
+
+    assert report["analysis_plan"]["canonical_template"] == {
+        "template_id": "scattering_1d.v1",
+        "conversion_version": "generic.one-dimensional.v1",
+        "source_artifact_id": "artifact-1",
+        "content_hash": "template-hash",
+        "conversion_hash": "conversion-hash",
+    }
 
 
 def test_persist_ai_tune_run_keeps_shared_compute_run_projection(tmp_path, monkeypatch):

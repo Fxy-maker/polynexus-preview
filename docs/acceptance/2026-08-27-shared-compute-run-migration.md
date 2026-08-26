@@ -48,6 +48,9 @@ analysis rows retain that projection beside the legacy report summary.
   closed before provider execution.
 - AI-tune CLI persistence stores the same projection under
   `results_summary.compute_run` without removing historical fields.
+- AI-tune adaptive plans now reference the shared run's canonical template
+  identity when available; malformed or absent projections retain a legacy
+  compatibility fallback without changing candidate-round behavior.
 
 ## Focused verification
 

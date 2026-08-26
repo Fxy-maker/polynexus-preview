@@ -7,7 +7,7 @@ import logging
 import sys
 import hashlib
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from polynexus.cli.batch_run_service import analysis_evidence_from_ai_report
 from polynexus.core.project_workflow import AnalysisPlan, AnalysisPlanEvaluation, CandidateEvaluation, project_analysis_plan_evaluation
@@ -94,9 +94,15 @@ def _attach_compatibility_plan(args: Any, report: dict) -> None:
     default_config = dict(report.get("baseline_config") or {})
     best_config = dict(report.get("best_config") or {})
     candidate_configs = ({"id": "legacy_best", "config": best_config, "generation_rule": "legacy_ai_tune_compatibility"},)
+    canonical_template = _canonical_template_for_plan(report, technique)
+    if canonical_template is None:
+        canonical_template = {
+            "template_id": f"{technique}.legacy-input",
+            "conversion_version": "legacy-v1",
+        }
     plan = AnalysisPlan.create(
         source_files=({"path": str(source_path), "sha256": source_hash, "byte_size": source_path.stat().st_size, "source_order": 0},),
-        canonical_template={"template_id": f"{technique}.legacy-input", "conversion_version": "legacy-v1"},
+        canonical_template=canonical_template,
         algorithm={"algorithm_id": f"{technique}.legacy-ai-tune", "algorithm_version": "legacy-v1"},
         default_config=default_config,
         candidate_configs=candidate_configs,
@@ -122,6 +128,44 @@ def _attach_compatibility_plan(args: Any, report: dict) -> None:
     )
     report["analysis_plan"] = plan.to_dict()
     report["analysis_plan_evaluation"] = project_analysis_plan_evaluation(plan, evaluation)
+
+
+def _canonical_template_for_plan(report: Mapping[str, Any], technique: str) -> dict[str, Any] | None:
+    """Project the shared run's canonical input identity into the plan DTO.
+
+    The adaptive plan has its own candidate/configuration fields, but its input
+    template must describe the same source-bound conversion as the shared run.
+    Missing or malformed projections retain the historical compatibility plan.
+    """
+    compute_run = report.get("compute_run")
+    if not isinstance(compute_run, Mapping):
+        return None
+    template = compute_run.get("canonical_template")
+    if not isinstance(template, Mapping):
+        return None
+    template_id = str(template.get("template_id") or "").strip()
+    record = template.get("conversion_record")
+    if not isinstance(record, Mapping):
+        return None
+    conversion_version = str(
+        template.get("conversion_version")
+        or record.get("conversion_id")
+        or ""
+    ).strip()
+    if not template_id or not conversion_version:
+        return None
+    projected: dict[str, Any] = {
+        "template_id": template_id,
+        "conversion_version": conversion_version,
+    }
+    for key in ("source_artifact_id", "content_hash"):
+        value = template.get(key)
+        if value is not None and str(value).strip():
+            projected[key] = str(value)
+    conversion_hash = record.get("conversion_hash")
+    if conversion_hash is not None and str(conversion_hash).strip():
+        projected["conversion_hash"] = str(conversion_hash)
+    return projected
 
 
 def _finite_float(value: Any) -> float | None:

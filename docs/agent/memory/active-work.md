@@ -1,5 +1,19 @@
 # Active Work
 
+## AI-tune plan canonical-link migration — implementation complete, review required (2026-08-27)
+
+- Adaptive AI-tuning plans now project the actual shared
+  `compute_run.canonical_template` identity instead of always creating a
+  `{technique}.legacy-input` template.
+- The projection includes template ID, conversion version, source artifact ID,
+  and available content/conversion hashes. Missing or malformed shared
+  projections retain the historical compatibility fallback, preserving
+  synthetic and legacy reports.
+- Focused CLI/orchestrator/plan-consumer coverage passed `31`; task:
+  `docs/agent/tasks/2026-08-27-ai-tune-plan-canonical-link.md`.
+- Candidate-round optimization and scientific review boundaries remain
+  unchanged and review-required for the overall migration goal.
+
 ## Agent prevalidated-template reuse — implementation complete, review required (2026-08-27)
 
 - Agent/Codex replay now passes the validated canonical template directly into

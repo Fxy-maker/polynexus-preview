@@ -41,6 +41,14 @@ crossing the shared boundary. Hash, technique, and template validation remain
 mandatory; directory compatibility adapters and legacy fields remain
 unchanged.
 
+## AI-tune plan canonical-link checkpoint (2026-08-27)
+
+When a valid AI-tuning report contains a shared `ComputeRun` canonical
+template, the generated adaptive `AnalysisPlan` now references that same
+template identity and conversion version, with source/content hashes retained
+when present. Reports without a usable projection continue to use the legacy
+compatibility template; candidate-round execution remains unchanged.
+
 ## Product contract (2026-08-13)
 
 PolyNexus is an AI-controllable polymer research workbench that users can also
