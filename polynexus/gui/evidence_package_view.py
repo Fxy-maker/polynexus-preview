@@ -45,10 +45,13 @@ class EvidencePackageViewAdapter:
     def human_review(self):
         return self.view.human_review
 
-    def gallery_entries(self):
+    def gallery_entries(self, *, technique: str = "", group: str = "", role: str = ""):
         return build_evidence_package_gallery_entries(
             self.view.package_root,
             self.view.figure_views,
+            technique=technique,
+            group=group,
+            role=role,
         )
 
 

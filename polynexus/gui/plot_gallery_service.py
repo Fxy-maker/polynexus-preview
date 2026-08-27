@@ -158,11 +158,29 @@ def build_active_manifest_gallery_entries(
 def build_evidence_package_gallery_entries(
     package_root: str | Path,
     figures: Iterable[FigureIndexEntry],
+    *,
+    technique: str = "",
+    group: str = "",
+    role: str = "",
 ) -> list[FigureGalleryEntry]:
-    """Adapt one package-level logical figure index to gallery entries."""
+    """Adapt one package-level logical figure index to gallery entries.
+
+    Filters are applied to logical index fields before assets are resolved, so
+    callers can hide unrelated techniques/groups without loading duplicate
+    PNG/PDF exports for the same logical SVG figure.
+    """
     root = Path(package_root).resolve()
+    technique_filter = str(technique or "").strip().casefold()
+    group_filter = str(group or "").strip().casefold()
+    role_filter = str(role or "").strip().casefold()
     entries: list[FigureGalleryEntry] = []
     for item in figures:
+        if technique_filter and str(item.technique or "").strip().casefold() != technique_filter:
+            continue
+        if group_filter and str(item.group or "").strip().casefold() != group_filter:
+            continue
+        if role_filter and str(item.role or "").strip().casefold() != role_filter:
+            continue
         try:
             svg = _resolve_package_figure_path(root, item.svg)
         except ValueError:

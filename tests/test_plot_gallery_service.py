@@ -468,6 +468,27 @@ def test_evidence_package_gallery_uses_one_svg_entry_for_static_figure(tmp_path)
     assert entries[0].capability_report["data"] is None
 
 
+def test_evidence_package_gallery_filters_logical_views_before_asset_loading(tmp_path):
+    figures = tmp_path / "figures"
+    figures.mkdir()
+    for name in ("ftir.svg", "dsc.svg"):
+        (figures / name).write_text("<svg/>", encoding="utf-8")
+    entries = build_evidence_package_gallery_entries(tmp_path, (
+        FigureIndexEntry(
+            id="ftir", role="supporting", technique="IR", group="PA6:JW",
+            writing_eligibility="review_only", svg="figures/ftir.svg",
+            document=None, data=None, metadata="figures/ftir.metadata.json",
+        ),
+        FigureIndexEntry(
+            id="dsc", role="diagnostic", technique="DSC", group="PA6:JW",
+            writing_eligibility="review_only", svg="figures/dsc.svg",
+            document=None, data=None, metadata="figures/dsc.metadata.json",
+        ),
+    ), technique="ir", group="pa6:jw", role="supporting")
+
+    assert [entry.figure_id for entry in entries] == ["ftir"]
+
+
 def test_evidence_package_gallery_skips_missing_or_unsafe_svg_and_stays_static(tmp_path):
     figures = tmp_path / "figures"
     figures.mkdir()
