@@ -5877,3 +5877,23 @@ and structured gates (`303` / `157`).
 - Handoff/package matrix passed `39` tests; structured verifier and quality
   gates passed. Checkpoint: `267c0dff`.
 - Acceptance: `docs/acceptance/2026-08-27-package-context-ars-consistency.md`.
+
+## Six-sample v007 replay and evidence gallery filters - 2026-08-28
+
+- Corrected the external v007 replay script to use its own root, then ran the
+  real six-sample project through the shared ComputeRun route. 42 groups were
+  scheduled: 40 `review_required`, one PA11 isothermal provider failure, and
+  one PA12-50 isothermal canonical qualification block. No raw inputs were
+  modified.
+- Packaged the 40 valid runs at
+  `D:\PolyNexus-six-sample-replay-20260827-v007\.polynexus\evidence\pa6-six-sample-v007-v001`.
+  The package is self-contained for the shared context projection, exposes all
+  four techniques, and reports `review_required`.
+- The read-only evidence dialog now derives visible technique/group selectors
+  from `EvidencePackageView.figure_views` and reloads the existing gallery via
+  `EvidencePackageViewAdapter`; role/category/search controls remain in
+  `ChartGallery`. Acceptance: `docs/acceptance/2026-08-28-evidence-gallery-visible-filters.md`.
+- Focused GUI/gallery matrix passed 25 tests; task-scoped verifier and quality
+  gates passed (310 + 157). Remaining work is final cross-entry acceptance,
+  historical failure ledger, and human scientific review; no release-green
+  claim is made.

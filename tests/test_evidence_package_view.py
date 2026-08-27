@@ -124,6 +124,66 @@ def test_dialog_renders_read_only_package_tabs_and_metric_provenance(tmp_path: P
     assert dialog.package_limitations.wordWrap()
 
 
+def test_dialog_gallery_exposes_technique_and_group_filters(tmp_path: Path) -> None:
+    QApplication.instance() or QApplication([])
+    package = _package(tmp_path)
+    (package / "figures").mkdir()
+    (package / "figures" / "dsc.svg").write_text("<svg/>", encoding="utf-8")
+    (package / "figures" / "ir.svg").write_text("<svg/>", encoding="utf-8")
+    (package / "figures" / "dsc.metadata.json").write_text("{}", encoding="utf-8")
+    (package / "figures" / "ir.metadata.json").write_text("{}", encoding="utf-8")
+    (package / "figure-index.json").write_text(json.dumps({
+        "version": 1,
+        "figures": [
+            {
+                "id": "dsc",
+                "role": "supporting",
+                "technique": "dsc",
+                "group": "thermal",
+                "writing_eligibility": "Results",
+                "svg": "figures/dsc.svg",
+                "document": None,
+                "data": None,
+                "metadata": "figures/dsc.metadata.json",
+            },
+            {
+                "id": "ir",
+                "role": "diagnostic",
+                "technique": "ir",
+                "group": "JW",
+                "writing_eligibility": "Discussion",
+                "svg": "figures/ir.svg",
+                "document": None,
+                "data": None,
+                "metadata": "figures/ir.metadata.json",
+            },
+        ],
+    }), encoding="utf-8")
+    view = load_evidence_package_view(package)
+    dialog = EvidencePackageDialog(view)
+
+    assert dialog._gallery_technique_combo.findData("dsc") >= 0
+    assert dialog._gallery_group_combo.findData("JW") >= 0
+    dialog._gallery_technique_combo.setCurrentIndex(
+        dialog._gallery_technique_combo.findData("ir")
+    )
+    QApplication.processEvents()
+    assert dialog.gallery.figure_ids() == ["ir"]
+    dialog._gallery_group_combo.setCurrentIndex(
+        dialog._gallery_group_combo.findData("JW")
+    )
+    QApplication.processEvents()
+    assert dialog.gallery.figure_ids() == ["ir"]
+    dialog._gallery_technique_combo.setCurrentIndex(
+        dialog._gallery_technique_combo.findData("")
+    )
+    dialog._gallery_group_combo.setCurrentIndex(
+        dialog._gallery_group_combo.findData("")
+    )
+    QApplication.processEvents()
+    assert dialog.gallery.figure_ids() == ["dsc", "ir"]
+
+
 def test_loader_rejects_metric_evidence_mismatch(tmp_path: Path) -> None:
     package = _package(tmp_path)
     payload = json.loads((package / "citation-metrics.json").read_text(encoding="utf-8"))

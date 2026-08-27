@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QTableWidget,
     QTableWidgetItem,
@@ -129,9 +131,48 @@ class EvidencePackageDialog(QDialog):
         return page
 
     def _gallery_tab(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        filters = QHBoxLayout()
+        filters.addWidget(QLabel("Technique"))
+        self._gallery_technique_combo = QComboBox()
+        self._gallery_technique_combo.addItem("All", "")
+        techniques = sorted({
+            str(item.technique).strip()
+            for item in self.view.figure_views
+            if str(item.technique).strip()
+        }, key=str.casefold)
+        for technique in techniques:
+            self._gallery_technique_combo.addItem(technique.upper(), technique)
+        filters.addWidget(self._gallery_technique_combo)
+        filters.addWidget(QLabel("Group"))
+        self._gallery_group_combo = QComboBox()
+        self._gallery_group_combo.addItem("All", "")
+        groups = sorted({
+            str(item.group).strip()
+            for item in self.view.figure_views
+            if str(item.group or "").strip()
+        }, key=str.casefold)
+        for group in groups:
+            self._gallery_group_combo.addItem(group, group)
+        filters.addWidget(self._gallery_group_combo)
+        filters.addStretch()
+        layout.addLayout(filters)
         self.gallery = ChartGallery(read_only=True)
-        self.gallery.load_entries(EvidencePackageViewAdapter(self.view).gallery_entries())
-        return self.gallery
+        self._gallery_adapter = EvidencePackageViewAdapter(self.view)
+        self._gallery_technique_combo.currentIndexChanged.connect(self._reload_gallery)
+        self._gallery_group_combo.currentIndexChanged.connect(self._reload_gallery)
+        layout.addWidget(self.gallery)
+        self._reload_gallery()
+        return page
+
+    def _reload_gallery(self) -> None:
+        if not hasattr(self, "gallery"):
+            return
+        self.gallery.load_entries(self._gallery_adapter.gallery_entries(
+            technique=str(self._gallery_technique_combo.currentData() or ""),
+            group=str(self._gallery_group_combo.currentData() or ""),
+        ))
 
     @staticmethod
     def _table(headers: list[str]) -> QTableWidget:
