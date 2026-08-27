@@ -83,7 +83,7 @@ class WAXSEngine(BaseEngine):
 
     def __init__(self, config=None, log_fn=None):
         super().__init__(config=config, log_fn=log_fn)
-        self._waxs_config = WAXSConfig()
+        self._waxs_config = config if isinstance(config, WAXSConfig) else WAXSConfig.from_dict(config or {})
         self._dataset: Optional[WAXSDataset] = None
         self._results: List[WAXSResult] = []
         self._temperature_result: Optional[WAXSTempResult] = None

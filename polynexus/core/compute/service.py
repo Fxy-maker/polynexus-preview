@@ -278,6 +278,10 @@ class ComputeRunService:
                 ir_config = getattr(selected_engine, "_ir_config", None)
                 if ir_config is not None and not getattr(ir_config, "polymer_name", ""):
                     ir_config.polymer_name = str(material_name)
+            if normalized_technique == "waxs" and context.waxs_polymer_type:
+                waxs_config = getattr(selected_engine, "_waxs_config", None)
+                if waxs_config is not None and not getattr(waxs_config, "polymer_type", ""):
+                    waxs_config.polymer_type = context.waxs_polymer_type
             if (
                 canonical_template is not None
                 and normalized_technique == "dsc"

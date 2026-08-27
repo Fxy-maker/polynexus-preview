@@ -97,6 +97,12 @@ class ProjectContext:
             value_jg = dsc["reference_enthalpy_Jg"]
             if isinstance(value_jg, bool) or not isinstance(value_jg, (int, float)) or not math.isfinite(float(value_jg)) or float(value_jg) <= 0:
                 raise ValueError("project_context_invalid")
+        waxs = techniques.get("waxs", {})
+        if waxs is not None and not isinstance(waxs, Mapping):
+            raise ValueError("project_context_invalid")
+        if isinstance(waxs, Mapping) and "polymer_type" in waxs:
+            if not isinstance(waxs["polymer_type"], str) or not waxs["polymer_type"].strip():
+                raise ValueError("project_context_invalid")
         frozen = _freeze(normalized)
         return cls(frozen, "", source)
 
@@ -112,6 +118,13 @@ class ProjectContext:
         techniques = self.snapshot.get("techniques", {})
         dsc = techniques.get("dsc", {}) if isinstance(techniques, Mapping) else {}
         value = dsc.get("reference_enthalpy_source") if isinstance(dsc, Mapping) else None
+        return None if value in (None, "") else str(value)
+
+    @property
+    def waxs_polymer_type(self) -> str | None:
+        techniques = self.snapshot.get("techniques", {})
+        waxs = techniques.get("waxs", {}) if isinstance(techniques, Mapping) else {}
+        value = waxs.get("polymer_type") if isinstance(waxs, Mapping) else None
         return None if value in (None, "") else str(value)
 
     def to_dict(self) -> dict[str, Any]:

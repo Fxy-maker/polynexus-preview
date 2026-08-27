@@ -1,5 +1,12 @@
 # Active Work
 
+## WAXS config/context propagation - implementation complete, review required (2026-08-27)
+
+- WAXS now preserves a supplied WAXSConfig or mapping instead of replacing it with defaults.
+- project-context.v1 validates and optionally projects techniques.waxs.polymer_type only when the provider config has no explicit value.
+- Focused WAXS/Compute matrix passed 68 with 3 skips; no numerical algorithm or threshold changed.
+- Task/spec/plan: docs/agent/tasks/2026-08-27-waxs-config-context-propagation.md, docs/superpowers/specs/2026-08-27-waxs-config-context-design.md, docs/superpowers/plans/2026-08-27-waxs-config-context.md.
+
 ## IR no-implicit-PA6 default - implementation complete, review required (2026-08-27)
 
 - Removed the IR temperature-series PA6 fallback and changed the submodule metadata default to an empty optional material hint.
