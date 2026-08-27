@@ -5889,6 +5889,11 @@ and structured gates (`303` / `157`).
   `D:\PolyNexus-six-sample-replay-20260827-v007\.polynexus\evidence\pa6-six-sample-v007-v001`.
   The package is self-contained for the shared context projection, exposes all
   four techniques, and reports `review_required`.
+- Rebuilt the package after the portability change as v002. It contains 40
+  runs, 90 citation metrics, 534 logical figures, 268 review actions, and 40
+  package-relative run snapshots; the view loader confirms all four techniques
+  and one approved non-instrument project context entry. Acceptance:
+  `docs/acceptance/2026-08-28-pa6-six-sample-v007.md`.
 - The read-only evidence dialog now derives visible technique/group selectors
   from `EvidencePackageView.figure_views` and reloads the existing gallery via
   `EvidencePackageViewAdapter`; role/category/search controls remain in
