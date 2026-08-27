@@ -13,7 +13,7 @@ import math
 from typing import Any, Iterable, Mapping
 
 from polynexus.core.agent_workflow.models import AnalysisRun
-from polynexus.core.artifacts import directory_manifest_sha256
+from polynexus.core.artifacts import directory_manifest_entries, directory_manifest_sha256
 from polynexus.core.canonical_experiments.models import CanonicalExperiment
 
 from .evidence import ProjectWorkflowRun
@@ -769,18 +769,10 @@ def _sha256_file(path: Path) -> str:
 
 def _sha256_directory(path: Path) -> str:
     """Hash a directory by sorted relative file names and file digests."""
-    entries: list[dict[str, str]] = []
-    for candidate in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()):
-        if candidate.is_symlink():
-            raise ValueError("directory source contains symlink")
-        if not candidate.is_file():
-            continue
-        entries.append({
-            "path": candidate.relative_to(path).as_posix(),
-            "sha256": _sha256_file(candidate),
-        })
-    if not entries:
-        return ""
+    try:
+        entries = directory_manifest_entries(path)
+    except OSError as exc:
+        raise ValueError(str(exc)) from exc
     # Match the shared RawArtifact directory-manifest contract.  Package
     # validation must accept the same source hash that Agent and ComputeRun
     # recorded, otherwise a valid directory run cannot be packaged.

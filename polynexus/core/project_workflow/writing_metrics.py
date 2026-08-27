@@ -179,7 +179,7 @@ def _dsc(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
         method = "dsc.isothermal_avrami_fit"
         reasons = list(normalized_quality_flags(values.get("quality_flags")))
         r_squared = _finite(values.get("Avrami_R2"))
-        if isinstance(r_squared, (int, float)) and r_squared < 0.9 and "low_avrami_r_squared" not in reasons:
+        if isinstance(r_squared, (int, float)) and r_squared < 0.95 and "low_avrami_r_squared" not in reasons:
             reasons.append("low_avrami_r_squared")
         eligibility = "diagnostic_only" if reasons else "results_candidate"
         for key, unit in fields.items():

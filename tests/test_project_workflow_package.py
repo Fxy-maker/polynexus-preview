@@ -222,6 +222,16 @@ def test_dsc_clean_segments_remain_results_candidates() -> None:
     assert {metric.writing_eligibility for metric in metrics} == {"results_candidate"}
 
 
+def test_dsc_borderline_r_squared_uses_provider_quality_threshold() -> None:
+    metrics = extract_writing_metrics(_dsc_evidence({
+        "segment_01_190C": {"T_iso_C": 190.0, "Avrami_R2": 0.94},
+    }))
+
+    assert metrics
+    assert {metric.writing_eligibility for metric in metrics} == {"diagnostic_only"}
+    assert all("low_avrami_r_squared" in metric.reason_codes for metric in metrics)
+
+
 def test_step_evidence_does_not_inherit_run_wide_disallowed_conclusions() -> None:
     artifact = InputArtifact.ready(path="source.csv", technique="ir", sha256="source-sha256")
     recipe = AnalysisRecipe.create(

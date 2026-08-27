@@ -9,7 +9,7 @@ import re
 
 from polynexus.core.engine import check_file_format
 
-from polynexus.core.artifacts import directory_manifest_sha256, raw_artifact_id
+from polynexus.core.artifacts import directory_manifest_entries, directory_manifest_sha256, raw_artifact_id
 
 from .models import InputArtifact
 
@@ -57,13 +57,7 @@ def _artifact_id(
 
 def _directory_sha256(path: Path) -> tuple[str, int]:
     """Hash sorted relative paths and content hashes without copying raw data."""
-    entries: list[dict[str, str]] = []
-    for candidate in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()):
-        if candidate.is_symlink() or not candidate.is_file():
-            raise OSError("Directory contains an unsupported entry")
-        entries.append({"path": candidate.relative_to(path).as_posix(), "sha256": _file_sha256(candidate)})
-    if not entries:
-        raise OSError("Directory contains no files")
+    entries = directory_manifest_entries(path)
     # Keep the directory content hash byte-for-byte aligned with
     # ``RawArtifact.from_path`` so Agent recipes and ComputeRun share one
     # source identity across entry points.

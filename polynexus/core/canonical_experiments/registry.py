@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from ..artifacts import directory_manifest_sha256
+from ..artifacts import directory_manifest_entries, directory_manifest_sha256
 from .capabilities import CapabilityExecutor
 from .dsc_isothermal import convert_mettler_isothermal_text
 from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord
@@ -111,17 +111,7 @@ class CanonicalConverterRegistry:
             return hashlib.sha256(source.read_bytes()).hexdigest()
         if not source.is_dir():
             raise OSError("source does not exist")
-        entries: list[dict[str, str]] = []
-        for candidate in sorted(source.rglob("*"), key=lambda value: value.relative_to(source).as_posix()):
-            if candidate.is_symlink() or not candidate.is_file():
-                raise OSError("directory contains unsupported entry")
-            entries.append({
-                "path": candidate.relative_to(source).as_posix(),
-                "sha256": hashlib.sha256(candidate.read_bytes()).hexdigest(),
-            })
-        if not entries:
-            raise OSError("directory contains no files")
-        return directory_manifest_sha256(entries)
+        return directory_manifest_sha256(directory_manifest_entries(source))
 
 
 _DEFAULT_REGISTRY = CanonicalConverterRegistry()

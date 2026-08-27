@@ -15,7 +15,7 @@ import stat
 from types import MappingProxyType
 from typing import Any
 
-from ..artifacts import directory_manifest_sha256, raw_artifact_id
+from ..artifacts import directory_manifest_entries, directory_manifest_sha256, raw_artifact_id
 from ..canonical_experiments.models import CanonicalExperiment, CapabilityItemResult
 
 
@@ -158,36 +158,10 @@ def _is_reparse_point(path_stat: os.stat_result) -> bool:
 
 
 def _directory_manifest_sha256(path: Path) -> str:
-    root_stat = path.lstat()
-    if not stat.S_ISDIR(root_stat.st_mode) or _is_reparse_point(root_stat):
-        raise ValueError("Directory artifacts require a non-reparse directory")
-
-    entries: list[dict[str, str]] = []
-
-    def collect(directory: Path) -> None:
-        directory_stat = directory.lstat()
-        if not stat.S_ISDIR(directory_stat.st_mode) or _is_reparse_point(directory_stat):
-            raise ValueError("Directory artifacts reject reparse-point directories")
-        children = list(directory.iterdir())
-        if not children:
-            raise ValueError("Directory artifacts must not contain empty directories")
-        for child in children:
-            child_stat = child.lstat()
-            if _is_reparse_point(child_stat):
-                raise ValueError("Directory artifacts reject reparse-point entries")
-            if stat.S_ISDIR(child_stat.st_mode):
-                collect(child)
-                continue
-            if not stat.S_ISREG(child_stat.st_mode):
-                raise ValueError("Directory artifacts support only regular files")
-            relative_path = child.relative_to(path).as_posix()
-            entries.append({"path": relative_path, "sha256": _file_sha256(child)})
-
-    collect(path)
-    if not entries:
-        raise ValueError("Directory artifacts must not be empty")
-    entries.sort(key=lambda entry: entry["path"])
-    return directory_manifest_sha256(entries)
+    try:
+        return directory_manifest_sha256(directory_manifest_entries(path))
+    except OSError as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def _artifact_format(path: Path) -> str:
