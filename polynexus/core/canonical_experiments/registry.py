@@ -21,7 +21,7 @@ _GENERIC_TABLE_EXTENSIONS = frozenset({
     ".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi",
     ".xls", ".xlsx", ".xlsm",
 })
-_GENERIC_TECHNIQUES = frozenset({"ir", "saxs", "waxs"})
+_GENERIC_TECHNIQUES = frozenset({"ir", "nmr", "saxs", "waxs"})
 
 
 class CanonicalConverterRegistry:
@@ -57,6 +57,8 @@ class CanonicalConverterRegistry:
                 source_artifact_id=source_artifact_id,
             )
         template_id = _STATIC_TEMPLATE_IDS.get(normalized_technique)
+        if normalized_technique == "nmr":
+            template_id = "nmr.spectrum.v1"
         if template_id is None:
             return self._blocked(normalized_technique, source_artifact_id, "canonical_converter_unregistered")
         try:

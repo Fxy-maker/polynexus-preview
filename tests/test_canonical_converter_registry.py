@@ -69,7 +69,7 @@ def test_registry_keeps_vendor_and_directory_compatibility_fallback(tmp_path) ->
     assert directory.template.template_id == "saxs.profile.v1"
 
 
-def test_registry_blocks_an_unregistered_technique(tmp_path) -> None:
+def test_registry_accepts_opaque_nmr_source_as_replayable_envelope(tmp_path) -> None:
     source = tmp_path / "sample.nmr"
     source.write_text("raw", encoding="utf-8")
 
@@ -79,6 +79,7 @@ def test_registry_blocks_an_unregistered_technique(tmp_path) -> None:
         source_artifact_id="source-sha256",
     )
 
-    assert outcome.status == "blocked"
-    assert outcome.template is None
-    assert outcome.reason_codes == ("canonical_converter_unregistered",)
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert outcome.template.template_id == "nmr.spectrum.v1"
+    assert outcome.template.measurements == ()

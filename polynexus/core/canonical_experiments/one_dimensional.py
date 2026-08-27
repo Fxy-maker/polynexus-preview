@@ -26,6 +26,7 @@ _SUPPORTED_EXTENSIONS = frozenset({".csv", ".tsv", ".txt", ".dat", ".asc", ".xy"
 _WORKBOOK_EXTENSIONS = frozenset({".xls", ".xlsx", ".xlsm"})
 _INTENSITY_ALIASES = frozenset({"absorbance", "transmittance", "intensity", "i", "counts", "count", "cps"})
 _IR_X_ALIASES = frozenset({"wavenumber", "wavenumbercm1", "cm1"})
+_NMR_X_ALIASES = frozenset({"ppm", "chemicalshift", "chemicalshiftppm", "shiftppm"})
 _Q_ALIASES = frozenset({"q", "qnm1", "qangstrom1"})
 _TWO_THETA_ALIASES = frozenset({"2theta", "twotheta", "theta2"})
 
@@ -132,7 +133,7 @@ def convert_one_dimensional_table(
         measurements.append(
             Measurement(
                 measurement_id=selection.measurement_id,
-                family="spectrum_1d" if normalized_technique == "IR" else "scattering_1d",
+                family="spectrum_1d" if normalized_technique in {"IR", "NMR"} else "scattering_1d",
                 role="raw_curve",
                 channels={"x": tuple(pair[0] for pair in pairs), "intensity": tuple(pair[1] for pair in pairs)},
                 units={"x": selection.x_unit, "intensity": selection.intensity_unit},
@@ -158,7 +159,11 @@ def convert_one_dimensional_table(
         warnings=warnings,
     )
     template = CanonicalExperiment.create(
-        template_id="spectrum_1d.v1" if normalized_technique == "IR" else "scattering_1d.v1",
+        template_id=(
+            "nmr.spectrum.v1" if normalized_technique == "NMR"
+            else "spectrum_1d.v1" if normalized_technique == "IR"
+            else "scattering_1d.v1"
+        ),
         source_artifact_id=source_artifact_id,
         payload={"technique": normalized_technique},
         conversion_record=record,
@@ -479,6 +484,11 @@ def _x_kind(header: str, technique: str) -> str | None:
             re.sub(r"(?:cm\s*(?:\^?\s*-\s*1|⁻¹)|1\s*/\s*cm)", "", header.casefold())
         )
         return "wavenumber" if {normalized, without_wavenumber_unit}.intersection(_IR_X_ALIASES) else None
+    if technique == "NMR":
+        without_ppm_unit = _normalize_header(
+            re.sub(r"(?:ppm|chemical\s*shift)", "", header.casefold())
+        )
+        return "chemical_shift" if {normalized, without_ppm_unit}.intersection(_NMR_X_ALIASES) else None
     if technique in {"SAXS", "WAXS"}:
         without_q_unit = _normalize_header(
             re.sub(r"(?:nm|angstrom|å|a)\s*(?:\^?\s*-\s*1|⁻¹)", "", header.casefold())
@@ -509,12 +519,16 @@ def _intensity_alias(header: str) -> str:
 
 def _kind_allowed(x_kind: str, technique: str) -> bool:
     return (technique == "IR" and x_kind == "wavenumber") or (
+        technique == "NMR" and x_kind == "chemical_shift"
+    ) or (
         technique in {"SAXS", "WAXS"} and x_kind in {"q", "two_theta"}
     )
 
 
 def _x_unit(header: str, x_kind: str) -> str:
     text = header.casefold()
+    if x_kind == "chemical_shift" and re.search(r"ppm|chemical\s*shift", text):
+        return "ppm"
     if x_kind == "wavenumber" and re.search(r"(?:cm\s*(?:\^?\s*-\s*1|⁻¹)|1\s*/\s*cm)", text):
         return "cm^-1"
     if x_kind == "q" and re.search(r"nm\s*(?:\^?\s*-\s*1|⁻¹)", text):

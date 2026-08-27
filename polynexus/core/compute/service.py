@@ -232,7 +232,7 @@ class ComputeRunService:
         )
         if (
             canonical_template is None
-            and normalized_technique in {"dsc", "ir", "saxs", "waxs"}
+            and normalized_technique in {"dsc", "ir", "nmr", "saxs", "waxs"}
             and (source.is_file() or (source.is_dir() and normalized_technique != "dsc"))
         ):
             conversion = default_converter_registry().convert_path(
@@ -278,6 +278,10 @@ class ComputeRunService:
                 ir_config = getattr(selected_engine, "_ir_config", None)
                 if ir_config is not None and not getattr(ir_config, "polymer_name", ""):
                     ir_config.polymer_name = str(material_name)
+            if normalized_technique == "nmr" and material_name:
+                nmr_config = getattr(selected_engine, "_cfg", None)
+                if nmr_config is not None and not getattr(nmr_config, "polymer_name", ""):
+                    nmr_config.polymer_name = str(material_name)
             if normalized_technique == "waxs" and context.waxs_polymer_type:
                 waxs_config = getattr(selected_engine, "_waxs_config", None)
                 if waxs_config is not None and not getattr(waxs_config, "polymer_type", ""):
