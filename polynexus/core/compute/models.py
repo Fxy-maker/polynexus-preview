@@ -340,6 +340,8 @@ class AnalysisPlan:
     output_dir: str
     pipeline_options: Mapping[str, Any]
     parameter_sources: Mapping[str, str]
+    project_context: Mapping[str, Any] = field(default_factory=dict)
+    project_context_sha256: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "plan_id", _string_value(self.plan_id, "plan_id"))
@@ -352,6 +354,12 @@ class AnalysisPlan:
             raise TypeError("Analysis plan parameter sources must be strings")
         object.__setattr__(self, "pipeline_options", frozen_options)
         object.__setattr__(self, "parameter_sources", frozen_sources)
+        context = _freeze_mapping(self.project_context)
+        object.__setattr__(self, "project_context", context)
+        context_hash = _canonical_hash(context)
+        if self.project_context_sha256 and self.project_context_sha256 != context_hash:
+            raise ValueError("Analysis plan project context hash does not match its content")
+        object.__setattr__(self, "project_context_sha256", context_hash)
 
     @classmethod
     def direct(
@@ -360,6 +368,7 @@ class AnalysisPlan:
         *,
         output_dir: str | Path,
         pipeline_options: Mapping[str, Any] | None = None,
+        project_context: Mapping[str, Any] | None = None,
     ) -> AnalysisPlan:
         options = _freeze_mapping(pipeline_options)
         parameter_sources = {name: "user" for name in options}
@@ -372,6 +381,7 @@ class AnalysisPlan:
                 "output_dir": rendered_output_dir,
                 "pipeline_options": options,
                 "parameter_sources": parameter_sources,
+                "project_context": project_context or {},
             }
         )
         return cls(
@@ -381,6 +391,7 @@ class AnalysisPlan:
             output_dir=rendered_output_dir,
             pipeline_options=options,
             parameter_sources=parameter_sources,
+            project_context=project_context or {},
         )
 
 

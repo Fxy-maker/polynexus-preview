@@ -118,7 +118,7 @@ class DSCEngine(BaseEngine):
 
     def __init__(self, config=None, log_fn=None):
         super().__init__(config=config, log_fn=log_fn)
-        self._dsc_config = DSCConfig()
+        self._dsc_config = config if isinstance(config, DSCConfig) else DSCConfig.from_dict(config or {})
         self._scans: List[DSCScan] = []
         self._raw_scans: List[DSCScan] = []
         self._results: List[DSCResult] = []

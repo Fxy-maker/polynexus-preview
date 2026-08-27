@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..engine import get_engine
+from ..project_context import ProjectContext
 from ..canonical_experiments import CapabilityExecutor, CanonicalExperiment, default_converter_registry
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 
@@ -127,6 +128,7 @@ class ComputeRunService:
         engine: Any = None,
         pipeline_options: object = None,
         canonical_template: CanonicalExperiment | None = None,
+        project_context: object = None,
     ) -> ComputeRun:
         normalized_technique = _safe_technique(technique)
         if normalized_technique is None:
@@ -187,11 +189,16 @@ class ComputeRunService:
                 reasons=(options_reason,),
             )
         assert options is not None
+        try:
+            context = ProjectContext.load(project_context)
+        except ValueError:
+            return ComputeRun(status="needs_input", artifact=artifact, reasons=("project_context_invalid",))
         dataset = CanonicalDataset.direct_envelope(artifact)
         plan = AnalysisPlan.direct(
             dataset,
             output_dir=resolved_output_path,
             pipeline_options=options,
+            project_context=context.snapshot,
         )
         # An empty output string is the public provider convention for
         # analysis-only execution.  Keep it empty at the engine boundary even
@@ -260,6 +267,11 @@ class ComputeRunService:
                     artifact=artifact,
                     reasons=("technique_unknown",),
                 )
+            if normalized_technique == "dsc" and context.dsc_reference_enthalpy is not None:
+                dsc_config = getattr(selected_engine, "_dsc_config", None)
+                if dsc_config is not None:
+                    dsc_config.user_DHm0 = context.dsc_reference_enthalpy
+                    dsc_config.crystallinity_std = context.dsc_reference_enthalpy
             if (
                 canonical_template is not None
                 and normalized_technique == "dsc"

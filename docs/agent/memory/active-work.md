@@ -1,5 +1,13 @@
 # Active Work
 
+## Optional project context and no implicit DSC material defaults - implementation complete, review required (2026-08-27)
+
+- Added `ProjectContext` for optional `.polynexus/project-context.json` or mapping input. Missing context is empty; malformed context fails closed with `project_context_invalid`.
+- `AnalysisPlan` now stores a frozen context snapshot and SHA-256. `ComputeRunService` accepts the optional context for all existing entry points and projects only an explicit DSC reference enthalpy into the provider.
+- Removed DSC's implicit PE `293 J/g` fallback. Without an explicit reference, Tg/Tm/enthalpy still compute while `DHm0_source=missing` and crystallinity remains unavailable; explicit overrides continue to work.
+- Focused tests: `99 passed, 4 skipped`; structured verifier passed Ruff/compile, quality `310`, preprocessing `157`, and whitespace. Architecture/scientific review remains required.
+- Task/spec/plan: `docs/agent/tasks/2026-08-27-optional-project-context-no-material-defaults.md`, `docs/superpowers/specs/2026-08-27-optional-project-context-design.md`, `docs/superpowers/plans/2026-08-27-optional-project-context.md`.
+
 ## SAXS condition-recovery ComputeRun migration - implementation complete, review required (2026-08-27)
 
 - Real-source `rerun_condition_recovery` now calls `ComputeRunService` with the

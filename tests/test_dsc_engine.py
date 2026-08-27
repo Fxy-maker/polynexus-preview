@@ -65,6 +65,17 @@ def test_analyze_heating_exports_xc_reliability_inputs():
     assert params["integration_boundary_sensitivity_pct"] >= 0.0
 
 
+def test_unknown_material_does_not_use_implicit_pe_reference():
+    T = np.linspace(50.0, 260.0, 1600)
+    HF = -_gaussian(T, 221.0, 6.0, 2.4)
+
+    result = analyze_scan(T, HF, DSCConfig(), label="unlisted-material")
+
+    assert result.DHm0_source == "missing"
+    assert np.isnan(result.DHm0_Jg)
+    assert np.isnan(result.Xc_pct)
+
+
 def test_dsc_analyze_scan_reports_multibaseline_xc_distribution():
     T = np.linspace(50.0, 260.0, 1600)
     HF = (

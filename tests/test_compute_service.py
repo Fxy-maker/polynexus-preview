@@ -120,6 +120,41 @@ def test_dsc_direct_run_prefers_unified_thermal_program_runner(tmp_path: Path) -
     assert run.result.metrics["template_id"] == "thermal_program.v1"
 
 
+def test_direct_run_records_optional_project_context_without_manual_input(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    engine = FakeEngine(EmptyLegacyResult())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir",
+        path=source,
+        output_dir=tmp_path / "out",
+        project_context={"schema": "project-context.v1", "material": {"name": "custom"}},
+    )
+
+    assert run.status == "completed"
+    assert run.plan is not None
+    assert run.plan.project_context["material"]["name"] == "custom"
+    assert run.plan.project_context_sha256
+
+
+def test_invalid_project_context_blocks_provider(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(EmptyLegacyResult())
+
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir",
+        path=source,
+        output_dir=tmp_path / "out",
+        project_context={"schema": "project-context.v0"},
+    )
+
+    assert run.status == "needs_input"
+    assert run.reasons == ("project_context_invalid",)
+    assert engine.calls == []
+
+
 class BadPath(os.PathLike[str]):
     def __fspath__(self) -> str:
         raise RuntimeError("path protocol must not escape")

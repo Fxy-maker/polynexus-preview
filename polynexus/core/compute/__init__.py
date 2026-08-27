@@ -2,6 +2,7 @@
 
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 from .service import ComputeRunService
+from ..project_context import ProjectContext
 
 __all__ = [
     "AnalysisPlan",
@@ -10,4 +11,5 @@ __all__ = [
     "ComputeRun",
     "ComputeRunService",
     "RawArtifact",
+    "ProjectContext",
 ]

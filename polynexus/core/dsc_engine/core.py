@@ -10,10 +10,6 @@ Computes:
     - Multi-peak deconvolution (Gaussian / Lorentzian / Voigt)
     - Data quality metrics
 """
-import logging
-logger = logging.getLogger(__name__)
-
-
 import numpy as np
 from scipy import signal, optimize
 from scipy.ndimage import uniform_filter1d
@@ -21,7 +17,6 @@ from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
 from ..engine import logger
-from .io import DSCScan
 from .config import DSCConfig
 
 
@@ -209,11 +204,6 @@ def _compute_Tg_half_height(T: np.ndarray, HF: np.ndarray,
         pre_fit = np.polyfit(T[pre_region], HF[pre_region], 1)
         post_fit = np.polyfit(T[post_region], HF[post_region], 1)
 
-    pre_line = np.polyval(pre_fit, T)
-    post_line = np.polyval(post_fit, T)
-
-    # Midpoint between extrapolated lines
-    mid_line = (pre_line + post_line) / 2.0
     actual_mid = (np.polyval(pre_fit, T[peak_idx]) + np.polyval(post_fit, T[peak_idx])) / 2.0
 
     # Find where actual HF crosses actual_mid
@@ -578,7 +568,7 @@ def find_thermal_events(T: np.ndarray, HF: np.ndarray,
     )
 
 def compute_crystallinity(DHm_Jg: float, DHc_Jg: float,
-                          DHm0_Jg: float = 293.0,
+                          DHm0_Jg: float = float("nan"),
                           ) -> float:
     """Compute crystallinity from melting and crystallisation enthalpies.
 
@@ -587,7 +577,7 @@ def compute_crystallinity(DHm_Jg: float, DHc_Jg: float,
     DHc is subtracted to account for cold crystallisation during heating.
     If there is no cold crystallisation, DHc = 0.
     """
-    if np.isnan(DHm_Jg) or DHm0_Jg <= 0:
+    if np.isnan(DHm_Jg) or not np.isfinite(DHm0_Jg) or DHm0_Jg <= 0:
         return np.nan
     DHc = DHc_Jg if not np.isnan(DHc_Jg) else 0.0
     Xc = (DHm_Jg - DHc) / DHm0_Jg * 100.0
