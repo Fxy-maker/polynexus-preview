@@ -10,7 +10,9 @@ persisted run manifests. `ars-writing-input.json` exposes the same values under
 ## Verification
 
 - Project ARS handoff and package regression matrix: `39 passed`.
-- Structured verifier and quality gates: pending final checkpoint.
+- Structured quality/preprocess gates: 311/157 passed. The full boundary
+  remains review-required because of historical failures documented in
+  `docs/acceptance/2026-08-28-full-suite-release-boundary.md`.
 
 ## Boundary
 

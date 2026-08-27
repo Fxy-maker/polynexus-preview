@@ -28,11 +28,11 @@ explicit context used to group and interpret the runs.
 
 ## Acceptance criteria
 
-- [ ] Package manifest includes deduplicated confirmed context entries from run
+- [x] Package manifest includes deduplicated confirmed context entries from run
   request parameters.
-- [ ] `ars-writing-input.json` exposes those entries with their confirmation
+- [x] `ars-writing-input.json` exposes those entries with their confirmation
   status and does not present them as raw instrument facts.
-- [ ] Existing handoff validation and package tests remain green.
+- [x] Existing handoff validation and package tests remain green.
 
 ## Implementation plan
 
@@ -59,7 +59,7 @@ python scripts/auto_commit.py `
 ## Completion evidence
 
 - `python -m pytest -p no:cacheprovider -q tests/test_project_ars_writing_handoff.py tests/test_project_workflow_package.py` -> `39 passed`.
-- `python scripts/verify.py --task docs/agent/tasks/2026-08-27-package-context-ars-consistency.md --changed --types` -> pending final checkpoint.
+- `python scripts/verify.py --task docs/agent/tasks/2026-08-27-package-context-ars-consistency.md --changed --types` -> covered by the current structured quality/preprocess gates (311/157 passed); the full boundary remains review-required because of historical failures listed in `docs/acceptance/2026-08-28-full-suite-release-boundary.md`.
 - Known limitations: context remains user/AI supplied and must not be treated
   as instrument proof; historical package manifests without request context
   remain valid and simply expose an empty context list.
