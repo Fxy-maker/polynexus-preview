@@ -5865,3 +5865,15 @@ and structured gates (`303` / `157`).
   filtering, cross-technology package/ARS handoff, and historical failure
   ledger. Pre-existing `active_run.json`, `runs/`, and `tests/_tmp_phase3/`
   remain untouched.
+
+## Package context and ARS consistency - 2026-08-27
+
+- Evidence package manifests now collect deduplicated `approved_context_corrections`
+  from persisted run request parameters.
+- `ars-writing-input.json` projects the same values under `project_context` with
+  status/approver, `source: user_or_ai_context`, and
+  `is_instrument_fact: false`; validation rejects any context presented as raw
+  instrument fact.
+- Handoff/package matrix passed `39` tests; structured verifier and quality
+  gates passed. Checkpoint: `267c0dff`.
+- Acceptance: `docs/acceptance/2026-08-27-package-context-ars-consistency.md`.
