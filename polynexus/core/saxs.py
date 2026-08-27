@@ -90,6 +90,19 @@ def _text_or_empty(value: Any) -> str:
     return "" if value is None else str(value)
 
 
+def _select_static_reference_index(
+    q_values: List[float], file_list: List[str] | None = None
+) -> int | None:
+    """Choose a reference frame from computed data, never from material names."""
+    for index, value in enumerate(q_values):
+        try:
+            if np.isfinite(float(value)):
+                return index
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return 0 if q_values else None
+
+
 def _frame_quality_source_kwargs(
     file_list: List[str], index: int, *, single_source: str = ""
 ) -> Dict[str, str]:
@@ -2239,14 +2252,7 @@ class SAXSEngine(BaseEngine):
                     Q_values.append(np.nan)
                     logger.warning("SAXS static frame analysis failed.", exc_info=True)
 
-            ref_idx = None
-            for i, fpath in enumerate(self._file_list):
-                fname = os.path.basename(str(fpath)).upper()
-                if "PA6" in fname and "C401" not in fname:
-                    ref_idx = i
-                    break
-            if ref_idx is None and len(Q_values) > 0:
-                ref_idx = 0
+            ref_idx = _select_static_reference_index(Q_values, self._file_list)
 
             ref_Xc, skip_reason = self._reference_crystallinity()
             ref_analysis = self._batch_results[ref_idx] if ref_idx is not None and ref_idx < len(self._batch_results) else None

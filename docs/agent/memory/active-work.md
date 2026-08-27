@@ -1,5 +1,12 @@
 # Active Work
 
+## SAXS no-material reference filename bias - implementation complete, review required (2026-08-27)
+
+- Removed the static SAXS special case that preferred filenames containing PA6 as the calibration reference.
+- Reference selection now uses the first finite computed invariant in input order, with the existing first-frame fallback when no invariant is finite.
+- Focused SAXS/Compute matrix passed 118 with 3 skips; structured quality/preprocessing gates passed 310/157.
+- Task/spec/plan: docs/agent/tasks/2026-08-27-saxs-no-material-reference-filename.md, docs/superpowers/specs/2026-08-27-saxs-no-material-reference-design.md, docs/superpowers/plans/2026-08-27-saxs-no-material-reference.md.
+
 ## WAXS config/context propagation - implementation complete, review required (2026-08-27)
 
 - WAXS now preserves a supplied WAXSConfig or mapping instead of replacing it with defaults.
