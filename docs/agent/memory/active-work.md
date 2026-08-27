@@ -5922,3 +5922,18 @@ and structured gates (`303` / `157`).
 - Focused matrix passed 20 tests. Task card and acceptance:
   `docs/agent/tasks/2026-08-28-gui-batch-compute-run-persistence.md` and
   `docs/acceptance/2026-08-28-gui-batch-compute-run-persistence.md`.
+
+## Full-suite release boundary - 2026-08-28
+
+- Fresh `scripts/verify.py --changed --types --full --boundary` completed with
+  **4197 passed, 39 failed, 25 skipped**. Core quality gates remained green
+  (311 focused + 157 preprocess tests), as did the current evidence/package,
+  gallery, and GUI batch matrices.
+- The 39 failures are concentrated in historical ChartGallery/figure output,
+  IR orchestrator mapping, GUI history/sample-browser fixtures, and SAXS
+  detector/strain/temperature dirty-data paths. They are recorded without
+  weakening scientific gates or changing raw data.
+- The shared architecture and six-sample v007 replay are implementation-
+  complete but remain `review_required` for human scientific approval, legacy
+  failure closure, and final ARS manuscript decisions. Acceptance:
+  `docs/acceptance/2026-08-28-full-suite-release-boundary.md`.
