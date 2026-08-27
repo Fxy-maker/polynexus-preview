@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-27-architecture-scientific-repair
 kind: architecture
-status: active
+status: implementation_complete_review_required
 date: 2026-08-27
 title: Repair directory provenance and DSC evidence eligibility
 ---
