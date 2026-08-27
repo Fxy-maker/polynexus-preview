@@ -8,12 +8,8 @@ Computes:
     - Peak assignment matching against database
 """
 import logging
-logger = logging.getLogger(__name__)
-
-
 import numpy as np
 from scipy import signal, optimize
-from scipy.ndimage import uniform_filter1d
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
@@ -21,6 +17,8 @@ from .io import IRSpectrum, ComputedMode, simulate_spectrum
 from .config import IRConfig
 from .names import normalize_ir_polymer_name
 from .names import normalize_ir_polymer_database
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -282,11 +280,12 @@ def assign_peaks(peaks: List[Dict[str, Any]],
     polymer_db = normalize_ir_polymer_database(polymer_db)
     polymer_key = normalize_ir_polymer_name(polymer_name)
 
-    # Try specific polymer first, then all
+    # Material assignments are opt-in.  An empty hint must remain generic;
+    # searching the complete built-in database would silently invent identity.
     if polymer_key and polymer_key in polymer_db:
         dbs = {polymer_key: polymer_db[polymer_key]}
     else:
-        dbs = polymer_db
+        dbs = {}
 
     for pk in peaks:
         wn = pk['wavenumber']
@@ -504,7 +503,8 @@ def compute_polymer_band_indices(spectrum: IRSpectrum, polymer_name: str,
     if not polymer_key:
         return {}
     wn, A = spectrum.wavenumber, spectrum.absorbance
-    b = lambda target: measure_band_height(wn, A, target, tolerance=tolerance)
+    def b(target: float) -> float:
+        return measure_band_height(wn, A, target, tolerance=tolerance)
     indices: Dict[str, float] = {}
 
     def frac(name: str, numerator: float, denominator_terms: List[float]):
@@ -589,12 +589,7 @@ def analyze_spectrum(spectrum: IRSpectrum, config: IRConfig,
                          prominence_frac=getattr(config, "peak_prominence_min", 0.015),
                          max_peaks=getattr(config, "peak_max_count", 40))
 
-    if peaks and not polymer_hint:
-        polymer_hint, score = identify_polymer_from_peaks(
-            peaks, config.polymer_peaks_db,
-            tolerance_cm1=getattr(config, "assignment_tolerance_cm1", 15.0))
-        result.polymer_score = score
-    elif polymer_hint:
+    if polymer_hint:
         result.polymer_score = 1.0
     result.polymer_name = polymer_hint
 

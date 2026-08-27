@@ -46,7 +46,7 @@ def test_common_ir_analysis_identifies_pa6_bands():
     )
     spec = load_spectrum(str(_ordinary_ir_file("YL.SPA")))
     processed = preprocess_pipeline(spec, cfg)
-    result = analyze_spectrum(processed, cfg, label=spec.label)
+    result = analyze_spectrum(processed, cfg, label=spec.label, polymer_name="PA6")
 
     assert result.polymer_name == "PA6"
     assert result.n_peaks >= 8
