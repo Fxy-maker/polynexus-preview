@@ -11,14 +11,17 @@ and scientific review. It does not change raw inputs or provider algorithms.
 ## Changes verified
 
 - Directory conversion, Compute, Agent inspection, and package validation now
-  call one shared canonical directory-manifest hash helper.
+  call one shared canonical directory-manifest collector and hash helper;
+  nested directories, empty directories, symlinks, and unsupported entries now
+  have the same fail-closed behavior.
 - Evidence packaging rejects a step with a missing/incomplete `ComputeRun`, an
   artifact identity/hash mismatch, a template bound to another artifact, or a
   step/recipe mismatch.
 - DSC Avrami citation projection keeps finite observations but marks segments
   with quality flags (including low R² and segment-boundary starts) as
   `diagnostic_only`; equivalent `best_avrami` records are not duplicated,
-  independent of input parameter order.
+  independent of input parameter order. The quality threshold matches the
+  provider's `< 0.95` rule.
 - The ComputeRun requirement is explicitly written into newly produced project
   manifests. Historical manifests without this marker remain readable; any
   newly migrated manifest with a missing or malformed projection fails closed.

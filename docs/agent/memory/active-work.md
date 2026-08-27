@@ -5787,7 +5787,8 @@ and structured gates (`303` / `157`).
 
 - Directory manifest hashing is now owned by one shared helper and used by the
   canonical converter registry, Compute, Agent inspection, and package
-  validation.
+  validation. The shared collector also aligns nested/empty directory and
+  unsupported-entry behavior.
 - Evidence packaging now requires each recipe step to have a completed,
   artifact-bound `ComputeRun` projection, revalidates serialized template
   identity plus dataset/plan/result linkage, and rejects step/recipe
@@ -5795,7 +5796,8 @@ and structured gates (`303` / `157`).
   marker retain the documented compatibility path.
 - DSC Avrami writing metrics now preserve flagged observations as
   `diagnostic_only`, add deterministic low-R² reasons, and suppress duplicate
-  `best_avrami` records independently of parameter order.
+  `best_avrami` records independently of parameter order; the threshold is
+  aligned with the provider at R² < 0.95.
 - Focused package/provenance/Agent matrix passed 65 tests; the structured
   verifier and quality gates also pass. DSC/evidence matrix remains covered by
   27 tests with 121 deselected. Acceptance details:
