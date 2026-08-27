@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import json
+import math
 from pathlib import Path
 from typing import Any, Callable
 
@@ -97,6 +98,16 @@ def _has_legacy_result_shape(value: Any) -> bool:
         )
     except Exception:
         return False
+
+
+def _json_safe_projection(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe_projection(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_projection(item) for item in value]
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    return value
 
 
 class ComputeRunService:
@@ -252,9 +263,15 @@ class ComputeRunService:
             if (
                 canonical_template is not None
                 and normalized_technique == "dsc"
-                and hasattr(selected_engine, "run_isothermal_template")
+                and (
+                    hasattr(selected_engine, "run_thermal_program_template")
+                    or hasattr(selected_engine, "run_isothermal_template")
+                )
             ):
-                template_output = selected_engine.run_isothermal_template(canonical_template)
+                template_runner = getattr(selected_engine, "run_thermal_program_template", None)
+                if not callable(template_runner):
+                    template_runner = getattr(selected_engine, "run_isothermal_template")
+                template_output = template_runner(canonical_template)
                 legacy_result = template_output
                 if not _has_legacy_result_shape(legacy_result):
                     legacy_result = getattr(selected_engine, "result", None)
@@ -263,7 +280,7 @@ class ComputeRunService:
                     if callable(get_parameters):
                         parameters = get_parameters()
                         if isinstance(parameters, Mapping):
-                            legacy_result.parameters = dict(parameters)
+                            legacy_result.parameters = _json_safe_projection(parameters)
             else:
                 legacy_result = selected_engine.run_pipeline(
                     artifact.path,

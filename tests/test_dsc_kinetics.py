@@ -133,6 +133,57 @@ def test_dsc_engine_runs_existing_isothermal_kinetics_from_canonical_template():
     assert "segment_01_180.1C" in engine.get_parameters()
 
 
+def test_dsc_engine_routes_mixed_thermal_program_roles_in_one_call():
+    from polynexus.core.canonical_experiments.models import CanonicalExperiment, ConversionRecord
+
+    record = ConversionRecord.create(
+        conversion_id="thermal-program.v1",
+        source_artifact_id="raw-sha256",
+    )
+    heating_t = list(range(81))
+    cooling_t = list(range(81, 162))
+    template = CanonicalExperiment.create(
+        template_id="thermal_program.v1",
+        source_artifact_id="raw-sha256",
+        conversion_record=record,
+        payload={
+            "sample": {"mass_mg": 5.0},
+            "segments": [
+                {
+                    "segment_id": "heat-001",
+                    "role": "heating",
+                    "setpoint_C": 240.0,
+                    "time_s": heating_t,
+                    "sample_temperature_C": [25.0 + i * 2.5 for i in range(81)],
+                    "heat_flow_mW": [1.0 + i * 0.01 for i in range(81)],
+                    "source_range": {"start_row": 0, "end_row": 80},
+                    "rate_K_per_min": 10.0,
+                },
+                {
+                    "segment_id": "cool-001",
+                    "role": "cooling",
+                    "setpoint_C": 40.0,
+                    "time_s": cooling_t,
+                    "sample_temperature_C": [225.0 - i * 2.5 for i in range(81)],
+                    "heat_flow_mW": [1.8 - i * 0.01 for i in range(81)],
+                    "source_range": {"start_row": 81, "end_row": 161},
+                    "rate_K_per_min": -10.0,
+                },
+            ],
+        },
+    )
+
+    engine = DSCEngine()
+    result = engine.run_thermal_program_template(template)
+
+    assert result["canonical_provenance"]["template_id"] == "thermal_program.v1"
+    assert result["thermal_program_segments"] == [
+        {"segment_id": "heat-001", "role": "heating"},
+        {"segment_id": "cool-001", "role": "cooling"},
+    ]
+    assert [scan.label for scan in engine.scans] == ["heat-001", "cool-001"]
+
+
 def test_dsc_engine_accepts_generic_thermal_program_template():
     rows = ["Sample Weight: 5.95 mg"]
     rows.extend(f"{index} {index} 255.02 255.0 1.0" for index in range(61))

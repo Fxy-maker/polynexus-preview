@@ -5805,3 +5805,17 @@ and structured gates (`303` / `157`).
 - Remaining P1/P2 follow-ups are package portability, Batch persistence,
   mixed-technology plan routing, GUI figure filtering, and capability coverage;
   no release-green claim is made.
+
+## DSC thermal-program routing - 2026-08-27
+
+- `thermal_program.v1` now preserves monotonic heating/cooling ramps while
+  retaining the historical repeated-setpoint isothermal conversion shape.
+- `DSCEngine.run_thermal_program_template` dispatches heating/cooling segments
+  to standard event analysis and isothermal segments to Avrami; the legacy
+  `run_isothermal_template` delegates to it.
+- ComputeRun prefers the unified template runner and sanitizes non-finite legacy
+  parameters at the public projection boundary.
+- Focused matrix passed `66` tests with `3` skips. A real PA6 thermal-cycle
+  smoke completed successfully; those files contain one heating scan, so no
+  cooling result is inferred. Acceptance:
+  `docs/acceptance/2026-08-27-dsc-thermal-program-routing.md`.

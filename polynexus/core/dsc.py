@@ -15,6 +15,7 @@ Module-level architecture:
 
 import logging
 import copy
+import math
 import numpy as np
 from typing import Dict, Any, List
 
@@ -30,12 +31,23 @@ from .dsc_engine import (
     preprocess_pipeline,
     analyze_scan,
     analyze_kinetics,
+    analyze_nonisothermal_scans,
     AvramiResult,
 )
 from .dsc_engine.dsc_kinetics import IsothermalKineticsResult, IsothermalSegment, avrami_from_dsc
 from .dsc_engine.figure_provider import build_dsc_figure_definitions
 
 logger = logging.getLogger(__name__)
+
+
+def _json_safe_parameters(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe_parameters(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_parameters(item) for item in value]
+    if isinstance(value, (float, np.floating)):
+        return float(value) if math.isfinite(float(value)) else None
+    return value
 
 
 @register_technique("dsc")
@@ -260,6 +272,24 @@ class DSCEngine(BaseEngine):
     def get_parameters(self) -> Dict[str, Any]:
         """Return merged parameters from all scans."""
         sub = getattr(self, 'active_submodule', '')
+        if self._kinetics_data.get('thermal_program_segments'):
+            rows: Dict[str, Any] = {
+                'thermal_program_segments': list(self._kinetics_data['thermal_program_segments']),
+            }
+            for result in self._results:
+                rows[result.label] = result.parameters
+            if self._kinetics_data.get('avrami') is not None:
+                a = self._kinetics_data['avrami']
+                rows['best_avrami'] = self._avrami_parameter_row(a)
+            for index, av in enumerate(self._kinetics_data.get('avrami_series', ()), start=1):
+                label = f"segment_{index:02d}"
+                if np.isfinite(getattr(av, 'temperature_C', np.nan)):
+                    label += f"_{av.temperature_C:.1f}C"
+                rows[label] = self._avrami_parameter_row(av)
+            if self._kinetics_data.get('non_isothermal') is not None:
+                rows.update(self._nonisothermal_parameter_rows())
+            rows.update(self._validation_parameter_payload())
+            return rows
         if sub == 'dsc.isothermal' and self._kinetics_data:
             rows: Dict[str, Any] = {}
             best = self._kinetics_data.get('avrami')
@@ -567,8 +597,12 @@ class DSCEngine(BaseEngine):
 
         return self._kinetics_data
 
-    def run_isothermal_template(self, template: Any) -> Dict[str, Any]:
-        """Run the existing isothermal kinetics algorithm from a canonical template."""
+    def run_thermal_program_template(self, template: Any) -> Dict[str, Any]:
+        """Execute all role-tagged segments from one thermal-program template.
+
+        Heating and cooling segments use the standard thermal-event analysis;
+        qualified isothermal holds use the existing Avrami implementation.
+        """
         from .canonical_experiments import CanonicalExperiment
 
         if not isinstance(template, CanonicalExperiment):
@@ -579,7 +613,7 @@ class DSCEngine(BaseEngine):
         payload = validated_template.payload
         segments = payload.get("segments") if isinstance(payload, dict) else payload.get("segments")
         if not isinstance(segments, tuple) or not segments:
-            raise ValueError("DSC canonical template has no isothermal segments")
+            raise ValueError("DSC canonical template has no thermal-program segments")
         sample = payload.get("sample", {})
         mass_value = sample.get("mass_mg")
         if mass_value is None:
@@ -589,8 +623,11 @@ class DSCEngine(BaseEngine):
             raise ValueError("DSC canonical template has an invalid sample mass")
 
         scans: List[DSCScan] = []
+        isothermal_scans: List[DSCScan] = []
+        thermal_roles: list[dict[str, str]] = []
         for segment in segments:
-            if segment.get("role") != "isothermal_crystallization":
+            role = str(segment.get("role", ""))
+            if role not in {"heating", "cooling", "isothermal_crystallization"}:
                 raise ValueError("DSC canonical template contains an unsupported segment role")
             time_s = np.asarray(segment.get("time_s", ()), dtype=float)
             temperature = np.asarray(segment.get("sample_temperature_C", ()), dtype=float)
@@ -604,30 +641,49 @@ class DSCEngine(BaseEngine):
                 and np.all(np.diff(time_s) > 0)
             ):
                 raise ValueError("DSC canonical segment arrays are invalid")
-            if not self._canonical_segment_is_qualified(time_s, temperature, segment.get("setpoint_C")):
+            if role == "isothermal_crystallization" and not self._canonical_segment_is_qualified(time_s, temperature, segment.get("setpoint_C")):
                 raise ValueError("DSC canonical segment does not meet canonical kinetic qualification")
-            scans.append(
-                DSCScan(
+            scan = DSCScan(
                     label=str(segment.get("segment_id", "isothermal")),
                     T_C=temperature,
                     HF_mW=heat_flow_mw,
                     HF_Wg=heat_flow_mw / mass_mg,
                     t_min=time_s / 60.0,
                     mass_mg=mass_mg,
-                    rate_K_per_min=0.0,
+                    rate_K_per_min=float(segment.get("rate_K_per_min", 0.0)),
                     metadata={
                         "canonical_template_id": validated_template.template_id,
                         "source_range": dict(segment.get("source_range", {})),
                     },
                 )
-            )
+            scans.append(scan)
+            thermal_roles.append({"segment_id": scan.label, "role": role})
+            if role == "isothermal_crystallization":
+                isothermal_scans.append(scan)
 
-        self.active_submodule = "dsc.isothermal"
+        roles_present = {item["role"] for item in thermal_roles}
+        self.active_submodule = (
+            "dsc.isothermal"
+            if roles_present == {"isothermal_crystallization"}
+            else "dsc.standard"
+        )
         self._scans = scans
         self._raw_scans = copy.deepcopy(scans)
+        self._results = []
+        for scan, role_info in zip(scans, thermal_roles):
+            if role_info["role"] in {"heating", "cooling"}:
+                self._results.append(
+                    analyze_scan(
+                        scan.T_C,
+                        scan.HF_Wg,
+                        self._dsc_config,
+                        label=scan.label,
+                        DHm0_override=self._dsc_config.get_crystallinity_ref(scan.label),
+                    )
+                )
         kinetics = IsothermalKineticsResult()
         min_enthalpy = getattr(self._dsc_config, "isothermal_min_enthalpy_Jg", 0.01)
-        for scan in scans:
+        for scan in isothermal_scans:
             segment = IsothermalSegment(
                 label=scan.label,
                 temperature_C=float(np.nanmedian(scan.T_C)),
@@ -673,7 +729,27 @@ class DSCEngine(BaseEngine):
             )
         else:
             kinetics.quality_flags.append("no_valid_avrami_fit")
-        self._kinetics_data = {"isothermal": kinetics, "avrami_series": kinetics.avrami_results}
+        self._kinetics_data = {
+            "thermal_program_segments": thermal_roles,
+            "isothermal": kinetics,
+            "avrami_series": kinetics.avrami_results,
+        }
+        cooling_scans = [
+            scan for scan, role_info in zip(scans, thermal_roles)
+            if role_info["role"] == "cooling"
+        ]
+        if len(cooling_scans) >= 3:
+            nonisothermal = analyze_nonisothermal_scans(
+                cooling_scans,
+                min_delta_T_C=getattr(self._dsc_config, "nonisothermal_min_delta_T_C", 20.0),
+                min_points=getattr(self._dsc_config, "nonisothermal_min_points", 80),
+                min_enthalpy_Jg=getattr(self._dsc_config, "nonisothermal_min_enthalpy_Jg", 0.01),
+            )
+            self._kinetics_data["non_isothermal"] = nonisothermal
+            self._kinetics_data["ozawa"] = nonisothermal.ozawa
+            self._kinetics_data["mo"] = nonisothermal.mo
+            self._kinetics_data["friedman"] = nonisothermal.friedman
+            self._kinetics_data["kissinger"] = nonisothermal.kissinger
         if np.isfinite(kinetics.best.n):
             self._kinetics_data["avrami"] = kinetics.best
         output = self._kinetics_data
@@ -683,7 +759,12 @@ class DSCEngine(BaseEngine):
             "conversion_hash": validated_template.conversion_record.conversion_hash,
             "source_artifact_id": validated_template.source_artifact_id,
         }
+        self.result.parameters = _json_safe_parameters(self.get_parameters())
         return output
+
+    def run_isothermal_template(self, template: Any) -> Dict[str, Any]:
+        """Backward-compatible alias for the unified thermal-program executor."""
+        return self.run_thermal_program_template(template)
 
     def _canonical_segment_is_qualified(
         self,

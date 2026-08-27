@@ -90,6 +90,36 @@ def test_dsc_direct_run_attaches_thermal_program_and_uses_template_execution(tmp
     assert run.result.metrics["template_id"] == "thermal_program.v1"
 
 
+def test_dsc_direct_run_prefers_unified_thermal_program_runner(tmp_path: Path) -> None:
+    source = tmp_path / "program.txt"
+    rows = ["Sample Weight: 5.95 mg"]
+    rows.extend(f"{index} {index} {25 + index:.3f} {25 + index:.3f} 1.0" for index in range(81))
+    source.write_text("\n".join(rows), encoding="utf-8")
+
+    class UnifiedTemplateEngine(FakeEngine):
+        def __init__(self) -> None:
+            super().__init__(EmptyLegacyResult())
+            self.template_calls = 0
+
+        def run_thermal_program_template(self, template: Any) -> Any:
+            self.template_calls += 1
+            self.result.parameters = {"template_id": template.template_id}
+            return {"ignored": True}
+
+        def get_parameters(self) -> dict[str, Any]:
+            return dict(self.result.parameters)
+
+    engine = UnifiedTemplateEngine()
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="dsc", path=source, output_dir=tmp_path / "output", engine=engine
+    )
+
+    assert run.status == "completed"
+    assert engine.template_calls == 1
+    assert run.result is not None
+    assert run.result.metrics["template_id"] == "thermal_program.v1"
+
+
 class BadPath(os.PathLike[str]):
     def __fspath__(self) -> str:
         raise RuntimeError("path protocol must not escape")

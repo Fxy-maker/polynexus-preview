@@ -53,6 +53,32 @@ def test_dsc_registry_uses_generic_thermal_program_template(tmp_path) -> None:
     assert outcome.template.payload["segments"][0]["role"] == "isothermal_crystallization"
 
 
+def test_converter_keeps_monotonic_thermal_cycle_segments(tmp_path) -> None:
+    rows = ["Sample:", "  PA6, 5.5 mg", "Curve Values:"]
+    index = 0
+    for temperature in range(25, 201):
+        rows.append(f"{index} {index} {temperature:.3f} {temperature:.3f} 1.0")
+        index += 1
+    for temperature in range(200, 79, -1):
+        rows.append(f"{index} {index} {temperature:.3f} {temperature:.3f} 1.0")
+        index += 1
+
+    from polynexus.core.canonical_experiments import convert_mettler_isothermal_text
+
+    outcome = convert_mettler_isothermal_text(
+        "\n".join(rows),
+        source_artifact_id="source-sha256",
+        template_id="thermal_program.v1",
+    )
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert [segment["role"] for segment in outcome.template.payload["segments"]] == [
+        "heating", "cooling"
+    ]
+    assert outcome.template.payload["sample"]["mass_mg"] == 5.5
+
+
 def test_converter_blocks_when_no_hold_reaches_minimum_duration() -> None:
     text = "\n".join(
         f"{index} {index} 180.05 180.0 1.0" for index in range(10)

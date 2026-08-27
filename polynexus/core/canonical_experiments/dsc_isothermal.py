@@ -43,6 +43,13 @@ def convert_mettler_isothermal_text(
         )
         return ConversionOutcome(status="blocked", record=record, reason_codes=(parse_reason,))
 
+    if template_id == "thermal_program.v1" and not _looks_like_isothermal_program(rows):
+        return _convert_thermal_program_rows(
+            rows,
+            sample_mass_mg=sample_mass_mg,
+            source_artifact_id=source_artifact_id,
+        )
+
     accepted: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
     rejected_ramp: list[tuple[int, float, float, float, float]] = []
@@ -118,6 +125,166 @@ def convert_mettler_isothermal_text(
             "sample": {"mass_mg": sample_mass_mg},
             "segments": accepted,
         },
+        conversion_record=record,
+    )
+    return ConversionOutcome(status="ready", record=record, template=template)
+
+
+def _looks_like_isothermal_program(rows: list[tuple[int, float, float, float, float]]) -> bool:
+    """Recognize the historical repeated-setpoint isothermal export shape."""
+    groups = _setpoint_groups(rows)
+    if len(groups) < 2:
+        return False
+    stable = [group for group in groups if len(group) >= 2]
+    return len(stable) >= 2 and all(
+        float(np.ptp([row[2] for row in group])) <= _MAX_SAMPLE_SPAN_C
+        for group in stable
+    )
+
+
+def _convert_thermal_program_rows(
+    rows: list[tuple[int, float, float, float, float]],
+    *,
+    sample_mass_mg: float | None,
+    source_artifact_id: str,
+) -> ConversionOutcome:
+    """Map one complete thermal program without discarding monotonic ramps.
+
+    The historical converter intentionally retained only qualified isothermal
+    holds.  ``thermal_program.v1`` is the shared container, so its converter
+    keeps heating/cooling ramps as well and leaves role-specific calculations to
+    the DSC executor.
+    """
+    if len(rows) < 2:
+        record = ConversionRecord.create(
+            conversion_id=_CONVERTER_ID,
+            source_artifact_id=source_artifact_id,
+            observed_columns=_OBSERVED_COLUMNS,
+            reason_codes=("conversion_columns_missing",),
+        )
+        return ConversionOutcome(status="blocked", record=record, reason_codes=record.reason_codes)
+
+    values = np.asarray([row[2] for row in rows], dtype=float)
+    times = np.asarray([row[1] for row in rows], dtype=float)
+    if not np.all(np.isfinite(values)) or not np.all(np.isfinite(times)):
+        record = ConversionRecord.create(
+            conversion_id=_CONVERTER_ID,
+            source_artifact_id=source_artifact_id,
+            observed_columns=_OBSERVED_COLUMNS,
+            reason_codes=("conversion_numeric_row_invalid",),
+        )
+        return ConversionOutcome(status="blocked", record=record, reason_codes=record.reason_codes)
+
+    delta = np.diff(values)
+    direction = np.zeros(len(delta), dtype=int)
+    direction[delta > 0.02] = 1
+    direction[delta < -0.02] = -1
+    nonzero = np.flatnonzero(direction)
+    if len(nonzero) == 0:
+        direction[:] = 0
+    else:
+        direction[: nonzero[0]] = direction[nonzero[0]]
+        last = direction[nonzero[0]]
+        for index in range(nonzero[0], len(direction)):
+            if direction[index] == 0:
+                direction[index] = last
+            else:
+                last = direction[index]
+
+    breaks = [0]
+    for index in range(1, len(direction)):
+        if direction[index] != direction[index - 1]:
+            breaks.append(index)
+    breaks.append(len(rows) - 1)
+
+    segments: list[dict[str, Any]] = []
+    excluded: list[dict[str, Any]] = []
+    prepared = False
+    for ordinal, (start, end) in enumerate(zip(breaks[:-1], breaks[1:]), start=1):
+        stop = end + 1
+        group = rows[start:stop]
+        if len(group) < 2:
+            continue
+        start_temp = float(group[0][2])
+        end_temp = float(group[-1][2])
+        span = abs(end_temp - start_temp)
+        duration = float(group[-1][1] - group[0][1])
+        setpoint = float(np.nanmedian([row[3] for row in group]))
+        source_range = {
+            "start_row": int(group[0][0]),
+            "end_row": int(group[-1][0]),
+            "start_time_s": float(group[0][1]),
+            "end_time_s": float(group[-1][1]),
+        }
+        evidence: dict[str, Any] = {
+            "setpoint_C": setpoint,
+            "source_range": source_range,
+            "point_count": len(group),
+        }
+
+        if span < 0.5 and duration >= _MIN_DURATION_S:
+            role = "isothermal_crystallization"
+            if setpoint >= _MELT_PREPARATION_C:
+                evidence["role"] = "melt_hold"
+                excluded.append(evidence)
+                prepared = True
+                continue
+            if not prepared:
+                evidence.update(role="rejected_program_segment", reason="missing_preparation_melt_hold")
+                excluded.append(evidence)
+                continue
+            segment_id = f"iso-{setpoint:g}C-{len(segments) + 1:03d}"
+        elif span >= 2.0:
+            role = "heating" if end_temp > start_temp else "cooling"
+            segment_id = f"{role}-{ordinal:03d}"
+        else:
+            evidence.update(role="rejected_program_segment", reason="segment_too_short")
+            excluded.append(evidence)
+            continue
+
+        segment: dict[str, Any] = {
+            "segment_id": segment_id,
+            "role": role,
+            "setpoint_C": setpoint,
+            "time_s": [float(row[1]) for row in group],
+            "sample_temperature_C": [float(row[2]) for row in group],
+            "heat_flow_mW": [float(row[4]) for row in group],
+            "source_range": source_range,
+        }
+        if len(group) > 1 and duration > 0:
+            segment["rate_K_per_min"] = float((end_temp - start_temp) / duration * 60.0)
+        segments.append(segment)
+
+    if not segments:
+        reasons = ("conversion_no_qualified_thermal_segments",)
+        record = ConversionRecord.create(
+            conversion_id=_CONVERTER_ID,
+            source_artifact_id=source_artifact_id,
+            observed_columns=_OBSERVED_COLUMNS,
+            excluded_segments=excluded,
+            reason_codes=reasons,
+        )
+        return ConversionOutcome(status="blocked", record=record, reason_codes=reasons)
+
+    record = ConversionRecord.create(
+        conversion_id=_CONVERTER_ID,
+        source_artifact_id=source_artifact_id,
+        observed_columns=_OBSERVED_COLUMNS,
+        extracted_segments=[
+            {
+                "segment_id": segment["segment_id"],
+                "role": segment["role"],
+                "setpoint_C": segment["setpoint_C"],
+                "source_range": segment["source_range"],
+            }
+            for segment in segments
+        ],
+        excluded_segments=excluded,
+    )
+    template = CanonicalExperiment.create(
+        template_id="thermal_program.v1",
+        source_artifact_id=source_artifact_id,
+        payload={"sample": {"mass_mg": sample_mass_mg}, "segments": segments},
         conversion_record=record,
     )
     return ConversionOutcome(status="ready", record=record, template=template)
