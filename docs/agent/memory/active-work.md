@@ -5763,3 +5763,17 @@ and structured gates (`303` / `157`).
   `pa6-six-sample-v003-v001` has no manifest and is intentionally left outside
   the repository for later local cleanup; no raw data or tracked files were
   touched.
+
+## Architecture and scientific review - 2026-08-27
+
+- Read-only review recorded in
+  `docs/acceptance/2026-08-27-architecture-scientific-review.md`.
+- Merge approval is blocked by directory hash contract drift between the
+  canonical converter registry and Agent/Compute/package helpers.
+- Scientific approval is blocked because v003 marks all 78 DSC Avrami metrics
+  as Results candidates, including boundary-start/low-fit segments and
+  duplicate `best_avrami` values. FTIR, SAXS, and WAXS remain diagnostic-only
+  for the stated provenance and support limits.
+- Additional medium follow-ups are package portability/self-containment and
+  per-row GUI batch persistence. No raw data or provider algorithms were
+  changed during this review.
