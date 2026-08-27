@@ -136,6 +136,10 @@ def _summary(measurement: Measurement) -> Mapping[str, Any]:
         "intensity_min": intensity_min,
         "intensity_max": intensity_max,
         "intensity_range": intensity_max - intensity_min,
+        "units": {
+            "x": measurement.units["x"],
+            "intensity": measurement.units["intensity"],
+        },
     }
 
 
@@ -147,6 +151,10 @@ def _extrema(measurement: Measurement) -> Mapping[str, Any]:
     return {
         "minimum": {"x": x_values[minimum_index], "intensity": intensity_values[minimum_index]},
         "maximum": {"x": x_values[maximum_index], "intensity": intensity_values[maximum_index]},
+        "units": {
+            "x": measurement.units["x"],
+            "intensity": measurement.units["intensity"],
+        },
     }
 
 

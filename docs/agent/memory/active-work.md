@@ -5951,3 +5951,15 @@ and structured gates (`303` / `157`).
   `docs/acceptance/2026-08-28-mixed-technique-project-run.md`.
 - This closes the mixed-route implementation gap but remains review-required
   for full GUI replay, six-sample re-run, and scientific ARS decisions.
+
+## Capability evidence projection - 2026-08-28
+
+- Completed canonical capability items are now copied into public Agent step
+  summaries and emitted as deterministic `canonical.<capability_id>` citation
+  metrics in project evidence packages. Non-completed items remain explicit but
+  never produce fabricated numbers.
+- Focused capability/evidence/project matrix passed **104 tests, 3 skipped**;
+  quality and preprocessing gates passed (311/157). Acceptance:
+  `docs/acceptance/2026-08-28-capability-evidence-projection.md`.
+- Generic capability metrics remain diagnostic-only; provider-specific
+  scientific eligibility and ARS/human promotion decisions are unchanged.

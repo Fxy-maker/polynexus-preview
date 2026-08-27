@@ -72,6 +72,7 @@ def test_default_registry_is_closed_and_calculates_all_supported_items() -> None
         "intensity_min": -1.0,
         "intensity_max": 4.0,
         "intensity_range": 5.0,
+        "units": {"x": "a.u.", "intensity": "a.u."},
     }
     assert results[0].item_id == CapabilityExecutor(registry).execute(template)[0].item_id
     json.dumps([item.to_dict() for item in results], allow_nan=False)

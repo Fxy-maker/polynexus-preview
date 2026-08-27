@@ -241,6 +241,10 @@ class AgentWorkflowService:
         warnings = summary.get("validation_warnings", [])
         logs = summary.get("logs", [])
         provider_error = any("ERROR:" in str(entry).upper() for entry in logs)
+        if isinstance(compute_run, ComputeRun) and compute_run.capability_items:
+            summary["capability_items"] = [
+                item.to_dict() for item in compute_run.capability_items
+            ]
         status = (
             "failed"
             if provider_error

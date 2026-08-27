@@ -56,16 +56,17 @@ def extract_writing_metrics(item: EvidenceItem | Mapping[str, Any]) -> tuple[Cit
     """Extract documented provider metrics from one public evidence item."""
     payload = item.to_dict() if isinstance(item, EvidenceItem) else dict(item)
     technique = str(payload.get("technique", "")).lower()
+    generic = _capability_metrics(payload)
     if technique == "dsc":
-        records = _dsc(payload)
+        records = generic + _dsc(payload)
     elif technique in {"ir", "ftir"}:
-        records = _ir(payload)
+        records = generic + _ir(payload)
     elif technique == "saxs":
-        records = _saxs(payload)
+        records = generic + _saxs(payload)
     elif technique == "waxs":
-        records = _waxs(payload)
+        records = generic + _waxs(payload)
     else:
-        records = ()
+        records = generic
     return tuple(_with_id(record) for record in records)
 
 
@@ -137,6 +138,65 @@ def _analysis(payload: Mapping[str, Any]) -> Mapping[str, Any]:
         return {}
     result = value.get("analysis_evidence", {})
     return result if isinstance(result, Mapping) else {}
+
+
+def _capability_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
+    """Project completed canonical capabilities without promoting them."""
+    items = _summary(payload).get("capability_items", ())
+    if not isinstance(items, (list, tuple)):
+        return ()
+    records: list[CitationMetric] = []
+    for item in items:
+        if not isinstance(item, Mapping) or item.get("status") != "completed":
+            continue
+        result = item.get("result")
+        if not isinstance(result, Mapping):
+            continue
+        capability_id = str(item.get("capability_id", "")).strip()
+        item_id = str(item.get("item_id", "")).strip()
+        measurement_id = str(item.get("measurement_id", "")).strip()
+        if not capability_id or not item_id or not measurement_id:
+            continue
+        units = result.get("units", {})
+        if not isinstance(units, Mapping):
+            units = {}
+        for path, value in _numeric_leaves(result):
+            field = path[-1]
+            if field in {"units", "x", "intensity"}:
+                continue
+            if field == "point_count":
+                unit = "count"
+            elif field.startswith("x_") or field == "x":
+                unit = str(units.get("x", "unknown"))
+            elif field.startswith("intensity_") or field == "intensity":
+                unit = str(units.get("intensity", "unknown"))
+            else:
+                unit = "unknown"
+            locator = (
+                f"capability_item_id={item_id};measurement_id={measurement_id};"
+                f"result.{'.'.join(path)}"
+            )
+            records.append(_base(
+                payload,
+                key=f"{capability_id}.{'.'.join(path)}",
+                value=value,
+                unit=unit,
+                method=f"canonical.{capability_id}",
+                locator=locator,
+                eligibility="diagnostic_only",
+                reasons=("canonical_capability_observation",),
+            ))
+    return tuple(records)
+
+
+def _numeric_leaves(value: Mapping[str, Any], prefix: tuple[str, ...] = ()) -> Iterable[tuple[tuple[str, ...], float | int]]:
+    for key, child in value.items():
+        path = (*prefix, str(key))
+        numeric = _finite(child)
+        if numeric is not None:
+            yield path, numeric
+        elif isinstance(child, Mapping):
+            yield from _numeric_leaves(child, path)
 
 
 def _dsc(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
