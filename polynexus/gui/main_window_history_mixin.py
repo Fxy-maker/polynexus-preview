@@ -104,6 +104,10 @@ class MainWindowHistoryMixin:
         return cls._main_window_module().persist_gui_analysis_run
 
     @classmethod
+    def _persist_gui_batch_analysis_runs_fn(cls):
+        return cls._main_window_module().persist_gui_batch_analysis_runs
+
+    @classmethod
     def _analysis_run_result_payload_fn(cls):
         return cls._main_window_module().analysis_run_result_payload
 
@@ -482,6 +486,32 @@ class MainWindowHistoryMixin:
         except Exception as e:
             logger.warning("Failed to persist analysis result: %s", e)
             logger.warning("Analysis persistence traceback follows.", exc_info=True)
+
+    def _persist_batch_results(self, rows) -> None:
+        """Persist successful batch rows with their individual ComputeRuns."""
+        if not any(isinstance(row, dict) and row.get("compute_run") is not None for row in rows):
+            return
+        try:
+            db = self._ensure_sample_db()
+            context = self._analysis_run_persistence_context_class()(
+                technique=str(getattr(self, "_current_technique", "") or ""),
+                submodule=str(getattr(self, "_current_submodule_id", "") or ""),
+                output_dir=str(getattr(self, "_output_dir", "") or ""),
+                project_label=str(getattr(self, "_project_label", "").text() if hasattr(getattr(self, "_project_label", None), "text") else getattr(self, "_project_label", "") or ""),
+                current_sample_name=str(getattr(self, "_current_sample_name", "") or ""),
+                current_sample_id=str(getattr(self, "_current_sample_id", "") or ""),
+                current_batch_id=str(getattr(self, "_current_batch_id", "") or ""),
+                current_batch_label=str(getattr(self, "_current_batch_label", "") or ""),
+                ai_tuned=bool(getattr(self, "_last_ai_tuned_run", False)),
+                confirmed=bool(getattr(self, "_current_result_confirmed_flag", False)),
+                history_context=self._result_to_jsonable(self._history_context_snapshot()),
+            )
+            run_ids = self._persist_gui_batch_analysis_runs_fn()(db, rows, context)
+            if run_ids:
+                self._last_persisted_run_id = run_ids[-1]
+                self._schedule_history_refresh()
+        except Exception:
+            logger.warning("Failed to persist batch analysis results.", exc_info=True)
 
     def _schedule_history_refresh(self):
         """Refresh the history table after the current UI event completes.

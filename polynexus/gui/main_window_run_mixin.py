@@ -815,6 +815,10 @@ class MainWindowRunMixin:
         self._set_results_copy_control_visible(False)
         self._clear_results_table_default_order()
 
+        persist_batch = getattr(self, "_persist_batch_results", None)
+        if callable(persist_batch):
+            persist_batch(all_results)
+
         if all_results:
             self._show_batch_results(all_results)
             self._populate_plots()

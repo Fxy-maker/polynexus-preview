@@ -117,6 +117,7 @@ from .widgets.settings_dialog import SettingsDialog  # noqa: F401
 from .analysis_run_service import (
     AnalysisRunPersistenceContext,  # noqa: F401
     persist_analysis_run as persist_gui_analysis_run,  # noqa: F401
+    persist_batch_analysis_runs as persist_gui_batch_analysis_runs,  # noqa: F401
     result_payload as analysis_run_result_payload,  # noqa: F401
     extract_result_r2 as analysis_run_result_r2,  # noqa: F401
 )

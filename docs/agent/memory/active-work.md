@@ -5912,3 +5912,13 @@ and structured gates (`303` / `157`).
 - Focused package/evidence/AI matrix passed 50 tests. Task card and acceptance:
   `docs/agent/tasks/2026-08-28-package-run-snapshots.md` and
   `docs/acceptance/2026-08-28-package-run-snapshots.md`.
+
+## GUI batch ComputeRun persistence - 2026-08-28
+
+- GUI batch rows now retain explicit source/output locators and the shared
+  `ComputeRun`; completion persists each successful row through the existing
+  Qt-free history service with a per-row context. Rows without a ComputeRun are
+  not fabricated or persisted by this path.
+- Focused matrix passed 20 tests. Task card and acceptance:
+  `docs/agent/tasks/2026-08-28-gui-batch-compute-run-persistence.md` and
+  `docs/acceptance/2026-08-28-gui-batch-compute-run-persistence.md`.

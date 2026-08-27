@@ -186,6 +186,8 @@ def test_batch_worker_runs_each_file_through_shared_compute_run_service(tmp_path
     assert len(completed) == 1
     row = completed[0][0]
     assert row["file"] == input_file.name
+    assert row["path"] == str(input_file)
+    assert row["output_dir"] == str((tmp_path / "out" / "sample").resolve())
     assert row["params"] == {"peak": 1.2}
     assert row["compute_run"].status == "completed"
     assert row["compute_run"].canonical_template.template_id == "spectrum_1d.v1"

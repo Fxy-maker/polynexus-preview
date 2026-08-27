@@ -6,9 +6,9 @@ window. It intentionally has no Qt dependency so it can be tested in isolation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 from ..utils import detect_polymer_type
 
@@ -263,3 +263,36 @@ def persist_analysis_run(db, result, context: AnalysisRunPersistenceContext) -> 
         ai_tuned=bool(context.ai_tuned),
         confirmed=bool(context.confirmed),
     )
+
+
+def persist_batch_analysis_runs(
+    db,
+    rows: Iterable[Mapping[str, Any]],
+    context: AnalysisRunPersistenceContext,
+) -> tuple[str, ...]:
+    """Persist each successful batch row with its own shared ComputeRun.
+
+    Rows without a ComputeRun are skipped so legacy callers can still display
+    compatibility-only results without creating provenance-less history rows.
+    """
+    persisted: list[str] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        compute_run = row.get("compute_run")
+        if compute_run is None:
+            continue
+        result = getattr(compute_run, "legacy_result", None) or row.get("result")
+        if result is None:
+            continue
+        source = str(row.get("path") or row.get("file") or "").strip()
+        if not source:
+            continue
+        row_context = replace(
+            context,
+            data_file=source,
+            output_dir=str(row.get("output_dir") or context.output_dir),
+            compute_run=compute_run,
+        )
+        persisted.append(persist_analysis_run(db, result, row_context))
+    return tuple(persisted)

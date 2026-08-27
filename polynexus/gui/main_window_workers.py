@@ -212,7 +212,13 @@ class BatchWorker(QThread):
                 self.file_done.emit(fname, params)
                 logger.info(f"[{i+1}/{total}] {fname} - OK")
                 all_results.append(
-                    {"file": fname, "params": params, "compute_run": compute_run}
+                    {
+                        "file": fname,
+                        "path": str(main_window_module.os.path.abspath(fp)),
+                        "output_dir": str(main_window_module.os.path.abspath(file_out)),
+                        "params": params,
+                        "compute_run": compute_run,
+                    }
                 )
             except Exception as exc:
                 logger.error(f"[{i+1}/{total}] {fname} - FAILED: {exc}")

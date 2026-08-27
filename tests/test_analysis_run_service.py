@@ -1,5 +1,9 @@
 from polynexus.data.sample_db import SampleDB
-from polynexus.gui.analysis_run_service import AnalysisRunPersistenceContext, persist_analysis_run
+from polynexus.gui.analysis_run_service import (
+    AnalysisRunPersistenceContext,
+    persist_analysis_run,
+    persist_batch_analysis_runs,
+)
 from polynexus.core.saxs_engine.saxs_quality_contracts import MetricEvidenceSummary
 from polynexus.core.compute import ComputeRunService
 
@@ -175,4 +179,32 @@ def test_persist_analysis_run_stores_shared_compute_run_projection(tmp_path):
     assert summary["compute_run"]["canonical_template"]["template_id"] == "spectrum_1d.v1"
     assert len(summary["compute_run"]["capability_items"]) == 2
     assert summary["result"]["parameters"] == {"peak": 1.0}
+    db.close()
+
+
+def test_persist_batch_analysis_runs_keeps_one_compute_run_per_row(tmp_path):
+    db = SampleDB(tmp_path / "samples.db")
+    rows = []
+    for name in ("first.csv", "second.csv"):
+        data_file = tmp_path / name
+        data_file.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+        compute_run = ComputeRunService(lambda *args, **kwargs: _Engine()).run_direct(
+            technique="ir", path=data_file, output_dir=tmp_path / name.removesuffix(".csv")
+        )
+        rows.append({
+            "file": name,
+            "path": str(data_file),
+            "output_dir": str(tmp_path / name.removesuffix(".csv")),
+            "compute_run": compute_run,
+        })
+
+    run_ids = persist_batch_analysis_runs(
+        db,
+        rows,
+        AnalysisRunPersistenceContext(technique="ir", submodule="ir.batch"),
+    )
+
+    assert len(run_ids) == 2
+    persisted = [db.get_analysis_run(run_id) for run_id in run_ids]
+    assert all(run["results_summary"]["compute_run"]["canonical_template"]["template_id"] == "spectrum_1d.v1" for run in persisted)
     db.close()

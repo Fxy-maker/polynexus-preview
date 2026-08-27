@@ -103,3 +103,57 @@ def test_stale_batch_worker_completion_does_not_publish_after_quick_switch():
     harness._on_batch_finished([{"file": "old.csv", "params": {"r2": 0.99}}], token=1)
 
     assert harness._batch_results == []
+
+
+def test_batch_completion_requests_persistence_for_shared_run_rows():
+    from PySide6.QtWidgets import QApplication
+
+    from polynexus.gui.main_window import MainWindow
+
+    QApplication.instance() or QApplication([])
+    window = MainWindow()
+    calls = []
+    window._persist_batch_results = lambda rows: calls.append(rows)
+    window._start_run_lifecycle()
+    row = {"file": "sample.csv", "params": {"peak": 1.0}, "compute_run": object()}
+
+    window._on_batch_finished([row])
+
+    assert calls == [[row]]
+    window.deleteLater()
+
+
+def test_persist_batch_results_forwards_row_compute_runs_with_context():
+    from PySide6.QtWidgets import QApplication
+
+    from polynexus.gui.main_window import MainWindow
+
+    QApplication.instance() or QApplication([])
+    window = MainWindow()
+    row = {
+        "file": "sample.csv",
+        "path": "D:/data/sample.csv",
+        "output_dir": "D:/out/sample",
+        "params": {"peak": 1.0},
+        "compute_run": object(),
+    }
+    calls = []
+    window._ensure_sample_db = lambda: object()
+    window._persist_gui_batch_analysis_runs_fn = lambda: lambda db, rows, context: (
+        calls.append((db, rows, context)) or ("persisted-1",)
+    )
+    window._history_context_snapshot = lambda: {}
+    window._result_to_jsonable = lambda value: value
+    window._schedule_history_refresh = lambda: calls.append("refresh")
+    window._current_technique = "ir"
+    window._current_submodule_id = "ir.batch"
+
+    window._persist_batch_results([row])
+
+    assert calls[0][1] == [row]
+    assert calls[0][2].technique == "ir"
+    assert calls[0][2].submodule == "ir.batch"
+    assert calls[0][2].data_file == ""
+    assert calls[-1] == "refresh"
+    assert window._last_persisted_run_id == "persisted-1"
+    window.deleteLater()
