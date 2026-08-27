@@ -5785,14 +5785,19 @@ and structured gates (`303` / `157`).
 
 ## Architecture and scientific repair - 2026-08-27
 
-- Directory manifest hashing is now aligned between the canonical converter
-  registry and `RawArtifact` using the shared `directory_manifest` envelope.
+- Directory manifest hashing is now owned by one shared helper and used by the
+  canonical converter registry, Compute, Agent inspection, and package
+  validation.
 - Evidence packaging now requires each recipe step to have a completed,
-  artifact-bound `ComputeRun` projection and rejects step/recipe mismatches.
+  artifact-bound `ComputeRun` projection, revalidates serialized template
+  identity plus dataset/plan/result linkage, and rejects step/recipe
+  mismatches. Historical manifests without the new `compute_run_contract`
+  marker retain the documented compatibility path.
 - DSC Avrami writing metrics now preserve flagged observations as
   `diagnostic_only`, add deterministic low-R² reasons, and suppress duplicate
-  `best_avrami` records.
-- Focused package/provenance matrix passed 47 tests; DSC/evidence matrix passed
+  `best_avrami` records independently of parameter order.
+- Focused package/provenance/Agent matrix passed 65 tests; the structured
+  verifier and quality gates also pass. DSC/evidence matrix remains covered by
   27 tests with 121 deselected. Acceptance details:
   `docs/acceptance/2026-08-27-architecture-scientific-repair.md`.
 - Remaining P1/P2 follow-ups are package portability, Batch persistence,

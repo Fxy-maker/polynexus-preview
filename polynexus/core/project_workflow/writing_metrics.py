@@ -165,7 +165,11 @@ def _dsc(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
     def signature(values: Mapping[str, Any]) -> tuple[Any, ...]:
         return tuple(_finite(values.get(key)) for key in metric_fields)
 
-    for name, values in parameters.items():
+    ordered_parameters = sorted(
+        parameters.items(),
+        key=lambda item: (str(item[0]) == "best_avrami", str(item[0])),
+    )
+    for name, values in ordered_parameters:
         if not (str(name).startswith("segment_") or str(name) == "best_avrami") or not isinstance(values, Mapping):
             continue
         current_signature = signature(values)

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 
+from ..artifacts import directory_manifest_sha256
 from .capabilities import CapabilityExecutor
 from .dsc_isothermal import convert_mettler_isothermal_text
 from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord
@@ -121,14 +121,7 @@ class CanonicalConverterRegistry:
             })
         if not entries:
             raise OSError("directory contains no files")
-        return hashlib.sha256(
-            json.dumps(
-                {"kind": "directory_manifest", "entries": entries},
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()
+        return directory_manifest_sha256(entries)
 
 
 _DEFAULT_REGISTRY = CanonicalConverterRegistry()

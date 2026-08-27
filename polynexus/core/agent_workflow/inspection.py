@@ -9,9 +9,9 @@ import re
 
 from polynexus.core.engine import check_file_format
 
-from polynexus.core.artifacts import raw_artifact_id
+from polynexus.core.artifacts import directory_manifest_sha256, raw_artifact_id
 
-from .models import InputArtifact, canonical_json
+from .models import InputArtifact
 
 
 _EDF_REQUIRED_GEOMETRY = (
@@ -67,8 +67,7 @@ def _directory_sha256(path: Path) -> tuple[str, int]:
     # Keep the directory content hash byte-for-byte aligned with
     # ``RawArtifact.from_path`` so Agent recipes and ComputeRun share one
     # source identity across entry points.
-    manifest = {"kind": "directory_manifest", "entries": entries}
-    return hashlib.sha256(canonical_json(manifest).encode("utf-8")).hexdigest(), len(entries)
+    return directory_manifest_sha256(entries), len(entries)
 
 
 def _edf_header_facts(path: Path) -> tuple[dict[str, object], tuple[str, ...]]:

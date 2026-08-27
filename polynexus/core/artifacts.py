@@ -8,6 +8,18 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
+def directory_manifest_sha256(entries: list[Mapping[str, str]] | tuple[Mapping[str, str], ...]) -> str:
+    """Hash a directory manifest using the shared canonical serialization."""
+    normalized = [
+        {"path": str(entry["path"]), "sha256": str(entry["sha256"])}
+        for entry in entries
+    ]
+    normalized.sort(key=lambda entry: entry["path"])
+    payload = {"kind": "directory_manifest", "entries": normalized}
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def raw_artifact_id(
     path: str | Path,
     *,
@@ -35,4 +47,4 @@ def raw_artifact_id(
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-__all__ = ["raw_artifact_id"]
+__all__ = ["directory_manifest_sha256", "raw_artifact_id"]

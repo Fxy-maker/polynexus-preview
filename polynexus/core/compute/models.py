@@ -15,7 +15,7 @@ import stat
 from types import MappingProxyType
 from typing import Any
 
-from ..artifacts import raw_artifact_id
+from ..artifacts import directory_manifest_sha256, raw_artifact_id
 from ..canonical_experiments.models import CanonicalExperiment, CapabilityItemResult
 
 
@@ -187,7 +187,7 @@ def _directory_manifest_sha256(path: Path) -> str:
     if not entries:
         raise ValueError("Directory artifacts must not be empty")
     entries.sort(key=lambda entry: entry["path"])
-    return _canonical_hash({"kind": "directory_manifest", "entries": entries})
+    return directory_manifest_sha256(entries)
 
 
 def _artifact_format(path: Path) -> str:

@@ -192,6 +192,23 @@ def test_dsc_best_avrami_duplicate_is_not_emitted() -> None:
     assert len(metrics) == len(segment)
 
 
+def test_dsc_best_avrami_duplicate_is_suppressed_regardless_of_parameter_order() -> None:
+    segment = {
+        "T_iso_C": 185.1,
+        "Avrami_n": 1.1,
+        "Avrami_k": 2.0,
+        "Avrami_R2": 0.99,
+    }
+    metrics = extract_writing_metrics(_dsc_evidence({
+        "best_avrami": {**segment, "source": "iso-185C-001"},
+        "segment_01_185.1C": segment,
+    }))
+
+    assert metrics
+    assert all("best_avrami" not in metric.source_locator for metric in metrics)
+    assert len(metrics) == len(segment)
+
+
 def test_dsc_clean_segments_remain_results_candidates() -> None:
     metrics = extract_writing_metrics(_dsc_evidence({
         "segment_01_185C": {
@@ -294,6 +311,28 @@ def test_package_rejects_migrated_step_without_compute_run(tmp_path: Path) -> No
         ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
 
 
+def test_package_keeps_historical_run_without_compute_run_readable(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    manifest_path = Path(run.manifest_path or "")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload.pop("compute_run_contract")
+    for step in payload["analysis_run"]["steps"]:
+        step.pop("compute_run")
+    historical_analysis = AnalysisRun.from_dict(payload["analysis_run"])
+    historical_evidence = evidence_items_from_run(
+        historical_analysis,
+        run_id=run.run_id,
+        raw_sources=run.evidence_items[0].raw_sources,
+    )
+    payload["evidence_items"] = [item.to_dict() for item in historical_evidence]
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    historical_run = replace(run, analysis_run=historical_analysis, evidence_items=historical_evidence)
+
+    package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((historical_run,))
+
+    assert package.path.is_dir()
+
+
 def test_package_rejects_compute_run_artifact_not_matching_recipe(tmp_path: Path) -> None:
     run = _run_dsc_request(tmp_path)
     run = _rewrite_run_analysis(
@@ -317,6 +356,49 @@ def test_package_rejects_compute_template_not_bound_to_recipe_artifact(tmp_path:
     )
 
     with pytest.raises(ValueError, match="run manifest compute_run template does not match artifact"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_rejects_tampered_compute_template_identity(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    run = _rewrite_run_analysis(
+        run,
+        lambda analysis: analysis["steps"][0]["compute_run"]["canonical_template"].update(
+            {"template_id": "ir.spectrum.v1"}
+        ),
+    )
+
+    with pytest.raises(ValueError, match="run manifest compute_run template is invalid"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_rejects_minimal_compute_run_projection(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    run = _rewrite_run_analysis(
+        run,
+        lambda analysis: analysis["steps"][0].update({
+            "compute_run": {
+                "status": "completed",
+                "artifact": analysis["steps"][0]["compute_run"]["artifact"],
+                "canonical_template": analysis["steps"][0]["compute_run"]["canonical_template"],
+            }
+        }),
+    )
+
+    with pytest.raises(ValueError, match="run manifest compute_run execution context is invalid"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_rejects_compute_template_technique_tampering(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    run = _rewrite_run_analysis(
+        run,
+        lambda analysis: analysis["steps"][0]["compute_run"]["canonical_template"]["payload"].update(
+            {"technique": "ir"}
+        ),
+    )
+
+    with pytest.raises(ValueError, match="run manifest compute_run template is invalid"):
         ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
 
 

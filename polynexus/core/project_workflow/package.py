@@ -13,6 +13,8 @@ import math
 from typing import Any, Iterable, Mapping
 
 from polynexus.core.agent_workflow.models import AnalysisRun
+from polynexus.core.artifacts import directory_manifest_sha256
+from polynexus.core.canonical_experiments.models import CanonicalExperiment
 
 from .evidence import ProjectWorkflowRun
 from .ir_group_figures import FigureCandidateSet
@@ -400,10 +402,15 @@ class ProjectEvidencePackager:
             raise ValueError("run manifest analysis record does not match run")
         if len(analysis_run.steps) != len(analysis_run.recipe.steps):
             raise ValueError("run manifest analysis steps do not match recipe")
+        require_compute_run = manifest.get("compute_run_contract") == "required"
+        if not require_compute_run:
+            require_compute_run = any(step.compute_run is not None for step in analysis_run.steps)
         for step, recipe_step in zip(analysis_run.steps, analysis_run.recipe.steps):
             if step.step_id != recipe_step.step_id or step.technique != recipe_step.technique:
                 raise ValueError("run manifest analysis step does not match recipe")
             compute_run = step.compute_run
+            if not require_compute_run and compute_run is None:
+                continue
             if not isinstance(compute_run, Mapping):
                 raise ValueError("run manifest compute_run is missing")
             if str(compute_run.get("status", "")) != "completed":
@@ -426,9 +433,42 @@ class ProjectEvidencePackager:
                 recipe_artifact = matches[0] if len(matches) == 1 else None
             if recipe_artifact is None or compute_artifact.get("artifact_id") != recipe_artifact.artifact_id or compute_artifact.get("sha256") != recipe_artifact.sha256:
                 raise ValueError("run manifest compute_run artifact does not match recipe")
+            if str(compute_artifact.get("technique", "")).lower() != str(recipe_artifact.technique).lower():
+                raise ValueError("run manifest compute_run artifact technique does not match recipe")
             template = compute_run.get("canonical_template")
             if not isinstance(template, Mapping) or template.get("source_artifact_id") != recipe_artifact.artifact_id:
                 raise ValueError("run manifest compute_run template does not match artifact")
+            try:
+                canonical_template = CanonicalExperiment.from_dict(template)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("run manifest compute_run template is invalid") from exc
+            expected_template = recipe_step.parameters.get("canonical_template")
+            if isinstance(expected_template, Mapping):
+                if canonical_template.template_id != expected_template.get("template_id"):
+                    raise ValueError("run manifest compute_run template does not match recipe")
+                if canonical_template.content_hash != expected_template.get("content_hash"):
+                    raise ValueError("run manifest compute_run template does not match recipe")
+                expected_conversion = expected_template.get("conversion_record")
+                if isinstance(expected_conversion, Mapping) and canonical_template.conversion_record.conversion_hash != expected_conversion.get("conversion_hash"):
+                    raise ValueError("run manifest compute_run conversion does not match recipe")
+            template_technique = canonical_template.payload.get("technique")
+            if template_technique is not None and str(template_technique).lower() != str(recipe_artifact.technique).lower():
+                raise ValueError("run manifest compute_run template technique does not match artifact")
+            dataset = compute_run.get("dataset")
+            plan = compute_run.get("plan")
+            result = compute_run.get("result")
+            if not isinstance(dataset, Mapping) or not isinstance(plan, Mapping) or not isinstance(result, Mapping):
+                raise ValueError("run manifest compute_run execution context is invalid")
+            if dataset.get("source_artifact_id") != recipe_artifact.artifact_id:
+                raise ValueError("run manifest compute_run dataset does not match artifact")
+            if str(dataset.get("technique", "")).lower() != str(recipe_artifact.technique).lower():
+                raise ValueError("run manifest compute_run dataset technique does not match artifact")
+            if plan.get("dataset_id") != dataset.get("dataset_id"):
+                raise ValueError("run manifest compute_run plan does not match dataset")
+            if str(plan.get("technique", "")).lower() != str(recipe_artifact.technique).lower():
+                raise ValueError("run manifest compute_run plan technique does not match artifact")
+            if not isinstance(result.get("metrics"), Mapping) or not isinstance(result.get("warnings"), (list, tuple)):
+                raise ValueError("run manifest compute_run result is invalid")
         source_hashes = sorted(str(value) for value in manifest.get("source_hashes", ()))
         recipe_hashes = sorted(str(item.sha256) for item in analysis_run.recipe.artifacts if item.sha256)
         if source_hashes != recipe_hashes:
@@ -744,9 +784,7 @@ def _sha256_directory(path: Path) -> str:
     # Match the shared RawArtifact directory-manifest contract.  Package
     # validation must accept the same source hash that Agent and ComputeRun
     # recorded, otherwise a valid directory run cannot be packaged.
-    return hashlib.sha256(
-        canonical_json({"kind": "directory_manifest", "entries": entries}).encode("utf-8")
-    ).hexdigest()
+    return directory_manifest_sha256(entries)
 
 
 __all__ = ["ProjectEvidencePackager", "ResearchEvidencePackage"]

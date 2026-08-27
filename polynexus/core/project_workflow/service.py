@@ -853,6 +853,7 @@ class ProjectWorkflowService:
                 conversion_hashes.append(str(conversion["conversion_hash"]))
             figures.extend(str(value) for value in step.figure_references.values() if isinstance(value, str))
         return {
+            "compute_run_contract": "required",
             "run_id": run_id,
             "request_hash": request.request_hash,
             "question": request.question,
