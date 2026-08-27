@@ -398,6 +398,37 @@ class ProjectEvidencePackager:
             raise ValueError("run manifest analysis record does not match run")
         if run.analysis_run is not None and analysis_run.to_dict() != run.analysis_run.to_dict():
             raise ValueError("run manifest analysis record does not match run")
+        if len(analysis_run.steps) != len(analysis_run.recipe.steps):
+            raise ValueError("run manifest analysis steps do not match recipe")
+        for step, recipe_step in zip(analysis_run.steps, analysis_run.recipe.steps):
+            if step.step_id != recipe_step.step_id or step.technique != recipe_step.technique:
+                raise ValueError("run manifest analysis step does not match recipe")
+            compute_run = step.compute_run
+            if not isinstance(compute_run, Mapping):
+                raise ValueError("run manifest compute_run is missing")
+            if str(compute_run.get("status", "")) != "completed":
+                raise ValueError("run manifest compute_run is not completed")
+            compute_artifact = compute_run.get("artifact")
+            if not isinstance(compute_artifact, Mapping):
+                raise ValueError("run manifest compute_run artifact is invalid")
+            artifact_index = recipe_step.parameters.get("artifact_index")
+            if isinstance(artifact_index, int) and not isinstance(artifact_index, bool):
+                recipe_artifact = (
+                    analysis_run.recipe.artifacts[artifact_index]
+                    if 0 <= artifact_index < len(analysis_run.recipe.artifacts)
+                    else None
+                )
+            else:
+                matches = tuple(
+                    item for item in analysis_run.recipe.artifacts
+                    if item.technique == recipe_step.technique
+                )
+                recipe_artifact = matches[0] if len(matches) == 1 else None
+            if recipe_artifact is None or compute_artifact.get("artifact_id") != recipe_artifact.artifact_id or compute_artifact.get("sha256") != recipe_artifact.sha256:
+                raise ValueError("run manifest compute_run artifact does not match recipe")
+            template = compute_run.get("canonical_template")
+            if not isinstance(template, Mapping) or template.get("source_artifact_id") != recipe_artifact.artifact_id:
+                raise ValueError("run manifest compute_run template does not match artifact")
         source_hashes = sorted(str(value) for value in manifest.get("source_hashes", ()))
         recipe_hashes = sorted(str(item.sha256) for item in analysis_run.recipe.artifacts if item.sha256)
         if source_hashes != recipe_hashes:

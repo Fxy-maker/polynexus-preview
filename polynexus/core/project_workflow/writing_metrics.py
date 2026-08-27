@@ -148,16 +148,43 @@ def _dsc(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
         "Avrami_k": "model_parameter", "Avrami_R2": "dimensionless", "t_half_min": "min",
     }
     records: list[CitationMetric] = []
+    emitted_signatures: set[tuple[Any, ...]] = set()
+    metric_fields = tuple(fields)
+
+    def normalized_quality_flags(value: Any) -> tuple[str, ...]:
+        if isinstance(value, str):
+            values = value.replace(";", ",").split(",")
+        elif isinstance(value, (list, tuple, set, frozenset)):
+            values = [str(item) for item in value]
+        elif isinstance(value, Mapping):
+            values = [str(key) for key, flag in value.items() if str(flag).upper() not in {"", "OK", "PASS"}]
+        else:
+            values = []
+        return tuple(dict.fromkeys(item.strip() for item in values if item and item.strip()))
+
+    def signature(values: Mapping[str, Any]) -> tuple[Any, ...]:
+        return tuple(_finite(values.get(key)) for key in metric_fields)
+
     for name, values in parameters.items():
         if not (str(name).startswith("segment_") or str(name) == "best_avrami") or not isinstance(values, Mapping):
             continue
+        current_signature = signature(values)
+        if str(name) == "best_avrami" and current_signature in emitted_signatures:
+            continue
+        emitted_signatures.add(current_signature)
         method = "dsc.isothermal_avrami_fit"
+        reasons = list(normalized_quality_flags(values.get("quality_flags")))
+        r_squared = _finite(values.get("Avrami_R2"))
+        if isinstance(r_squared, (int, float)) and r_squared < 0.9 and "low_avrami_r_squared" not in reasons:
+            reasons.append("low_avrami_r_squared")
+        eligibility = "diagnostic_only" if reasons else "results_candidate"
         for key, unit in fields.items():
             value = _finite(values.get(key))
             if value is None:
                 continue
             records.append(_base(payload, key=key, value=value, unit=unit, method=method,
-                                 locator=f"parameters.{name}.{key}"))
+                                 locator=f"parameters.{name}.{key}",
+                                 eligibility=eligibility, reasons=reasons))
     return tuple(records)
 
 

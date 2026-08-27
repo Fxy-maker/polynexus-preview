@@ -122,7 +122,12 @@ class CanonicalConverterRegistry:
         if not entries:
             raise OSError("directory contains no files")
         return hashlib.sha256(
-            json.dumps(entries, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            json.dumps(
+                {"kind": "directory_manifest", "entries": entries},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
         ).hexdigest()
 
 

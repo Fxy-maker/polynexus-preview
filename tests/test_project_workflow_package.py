@@ -17,6 +17,7 @@ from polynexus.core.engine import AnalysisResult
 from polynexus.core.agent_workflow.models import AnalysisRecipe, AnalysisRun, EvidenceRecord, InputArtifact, RecipeStep, WorkflowStepResult
 from polynexus.core.project_workflow.evidence import evidence_items_from_run
 from polynexus.core.project_workflow.ir_group_figures import FigureCandidate, FigureCandidateSet
+from polynexus.core.project_workflow.writing_metrics import extract_writing_metrics
 
 
 def _write_mettler_fixture(path: Path) -> Path:
@@ -42,6 +43,33 @@ def _run_dsc_request(tmp_path: Path):
         data_scope=(str(source.relative_to(tmp_path)),),
     )
     return service.run(request)
+
+
+def _rewrite_run_analysis(
+    run,
+    mutate,
+):
+    """Keep the persisted manifest and public run projection intentionally aligned."""
+    manifest_path = Path(run.manifest_path or "")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    analysis_payload = payload["analysis_run"]
+    mutate(analysis_payload)
+    analysis_run = AnalysisRun.from_dict(analysis_payload)
+    evidence_items = evidence_items_from_run(
+        analysis_run,
+        run_id=run.run_id,
+        raw_sources=run.evidence_items[0].raw_sources,
+    )
+    payload["analysis_run"] = analysis_run.to_dict()
+    payload["evidence_items"] = [item.to_dict() for item in evidence_items]
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    return replace(
+        run,
+        status=analysis_run.status,
+        analysis_run=analysis_run,
+        evidence_items=evidence_items,
+        reason_codes=analysis_run.reason_codes,
+    )
 
 
 def test_package_contains_ars_entrypoint_and_provenance(tmp_path: Path) -> None:
@@ -112,11 +140,69 @@ def test_package_writes_citation_metrics_with_writing_evidence_links(tmp_path: P
     assert manifest["questions"] == ["Compare PA6 kinetics"]
     ars = json.loads((package.path / "ars-writing-input.json").read_text(encoding="utf-8"))
     assert ars["citation_metrics"] == "citation-metrics.json"
-    assert ars["techniques"]["dsc"]["evidence"][0]["results_metric_ids"]
+    assert not ars["techniques"]["dsc"]["evidence"][0]["results_metric_ids"]
+    assert ars["techniques"]["dsc"]["evidence"][0]["discussion_metric_ids"]
     item = writing["techniques"]["dsc"]["evidence"][0]
     assert item["citation_metric_ids"]
-    assert "results_candidate" in item["citation_metric_counts"]
+    assert "diagnostic_only" in item["citation_metric_counts"]
     assert "Citation metrics: citation-metrics.json" in (package.path / "writing-input.md").read_text(encoding="utf-8")
+
+
+def _dsc_evidence(parameters: dict) -> object:
+    return {
+        "evidence_id": "dsc-evidence",
+        "technique": "dsc",
+        "status": "review_required",
+        "source_runs": ["run-dsc"],
+        "raw_sources": ["raw-sha"],
+        "observed_results": {"result_summary": {"parameters": parameters}},
+    }
+
+
+def test_dsc_quality_flagged_segments_are_diagnostic_only() -> None:
+    metrics = extract_writing_metrics(_dsc_evidence({
+        "segment_01_180C": {
+            "T_iso_C": 180.0,
+            "Avrami_n": 1.2,
+            "Avrami_R2": 0.75,
+            "quality_flags": "low_avrami_r_squared,event_starts_at_segment_boundary",
+        },
+    }))
+
+    assert metrics
+    assert {metric.writing_eligibility for metric in metrics} == {"diagnostic_only"}
+    assert all("low_avrami_r_squared" in metric.reason_codes for metric in metrics)
+    assert all("event_starts_at_segment_boundary" in metric.reason_codes for metric in metrics)
+
+
+def test_dsc_best_avrami_duplicate_is_not_emitted() -> None:
+    segment = {
+        "T_iso_C": 185.1,
+        "Avrami_n": 1.1,
+        "Avrami_k": 2.0,
+        "Avrami_R2": 0.99,
+    }
+    metrics = extract_writing_metrics(_dsc_evidence({
+        "segment_01_185.1C": segment,
+        "best_avrami": {**segment, "source": "iso-185C-001"},
+    }))
+
+    assert metrics
+    assert all("best_avrami" not in metric.source_locator for metric in metrics)
+    assert len(metrics) == len(segment)
+
+
+def test_dsc_clean_segments_remain_results_candidates() -> None:
+    metrics = extract_writing_metrics(_dsc_evidence({
+        "segment_01_185C": {
+            "T_iso_C": 185.0,
+            "Avrami_n": 1.1,
+            "Avrami_R2": 0.99,
+        },
+    }))
+
+    assert metrics
+    assert {metric.writing_eligibility for metric in metrics} == {"results_candidate"}
 
 
 def test_step_evidence_does_not_inherit_run_wide_disallowed_conclusions() -> None:
@@ -194,6 +280,43 @@ def test_package_rejects_tampered_run_manifest(tmp_path: Path) -> None:
     manifest_path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(ValueError, match="run manifest"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_rejects_migrated_step_without_compute_run(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    run = _rewrite_run_analysis(
+        run,
+        lambda analysis: analysis["steps"][0].pop("compute_run"),
+    )
+
+    with pytest.raises(ValueError, match="run manifest compute_run is missing"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_rejects_compute_run_artifact_not_matching_recipe(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    run = _rewrite_run_analysis(
+        run,
+        lambda analysis: analysis["steps"][0]["compute_run"]["artifact"].update(
+            {"sha256": "not-the-recipe-hash"}
+        ),
+    )
+
+    with pytest.raises(ValueError, match="run manifest compute_run artifact does not match recipe"):
+        ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+
+def test_package_rejects_compute_template_not_bound_to_recipe_artifact(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    run = _rewrite_run_analysis(
+        run,
+        lambda analysis: analysis["steps"][0]["compute_run"]["canonical_template"].update(
+            {"source_artifact_id": "not-the-recipe-artifact"}
+        ),
+    )
+
+    with pytest.raises(ValueError, match="run manifest compute_run template does not match artifact"):
         ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
 
 

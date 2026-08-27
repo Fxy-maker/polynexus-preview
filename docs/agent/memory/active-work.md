@@ -5782,3 +5782,19 @@ and structured gates (`303` / `157`).
   objects, and replay-confirmed cross-sample context is absent from
   `ars-writing-input.json`. These remain follow-up blockers for a portable,
   cross-technique manuscript handoff.
+
+## Architecture and scientific repair - 2026-08-27
+
+- Directory manifest hashing is now aligned between the canonical converter
+  registry and `RawArtifact` using the shared `directory_manifest` envelope.
+- Evidence packaging now requires each recipe step to have a completed,
+  artifact-bound `ComputeRun` projection and rejects step/recipe mismatches.
+- DSC Avrami writing metrics now preserve flagged observations as
+  `diagnostic_only`, add deterministic low-R² reasons, and suppress duplicate
+  `best_avrami` records.
+- Focused package/provenance matrix passed 47 tests; DSC/evidence matrix passed
+  27 tests with 121 deselected. Acceptance details:
+  `docs/acceptance/2026-08-27-architecture-scientific-repair.md`.
+- Remaining P1/P2 follow-ups are package portability, Batch persistence,
+  mixed-technology plan routing, GUI figure filtering, and capability coverage;
+  no release-green claim is made.
