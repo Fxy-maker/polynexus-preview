@@ -5777,3 +5777,8 @@ and structured gates (`303` / `157`).
 - Additional medium follow-ups are package portability/self-containment and
   per-row GUI batch persistence. No raw data or provider algorithms were
   changed during this review.
+- The review also identified that package validation does not currently require
+  each migrated step's `compute_run`, the GUI still plots through legacy result
+  objects, and replay-confirmed cross-sample context is absent from
+  `ars-writing-input.json`. These remain follow-up blockers for a portable,
+  cross-technique manuscript handoff.

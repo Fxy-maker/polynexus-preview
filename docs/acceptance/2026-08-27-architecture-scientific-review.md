@@ -48,6 +48,23 @@ when provider validation passes. This is conservative, but the distinction
 between computation completion and scientific review must remain explicit in
 CLI, GUI, and ARS contracts.
 
+### A6 — High: package validation does not require the shared run projection
+
+The packager validates `AnalysisRun`, evidence, and source hashes, but does not
+require every step to contain a `compute_run` whose artifact, template, and
+hashes agree with the recipe. A future manifest could therefore claim canonical
+template hashes without carrying the shared `ComputeRun` object that produced
+them. The migration contract should make that projection mandatory for migrated
+entry points and validate it at package time.
+
+### A7 — Medium: GUI still consumes legacy result objects
+
+The GUI executes through `ComputeRunService` but immediately projects the run
+back to the legacy provider result for plotting and tables. This is acceptable
+as a compatibility bridge, but it means the GUI is not yet a pure
+`ComputeRun` consumer. Legacy deletion is unsafe until the chart/table path
+reads the shared result DTO directly.
+
 ## Scientific findings
 
 ### S1 — Critical: DSC Results projection is too permissive
@@ -82,6 +99,22 @@ deterministic evidence handoff, not an automatically approved manuscript data
 set. ARS must consume the partitions and limitations, while a human decides
 which candidate figures/metrics enter a paper.
 
+### S5 — Important: confirmed cross-sample context is not in the package
+
+The replay summary contains user-confirmed PA6/PA11/PA12 pairing and
+JW/SW/hold semantics, but `ars-writing-input.json` does not carry that context.
+Therefore ARS must not assume that files from different techniques represent
+the same sample, batch, or treatment. Either include the approved context as a
+provenance section or require ARS to request confirmation before cross-technique
+claims.
+
+### S6 — Presentation layer is not manuscript-ready
+
+The package indexes 730 logical SVG figures, largely one per FTIR file, and all
+are `diagnostic`/`review_only`. This is not duplicated provider execution, but
+the gallery still needs candidate ranking and group-level filtering before it is
+usable for human review or paper figure selection.
+
 ## Review disposition
 
 Status: **blocked for architecture/scientific merge approval**.
@@ -89,9 +122,12 @@ Status: **blocked for architecture/scientific merge approval**.
 Before merge or release claim:
 
 1. Fix A1 and add the cross-entry directory identity regression.
-2. Fix S1 with an approved deterministic DSC eligibility rule and deduplication.
-3. Decide A2 package portability and repair A3 batch persistence.
-4. Rebuild v003 package and rerun the evidence-view/readback checks.
+2. Make A6 explicit by requiring and validating `ComputeRun` projections.
+3. Fix S1 with an approved deterministic DSC eligibility rule and deduplication.
+4. Decide A2 package portability, repair A3 batch persistence, and plan A7's
+   legacy-result retirement.
+5. Carry the approved cross-sample context into ARS (S5), then rebuild v003
+   and rerun the evidence-view/readback checks.
 
 The full repository boundary suite remains non-green due to known historical
 GUI/chart/SAXS failures; no release-green claim is made.
