@@ -1,5 +1,12 @@
 # Active Work
 
+## IR no-implicit-PA6 default - implementation complete, review required (2026-08-27)
+
+- Removed the IR temperature-series PA6 fallback and changed the submodule metadata default to an empty optional material hint.
+- Shared ComputeRunService now projects an explicit project_context.material.name into an otherwise-empty IR config; no caller is required to provide material metadata.
+- Focused IR/compute matrix passed 55 with 3 skips. Structured verification remains to be run before checkpoint.
+- Task/spec/plan: docs/agent/tasks/2026-08-27-ftir-no-pa6-default.md, docs/superpowers/specs/2026-08-27-ftir-no-pa6-default-design.md, docs/superpowers/plans/2026-08-27-ftir-no-pa6-default.md.
+
 ## Optional project context and no implicit DSC material defaults - implementation complete, review required (2026-08-27)
 
 - Added `ProjectContext` for optional `.polynexus/project-context.json` or mapping input. Missing context is empty; malformed context fails closed with `project_context_invalid`.

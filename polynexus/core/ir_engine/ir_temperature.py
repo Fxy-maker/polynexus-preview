@@ -457,7 +457,7 @@ def analyze_temperature_2d_series(
         spec = frame.spectrum
         analysis = analyze_spectrum(
             spec, config, label=frame.label,
-            polymer_name=config.polymer_name or "PA6",
+            polymer_name=config.polymer_name or "",
         )
         frame.result = analysis
 

@@ -272,6 +272,12 @@ class ComputeRunService:
                 if dsc_config is not None:
                     dsc_config.user_DHm0 = context.dsc_reference_enthalpy
                     dsc_config.crystallinity_std = context.dsc_reference_enthalpy
+            material = context.snapshot.get("material", {})
+            material_name = material.get("name") if isinstance(material, Mapping) else None
+            if normalized_technique == "ir" and material_name:
+                ir_config = getattr(selected_engine, "_ir_config", None)
+                if ir_config is not None and not getattr(ir_config, "polymer_name", ""):
+                    ir_config.polymer_name = str(material_name)
             if (
                 canonical_template is not None
                 and normalized_technique == "dsc"

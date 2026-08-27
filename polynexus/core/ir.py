@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
     config_schema={
         "baseline_corr": {"type": "choice", "options": ["rubberband", "linear", "none"], "default": "rubberband", "label": "基线校正"},
         "smooth_window": {"type": "int", "min": 3, "max": 31, "default": 7, "label": "平滑窗口"},
-        "polymer_name": {"type": "string", "default": "PA6", "label": "聚合物"},
+        "polymer_name": {"type": "string", "default": "", "label": "聚合物（可选）"},
     },
     output_parameters=[
         {"key": "n_frames", "label": "序列帧数", "format": "d"},
