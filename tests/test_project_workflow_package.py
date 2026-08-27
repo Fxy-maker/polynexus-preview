@@ -107,6 +107,17 @@ def test_package_contains_ars_entrypoint_and_provenance(tmp_path: Path) -> None:
     }]
 
 
+def test_package_copies_validated_run_manifests_into_relative_runs_area(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+    manifest = json.loads((package.path / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["run_manifests"] == [f"runs/{run.run_id}.json"]
+    snapshot = package.path / "runs" / f"{run.run_id}.json"
+    assert snapshot.is_file()
+    assert json.loads(snapshot.read_text(encoding="utf-8"))["run_id"] == run.run_id
+
+
 def test_package_writing_evidence_groups_claim_boundaries_by_technique(tmp_path: Path) -> None:
     run = _run_dsc_request(tmp_path)
     package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))

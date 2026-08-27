@@ -5897,3 +5897,13 @@ and structured gates (`303` / `157`).
   gates passed (310 + 157). Remaining work is final cross-entry acceptance,
   historical failure ledger, and human scientific review; no release-green
   claim is made.
+
+## Package-relative run snapshots - 2026-08-28
+
+- Evidence package creation now copies each already validated run manifest into
+  `runs/<run_id>.json` and records package-relative paths in `manifest.json`.
+  Raw experimental inputs remain external and hash-bound; provider algorithms
+  are unchanged.
+- Focused package/evidence/AI matrix passed 50 tests. Task card and acceptance:
+  `docs/agent/tasks/2026-08-28-package-run-snapshots.md` and
+  `docs/acceptance/2026-08-28-package-run-snapshots.md`.

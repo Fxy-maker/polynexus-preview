@@ -128,6 +128,12 @@ class ProjectEvidencePackager:
         try:
             (package_path / "figures").mkdir()
             (package_path / "tables").mkdir()
+            (package_path / "runs").mkdir()
+            run_manifest_paths: list[str] = []
+            for run, manifest in zip(run_values, manifests, strict=True):
+                relative_path = f"runs/{run.run_id}.json"
+                self._write_json(package_path / relative_path, manifest)
+                run_manifest_paths.append(relative_path)
             confirmed_context: list[dict[str, Any]] = []
             seen_context: set[str] = set()
             for manifest in manifests:
@@ -155,7 +161,7 @@ class ProjectEvidencePackager:
                     str(manifest.get("question", "")) for manifest in manifests if manifest.get("question")
                 )),
                 "confirmed_context": confirmed_context,
-                "run_manifests": [str(run.manifest_path) for run in run_values],
+                "run_manifests": run_manifest_paths,
                 "source_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("source_hashes", ())}),
                 "canonical_template_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("canonical_template_hashes", ())}),
                 "conversion_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("conversion_hashes", ())}),
