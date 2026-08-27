@@ -5963,3 +5963,14 @@ and structured gates (`303` / `157`).
   `docs/acceptance/2026-08-28-capability-evidence-projection.md`.
 - Generic capability metrics remain diagnostic-only; provider-specific
   scientific eligibility and ARS/human promotion decisions are unchanged.
+
+## Review decision ledger - 2026-08-28
+
+- New evidence packages now write `review-decision.json` with deterministic
+  pending entries derived from ARS `human_review`; `ars-writing-input.json` and
+  the package manifest reference the ledger and its status.
+- Package/ARS/GUI compatibility matrix passed **48 tests**; quality and
+  preprocessing gates passed (311/157). Acceptance:
+  `docs/acceptance/2026-08-28-review-decision-ledger.md`.
+- The ledger records human decisions but cannot alter immutable evidence or
+  automatically approve Results/Discussion promotion.

@@ -193,9 +193,14 @@ class ProjectEvidencePackager:
                 citation_metrics={"records": [record.to_dict() for record in citation_metrics]},
                 limitations={"limitations": limitations},
             )
+            review_decision_payload = self._review_decision_payload(
+                package_manifest=package_manifest,
+                human_review=ars_writing_input.get("human_review", ()),
+            )
             package_manifest["writing_evidence"] = "writing-evidence.json"
             package_manifest["citation_metrics"] = "citation-metrics.json"
             package_manifest["ars_writing_input"] = "ars-writing-input.json"
+            package_manifest["review_decisions"] = "review-decision.json"
             self._write_json(package_path / "evidence.json", {"items": evidence})
             self._write_json(package_path / "relations.json", {"relations": relation_values})
             self._write_json(package_path / "techniques.json", {"techniques": technique_index})
@@ -206,6 +211,7 @@ class ProjectEvidencePackager:
             })
             self._write_json(package_path / "writing-evidence.json", writing_evidence)
             self._write_json(package_path / "ars-writing-input.json", ars_writing_input)
+            self._write_json(package_path / "review-decision.json", review_decision_payload)
             self._write_json(package_path / "limitations.json", {"limitations": limitations})
             self._copy_assets(copied_assets, package_path)
             self._write_figure_index(package_path, figure_index)
@@ -223,6 +229,43 @@ class ProjectEvidencePackager:
             shutil.rmtree(package_path, ignore_errors=True)
             raise
         return ResearchEvidencePackage(package_id, version, package_path, status, package_hash)
+
+    @staticmethod
+    def _review_decision_payload(
+        *, package_manifest: Mapping[str, Any], human_review: Iterable[Mapping[str, Any]]
+    ) -> dict[str, Any]:
+        decisions: list[dict[str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for item in human_review:
+            if not isinstance(item, Mapping):
+                continue
+            evidence_id = str(item.get("evidence_id", "")).strip()
+            action = str(item.get("action", "human_scientific_review")).strip()
+            reason = str(item.get("reason", "review_required")).strip()
+            key = (evidence_id, action, reason)
+            if not evidence_id or key in seen:
+                continue
+            seen.add(key)
+            decisions.append({
+                "evidence_id": evidence_id,
+                "action": action,
+                "reason": reason,
+                "decision": "pending",
+                "notes": "",
+            })
+        decisions.sort(key=lambda value: (value["evidence_id"], value["action"], value["reason"]))
+        return {
+            "version": 1,
+            "package": {
+                "package_id": package_manifest.get("package_id"),
+                "version": package_manifest.get("version"),
+                "status": package_manifest.get("status"),
+            },
+            "status": "pending" if decisions else "not_required",
+            "reviewer": "",
+            "reviewed_at": "",
+            "decisions": decisions,
+        }
 
     @staticmethod
     def _canonical_figure_assets(

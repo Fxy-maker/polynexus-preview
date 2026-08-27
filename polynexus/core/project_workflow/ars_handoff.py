@@ -100,6 +100,8 @@ def build_ars_writing_input(
             if isinstance(entry, Mapping) and isinstance(entry.get("values", {}), Mapping)
         ],
         "human_review": list({(item["evidence_id"], item["action"], item["reason"]): item for item in review_items}.values()),
+        "review_decisions": "review-decision.json",
+        "review_status": "pending" if review_items else "not_required",
         "prohibited_cross_technique_claims": ["sample_identity", "batch_identity", "causal_mechanism"],
     }
     validate_ars_writing_input(payload, citation_metrics=citation_metrics)
