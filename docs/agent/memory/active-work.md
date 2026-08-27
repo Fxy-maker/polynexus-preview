@@ -5937,3 +5937,17 @@ and structured gates (`303` / `157`).
   complete but remain `review_required` for human scientific approval, legacy
   failure closure, and final ARS manuscript decisions. Acceptance:
   `docs/acceptance/2026-08-28-full-suite-release-boundary.md`.
+
+## Mixed-technique project run - 2026-08-28
+
+- `analyze-project` now submits one request for explicitly selected files from
+  multiple techniques. A composite adapter merges existing DSC, single-input,
+  and same-technique series recipes into one immutable recipe; every step still
+  executes through the shared `ComputeRun` boundary.
+- The result exposes one request-level `ProjectWorkflowRun` with independent
+  technique steps and package-level `cross_technique_evidence_set` membership.
+- Focused project/package matrix passed **44 tests**; task verifier, quality
+  (**311**) and preprocessing (**157**) gates passed. Acceptance:
+  `docs/acceptance/2026-08-28-mixed-technique-project-run.md`.
+- This closes the mixed-route implementation gap but remains review-required
+  for full GUI replay, six-sample re-run, and scientific ARS decisions.

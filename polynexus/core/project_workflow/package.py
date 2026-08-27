@@ -111,7 +111,7 @@ class ProjectEvidencePackager:
                 for run in run_values
             ]
             techniques = sorted({item.technique for run in run_values for item in run.evidence_items})
-            if len(run_values) > 1:
+            if len(run_values) > 1 or len(techniques) > 1:
                 relation_values.append({
                     "type": "cross_technique_evidence_set" if len(techniques) > 1 else "technique_series_evidence_set",
                     "run_ids": [run.run_id for run in run_values],

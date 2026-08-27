@@ -16,7 +16,7 @@ from polynexus.core.agent_workflow import AgentWorkflowService, inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe
 
 from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
-from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
+from .adapters import MixedTechniqueAdapter, SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .index import ProjectIndexer
 from .grouping import CandidateExperimentGroup, candidate_groups
 from .ir_group_figures import FigureCandidateSet, render_ftir_group_candidates
@@ -31,6 +31,7 @@ _DSC_WORKFLOW = "tpae.characterization.v1"
 _DSC_TEMPLATE = "dsc.isothermal.v1"
 _SINGLE_WORKFLOW = SingleInputTechniqueAdapter.workflow_id
 _SERIES_WORKFLOW = TechniqueSeriesAdapter.workflow_id
+_COMPOSITE_WORKFLOW = MixedTechniqueAdapter.workflow_id
 
 
 class ProjectWorkflowService:
@@ -47,6 +48,7 @@ class ProjectWorkflowService:
         self.agent_service = agent_service or AgentWorkflowService()
         self.single_input_adapter = SingleInputTechniqueAdapter()
         self.series_adapter = TechniqueSeriesAdapter()
+        self.composite_adapter = MixedTechniqueAdapter()
         if self.agent_service.registry.get(_SINGLE_WORKFLOW) is None:
             self.agent_service.registry.register(self.single_input_adapter)
         if self.agent_service.registry.get(_SERIES_WORKFLOW) is None:
@@ -142,11 +144,11 @@ class ProjectWorkflowService:
             else:
                 reasons.extend(artifact.reason_codes or ("technique_unrecognized",))
         runs: list[ProjectWorkflowRun] = []
-        for technique in sorted(grouped):
+        if grouped:
             request = AnalysisRequest.create(
                 question=question,
                 requested_outputs=tuple(requested_outputs),
-                data_scope=tuple(sorted(grouped[technique])),
+                data_scope=tuple(sorted(path for paths in grouped.values() for path in paths)),
                 parameters={"requested_by": "ai_native_project_entrypoint"},
             )
             result = self.run(request)
@@ -203,8 +205,6 @@ class ProjectWorkflowService:
 
         reason_codes: list[str] = []
         steps: list[dict[str, object]] = []
-        if len(techniques) > 1:
-            reason_codes.append("mixed_technique_inputs")
         for technique in techniques:
             selected = tuple(
                 artifact for artifact in artifacts
@@ -433,6 +433,8 @@ class ProjectWorkflowService:
             self.agent_service.registry.register(self.single_input_adapter)
         if self.agent_service.registry.get(_SERIES_WORKFLOW) is None:
             self.agent_service.registry.register(self.series_adapter)
+        if self.agent_service.registry.get(_COMPOSITE_WORKFLOW) is None:
+            self.agent_service.registry.register(self.composite_adapter)
         if isinstance(request_or_plan, AnalysisRequest):
             request = request_or_plan
             plan = self.plan(request)
@@ -460,6 +462,9 @@ class ProjectWorkflowService:
 
         if plan.status == "blocked":
             return self._blocked_project_run(plan, *plan.reason_codes)
+        techniques = {str(step.get("technique", "")).lower() for step in plan.steps}
+        if len(techniques) > 1:
+            return self._run_mixed_techniques(request, plan)
         dsc_steps = tuple(step for step in plan.steps if step.get("technique") == "dsc")
         non_dsc_steps = tuple(step for step in plan.steps if step.get("technique") != "dsc")
         if non_dsc_steps:
@@ -747,6 +752,64 @@ class ProjectWorkflowService:
         outputs = self._derived_outputs(output_dir, analysis_run)
         manifest_path = self.workspace.write_json(self.workspace.runs_dir / f"{run_id}.json", self._run_manifest(request=request, plan=plan, recipe=recipe, run=analysis_run, run_id=run_id, source_hashes=[artifact.sha256 for artifact in recipe.artifacts if artifact.sha256], evidence_items=evidence_items, outputs=outputs))
         return ProjectWorkflowRun(run_id=run_id, request_hash=request.request_hash, plan_hash=plan.plan_hash, recipe_hash=recipe.recipe_hash, status=analysis_run.status, outputs=tuple(str(path) for path in outputs) + (str(manifest_path),), evidence_items=evidence_items, manifest_path=str(manifest_path), analysis_run=analysis_run, reason_codes=analysis_run.reason_codes)
+
+    def _run_mixed_techniques(self, request: AnalysisRequest, plan: ProjectPlan) -> ProjectWorkflowRun:
+        components: dict[str, list[str]] = {}
+        for step in plan.steps:
+            technique = str(step.get("technique", "")).lower()
+            if not technique or str(step.get("status", "")) == "blocked":
+                return self._blocked_project_run(plan, "mixed_component_blocked")
+            paths = tuple(str(path) for path in step.get("artifact_paths", ()))
+            if not paths:
+                return self._blocked_project_run(plan, "mixed_component_artifact_missing")
+            components[technique] = [
+                str((self.workspace.root / path).absolute())
+                for path in paths
+            ]
+        proposal = self.composite_adapter.propose_recipe({
+            "workflow_id": _COMPOSITE_WORKFLOW,
+            "components": components,
+        })
+        if proposal.recipe is None:
+            return self._blocked_project_run(plan, *proposal.reason_codes)
+        recipe = proposal.recipe
+        source_hashes = tuple(str(item.sha256) for item in recipe.artifacts if item.sha256)
+        run_id = stable_run_id(request.request_hash, recipe.recipe_hash, source_hashes)
+        output_dir = self.workspace.runs_dir / run_id
+        analysis_run = self.agent_service.validate_run(
+            self.agent_service.run_recipe(recipe, output_dir)
+        )
+        evidence_items = evidence_items_from_run(
+            analysis_run,
+            run_id=run_id,
+            raw_sources=source_hashes,
+        )
+        outputs = self._derived_outputs(output_dir, analysis_run)
+        manifest_path = self.workspace.write_json(
+            self.workspace.runs_dir / f"{run_id}.json",
+            self._run_manifest(
+                request=request,
+                plan=plan,
+                recipe=recipe,
+                run=analysis_run,
+                run_id=run_id,
+                source_hashes=source_hashes,
+                evidence_items=evidence_items,
+                outputs=outputs,
+            ),
+        )
+        return ProjectWorkflowRun(
+            run_id=run_id,
+            request_hash=request.request_hash,
+            plan_hash=plan.plan_hash,
+            recipe_hash=recipe.recipe_hash,
+            status=analysis_run.status,
+            outputs=tuple(str(path) for path in outputs) + (str(manifest_path),),
+            evidence_items=evidence_items,
+            manifest_path=str(manifest_path),
+            analysis_run=analysis_run,
+            reason_codes=analysis_run.reason_codes,
+        )
 
     def package(
         self,

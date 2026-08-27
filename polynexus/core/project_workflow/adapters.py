@@ -13,6 +13,7 @@ from typing import Any
 
 from polynexus.core.agent_workflow import inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe, RecipeProposal, RecipeStep
+from polynexus.core.agent_workflow.tpae import TpaeCharacterizationWorkflow
 from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
 
 
@@ -233,4 +234,156 @@ class TechniqueSeriesAdapter:
         )
 
 
-__all__ = ["SingleInputTechniqueAdapter", "TechniqueSeriesAdapter"]
+class MixedTechniqueAdapter:
+    """Compose existing technique recipes into one request-level recipe."""
+
+    workflow_id = "project.technique.composite.v1"
+
+    def __init__(self) -> None:
+        self._single = SingleInputTechniqueAdapter()
+        self._series = TechniqueSeriesAdapter()
+        self._dsc = TpaeCharacterizationWorkflow()
+
+    def propose_recipe(self, manifest: Mapping[str, object] | Path | str) -> RecipeProposal:
+        payload = SingleInputTechniqueAdapter._load_manifest(manifest)
+        if payload is None or payload.get("workflow_id") != self.workflow_id:
+            return RecipeProposal(status="blocked", reason_codes=("workflow_id_mismatch",))
+        raw_components = payload.get("components")
+        if not isinstance(raw_components, Mapping) or not raw_components:
+            return RecipeProposal(status="blocked", reason_codes=("components_missing",))
+
+        proposals: list[tuple[str, AnalysisRecipe]] = []
+        reasons: list[str] = []
+        review_required = False
+        for raw_technique, raw_paths in sorted(raw_components.items(), key=lambda item: str(item[0])):
+            technique = str(raw_technique).strip().lower()
+            paths = SingleInputTechniqueAdapter._paths({"paths": raw_paths})
+            if not paths:
+                reasons.append(f"{technique}_artifact_missing")
+                continue
+            if technique == "dsc":
+                if len(paths) != 1:
+                    reasons.append("dsc_source_count_invalid")
+                    continue
+                proposal = self._dsc.propose_recipe({
+                    "workflow_id": self._dsc.workflow_id,
+                    "artifacts": {"dsc_isothermal": {"path": paths[0], "technique": "dsc"}},
+                })
+            elif len(paths) > 1:
+                proposal = self._series.propose_recipe({
+                    "workflow_id": self._series.workflow_id,
+                    "technique": technique,
+                    "paths": list(paths),
+                })
+            else:
+                proposal = self._single.propose_recipe({
+                    "workflow_id": self._single.workflow_id,
+                    "technique": technique,
+                    "paths": list(paths),
+                })
+            if proposal.recipe is None:
+                reasons.extend(proposal.reason_codes or (f"{technique}_route_blocked",))
+                continue
+            proposals.append((technique, proposal.recipe))
+            review_required = review_required or proposal.status == "review_required"
+
+        if reasons:
+            return RecipeProposal(status="blocked", reason_codes=tuple(dict.fromkeys(reasons)))
+        if not proposals:
+            return RecipeProposal(status="blocked", reason_codes=("components_missing",))
+        artifacts = []
+        steps = []
+        for _, recipe in proposals:
+            offset = len(artifacts)
+            artifacts.extend(recipe.artifacts)
+            for step in recipe.steps:
+                parameters = dict(step.parameters)
+                artifact_index = parameters.get("artifact_index")
+                if isinstance(artifact_index, int) and not isinstance(artifact_index, bool):
+                    parameters["artifact_index"] = offset + artifact_index
+                steps.append(
+                    RecipeStep(
+                        step_id=step.step_id,
+                        technique=step.technique,
+                        evidence_role=step.evidence_role,
+                        parameters=parameters,
+                        parameter_sources=step.parameter_sources,
+                    )
+                )
+        recipe = AnalysisRecipe.create(
+            workflow_id=self.workflow_id,
+            artifacts=tuple(artifacts),
+            steps=tuple(steps),
+        )
+        return RecipeProposal(
+            status="review_required" if review_required else "ready",
+            recipe=recipe,
+        )
+
+    @classmethod
+    def is_valid_recipe(cls, recipe: AnalysisRecipe) -> bool:
+        if recipe.workflow_id != cls.workflow_id or not recipe.artifacts or not recipe.steps:
+            return False
+        if len({artifact.artifact_id for artifact in recipe.artifacts}) != len(recipe.artifacts):
+            return False
+        if len({step.step_id for step in recipe.steps}) != len(recipe.steps):
+            return False
+        # The merged recipe must have one component per technique. Reconstruct
+        # each component and delegate validation to its existing adapter.
+        artifacts_by_technique: dict[str, list[tuple[int, Any]]] = {}
+        for index, artifact in enumerate(recipe.artifacts):
+            artifacts_by_technique.setdefault(artifact.technique, []).append((index, artifact))
+        steps_by_technique: dict[str, list[RecipeStep]] = {}
+        for step in recipe.steps:
+            steps_by_technique.setdefault(step.technique, []).append(step)
+        if set(artifacts_by_technique) != set(steps_by_technique):
+            return False
+        for technique, indexed_artifacts in artifacts_by_technique.items():
+            component_steps = steps_by_technique[technique]
+            local_artifacts = tuple(artifact for _, artifact in indexed_artifacts)
+            index_map = {global_index: local_index for local_index, (global_index, _) in enumerate(indexed_artifacts)}
+            local_steps = []
+            for step in component_steps:
+                parameters = dict(step.parameters)
+                global_index = parameters.get("artifact_index")
+                if isinstance(global_index, int) and not isinstance(global_index, bool):
+                    if global_index not in index_map:
+                        return False
+                    parameters["artifact_index"] = index_map[global_index]
+                local_steps.append(RecipeStep(
+                    step_id=step.step_id,
+                    technique=step.technique,
+                    evidence_role=step.evidence_role,
+                    parameters=parameters,
+                    parameter_sources=step.parameter_sources,
+                ))
+            if technique == "dsc":
+                valid = TpaeCharacterizationWorkflow.is_valid_recipe(
+                    AnalysisRecipe.create(
+                        workflow_id=TpaeCharacterizationWorkflow.workflow_id,
+                        artifacts=local_artifacts,
+                        steps=tuple(local_steps),
+                    )
+                )
+            elif len(local_artifacts) > 1:
+                valid = TechniqueSeriesAdapter.is_valid_recipe(
+                    AnalysisRecipe.create(
+                        workflow_id=TechniqueSeriesAdapter.workflow_id,
+                        artifacts=local_artifacts,
+                        steps=tuple(local_steps),
+                    )
+                )
+            else:
+                valid = SingleInputTechniqueAdapter.is_valid_recipe(
+                    AnalysisRecipe.create(
+                        workflow_id=SingleInputTechniqueAdapter.workflow_id,
+                        artifacts=local_artifacts,
+                        steps=tuple(local_steps),
+                    )
+                )
+            if not valid:
+                return False
+        return True
+
+
+__all__ = ["MixedTechniqueAdapter", "SingleInputTechniqueAdapter", "TechniqueSeriesAdapter"]
