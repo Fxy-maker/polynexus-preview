@@ -5848,3 +5848,20 @@ and structured gates (`303` / `157`).
   smoke completed successfully; those files contain one heating scan, so no
   cooling result is inferred. Acceptance:
   `docs/acceptance/2026-08-27-dsc-thermal-program-routing.md`.
+
+## NMR shared entry without material defaults - 2026-08-27
+
+- NMR ppm tables now use the shared material-neutral one-dimensional converter
+  as `nmr.spectrum.v1`; opaque FID/vendor files receive a source-bound NMR
+  envelope for replayable `ComputeRun` provenance.
+- `ComputeRunService` forwards an explicit project-context material name to the
+  NMR config only as a hint. No material name keeps generic metrics available,
+  does not fabricate polymer assignments, and keeps solid 13C Xc gated by
+  explicit phase support.
+- Focused NMR/converter/ComputeRun matrix passed `77 passed, 3 skipped`; the
+  structured verifier and quality gates passed. Checkpoint: `69b89dfe`.
+- Acceptance: `docs/acceptance/2026-08-27-nmr-shared-entry-no-material-default.md`.
+- Remaining goal work: six-sample replay through the unified route, GUI figure
+  filtering, cross-technology package/ARS handoff, and historical failure
+  ledger. Pre-existing `active_run.json`, `runs/`, and `tests/_tmp_phase3/`
+  remain untouched.
