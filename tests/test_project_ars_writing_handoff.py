@@ -34,3 +34,20 @@ def test_handoff_rejects_diagnostic_metric_promoted_to_results() -> None:
     payload["allowed_results"].append("metric-diagnostic")
     with pytest.raises(ValueError, match="eligibility"):
         validate_ars_writing_input(payload, citation_metrics=metrics)
+
+
+def test_handoff_exposes_confirmed_context_as_non_instrument_fact() -> None:
+    manifest, writing, metrics, limitations = _inputs()
+    manifest["confirmed_context"] = [{
+        "values": {"study_pairs": ["PA6 vs PA6-50"]},
+        "status": "approved",
+        "approver": "user",
+    }]
+    payload = build_ars_writing_input(
+        package_manifest=manifest,
+        writing_evidence=writing,
+        citation_metrics=metrics,
+        limitations=limitations,
+    )
+    assert payload["project_context"][0]["values"]["study_pairs"] == ["PA6 vs PA6-50"]
+    assert payload["project_context"][0]["is_instrument_fact"] is False

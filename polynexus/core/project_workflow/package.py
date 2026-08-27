@@ -128,6 +128,24 @@ class ProjectEvidencePackager:
         try:
             (package_path / "figures").mkdir()
             (package_path / "tables").mkdir()
+            confirmed_context: list[dict[str, Any]] = []
+            seen_context: set[str] = set()
+            for manifest in manifests:
+                params = manifest.get("request_parameters", {})
+                if not isinstance(params, Mapping):
+                    continue
+                values = params.get("approved_context_corrections")
+                if not isinstance(values, Mapping):
+                    continue
+                entry = {
+                    "values": dict(values),
+                    "status": str(params.get("approved_context_corrections_status", "declared")),
+                    "approver": str(params.get("approved_context_approver", "")),
+                }
+                marker = canonical_json(entry)
+                if marker not in seen_context:
+                    seen_context.add(marker)
+                    confirmed_context.append(entry)
             package_manifest = {
                 "package_id": package_id,
                 "version": version,
@@ -136,6 +154,7 @@ class ProjectEvidencePackager:
                 "questions": list(dict.fromkeys(
                     str(manifest.get("question", "")) for manifest in manifests if manifest.get("question")
                 )),
+                "confirmed_context": confirmed_context,
                 "run_manifests": [str(run.manifest_path) for run in run_values],
                 "source_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("source_hashes", ())}),
                 "canonical_template_hashes": sorted({str(value) for manifest in manifests for value in manifest.get("canonical_template_hashes", ())}),

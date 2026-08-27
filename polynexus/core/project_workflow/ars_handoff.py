@@ -88,6 +88,17 @@ def build_ars_writing_input(
             if metric.get("writing_eligibility") != "results_candidate"
         ],
         "limitations": list(limitations.get("limitations", ())),
+        "project_context": [
+            {
+                "values": dict(entry.get("values", {})),
+                "status": str(entry.get("status", "declared")),
+                "approver": str(entry.get("approver", "")),
+                "source": "user_or_ai_context",
+                "is_instrument_fact": False,
+            }
+            for entry in package_manifest.get("confirmed_context", ())
+            if isinstance(entry, Mapping) and isinstance(entry.get("values", {}), Mapping)
+        ],
         "human_review": list({(item["evidence_id"], item["action"], item["reason"]): item for item in review_items}.values()),
         "prohibited_cross_technique_claims": ["sample_identity", "batch_identity", "causal_mechanism"],
     }
@@ -107,6 +118,11 @@ def validate_ars_writing_input(payload: Mapping[str, Any], *, citation_metrics: 
     discussion = set(str(value) for value in payload.get("discussion_only", ()))
     if not allowed.issubset(known) or not discussion.issubset(known) or allowed & discussion:
         raise ValueError("ARS metric eligibility projection is invalid")
+    for context in payload.get("project_context", ()):
+        if not isinstance(context, Mapping) or not isinstance(context.get("values", {}), Mapping):
+            raise ValueError("ARS project context is invalid")
+        if context.get("is_instrument_fact") is not False:
+            raise ValueError("ARS project context must not be presented as instrument fact")
     for section in payload["techniques"].values():
         for item in section.get("evidence", ()):
             for metric_id in item.get("results_metric_ids", ()):
