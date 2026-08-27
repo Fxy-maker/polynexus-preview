@@ -5974,3 +5974,16 @@ and structured gates (`303` / `157`).
   `docs/acceptance/2026-08-28-review-decision-ledger.md`.
 - The ledger records human decisions but cannot alter immutable evidence or
   automatically approve Results/Discussion promotion.
+
+## PA6 v008 GUI/ARS replay - 2026-08-28
+
+- Replayed the six-sample project after mixed-route, capability, and review
+  ledger changes. The run summary remains 42 planned / 40 review-required / 1
+  provider failure / 1 canonical block; raw source hashes remain unchanged.
+- New package `pa6-six-sample-v008-v001` contains 40 runs, 268 evidence items,
+  1068 logical figures, and 268 pending review decisions.
+- Native `EvidencePackageDialog` loaded the package twice with identical 1068
+  entries; technique filtering returned 72 SAXS figures and the gallery stayed
+  read-only. Acceptance:
+  `docs/acceptance/2026-08-28-pa6-v008-gui-ars-replay.md`.
+- Scientific promotion and release-wide historical failures remain open.
