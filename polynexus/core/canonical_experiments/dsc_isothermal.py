@@ -16,7 +16,6 @@ _MIN_DURATION_S = 60.0
 _MAX_SAMPLE_OFFSET_C = 0.5
 _MAX_SAMPLE_SPAN_C = 0.5
 _MAX_SAMPLE_NOISE_C = 0.05
-_MELT_PREPARATION_C = 200.0
 
 
 def convert_mettler_isothermal_text(
@@ -53,10 +52,17 @@ def convert_mettler_isothermal_text(
     accepted: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
     rejected_ramp: list[tuple[int, float, float, float, float]] = []
+    generic_mode = template_id == "thermal_program.v1"
     prepared = False
     for group in _setpoint_groups(rows):
         evidence = _group_evidence(group)
         reason = _invalid_group_reason(group)
+        if generic_mode and reason in {
+            "sample_temperature_outside_stability_tolerance",
+            "sample_temperature_span_exceeds_tolerance",
+            "sample_temperature_noise_exceeds_tolerance",
+        }:
+            reason = None
         if reason:
             if reason == "duration_below_minimum":
                 rejected_ramp.extend(group)
@@ -69,35 +75,39 @@ def convert_mettler_isothermal_text(
             excluded.append(_ramp_evidence(rejected_ramp))
             rejected_ramp = []
         setpoint = evidence["setpoint_C"]
-        if setpoint >= _MELT_PREPARATION_C:
-            evidence["role"] = "melt_hold"
-            excluded.append(evidence)
-            prepared = True
-            continue
-        if not prepared:
-            evidence["role"] = "rejected_program_segment"
-            evidence["reason"] = "missing_preparation_melt_hold"
-            excluded.append(evidence)
-            continue
+        if not generic_mode:
+            if setpoint >= 200.0:
+                evidence["role"] = "melt_hold"
+                excluded.append(evidence)
+                prepared = True
+                continue
+            if not prepared:
+                evidence["role"] = "rejected_program_segment"
+                evidence["reason"] = "missing_preparation_melt_hold"
+                excluded.append(evidence)
+                continue
+        warnings = _group_quality_warnings(group)
         segment_id = f"iso-{setpoint:g}C-{len(accepted) + 1:03d}"
-        accepted.append(
-            {
-                "segment_id": segment_id,
-                "role": "isothermal_crystallization",
-                "setpoint_C": setpoint,
-                "time_s": [float(row[1]) for row in group],
-                "sample_temperature_C": [float(row[2]) for row in group],
-                "heat_flow_mW": [float(row[4]) for row in group],
-                "source_range": evidence["source_range"],
-            }
-        )
+        segment = {
+            "segment_id": segment_id,
+            "role": "isothermal_crystallization",
+            "setpoint_C": setpoint,
+            "time_s": [float(row[1]) for row in group],
+            "sample_temperature_C": [float(row[2]) for row in group],
+            "heat_flow_mW": [float(row[4]) for row in group],
+            "source_range": evidence["source_range"],
+        }
+        if warnings:
+            segment["quality_warnings"] = warnings
+            evidence["quality_warnings"] = warnings
+        accepted.append(segment)
         evidence["role"] = "isothermal_crystallization"
-        accepted_evidence = evidence
-        # Preserve the explicit preparation requirement for every later hold.
-        accepted_evidence["preparation_melt_observed"] = True
 
     if rejected_ramp:
         excluded.append(_ramp_evidence(rejected_ramp))
+
+    if generic_mode:
+        accepted = _remove_inferred_preparation_holds(accepted, excluded)
 
     reasons = () if accepted else ("conversion_no_qualified_isothermal_hold",)
     record = ConversionRecord.create(
@@ -136,10 +146,7 @@ def _looks_like_isothermal_program(rows: list[tuple[int, float, float, float, fl
     if len(groups) < 2:
         return False
     stable = [group for group in groups if len(group) >= 2]
-    return len(stable) >= 2 and all(
-        float(np.ptp([row[2] for row in group])) <= _MAX_SAMPLE_SPAN_C
-        for group in stable
-    )
+    return len(stable) >= 2
 
 
 def _convert_thermal_program_rows(
@@ -199,7 +206,6 @@ def _convert_thermal_program_rows(
 
     segments: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
-    prepared = False
     for ordinal, (start, end) in enumerate(zip(breaks[:-1], breaks[1:]), start=1):
         stop = end + 1
         group = rows[start:stop]
@@ -224,15 +230,6 @@ def _convert_thermal_program_rows(
 
         if span < 0.5 and duration >= _MIN_DURATION_S:
             role = "isothermal_crystallization"
-            if setpoint >= _MELT_PREPARATION_C:
-                evidence["role"] = "melt_hold"
-                excluded.append(evidence)
-                prepared = True
-                continue
-            if not prepared:
-                evidence.update(role="rejected_program_segment", reason="missing_preparation_melt_hold")
-                excluded.append(evidence)
-                continue
             segment_id = f"iso-{setpoint:g}C-{len(segments) + 1:03d}"
         elif span >= 2.0:
             role = "heating" if end_temp > start_temp else "cooling"
@@ -251,9 +248,15 @@ def _convert_thermal_program_rows(
             "heat_flow_mW": [float(row[4]) for row in group],
             "source_range": source_range,
         }
+        warnings = _group_quality_warnings(group)
+        if warnings:
+            segment["quality_warnings"] = warnings
+            evidence["quality_warnings"] = warnings
         if len(group) > 1 and duration > 0:
             segment["rate_K_per_min"] = float((end_temp - start_temp) / duration * 60.0)
         segments.append(segment)
+
+    segments = _remove_inferred_preparation_holds(segments, excluded)
 
     if not segments:
         reasons = ("conversion_no_qualified_thermal_segments",)
@@ -383,3 +386,57 @@ def _invalid_group_reason(group: list[tuple[int, float, float, float, float]]) -
     if float(np.std(array[:, 1])) > _MAX_SAMPLE_NOISE_C:
         return "sample_temperature_noise_exceeds_tolerance"
     return None
+
+
+def _group_quality_warnings(group: list[tuple[int, float, float, float, float]]) -> list[str]:
+    """Return soft temperature diagnostics without discarding calculable data."""
+    array = np.asarray([row[1:] for row in group], dtype=float)
+    warnings: list[str] = []
+    if np.max(np.abs(array[:, 1] - array[:, 2])) > _MAX_SAMPLE_OFFSET_C:
+        warnings.append("sample_temperature_outside_stability_tolerance")
+    if float(np.ptp(array[:, 1])) > _MAX_SAMPLE_SPAN_C:
+        warnings.append("sample_temperature_span_exceeds_tolerance")
+    if float(np.std(array[:, 1])) > _MAX_SAMPLE_NOISE_C:
+        warnings.append("sample_temperature_noise_exceeds_tolerance")
+    return warnings
+
+
+def _remove_inferred_preparation_holds(
+    segments: list[dict[str, Any]],
+    excluded: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Remove repeated highest holds as file-local preparation provenance.
+
+    This intentionally uses only the observed program, never a material
+    database or fixed temperature threshold.
+    """
+    holds = [segment for segment in segments if segment["role"] == "isothermal_crystallization"]
+    if not holds:
+        return segments
+    max_hold = max(float(segment["setpoint_C"]) for segment in holds)
+    max_count = sum(
+        np.isclose(float(segment["setpoint_C"]), max_hold, atol=1e-9, rtol=0.0)
+        for segment in holds
+    )
+    if max_count < 2:
+        return segments
+    retained: list[dict[str, Any]] = []
+    for segment in segments:
+        if (
+            segment["role"] == "isothermal_crystallization"
+            and np.isclose(float(segment["setpoint_C"]), max_hold, atol=1e-9, rtol=0.0)
+        ):
+            excluded.append({
+                "setpoint_C": float(segment["setpoint_C"]),
+                "source_range": dict(segment["source_range"]),
+                "point_count": len(segment["time_s"]),
+                "role": "melt_hold",
+                **(
+                    {"quality_warnings": list(segment["quality_warnings"])}
+                    if segment.get("quality_warnings")
+                    else {}
+                ),
+            })
+        else:
+            retained.append(segment)
+    return retained

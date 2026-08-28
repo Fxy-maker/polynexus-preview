@@ -641,8 +641,21 @@ class DSCEngine(BaseEngine):
                 and np.all(np.diff(time_s) > 0)
             ):
                 raise ValueError("DSC canonical segment arrays are invalid")
-            if role == "isothermal_crystallization" and not self._canonical_segment_is_qualified(time_s, temperature, segment.get("setpoint_C")):
+            if (
+                role == "isothermal_crystallization"
+                and validated_template.template_id == "dsc.isothermal.v1"
+                and not self._canonical_segment_is_qualified(
+                    time_s, temperature, segment.get("setpoint_C")
+                )
+            ):
                 raise ValueError("DSC canonical segment does not meet canonical kinetic qualification")
+            quality_warnings = list(segment.get("quality_warnings", ()))
+            quality_warnings.extend(
+                self._canonical_segment_quality_warnings(
+                    time_s, temperature, segment.get("setpoint_C")
+                )
+            )
+            quality_warnings = list(dict.fromkeys(str(item) for item in quality_warnings))
             scan = DSCScan(
                     label=str(segment.get("segment_id", "isothermal")),
                     T_C=temperature,
@@ -654,6 +667,7 @@ class DSCEngine(BaseEngine):
                     metadata={
                         "canonical_template_id": validated_template.template_id,
                         "source_range": dict(segment.get("source_range", {})),
+                        "quality_warnings": quality_warnings,
                     },
                 )
             scans.append(scan)
@@ -703,6 +717,9 @@ class DSCEngine(BaseEngine):
                 avrami.start_time_min = segment.start_time_min
             if np.isnan(avrami.end_time_min):
                 avrami.end_time_min = segment.end_time_min
+            for warning in scan.metadata.get("quality_warnings", ()):
+                if warning not in avrami.quality_flags:
+                    avrami.quality_flags.append(warning)
             if (
                 np.isfinite(avrami.crystallisation_enthalpy_Jg)
                 and avrami.crystallisation_enthalpy_Jg < min_enthalpy
@@ -774,23 +791,38 @@ class DSCEngine(BaseEngine):
     ) -> bool:
         """Validate already-mapped holds without re-segmenting their provenance."""
         try:
-            setpoint = float(setpoint_C)
+            float(setpoint_C)
         except (TypeError, ValueError):
             return False
         min_points = 30
         min_duration_s = float(getattr(self._dsc_config, "isothermal_min_duration_min", 1.0)) * 60.0
-        max_drift_C_per_min = float(getattr(self._dsc_config, "isothermal_max_drift_C_per_min", 0.12))
-        max_offset_C = 0.5
         if len(time_s) < min_points or float(time_s[-1] - time_s[0]) < min_duration_s:
             return False
-        if np.max(np.abs(temperature_C - setpoint)) > max_offset_C:
-            return False
-        if float(np.ptp(temperature_C)) > max_offset_C:
-            return False
+        return True
+
+    @staticmethod
+    def _canonical_segment_quality_warnings(
+        time_s: np.ndarray,
+        temperature_C: np.ndarray,
+        setpoint_C: Any,
+    ) -> list[str]:
+        """Report temperature quality observations without blocking analysis."""
+        try:
+            setpoint = float(setpoint_C)
+        except (TypeError, ValueError):
+            return ["setpoint_unavailable"]
+        warnings: list[str] = []
+        if np.max(np.abs(temperature_C - setpoint)) > 0.5:
+            warnings.append("sample_temperature_outside_stability_tolerance")
+        if float(np.ptp(temperature_C)) > 0.5:
+            warnings.append("sample_temperature_span_exceeds_tolerance")
         if float(np.std(temperature_C)) > 0.05:
-            return False
-        slope_C_per_s = float(np.polyfit(time_s, temperature_C, 1)[0])
-        return abs(slope_C_per_s) * 60.0 <= max_drift_C_per_min
+            warnings.append("sample_temperature_noise_exceeds_tolerance")
+        if len(time_s) > 1:
+            slope_C_per_min = abs(float(np.polyfit(time_s, temperature_C, 1)[0])) * 60.0
+            if slope_C_per_min > 0.12:
+                warnings.append("sample_temperature_drift_exceeds_tolerance")
+        return warnings
 
     @property
     def results(self) -> List[DSCResult]:

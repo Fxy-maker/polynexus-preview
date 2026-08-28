@@ -1,5 +1,14 @@
 # Active Work
 
+## Flexible DSC thermal qualification — implementation complete, review required (2026-08-28)
+
+- Generic `thermal_program.v1` no longer depends on a fixed 200 °C melt hold or
+  rejects calculable holds for soft temperature-quality deviations. Warnings are
+  retained in canonical segments and Avrami quality flags.
+- PA11 and PA12-50 real isothermal files now complete through `ComputeRunService`;
+  acceptance is recorded in `docs/acceptance/2026-08-28-dsc-flexible-thermal-qualification.md`.
+- Publication promotion and human scientific review remain separate boundaries.
+
 ## SAXS no-material reference filename bias - implementation complete, review required (2026-08-27)
 
 - Removed the static SAXS special case that preferred filenames containing PA6 as the calibration reference.

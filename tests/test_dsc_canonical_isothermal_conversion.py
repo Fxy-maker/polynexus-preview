@@ -148,6 +148,22 @@ def test_converter_excludes_narrow_high_frequency_temperature_oscillation() -> N
     assert outcome.record.excluded_segments[-1]["reason"] == "sample_temperature_noise_exceeds_tolerance"
 
 
+def test_converter_accepts_material_temperature_without_fixed_200c_preparation() -> None:
+    rows = [f"{index} {index} 180.02 180.0 1.0" for index in range(181)]
+    rows.extend(
+        f"{index} {index} 80.30 80.0 {1.0 + index / 1000:.6f}"
+        for index in range(181, 482)
+    )
+
+    outcome = convert_mettler_isothermal_text(
+        "\n".join(rows), source_artifact_id="source-sha256", template_id="thermal_program.v1"
+    )
+
+    assert outcome.status == "ready"
+    assert outcome.template is not None
+    assert [segment["setpoint_C"] for segment in outcome.template.payload["segments"]] == [180.0, 80.0]
+
+
 def test_converter_extracts_mettler_sample_block_mass_and_coalesces_ramps() -> None:
     text = "\n".join(
         [f"{index} {index} {80 + index / 3:.3f} {80 + index / 3:.3f} 1.0" for index in range(10)]

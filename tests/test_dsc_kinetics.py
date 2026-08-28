@@ -200,7 +200,7 @@ def test_dsc_engine_accepts_generic_thermal_program_template():
     assert template is not None
     assert template.template_id == "thermal_program.v1"
     assert result["canonical_provenance"]["template_id"] == "thermal_program.v1"
-    assert len(result["avrami_series"]) == 1
+    assert len(result["avrami_series"]) == 2
 
 
 def test_dsc_engine_rejects_canonical_template_without_sample_mass():
@@ -287,7 +287,38 @@ def test_dsc_engine_accepts_stable_canonical_hold_with_point_noise():
     assert len(result["avrami_series"]) == 1
 
 
-def test_dsc_engine_rejects_canonical_hold_with_excessive_temperature_span():
+def test_dsc_engine_runs_hold_with_soft_temperature_warning():
+    record = ConversionRecord.create(
+        conversion_id="mettler.dsc-isothermal.v1",
+        source_artifact_id="raw-sha256",
+    )
+    time_s = list(range(181))
+    temperatures = [180.0 + 0.35 * np.sin(index / 12.0) for index in time_s]
+    template = CanonicalExperiment.create(
+        template_id="thermal_program.v1",
+        source_artifact_id="raw-sha256",
+        conversion_record=record,
+        payload={
+            "sample": {"mass_mg": 5.95},
+            "segments": [{
+                "segment_id": "iso-180C-001",
+                "role": "isothermal_crystallization",
+                "setpoint_C": 180.0,
+                "time_s": time_s,
+                "sample_temperature_C": temperatures,
+                "heat_flow_mW": [1.0 + index / 1000 for index in time_s],
+                "source_range": {},
+            }],
+        },
+    )
+
+    result = DSCEngine().run_thermal_program_template(template)
+
+    assert len(result["avrami_series"]) == 1
+    assert "sample_temperature_noise_exceeds_tolerance" in result["avrami_series"][0].quality_flags
+
+
+def test_dsc_engine_accepts_canonical_hold_with_excessive_temperature_span():
     record = ConversionRecord.create(
         conversion_id="mettler.dsc-isothermal.v1",
         source_artifact_id="raw-sha256",
@@ -310,11 +341,12 @@ def test_dsc_engine_rejects_canonical_hold_with_excessive_temperature_span():
         },
     )
 
-    with pytest.raises(ValueError, match="does not meet canonical kinetic qualification"):
-        DSCEngine().run_isothermal_template(template)
+    result = DSCEngine().run_isothermal_template(template)
+    assert len(result["avrami_series"]) == 1
+    assert "sample_temperature_span_exceeds_tolerance" in result["avrami_series"][0].quality_flags
 
 
-def test_dsc_engine_rejects_high_frequency_canonical_temperature_oscillation():
+def test_dsc_engine_accepts_high_frequency_canonical_temperature_oscillation():
     record = ConversionRecord.create(
         conversion_id="mettler.dsc-isothermal.v1",
         source_artifact_id="raw-sha256",
@@ -337,11 +369,12 @@ def test_dsc_engine_rejects_high_frequency_canonical_temperature_oscillation():
         },
     )
 
-    with pytest.raises(ValueError, match="does not meet canonical kinetic qualification"):
-        DSCEngine().run_isothermal_template(template)
+    result = DSCEngine().run_isothermal_template(template)
+    assert len(result["avrami_series"]) == 1
+    assert "sample_temperature_noise_exceeds_tolerance" in result["avrami_series"][0].quality_flags
 
 
-def test_dsc_engine_rejects_narrow_high_frequency_temperature_oscillation():
+def test_dsc_engine_accepts_narrow_high_frequency_temperature_oscillation():
     record = ConversionRecord.create(
         conversion_id="mettler.dsc-isothermal.v1",
         source_artifact_id="raw-sha256",
@@ -364,5 +397,6 @@ def test_dsc_engine_rejects_narrow_high_frequency_temperature_oscillation():
         },
     )
 
-    with pytest.raises(ValueError, match="does not meet canonical kinetic qualification"):
-        DSCEngine().run_isothermal_template(template)
+    result = DSCEngine().run_isothermal_template(template)
+    assert len(result["avrami_series"]) == 1
+    assert "sample_temperature_noise_exceeds_tolerance" in result["avrami_series"][0].quality_flags
