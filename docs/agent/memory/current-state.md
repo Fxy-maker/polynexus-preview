@@ -1744,3 +1744,10 @@ fail closed. The shared `ComputeRunService` maps `region_integration` candidates
 to this field and the public NMR parameter projection records the selected
 windows. Acceptance is recorded in
 `docs/acceptance/2026-08-29-nmr-explicit-region-sensitivity.md`.
+
+## ARS evidence file links - 2026-08-29
+
+The ARS handoff now explicitly references the package-relative shared
+`result-tables.json` and `writing-evidence.json` files in addition to citation
+metrics. No duplicate result representation is introduced; the package remains
+`review_required` until human scientific review.

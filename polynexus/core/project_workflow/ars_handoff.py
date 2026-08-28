@@ -79,6 +79,8 @@ def build_ars_writing_input(
         },
         "techniques": sections,
         "citation_metrics": "citation-metrics.json",
+        "result_tables": "result-tables.json",
+        "writing_evidence": "writing-evidence.json",
         "allowed_results": [
             metric_id for metric_id, metric in metric_by_id.items()
             if metric.get("writing_eligibility") == "results_candidate"

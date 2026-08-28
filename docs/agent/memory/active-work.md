@@ -6157,3 +6157,13 @@ and structured gates (`303` / `157`).
 - Focused NMR/Compute tests passed 83 (3 skipped); task verifier passed quality
   313 and preprocessing 157. Acceptance:
   `docs/acceptance/2026-08-29-nmr-explicit-region-sensitivity.md`.
+
+## ARS evidence file links - 2026-08-29
+
+- `ars-writing-input.json` now explicitly references the package-relative
+  `result-tables.json` and `writing-evidence.json` projections, alongside the
+  existing citation metrics link. This keeps the ARS handoff lightweight while
+  remaining self-contained and shared with GUI/CLI consumers.
+- Package/ARS handoff tests passed 4; task verifier passed quality 313 and
+  preprocessing 157. Acceptance:
+  `docs/acceptance/2026-08-29-ars-evidence-file-links.md`.
