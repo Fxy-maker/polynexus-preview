@@ -47,7 +47,9 @@ condition-scoped group statistics without rerunning the six-sample dataset.
   outputs and their shared `result.metric_manifest` projection; catalog entries
   do not claim execution or publication eligibility.
 - [ ] All provider-specific deterministic capabilities are registered and
-  consumed through the shared capability executor.
+  consumed through the shared capability executor. The current finite generic
+  executor remains intentionally unchanged; provider outputs are now exposed
+  through the shared metric-manifest projection.
 - [x] GUI, CLI, and evidence package expose the complete metric-manifest
   projection for persisted ComputeRun results; provider-specific capability
   registration remains open.

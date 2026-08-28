@@ -6085,3 +6085,9 @@ and structured gates (`303` / `157`).
 - `compute.capability_catalog` now records the requested DSC/FTIR/SAXS/WAXS/NMR
   deterministic output names and shared metric-manifest projection. It is an
   inventory only; it does not fabricate execution or publication eligibility.
+- Agent/Codex workflow step summaries now embed the complete `compute_run`
+  projection, including `result.metric_manifest`, so evidence-package and ARS
+  metric extraction can consume the same values/provenance as GUI/CLI.
+- Cross-entry regression matrix passed 83 tests (3 skipped). Full provider
+  capability registration remains an explicit follow-up; six-sample replay is
+  still deferred.

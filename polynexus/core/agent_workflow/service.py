@@ -245,6 +245,10 @@ class AgentWorkflowService:
             summary["capability_items"] = [
                 item.to_dict() for item in compute_run.capability_items
             ]
+        if isinstance(compute_run, ComputeRun):
+            # Keep the complete shared result projection in the step summary
+            # consumed by evidence/ARS, alongside the persisted run object.
+            summary["compute_run"] = compute_run.to_dict()
         status = (
             "failed"
             if provider_error

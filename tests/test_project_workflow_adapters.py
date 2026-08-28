@@ -139,6 +139,7 @@ def test_project_run_step_exposes_shared_compute_run_projection(tmp_path: Path) 
     assert step.compute_run["canonical_template"]["template_id"] == "scattering_1d.v1"
     assert step.compute_run["capability_items"]
     assert step.compute_run["result"]["metrics"] == {"peak": 1.0}
+    assert step.result_summary["compute_run"]["result"]["metric_manifest"]
 
 
 def test_ir_directory_alias_is_indexed_as_ir_and_stale_source_blocks_run(tmp_path: Path) -> None:
