@@ -6,6 +6,8 @@
   `compute_run.result.metric_manifest` leaves into condition-scoped
   `result_tables` for CLI/ARS/GUI consumers; the explicit condition is the
   workflow `step_id`, not an inferred material or temperature axis.
+- Evidence packages persist the same projection at `result-tables.json` and
+  link it from the package manifest.
 - `MethodSensitivity` now has a deterministic evaluator and an explicit
   metrics adapter. DSC nested `baseline_variants` are adapted recursively;
   other techniques may publish `method_variants` without changing provider
