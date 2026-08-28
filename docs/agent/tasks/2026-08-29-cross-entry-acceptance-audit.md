@@ -50,4 +50,7 @@ pytest -q tests/test_evidence_package_view.py tests/test_chart_gallery_managemen
 
 pytest -q tests/test_native_gui_real_route_capture.py tests/test_gui_automation_bridge.py tests/test_gui_automation_mcp.py
 9 passed, 17 skipped
+
+python scripts/verify.py --task docs/agent/tasks/2026-08-29-cross-entry-acceptance-audit.md --changed --types
+selected checks passed
 ```
