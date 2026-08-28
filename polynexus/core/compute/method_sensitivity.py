@@ -146,7 +146,7 @@ def sensitivities_from_metrics(
     if not isinstance(metrics, Mapping):
         return ()
     values: list[MethodSensitivity] = []
-    explicit = metrics.get("method_variants")
+    explicit = metrics.get("method_variants", metrics.get("method_sensitivities"))
     if isinstance(explicit, Mapping):
         for metric_path in sorted(explicit, key=str):
             payload = explicit[metric_path]
