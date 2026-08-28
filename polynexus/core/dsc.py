@@ -50,6 +50,10 @@ def _json_safe_parameters(value: Any) -> Any:
         return {str(key): _json_safe_parameters(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [_json_safe_parameters(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return [_json_safe_parameters(item) for item in value.tolist()]
+    if isinstance(value, np.integer):
+        return int(value)
     if isinstance(value, (float, np.floating)):
         return float(value) if math.isfinite(float(value)) else None
     return value
