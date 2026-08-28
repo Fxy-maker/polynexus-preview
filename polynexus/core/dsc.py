@@ -327,13 +327,7 @@ class DSCEngine(BaseEngine):
         if self._kinetics_data.get('avrami') is not None:
             a = self._kinetics_data['avrami']
             merged['isothermal_kinetics'] = {
-                'Avrami_n': a.n,
-                'Avrami_k': a.k,
-                'Avrami_log_k': a.log_k,
-                't_half_min': a.t_half_min,
-                'T_iso_C': a.temperature_C,
-                'DHc_iso_Jg': a.crystallisation_enthalpy_Jg,
-                'Avrami_R2': a.r_squared,
+                **self._avrami_parameter_row(a),
                 'n_segments': len(self._kinetics_data.get('avrami_series', [])),
             }
         if self._kinetics_data.get('non_isothermal') is not None:
@@ -383,6 +377,15 @@ class DSCEngine(BaseEngine):
             'fit_Xt_max': a.fit_xt_range[1],
             'event_candidate_count': len(a.event_candidates),
             'event_candidates': a.event_candidates,
+            'baseline_method': a.baseline_method,
+            'baseline_start_value_Wg': a.baseline_start_value_Wg,
+            'baseline_end_value_Wg': a.baseline_end_value_Wg,
+            'baseline_slope_Wg_per_min': a.baseline_slope_Wg_per_min,
+            'baseline_window_start_index': a.baseline_window_start_index,
+            'baseline_window_end_index': a.baseline_window_end_index,
+            'baseline_variants': a.baseline_variants,
+            'baseline_selection_reason': a.baseline_selection_reason,
+            'baseline_sensitive': a.baseline_sensitive,
             'quality_flags': ", ".join(a.quality_flags),
         }
 

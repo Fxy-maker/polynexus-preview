@@ -11,6 +11,23 @@ full task verifier still reports pre-existing DSC lint findings (duplicate
 legacy definitions and export/import baseline), so scientific and release
 review remain open.
 
+## Adaptive isothermal DSC baseline checkpoint (2026-08-28)
+
+Each isothermal event now computes endpoint-linear and tail-constant baseline
+variants. Endpoint-linear is the deterministic default when edge windows are
+available; tail-constant is an explicit fallback. Only the selected variant
+feeds the primary Avrami result, while alternate scalars and sensitivity are
+retained in the shared result projection. PA6-DWJJ 180–184 °C now agrees with
+the historical endpoint-linear calculation. Acceptance:
+`docs/acceptance/2026-08-28-dsc-adaptive-baseline.md`.
+
+Tail-constant provenance now records its actual recorded-segment-tail window,
+constant start/end value, and zero slope. A sensitive baseline comparison is
+also a `quality_flags` warning, so writing metrics remain diagnostic-only;
+the legacy compatibility summary reuses the full shared Avrami projection. An
+unclosed event-end makes endpoint-linear unavailable and selects the existing
+tail fallback instead of treating the record boundary as a settled endpoint.
+
 ## Finite capability execution checkpoint (2026-08-26)
 
 The shared canonical layer now has a finite capability registry/executor for

@@ -86,7 +86,12 @@ def _fit_gate(avrami: Any) -> tuple[bool, str]:
         return False, "low_fit_quality"
     blocking_flags = {
         str(flag) for flag in (_attr(avrami, "quality_flags", ()) or ())
-        if str(flag) not in {"fit_xt_5_to_80", "transient_excluded"}
+        if str(flag) not in {
+            "fit_xt_5_to_80",
+            "transient_excluded",
+            "endpoint_baseline_unavailable",
+            "baseline_sensitive",
+        }
     }
     if blocking_flags:
         return False, "quality_flags"

@@ -10,6 +10,7 @@ from polynexus.core.dsc import DSCEngine
 from polynexus.core.dsc_engine.core import DSCResult
 from polynexus.core.dsc_engine.dsc_kinetics import (
     AvramiResult,
+    _baseline_variant,
     analyze_isothermal_scans,
     avrami_candidates_from_dsc,
     avrami_from_dsc,
@@ -58,6 +59,70 @@ def test_avrami_fit_defaults_to_five_to_eighty_percent_conversion_window():
     result = avrami_from_dsc(t, _avrami_heat_flow(t, n=3.0, k=0.025))
 
     assert result.quality_flags.count("fit_xt_5_to_80") == 1
+
+
+def test_avrami_uses_endpoint_linear_baseline_and_retains_tail_variant():
+    t = np.linspace(0.0, 12.0, 721)
+    transient = 8.0 * np.exp(-t / 0.12)
+    crystallisation = _avrami_heat_flow(np.maximum(t - 1.0, 0.0), n=2.8, k=0.13, scale=2.0)
+    heat = 0.15 + transient + np.where(t >= 1.0, crystallisation - 0.02, 0.0)
+
+    result = avrami_from_dsc(t, heat)
+
+    assert result.baseline_method == "endpoint_linear"
+    assert result.baseline_variants
+    assert {item["method"] for item in result.baseline_variants} >= {
+        "endpoint_linear", "tail_constant"
+    }
+    assert result.baseline_selection_reason
+    assert np.isfinite(result.baseline_slope_Wg_per_min)
+
+
+def test_avrami_falls_back_to_tail_baseline_without_pre_event_window():
+    t = np.linspace(0.0, 10.0, 501)
+    heat = _avrami_heat_flow(t, n=2.4, k=0.08, scale=1.5)
+
+    result = avrami_from_dsc(t, heat)
+
+    assert np.isfinite(result.n)
+    assert result.baseline_method == "tail_constant"
+    assert "endpoint_baseline_unavailable" in result.quality_flags
+
+
+def test_tail_baseline_records_its_actual_segment_end_window_and_zero_slope():
+    t = np.linspace(0.0, 10.0, 101)
+    heat = np.exp(-((t - 5.0) / 1.5) ** 2)
+    heat[81:] = -0.5
+
+    variant = _baseline_variant(t, heat, 20, 80, 1.0, "tail_constant")
+
+    assert variant["available"] is True
+    assert variant["baseline_window_start_index"] == 91
+    assert variant["baseline_window_end_index"] == 100
+    assert variant["baseline_start_value_Wg"] == pytest.approx(variant["baseline_end_value_Wg"])
+    assert variant["baseline_slope_Wg_per_min"] == 0.0
+
+
+def test_endpoint_baseline_requires_a_closed_event_end_window():
+    t = np.linspace(0.0, 10.0, 101)
+    heat = np.exp(-((t - 8.0) / 4.0) ** 2)
+
+    variant = _baseline_variant(t, heat, 20, len(t) - 1, 1.0, "endpoint_linear")
+
+    assert variant["available"] is False
+    assert variant["reason"] == "no_post_event_baseline_window"
+
+
+def test_avrami_marks_baseline_sensitivity_as_a_quality_flag():
+    t = np.linspace(0.0, 12.0, 721)
+    transient = 8.0 * np.exp(-t / 0.12)
+    crystallisation = _avrami_heat_flow(np.maximum(t - 1.0, 0.0), n=2.8, k=0.13, scale=2.0)
+    heat = 0.15 + transient + np.where(t >= 1.0, crystallisation - 0.02, 0.0) + 0.03 * t
+
+    result = avrami_from_dsc(t, heat)
+
+    assert result.baseline_sensitive is True
+    assert "baseline_sensitive" in result.quality_flags
 
 
 def test_avrami_candidate_projection_retains_transient_and_primary_events():
@@ -152,6 +217,9 @@ def test_dsc_isothermal_parameters_show_avrami_rows_first():
         crystallisation_enthalpy_Jg=120.0,
         r_squared=0.99,
         label="program/cool/iso 183C",
+        baseline_method="endpoint_linear",
+        baseline_variants=[{"method": "endpoint_linear", "available": True}],
+        baseline_selection_reason="endpoint_linear_available",
     )
     engine._kinetics_data = {"avrami": av, "avrami_series": [av]}
 
@@ -161,6 +229,37 @@ def test_dsc_isothermal_parameters_show_avrami_rows_first():
     assert params["best_avrami"]["Avrami_n"] == 2.5
     assert params["best_avrami"]["Avrami_k"] == 0.03
     assert params["best_avrami"]["Avrami_R2"] == 0.99
+    assert params["best_avrami"]["baseline_method"] == "endpoint_linear"
+    assert params["best_avrami"]["baseline_variants"][0]["method"] == "endpoint_linear"
+
+
+def test_legacy_isothermal_summary_preserves_complete_baseline_projection():
+    engine = DSCEngine()
+    engine._results = [DSCResult(label="standard_scan")]
+    av = AvramiResult(
+        n=2.5,
+        k=0.03,
+        log_k=-1.52,
+        t_half_min=3.4,
+        temperature_C=183.0,
+        crystallisation_enthalpy_Jg=120.0,
+        r_squared=0.99,
+        baseline_method="endpoint_linear",
+        baseline_start_value_Wg=0.12,
+        baseline_end_value_Wg=0.08,
+        baseline_slope_Wg_per_min=-0.01,
+        baseline_window_start_index=10,
+        baseline_window_end_index=90,
+    )
+    engine._kinetics_data = {"avrami": av, "avrami_series": [av]}
+
+    summary = engine.get_parameters()["isothermal_kinetics"]
+
+    assert summary["baseline_start_value_Wg"] == 0.12
+    assert summary["baseline_end_value_Wg"] == 0.08
+    assert summary["baseline_slope_Wg_per_min"] == -0.01
+    assert summary["baseline_window_start_index"] == 10
+    assert summary["baseline_window_end_index"] == 90
 
 
 def test_dsc_engine_runs_existing_isothermal_kinetics_from_canonical_template():

@@ -50,6 +50,15 @@ class AvramiResult:
     transient_excluded: bool = False
     fit_xt_range: Tuple[float, float] = (0.05, 0.80)
     event_candidates: List[Dict[str, Any]] = field(default_factory=list)
+    baseline_method: str = ""
+    baseline_start_value_Wg: float = np.nan
+    baseline_end_value_Wg: float = np.nan
+    baseline_slope_Wg_per_min: float = np.nan
+    baseline_window_start_index: int = -1
+    baseline_window_end_index: int = -1
+    baseline_variants: List[Dict[str, Any]] = field(default_factory=list)
+    baseline_selection_reason: str = ""
+    baseline_sensitive: bool = False
 
 
 @dataclass
@@ -69,6 +78,108 @@ class IsothermalEventCandidate:
     area_Wg_min: float = np.nan
     score: float = np.nan
     reasons: List[str] = field(default_factory=list)
+
+
+def _baseline_edge_window(start: int, end: int, *, side: str) -> np.ndarray:
+    """Return an event-relative edge window using point-count proportions."""
+    length = max(0, int(end) - int(start) + 1)
+    width = max(3, min(20, length // 10))
+    if side == "start":
+        return np.arange(start, min(end + 1, start + width), dtype=int)
+    return np.arange(max(start, end - width + 1), end + 1, dtype=int)
+
+
+def _baseline_variant(
+    time_min: np.ndarray,
+    HF_Wg: np.ndarray,
+    start: int,
+    end: int,
+    polarity: float,
+    method: str,
+) -> Dict[str, Any]:
+    """Build one deterministic baseline and its scalar audit information."""
+    t = np.asarray(time_min, dtype=float)
+    hf = np.asarray(HF_Wg, dtype=float)
+    result: Dict[str, Any] = {"method": method, "available": False}
+    left = _baseline_edge_window(start, end, side="start")
+    right = _baseline_edge_window(start, end, side="end")
+    if len(left) < 3 or len(right) < 3 or not np.all(np.isfinite(hf[np.r_[left, right]])):
+        result["reason"] = "baseline_edge_window_unavailable"
+        return result
+    if method == "tail_constant":
+        tail_width = max(5, min(20, len(hf) // 10))
+        tail_indices = np.arange(max(0, len(hf) - tail_width), len(hf), dtype=int)
+        if len(tail_indices) < 3 or not np.all(np.isfinite(hf[tail_indices])):
+            result["reason"] = "baseline_tail_window_unavailable"
+            return result
+        right_value = float(np.median(hf[tail_indices]))
+        left_value = right_value
+        window_start = tail_indices
+        window_end = tail_indices
+    else:
+        left_value = float(np.median(hf[left]))
+        right_value = float(np.median(hf[right]))
+        window_start = left
+        window_end = right
+    if method == "endpoint_linear":
+        # Without samples before the event onset, the left edge is event data,
+        # not an independently observed baseline.
+        if start <= 0:
+            result["reason"] = "no_pre_event_baseline_window"
+            return result
+        if end >= len(hf) - 1:
+            result["reason"] = "no_post_event_baseline_window"
+            return result
+        baseline = np.linspace(left_value, right_value, end - start + 1)
+    elif method == "tail_constant":
+        baseline = np.full(end - start + 1, right_value, dtype=float)
+    else:
+        result["reason"] = "unsupported_baseline_method"
+        return result
+    oriented = polarity * (hf[start:end + 1] - baseline)
+    signal_pos = np.clip(oriented, 0.0, None)
+    t_roi = t[start:end + 1] - t[start]
+    integral = _cumulative_trapezoid(signal_pos, t_roi)
+    area = float(integral[-1]) if len(integral) else 0.0
+    if not np.isfinite(area) or area <= 1e-12:
+        result["reason"] = "non_positive_baseline_corrected_area"
+        return result
+    xt = np.clip(integral / area, 0.0, 1.0)
+    fit = avrami_fit(t_roi, xt)
+    slope = 0.0 if method == "tail_constant" else (
+        (right_value - left_value) / max(float(t[end] - t[start]), 1e-12)
+    )
+    result.update({
+        "available": True,
+        "baseline_start_value_Wg": left_value,
+        "baseline_end_value_Wg": right_value,
+        "baseline_slope_Wg_per_min": float(slope),
+        "baseline_window_start_index": int(window_start[0]),
+        "baseline_window_end_index": int(window_end[-1]),
+        "area_Wg_min": area,
+        "t_half_min": float(fit.t_half_min),
+        "n": float(fit.n),
+        "k": float(fit.k),
+        "r_squared": float(fit.r_squared),
+        "quality_flags": list(fit.quality_flags),
+        "time_min": t_roi,
+        "Xt": xt,
+        "baseline": baseline,
+    })
+    return result
+
+
+def _select_isothermal_baseline(
+    variants: List[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Select one baseline without averaging candidate result values."""
+    endpoint = next((item for item in variants if item.get("method") == "endpoint_linear" and item.get("available")), None)
+    if endpoint is not None:
+        return endpoint, "endpoint_linear_available"
+    tail = next((item for item in variants if item.get("method") == "tail_constant" and item.get("available")), None)
+    if tail is not None:
+        return tail, "endpoint_baseline_unavailable_fallback_tail_constant"
+    return None, "no_baseline_variant_available"
 
 
 @dataclass
@@ -388,24 +499,45 @@ def relative_crystallinity_isothermal(time_min: np.ndarray,
     end = min(len(t) - 1, int(candidate.end_index))
     if end <= start + 2:
         return np.array([]), np.array([]), {'quality_flags': ['zero_event_width']}
-    baseline = float(candidate.baseline_Wg)
-    centered = HF - baseline
     polarity = float(candidate.polarity)
-    exo = polarity * centered
     peak_idx = int(candidate.peak_index)
     onset = start
-
-    signal_pos = np.clip(exo[start:end + 1], 0.0, None)
+    variants = [
+        _baseline_variant(t, HF, start, end, polarity, "endpoint_linear"),
+        _baseline_variant(t, HF, start, end, polarity, "tail_constant"),
+    ]
+    selected, selection_reason = _select_isothermal_baseline(variants)
+    if selected is None:
+        return np.array([]), np.array([]), {
+            'quality_flags': ['zero_exotherm_area'],
+            'baseline_variants': [
+                {key: value for key, value in item.items() if key not in {"time_min", "Xt", "baseline"}}
+                for item in variants
+            ],
+        }
+    t_roi = np.asarray(selected["time_min"], dtype=float)
+    Xt = np.asarray(selected["Xt"], dtype=float)
+    total = float(selected["area_Wg_min"])
     t_roi_abs = t[start:end + 1]
-    t_roi = t_roi_abs - t_roi_abs[0]
-    integral = _cumulative_trapezoid(signal_pos, t_roi)
-    total = float(integral[-1])
-    if total <= 1e-12:
-        return np.array([]), np.array([]), {'quality_flags': ['zero_exotherm_area']}
-
-    Xt = np.clip(integral / total, 0.0, 1.0)
+    variant_rows = [
+        {key: value for key, value in item.items() if key not in {"time_min", "Xt", "baseline"}}
+        for item in variants
+    ]
+    quality_flags: List[str] = []
+    if selection_reason.startswith("endpoint_baseline_unavailable"):
+        quality_flags.append("endpoint_baseline_unavailable")
+    alternate = next((item for item in variants if item is not selected and item.get("available")), None)
+    baseline_sensitive = False
+    if alternate is not None:
+        for field_name in ("t_half_min", "n"):
+            chosen_value = float(selected.get(field_name, np.nan))
+            alternate_value = float(alternate.get(field_name, np.nan))
+            if np.isfinite(chosen_value) and np.isfinite(alternate_value):
+                baseline_sensitive |= abs(chosen_value - alternate_value) / max(abs(chosen_value), 1e-12) > 0.10
+    if baseline_sensitive:
+        quality_flags.append("baseline_sensitive")
     meta = {
-        'baseline_Wg': baseline,
+        'baseline_Wg': float(selected["baseline_end_value_Wg"]),
         'polarity': polarity,
         'start_time_min': float(t_roi_abs[0]),
         'end_time_min': float(t_roi_abs[-1]),
@@ -418,7 +550,16 @@ def relative_crystallinity_isothermal(time_min: np.ndarray,
         'integration_end_index': end,
         'transient_excluded': bool(any(c.kind == 'transient' and c.candidate_id != candidate.candidate_id for c in candidates)),
         'event_candidates': [c.__dict__ for c in candidates],
-        'quality_flags': [],
+        'baseline_method': selected["method"],
+        'baseline_start_value_Wg': selected["baseline_start_value_Wg"],
+        'baseline_end_value_Wg': selected["baseline_end_value_Wg"],
+        'baseline_slope_Wg_per_min': selected["baseline_slope_Wg_per_min"],
+        'baseline_window_start_index': selected["baseline_window_start_index"],
+        'baseline_window_end_index': selected["baseline_window_end_index"],
+        'baseline_variants': variant_rows,
+        'baseline_selection_reason': selection_reason,
+        'baseline_sensitive': baseline_sensitive,
+        'quality_flags': quality_flags,
     }
     if candidate.kind == 'transient':
         meta['quality_flags'].append('event_starts_at_segment_boundary')
@@ -570,6 +711,15 @@ def avrami_candidates_from_dsc(time_min: np.ndarray, HF_Wg: np.ndarray,
             and any(item.kind == 'transient' for item in candidates)
         )
         result.event_candidates = [dict(item.__dict__) for item in candidates]
+        result.baseline_method = meta.get('baseline_method', '')
+        result.baseline_start_value_Wg = float(meta.get('baseline_start_value_Wg', np.nan))
+        result.baseline_end_value_Wg = float(meta.get('baseline_end_value_Wg', np.nan))
+        result.baseline_slope_Wg_per_min = float(meta.get('baseline_slope_Wg_per_min', np.nan))
+        result.baseline_window_start_index = int(meta.get('baseline_window_start_index', -1))
+        result.baseline_window_end_index = int(meta.get('baseline_window_end_index', -1))
+        result.baseline_variants = list(meta.get('baseline_variants', ()))
+        result.baseline_selection_reason = str(meta.get('baseline_selection_reason', ''))
+        result.baseline_sensitive = bool(meta.get('baseline_sensitive', False))
         results.append(result)
     return results
 

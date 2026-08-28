@@ -45,6 +45,26 @@ def test_dsc_isothermal_metrics_have_segment_method_units_and_provenance() -> No
     assert half_time.raw_source_hashes == ("raw-dsc",)
 
 
+def test_dsc_baseline_sensitivity_stays_diagnostic_in_writing_metrics() -> None:
+    records = extract_writing_metrics(_item("dsc", {
+        "parameters": {
+            "segment_01_180C": {
+                "T_iso_C": 180.1,
+                "DHc_iso_Jg": 12.5,
+                "Avrami_n": 1.2,
+                "Avrami_k": 0.4,
+                "Avrami_R2": 0.98,
+                "t_half_min": 1.2,
+                "quality_flags": "fit_xt_5_to_80, baseline_sensitive",
+            },
+        },
+    }))
+
+    half_time = next(record for record in records if record.metric_key == "t_half_min")
+    assert half_time.writing_eligibility == "diagnostic_only"
+    assert "baseline_sensitive" in half_time.reason_codes
+
+
 def test_uncalibrated_ftir_xc_is_an_index_not_percent_crystallinity() -> None:
     records = extract_writing_metrics(_item("ir", {
         "parameters": {"PA6": {"Xc_pct": 6.4, "Xc_band": "PA6_A1200_A1637", "Xc_method": "PA6_A1200_A1637_uncalibrated"}},

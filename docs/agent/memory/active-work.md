@@ -14,6 +14,22 @@
 - Full GUI/ARS promotion and scientific paper-use decisions remain review
   boundaries; no raw artifacts or historical replay packages were modified.
 
+## Adaptive isothermal DSC baseline — implementation complete, review required (2026-08-28)
+
+- Endpoint-linear baseline is now the default for usable event edge windows;
+  tail-constant is an explicit fallback and sensitivity variant. Results are
+  never averaged, and method/window/variant provenance is exposed to existing
+  ComputeRun and evidence consumers.
+- PA6-DWJJ 180–184 °C replay now matches the historical AI endpoint-linear
+  values within expected tolerance; six-sample smoke completed all six files.
+- Tail-constant records its actual recorded-tail window and zero slope;
+  `baseline_sensitive` is propagated as a diagnostic-only evidence warning and
+  legacy compatibility summaries reuse the complete shared row projection.
+  Unclosed event ends now fall back from endpoint-linear to tail-constant.
+- Focused and cross-entry verification passed; acceptance:
+  `docs/acceptance/2026-08-28-dsc-adaptive-baseline.md`. Scientific promotion
+  remains a human/ARS decision.
+
 ## Flexible DSC thermal qualification — implementation complete, review required (2026-08-28)
 
 - Generic `thermal_program.v1` no longer depends on a fixed 200 °C melt hold or
