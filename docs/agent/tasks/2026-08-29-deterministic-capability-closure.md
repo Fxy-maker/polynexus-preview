@@ -29,9 +29,14 @@ condition-scoped group statistics without rerunning the six-sample dataset.
   rows expose the extrema.
 - [x] A shared method-sensitivity DTO preserves primary and candidate results
   with an explicit difference range and unavailable status.
+- [x] A technique-neutral capability catalog lists the requested deterministic
+  outputs and their shared `result.metric_manifest` projection; catalog entries
+  do not claim execution or publication eligibility.
 - [ ] All provider-specific deterministic capabilities are registered and
   consumed through the shared capability executor.
-- [ ] GUI, CLI, and evidence package expose the complete capability projection.
+- [x] GUI, CLI, and evidence package expose the complete metric-manifest
+  projection for persisted ComputeRun results; provider-specific capability
+  registration remains open.
 - [ ] Task verification and focused regression coverage pass.
 
 ## Verification

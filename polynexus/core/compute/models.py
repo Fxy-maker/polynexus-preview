@@ -18,6 +18,7 @@ from typing import Any
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256, raw_artifact_id
 from ..canonical_experiments.models import CanonicalExperiment, CapabilityItemResult
 from .method_sensitivity import MethodSensitivity
+from .capability_catalog import default_capability_catalog
 
 
 COMPUTE_STATUSES = frozenset({"ready", "needs_input", "failed", "completed"})
@@ -628,6 +629,9 @@ class ComputeRun:
             payload["result"]["metric_manifest"] = list(self.result.metric_manifest())
             payload["result"]["method_sensitivities"] = [
                 item.to_dict() for item in self.result.method_sensitivities
+            ]
+            payload["result"]["capability_catalog"] = [
+                item.to_dict() for item in default_capability_catalog().for_technique(self.artifact.technique)
             ]
         return payload
 

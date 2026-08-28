@@ -6082,3 +6082,6 @@ and structured gates (`303` / `157`).
 - Focused coverage passes 84 tests (3 skipped). Provider-specific capability
   registration and complete evidence-package consumption remain open;
   six-sample replay is explicitly deferred.
+- `compute.capability_catalog` now records the requested DSC/FTIR/SAXS/WAXS/NMR
+  deterministic output names and shared metric-manifest projection. It is an
+  inventory only; it does not fabricate execution or publication eligibility.
