@@ -163,6 +163,29 @@ def test_provider_capability_executor_finds_nested_engine_parameters() -> None:
     }
 
 
+def test_provider_capability_executor_skips_null_alias_and_uses_later_alias() -> None:
+    items = CapabilityExecutor().execute_provider_result(
+        source_artifact_id="artifact-1",
+        technique="dsc",
+        metrics={"heating-001": {"Tc_C": None, "Tc_peak_C": 182.4}},
+    )
+
+    tc = next(item for item in items if item.capability_id == "Tc")
+    assert tc.status == "completed"
+    assert tc.result == {
+        "metric_path": "heating-001.Tc_peak_C",
+        "value": 182.4,
+    }
+
+    unavailable = CapabilityExecutor().execute_provider_result(
+        source_artifact_id="artifact-1",
+        technique="dsc",
+        metrics={"heating-001": {"Tc_C": None}},
+    )
+    tc_unavailable = next(item for item in unavailable if item.capability_id == "Tc")
+    assert tc_unavailable.status == "needs_input"
+
+
 def test_provider_capability_projection_does_not_infer_nmr_phase_from_xc_alone() -> None:
     items = CapabilityExecutor().execute_provider_result(
         source_artifact_id="artifact-1",

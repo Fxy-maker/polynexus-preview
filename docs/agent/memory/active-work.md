@@ -1,5 +1,24 @@
 # Active Work
 
+## Six-sample v010 replay and provider result completeness — 2026-08-29
+
+- A fresh read-only replay was executed at
+  `D:\PolyNexus-six-sample-replay-20260829-v010` from a copy of the v007 raw
+  directory; the original raw data and v007 package were not modified.
+- All 42 planned runs completed as `review_required` (DSC 12, IR 18, SAXS 6,
+  WAXS 6), with no provider failure, canonical block, or run reason code.
+- The repaired package snapshot is
+  `D:\PolyNexus-six-sample-replay-20260829-v011\.polynexus\evidence\pa6-six-sample-v011-v001`;
+  it contains 270 evidence items, 558 indexed figures, and shared
+  `result-tables.json`/`review-decision.json` projections. The v010 package is
+  retained as the pre-fix comparison snapshot.
+- The replay exposed a public projection gap: null aliases were reported as
+  completed and several already-emitted SAXS/WAXS metrics were not surfaced
+  through provider parameters. The capability executor now skips null values;
+  deterministic aliases and SAXS/WAXS projections were added without changing
+  numerical algorithms. The final audit is
+  `D:\PolyNexus-six-sample-replay-20260829-v011\replay-audit-v011-final.json`.
+
 ## Shared result tables and method-sensitivity contract — 2026-08-29
 
 - `ProjectWorkflowService.analyze_project()` now projects scalar

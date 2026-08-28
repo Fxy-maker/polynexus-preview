@@ -7,6 +7,7 @@ from polynexus.core.waxs_engine import core as waxs_core
 from polynexus.core.waxs_engine.config import WAXSConfig
 from polynexus.core.waxs_engine.core import WAXSResult, scherrer_from_peaks, scherrer_size
 from polynexus.core.waxs_engine.waxs_temperature import WAXSTempResult
+from polynexus.core.waxs import WAXSEngine
 
 
 def test_scherrer_size_subtracts_instrument_broadening() -> None:
@@ -63,6 +64,23 @@ def test_waxs_result_parameters_include_scherrer_uncertainty_fields() -> None:
     assert params["WH_fit_r_squared"] == 0.91
     assert params["size_reliability_status"] == "usable"
     assert params["instrument_broadening_model"] == "caglioti"
+
+
+def test_waxs_engine_static_projection_keeps_peak_and_wh_metrics() -> None:
+    result = WAXSResult(
+        peaks=[{"two_theta": 20.0, "d_spacing_A": 4.4, "fwhm_deg": 0.4, "area": 12.0}],
+        D_WH_nm=8.2,
+        WH_fit_r_squared=0.91,
+        unit_cell_params={"a": 4.9},
+    )
+    engine = WAXSEngine()
+    engine._results = [result]
+
+    params = engine.get_parameters()
+
+    assert params["peak_0_2theta"] == 20.0
+    assert params["D_WH_nm"] == 8.2
+    assert params["unit_cell_params"] == {"a": 4.9}
 
 
 def test_waxs_weighted_uncertainty_helpers() -> None:

@@ -274,7 +274,15 @@ class WAXSEngine(BaseEngine):
         if not self._results:
             return {}
         r0 = self._results[0]
-        params: Dict[str, Any] = {}
+        # Preserve the complete provider parameter projection for static runs.
+        # The previous compact subset silently dropped peak decomposition,
+        # Williamson–Hall, unit-cell, and uncertainty fields before ComputeRun
+        # could persist them.
+        params: Dict[str, Any] = dict(getattr(r0, "parameters", {}) or {})
+        if getattr(r0, "peaks", None):
+            params["peaks"] = [dict(peak) for peak in r0.peaks]
+        if getattr(r0, "unit_cell_params", None):
+            params["unit_cell_params"] = dict(r0.unit_cell_params)
         if not np.isnan(r0.Xc_pct):
             params["Xc_pct"] = round(float(r0.Xc_pct), 1)
         if not np.isnan(r0.D_Scherrer_nm):

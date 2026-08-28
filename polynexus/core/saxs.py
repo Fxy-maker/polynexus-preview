@@ -2742,8 +2742,20 @@ class SAXSEngine(BaseEngine):
             if np.isfinite(sp.Q_invariant):
                 params["Q_star"] = round(float(sp.Q_invariant), 4)
             porod = getattr(self._analysis, "porod", None)
-            if isinstance(porod, dict) and np.isfinite(porod.get("Kp", np.nan)):
-                params["Kp"] = float(porod["Kp"])
+            if isinstance(porod, dict):
+                if _float_or_none(porod.get("Kp")) is not None:
+                    params["Kp"] = float(porod["Kp"])
+                if _float_or_none(porod.get("slope")) is not None:
+                    params["porod_slope"] = float(porod["slope"])
+            kratky = getattr(self._analysis, "kratky", None)
+            if isinstance(kratky, dict) and _float_or_none(kratky.get("q_peak_kratky")) is not None:
+                params["q_peak_kratky"] = float(kratky["q_peak_kratky"])
+            guinier = getattr(self._analysis, "guinier_evidence", None)
+            if isinstance(guinier, dict):
+                if _float_or_none(guinier.get("rg_nm")) is not None:
+                    params["Rg_nm"] = float(guinier["rg_nm"])
+                if _float_or_none(guinier.get("i0")) is not None:
+                    params["I0"] = float(guinier["i0"])
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(self._analysis))
             return self._attach_scientific_acceptance_audit(params)
         if self._q is not None and self._I is not None:
@@ -2771,8 +2783,20 @@ class SAXSEngine(BaseEngine):
             if sp and np.isfinite(sp.phi_c):
                 params["phi_c"] = round(float(sp.phi_c), 3)
             porod = getattr(result, "porod", None)
-            if isinstance(porod, dict) and np.isfinite(porod.get("Kp", np.nan)):
-                params["Kp"] = float(porod["Kp"])
+            if isinstance(porod, dict):
+                if _float_or_none(porod.get("Kp")) is not None:
+                    params["Kp"] = float(porod["Kp"])
+                if _float_or_none(porod.get("slope")) is not None:
+                    params["porod_slope"] = float(porod["slope"])
+            kratky = getattr(result, "kratky", None)
+            if isinstance(kratky, dict) and _float_or_none(kratky.get("q_peak_kratky")) is not None:
+                params["q_peak_kratky"] = float(kratky["q_peak_kratky"])
+            guinier = getattr(result, "guinier_evidence", None)
+            if isinstance(guinier, dict):
+                if _float_or_none(guinier.get("rg_nm")) is not None:
+                    params["Rg_nm"] = float(guinier["rg_nm"])
+                if _float_or_none(guinier.get("i0")) is not None:
+                    params["I0"] = float(guinier["i0"])
             params.update(_saxs_batch_helpers.copy_saxs_quality_evidence(result))
             return self._attach_scientific_acceptance_audit(params)
         return {}

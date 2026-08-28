@@ -13,6 +13,7 @@ from polynexus.core.saxs_batch_helpers import (
 )
 from polynexus.core.saxs_engine.config import SAXSConfig
 from polynexus.core.saxs_engine.saxs_output import _result_to_params_dict
+from polynexus.core.saxs import SAXSEngine
 
 
 def _ai_rescue_payload() -> dict[str, object]:
@@ -112,6 +113,29 @@ def test_saxs_batch_get_parameters_returns_full_batch_payload() -> None:
     assert params["condition_source"] == "header"
     assert params["condition_confidence"] == 0.9
     assert params["condition_continuity_score"] == 1.0
+
+
+def test_saxs_static_projection_keeps_derived_method_metrics() -> None:
+    engine = SAXSEngine()
+    engine._analysis = SimpleNamespace(
+        structure=SimpleNamespace(
+            L=12.0,
+            lc=4.0,
+            la=8.0,
+            phi_c=1 / 3,
+            Q_invariant=2.5,
+        ),
+        porod={"Kp": 1.2, "slope": -3.8, "Sv": 0.4},
+        kratky={"q_peak_kratky": 0.31},
+        guinier_evidence={"rg_nm": 5.4, "i0": 2.1},
+    )
+
+    params = engine.get_parameters()
+
+    assert params["porod_slope"] == -3.8
+    assert params["q_peak_kratky"] == 0.31
+    assert params["Rg_nm"] == 5.4
+    assert params["I0"] == 2.1
 
 
 def test_copy_saxs_quality_evidence_copies_only_present_contract_fields() -> None:

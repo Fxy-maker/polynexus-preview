@@ -249,8 +249,8 @@ def _provider_specs() -> tuple[ProviderCapabilitySpec, ...]:
     aliases = {
         "dsc": {
             "Tg": ("Tg_C", "Tg"), "Tm": ("Tm_peak_C", "Tm_C", "Tm"),
-            "Tc": ("Tc_C", "Tc"), "enthalpy": ("DHm_Jg", "DHc_Jg", "DHc_iso_Jg", "enthalpy"),
-            "multi_peak": ("peak_components", "multi_peak"),
+            "Tc": ("Tc_C", "Tc_peak_C", "Tc_onset_C", "Tc"), "enthalpy": ("DHm_Jg", "DHc_Jg", "DHc_iso_Jg", "enthalpy"),
+            "multi_peak": ("peak_components", "multi_peak", "peaks"),
             "Avrami": ("Avrami_n", "avrami_n", "Avrami"),
             "nonisothermal_kinetics": ("nonisothermal_kinetics", "kinetics"),
         },
@@ -266,18 +266,18 @@ def _provider_specs() -> tuple[ProviderCapabilitySpec, ...]:
             "long_period": ("long_period", "L_best", "L_nm"),
             "crystalline_layer": ("crystalline_layer", "lc_nm", "lc_effective_nm"),
             "amorphous_layer": ("amorphous_layer", "la_nm"),
-            "Porod": ("Porod", "porod", "porod_slope"),
-            "Kratky": ("Kratky", "kratky"),
-            "Guinier": ("Guinier", "guinier"),
+            "Porod": ("Porod", "porod", "porod_slope", "Kp"),
+            "Kratky": ("Kratky", "kratky", "q_peak_kratky"),
+            "Guinier": ("Guinier", "guinier", "Rg", "I0"),
             "Invariant": ("Invariant", "invariant", "Q_star"),
             "temperature_strain": ("temperature_strain", "strain", "temperature_C"),
         },
         "waxs": {
-            "peak_decomposition": ("peak_decomposition", "peaks", "peak_positions"),
+            "peak_decomposition": ("peak_decomposition", "peaks", "peak_positions", "peak_0_2theta"),
             "crystallinity": ("crystallinity", "Xc_pct"),
             "crystallite_size": ("crystallite_size", "D_Scherrer_nm", "D_nm"),
-            "lattice_parameters": ("lattice_parameters", "lattice_params"),
-            "williamson_hall": ("williamson_hall", "W-H", "wh_fit"),
+            "lattice_parameters": ("lattice_parameters", "lattice_params", "unit_cell_params"),
+            "williamson_hall": ("williamson_hall", "W-H", "wh_fit", "D_WH_nm", "WH_fit_r_squared"),
         },
         "nmr": {
             "peak_position": ("peak_position", "dominant_peak_ppm", "peak_0_ppm"),
@@ -329,18 +329,23 @@ def _provider_item_id(source_artifact_id: str, technique: str, capability_id: st
 def _find_metric(metrics: Mapping[str, Any], paths: Sequence[str]) -> tuple[str, Any] | None:
     for path in paths:
         if path in metrics:
-            return path, metrics[path]
+            if metrics[path] is not None:
+                return path, metrics[path]
+            continue
         current: Any = metrics
         for part in path.split("."):
             if not isinstance(current, Mapping) or part not in current:
                 break
             current = current[part]
         else:
-            return path, current
+            if current is not None:
+                return path, current
     # Engine parameter payloads are commonly grouped by scan/segment label.
     # Search terminal keys deterministically, without interpreting values.
     wanted = {path.casefold() for path in paths}
     for candidate_path, value in _walk_mapping(metrics):
+        if value is None:
+            continue
         terminal = candidate_path.rsplit(".", 1)[-1].casefold()
         if terminal in wanted or any(
             alias.endswith("_") and terminal.startswith(alias) for alias in wanted
