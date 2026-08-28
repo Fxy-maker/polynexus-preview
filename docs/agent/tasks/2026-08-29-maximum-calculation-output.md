@@ -40,9 +40,9 @@ samples.
 
 - [x] Each supported technique has an explicit inventory and coverage status.
 - [x] Finite diagnostic values remain visible in the shared projection.
-- [ ] Group statistics are explicit, condition-scoped, and traceable to rows.
+- [x] Group statistics are explicit, condition-scoped, and traceable to rows.
 - [x] Six-sample persisted replay produces a coverage report without raw-data changes.
-- [ ] Focused tests, task verifier, and `git diff --check` pass.
+- [x] Focused tests, task verifier, and `git diff --check` pass.
 
 ## Verification
 
@@ -65,3 +65,10 @@ Leave `active_run.json`, `runs/`, and `tests/_tmp_phase3/` untouched.
   `docs/acceptance/2026-08-29-maximum-calculation-output.md`; provider rerun was
   intentionally not repeated because the existing external replay is already
   available and its raw directory is outside the repository.
+- `build_group_results_table_model()` adapts the shared `GroupResultTable` into
+  GUI primary rows, condition-scoped statistics, and warning diagnostics.
+- `ProjectAnalysisSummary.to_dict()` exposes `result_tables` unchanged for the
+  CLI/ARS JSON consumer; both entry points therefore consume the same DTO.
+- Shared-result verification: 91 focused tests passed (3 skipped); task
+  verifier quality 313 and preprocessing 157 passed, with Ruff/compile/
+  whitespace checks green.

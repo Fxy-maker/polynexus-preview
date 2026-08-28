@@ -44,6 +44,18 @@ def test_group_table_serializes_rows_and_statistics():
     assert table.csv_rows()[0]["value"] == 10.0
 
 
+def test_group_table_round_trips_from_dict_without_losing_traceability():
+    table = build_group_result_table(
+        "pa6-jw",
+        [_row("r1", "a.txt", 180.0, 10.0), _row("r2", "b.txt", 180.0, 14.0)],
+    )
+
+    restored = type(table).from_dict(table.to_dict())
+
+    assert restored == table
+    assert restored.statistics("DHm_Jg")[0].source_row_ids == ("r1", "r2")
+
+
 def test_group_table_rejects_mixed_techniques_and_missing_conditions():
     with pytest.raises(ValueError, match="technique"):
         build_group_result_table(

@@ -115,6 +115,29 @@ class GroupResultTable:
             "statistics": [item.to_dict() for item in self.statistics()],
         }
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "GroupResultTable":
+        """Restore a persisted table without recomputing provider values."""
+        if not isinstance(payload, Mapping):
+            raise TypeError("result table payload must be a mapping")
+        raw_rows = payload.get("rows")
+        if not isinstance(raw_rows, (list, tuple)):
+            raise ValueError("result table rows must be a sequence")
+        rows = tuple(
+            ResultTableRow(
+                row_id=str(item["row_id"]),
+                technique=str(item["technique"]),
+                source=str(item["source"]),
+                condition_key=str(item["condition_key"]),
+                condition_value=item.get("condition_value"),
+                metrics=item.get("metrics", {}),
+                warnings=tuple(item.get("warnings", ())),
+            )
+            for item in raw_rows
+            if isinstance(item, Mapping)
+        )
+        return build_group_result_table(str(payload.get("group_id", "")), rows)
+
     def csv_rows(self) -> tuple[dict[str, Any], ...]:
         """Return flat, deterministic rows suitable for CSV export."""
         rows: list[dict[str, Any]] = []

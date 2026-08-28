@@ -6056,3 +6056,15 @@ and structured gates (`303` / `157`).
 - Any future rule relaxation requires a separate human-reviewed task card and
   regression test; historical full-suite failures remain a separate release
   boundary.
+
+## Maximum deterministic output closure - 2026-08-29
+
+- `GroupResultTable` now has a lossless `from_dict` restoration path.
+- GUI `results_table_service` adapts the shared DTO into per-file primary rows,
+  condition-scoped statistics, and warning diagnostics; it performs no
+  technique-specific calculation or condition inference.
+- `ProjectAnalysisSummary.to_dict()` exposes `result_tables` for the CLI/ARS
+  consumer, preserving the same serialized DTO and source row IDs.
+- Verification passed: 91 focused tests (3 skipped), quality 313,
+  preprocessing 157, Ruff/compile/whitespace. Remaining six-sample statuses
+  and human scientific review boundaries are unchanged.

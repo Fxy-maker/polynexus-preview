@@ -6,7 +6,12 @@ import pytest
 from polynexus.gui.analysis_history_service import flatten_params as flatten_history_params
 from polynexus.gui.i18n import get_language, set_language, tr
 from polynexus.gui import results_table_service
-from polynexus.gui.results_table_service import build_batch_results_table_model, build_results_table_model
+from polynexus.gui.results_table_service import (
+    build_batch_results_table_model,
+    build_group_results_table_model,
+    build_results_table_model,
+)
+from polynexus.core.project_workflow.result_table import ResultTableRow, build_group_result_table
 
 
 def test_build_results_table_model_handles_multi_sample_tables():
@@ -94,6 +99,41 @@ def test_build_results_table_model_handles_single_tables():
         assert model.sortable is False
     finally:
         set_language(previous)
+
+
+def test_group_results_model_preserves_rows_statistics_and_warning_sources():
+    table = build_group_result_table(
+        "pa6-jw",
+        [
+            ResultTableRow("r1", "dsc", "a.csv", "temperature_C", 180.0, {"DHm_Jg": 10.0}),
+            ResultTableRow("r2", "dsc", "b.csv", "temperature_C", 180.0, {"DHm_Jg": 14.0}, ("baseline_review",)),
+        ],
+    )
+
+    model = build_group_results_table_model(table)
+
+    assert model.kind == "group"
+    assert model.summary_count == 2
+    assert model.columns[:4] == ["source", "condition_key", "condition_value", "DHm_Jg"]
+    assert model.display_rows[1][0] == "b.csv"
+    assert model.primary_section is not None
+    assert model.detail_section is not None
+    assert model.detail_section.rows[0][-1].raw == "r1;r2"
+    assert model.diagnostic_section is not None
+    assert model.diagnostic_section.rows[0][2].raw == "baseline_review"
+
+
+def test_build_results_table_model_accepts_group_table_mapping():
+    table = build_group_result_table("pa6", [ResultTableRow("r1", "ftir", "a.txt", "temperature_C", 180, {"peak_cm1": 1640})])
+
+    model = build_results_table_model(
+        {"group_result_table": table.to_dict()},
+        ordered_columns_fn=lambda columns: list(columns),
+        flatten_params_fn=flatten_history_params,
+    )
+
+    assert model.kind == "group"
+    assert model.display_rows[0][0] == "a.txt"
 
 
 def test_structured_results_model_carries_scientific_review_from_live_result():

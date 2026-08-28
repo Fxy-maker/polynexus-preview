@@ -9,10 +9,11 @@ from typing import Any, Callable
 from .i18n import tr
 from .analysis_results_table_service import build_analysis_results_presentation
 from .joint_results_table_service import build_joint_results_presentation
-from .result_table_models import HeroMetric, ResultTableSection
+from .result_table_models import HeroMetric, ResultTableSection, TableCell, TableColumn
 from .scientific_review_presentation import ScientificReviewDisplay, scientific_review_display
 from .results_workbench_profiles import profile_for
 from .saxs_results_table_service import build_saxs_results_presentation
+from ..core.project_workflow.result_table import GroupResultTable
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,86 @@ class ResultsTableModel:
     next_text: str = ""
     scientific_review: ScientificReviewDisplay = field(default_factory=ScientificReviewDisplay, compare=False)
     profile: Any = None
+
+
+def _group_table(value: Any) -> GroupResultTable | None:
+    if isinstance(value, GroupResultTable):
+        return value
+    if isinstance(value, dict):
+        try:
+            return GroupResultTable.from_dict(value)
+        except (TypeError, ValueError, KeyError):
+            logger.warning("Invalid group result table; using generic results table.", exc_info=True)
+    return None
+
+
+def build_group_results_table_model(
+    table: GroupResultTable | dict[str, Any],
+    *,
+    language: str = "en",
+) -> ResultsTableModel:
+    """Adapt the shared group-table DTO for the GUI result workbench.
+
+    The adapter only formats persisted rows/statistics. It never infers a
+    condition axis or performs a scientific calculation in the GUI layer.
+    """
+    group = _group_table(table)
+    if group is None:
+        raise ValueError("group result table is invalid")
+    metric_keys = sorted({str(key) for row in group.rows for key in row.metrics})
+    columns = ["source", "condition_key", "condition_value", *metric_keys, "warnings"]
+    display_rows: list[list[str]] = []
+    stored_rows: list[list[Any]] = []
+    primary_rows: list[tuple[TableCell, ...]] = []
+    for row in group.rows:
+        values: list[Any] = [row.source, row.condition_key, row.condition_value]
+        values.extend(row.metrics.get(key, "") for key in metric_keys)
+        values.append(";".join(row.warnings))
+        stored_rows.append(values)
+        display_rows.append([_format_display_value(value, digits=4) for value in values])
+        primary_rows.append(tuple(
+            TableCell(raw=value, display=_format_display_value(value, digits=4), status="review" if row.warnings and index == len(values) - 1 else "neutral", provenance=row.source)
+            for index, value in enumerate(values)
+        ))
+
+    stat_columns = ["condition_key", "condition_value", "metric_key", "count", "mean", "std", "cv", "source_row_ids"]
+    stat_rows: list[tuple[TableCell, ...]] = []
+    for stat in group.statistics():
+        source_ids = ";".join(stat.source_row_ids)
+        values = [stat.condition_key, stat.condition_value, stat.metric_key, stat.count, stat.mean, stat.std, stat.cv, source_ids]
+        stat_rows.append(tuple(TableCell(raw=value, display=_format_display_value(value, digits=4), provenance=";".join(stat.source_row_ids)) for value in values))
+
+    warning_columns = ["row_id", "source", "warning"]
+    warning_rows = [
+        tuple(TableCell(raw=value, display=str(value), status="review", provenance=row.source) for value in (row.row_id, row.source, warning))
+        for row in group.rows for warning in row.warnings
+    ]
+    primary = ResultTableSection(
+        columns=tuple(TableColumn(key=key, label=key) for key in columns),
+        rows=tuple(primary_rows),
+    )
+    detail = ResultTableSection(
+        columns=tuple(TableColumn(key=key, label=key) for key in stat_columns),
+        rows=tuple(stat_rows),
+    )
+    diagnostics = ResultTableSection(
+        columns=tuple(TableColumn(key=key, label=key) for key in warning_columns),
+        rows=tuple(warning_rows),
+    )
+    return ResultsTableModel(
+        kind="group",
+        columns=columns,
+        display_rows=display_rows,
+        stored_rows=stored_rows,
+        summary_count=len(group.rows),
+        export_enabled=bool(group.rows),
+        copy_enabled=bool(group.rows),
+        sortable=bool(group.rows),
+        summary_kind="group",
+        primary_section=primary,
+        detail_section=detail,
+        diagnostic_section=diagnostics,
+    )
 
 
 def _format_display_value(value, *, digits: int) -> str:
@@ -139,7 +220,13 @@ def build_results_table_model(
     submodule: str = "",
     language: str = "en",
     review_source: Any = None,
+    group_table: GroupResultTable | dict[str, Any] | None = None,
 ) -> ResultsTableModel:
+    selected_group_table = _group_table(group_table)
+    if selected_group_table is None and isinstance(params, dict):
+        selected_group_table = _group_table(params.get("group_result_table"))
+    if selected_group_table is not None:
+        return build_group_results_table_model(selected_group_table, language=language)
     review_display = scientific_review_display(
         params if review_source is None else review_source,
         technique=technique,

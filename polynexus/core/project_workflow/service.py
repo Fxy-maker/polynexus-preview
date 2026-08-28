@@ -341,6 +341,7 @@ class ProjectWorkflowService:
         selected_group: Mapping[str, Any] | None = None,
         selected_groups: tuple[str, ...] = (),
         figure_candidates: Mapping[str, Any] | None = None,
+        result_tables: tuple[Mapping[str, Any], ...] = (),
     ) -> ProjectAnalysisSummary:
         reasons = tuple(dict.fromkeys(str(value) for value in reason_codes if value))
         if not runs:
@@ -354,6 +355,7 @@ class ProjectWorkflowService:
                 selected_group=selected_group,
                 selected_groups=selected_groups,
                 figure_candidates=figure_candidates,
+                result_tables=result_tables,
             )
         review_bound = any(run.status == "review_required" for run in runs) or bool(reasons)
         publication = "review_required" if review_bound or package is None else "ready"
@@ -373,6 +375,7 @@ class ProjectWorkflowService:
             selected_group=selected_group,
             selected_groups=selected_groups,
             figure_candidates=figure_candidates,
+            result_tables=result_tables,
         )
 
     def _metric_values_from_runs(self, runs: tuple[ProjectWorkflowRun, ...]) -> dict[str, tuple[float, str]]:

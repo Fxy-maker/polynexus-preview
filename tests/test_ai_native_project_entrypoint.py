@@ -5,6 +5,8 @@ from pathlib import Path
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.project_workflow import ProjectWorkflowService
+from polynexus.core.project_workflow.evidence import ProjectAnalysisSummary
+from polynexus.core.project_workflow.result_table import ResultTableRow, build_group_result_table
 from polynexus.cli.parser import build_parser
 from polynexus.cli.run_project_workflow_service import run_project_workflow
 import json
@@ -38,6 +40,24 @@ def test_analyze_project_is_one_call_with_three_status_layers(tmp_path: Path) ->
     assert payload["package"]["path"]
     assert payload["evidence_count"] == 2
     assert payload["runs"]
+
+
+def test_project_summary_cli_projection_keeps_group_result_table_payload() -> None:
+    table = build_group_result_table(
+        "pa6-jw",
+        [ResultTableRow("r1", "dsc", "a.csv", "temperature_C", 180.0, {"DHm_Jg": 10.0})],
+    )
+    summary = ProjectAnalysisSummary(
+        computation="passed",
+        data_quality="passed",
+        publication="review_required",
+        result_tables=(table.to_dict(),),
+    )
+
+    payload = summary.to_dict()
+
+    assert payload["result_tables"][0]["group_id"] == "pa6-jw"
+    assert payload["result_tables"][0]["rows"][0]["source"] == "a.csv"
 
 
 def test_analyze_project_packages_explicit_cross_technique_evidence_index(tmp_path: Path) -> None:

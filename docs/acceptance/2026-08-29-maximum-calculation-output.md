@@ -72,3 +72,15 @@ scientific/provider investigation; this audit does not relabel them.
 This is a coverage replay of persisted public results, not a fresh provider
 rerun. A fresh six-sample rerun remains optional because it is expensive and
 would rewrite external generated outputs.
+
+## Shared result-table closure
+
+The shared `GroupResultTable` DTO is consumable by both result entry points.
+The GUI adapter presents per-file rows, condition-scoped statistics, and
+warning diagnostics while retaining source row IDs. The project-workflow CLI
+projection exposes the same DTO under `analysis.result_tables`; no values are
+recalculated or inferred by either consumer.
+
+Verification: 91 focused tests passed (3 skipped); task verification passed
+quality 313 and preprocessing 157, with Ruff, compile, and whitespace checks
+green.
