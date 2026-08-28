@@ -279,6 +279,35 @@ def test_nmr_explicit_region_windows_override_generic_regions():
     assert regions["backbone"] > regions["amide"]
 
 
+def test_nmr_explicit_region_windows_are_recorded_and_validate_bounds():
+    from polynexus.core.nmr_engine.io import NMRSpectrum
+
+    cfg = NMRConfig(
+        nucleus="13C",
+        sample_state="liquid",
+        region_windows_ppm={"amide": [160.0, 180.0]},
+    )
+    result = analyze_spectrum(
+        NMRSpectrum(
+            label="synthetic",
+            nucleus="13C",
+            ppm=np.array([180.0, 170.0, 45.0, 30.0, 0.0]),
+            intensity=np.array([0.0, 2.0, 1.0, 3.0, 0.0]),
+        ),
+        cfg,
+    )
+
+    assert result.parameters["region_windows_ppm"] == {"amide": [160.0, 180.0]}
+    with pytest.raises(ValueError, match="two numeric bounds"):
+        _region_integral_percentages(
+            np.array([1.0, 2.0]),
+            np.array([1.0, 1.0]),
+            "13C",
+            "liquid",
+            region_windows={"bad": [1.0]},
+        )
+
+
 def test_solid_13c_crystallinity_requires_explicit_phase_assignment():
     cfg = NMRConfig(
         sample_state="solid",
