@@ -12,6 +12,9 @@
 - `ComputeResult.metric_manifest(source=...)` and `ComputeRun.to_dict()` now
   use the run artifact path as a source fallback when provider metadata does
   not include one, so persisted manifests remain source-locatable.
+- Provider projection lookup now traverses grouped engine parameters (for
+  example DSC segment rows) using explicit terminal aliases. NMR solid-phase
+  capability does not accept a bare `Xc_pct` alias, preventing phase inference.
 
 - `ComputeResult`/`ComputeRun` now expose a technique-neutral `field_inventory`
   for every emitted metric leaf, including scalar, series, nested, and missing
