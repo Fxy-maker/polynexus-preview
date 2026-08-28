@@ -1,5 +1,16 @@
 ---
 
+## Generic isothermal DSC event candidates checkpoint (2026-08-28)
+
+`dsc_kinetics` now uses shape-driven, material-neutral event candidates. Every
+candidate is computed and retained with provenance; compatibility best-result
+projection prefers a settled non-transient event. Avrami defaults to Xt=5–80%
+and exposes the fit window and candidate metadata through the existing shared
+parameter/ComputeRun projection. Focused and cross-entry matrices are green;
+full task verifier still reports pre-existing DSC lint findings (duplicate
+legacy definitions and export/import baseline), so scientific and release
+review remain open.
+
 ## Finite capability execution checkpoint (2026-08-26)
 
 The shared canonical layer now has a finite capability registry/executor for
