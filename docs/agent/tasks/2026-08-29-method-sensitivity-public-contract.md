@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-29-method-sensitivity-public-contract
 kind: scientific
-status: active
+status: completed
 date: 2026-08-29
 title: Publish explicit method-sensitivity candidates
 ---
@@ -74,4 +74,5 @@ git diff --check
 Extend the explicit field map only when a provider exposes a deterministic,
 scientifically reviewed configuration field. Range-like dimensions must use a
 coupled override with named fields (as SAXS does for `q_min/q_max`) rather than
-guessing from a single scalar.
+guessing from a single scalar. NMR's explicit region-window field is tracked in
+`docs/agent/tasks/2026-08-29-nmr-explicit-region-sensitivity.md`.
