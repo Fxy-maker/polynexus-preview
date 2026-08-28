@@ -20,6 +20,7 @@ from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .grouping import CandidateExperimentGroup, candidate_groups
+from .result_table import GroupResultTable, ResultStatistic, ResultTableRow, build_group_result_table
 from .selection import FigureSelectionRequest, ResolvedFigureSelection, resolve_figure_selection
 from .evidence_view import EvidencePackageView, load_evidence_package_view
 from .figure_index import FigureIndexEntry, load_figure_index
@@ -56,6 +57,10 @@ __all__ = [
     "TechniqueSeriesAdapter",
     "CandidateExperimentGroup",
     "candidate_groups",
+    "GroupResultTable",
+    "ResultStatistic",
+    "ResultTableRow",
+    "build_group_result_table",
     "FigureSelectionRequest",
     "ResolvedFigureSelection",
     "resolve_figure_selection",

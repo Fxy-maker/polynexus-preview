@@ -38,3 +38,14 @@ This inventory does not calculate new scientific quantities and does not infer
 units, material identity, grouping, literature assignments, or manuscript use.
 The next checkpoint adds explicit condition-scoped per-file/group tables over
 these already emitted values.
+
+## Group table checkpoint
+
+`polynexus.core.project_workflow.result_table` now provides a shared
+`ResultTableRow`/`GroupResultTable` DTO. It preserves one row per selected source
+file and computes count, population standard deviation, mean, and CV separately
+for each exact condition value. Mixed techniques or condition axes are rejected;
+different values on the same axis remain separate groups rather than being
+averaged. JSON and flat CSV-row projections retain source row IDs.
+
+Focused group-table coverage: **3 passed**.

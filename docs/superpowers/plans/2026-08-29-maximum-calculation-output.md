@@ -28,10 +28,10 @@
 - Create or modify the existing project-workflow result table service identified in Task 1
 - Create: `tests/test_group_result_table.py`
 
-- [ ] Write tests for one row per source result, explicit condition keys, finite values, and unavailable reason codes.
-- [ ] Implement a technique-neutral table DTO and deterministic statistics (count, mean, standard deviation, CV) over explicitly selected same-condition rows.
-- [ ] Ensure the aggregate retains row ids/source files and refuses mixed condition keys.
-- [ ] Add JSON/CSV serialization through the existing shared consumer boundary.
+- [x] Write tests for one row per source result, explicit condition keys, finite values, and unavailable reason codes.
+- [x] Implement a technique-neutral table DTO and deterministic statistics (count, mean, standard deviation, CV) over explicitly selected same-condition rows.
+- [x] Ensure the aggregate retains row ids/source files and refuses mixed condition keys.
+- [x] Add JSON/CSV serialization through the existing shared consumer boundary.
 
 ### Task 3: Six-sample real replay
 
