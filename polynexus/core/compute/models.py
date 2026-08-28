@@ -418,6 +418,14 @@ class ComputeResult:
         )
         object.__setattr__(self, "warnings", _freeze_strings(self.warnings, "warnings"))
 
+    def field_inventory(self) -> tuple[dict[str, Any], ...]:
+        """Return a JSON-safe inventory of every emitted metric field."""
+        from .result_inventory import build_result_field_inventory
+
+        return tuple(
+            field.to_dict() for field in build_result_field_inventory(self.metrics)
+        )
+
     @classmethod
     def from_legacy_result(cls, value: Any) -> ComputeResult:
         metrics = getattr(value, "parameters", {})
@@ -547,10 +555,13 @@ class ComputeRun:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return _json_value(
+        payload = _json_value(
             {
                 field_info.name: getattr(self, field_info.name)
                 for field_info in fields(self)
                 if field_info.name != "legacy_result"
             }
         )
+        if self.result is not None:
+            payload["result"]["field_inventory"] = list(self.result.field_inventory())
+        return payload

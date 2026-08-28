@@ -209,6 +209,22 @@ def test_direct_run_attaches_generic_canonical_template_and_capability_items(tmp
     assert len(engine.calls) == 1
 
 
+def test_compute_run_serializes_result_field_inventory(tmp_path: Path) -> None:
+    source = tmp_path / "curve.csv"
+    source.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    result = SimpleNamespace(
+        parameters={"Tm_C": 185.2, "fit": {"r_squared": 0.98}},
+        figures={},
+        metadata={},
+    )
+    run = ComputeRunService(lambda *args, **kwargs: FakeEngine(result)).run_direct(
+        technique="ir", path=source, output_dir=tmp_path / "out"
+    )
+
+    fields = run.to_dict()["result"]["field_inventory"]
+    assert {field["path"] for field in fields} == {"Tm_C", "fit.r_squared"}
+
+
 def test_direct_run_blocks_ambiguous_generic_mapping_before_provider(tmp_path: Path) -> None:
     source = tmp_path / "ambiguous.csv"
     source.write_text("A,B,C\n1,2,3\n4,5,6\n", encoding="utf-8")
