@@ -26,6 +26,8 @@ def _safe_technique(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     normalized = str.lower(str.strip(value))
+    if normalized == "ftir":
+        normalized = "ir"
     return normalized or None
 
 

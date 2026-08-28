@@ -1076,6 +1076,18 @@ def test_direct_run_normalizes_technique_once_for_all_compute_boundaries(tmp_pat
     assert factory_techniques == ["ir"]
 
 
+def test_direct_run_accepts_ftir_alias_for_shared_ir_contract(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(EmptyLegacyResult())
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="FTIR", path=source, output_dir=tmp_path / "out"
+    )
+    assert run.status == "completed"
+    assert run.artifact.technique == "ir"
+    assert run.dataset is not None and run.dataset.technique == "ir"
+
+
 @pytest.mark.parametrize(
     "skip_to",
     (pytest.param("unknown", id="unknown-string"), pytest.param(object(), id="object")),
