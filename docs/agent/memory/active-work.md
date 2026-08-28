@@ -6167,3 +6167,14 @@ and structured gates (`303` / `157`).
 - Package/ARS handoff tests passed 4; task verifier passed quality 313 and
   preprocessing 157. Acceptance:
   `docs/acceptance/2026-08-29-ars-evidence-file-links.md`.
+
+## Cross-entry acceptance audit - 2026-08-29
+
+- GUI/gallery/result-table/project workflow/CLI/Codex/ARS matrix passed 147
+  tests. Native GUI automation passed 9 and skipped 17 display-dependent
+  captures for the headless environment.
+- v011 package snapshots all retain completed shared `ComputeRun` and
+  `metric_manifest` projections. Acceptance:
+  `docs/acceptance/2026-08-29-cross-entry-acceptance-audit.md`.
+- Human scientific promotion and the historical full-suite failure ledger
+  remain open; no release-green claim is made.

@@ -1751,3 +1751,11 @@ The ARS handoff now explicitly references the package-relative shared
 `result-tables.json` and `writing-evidence.json` files in addition to citation
 metrics. No duplicate result representation is introduced; the package remains
 `review_required` until human scientific review.
+
+## Cross-entry acceptance audit - 2026-08-29
+
+Focused GUI/gallery/result-table/project workflow/CLI/Codex/ARS consumers pass
+147 tests; native GUI automation passes 9 and skips 17 display-dependent cases
+in the headless environment. The shared-object and package projections are
+consistent, while scientific promotion and historical full-suite failures stay
+open.
