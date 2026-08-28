@@ -323,13 +323,20 @@ class ComputeRunService:
                     capability_items=capability_items,
                     reasons=("provider_execution_failed",),
                 )
+            result = ComputeResult.from_legacy_result(legacy_result)
+            provider_capability_items = CapabilityExecutor().execute_provider_result(
+                source_artifact_id=artifact.artifact_id,
+                technique=normalized_technique,
+                metrics=result.metrics,
+            )
             return ComputeRun.completed(
                 artifact=artifact,
                 dataset=dataset,
                 plan=plan,
-                result=ComputeResult.from_legacy_result(legacy_result),
+                result=result,
                 canonical_template=canonical_template,
                 capability_items=capability_items,
+                provider_capability_items=provider_capability_items,
                 legacy_result=legacy_result,
             )
         except Exception:

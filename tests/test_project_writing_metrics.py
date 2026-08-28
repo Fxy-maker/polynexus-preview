@@ -149,3 +149,22 @@ def test_compute_metric_manifest_is_projected_to_citation_metrics_with_provenanc
     assert metric.source_locator == "sample.dsc::Tm_C"
     assert metric.writing_eligibility == "diagnostic_only"
     assert "baseline_review" in metric.reason_codes
+
+
+def test_provider_capability_projection_is_cited_as_diagnostic_only():
+    records = extract_writing_metrics(_item("dsc", {
+        "provider_capability_items": [{
+            "item_id": "provider-item-1",
+            "measurement_id": "provider-result",
+            "capability_id": "Tm",
+            "status": "completed",
+            "result": {"metric_path": "Tm_peak_C", "value": 185.2},
+        }],
+    }))
+
+    metric = next(record for record in records if record.metric_key == "Tm.Tm_peak_C")
+    assert metric.value == 185.2
+    assert metric.method == "canonical.provider.Tm"
+    assert metric.writing_eligibility == "diagnostic_only"
+    assert "provider_capability_observation" in metric.reason_codes
+    assert "provider-item-1" in metric.source_locator

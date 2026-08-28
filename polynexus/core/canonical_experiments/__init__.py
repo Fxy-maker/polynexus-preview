@@ -5,7 +5,10 @@ from .capabilities import (
     CapabilityExecutor,
     CapabilityRegistry,
     CapabilitySpec,
+    ProviderCapabilityRegistry,
+    ProviderCapabilitySpec,
     default_capability_registry,
+    default_provider_capability_registry,
 )
 from .one_dimensional import convert_one_dimensional_table
 from .models import (
@@ -38,5 +41,8 @@ __all__ = [
     "CapabilityExecutor",
     "CapabilityRegistry",
     "CapabilitySpec",
+    "ProviderCapabilitySpec",
+    "ProviderCapabilityRegistry",
     "default_capability_registry",
+    "default_provider_capability_registry",
 ]

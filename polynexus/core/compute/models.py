@@ -525,6 +525,7 @@ class ComputeRun:
     result: ComputeResult | None = None
     canonical_template: CanonicalExperiment | None = None
     capability_items: tuple[CapabilityItemResult, ...] = ()
+    provider_capability_items: tuple[CapabilityItemResult, ...] = ()
     reasons: tuple[str, ...] = ()
     legacy_result: Any = field(default=None, repr=False, compare=False)
 
@@ -548,6 +549,9 @@ class ComputeRun:
         object.__setattr__(self, "capability_items", tuple(self.capability_items))
         if not all(isinstance(item, CapabilityItemResult) for item in self.capability_items):
             raise TypeError("capability_items must contain CapabilityItemResult values")
+        object.__setattr__(self, "provider_capability_items", tuple(self.provider_capability_items))
+        if not all(isinstance(item, CapabilityItemResult) for item in self.provider_capability_items):
+            raise TypeError("provider_capability_items must contain CapabilityItemResult values")
         object.__setattr__(self, "reasons", _freeze_strings(self.reasons, "reasons"))
         if self.dataset is not None and self.plan is not None:
             linkage_mismatches: list[str] = []
@@ -601,6 +605,7 @@ class ComputeRun:
         result: ComputeResult,
         canonical_template: CanonicalExperiment | None = None,
         capability_items: tuple[CapabilityItemResult, ...] = (),
+        provider_capability_items: tuple[CapabilityItemResult, ...] = (),
         reasons: tuple[str, ...] = (),
         legacy_result: Any = None,
     ) -> ComputeRun:
@@ -612,6 +617,7 @@ class ComputeRun:
             result=result,
             canonical_template=canonical_template,
             capability_items=capability_items,
+            provider_capability_items=provider_capability_items,
             reasons=reasons,
             legacy_result=legacy_result,
         )

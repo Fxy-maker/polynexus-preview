@@ -2,6 +2,14 @@
 
 ## Maximum deterministic calculation output — 2026-08-29
 
+- Follow-up wiring now registers provider-specific capability projections in
+  the shared canonical executor. `ComputeRun.provider_capability_items` carries
+  completed values only when an existing provider metric matches a registered
+  alias; missing metrics remain `needs_input` with
+  `provider_metric_unavailable`. Agent workflow and writing-metric consumers
+  expose these observations as diagnostic-only, with no scientific or
+  publication promotion.
+
 - `ComputeResult`/`ComputeRun` now expose a technique-neutral `field_inventory`
   for every emitted metric leaf, including scalar, series, nested, and missing
   states. No numerical algorithm or threshold changed.
@@ -11,8 +19,7 @@
 - Existing six-sample v007 persisted results were reprojected read-only: 52
   review-required, 1 blocked, 1 failed; all reviewable steps had non-empty
   metric parameters. NMR is absent from that replay.
-- Remaining follow-up is wiring the group-table DTO into the preferred GUI/CLI
-  result viewer and optionally running a fresh provider replay; AI grouping,
+- Remaining follow-up is optionally running a fresh provider replay; AI grouping,
   interpretation, and writing remain intentionally out of Core.
 
 ## Generic isothermal DSC event candidates — implementation complete, review required (2026-08-28)
@@ -6080,7 +6087,7 @@ and structured gates (`303` / `157`).
 - `MethodSensitivity` provides a shared primary/candidate method contract with
   explicit difference range and unavailable status.
 - Focused coverage passes 84 tests (3 skipped). Provider-specific capability
-  registration and complete evidence-package consumption remain open;
+  projections are now registered and consumed through the shared executor;
   six-sample replay is explicitly deferred.
 - `compute.capability_catalog` now records the requested DSC/FTIR/SAXS/WAXS/NMR
   deterministic output names and shared metric-manifest projection. It is an
@@ -6088,6 +6095,5 @@ and structured gates (`303` / `157`).
 - Agent/Codex workflow step summaries now embed the complete `compute_run`
   projection, including `result.metric_manifest`, so evidence-package and ARS
   metric extraction can consume the same values/provenance as GUI/CLI.
-- Cross-entry regression matrix passed 83 tests (3 skipped). Full provider
-  capability registration remains an explicit follow-up; six-sample replay is
-  still deferred.
+- Cross-entry regression matrix passed 83 tests (3 skipped). Provider metric
+  projections remain diagnostic-only; six-sample replay is still deferred.

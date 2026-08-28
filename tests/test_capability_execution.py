@@ -11,6 +11,7 @@ from polynexus.core.canonical_experiments import (
     CapabilitySpec,
     Measurement,
     default_capability_registry,
+    default_provider_capability_registry,
 )
 from polynexus.core.canonical_experiments.registry import default_converter_registry
 
@@ -127,3 +128,21 @@ def test_registry_executes_finite_items_for_a_ready_generic_template(tmp_path) -
 def test_capability_spec_rejects_a_single_family_string() -> None:
     with pytest.raises(TypeError, match="sequence of family strings"):
         CapabilitySpec("invalid.v1", "spectrum_1d", lambda _: {})
+
+
+def test_provider_capability_executor_projects_registered_metrics_without_fabrication() -> None:
+    registry = default_provider_capability_registry()
+    executor = CapabilityExecutor(provider_registry=registry)
+
+    items = executor.execute_provider_result(
+        source_artifact_id="artifact-1",
+        technique="dsc",
+        metrics={"Tm_peak_C": 185.2, "DHm_Jg": 42.0},
+    )
+
+    by_id = {item.capability_id: item for item in items}
+    assert by_id["Tm"].status == "completed"
+    assert by_id["Tm"].result == {"metric_path": "Tm_peak_C", "value": 185.2}
+    assert by_id["enthalpy"].status == "completed"
+    assert by_id["Tg"].status == "needs_input"
+    assert by_id["Tg"].reason_codes == ("provider_metric_unavailable",)
