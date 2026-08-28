@@ -125,3 +125,27 @@ def test_waxs_low_support_size_stays_diagnostic() -> None:
     assert size.method == "scherrer"
     assert size.writing_eligibility == "diagnostic_only"
     assert "size_without_multi_peak_support" in size.reason_codes
+
+
+def test_compute_metric_manifest_is_projected_to_citation_metrics_with_provenance():
+    records = extract_writing_metrics(_item("dsc", {
+        "compute_run": {"result": {"metric_manifest": [{
+            "path": "Tm_C",
+            "kind": "scalar",
+            "value": 220.5,
+            "unit": "°C",
+            "method": "peak_maximum",
+            "parameters": {"window": [200, 240]},
+            "source": "sample.dsc",
+            "warnings": ["baseline_review"],
+            "status": "computed",
+        }]}}
+    }))
+
+    metric = next(record for record in records if record.metric_key == "Tm_C")
+    assert metric.value == 220.5
+    assert metric.unit == "°C"
+    assert metric.method == "peak_maximum"
+    assert metric.source_locator == "sample.dsc::Tm_C"
+    assert metric.writing_eligibility == "diagnostic_only"
+    assert "baseline_review" in metric.reason_codes

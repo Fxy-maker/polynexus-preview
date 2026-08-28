@@ -56,7 +56,7 @@ def extract_writing_metrics(item: EvidenceItem | Mapping[str, Any]) -> tuple[Cit
     """Extract documented provider metrics from one public evidence item."""
     payload = item.to_dict() if isinstance(item, EvidenceItem) else dict(item)
     technique = str(payload.get("technique", "")).lower()
-    generic = _capability_metrics(payload)
+    generic = _capability_metrics(payload) + _metric_manifest_metrics(payload)
     if technique == "dsc":
         records = generic + _dsc(payload)
     elif technique in {"ir", "ftir"}:
@@ -68,6 +68,36 @@ def extract_writing_metrics(item: EvidenceItem | Mapping[str, Any]) -> tuple[Cit
     else:
         records = generic
     return tuple(_with_id(record) for record in records)
+
+
+def _metric_manifest_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
+    """Project the complete ComputeRun metric manifest without promotion."""
+    summary = _summary(payload)
+    compute_run = summary.get("compute_run", {})
+    result = compute_run.get("result", {}) if isinstance(compute_run, Mapping) else {}
+    manifest = result.get("metric_manifest", ()) if isinstance(result, Mapping) else ()
+    if not isinstance(manifest, (list, tuple)):
+        return ()
+    records: list[CitationMetric] = []
+    for item in manifest:
+        if not isinstance(item, Mapping) or item.get("kind") != "scalar":
+            continue
+        value = _finite(item.get("value"))
+        path = str(item.get("path", "")).strip()
+        if value is None or not path:
+            continue
+        reasons = tuple(str(reason) for reason in item.get("warnings", ()) if reason)
+        records.append(_base(
+            payload,
+            key=path,
+            value=value,
+            unit=str(item.get("unit") or "unknown"),
+            method=str(item.get("method") or "unknown"),
+            locator=f"{item.get('source') or 'unknown'}::{path}",
+            eligibility="diagnostic_only",
+            reasons=reasons or ("compute_metric_manifest",),
+        ))
+    return tuple(records)
 
 
 def extract_package_metrics(items: Iterable[EvidenceItem | Mapping[str, Any]]) -> tuple[CitationMetric, ...]:
