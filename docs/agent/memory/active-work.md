@@ -6145,3 +6145,15 @@ and structured gates (`303` / `157`).
   metric extraction can consume the same values/provenance as GUI/CLI.
 - Cross-entry regression matrix passed 83 tests (3 skipped). Provider metric
   projections remain diagnostic-only; six-sample replay is still deferred.
+
+## NMR explicit region-window sensitivity - 2026-08-29
+
+- `NMRConfig.region_windows_ppm` now supports explicit named ppm integration
+  windows. The existing generic nucleus/state windows remain the default when
+  no windows are supplied; malformed windows fail explicitly.
+- NMR `region_integration` method-sensitivity requests now route to this field,
+  rerun candidates through isolated ComputeRun outputs, and preserve the
+  selected windows in the public parameter projection.
+- Focused NMR/Compute tests passed 83 (3 skipped); task verifier passed quality
+  313 and preprocessing 157. Acceptance:
+  `docs/acceptance/2026-08-29-nmr-explicit-region-sensitivity.md`.

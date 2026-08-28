@@ -5,8 +5,9 @@ Defines NMRConfig with polymer chemical shift databases and reference data.
 
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any
 
 
 @dataclass
@@ -72,6 +73,12 @@ class NMRConfig:
     peak_distance_ppm: float = 1.0
     peak_height_min: float = 0.03
     max_peaks: int = 18
+
+    # --- Optional explicit regions for sensitivity/reproducibility ---
+    # ``None`` keeps the nucleus/state-specific generic windows.  When set,
+    # callers provide named ``{label: (low_ppm, high_ppm)}`` windows; no
+    # material-specific defaults are inferred by the engine.
+    region_windows_ppm: Optional[Dict[str, Tuple[float, float]]] = None
 
     # --- Default ppm axes used when vendor metadata is incomplete ---
     liquid_1h_range: Tuple[float, float] = (12.5, -0.5)
@@ -228,5 +235,11 @@ class NMRConfig:
         for fld in self.__dataclass_fields__:
             if fld == "polymer_13c_db":
                 continue
-            d[fld] = getattr(self, fld)
+            value = getattr(self, fld)
+            if fld == "region_windows_ppm" and isinstance(value, Mapping):
+                value = {
+                    str(label): [float(bounds[0]), float(bounds[1])]
+                    for label, bounds in value.items()
+                }
+            d[fld] = value
         return d

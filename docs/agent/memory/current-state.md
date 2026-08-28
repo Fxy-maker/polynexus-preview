@@ -1734,3 +1734,13 @@ algorithms are unchanged. Six-sample replay v002 confirms all selected FTIR
 files convert; three DSC samples remain gated by existing qualification rules.
 The full boundary suite is not green (`4133 passed, 38 failed, 25 skipped`),
 so legacy producer deletion and release remain open.
+
+## NMR explicit region-window sensitivity - 2026-08-29
+
+`NMRConfig.region_windows_ppm` now provides optional named ppm integration
+windows for deterministic sensitivity reruns. Empty or absent configuration
+retains the existing generic nucleus/state windows; malformed explicit windows
+fail closed. The shared `ComputeRunService` maps `region_integration` candidates
+to this field and the public NMR parameter projection records the selected
+windows. Acceptance is recorded in
+`docs/acceptance/2026-08-29-nmr-explicit-region-sensitivity.md`.

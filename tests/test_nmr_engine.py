@@ -7,6 +7,7 @@ import pytest
 from polynexus.core.engine import get_engine
 from polynexus.core.submodule_registry import list_all_submodules
 from polynexus.core.nmr_engine import NMRConfig, analyze_spectrum, load_project, preprocess_pipeline
+from polynexus.core.nmr_engine.core import _region_integral_percentages
 
 
 def _nmr_root() -> Path:
@@ -259,6 +260,23 @@ def test_liquid_c_uses_generic_regions_without_polymer_scope():
     assert all(pk.get("phase") == "unknown" for pk in result.peaks)
     assert not any("(c)" in pk.get("assignment", "") or "(a)" in pk.get("assignment", "")
                    for pk in result.peaks)
+
+
+def test_nmr_explicit_region_windows_override_generic_regions():
+    ppm = np.array([180.0, 170.0, 45.0, 30.0, 0.0])
+    intensity = np.array([0.0, 2.0, 1.0, 3.0, 0.0])
+
+    regions = _region_integral_percentages(
+        ppm,
+        intensity,
+        "13C",
+        "liquid",
+        region_windows={"amide": (160.0, 180.0), "backbone": (20.0, 50.0)},
+    )
+
+    assert set(regions) == {"amide", "backbone"}
+    assert regions["amide"] > 0.0
+    assert regions["backbone"] > regions["amide"]
 
 
 def test_solid_13c_crystallinity_requires_explicit_phase_assignment():

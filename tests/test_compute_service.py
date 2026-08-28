@@ -314,6 +314,52 @@ def test_direct_run_replays_saxs_coupled_integration_window(tmp_path: Path) -> N
     }
 
 
+def test_direct_run_replays_nmr_explicit_region_windows(tmp_path: Path) -> None:
+    source = tmp_path / "spectrum.csv"
+    source.write_text("ppm,intensity\n170,1\n40,1\n", encoding="utf-8")
+    calls: list[dict[str, Any]] = []
+
+    class ConfiguredEngine(FakeEngine):
+        def run_pipeline(self, path: str, output_dir: str, **options: Any) -> Any:
+            cfg = dict(self.config or {})
+            calls.append(cfg)
+            windows = cfg.get("region_windows_ppm") or {}
+            # Keep a deterministic scalar output so the shared sensitivity
+            # projection can compare the same metric across window candidates.
+            amide = windows.get("amide", ())
+            return SimpleNamespace(
+                parameters={"region_amide_pct": float(amide[1] - amide[0])},
+                figures={},
+                metadata={},
+            )
+
+    def factory(_technique: str, config: Any = None, submodule_id: str | None = None) -> Any:
+        engine = ConfiguredEngine(EmptyLegacyResult())
+        engine.config = config
+        return engine
+
+    primary = {"amide": [160.0, 180.0]}
+    candidate = {"amide": [150.0, 175.0], "backbone": [20.0, 50.0]}
+    run = ComputeRunService(factory).run_direct(
+        technique="nmr",
+        path=source,
+        output_dir=tmp_path / "out",
+        config={"region_windows_ppm": primary},
+        pipeline_options={"method_sensitivity": {"region_integration": [primary, candidate]}},
+    )
+
+    assert run.status == "completed"
+    assert calls == [
+        {"region_windows_ppm": primary},
+        {"region_windows_ppm": candidate},
+    ]
+    assert run.result is not None
+    sensitivity = run.result.method_sensitivities[0]
+    assert sensitivity.metric_path == "region_amide_pct"
+    assert sensitivity.primary_value == 20.0
+    assert sensitivity.candidates['{"amide":[150.0,175.0],"backbone":[20.0,50.0]}'] == 25.0
+
+
 @pytest.mark.parametrize(
     ("technique", "dimension", "config_key"),
     (("waxs", "peak_decomposition", "peak_function"), ("nmr", "peak_fit", "deconvolution_method")),

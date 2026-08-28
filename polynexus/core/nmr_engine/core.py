@@ -9,17 +9,18 @@ Computes:
     - Exp-Calc comparison (DFT shifts vs experiment)
 """
 import logging
-logger = logging.getLogger(__name__)
-
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from scipy import signal, optimize, stats
+from scipy import signal, optimize
 from scipy.ndimage import uniform_filter1d
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, field
 
-from .io import NMRSpectrum, ComputedShift, NMRRelaxation
+from .io import ComputedShift
 from .config import NMRConfig
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +78,8 @@ class NMRResult:
              'mean_fwhm_ppm': self.mean_fwhm_ppm,
              'median_snr': self.median_snr,
              'r_squared': self.r_squared, 'n_matches': len(self.matches)}
+        if self.metadata.get("region_windows_ppm"):
+            p["region_windows_ppm"] = dict(self.metadata["region_windows_ppm"])
         for key, val in self.region_integrals.items():
             p[f'region_{_slug_key(key)}_pct'] = val
         for key, val in self.quality_metrics.items():
@@ -221,8 +224,40 @@ def _region_for_peak(ppm: float, nucleus: str, sample_state: str) -> str:
     return "outside_default_range"
 
 
+def _normalise_region_windows(
+    region_windows: Mapping[str, Any] | None,
+) -> List[Tuple[str, float, float]] | None:
+    """Validate explicit named ppm windows without adding scientific defaults."""
+    if region_windows is None or (isinstance(region_windows, Mapping) and not region_windows):
+        return None
+    if not isinstance(region_windows, Mapping):
+        raise ValueError("region_windows_ppm must be a mapping of labels to two bounds")
+    windows: List[Tuple[str, float, float]] = []
+    for raw_label, raw_bounds in region_windows.items():
+        label = str(raw_label).strip()
+        if not label or isinstance(raw_bounds, (str, bytes)):
+            raise ValueError("each NMR region window needs a non-empty label and two numeric bounds")
+        try:
+            bounds = tuple(raw_bounds)
+        except TypeError as exc:
+            raise ValueError("each NMR region window needs two numeric bounds") from exc
+        if len(bounds) != 2:
+            raise ValueError("each NMR region window needs two numeric bounds")
+        try:
+            left, right = float(bounds[0]), float(bounds[1])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("NMR region bounds must be finite numbers") from exc
+        if not np.isfinite(left) or not np.isfinite(right) or left == right:
+            raise ValueError("NMR region bounds must be finite and distinct")
+        windows.append((label, min(left, right), max(left, right)))
+    if not windows:
+        raise ValueError("at least one explicit NMR region window is required")
+    return windows
+
+
 def _region_integral_percentages(ppm: np.ndarray, intensity: np.ndarray,
-                                 nucleus: str, sample_state: str) -> Dict[str, float]:
+                                 nucleus: str, sample_state: str,
+                                 region_windows: Mapping[str, Any] | None = None) -> Dict[str, float]:
     x = np.asarray(ppm, dtype=float)
     y = np.asarray(intensity, dtype=float)
     valid = np.isfinite(x) & np.isfinite(y)
@@ -241,7 +276,8 @@ def _region_integral_percentages(ppm: np.ndarray, intensity: np.ndarray,
     if total <= 1e-12:
         return {}
     regions: Dict[str, float] = {}
-    for label, lo, hi in _peak_windows(nucleus, sample_state):
+    windows = _normalise_region_windows(region_windows) or _peak_windows(nucleus, sample_state)
+    for label, lo, hi in windows:
         mask = (x >= lo) & (x <= hi)
         area = _positive_area(x[mask], positive[mask])
         if area > 0:
@@ -283,7 +319,7 @@ def _possible_solvent(ppm: float, nucleus: str) -> str:
     return best
 
 
-def _finalise_peak_metrics(result: NMRResult) -> None:
+def _finalise_peak_metrics(result: NMRResult, region_windows: Mapping[str, Any] | None = None) -> None:
     """Compute per-peak metrics, filter implausible peaks, and derive
     physical summary statistics (SNR, FWHM, region integrals from fit)."""
 
@@ -348,9 +384,18 @@ def _finalise_peak_metrics(result: NMRResult) -> None:
                        key=lambda p: _safe_float(p.get("area"), 0.0))
         result.dominant_peak_ppm = _safe_float(dominant.get("ppm"))
 
+    # --- region integrals from explicit windows or fitted peak areas ---------
+    # Explicit windows are an intentional caller choice and therefore take
+    # precedence over generic assignment regions for sensitivity reruns.
+    explicit_windows = _normalise_region_windows(region_windows)
+    if explicit_windows is not None:
+        result.region_integrals = _region_integral_percentages(
+            result.ppm, result.intensity, result.nucleus, result.sample_state,
+            region_windows=region_windows,
+        )
     # --- region integrals from fitted peak areas (fallback: raw spectrum) --
     region_total: Dict[str, float] = {}
-    for pk in result.peaks:
+    for pk in result.peaks if explicit_windows is None else ():
         reg = pk.get("region", "")
         if reg:
             region_total[reg] = region_total.get(reg, 0.0) + _safe_float(pk.get("area"), 0.0)
@@ -360,7 +405,8 @@ def _finalise_peak_metrics(result: NMRResult) -> None:
         }
     else:
         result.region_integrals = _region_integral_percentages(
-            result.ppm, result.intensity, result.nucleus, result.sample_state
+            result.ppm, result.intensity, result.nucleus, result.sample_state,
+            region_windows=region_windows,
         )
     # -----------------------------------------------------------------------
 
@@ -445,12 +491,10 @@ def detect_peaks(ppm, intensity, height_frac=0.03, distance_ppm=1.0,
 
     # ---- width pre-filter (discard before we even rank) -------------------
     try:
-        widths, _, left_ips, right_ips = signal.peak_widths(
+        widths, _, _, _ = signal.peak_widths(
             y, peak_idx, rel_height=0.5)
     except Exception:
         widths = np.full(len(peak_idx), np.nan)
-        left_ips = np.asarray(peak_idx, dtype=float)
-        right_ips = np.asarray(peak_idx, dtype=float)
         logger.warning("NMR peak width estimation failed; using peak centers.", exc_info=True)
 
     fwhm_candidates = np.array([
@@ -521,7 +565,6 @@ def _fit_region_peaks(ppm, intensity, peaks, method='mixed',
     if not peaks or len(ppm) < 10:
         return [], np.nan, np.array([])
 
-    import lmfit
     from lmfit.models import GaussianModel, LorentzianModel, PseudoVoigtModel, ConstantModel
 
     x = np.asarray(ppm, dtype=float)
@@ -795,7 +838,8 @@ def assign_peaks(peaks, polymer_db, polymer_name="", tolerance_ppm=2.0,
 
     for pk in peaks:
         wn = pk['ppm']
-        best_match = None; best_dist = tolerance_ppm
+        best_match = None
+        best_dist = tolerance_ppm
         if use_polymer_db:
             for poly, entries in dbs.items():
                 for group, (ref_ppm, phase, notes) in entries.items():
@@ -843,7 +887,8 @@ def fit_t1_recovery(delays, intensities):
     delays = np.asarray(delays)
     intensities = np.asarray(intensities)
     valid = np.isfinite(delays) & np.isfinite(intensities)
-    delays = delays[valid]; intensities = intensities[valid]
+    delays = delays[valid]
+    intensities = intensities[valid]
 
     def model(t, I0, T1):
         return I0 * (1.0 - 2.0 * np.exp(-t / max(T1, 1e-9)))
@@ -894,13 +939,15 @@ def match_computed_shifts(peaks, computed_shifts, tolerance_ppm=3.0):
     matches = []
     used = set()
     for pk in peaks:
-        best = None; best_dist = tolerance_ppm
+        best = None
+        best_dist = tolerance_ppm
         for cs in computed_shifts:
             if cs.index in used:
                 continue
             dist = abs(pk['ppm'] - cs.shift_ppm)
             if dist < best_dist:
-                best_dist = dist; best = cs
+                best_dist = dist
+                best = cs
         if best:
             used.add(best.index)
             matches.append({
@@ -929,24 +976,28 @@ def analyze_spectrum(spectrum, config, label="",
     if not spectrum.has_data:
         return result
 
-    ppm = spectrum.ppm; I = spectrum.intensity
-    result.ppm = ppm; result.intensity = I
+    ppm = spectrum.ppm
+    intensity = spectrum.intensity
+    result.ppm = ppm
+    result.intensity = intensity
 
     # 1. Peak detection
     peak_distance = config.peak_distance_ppm
     if str(nucleus).upper() in {"1H", "H"} and peak_distance > 0.25:
         peak_distance = 0.08 if sample_state == "liquid" else 0.25
-    peaks = detect_peaks(ppm, I, config.peak_height_min, peak_distance,
+    peaks = detect_peaks(ppm, intensity, config.peak_height_min, peak_distance,
                          config.max_peaks, nucleus=nucleus,
                          sample_state=sample_state)
 
     # 2. Deconvolution
     if peaks:
-        fitted, r2, I_fit = deconvolve_peaks(ppm, I, peaks, config.deconvolution_method,
+        fitted, r2, intensity_fit = deconvolve_peaks(ppm, intensity, peaks, config.deconvolution_method,
                                             nucleus=nucleus,
                                             sample_state=sample_state)
-        result.peaks = fitted; result.n_peaks = len(fitted)
-        result.r_squared = r2; result.intensity_fit = I_fit
+        result.peaks = fitted
+        result.n_peaks = len(fitted)
+        result.r_squared = r2
+        result.intensity_fit = intensity_fit
 
         # 3. Assignment
         scoped_polymer = bool(polymer_name)
@@ -956,7 +1007,13 @@ def analyze_spectrum(spectrum, config, label="",
             nucleus=nucleus,
             use_polymer_db=scoped_polymer or allow_unscoped,
         )
-        _finalise_peak_metrics(result)
+        explicit_windows = getattr(config, "region_windows_ppm", None)
+        if explicit_windows:
+            result.metadata["region_windows_ppm"] = {
+                str(label): [float(bounds[0]), float(bounds[1])]
+                for label, bounds in explicit_windows.items()
+            }
+        _finalise_peak_metrics(result, explicit_windows)
         if scoped_polymer or allow_unscoped:
             result.assignment_metrics.update(
                 _score_assignment_library(result.peaks, config, polymer_name, nucleus=nucleus)
@@ -975,8 +1032,15 @@ def analyze_spectrum(spectrum, config, label="",
                 result.Xc_method = 'requires_crystalline_amorphous_assignment'
             result.apply_assignment_gate()
     else:
+        explicit_windows = getattr(config, "region_windows_ppm", None)
+        if explicit_windows:
+            result.metadata["region_windows_ppm"] = {
+                str(label): [float(bounds[0]), float(bounds[1])]
+                for label, bounds in explicit_windows.items()
+            }
         result.region_integrals = _region_integral_percentages(
-            result.ppm, result.intensity, result.nucleus, result.sample_state
+            result.ppm, result.intensity, result.nucleus, result.sample_state,
+            region_windows=explicit_windows,
         )
         noise = _robust_noise(result.intensity)
         if np.isfinite(noise):

@@ -526,7 +526,7 @@ def _sensitivity_attribute(technique: str, dimension: str) -> str | tuple[str, .
             "integration_window": ("q_bragg_min", "q_bragg_max"),
         },
         "waxs": {"background": "background_method", "peak_decomposition": "peak_function", "crystallinity": "crystallinity_method"},
-        "nmr": {"baseline": "baseline_method", "peak_fit": "deconvolution_method", "region_integration": "peak_distance_ppm"},
+        "nmr": {"baseline": "baseline_method", "peak_fit": "deconvolution_method", "region_integration": "region_windows_ppm"},
     }
     return mapping.get(str(technique).lower(), {}).get(str(dimension).lower())
 
