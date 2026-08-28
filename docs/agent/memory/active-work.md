@@ -14,8 +14,12 @@
   algorithms. ComputeRun fills missing sensitivity source from its artifact.
 - ARS writing metrics receive primary/candidate sensitivity values as
   diagnostic-only observations. Focused tests and task verification passed;
-  technique-specific candidate calculators and a fresh six-sample replay remain
-  the next goal steps.
+  direct ComputeRun requests can now explicitly replay supported provider
+  configuration candidates (currently IR/FTIR, WAXS, SAXS fit/background, and
+  NMR fields where the config exposes a deterministic scalar). Each candidate
+  gets an isolated output path, provider failures remain as null values with
+  warnings, and unsupported dimensions are reported as unavailable rather than
+  guessed. A fresh six-sample replay remains the next goal step.
 
 ## Maximum deterministic calculation output — 2026-08-29
 

@@ -53,6 +53,10 @@ diagnostic observations until a human/AI workflow makes an explicit decision.
   manifest link.
 - [x] Technique-specific providers remain opt-in: candidates are published only
   after scientific review, and this contract task changes no provider algorithm.
+- [x] Direct `ComputeRunService` callers may explicitly request supported
+  configuration candidates; each candidate is re-run with an isolated output
+  path, and unavailable dimensions or provider failures are retained as
+  warnings instead of silently falling back or being guessed.
 
 ## Verification
 
@@ -64,6 +68,7 @@ git diff --check
 
 ## Follow-up
 
-Wire technique-specific candidate calculators only when a provider publishes a
-deterministic candidate payload; no fallback or material-specific default is
-allowed at this boundary.
+Extend the explicit field map only when a provider exposes a deterministic,
+scientifically reviewed configuration field. Range-like dimensions that need
+multiple coupled fields remain unavailable until their provider contract can
+represent the coupled override without guessing.
