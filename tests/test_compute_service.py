@@ -209,6 +209,88 @@ def test_direct_run_attaches_generic_canonical_template_and_capability_items(tmp
     assert len(engine.calls) == 1
 
 
+def test_direct_run_can_explicitly_replay_ftir_method_candidates(tmp_path: Path) -> None:
+    source = tmp_path / "curve.csv"
+    source.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")
+    calls: list[str] = []
+    provider_options_seen: list[dict[str, Any]] = []
+
+    class ConfiguredEngine(FakeEngine):
+        def run_pipeline(self, path: str, output_dir: str, **options: Any) -> Any:
+            method = (self.config or {}).get("baseline_method", "rubberband")
+            calls.append(method)
+            provider_options_seen.append(dict(options))
+            return SimpleNamespace(
+                parameters={"sample": {"peak_1_cm1": 1600.0 if method == "rubberband" else 1602.0}},
+                figures={},
+                metadata={},
+            )
+
+    def factory(_technique: str, config: Any = None, submodule_id: str | None = None) -> Any:
+        engine = ConfiguredEngine(EmptyLegacyResult())
+        engine.config = config
+        return engine
+
+    run = ComputeRunService(factory).run_direct(
+        technique="ir",
+        path=source,
+        output_dir=tmp_path / "out",
+        config={"baseline_method": "rubberband"},
+        pipeline_options={"method_sensitivity": {"baseline": ["rubberband", "linear"]}},
+    )
+
+    assert run.status == "completed"
+    assert calls == ["rubberband", "linear"]
+    assert all("method_sensitivity" not in options for options in provider_options_seen)
+    assert run.result is not None
+    assert run.result.method_sensitivities
+    assert run.result.method_sensitivities[0].candidates == {"linear": 1602.0}
+    assert run.result.method_sensitivities[0].parameters["candidate_output_dirs"]["linear"].endswith(
+        "method-sensitivity\\baseline\\linear"
+    )
+
+
+def test_direct_run_records_unavailable_method_dimension_without_fallback(tmp_path: Path) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    run = ComputeRunService(lambda *args, **kwargs: FakeEngine(EmptyLegacyResult())).run_direct(
+        technique="saxs",
+        path=source,
+        output_dir=tmp_path / "out",
+        pipeline_options={"method_sensitivity": {"integration_window": ["narrow", "wide"]}},
+    )
+    assert run.status == "completed"
+    assert run.result is not None
+    assert "method_sensitivity_unavailable:saxs:integration_window" in run.result.warnings
+
+
+@pytest.mark.parametrize(
+    "method_sensitivity",
+    (
+        None,
+        {},
+        {"baseline": []},
+        {"baseline": "linear"},
+        {"baseline": [{"method": "linear"}]},
+        {"baseline": [object()]},
+        {"dimensions": []},
+    ),
+)
+def test_direct_run_rejects_invalid_method_sensitivity_request(
+    tmp_path: Path, method_sensitivity: object
+) -> None:
+    source = tmp_path / "input.csv"
+    source.write_text("data", encoding="utf-8")
+    engine = FakeEngine(EmptyLegacyResult())
+    options = {"method_sensitivity": method_sensitivity}
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="ir", path=source, output_dir=tmp_path / "out", pipeline_options=options
+    )
+    assert run.status == "needs_input"
+    assert run.reasons == ("pipeline_option_invalid",)
+    assert engine.calls == []
+
+
 def test_compute_run_serializes_result_field_inventory(tmp_path: Path) -> None:
     source = tmp_path / "curve.csv"
     source.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")

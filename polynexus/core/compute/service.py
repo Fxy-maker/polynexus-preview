@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import copy
 import json
 import math
 from pathlib import Path
+import re
 from typing import Any, Callable
 
 from ..engine import get_engine
 from ..project_context import ProjectContext
 from ..canonical_experiments import CapabilityExecutor, CanonicalExperiment, default_converter_registry
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
+from .method_sensitivity import sensitivities_from_metrics
 
 
-_SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to", "mask_edit_candidate"})
+_SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to", "mask_edit_candidate", "method_sensitivity"})
 _SUPPORTED_SKIP_TO_VALUES = frozenset({"preprocess", "analyze", "plot"})
 
 
@@ -59,11 +62,16 @@ def _normalize_pipeline_options(
             mask_edit_candidate
         ):
             return None, "pipeline_option_invalid"
+        method_sensitivity = options.get("method_sensitivity")
+        if "method_sensitivity" in options and not _valid_method_sensitivity_request(method_sensitivity):
+            return None, "pipeline_option_invalid"
         normalized: dict[str, Any] = {}
         if "skip_to" in options:
             normalized["skip_to"] = skip_to
         if "mask_edit_candidate" in options:
             normalized["mask_edit_candidate"] = mask_edit_candidate
+        if "method_sensitivity" in options:
+            normalized["method_sensitivity"] = _normalize_method_sensitivity_request(method_sensitivity)
         return normalized, None
     except Exception:
         return None, "pipeline_option_invalid"
@@ -308,10 +316,14 @@ class ComputeRunService:
                         if isinstance(parameters, Mapping):
                             legacy_result.parameters = _json_safe_projection(parameters)
             else:
+                provider_options = {
+                    key: value for key, value in options.items()
+                    if key != "method_sensitivity"
+                }
                 legacy_result = selected_engine.run_pipeline(
                     artifact.path,
                     provider_output_dir,
-                    **options,
+                    **provider_options,
                 )
             if not _has_legacy_result_shape(legacy_result):
                 return ComputeRun(
@@ -324,6 +336,22 @@ class ComputeRunService:
                     reasons=("provider_execution_failed",),
                 )
             result = ComputeResult.from_legacy_result(legacy_result)
+            method_sensitivity = options.get("method_sensitivity")
+            if method_sensitivity:
+                result = self._attach_method_sensitivity(
+                    result=result,
+                    technique=normalized_technique,
+                    source_path=artifact.path,
+                    output_dir=provider_output_dir,
+                    config=config,
+                    submodule_id=submodule_id,
+                    selected_engine=selected_engine,
+                    provider_options={
+                        key: value for key, value in options.items()
+                        if key != "method_sensitivity"
+                    },
+                    request=method_sensitivity,
+                )
             provider_capability_items = CapabilityExecutor().execute_provider_result(
                 source_artifact_id=artifact.artifact_id,
                 technique=normalized_technique,
@@ -349,3 +377,193 @@ class ComputeRunService:
                 capability_items=capability_items,
                 reasons=("provider_execution_failed",),
             )
+
+    def _attach_method_sensitivity(
+        self,
+        *,
+        result: ComputeResult,
+        technique: str,
+        source_path: str,
+        output_dir: str,
+        config: Any,
+        submodule_id: str | None,
+        selected_engine: Any,
+        provider_options: Mapping[str, Any],
+        request: Mapping[str, Any],
+    ) -> ComputeResult:
+        """Run explicitly requested config candidates and retain their values."""
+        dimensions = request.get("dimensions", {})
+        if not isinstance(dimensions, Mapping):
+            return result
+        base_config = config
+        if base_config is None:
+            base_config = _engine_config(selected_engine, technique)
+        variants: dict[str, dict[str, Any]] = {}
+        sensitivity_warnings: list[str] = []
+        primary_metrics = _scalar_metric_paths(result.metrics)
+        for dimension, methods in dimensions.items():
+            attribute = _sensitivity_attribute(technique, str(dimension))
+            if attribute is None:
+                sensitivity_warnings.append(
+                    f"method_sensitivity_unavailable:{technique}:{dimension}"
+                )
+                continue
+            primary_method = _config_value(base_config, attribute, selected_engine)
+            if primary_method is None:
+                primary_method = "default"
+            candidate_values: dict[str, dict[str, Any] | None] = {}
+            candidate_errors: dict[str, str] = {}
+            candidate_output_dirs: dict[str, str] = {}
+            for method in methods:
+                method_name = str(method)
+                if method_name == str(primary_method):
+                    continue
+                candidate_config = _clone_config(base_config)
+                _set_config_value(candidate_config, attribute, method)
+                candidate_output_dir = _candidate_output_dir(output_dir, str(dimension), method_name)
+                candidate_output_dirs[method_name] = candidate_output_dir
+                try:
+                    candidate_engine = self._engine_factory(
+                        technique,
+                        config=candidate_config,
+                        submodule_id=submodule_id,
+                    )
+                    candidate_result = candidate_engine.run_pipeline(
+                        source_path,
+                        candidate_output_dir,
+                        **provider_options,
+                    )
+                    if not _has_legacy_result_shape(candidate_result):
+                        raise RuntimeError("candidate_provider_result_invalid")
+                    candidate_projection = ComputeResult.from_legacy_result(candidate_result)
+                    candidate_values[method_name] = _scalar_metric_paths(candidate_projection.metrics)
+                except Exception as exc:
+                    candidate_values[method_name] = None
+                    candidate_errors[method_name] = type(exc).__name__
+            all_paths = sorted(
+                set(primary_metrics)
+                | {
+                    path
+                    for values in candidate_values.values()
+                    if isinstance(values, Mapping)
+                    for path in values
+                }
+            )
+            for path in all_paths:
+                candidates = {
+                    method: (values.get(path) if isinstance(values, Mapping) else None)
+                    for method, values in candidate_values.items()
+                }
+                if not candidates:
+                    continue
+                variant_key = path
+                if variant_key in variants:
+                    variant_key = f"{path} [{dimension}]"
+                warnings = [
+                    f"method_failed:{method}:{candidate_errors[method]}"
+                    for method in sorted(candidate_errors)
+                ]
+                variants[variant_key] = {
+                    "primary_method": str(primary_method),
+                    "primary": primary_metrics.get(path),
+                    "candidates": candidates,
+                    "parameters": {
+                        "dimension": str(dimension),
+                        "config_attribute": attribute,
+                        "candidate_output_dirs": dict(candidate_output_dirs),
+                    },
+                    "warnings": warnings,
+                }
+        sensitivities = sensitivities_from_metrics(
+            {"method_variants": variants},
+            technique=technique,
+            source=source_path,
+        )
+        if not sensitivities and not sensitivity_warnings:
+            return result
+        return ComputeResult(
+            metrics=result.metrics,
+            figures=result.figures,
+            metadata=result.metadata,
+            warnings=(*result.warnings, *sensitivity_warnings),
+            method_sensitivities=(*result.method_sensitivities, *sensitivities),
+        )
+
+
+def _valid_method_sensitivity_request(value: Any) -> bool:
+    if not isinstance(value, Mapping):
+        return False
+    dimensions = value.get("dimensions", value)
+    if not isinstance(dimensions, Mapping) or not dimensions:
+        return False
+    for dimension, methods in dimensions.items():
+        if not str(dimension).strip() or not isinstance(methods, (list, tuple)) or not methods:
+            return False
+        if any(isinstance(method, (Mapping, list, tuple)) or not _is_json_safe(method) for method in methods):
+            return False
+    return True
+
+
+def _normalize_method_sensitivity_request(value: Mapping[str, Any]) -> dict[str, Any]:
+    dimensions = value.get("dimensions", value)
+    return {"dimensions": {str(key): list(methods) for key, methods in dimensions.items()}}
+
+
+def _sensitivity_attribute(technique: str, dimension: str) -> str | None:
+    mapping = {
+        "ir": {"background": "baseline_method", "baseline": "baseline_method", "normalization": "normalization_method", "peak_fit": "lineshape", "integration_window": "peak_fit_window_cm1"},
+        "saxs": {"background": "bg_scale_method", "fit_model": "lorentz_fit_method"},
+        "waxs": {"background": "background_method", "peak_decomposition": "peak_function", "crystallinity": "crystallinity_method"},
+        "nmr": {"baseline": "baseline_method", "peak_fit": "deconvolution_method", "region_integration": "peak_distance_ppm"},
+    }
+    return mapping.get(str(technique).lower(), {}).get(str(dimension).lower())
+
+
+def _engine_config(engine: Any, technique: str) -> Any:
+    normalized = "ir" if str(technique).lower() == "ftir" else str(technique).lower()
+    name = {"ir": "_ir_config", "saxs": "cfg", "waxs": "_waxs_config", "nmr": "_cfg"}.get(normalized)
+    if name is None:
+        return None
+    for name in (name,):
+        value = getattr(engine, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _clone_config(config: Any) -> Any:
+    return copy.deepcopy(config) if config is not None else {}
+
+
+def _config_value(config: Any, attribute: str, engine: Any) -> Any:
+    if isinstance(config, Mapping):
+        return config.get(attribute)
+    value = getattr(config, attribute, None) if config is not None else None
+    return value
+
+
+def _set_config_value(config: Any, attribute: str, value: Any) -> None:
+    if isinstance(config, Mapping):
+        config[attribute] = value
+    else:
+        setattr(config, attribute, value)
+
+
+def _scalar_metric_paths(value: Mapping[str, Any], prefix: str = "") -> dict[str, float]:
+    result: dict[str, float] = {}
+    for key, child in value.items():
+        path = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(child, Mapping):
+            result.update(_scalar_metric_paths(child, path))
+        elif isinstance(child, (int, float)) and not isinstance(child, bool) and math.isfinite(float(child)):
+            result[path] = float(child)
+    return result
+
+
+def _candidate_output_dir(output_dir: str, dimension: str, method: str) -> str:
+    """Give each explicit candidate an isolated, reproducible output path."""
+    if not output_dir:
+        return ""
+    safe_dimension = re.sub(r"[^A-Za-z0-9_.-]+", "_", dimension).strip("._") or "dimension"
+    safe_method = re.sub(r"[^A-Za-z0-9_.-]+", "_", method).strip("._") or "method"
+    return str(Path(output_dir) / "method-sensitivity" / safe_dimension / safe_method)
