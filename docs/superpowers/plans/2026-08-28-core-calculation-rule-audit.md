@@ -16,7 +16,7 @@
 - Create: `docs/acceptance/2026-08-28-core-calculation-rule-audit.md`
 - Modify: `docs/agent/tasks/2026-08-28-core-calculation-rule-audit.md`
 
-- [ ] **Step 1: Create the ledger header and exact row schema**
+- [x] **Step 1: Create the ledger header and exact row schema**
 
 Create a Markdown table with these columns:
 
@@ -29,7 +29,7 @@ Add a short invariant directly above the table: a recommendation is invalid
 unless it names both the producer condition and the public `ComputeRun` or
 writing-metric outcome.
 
-- [ ] **Step 2: Map the shared public boundaries before inspecting technique rules**
+- [x] **Step 2: Map the shared public boundaries before inspecting technique rules**
 
 Read only these producers and consumers:
 
@@ -42,7 +42,7 @@ Record the one shared path from converter to `ComputeRun` to writing metrics;
 do not list GUI implementation details unless a consumer changes a public
 status or hides a retained result.
 
-- [ ] **Step 3: Verify the documentation-only starting boundary**
+- [x] **Step 3: Verify the documentation-only starting boundary**
 
 Run:
 
@@ -60,7 +60,7 @@ Python files selected for linting.
 - Read: `polynexus/core/dsc.py`, `polynexus/core/dsc_engine/dsc_kinetics.py`, `polynexus/core/ir_engine/`, `polynexus/core/project_workflow/writing_metrics.py`
 - Read tests: `tests/test_dsc_kinetics.py`, `tests/test_dsc_canonical_isothermal_conversion.py`, `tests/test_ftir_no_auto_material_identification.py`, `tests/test_project_writing_metrics.py`
 
-- [ ] **Step 1: Extract DSC conditions that stop an event, a regression, or only publication use**
+- [x] **Step 1: Extract DSC conditions that stop an event, a regression, or only publication use**
 
 Use this targeted search:
 
@@ -73,7 +73,7 @@ row with a quality flag, or only changes `writing_eligibility`. Use the
 existing adaptive-baseline acceptance as evidence for the retained-with-warning
 path; do not reopen its numerical semantics.
 
-- [ ] **Step 2: Extract FTIR conversion, assignment, and material-context conditions**
+- [x] **Step 2: Extract FTIR conversion, assignment, and material-context conditions**
 
 Run:
 
@@ -85,7 +85,7 @@ Separate ambiguous axis/value mapping from absent material identity and absent
 literature-backed peak assignment. The first may be structural; the latter two
 must be checked for retained generic spectra and diagnostic metrics.
 
-- [ ] **Step 3: Run existing targeted proof**
+- [x] **Step 3: Run existing targeted proof**
 
 ```powershell
 python -m pytest -p no:cacheprovider -q tests/test_dsc_kinetics.py tests/test_dsc_canonical_isothermal_conversion.py tests/test_ftir_no_auto_material_identification.py tests/test_project_writing_metrics.py
@@ -101,7 +101,7 @@ implementation issue, not reclassified by assertion alone.
 - Read: `polynexus/core/saxs_engine/`, `polynexus/core/waxs_engine/`, `polynexus/core/saxs.py`, `polynexus/core/waxs.py`, `polynexus/core/project_workflow/writing_metrics.py`
 - Read tests: `tests/test_saxs_1d_method_evidence.py`, `tests/test_saxs_mode_evidence_contract.py`, `tests/test_waxs_publication_cutover.py`, `tests/test_project_writing_metrics.py`
 
-- [ ] **Step 1: Separate unreadable/uncalibrated arrays from interpretation gates**
+- [x] **Step 1: Separate unreadable/uncalibrated arrays from interpretation gates**
 
 Run:
 
@@ -113,7 +113,7 @@ Classify invalid q/intensity arrays, invalid detector geometry, and impossible
 array shapes separately from background sufficiency, peak support, phase
 assignment, and Scherrer/lamellar reliability.
 
-- [ ] **Step 2: Trace every candidate metric to its writing eligibility**
+- [x] **Step 2: Trace every candidate metric to its writing eligibility**
 
 Use:
 
@@ -125,7 +125,7 @@ rg -n -C 4 "metric_evidence|physical_support_pass|size_reliability_status|applic
 For each finite metric that is diagnostic-only, record whether the Core still
 returns it. A “yes” is an evidence restriction, not a calculation blocker.
 
-- [ ] **Step 3: Run existing focused proof**
+- [x] **Step 3: Run existing focused proof**
 
 ```powershell
 python -m pytest -p no:cacheprovider -q tests/test_saxs_1d_method_evidence.py tests/test_saxs_mode_evidence_contract.py tests/test_waxs_publication_cutover.py tests/test_project_writing_metrics.py
@@ -141,7 +141,7 @@ its exact owner and no behavior change.
 - Read: `polynexus/core/nmr_engine/`, `polynexus/core/canonical_experiments/one_dimensional.py`, `polynexus/core/compute/service.py`, `polynexus/core/project_workflow/writing_metrics.py`
 - Read tests: `tests/test_nmr_shared_entry.py`, `tests/test_nmr_engine.py`, `tests/test_compute_service.py`, `tests/test_evidence_package_view.py`
 
-- [ ] **Step 1: Separate generic spectral calculation from polymer/phase claims**
+- [x] **Step 1: Separate generic spectral calculation from polymer/phase claims**
 
 Run:
 
@@ -152,7 +152,7 @@ rg -n -C 3 "raise |blocked|assignment|phase|Xc|material|diagnostic_only|quality_
 Record whether ppm-axis/spectral metrics remain available without a material
 name and whether only solid-state phase/`Xc` promotion remains restricted.
 
-- [ ] **Step 2: Check shared consumers for status loss**
+- [x] **Step 2: Check shared consumers for status loss**
 
 Run:
 
@@ -164,7 +164,7 @@ Only create a ledger row if a public warning or retained metric is dropped,
 renamed into a stronger claim, or hidden by a consumer. Do not audit unrelated
 GUI layout behavior.
 
-- [ ] **Step 3: Run existing cross-entry proof**
+- [x] **Step 3: Run existing cross-entry proof**
 
 ```powershell
 python -m pytest -p no:cacheprovider -q tests/test_nmr_shared_entry.py tests/test_nmr_engine.py tests/test_compute_service.py tests/test_evidence_package_view.py
@@ -180,7 +180,7 @@ diagnostic limits without a technique-private consumer path.
 - Modify: `docs/agent/tasks/2026-08-28-core-calculation-rule-audit.md`
 - Modify: `docs/agent/memory/active-work.md`
 
-- [ ] **Step 1: Add the prioritized recommendation section**
+- [x] **Step 1: Add the prioritized recommendation section**
 
 For every candidate proposed to move from `structural_block` to
 `calculation_warning`, include this exact decision record:
@@ -198,13 +198,13 @@ For every candidate proposed to move from `structural_block` to
 List no code change under this task; each accepted candidate must become its
 own task card and test-first implementation.
 
-- [ ] **Step 2: Record completion evidence and remaining decisions**
+- [x] **Step 2: Record completion evidence and remaining decisions**
 
 Update the task card with ledger count, exact test results, and any rules that
 need the user's scientific decision. Update `active-work.md` only with durable
 audit findings, not raw command output.
 
-- [ ] **Step 3: Verify and checkpoint the audit**
+- [x] **Step 3: Verify and checkpoint the audit**
 
 Run:
 

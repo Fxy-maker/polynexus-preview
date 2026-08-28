@@ -36,7 +36,7 @@ canonical converter -> technique provider/Core -> ComputeRun
 | WAXS | Reader/array validity | Unsupported/unreadable source, invalid 2θ/intensity shape, or no usable scan | No physically meaningful pattern can be analyzed | Run is failed/unusable; no finite WAXS claim | `structural_block` | Retain | `waxs_engine/core.py`; WAXS publication tests | Preserve source error and avoid fallback values |
 | WAXS | Peak/physical-support requirements | Weak/insufficient peaks, unresolved phase support, or amorphous partition not defensible | Peak-derived values may still be finite | `Xc_pct` and Scherrer size remain `diagnostic_only`; W-H reliability is diagnostic when support is low | `evidence_restriction` | Retain | `project_workflow/writing_metrics.py`; `test_waxs_publication_cutover.py` | Do not discard finite diagnostics; require support before Results use |
 | NMR | Canonical table conversion | Unsupported/unreadable source or ambiguous/no numeric x/y mapping | Spectrum cannot be formed from the source | `needs_input`/blocked before provider execution | `structural_block` | Retain | `canonical_experiments/one_dimensional.py`; `test_nmr_shared_entry.py` | Keep vendor/FID envelopes replayable without inventing data |
-| NMR | Generic spectrum and peak metrics | Material name absent, or polymer library assignment unavailable | ppm-axis spectrum, peak count/area/FWHM/SNR and generic regions remain calculable | Generic assignments are retained without polymer identity; no fabricated material labels | `evidence_restriction` | Retain | `test_nmr_shared_entry.py`; `test_nmr_engine.py` | This is the desired flexible default |
+| NMR | Generic spectrum and peak metrics | Material name absent, or polymer library assignment unavailable | ppm-axis spectrum, peak count/area/FWHM/SNR and generic regions remain calculable; no calculation gate applies | The current `writing_metrics.py` has no NMR projection, so eligibility for these generic metrics is not defined here; material/phase claims remain outside the generic calculation | `not_applicable` (calculation available) | Retain no gate; restrict only material-specific claims | `test_nmr_shared_entry.py`; `test_nmr_engine.py` | Keep the flexible calculation default and avoid implying an NMR writing restriction that is not implemented |
 | NMR | Solid 13C crystallinity | Crystalline/amorphous phase pair unsupported or assignment confidence below gate | Xc is NaN or may be numerically present but phase interpretation is limited | `Xc_assignment_status=assignment_limited`; not a Results claim | `evidence_restriction` (or scoped structural absence when no areas) | Retain | `nmr_engine/core.py`; NMR engine tests | Keep the phase-support reason and allow human/AI context correction |
 
 ## Cross-entry visibility finding
@@ -71,7 +71,9 @@ a second gate or private metric representation.
 - `python -m pytest -p no:cacheprovider -q tests/test_dsc_kinetics.py tests/test_dsc_canonical_isothermal_conversion.py tests/test_ftir_no_auto_material_identification.py tests/test_project_writing_metrics.py` → **42 passed, 2 warnings** (existing polynomial-fit warnings).
 - `python -m pytest -p no:cacheprovider -q tests/test_saxs_1d_method_evidence.py tests/test_saxs_mode_evidence_contract.py tests/test_waxs_publication_cutover.py tests/test_project_writing_metrics.py` → **21 passed**.
 - `python -m pytest -p no:cacheprovider -q tests/test_nmr_shared_entry.py tests/test_compute_service.py tests/test_evidence_package_view.py --maxfail=1` → **57 passed, 3 skipped**.
-- `git diff --check` and the structured task verifier are required before the documentation checkpoint; no production source or raw dataset was changed by this audit.
+- `git diff --check` passed and the structured task verifier passed (quality
+  311, preprocessing 157); no production source or raw dataset was changed by
+  this audit.
 
 ## Known limitations and follow-up
 
