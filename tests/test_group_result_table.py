@@ -56,6 +56,16 @@ def test_group_table_round_trips_from_dict_without_losing_traceability():
     assert restored.statistics("DHm_Jg")[0].source_row_ids == ("r1", "r2")
 
 
+def test_group_table_from_dict_preserves_persisted_statistics_snapshot():
+    table = build_group_result_table("pa6-jw", [_row("r1", "a.txt", 180.0, 10.0)])
+    payload = table.to_dict()
+    payload["statistics"][0]["mean"] = 999.0
+
+    restored = type(table).from_dict(payload)
+
+    assert restored.statistics("DHm_Jg")[0].mean == 999.0
+
+
 def test_group_table_rejects_mixed_techniques_and_missing_conditions():
     with pytest.raises(ValueError, match="technique"):
         build_group_result_table(

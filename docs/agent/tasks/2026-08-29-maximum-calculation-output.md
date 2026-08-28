@@ -67,8 +67,9 @@ Leave `active_run.json`, `runs/`, and `tests/_tmp_phase3/` untouched.
   available and its raw directory is outside the repository.
 - `build_group_results_table_model()` adapts the shared `GroupResultTable` into
   GUI primary rows, condition-scoped statistics, and warning diagnostics.
-- `ProjectAnalysisSummary.to_dict()` exposes `result_tables` unchanged for the
-  CLI/ARS JSON consumer; both entry points therefore consume the same DTO.
+- `ProjectAnalysisSummary.to_dict()` exposes caller-supplied `result_tables`
+  unchanged for the CLI/ARS JSON consumer; both entry points consume the same
+  DTO. Automatic condition-axis inference remains intentionally out of scope.
 - Shared-result verification: 91 focused tests passed (3 skipped); task
   verifier quality 313 and preprocessing 157 passed, with Ruff/compile/
   whitespace checks green.

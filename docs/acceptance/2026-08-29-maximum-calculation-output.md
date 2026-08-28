@@ -77,9 +77,11 @@ would rewrite external generated outputs.
 
 The shared `GroupResultTable` DTO is consumable by both result entry points.
 The GUI adapter presents per-file rows, condition-scoped statistics, and
-warning diagnostics while retaining source row IDs. The project-workflow CLI
-projection exposes the same DTO under `analysis.result_tables`; no values are
-recalculated or inferred by either consumer.
+warning diagnostics while retaining source row IDs. When a project caller
+supplies group tables, the project-workflow CLI projection exposes the same
+DTO under `analysis.result_tables`; no values are recalculated or inferred by
+either consumer. Automatic group construction remains an explicit caller
+responsibility because condition axes must not be guessed.
 
 Verification: 91 focused tests passed (3 skipped); task verification passed
 quality 313 and preprocessing 157, with Ruff, compile, and whitespace checks

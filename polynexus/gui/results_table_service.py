@@ -65,12 +65,12 @@ def build_group_results_table_model(
     if group is None:
         raise ValueError("group result table is invalid")
     metric_keys = sorted({str(key) for row in group.rows for key in row.metrics})
-    columns = ["source", "condition_key", "condition_value", *metric_keys, "warnings"]
+    columns = ["row_id", "source", "condition_key", "condition_value", *metric_keys, "warnings"]
     display_rows: list[list[str]] = []
     stored_rows: list[list[Any]] = []
     primary_rows: list[tuple[TableCell, ...]] = []
     for row in group.rows:
-        values: list[Any] = [row.source, row.condition_key, row.condition_value]
+        values: list[Any] = [row.row_id, row.source, row.condition_key, row.condition_value]
         values.extend(row.metrics.get(key, "") for key in metric_keys)
         values.append(";".join(row.warnings))
         stored_rows.append(values)

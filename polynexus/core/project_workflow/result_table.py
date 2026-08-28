@@ -78,34 +78,20 @@ class GroupResultTable:
     group_id: str
     technique: str
     rows: tuple[ResultTableRow, ...]
+    statistics_records: tuple[ResultStatistic, ...] | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "rows", tuple(self.rows))
+        if self.statistics_records is None:
+            object.__setattr__(self, "statistics_records", _compute_statistics(self.rows))
+        else:
+            object.__setattr__(self, "statistics_records", tuple(self.statistics_records))
 
     def statistics(self, metric_key: str | None = None) -> tuple[ResultStatistic, ...]:
-        keys = {metric_key} if metric_key else {
-            key for row in self.rows for key in row.metrics
-        }
-        records: list[ResultStatistic] = []
-        for condition_value in _condition_values(self.rows):
-            selected = [row for row in self.rows if row.condition_value == condition_value]
-            for key in sorted(str(item) for item in keys if item is not None):
-                numeric = [(row.row_id, _number(row.metrics.get(key))) for row in selected]
-                numeric = [(row_id, value) for row_id, value in numeric if value is not None]
-                if not numeric:
-                    continue
-                values = [value for _, value in numeric]
-                mean = sum(values) / len(values)
-                variance = sum((value - mean) ** 2 for value in values) / len(values)
-                std = math.sqrt(variance)
-                records.append(ResultStatistic(
-                    condition_key=self.rows[0].condition_key,
-                    condition_value=condition_value,
-                    metric_key=key,
-                    count=len(values),
-                    mean=mean,
-                    std=std,
-                    cv=(std / abs(mean)) if mean else None,
-                    source_row_ids=tuple(row_id for row_id, _ in numeric),
-                ))
-        return tuple(records)
+        records = tuple(self.statistics_records or ())
+        if metric_key is None:
+            return records
+        return tuple(item for item in records if item.metric_key == metric_key)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -123,8 +109,11 @@ class GroupResultTable:
         raw_rows = payload.get("rows")
         if not isinstance(raw_rows, (list, tuple)):
             raise ValueError("result table rows must be a sequence")
-        rows = tuple(
-            ResultTableRow(
+        rows: list[ResultTableRow] = []
+        for item in raw_rows:
+            if not isinstance(item, Mapping):
+                raise TypeError("result table rows must be mappings")
+            rows.append(ResultTableRow(
                 row_id=str(item["row_id"]),
                 technique=str(item["technique"]),
                 source=str(item["source"]),
@@ -132,11 +121,32 @@ class GroupResultTable:
                 condition_value=item.get("condition_value"),
                 metrics=item.get("metrics", {}),
                 warnings=tuple(item.get("warnings", ())),
+            ))
+        has_statistics = "statistics" in payload
+        raw_statistics = payload.get("statistics", ())
+        if not isinstance(raw_statistics, (list, tuple)):
+            raise TypeError("result table statistics must be a sequence")
+        statistics = tuple(
+            ResultStatistic(
+                condition_key=str(item["condition_key"]),
+                condition_value=item.get("condition_value"),
+                metric_key=str(item["metric_key"]),
+                count=int(item["count"]),
+                mean=float(item["mean"]),
+                std=float(item["std"]),
+                cv=float(item["cv"]) if item.get("cv") is not None else None,
+                source_row_ids=tuple(str(value) for value in item.get("source_row_ids", ())),
             )
-            for item in raw_rows
+            for item in raw_statistics
             if isinstance(item, Mapping)
         )
-        return build_group_result_table(str(payload.get("group_id", "")), rows)
+        if len(statistics) != len(raw_statistics):
+            raise TypeError("result table statistics must be mappings")
+        return build_group_result_table(
+            str(payload.get("group_id", "")),
+            rows,
+            statistics_records=statistics if has_statistics else None,
+        )
 
     def csv_rows(self) -> tuple[dict[str, Any], ...]:
         """Return flat, deterministic rows suitable for CSV export."""
@@ -164,7 +174,39 @@ def _condition_values(rows: tuple[ResultTableRow, ...]) -> tuple[Any, ...]:
     return tuple(values)
 
 
-def build_group_result_table(group_id: str, rows: Iterable[ResultTableRow]) -> GroupResultTable:
+def _compute_statistics(rows: tuple[ResultTableRow, ...]) -> tuple[ResultStatistic, ...]:
+    records: list[ResultStatistic] = []
+    for condition_value in _condition_values(rows):
+        selected = [row for row in rows if row.condition_value == condition_value]
+        keys = {key for row in selected for key in row.metrics}
+        for key in sorted(str(item) for item in keys):
+            numeric = [(row.row_id, _number(row.metrics.get(key))) for row in selected]
+            numeric = [(row_id, value) for row_id, value in numeric if value is not None]
+            if not numeric:
+                continue
+            values = [value for _, value in numeric]
+            mean = sum(values) / len(values)
+            variance = sum((value - mean) ** 2 for value in values) / len(values)
+            std = math.sqrt(variance)
+            records.append(ResultStatistic(
+                condition_key=rows[0].condition_key,
+                condition_value=condition_value,
+                metric_key=key,
+                count=len(values),
+                mean=mean,
+                std=std,
+                cv=(std / abs(mean)) if mean else None,
+                source_row_ids=tuple(row_id for row_id, _ in numeric),
+            ))
+    return tuple(records)
+
+
+def build_group_result_table(
+    group_id: str,
+    rows: Iterable[ResultTableRow],
+    *,
+    statistics_records: Iterable[ResultStatistic] | None = None,
+) -> GroupResultTable:
     """Build a table while refusing mixed techniques or missing condition axes."""
 
     group = str(group_id).strip()
@@ -183,7 +225,13 @@ def build_group_result_table(group_id: str, rows: Iterable[ResultTableRow]) -> G
     condition_keys = {row.condition_key for row in selected}
     if len(condition_keys) != 1:
         raise ValueError("result table rows must use one condition key")
-    return GroupResultTable(group, selected[0].technique, selected)
+    if statistics_records is not None:
+        statistics = tuple(statistics_records)
+        if any(not isinstance(item, ResultStatistic) for item in statistics):
+            raise TypeError("result table statistics must be ResultStatistic values")
+    else:
+        statistics = None
+    return GroupResultTable(group, selected[0].technique, selected, statistics)
 
 
 __all__ = ["GroupResultTable", "ResultStatistic", "ResultTableRow", "build_group_result_table"]

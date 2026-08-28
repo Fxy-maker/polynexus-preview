@@ -114,8 +114,8 @@ def test_group_results_model_preserves_rows_statistics_and_warning_sources():
 
     assert model.kind == "group"
     assert model.summary_count == 2
-    assert model.columns[:4] == ["source", "condition_key", "condition_value", "DHm_Jg"]
-    assert model.display_rows[1][0] == "b.csv"
+    assert model.columns[:5] == ["row_id", "source", "condition_key", "condition_value", "DHm_Jg"]
+    assert model.display_rows[1][:2] == ["r2", "b.csv"]
     assert model.primary_section is not None
     assert model.detail_section is not None
     assert model.detail_section.rows[0][-1].raw == "r1;r2"
@@ -133,7 +133,7 @@ def test_build_results_table_model_accepts_group_table_mapping():
     )
 
     assert model.kind == "group"
-    assert model.display_rows[0][0] == "a.txt"
+    assert model.display_rows[0][1] == "a.txt"
 
 
 def test_structured_results_model_carries_scientific_review_from_live_result():
