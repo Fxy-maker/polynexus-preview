@@ -1,5 +1,20 @@
 # Active Work
 
+## Maximum deterministic calculation output — 2026-08-29
+
+- `ComputeResult`/`ComputeRun` now expose a technique-neutral `field_inventory`
+  for every emitted metric leaf, including scalar, series, nested, and missing
+  states. No numerical algorithm or threshold changed.
+- `GroupResultTable` preserves source rows and computes condition-scoped count,
+  mean, population standard deviation, and CV; mixed techniques/condition axes
+  are rejected and unlike condition values are never averaged.
+- Existing six-sample v007 persisted results were reprojected read-only: 52
+  review-required, 1 blocked, 1 failed; all reviewable steps had non-empty
+  metric parameters. NMR is absent from that replay.
+- Remaining follow-up is wiring the group-table DTO into the preferred GUI/CLI
+  result viewer and optionally running a fresh provider replay; AI grouping,
+  interpretation, and writing remain intentionally out of Core.
+
 ## Generic isothermal DSC event candidates — implementation complete, review required (2026-08-28)
 
 - DSC Core now detects and computes all material-neutral event candidates per

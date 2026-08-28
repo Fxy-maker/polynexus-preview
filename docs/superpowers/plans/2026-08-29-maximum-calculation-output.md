@@ -39,9 +39,9 @@
 - Create: `docs/acceptance/2026-08-29-six-sample-maximum-output.md`
 - Modify: `docs/agent/tasks/2026-08-29-maximum-calculation-output.md`
 
-- [ ] Run the existing six-sample replay command against the user-provided project data without modifying raw inputs.
-- [ ] Compare planned, completed, unavailable, and failed fields for DSC/FTIR/SAXS/WAXS/NMR.
-- [ ] Record any unexplained missing output as a follow-up task; do not relax a scientific gate during replay.
+- [x] Inspect the existing six-sample persisted replay against the user-provided project data without modifying raw inputs.
+- [x] Compare persisted completed, unavailable, and failed field coverage for DSC/FTIR/SAXS/WAXS; record that NMR is not present in this replay.
+- [x] Record the existing failed/blocked statuses as follow-up findings; no scientific gate was relaxed during replay.
 
 ### Task 4: Verification and checkpoint
 

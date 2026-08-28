@@ -49,3 +49,26 @@ different values on the same axis remain separate groups rather than being
 averaged. JSON and flat CSV-row projections retain source row IDs.
 
 Focused group-table coverage: **3 passed**.
+
+## Six-sample replay coverage (read-only)
+
+The existing six-sample replay at
+`D:\PolyNexus-six-sample-replay-20260827-v007` was inspected without rerunning
+providers or modifying its raw directory. Across persisted run manifests, the
+status inventory is **52 `review_required`, 1 `blocked`, and 1 `failed`**. The
+reviewable steps contain non-empty result parameters in every case:
+
+| Technique | Persisted steps | Inventory leaves |
+| --- | ---: | ---: |
+| DSC | 22 | 1,436 (1,370 scalar, 44 series, 22 object) |
+| FTIR/IR | 246 | 14,760 scalar |
+| SAXS | 6 | 1,500 (1,272 scalar, 222 series, 6 object) |
+| WAXS | 6 | 30 scalar |
+
+The stored replay does not include NMR steps. The one failed and one blocked
+status are preserved as existing replay findings and require a separate
+scientific/provider investigation; this audit does not relabel them.
+
+This is a coverage replay of persisted public results, not a fresh provider
+rerun. A fresh six-sample rerun remains optional because it is expensive and
+would rewrite external generated outputs.

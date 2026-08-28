@@ -41,7 +41,7 @@ samples.
 - [x] Each supported technique has an explicit inventory and coverage status.
 - [x] Finite diagnostic values remain visible in the shared projection.
 - [ ] Group statistics are explicit, condition-scoped, and traceable to rows.
-- [ ] Six-sample replay produces a coverage report without raw-data changes.
+- [x] Six-sample persisted replay produces a coverage report without raw-data changes.
 - [ ] Focused tests, task verifier, and `git diff --check` pass.
 
 ## Verification
@@ -54,3 +54,14 @@ git diff --check
 ## Pre-existing changes
 
 Leave `active_run.json`, `runs/`, and `tests/_tmp_phase3/` untouched.
+
+## Completion evidence so far
+
+- Result-field inventory and shared serialization are checkpointed in commit
+  `9c1a9dc9`.
+- Condition-scoped result table DTO/statistics are checkpointed in commit
+  `9a2ae3c`.
+- Six-sample persisted-result coverage is recorded in
+  `docs/acceptance/2026-08-29-maximum-calculation-output.md`; provider rerun was
+  intentionally not repeated because the existing external replay is already
+  available and its raw directory is outside the repository.
