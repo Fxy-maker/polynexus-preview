@@ -21,8 +21,8 @@ ComputeRun and ARS writing projections used by ordinary metrics.
 
 ## Contract
 
-Providers may publish `AnalysisResult.method_sensitivities` or an explicit
-`metrics.method_variants` mapping. DSC's existing `baseline_variants` are
+Providers may publish a legacy-result `method_sensitivities` attribute or an
+explicit `metrics.method_variants`/`metrics.method_sensitivities` mapping. DSC's existing `baseline_variants` are
 adapted recursively. The shared DTO records primary method, candidates,
 difference range, parameters, source, and warnings. ARS receives all values as
 diagnostic observations until a human/AI workflow makes an explicit decision.

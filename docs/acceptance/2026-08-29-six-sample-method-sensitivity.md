@@ -24,7 +24,7 @@ states and the provider capability items retain `completed` versus
 
 The zero sensitivity count is expected for this historical replay: the
 persisted providers did not publish the new explicit `method_variants` or
-`AnalysisResult.method_sensitivities` payload. DSC baseline variants remain
+legacy-result `method_sensitivities` payload. DSC baseline variants remain
 available inside its parameter payload and are now adapted when a fresh
 ComputeRun is built.
 
@@ -36,8 +36,8 @@ ComputeRun is built.
   inferred.
 - Evidence packages persist the same tables at `result-tables.json` and link
   them from `manifest.json`, so GUI/CLI/ARS consume one table contract.
-- `AnalysisResult.method_sensitivities` is an explicit provider input. The
-  shared layer normalizes it, recursively adapts DSC baseline variants, fills
+- A legacy-result `method_sensitivities` attribute or explicit metrics mapping
+  is the provider input. The shared layer normalizes it, recursively adapts DSC baseline variants, fills
   missing sensitivity source with the run artifact path, and exposes the same
   DTO to ARS writing metrics.
 - All method alternatives remain diagnostic observations. This layer never
