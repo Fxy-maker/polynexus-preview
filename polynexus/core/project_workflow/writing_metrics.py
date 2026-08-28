@@ -56,7 +56,11 @@ def extract_writing_metrics(item: EvidenceItem | Mapping[str, Any]) -> tuple[Cit
     """Extract documented provider metrics from one public evidence item."""
     payload = item.to_dict() if isinstance(item, EvidenceItem) else dict(item)
     technique = str(payload.get("technique", "")).lower()
-    generic = _capability_metrics(payload) + _metric_manifest_metrics(payload)
+    generic = (
+        _capability_metrics(payload)
+        + _metric_manifest_metrics(payload)
+        + _method_sensitivity_metrics(payload)
+    )
     if technique == "dsc":
         records = generic + _dsc(payload)
     elif technique in {"ir", "ftir"}:
@@ -97,6 +101,47 @@ def _metric_manifest_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric
             eligibility="diagnostic_only",
             reasons=reasons or ("compute_metric_manifest",),
         ))
+    return tuple(records)
+
+
+def _method_sensitivity_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
+    """Expose explicit primary/candidate method values to ARS as diagnostics."""
+    summary = _summary(payload)
+    compute_run = summary.get("compute_run", {})
+    result = compute_run.get("result", {}) if isinstance(compute_run, Mapping) else {}
+    entries = result.get("method_sensitivities", ()) if isinstance(result, Mapping) else ()
+    if not isinstance(entries, (list, tuple)):
+        return ()
+    records: list[CitationMetric] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            continue
+        metric_path = str(entry.get("metric_path", "")).strip()
+        primary = entry.get("primary")
+        if not metric_path or not isinstance(primary, Mapping):
+            continue
+        methods = [(str(primary.get("method", "primary")), primary.get("value"))]
+        candidates = entry.get("candidates", ())
+        if isinstance(candidates, (list, tuple)):
+            methods.extend(
+                (str(item.get("method", "candidate")), item.get("value"))
+                for item in candidates if isinstance(item, Mapping)
+            )
+        difference = _finite(entry.get("difference_range"))
+        for method, value in methods:
+            numeric = _finite(value)
+            if numeric is None:
+                continue
+            records.append(_base(
+                payload,
+                key=f"method_sensitivity.{metric_path}.{method}",
+                value=numeric,
+                unit="unknown",
+                method=method,
+                locator=f"compute_run.result.method_sensitivities[{metric_path}]::{method}",
+                eligibility="diagnostic_only",
+                reasons=("method_sensitivity_observation",) + (("method_difference_range_present",) if difference is not None else ()),
+            ))
     return tuple(records)
 
 

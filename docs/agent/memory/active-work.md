@@ -1,5 +1,20 @@
 # Active Work
 
+## Shared result tables and method-sensitivity contract — 2026-08-29
+
+- `ProjectWorkflowService.analyze_project()` now projects scalar
+  `compute_run.result.metric_manifest` leaves into condition-scoped
+  `result_tables` for CLI/ARS/GUI consumers; the explicit condition is the
+  workflow `step_id`, not an inferred material or temperature axis.
+- `MethodSensitivity` now has a deterministic evaluator and an explicit
+  metrics adapter. DSC nested `baseline_variants` are adapted recursively;
+  other techniques may publish `method_variants` without changing provider
+  algorithms. ComputeRun fills missing sensitivity source from its artifact.
+- ARS writing metrics receive primary/candidate sensitivity values as
+  diagnostic-only observations. Focused tests and task verification passed;
+  technique-specific candidate calculators and a fresh six-sample replay remain
+  the next goal steps.
+
 ## Maximum deterministic calculation output — 2026-08-29
 
 - Follow-up wiring now registers provider-specific capability projections in

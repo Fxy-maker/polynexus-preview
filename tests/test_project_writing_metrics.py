@@ -168,3 +168,20 @@ def test_provider_capability_projection_is_cited_as_diagnostic_only():
     assert metric.writing_eligibility == "diagnostic_only"
     assert "provider_capability_observation" in metric.reason_codes
     assert "provider-item-1" in metric.source_locator
+
+
+def test_method_sensitivity_projection_is_available_to_ars_as_diagnostic_values():
+    records = extract_writing_metrics(_item("waxs", {
+        "compute_run": {"result": {"method_sensitivities": [{
+            "metric_path": "Xc_pct",
+            "primary": {"method": "peak_area", "value": 40.0},
+            "candidates": [{"method": "halo_fit", "value": 42.0}],
+            "difference_range": 2.0,
+        }]}}
+    }))
+
+    assert {(record.metric_key, record.method, record.value) for record in records} == {
+        ("method_sensitivity.Xc_pct.peak_area", "peak_area", 40.0),
+        ("method_sensitivity.Xc_pct.halo_fit", "halo_fit", 42.0),
+    }
+    assert all(record.writing_eligibility == "diagnostic_only" for record in records)

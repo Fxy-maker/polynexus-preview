@@ -25,6 +25,7 @@ from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .selection import FigureSelectionRequest, resolve_figure_selection
 from .quick_run_attachment import QuickRunAttachment, attach_quick_run
 from .workspace import ProjectWorkspace
+from .result_table import ResultTableRow, build_group_result_table
 
 
 _DSC_WORKFLOW = "tpae.characterization.v1"
@@ -182,7 +183,63 @@ class ProjectWorkflowService:
             selected_group=selected_group.to_dict() if selected_group else None,
             selected_groups=resolved_selection.request.selected_groups if resolved_selection else (),
             figure_candidates=figure_candidates.to_dict() if figure_candidates else None,
+            result_tables=self._result_tables_from_runs(tuple(runs)),
         )
+
+    @staticmethod
+    def _result_tables_from_runs(
+        runs: tuple[ProjectWorkflowRun, ...],
+    ) -> tuple[Mapping[str, Any], ...]:
+        """Project persisted scalar metrics into one table per workflow step.
+
+        The project facade does not infer a scientific condition axis.  It uses
+        the explicit step id as the condition key, while preserving each
+        provider metric's source and status through the shared manifest.
+        """
+        tables: list[Mapping[str, Any]] = []
+        for run in runs:
+            analysis_run = run.analysis_run
+            if analysis_run is None:
+                continue
+            for step in analysis_run.steps:
+                compute_run = step.compute_run
+                if not isinstance(compute_run, Mapping):
+                    continue
+                result = compute_run.get("result")
+                if not isinstance(result, Mapping):
+                    continue
+                manifest = result.get("metric_manifest")
+                if not isinstance(manifest, (list, tuple)):
+                    continue
+                metrics: dict[str, Any] = {}
+                warnings: list[str] = [str(value) for value in step.reason_codes]
+                warnings.extend(str(value) for value in result.get("warnings", ()) if value)
+                for item in manifest:
+                    if not isinstance(item, Mapping) or item.get("status") != "computed":
+                        continue
+                    if item.get("kind") != "scalar" or "value" not in item:
+                        continue
+                    metrics[str(item.get("path", "metric"))] = item.get("value")
+                    warnings.extend(str(value) for value in item.get("warnings", ()) if value)
+                if not metrics:
+                    continue
+                artifact = compute_run.get("artifact")
+                source = artifact.get("path") if isinstance(artifact, Mapping) else None
+                if not source:
+                    source = next(iter(step.figure_references.values()), None)
+                source = str(source or run.run_id)
+                group_id = f"{step.technique}:{step.step_id}"
+                row = ResultTableRow(
+                    row_id=run.run_id,
+                    technique=step.technique,
+                    source=source,
+                    condition_key="step_id",
+                    condition_value=step.step_id,
+                    metrics=metrics,
+                    warnings=tuple(dict.fromkeys(warnings)),
+                )
+                tables.append(build_group_result_table(group_id, (row,)).to_dict())
+        return tuple(tables)
 
     def plan(self, request: AnalysisRequest) -> ProjectPlan:
         """Resolve a request against inventory and select registered routes only."""

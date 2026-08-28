@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import math
 from numbers import Real
-from typing import Any, Mapping
+from collections.abc import Callable, Mapping
+from typing import Any
 
 
 def _finite(value: Any) -> float | None:
@@ -81,4 +82,123 @@ class MethodSensitivity:
         }
 
 
-__all__ = ["MethodSensitivity"]
+def evaluate_method_sensitivity(
+    *,
+    metric_path: str,
+    primary_method: str,
+    methods: Mapping[str, Callable[[], Any]],
+    parameters: Mapping[str, Any] | None = None,
+    source: str | None = None,
+    warnings: tuple[str, ...] = (),
+) -> MethodSensitivity:
+    """Evaluate an explicitly declared method set without selecting for the caller.
+
+    The primary method is evaluated first. Candidate methods are evaluated in
+    lexical order so the resulting JSON is stable. A failed candidate remains
+    present as ``None`` and receives an explicit warning rather than being
+    silently dropped.
+    """
+    if not isinstance(methods, Mapping) or not methods:
+        raise ValueError("method sensitivity requires at least one method")
+    normalized = {str(name).strip(): callback for name, callback in methods.items()}
+    if not str(primary_method).strip() or primary_method not in normalized:
+        raise ValueError("primary method must be one of the declared methods")
+    local_warnings = list(warnings)
+
+    def run(name: str) -> float | None:
+        callback = normalized[name]
+        if not callable(callback):
+            local_warnings.append(f"method_not_callable:{name}")
+            return None
+        try:
+            return _finite(callback())
+        except Exception:
+            local_warnings.append(f"method_failed:{name}")
+            return None
+
+    primary_value = run(primary_method)
+    candidates = {name: run(name) for name in sorted(normalized) if name != primary_method}
+    return MethodSensitivity.create(
+        metric_path=metric_path,
+        primary_method=primary_method,
+        primary_value=primary_value,
+        candidates=candidates,
+        parameters=parameters,
+        source=source,
+        warnings=tuple(dict.fromkeys(local_warnings)),
+    )
+
+
+def sensitivities_from_metrics(
+    metrics: Mapping[str, Any],
+    *,
+    technique: str = "",
+    source: str | None = None,
+) -> tuple[MethodSensitivity, ...]:
+    """Restore only explicit provider-declared method alternatives.
+
+    Providers may publish a ``method_variants`` mapping with the DTO shape
+    accepted by :meth:`MethodSensitivity.create`. DSC's existing
+    ``baseline_variants`` list is also adapted because it is already a
+    deterministic, provenance-bearing result. No candidate is inferred from
+    a scalar metric or from a material name.
+    """
+    if not isinstance(metrics, Mapping):
+        return ()
+    values: list[MethodSensitivity] = []
+    explicit = metrics.get("method_variants")
+    if isinstance(explicit, Mapping):
+        for metric_path in sorted(explicit, key=str):
+            payload = explicit[metric_path]
+            if not isinstance(payload, Mapping):
+                continue
+            values.append(MethodSensitivity.create(
+                metric_path=str(metric_path),
+                primary_method=payload.get("primary_method", "explicit"),
+                primary_value=payload.get("primary", payload.get("primary_value")),
+                candidates=payload.get("candidates", {}),
+                parameters=payload.get("parameters", {}),
+                source=payload.get("source", source),
+                warnings=tuple(payload.get("warnings", ())),
+            ))
+
+    def collect_baseline_variants(container: Mapping[str, Any], prefix: str = "") -> None:
+        variants = container.get("baseline_variants")
+        if isinstance(variants, (list, tuple)):
+            by_metric: dict[str, dict[str, float | None]] = {}
+            methods: list[str] = []
+            for variant in variants:
+                if not isinstance(variant, Mapping):
+                    continue
+                method = str(variant.get("method", "")).strip()
+                if not method:
+                    continue
+                methods.append(method)
+                for key, value in variant.items():
+                    if key == "method" or _finite(value) is None:
+                        continue
+                    by_metric.setdefault(str(key), {})[method] = _finite(value)
+            primary_method = str(container.get("baseline_method", "")).strip()
+            if primary_method and primary_method in methods:
+                for metric_path in sorted(by_metric):
+                    method_values = by_metric[metric_path]
+                    primary_value = method_values.get(primary_method)
+                    candidates = {name: value for name, value in method_values.items() if name != primary_method}
+                    if candidates:
+                        values.append(MethodSensitivity.create(
+                            metric_path=f"{prefix}.{metric_path}" if prefix else metric_path,
+                            primary_method=primary_method,
+                            primary_value=primary_value,
+                            candidates=candidates,
+                            parameters={"technique": str(technique).lower(), "source": "baseline_variants"},
+                            source=source,
+                        ))
+        for key, child in container.items():
+            if isinstance(child, Mapping):
+                collect_baseline_variants(child, f"{prefix}.{key}" if prefix else str(key))
+
+    collect_baseline_variants(metrics)
+    return tuple(values)
+
+
+__all__ = ["MethodSensitivity", "evaluate_method_sensitivity", "sensitivities_from_metrics"]

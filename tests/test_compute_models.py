@@ -123,6 +123,35 @@ def test_compute_run_persists_capability_items_only_on_completed_runs(tmp_path: 
         ComputeRun(status="failed", artifact=artifact, capability_items=(item,))
 
 
+def test_compute_run_fills_method_sensitivity_source_from_artifact(tmp_path: Path) -> None:
+    from polynexus.core.compute.method_sensitivity import MethodSensitivity
+
+    source = tmp_path / "curve.csv"
+    source.write_text("x,y\n1,2\n2,3\n", encoding="utf-8")
+    artifact = RawArtifact.from_path(source, technique="waxs")
+    result = ComputeResult(
+        metrics={"Xc_pct": 40.0},
+        method_sensitivities=(MethodSensitivity.create(
+            metric_path="Xc_pct",
+            primary_method="peak_area",
+            primary_value=40.0,
+            candidates={"halo_fit": 42.0},
+        ),),
+    )
+
+    dataset = CanonicalDataset.direct_envelope(artifact)
+    plan = AnalysisPlan.direct(dataset, output_dir=tmp_path / "out")
+    run = ComputeRun.completed(
+        artifact=artifact,
+        dataset=dataset,
+        plan=plan,
+        result=result,
+    )
+    sensitivity = run.to_dict()["result"]["method_sensitivities"][0]
+
+    assert sensitivity["source"] == artifact.path
+
+
 def test_compute_run_persists_source_bound_canonical_template(tmp_path: Path) -> None:
     source = tmp_path / "curve.csv"
     source.write_text("Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n", encoding="utf-8")

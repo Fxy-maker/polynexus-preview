@@ -42,6 +42,26 @@ def test_analyze_project_is_one_call_with_three_status_layers(tmp_path: Path) ->
     assert payload["runs"]
 
 
+def test_analyze_project_projects_shared_result_tables_for_cli_consumers(tmp_path: Path) -> None:
+    _source(tmp_path, "waxs", "a.dat")
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, artifact, output: AnalysisResult(
+            technique=step.technique,
+            validation_passed=True,
+            parameters={"Xc_pct": 41.5, "peak_area": 12.0},
+        )
+    )
+
+    summary = service.analyze_project(question="Prepare a WAXS result table")
+
+    tables = summary.to_dict()["result_tables"]
+    assert len(tables) == 1
+    assert tables[0]["technique"] == "waxs"
+    assert tables[0]["rows"][0]["metrics"]["Xc_pct"] == 41.5
+    assert tables[0]["rows"][0]["source"].endswith("a.dat")
+
+
 def test_project_summary_cli_projection_keeps_group_result_table_payload() -> None:
     table = build_group_result_table(
         "pa6-jw",

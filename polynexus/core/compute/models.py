@@ -17,7 +17,7 @@ from typing import Any
 
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256, raw_artifact_id
 from ..canonical_experiments.models import CanonicalExperiment, CapabilityItemResult
-from .method_sensitivity import MethodSensitivity
+from .method_sensitivity import MethodSensitivity, sensitivities_from_metrics
 from .capability_catalog import default_capability_catalog
 
 
@@ -504,15 +504,47 @@ class ComputeResult:
             )
         if validation_summary and str(validation_summary) != "All checks passed":
             warnings.append(str(validation_summary))
+        normalized_metrics = metrics if isinstance(metrics, Mapping) else {}
+        declared_items = getattr(value, "method_sensitivities", ())
+        declared_sensitivities = tuple(
+            item for item in declared_items if isinstance(item, MethodSensitivity)
+        ) if isinstance(declared_items, (list, tuple)) else ()
+        if not declared_sensitivities and isinstance(declared_items, (list, tuple)):
+            converted: list[MethodSensitivity] = []
+            for item in declared_items:
+                if not isinstance(item, Mapping):
+                    continue
+                primary = item.get("primary", {})
+                if not isinstance(primary, Mapping):
+                    continue
+                candidates = item.get("candidates", ())
+                candidate_values = {
+                    str(candidate.get("method", "candidate")): candidate.get("value")
+                    for candidate in candidates
+                    if isinstance(candidate, Mapping)
+                } if isinstance(candidates, (list, tuple)) else candidates
+                converted.append(MethodSensitivity.create(
+                    metric_path=item.get("metric_path", ""),
+                    primary_method=primary.get("method", "explicit"),
+                    primary_value=primary.get("value"),
+                    candidates=candidate_values if isinstance(candidate_values, Mapping) else {},
+                    parameters=item.get("parameters", {}),
+                    source=item.get("source"),
+                    warnings=tuple(item.get("warnings", ())),
+                ))
+            declared_sensitivities = tuple(converted)
+        if not declared_sensitivities:
+            declared_sensitivities = sensitivities_from_metrics(
+                normalized_metrics,
+                technique=str(getattr(value, "technique", "")),
+                source=(metadata.get("source") if isinstance(metadata, Mapping) else None),
+            )
         return cls(
-            metrics=metrics if isinstance(metrics, Mapping) else {},
+            metrics=normalized_metrics,
             figures=figures if isinstance(figures, Mapping) else {},
             metadata=metadata if isinstance(metadata, Mapping) else {},
             warnings=tuple(warnings),
-            method_sensitivities=tuple(
-                item for item in getattr(value, "method_sensitivities", ())
-                if isinstance(item, MethodSensitivity)
-            ),
+            method_sensitivities=declared_sensitivities,
         )
 
 
@@ -635,9 +667,13 @@ class ComputeRun:
         if self.result is not None:
             payload["result"]["field_inventory"] = list(self.result.field_inventory())
             payload["result"]["metric_manifest"] = list(self.result.metric_manifest(source=self.artifact.path))
-            payload["result"]["method_sensitivities"] = [
-                item.to_dict() for item in self.result.method_sensitivities
-            ]
+            sensitivities = []
+            for item in self.result.method_sensitivities:
+                record = item.to_dict()
+                if record.get("source") is None:
+                    record["source"] = self.artifact.path
+                sensitivities.append(record)
+            payload["result"]["method_sensitivities"] = sensitivities
             payload["result"]["capability_catalog"] = [
                 item.to_dict() for item in default_capability_catalog().for_technique(self.artifact.technique)
             ]
