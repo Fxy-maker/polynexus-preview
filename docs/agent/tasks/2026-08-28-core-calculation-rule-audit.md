@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-28-core-calculation-rule-audit
 kind: scientific
-status: proposed
+status: implementation_complete_review_required
 date: 2026-08-28
 title: Audit core calculation rule tiers
 ---
@@ -56,11 +56,11 @@ NMR rules as structural blocks, calculation warnings, or evidence restrictions.
 
 ## Acceptance criteria
 
-- [ ] Every supported technique has an evidence-backed rule ledger.
-- [ ] Each row separates calculation behavior from evidence eligibility.
-- [ ] Any recommended downgrade from block to warning has a concrete code/test
+- [x] Every supported technique has an evidence-backed rule ledger.
+- [x] Each row separates calculation behavior from evidence eligibility.
+- [x] Any recommended downgrade from block to warning has a concrete code/test
   boundary and is not applied automatically.
-- [ ] Existing historical engineering failures are separated from scientific
+- [x] Existing historical engineering failures are separated from scientific
   calculation rules.
 
 ## Verification
@@ -74,12 +74,18 @@ git diff --check
 
 ```powershell
 python scripts/auto_commit.py `
-  --message "docs(core): define calculation rule-tier audit" `
-  --files docs/superpowers/specs/2026-08-28-core-calculation-rule-audit-design.md docs/agent/tasks/2026-08-28-core-calculation-rule-audit.md
+  --message "docs(core): audit calculation rule tiers" `
+  --files docs/acceptance/2026-08-28-core-calculation-rule-audit.md docs/agent/tasks/2026-08-28-core-calculation-rule-audit.md docs/agent/memory/active-work.md docs/superpowers/plans/2026-08-28-core-calculation-rule-audit.md
 ```
 
 ## Completion evidence
 
-- Exact commands and outcomes:
-- Known limitations or follow-up:
-- Pre-existing changes left untouched: `active_run.json`, `runs/`, and `tests/_tmp_phase3/`.
+- Acceptance ledger: `docs/acceptance/2026-08-28-core-calculation-rule-audit.md`.
+- Focused evidence: DSC/FTIR `42 passed, 2 warnings`; SAXS/WAXS `21 passed`;
+  NMR/shared-entry `57 passed, 3 skipped` (see acceptance record for exact commands).
+- No new block-to-warning downgrade was justified; finite results already retain
+  warning/diagnostic status where the quantity is mathematically defined.
+- Known follow-up: human scientific review is required before any future rule
+  relaxation; full historical failures remain a separate release-boundary item.
+- Pre-existing changes left untouched: `active_run.json`, `runs/`, and
+  `tests/_tmp_phase3/`.

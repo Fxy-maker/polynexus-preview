@@ -6026,3 +6026,18 @@ and structured gates (`303` / `157`).
   read-only. Acceptance:
   `docs/acceptance/2026-08-28-pa6-v008-gui-ars-replay.md`.
 - Scientific promotion and release-wide historical failures remain open.
+## Core calculation rule-tier audit — 2026-08-28
+
+- Read-only audit completed for DSC, FTIR, SAXS, WAXS, and NMR across the
+  canonical converter → provider/Core → `ComputeRun` → writing-metric path.
+- Acceptance ledger: `docs/acceptance/2026-08-28-core-calculation-rule-audit.md`.
+- Finding: no unjustified blanket hard block was confirmed. Structural exits are
+  scoped to undefined quantities or invalid/ambiguous canonical input; finite
+  results under fit, calibration, applicability, or phase-support limits are
+  already retained with warnings or `diagnostic_only` evidence status.
+- Focused verification passed: DSC/FTIR 42, SAXS/WAXS 21, NMR/shared-entry 57
+  (3 skips; existing DSC polynomial-fit warnings noted). No source, template,
+  threshold, algorithm, or raw dataset changed.
+- Any future rule relaxation requires a separate human-reviewed task card and
+  regression test; historical full-suite failures remain a separate release
+  boundary.
