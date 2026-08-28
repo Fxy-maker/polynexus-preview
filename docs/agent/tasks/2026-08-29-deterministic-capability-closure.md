@@ -51,8 +51,8 @@ condition-scoped group statistics without rerunning the six-sample dataset.
   resolves only an existing provider metric; missing metrics remain explicit
   `needs_input` items and no calculation or publication eligibility is inferred.
 - [x] GUI, CLI, and evidence package expose the complete metric-manifest
-  projection for persisted ComputeRun results; provider-specific capability
-  registration remains open.
+  projection for persisted ComputeRun results; provider capability projections
+  are included in the same persisted run contract.
 - [x] Task verification and focused regression coverage pass.
 
 ## Verification
