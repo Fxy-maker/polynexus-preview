@@ -315,6 +315,41 @@ def test_direct_run_replays_saxs_coupled_integration_window(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize(
+    ("technique", "dimension", "config_key"),
+    (("waxs", "peak_decomposition", "peak_function"), ("nmr", "peak_fit", "deconvolution_method")),
+)
+def test_direct_run_replays_waxs_and_nmr_method_candidates(
+    tmp_path: Path, technique: str, dimension: str, config_key: str
+) -> None:
+    source = tmp_path / f"input-{technique}.csv"
+    source.write_text("data", encoding="utf-8")
+    calls: list[Any] = []
+
+    class ConfiguredEngine(FakeEngine):
+        def run_pipeline(self, path: str, output_dir: str, **options: Any) -> Any:
+            calls.append(getattr(self.config, "get", lambda _key, _default=None: None)(config_key))
+            return SimpleNamespace(parameters={"metric": 1.0}, figures={}, metadata={})
+
+    def factory(_technique: str, config: Any = None, submodule_id: str | None = None) -> Any:
+        engine = ConfiguredEngine(EmptyLegacyResult())
+        engine.config = config
+        return engine
+
+    run = ComputeRunService(factory).run_direct(
+        technique=technique,
+        path=source,
+        output_dir=tmp_path / "out",
+        config={config_key: "primary"},
+        pipeline_options={"method_sensitivity": {dimension: ["primary", "candidate"]}},
+    )
+
+    assert run.status == "completed"
+    assert calls == ["primary", "candidate"]
+    assert run.result is not None
+    assert run.result.method_sensitivities[0].candidates == {"candidate": 1.0}
+
+
+@pytest.mark.parametrize(
     "method_sensitivity",
     (
         None,
