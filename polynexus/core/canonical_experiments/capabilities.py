@@ -249,23 +249,45 @@ def _provider_specs() -> tuple[ProviderCapabilitySpec, ...]:
     aliases = {
         "dsc": {
             "Tg": ("Tg_C", "Tg"), "Tm": ("Tm_peak_C", "Tm_C", "Tm"),
-            "Tc": ("Tc_C", "Tc"), "enthalpy": ("DHm_Jg", "DHc_Jg", "enthalpy"),
+            "Tc": ("Tc_C", "Tc"), "enthalpy": ("DHm_Jg", "DHc_Jg", "DHc_iso_Jg", "enthalpy"),
             "multi_peak": ("peak_components", "multi_peak"),
             "Avrami": ("Avrami_n", "avrami_n", "Avrami"),
             "nonisothermal_kinetics": ("nonisothermal_kinetics", "kinetics"),
         },
-        "ftir": {name: (name, name.replace("_", "")) for name in (
-            "peak_position", "peak_height", "peak_area", "FWHM", "peak_ratio", "temperature_tracking"
-        )},
-        "saxs": {name: (name, name.lower(), f"{name}_nm") for name in (
-            "long_period", "crystalline_layer", "amorphous_layer", "Porod", "Kratky", "Guinier", "Invariant", "temperature_strain"
-        )},
-        "waxs": {name: (name, name.lower()) for name in (
-            "peak_decomposition", "crystallinity", "crystallite_size", "lattice_parameters", "williamson_hall"
-        )},
-        "nmr": {name: (name, name.lower()) for name in (
-            "peak_position", "area", "FWHM", "SNR", "region_integral", "relaxation", "solid_13C_phase"
-        )},
+        "ftir": {
+            "peak_position": ("peak_position", "peak_positions", "peak_1_cm1"),
+            "peak_height": ("peak_height", "peak_heights", "peak_1_height"),
+            "peak_area": ("peak_area", "peak_areas", "peak_1_area"),
+            "FWHM": ("FWHM", "fwhm", "peak_1_fwhm_cm1"),
+            "peak_ratio": ("peak_ratio", "band_indices", "band_index"),
+            "temperature_tracking": ("temperature_tracking", "temperatures", "temperature_C"),
+        },
+        "saxs": {
+            "long_period": ("long_period", "L_best", "L_nm"),
+            "crystalline_layer": ("crystalline_layer", "lc_nm", "lc_effective_nm"),
+            "amorphous_layer": ("amorphous_layer", "la_nm"),
+            "Porod": ("Porod", "porod", "porod_slope"),
+            "Kratky": ("Kratky", "kratky"),
+            "Guinier": ("Guinier", "guinier"),
+            "Invariant": ("Invariant", "invariant", "Q_star"),
+            "temperature_strain": ("temperature_strain", "strain", "temperature_C"),
+        },
+        "waxs": {
+            "peak_decomposition": ("peak_decomposition", "peaks", "peak_positions"),
+            "crystallinity": ("crystallinity", "Xc_pct"),
+            "crystallite_size": ("crystallite_size", "D_Scherrer_nm", "D_nm"),
+            "lattice_parameters": ("lattice_parameters", "lattice_params"),
+            "williamson_hall": ("williamson_hall", "W-H", "wh_fit"),
+        },
+        "nmr": {
+            "peak_position": ("peak_position", "dominant_peak_ppm", "peak_0_ppm"),
+            "area": ("area", "peak_area_total", "peak_0_area"),
+            "FWHM": ("FWHM", "mean_fwhm_ppm", "peak_0_fwhm_ppm"),
+            "SNR": ("SNR", "median_snr", "peak_0_snr"),
+            "region_integral": ("region_integral", "region_integrals", "region_"),
+            "relaxation": ("relaxation",),
+            "solid_13C_phase": ("solid_13C_phase",),
+        },
     }
     return tuple(
         ProviderCapabilitySpec(capability_id=capability_id, techniques=(technique,), metric_paths=paths)
@@ -315,7 +337,25 @@ def _find_metric(metrics: Mapping[str, Any], paths: Sequence[str]) -> tuple[str,
             current = current[part]
         else:
             return path, current
+    # Engine parameter payloads are commonly grouped by scan/segment label.
+    # Search terminal keys deterministically, without interpreting values.
+    wanted = {path.casefold() for path in paths}
+    for candidate_path, value in _walk_mapping(metrics):
+        terminal = candidate_path.rsplit(".", 1)[-1].casefold()
+        if terminal in wanted or any(
+            alias.endswith("_") and terminal.startswith(alias) for alias in wanted
+        ):
+            return candidate_path, value
     return None
+
+
+def _walk_mapping(value: Mapping[str, Any], prefix: str = ""):
+    for key, child in value.items():
+        path = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(child, Mapping):
+            yield from _walk_mapping(child, path)
+        else:
+            yield path, child
 
 
 __all__ = [

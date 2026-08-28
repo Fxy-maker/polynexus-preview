@@ -146,3 +146,29 @@ def test_provider_capability_executor_projects_registered_metrics_without_fabric
     assert by_id["enthalpy"].status == "completed"
     assert by_id["Tg"].status == "needs_input"
     assert by_id["Tg"].reason_codes == ("provider_metric_unavailable",)
+
+
+def test_provider_capability_executor_finds_nested_engine_parameters() -> None:
+    items = CapabilityExecutor().execute_provider_result(
+        source_artifact_id="artifact-1",
+        technique="dsc",
+        metrics={"segment_01_180C": {"Avrami_n": 1.8}},
+    )
+
+    avrami = next(item for item in items if item.capability_id == "Avrami")
+    assert avrami.status == "completed"
+    assert avrami.result == {
+        "metric_path": "segment_01_180C.Avrami_n",
+        "value": 1.8,
+    }
+
+
+def test_provider_capability_projection_does_not_infer_nmr_phase_from_xc_alone() -> None:
+    items = CapabilityExecutor().execute_provider_result(
+        source_artifact_id="artifact-1",
+        technique="nmr",
+        metrics={"Xc_pct": 25.0},
+    )
+
+    phase = next(item for item in items if item.capability_id == "solid_13C_phase")
+    assert phase.status == "needs_input"
