@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-28-generic-isothermal-event-candidates
 kind: scientific
-status: proposed
+status: completed
 date: 2026-08-28
 title: 通用等温 DSC 候选事件计算
 ---
@@ -26,14 +26,30 @@ title: 通用等温 DSC 候选事件计算
 - Consumers: ComputeRunService、项目流程、Agent/Codex、CLI、Batch、GUI、evidence package、ARS writing input。
 - Cross-entry rule: all consumers use the same candidate and frozen AnalysisPlan projection.
 
+## Affected boundaries
+
+- Core DSC kinetics and public `AvramiResult`/candidate contracts.
+- Deterministic result projection used by DSCEngine, ComputeRun, CLI/Batch, GUI,
+  Agent/Codex, evidence packages, and ARS writing inputs.
+- Existing non-DSC techniques and raw artifacts are out of scope.
+
+## Implementation plan
+
+1. Add a material-neutral candidate detector and preserve candidate provenance.
+2. Select a settled candidate for the compatibility `avrami_from_dsc` projection
+   while retaining all candidates in series results.
+3. Standardize the Avrami fit window at Xt=5%–80% and expose it in result rows.
+4. Propagate the shared fields through all existing result/evidence consumers.
+5. Replay synthetic and six-sample PA6 data, then run focused and repository checks.
+
 ## Acceptance criteria
 
-- [ ] All calculable event candidates are retained with source ranges and quality metadata.
-- [ ] Default recommendation is shape-driven and material-neutral.
-- [ ] PA6-DWJJ no longer uses the initial switching transient as its main crystallization event.
-- [ ] Default Avrami fit range is `Xt=5%–80%`, recorded in the plan and result.
-- [ ] Structural invalid data still blocks; calculable but uncertain data returns values with warnings.
-- [ ] Shared Core/AI/CLI/Batch/GUI/evidence projections remain identical.
+- [x] All calculable event candidates are retained with source ranges and quality metadata.
+- [x] Default recommendation is shape-driven and material-neutral.
+- [x] PA6-DWJJ no longer uses the initial switching transient as its main crystallization event.
+- [x] Default Avrami fit range is `Xt=5%–80%`, recorded in the plan and result.
+- [x] Structural invalid data still blocks; calculable but uncertain data returns values with warnings.
+- [x] Shared Core/AI/CLI/Batch/GUI/evidence projections remain identical.
 
 ## Verification
 
@@ -53,6 +69,6 @@ python scripts/auto_commit.py `
 
 ## Completion evidence
 
-- Exact commands and outcomes: pending implementation.
+- Exact commands and outcomes: focused DSC/canonical/ComputeRun matrix passed `66 passed, 3 skipped`; final DSC kinetics/canonical matrix passed `28 passed`; real six-sample isothermal ComputeRun smoke completed all six files with status `completed`; `git diff --check` passed.
 - Known limitations: default candidate-ranking semantics and scientific promotion remain human-reviewable.
 - Pre-existing changes left untouched: `active_run.json`, `runs/`, `tests/_tmp_phase3/`, historical artifacts and old replay packages.

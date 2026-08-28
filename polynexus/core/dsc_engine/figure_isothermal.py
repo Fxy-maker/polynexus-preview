@@ -84,7 +84,11 @@ def _fit_gate(avrami: Any) -> tuple[bool, str]:
         return False, "invalid_avrami_parameters"
     if _finite(_attr(avrami, "r_squared")) < 0.90:
         return False, "low_fit_quality"
-    if tuple(_attr(avrami, "quality_flags", ()) or ()):
+    blocking_flags = {
+        str(flag) for flag in (_attr(avrami, "quality_flags", ()) or ())
+        if str(flag) not in {"fit_xt_5_to_80", "transient_excluded"}
+    }
+    if blocking_flags:
         return False, "quality_flags"
     return True, "qualified"
 

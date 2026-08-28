@@ -1,5 +1,19 @@
 # Active Work
 
+## Generic isothermal DSC event candidates — implementation complete, review required (2026-08-28)
+
+- DSC Core now detects and computes all material-neutral event candidates per
+  isothermal segment. Boundary switching transients remain explicit candidates;
+  the compatibility best result prefers a later settled candidate.
+- Avrami fitting defaults to Xt=5%–80% and every result carries candidate ID,
+  event kind, integration indices, transient exclusion, candidate metadata, and
+  fit-window provenance. Parameter tables expose the same fields.
+- Focused DSC/canonical/ComputeRun tests passed (28 and 66 test matrices); a
+  read-only six-sample isothermal ComputeRun smoke completed all six PA6/PA11/
+  PA12 files. Acceptance: `docs/acceptance/2026-08-28-dsc-generic-isothermal-candidates.md`.
+- Full GUI/ARS promotion and scientific paper-use decisions remain review
+  boundaries; no raw artifacts or historical replay packages were modified.
+
 ## Flexible DSC thermal qualification — implementation complete, review required (2026-08-28)
 
 - Generic `thermal_program.v1` no longer depends on a fixed 200 °C melt hold or

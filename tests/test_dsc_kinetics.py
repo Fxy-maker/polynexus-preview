@@ -11,10 +11,12 @@ from polynexus.core.dsc_engine.core import DSCResult
 from polynexus.core.dsc_engine.dsc_kinetics import (
     AvramiResult,
     analyze_isothermal_scans,
+    avrami_candidates_from_dsc,
     avrami_from_dsc,
     detect_isothermal_segments,
 )
 from polynexus.core.dsc_engine.io import DSCScan
+from polynexus.core.dsc_engine.figure_isothermal import build_isothermal_dsc_figure_definitions
 
 
 def _avrami_heat_flow(t, n=3.0, k=0.025, scale=1.0, baseline=0.02):
@@ -33,6 +35,55 @@ def test_avrami_from_dsc_recovers_synthetic_parameters():
     assert abs(result.k - 0.025) < 0.003
     assert result.r_squared > 0.999
     assert result.crystallisation_enthalpy_Jg > 0
+
+
+def test_avrami_from_dsc_ignores_material_neutral_switching_transient():
+    """A fast hold-entry transient must not become the crystallisation event."""
+    t = np.linspace(0.0, 12.0, 721)
+    # A generic instrument transition decays immediately after the hold starts;
+    # the actual exotherm begins only after the transition has settled.
+    transient = 8.0 * np.exp(-t / 0.12)
+    crystallisation = _avrami_heat_flow(np.maximum(t - 1.0, 0.0), n=2.8, k=0.13, scale=2.0)
+    heat = 0.15 + transient + np.where(t >= 1.0, crystallisation - 0.02, 0.0)
+
+    result = avrami_from_dsc(t, heat)
+
+    assert result.start_time_min >= 0.8
+    assert result.t_half_min > 1.0
+    assert abs(result.n - 2.8) < 0.35
+
+
+def test_avrami_fit_defaults_to_five_to_eighty_percent_conversion_window():
+    t = np.linspace(0.0, 30.0, 1500)
+    result = avrami_from_dsc(t, _avrami_heat_flow(t, n=3.0, k=0.025))
+
+    assert result.quality_flags.count("fit_xt_5_to_80") == 1
+
+
+def test_avrami_candidate_projection_retains_transient_and_primary_events():
+    t = np.linspace(0.0, 12.0, 721)
+    transient = 8.0 * np.exp(-t / 0.12)
+    crystallisation = _avrami_heat_flow(np.maximum(t - 1.0, 0.0), n=2.8, k=0.13, scale=2.0)
+    heat = 0.15 + transient + np.where(t >= 1.0, crystallisation - 0.02, 0.0)
+
+    candidates = avrami_candidates_from_dsc(t, heat)
+
+    assert {item.candidate_kind for item in candidates} >= {"transient", "primary_exotherm"}
+    primary = next(item for item in candidates if item.candidate_kind == "primary_exotherm")
+    assert primary.start_time_min >= 0.8
+    assert primary.transient_excluded is True
+    transient_result = next(item for item in candidates if item.candidate_kind == "transient")
+    assert transient_result.transient_excluded is False
+
+
+def test_isothermal_figure_gate_accepts_informational_fit_window_flag():
+    t = np.linspace(0.0, 30.0, 1500)
+    engine = type("Engine", (), {})()
+    engine._kinetics_data = {"avrami": avrami_from_dsc(t, _avrami_heat_flow(t, n=3.0, k=0.025))}
+
+    definitions = build_isothermal_dsc_figure_definitions(engine)
+
+    assert any(item.figure_id == "dsc.isothermal.avrami" for item in definitions)
 
 
 def test_detect_isothermal_hold_inside_cooling_scan():

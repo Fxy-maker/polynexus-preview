@@ -43,6 +43,32 @@ class AvramiResult:
     Xt_data: np.ndarray = field(default_factory=lambda: np.array([]))
     t_data: np.ndarray = field(default_factory=lambda: np.array([]))
     Xt_fit: np.ndarray = field(default_factory=lambda: np.array([]))
+    candidate_id: str = ""
+    candidate_kind: str = ""
+    integration_start_index: int = -1
+    integration_end_index: int = -1
+    transient_excluded: bool = False
+    fit_xt_range: Tuple[float, float] = (0.05, 0.80)
+    event_candidates: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class IsothermalEventCandidate:
+    """One material-neutral candidate event in an isothermal hold."""
+    candidate_id: str = ""
+    kind: str = "unknown"
+    start_index: int = 0
+    end_index: int = 0
+    start_time_min: float = np.nan
+    end_time_min: float = np.nan
+    peak_index: int = -1
+    peak_time_min: float = np.nan
+    baseline_Wg: float = np.nan
+    polarity: float = 1.0
+    prominence_Wg: float = np.nan
+    area_Wg_min: float = np.nan
+    score: float = np.nan
+    reasons: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -136,6 +162,7 @@ def _smooth_signal(y: np.ndarray, max_window: int = 41) -> np.ndarray:
     y = np.asarray(y, dtype=float)
     if len(y) < 7:
         return y
+
     window = min(max_window, max(5, len(y) // 25))
     if window % 2 == 0:
         window += 1
@@ -148,6 +175,114 @@ def _smooth_signal(y: np.ndarray, max_window: int = 41) -> np.ndarray:
     except Exception:
         logger.warning("DSC kinetics smoothing failed; returning raw signal.", exc_info=True)
         return y
+
+
+def detect_isothermal_event_candidates(
+    time_min: np.ndarray,
+    HF_Wg: np.ndarray,
+) -> List[IsothermalEventCandidate]:
+    """Find material-neutral thermal-event candidates in an isothermal hold.
+
+    The detector is deliberately shape-driven.  It uses robust noise and
+    relative peak features rather than absolute temperature/time constants, so
+    a hold-entry switching transient is retained as a candidate but is not
+    automatically treated as the main crystallisation event.
+    """
+    t = np.asarray(time_min, dtype=float)
+    hf = np.asarray(HF_Wg, dtype=float)
+    valid = np.isfinite(t) & np.isfinite(hf)
+    t, hf = t[valid], hf[valid]
+    if len(t) < 5:
+        return []
+    order = np.argsort(t)
+    t, hf = t[order], hf[order]
+    keep = np.ones(len(t), dtype=bool)
+    keep[1:] = np.diff(t) > 1e-9
+    t, hf = t[keep], hf[keep]
+    if len(t) < 5:
+        return []
+
+    tail_n = max(5, int(len(hf) * 0.15))
+    baseline = float(np.nanmedian(hf[-tail_n:]))
+    centered = hf - baseline
+    positive = float(np.trapezoid(np.clip(centered, 0.0, None), t))
+    negative = float(np.trapezoid(np.clip(-centered, 0.0, None), t))
+    polarity = -1.0 if negative > positive else 1.0
+    oriented = polarity * centered
+    smooth = _smooth_signal(oriented)
+    tail = smooth[-tail_n:]
+    noise = float(1.4826 * np.nanmedian(np.abs(tail - np.nanmedian(tail))))
+    scale = max(float(np.nanmax(smooth)), 1e-12)
+    prominence = max(noise * 3.0, scale * 0.01)
+    distance = max(2, len(smooth) // 50)
+    peaks, props = signal.find_peaks(smooth, prominence=prominence, distance=distance)
+    # A boundary maximum is a common switching transient and must remain
+    # visible to callers even though find_peaks excludes array boundaries.
+    if smooth[0] >= smooth[min(1, len(smooth) - 1)] and smooth[0] >= prominence:
+        peaks = np.insert(peaks, 0, 0)
+        prominences = np.insert(np.asarray(props.get("prominences", ()), dtype=float), 0, smooth[0])
+    else:
+        prominences = np.asarray(props.get("prominences", ()), dtype=float)
+    if not len(peaks):
+        return []
+
+    minima, _ = signal.find_peaks(-smooth, distance=max(2, distance // 2))
+    candidates: List[IsothermalEventCandidate] = []
+    for ordinal, peak in enumerate(peaks, start=1):
+        peak = int(peak)
+        before = minima[minima < peak]
+        threshold = max(noise * 2.0, smooth[peak] * 0.02)
+        if len(before):
+            eligible = [idx for idx in before if smooth[idx] <= threshold]
+            start = int(eligible[-1] if eligible else before[-1])
+        else:
+            start = 0
+        amplitude = max(float(smooth[peak] - np.nanmedian(smooth[-tail_n:])), 1e-12)
+        cutoff = max(noise * 2.0, amplitude * 0.07)
+        below = smooth <= cutoff
+        after = np.flatnonzero((np.arange(len(smooth)) > peak) & below)
+        sustained = [idx for idx in after if np.all(below[idx:min(idx + 3, len(smooth))])]
+        end = int(sustained[0] if sustained else len(smooth) - 1)
+        width = max(float(t[end] - t[start]), 0.0)
+        prominence_value = float(prominences[ordinal - 1]) if ordinal - 1 < len(prominences) else amplitude
+        score = float(np.log1p(max(prominence_value, 0.0) / max(noise, 1e-12)))
+        score += min(width / max(float(t[-1] - t[0]), 1e-12), 1.0)
+        reasons: List[str] = []
+        kind = "primary_exotherm"
+        # A segment-boundary event is only treated as a switching transient
+        # when its maximum is itself very near the boundary.  A normal event
+        # can legitimately begin at index zero when no pre-event baseline was
+        # recorded; its later peak must remain eligible as the primary event.
+        boundary_peak = peak == 0 or peak <= max(2, int(len(smooth) * 0.03))
+        if boundary_peak:
+            kind = "transient"
+            # Boundary events are retained for transparency, but should not
+            # outrank a later, settled event merely because the switching
+            # spike has a large amplitude.
+            score -= 6.0
+            reasons.append("event_starts_at_segment_boundary")
+        if end == len(t) - 1:
+            reasons.append("event_ends_at_segment_boundary")
+        if width <= 0:
+            reasons.append("zero_event_width")
+        area = float(np.trapezoid(np.clip(oriented[start:end + 1], 0.0, None), t[start:end + 1]))
+        candidates.append(IsothermalEventCandidate(
+            candidate_id=f"event-{ordinal:03d}",
+            kind=kind,
+            start_index=start,
+            end_index=end,
+            start_time_min=float(t[start]),
+            end_time_min=float(t[end]),
+            peak_index=peak,
+            peak_time_min=float(t[peak]),
+            baseline_Wg=baseline,
+            polarity=polarity,
+            prominence_Wg=prominence_value,
+            area_Wg_min=area,
+            score=score,
+            reasons=reasons,
+        ))
+    return sorted(candidates, key=lambda item: item.score, reverse=True)
 
 
 def detect_isothermal_segments(scan: DSCScan,
@@ -222,6 +357,7 @@ def relative_crystallinity_isothermal(time_min: np.ndarray,
                                       HF_Wg: np.ndarray,
                                       tail_fraction: float = 0.15,
                                       threshold_ratio: float = 0.01,
+                                      event_candidate: IsothermalEventCandidate | None = None,
                                       ) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
     """Compute baseline-corrected isothermal relative crystallinity.
 
@@ -243,33 +379,21 @@ def relative_crystallinity_isothermal(time_min: np.ndarray,
     if len(t) < 5:
         return np.array([]), np.array([]), {'quality_flags': ['too_few_points']}
 
-    tail_n = max(5, int(len(HF) * tail_fraction))
-    tail = HF[-tail_n:]
-    baseline = float(np.nanmedian(tail))
-    centered = HF - baseline
-
-    pos_area = np.trapezoid(np.clip(centered, 0.0, None), t)
-    neg_area = np.trapezoid(np.clip(-centered, 0.0, None), t)
-    polarity = -1.0 if neg_area > pos_area else 1.0
-    exo = polarity * centered
-    exo_smooth = _smooth_signal(exo)
-
-    noise = float(1.4826 * np.nanmedian(np.abs(exo_smooth[-tail_n:] - np.nanmedian(exo_smooth[-tail_n:]))))
-    peak = float(np.nanmax(exo_smooth)) if len(exo_smooth) else 0.0
-    if not np.isfinite(peak) or peak <= 0:
+    candidates = detect_isothermal_event_candidates(t, HF)
+    if not candidates:
         return np.array([]), np.array([]), {'quality_flags': ['no_positive_exotherm']}
-
-    threshold = max(noise * 3.0, peak * threshold_ratio)
-    peak_idx = int(np.nanargmax(exo_smooth))
-    above = exo_smooth > threshold
-
-    left_candidates = np.where(~above[:peak_idx + 1])[0]
-    onset = int(left_candidates[-1] + 1) if len(left_candidates) else 0
-    start = 0
-    right_candidates = np.where(~above[peak_idx:])[0]
-    end = int(peak_idx + right_candidates[0]) if len(right_candidates) else len(t) - 1
-    end = max(end, start + 3)
-    end = min(end, len(t) - 1)
+    non_transient = [c for c in candidates if c.kind != 'transient' and c.end_index > c.start_index]
+    candidate = event_candidate or (non_transient or candidates)[0]
+    start = max(0, int(candidate.start_index))
+    end = min(len(t) - 1, int(candidate.end_index))
+    if end <= start + 2:
+        return np.array([]), np.array([]), {'quality_flags': ['zero_event_width']}
+    baseline = float(candidate.baseline_Wg)
+    centered = HF - baseline
+    polarity = float(candidate.polarity)
+    exo = polarity * centered
+    peak_idx = int(candidate.peak_index)
+    onset = start
 
     signal_pos = np.clip(exo[start:end + 1], 0.0, None)
     t_roi_abs = t[start:end + 1]
@@ -288,9 +412,15 @@ def relative_crystallinity_isothermal(time_min: np.ndarray,
         'induction_time_min': float(t[onset] - t[0]) if onset < len(t) else np.nan,
         'crystallisation_enthalpy_Jg': total * 60.0,
         'peak_time_min': float(t[peak_idx] - t_roi_abs[0]),
+        'candidate_id': candidate.candidate_id,
+        'candidate_kind': candidate.kind,
+        'integration_start_index': start,
+        'integration_end_index': end,
+        'transient_excluded': bool(any(c.kind == 'transient' and c.candidate_id != candidate.candidate_id for c in candidates)),
+        'event_candidates': [c.__dict__ for c in candidates],
         'quality_flags': [],
     }
-    if onset == 0:
+    if candidate.kind == 'transient':
         meta['quality_flags'].append('event_starts_at_segment_boundary')
     if end == len(t) - 1:
         meta['quality_flags'].append('event_ends_at_segment_boundary')
@@ -335,7 +465,7 @@ def relative_crystallinity(time_min: np.ndarray, HF_Wg: np.ndarray,
 
 
 def avrami_fit(time_min: np.ndarray, Xt: np.ndarray,
-               X_range: Tuple[float, float] = (0.01, 0.99),
+               X_range: Tuple[float, float] = (0.05, 0.80),
                ) -> AvramiResult:
     """Fit Avrami equation:  X(t) = 1 - exp(-k * t^n)
 
@@ -354,6 +484,9 @@ def avrami_fit(time_min: np.ndarray, Xt: np.ndarray,
     result = AvramiResult()
     result.t_data = time_min
     result.Xt_data = Xt
+    result.fit_xt_range = tuple(X_range)
+    if tuple(X_range) == (0.05, 0.80):
+        result.quality_flags.append('fit_xt_5_to_80')
 
     if len(Xt) < 5:
         return result
@@ -406,21 +539,59 @@ def avrami_fit(time_min: np.ndarray, Xt: np.ndarray,
     return result
 
 
+def avrami_candidates_from_dsc(time_min: np.ndarray, HF_Wg: np.ndarray,
+                               include_transient: bool = True,
+                               ) -> List[AvramiResult]:
+    """Compute deterministic Avrami results for every detected event candidate."""
+    candidates = detect_isothermal_event_candidates(time_min, HF_Wg)
+    results: List[AvramiResult] = []
+    for candidate in candidates:
+        if not include_transient and candidate.kind == 'transient':
+            continue
+        Xt, t, meta = relative_crystallinity_isothermal(
+            time_min, HF_Wg, event_candidate=candidate
+        )
+        if len(Xt) == 0:
+            result = AvramiResult()
+            result.quality_flags.extend(meta.get('quality_flags', []))
+        else:
+            result = avrami_fit(t, Xt)
+            result.induction_time_min = meta.get('induction_time_min', np.nan)
+            result.start_time_min = meta.get('start_time_min', np.nan)
+            result.end_time_min = meta.get('end_time_min', np.nan)
+            result.crystallisation_enthalpy_Jg = meta.get('crystallisation_enthalpy_Jg', np.nan)
+            result.quality_flags.extend(meta.get('quality_flags', []))
+        result.candidate_id = candidate.candidate_id
+        result.candidate_kind = candidate.kind
+        result.integration_start_index = int(candidate.start_index)
+        result.integration_end_index = int(candidate.end_index)
+        result.transient_excluded = bool(
+            candidate.kind != 'transient'
+            and any(item.kind == 'transient' for item in candidates)
+        )
+        result.event_candidates = [dict(item.__dict__) for item in candidates]
+        results.append(result)
+    return results
+
+
 def avrami_from_dsc(time_min: np.ndarray, HF_Wg: np.ndarray,
                     ) -> AvramiResult:
     """Full Avrami analysis from isothermal DSC data."""
-    Xt, t, meta = relative_crystallinity_isothermal(time_min, HF_Wg)
-    if len(Xt) == 0:
+    results = avrami_candidates_from_dsc(time_min, HF_Wg, include_transient=True)
+    if not results:
         result = AvramiResult()
-        result.quality_flags.extend(meta.get('quality_flags', []))
         return result
-    result = avrami_fit(t, Xt)
-    result.induction_time_min = meta.get('induction_time_min', np.nan)
-    result.start_time_min = meta.get('start_time_min', np.nan)
-    result.end_time_min = meta.get('end_time_min', np.nan)
-    result.crystallisation_enthalpy_Jg = meta.get('crystallisation_enthalpy_Jg', np.nan)
-    result.quality_flags.extend(meta.get('quality_flags', []))
-    return result
+    preferred = [item for item in results if item.candidate_kind != 'transient'] or results
+    return sorted(
+        preferred,
+        key=lambda av: (
+            np.isfinite(av.n),
+            'low_avrami_r_squared' not in av.quality_flags,
+            av.r_squared if np.isfinite(av.r_squared) else -np.inf,
+            av.crystallisation_enthalpy_Jg if np.isfinite(av.crystallisation_enthalpy_Jg) else -np.inf,
+        ),
+        reverse=True,
+    )[0]
 
 
 def analyze_isothermal_scan(scan: DSCScan,
@@ -443,17 +614,20 @@ def analyze_isothermal_scan(scan: DSCScan,
         return result
 
     for seg in segments:
-        av = avrami_from_dsc(seg.t_min, seg.HF_Wg)
-        av.label = seg.label
-        av.temperature_C = seg.temperature_C
-        if np.isnan(av.start_time_min):
-            av.start_time_min = seg.start_time_min
-        if np.isnan(av.end_time_min):
-            av.end_time_min = seg.end_time_min
-        if (not np.isnan(av.crystallisation_enthalpy_Jg)
-                and av.crystallisation_enthalpy_Jg < min_enthalpy_Jg):
-            av.quality_flags.append('low_crystallisation_enthalpy')
-        result.avrami_results.append(av)
+        candidates = avrami_candidates_from_dsc(seg.t_min, seg.HF_Wg, include_transient=True)
+        if not candidates:
+            candidates = [avrami_from_dsc(seg.t_min, seg.HF_Wg)]
+        for av in candidates:
+            av.label = seg.label
+            av.temperature_C = seg.temperature_C
+            if np.isnan(av.start_time_min):
+                av.start_time_min = seg.start_time_min
+            if np.isnan(av.end_time_min):
+                av.end_time_min = seg.end_time_min
+            if (not np.isnan(av.crystallisation_enthalpy_Jg)
+                    and av.crystallisation_enthalpy_Jg < min_enthalpy_Jg):
+                av.quality_flags.append('low_crystallisation_enthalpy')
+            result.avrami_results.append(av)
 
     valid = [
         av for av in result.avrami_results

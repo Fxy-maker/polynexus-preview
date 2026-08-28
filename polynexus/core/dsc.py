@@ -34,7 +34,12 @@ from .dsc_engine import (
     analyze_nonisothermal_scans,
     AvramiResult,
 )
-from .dsc_engine.dsc_kinetics import IsothermalKineticsResult, IsothermalSegment, avrami_from_dsc
+from .dsc_engine.dsc_kinetics import (
+    IsothermalKineticsResult,
+    IsothermalSegment,
+    avrami_from_dsc,
+    avrami_candidates_from_dsc,
+)
 from .dsc_engine.figure_provider import build_dsc_figure_definitions
 
 logger = logging.getLogger(__name__)
@@ -365,6 +370,15 @@ class DSCEngine(BaseEngine):
             'T_iso_C': a.temperature_C,
             'DHc_iso_Jg': a.crystallisation_enthalpy_Jg,
             'Avrami_R2': a.r_squared,
+            'candidate_id': a.candidate_id,
+            'candidate_kind': a.candidate_kind,
+            'integration_start_index': a.integration_start_index,
+            'integration_end_index': a.integration_end_index,
+            'transient_excluded': a.transient_excluded,
+            'fit_Xt_min': a.fit_xt_range[0],
+            'fit_Xt_max': a.fit_xt_range[1],
+            'event_candidate_count': len(a.event_candidates),
+            'event_candidates': a.event_candidates,
             'quality_flags': ", ".join(a.quality_flags),
         }
 
@@ -710,23 +724,26 @@ class DSCEngine(BaseEngine):
                 HF_Wg=scan.HF_Wg.copy(),
                 t_min=scan.t_min.copy(),
             )
-            avrami = avrami_from_dsc(segment.t_min, segment.HF_Wg)
-            avrami.label = segment.label
-            avrami.temperature_C = segment.temperature_C
-            if np.isnan(avrami.start_time_min):
-                avrami.start_time_min = segment.start_time_min
-            if np.isnan(avrami.end_time_min):
-                avrami.end_time_min = segment.end_time_min
-            for warning in scan.metadata.get("quality_warnings", ()):
-                if warning not in avrami.quality_flags:
-                    avrami.quality_flags.append(warning)
-            if (
-                np.isfinite(avrami.crystallisation_enthalpy_Jg)
-                and avrami.crystallisation_enthalpy_Jg < min_enthalpy
-            ):
-                avrami.quality_flags.append("low_crystallisation_enthalpy")
+            candidates = avrami_candidates_from_dsc(segment.t_min, segment.HF_Wg)
+            if not candidates:
+                candidates = [avrami_from_dsc(segment.t_min, segment.HF_Wg)]
+            for avrami in candidates:
+                avrami.label = segment.label
+                avrami.temperature_C = segment.temperature_C
+                if np.isnan(avrami.start_time_min):
+                    avrami.start_time_min = segment.start_time_min
+                if np.isnan(avrami.end_time_min):
+                    avrami.end_time_min = segment.end_time_min
+                for warning in scan.metadata.get("quality_warnings", ()):
+                    if warning not in avrami.quality_flags:
+                        avrami.quality_flags.append(warning)
+                if (
+                    np.isfinite(avrami.crystallisation_enthalpy_Jg)
+                    and avrami.crystallisation_enthalpy_Jg < min_enthalpy
+                ):
+                    avrami.quality_flags.append("low_crystallisation_enthalpy")
+                kinetics.avrami_results.append(avrami)
             kinetics.segments.append(segment)
-            kinetics.avrami_results.append(avrami)
         valid = [
             item for item in kinetics.avrami_results
             if np.isfinite(item.n)
