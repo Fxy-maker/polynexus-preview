@@ -67,3 +67,4 @@ def test_compute_result_metric_manifest_attaches_uniform_metadata_without_infere
         "status": "computed",
     }
     assert next(item for item in manifest if item["path"] == "peaks")["status"] == "computed"
+    assert result.metric_manifest_csv_rows()[0]["source"] == "sample.dsc"

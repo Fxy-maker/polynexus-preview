@@ -471,6 +471,18 @@ class ComputeResult:
             manifest.append(record)
         return tuple(manifest)
 
+    def metric_manifest_csv_rows(self) -> tuple[dict[str, Any], ...]:
+        """Return one flat row per result leaf for deterministic CSV export."""
+        rows: list[dict[str, Any]] = []
+        for item in self.metric_manifest():
+            row = dict(item)
+            row["parameters"] = json.dumps(
+                row.get("parameters", {}), ensure_ascii=False, sort_keys=True
+            )
+            row["warnings"] = ";".join(str(value) for value in row.get("warnings", ()))
+            rows.append(row)
+        return tuple(rows)
+
     @classmethod
     def from_legacy_result(cls, value: Any) -> ComputeResult:
         metrics = getattr(value, "parameters", {})

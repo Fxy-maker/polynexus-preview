@@ -22,11 +22,13 @@ condition-scoped group statistics without rerunning the six-sample dataset.
 ## Acceptance criteria
 
 - [x] Every `ComputeResult` leaf has a JSON-safe metric manifest with value/type,
-  optional unit/method/parameters/source, warnings, and status.
+  optional unit/method/parameters/source, warnings, and status; JSON and flat
+  CSV projections are available.
 - [x] Group statistics include count, mean, std, CV, minimum, maximum, trend,
-  repeatability, and source row IDs without mixing condition values.
+  repeatability, and source row IDs without mixing condition values; GUI detail
+  rows expose the extrema.
 - [x] A shared method-sensitivity DTO preserves primary and candidate results
-  with an explicit difference range.
+  with an explicit difference range and unavailable status.
 - [ ] All provider-specific deterministic capabilities are registered and
   consumed through the shared capability executor.
 - [ ] GUI, CLI, and evidence package expose the complete capability projection.

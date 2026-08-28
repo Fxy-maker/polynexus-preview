@@ -6068,3 +6068,17 @@ and structured gates (`303` / `157`).
 - Verification passed: 91 focused tests (3 skipped), quality 313,
   preprocessing 157, Ruff/compile/whitespace. Remaining six-sample statuses
   and human scientific review boundaries are unchanged.
+
+## Deterministic capability closure - 2026-08-29
+
+- `ComputeResult.metric_manifest()` and `metric_manifest_csv_rows()` expose
+  every result leaf with value/type, optional unit/method/parameters/source,
+  warnings, and computed/unavailable status; `ComputeRun` serializes the JSON
+  manifest.
+- `GroupResultTable` persists minimum/maximum and exposes condition-sorted
+  trends, replicate availability/CV, and flat statistic CSV rows.
+- `MethodSensitivity` provides a shared primary/candidate method contract with
+  explicit difference range and unavailable status.
+- Focused coverage passes 84 tests (3 skipped). Provider-specific capability
+  registration and complete evidence-package consumption remain open;
+  six-sample replay is explicitly deferred.
