@@ -9,6 +9,9 @@
   `provider_metric_unavailable`. Agent workflow and writing-metric consumers
   expose these observations as diagnostic-only, with no scientific or
   publication promotion.
+- `ComputeResult.metric_manifest(source=...)` and `ComputeRun.to_dict()` now
+  use the run artifact path as a source fallback when provider metadata does
+  not include one, so persisted manifests remain source-locatable.
 
 - `ComputeResult`/`ComputeRun` now expose a technique-neutral `field_inventory`
   for every emitted metric leaf, including scalar, series, nested, and missing

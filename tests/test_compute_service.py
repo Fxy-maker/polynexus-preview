@@ -311,6 +311,7 @@ def test_direct_run_completes_with_projected_legacy_warnings(tmp_path: Path) -> 
     assert run.provider_capability_items
     assert next(item for item in run.provider_capability_items if item.capability_id == "Tm").status == "completed"
     assert "provider_capability_items" in run.to_dict()
+    assert all(item["source"] == str(source.resolve()) for item in run.to_dict()["result"]["metric_manifest"])
     assert run.result.metrics == {"t_half_s": 12.5, "Tm_peak_C": 185.2}
     assert run.result.figures == {"curve": "curve.svg"}
     assert run.result.metadata == {"provider": "fake"}

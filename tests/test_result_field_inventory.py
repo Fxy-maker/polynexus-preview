@@ -68,3 +68,11 @@ def test_compute_result_metric_manifest_attaches_uniform_metadata_without_infere
     }
     assert next(item for item in manifest if item["path"] == "peaks")["status"] == "computed"
     assert result.metric_manifest_csv_rows()[0]["source"] == "sample.dsc"
+
+
+def test_compute_result_metric_manifest_accepts_run_source_fallback():
+    result = ComputeResult(metrics={"Tm_C": 185.2})
+
+    manifest = result.metric_manifest(source="raw/sample.dsc")
+
+    assert manifest[0]["source"] == "raw/sample.dsc"

@@ -424,7 +424,7 @@ class ComputeResult:
         if not all(isinstance(item, MethodSensitivity) for item in self.method_sensitivities):
             raise TypeError("method_sensitivities must contain MethodSensitivity values")
 
-    def to_public_dict(self) -> dict[str, Any]:
+    def to_public_dict(self, *, source: str | None = None) -> dict[str, Any]:
         """Return the complete JSON-safe result projection."""
         return {
             "metrics": _json_value(self.metrics),
@@ -432,7 +432,7 @@ class ComputeResult:
             "metadata": _json_value(self.metadata),
             "warnings": list(self.warnings),
             "field_inventory": list(self.field_inventory()),
-            "metric_manifest": list(self.metric_manifest()),
+            "metric_manifest": list(self.metric_manifest(source=source)),
             "method_sensitivities": [item.to_dict() for item in self.method_sensitivities],
         }
 
@@ -444,13 +444,15 @@ class ComputeResult:
             field.to_dict() for field in build_result_field_inventory(self.metrics)
         )
 
-    def metric_manifest(self) -> tuple[dict[str, Any], ...]:
+    def metric_manifest(self, *, source: str | None = None) -> tuple[dict[str, Any], ...]:
         """Expose every result leaf with uniform provenance metadata."""
         inventory = self.field_inventory()
         units = self.metadata.get("units", {})
         methods = self.metadata.get("methods", self.metadata.get("method", {}))
         parameters = self.metadata.get("parameters", {})
-        source = self.metadata.get("source", self.metadata.get("source_file"))
+        source_value = source
+        if source_value is None:
+            source_value = self.metadata.get("source", self.metadata.get("source_file"))
         warnings = list(self.warnings)
         manifest: list[dict[str, Any]] = []
         for item in inventory:
@@ -461,7 +463,7 @@ class ComputeResult:
                 "unit": _json_value(_metadata_for_path(units, path)),
                 "method": _json_value(_metadata_for_path(methods, path)),
                 "parameters": _json_value(_metadata_for_path(parameters, path) or {}),
-                "source": source,
+                "source": source_value,
                 "warnings": warnings,
                 "status": "computed" if item.get("present", True) else "unavailable",
             }
@@ -472,10 +474,10 @@ class ComputeResult:
             manifest.append(record)
         return tuple(manifest)
 
-    def metric_manifest_csv_rows(self) -> tuple[dict[str, Any], ...]:
+    def metric_manifest_csv_rows(self, *, source: str | None = None) -> tuple[dict[str, Any], ...]:
         """Return one flat row per result leaf for deterministic CSV export."""
         rows: list[dict[str, Any]] = []
-        for item in self.metric_manifest():
+        for item in self.metric_manifest(source=source):
             row = dict(item)
             row["parameters"] = json.dumps(
                 row.get("parameters", {}), ensure_ascii=False, sort_keys=True
@@ -632,7 +634,7 @@ class ComputeRun:
         )
         if self.result is not None:
             payload["result"]["field_inventory"] = list(self.result.field_inventory())
-            payload["result"]["metric_manifest"] = list(self.result.metric_manifest())
+            payload["result"]["metric_manifest"] = list(self.result.metric_manifest(source=self.artifact.path))
             payload["result"]["method_sensitivities"] = [
                 item.to_dict() for item in self.result.method_sensitivities
             ]
