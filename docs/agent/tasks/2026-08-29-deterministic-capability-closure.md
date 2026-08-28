@@ -19,6 +19,20 @@ condition-scoped group statistics without rerunning the six-sample dataset.
 - No automatic grouping, literature interpretation, RAG, material database, or
   manuscript promotion.
 
+## Affected boundaries
+
+- Shared compute result, capability catalog, and method-sensitivity contracts.
+- Project group-result tables and writing-metric/evidence projection.
+- GUI and CLI consumers of serialized result manifests.
+
+## Implementation plan
+
+1. Add uniform metric-manifest metadata and JSON/CSV projections.
+2. Add method-sensitivity and condition-scoped group-statistic contracts.
+3. Register and expose the deterministic capability catalog, then audit
+   provider-specific execution coverage without changing algorithms.
+4. Run focused and task-level verification; record remaining capability gaps.
+
 ## Acceptance criteria
 
 - [x] Every `ComputeResult` leaf has a JSON-safe metric manifest with value/type,
