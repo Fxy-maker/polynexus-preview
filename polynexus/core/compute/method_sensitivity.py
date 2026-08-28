@@ -9,6 +9,18 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 
+# Candidate dimensions are declarations, not automatic fallbacks. A provider
+# may publish values for any subset when it has actually evaluated them.
+METHOD_SENSITIVITY_DIMENSIONS: dict[str, tuple[str, ...]] = {
+    "dsc": ("baseline", "integration_window", "fit_window"),
+    "ftir": ("background", "normalization", "peak_fit", "integration_window"),
+    "ir": ("background", "normalization", "peak_fit", "integration_window"),
+    "saxs": ("background", "fit_model", "integration_window"),
+    "waxs": ("background", "peak_decomposition", "crystallinity"),
+    "nmr": ("baseline", "peak_fit", "region_integration"),
+}
+
+
 def _finite(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, Real):
         return None
@@ -201,4 +213,9 @@ def sensitivities_from_metrics(
     return tuple(values)
 
 
-__all__ = ["MethodSensitivity", "evaluate_method_sensitivity", "sensitivities_from_metrics"]
+__all__ = [
+    "METHOD_SENSITIVITY_DIMENSIONS",
+    "MethodSensitivity",
+    "evaluate_method_sensitivity",
+    "sensitivities_from_metrics",
+]

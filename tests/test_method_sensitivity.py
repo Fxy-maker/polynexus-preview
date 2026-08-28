@@ -4,6 +4,7 @@ import pytest
 
 from polynexus.core.compute.method_sensitivity import MethodSensitivity
 from polynexus.core.compute.method_sensitivity import (
+    METHOD_SENSITIVITY_DIMENSIONS,
     evaluate_method_sensitivity,
     sensitivities_from_metrics,
 )
@@ -109,3 +110,10 @@ def test_sensitivities_from_metrics_extracts_dsc_baseline_variants():
     assert [item.metric_path for item in values] == ["area_Wg_min"]
     assert values[0].primary_method == "endpoint_linear"
     assert values[0].candidates == {"tail_constant": 12.0}
+
+
+def test_method_sensitivity_dimensions_cover_supported_techniques_without_defaults():
+    assert set(METHOD_SENSITIVITY_DIMENSIONS) >= {"dsc", "ftir", "saxs", "waxs", "nmr"}
+    assert "normalization" in METHOD_SENSITIVITY_DIMENSIONS["ftir"]
+    assert "fit_model" in METHOD_SENSITIVITY_DIMENSIONS["saxs"]
+    assert "region_integration" in METHOD_SENSITIVITY_DIMENSIONS["nmr"]
