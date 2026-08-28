@@ -22,6 +22,7 @@ from .models import EvidenceItem, canonical_json
 from .writing_metrics import CitationMetric, extract_package_metrics, with_package_assets
 from .ars_handoff import build_ars_writing_input
 from .workspace import ProjectWorkspace
+from .result_table import build_result_tables_from_runs
 
 
 _VERSION_RE = re.compile(r"^(?P<name>.+)-v(?P<version>\d{3,})$")
@@ -179,6 +180,8 @@ class ProjectEvidencePackager:
                 "asset_hashes": self._asset_hashes(copied_assets),
                 "limitations": limitations,
             }
+            result_tables = build_result_tables_from_runs(run_values)
+            package_manifest["result_tables"] = "result-tables.json"
             technique_index = self._technique_index(run_values, evidence, limitations)
             package_manifest["techniques"] = technique_index
             citation_metrics = self._package_metrics(
@@ -213,6 +216,7 @@ class ProjectEvidencePackager:
             self._write_json(package_path / "ars-writing-input.json", ars_writing_input)
             self._write_json(package_path / "review-decision.json", review_decision_payload)
             self._write_json(package_path / "limitations.json", {"limitations": limitations})
+            self._write_json(package_path / "result-tables.json", {"tables": list(result_tables)})
             self._copy_assets(copied_assets, package_path)
             self._write_figure_index(package_path, figure_index)
             if figure_candidate_payload is not None:

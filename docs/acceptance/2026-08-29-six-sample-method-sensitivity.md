@@ -34,6 +34,8 @@ ComputeRun is built.
   per provider step when scalar manifest values are available. The condition
   key is the explicit workflow `step_id`; no temperature/time/material axis is
   inferred.
+- Evidence packages persist the same tables at `result-tables.json` and link
+  them from `manifest.json`, so GUI/CLI/ARS consume one table contract.
 - `AnalysisResult.method_sensitivities` is an explicit provider input. The
   shared layer normalizes it, recursively adapts DSC baseline variants, fills
   missing sensitivity source with the run artifact path, and exposes the same

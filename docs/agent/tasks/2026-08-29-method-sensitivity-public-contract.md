@@ -49,6 +49,8 @@ diagnostic observations until a human/AI workflow makes an explicit decision.
 - [x] DSC baseline variants are adapted recursively without inference.
 - [x] ComputeRun fills a missing sensitivity source from its artifact path.
 - [x] ARS writing metrics receive primary and candidate values as diagnostics.
+- [x] Evidence packages include the shared `result-tables.json` projection and
+  manifest link.
 - [x] Technique-specific providers remain opt-in: candidates are published only
   after scientific review, and this contract task changes no provider algorithm.
 

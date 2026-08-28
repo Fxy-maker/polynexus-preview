@@ -159,6 +159,18 @@ def test_package_writes_citation_metrics_with_writing_evidence_links(tmp_path: P
     assert "Citation metrics: citation-metrics.json" in (package.path / "writing-input.md").read_text(encoding="utf-8")
 
 
+def test_package_contains_shared_result_tables_projection(tmp_path: Path) -> None:
+    run = _run_dsc_request(tmp_path)
+    package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))
+
+    manifest = json.loads((package.path / "manifest.json").read_text(encoding="utf-8"))
+    tables = json.loads((package.path / "result-tables.json").read_text(encoding="utf-8"))
+
+    assert manifest["result_tables"] == "result-tables.json"
+    assert isinstance(tables["tables"], list)
+    assert tables["tables"]
+
+
 def _dsc_evidence(parameters: dict) -> object:
     return {
         "evidence_id": "dsc-evidence",

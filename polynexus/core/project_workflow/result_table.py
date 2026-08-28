@@ -309,4 +309,62 @@ def build_group_result_table(
     return GroupResultTable(group, selected[0].technique, selected, statistics)
 
 
-__all__ = ["GroupResultTable", "ResultStatistic", "ResultTableRow", "build_group_result_table"]
+def build_result_tables_from_runs(runs: Iterable[Any]) -> tuple[dict[str, Any], ...]:
+    """Project scalar ComputeRun manifest leaves into persisted group tables.
+
+    ``runs`` is intentionally duck-typed to avoid coupling this DTO module to
+    the project-workflow envelope classes. The caller supplies the workflow
+    step as the only condition key; scientific axes must be selected upstream.
+    """
+    tables: list[dict[str, Any]] = []
+    for run in runs:
+        analysis_run = getattr(run, "analysis_run", None)
+        if analysis_run is None:
+            continue
+        for step in getattr(analysis_run, "steps", ()):
+            compute_run = getattr(step, "compute_run", None)
+            if not isinstance(compute_run, Mapping):
+                continue
+            result = compute_run.get("result")
+            if not isinstance(result, Mapping):
+                continue
+            manifest = result.get("metric_manifest")
+            if not isinstance(manifest, (list, tuple)):
+                continue
+            metrics: dict[str, Any] = {}
+            warnings = [str(value) for value in getattr(step, "reason_codes", ()) if value]
+            warnings.extend(str(value) for value in result.get("warnings", ()) if value)
+            for item in manifest:
+                if not isinstance(item, Mapping) or item.get("status") != "computed":
+                    continue
+                if item.get("kind") != "scalar" or "value" not in item:
+                    continue
+                metrics[str(item.get("path", "metric"))] = item.get("value")
+                warnings.extend(str(value) for value in item.get("warnings", ()) if value)
+            if not metrics:
+                continue
+            artifact = compute_run.get("artifact")
+            source = artifact.get("path") if isinstance(artifact, Mapping) else None
+            source = str(source or getattr(run, "run_id", "unknown"))
+            step_id = str(getattr(step, "step_id", "step"))
+            technique = str(getattr(step, "technique", "unknown"))
+            row = ResultTableRow(
+                row_id=str(getattr(run, "run_id", "run")),
+                technique=technique,
+                source=source,
+                condition_key="step_id",
+                condition_value=step_id,
+                metrics=metrics,
+                warnings=tuple(dict.fromkeys(warnings)),
+            )
+            tables.append(build_group_result_table(f"{technique}:{step_id}", (row,)).to_dict())
+    return tuple(tables)
+
+
+__all__ = [
+    "GroupResultTable",
+    "ResultStatistic",
+    "ResultTableRow",
+    "build_group_result_table",
+    "build_result_tables_from_runs",
+]
