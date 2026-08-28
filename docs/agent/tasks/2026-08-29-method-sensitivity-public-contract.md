@@ -57,6 +57,9 @@ diagnostic observations until a human/AI workflow makes an explicit decision.
   configuration candidates; each candidate is re-run with an isolated output
   path, and unavailable dimensions or provider failures are retained as
   warnings instead of silently falling back or being guessed.
+- [x] SAXS `integration_window` candidates use an explicit coupled
+  `{q_min, q_max}` override mapped to `q_bragg_min/q_bragg_max`; malformed
+  coupled values fail with a recorded warning.
 
 ## Verification
 
@@ -69,6 +72,6 @@ git diff --check
 ## Follow-up
 
 Extend the explicit field map only when a provider exposes a deterministic,
-scientifically reviewed configuration field. Range-like dimensions that need
-multiple coupled fields remain unavailable until their provider contract can
-represent the coupled override without guessing.
+scientifically reviewed configuration field. Range-like dimensions must use a
+coupled override with named fields (as SAXS does for `q_min/q_max`) rather than
+guessing from a single scalar.

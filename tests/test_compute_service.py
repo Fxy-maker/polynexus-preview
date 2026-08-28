@@ -257,11 +257,61 @@ def test_direct_run_records_unavailable_method_dimension_without_fallback(tmp_pa
         technique="saxs",
         path=source,
         output_dir=tmp_path / "out",
-        pipeline_options={"method_sensitivity": {"integration_window": ["narrow", "wide"]}},
+        pipeline_options={"method_sensitivity": {"unknown_window": ["narrow", "wide"]}},
     )
     assert run.status == "completed"
     assert run.result is not None
-    assert "method_sensitivity_unavailable:saxs:integration_window" in run.result.warnings
+    assert "method_sensitivity_unavailable:saxs:unknown_window" in run.result.warnings
+
+
+def test_direct_run_replays_saxs_coupled_integration_window(tmp_path: Path) -> None:
+    source = tmp_path / "profile.edf"
+    source.write_text("placeholder", encoding="utf-8")
+    calls: list[dict[str, Any]] = []
+
+    class ConfiguredEngine(FakeEngine):
+        def run_pipeline(self, path: str, output_dir: str, **options: Any) -> Any:
+            calls.append(dict(self.config or {}))
+            cfg = self.config or {}
+            q_min = cfg.get("q_bragg_min", 0.15)
+            q_max = cfg.get("q_bragg_max", 0.9)
+            return SimpleNamespace(
+                parameters={"L_nm": q_max - q_min}, figures={}, metadata={}
+            )
+
+    def factory(_technique: str, config: Any = None, submodule_id: str | None = None) -> Any:
+        engine = ConfiguredEngine(EmptyLegacyResult())
+        engine.config = config
+        return engine
+
+    run = ComputeRunService(factory).run_direct(
+        technique="saxs",
+        path=source,
+        output_dir=tmp_path / "out",
+        config={"q_bragg_min": 0.15, "q_bragg_max": 0.9},
+        pipeline_options={
+            "method_sensitivity": {
+                "integration_window": [
+                    {"q_min": 0.2, "q_max": 0.8},
+                    {"q_min": 0.3, "q_max": 1.0},
+                ]
+            }
+        },
+    )
+
+    assert run.status == "completed"
+    assert calls == [
+        {"q_bragg_min": 0.15, "q_bragg_max": 0.9},
+        {"q_bragg_min": 0.2, "q_bragg_max": 0.8},
+        {"q_bragg_min": 0.3, "q_bragg_max": 1.0},
+    ]
+    assert run.result is not None
+    sensitivity = run.result.method_sensitivities[0]
+    assert sensitivity.primary_method == '{"q_bragg_max":0.9,"q_bragg_min":0.15}'
+    assert set(sensitivity.candidates) == {
+        '{"q_max":0.8,"q_min":0.2}',
+        '{"q_max":1.0,"q_min":0.3}',
+    }
 
 
 @pytest.mark.parametrize(
@@ -271,7 +321,7 @@ def test_direct_run_records_unavailable_method_dimension_without_fallback(tmp_pa
         {},
         {"baseline": []},
         {"baseline": "linear"},
-        {"baseline": [{"method": "linear"}]},
+        {"baseline": [{"method": object()}]},
         {"baseline": [object()]},
         {"dimensions": []},
     ),

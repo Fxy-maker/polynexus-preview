@@ -35,10 +35,12 @@
   diagnostic-only observations. Focused tests and task verification passed;
   direct ComputeRun requests can now explicitly replay supported provider
   configuration candidates (currently IR/FTIR, WAXS, SAXS fit/background, and
-  NMR fields where the config exposes a deterministic scalar). Each candidate
-  gets an isolated output path, provider failures remain as null values with
-  warnings, and unsupported dimensions are reported as unavailable rather than
-  guessed. A fresh six-sample replay remains the next goal step.
+  NMR fields where the config exposes a deterministic scalar). SAXS
+  `integration_window` is represented as an explicit coupled `q_min/q_max`
+  override. Each candidate gets an isolated output path, provider failures
+  remain as null values with warnings, and unsupported dimensions are reported
+  as unavailable rather than guessed. A fresh six-sample replay remains the
+  next goal step.
 
 ## Maximum deterministic calculation output — 2026-08-29
 

@@ -408,18 +408,24 @@ class ComputeRunService:
                     f"method_sensitivity_unavailable:{technique}:{dimension}"
                 )
                 continue
-            primary_method = _config_value(base_config, attribute, selected_engine)
+            primary_method_value = _config_value(base_config, attribute, selected_engine)
+            primary_method = _method_label(primary_method_value)
             if primary_method is None:
                 primary_method = "default"
             candidate_values: dict[str, dict[str, Any] | None] = {}
             candidate_errors: dict[str, str] = {}
             candidate_output_dirs: dict[str, str] = {}
             for method in methods:
-                method_name = str(method)
-                if method_name == str(primary_method):
+                method_name = _method_label(method)
+                if method_name == primary_method:
                     continue
                 candidate_config = _clone_config(base_config)
-                _set_config_value(candidate_config, attribute, method)
+                try:
+                    _set_config_value(candidate_config, attribute, method)
+                except (TypeError, ValueError) as exc:
+                    candidate_values[method_name] = None
+                    candidate_errors[method_name] = type(exc).__name__
+                    continue
                 candidate_output_dir = _candidate_output_dir(output_dir, str(dimension), method_name)
                 candidate_output_dirs[method_name] = candidate_output_dir
                 try:
@@ -499,7 +505,7 @@ def _valid_method_sensitivity_request(value: Any) -> bool:
     for dimension, methods in dimensions.items():
         if not str(dimension).strip() or not isinstance(methods, (list, tuple)) or not methods:
             return False
-        if any(isinstance(method, (Mapping, list, tuple)) or not _is_json_safe(method) for method in methods):
+        if any(not _is_json_safe(method) for method in methods):
             return False
     return True
 
@@ -509,10 +515,14 @@ def _normalize_method_sensitivity_request(value: Mapping[str, Any]) -> dict[str,
     return {"dimensions": {str(key): list(methods) for key, methods in dimensions.items()}}
 
 
-def _sensitivity_attribute(technique: str, dimension: str) -> str | None:
+def _sensitivity_attribute(technique: str, dimension: str) -> str | tuple[str, ...] | None:
     mapping = {
         "ir": {"background": "baseline_method", "baseline": "baseline_method", "normalization": "normalization_method", "peak_fit": "lineshape", "integration_window": "peak_fit_window_cm1"},
-        "saxs": {"background": "bg_scale_method", "fit_model": "lorentz_fit_method"},
+        "saxs": {
+            "background": "bg_scale_method",
+            "fit_model": "lorentz_fit_method",
+            "integration_window": ("q_bragg_min", "q_bragg_max"),
+        },
         "waxs": {"background": "background_method", "peak_decomposition": "peak_function", "crystallinity": "crystallinity_method"},
         "nmr": {"baseline": "baseline_method", "peak_fit": "deconvolution_method", "region_integration": "peak_distance_ppm"},
     }
@@ -535,14 +545,34 @@ def _clone_config(config: Any) -> Any:
     return copy.deepcopy(config) if config is not None else {}
 
 
-def _config_value(config: Any, attribute: str, engine: Any) -> Any:
+def _config_value(config: Any, attribute: str | tuple[str, ...], engine: Any) -> Any:
+    if isinstance(attribute, tuple):
+        return {
+            name: _config_value(config, name, engine)
+            for name in attribute
+        }
     if isinstance(config, Mapping):
         return config.get(attribute)
     value = getattr(config, attribute, None) if config is not None else None
     return value
 
 
-def _set_config_value(config: Any, attribute: str, value: Any) -> None:
+def _set_config_value(config: Any, attribute: str | tuple[str, ...], value: Any) -> None:
+    if isinstance(attribute, tuple):
+        if not isinstance(value, Mapping):
+            raise TypeError("coupled method sensitivity override must be a mapping")
+        aliases = {
+            "q_min": attribute[0],
+            "q_max": attribute[1],
+        }
+        for key, item in value.items():
+            target = aliases.get(str(key), str(key))
+            if target not in attribute:
+                raise ValueError(f"unsupported coupled override field: {key}")
+            _set_config_value(config, target, item)
+        if any(_config_value(config, name, None) is None for name in attribute):
+            raise ValueError("coupled method sensitivity override must set all fields")
+        return
     if isinstance(config, Mapping):
         config[attribute] = value
     else:
@@ -567,3 +597,10 @@ def _candidate_output_dir(output_dir: str, dimension: str, method: str) -> str:
     safe_dimension = re.sub(r"[^A-Za-z0-9_.-]+", "_", dimension).strip("._") or "dimension"
     safe_method = re.sub(r"[^A-Za-z0-9_.-]+", "_", method).strip("._") or "method"
     return str(Path(output_dir) / "method-sensitivity" / safe_dimension / safe_method)
+
+
+def _method_label(value: Any) -> str:
+    """Return a stable display key for scalar or coupled method descriptors."""
+    if isinstance(value, Mapping):
+        return json.dumps(_json_safe_projection(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return str(value)
