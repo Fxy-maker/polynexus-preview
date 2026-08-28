@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-29-six-sample-result-completeness
 kind: scientific
-status: active
+status: completed
 date: 2026-08-29
 title: Close provider result completeness gaps found by six-sample replay
 ---
