@@ -17,6 +17,7 @@ from typing import Any
 
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256, raw_artifact_id
 from ..canonical_experiments.models import CanonicalExperiment, CapabilityItemResult
+from .method_sensitivity import MethodSensitivity
 
 
 COMPUTE_STATUSES = frozenset({"ready", "needs_input", "failed", "completed"})
@@ -403,6 +404,7 @@ class ComputeResult:
     figures: Mapping[str, str] = field(default_factory=dict)
     metadata: Mapping[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
+    method_sensitivities: tuple[MethodSensitivity, ...] = ()
 
     def __post_init__(self) -> None:
         frozen_metrics = _freeze_mapping(_scrub_compute_result_projection(self.metrics))
@@ -417,6 +419,21 @@ class ComputeResult:
             _freeze_mapping(_scrub_compute_result_projection(self.metadata)),
         )
         object.__setattr__(self, "warnings", _freeze_strings(self.warnings, "warnings"))
+        object.__setattr__(self, "method_sensitivities", tuple(self.method_sensitivities))
+        if not all(isinstance(item, MethodSensitivity) for item in self.method_sensitivities):
+            raise TypeError("method_sensitivities must contain MethodSensitivity values")
+
+    def to_public_dict(self) -> dict[str, Any]:
+        """Return the complete JSON-safe result projection."""
+        return {
+            "metrics": _json_value(self.metrics),
+            "figures": _json_value(self.figures),
+            "metadata": _json_value(self.metadata),
+            "warnings": list(self.warnings),
+            "field_inventory": list(self.field_inventory()),
+            "metric_manifest": list(self.metric_manifest()),
+            "method_sensitivities": [item.to_dict() for item in self.method_sensitivities],
+        }
 
     def field_inventory(self) -> tuple[dict[str, Any], ...]:
         """Return a JSON-safe inventory of every emitted metric field."""
@@ -425,6 +442,34 @@ class ComputeResult:
         return tuple(
             field.to_dict() for field in build_result_field_inventory(self.metrics)
         )
+
+    def metric_manifest(self) -> tuple[dict[str, Any], ...]:
+        """Expose every result leaf with uniform provenance metadata."""
+        inventory = self.field_inventory()
+        units = self.metadata.get("units", {})
+        methods = self.metadata.get("methods", self.metadata.get("method", {}))
+        parameters = self.metadata.get("parameters", {})
+        source = self.metadata.get("source", self.metadata.get("source_file"))
+        warnings = list(self.warnings)
+        manifest: list[dict[str, Any]] = []
+        for item in inventory:
+            path = str(item["path"])
+            record = {
+                "path": path,
+                "kind": item["kind"],
+                "unit": _json_value(_metadata_for_path(units, path)),
+                "method": _json_value(_metadata_for_path(methods, path)),
+                "parameters": _json_value(_metadata_for_path(parameters, path) or {}),
+                "source": source,
+                "warnings": warnings,
+                "status": "computed" if item.get("present", True) else "unavailable",
+            }
+            if item["kind"] == "scalar" and item.get("present", True):
+                record["value"] = item.get("value")
+            elif item["kind"] == "series" and item.get("present", True):
+                record["item_count"] = item.get("item_count", 0)
+            manifest.append(record)
+        return tuple(manifest)
 
     @classmethod
     def from_legacy_result(cls, value: Any) -> ComputeResult:
@@ -449,6 +494,10 @@ class ComputeResult:
             figures=figures if isinstance(figures, Mapping) else {},
             metadata=metadata if isinstance(metadata, Mapping) else {},
             warnings=tuple(warnings),
+            method_sensitivities=tuple(
+                item for item in getattr(value, "method_sensitivities", ())
+                if isinstance(item, MethodSensitivity)
+            ),
         )
 
 
@@ -564,4 +613,21 @@ class ComputeRun:
         )
         if self.result is not None:
             payload["result"]["field_inventory"] = list(self.result.field_inventory())
+            payload["result"]["metric_manifest"] = list(self.result.metric_manifest())
+            payload["result"]["method_sensitivities"] = [
+                item.to_dict() for item in self.result.method_sensitivities
+            ]
         return payload
+
+
+def _metadata_for_path(value: Any, path: str) -> Any:
+    if isinstance(value, Mapping):
+        if path in value:
+            return value[path]
+        current: Any = value
+        for part in path.split("."):
+            if not isinstance(current, Mapping) or part not in current:
+                return None
+            current = current[part]
+        return current
+    return value if value not in (None, "") else None

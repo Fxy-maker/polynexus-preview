@@ -58,6 +58,8 @@ class ResultStatistic:
     mean: float
     std: float
     cv: float | None
+    minimum: float | None
+    maximum: float | None
     source_row_ids: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -69,6 +71,8 @@ class ResultStatistic:
             "mean": self.mean,
             "std": self.std,
             "cv": self.cv,
+            "minimum": self.minimum,
+            "maximum": self.maximum,
             "source_row_ids": list(self.source_row_ids),
         }
 
@@ -93,12 +97,55 @@ class GroupResultTable:
             return records
         return tuple(item for item in records if item.metric_key == metric_key)
 
+    def condition_trend(self, metric_key: str) -> tuple[dict[str, Any], ...]:
+        """Return deterministic condition-ordered values for one metric."""
+        records = [item for item in self.statistics(metric_key) if item.count > 0]
+        records.sort(key=lambda item: _condition_sort_key(item.condition_value))
+        return tuple({
+            "condition_key": item.condition_key,
+            "condition_value": item.condition_value,
+            "metric_key": item.metric_key,
+            "count": item.count,
+            "mean": item.mean,
+            "minimum": item.minimum,
+            "maximum": item.maximum,
+            "std": item.std,
+            "cv": item.cv,
+            "source_row_ids": list(item.source_row_ids),
+        } for item in records)
+
+    def repeatability(self, metric_key: str) -> dict[str, Any]:
+        """Summarize replicate availability without imposing a quality cutoff."""
+        conditions = []
+        records = sorted(self.statistics(metric_key), key=lambda item: _condition_sort_key(item.condition_value))
+        for item in records:
+            conditions.append({
+                "condition_value": item.condition_value,
+                "count": item.count,
+                "cv": item.cv,
+                "status": "available" if item.count >= 2 else "insufficient_replicates",
+                "source_row_ids": list(item.source_row_ids),
+            })
+        return {
+            "condition_key": self.rows[0].condition_key,
+            "metric_key": metric_key,
+            "conditions": conditions,
+        }
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "group_id": self.group_id,
             "technique": self.technique,
             "rows": [row.to_dict() for row in self.rows],
             "statistics": [item.to_dict() for item in self.statistics()],
+            "trends": {
+                metric_key: list(self.condition_trend(metric_key))
+                for metric_key in sorted({key for row in self.rows for key in row.metrics})
+            },
+            "repeatability": {
+                metric_key: self.repeatability(metric_key)
+                for metric_key in sorted({key for row in self.rows for key in row.metrics})
+            },
         }
 
     @classmethod
@@ -135,6 +182,8 @@ class GroupResultTable:
                 mean=float(item["mean"]),
                 std=float(item["std"]),
                 cv=float(item["cv"]) if item.get("cv") is not None else None,
+                minimum=float(item["minimum"]) if item.get("minimum") is not None else None,
+                maximum=float(item["maximum"]) if item.get("maximum") is not None else None,
                 source_row_ids=tuple(str(value) for value in item.get("source_row_ids", ())),
             )
             for item in raw_statistics
@@ -164,6 +213,24 @@ class GroupResultTable:
             for key, value in sorted(row.metrics.items(), key=lambda item: str(item[0])):
                 rows.append({**base, "metric_key": str(key), "value": value})
         return tuple(rows)
+
+    def statistics_csv_rows(self) -> tuple[dict[str, Any], ...]:
+        """Return condition-level statistics as flat export rows."""
+        return tuple({
+            "group_id": self.group_id,
+            "technique": self.technique,
+            "row_type": "statistic",
+            "condition_key": item.condition_key,
+            "condition_value": item.condition_value,
+            "metric_key": item.metric_key,
+            "count": item.count,
+            "mean": item.mean,
+            "std": item.std,
+            "cv": item.cv,
+            "minimum": item.minimum,
+            "maximum": item.maximum,
+            "source_row_ids": ";".join(item.source_row_ids),
+        } for item in self.statistics())
 
 
 def _condition_values(rows: tuple[ResultTableRow, ...]) -> tuple[Any, ...]:
@@ -196,9 +263,17 @@ def _compute_statistics(rows: tuple[ResultTableRow, ...]) -> tuple[ResultStatist
                 mean=mean,
                 std=std,
                 cv=(std / abs(mean)) if mean else None,
+                minimum=min(values),
+                maximum=max(values),
                 source_row_ids=tuple(row_id for row_id, _ in numeric),
             ))
     return tuple(records)
+
+
+def _condition_sort_key(value: Any) -> tuple[int, Any]:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return (0, float(value))
+    return (1, str(value))
 
 
 def build_group_result_table(

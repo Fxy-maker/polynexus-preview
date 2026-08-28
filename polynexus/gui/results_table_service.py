@@ -80,11 +80,11 @@ def build_group_results_table_model(
             for index, value in enumerate(values)
         ))
 
-    stat_columns = ["condition_key", "condition_value", "metric_key", "count", "mean", "std", "cv", "source_row_ids"]
+    stat_columns = ["condition_key", "condition_value", "metric_key", "count", "mean", "std", "cv", "minimum", "maximum", "source_row_ids"]
     stat_rows: list[tuple[TableCell, ...]] = []
     for stat in group.statistics():
         source_ids = ";".join(stat.source_row_ids)
-        values = [stat.condition_key, stat.condition_value, stat.metric_key, stat.count, stat.mean, stat.std, stat.cv, source_ids]
+        values = [stat.condition_key, stat.condition_value, stat.metric_key, stat.count, stat.mean, stat.std, stat.cv, stat.minimum, stat.maximum, source_ids]
         stat_rows.append(tuple(TableCell(raw=value, display=_format_display_value(value, digits=4), provenance=";".join(stat.source_row_ids)) for value in values))
 
     warning_columns = ["row_id", "source", "warning"]

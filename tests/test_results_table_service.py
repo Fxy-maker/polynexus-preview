@@ -119,6 +119,8 @@ def test_group_results_model_preserves_rows_statistics_and_warning_sources():
     assert model.primary_section is not None
     assert model.detail_section is not None
     assert model.detail_section.rows[0][-1].raw == "r1;r2"
+    assert model.detail_section.rows[0][7].raw == 10.0
+    assert model.detail_section.rows[0][8].raw == 14.0
     assert model.diagnostic_section is not None
     assert model.diagnostic_section.rows[0][2].raw == "baseline_review"
 

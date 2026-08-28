@@ -31,7 +31,25 @@ def test_group_table_keeps_rows_and_aggregates_only_same_condition():
     assert at_180.count == 2
     assert at_180.mean == pytest.approx(12.0)
     assert at_180.std == pytest.approx(2.0)
+    assert at_180.minimum == pytest.approx(10.0)
+    assert at_180.maximum == pytest.approx(14.0)
     assert at_180.source_row_ids == ("r1", "r2")
+
+
+def test_group_table_exposes_sorted_trend_and_repeatability_summary():
+    table = build_group_result_table(
+        "pa6-jw",
+        [_row("r1", "a.txt", 181.0, 12.0), _row("r2", "b.txt", 180.0, 10.0), _row("r3", "c.txt", 180.0, 14.0)],
+    )
+
+    trend = table.condition_trend("DHm_Jg")
+    repeatability = table.repeatability("DHm_Jg")
+
+    assert [item["condition_value"] for item in trend] == [180.0, 181.0]
+    assert trend[0]["mean"] == pytest.approx(12.0)
+    assert repeatability["condition_key"] == "temperature_C"
+    assert repeatability["conditions"][0]["cv"] == pytest.approx(2 / 12)
+    assert repeatability["conditions"][0]["status"] == "available"
 
 
 def test_group_table_serializes_rows_and_statistics():
@@ -41,7 +59,11 @@ def test_group_table_serializes_rows_and_statistics():
     assert payload["group_id"] == "pa6-jw"
     assert payload["rows"][0]["source"] == "a.txt"
     assert payload["statistics"][0]["metric_key"] == "DHm_Jg"
+    assert payload["statistics"][0]["minimum"] == 10.0
+    assert payload["trends"]["DHm_Jg"][0]["mean"] == 10.0
+    assert payload["repeatability"]["DHm_Jg"]["conditions"][0]["status"] == "insufficient_replicates"
     assert table.csv_rows()[0]["value"] == 10.0
+    assert table.statistics_csv_rows()[0]["minimum"] == 10.0
 
 
 def test_group_table_round_trips_from_dict_without_losing_traceability():

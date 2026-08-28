@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from polynexus.core.compute.result_inventory import build_result_field_inventory
+from polynexus.core.compute.models import ComputeResult
 
 
 def test_inventory_lists_scalar_series_and_nested_fields_without_dropping_values():
@@ -37,3 +38,32 @@ def test_inventory_rejects_non_mapping_metrics():
         assert "mapping" in str(exc).lower()
     else:
         raise AssertionError("expected a TypeError")
+
+
+def test_compute_result_metric_manifest_attaches_uniform_metadata_without_inference():
+    result = ComputeResult(
+        metrics={"Tm_C": 220.5, "peaks": [{"x": 1.0}]},
+        metadata={
+            "units": {"Tm_C": "°C"},
+            "methods": {"Tm_C": "peak_maximum"},
+            "parameters": {"Tm_C": {"window": [200, 240]}},
+            "source": "sample.dsc",
+        },
+        warnings=("baseline_review",),
+    )
+
+    manifest = result.metric_manifest()
+
+    melting = next(item for item in manifest if item["path"] == "Tm_C")
+    assert melting == {
+        "path": "Tm_C",
+        "kind": "scalar",
+        "value": 220.5,
+        "unit": "°C",
+        "method": "peak_maximum",
+        "parameters": {"window": [200, 240]},
+        "source": "sample.dsc",
+        "warnings": ["baseline_review"],
+        "status": "computed",
+    }
+    assert next(item for item in manifest if item["path"] == "peaks")["status"] == "computed"
