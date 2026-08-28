@@ -8,17 +8,17 @@ All methods follow the IUPAC convention: exothermic = positive.
 """
 
 import logging
-logger = logging.getLogger(__name__)
-
 import os
 import re
 
 import numpy as np
-from scipy import optimize, stats, signal
+from scipy import stats, signal
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
 from .io import DSCScan
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -761,8 +761,6 @@ def relative_crystallinity_from_T(T_C: np.ndarray, HF_Wg: np.ndarray,
 
     # Find crystallisation exotherm
     # With exo-up, crystallisation = positive peaks on cooling
-    dHF = np.gradient(HF, np.gradient(T))
-
     # Detect peak region
     peak_idx = np.argmax(HF)
     left = peak_idx
@@ -1135,7 +1133,7 @@ def relative_crystallinity_nonisothermal(T_C: np.ndarray,
     return Xt, T_roi, t_roi, meta
 
 
-def relative_crystallinity_from_T(T_C: np.ndarray, HF_Wg: np.ndarray,
+def relative_crystallinity_from_T(T_C: np.ndarray, HF_Wg: np.ndarray,  # noqa: F811
                                   rate_K_per_min: float,
                                   ) -> Tuple[np.ndarray, np.ndarray]:
     """Backward-compatible wrapper returning X and relative time."""
@@ -1301,7 +1299,7 @@ def _as_curves(T_C_list: List[np.ndarray],
     return build_nonisothermal_curves(T_C_list, HF_Wg_list, rates_K_per_min)
 
 
-def ozawa_analysis(T_C_list: List[np.ndarray],
+def ozawa_analysis(T_C_list: List[np.ndarray],  # noqa: F811
                    HF_Wg_list: List[np.ndarray],
                    rates_K_per_min: List[float],
                    X_levels: List[float] = None,
@@ -1351,7 +1349,7 @@ def ozawa_analysis(T_C_list: List[np.ndarray],
     return result
 
 
-def kissinger_analysis(Tp_C_list: List[float],
+def kissinger_analysis(Tp_C_list: List[float],  # noqa: F811
                        rates_K_per_min: List[float],
                        ) -> NonIsothermalResult:
     """Kissinger method for crystallisation activation energy."""
@@ -1377,7 +1375,7 @@ def kissinger_analysis(Tp_C_list: List[float],
     return result
 
 
-def friedman_analysis(T_C_list: List[np.ndarray],
+def friedman_analysis(T_C_list: List[np.ndarray],  # noqa: F811
                       HF_Wg_list: List[np.ndarray],
                       rates_K_per_min: List[float],
                       X_levels: List[float] = None,
@@ -1424,7 +1422,7 @@ def friedman_analysis(T_C_list: List[np.ndarray],
     return result
 
 
-def mo_analysis(T_C_list: List[np.ndarray],
+def mo_analysis(T_C_list: List[np.ndarray],  # noqa: F811
                 HF_Wg_list: List[np.ndarray],
                 rates_K_per_min: List[float],
                 X_levels: List[float] = None,
