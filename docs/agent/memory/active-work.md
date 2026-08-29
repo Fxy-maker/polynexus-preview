@@ -6194,3 +6194,9 @@ and structured gates (`303` / `157`).
 - The official ARS distribution URL/license and pinned production hash remain a
   human release decision; no source URL was invented. Existing untracked
   `active_run.json`, `runs/`, and `tests/_tmp_phase3/` remain untouched.
+
+## Paper pipeline foundations (2026-08-29)
+
+- Added shared Suite paper contracts in `polynexus.suite.paper_contracts`: versioned JSON DTOs for brief, claims, figures, citations, manuscript source, preflight, adaptive input requests, and traceable formulas.
+- Added read-only evidence projection, SVG-first figure rendering/quality checks, advisory figure ranking with review ledger, and Zotero/CSL citation adapters. Focused matrix passes 12 tests.
+- Full manuscript orchestration, document export/preflight, and PA6 pilot remain open; these foundations do not alter Core calculations or raw evidence.

@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-29-paper-quality-pipeline
 kind: architecture
-status: proposed
+status: in_progress
 date: 2026-08-29
 title: Build evidence-grounded paper generation pipeline
 ---
@@ -77,6 +77,15 @@ whole-paper structure, and deterministic document preflight.
 - [ ] Non-ambiguous stages run automatically; only material unresolved choices
       return a machine-readable `needs_input` request.
 - [ ] Existing Core and evidence-package tests remain green.
+
+## Progress (2026-08-29)
+
+- [x] Public paper contracts, adaptive input requests, and traceable formulas.
+- [x] Read-only evidence-package to manuscript-source projection.
+- [x] SVG-first FigurePlan renderer and static quality checks.
+- [x] Advisory figure ranking and append-only review-decision writer.
+- [x] Zotero detection plus CSL static citation fallback and exports.
+- [ ] Full manuscript orchestration, document preflight/export, and PA6 pilot.
 
 ## Verification
 
