@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-30-multitech-template-closure
 kind: architecture
-status: proposed
+status: in_progress
 date: 2026-08-30
 title: Close IR 2D, SAXS/WAXS 2D, and NMR canonical template routes
 ---
@@ -60,6 +60,16 @@ the duplication proven by those runs.
 4. Complete NMR four-mode shared entry and package replay.
 5. Extract only empirically shared fields, remove duplicate adapters, and run
    cross-technique evidence/figure/paper handoff acceptance.
+
+## Progress (2026-08-30)
+
+- [x] Added the first additive `ir.temperature_series.v1` converter. It reuses
+      existing 1-D `Measurement` frames, records temperature/time/order metadata,
+      and rejects unresolved temperature axes.
+- [x] Registered IR temperature-series directory conversion without changing
+      legacy static template mappings.
+- [ ] Project/Agent/ComputeRun sequence execution and evidence round-trip remain
+      open; current implementation is a template-level slice only.
 
 ## Acceptance boundary
 
