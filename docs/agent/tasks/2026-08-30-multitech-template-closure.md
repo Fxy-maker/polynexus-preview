@@ -77,8 +77,14 @@ the duplication proven by those runs.
       provenance; raw pixels and default calibration are excluded.
 - [x] Added explicit NMR four-mode project routing and mixed-technique package
       coverage using the existing `nmr.spectrum.v1` template.
-- [ ] Real vendor/image replay, provider-specific 2D evidence round-trip, and
-      empirical simplification remain open.
+- [x] Real IR/SAXS/WAXS image and NMR vendor replays reached ComputeRun,
+      metric/evidence projections, package, and evidence-only export where
+      applicable; provider-specific scientific gates remain unchanged.
+- [x] Empirical payload comparison confirmed the existing canonical outer
+      contract and adapters are the minimal safe shared layer. IR condition
+      axes and detector geometry remain intentionally technique-specific.
+- [ ] Final GUI/CLI/ARS product acceptance matrix remains a follow-up outside
+      this code checkpoint.
 
 ## Acceptance boundary
 
