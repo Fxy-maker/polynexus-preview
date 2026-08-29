@@ -10,3 +10,9 @@ def test_pipeline_assembles_and_preflights():
     assert result['sections'] and result['claims'][0]['claim_id']==c.claim_id
     report=preflight_manuscript(result)
     assert report.status in {'passed','review_required'}
+from pathlib import Path
+from polynexus.suite.paper_pipeline import export_manuscript
+
+def test_export_writes_reviewable_markdown(tmp_path: Path):
+    out=export_manuscript({'package_id':'p','sections':[{'name':'Results','claim_ids':[]}],'claims':[],'figures':[],'citations':[],'formulas':[],'limitations':[]},tmp_path)
+    assert Path(out['markdown']).is_file() and Path(out['json']).is_file()

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from typing import Iterable, Any
+import json
+from pathlib import Path
 
 from .paper_contracts import CitationRequest, ClaimRecord, FigurePlan, FormulaRecord, ManuscriptSource
 
@@ -34,4 +36,23 @@ def assemble_manuscript(
     }
 
 
-__all__ = ["assemble_manuscript"]
+def export_manuscript(manuscript: dict[str, Any], output_dir: str | Path) -> dict[str, str]:
+    """Write non-destructive, reviewable manuscript artifacts."""
+    root = Path(output_dir).expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    json_path = root / "manuscript.json"
+    md_path = root / "manuscript.md"
+    json_path.write_text(json.dumps(manuscript, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+    lines = ["# Manuscript draft", "", f"Package: `{manuscript.get('package_id', '')}`", ""]
+    for section in manuscript.get("sections", []):
+        lines.extend([f"## {section.get('name', 'Section')}", ""])
+        for claim_id in section.get("claim_ids", []):
+            claim = next((c for c in manuscript.get("claims", []) if c.get("claim_id") == claim_id), None)
+            if claim:
+                lines.extend([claim.get("text", ""), ""])
+    md_path.write_text("\n".join(lines), encoding="utf-8")
+    result = {"json": str(json_path), "markdown": str(md_path)}
+    return result
+
+
+__all__ = ["assemble_manuscript", "export_manuscript"]
