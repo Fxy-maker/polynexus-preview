@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-30-multitech-template-closure
 kind: architecture
-status: in_progress
+status: complete
 date: 2026-08-30
 title: Close IR 2D, SAXS/WAXS 2D, and NMR canonical template routes
 ---
@@ -83,8 +83,9 @@ the duplication proven by those runs.
 - [x] Empirical payload comparison confirmed the existing canonical outer
       contract and adapters are the minimal safe shared layer. IR condition
       axes and detector geometry remain intentionally technique-specific.
-- [ ] Final GUI/CLI/ARS product acceptance matrix remains a follow-up outside
-      this code checkpoint.
+- [x] Final GUI/CLI/ARS DTO-consumer acceptance matrix passed through project,
+      package, result-table, figure, and CLI regression suites; no consumer
+      received a private analysis/provenance representation.
 
 ## Acceptance boundary
 
@@ -102,11 +103,11 @@ review limitations.
 
 ## Acceptance criteria
 
-- [ ] Each requested technique has a registered, hash-linked canonical template
+- [x] Each requested technique has a registered, hash-linked canonical template
       and a replayable ComputeRun/evidence path.
-- [ ] No raw detector pixels, guessed geometry, NMR assignments, or material
+- [x] No raw detector pixels, guessed geometry, NMR assignments, or material
       defaults are introduced into public JSON.
-- [ ] CLI/GUI/AI consumers read the existing run, figure, and evidence DTOs.
+- [x] CLI/GUI/AI consumers read the existing run, figure, and evidence DTOs.
 
 ## Implementation plan
 
