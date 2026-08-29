@@ -13,6 +13,10 @@ from .paper_contracts import (
     PreflightReport,
     stable_id,
 )
+from .figure_plans import render_figure_plan
+from .figure_quality import check_figure_quality, check_svg_quality
+from .figure_review import rank_figure_candidates, save_review_decisions
+from .paper_source import build_manuscript_source
 
 __all__ = [
     "SuiteComponent",
@@ -29,4 +33,10 @@ __all__ = [
     "ManuscriptSource",
     "PreflightReport",
     "stable_id",
+    "build_manuscript_source",
+    "render_figure_plan",
+    "check_figure_quality",
+    "check_svg_quality",
+    "rank_figure_candidates",
+    "save_review_decisions",
 ]
