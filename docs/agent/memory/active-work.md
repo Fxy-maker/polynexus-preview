@@ -6200,3 +6200,4 @@ and structured gates (`303` / `157`).
 - Added shared Suite paper contracts in `polynexus.suite.paper_contracts`: versioned JSON DTOs for brief, claims, figures, citations, manuscript source, preflight, adaptive input requests, and traceable formulas.
 - Added read-only evidence projection, SVG-first figure rendering/quality checks, advisory figure ranking with review ledger, and Zotero/CSL citation adapters. Focused matrix passes 12 tests.
 - Full manuscript orchestration, document export/preflight, and PA6 pilot remain open; these foundations do not alter Core calculations or raw evidence.
+- CLI `suite manuscript-source --package ... --output ...` and the GUI adapter now expose the same read-only manuscript-source projection for ARS consumption.

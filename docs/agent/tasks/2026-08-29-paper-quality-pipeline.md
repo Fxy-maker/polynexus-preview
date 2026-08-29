@@ -85,6 +85,7 @@ whole-paper structure, and deterministic document preflight.
 - [x] SVG-first FigurePlan renderer and static quality checks.
 - [x] Advisory figure ranking and append-only review-decision writer.
 - [x] Zotero detection plus CSL static citation fallback and exports.
+- [x] CLI/GUI shared `manuscript-source` entry point backed by the same DTO.
 - [ ] Full manuscript orchestration, document preflight/export, and PA6 pilot.
 
 ## Verification
