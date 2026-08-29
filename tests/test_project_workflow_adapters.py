@@ -413,6 +413,33 @@ def test_project_plan_routes_detector_image_series_through_series_adapter(tmp_pa
     assert plan.steps[0]["provider_id"] == TechniqueSeriesAdapter.workflow_id
 
 
+def test_project_run_preserves_detector_templates_for_each_series_frame(tmp_path: Path) -> None:
+    source_dir = tmp_path / "raw" / "WAXS"
+    source_dir.mkdir(parents=True)
+    for index in range(2):
+        Image.fromarray(np.arange(12, dtype=np.uint16).reshape(3, 4) + index).save(
+            source_dir / f"frame-{index}.tif"
+        )
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, artifact, output: AnalysisResult(
+            technique=step.technique, validation_passed=True,
+        )
+    )
+    service.inspect(tuple(source_dir.glob("*.tif")))
+    result = service.run(AnalysisRequest.create(
+        question="Analyze WAXS detector sequence",
+        data_scope=tuple(path.relative_to(tmp_path).as_posix() for path in sorted(source_dir.glob("*.tif"))),
+    ))
+
+    assert result.status == "review_required"
+    assert result.analysis_run is not None
+    assert [
+        step.compute_run["canonical_template"]["template_id"]
+        for step in result.analysis_run.steps
+    ] == ["waxs.detector_image.v1", "waxs.detector_image.v1"]
+
+
 def test_project_run_executes_ir_temperature_series_as_one_compute_step(tmp_path: Path) -> None:
     source = tmp_path / "raw" / "IR" / "temperature"
     source.mkdir(parents=True)

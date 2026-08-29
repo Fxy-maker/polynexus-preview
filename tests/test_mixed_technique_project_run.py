@@ -73,3 +73,7 @@ def test_mixed_project_request_preserves_explicit_nmr_submodule(tmp_path: Path) 
 
     assert summary.computation == "passed"
     assert calls == ["nmr.liquid_h", "waxs.static"]
+    package_path = Path(summary.package["path"])
+    writing_evidence = json.loads((package_path / "writing-evidence.json").read_text(encoding="utf-8"))
+    assert set(writing_evidence["techniques"]) == {"nmr", "waxs"}
+    assert all(group["evidence"] for group in writing_evidence["techniques"].values())
