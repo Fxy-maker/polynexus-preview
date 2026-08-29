@@ -57,6 +57,32 @@ def test_single_input_adapter_binds_waxs_detector_image_template(tmp_path: Path)
     assert proposal.recipe is not None
     assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "waxs.detector_image.v1"
     assert SingleInputTechniqueAdapter.is_valid_recipe(proposal.recipe)
+
+
+def test_single_input_adapter_requires_explicit_nmr_submodule_and_binds_it(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "NMR" / "spectrum.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("ppm,intensity\n1.0,2\n1.5,3\n", encoding="utf-8")
+
+    blocked = SingleInputTechniqueAdapter().propose_recipe({
+        "workflow_id": SingleInputTechniqueAdapter.workflow_id,
+        "technique": "nmr",
+        "path": str(source),
+    })
+    assert blocked.status == "blocked"
+    assert blocked.reason_codes == ("nmr_submodule_required",)
+
+    proposal = SingleInputTechniqueAdapter().propose_recipe({
+        "workflow_id": SingleInputTechniqueAdapter.workflow_id,
+        "technique": "nmr",
+        "submodule_id": "nmr.liquid_h",
+        "path": str(source),
+    })
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert proposal.recipe.steps[0].parameters["submodule_id"] == "nmr.liquid_h"
+    assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "nmr.spectrum.v1"
+    assert SingleInputTechniqueAdapter.is_valid_recipe(proposal.recipe)
     assert proposal.recipe.steps[0].parameters["canonical_template"]["source_artifact_id"] == proposal.recipe.artifacts[0].artifact_id
 
 
@@ -74,7 +100,7 @@ def test_single_input_adapter_blocks_unsupported_and_multiple_inputs(tmp_path: P
     })
 
     assert unsupported.status == "blocked"
-    assert unsupported.reason_codes == ("technique_unsupported",)
+    assert unsupported.reason_codes == ("nmr_submodule_required",)
     assert multiple.status == "blocked"
     assert multiple.reason_codes == ("multiple_artifacts",)
 
@@ -109,7 +135,7 @@ def test_project_plan_uses_single_input_adapter_for_waxs(tmp_path: Path) -> None
         data_scope=(source.relative_to(tmp_path).as_posix(),),
     ))
 
-    assert plan.status == "ready"
+    assert plan.status == "ready", (plan.status, plan.reason_codes, plan.steps)
     assert plan.reason_codes == ()
     assert plan.steps[0]["provider_id"] == "project.technique.single.v1"
     assert plan.steps[0]["template_id"] == "waxs.static"
@@ -302,6 +328,28 @@ def test_project_plan_uses_one_ir_temperature_series_directory_step(tmp_path: Pa
     assert len(plan.steps) == 1
     assert plan.steps[0]["provider_id"] == IRTemperatureSeriesAdapter.workflow_id
     assert tuple(plan.steps[0]["artifact_paths"]) == (source.relative_to(tmp_path).as_posix(),)
+
+
+def test_project_plan_preserves_explicit_nmr_submodule(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "NMR" / "liquid_h.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("ppm,intensity\n1.0,2\n1.5,3\n", encoding="utf-8")
+    service = ProjectWorkflowService.open(tmp_path)
+    service.inspect((source,))
+
+    blocked = service.plan(AnalysisRequest.create(
+        question="Analyze NMR",
+        data_scope=(source.relative_to(tmp_path).as_posix(),),
+    ))
+    assert blocked.status == "blocked"
+
+    plan = service.plan(AnalysisRequest.create(
+        question="Analyze liquid proton NMR",
+        data_scope=(source.relative_to(tmp_path).as_posix(),),
+        parameters={"submodule_id": "nmr.liquid_h"},
+    ))
+    assert plan.status == "ready"
+    assert plan.steps[0]["template_id"] == "nmr.liquid_h"
 
 
 def test_project_run_executes_ir_temperature_series_as_one_compute_step(tmp_path: Path) -> None:

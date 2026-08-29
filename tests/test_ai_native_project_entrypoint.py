@@ -62,6 +62,29 @@ def test_analyze_project_projects_shared_result_tables_for_cli_consumers(tmp_pat
     assert tables[0]["rows"][0]["source"].endswith("a.dat")
 
 
+def test_analyze_project_runs_explicit_nmr_submodule_through_shared_package(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "NMR" / "liquid_h.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("ppm,intensity\n1.0,2\n1.5,3\n", encoding="utf-8")
+    service = ProjectWorkflowService.open(tmp_path)
+    calls: list[str] = []
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, artifact, output: (
+            calls.append(step.parameters.get("submodule_id", ""))
+            or AnalysisResult(technique=step.technique, validation_passed=True)
+        )
+    )
+
+    summary = service.analyze_project(
+        question="Analyze liquid proton NMR",
+        nmr_submodule="nmr.liquid_h",
+    )
+
+    assert summary.computation == "passed"
+    assert calls == ["nmr.liquid_h"]
+    assert summary.to_dict()["package"] is not None
+
+
 def test_project_summary_cli_projection_keeps_group_result_table_payload() -> None:
     table = build_group_result_table(
         "pa6-jw",

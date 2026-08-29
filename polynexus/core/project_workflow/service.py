@@ -100,6 +100,7 @@ class ProjectWorkflowService:
         requested_outputs: Iterable[str] = ("figures", "tables", "writing_input"),
         package_id: str = "research-evidence",
         figure_selection: FigureSelectionRequest | None = None,
+        nmr_submodule: str | None = None,
     ) -> ProjectAnalysisSummary:
         """Run the ordinary project workflow through one AI/ARS-facing call."""
         scope = tuple(str(value) for value in data_scope)
@@ -149,17 +150,20 @@ class ProjectWorkflowService:
         grouped: dict[str, list[str]] = {}
         reasons: list[str] = list(discovery_reasons)
         for artifact in graph.artifacts:
-            if artifact.technique in {"dsc", "ir", "waxs", "saxs"}:
+            if artifact.technique in {"dsc", "ir", "waxs", "saxs", "nmr"}:
                 grouped.setdefault(artifact.technique, []).append(artifact.relative_path)
             else:
                 reasons.extend(artifact.reason_codes or ("technique_unrecognized",))
         runs: list[ProjectWorkflowRun] = []
         if grouped:
+            request_parameters = {"requested_by": "ai_native_project_entrypoint"}
+            if nmr_submodule:
+                request_parameters["submodule_id"] = str(nmr_submodule)
             request = AnalysisRequest.create(
                 question=question,
                 requested_outputs=tuple(requested_outputs),
                 data_scope=tuple(sorted(path for paths in grouped.values() for path in paths)),
-                parameters={"requested_by": "ai_native_project_entrypoint"},
+                parameters=request_parameters,
             )
             result = self.run(request)
             if result.status in {"completed", "review_required"}:
@@ -299,14 +303,19 @@ class ProjectWorkflowService:
                     else:
                         steps.append({"step_id": "series", "technique": technique, "status": "review_required" if proposal.status == "review_required" else "ready", "provider_id": _SERIES_WORKFLOW, "template_id": str(proposal.recipe.steps[0].parameters.get("submodule_id", "")), "artifact_paths": [artifact.relative_path for artifact in selected], "artifact_sha256": [artifact.sha256 for artifact in selected], "source_order": list(range(len(proposal.recipe.artifacts)))})
                     continue
-                proposal = self.single_input_adapter.propose_recipe({
+                single_manifest = {
                     "workflow_id": _SINGLE_WORKFLOW,
                     "technique": technique,
                     "paths": [
                         str((self.workspace.root / artifact.relative_path).absolute())
                         for artifact in selected
                     ],
-                })
+                }
+                if technique == "nmr":
+                    requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
+                    if requested_submodule:
+                        single_manifest["submodule_id"] = str(requested_submodule)
+                proposal = self.single_input_adapter.propose_recipe(single_manifest)
                 if proposal.recipe is None:
                     reason_codes.extend(proposal.reason_codes or ("adapter_blocked",))
                     step_id = f"{technique}.blocked"
@@ -729,11 +738,16 @@ class ProjectWorkflowService:
         current = inspect_artifact(source, technique=technique)
         if current.sha256 != artifact.sha256:
             return self._blocked_project_run(plan, "source_hash_changed")
-        proposal = self.single_input_adapter.propose_recipe({
+        single_manifest = {
             "workflow_id": _SINGLE_WORKFLOW,
             "technique": technique,
             "paths": (str(source),),
-        })
+        }
+        if technique == "nmr":
+            requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
+            if requested_submodule:
+                single_manifest["submodule_id"] = str(requested_submodule)
+        proposal = self.single_input_adapter.propose_recipe(single_manifest)
         if proposal.recipe is None:
             return self._blocked_project_run(plan, *proposal.reason_codes)
         recipe = proposal.recipe

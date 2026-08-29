@@ -26,6 +26,7 @@ class SingleInputTechniqueAdapter:
         "waxs": ("waxs.static", "waxs_profile", "supporting"),
         "saxs": ("saxs.static", "saxs_profile", "supporting"),
     }
+    _NMR_SUBMODULES = frozenset({"nmr.liquid_h", "nmr.liquid_c", "nmr.solid_h", "nmr.solid_c"})
 
     def propose_recipe(self, manifest: Mapping[str, object] | Path | str) -> RecipeProposal:
         payload = self._load_manifest(manifest)
@@ -34,7 +35,15 @@ class SingleInputTechniqueAdapter:
         if payload.get("workflow_id") != self.workflow_id:
             return RecipeProposal(status="blocked", reason_codes=("workflow_id_mismatch",))
         technique = str(payload.get("technique") or "").strip().lower()
-        spec = self._SPECS.get(technique)
+        if technique == "nmr":
+            submodule_id = str(payload.get("submodule_id") or payload.get("submodule") or "").strip().lower()
+            if submodule_id in {value.removeprefix("nmr.") for value in self._NMR_SUBMODULES}:
+                submodule_id = f"nmr.{submodule_id}"
+            if submodule_id not in self._NMR_SUBMODULES:
+                return RecipeProposal(status="blocked", reason_codes=("nmr_submodule_required",))
+            spec = (submodule_id, "nmr_spectrum", "supporting")
+        else:
+            spec = self._SPECS.get(technique)
         if spec is None:
             return RecipeProposal(status="blocked", reason_codes=("technique_unsupported",))
         paths = self._paths(payload)
@@ -86,7 +95,11 @@ class SingleInputTechniqueAdapter:
             return False
         artifact = recipe.artifacts[0]
         step = recipe.steps[0]
-        spec = cls._SPECS.get(artifact.technique)
+        if artifact.technique == "nmr":
+            submodule_id = str(step.parameters.get("submodule_id") or "").strip().lower()
+            spec = (submodule_id, "nmr_spectrum", "supporting") if submodule_id in cls._NMR_SUBMODULES else None
+        else:
+            spec = cls._SPECS.get(artifact.technique)
         if spec is None:
             return False
         submodule_id, step_id, role = spec
