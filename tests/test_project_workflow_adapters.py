@@ -59,6 +59,29 @@ def test_single_input_adapter_binds_waxs_detector_image_template(tmp_path: Path)
     assert SingleInputTechniqueAdapter.is_valid_recipe(proposal.recipe)
 
 
+def test_technique_series_adapter_binds_detector_image_templates_per_frame(tmp_path: Path) -> None:
+    paths = []
+    for index in range(2):
+        source = tmp_path / "raw" / "SAXS" / f"frame-{index}.tif"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(np.arange(12, dtype=np.uint16).reshape(3, 4) + index).save(source)
+        paths.append(str(source))
+
+    proposal = TechniqueSeriesAdapter().propose_recipe({
+        "workflow_id": TechniqueSeriesAdapter.workflow_id,
+        "technique": "saxs",
+        "paths": paths,
+    })
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert [
+        step.parameters["canonical_template"]["template_id"]
+        for step in proposal.recipe.steps
+    ] == ["saxs.detector_image.v1", "saxs.detector_image.v1"]
+    assert TechniqueSeriesAdapter.is_valid_recipe(proposal.recipe)
+
+
 def test_single_input_adapter_requires_explicit_nmr_submodule_and_binds_it(tmp_path: Path) -> None:
     source = tmp_path / "raw" / "NMR" / "spectrum.csv"
     source.parent.mkdir(parents=True)
@@ -83,6 +106,24 @@ def test_single_input_adapter_requires_explicit_nmr_submodule_and_binds_it(tmp_p
     assert proposal.recipe.steps[0].parameters["submodule_id"] == "nmr.liquid_h"
     assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "nmr.spectrum.v1"
     assert SingleInputTechniqueAdapter.is_valid_recipe(proposal.recipe)
+
+
+def test_single_input_adapter_accepts_all_four_nmr_modes(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "NMR" / "spectrum.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("ppm,intensity\n1.0,2\n1.5,3\n", encoding="utf-8")
+    adapter = SingleInputTechniqueAdapter()
+
+    for submodule in ("nmr.liquid_h", "nmr.liquid_c", "nmr.solid_h", "nmr.solid_c"):
+        proposal = adapter.propose_recipe({
+            "workflow_id": adapter.workflow_id,
+            "technique": "nmr",
+            "submodule_id": submodule,
+            "path": str(source),
+        })
+        assert proposal.status == "ready"
+        assert proposal.recipe is not None
+        assert proposal.recipe.steps[0].parameters["submodule_id"] == submodule
     assert proposal.recipe.steps[0].parameters["canonical_template"]["source_artifact_id"] == proposal.recipe.artifacts[0].artifact_id
 
 
@@ -350,6 +391,26 @@ def test_project_plan_preserves_explicit_nmr_submodule(tmp_path: Path) -> None:
     ))
     assert plan.status == "ready"
     assert plan.steps[0]["template_id"] == "nmr.liquid_h"
+
+
+def test_project_plan_routes_detector_image_series_through_series_adapter(tmp_path: Path) -> None:
+    source_dir = tmp_path / "raw" / "SAXS"
+    source_dir.mkdir(parents=True)
+    for index in range(2):
+        Image.fromarray(np.arange(12, dtype=np.uint16).reshape(3, 4) + index).save(
+            source_dir / f"frame-{index}.tif"
+        )
+    service = ProjectWorkflowService.open(tmp_path)
+    service.inspect(tuple(source_dir.glob("*.tif")))
+
+    plan = service.plan(AnalysisRequest.create(
+        question="Analyze SAXS detector sequence",
+        data_scope=tuple(path.relative_to(tmp_path).as_posix() for path in sorted(source_dir.glob("*.tif"))),
+    ))
+
+    assert plan.status == "ready"
+    assert len(plan.steps) == 1
+    assert plan.steps[0]["provider_id"] == TechniqueSeriesAdapter.workflow_id
 
 
 def test_project_run_executes_ir_temperature_series_as_one_compute_step(tmp_path: Path) -> None:

@@ -48,3 +48,17 @@ def test_waxs_detector_image_template_uses_source_hash_and_no_default_geometry(t
     assert outcome.template.template_id == "waxs.detector_image.v1"
     assert outcome.template.payload["source"]["sha256"] == outcome.record.extracted_segments[0]["sha256"]
     assert outcome.template.payload["geometry"]["calibration_reviewed"] is False
+
+
+def test_detector_image_template_round_trips_strictly_without_pixels(tmp_path: Path) -> None:
+    source = _image(tmp_path / "raw" / "SAXS" / "frame.tif")
+    outcome = default_converter_registry().convert_path(
+        source, technique="saxs", source_artifact_id="raw-saxs-frame"
+    )
+    assert outcome.template is not None
+
+    restored = outcome.template.from_dict(outcome.template.to_dict())
+
+    assert restored.content_hash == outcome.template.content_hash
+    assert restored.payload["image_metadata"]["raw_pixels_included"] is False
+    assert "data" not in restored.payload
