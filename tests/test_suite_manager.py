@@ -59,3 +59,14 @@ def test_failed_activation_restores_previous_installation(tmp_path: Path, monkey
     result = manager.install("ars", confirm=True)
     assert result.status == "activation_rolled_back"
     assert (target / "SKILL.md").read_text(encoding="utf-8") == "old"
+
+
+def test_successful_install_cleans_same_volume_staging_directories(tmp_path: Path):
+    source = tmp_path / "ars"
+    source.mkdir()
+    (source / "SKILL.md").write_text("new", encoding="utf-8")
+    manifest = _manifest(tmp_path / "manifest.json", source)
+    codex = tmp_path / "codex" / "skills"
+    manager = SuiteManager(manifest_path=manifest, codex_skills_dir=codex, core_version="1.0.0", lock_path=tmp_path / "lock.json")
+    assert manager.install("ars", confirm=True).status == "installed"
+    assert not list(codex.parent.glob(".polynexus-suite-*"))

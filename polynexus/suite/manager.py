@@ -121,10 +121,12 @@ class SuiteManager:
         if not _compatible_core(self.core_version, component.core_range):
             return SuiteStatus("incompatible_component", str(self.codex_skills_dir), self.core_version, reason_codes=("incompatible_component",))
         staging: Path | None = None
+        staging_root: Path | None = None
         backup: Path | None = None
         target = _safe_destination(self.codex_skills_dir, component.destination)
         try:
             staging = self._stage_source(component, source_override)
+            staging_root = staging.parent
             if _hash_path(staging) != component.sha256:
                 raise _InstallFailure("integrity_check_failed")
             self._validate_staged(staging, component)
@@ -145,6 +147,8 @@ class SuiteManager:
         finally:
             if staging is not None and staging.exists():
                 shutil.rmtree(staging, ignore_errors=True)
+            if staging_root is not None and staging_root.exists():
+                shutil.rmtree(staging_root, ignore_errors=True)
 
     def update(self, component_id: str | None = None, *, confirm: bool = False) -> SuiteStatus:
         manifest = self._manifest()
