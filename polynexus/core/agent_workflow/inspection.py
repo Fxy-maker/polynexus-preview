@@ -25,8 +25,9 @@ _EDF_REQUIRED_GEOMETRY = (
 # Directory identity inspection is shared by the Agent/Codex workflow and
 # ComputeRun.  SAXS/WAXS directory providers already own frame discovery, so
 # this boundary only hashes the directory and must not reject their input
-# before the provider can run.  NMR remains outside this migration because it
-# has no registered canonical directory converter yet.
+# before the provider can run. NMR file inputs are supported through the
+# explicit one-dimensional submodule route; NMR directories remain outside
+# this migration because they have no registered canonical directory converter.
 _DIRECTORY_TECHNIQUES = frozenset({"dsc", "ir", "saxs", "waxs"})
 
 

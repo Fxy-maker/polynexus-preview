@@ -31,14 +31,16 @@ the duplication proven by those runs.
   `ComputeResult.metric_manifest`, FigureDefinition, ProjectWorkflow, and
   EvidencePackage.
 - Existing template coverage: generic 1D IR/SAXS/WAXS conversion and
-  `nmr.spectrum.v1`; no dedicated 2D detector template is registered.
+  `nmr.spectrum.v1`; dedicated SAXS/WAXS detector-image templates are now
+  registered while legacy 1D IDs remain unchanged.
 - IR temperature-2D provider/evidence/figures already exist, but the generic
   project series route splits files into independent steps instead of one
   sequence computation.
 - SAXS/WAXS providers already contain partial 2D image processing, but their
   canonical conversion and shared ComputeRun routes are incomplete.
-- NMR provider and vendor cases exist; project/evidence replay with supplied
-  NMR sources remains to be proven.
+- NMR provider and vendor cases exist; project/evidence replay now accepts an
+  explicit `nmr.liquid_h`, `nmr.liquid_c`, `nmr.solid_h`, or `nmr.solid_c`
+  submodule and carries it through single and mixed project recipes.
 
 ## Affected boundaries
 
@@ -68,8 +70,15 @@ the duplication proven by those runs.
       and rejects unresolved temperature axes.
 - [x] Registered IR temperature-series directory conversion without changing
       legacy static template mappings.
-- [ ] Project/Agent/ComputeRun sequence execution and evidence round-trip remain
-      open; current implementation is a template-level slice only.
+- [x] Routed IR temperature-series directories as one project/Agent/ComputeRun
+      step and validated mixed-recipe delegation.
+- [x] Added `saxs.detector_image.v1` and `waxs.detector_image.v1` conversion
+      envelopes with source hash, shape, pixel axes, and explicit geometry
+      provenance; raw pixels and default calibration are excluded.
+- [x] Added explicit NMR four-mode project routing and mixed-technique package
+      coverage using the existing `nmr.spectrum.v1` template.
+- [ ] Real vendor/image replay, provider-specific 2D evidence round-trip, and
+      empirical simplification remain open.
 
 ## Acceptance boundary
 
