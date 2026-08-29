@@ -5,7 +5,12 @@ from pathlib import Path
 
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
-from polynexus.core.project_workflow.adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
+from polynexus.core.project_workflow.adapters import (
+    IRTemperatureSeriesAdapter,
+    MixedTechniqueAdapter,
+    SingleInputTechniqueAdapter,
+    TechniqueSeriesAdapter,
+)
 from polynexus.core.project_workflow.models import AnalysisRequest
 from polynexus.core.project_workflow.service import ProjectWorkflowService
 
@@ -107,7 +112,7 @@ def test_project_run_delegates_single_waxs_input_to_existing_service(tmp_path: P
         data_scope=(source.relative_to(tmp_path).as_posix(),),
     ))
 
-    assert result.status == "review_required"
+    assert result.status == "review_required", (result.status, result.reason_codes)
     assert calls == ["waxs"]
     assert result.evidence_items[0].technique == "waxs"
     assert result.analysis_run is not None
@@ -213,3 +218,125 @@ def test_project_series_run_binds_each_file_in_stable_order(tmp_path: Path) -> N
     assert calls == ["a.dat", "b.dat"]
     assert result.analysis_run is not None
     assert [step.parameters["artifact_index"] for step in result.analysis_run.recipe.steps] == [0, 1]
+
+
+def test_ir_temperature_series_adapter_builds_one_directory_bound_step(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "IR" / "temperature"
+    source.mkdir(parents=True)
+    for name, value in (("PA6-100C.csv", 0.2), ("PA6-120C.csv", 0.4)):
+        (source / name).write_text(
+            "wavenumber,absorbance\n1000,1\n1010,2\n1020," + str(value) + "\n",
+            encoding="utf-8",
+        )
+
+    proposal = IRTemperatureSeriesAdapter().propose_recipe({
+        "workflow_id": IRTemperatureSeriesAdapter.workflow_id,
+        "path": str(source),
+    })
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert len(proposal.recipe.artifacts) == 1
+    assert proposal.recipe.artifacts[0].format == "directory"
+    assert len(proposal.recipe.steps) == 1
+    assert proposal.recipe.steps[0].parameters["submodule_id"] == "ir.temperature_2d"
+    assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "ir.temperature_series.v1"
+    assert IRTemperatureSeriesAdapter.is_valid_recipe(proposal.recipe)
+
+
+def test_ir_temperature_series_adapter_blocks_directory_without_two_frames(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "IR" / "temperature"
+    source.mkdir(parents=True)
+    (source / "PA6-100C.csv").write_text(
+        "wavenumber,absorbance\n1000,1\n1010,2\n1020,3\n",
+        encoding="utf-8",
+    )
+
+    proposal = IRTemperatureSeriesAdapter().propose_recipe({
+        "workflow_id": IRTemperatureSeriesAdapter.workflow_id,
+        "path": str(source),
+    })
+
+    assert proposal.recipe is None
+    assert proposal.status == "blocked"
+    assert proposal.reason_codes == ("temperature_series_template_missing",)
+
+
+def test_project_plan_uses_one_ir_temperature_series_directory_step(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "IR" / "temperature"
+    source.mkdir(parents=True)
+    for name, value in (("PA6-100C.csv", 0.2), ("PA6-120C.csv", 0.4)):
+        (source / name).write_text(
+            "wavenumber,absorbance\n1000,1\n1010,2\n1020," + str(value) + "\n",
+            encoding="utf-8",
+        )
+    service = ProjectWorkflowService.open(tmp_path)
+    service.inspect((source,))
+
+    plan = service.plan(AnalysisRequest.create(
+        question="Analyze IR temperature series",
+        data_scope=(source.relative_to(tmp_path).as_posix(),),
+    ))
+
+    assert plan.status == "ready"
+    assert len(plan.steps) == 1
+    assert plan.steps[0]["provider_id"] == IRTemperatureSeriesAdapter.workflow_id
+    assert tuple(plan.steps[0]["artifact_paths"]) == (source.relative_to(tmp_path).as_posix(),)
+
+
+def test_project_run_executes_ir_temperature_series_as_one_compute_step(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "IR" / "temperature"
+    source.mkdir(parents=True)
+    for name, value in (("PA6-100C.csv", 0.2), ("PA6-120C.csv", 0.4)):
+        (source / name).write_text(
+            "wavenumber,absorbance\n1000,1\n1010,2\n1020," + str(value) + "\n",
+            encoding="utf-8",
+        )
+    calls: list[str] = []
+
+    def provider(step, artifact, output_dir):
+        calls.append(Path(artifact.path).name)
+        return AnalysisResult(
+            technique=step.technique,
+            validation_passed=True,
+            parameters={"n_frames": 2, "matrix_shape": [2, 3]},
+        )
+
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(provider_runner=provider)
+    service.inspect((source,))
+    result = service.run(AnalysisRequest.create(
+        question="Analyze IR temperature series",
+        data_scope=(source.relative_to(tmp_path).as_posix(),),
+    ))
+
+    assert result.status == "review_required", (result.status, result.reason_codes)
+    assert calls == ["temperature"]
+    assert result.analysis_run is not None
+    assert len(result.analysis_run.recipe.steps) == 1
+    assert result.analysis_run.recipe.steps[0].parameters["canonical_template"]["template_id"] == "ir.temperature_series.v1"
+    assert result.analysis_run.steps[0].compute_run["canonical_template"]["template_id"] == "ir.temperature_series.v1"
+
+
+def test_mixed_adapter_routes_ir_directory_to_temperature_series_template(tmp_path: Path) -> None:
+    ir_source = tmp_path / "raw" / "IR" / "temperature"
+    ir_source.mkdir(parents=True)
+    for name, value in (("PA6-100C.csv", 0.2), ("PA6-120C.csv", 0.4)):
+        (ir_source / name).write_text(
+            "wavenumber,absorbance\n1000,1\n1010,2\n1020," + str(value) + "\n",
+            encoding="utf-8",
+        )
+    waxs_source = _source(tmp_path, "waxs", "profile.dat")
+
+    proposal = MixedTechniqueAdapter().propose_recipe({
+        "workflow_id": MixedTechniqueAdapter.workflow_id,
+        "components": {"ir": str(ir_source), "waxs": str(waxs_source)},
+    })
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert MixedTechniqueAdapter.is_valid_recipe(proposal.recipe)
+    ir_steps = [step for step in proposal.recipe.steps if step.technique == "ir"]
+    assert len(ir_steps) == 1
+    assert ir_steps[0].parameters["submodule_id"] == "ir.temperature_2d"
+    assert ir_steps[0].parameters["canonical_template"]["template_id"] == "ir.temperature_series.v1"

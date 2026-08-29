@@ -16,7 +16,12 @@ from polynexus.core.agent_workflow import AgentWorkflowService, inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe
 
 from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
-from .adapters import MixedTechniqueAdapter, SingleInputTechniqueAdapter, TechniqueSeriesAdapter
+from .adapters import (
+    IRTemperatureSeriesAdapter,
+    MixedTechniqueAdapter,
+    SingleInputTechniqueAdapter,
+    TechniqueSeriesAdapter,
+)
 from .index import ProjectIndexer
 from .grouping import CandidateExperimentGroup, candidate_groups
 from .ir_group_figures import FigureCandidateSet, render_ftir_group_candidates
@@ -32,6 +37,7 @@ _DSC_WORKFLOW = "tpae.characterization.v1"
 _DSC_TEMPLATE = "dsc.isothermal.v1"
 _SINGLE_WORKFLOW = SingleInputTechniqueAdapter.workflow_id
 _SERIES_WORKFLOW = TechniqueSeriesAdapter.workflow_id
+_IR_TEMPERATURE_SERIES_WORKFLOW = IRTemperatureSeriesAdapter.workflow_id
 _COMPOSITE_WORKFLOW = MixedTechniqueAdapter.workflow_id
 
 
@@ -49,11 +55,14 @@ class ProjectWorkflowService:
         self.agent_service = agent_service or AgentWorkflowService()
         self.single_input_adapter = SingleInputTechniqueAdapter()
         self.series_adapter = TechniqueSeriesAdapter()
+        self.ir_temperature_series_adapter = IRTemperatureSeriesAdapter()
         self.composite_adapter = MixedTechniqueAdapter()
         if self.agent_service.registry.get(_SINGLE_WORKFLOW) is None:
             self.agent_service.registry.register(self.single_input_adapter)
         if self.agent_service.registry.get(_SERIES_WORKFLOW) is None:
             self.agent_service.registry.register(self.series_adapter)
+        if self.agent_service.registry.get(_IR_TEMPERATURE_SERIES_WORKFLOW) is None:
+            self.agent_service.registry.register(self.ir_temperature_series_adapter)
 
     @classmethod
     def open(cls, root: str | Path) -> "ProjectWorkflowService":
@@ -241,6 +250,43 @@ class ProjectWorkflowService:
                     })
                     continue
             if technique != "dsc":
+                if (
+                    technique == "ir"
+                    and len(selected) == 1
+                    and selected[0].format == "directory"
+                    and sum(
+                        1
+                        for path in (self.workspace.root / selected[0].relative_path).iterdir()
+                        if path.is_file() and path.suffix.casefold() in {".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi"}
+                    ) >= 2
+                ):
+                    proposal = self.ir_temperature_series_adapter.propose_recipe({
+                        "workflow_id": _IR_TEMPERATURE_SERIES_WORKFLOW,
+                        "path": str((self.workspace.root / selected[0].relative_path).absolute()),
+                    })
+                    if proposal.recipe is None:
+                        reason_codes.extend(proposal.reason_codes or ("adapter_blocked",))
+                        steps.append({
+                            "step_id": "ir_temperature_series.blocked",
+                            "technique": technique,
+                            "status": "blocked",
+                            "provider_id": _IR_TEMPERATURE_SERIES_WORKFLOW,
+                            "template_id": None,
+                            "artifact_paths": [selected[0].relative_path],
+                            "artifact_sha256": selected[0].sha256,
+                        })
+                    else:
+                        steps.append({
+                            "step_id": "ir_temperature_series",
+                            "technique": technique,
+                            "status": "review_required" if proposal.status == "review_required" else "ready",
+                            "provider_id": _IR_TEMPERATURE_SERIES_WORKFLOW,
+                            "template_id": "ir.temperature_2d",
+                            "artifact_paths": [selected[0].relative_path],
+                            "artifact_sha256": selected[0].sha256,
+                            "requested_outputs": list(request.requested_outputs),
+                        })
+                    continue
                 if len(selected) > 1:
                     proposal = self.series_adapter.propose_recipe({
                         "workflow_id": _SERIES_WORKFLOW,
@@ -444,6 +490,8 @@ class ProjectWorkflowService:
             self.agent_service.registry.register(self.single_input_adapter)
         if self.agent_service.registry.get(_SERIES_WORKFLOW) is None:
             self.agent_service.registry.register(self.series_adapter)
+        if self.agent_service.registry.get(_IR_TEMPERATURE_SERIES_WORKFLOW) is None:
+            self.agent_service.registry.register(self.ir_temperature_series_adapter)
         if self.agent_service.registry.get(_COMPOSITE_WORKFLOW) is None:
             self.agent_service.registry.register(self.composite_adapter)
         if isinstance(request_or_plan, AnalysisRequest):
@@ -479,7 +527,10 @@ class ProjectWorkflowService:
         dsc_steps = tuple(step for step in plan.steps if step.get("technique") == "dsc")
         non_dsc_steps = tuple(step for step in plan.steps if step.get("technique") != "dsc")
         if non_dsc_steps:
-            if any(str(step.get("provider_id")) == _SERIES_WORKFLOW for step in non_dsc_steps):
+            if any(
+                str(step.get("provider_id")) in {_SERIES_WORKFLOW, _IR_TEMPERATURE_SERIES_WORKFLOW}
+                for step in non_dsc_steps
+            ):
                 return self._run_series_technique(request, plan, non_dsc_steps)
             return self._run_single_technique(request, plan, non_dsc_steps)
         if not dsc_steps:
@@ -733,22 +784,40 @@ class ProjectWorkflowService:
         plan_step = steps[0]
         technique = str(plan_step.get("technique", "")).lower()
         paths = tuple(str(path) for path in plan_step.get("artifact_paths", ()))
-        if len(paths) < 2:
-            return self._blocked_project_run(plan, "series_source_count_invalid")
+        provider_id = str(plan_step.get("provider_id", ""))
+        if provider_id == _IR_TEMPERATURE_SERIES_WORKFLOW:
+            if technique != "ir" or len(paths) != 1:
+                return self._blocked_project_run(plan, "ir_temperature_series_source_invalid")
+            adapter = self.ir_temperature_series_adapter
+        else:
+            if len(paths) < 2:
+                return self._blocked_project_run(plan, "series_source_count_invalid")
+            adapter = self.series_adapter
         source_paths = tuple((self.workspace.root / path).absolute() for path in paths)
         try:
             graph = self._load_or_discover(request.data_scope)
         except (ValueError, KeyError, TypeError, OSError, UnicodeError):
             return self._blocked_project_run(plan, "inventory_invalid")
         by_path = {artifact.relative_path: artifact for artifact in graph.artifacts}
-        for path, expected in zip(paths, plan_step.get("artifact_sha256", ()), strict=False):
+        raw_expected = plan_step.get("artifact_sha256", ())
+        expected_hashes = (
+            (str(raw_expected),)
+            if isinstance(raw_expected, str)
+            else tuple(raw_expected or ())
+        )
+        for path, expected in zip(paths, expected_hashes, strict=False):
             artifact = by_path.get(path)
             if artifact is None or (expected and artifact.sha256 != expected):
                 return self._blocked_project_run(plan, "stale_plan_source_hash")
             current = inspect_artifact(self.workspace.root / path, technique=technique)
             if current.sha256 != artifact.sha256:
                 return self._blocked_project_run(plan, "source_hash_changed")
-        proposal = self.series_adapter.propose_recipe({"workflow_id": _SERIES_WORKFLOW, "technique": technique, "paths": [str(path) for path in source_paths]})
+        manifest = (
+            {"workflow_id": _IR_TEMPERATURE_SERIES_WORKFLOW, "path": str(source_paths[0])}
+            if provider_id == _IR_TEMPERATURE_SERIES_WORKFLOW
+            else {"workflow_id": _SERIES_WORKFLOW, "technique": technique, "paths": [str(path) for path in source_paths]}
+        )
+        proposal = adapter.propose_recipe(manifest)
         if proposal.recipe is None:
             return self._blocked_project_run(plan, *proposal.reason_codes)
         recipe = proposal.recipe

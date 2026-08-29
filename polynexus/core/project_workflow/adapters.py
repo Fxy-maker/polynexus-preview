@@ -234,6 +234,79 @@ class TechniqueSeriesAdapter:
         )
 
 
+class IRTemperatureSeriesAdapter:
+    """Build one directory-bound recipe for an IR temperature sequence."""
+
+    workflow_id = "project.ir.temperature-series.v1"
+
+    def propose_recipe(self, manifest: Mapping[str, object] | Path | str) -> RecipeProposal:
+        payload = SingleInputTechniqueAdapter._load_manifest(manifest)
+        if payload is None or payload.get("workflow_id") != self.workflow_id:
+            return RecipeProposal(status="blocked", reason_codes=("workflow_id_mismatch",))
+        raw_path = payload.get("path")
+        if not raw_path:
+            paths = SingleInputTechniqueAdapter._paths(payload)
+            raw_path = paths[0] if len(paths) == 1 else None
+        if not raw_path:
+            return RecipeProposal(status="blocked", reason_codes=("series_directory_missing",))
+        artifact = inspect_artifact(raw_path, technique="ir")
+        if artifact.format != "directory" or artifact.inspection_status == "blocked":
+            return RecipeProposal(
+                status="blocked",
+                reason_codes=tuple(dict.fromkeys(("artifact_blocked", *artifact.reason_codes))),
+            )
+        outcome = default_converter_registry().convert_path(
+            artifact.path,
+            technique="ir",
+            source_artifact_id=artifact.artifact_id,
+        )
+        if outcome.status != "ready" or outcome.template is None:
+            return RecipeProposal(status="blocked", reason_codes=outcome.reason_codes)
+        if outcome.template.template_id != "ir.temperature_series.v1":
+            return RecipeProposal(status="blocked", reason_codes=("temperature_series_template_missing",))
+        step = RecipeStep(
+            step_id="ir_temperature_series",
+            technique="ir",
+            evidence_role="supporting",
+            parameters={
+                "submodule_id": "ir.temperature_2d",
+                "canonical_converter": outcome.record.conversion_id,
+                "canonical_template": outcome.template.to_dict(),
+            },
+            parameter_sources={
+                "submodule_id": "registered_project_recipe",
+                "canonical_converter": "registered_canonical_converter",
+                "canonical_template": "registered_canonical_converter",
+            },
+        )
+        status = "review_required" if artifact.inspection_status == "review_required" else "ready"
+        return RecipeProposal(
+            status=status,
+            recipe=AnalysisRecipe.create(
+                workflow_id=self.workflow_id,
+                artifacts=(artifact,),
+                steps=(step,),
+            ),
+        )
+
+    @classmethod
+    def is_valid_recipe(cls, recipe: AnalysisRecipe) -> bool:
+        if recipe.workflow_id != cls.workflow_id or len(recipe.artifacts) != 1 or len(recipe.steps) != 1:
+            return False
+        artifact = recipe.artifacts[0]
+        step = recipe.steps[0]
+        if artifact.technique != "ir" or artifact.format != "directory":
+            return False
+        if step.step_id != "ir_temperature_series" or step.technique != "ir" or step.evidence_role != "supporting":
+            return False
+        if step.parameters.get("submodule_id") != "ir.temperature_2d":
+            return False
+        if not SingleInputTechniqueAdapter._has_matching_canonical_template(step, artifact):
+            return False
+        payload = step.parameters.get("canonical_template")
+        return isinstance(payload, Mapping) and payload.get("template_id") == "ir.temperature_series.v1"
+
+
 class MixedTechniqueAdapter:
     """Compose existing technique recipes into one request-level recipe."""
 
@@ -242,6 +315,7 @@ class MixedTechniqueAdapter:
     def __init__(self) -> None:
         self._single = SingleInputTechniqueAdapter()
         self._series = TechniqueSeriesAdapter()
+        self._ir_temperature_series = IRTemperatureSeriesAdapter()
         self._dsc = TpaeCharacterizationWorkflow()
 
     def propose_recipe(self, manifest: Mapping[str, object] | Path | str) -> RecipeProposal:
@@ -268,6 +342,20 @@ class MixedTechniqueAdapter:
                 proposal = self._dsc.propose_recipe({
                     "workflow_id": self._dsc.workflow_id,
                     "artifacts": {"dsc_isothermal": {"path": paths[0], "technique": "dsc"}},
+                })
+            elif (
+                technique == "ir"
+                and len(paths) == 1
+                and Path(paths[0]).is_dir()
+                and sum(
+                    1
+                    for item in Path(paths[0]).iterdir()
+                    if item.is_file() and item.suffix.casefold() in {".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi"}
+                ) >= 2
+            ):
+                proposal = self._ir_temperature_series.propose_recipe({
+                    "workflow_id": IRTemperatureSeriesAdapter.workflow_id,
+                    "path": paths[0],
                 })
             elif len(paths) > 1:
                 proposal = self._series.propose_recipe({
@@ -365,6 +453,20 @@ class MixedTechniqueAdapter:
                         steps=tuple(local_steps),
                     )
                 )
+            elif (
+                technique == "ir"
+                and len(local_artifacts) == 1
+                and local_artifacts[0].format == "directory"
+                and len(local_steps) == 1
+                and local_steps[0].parameters.get("submodule_id") == "ir.temperature_2d"
+            ):
+                valid = IRTemperatureSeriesAdapter.is_valid_recipe(
+                    AnalysisRecipe.create(
+                        workflow_id=IRTemperatureSeriesAdapter.workflow_id,
+                        artifacts=local_artifacts,
+                        steps=tuple(local_steps),
+                    )
+                )
             elif len(local_artifacts) > 1:
                 valid = TechniqueSeriesAdapter.is_valid_recipe(
                     AnalysisRecipe.create(
@@ -386,4 +488,4 @@ class MixedTechniqueAdapter:
         return True
 
 
-__all__ = ["MixedTechniqueAdapter", "SingleInputTechniqueAdapter", "TechniqueSeriesAdapter"]
+__all__ = ["IRTemperatureSeriesAdapter", "MixedTechniqueAdapter", "SingleInputTechniqueAdapter", "TechniqueSeriesAdapter"]

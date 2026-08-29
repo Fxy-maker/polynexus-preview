@@ -18,7 +18,7 @@ from .quick_run_attachment import QuickRunAttachment, attach_quick_run
 from .service import ProjectWorkflowService
 from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
-from .adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
+from .adapters import IRTemperatureSeriesAdapter, SingleInputTechniqueAdapter, TechniqueSeriesAdapter
 from .grouping import CandidateExperimentGroup, candidate_groups
 from .result_table import (
     GroupResultTable,
@@ -60,6 +60,7 @@ __all__ = [
     "ProjectEvidencePackager",
     "ResearchEvidencePackage",
     "SingleInputTechniqueAdapter",
+    "IRTemperatureSeriesAdapter",
     "TechniqueSeriesAdapter",
     "CandidateExperimentGroup",
     "candidate_groups",
