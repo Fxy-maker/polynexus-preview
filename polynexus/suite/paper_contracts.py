@@ -262,6 +262,7 @@ class ManuscriptSource:
     source_id: str = ""
     status: str = "draft"
     needs_input: tuple[InputRequest, ...] = ()
+    projection: Mapping[str, Any] = field(default_factory=dict)
     version: int = CONTRACT_VERSION
 
     @property
@@ -275,10 +276,10 @@ class ManuscriptSource:
         values = [_strings(v, n) for v, n in ((claim_ids, "claim_ids"), (figure_plan_ids, "figure_plan_ids"), (table_ids, "table_ids"), (citation_ids, "citation_ids"), (limitations, "limitations"))]
         requests = tuple(needs_input)
         sid = stable_id("manuscript", {"package_id": package_id, "claim_ids": values[0], "figure_plan_ids": values[1], "table_ids": values[2], "citation_ids": values[3], "limitations": values[4]})
-        return cls(package_id, *values[:4], values[4], sid, "needs_input" if any(r.material for r in requests) else "draft", requests)
+        return cls(package_id, *values[:4], values[4], sid, "needs_input" if any(r.material for r in requests) else "draft", requests, {})
 
     def to_dict(self) -> dict[str, Any]:
-        return {"version": self.version, "source_id": self.source_id, "package_id": self.package_id, "claim_ids": list(self.claim_ids), "figure_plan_ids": list(self.figure_plan_ids), "table_ids": list(self.table_ids), "citation_ids": list(self.citation_ids), "limitations": list(self.limitations), "status": self.status, "needs_input": [r.to_dict() for r in self.needs_input]}
+        return {"version": self.version, "source_id": self.source_id, "package_id": self.package_id, "claim_ids": list(self.claim_ids), "figure_plan_ids": list(self.figure_plan_ids), "table_ids": list(self.table_ids), "citation_ids": list(self.citation_ids), "limitations": list(self.limitations), "status": self.status, "needs_input": [r.to_dict() for r in self.needs_input], "projection": _json(self.projection)}
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "ManuscriptSource":
@@ -286,7 +287,7 @@ class ManuscriptSource:
             raise ValueError("manuscript source version is invalid")
         requests = tuple(InputRequest.from_dict(v) for v in payload.get("needs_input", ()))
         obj = cls.create(package_id=payload.get("package_id"), claim_ids=_strings(payload.get("claim_ids", ()), "claim_ids"), figure_plan_ids=_strings(payload.get("figure_plan_ids", ()), "figure_plan_ids"), table_ids=_strings(payload.get("table_ids", ()), "table_ids"), citation_ids=_strings(payload.get("citation_ids", ()), "citation_ids"), limitations=_strings(payload.get("limitations", ()), "limitations"), needs_input=requests)
-        return cls(obj.package_id, obj.claim_ids, obj.figure_plan_ids, obj.table_ids, obj.citation_ids, obj.limitations, str(payload.get("source_id", obj.source_id)), str(payload.get("status", obj.status)), requests)
+        return cls(obj.package_id, obj.claim_ids, obj.figure_plan_ids, obj.table_ids, obj.citation_ids, obj.limitations, str(payload.get("source_id", obj.source_id)), str(payload.get("status", obj.status)), requests, _mapping(payload.get("projection", {}), "projection"))
 
 
 @dataclass(frozen=True)
