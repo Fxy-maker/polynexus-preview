@@ -848,7 +848,7 @@ class ProjectWorkflowService:
         return ProjectWorkflowRun(run_id=run_id, request_hash=request.request_hash, plan_hash=plan.plan_hash, recipe_hash=recipe.recipe_hash, status=analysis_run.status, outputs=tuple(str(path) for path in outputs) + (str(manifest_path),), evidence_items=evidence_items, manifest_path=str(manifest_path), analysis_run=analysis_run, reason_codes=analysis_run.reason_codes)
 
     def _run_mixed_techniques(self, request: AnalysisRequest, plan: ProjectPlan) -> ProjectWorkflowRun:
-        components: dict[str, list[str]] = {}
+        components: dict[str, object] = {}
         for step in plan.steps:
             technique = str(step.get("technique", "")).lower()
             if not technique or str(step.get("status", "")) == "blocked":
@@ -856,10 +856,18 @@ class ProjectWorkflowService:
             paths = tuple(str(path) for path in step.get("artifact_paths", ()))
             if not paths:
                 return self._blocked_project_run(plan, "mixed_component_artifact_missing")
-            components[technique] = [
+            component_paths = [
                 str((self.workspace.root / path).absolute())
                 for path in paths
             ]
+            if technique == "nmr":
+                requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
+                components[technique] = {
+                    "paths": component_paths,
+                    **({"submodule_id": str(requested_submodule)} if requested_submodule else {}),
+                }
+            else:
+                components[technique] = component_paths
         proposal = self.composite_adapter.propose_recipe({
             "workflow_id": _COMPOSITE_WORKFLOW,
             "components": components,

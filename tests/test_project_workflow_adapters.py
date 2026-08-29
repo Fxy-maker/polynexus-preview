@@ -408,3 +408,25 @@ def test_mixed_adapter_routes_ir_directory_to_temperature_series_template(tmp_pa
     assert len(ir_steps) == 1
     assert ir_steps[0].parameters["submodule_id"] == "ir.temperature_2d"
     assert ir_steps[0].parameters["canonical_template"]["template_id"] == "ir.temperature_series.v1"
+
+
+def test_mixed_adapter_preserves_explicit_nmr_submodule(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "NMR" / "liquid_h.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("ppm,intensity\n1.0,2\n1.5,3\n", encoding="utf-8")
+    waxs_source = _source(tmp_path, "waxs", "profile.dat")
+
+    proposal = MixedTechniqueAdapter().propose_recipe({
+        "workflow_id": MixedTechniqueAdapter.workflow_id,
+        "components": {
+            "nmr": {"paths": [str(source)], "submodule_id": "nmr.liquid_h"},
+            "waxs": str(waxs_source),
+        },
+    })
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert MixedTechniqueAdapter.is_valid_recipe(proposal.recipe)
+    nmr_steps = [step for step in proposal.recipe.steps if step.technique == "nmr"]
+    assert len(nmr_steps) == 1
+    assert nmr_steps[0].parameters["submodule_id"] == "nmr.liquid_h"

@@ -16,6 +16,8 @@ def _write(root: Path, technique: str, name: str) -> Path:
             "XLabel,Wavenumber\nYLabel,Absorbance\n1000,1\n900,2\n",
             encoding="utf-8",
         )
+    elif technique == "nmr":
+        path.write_text("ppm,intensity\n1.0,2\n1.5,3\n", encoding="utf-8")
     else:
         path.write_text("q,I\n0.1,1\n0.2,2\n", encoding="utf-8")
     return path
@@ -49,3 +51,25 @@ def test_mixed_project_request_produces_one_composite_run(tmp_path: Path) -> Non
     package_path = Path(summary.package["path"])
     manifest = json.loads((package_path / "relations.json").read_text(encoding="utf-8"))
     assert any(item["type"] == "cross_technique_evidence_set" for item in manifest["relations"])
+
+
+def test_mixed_project_request_preserves_explicit_nmr_submodule(tmp_path: Path) -> None:
+    nmr = _write(tmp_path, "nmr", "liquid-h.csv")
+    waxs = _write(tmp_path, "waxs", "sample-waxs.dat")
+    calls: list[str] = []
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, artifact, output: (
+            calls.append(str(step.parameters.get("submodule_id", "")))
+            or AnalysisResult(technique=step.technique, validation_passed=True)
+        )
+    )
+
+    summary = service.analyze_project(
+        question="Prepare NMR and WAXS evidence",
+        data_scope=(nmr.relative_to(tmp_path).as_posix(), waxs.relative_to(tmp_path).as_posix()),
+        nmr_submodule="nmr.liquid_h",
+    )
+
+    assert summary.computation == "passed"
+    assert calls == ["nmr.liquid_h", "waxs.static"]

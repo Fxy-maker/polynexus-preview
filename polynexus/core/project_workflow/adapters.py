@@ -344,7 +344,8 @@ class MixedTechniqueAdapter:
         review_required = False
         for raw_technique, raw_paths in sorted(raw_components.items(), key=lambda item: str(item[0])):
             technique = str(raw_technique).strip().lower()
-            paths = SingleInputTechniqueAdapter._paths({"paths": raw_paths})
+            component_payload = raw_paths if isinstance(raw_paths, Mapping) else {"paths": raw_paths}
+            paths = SingleInputTechniqueAdapter._paths(component_payload)
             if not paths:
                 reasons.append(f"{technique}_artifact_missing")
                 continue
@@ -381,6 +382,7 @@ class MixedTechniqueAdapter:
                     "workflow_id": self._single.workflow_id,
                     "technique": technique,
                     "paths": list(paths),
+                    **({"submodule_id": str(component_payload["submodule_id"])} if technique == "nmr" and component_payload.get("submodule_id") else {}),
                 })
             if proposal.recipe is None:
                 reasons.extend(proposal.reason_codes or (f"{technique}_route_blocked",))
