@@ -29,6 +29,26 @@ installation/update with rollback, and package-relative evidence handoff.
 - Core providers: unchanged; Suite Manager is orchestration/integration only.
 - Cross-entry rule: CLI and GUI must call the same service and handoff contract.
 
+## Affected boundaries
+
+- `polynexus.suite`: new integration boundary for external Codex skills.
+- `polynexus.cli`: new `suite` command delegates to the shared boundary.
+- `polynexus.gui`: thin DTO adapter only; no Qt/provider logic changes.
+- `polynexus.core.project_workflow`: read-only consumer through
+  `load_evidence_package_view`; no evidence schema changes.
+- User configuration: `suite-lock.json` and timestamped backups under the
+  PolyNexus user configuration directory.
+
+## Implementation plan
+
+1. Add validated Suite manifest, component, status, and atomic lock contracts.
+2. Implement discovery, compatibility, staging, hash validation, activation,
+   and rollback in `SuiteManager`.
+3. Expose doctor/install/update/rollback/handoff through one CLI dispatcher.
+4. Add a Qt-free GUI adapter and cross-entry regression tests.
+5. Run focused tests, the task verifier, and whitespace checks; record known
+   limitations and preserve existing untracked runtime files.
+
 ## Context and output budget
 
 - Read first: the approved design at
