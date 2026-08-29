@@ -51,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     psuite = sub.add_parser("suite", help="PolyNexus Research Suite runtime and skill management")
     psuite.add_argument(
-        "operation", choices=["doctor", "install-ars", "update", "rollback", "handoff", "manuscript-source", "paper-bundle"],
+        "operation", choices=["doctor", "install-ars", "update", "rollback", "handoff", "manuscript-source", "paper-bundle", "paper-draft"],
         help="Suite operation",
     )
     psuite.add_argument("--manifest", default=None, help="Suite component manifest JSON path")

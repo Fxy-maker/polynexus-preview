@@ -19,6 +19,8 @@ from .figure_quality import check_figure_quality, check_svg_quality
 from .figure_review import rank_figure_candidates, save_review_decisions
 from .paper_source import build_manuscript_source, build_paper_bundle
 from .citations import detect_zotero, export_bibliography, render_citations
+from .paper_pipeline import assemble_manuscript
+from .preflight import preflight_manuscript
 
 __all__ = [
     "SuiteComponent",
@@ -46,4 +48,6 @@ __all__ = [
     "detect_zotero",
     "render_citations",
     "export_bibliography",
+    "assemble_manuscript",
+    "preflight_manuscript",
 ]

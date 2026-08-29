@@ -8,6 +8,9 @@ from typing import Any
 
 from polynexus.suite.handoff import build_suite_handoff
 from polynexus.suite.paper_source import build_manuscript_source, build_paper_bundle
+from polynexus.suite.paper_contracts import ClaimRecord, FigurePlan, ManuscriptSource
+from polynexus.suite.paper_pipeline import assemble_manuscript
+from polynexus.suite.preflight import preflight_manuscript
 from polynexus.suite.manager import SuiteManager
 
 
@@ -18,7 +21,28 @@ def run_suite(args: Any) -> int:
         lock_path=getattr(args, "lock", None),
     )
     operation = str(args.operation)
-    if operation == "paper-bundle":
+    if operation == "paper-draft":
+        package = getattr(args, "package", None)
+        output = getattr(args, "output", None)
+        if not package or not output:
+            payload = {"status": "blocked", "reason_codes": ["package_and_output_required"]}
+        else:
+            try:
+                brief = json.loads(Path(args.brief).read_text(encoding="utf-8")) if getattr(args, "brief", None) else None
+                bundle = build_paper_bundle(Path(package), Path(output), brief)
+                source = bundle["source"]
+                claims = tuple(ClaimRecord.from_dict(v) for v in source.get("projection", {}).get("claims", []))
+                figures = tuple(FigurePlan.from_dict(v) for v in source.get("projection", {}).get("figures", []))
+                manuscript = assemble_manuscript(source=ManuscriptSource.from_dict(source), claims=claims, figures=figures)
+                report = preflight_manuscript(manuscript)
+                out = Path(output).expanduser().resolve()
+                out.mkdir(parents=True, exist_ok=True)
+                (out / "manuscript.json").write_text(json.dumps(manuscript, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+                (out / "preflight.json").write_text(json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+                payload = {"status": report.status, "manuscript": manuscript, "preflight": report.to_dict(), "output": str(out)}
+            except (OSError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
+                payload = {"status": "blocked", "reason_codes": ["paper_draft_invalid"], "error": str(exc)}
+    elif operation == "paper-bundle":
         package = getattr(args, "package", None)
         output = getattr(args, "output", None)
         if not package or not output:
