@@ -6203,3 +6203,4 @@ and structured gates (`303` / `157`).
 - CLI `suite manuscript-source --package ... --output ...` and the GUI adapter now expose the same read-only manuscript-source projection for ARS consumption.
 - `suite paper-bundle` now packages the source DTO with figure quality reports, advisory ranking, and optional human review decisions without mutating evidence packages.
 - `suite paper-draft` assembles Results/Discussion claim sections, runs structural preflight, and exports `manuscript.json`/`manuscript.md` plus `preflight.json`; PA6 v011 replay produced a review-required draft because citations were not supplied.
+- DOCX export is now emitted when `python-docx` is installed. PA6 v011 replay output is at `D:\PolyNexus-paper-draft-v011`; status is `review_required` solely because no citation requests were supplied. PDF generation remains renderer-dependent.
