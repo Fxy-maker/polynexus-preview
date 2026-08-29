@@ -52,6 +52,21 @@ def export_manuscript(manuscript: dict[str, Any], output_dir: str | Path) -> dic
                 lines.extend([claim.get("text", ""), ""])
     md_path.write_text("\n".join(lines), encoding="utf-8")
     result = {"json": str(json_path), "markdown": str(md_path)}
+    try:
+        from docx import Document
+        document = Document()
+        document.add_heading("Manuscript draft", level=1)
+        for section in manuscript.get("sections", []):
+            document.add_heading(str(section.get("name", "Section")), level=2)
+            for claim_id in section.get("claim_ids", []):
+                claim = next((c for c in manuscript.get("claims", []) if c.get("claim_id") == claim_id), None)
+                if claim:
+                    document.add_paragraph(str(claim.get("text", "")))
+        docx_path = root / "manuscript.docx"
+        document.save(docx_path)
+        result["docx"] = str(docx_path)
+    except Exception:
+        pass
     return result
 
 
