@@ -88,6 +88,8 @@ whole-paper structure, and deterministic document preflight.
 - [x] CLI/GUI shared `manuscript-source` entry point backed by the same DTO.
 - [x] Paper bundle entry point combines source projection, figure quality reports,
       advisory ranking, and optional review ledger.
+- [x] Manuscript assembly, structural preflight, and non-destructive Markdown/JSON
+      export are available through `suite paper-draft`.
 - [ ] Full manuscript orchestration, document preflight/export, and PA6 pilot.
 
 ## Verification

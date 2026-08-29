@@ -6202,3 +6202,4 @@ and structured gates (`303` / `157`).
 - Full manuscript orchestration, document export/preflight, and PA6 pilot remain open; these foundations do not alter Core calculations or raw evidence.
 - CLI `suite manuscript-source --package ... --output ...` and the GUI adapter now expose the same read-only manuscript-source projection for ARS consumption.
 - `suite paper-bundle` now packages the source DTO with figure quality reports, advisory ranking, and optional human review decisions without mutating evidence packages.
+- `suite paper-draft` assembles Results/Discussion claim sections, runs structural preflight, and exports `manuscript.json`/`manuscript.md` plus `preflight.json`; PA6 v011 replay produced a review-required draft because citations were not supplied.
