@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 from pathlib import Path
 from typing import Any, Mapping
 
 from polynexus.core.project_workflow.evidence_view import load_evidence_package_view
 from .paper_contracts import ClaimRecord, FigurePlan, ManuscriptSource, PaperBrief
+from .figure_quality import check_svg_quality
+from .figure_review import rank_figure_candidates, save_review_decisions
 
 
 def build_manuscript_source(package_path: str | Path, brief: PaperBrief | Mapping[str, Any] | None = None) -> ManuscriptSource:
@@ -52,4 +55,22 @@ def _metric_dict(metric: Any) -> dict[str, Any]:
     return {"metric_id": metric.metric_id, "technique": metric.technique, "metric_key": metric.metric_key, "value": metric.value, "unit": metric.unit, "method": metric.method, "source_locator": metric.source_locator, "evidence_id": metric.evidence_id, "run_id": metric.run_id, "status": metric.status, "writing_eligibility": metric.writing_eligibility, "reason_codes": list(metric.reason_codes), "figures": list(metric.figures), "tables": list(metric.tables)}
 
 
-__all__ = ["build_manuscript_source"]
+def build_paper_bundle(package_path: str | Path, output_dir: str | Path, brief: PaperBrief | Mapping[str, Any] | None = None, decisions: tuple[tuple[str, str, str], ...] = ()) -> dict[str, Any]:
+    """Prepare source plus figure review artifacts without mutating the package."""
+    package_root = Path(package_path).expanduser().resolve()
+    output = Path(output_dir).expanduser().resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    source = build_manuscript_source(package_root, brief)
+    plans = tuple(FigurePlan.from_dict(v) for v in source.projection.get("figures", ()))
+    reports: dict[str, dict[str, object]] = {}
+    for plan in plans:
+        source_path = package_root / plan.source_ids[0] if plan.source_ids else package_root / "missing.svg"
+        reports[plan.figure_id] = check_svg_quality(source_path)
+    candidates = rank_figure_candidates(plans, reports)
+    source_path = output / "manuscript-source.json"
+    source_path.write_text(json.dumps(source.to_dict(), ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+    review_path = save_review_decisions(output, decisions) if decisions else None
+    return {"status": "review_required" if any(r["status"] != "passed" for r in reports.values()) else "ready", "source": source.to_dict(), "source_path": str(source_path), "figure_candidates": candidates, "figure_quality": reports, "review_decision_path": str(review_path) if review_path else None}
+
+
+__all__ = ["build_manuscript_source", "build_paper_bundle"]

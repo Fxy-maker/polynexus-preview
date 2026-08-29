@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from polynexus.suite.handoff import build_suite_handoff
-from polynexus.suite.paper_source import build_manuscript_source
+from polynexus.suite.paper_source import build_manuscript_source, build_paper_bundle
 from polynexus.suite.manager import SuiteManager
 
 
@@ -18,7 +18,18 @@ def run_suite(args: Any) -> int:
         lock_path=getattr(args, "lock", None),
     )
     operation = str(args.operation)
-    if operation == "manuscript-source":
+    if operation == "paper-bundle":
+        package = getattr(args, "package", None)
+        output = getattr(args, "output", None)
+        if not package or not output:
+            payload = {"status": "blocked", "reason_codes": ["package_and_output_required"]}
+        else:
+            try:
+                brief = json.loads(Path(args.brief).read_text(encoding="utf-8")) if getattr(args, "brief", None) else None
+                payload = build_paper_bundle(Path(package), Path(output), brief)
+            except (OSError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
+                payload = {"status": "blocked", "reason_codes": ["paper_bundle_invalid"], "error": str(exc)}
+    elif operation == "manuscript-source":
         package = getattr(args, "package", None)
         output = getattr(args, "output", None)
         if not package or not output:
