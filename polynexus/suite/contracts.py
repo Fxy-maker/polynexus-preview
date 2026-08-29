@@ -56,6 +56,8 @@ class SuiteStatus:
     core_version: str
     components: tuple[SuiteComponentStatus, ...] = ()
     reason_codes: tuple[str, ...] = ()
+    codex_home: str = ""
+    codex_detected: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)

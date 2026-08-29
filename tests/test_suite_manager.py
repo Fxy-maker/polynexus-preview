@@ -45,6 +45,20 @@ def test_install_requires_confirmation(tmp_path: Path):
     assert manager.install("ars").status == "confirmation_required"
 
 
+def test_doctor_reports_codex_home_detection(tmp_path: Path):
+    source = tmp_path / "ars"
+    source.mkdir()
+    (source / "SKILL.md").write_text("fixture", encoding="utf-8")
+    manager = SuiteManager(
+        manifest_path=_manifest(tmp_path / "manifest.json", source),
+        codex_skills_dir=tmp_path / "codex" / "skills",
+        lock_path=tmp_path / "lock.json",
+    )
+    status = manager.doctor().to_dict()
+    assert status["codex_home"] == str((tmp_path / "codex").resolve())
+    assert status["codex_detected"] is False
+
+
 def test_failed_activation_restores_previous_installation(tmp_path: Path, monkeypatch):
     source = tmp_path / "ars"
     source.mkdir()

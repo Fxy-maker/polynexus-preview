@@ -87,10 +87,12 @@ class SuiteManager:
         return load_manifest(self.manifest_path)
 
     def doctor(self) -> SuiteStatus:
+        codex_home = self.codex_skills_dir.parent
+        codex_detected = codex_home.is_dir()
         try:
             manifest = self._manifest()
         except ValueError as exc:
-            return SuiteStatus("invalid", str(self.codex_skills_dir), self.core_version, reason_codes=("manifest_invalid", str(exc)))
+            return SuiteStatus("invalid", str(self.codex_skills_dir), self.core_version, reason_codes=("manifest_invalid", str(exc)), codex_home=str(codex_home), codex_detected=codex_detected)
         statuses: list[SuiteComponentStatus] = []
         for component in manifest.components:
             target = _safe_destination(self.codex_skills_dir, component.destination)
@@ -108,7 +110,7 @@ class SuiteManager:
         overall = "ready" if statuses and all(item.status == "installed" for item in statuses) else "component_missing"
         if not self.codex_skills_dir.exists():
             overall = "codex_not_found"
-        return SuiteStatus(overall, str(self.codex_skills_dir), self.core_version, tuple(statuses), () if overall == "ready" else (overall,))
+        return SuiteStatus(overall, str(self.codex_skills_dir), self.core_version, tuple(statuses), () if overall == "ready" else (overall,), str(codex_home), codex_detected)
 
     def install(self, component_id: str, *, confirm: bool = False, source_override: str | Path | None = None) -> SuiteStatus:
         if not confirm:
