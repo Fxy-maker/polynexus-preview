@@ -6201,3 +6201,4 @@ and structured gates (`303` / `157`).
 - Added read-only evidence projection, SVG-first figure rendering/quality checks, advisory figure ranking with review ledger, and Zotero/CSL citation adapters. Focused matrix passes 12 tests.
 - Full manuscript orchestration, document export/preflight, and PA6 pilot remain open; these foundations do not alter Core calculations or raw evidence.
 - CLI `suite manuscript-source --package ... --output ...` and the GUI adapter now expose the same read-only manuscript-source projection for ARS consumption.
+- `suite paper-bundle` now packages the source DTO with figure quality reports, advisory ranking, and optional human review decisions without mutating evidence packages.

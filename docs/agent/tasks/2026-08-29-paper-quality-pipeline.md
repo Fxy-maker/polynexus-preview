@@ -86,6 +86,8 @@ whole-paper structure, and deterministic document preflight.
 - [x] Advisory figure ranking and append-only review-decision writer.
 - [x] Zotero detection plus CSL static citation fallback and exports.
 - [x] CLI/GUI shared `manuscript-source` entry point backed by the same DTO.
+- [x] Paper bundle entry point combines source projection, figure quality reports,
+      advisory ranking, and optional review ledger.
 - [ ] Full manuscript orchestration, document preflight/export, and PA6 pilot.
 
 ## Verification
