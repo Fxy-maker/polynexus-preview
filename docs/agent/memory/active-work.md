@@ -6204,3 +6204,9 @@ and structured gates (`303` / `157`).
 - `suite paper-bundle` now packages the source DTO with figure quality reports, advisory ranking, and optional human review decisions without mutating evidence packages.
 - `suite paper-draft` assembles Results/Discussion claim sections, runs structural preflight, and exports `manuscript.json`/`manuscript.md` plus `preflight.json`; PA6 v011 replay produced a review-required draft because citations were not supplied.
 - DOCX export is now emitted when `python-docx` is installed, and a dependency-free PDF text artifact is emitted. PA6 v011 replay output is at `D:\PolyNexus-paper-draft-v011`; status is `review_required` solely because no citation requests were supplied.
+
+## Multi-technique canonical template closure - 2026-08-30
+
+- A new architecture goal and task card (`docs/agent/tasks/2026-08-30-multitech-template-closure.md`) define template-first closure for IR temperature/time 2D-COS, SAXS/WAXS detector images, and the four existing NMR 1D modes.
+- Existing `CanonicalExperiment`, `ComputeRun`, `metric_manifest`, Figure, and evidence contracts remain the public layer; no second generic 2D model is planned.
+- The first audit confirms dedicated 2D template registrations are missing, IR project series currently split into independent steps, and SAXS/WAXS 2D provider paths are not yet fully canonicalized. Pre-existing untracked `active_run.json`, `runs/`, and `tests/_tmp_phase3/` remain untouched.
