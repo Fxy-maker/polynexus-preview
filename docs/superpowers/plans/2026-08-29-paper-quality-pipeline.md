@@ -4,20 +4,20 @@
 
 **Goal:** Produce a usable, evidence-grounded paper draft in one controlled run while preserving reproducible figures, formulas, citations, and document layout.
 
-**Architecture:** Keep PolyNexus Core as the deterministic producer of runs, metrics, tables, and evidence. Add a Suite paper pipeline that consumes those contracts and emits versioned manuscript-source and FigurePlan objects; ARS handles research prose, Zotero/CSL handles citations, and preflight validates the final export. GUI and CLI remain thin consumers of shared DTOs.
+**Architecture:** Keep PolyNexus Core as the deterministic producer of runs, metrics, tables, and evidence. Add a Suite paper pipeline that consumes those contracts and emits versioned manuscript-source and FigurePlan objects; ARS handles research prose, Zotero/CSL handles citations, and preflight validates the final export. The pipeline runs automatically through unambiguous stages and returns `needs_input` only for material unresolved choices. GUI and CLI remain thin consumers of shared DTOs.
 
 **Tech Stack:** Python dataclasses/JSON, existing evidence package contracts, Matplotlib/SVG rendering, optional Zotero/CSL adapters, python-docx or existing document exporters, pytest.
 
 ---
 
-### Task 1: Define manuscript-source and review contracts
+### Task 1: Define manuscript-source, review, and adaptive-input contracts
 
 **Files:**
 - Create: `polynexus/suite/paper_contracts.py`
 - Create: `tests/test_paper_contracts.py`
 - Modify: `docs/agent/memory/active-work.md`
 
-- [ ] **Step 1: Write failing tests** for round-tripping `PaperBrief`, `ClaimRecord`, `FigurePlan`, `CitationRequest`, `ManuscriptSource`, and `PreflightReport`, including schema version and stable IDs.
+- [ ] **Step 1: Write failing tests** for round-tripping `PaperBrief`, `ClaimRecord`, `FigurePlan`, `CitationRequest`, `ManuscriptSource`, and `PreflightReport`, including schema version, stable IDs, adaptive `needs_input` requests, and automatic continuation when no material ambiguity exists.
 - [ ] **Step 2: Run** `python -m pytest -p no:cacheprovider -q tests/test_paper_contracts.py`; confirm RED because contracts do not exist.
 - [ ] **Step 3: Implement** frozen dataclasses with strict required fields, JSON-safe `to_dict/from_dict`, and no scientific calculations.
 - [ ] **Step 4: Re-run** the focused test; expected GREEN.
@@ -51,7 +51,7 @@
 - [ ] **Step 4: Re-run** focused tests and existing figure-index tests; expected GREEN.
 - [ ] **Step 5: Checkpoint** figure contracts, renderer, quality checks, and tests.
 
-### Task 4: Add AI ranking and human figure decisions
+### Task 4: Add advisory AI ranking and optional human figure decisions
 
 **Files:**
 - Create: `polynexus/suite/figure_review.py`

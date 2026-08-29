@@ -44,12 +44,15 @@ whole-paper structure, and deterministic document preflight.
 ## Implementation plan
 
 1. Define versioned `PaperBrief`, `ClaimRecord`, `FigurePlan`,
-   `CitationRequest`, `ManuscriptSource`, and `PreflightReport` contracts.
+   `CitationRequest`, `ManuscriptSource`, and `PreflightReport` contracts, with
+   adaptive `needs_input` requests rather than mandatory stage gates.
 2. Build an evidence-to-source bridge that projects existing result tables,
    evidence boundaries, and metric provenance without recomputation.
 3. Replace fixed image outputs with FigurePlan-driven candidate layouts,
    SVG-first rendering, optional PNG/PDF export, and machine checks.
-4. Add AI ranking plus human selection recorded in `review-decision.json`.
+4. Add AI ranking plus optional human selection recorded in
+   `review-decision.json`; ask the user only when a decision materially changes
+   the result or figure.
 5. Add Zotero detection and dynamic-field mode, plus CSL static mode with
    stable keys and `.bib`/`.json` export when Zotero is unavailable.
 6. Add formula objects, manuscript-source generation, and section/paragraph
@@ -71,6 +74,8 @@ whole-paper structure, and deterministic document preflight.
       cross-linked after DOCX/PDF export.
 - [ ] The generated draft passes structural preflight and leaves only the
       declared scientific/human review items.
+- [ ] Non-ambiguous stages run automatically; only material unresolved choices
+      return a machine-readable `needs_input` request.
 - [ ] Existing Core and evidence-package tests remain green.
 
 ## Verification
