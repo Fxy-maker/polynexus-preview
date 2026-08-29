@@ -22,7 +22,8 @@ def test_nmr_vendor_input_replays_through_project_compute_run_and_package(
     target.parent.mkdir(parents=True)
     shutil.copyfile(source, target)
 
-    summary = ProjectWorkflowService.open(tmp_path).analyze_project(
+    project_service = ProjectWorkflowService.open(tmp_path)
+    summary = project_service.analyze_project(
         question="Replay vendor NMR evidence",
         data_scope=(target.relative_to(tmp_path).as_posix(),),
         nmr_submodule=submodule,
@@ -37,3 +38,9 @@ def test_nmr_vendor_input_replays_through_project_compute_run_and_package(
     assert run.analysis_run.steps[0].compute_run is not None
     assert run.analysis_run.steps[0].compute_run["canonical_template"]["template_id"] == "nmr.spectrum.v1"
     assert run.analysis_run.steps[0].result_summary["canonical_conversion"]["conversion_id"] == "raw-file-envelope.nmr.v1"
+
+    export_dir = tmp_path / "nmr-export"
+    exported = project_service.agent_service.export_run(run.analysis_run, export_dir)
+    assert exported == export_dir.resolve()
+    assert (export_dir / "evidence.json").is_file()
+    assert not (export_dir / "raw").exists()
