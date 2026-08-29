@@ -52,6 +52,9 @@ def export_manuscript(manuscript: dict[str, Any], output_dir: str | Path) -> dic
                 lines.extend([claim.get("text", ""), ""])
     md_path.write_text("\n".join(lines), encoding="utf-8")
     result = {"json": str(json_path), "markdown": str(md_path)}
+    pdf_path = root / "manuscript.pdf"
+    _write_minimal_pdf(pdf_path, lines)
+    result["pdf"] = str(pdf_path)
     try:
         from docx import Document
         document = Document()
@@ -68,6 +71,39 @@ def export_manuscript(manuscript: dict[str, Any], output_dir: str | Path) -> dic
     except Exception:
         pass
     return result
+
+
+def _write_minimal_pdf(path: Path, lines: list[str]) -> None:
+    """Write a dependency-free, text-only PDF for layout smoke review."""
+    visible = [line[:110] for line in lines[:55]] or [""]
+    stream_lines = ["BT", "/F1 10 Tf", "50 780 Td"]
+    for index, line in enumerate(visible):
+        escaped = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+        if index:
+            stream_lines.append("0 -14 Td")
+        stream_lines.append(f"({escaped}) Tj")
+    stream_lines.append("ET")
+    stream = "\n".join(stream_lines).encode("latin-1", errors="replace")
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
+    ]
+    payload = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for number, obj in enumerate(objects, 1):
+        offsets.append(len(payload))
+        payload.extend(f"{number} 0 obj\n".encode())
+        payload.extend(obj)
+        payload.extend(b"\nendobj\n")
+    xref = len(payload)
+    payload.extend(f"xref\n0 {len(objects)+1}\n0000000000 65535 f \n".encode())
+    for offset in offsets[1:]:
+        payload.extend(f"{offset:010d} 00000 n \n".encode())
+    payload.extend(f"trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    path.write_bytes(payload)
 
 
 __all__ = ["assemble_manuscript", "export_manuscript"]

@@ -8,7 +8,7 @@ from typing import Any
 
 from polynexus.suite.handoff import build_suite_handoff
 from polynexus.suite.paper_source import build_manuscript_source, build_paper_bundle
-from polynexus.suite.paper_contracts import ClaimRecord, FigurePlan, ManuscriptSource
+from polynexus.suite.paper_contracts import ClaimRecord, CitationRequest, FigurePlan, FormulaRecord, ManuscriptSource
 from polynexus.suite.paper_pipeline import assemble_manuscript, export_manuscript
 from polynexus.suite.preflight import preflight_manuscript
 from polynexus.suite.manager import SuiteManager
@@ -33,7 +33,9 @@ def run_suite(args: Any) -> int:
                 source = bundle["source"]
                 claims = tuple(ClaimRecord.from_dict(v) for v in source.get("projection", {}).get("claims", []))
                 figures = tuple(FigurePlan.from_dict(v) for v in source.get("projection", {}).get("figures", []))
-                manuscript = assemble_manuscript(source=ManuscriptSource.from_dict(source), claims=claims, figures=figures)
+                citations = _load_contracts(getattr(args, "citations", None), CitationRequest)
+                formulas = _load_contracts(getattr(args, "formulas", None), FormulaRecord)
+                manuscript = assemble_manuscript(source=ManuscriptSource.from_dict(source), claims=claims, figures=figures, citations=citations, formulas=formulas)
                 report = preflight_manuscript(manuscript)
                 out = Path(output).expanduser().resolve()
                 out.mkdir(parents=True, exist_ok=True)
@@ -90,3 +92,13 @@ def run_suite(args: Any) -> int:
 
 
 __all__ = ["run_suite"]
+
+
+def _load_contracts(path: str | None, contract: Any) -> tuple[Any, ...]:
+    if not path:
+        return ()
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    values = payload if isinstance(payload, list) else payload.get("items", payload.get("requests", ()))
+    if not isinstance(values, list):
+        raise ValueError("contract list is invalid")
+    return tuple(contract.from_dict(value) for value in values)

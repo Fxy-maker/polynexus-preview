@@ -63,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     psuite.add_argument("--package", default=None, help="Evidence package path for handoff")
     psuite.add_argument("--brief", default=None, help="Optional PaperBrief JSON path")
     psuite.add_argument("--output", default=None, help="Output manuscript-source JSON path")
+    psuite.add_argument("--citations", default=None, help="CitationRequest JSON/list path for paper-draft")
+    psuite.add_argument("--formulas", default=None, help="FormulaRecord JSON/list path for paper-draft")
 
     pa = sub.add_parser("ai-tune", help="AI-assisted parameter tuning")
     pa.add_argument("--technique", default="waxs", choices=["waxs", "dsc", "saxs", "ir", "nmr"], help="Technique to tune")

@@ -16,6 +16,8 @@ def preflight_manuscript(manuscript: Mapping[str, Any]) -> PreflightReport:
     claims = manuscript.get("claims", [])
     figures = manuscript.get("figures", [])
     citations = manuscript.get("citations", [])
+    citation_keys = {str(c.get("key")) for c in citations if isinstance(c, Mapping)}
+    formula_ids = {str(f.get("formula_id")) for f in manuscript.get("formulas", []) if isinstance(f, Mapping)}
     claim_ids = {str(c.get("claim_id")) for c in claims if isinstance(c, Mapping)}
     for section in manuscript.get("sections", []):
         if isinstance(section, Mapping):
@@ -29,7 +31,11 @@ def preflight_manuscript(manuscript: Mapping[str, Any]) -> PreflightReport:
     for claim in claims:
         if isinstance(claim, Mapping) and not (claim.get("evidence_ids") or claim.get("metric_ids")):
             errors.append(f"claim_without_evidence:{claim.get('claim_id', '')}")
-    checks = {"claims": "passed" if not errors else "failed", "figures": "passed" if figures else "review_required", "citations": "passed" if citations else "review_required", "formulas": "passed"}
+        if isinstance(claim, Mapping):
+            for key in claim.get("citation_keys", ()):
+                if str(key) not in citation_keys:
+                    errors.append(f"citation_unbound:{key}")
+    checks = {"claims": "passed" if not errors else "failed", "figures": "passed" if figures else "review_required", "citations": "passed" if citations else "review_required", "formulas": "passed" if formula_ids or not manuscript.get("formulas") else "failed"}
     return PreflightReport.create(source_id=source_id or "unknown", errors=tuple(dict.fromkeys(errors)), warnings=tuple(dict.fromkeys(warnings)), checks=checks)
 
 
