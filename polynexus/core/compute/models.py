@@ -167,7 +167,9 @@ def _directory_manifest_sha256(path: Path) -> str:
 
 
 def _artifact_format(path: Path) -> str:
-    return "directory" if path.is_dir() else path.suffix.removeprefix(".").lower() or "unknown"
+    # Keep extensionless vendor inputs (for example an NMR ``fid`` file)
+    # aligned with AgentWorkflow inspection, which records an empty format.
+    return "directory" if path.is_dir() else path.suffix.removeprefix(".").lower()
 
 
 def _invalid_path_marker(path: object) -> str:
