@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from polynexus.suite.handoff import build_suite_handoff
+from polynexus.suite.paper_source import build_manuscript_source
 from polynexus.suite.manager import SuiteManager
 
 
@@ -17,7 +18,26 @@ def run_suite(args: Any) -> int:
         lock_path=getattr(args, "lock", None),
     )
     operation = str(args.operation)
-    if operation == "handoff":
+    if operation == "manuscript-source":
+        package = getattr(args, "package", None)
+        output = getattr(args, "output", None)
+        if not package or not output:
+            payload = {"status": "blocked", "reason_codes": ["package_and_output_required"]}
+        else:
+            try:
+                brief = None
+                if getattr(args, "brief", None):
+                    brief = json.loads(Path(args.brief).read_text(encoding="utf-8"))
+                source = build_manuscript_source(Path(package), brief)
+                destination = Path(output).expanduser().resolve()
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                temporary = destination.with_name(f".{destination.name}.tmp")
+                temporary.write_text(json.dumps(source.to_dict(), ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+                temporary.replace(destination)
+                payload = {"status": "ready", "source": {"path": str(destination), **source.to_dict()}}
+            except (OSError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
+                payload = {"status": "blocked", "reason_codes": ["manuscript_source_invalid"], "error": str(exc)}
+    elif operation == "handoff":
         payload = build_suite_handoff(Path(args.package))
     elif operation == "doctor":
         payload = manager.doctor().to_dict()

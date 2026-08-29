@@ -51,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     psuite = sub.add_parser("suite", help="PolyNexus Research Suite runtime and skill management")
     psuite.add_argument(
-        "operation", choices=["doctor", "install-ars", "update", "rollback", "handoff"],
+        "operation", choices=["doctor", "install-ars", "update", "rollback", "handoff", "manuscript-source"],
         help="Suite operation",
     )
     psuite.add_argument("--manifest", default=None, help="Suite component manifest JSON path")
@@ -61,6 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     psuite.add_argument("--source", default=None, help="Local or URL source override for install-ars")
     psuite.add_argument("--yes", action="store_true", help="Confirm installation/update filesystem changes")
     psuite.add_argument("--package", default=None, help="Evidence package path for handoff")
+    psuite.add_argument("--brief", default=None, help="Optional PaperBrief JSON path")
+    psuite.add_argument("--output", default=None, help="Output manuscript-source JSON path")
 
     pa = sub.add_parser("ai-tune", help="AI-assisted parameter tuning")
     pa.add_argument("--technique", default="waxs", choices=["waxs", "dsc", "saxs", "ir", "nmr"], help="Technique to tune")
