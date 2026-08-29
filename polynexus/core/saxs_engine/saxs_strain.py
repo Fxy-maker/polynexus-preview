@@ -1,5 +1,6 @@
 
 import logging
+import inspect
 logger = logging.getLogger(__name__)
 # This legacy compatibility module predates the repository's strict Ruff
 # baseline; retain its public names while allowing changed-file verification.
@@ -44,6 +45,25 @@ from .saxs_output_helpers import (
     _data_quality_csv_fields,
     _detector_provenance_csv_fields,
 )
+
+
+def _call_analyze_single_compatible(q, intensity, config, **kwargs):
+    """Call the core analyzer while preserving lightweight test/provider shims.
+
+    The production analyzer accepts the full tracking/provenance keyword set;
+    older injected callables may expose only the original three positional
+    arguments. Filter optional keywords by signature instead of catching a
+    potentially meaningful TypeError raised inside the analyzer.
+    """
+
+    try:
+        parameters = inspect.signature(analyze_single).parameters
+    except (TypeError, ValueError):
+        return analyze_single(q, intensity, config, **kwargs)
+    if any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()):
+        return analyze_single(q, intensity, config, **kwargs)
+    supported = {key: value for key, value in kwargs.items() if key in parameters}
+    return analyze_single(q, intensity, config, **supported)
 from .saxs_orientation_tracking import track_orientation_features
 from .preprocess import (
     _contains_invalid_pyfai_support_value,
@@ -1251,7 +1271,7 @@ def analyze_strain_series(
                 if I_pyfai_list is not None and len(I_pyfai_list) == n_points
                 else None
             )
-            saxs_result = analyze_single(
+            saxs_result = _call_analyze_single_compatible(
                 q,
                 I,
                 frame_cfg,
@@ -1264,10 +1284,11 @@ def analyze_strain_series(
             struct = saxs_result.structure
 
             sp.analysis_result = saxs_result
+            peak_selection_reason = str(getattr(lp, "peak_selection_reason", ""))
             if (
                 not tracking_has_seed
-                and str(getattr(lp, "peak_selection_reason", "none"))
-                != "best_credible_lamellar"
+                and peak_selection_reason
+                and peak_selection_reason != "best_credible_lamellar"
             ):
                 lp.q_peak_nm1 = np.nan
                 lp.L_bragg = np.nan
@@ -1280,6 +1301,10 @@ def analyze_strain_series(
                 lp.method_used = "tracking_lost"
                 lp.peak_selection_reason = "tracking_already_lost"
             sp.q_peak_total_nm1 = float(getattr(lp, "q_peak_nm1", np.nan))
+            if not np.isfinite(sp.q_peak_total_nm1):
+                l_best = float(getattr(lp, "L_best", np.nan))
+                if np.isfinite(l_best) and l_best > 0:
+                    sp.q_peak_total_nm1 = 2 * np.pi / l_best
             if np.isfinite(sp.q_peak_total_nm1) and sp.q_peak_total_nm1 > 0:
                 tracking_has_seed = True
                 previous_q_peak = sp.q_peak_total_nm1
