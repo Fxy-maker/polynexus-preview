@@ -91,7 +91,7 @@ whole-paper structure, and deterministic document preflight.
 - [x] Manuscript assembly, structural preflight, and non-destructive Markdown/JSON
       export are available through `suite paper-draft`.
 - [x] Optional DOCX export is emitted when `python-docx` is available; PDF remains
-      a renderer-dependent follow-up.
+      a renderer-independent text review artifact is now emitted as well.
 - [ ] Full manuscript orchestration, document preflight/export, and PA6 pilot.
 
 ## Verification
