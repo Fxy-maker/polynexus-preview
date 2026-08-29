@@ -49,6 +49,19 @@ def build_parser() -> argparse.ArgumentParser:
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")
 
+    psuite = sub.add_parser("suite", help="PolyNexus Research Suite runtime and skill management")
+    psuite.add_argument(
+        "operation", choices=["doctor", "install-ars", "update", "rollback", "handoff"],
+        help="Suite operation",
+    )
+    psuite.add_argument("--manifest", default=None, help="Suite component manifest JSON path")
+    psuite.add_argument("--codex-skills-dir", default=None, help="Codex skills directory override")
+    psuite.add_argument("--lock", default=None, help="Suite lock JSON path override")
+    psuite.add_argument("--component", default=None, help="Component id for update/rollback")
+    psuite.add_argument("--source", default=None, help="Local or URL source override for install-ars")
+    psuite.add_argument("--yes", action="store_true", help="Confirm installation/update filesystem changes")
+    psuite.add_argument("--package", default=None, help="Evidence package path for handoff")
+
     pa = sub.add_parser("ai-tune", help="AI-assisted parameter tuning")
     pa.add_argument("--technique", default="waxs", choices=["waxs", "dsc", "saxs", "ir", "nmr"], help="Technique to tune")
     pa.add_argument("--file", "--input", dest="file", required=True, help="Input data file")
