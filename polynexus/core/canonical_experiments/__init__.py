@@ -1,6 +1,7 @@
 """Canonical data templates and deterministic conversion boundaries."""
 
 from .dsc_isothermal import convert_mettler_isothermal_text
+from .detector_image import convert_detector_image
 from .capabilities import (
     CapabilityExecutor,
     CapabilityRegistry,
@@ -37,6 +38,7 @@ __all__ = [
     "MAPPING_SOURCES",
     "CanonicalConverterRegistry",
     "convert_mettler_isothermal_text",
+    "convert_detector_image",
     "convert_one_dimensional_table",
     "build_ir_temperature_series_template",
     "default_converter_registry",

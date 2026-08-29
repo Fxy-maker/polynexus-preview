@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256
 from .capabilities import CapabilityExecutor
+from .detector_image import convert_detector_image
 from .dsc_isothermal import convert_mettler_isothermal_text
 from .ir_temperature_series import build_ir_temperature_series_template
 from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord
@@ -63,6 +64,16 @@ class CanonicalConverterRegistry:
                     frame_paths,
                     source_artifact_id=source_artifact_id,
                 )
+        if (
+            normalized_technique in {"saxs", "waxs"}
+            and source.is_file()
+            and source.suffix.casefold() in {".edf", ".cbf", ".tif", ".tiff", ".h5", ".hdf5", ".nxs"}
+        ):
+            return convert_detector_image(
+                source,
+                technique=normalized_technique,
+                source_artifact_id=source_artifact_id,
+            )
         if (
             normalized_technique in _GENERIC_TECHNIQUES
             and source.is_file()

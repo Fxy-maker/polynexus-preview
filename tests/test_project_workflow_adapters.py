@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+import numpy as np
+from PIL import Image
+
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.project_workflow.adapters import (
@@ -37,6 +40,23 @@ def test_single_input_adapter_proposes_registered_static_recipe(tmp_path: Path) 
     assert proposal.recipe.steps[0].parameters["submodule_id"] == "waxs.static"
     assert proposal.recipe.steps[0].parameters["canonical_converter"] == "generic.one-dimensional.v1"
     assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "scattering_1d.v1"
+
+
+def test_single_input_adapter_binds_waxs_detector_image_template(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "WAXS" / "frame.tif"
+    source.parent.mkdir(parents=True)
+    Image.fromarray(np.arange(12, dtype=np.uint16).reshape(3, 4)).save(source)
+
+    proposal = SingleInputTechniqueAdapter().propose_recipe({
+        "workflow_id": SingleInputTechniqueAdapter.workflow_id,
+        "technique": "waxs",
+        "path": str(source),
+    })
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "waxs.detector_image.v1"
+    assert SingleInputTechniqueAdapter.is_valid_recipe(proposal.recipe)
     assert proposal.recipe.steps[0].parameters["canonical_template"]["source_artifact_id"] == proposal.recipe.artifacts[0].artifact_id
 
 
