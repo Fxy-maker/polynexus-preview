@@ -6189,7 +6189,7 @@ and structured gates (`303` / `157`).
   package-relative `ars-writing-input.json`, result tables, writing evidence,
   citation metrics, and optional review ledger references without copying or
   recomputing scientific values.
-- Focused Suite matrix passes 12 tests; task-scoped verifier passes quality 313
+- Focused Suite matrix passes 13 tests; task-scoped verifier passes quality 313
   and preprocessing 157. Acceptance: `docs/acceptance/2026-08-29-suite-runtime-installation.md`.
 - The official ARS distribution URL/license and pinned production hash remain a
   human release decision; no source URL was invented. Existing untracked

@@ -90,7 +90,7 @@ python scripts/auto_commit.py `
 
 ## Completion evidence
 
-- Exact commands and outcomes: 12 focused Suite tests passed; `python
+- Exact commands and outcomes: 13 focused Suite tests passed; `python
   scripts/verify.py --task docs/agent/tasks/2026-08-29-suite-runtime-installation.md
   --changed --types` passed task validation, Ruff, compile, quality (313),
   preprocessing (157), and whitespace checks.

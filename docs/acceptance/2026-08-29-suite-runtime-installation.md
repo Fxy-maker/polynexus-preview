@@ -24,7 +24,7 @@
 python -m pytest -p no:cacheprovider -q tests/test_suite_contracts.py tests/test_suite_manager.py tests/test_suite_handoff.py tests/test_suite_cli.py tests/test_suite_gui_adapter.py
 ```
 
-Result: 11 passed.
+Result: 13 passed.
 
 The task-scoped structured verifier and `git diff --check` are required before
 the final checkpoint and are recorded in the completion report.
