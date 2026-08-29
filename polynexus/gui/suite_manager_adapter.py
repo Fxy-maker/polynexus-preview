@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from polynexus.suite.handoff import build_suite_handoff
+from polynexus.suite.paper_source import build_manuscript_source
 from polynexus.suite.manager import SuiteManager
 
 
@@ -30,6 +31,11 @@ class SuiteManagerAdapter:
     @staticmethod
     def handoff(package_path: str | Path) -> dict[str, Any]:
         return build_suite_handoff(package_path)
+
+    @staticmethod
+    def manuscript_source(package_path: str | Path, brief: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Return the same manuscript-source DTO consumed by CLI and ARS."""
+        return build_manuscript_source(package_path, brief).to_dict()
 
 
 __all__ = ["SuiteManagerAdapter"]
