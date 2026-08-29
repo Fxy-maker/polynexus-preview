@@ -189,6 +189,10 @@ class FigurePlan:
     outputs: tuple[str, ...] = ("svg", "json")
     figure_id: str = ""
     status: str = "candidate"
+    x_label: str = ""
+    y_label: str = ""
+    unit: str = ""
+    data: tuple[tuple[float, float], ...] = ()
     version: int = CONTRACT_VERSION
 
     @property
@@ -197,24 +201,25 @@ class FigurePlan:
     def object_id(self) -> str: return self.figure_id
 
     @classmethod
-    def create(cls, *, title: str, source_ids: tuple[str, ...] = (), metric_ids: tuple[str, ...] = (), layout: str = "single", outputs: tuple[str, ...] = ("svg", "json"), status: str = "candidate") -> "FigurePlan":
+    def create(cls, *, title: str, source_ids: tuple[str, ...] = (), metric_ids: tuple[str, ...] = (), layout: str = "single", outputs: tuple[str, ...] = ("svg", "json"), status: str = "candidate", x_label: str = "", y_label: str = "", unit: str = "", data: tuple[tuple[float, float], ...] = ()) -> "FigurePlan":
         title = _text(title, "figure title") or ""
         layout = _text(layout, "figure layout") or ""
         source_ids, metric_ids, outputs = _strings(source_ids, "source_ids"), _strings(metric_ids, "metric_ids"), _strings(outputs, "outputs")
         if "svg" not in outputs or "json" not in outputs:
             raise ValueError("figure outputs must include svg and json")
         fid = stable_id("figure", {"title": title, "layout": layout, "source_ids": source_ids, "metric_ids": metric_ids})
-        return cls(title, layout, source_ids, metric_ids, outputs, fid, status)
+        points = tuple((float(x), float(y)) for x, y in data)
+        return cls(title, layout, source_ids, metric_ids, outputs, fid, status, x_label, y_label, unit, points)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"version": self.version, "figure_id": self.figure_id, "title": self.title, "layout": self.layout, "source_ids": list(self.source_ids), "metric_ids": list(self.metric_ids), "outputs": list(self.outputs), "status": self.status}
+        return {"version": self.version, "figure_id": self.figure_id, "title": self.title, "layout": self.layout, "source_ids": list(self.source_ids), "metric_ids": list(self.metric_ids), "outputs": list(self.outputs), "status": self.status, "x_label": self.x_label, "y_label": self.y_label, "unit": self.unit, "data": [list(p) for p in self.data]}
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "FigurePlan":
         if int(payload.get("version", -1)) != CONTRACT_VERSION:
             raise ValueError("figure plan version is invalid")
-        obj = cls.create(title=payload.get("title"), source_ids=_strings(payload.get("source_ids", ()), "source_ids"), metric_ids=_strings(payload.get("metric_ids", ()), "metric_ids"), layout=payload.get("layout", "single"), outputs=_strings(payload.get("outputs", ("svg", "json")), "outputs"), status=payload.get("status", "candidate"))
-        return cls(obj.title, obj.layout, obj.source_ids, obj.metric_ids, obj.outputs, str(payload.get("figure_id", obj.figure_id)), obj.status)
+        obj = cls.create(title=payload.get("title"), source_ids=_strings(payload.get("source_ids", ()), "source_ids"), metric_ids=_strings(payload.get("metric_ids", ()), "metric_ids"), layout=payload.get("layout", "single"), outputs=_strings(payload.get("outputs", ("svg", "json")), "outputs"), status=payload.get("status", "candidate"), x_label=payload.get("x_label", ""), y_label=payload.get("y_label", ""), unit=payload.get("unit", ""), data=tuple(tuple(v) for v in payload.get("data", ())))
+        return cls(obj.title, obj.layout, obj.source_ids, obj.metric_ids, obj.outputs, str(payload.get("figure_id", obj.figure_id)), obj.status, obj.x_label, obj.y_label, obj.unit, obj.data)
 
 
 @dataclass(frozen=True)
