@@ -1,5 +1,17 @@
 # Active Work
 
+## Multi-technique canonical template closure — 2026-08-30
+
+- IR temperature-series routing, SAXS/WAXS detector-image templates, and
+  explicit four-mode NMR project routing are implemented on the existing
+  CanonicalExperiment/ComputeRun/evidence layer.
+- Read-only smoke replays succeeded for one real SAXS EDF, one real WAXS EDF,
+  and the real liquid-¹H NMR vendor `fid`; all remained review-required where
+  provider/scientific gates require it.
+- Do not infer NMR nucleus/state or detector geometry. Remaining work is full
+  provider-specific 2D evidence replay, all available NMR vendor cases, and
+  empirical simplification only after comparing replay payloads.
+
 ## Six-sample v010 replay and provider result completeness — 2026-08-29
 
 - A fresh read-only replay was executed at

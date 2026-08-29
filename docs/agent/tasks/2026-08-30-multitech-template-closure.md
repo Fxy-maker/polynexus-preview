@@ -94,6 +94,26 @@ The final milestone additionally requires cross-entry replay and explicit
 documentation of any `diagnostic_only`, `review_required`, or human scientific
 review limitations.
 
+## Acceptance criteria
+
+- [ ] Each requested technique has a registered, hash-linked canonical template
+      and a replayable ComputeRun/evidence path.
+- [ ] No raw detector pixels, guessed geometry, NMR assignments, or material
+      defaults are introduced into public JSON.
+- [ ] CLI/GUI/AI consumers read the existing run, figure, and evidence DTOs.
+
+## Implementation plan
+
+1. Audit existing canonical, ComputeRun, provider, and evidence boundaries.
+2. Add dedicated IR temperature-series, detector-image, and explicit NMR routes.
+3. Replay available real inputs and verify package/export consumers.
+4. Extract only fields proven common by at least two replayed techniques.
+
+## Verification
+
+- Focused pytest suites for each converter and project adapter.
+- `python scripts/verify.py --task docs/agent/tasks/2026-08-30-multitech-template-closure.md --changed --types`
+
 ## Known limitations
 
 The current worktree contains pre-existing untracked `active_run.json`,
