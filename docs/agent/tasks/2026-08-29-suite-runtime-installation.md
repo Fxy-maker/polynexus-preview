@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-29-suite-runtime-installation
 kind: architecture
-status: proposed
+status: implementation_complete_review_required
 date: 2026-08-29
 title: Add PolyNexus Suite runtime and skill installation management
 ---
@@ -90,6 +90,13 @@ python scripts/auto_commit.py `
 
 ## Completion evidence
 
-- Exact commands and outcomes:
-- Known limitations or follow-up:
-- Pre-existing changes left untouched:
+- Exact commands and outcomes: 12 focused Suite tests passed; `python
+  scripts/verify.py --task docs/agent/tasks/2026-08-29-suite-runtime-installation.md
+  --changed --types` passed task validation, Ruff, compile, quality (313),
+  preprocessing (157), and whitespace checks.
+- Known limitations or follow-up: the official ARS distribution URL, license,
+  and production pinned hash still require human confirmation before shipping a
+  network catalog entry. Historical full-suite failures remain outside this
+  task's boundary.
+- Pre-existing changes left untouched: `active_run.json`, `runs/`, and
+  `tests/_tmp_phase3/`.

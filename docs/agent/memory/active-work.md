@@ -6178,3 +6178,19 @@ and structured gates (`303` / `157`).
   `docs/acceptance/2026-08-29-cross-entry-acceptance-audit.md`.
 - Human scientific promotion and the historical full-suite failure ledger
   remain open; no release-green claim is made.
+## PolyNexus Research Suite runtime and skill installation (2026-08-29)
+
+- Added `polynexus.suite` contracts, manifest/lock persistence, and a shared
+  `SuiteManager` for Codex skill discovery, explicit install/update, SHA-256 and
+  required-file validation, compatibility checks, same-volume staging, backup,
+  rollback, and offline/HTTP(S) source handling.
+- Added CLI `suite doctor|install-ars|update|rollback|handoff` and a Qt-free GUI
+  adapter. Evidence handoff validates the existing package view and returns
+  package-relative `ars-writing-input.json`, result tables, writing evidence,
+  citation metrics, and optional review ledger references without copying or
+  recomputing scientific values.
+- Focused Suite matrix passes 12 tests; task-scoped verifier passes quality 313
+  and preprocessing 157. Acceptance: `docs/acceptance/2026-08-29-suite-runtime-installation.md`.
+- The official ARS distribution URL/license and pinned production hash remain a
+  human release decision; no source URL was invented. Existing untracked
+  `active_run.json`, `runs/`, and `tests/_tmp_phase3/` remain untouched.
