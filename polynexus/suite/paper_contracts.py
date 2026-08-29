@@ -257,6 +257,42 @@ class CitationRequest:
 
 
 @dataclass(frozen=True)
+class FormulaRecord:
+    expression: str
+    variables: Mapping[str, str]
+    units: Mapping[str, str]
+    source: str
+    formula_id: str = ""
+    version: int = CONTRACT_VERSION
+
+    @property
+    def schema_version(self) -> int: return self.version
+    @property
+    def object_id(self) -> str: return self.formula_id
+
+    @classmethod
+    def create(cls, *, expression: str, variables: Mapping[str, str], units: Mapping[str, str], source: str) -> "FormulaRecord":
+        expression = _text(expression, "formula expression") or ""
+        source = _text(source, "formula source") or ""
+        variables = {str(k): str(v).strip() for k, v in _mapping(variables, "formula variables").items()}
+        units = {str(k): str(v).strip() for k, v in _mapping(units, "formula units").items()}
+        if any(not k or not v for k, v in variables.items()) or any(not k or not v for k, v in units.items()):
+            raise ValueError("formula fields are invalid")
+        fid = stable_id("formula", {"expression": expression, "variables": variables, "units": units, "source": source})
+        return cls(expression, variables, units, source, fid)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"version": self.version, "formula_id": self.formula_id, "expression": self.expression, "variables": dict(self.variables), "units": dict(self.units), "source": self.source}
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "FormulaRecord":
+        if int(payload.get("version", -1)) != CONTRACT_VERSION:
+            raise ValueError("formula version is invalid")
+        obj = cls.create(expression=payload.get("expression"), variables=payload.get("variables"), units=payload.get("units"), source=payload.get("source"))
+        return cls(obj.expression, obj.variables, obj.units, obj.source, str(payload.get("formula_id", obj.formula_id)))
+
+
+@dataclass(frozen=True)
 class ManuscriptSource:
     package_id: str
     claim_ids: tuple[str, ...] = ()
@@ -268,6 +304,7 @@ class ManuscriptSource:
     status: str = "draft"
     needs_input: tuple[InputRequest, ...] = ()
     projection: Mapping[str, Any] = field(default_factory=dict)
+    formula_ids: tuple[str, ...] = ()
     version: int = CONTRACT_VERSION
 
     @property
@@ -284,7 +321,7 @@ class ManuscriptSource:
         return cls(package_id, *values[:4], values[4], sid, "needs_input" if any(r.material for r in requests) else "draft", requests, {})
 
     def to_dict(self) -> dict[str, Any]:
-        return {"version": self.version, "source_id": self.source_id, "package_id": self.package_id, "claim_ids": list(self.claim_ids), "figure_plan_ids": list(self.figure_plan_ids), "table_ids": list(self.table_ids), "citation_ids": list(self.citation_ids), "limitations": list(self.limitations), "status": self.status, "needs_input": [r.to_dict() for r in self.needs_input], "projection": _json(self.projection)}
+        return {"version": self.version, "source_id": self.source_id, "package_id": self.package_id, "claim_ids": list(self.claim_ids), "figure_plan_ids": list(self.figure_plan_ids), "table_ids": list(self.table_ids), "citation_ids": list(self.citation_ids), "limitations": list(self.limitations), "status": self.status, "needs_input": [r.to_dict() for r in self.needs_input], "projection": _json(self.projection), "formula_ids": list(self.formula_ids)}
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "ManuscriptSource":
@@ -292,7 +329,7 @@ class ManuscriptSource:
             raise ValueError("manuscript source version is invalid")
         requests = tuple(InputRequest.from_dict(v) for v in payload.get("needs_input", ()))
         obj = cls.create(package_id=payload.get("package_id"), claim_ids=_strings(payload.get("claim_ids", ()), "claim_ids"), figure_plan_ids=_strings(payload.get("figure_plan_ids", ()), "figure_plan_ids"), table_ids=_strings(payload.get("table_ids", ()), "table_ids"), citation_ids=_strings(payload.get("citation_ids", ()), "citation_ids"), limitations=_strings(payload.get("limitations", ()), "limitations"), needs_input=requests)
-        return cls(obj.package_id, obj.claim_ids, obj.figure_plan_ids, obj.table_ids, obj.citation_ids, obj.limitations, str(payload.get("source_id", obj.source_id)), str(payload.get("status", obj.status)), requests, _mapping(payload.get("projection", {}), "projection"))
+        return cls(obj.package_id, obj.claim_ids, obj.figure_plan_ids, obj.table_ids, obj.citation_ids, obj.limitations, str(payload.get("source_id", obj.source_id)), str(payload.get("status", obj.status)), requests, _mapping(payload.get("projection", {}), "projection"), _strings(payload.get("formula_ids", ()), "formula_ids"))
 
 
 @dataclass(frozen=True)
@@ -330,4 +367,4 @@ class PreflightReport:
         return cls(obj.source_id, obj.errors, obj.warnings, obj.checks, str(payload.get("report_id", obj.report_id)), str(payload.get("status", obj.status)))
 
 
-__all__ = ["CONTRACT_VERSION", "stable_id", "InputRequest", "PaperBrief", "ClaimRecord", "FigurePlan", "CitationRequest", "ManuscriptSource", "PreflightReport"]
+__all__ = ["CONTRACT_VERSION", "stable_id", "InputRequest", "PaperBrief", "ClaimRecord", "FigurePlan", "CitationRequest", "FormulaRecord", "ManuscriptSource", "PreflightReport"]

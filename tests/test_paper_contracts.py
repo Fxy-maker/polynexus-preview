@@ -2,7 +2,7 @@ import pytest
 
 from polynexus.suite.paper_contracts import (
     PaperBrief, ClaimRecord, FigurePlan, CitationRequest, ManuscriptSource,
-    PreflightReport, InputRequest, stable_id,
+    PreflightReport, InputRequest, FormulaRecord, stable_id,
 )
 
 def test_contracts_round_trip_and_stable_ids():
@@ -36,3 +36,7 @@ def test_contracts_reject_invalid_version_and_unbound_claim():
         ClaimRecord.create(text="", evidence_ids=())
     with pytest.raises(ValueError):
         CitationRequest.create(key="", locator="doi:x")
+def test_formula_record_validates_units_and_roundtrips():
+    f=FormulaRecord.create(expression='X=(A-A0)/(Ainf-A0)', variables={'A':'signal','A0':'signal'}, units={'A':'J/g'}, source='method:avrami')
+    assert FormulaRecord.from_dict(f.to_dict())==f
+    assert f.source and f.formula_id

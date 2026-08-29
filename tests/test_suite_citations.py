@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from polynexus.suite.paper_contracts import CitationRequest
 from polynexus.suite.citations import render_citations, export_bibliography
