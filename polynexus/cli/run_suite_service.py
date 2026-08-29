@@ -9,7 +9,7 @@ from typing import Any
 from polynexus.suite.handoff import build_suite_handoff
 from polynexus.suite.paper_source import build_manuscript_source, build_paper_bundle
 from polynexus.suite.paper_contracts import ClaimRecord, FigurePlan, ManuscriptSource
-from polynexus.suite.paper_pipeline import assemble_manuscript
+from polynexus.suite.paper_pipeline import assemble_manuscript, export_manuscript
 from polynexus.suite.preflight import preflight_manuscript
 from polynexus.suite.manager import SuiteManager
 
@@ -38,8 +38,9 @@ def run_suite(args: Any) -> int:
                 out = Path(output).expanduser().resolve()
                 out.mkdir(parents=True, exist_ok=True)
                 (out / "manuscript.json").write_text(json.dumps(manuscript, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+                export_paths = export_manuscript(manuscript, out)
                 (out / "preflight.json").write_text(json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
-                payload = {"status": report.status, "manuscript": manuscript, "preflight": report.to_dict(), "output": str(out)}
+                payload = {"status": report.status, "manuscript": manuscript, "preflight": report.to_dict(), "output": str(out), "exports": export_paths}
             except (OSError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
                 payload = {"status": "blocked", "reason_codes": ["paper_draft_invalid"], "error": str(exc)}
     elif operation == "paper-bundle":
