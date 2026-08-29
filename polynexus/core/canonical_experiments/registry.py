@@ -8,6 +8,7 @@ from pathlib import Path
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256
 from .capabilities import CapabilityExecutor
 from .dsc_isothermal import convert_mettler_isothermal_text
+from .ir_temperature_series import build_ir_temperature_series_template
 from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord
 from .one_dimensional import convert_one_dimensional_table
 
@@ -46,6 +47,22 @@ class CanonicalConverterRegistry:
                 source_artifact_id=source_artifact_id,
                 template_id="thermal_program.v1",
             )
+        if normalized_technique == "ir" and source.is_dir():
+            frame_paths = tuple(
+                sorted(
+                    (
+                        item
+                        for item in source.iterdir()
+                        if item.is_file() and item.suffix.casefold() in _GENERIC_TABLE_EXTENSIONS
+                    ),
+                    key=lambda item: item.name.casefold(),
+                )
+            )
+            if len(frame_paths) >= 2:
+                return build_ir_temperature_series_template(
+                    frame_paths,
+                    source_artifact_id=source_artifact_id,
+                )
         if (
             normalized_technique in _GENERIC_TECHNIQUES
             and source.is_file()

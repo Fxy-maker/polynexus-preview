@@ -11,6 +11,7 @@ from .capabilities import (
     default_provider_capability_registry,
 )
 from .one_dimensional import convert_one_dimensional_table
+from .ir_temperature_series import build_ir_temperature_series_template
 from .models import (
     CAPABILITY_ITEM_STATUSES,
     MAPPING_SOURCES,
@@ -37,6 +38,7 @@ __all__ = [
     "CanonicalConverterRegistry",
     "convert_mettler_isothermal_text",
     "convert_one_dimensional_table",
+    "build_ir_temperature_series_template",
     "default_converter_registry",
     "CapabilityExecutor",
     "CapabilityRegistry",
