@@ -41,15 +41,15 @@ sequences and the available liquid/solid NMR spectra for article drafting.
 
 ## Acceptance criteria
 
-- [ ] Canonical one-dimensional conversion records an explicit user-confirmed
+- [x] Canonical one-dimensional conversion records an explicit user-confirmed
   mapping for headerless NMR tables: first column chemical shift, second column
   intensity.
-- [ ] Canonical replay reuses that mapping and remains source-hash bound.
-- [ ] `nmr/` files route to liquid H/C by filename; `solid-NMR/C` and `solid-NMR/H`
+- [x] Canonical replay reuses that mapping and remains source-hash bound.
+- [x] `nmr/` files route to liquid H/C by filename; `solid-NMR/C` and `solid-NMR/H`
   route to solid C/H by directory and filename.
-- [ ] Six `insu-FTIR/<sample>` directories route to
+- [x] Six `insu-FTIR/<sample>` directories route to
   `ir.temperature_series.v1` without changing raw data.
-- [ ] Generated evidence remains `review_required` where existing provider or
+- [x] Generated evidence remains `review_required` where existing provider or
   scientific gates require review.
 
 ## Implementation plan
@@ -65,3 +65,15 @@ sequences and the available liquid/solid NMR spectra for article drafting.
 - Focused canonical/project workflow tests.
 - `python scripts/verify.py --task docs/agent/tasks/2026-08-30-real-elastomer-ir-nmr-evidence.md --changed --types`.
 - Read-only source hash and package-view validation after materialization.
+
+## Completion evidence
+
+- Corrected `PA6-H.csv` and eleven remaining solid-NMR files replayed; all 12
+  new runs entered the mutable working set as `review_required`.
+- Frozen package:
+  `C:\Users\Fan Xuyi\Desktop\文件夹\弹性体\弹性体中文\.polynexus\evidence\elastomer-ir-nmr-article-v002`
+  with 32 runs, 32 evidence items, and 151 indexed figures. v001 remains
+  immutable.
+- Package view reload succeeded with 151 figures and IR/NMR techniques.
+- Headerless exports with trailing empty columns are accepted only when the
+  explicit source-bound mapping is valid; raw files remain untouched.

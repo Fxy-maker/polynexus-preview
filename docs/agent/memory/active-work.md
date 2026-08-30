@@ -27,11 +27,17 @@
   `C:\Users\Fan Xuyi\Desktop\文件夹\弹性体\弹性体中文\.polynexus\evidence\elastomer-ir-nmr-article-v001`.
   It contains six 2D IR temperature-series runs and fourteen available NMR
   runs, 20 evidence items, and 118 indexed figures, all review-required.
-- `nmr\PA6-H.csv` is a 2,200,531-byte all-zero file and was excluded; it
-  requires a usable export before it can be included. The project now has
-  `raw/` junctions pointing to the original `nmr`, `solid-NMR`, and
-  `insu-FTIR` directories so the canonical project boundary can replay data
-  without copying it.
+- The corrected non-zero `nmr\PA6-H.csv` and the remaining eleven solid-NMR
+  files were replayed with explicit first-column chemical-shift/second-column
+  intensity mappings. The mutable working set now contains 32 review-required
+  runs, and the frozen package
+  `...\.polynexus\evidence\elastomer-ir-nmr-article-v002` contains 32 evidence
+  items and 151 indexed figures. v001 remains unchanged as the historical
+  snapshot.
+- The generic table converter now ignores trailing empty columns, which occur
+  in these headerless exports, without relaxing the explicit mapping checks.
+  The project still uses `raw/` junctions to the original `nmr`, `solid-NMR`,
+  and `insu-FTIR` directories; raw files were not edited.
 - Task: `docs/agent/tasks/2026-08-30-real-elastomer-ir-nmr-evidence.md`.
 
 ## Multi-technique canonical template closure — 2026-08-30

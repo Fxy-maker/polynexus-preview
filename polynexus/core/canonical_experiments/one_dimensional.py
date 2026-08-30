@@ -339,11 +339,14 @@ def _fallback_delimiter(sample: str) -> str:
 
 
 def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
-    if any(not header.strip() for header in table.raw_headers):
+    headers = list(table.raw_headers)
+    while headers and not headers[-1].strip():
+        headers.pop()
+    if any(not header.strip() for header in headers):
         return True
     relevant = [
         _normalize_header(header)
-        for header in table.raw_headers
+        for header in headers
         if _x_kind(header, technique) is not None or _is_intensity_header(header)
     ]
     return len(relevant) != len(set(relevant))

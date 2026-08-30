@@ -36,6 +36,27 @@ def test_mapping_proposal_round_trip_and_headerless_nmr_conversion(tmp_path: Pat
     assert outcome.template.mapping_proposal == proposal
 
 
+def test_headerless_nmr_mapping_ignores_trailing_empty_column(tmp_path: Path) -> None:
+    source = tmp_path / "trailing-empty-column.csv"
+    source.write_text("-4.0\t1.0\t\n-3.9\t2.0\t\n-3.8\t3.0\t\n", encoding="utf-8")
+    proposal = MappingProposal.create(
+        source_artifact_id="artifact-nmr-trailing",
+        technique="NMR",
+        source="user",
+        selections=(MappingSelection(
+            "sheet-0-table-0", None, None, 0, 0, 1, 2,
+            "-4.0", "1.0", "chemical_shift", "unknown", "unknown", "user",
+        ),),
+    )
+    outcome = convert_one_dimensional_table(
+        source,
+        technique="nmr",
+        source_artifact_id="artifact-nmr-trailing",
+        mapping_proposal=proposal,
+    )
+    assert outcome.status == "ready"
+
+
 def test_ir_csv_curve_preserves_order_units_and_source_rows(tmp_path: Path) -> None:
     path = tmp_path / "curve.csv"
     path.write_text("Wavenumber cm-1,Absorbance a.u.\n4000,0.1\n2000,0.3\n", encoding="utf-8")
