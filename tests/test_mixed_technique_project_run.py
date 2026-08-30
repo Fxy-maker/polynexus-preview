@@ -6,6 +6,7 @@ from pathlib import Path
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.project_workflow import ProjectWorkflowService
+from polynexus.core.project_workflow.adapters import MixedTechniqueAdapter
 
 
 def _write(root: Path, technique: str, name: str) -> Path:
@@ -77,3 +78,20 @@ def test_mixed_project_request_preserves_explicit_nmr_submodule(tmp_path: Path) 
     writing_evidence = json.loads((package_path / "writing-evidence.json").read_text(encoding="utf-8"))
     assert set(writing_evidence["techniques"]) == {"nmr", "waxs"}
     assert all(group["evidence"] for group in writing_evidence["techniques"].values())
+
+
+def test_mixed_project_ir_directory_dispatches_to_canonical_validation(tmp_path: Path) -> None:
+    """A directory is routed by its declared technique, not a file-count precheck."""
+    ir_dir = tmp_path / "raw" / "unusual_container"
+    ir_dir.mkdir(parents=True)
+    (ir_dir / "PA6-100C.csv").write_text(
+        "wavenumber,absorbance\n1000,1\n1010,2\n", encoding="utf-8"
+    )
+    waxs = _write(tmp_path, "waxs", "sample-waxs.dat")
+    proposal = MixedTechniqueAdapter().propose_recipe({
+        "workflow_id": MixedTechniqueAdapter.workflow_id,
+        "components": {"ir": [str(ir_dir)], "waxs": [str(waxs)]},
+    })
+
+    assert proposal.status == "blocked"
+    assert "temperature_series_template_missing" in proposal.reason_codes

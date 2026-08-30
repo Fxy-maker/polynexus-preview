@@ -269,6 +269,26 @@ def test_series_adapter_orders_paths_and_binds_each_step(tmp_path: Path) -> None
     assert TechniqueSeriesAdapter.is_valid_recipe(proposal.recipe)
 
 
+def test_series_adapter_does_not_use_path_names_as_technique_gate(tmp_path: Path) -> None:
+    """A caller-declared technique remains authoritative over folder naming."""
+    first = _source(tmp_path / "saxs_named", "ir", "PA6-100C.csv")
+    second = _source(tmp_path / "saxs_named", "ir", "PA6-120C.csv")
+    for path in (first, second):
+        path.write_text("wavenumber,absorbance\n1000,1\n1010,2\n", encoding="utf-8")
+    proposal = TechniqueSeriesAdapter().propose_recipe({
+        "workflow_id": TechniqueSeriesAdapter.workflow_id,
+        "technique": "ir",
+        "paths": [str(first), str(second)],
+    })
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert [step.parameters["canonical_template"]["template_id"] for step in proposal.recipe.steps] == [
+        "spectrum_1d.v1",
+        "spectrum_1d.v1",
+    ]
+
+
 def test_series_adapter_requires_at_least_two_same_technique_inputs(tmp_path: Path) -> None:
     adapter = TechniqueSeriesAdapter()
     one = adapter.propose_recipe({
@@ -284,8 +304,9 @@ def test_series_adapter_requires_at_least_two_same_technique_inputs(tmp_path: Pa
 
     assert one.status == "blocked"
     assert one.reason_codes == ("series_requires_multiple_artifacts",)
-    assert mixed.status == "blocked"
-    assert mixed.reason_codes == ("series_technique_mismatch",)
+    assert mixed.status == "ready"
+    assert mixed.recipe is not None
+    assert len(mixed.recipe.artifacts) == 2
 
 
 def test_project_series_run_binds_each_file_in_stable_order(tmp_path: Path) -> None:

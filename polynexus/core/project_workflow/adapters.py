@@ -17,6 +17,15 @@ from polynexus.core.agent_workflow.tpae import TpaeCharacterizationWorkflow
 from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
 
 
+def _convert_artifact(artifact: Any, *, technique: str):
+    """Convert an inspected artifact through the shared canonical registry."""
+    return default_converter_registry().convert_path(
+        artifact.path,
+        technique=technique,
+        source_artifact_id=artifact.artifact_id,
+    )
+
+
 class SingleInputTechniqueAdapter:
     """Build a deterministic recipe for one static technique input."""
 
@@ -57,11 +66,7 @@ class SingleInputTechniqueAdapter:
                 status="blocked",
                 reason_codes=tuple(dict.fromkeys(("artifact_blocked", *artifact.reason_codes))),
             )
-        outcome = default_converter_registry().convert_path(
-            artifact.path,
-            technique=technique,
-            source_artifact_id=artifact.artifact_id,
-        )
+        outcome = _convert_artifact(artifact, technique=technique)
         if outcome.status != "ready" or outcome.template is None:
             return RecipeProposal(status="blocked", reason_codes=outcome.reason_codes)
         submodule_id, step_id, role = spec
@@ -171,13 +176,6 @@ class TechniqueSeriesAdapter:
         paths = tuple(sorted(SingleInputTechniqueAdapter._paths(payload), key=lambda value: Path(value).as_posix().lower()))
         if len(paths) < 2:
             return RecipeProposal(status="blocked", reason_codes=("series_requires_multiple_artifacts",))
-        technique_markers = {marker for path in paths for marker in ("ir", "ftir", "waxs", "saxs") if marker in " ".join(Path(path).parts).lower()}
-        if any(marker in {"ir", "ftir"} for marker in technique_markers) and technique != "ir":
-            return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
-        if "waxs" in technique_markers and technique != "waxs":
-            return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
-        if "saxs" in technique_markers and technique != "saxs":
-            return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
         artifacts = tuple(inspect_artifact(path, technique=technique) for path in paths)
         if any(artifact.technique != technique for artifact in artifacts):
             return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
@@ -185,11 +183,7 @@ class TechniqueSeriesAdapter:
         if blocked:
             return RecipeProposal(status="blocked", reason_codes=tuple(dict.fromkeys(("artifact_blocked", *blocked))))
         outcomes = tuple(
-            default_converter_registry().convert_path(
-                artifact.path,
-                technique=technique,
-                source_artifact_id=artifact.artifact_id,
-            )
+            _convert_artifact(artifact, technique=technique)
             for artifact in artifacts
         )
         blocked_outcomes = tuple(
@@ -268,11 +262,7 @@ class IRTemperatureSeriesAdapter:
                 status="blocked",
                 reason_codes=tuple(dict.fromkeys(("artifact_blocked", *artifact.reason_codes))),
             )
-        outcome = default_converter_registry().convert_path(
-            artifact.path,
-            technique="ir",
-            source_artifact_id=artifact.artifact_id,
-        )
+        outcome = _convert_artifact(artifact, technique="ir")
         if outcome.status != "ready" or outcome.template is None:
             return RecipeProposal(status="blocked", reason_codes=outcome.reason_codes)
         if outcome.template.template_id != "ir.temperature_series.v1":
@@ -357,16 +347,7 @@ class MixedTechniqueAdapter:
                     "workflow_id": self._dsc.workflow_id,
                     "artifacts": {"dsc_isothermal": {"path": paths[0], "technique": "dsc"}},
                 })
-            elif (
-                technique == "ir"
-                and len(paths) == 1
-                and Path(paths[0]).is_dir()
-                and sum(
-                    1
-                    for item in Path(paths[0]).iterdir()
-                    if item.is_file() and item.suffix.casefold() in {".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi"}
-                ) >= 2
-            ):
+            elif technique == "ir" and len(paths) == 1 and Path(paths[0]).is_dir():
                 proposal = self._ir_temperature_series.propose_recipe({
                     "workflow_id": IRTemperatureSeriesAdapter.workflow_id,
                     "path": paths[0],

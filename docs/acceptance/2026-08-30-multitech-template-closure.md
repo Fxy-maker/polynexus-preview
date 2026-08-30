@@ -18,6 +18,16 @@
 - 经验性精简结论：`CanonicalExperiment` 外壳、`ConversionRecord`、`ComputeRun`、`metric_manifest` 和现有单输入/序列 adapter 已是至少两种技术共享的最小层；IR 的 frame/condition 关系与 SAXS/WAXS 的 detector geometry 不具备可安全合并的科学语义，因此没有新增第二个二维公共模型，也没有删除专用字段。
 - GUI/CLI/ARS DTO 消费矩阵已通过 78 项跨入口回归；GUI/ARS 仍只消费共享 run/package/result-table/figure DTO，不拥有技术算法分支。
 
+## 灵活性精简补充
+
+- `TechniqueSeriesAdapter` 不再根据路径名片段（如 `saxs`、`waxs`、`ir`）
+  阻断调用方声明的技术；实际 artifact inspection 和 canonical conversion
+  负责最终判定。
+- 混合入口不再提前统计 IR 目录中支持文件数量，目录直接进入 IR 路由；
+  不足帧数仍由 canonical 模板返回原有阻断原因，不会生成伪二维结果。
+- 保留哈希绑定、二维 shape、IR 多帧、NMR 显式子模块和 review/diagnostic
+  边界等科学约束。
+
 ## 验证命令
 
 ```text

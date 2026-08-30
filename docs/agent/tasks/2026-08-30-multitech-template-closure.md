@@ -83,6 +83,8 @@ the duplication proven by those runs.
 - [x] Empirical payload comparison confirmed the existing canonical outer
       contract and adapters are the minimal safe shared layer. IR condition
       axes and detector geometry remain intentionally technique-specific.
+- [x] Flexibility pass removed path-name technique gates and the duplicate IR
+      directory file-count precheck; canonical conversion remains authoritative.
 - [x] Final GUI/CLI/ARS DTO-consumer acceptance matrix passed through project,
       package, result-table, figure, and CLI regression suites; no consumer
       received a private analysis/provenance representation.
@@ -125,3 +127,7 @@ review limitations.
 
 The current worktree contains pre-existing untracked `active_run.json`,
 `runs/`, and `tests/_tmp_phase3/`; they remain outside all checkpoints.
+
+The flexibility pass intentionally retains structural scientific gates: IR
+temperature-2D needs multiple valid frames, detector images need a valid 2-D
+shape, NMR modes need explicit submodules, and source hashes remain enforced.
