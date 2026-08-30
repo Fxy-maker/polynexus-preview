@@ -435,6 +435,7 @@ class AgentWorkflowService:
             artifact.path,
             technique=artifact.technique,
             source_artifact_id=artifact.artifact_id,
+            mapping_proposal=registered.mapping_proposal,
         )
         if outcome.status != "ready" or outcome.template is None:
             return False

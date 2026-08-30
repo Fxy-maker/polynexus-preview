@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 
 from polynexus.core.agent_workflow import AgentWorkflowService
+from polynexus.core.agent_workflow import inspect_artifact
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.project_workflow.adapters import (
     IRTemperatureSeriesAdapter,
@@ -16,6 +17,7 @@ from polynexus.core.project_workflow.adapters import (
 )
 from polynexus.core.project_workflow.models import AnalysisRequest
 from polynexus.core.project_workflow.service import ProjectWorkflowService
+from polynexus.core.canonical_experiments import MappingProposal, MappingSelection
 
 
 def _source(tmp_path: Path, technique: str, name: str = "sample.csv") -> Path:
@@ -125,6 +127,58 @@ def test_single_input_adapter_accepts_all_four_nmr_modes(tmp_path: Path) -> None
         assert proposal.recipe is not None
         assert proposal.recipe.steps[0].parameters["submodule_id"] == submodule
     assert proposal.recipe.steps[0].parameters["canonical_template"]["source_artifact_id"] == proposal.recipe.artifacts[0].artifact_id
+
+
+def test_single_input_adapter_propagates_user_mapping_proposal(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "NMR" / "liquid-h.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("-4.0\t1.0\n-3.9\t2.0\n-3.8\t3.0\n", encoding="utf-8")
+    artifact = inspect_artifact(source, technique="nmr")
+    proposal = MappingProposal.create(
+        source_artifact_id=artifact.artifact_id,
+        technique="NMR",
+        source="user",
+        selections=(MappingSelection(
+            "sheet-0-table-0", None, None, 0, 0, 1, 2,
+            "-4.0", "1.0", "chemical_shift", "unknown", "unknown", "user",
+        ),),
+    )
+    result = SingleInputTechniqueAdapter().propose_recipe({
+        "workflow_id": SingleInputTechniqueAdapter.workflow_id,
+        "technique": "nmr",
+        "submodule_id": "nmr.liquid_h",
+        "path": str(source),
+        "mapping_proposal": proposal.to_dict(),
+    })
+    assert result.status == "ready"
+    assert result.recipe is not None
+    template = result.recipe.steps[0].parameters["canonical_template"]
+    assert template["mapping_proposal"]["proposal_id"] == proposal.proposal_id
+
+
+def test_project_run_replays_headerless_nmr_mapping(tmp_path: Path) -> None:
+    source = tmp_path / "raw" / "NMR" / "liquid-h.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("-4.0\t1.0\n-3.9\t2.0\n-3.8\t3.0\n", encoding="utf-8")
+    artifact = inspect_artifact(source, technique="nmr")
+    proposal = MappingProposal.create(
+        source_artifact_id=artifact.artifact_id,
+        technique="NMR",
+        source="user",
+        selections=(MappingSelection(
+            "sheet-0-table-0", None, None, 0, 0, 1, 2,
+            "-4.0", "1.0", "chemical_shift", "unknown", "unknown", "user",
+        ),),
+    )
+    service = ProjectWorkflowService.open(tmp_path)
+    request = AnalysisRequest.create(
+        question="Prepare NMR evidence",
+        data_scope=(source.relative_to(tmp_path).as_posix(),),
+        parameters={"submodule_id": "nmr.liquid_h", "mapping_proposal": proposal.to_dict()},
+    )
+    run = service.run(request)
+    assert run.status in {"completed", "review_required", "failed"}
+    assert run.reason_codes != ("canonical_conversion_mismatch",)
 
 
 def test_single_input_adapter_blocks_unsupported_and_multiple_inputs(tmp_path: Path) -> None:

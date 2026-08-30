@@ -315,6 +315,9 @@ class ProjectWorkflowService:
                     requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
                     if requested_submodule:
                         single_manifest["submodule_id"] = str(requested_submodule)
+                    mapping_proposal = request.parameters.get("mapping_proposal")
+                    if mapping_proposal is not None:
+                        single_manifest["mapping_proposal"] = mapping_proposal
                 proposal = self.single_input_adapter.propose_recipe(single_manifest)
                 if proposal.recipe is None:
                     reason_codes.extend(proposal.reason_codes or ("adapter_blocked",))
@@ -747,6 +750,9 @@ class ProjectWorkflowService:
             requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
             if requested_submodule:
                 single_manifest["submodule_id"] = str(requested_submodule)
+            mapping_proposal = request.parameters.get("mapping_proposal")
+            if mapping_proposal is not None:
+                single_manifest["mapping_proposal"] = mapping_proposal
         proposal = self.single_input_adapter.propose_recipe(single_manifest)
         if proposal.recipe is None:
             return self._blocked_project_run(plan, *proposal.reason_codes)

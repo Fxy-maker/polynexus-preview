@@ -10,7 +10,7 @@ from .capabilities import CapabilityExecutor
 from .detector_image import convert_detector_image
 from .dsc_isothermal import convert_mettler_isothermal_text
 from .ir_temperature_series import build_ir_temperature_series_template
-from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord
+from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord, MappingProposal
 from .one_dimensional import convert_one_dimensional_table
 
 
@@ -35,6 +35,7 @@ class CanonicalConverterRegistry:
         *,
         technique: str,
         source_artifact_id: str,
+        mapping_proposal: MappingProposal | None = None,
     ) -> ConversionOutcome:
         source = Path(path)
         normalized_technique = str(technique).lower()
@@ -83,6 +84,7 @@ class CanonicalConverterRegistry:
                 source,
                 technique=normalized_technique,
                 source_artifact_id=source_artifact_id,
+                mapping_proposal=mapping_proposal,
             )
         template_id = _STATIC_TEMPLATE_IDS.get(normalized_technique)
         if normalized_technique == "nmr":
@@ -116,9 +118,15 @@ class CanonicalConverterRegistry:
         *,
         technique: str,
         source_artifact_id: str,
+        mapping_proposal: MappingProposal | None = None,
     ) -> ConversionOutcome:
         """Recreate a template from a source already bound by a recipe."""
-        return self.convert_path(path, technique=technique, source_artifact_id=source_artifact_id)
+        return self.convert_path(
+            path,
+            technique=technique,
+            source_artifact_id=source_artifact_id,
+            mapping_proposal=mapping_proposal,
+        )
 
     @staticmethod
     def execute_capabilities(template: CanonicalExperiment):

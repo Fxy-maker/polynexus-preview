@@ -172,6 +172,13 @@ class MappingProposal:
             alternatives=tuple(alternatives),
         )
 
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "MappingProposal":
+        """Restore a validated proposal from its canonical JSON form."""
+        if not isinstance(value, Mapping):
+            raise TypeError("Mapping proposal must be a mapping")
+        return _mapping_proposal_from_dict(value)
+
     @staticmethod
     def _identity_payload(**values: Any) -> dict[str, Any]:
         return {

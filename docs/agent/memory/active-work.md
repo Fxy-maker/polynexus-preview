@@ -1,5 +1,21 @@
 # Active Work
 
+## Real elastomer IR/NMR article evidence — 2026-08-30
+
+- Headerless NMR CSVs can now carry a user-confirmed, source-bound mapping
+  proposal through canonical conversion and replay. The proposal is embedded in
+  the canonical template; raw CSV files are never edited.
+- A real package was materialized at
+  `C:\Users\Fan Xuyi\Desktop\文件夹\弹性体\弹性体中文\.polynexus\evidence\elastomer-ir-nmr-article-v001`.
+  It contains six 2D IR temperature-series runs and fourteen available NMR
+  runs, 20 evidence items, and 118 indexed figures, all review-required.
+- `nmr\PA6-H.csv` is a 2,200,531-byte all-zero file and was excluded; it
+  requires a usable export before it can be included. The project now has
+  `raw/` junctions pointing to the original `nmr`, `solid-NMR`, and
+  `insu-FTIR` directories so the canonical project boundary can replay data
+  without copying it.
+- Task: `docs/agent/tasks/2026-08-30-real-elastomer-ir-nmr-evidence.md`.
+
 ## Multi-technique canonical template closure — 2026-08-30
 
 - IR temperature-series routing, SAXS/WAXS detector-image templates, and

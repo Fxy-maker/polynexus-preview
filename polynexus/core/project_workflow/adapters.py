@@ -15,14 +15,21 @@ from polynexus.core.agent_workflow import inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe, RecipeProposal, RecipeStep
 from polynexus.core.agent_workflow.tpae import TpaeCharacterizationWorkflow
 from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
+from polynexus.core.canonical_experiments.models import MappingProposal
 
 
-def _convert_artifact(artifact: Any, *, technique: str):
+def _convert_artifact(
+    artifact: Any,
+    *,
+    technique: str,
+    mapping_proposal: MappingProposal | None = None,
+):
     """Convert an inspected artifact through the shared canonical registry."""
     return default_converter_registry().convert_path(
         artifact.path,
         technique=technique,
         source_artifact_id=artifact.artifact_id,
+        mapping_proposal=mapping_proposal,
     )
 
 
@@ -66,7 +73,15 @@ class SingleInputTechniqueAdapter:
                 status="blocked",
                 reason_codes=tuple(dict.fromkeys(("artifact_blocked", *artifact.reason_codes))),
             )
-        outcome = _convert_artifact(artifact, technique=technique)
+        try:
+            mapping_proposal = self._mapping_proposal(payload)
+        except (KeyError, TypeError, ValueError):
+            return RecipeProposal(status="blocked", reason_codes=("mapping_proposal_invalid",))
+        outcome = _convert_artifact(
+            artifact,
+            technique=technique,
+            mapping_proposal=mapping_proposal,
+        )
         if outcome.status != "ready" or outcome.template is None:
             return RecipeProposal(status="blocked", reason_codes=outcome.reason_codes)
         submodule_id, step_id, role = spec
@@ -155,6 +170,15 @@ class SingleInputTechniqueAdapter:
         if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes, bytearray)):
             return tuple(str(item) for item in raw if item)
         return ()
+
+    @staticmethod
+    def _mapping_proposal(payload: Mapping[str, object]) -> MappingProposal | None:
+        raw = payload.get("mapping_proposal")
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            raise TypeError("mapping_proposal must be a mapping")
+        return MappingProposal.from_dict(raw)
 
 
 class TechniqueSeriesAdapter:
