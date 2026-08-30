@@ -13,7 +13,7 @@ import re
 from typing import Any, Iterable, Mapping
 
 from polynexus.core.agent_workflow import AgentWorkflowService, inspect_artifact
-from polynexus.core.agent_workflow.models import AnalysisRecipe
+from polynexus.core.agent_workflow.models import AnalysisRecipe, AnalysisRun
 
 from .evidence import ProjectAnalysisSummary, ProjectWorkflowRun, evidence_items_from_run, stable_run_id
 from .adapters import (
@@ -25,12 +25,13 @@ from .adapters import (
 from .index import ProjectIndexer
 from .grouping import CandidateExperimentGroup, candidate_groups
 from .ir_group_figures import FigureCandidateSet, render_ftir_group_candidates
-from .models import AnalysisPlan, AnalysisRequest, ProjectPlan, ResearchGraph
+from .models import AnalysisPlan, AnalysisRequest, EvidenceItem, ProjectPlan, ResearchGraph
 from .package import ProjectEvidencePackager, ResearchEvidencePackage
 from .selection import FigureSelectionRequest, resolve_figure_selection
 from .quick_run_attachment import QuickRunAttachment, attach_quick_run
 from .workspace import ProjectWorkspace
 from .result_table import build_result_tables_from_runs
+from .working_evidence import WorkingEvidenceEntry, WorkingEvidenceIndex, WorkingEvidenceStatus
 
 
 _DSC_WORKFLOW = "tpae.characterization.v1"
@@ -935,6 +936,99 @@ class ProjectWorkflowService:
             package_id=package_id,
             figure_candidates=figure_candidates,
         )
+
+    def upsert_working_run(self, run: ProjectWorkflowRun) -> WorkingEvidenceEntry:
+        """Add or replace one validated run in the mutable current evidence set."""
+        entry = self._working_entry_for_run(run)
+        index = self._load_working_evidence()
+        index.upsert(entry)
+        self._save_working_evidence(index)
+        return entry
+
+    def _working_entry_for_run(self, run: ProjectWorkflowRun) -> WorkingEvidenceEntry:
+        if run.status not in {"completed", "review_required"} or not run.manifest_path:
+            raise ValueError("only packageable runs with manifests may enter the working set")
+        manifest = Path(run.manifest_path).expanduser().resolve()
+        try:
+            relative = manifest.relative_to(self.workspace.derived_root.resolve()).as_posix()
+        except ValueError as exc:
+            raise ValueError("working run manifest must be inside .polynexus") from exc
+        if not relative.startswith("runs/") or manifest.suffix.casefold() != ".json":
+            raise ValueError("working run manifest must be a run JSON file")
+        if not manifest.is_file():
+            raise ValueError("working run manifest is missing")
+        artifacts = tuple(run.analysis_run.recipe.artifacts) if run.analysis_run is not None else ()
+        if not artifacts or any(not artifact.sha256 for artifact in artifacts):
+            raise ValueError("working run artifacts must have source hashes")
+        ProjectEvidencePackager(self.workspace)._validate_run(run)
+        entry = WorkingEvidenceEntry(
+            run_id=run.run_id,
+            manifest_path=relative,
+            source_artifact_ids=tuple(artifact.artifact_id for artifact in artifacts),
+            source_keys=tuple(self._working_source_key(artifact.path) for artifact in artifacts),
+            source_hashes=tuple(artifact.sha256 for artifact in artifacts),
+            techniques=tuple(sorted({artifact.technique for artifact in artifacts})),
+            status=run.status,
+        )
+        return entry
+
+    def _working_source_key(self, source: str | Path) -> str:
+        resolved = Path(source).expanduser().resolve()
+        try:
+            return resolved.relative_to(self.workspace.root.resolve()).as_posix().casefold()
+        except ValueError:
+            # External raw inputs are valid project artifacts; retain a stable,
+            # normalized absolute key so reruns still replace the same source.
+            return f"@external/{resolved.as_posix().casefold()}"
+
+    def working_evidence_status(self) -> WorkingEvidenceStatus:
+        """Return current draft counts without creating an immutable package."""
+        return self._load_working_evidence().status()
+
+    def freeze_working_evidence(
+        self,
+        *,
+        package_id: str = "research-evidence",
+        relations: Iterable[Mapping[str, Any]] = (),
+    ) -> ResearchEvidencePackage:
+        """Freeze the current working set once into the next immutable package."""
+        index = self._load_working_evidence()
+        if not index.entries:
+            raise ValueError("working evidence set is empty")
+        runs: list[ProjectWorkflowRun] = []
+        for entry in index.entries:
+            payload = self.workspace.read_json(self.workspace.derived_root / entry.manifest_path)
+            if not isinstance(payload, Mapping) or payload.get("run_id") != entry.run_id:
+                raise ValueError("working evidence run manifest is invalid")
+            analysis_payload = payload.get("analysis_run")
+            if not isinstance(analysis_payload, Mapping):
+                raise ValueError("working evidence analysis record is missing")
+            analysis_run = AnalysisRun.from_dict(analysis_payload)
+            evidence_items = tuple(EvidenceItem.from_dict(item) for item in payload.get("evidence_items", ()))
+            runs.append(ProjectWorkflowRun(
+                run_id=entry.run_id,
+                request_hash=str(payload.get("request_hash", "")),
+                plan_hash=str(payload.get("plan_hash", "")),
+                recipe_hash=payload.get("recipe_hash"),
+                status=str(payload.get("status", "")),
+                outputs=tuple(str(value) for value in payload.get("outputs", ())),
+                evidence_items=evidence_items,
+                manifest_path=str(self.workspace.derived_root / entry.manifest_path),
+                analysis_run=analysis_run,
+                reason_codes=tuple(str(value) for value in payload.get("reason_codes", ())),
+            ))
+            reconstructed = runs[-1]
+            expected_entry = self._working_entry_for_run(reconstructed)
+            if expected_entry != entry:
+                raise ValueError("working evidence entry does not match its run manifest")
+        return self.package(runs, relations=relations, package_id=package_id)
+
+    def _load_working_evidence(self) -> WorkingEvidenceIndex:
+        payload = self.workspace.read_json(self.workspace.evidence_dir / "working.json")
+        return WorkingEvidenceIndex() if payload is None else WorkingEvidenceIndex.from_dict(payload)
+
+    def _save_working_evidence(self, index: WorkingEvidenceIndex) -> None:
+        self.workspace.write_json(self.workspace.evidence_dir / "working.json", index.to_dict())
 
     def _persist_blocked_plan(self, request: AnalysisRequest, reason: str) -> ProjectPlan:
         plan = ProjectPlan.create(

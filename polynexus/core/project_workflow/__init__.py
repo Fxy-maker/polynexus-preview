@@ -31,6 +31,7 @@ from .selection import FigureSelectionRequest, ResolvedFigureSelection, resolve_
 from .evidence_view import EvidencePackageView, load_evidence_package_view
 from .figure_index import FigureIndexEntry, load_figure_index
 from .manuscript_plan import ManuscriptPlan, PaperBrief, build_manuscript_plan
+from .working_evidence import WorkingEvidenceEntry, WorkingEvidenceIndex, WorkingEvidenceStatus
 
 __all__ = [
     "AnalysisSymptom",
@@ -79,4 +80,7 @@ __all__ = [
     "ManuscriptPlan",
     "PaperBrief",
     "build_manuscript_plan",
+    "WorkingEvidenceEntry",
+    "WorkingEvidenceIndex",
+    "WorkingEvidenceStatus",
 ]

@@ -1,5 +1,23 @@
 # Active Work
 
+## Mutable current evidence workspace — 2026-08-30
+
+- Added `WorkingEvidenceIndex` persisted at `.polynexus/evidence/working.json`.
+  It source-keys validated run-manifest references, replacing an older run for
+  the same source artifact without touching immutable package snapshots.
+- `ProjectWorkflowService` now exposes `upsert_working_run`,
+  `working_evidence_status`, and `freeze_working_evidence`; freeze delegates to
+  the existing packager only on explicit request.
+- Upsert validates `.polynexus/runs/*.json` manifests immediately. Freeze
+  revalidates the manifest and rejects tampered working entries. Stable relative
+  source keys also cover external raw paths via normalized absolute fallback.
+- Focused workspace tests pass (4); project workflow/package/workspace tests
+  pass (54); task verifier, quality (313), and preprocessing (157) gates pass.
+  Current user data was not repackaged in this slice.
+- This task is complete. Pending/blocked runs remain outside the packageable
+  working frontier; only completed and review-required runs enter the index.
+- Task: `docs/agent/tasks/2026-08-30-working-evidence-workspace.md`.
+
 ## Real elastomer IR/NMR article evidence — 2026-08-30
 
 - Headerless NMR CSVs can now carry a user-confirmed, source-bound mapping
