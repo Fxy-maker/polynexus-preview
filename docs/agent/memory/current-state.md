@@ -1759,3 +1759,23 @@ Focused GUI/gallery/result-table/project workflow/CLI/Codex/ARS consumers pass
 in the headless environment. The shared-object and package projections are
 consistent, while scientific promotion and historical full-suite failures stay
 open.
+
+## All-technique elastomer paper draft - 2026-08-31
+
+The external project now has a reproducible Chinese working draft at
+`C:\Users\Fan Xuyi\Desktop\文件夹\弹性体\弹性体中文\manuscript\even-nylon-crystallization-v002-r10`,
+generated from the immutable
+`elastomer-all-data-paper-v001` package. Independent loading confirms 52 runs,
+62 evidence items, 193 figures, 1,568 matching artifact hashes, and a matching
+package hash. The draft keeps isothermal DSC as the direct rate evidence and
+uses IR/2D-COS, NMR, WAXS, and SAXS only within their documented support/audit
+boundaries. Its JSON round-trips through the shared paper contracts and its
+preflight has zero errors and records 11,533 Chinese body characters. DOCX
+conversion/rasterization produced 21 pages with no observed layout defects.
+The ARS/Suite handoff is `ready` and exposes package-relative writing inputs,
+result tables, evidence, citation metrics, and review decisions. Package review
+(62 decisions), online citation verification, composition/molecular-weight
+controls, common thermodynamic supercooling, independent replicates, and
+quantitative scattering remain open; this is `completed_review_required`, not
+publication acceptance. Acceptance:
+`docs/acceptance/2026-08-31-elastomer-all-data-paper.md`.

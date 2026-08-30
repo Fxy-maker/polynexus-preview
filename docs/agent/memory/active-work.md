@@ -6265,3 +6265,29 @@ and structured gates (`303` / `157`).
 - First implementation slice is checkpointed at `292639a`: `ir.temperature_series.v1` converts ordered temperature-named CSV spectra into one canonical template while reusing existing 1-D `Measurement` frames. Focused canonical/IR matrix passed 29 + 17 tests; Project/Agent/ComputeRun sequence execution remains open.
 - Flexibility follow-up removes path-name technique gates and duplicate IR directory file-count prechecks in `project_workflow.adapters`; canonical conversion and existing scientific gates remain authoritative. Focused regression coverage is added for atypical paths and incomplete mixed IR directories.
 - Local finish checkpoint: implementation commit `504e297f` passed the task verifier; local mainline integration is being completed through `repo_maintenance.py finish`.
+
+## All-technique elastomer paper draft — 2026-08-31
+
+- Generated the versioned draft
+  `C:\Users\Fan Xuyi\Desktop\文件夹\弹性体\弹性体中文\manuscript\even-nylon-crystallization-v002-r10`
+  from the frozen `elastomer-all-data-paper-v001` package. The draft includes
+  Markdown/JSON/DOCX, raw/run/sample audits, claim-evidence-literature and
+  supplementary indexes, and a preflight report.
+- Independent package audit passed: `EvidencePackageView` loaded 52 runs, 62
+  evidence items, 193 figures, and all 1,568 artifact hashes; package hash
+  matched. Contract round-trip passed for 21 claims, 8 figure plans, 27
+  citation requests, and 3 formulas. The corrected approved thermal gap is
+  69.9 °C; no 69.8 value remains. C07–C09 preserve paired DSC run provenance.
+- ARS/Suite handoff against the same package returned `status=ready`, all five
+  technique views, 7,619 metrics, and 62 pending human-review decisions; it
+  references the package-relative ARS writing, result-table, evidence,
+  citation, and review-ledger files.
+- DOCX was converted with LibreOffice `soffice.com` and rasterized through the
+  bundled renderer; all 21 pages were visually checked. The body contains
+  11,533 Chinese characters and the preflight status is
+  `pass_with_human_review`. Acceptance:
+  `docs/acceptance/2026-08-31-elastomer-all-data-paper.md`.
+- Status is `completed_review_required`: all 62 evidence decisions and online
+  citation checks remain pending, and the manuscript does not claim measured
+  composition, intrinsic rate multipliers, unique mechanism, or quantitative
+  scattering. Pre-existing modified/untracked workspace files remain untouched.

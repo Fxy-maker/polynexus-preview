@@ -353,13 +353,27 @@ def test_figure_metadata_keeps_technique_and_attachment_boundaries() -> None:
     assert "analysis_output/paper_data/dsc_candidate_curves.csv" in f2["source"]
     assert "candidate_curves" in f2["boundary"]
 
+    f3 = figures["F3"]
+    assert "analysis_output/control_dsc/dsc_candidate_curves.csv" in f3["source"]
+    assert "analysis_output/paper_data/dsc_candidate_curves.csv" in f3["source"]
+    assert f3["source"].count("approved_for_manuscript") == 2
+    assert "dsc_kinetics.csv" not in f3["source"]
+
+    f5 = figures["F5"]
+    assert f5["role"] == "supplement"
+    assert "ftir_temperature_metrics.csv" in f5["source"]
+    assert "review-only" in f5["source"]
+    assert "支持性" in f5["boundary"]
+
     s2 = figures["S2"]
-    assert "12 溶液" in s2["title"]
-    assert "14 固体" in s2["title"]
-    assert "仅审计" in s2["title"]
+    assert "12 个溶液" in s2["title"]
+    assert "固体" not in s2["title"]
+    assert "nmr/*.csv" in s2["source"]
     assert "12 solution NMR runs" in s2["source"]
-    assert "14 solid NMR runs" in s2["source"]
-    assert "仅审计" in s2["boundary"]
+    assert "solid NMR" in s2["boundary"]
+    assert "SHA-256" in s2["boundary"]
+    assert "data_audit.csv" in s2["boundary"]
+    assert "run_audit.csv" not in s2["boundary"]
 
     f6 = figures["F6"]
     assert "外部派生附件" in f6["source"]
@@ -398,6 +412,28 @@ def test_interpretation_claims_link_both_members_of_each_dsc_pair() -> None:
             f"{hard_segment}-50:isothermal_dsc",
             f"{hard_segment}-50:nonisothermal_dsc",
         }
+
+
+def test_rate_claims_link_both_members_of_each_dsc_pair() -> None:
+    from scripts.build_all_data_manuscript import build_claim_matrix
+
+    run_rows = []
+    for hard_segment in ("PA6", "PA11", "PA12"):
+        for sample in (hard_segment, f"{hard_segment}-50"):
+            for mode in ("isothermal_dsc", "nonisothermal_dsc"):
+                run_rows.append(
+                    {
+                        "technique": "dsc",
+                        "samples": [sample],
+                        "source_role": mode,
+                        "package_evidence_ids": [f"{sample}:{mode}"],
+                    }
+                )
+
+    claims = {item["claim_id"]: item for item in build_claim_matrix({"package": {}, "run_rows": run_rows})}
+    for claim_id, hard_segment in (("C01", "PA6"), ("C02", "PA12"), ("C03", "PA11")):
+        evidence = set(claims[claim_id]["package_evidence_ids"].split(";"))
+        assert evidence == {f"{hard_segment}:isothermal_dsc", f"{hard_segment}-50:isothermal_dsc"}
 
 
 def test_f2_marker_is_rendered_with_isothermal_dsc_section() -> None:
@@ -482,3 +518,17 @@ def test_claim_matrix_uses_nonisothermal_tm_minus_tc_definition() -> None:
 
     assert "Tm−Tc" in claim["claim"]
     assert "Tm−Tiso" not in claim["claim"]
+
+
+def test_rendered_manuscript_has_at_least_ten_thousand_chinese_body_characters() -> None:
+    from scripts.build_all_data_manuscript import _manuscript_length_stats, _render_manuscript_markdown
+
+    markdown = _render_manuscript_markdown(
+        _renderable_dsc_audit(noniso_rows=[], run_rows=[]),
+        [],
+        [],
+    )
+    stats = _manuscript_length_stats(markdown)
+
+    assert stats["body_chinese_characters"] >= 10_000
+    assert stats["body_chinese_characters"] <= stats["total_chinese_characters"]
