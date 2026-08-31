@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from ..ai_platform.contracts import AxisProvenance
 
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256
 from .capabilities import CapabilityExecutor
@@ -177,6 +180,7 @@ class CanonicalConverterRegistry:
         mask_path: str | Path | None = None,
         mask_ref: Mapping[str, object] | None = None,
         calibration_ref: Mapping[str, object] | None = None,
+        ir_temperature_axis_provenance: AxisProvenance | Mapping[str, object] | None = None,
         nmr_dtype: str = ">i4",
         nmr_shape: Sequence[int] | None = None,
         nmr_dims: Sequence[str] | None = None,
@@ -212,6 +216,7 @@ class CanonicalConverterRegistry:
                 return adapt_ir_temperature_series(
                     frame_paths,
                     source_artifact_id=source_artifact_id,
+                    temperature_axis_provenance=ir_temperature_axis_provenance,
                 )
         if (
             normalized_technique in {"saxs", "waxs"}
@@ -226,8 +231,22 @@ class CanonicalConverterRegistry:
                 mask_ref=mask_ref,
                 calibration_ref=calibration_ref,
             )
-        if normalized_technique == "nmr" and _is_nmr_fid_path(source):
-            fid_source = source / "fid" if source.is_dir() else source
+        if normalized_technique == "nmr":
+            fid_sources = _nmr_fid_sources(source)
+            if len(fid_sources) > 1:
+                return self._data_block_needs_input(
+                    source_artifact_id,
+                    "nmr_fid_source_ambiguous",
+                )
+            if not fid_sources and _is_empty_directory(source):
+                return self._data_block_needs_input(
+                    source_artifact_id,
+                    "nmr_fid_missing",
+                )
+        else:
+            fid_sources = ()
+        if fid_sources:
+            fid_source = fid_sources[0]
             return adapt_nmr_fid(
                 fid_source,
                 source_artifact_id=source_artifact_id,
@@ -264,6 +283,27 @@ class CanonicalConverterRegistry:
         return ConversionOutcome(status="blocked", record=record, reason_codes=(reason,))
 
     @staticmethod
+    def _data_block_needs_input(
+        source_artifact_id: str,
+        reason: str,
+    ) -> DataBlockAdapterResult:
+        record = ConversionRecord.create(
+            conversion_id="nmr.fid-route.v1",
+            source_artifact_id=source_artifact_id,
+            reason_codes=(reason,),
+        )
+        outcome = ConversionOutcome(
+            status="needs_input",
+            record=record,
+            reason_codes=(reason,),
+        )
+        return DataBlockAdapterResult(
+            status="needs_input",
+            reason_codes=(reason,),
+            conversion=outcome,
+        )
+
+    @staticmethod
     def _source_sha256(source: Path) -> str:
         if source.is_file():
             return hashlib.sha256(source.read_bytes()).hexdigest()
@@ -295,10 +335,28 @@ def _is_nmr_fid_path(path: Path) -> bool:
     # Recognize a declared FID route even before the file exists so callers
     # receive ``needs_input`` (missing acquisition) rather than an unrelated
     # generic/unsupported-converter status.
-    if path.name.casefold() == "fid" or path.suffix.casefold() in _FID_EXTENSIONS:
+    if path.name.casefold() in {"fid", "ser"} or path.suffix.casefold() in _FID_EXTENSIONS:
         return True
     if path.is_dir():
-        return (path / "fid").is_file()
+        return any((path / name).is_file() for name in ("fid", "ser"))
+    return False
+
+
+def _nmr_fid_sources(path: Path) -> tuple[Path, ...]:
+    if path.is_dir():
+        return tuple(path / name for name in ("fid", "ser") if (path / name).is_file())
+    return (path,) if _is_nmr_fid_path(path) else ()
+
+
+def _is_empty_directory(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    try:
+        next(path.iterdir())
+    except StopIteration:
+        return True
+    except OSError:
+        return False
     return False
 
 

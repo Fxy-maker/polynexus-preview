@@ -5,8 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from polynexus.core.ai_platform import ComputationState
+from polynexus.core.ai_platform import ComputationState, ProviderResultInput
 from polynexus.core.ai_platform.capabilities import CapabilityDescriptor
+from polynexus.core.ai_platform.execution import ExecutionNode, NodeResult
 from polynexus.core.ai_platform.planner import CapabilityPlanItem
 from polynexus.core.canonical_experiments.nd_adapters import adapt_nmr_fid
 from polynexus.core.compute.models import ComputeResult
@@ -47,6 +48,33 @@ def test_capability_descriptor_rejects_malformed_input_contract_values(
 ) -> None:
     with pytest.raises((TypeError, ValueError), match=key):
         _descriptor(input_contract={key: value})
+
+
+@pytest.mark.parametrize(
+    "input_contract",
+    (
+        {"required_calibrations": ({"scope": ("q",)},)},
+        {"required_calibrations": ({"scope": ["q", "r"]},)},
+    ),
+)
+def test_capability_descriptor_rejects_sequence_valued_calibration_identity(
+    input_contract: object,
+) -> None:
+    """One calibration requirement names exactly one stable identity."""
+
+    with pytest.raises((TypeError, ValueError), match="calibration"):
+        _descriptor(input_contract=input_contract)
+
+
+def test_capability_descriptor_rejects_sequence_valued_calibration_precondition_identity() -> None:
+    with pytest.raises((TypeError, ValueError), match="calibration"):
+        CapabilityDescriptor.create(
+            capability_id="test.calibration-sequence.v1",
+            techniques=("nmr",),
+            input_contract={"kind": "complex"},
+            output_schema={},
+            preconditions=({"kind": "calibration", "scope": ("nmr", "saxs")},),
+        )
 
 
 def test_capability_descriptor_rejects_conflicting_compatibility_aliases() -> None:
@@ -301,6 +329,38 @@ def test_workflow_step_rejects_conflicting_state_aliases() -> None:
         )
 
 
+def test_workflow_step_rejects_computation_state_subclass() -> None:
+    computed = ComputationState.create(
+        "canonical", "computed", "validated", "results_candidate"
+    )
+    needs_input = ComputationState.create(
+        "canonical", "needs_input", "not_assessed", "diagnostic_only"
+    )
+
+    class ForgedState(ComputationState):
+        def to_dict(self) -> dict[str, object]:
+            return computed.to_dict()
+
+    forged = ForgedState(
+        data_availability=needs_input.data_availability,
+        computability=needs_input.computability,
+        validity=needs_input.validity,
+        promotion=needs_input.promotion,
+        missing_inputs=needs_input.missing_inputs,
+        reason_codes=needs_input.reason_codes,
+        preconditions=needs_input.preconditions,
+        next_actions=needs_input.next_actions,
+    )
+
+    with pytest.raises(TypeError, match="exact ComputationState"):
+        WorkflowStepResult(
+            step_id="step",
+            technique="nmr",
+            status="completed",
+            computation_state=forged,
+        )
+
+
 def test_workflow_step_ignores_provider_private_state_alias() -> None:
     step = WorkflowStepResult(
         step_id="step",
@@ -414,4 +474,69 @@ def test_workflow_step_rejects_conflicting_nested_projection_mappings(field: str
                 field: {"source": "run"},
                 "result": {field: {"source": "result"}},
             },
+        )
+
+
+def _forged_computation_state() -> ComputationState:
+    """Build a state subclass whose serialization falsely claims completion."""
+
+    computed = ComputationState.create(
+        "canonical", "computed", "validated", "results_candidate"
+    )
+    needs_input = ComputationState.create(
+        "canonical", "needs_input", "not_assessed", "diagnostic_only"
+    )
+
+    class ForgedState(ComputationState):
+        def to_dict(self) -> dict[str, object]:
+            return computed.to_dict()
+
+    return ForgedState(
+        data_availability=needs_input.data_availability,
+        computability=needs_input.computability,
+        validity=needs_input.validity,
+        promotion=needs_input.promotion,
+        missing_inputs=needs_input.missing_inputs,
+        reason_codes=needs_input.reason_codes,
+        preconditions=needs_input.preconditions,
+        next_actions=needs_input.next_actions,
+    )
+
+
+def test_core_state_boundaries_reject_computation_state_subclasses(tmp_path: Path) -> None:
+    """A polymorphic state must not cross any shared execution DTO boundary."""
+
+    forged = _forged_computation_state()
+    with pytest.raises(TypeError, match="exact ComputationState"):
+        ComputeResult(metrics={"metric": 1.0}, computation_state=forged)
+    with pytest.raises(TypeError, match="exact ComputationState"):
+        ProviderResultInput.create(
+            source_artifact_id="artifact-1",
+            technique="dsc",
+            metrics={"metric": 1.0},
+            metric_manifest=(
+                {"path": "metric", "kind": "scalar", "status": "computed", "value": 1.0},
+            ),
+            computation_state=forged,
+        )
+    with pytest.raises(TypeError, match="exact ComputationState"):
+        ExecutionNode.create("node", "capability", state=forged)
+    with pytest.raises(TypeError, match="exact ComputationState"):
+        NodeResult("node", "capability", "completed", forged, "a" * 64)
+    with pytest.raises(TypeError, match="exact ComputationState"):
+        CapabilityPlanItem("capability", "1", "executable", forged)
+
+    source = tmp_path / "curve.csv"
+    source.write_text("x,y\n1,2\n", encoding="utf-8")
+    artifact = RawArtifact.from_path(source, technique="ir")
+    dataset = CanonicalDataset.direct_envelope(artifact)
+    plan = AnalysisPlan.direct(dataset, output_dir=tmp_path / "out")
+    result = ComputeResult(metrics={"metric": 1.0})
+    with pytest.raises(TypeError, match="exact ComputationState"):
+        ComputeRun.completed(
+            artifact=artifact,
+            dataset=dataset,
+            plan=plan,
+            result=result,
+            computation_state=forged,
         )

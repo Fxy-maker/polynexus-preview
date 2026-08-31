@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QDialogButtonBox
 import numpy as np
 
 from polynexus.core.figures.pipeline import FigurePipeline
+from polynexus.core.ai_platform.contracts import ComputationState
 from polynexus.core.compute import ComputeRunService
 from polynexus.core.ir_engine.core import IRResult
 from polynexus.core.ir_engine.figure_provider import build_ir_figure_definitions
@@ -174,7 +175,14 @@ def test_restore_history_record_keeps_shared_compute_run_projection(tmp_path):
             "data_file": str(data_file.resolve()),
             "compute_run": {
                 "status": "completed",
+                "computation_state": ComputationState.create(
+                    data_availability="canonical",
+                    computability="computed",
+                    validity="validated",
+                    promotion="results_candidate",
+                ).to_dict(),
                 "canonical_template": {"template_id": "spectrum_1d.v1"},
+                "result": {"metrics": {}, "metric_manifest": []},
                 "capability_items": [{"capability_id": "curve.summary.v1"}],
             },
         },
@@ -185,6 +193,48 @@ def test_restore_history_record_keeps_shared_compute_run_projection(tmp_path):
     assert window._restore_history_record(record)
     assert window._compute_run_projections["ir"]["canonical_template"]["template_id"] == "spectrum_1d.v1"
     assert window._compute_run_projections["ir"]["capability_items"][0]["capability_id"] == "curve.summary.v1"
+    db.close()
+    window.deleteLater()
+
+
+def test_restore_history_record_does_not_cache_malformed_shared_projection(tmp_path):
+    """History restore must not reintroduce a malformed run into GUI state."""
+
+    data_file = tmp_path / "pa6_ir.csv"
+    data_file.write_text(
+        "Wavenumber,Absorbance\n1700,0.4\n1600,0.8\n",
+        encoding="utf-8",
+    )
+    window = MainWindow()
+    window._sample_db = SampleDB(tmp_path / "samples.db")
+    db = window._ensure_sample_db()
+    sample_id = db.create_sample("PA6")
+    batch_id = db.create_batch(
+        sample_id,
+        "pa6_ir",
+        instrument="IR",
+        condition_type="analysis",
+        condition_values={"technique": "ir"},
+    )
+    run_id = db.create_analysis_run(
+        batch_id,
+        "ir",
+        submodule="ir.static",
+        parameters={"polymer_type": "PA6"},
+        results_summary={
+            "data_file": str(data_file.resolve()),
+            "compute_run": {
+                "status": "completed",
+                "canonical_template": {"template_id": "spectrum_1d.v1"},
+            },
+        },
+        output_dir=str(tmp_path / "output"),
+    )
+
+    record = db.get_analysis_run(run_id)
+    assert window._restore_history_record(record)
+    assert window._compute_run_projections.get("ir") is None
+
     db.close()
     window.deleteLater()
 

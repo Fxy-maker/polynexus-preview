@@ -8,6 +8,7 @@ worker without giving the GUI or an agent a second result representation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from collections.abc import MutableMapping
 import re
 from types import MappingProxyType
 from typing import Any, Callable, Mapping, Sequence
@@ -60,6 +61,12 @@ def _hash(value: str, label: str) -> str:
     if not isinstance(value, str) or len(value) != 64 or not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError(f"{label} must be a 64-character hexadecimal SHA-256")
     return value.lower()
+
+
+def _output_fingerprint(value: Any) -> str:
+    """Return the content identity of a node's JSON-safe output."""
+
+    return canonical_json_hash({"output": _public(value)})
 
 
 def _hashes(values: Sequence[str], label: str) -> tuple[str, ...]:
@@ -162,11 +169,18 @@ class ExecutionNode:
                 promotion="diagnostic_only",
             )
             object.__setattr__(self, "state", state)
-        elif not isinstance(self.state, ComputationState):
-            if isinstance(self.state, Mapping):
-                object.__setattr__(self, "state", ComputationState.from_dict(self.state))
-            else:
-                raise TypeError("Execution node state must be a ComputationState or mapping")
+        elif type(self.state) is ComputationState:
+            pass
+        elif isinstance(self.state, ComputationState):
+            raise TypeError(
+                "Execution node state must use the exact ComputationState type or mapping"
+            )
+        elif isinstance(self.state, Mapping):
+            object.__setattr__(self, "state", ComputationState.from_dict(self.state))
+        else:
+            raise TypeError(
+                "Execution node state must use the exact ComputationState type or mapping"
+            )
         if self.calibration_sensitive is not None and not isinstance(self.calibration_sensitive, bool):
             raise TypeError("calibration_sensitive must be a bool or None")
         if not isinstance(self.metadata, Mapping):
@@ -218,10 +232,38 @@ class ExecutionNode:
         lowered = self.capability_id.casefold()
         return any(token in lowered for token in ("calibrat", "absolute_intensity", "absolute.", "q_calibration"))
 
+    def uses_calibration_for(self, descriptor: Any | None = None) -> bool:
+        """Resolve calibration sensitivity from the descriptor contract.
+
+        Capability IDs are not a reliable scientific signal (for example,
+        ``saxs.detector_radial_profile.v1`` requires calibration without
+        containing the word ``calibrate``).  Keep the legacy heuristic for
+        opaque nodes, but let a registered descriptor declare the dependency.
+        """
+
+        if descriptor is not None:
+            contract = getattr(descriptor, "input_contract", {})
+            if isinstance(contract, Mapping) and contract.get("required_calibrations"):
+                return True
+            for precondition in getattr(descriptor, "preconditions", ()) or ():
+                if isinstance(precondition, Mapping):
+                    kind = str(precondition.get("kind", precondition.get("type", ""))).strip().lower()
+                    if kind == "calibration":
+                        return True
+            policy = getattr(descriptor, "evidence_policy", {})
+            if isinstance(policy, Mapping) and policy.get("requires_reviewed_calibration"):
+                return True
+        if self.calibration_sensitive is not None:
+            return self.calibration_sensitive
+        return self.uses_calibration
+
     def cache_key(
         self,
         context: ExecutionContext,
         dependency_keys: Mapping[str, str] | Sequence[tuple[str, str]] | None = None,
+        *,
+        descriptor: Any | None = None,
+        admission_hash: str | None = None,
     ) -> str:
         if not isinstance(context, ExecutionContext):
             raise TypeError("cache_key expects an ExecutionContext")
@@ -271,10 +313,21 @@ class ExecutionNode:
         payload = {
             "capability_id": self.capability_id,
             "descriptor_version": self.descriptor_version,
+            "descriptor_hash": (
+                getattr(descriptor, "content_hash", None) if descriptor is not None else None
+            ),
+            "descriptor_dependencies": (
+                list(getattr(descriptor, "dependencies", ())) if descriptor is not None else []
+            ),
+            "planner_admission_hash": (
+                _hash(admission_hash, "planner admission hash") if admission_hash is not None else None
+            ),
             "parameters": _public(self.parameters),
             "node_metadata": _public(self.metadata),
             "input_hashes": list(context.input_hashes),
-            "calibration_hashes": list(context.calibration_hashes) if self.uses_calibration else [],
+            "calibration_hashes": list(context.calibration_hashes)
+            if self.uses_calibration_for(descriptor)
+            else [],
             "runtime_fingerprint": context.runtime_fingerprint,
             # Executors receive the complete context and may legitimately use
             # declared sample/condition metadata.  It therefore belongs in
@@ -342,8 +395,8 @@ class NodeResult:
         allowed = {"completed", "needs_input", "blocked", "failed", "not_applicable"}
         if self.status not in allowed:
             raise ValueError(f"Unsupported node result status: {self.status}")
-        if not isinstance(self.state, ComputationState):
-            raise TypeError("NodeResult state must be a ComputationState")
+        if type(self.state) is not ComputationState:
+            raise TypeError("NodeResult state must use the exact ComputationState type")
         if not isinstance(self.provenance, Mapping):
             raise TypeError("NodeResult provenance must be a mapping")
         expected_computability = {
@@ -377,6 +430,12 @@ class NodeResult:
             provenance_key = self.provenance["cache_key"]
             if not isinstance(provenance_key, str) or _hash(provenance_key, "NodeResult provenance cache_key") != self.cache_key:
                 raise ValueError("NodeResult provenance cache_key does not match cache_key")
+        if "output_fingerprint" in self.provenance:
+            fingerprint = self.provenance["output_fingerprint"]
+            if not isinstance(fingerprint, str) or _hash(
+                fingerprint, "NodeResult provenance output_fingerprint"
+            ) != _output_fingerprint(self.output):
+                raise ValueError("NodeResult provenance output_fingerprint does not match output")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -455,13 +514,19 @@ def _state_for(
     node: ExecutionNode,
     computability: str,
     *,
+    base_state: ComputationState | None = None,
     missing: Sequence[str] = (),
     reason: Sequence[str] = (),
     actions: Sequence[str] = (),
 ) -> ComputationState:
-    state = node.state
-    promotion = state.promotion if computability == "computed" else "diagnostic_only"
-    validity = state.validity if computability == "computed" else "not_assessed"
+    # A node's state is a user/AI-supplied request hint, not an attestation of
+    # scientific validity.  Core derives the persisted state from the actual
+    # execution outcome.  ``base_state`` is reserved for a planner admission's
+    # data-availability and gate diagnostics; validity/promotion are still
+    # reset on every newly computed result.
+    state = base_state if base_state is not None else node.state
+    promotion = "diagnostic_only"
+    validity = "not_assessed"
     return ComputationState.create(
         data_availability=state.data_availability,
         computability=computability,
@@ -477,24 +542,72 @@ def _state_for(
 Executor = Callable[[Mapping[str, Any]], Any]
 
 
-def _known_descriptor(capability_id: str, registry: Any) -> Any | None:
+# A failed process-wide descriptor catalog is a trust-boundary failure, not an
+# indication that every capability is an opaque legacy plugin.  Keep a private
+# sentinel so ``ExecutionGraph`` can fail closed instead of silently allowing
+# an executor to run without a descriptor/admission.
+_DESCRIPTOR_REGISTRY_UNAVAILABLE = object()
+
+
+def _known_descriptor(
+    capability_id: str,
+    registry: Any,
+    *,
+    builtin_registry: Any | None = None,
+) -> Any:
     """Resolve a descriptor without making the graph import-heavy.
 
     ExecutionGraph is also used by small compatibility tests and by external
     plugins whose capability IDs are not yet in the process-wide registry.  A
     missing descriptor therefore remains an opaque legacy capability, while a
     known descriptor is subject to its declared status and executor binding.
+
+    The process-wide descriptor registry is authoritative for built-in IDs.
+    A caller-supplied registry is additive and may provide plugin descriptors,
+    but it cannot hide or replace a built-in descriptor and thereby downgrade
+    a known capability to the opaque legacy path.
     """
 
-    if registry is None:
-        return None
-    try:
-        getter = getattr(registry, "get", None)
-        if not callable(getter):
-            return None
-        return getter(capability_id)
-    except Exception:  # noqa: BLE001 - unknown legacy IDs are compatible
-        return None
+    builtin_lookup_failed = builtin_registry is _DESCRIPTOR_REGISTRY_UNAVAILABLE
+    if builtin_registry is not None and not builtin_lookup_failed:
+        try:
+            getter = getattr(builtin_registry, "get", None)
+            if callable(getter):
+                descriptor = getter(capability_id)
+                if descriptor is not None:
+                    return descriptor
+            else:
+                builtin_lookup_failed = True
+        except ValueError as exc:
+            # The default registry uses this exact error shape for an ordinary
+            # unknown ID.  Other ValueErrors indicate a broken catalog and
+            # must not silently downgrade a capability to opaque legacy mode.
+            if not str(exc).startswith("Unknown capability:"):
+                builtin_lookup_failed = True
+        except Exception:  # noqa: BLE001 - keep plugin compatibility below
+            # A failed built-in lookup must not be allowed to silently turn a
+            # known capability into an opaque one.  In practice the default
+            # registry is immutable and this branch is only a defensive
+            # fallback for a broken optional registry implementation.
+            builtin_lookup_failed = True
+
+    # Without a functioning process-wide catalog there is no trustworthy way
+    # to distinguish a built-in ID from a plugin ID.  Do not let a caller
+    # supplied registry fill that gap and thereby restore an unadmitted route.
+    if builtin_lookup_failed:
+        return _DESCRIPTOR_REGISTRY_UNAVAILABLE
+
+    if registry is not None and registry is not builtin_registry:
+        try:
+            getter = getattr(registry, "get", None)
+            if callable(getter):
+                descriptor = getter(capability_id)
+                if descriptor is not None:
+                    return descriptor
+        except Exception:  # noqa: BLE001 - unknown legacy IDs are compatible
+            pass
+
+    return None
 
 
 def _executor_for(
@@ -517,6 +630,392 @@ def _executor_for(
         if callable(candidate):
             return candidate
     return None
+
+
+def _descriptor_dependency_issue(
+    node: ExecutionNode,
+    descriptor: Any,
+    by_id: Mapping[str, ExecutionNode],
+    *,
+    registry: Any | None = None,
+    builtin_registry: Any | None = None,
+    admissions: Mapping[str, Any] | None = None,
+    target_admission: Any | None = None,
+) -> tuple[str, tuple[str, ...], tuple[str, ...]] | None:
+    """Validate that a descriptor's capability dependencies are wired in the DAG.
+
+    Descriptor dependencies are capability identities, while graph edges use
+    node IDs.  A matching capability node must therefore exist and be listed as
+    a direct dependency of the consumer; otherwise an executable admission
+    would authorize a provider that cannot receive the required upstream
+    result.
+    """
+
+    declared = tuple(
+        str(value).strip()
+        for value in getattr(descriptor, "dependencies", ()) or ()
+        if str(value).strip()
+    )
+    if not declared:
+        return None
+    capability_nodes = {
+        candidate.capability_id
+        for candidate in by_id.values()
+    }
+    missing = tuple(value for value in declared if value not in capability_nodes)
+    if missing:
+        return (
+            "descriptor_dependency_missing",
+            tuple(f"dependency:{value}" for value in missing),
+            tuple(f"add_dependency_node:{value}" for value in missing),
+        )
+    direct_nodes_by_capability: dict[str, list[ExecutionNode]] = {}
+    for dependency_node_id in node.dependencies:
+        dependency_node = by_id.get(dependency_node_id)
+        if dependency_node is None:
+            continue
+        direct_nodes_by_capability.setdefault(
+            dependency_node.capability_id,
+            [],
+        ).append(dependency_node)
+    direct_capabilities = set(direct_nodes_by_capability)
+    unwired = tuple(value for value in declared if value not in direct_capabilities)
+    if unwired:
+        return (
+            "descriptor_dependency_unwired",
+            tuple(f"dependency:{value}" for value in unwired),
+            tuple(f"wire_dependency:{value}" for value in unwired),
+        )
+    ambiguous = tuple(
+        value
+        for value in declared
+        if len(direct_nodes_by_capability.get(value, ())) != 1
+    )
+    if ambiguous:
+        return (
+            "descriptor_dependency_ambiguous",
+            tuple(f"dependency:{value}" for value in ambiguous),
+            tuple(f"disambiguate_dependency:{value}" for value in ambiguous),
+        )
+
+    # A declared capability dependency is itself a canonical computation, not
+    # an opaque plug-in input.  Resolve every wired dependency through the same
+    # runtime catalog used for the consumer.  Otherwise a caller can provide a
+    # target admission from a richer planner registry while the dependency is
+    # silently downgraded to the legacy opaque path and executed without its
+    # own descriptor/admission boundary.
+    if registry is not None or builtin_registry is not None:
+        unresolved: list[str] = []
+        missing_admissions: list[str] = []
+        mismatched_admissions: list[str] = []
+        missing_bindings: list[str] = []
+        for dependency in declared:
+            dependency_nodes = direct_nodes_by_capability.get(dependency, ())
+            if len(dependency_nodes) != 1:
+                # The graph/edge checks above already report this case; keep
+                # this guard for unusual Mapping implementations.
+                continue
+            dependency_descriptor = _known_descriptor(
+                dependency,
+                registry,
+                builtin_registry=builtin_registry,
+            )
+            if dependency_descriptor is None or dependency_descriptor is _DESCRIPTOR_REGISTRY_UNAVAILABLE:
+                unresolved.append(dependency)
+                continue
+            if admissions is None:
+                missing_admissions.append(dependency)
+                continue
+            dependency_node = dependency_nodes[0]
+            dependency_admission = admissions.get(dependency_node.node_id)
+            if not _is_plan_item(dependency_admission) or not dependency_admission.is_trusted_admission:
+                missing_admissions.append(dependency)
+                continue
+            if (
+                dependency_admission.capability_id != dependency
+                or dependency_admission.descriptor_version
+                != str(getattr(dependency_descriptor, "version", ""))
+                or dependency_admission.descriptor_hash
+                != getattr(dependency_descriptor, "content_hash", None)
+                or dependency_admission.outcome != "executable"
+                or dependency_admission.state.computability != "computed"
+            ):
+                mismatched_admissions.append(dependency)
+                continue
+            if _is_plan_item(target_admission) and target_admission.is_trusted_admission:
+                binding = next(
+                    (
+                        item
+                        for item in getattr(target_admission, "dependency_bindings", ())
+                        if item.get("capability_id") == dependency
+                    ),
+                    None,
+                )
+                if binding is None:
+                    missing_bindings.append(dependency)
+                    continue
+                if (
+                    binding.get("descriptor_version")
+                    != str(getattr(dependency_descriptor, "version", ""))
+                    or binding.get("descriptor_hash")
+                    != getattr(dependency_descriptor, "content_hash", None)
+                    or binding.get("admission_hash") != dependency_admission.admission_hash
+                ):
+                    mismatched_admissions.append(dependency)
+        if unresolved:
+            return (
+                "descriptor_dependency_registry_missing",
+                tuple(f"descriptor:{value}" for value in unresolved),
+                ("restore_descriptor_registry",),
+            )
+        if missing_admissions:
+            return (
+                "descriptor_dependency_admission_missing",
+                tuple(f"admission:{value}" for value in missing_admissions),
+                tuple(f"plan_capability:{value}" for value in missing_admissions),
+            )
+        if mismatched_admissions:
+            return (
+                "descriptor_dependency_admission_mismatch",
+                tuple(f"admission:{value}" for value in mismatched_admissions),
+                ("replan_capability",),
+            )
+        if missing_bindings:
+            return (
+                "descriptor_dependency_admission_binding_missing",
+                tuple(f"binding:{value}" for value in missing_bindings),
+                ("replan_capability",),
+            )
+    return None
+
+
+def _descriptor_declares_calibration(descriptor: Any) -> bool:
+    """Whether a descriptor requires an explicit calibration identity."""
+
+    contract = getattr(descriptor, "input_contract", {})
+    if isinstance(contract, Mapping) and contract.get("required_calibrations"):
+        return True
+    for precondition in getattr(descriptor, "preconditions", ()) or ():
+        if not isinstance(precondition, Mapping):
+            continue
+        kind = str(precondition.get("kind", precondition.get("type", ""))).strip().lower()
+        if kind == "calibration":
+            return True
+    policy = getattr(descriptor, "evidence_policy", {})
+    return isinstance(policy, Mapping) and policy.get("requires_reviewed_calibration") is True
+
+
+def _calibration_binding_issue(
+    node: ExecutionNode,
+    descriptor: Any,
+    admission: Any,
+    context: ExecutionContext,
+) -> tuple[str, tuple[str, ...], tuple[str, ...]] | None:
+    """Require runtime calibration hashes to match the planner admission."""
+
+    if not node.uses_calibration_for(descriptor):
+        return None
+    if not context.calibration_hashes:
+        return (
+            "calibration_context_missing",
+            ("calibration_context",),
+            ("provide_calibration_context",),
+        )
+    expected = tuple(getattr(admission, "calibration_hashes", ()) or ())
+    if _descriptor_declares_calibration(descriptor) and not expected:
+        return (
+            "calibration_binding_missing",
+            ("calibration_binding",),
+            ("replan_capability",),
+        )
+    supplied = set(context.calibration_hashes)
+    missing = tuple(f"calibration:{value}" for value in expected if value not in supplied)
+    if missing:
+        return ("calibration_binding_mismatch", missing, ("replan_capability",))
+    return None
+
+
+_RUNTIME_INPUT_NAMESPACES = (
+    "runtime_inputs",
+    "input_bindings",
+    "available_inputs",
+    "input_declarations",
+    "inputs",
+    "context",
+)
+_DECLARATION_MARKERS = {
+    "status",
+    "state",
+    "computability",
+    "available",
+    "planned",
+    "executable",
+    "ready",
+    "provided",
+    "observed",
+    "calibrated",
+    "computed",
+    "completed",
+}
+_EXPLICIT_BINDING_KEYS = {
+    "value",
+    "values",
+    "data",
+    "ref",
+    "uri",
+    "path",
+    "array_ref",
+    "artifact_id",
+    "input_id",
+}
+_STATUS_ONLY_VALUES = frozenset(
+    {
+        "available",
+        "provided",
+        "ready",
+        "observed",
+        "calibrated",
+        "computed",
+        "completed",
+        "planned",
+        "executable",
+        "missing",
+        "unavailable",
+        "unknown",
+        "blocked",
+        "invalid",
+    }
+)
+
+
+def _runtime_input_is_materialized(value: Any) -> bool:
+    """Return whether a required-input declaration carries a concrete value.
+
+    Planner declarations intentionally only prove that an input is available;
+    they do not bind that input to this graph invocation.  Runtime bindings
+    therefore reject status-only mappings and accept explicit values/refs (or
+    ordinary non-empty structured values).  ``False`` and ``0`` are valid
+    concrete values, while ``None`` and blank strings are not.
+    """
+
+    if value is None:
+        return False
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        return bool(normalized) and normalized not in _STATUS_ONLY_VALUES
+    if isinstance(value, Mapping):
+        explicit_binding = False
+        for key in _EXPLICIT_BINDING_KEYS:
+            if key in value:
+                explicit_binding = True
+                if _runtime_input_is_materialized(value[key]):
+                    return True
+        if explicit_binding:
+            return False
+        # A declaration containing only state/availability metadata is not a
+        # binding.  Other mappings are treated as concrete structured values.
+        if set(value).intersection(_DECLARATION_MARKERS):
+            return False
+        return bool(value)
+    if isinstance(value, (tuple, list, set, frozenset)):
+        return bool(value)
+    return True
+
+
+def _runtime_input_binding(node: ExecutionNode, context: ExecutionContext, name: str) -> Any:
+    """Find a concrete required-input binding from node parameters/context."""
+
+    sources: list[Mapping[str, Any]] = []
+    if isinstance(node.parameters, Mapping):
+        sources.append(node.parameters)
+    metadata = context.metadata
+    if isinstance(metadata, Mapping):
+        sources.append(metadata)
+    seen: set[int] = set()
+    while sources:
+        source = sources.pop(0)
+        if id(source) in seen:
+            continue
+        seen.add(id(source))
+        for namespace in _RUNTIME_INPUT_NAMESPACES:
+            nested = source.get(namespace)
+            if isinstance(nested, Mapping):
+                if name in nested:
+                    value = nested[name]
+                    if _runtime_input_is_materialized(value):
+                        return value
+                # Permit a bounded context/input_bindings envelope while
+                # retaining exact-name lookup and materialization checks.
+                sources.append(nested)
+        if name in source and _runtime_input_is_materialized(source[name]):
+            return source[name]
+    return None
+
+
+def _required_input_context_issue(
+    node: ExecutionNode,
+    descriptor: Any,
+    context: ExecutionContext,
+) -> tuple[str, ...]:
+    """Return required-input labels that lack a concrete runtime binding."""
+
+    contract = getattr(descriptor, "input_contract", {})
+    if not isinstance(contract, Mapping):
+        return ()
+    missing: list[str] = []
+    required = contract.get("required_inputs", ())
+    if isinstance(required, str):
+        required = (required,)
+    if isinstance(required, Sequence) and not isinstance(required, (str, bytes, bytearray)):
+        for name in required:
+            label = str(name).strip()
+            if label and _runtime_input_binding(node, context, label) is None:
+                missing.append(label)
+    groups = contract.get("required_any_inputs", ())
+    if isinstance(groups, Sequence) and not isinstance(groups, (str, bytes, bytearray)):
+        for group in groups:
+            if not isinstance(group, Sequence) or isinstance(group, (str, bytes, bytearray)):
+                continue
+            labels = tuple(str(name).strip() for name in group if str(name).strip())
+            if labels and not any(_runtime_input_binding(node, context, label) is not None for label in labels):
+                missing.append("one_of:" + "|".join(labels))
+    return tuple(dict.fromkeys(missing))
+
+
+def _is_plan_item(value: Any) -> bool:
+    """Avoid importing the planner at module import time while type-checking."""
+
+    try:
+        from .planner import CapabilityPlanItem
+
+        # Admission authority is deliberately not polymorphic.  A subclass
+        # can override ``is_trusted_admission`` and otherwise make an
+        # unissued object look trusted, so only the exact Core DTO is accepted
+        # at this security boundary.
+        return type(value) is CapabilityPlanItem
+    except Exception:  # noqa: BLE001 - planner remains an optional boundary
+        return False
+
+
+def _plan_item_from_mapping(value: Mapping[str, Any]) -> Any:
+    from .planner import CapabilityPlanItem
+
+    return CapabilityPlanItem.from_dict(value)
+
+
+def _normalize_admissions(admissions: Mapping[str, Any] | None) -> dict[str, Any]:
+    if admissions is None:
+        return {}
+    if not isinstance(admissions, Mapping):
+        raise TypeError("admissions must be a mapping of node IDs to planner items")
+    normalized: dict[str, Any] = {}
+    for node_id, admission in admissions.items():
+        if not isinstance(node_id, str) or not node_id:
+            raise TypeError("admission node IDs must be nonempty strings")
+        if isinstance(admission, Mapping):
+            admission = _plan_item_from_mapping(admission)
+        normalized[node_id] = admission
+    return normalized
 
 
 class _ExecutionRequest(dict[str, Any]):
@@ -640,6 +1139,7 @@ class ExecutionGraph:
         cache: Mapping[str, Any] | None = None,
         descriptor_registry: Any | None = None,
         capability_registry: Any | None = None,
+        admissions: Mapping[str, Any] | None = None,
     ) -> ExecutionResult:
         if not isinstance(context, ExecutionContext):
             raise TypeError("ExecutionGraph.execute expects an ExecutionContext")
@@ -651,57 +1151,149 @@ class ExecutionGraph:
             raise TypeError("cache must be a mapping")
         if descriptor_registry is not None and capability_registry is not None and descriptor_registry is not capability_registry:
             raise ValueError("ExecutionGraph received conflicting descriptor registries")
+        normalized_admissions = _normalize_admissions(admissions)
         selected_registry = descriptor_registry if descriptor_registry is not None else capability_registry
-        if selected_registry is None:
-            # Resolve lazily so importing the low-level graph does not trigger
-            # legacy provider registration.  If the optional registry cannot
-            # be built, unknown IDs retain the established compatibility path.
-            try:
-                from .capabilities import default_descriptor_registry
+        # Resolve the process-wide catalog independently of any caller-supplied
+        # registry.  Custom registries are additive plugin catalogs; they must
+        # not be able to hide a built-in descriptor and downgrade it to the
+        # opaque legacy path.
+        try:
+            from .capabilities import default_descriptor_registry
 
-                selected_registry = default_descriptor_registry()
-            except Exception:  # noqa: BLE001 - keep opaque plugin IDs usable
-                selected_registry = None
+            builtin_registry = default_descriptor_registry()
+        except Exception:  # noqa: BLE001 - fail closed at the descriptor boundary
+            builtin_registry = _DESCRIPTOR_REGISTRY_UNAVAILABLE
+        if selected_registry is None and builtin_registry is not _DESCRIPTOR_REGISTRY_UNAVAILABLE:
+            selected_registry = builtin_registry
         by_id = {node.node_id: node for node in self.nodes}
+        unknown_admissions = set(normalized_admissions).difference(by_id)
+        if unknown_admissions:
+            raise ValueError(
+                f"ExecutionGraph received admission for unknown node: {sorted(unknown_admissions)[0]}"
+            )
+        # Record capability IDs that are declared as dependencies by any
+        # descriptor in this graph.  If a runtime catalog cannot resolve such
+        # a node, it must not be downgraded to the opaque legacy compatibility
+        # path; it is part of a canonical dependency chain and therefore
+        # needs the same descriptor/admission boundary as its consumer.
+        declared_dependency_capabilities: set[str] = set()
+        if builtin_registry is not _DESCRIPTOR_REGISTRY_UNAVAILABLE:
+            for candidate in self.nodes:
+                candidate_descriptor = _known_descriptor(
+                    candidate.capability_id,
+                    selected_registry,
+                    builtin_registry=builtin_registry,
+                )
+                if candidate_descriptor in (None, _DESCRIPTOR_REGISTRY_UNAVAILABLE):
+                    continue
+                declared_dependency_capabilities.update(
+                    str(value).strip()
+                    for value in getattr(candidate_descriptor, "dependencies", ()) or ()
+                    if str(value).strip()
+                )
         results: dict[str, NodeResult] = {}
         for node_id in self._order:
             node = by_id[node_id]
             dependency_identities = {
                 dependency: results[dependency].cache_key for dependency in node.dependencies
             }
-            key = node.cache_key(context, dependency_identities)
+            descriptor = _known_descriptor(
+                node.capability_id,
+                selected_registry,
+                builtin_registry=builtin_registry,
+            )
+            admission = normalized_admissions.get(node.node_id)
+            admission_hash = (
+                admission.admission_hash
+                if _is_plan_item(admission) and admission.is_trusted_admission
+                else None
+            )
+            key = node.cache_key(
+                context,
+                dependency_identities,
+                descriptor=descriptor,
+                admission_hash=admission_hash,
+            )
             provenance = {
                 "node_id": node.node_id,
                 "capability_id": node.capability_id,
                 "descriptor_version": node.descriptor_version,
+                "descriptor_hash": getattr(descriptor, "content_hash", None),
                 "cache_key": key,
                 "dependencies": [
                     {"node_id": dependency, "cache_key": dependency_identities[dependency]}
                     for dependency in node.dependencies
                 ],
                 "input_hashes": list(context.input_hashes),
-                "calibration_hashes": list(context.calibration_hashes) if node.uses_calibration else [],
+                "calibration_hashes": list(context.calibration_hashes)
+                if node.uses_calibration_for(descriptor)
+                else [],
                 "runtime_fingerprint": context.runtime_fingerprint,
                 "parameters": _public(node.parameters),
                 "cache_hit": False,
             }
+            if admission_hash is not None:
+                provenance["admission_hash"] = admission_hash
 
-            descriptor = _known_descriptor(node.capability_id, selected_registry)
-
-            if node.state.computability in {"needs_input", "blocked", "not_applicable", "failed"}:
-                status = node.state.computability
-                # A declared failed state still needs a stable error payload;
-                # NodeResult deliberately rejects failed results without one.
-                error = (
-                    f"declared_failed:{node.capability_id}"
-                    if status == "failed"
-                    else None
+            if descriptor is _DESCRIPTOR_REGISTRY_UNAVAILABLE:
+                state = _state_for(
+                    node,
+                    "blocked",
+                    reason=("descriptor_registry_unavailable",),
+                    actions=("restore_descriptor_registry",),
                 )
                 result = NodeResult(
                     node.node_id,
                     node.capability_id,
+                    "blocked",
+                    state,
+                    key,
+                    None,
+                    provenance,
+                )
+                results[node_id] = result
+                continue
+
+            if descriptor is None and node.capability_id in declared_dependency_capabilities:
+                state = _state_for(
+                    node,
+                    "blocked",
+                    missing=(f"descriptor:{node.capability_id}",),
+                    reason=("descriptor_dependency_registry_missing",),
+                    actions=("restore_descriptor_registry",),
+                )
+                result = NodeResult(
+                    node.node_id,
+                    node.capability_id,
+                    "blocked",
+                    state,
+                    key,
+                    None,
+                    provenance,
+                )
+                results[node_id] = result
+                continue
+
+            # Opaque legacy/plugin IDs retain the original node-state escape
+            # hatch because no canonical descriptor exists to re-plan them.
+            # Registered capabilities take the stricter admission path below;
+            # callers cannot make one executable by setting node.state.
+            if descriptor is None and node.state.computability in {
+                "needs_input",
+                "blocked",
+                "not_applicable",
+                "failed",
+            }:
+                status = node.state.computability
+                # A declared failed state still needs a stable error payload;
+                # NodeResult deliberately rejects failed results without one.
+                error = f"declared_failed:{node.capability_id}" if status == "failed" else None
+                state = _state_for(node, status)
+                result = NodeResult(
+                    node.node_id,
+                    node.capability_id,
                     status,
-                    node.state,
+                    state,
                     key,
                     None,
                     provenance,
@@ -767,6 +1359,193 @@ class ExecutionGraph:
                         "needs_input",
                         missing=(f"descriptor:{node.capability_id}",),
                         reason=("capability_declared_needs_input",),
+                    )
+                    result = NodeResult(
+                        node.node_id,
+                        node.capability_id,
+                        "needs_input",
+                        state,
+                        key,
+                        None,
+                        provenance,
+                    )
+                    results[node_id] = result
+                    continue
+                dependency_issue = _descriptor_dependency_issue(
+                    node,
+                    descriptor,
+                    by_id,
+                    registry=selected_registry,
+                    builtin_registry=builtin_registry,
+                    admissions=normalized_admissions,
+                    target_admission=admission,
+                )
+                if dependency_issue is not None:
+                    issue_reason, missing_dependencies, actions = dependency_issue
+                    state = _state_for(
+                        node,
+                        "blocked",
+                        missing=missing_dependencies,
+                        reason=(issue_reason,),
+                        actions=actions,
+                    )
+                    result = NodeResult(
+                        node.node_id,
+                        node.capability_id,
+                        "blocked",
+                        state,
+                        key,
+                        None,
+                        provenance,
+                    )
+                    results[node_id] = result
+                    continue
+                if admission is None:
+                    state = _state_for(
+                        node,
+                        "needs_input",
+                        missing=("planner_admission",),
+                        reason=("planner_admission_required",),
+                        actions=(f"plan_capability:{node.capability_id}",),
+                    )
+                    result = NodeResult(
+                        node.node_id,
+                        node.capability_id,
+                        "needs_input",
+                        state,
+                        key,
+                        None,
+                        provenance,
+                    )
+                    results[node_id] = result
+                    continue
+                if not _is_plan_item(admission) or not admission.is_trusted_admission:
+                    state = _state_for(
+                        node,
+                        "blocked",
+                        reason=("planner_admission_untrusted",),
+                    )
+                    result = NodeResult(
+                        node.node_id,
+                        node.capability_id,
+                        "blocked",
+                        state,
+                        key,
+                        None,
+                        provenance,
+                    )
+                    results[node_id] = result
+                    continue
+                admission_mismatch: list[str] = []
+                if admission.capability_id != node.capability_id:
+                    admission_mismatch.append("capability_id")
+                if admission.descriptor_version != descriptor_version:
+                    admission_mismatch.append("descriptor_version")
+                if admission.descriptor_hash != getattr(descriptor, "content_hash", None):
+                    admission_mismatch.append("descriptor_hash")
+                if admission_mismatch:
+                    state = _state_for(
+                        node,
+                        "blocked",
+                        reason=("planner_admission_mismatch",),
+                        actions=("replan_capability",),
+                    )
+                    provenance["admission_mismatch_fields"] = admission_mismatch
+                    result = NodeResult(
+                        node.node_id,
+                        node.capability_id,
+                        "blocked",
+                        state,
+                        key,
+                        None,
+                        provenance,
+                    )
+                    results[node_id] = result
+                    continue
+                selected_input_id = admission.selected_input_id
+                input_type = getattr(descriptor, "input_contract", {}).get(
+                    "input_type", "data_block"
+                )
+                if selected_input_id is None or selected_input_id not in context.input_hashes:
+                    input_label = "provider_result" if input_type == "provider_result" else "data_block"
+                    missing_input = (
+                        f"{input_label}:{selected_input_id}"
+                        if selected_input_id is not None
+                        else input_label
+                    )
+                    state = _state_for(
+                        node,
+                        "needs_input",
+                        missing=(missing_input,),
+                        reason=("planner_admission_input_mismatch",),
+                        actions=("replan_capability",),
+                    )
+                    result = NodeResult(
+                        node.node_id,
+                        node.capability_id,
+                        "needs_input",
+                        state,
+                        key,
+                        None,
+                        provenance,
+                    )
+                    results[node_id] = result
+                    continue
+                calibration_issue = _calibration_binding_issue(
+                    node,
+                    descriptor,
+                    admission,
+                    context,
+                )
+                if calibration_issue is not None:
+                    issue_reason, missing_calibration, calibration_actions = calibration_issue
+                    state = _state_for(
+                        node,
+                        "needs_input",
+                        missing=missing_calibration,
+                        reason=(issue_reason,),
+                        actions=calibration_actions,
+                    )
+                    result = NodeResult(
+                        node.node_id,
+                        node.capability_id,
+                        "needs_input",
+                        state,
+                        key,
+                        None,
+                        provenance,
+                    )
+                    results[node_id] = result
+                    continue
+                if admission.outcome != "executable":
+                    status = admission.outcome
+                    state = _state_for(
+                        node,
+                        status,
+                        base_state=admission.state,
+                        reason=("planner_admission_denied",),
+                    )
+                    result = NodeResult(
+                        node.node_id,
+                        node.capability_id,
+                        status,
+                        state,
+                        key,
+                        None,
+                        provenance,
+                    )
+                    results[node_id] = result
+                    continue
+                required_input_missing = _required_input_context_issue(node, descriptor, context)
+                if required_input_missing:
+                    state = _state_for(
+                        node,
+                        "needs_input",
+                        missing=required_input_missing,
+                        reason=("required_input_context_missing",),
+                        actions=tuple(
+                            f"provide_input:{name}" for name in required_input_missing
+                        ),
                     )
                     result = NodeResult(
                         node.node_id,
@@ -852,7 +1631,12 @@ class ExecutionGraph:
                 if present:
                     cached_result: NodeResult | None = None
                     cache_value_valid = True
-                    if isinstance(cached, NodeResult):
+                    # Only the exact Core DTO is authoritative when a caller
+                    # supplies an in-memory cache object.  Subclasses may add
+                    # mutable or forged state while still passing
+                    # ``isinstance``; serialized mappings remain supported
+                    # through ``NodeResult.from_dict`` below.
+                    if type(cached) is NodeResult:
                         candidate = cached
                     elif isinstance(cached, Mapping) and {
                         "node_id",
@@ -869,45 +1653,125 @@ class ExecutionGraph:
                             candidate = None
                             cache_value_valid = False
                     else:
-                        # Raw output remains a supported compatibility form,
-                        # provided it is JSON-safe.  Arbitrary Python objects
-                        # are rejected instead of being exposed as a hit.
-                        try:
-                            raw_output = _freeze(cached) if cached is not None else None
-                        except Exception:  # noqa: BLE001 - malformed cache miss
-                            raw_output = None
+                        # A registered descriptor has a strict admission and
+                        # result contract.  A bare raw value has no persisted
+                        # status/state/attestation and therefore cannot be
+                        # accepted as a completed cache hit.  Keep the old
+                        # raw-output compatibility only for opaque plugin IDs
+                        # where no shared descriptor exists.
+                        if descriptor is not None:
                             cache_value_valid = False
-                        if cache_value_valid:
-                            cached_result = NodeResult(
-                                node.node_id,
-                                node.capability_id,
-                                "completed",
-                                _state_for(node, "computed"),
-                                key,
-                                raw_output,
-                                provenance | {"cache_hit": True},
-                            )
                             candidate = None
+                        else:
+                            # Raw output remains a supported compatibility
+                            # form for opaque IDs, provided it is JSON-safe.
+                            try:
+                                raw_output = _freeze(cached) if cached is not None else None
+                            except Exception:  # noqa: BLE001 - malformed cache miss
+                                raw_output = None
+                                cache_value_valid = False
+                            if cache_value_valid:
+                                cached_result = NodeResult(
+                                    node.node_id,
+                                    node.capability_id,
+                                    "completed",
+                                    _state_for(node, "computed"),
+                                    key,
+                                    raw_output,
+                                    provenance
+                                    | {
+                                        "cache_hit": True,
+                                        "output_fingerprint": _output_fingerprint(raw_output),
+                                    },
+                                )
+                                candidate = None
 
                     if cache_value_valid and candidate is not None:
                         try:
+                            if descriptor is not None:
+                                # Registered capabilities may only reuse a
+                                # Core-issued result carrying the complete
+                                # provenance for this exact request.  A
+                                # matching lookup key alone is insufficient:
+                                # persisted/caller-supplied NodeResult values
+                                # are untrusted cache input.
+                                expected_provenance = _freeze(provenance)
+                                required_fields = (
+                                    "node_id",
+                                    "capability_id",
+                                    "descriptor_version",
+                                    "descriptor_hash",
+                                    "cache_key",
+                                    "dependencies",
+                                    "input_hashes",
+                                    "calibration_hashes",
+                                    "runtime_fingerprint",
+                                    "parameters",
+                                )
+                                candidate_provenance = candidate.provenance
+                                if any(
+                                    field not in candidate_provenance
+                                    or candidate_provenance[field] != expected_provenance[field]
+                                    for field in required_fields
+                                ):
+                                    cache_value_valid = False
+                                elif type(candidate_provenance.get("cache_hit")) is not bool:
+                                    # ``cache_hit`` is a Core-generated
+                                    # observation, not a content identity.  A
+                                    # caller may persist a result returned from
+                                    # an earlier cache hit, so either boolean
+                                    # value is valid, but the field itself must
+                                    # be present and well-typed in a complete
+                                    # Core provenance envelope.
+                                    cache_value_valid = False
+                                elif "admission_hash" in expected_provenance and (
+                                    candidate_provenance.get("admission_hash")
+                                    != expected_provenance["admission_hash"]
+                                ):
+                                    cache_value_valid = False
+                                else:
+                                    candidate_fingerprint = candidate_provenance.get(
+                                        "output_fingerprint"
+                                    )
+                                    if not isinstance(candidate_fingerprint, str):
+                                        cache_value_valid = False
+                                    else:
+                                        try:
+                                            cache_value_valid = (
+                                                _hash(
+                                                    candidate_fingerprint,
+                                                    "NodeResult provenance output_fingerprint",
+                                                )
+                                                == _output_fingerprint(candidate.output)
+                                            )
+                                        except Exception:  # noqa: BLE001 - malformed cache miss
+                                            cache_value_valid = False
                             # All identities must match the lookup request;
                             # this rejects cross-capability and stale entries.
-                            if (
+                            if cache_value_valid and (
                                 candidate.node_id != node.node_id
                                 or candidate.capability_id != node.capability_id
                                 or candidate.cache_key != key
+                                or candidate.status != "completed"
                             ):
                                 cache_value_valid = False
-                            else:
+                            elif cache_value_valid:
                                 cached_result = NodeResult(
                                     candidate.node_id,
                                     candidate.capability_id,
                                     candidate.status,
-                                    candidate.state,
+                                    _state_for(node, "computed"),
                                     candidate.cache_key,
                                     candidate.output,
-                                    provenance | {"cache_hit": True},
+                                    provenance
+                                    | {
+                                        "cache_hit": True,
+                                        "output_fingerprint": candidate.provenance[
+                                            "output_fingerprint"
+                                        ]
+                                        if descriptor is not None
+                                        else _output_fingerprint(candidate.output),
+                                    },
                                     candidate.error,
                                 )
                         except Exception:  # noqa: BLE001 - malformed cache miss
@@ -946,8 +1810,17 @@ class ExecutionGraph:
                 results[node_id] = result
                 continue
             state = _state_for(node, "computed")
+            provenance["output_fingerprint"] = _output_fingerprint(output)
             result = NodeResult(node.node_id, node.capability_id, "completed", state, key, output, provenance)
             results[node_id] = result
+            if isinstance(cache, MutableMapping):
+                # Only successful, Core-derived results enter a mutable cache.
+                # Failed/blocked/needs-input outcomes must never poison a later
+                # retry after the missing input or provider is repaired.
+                try:
+                    cache[key] = result
+                except Exception:  # noqa: BLE001 - cache adapters are optional
+                    pass
         return ExecutionResult(self.graph_id, context, tuple(results[node_id] for node_id in self._order))
 
 

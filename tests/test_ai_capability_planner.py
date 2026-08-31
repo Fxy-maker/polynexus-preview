@@ -61,6 +61,39 @@ def matrix_block(
     )
 
 
+def constrained_matrix_block(
+    *,
+    q_coords: tuple[float, ...] = (0.1, 0.2, 0.3),
+    q_unit: str = "1/nm",
+    q_quantity: str = "scattering_vector",
+) -> DataBlock:
+    q_axis = AxisProvenance.create(
+        name="q",
+        source="observed",
+        method="detector_geometry",
+        quantity=q_quantity,
+        unit=q_unit,
+    )
+    intensity_axis = AxisProvenance.create(
+        name="intensity",
+        source="observed",
+        method="detector_counts",
+        quantity="intensity",
+        unit="count",
+    )
+    return DataBlock.create(
+        kind="matrix",
+        shape=(len(q_coords), 3),
+        dims=("q", "intensity"),
+        coords={"q": q_coords, "intensity": (1.0, 2.0, 3.0)},
+        coord_units={"q": q_unit, "intensity": "count"},
+        array_ref={"uri": "artifact://array/constrained", "sha256": "c" * 64},
+        axis_provenance={"q": q_axis, "intensity": intensity_axis},
+        source_artifact_id="artifact-constrained",
+        metadata={"technique": "saxs", "measurement_family": "detector_image"},
+    )
+
+
 def test_descriptor_validation_and_roundtrip_preserve_versioned_contract() -> None:
     descriptor = CapabilityDescriptor.create(
         capability_id="saxs.absolute_intensity.v1",
@@ -115,6 +148,102 @@ def test_planner_returns_needs_input_for_missing_calibration_without_running_pro
     assert item.state.computability == "needs_input"
     assert item.state.missing_inputs == ("calibration:q",)
     assert "calibration:q" in item.next_actions[0]
+
+
+def test_planner_treats_single_calibration_string_as_one_requirement() -> None:
+    """A scalar descriptor calibration name must not be iterated character-by-character."""
+
+    descriptor = CapabilityDescriptor.create(
+        capability_id="saxs.absolute_intensity.scalar_calibration.v1",
+        techniques=("saxs",),
+        input_contract={
+            "kind": "matrix",
+            "required_calibrations": "q_calibration",
+        },
+        output_schema={"absolute_intensity": {"unit": "1/cm"}},
+        status="available",
+    )
+
+    item = CapabilityPlanner((descriptor,)).inspect(
+        data_blocks=(matrix_block(calibrations=("q_calibration",)),),
+        target_capabilities=(descriptor.capability_id,),
+    )[0]
+
+    assert item.outcome == "executable"
+    assert item.calibration_hashes == ("a" * 64,)
+
+
+def test_planner_rejects_dependency_admission_from_different_descriptor_registry() -> None:
+    """A trusted admission must match the target registry's descriptor identity."""
+
+    dependency_a = CapabilityDescriptor.create(
+        capability_id="dependency.registry_bound.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"value": {"type": "scalar"}},
+        uncertainty_policy={"mode": "registry-a"},
+    )
+    dependency_b = CapabilityDescriptor.create(
+        capability_id=dependency_a.capability_id,
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"value": {"type": "scalar"}},
+        uncertainty_policy={"mode": "registry-b"},
+    )
+    consumer = CapabilityDescriptor.create(
+        capability_id="consumer.registry_bound.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"value": {"type": "scalar"}},
+        dependencies=(dependency_a.capability_id,),
+    )
+    source = matrix_block()
+    admission = CapabilityPlanner((dependency_a, consumer)).inspect(
+        data_blocks=(source,),
+        target_capabilities=(dependency_a.capability_id,),
+    )[0]
+
+    target = CapabilityPlanner((dependency_b, consumer)).inspect(
+        data_blocks=(source,),
+        target_capabilities=(consumer.capability_id,),
+        available_capabilities={dependency_a.capability_id: admission},
+    )[0]
+
+    assert target.outcome == "needs_input"
+    assert "dependency:dependency.registry_bound.v1" in target.state.missing_inputs
+
+
+def test_planner_blocks_unreviewed_calibration_when_descriptor_requires_review() -> None:
+    """An applied-but-unreviewed calibration cannot satisfy a reviewed gate."""
+
+    descriptor = CapabilityDescriptor.create(
+        capability_id="saxs.reviewed_calibration.v1",
+        techniques=("saxs",),
+        input_contract={
+            "kind": "matrix",
+            "required_calibrations": ("q",),
+        },
+        output_schema={"value": {"type": "scalar"}},
+        evidence_policy={"requires_reviewed_calibration": True},
+    )
+    block = matrix_block(
+        calibrations=(
+            {
+                "scope": "q",
+                "status": "applied_unreviewed",
+                "record_locator": "calibrations/q",
+                "record_sha256": "b" * 64,
+            },
+        )
+    )
+
+    item = CapabilityPlanner((descriptor,)).inspect(
+        data_blocks=(block,),
+        target_capabilities=(descriptor.capability_id,),
+    )[0]
+
+    assert item.outcome == "blocked"
+    assert "calibration_not_reviewed:q" in item.state.reason_codes
 
 
 def test_planner_rejects_synthetic_axis_for_absolute_capability() -> None:
@@ -354,6 +483,34 @@ def test_required_inputs_accept_only_explicit_planner_declarations(
     assert item.outcome == "executable"
 
 
+@pytest.mark.parametrize(
+    ("status", "expected_outcome"),
+    (
+        ("planned", "needs_input"),
+        ("executable", "needs_input"),
+        ("computed", "executable"),
+        ("completed", "executable"),
+    ),
+)
+def test_required_inputs_only_accept_materialized_statuses(
+    status: str, expected_outcome: str
+) -> None:
+    descriptor = CapabilityDescriptor.create(
+        capability_id="nmr.relaxation_status_gate.v1",
+        techniques=("nmr",),
+        input_contract={"kind": "matrix", "required_inputs": ("relaxation_delays",)},
+        output_schema={"T1": {"type": "scalar", "unit": "s"}},
+    )
+
+    item = CapabilityPlanner((descriptor,)).inspect(
+        data_blocks=(matrix_block(technique="nmr"),),
+        target_capabilities=(descriptor.capability_id,),
+        available_inputs={"relaxation_delays": {"status": status}},
+    )[0]
+
+    assert item.outcome == expected_outcome
+
+
 def test_required_inputs_use_namespaced_data_block_metadata_not_similar_fields() -> None:
     descriptor = CapabilityDescriptor.create(
         capability_id="nmr.relaxation.v1",
@@ -476,6 +633,182 @@ def test_planner_does_not_match_unlabelled_block_to_technique_descriptor():
     assert item.state.reason_codes == ("data_block_missing",)
 
 
+def test_planner_enforces_descriptor_axis_units_quantity_order_and_shape() -> None:
+    descriptor = CapabilityDescriptor.create(
+        capability_id="saxs.strict_profile.v1",
+        techniques=("saxs",),
+        input_contract={
+            "kind": "matrix",
+            "measurement_families": ("detector_image",),
+            "axis_requirements": {
+                "q": {
+                    "unit": "1/nm",
+                    "quantity": "scattering_vector",
+                    "monotonic": True,
+                    "unique": True,
+                    "required": True,
+                }
+            },
+            "shape_requirements": {
+                "rank": 2,
+                "dimensions": {"q": {"min_size": 3}},
+            },
+        },
+        output_schema={"profile": {"type": "series"}},
+    )
+    planner = CapabilityPlanner((descriptor,))
+
+    valid = planner.inspect(
+        data_blocks=(constrained_matrix_block(),),
+        target_capabilities=(descriptor.capability_id,),
+    )[0]
+    wrong_unit = planner.inspect(
+        data_blocks=(constrained_matrix_block(q_unit="angstrom^-1"),),
+        target_capabilities=(descriptor.capability_id,),
+    )[0]
+    duplicate_axis = planner.inspect(
+        data_blocks=(constrained_matrix_block(q_coords=(0.1, 0.1, 0.3)),),
+        target_capabilities=(descriptor.capability_id,),
+    )[0]
+    short_shape = planner.inspect(
+        data_blocks=(constrained_matrix_block(q_coords=(0.1, 0.2)),),
+        target_capabilities=(descriptor.capability_id,),
+    )[0]
+
+    assert valid.outcome == "executable"
+    assert wrong_unit.state.reason_codes == ("axis_unit_mismatch:q",)
+    assert duplicate_axis.state.reason_codes == ("axis_not_unique:q",)
+    assert short_shape.state.reason_codes == ("shape_dimension_too_short:q",)
+
+
+def test_planner_requires_declared_capability_dependencies() -> None:
+    dependency = CapabilityDescriptor.create(
+        capability_id="saxs.detector_radial_profile.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"profile": {"type": "series"}},
+    )
+    descriptor = CapabilityDescriptor.create(
+        capability_id="saxs.dependent_profile.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"profile": {"type": "series"}},
+        dependencies=("saxs.detector_radial_profile.v1",),
+    )
+    planner = CapabilityPlanner((dependency, descriptor))
+    block = matrix_block(family="detector_image")
+
+    missing = planner.inspect(
+        data_blocks=(block,), target_capabilities=(descriptor.capability_id,)
+    )[0]
+    available = planner.inspect(
+        data_blocks=(block,),
+        target_capabilities=(descriptor.capability_id,),
+        available_capabilities={
+            dependency.capability_id: planner.inspect(
+                data_blocks=(block,),
+                target_capabilities=(dependency.capability_id,),
+            )[0]
+        },
+    )[0]
+
+    assert missing.outcome == "needs_input"
+    assert missing.state.missing_inputs == (
+        "dependency:saxs.detector_radial_profile.v1",
+    )
+    assert available.outcome == "executable"
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    (
+        True,
+        {"status": "completed"},
+        {"computability": "computed"},
+        {"state": {"computability": "computed"}},
+    ),
+)
+def test_planner_rejects_unattested_capability_completion_declarations(
+    declaration: object,
+) -> None:
+    """A dependency must be proved by a Core-issued admission, not metadata."""
+
+    dependency_id = "saxs.detector_radial_profile.v1"
+    descriptor = CapabilityDescriptor.create(
+        capability_id="saxs.dependent_profile.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"profile": {"type": "series"}},
+        dependencies=(dependency_id,),
+    )
+    item = CapabilityPlanner((descriptor,)).inspect(
+        data_blocks=(matrix_block(),),
+        target_capabilities=(descriptor.capability_id,),
+        available_capabilities={dependency_id: declaration},
+    )[0]
+
+    assert item.outcome == "needs_input"
+    assert item.state.missing_inputs == (f"dependency:{dependency_id}",)
+
+
+def test_planner_accepts_only_a_matching_core_issued_dependency_admission() -> None:
+    dependency = CapabilityDescriptor.create(
+        capability_id="saxs.detector_radial_profile.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"profile": {"type": "series"}},
+    )
+    target = CapabilityDescriptor.create(
+        capability_id="saxs.dependent_profile.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"profile": {"type": "series"}},
+        dependencies=(dependency.capability_id,),
+    )
+    planner = CapabilityPlanner((dependency, target))
+    block = matrix_block()
+    dependency_admission = planner.inspect(
+        data_blocks=(block,), target_capabilities=(dependency.capability_id,)
+    )[0]
+
+    item = planner.inspect(
+        data_blocks=(block,),
+        target_capabilities=(target.capability_id,),
+        available_capabilities={dependency.capability_id: dependency_admission},
+    )[0]
+
+    assert dependency_admission.is_trusted_admission is True
+    assert item.outcome == "executable"
+    assert item.dependency_bindings == (
+        {
+            "capability_id": dependency.capability_id,
+            "descriptor_version": dependency.version,
+            "descriptor_hash": dependency.content_hash,
+            "admission_hash": dependency_admission.admission_hash,
+        },
+    )
+
+
+@pytest.mark.parametrize("status", ("planned", "executable", "needs_input", "blocked", "failed"))
+def test_planner_does_not_treat_noncompleted_capability_state_as_available(status: str) -> None:
+    dependency_id = "saxs.detector_radial_profile.v1"
+    descriptor = CapabilityDescriptor.create(
+        capability_id="saxs.dependent_profile.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"profile": {"type": "series"}},
+        dependencies=(dependency_id,),
+    )
+    item = CapabilityPlanner((descriptor,)).inspect(
+        data_blocks=(matrix_block(),),
+        target_capabilities=(descriptor.capability_id,),
+        available_capabilities={dependency_id: {"status": status}},
+    )[0]
+
+    assert item.outcome == "needs_input"
+    assert item.state.missing_inputs == (f"dependency:{dependency_id}",)
+
+
 def test_planner_can_optionally_require_experimental_executor_binding():
     descriptor = default_descriptor_registry().get("nmr.fid_fft.v1")
     item = CapabilityPlanner((descriptor,)).inspect(
@@ -485,3 +818,23 @@ def test_planner_can_optionally_require_experimental_executor_binding():
     )[0]
     assert item.outcome == "needs_input"
     assert item.state.reason_codes == ("executor_unavailable",)
+
+
+def test_planner_item_is_an_in_process_admission_and_serialized_copy_is_not():
+    descriptor = CapabilityDescriptor.create(
+        capability_id="saxs.admission_probe.v1",
+        techniques=("saxs",),
+        input_contract={"kind": "matrix"},
+        output_schema={"value": {"type": "scalar"}},
+    )
+    item = CapabilityPlanner((descriptor,)).inspect(
+        data_blocks=(matrix_block(),), target_capabilities=(descriptor.capability_id,)
+    )[0]
+
+    assert item.outcome == "executable"
+    assert item.is_trusted_admission is True
+    assert item.as_admission() is item
+    restored = CapabilityPlanItem.from_dict(item.to_dict())
+    assert restored.is_trusted_admission is False
+    with pytest.raises(ValueError, match="not issued"):
+        restored.as_admission()

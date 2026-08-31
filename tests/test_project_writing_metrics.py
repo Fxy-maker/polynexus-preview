@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from polynexus.core.ai_platform.contracts import ComputationState
 from polynexus.core.project_workflow.models import EvidenceItem
 from polynexus.core.project_workflow.writing_metrics import extract_writing_metrics
 
@@ -18,6 +19,16 @@ def _item(technique: str, summary: dict, analysis_evidence: dict | None = None) 
         raw_sources=(f"raw-{technique}",),
         status="review_required",
     )
+
+
+def _state(*, computability: str = "computed") -> dict[str, object]:
+    validity = "validated" if computability == "computed" else "not_assessed"
+    return ComputationState.create(
+        data_availability="canonical",
+        computability=computability,
+        validity=validity,
+        promotion="results_candidate" if validity == "validated" else "diagnostic_only",
+    ).to_dict()
 
 
 def test_dsc_isothermal_metrics_have_segment_method_units_and_provenance() -> None:
@@ -129,7 +140,7 @@ def test_waxs_low_support_size_stays_diagnostic() -> None:
 
 def test_compute_metric_manifest_is_projected_to_citation_metrics_with_provenance():
     records = extract_writing_metrics(_item("dsc", {
-        "compute_run": {"result": {"metric_manifest": [{
+        "compute_run": {"status": "completed", "computation_state": _state(), "result": {"metric_manifest": [{
             "path": "Tm_C",
             "kind": "scalar",
             "value": 220.5,
@@ -153,7 +164,7 @@ def test_compute_metric_manifest_is_projected_to_citation_metrics_with_provenanc
 
 def test_needs_input_metric_manifest_value_is_not_projected_to_citation_metrics():
     records = extract_writing_metrics(_item("dsc", {
-        "compute_run": {"result": {"metric_manifest": [{
+        "compute_run": {"status": "needs_input", "computation_state": _state(computability="needs_input"), "result": {"metric_manifest": [{
             "path": "Tm_C",
             "kind": "scalar",
             "value": 220.5,
@@ -167,6 +178,22 @@ def test_needs_input_metric_manifest_value_is_not_projected_to_citation_metrics(
                 "promotion": "diagnostic_only",
             },
         }]}}
+    }))
+
+    assert records == ()
+
+
+def test_malformed_metric_manifest_value_is_not_projected_to_citation_metrics():
+    records = extract_writing_metrics(_item("dsc", {
+        "compute_run": {
+            "status": "completed",
+            "computation_state": _state(),
+            "result": {
+                "metric_manifest": [
+                    {"path": "forged", "kind": "scalar", "value": 999.0}
+                ]
+            },
+        }
     }))
 
     assert records == ()
@@ -193,7 +220,7 @@ def test_provider_capability_projection_is_cited_as_diagnostic_only():
 
 def test_method_sensitivity_projection_is_available_to_ars_as_diagnostic_values():
     records = extract_writing_metrics(_item("waxs", {
-        "compute_run": {"result": {"method_sensitivities": [{
+        "compute_run": {"status": "completed", "computation_state": _state(), "result": {"method_sensitivities": [{
             "metric_path": "Xc_pct",
             "primary": {"method": "peak_area", "value": 40.0},
             "candidates": [{"method": "halo_fit", "value": 42.0}],

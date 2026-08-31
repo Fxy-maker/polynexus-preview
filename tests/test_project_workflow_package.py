@@ -162,6 +162,29 @@ def test_package_writes_citation_metrics_with_writing_evidence_links(tmp_path: P
     assert "Citation metrics: citation-metrics.json" in (package.path / "writing-input.md").read_text(encoding="utf-8")
 
 
+def test_package_rejects_metric_manifest_row_without_explicit_status() -> None:
+    state = ComputationState.create(
+        data_availability="canonical",
+        computability="computed",
+        validity="validated",
+        promotion="results_candidate",
+    ).to_dict()
+    compute_run = {
+        "status": "completed",
+        "computation_state": state,
+        "result": {
+            "metric_manifest": [
+                {"path": "forged", "kind": "scalar", "value": 999.0}
+            ]
+        },
+    }
+
+    with pytest.raises(ValueError, match="compute_run projection is invalid"):
+        ProjectEvidencePackager._validate_shared_compute_projection(
+            compute_run, compute_run["result"]
+        )
+
+
 def test_package_contains_shared_result_tables_projection(tmp_path: Path) -> None:
     run = _run_dsc_request(tmp_path)
     package = ProjectEvidencePackager(ProjectWorkspace.open(tmp_path)).create((run,))

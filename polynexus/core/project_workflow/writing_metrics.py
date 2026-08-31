@@ -7,6 +7,11 @@ import hashlib
 import math
 from typing import Any, Iterable, Mapping
 
+from polynexus.core.compute.projection import (
+    parse_compute_run_projection,
+    read_compute_run_projection,
+)
+
 from .models import EvidenceItem, canonical_json
 
 
@@ -72,12 +77,26 @@ def extract_writing_metrics(item: EvidenceItem | Mapping[str, Any]) -> tuple[Cit
     """Extract documented provider metrics from one public evidence item."""
     payload = item.to_dict() if isinstance(item, EvidenceItem) else dict(item)
     technique = str(payload.get("technique", "")).lower()
+    summary = _summary(payload)
+    shared_projection = read_compute_run_projection(summary)
+    if shared_projection.present and (
+        not shared_projection.valid or not shared_projection.computed
+    ):
+        # An explicit shared envelope is authoritative.  Never fall back to
+        # legacy parameters when that envelope is malformed or blocked.
+        return ()
     generic = (
         _capability_metrics(payload)
         + _metric_manifest_metrics(payload)
         + _method_sensitivity_metrics(payload)
     )
-    if technique == "dsc":
+    if shared_projection.present:
+        # Once a shared envelope is supplied, its manifest/capability outputs
+        # are the sole source of writing metrics.  Technique-specific legacy
+        # summaries are not a fallback, even when they happen to contain a
+        # numerically plausible value.
+        records = generic
+    elif technique == "dsc":
         records = generic + _dsc(payload)
     elif technique in {"ir", "ftir"}:
         records = generic + _ir(payload)
@@ -87,14 +106,38 @@ def extract_writing_metrics(item: EvidenceItem | Mapping[str, Any]) -> tuple[Cit
         records = generic + _waxs(payload)
     else:
         records = generic
+    if shared_projection.present and shared_projection.state is not None:
+        if shared_projection.state.promotion != "results_candidate":
+            # A computed diagnostic run may still be useful for inspection,
+            # but it cannot silently become a paper-ready result.  Preserve
+            # the observation while downgrading every candidate eligibility.
+            records = tuple(
+                replace(
+                    record,
+                    writing_eligibility="diagnostic_only"
+                    if record.writing_eligibility == "results_candidate"
+                    else record.writing_eligibility,
+                    reason_codes=tuple(
+                        dict.fromkeys(
+                            (*record.reason_codes, "compute_run_promotion_not_results_candidate")
+                        )
+                    )
+                    if record.writing_eligibility == "results_candidate"
+                    else record.reason_codes,
+                )
+                for record in records
+            )
     return tuple(_with_id(record) for record in records)
 
 
 def _metric_manifest_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
     """Project the complete ComputeRun metric manifest without promotion."""
     summary = _summary(payload)
-    compute_run = summary.get("compute_run", {})
-    result = compute_run.get("result", {}) if isinstance(compute_run, Mapping) else {}
+    projection = read_compute_run_projection(summary)
+    if not projection.present or not projection.valid or not projection.computed:
+        return ()
+    compute_run = projection.payload or {}
+    result = projection.result or {}
     manifest = result.get("metric_manifest", ()) if isinstance(result, Mapping) else ()
     if not isinstance(manifest, (list, tuple)):
         return ()
@@ -129,8 +172,10 @@ def _metric_manifest_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric
 def _method_sensitivity_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric, ...]:
     """Expose explicit primary/candidate method values to ARS as diagnostics."""
     summary = _summary(payload)
-    compute_run = summary.get("compute_run", {})
-    result = compute_run.get("result", {}) if isinstance(compute_run, Mapping) else {}
+    projection = read_compute_run_projection(summary)
+    if not projection.present or not projection.valid or not projection.computed:
+        return ()
+    result = projection.result or {}
     entries = result.get("method_sensitivities", ()) if isinstance(result, Mapping) else ()
     if not isinstance(entries, (list, tuple)):
         return ()
@@ -235,26 +280,34 @@ def _manifest_metric_is_computed(
 ) -> bool:
     """Fail closed when a manifest row or its run is not computable."""
 
-    if str(compute_run.get("status", "completed")).strip().lower() != "completed":
+    projection = parse_compute_run_projection(compute_run)
+    if not projection.valid or not projection.computed:
         return False
-    status = str(metric.get("status", "computed")).strip().lower()
-    if status != "computed":
+    status_value = metric.get("status")
+    if not isinstance(status_value, str) or status_value.strip().lower() != "computed":
         return False
-    for candidate in (
-        compute_run.get("computation_state", compute_run.get("state")),
-        metric.get("computation_state"),
-    ):
+    for candidate in (metric.get("computation_state"), metric.get("state")):
         if candidate is None:
             continue
-        if not isinstance(candidate, Mapping):
-            return False
         try:
             from polynexus.core.ai_platform.contracts import ComputationState
 
-            state = ComputationState.from_dict(candidate)
+            if type(candidate) is ComputationState:
+                state = candidate
+            elif isinstance(candidate, ComputationState):
+                # A Mapping-capable state subclass can otherwise enter the
+                # deserializer and override its axis lookups.  Only the exact
+                # canonical DTO may cross this consumer boundary.
+                return False
+            elif isinstance(candidate, Mapping):
+                state = ComputationState.from_dict(candidate)
+            else:
+                return False
         except (KeyError, TypeError, ValueError):
             return False
         if state.computability != "computed":
+            return False
+        if projection.state is None or state.to_dict() != projection.state.to_dict():
             return False
     return True
 

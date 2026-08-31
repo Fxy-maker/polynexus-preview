@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from ..utils import detect_polymer_type
-from ..core.compute import ComputeRun
+from ..core.compute import (
+    ComputeRun,
+    parse_compute_run_projection,
+    read_compute_run_projection,
+)
 
 
 @dataclass(frozen=True)
@@ -77,13 +81,43 @@ def compute_run_payload(value: Any) -> dict[str, Any] | None:
 
     if isinstance(value, ComputeRun):
         payload = to_jsonable(value.to_dict())
-    elif isinstance(value, Mapping) and "status" in value and (
-        "artifact" in value or "computation_state" in value
+        # A live Core object has already enforced the status/state invariant;
+        # retain needs-input/failed envelopes for GUI diagnostics.
+        return payload if isinstance(payload, dict) else None
+    if not isinstance(value, Mapping):
+        return None
+
+    payload = to_jsonable(dict(value))
+    if not isinstance(payload, dict):
+        return None
+    if "compute_run" in payload:
+        projection = read_compute_run_projection(payload)
+        candidate = payload.get("compute_run")
+    elif "status" in payload and any(
+        key in payload
+        for key in (
+            "artifact",
+            "dataset",
+            "plan",
+            "result",
+            "canonical_template",
+            "computation_state",
+            "state",
+        )
     ):
-        payload = to_jsonable(dict(value))
+        projection = parse_compute_run_projection(payload)
+        candidate = payload
     else:
         return None
-    return payload if isinstance(payload, dict) else None
+    # GUI persistence is a public shared boundary.  Serialized mappings must
+    # be admitted by the same parser as Evidence/Joint instead of being
+    # accepted merely because they happen to contain an artifact key.
+    if not projection.valid or not isinstance(candidate, Mapping):
+        raise ValueError(
+            "GUI compute_run projection is invalid: "
+            + ",".join(projection.reason_codes)
+        )
+    return dict(candidate)
 
 
 def extract_result_r2(payload: dict[str, Any]) -> float:

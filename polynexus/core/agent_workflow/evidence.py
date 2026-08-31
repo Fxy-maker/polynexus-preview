@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from polynexus.core.compute.projection import (
+    merge_compute_run_projections,
+    parse_compute_run_projection,
+)
+
 from .models import EvidenceRecord, WorkflowStepResult
 
 
@@ -28,8 +33,12 @@ def _normalized_state(value: Any):
 
     from polynexus.core.ai_platform.contracts import ComputationState
 
-    if isinstance(value, ComputationState):
+    # Do not trust polymorphic state objects at an evidence boundary: a
+    # subclass can override ``computability`` or ``to_dict`` after validation.
+    if type(value) is ComputationState:
         return value
+    if isinstance(value, ComputationState):
+        return None
     if not isinstance(value, Mapping):
         return None
     try:
@@ -41,34 +50,17 @@ def _normalized_state(value: Any):
 
 
 def _projection_state(projection: Mapping[str, Any]):
-    """Read the canonical state aliases from one serialized ComputeRun."""
+    """Read the canonical state from the shared projection parser."""
 
-    states: list[Any] = []
-    for key in ("computation_state", "state"):
-        if key in projection:
-            states.append(projection[key])
-    if not states:
-        return None
-
-    normalized = [_normalized_state(value) for value in states]
-    if any(value is None for value in normalized):
-        return None
-    first = normalized[0]
-    if any(value.to_dict() != first.to_dict() for value in normalized[1:]):
-        return None
-    return first
+    parsed = parse_compute_run_projection(projection)
+    return parsed.state if parsed.valid else None
 
 
 def _projection_allows_evidence(projection: Any) -> bool:
     """Require a complete, successful shared ComputeRun projection."""
 
-    if not isinstance(projection, Mapping):
-        return False
-    status = projection.get("status", _MISSING)
-    if not isinstance(status, str) or status.strip().casefold() != "completed":
-        return False
-    state = _projection_state(projection)
-    return state is not None and state.computability == "computed"
+    parsed = parse_compute_run_projection(projection)
+    return parsed.valid and parsed.computed
 
 
 def _step_allows_evidence(step: WorkflowStepResult) -> bool:
@@ -83,7 +75,8 @@ def _step_allows_evidence(step: WorkflowStepResult) -> bool:
 
     projections: list[Any] = []
     direct_projection = getattr(step, "compute_run", _MISSING)
-    if direct_projection is not _MISSING and direct_projection is not None:
+    direct_present = bool(getattr(step, "compute_run_present", False))
+    if direct_present or (direct_projection is not _MISSING and direct_projection is not None):
         projections.append(direct_projection)
 
     summary = getattr(step, "result_summary", None)
@@ -95,19 +88,13 @@ def _step_allows_evidence(step: WorkflowStepResult) -> bool:
     if not projections:
         return True
 
-    normalized_projection_states = []
-    for projection in projections:
-        if not _projection_allows_evidence(projection):
-            return False
-        state = _projection_state(projection)
-        # _projection_allows_evidence already guarantees a canonical state;
-        # retaining it here lets us reject contradictory duplicate projections.
-        normalized_projection_states.append(state)
-
-    first_projection_state = normalized_projection_states[0]
-    if normalized_top_state is not None and normalized_top_state.to_dict() != first_projection_state.to_dict():
+    parsed_projections = tuple(parse_compute_run_projection(value) for value in projections)
+    merged_projection = merge_compute_run_projections(*parsed_projections)
+    if not merged_projection.valid or not merged_projection.computed:
         return False
-    if any(state.to_dict() != first_projection_state.to_dict() for state in normalized_projection_states[1:]):
+    if merged_projection.state is None:
+        return False
+    if normalized_top_state is not None and normalized_top_state.to_dict() != merged_projection.state.to_dict():
         return False
     return True
 

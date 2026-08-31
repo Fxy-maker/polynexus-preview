@@ -123,6 +123,8 @@ def test_artifact_refs_are_strict_and_uncertainty_is_exclusive():
 def test_calibration_and_axis_require_reviewed_reference_when_calibrated():
     with pytest.raises(ValueError, match="record"):
         CalibrationRef.create("c", "s", "m", "src", "reviewed")
+    with pytest.raises(ValueError, match="record"):
+        CalibrationRef.create("c", "s", "m", "src", "applied_unreviewed")
     with pytest.raises(ValueError, match="calibration"):
         AxisProvenance.create("q", "calibrated", "m")
     ref = CalibrationRef.create("c", "s", "m", "src", "applied_unreviewed", record_locator="r", record_sha256=SHA)

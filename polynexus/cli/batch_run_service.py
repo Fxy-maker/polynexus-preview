@@ -11,7 +11,12 @@ from types import SimpleNamespace
 from typing import Any, Callable
 
 from polynexus.core.engine import SUPPORTED_FORMATS
-from polynexus.core.compute import ComputeRun, ComputeRunService
+from polynexus.core.compute import (
+    ComputeRun,
+    ComputeRunService,
+    parse_compute_run_projection,
+    read_compute_run_projection,
+)
 from polynexus.utils import detect_polymer_type
 
 logger = logging.getLogger(__name__)
@@ -102,19 +107,51 @@ def _compute_run_projection(value: Any) -> dict[str, Any] | None:
     """Accept a live or already-serialized shared ComputeRun envelope."""
 
     if isinstance(value, ComputeRun):
-        candidate: Any = value.to_dict()
+        parsed = parse_compute_run_projection(value.to_dict())
+        candidate: Any = parsed.payload
+        if value.status != "completed":
+            projection = _json_projection(candidate)
+            return projection if isinstance(projection, dict) else None
     elif isinstance(value, Mapping):
-        nested = value.get("compute_run")
-        candidate = nested if isinstance(nested, Mapping) else value
+        # Read the outer envelope once through the shared parser.  The
+        # parser snapshots accepted mappings, so consumers must use its
+        # payload rather than looking up the original mapping again (which
+        # could be a mutable/subclassed Mapping with different values).
+        container_projection = read_compute_run_projection(value)
+        if container_projection.present:
+            parsed = container_projection
+            candidate = parsed.payload
+        else:
+            direct = parse_compute_run_projection(value)
+            direct_candidate = direct.payload
+            if not isinstance(direct_candidate, Mapping) or not (
+                "status" in direct_candidate
+                and any(
+                    key in direct_candidate
+                    for key in (
+                        "artifact",
+                        "dataset",
+                        "plan",
+                        "result",
+                        "canonical_template",
+                        "computation_state",
+                        "state",
+                    )
+                )
+            ):
+                return None
+            parsed = direct
+            candidate = direct_candidate
     else:
         return None
     if not isinstance(candidate, Mapping):
-        return None
-    status = str(candidate.get("status", "")).strip().lower()
-    if status not in {"ready", "needs_input", "failed", "completed"}:
-        return None
+        raise ValueError("CLI compute_run projection is invalid")
+    if not parsed.valid:
+        raise ValueError(
+            "CLI compute_run projection is invalid: " + ",".join(parsed.reason_codes)
+        )
     if not isinstance(candidate.get("artifact"), Mapping):
-        return None
+        raise ValueError("CLI compute_run projection artifact is invalid")
     projection = _json_projection(candidate)
     return projection if isinstance(projection, dict) else None
 

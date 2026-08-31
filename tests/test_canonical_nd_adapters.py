@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 
 from polynexus.core.ai_platform import (
+    AxisProvenance,
     CalibrationRef,
     CapabilityDescriptor,
     CapabilityPlanner,
@@ -71,6 +72,31 @@ def test_ir_temperature_adapter_rejects_nonconformable_grids_without_interpolati
     assert adapted.status == "needs_input"
     assert adapted.data_blocks == ()
     assert "temperature_series_grid_mismatch" in adapted.reason_codes
+
+
+def test_registry_forwards_explicit_ir_temperature_axis_provenance(tmp_path: Path) -> None:
+    _write_ir(tmp_path / "PA6-100C.csv", 0.2)
+    _write_ir(tmp_path / "PA6-120C.csv", 0.4)
+    temperature_axis = AxisProvenance.create(
+        name="temperature",
+        source="user_confirmed",
+        method="instrument_program",
+        quantity="temperature",
+        unit="degC",
+        status="declared",
+        source_locator={"uri": "artifact://instrument-program/temperature"},
+    )
+
+    adapted = default_converter_registry().convert_data_blocks(
+        tmp_path,
+        technique="ir",
+        source_artifact_id="ir-series-artifact",
+        ir_temperature_axis_provenance=temperature_axis,
+    )
+
+    assert adapted.data_block is not None
+    assert adapted.data_block.axis_provenance["temperature"] == temperature_axis
+    assert "temperature_axis_inferred" not in adapted.data_block.quality_flags
 
 
 def test_detector_adapter_preserves_pixel_and_external_mask_references(tmp_path: Path) -> None:
@@ -286,6 +312,96 @@ def test_missing_nmr_fid_is_actionable_input_not_unsupported_capability(tmp_path
     assert adapted.status == "needs_input"
     assert adapted.data_blocks == ()
     assert adapted.reason_codes == ("nmr_fid_missing",)
+
+
+def test_registry_routes_bare_ser_only_with_explicit_nd_shape(tmp_path: Path) -> None:
+    ser_path = tmp_path / "ser"
+    ser_path.write_bytes(
+        np.asarray(
+            [1, 10, 2, 20, 3, 30, 4, 40, 5, 50, 6, 60, 7, 70, 8, 80],
+            dtype=">i4",
+        ).tobytes()
+    )
+
+    missing_shape = default_converter_registry().convert_data_blocks(
+        ser_path,
+        technique="nmr",
+        source_artifact_id="nmr-ser-missing-shape",
+    )
+    rank_one = default_converter_registry().convert_data_blocks(
+        ser_path,
+        technique="nmr",
+        source_artifact_id="nmr-ser-rank-one",
+        nmr_shape=(8,),
+    )
+    adapted = default_converter_registry().convert_data_blocks(
+        ser_path,
+        technique="nmr",
+        source_artifact_id="nmr-ser-shaped",
+        nmr_shape=(2, 4),
+    )
+
+    assert missing_shape.status == "needs_input"
+    assert missing_shape.reason_codes == ("nmr_ser_shape_required",)
+    assert rank_one.status == "needs_input"
+    assert rank_one.reason_codes == ("nmr_ser_shape_rank_invalid",)
+    assert adapted.data_block is not None
+    assert adapted.data_block.shape == (2, 4)
+    assert adapted.data_block.dims == ("time", "indirect_time")
+
+
+def test_registry_routes_directory_ser_and_rejects_empty_nmr_directory(
+    tmp_path: Path,
+) -> None:
+    ser_directory = tmp_path / "ser-acquisition"
+    ser_directory.mkdir()
+    (ser_directory / "ser").write_bytes(
+        np.asarray(
+            [1, 10, 2, 20, 3, 30, 4, 40, 5, 50, 6, 60, 7, 70, 8, 80],
+            dtype=">i4",
+        ).tobytes()
+    )
+    empty_directory = tmp_path / "empty-acquisition"
+    empty_directory.mkdir()
+
+    adapted = default_converter_registry().convert_data_blocks(
+        ser_directory,
+        technique="nmr",
+        source_artifact_id="nmr-ser-directory",
+        nmr_shape=(2, 4),
+    )
+    empty = default_converter_registry().convert_data_blocks(
+        empty_directory,
+        technique="nmr",
+        source_artifact_id="nmr-empty-directory",
+    )
+
+    assert adapted.data_block is not None
+    assert adapted.data_block.metadata["source_path"].endswith("ser")
+    assert empty.status == "needs_input"
+    assert empty.data_blocks == ()
+    assert empty.reason_codes == ("nmr_fid_missing",)
+
+
+def test_registry_rejects_ambiguous_nmr_directory_with_fid_and_ser(
+    tmp_path: Path,
+) -> None:
+    acquisition = tmp_path / "ambiguous-acquisition"
+    acquisition.mkdir()
+    raw = np.asarray([1, 10, 2, 20], dtype=">i4").tobytes()
+    (acquisition / "fid").write_bytes(raw)
+    (acquisition / "ser").write_bytes(raw)
+
+    adapted = default_converter_registry().convert_data_blocks(
+        acquisition,
+        technique="nmr",
+        source_artifact_id="nmr-ambiguous-directory",
+        nmr_shape=(1, 2),
+    )
+
+    assert adapted.status == "needs_input"
+    assert adapted.data_blocks == ()
+    assert adapted.reason_codes == ("nmr_fid_source_ambiguous",)
 
 
 def test_registry_data_block_route_and_missing_detector_calibration_are_explicit(tmp_path: Path) -> None:

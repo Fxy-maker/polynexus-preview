@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from polynexus.core.agent_workflow.models import AnalysisRun, canonical_json
+from polynexus.core.compute.projection import (
+    merge_compute_run_projections,
+    parse_compute_run_projection,
+)
 
 from .models import EvidenceItem
 
@@ -152,26 +156,45 @@ def _step_is_computable(step: Any) -> bool:
     gate.  This helper deliberately does not inspect provider-specific values.
     """
 
-    state = getattr(step, "computation_state", None)
-    if state is not None:
-        computability = getattr(state, "computability", None)
-        if computability is None and isinstance(state, Mapping):
-            computability = state.get("computability")
-        if str(computability or "").strip().lower() != "computed":
-            return False
-    compute_run = getattr(step, "compute_run", None)
-    if isinstance(compute_run, Mapping):
-        status = str(compute_run.get("status", "")).strip().lower()
-        if status and status != "completed":
-            return False
-        run_state = compute_run.get("computation_state", compute_run.get("state"))
-        if isinstance(run_state, Mapping):
-            if str(run_state.get("computability", "")).strip().lower() != "computed":
+    from polynexus.core.ai_platform.contracts import ComputationState
+
+    top_state = getattr(step, "computation_state", None)
+    normalized_top_state = None
+    if top_state is not None:
+        try:
+            if type(top_state) is ComputationState:
+                normalized_top_state = top_state
+            elif isinstance(top_state, ComputationState):
                 return False
-        elif run_state is not None:
-            computability = getattr(run_state, "computability", None)
-            if str(computability or "").strip().lower() != "computed":
-                return False
+            else:
+                normalized_top_state = ComputationState.from_dict(top_state)
+        except (KeyError, TypeError, ValueError):
+            return False
+        if normalized_top_state.computability != "computed":
+            return False
+
+    projections = []
+    direct_projection = getattr(step, "compute_run", None)
+    # ``WorkflowStepResult.compute_run`` uses ``None`` as its historical
+    # absence sentinel.  A deserialized step can explicitly carry
+    # ``compute_run: null``; its presence bit makes that an invalid shared
+    # projection, not permission to use legacy values.
+    if bool(getattr(step, "compute_run_present", False)) or direct_projection is not None:
+        projections.append(parse_compute_run_projection(direct_projection))
+    summary = getattr(step, "result_summary", None)
+    if isinstance(summary, Mapping) and "compute_run" in summary:
+        projections.append(parse_compute_run_projection(summary["compute_run"]))
+
+    if not projections:
+        return True
+
+    merged_projection = merge_compute_run_projections(*projections)
+    if not merged_projection.valid or not merged_projection.computed:
+        return False
+    if merged_projection.state is None:
+        return False
+    if normalized_top_state is not None and normalized_top_state.to_dict() != merged_projection.state.to_dict():
+        return False
     return True
 
 

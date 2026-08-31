@@ -93,6 +93,7 @@ def _mapping_sequence(values: Sequence[Mapping[str, Any] | str], label: str) -> 
 # retained for compatibility with the older capability registries.
 _INPUT_CONTRACT_KEYS = frozenset(
     {
+        "input_type",
         "kind",
         "kinds",
         "required_dims",
@@ -107,6 +108,7 @@ _INPUT_CONTRACT_KEYS = frozenset(
         "required_axes",
         "required_calibrations",
         "metric_paths",
+        "shape_requirements",
     }
 )
 _INPUT_CONTRACT_SEQUENCE_KEYS = frozenset(
@@ -130,8 +132,21 @@ _INPUT_CONTRACT_ALIAS_PAIRS = (
     ("measurement_families", "families"),
 )
 _AXIS_REQUIREMENT_KEYS = frozenset(
-    {"accepted_sources", "sources", "quantitative", "required"}
+    {
+        "accepted_sources",
+        "sources",
+        "quantitative",
+        "required",
+        "unit",
+        "units",
+        "quantity",
+        "quantities",
+        "monotonic",
+        "unique",
+    }
 )
+_SHAPE_REQUIREMENT_KEYS = frozenset({"rank", "dimensions"})
+_DIMENSION_SIZE_KEYS = frozenset({"min_size", "max_size", "exact_size"})
 _CALIBRATION_CONTRACT_KEYS = frozenset(
     {
         "name",
@@ -189,6 +204,23 @@ def _contract_string_sequence(value: Any, label: str) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def _contract_single_string(value: Any, label: str) -> str:
+    """Validate an identity field that names exactly one contract object.
+
+    Top-level contract fields may intentionally accept a sequence of
+    identities, but an individual mapping entry must not accept a nested
+    sequence.  Treating ``{"scope": ["q"]}`` as a string later would create a
+    planner identity that can never match the canonical calibration scope.
+    """
+
+    if not isinstance(value, str):
+        raise TypeError(f"Capability descriptor {label} must be a nonempty string")
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"Capability descriptor {label} must be a nonempty string")
+    return normalized
+
+
 def _validate_calibration_requirements(value: Any) -> None:
     if isinstance(value, str):
         _contract_string_sequence(value, "required_calibrations")
@@ -229,7 +261,7 @@ def _validate_calibration_requirements(value: Any) -> None:
             )
         for key in identity_keys:
             if key in item:
-                _contract_string_sequence(item[key], f"{label}.{key}")
+                _contract_single_string(item[key], f"{label}.{key}")
 
 
 def _validate_axis_requirements(value: Any) -> None:
@@ -257,20 +289,90 @@ def _validate_axis_requirements(value: Any) -> None:
             raise ValueError(
                 f"unknown input_contract axis requirement key(s): {', '.join(unknown)}"
             )
-        for left, right in (("accepted_sources", "sources"),):
+        for left, right in (
+            ("accepted_sources", "sources"),
+            ("unit", "units"),
+            ("quantity", "quantities"),
+        ):
             if left in requirement and right in requirement:
                 raise ValueError(
                     f"Capability descriptor input_contract {label} declares both "
                     f"{left} and {right}"
                 )
-        for key in ("accepted_sources", "sources"):
+        for key in (
+            "accepted_sources",
+            "sources",
+            "unit",
+            "units",
+            "quantity",
+            "quantities",
+        ):
             if key in requirement:
                 _contract_string_sequence(requirement[key], f"{label}.{key}")
-        for key in ("quantitative", "required"):
+        for key in ("quantitative", "required", "monotonic", "unique"):
             if key in requirement and type(requirement[key]) is not bool:
                 raise TypeError(
                     f"Capability descriptor input_contract {label}.{key} must be a boolean"
                 )
+
+
+def _validate_shape_requirements(value: Any) -> None:
+    if not isinstance(value, Mapping):
+        raise TypeError(
+            "Capability descriptor input_contract shape_requirements must be a mapping"
+        )
+    unknown = sorted(set(value) - _SHAPE_REQUIREMENT_KEYS)
+    if unknown:
+        raise ValueError(
+            f"unknown input_contract shape requirement key(s): {', '.join(unknown)}"
+        )
+    rank = value.get("rank")
+    if rank is not None and (type(rank) is not int or rank < 0):
+        raise ValueError(
+            "Capability descriptor input_contract shape_requirements.rank "
+            "must be a nonnegative integer"
+        )
+    dimensions = value.get("dimensions", {})
+    if not isinstance(dimensions, Mapping):
+        raise TypeError(
+            "Capability descriptor input_contract shape_requirements.dimensions "
+            "must be a mapping"
+        )
+    for dimension, requirement in dimensions.items():
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise ValueError(
+                "Capability descriptor shape dimension names must be nonempty strings"
+            )
+        if not isinstance(requirement, Mapping):
+            raise TypeError(
+                "Capability descriptor shape dimension requirements must be mappings"
+            )
+        unknown_dimension = sorted(set(requirement) - _DIMENSION_SIZE_KEYS)
+        if unknown_dimension:
+            raise ValueError(
+                "unknown input_contract dimension size key(s): "
+                + ", ".join(unknown_dimension)
+            )
+        for key, size in requirement.items():
+            if type(size) is not int or size < 0:
+                raise ValueError(
+                    f"Capability descriptor shape {dimension}.{key} must be a "
+                    "nonnegative integer"
+                )
+        minimum = requirement.get("min_size")
+        maximum = requirement.get("max_size")
+        exact = requirement.get("exact_size")
+        if minimum is not None and maximum is not None and minimum > maximum:
+            raise ValueError(
+                f"Capability descriptor shape {dimension} min_size exceeds max_size"
+            )
+        if exact is not None and (
+            (minimum is not None and exact < minimum)
+            or (maximum is not None and exact > maximum)
+        ):
+            raise ValueError(
+                f"Capability descriptor shape {dimension} exact_size conflicts with bounds"
+            )
 
 
 def _validate_required_any_inputs(value: Any) -> None:
@@ -355,7 +457,10 @@ def _validate_preconditions(values: Sequence[Mapping[str, Any]]) -> None:
                 f"Capability descriptor {label} requires exactly one calibration identity"
             )
         identity = identity_keys[0]
-        _contract_string_sequence(precondition[identity], f"{label}.{identity}")
+        _contract_single_string(
+            precondition[identity],
+            f"{label} calibration identity {identity}",
+        )
 
 
 def _validate_input_contract(value: Any) -> None:
@@ -370,6 +475,22 @@ def _validate_input_contract(value: Any) -> None:
         raise ValueError(
             f"unknown input_contract key(s): {', '.join(unknown)}"
         )
+    if "input_type" in value:
+        input_type = value["input_type"]
+        if not isinstance(input_type, str) or input_type.strip() not in {
+            "data_block",
+            "provider_result",
+        }:
+            raise ValueError(
+                "Capability descriptor input_contract input_type must be "
+                "data_block or provider_result"
+            )
+        if input_type.strip() == "provider_result" and any(
+            key in value for key in ("kind", "kinds", "required_dims", "required_dimensions")
+        ):
+            raise ValueError(
+                "provider_result input contracts cannot declare DataBlock kind or dimensions"
+            )
     for key in _INPUT_CONTRACT_SEQUENCE_KEYS:
         if key in value:
             _contract_string_sequence(value[key], key)
@@ -379,6 +500,8 @@ def _validate_input_contract(value: Any) -> None:
         _validate_calibration_requirements(value["required_calibrations"])
     if "required_any_inputs" in value:
         _validate_required_any_inputs(value["required_any_inputs"])
+    if "shape_requirements" in value:
+        _validate_shape_requirements(value["shape_requirements"])
     for left, right in _INPUT_CONTRACT_ALIAS_PAIRS:
         if left in value and right in value:
             raise ValueError(
@@ -675,7 +798,7 @@ def descriptor_from_provider_spec(spec: Any, *, technique: str | None = None) ->
         capability_id=capability_id,
         techniques=(source_technique,),
         input_contract={
-            "kind": "provider_result",
+            "input_type": "provider_result",
             "metric_paths": tuple(spec.metric_paths),
         },
         output_schema={"value": {"type": "scalar", "metric_paths": tuple(spec.metric_paths)}},

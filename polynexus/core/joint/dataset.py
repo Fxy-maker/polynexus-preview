@@ -14,6 +14,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from .validation import run_all_cross_validations
 from .conclusion import classify_joint_conclusion
 from ..scientific_review import review_decision_snapshot, review_record_from_payload
+from ..compute.projection import ComputeRunProjection, read_compute_run_projection
 
 
 TECHNIQUES = ("dsc", "saxs", "waxs", "ir", "nmr")
@@ -102,12 +103,38 @@ def _metric_key_normalize(value: Any) -> str:
 def _shared_metric_is_readable(metric: Mapping[str, Any]) -> bool:
     """Fail closed for rows that are unavailable or not computable."""
 
-    status = str(metric.get("status", "computed")).strip().casefold()
-    if status in {"needs_input", "blocked", "failed", "not_applicable", "unavailable"}:
+    status_value = metric.get("status")
+    if not isinstance(status_value, str) or not status_value.strip():
         return False
-    state = metric.get("computation_state")
-    if isinstance(state, Mapping):
-        if str(state.get("computability", "computed")).strip().casefold() != "computed":
+    # A Joint value is readable only when the manifest explicitly marks it as
+    # computed.  Missing/unknown statuses must not inherit a historical
+    # ``computed`` default from this consumer.
+    if status_value.strip().casefold() != "computed":
+        return False
+
+    from ..ai_platform.contracts import ComputationState
+
+    states = []
+    for alias in ("computation_state", "state"):
+        if alias not in metric:
+            continue
+        candidate = metric[alias]
+        if type(candidate) is ComputationState:
+            state = candidate
+        elif isinstance(candidate, ComputationState):
+            return False
+        elif isinstance(candidate, Mapping):
+            try:
+                state = ComputationState.from_dict(candidate)
+            except (KeyError, TypeError, ValueError):
+                return False
+        else:
+            return False
+        states.append(state)
+    if states:
+        if any(state.computability != "computed" for state in states):
+            return False
+        if any(state.to_dict() != states[0].to_dict() for state in states[1:]):
             return False
     return True
 
@@ -148,10 +175,16 @@ class JointRunRecord:
     @property
     def values(self) -> dict[str, Any]:
         merged: dict[str, Any] = {}
-        if isinstance(self.parameters, Mapping):
-            merged.update(self.parameters)
-        if isinstance(self.results_summary, Mapping):
-            merged.update(self.results_summary)
+        # A present shared envelope is authoritative.  Legacy parameter and
+        # summary fields remain visible only when the envelope key is wholly
+        # absent; otherwise a malformed/blocked projection must not leak a
+        # stale scalar into Joint comparisons.
+        shared_projection = self._shared_projection
+        if shared_projection.allows_legacy_fallback:
+            if isinstance(self.parameters, Mapping):
+                merged.update(self.parameters)
+            if isinstance(self.results_summary, Mapping):
+                merged.update(self.results_summary)
         # Shared metric rows are canonical.  Overlay only scalar values from
         # a valid manifest so legacy summaries remain available as a fallback
         # without shadowing newer provenance-bearing values.
@@ -170,20 +203,26 @@ class JointRunRecord:
     def compute_run_projection(self) -> dict[str, Any] | None:
         """Return the nested shared ComputeRun payload, if present."""
 
-        summary = self.results_summary if isinstance(self.results_summary, Mapping) else {}
-        value = summary.get("compute_run")
+        projection = self._shared_projection
+        value = projection.payload
         return value if isinstance(value, Mapping) else None
+
+    @property
+    def _shared_projection(self) -> ComputeRunProjection:
+        """Parse the shared envelope once for all Joint read paths."""
+
+        summary = self.results_summary if isinstance(self.results_summary, Mapping) else {}
+        return read_compute_run_projection(summary)
 
     @property
     def shared_metric_manifest(self) -> tuple[dict[str, Any], ...]:
         """Read the canonical metric manifest without reparsing raw artifacts."""
 
-        compute_run = self.compute_run_projection
-        if compute_run is None:
+        projection = self._shared_projection
+        if not projection.present or not projection.valid or not projection.computed:
             return ()
-        result = compute_run.get("result")
-        if not isinstance(result, Mapping):
-            result = {}
+        compute_run = projection.payload or {}
+        result = projection.result or {}
         candidates: Any = result.get("metric_manifest")
         if candidates is None:
             candidates = compute_run.get("metric_manifest")
@@ -207,12 +246,14 @@ class JointRunRecord:
         except (TypeError, ValueError):
             return ()
         shared_fields = {}
-        for key in ("descriptor_id", "computation_state", "provenance", "uncertainty"):
-            value = result.get(key)
-            if value is None:
-                value = compute_run.get(key)
-            if value is not None:
-                shared_fields[key] = value
+        if projection.descriptor_id is not None:
+            shared_fields["descriptor_id"] = projection.descriptor_id
+        if projection.state is not None:
+            shared_fields["computation_state"] = projection.state.to_dict()
+        if projection.provenance:
+            shared_fields["provenance"] = dict(projection.provenance)
+        if projection.uncertainty:
+            shared_fields["uncertainty"] = dict(projection.uncertainty)
         rows: list[dict[str, Any]] = []
         for item in inventory:
             row = item.to_dict()
@@ -232,7 +273,7 @@ class JointRunRecord:
         # The envelope itself is the source boundary.  A valid shared run may
         # have no metric leaves (or may be blocked), but that must not be
         # mislabeled as a legacy result and then accidentally promoted.
-        return "shared_compute_run" if self.compute_run_projection is not None else "legacy_results_summary"
+        return "shared_compute_run" if self._shared_projection.present else "legacy_results_summary"
 
     @property
     def metric_manifest_source(self) -> str:
@@ -248,36 +289,25 @@ class JointRunRecord:
 
     @property
     def shared_computation_state(self) -> dict[str, Any] | None:
-        compute_run = self.compute_run_projection
-        if not compute_run:
+        state = self._shared_projection.state
+        if state is None:
             return None
-        state = compute_run.get("computation_state")
-        if state is None and isinstance(compute_run.get("result"), Mapping):
-            state = compute_run["result"].get("computation_state")
-        return dict(state) if isinstance(state, Mapping) else None
+        return state.to_dict()
 
     @property
     def shared_descriptor_id(self) -> str | None:
-        compute_run = self.compute_run_projection
-        if not compute_run:
-            return None
-        descriptor = compute_run.get("descriptor_id")
-        if descriptor is None and isinstance(compute_run.get("result"), Mapping):
-            descriptor = compute_run["result"].get("descriptor_id")
+        descriptor = self._shared_projection.descriptor_id
         return str(descriptor) if descriptor else None
 
     @property
     def _shared_run_allows_values(self) -> bool:
-        compute_run = self.compute_run_projection
-        if not compute_run:
-            return False
-        return str(compute_run.get("status", "completed")).strip().casefold() == "completed"
+        return self._shared_projection.computed
 
     @property
     def _legacy_values_allowed(self) -> bool:
         """Only use legacy scalar summaries when no shared run was supplied."""
 
-        return self.compute_run_projection is None
+        return self._shared_projection.allows_legacy_fallback
 
     def get_first_number(self, keys: Iterable[str]) -> float:
         key_set = tuple(keys)

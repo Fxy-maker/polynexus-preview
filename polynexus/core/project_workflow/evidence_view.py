@@ -246,14 +246,19 @@ def _optional_mapping(value: Any) -> Mapping[str, Any] | None:
 def _optional_state(value: Any) -> Mapping[str, Any] | None:
     if value is None:
         return None
-    if not isinstance(value, Mapping):
-        raise ValueError("evidence computation state is invalid")
     # Validate against the canonical four-axis contract while retaining a
     # plain JSON mapping for the read-only view DTO.
     try:
         from polynexus.core.ai_platform.contracts import ComputationState
 
-        state = ComputationState.from_dict(value)
+        if type(value) is ComputationState:
+            state = value
+        elif isinstance(value, ComputationState):
+            raise TypeError("state subclass")
+        elif isinstance(value, Mapping):
+            state = ComputationState.from_dict(value)
+        else:
+            raise TypeError("state must be a mapping")
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("evidence computation state is invalid") from exc
     return state.to_dict()

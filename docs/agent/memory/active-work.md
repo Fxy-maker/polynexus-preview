@@ -6291,3 +6291,35 @@ and structured gates (`303` / `157`).
   citation checks remain pending, and the manuscript does not claim measured
   composition, intrinsic rate multipliers, unique mechanism, or quantitative
   scattering. Pre-existing modified/untracked workspace files remain untouched.
+
+## AI platform trust-boundary repair — 2026-08-31
+
+- Implemented fail-closed planner admission at the `ExecutionGraph` boundary;
+  Core now re-derives completion state and cache identity includes admission,
+  descriptor, input, calibration, and dependency context.
+- Added one strict `ComputeRun` projection parser and migrated all changed
+  Agent/project/Joint/GUI/evidence/package/result/ARS consumers. Explicit
+  `compute_run: null`, malformed state, contradictory aliases, and non-computed
+  envelopes no longer fall back to legacy extraction.
+- Added descriptor axis/unit/quantity/shape/dependency validation and the
+  shared `ProviderResultInput`/metric-manifest DTO; repaired NMR `fid`/`ser`,
+  empty-directory, and IR provenance compatibility routing.
+- Planner-issued target admissions now carry content-addressed dependency
+  bindings (capability ID, descriptor version/hash, and dependency admission
+  hash); execution rejects omitted dependency descriptors, missing dependency
+  admissions, cross-registry substitutions, same-capability node substitution,
+  and ambiguous duplicate direct dependency nodes. Calibration identity
+  mappings are scalar-only and nested sequences fail closed.
+- Refreshed trust-boundary matrix: **329 passed**, including exact Core
+  `NodeResult` cache-DTO rejection, output-fingerprint tamper detection,
+  cache-hit reinsertion, registry/catalog fail-closed regressions, flattened
+  top-level metric-manifest consistency, strict projection merge checks, and
+  dependency binding regressions. Task-scoped Ruff/compile/Pyright, quality
+  **313**, preprocessing **157**, boundary audit, whitespace, and
+  `git diff --check` passed. The current task-scoped
+  `verify.py --changed --types` run passed all selected checks. Acceptance:
+  `docs/acceptance/2026-08-31-ai-platform-trust-boundaries.md`.
+- Status: implementation checkpointed locally after independent review;
+  architecture/scientific semantics and the broad release boundary remain
+  human-review items. No provider algorithms or pre-existing user runtime
+  artifacts were changed.

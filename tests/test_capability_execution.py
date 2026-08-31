@@ -148,6 +148,30 @@ def test_provider_capability_executor_projects_registered_metrics_without_fabric
     assert by_id["Tg"].reason_codes == ("provider_metric_unavailable",)
 
 
+def test_provider_capability_executor_accepts_shared_provider_result_input() -> None:
+    from polynexus.core.ai_platform import ProviderResultInput
+
+    provider_input = ProviderResultInput.create(
+        source_artifact_id="artifact-1",
+        technique="dsc",
+        metrics={"Tm_peak_C": 185.2},
+        metric_manifest=(
+            {
+                "path": "Tm_peak_C",
+                "kind": "scalar",
+                "status": "computed",
+                "value": 185.2,
+            },
+        ),
+    )
+
+    items = CapabilityExecutor().execute_provider_result(provider_input=provider_input)
+
+    tm = next(item for item in items if item.capability_id == "Tm")
+    assert tm.status == "completed"
+    assert tm.result == {"metric_path": "Tm_peak_C", "value": 185.2}
+
+
 def test_provider_capability_executor_finds_nested_engine_parameters() -> None:
     items = CapabilityExecutor().execute_provider_result(
         source_artifact_id="artifact-1",

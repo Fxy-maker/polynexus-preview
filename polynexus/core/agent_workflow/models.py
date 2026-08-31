@@ -51,8 +51,14 @@ def _normalize_computation_state(value: Any):
         return None
     from polynexus.core.ai_platform.contracts import ComputationState
 
-    if isinstance(value, ComputationState):
+    # A subclass may override ``to_dict``/axis properties and therefore is
+    # not an attestation of the canonical state contract.  Requiring the exact
+    # DTO keeps workflow/evidence projections on the same non-polymorphic
+    # trust boundary as the Core execution contracts.
+    if type(value) is ComputationState:
         value = value.to_dict()
+    elif isinstance(value, ComputationState):
+        raise TypeError("Workflow computation_state must use the exact ComputationState type")
     elif not isinstance(value, Mapping):
         raise TypeError("Workflow computation_state must be a ComputationState or mapping")
     # Parsing through the canonical contract catches malformed or incomplete
@@ -422,6 +428,11 @@ class WorkflowStepResult:
     # historical fields so existing positional construction remains valid.
     computation_state: Any = None
     descriptor_id: str | None = None
+    # ``None`` is the historical in-memory absence sentinel, but a serialized
+    # payload can explicitly contain ``compute_run: null``.  Keep that field
+    # presence so strict consumers never reinterpret an explicit null as a
+    # legacy-compatible omission.
+    _compute_run_present: bool = field(default=False, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.status not in _VALID_RUN_STATUSES:
@@ -433,6 +444,7 @@ class WorkflowStepResult:
             if not isinstance(self.compute_run, Mapping):
                 raise TypeError("Workflow compute_run must be a mapping or null")
             object.__setattr__(self, "compute_run", _freeze_json_value(dict(self.compute_run)))
+            object.__setattr__(self, "_compute_run_present", True)
         object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
         state = self.computation_state
         run_state = None
@@ -485,6 +497,12 @@ class WorkflowStepResult:
 
         return self.computation_state
 
+    @property
+    def compute_run_present(self) -> bool:
+        """Whether the serialized step explicitly carried ``compute_run``."""
+
+        return self._compute_run_present
+
     def to_dict(self) -> dict[str, Any]:
         payload = {
             "step_id": self.step_id,
@@ -495,7 +513,7 @@ class WorkflowStepResult:
             "figure_references": _json_safe(self.figure_references),
             "reason_codes": list(self.reason_codes),
         }
-        if self.compute_run is not None:
+        if self.compute_run is not None or self._compute_run_present:
             payload["compute_run"] = _json_safe(self.compute_run)
         if self.computation_state is not None:
             payload["computation_state"] = self.computation_state.to_dict()
@@ -505,7 +523,7 @@ class WorkflowStepResult:
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "WorkflowStepResult":
-        return cls(
+        step = cls(
             step_id=str(payload["step_id"]),
             technique=str(payload["technique"]),
             status=str(payload["status"]),
@@ -517,6 +535,9 @@ class WorkflowStepResult:
             computation_state=payload.get("computation_state", payload.get("state")),
             descriptor_id=payload.get("descriptor_id"),
         )
+        if "compute_run" in payload:
+            object.__setattr__(step, "_compute_run_present", True)
+        return step
 
 
 @dataclass(frozen=True)

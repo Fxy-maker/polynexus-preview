@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import os
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +64,7 @@ from .table_clipboard_service import (
 from .i18n import get_language, tr
 from .window_text_helpers import is_default_project_label
 from ..core.engine import logger
+from ..core.compute.projection import read_compute_run_projection
 
 
 def resolve_joint_history_project_label(current_label, report) -> str:
@@ -746,8 +748,18 @@ class MainWindowHistoryMixin:
         if parameters:
             self._apply_best_config(parameters)
 
-        compute_run_projection = summary.get("compute_run")
-        if isinstance(compute_run_projection, dict):
+        shared_projection = read_compute_run_projection(summary)
+        compute_run_projection = (
+            shared_projection.payload
+            if shared_projection.present and shared_projection.valid
+            else None
+        )
+        if shared_projection.present and not shared_projection.valid:
+            logger.warning(
+                "Ignoring malformed history compute_run projection: %s",
+                ",".join(shared_projection.reason_codes),
+            )
+        if isinstance(compute_run_projection, Mapping):
             projections = getattr(self, "_compute_run_projections", None)
             if not isinstance(projections, dict):
                 projections = {}

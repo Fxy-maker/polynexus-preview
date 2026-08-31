@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from numbers import Real
 import re
 from typing import Any, Mapping, Sequence
 
@@ -10,6 +11,7 @@ from .capabilities import CapabilityDescriptor, CapabilityDescriptorRegistry, de
 from .contracts import (
     ComputationState,
     DataBlock,
+    ProviderResultInput,
     _dedupe_actions,
     _dedupe as _dedupe_strings,
     axis_allows_quantitative,
@@ -18,6 +20,11 @@ from .contracts import (
 
 
 PLAN_OUTCOMES = frozenset({"executable", "blocked", "needs_input", "not_applicable"})
+
+# Planner admissions are intentionally issued only by ``CapabilityPlanner``.
+# The marker is process-local and is not serialized; a JSON plan loaded from an
+# untrusted caller must be re-planned before it can authorize execution.
+_ADMISSION_TOKEN = object()
 
 
 def _dedupe(values: Sequence[object]) -> tuple[str, ...]:
@@ -32,6 +39,227 @@ def _public(value: Any) -> Any:
     return value
 
 
+def _is_monotonic(values: Sequence[Real]) -> bool:
+    """Return whether numeric coordinates are nondecreasing or nonincreasing."""
+
+    if len(values) < 2:
+        return True
+    try:
+        increasing = all(values[index] <= values[index + 1] for index in range(len(values) - 1))
+        decreasing = all(values[index] >= values[index + 1] for index in range(len(values) - 1))
+    except (TypeError, ValueError):
+        return False
+    return increasing or decreasing
+
+
+_CALIBRATION_HASH_RE = re.compile(r"[0-9a-fA-F]{64}")
+_CALIBRATION_IDENTITIES = ("name", "scope", "calibration_id", "id")
+_DEPENDENCY_BINDING_KEYS = frozenset(
+    {"capability_id", "descriptor_version", "descriptor_hash", "admission_hash"}
+)
+
+
+def _first_calibration_identity(value: Mapping[str, Any]) -> str:
+    """Return the first non-empty identity field from a calibration record."""
+
+    for key in _CALIBRATION_IDENTITIES:
+        candidate = value.get(key)
+        if candidate is None:
+            continue
+        normalized = str(candidate).strip()
+        if normalized:
+            return normalized
+    return ""
+
+
+def _calibration_requirements(contract: Mapping[str, Any]) -> tuple[Any, ...]:
+    """Normalize the descriptor's scalar-or-sequence calibration declaration."""
+
+    value = contract.get("required_calibrations", ())
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, (bytes, bytearray)) or not isinstance(value, Sequence):
+        return ()
+    return tuple(value)
+
+
+def _calibration_requirement_names(descriptor: CapabilityDescriptor) -> tuple[str, ...]:
+    """Return the descriptor's explicit calibration identities in order."""
+
+    contract = descriptor.input_contract
+    names: list[str] = []
+    if isinstance(contract, Mapping):
+        for value in _calibration_requirements(contract):
+            name = (
+                _first_calibration_identity(value)
+                if isinstance(value, Mapping)
+                else str(value).strip()
+            )
+            if name:
+                names.append(name)
+    for precondition in descriptor.preconditions:
+        if not isinstance(precondition, Mapping):
+            continue
+        kind = str(precondition.get("kind", precondition.get("type", ""))).strip().lower()
+        if kind != "calibration":
+            continue
+        name = _first_calibration_identity(precondition)
+        if name:
+            names.append(name)
+    return _dedupe_strings(names, "Capability calibration requirements")
+
+
+def _calibration_record_values(value: Any) -> tuple[Any, ...]:
+    """Normalize common calibration containers without treating bare IDs as records."""
+
+    if isinstance(value, Mapping):
+        if any(key in value for key in ("status", "scope", "calibration_id", "id", "name")):
+            return (value,)
+        return tuple(value.values())
+    if isinstance(value, (str, bytes, bytearray)):
+        return ()
+    if isinstance(value, Sequence):
+        return tuple(value)
+    return ()
+
+
+def _validated_calibration_hash(
+    value: Mapping[str, Any],
+    *,
+    require_reviewed: bool = False,
+) -> str | None:
+    """Return a reviewed record hash only when its locator/hash pair is valid."""
+
+    status = str(value.get("status", "")).strip().lower()
+    accepted_statuses = {"reviewed"} if require_reviewed else {
+        "reviewed",
+        "applied_unreviewed",
+    }
+    if status not in accepted_statuses:
+        return None
+    locator = value.get("record_locator", value.get("uri"))
+    digest = value.get("record_sha256", value.get("sha256"))
+    if not isinstance(locator, str) or not locator:
+        return None
+    if not isinstance(digest, str) or _CALIBRATION_HASH_RE.fullmatch(digest) is None:
+        return None
+    return digest.lower()
+
+
+def _calibration_hashes_for_block(
+    block: DataBlock,
+    descriptor: CapabilityDescriptor,
+) -> tuple[str, ...]:
+    """Resolve the exact reviewed calibration records satisfying a descriptor."""
+
+    names = _calibration_requirement_names(descriptor)
+    if not names:
+        return ()
+    policy = descriptor.evidence_policy
+    require_reviewed = (
+        isinstance(policy, Mapping)
+        and policy.get("requires_reviewed_calibration") is True
+    )
+    metadata = block.metadata if isinstance(block.metadata, Mapping) else {}
+    hashes: set[str] = set()
+    for name in names:
+        wanted = name.casefold()
+        for key in ("calibrations", "calibration_refs", "calibration_ids"):
+            for candidate in _calibration_record_values(metadata.get(key, ())):
+                if not isinstance(candidate, Mapping):
+                    continue
+                identities = tuple(
+                    candidate.get(key) for key in _CALIBRATION_IDENTITIES
+                )
+                if not any(
+                    item is not None and str(item).strip().casefold() == wanted
+                    for item in identities
+                ):
+                    continue
+                digest = _validated_calibration_hash(
+                    candidate,
+                    require_reviewed=require_reviewed,
+                )
+                if digest is not None:
+                    hashes.add(digest)
+        for axis in (block.axis_provenance or {}).values():
+            calibration = axis.calibration_ref
+            if calibration is None:
+                continue
+            if not any(
+                str(item).strip().casefold() == wanted
+                for item in (calibration.calibration_id, calibration.scope)
+            ):
+                continue
+            if calibration.status == "reviewed" or (
+                calibration.status == "applied_unreviewed" and not require_reviewed
+            ):
+                digest = calibration.record_sha256
+                if isinstance(digest, str) and _CALIBRATION_HASH_RE.fullmatch(digest):
+                    hashes.add(digest.lower())
+    return tuple(sorted(hashes))
+
+
+def _normalize_dependency_bindings(value: Any) -> tuple[Mapping[str, Any], ...]:
+    """Validate immutable descriptor-dependency admission bindings."""
+
+    if value is None:
+        return ()
+    if isinstance(value, Mapping):
+        value = (value,)
+    if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, Sequence):
+        raise TypeError("Capability plan dependency_bindings must be a sequence")
+    normalized: list[Mapping[str, Any]] = []
+    seen: set[str] = set()
+    for index, binding in enumerate(value):
+        if not isinstance(binding, Mapping):
+            raise TypeError(
+                f"Capability plan dependency_bindings[{index}] must be a mapping"
+            )
+        if set(binding) != _DEPENDENCY_BINDING_KEYS:
+            unknown = sorted(set(binding) - _DEPENDENCY_BINDING_KEYS)
+            missing = sorted(_DEPENDENCY_BINDING_KEYS - set(binding))
+            details = []
+            if unknown:
+                details.append("unknown=" + ",".join(unknown))
+            if missing:
+                details.append("missing=" + ",".join(missing))
+            raise ValueError(
+                "Capability plan dependency binding keys are invalid"
+                + (" (" + "; ".join(details) + ")" if details else "")
+            )
+        capability_id = binding["capability_id"]
+        descriptor_version = binding["descriptor_version"]
+        if not isinstance(capability_id, str) or not capability_id.strip():
+            raise ValueError(
+                f"Capability plan dependency_bindings[{index}].capability_id must be nonempty"
+            )
+        if not isinstance(descriptor_version, str) or not descriptor_version.strip():
+            raise ValueError(
+                f"Capability plan dependency_bindings[{index}].descriptor_version must be nonempty"
+            )
+        capability_id = capability_id.strip()
+        descriptor_version = descriptor_version.strip()
+        if capability_id in seen:
+            raise ValueError(
+                f"Capability plan dependency_bindings duplicate capability: {capability_id}"
+            )
+        seen.add(capability_id)
+        entry: dict[str, Any] = {
+            "capability_id": capability_id,
+            "descriptor_version": descriptor_version,
+        }
+        for key in ("descriptor_hash", "admission_hash"):
+            digest = binding[key]
+            if not isinstance(digest, str) or _CALIBRATION_HASH_RE.fullmatch(digest) is None:
+                raise ValueError(
+                    f"Capability plan dependency_bindings[{index}].{key} must be a SHA-256"
+                )
+            entry[key] = digest.lower()
+        normalized.append(entry)
+    return tuple(normalized)
+
+
 @dataclass(frozen=True)
 class CapabilityPlanItem:
     """One immutable discovery result shared by AI, CLI, GUI and evidence."""
@@ -42,15 +270,34 @@ class CapabilityPlanItem:
     state: ComputationState
     data_block_ids: tuple[str, ...] = ()
     selected_data_block_id: str | None = None
+    provider_result_ids: tuple[str, ...] = ()
+    selected_provider_result_id: str | None = None
     next_actions: tuple[str | Mapping[str, Any], ...] = ()
     descriptor_hash: str | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    # Content-addressed calibration records selected by the planner for the
+    # chosen input.  Execution must bind its runtime context to these exact
+    # identities; a merely non-empty calibration context is insufficient.
+    calibration_hashes: tuple[str, ...] = ()
+    # Content-addressed bindings for every declared capability dependency.
+    # These are included in the admission hash so a target admission cannot
+    # be replayed with a dependency descriptor or admission from another
+    # planner registry.
+    dependency_bindings: tuple[Mapping[str, Any], ...] = ()
+    _admission_token: object | None = field(default=None, init=False, repr=False, compare=False)
+    # Keep a content fingerprint beside the process-local marker.  The marker
+    # is deliberately ``init=False`` so ``dataclasses.replace`` cannot carry
+    # admission authority to a clone; the fingerprint also detects low-level
+    # mutation of a previously issued object.
+    _admission_fingerprint: str | None = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.outcome not in PLAN_OUTCOMES:
             raise ValueError(f"Unsupported capability plan outcome: {self.outcome}")
-        if not isinstance(self.state, ComputationState):
-            raise TypeError("Capability plan state must be a ComputationState")
+        if type(self.state) is not ComputationState:
+            raise TypeError(
+                "Capability plan state must use the exact ComputationState type"
+            )
         capability_id = str(self.capability_id).strip()
         descriptor_version = str(self.descriptor_version).strip()
         if not capability_id:
@@ -72,6 +319,17 @@ class CapabilityPlanItem:
         object.__setattr__(self, "descriptor_version", descriptor_version)
         data_block_ids = _dedupe(self.data_block_ids)
         object.__setattr__(self, "data_block_ids", data_block_ids)
+        provider_result_ids = _dedupe(self.provider_result_ids)
+        object.__setattr__(self, "provider_result_ids", provider_result_ids)
+        calibration_hashes = _dedupe(self.calibration_hashes)
+        for value in calibration_hashes:
+            if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
+                raise ValueError("Capability plan calibration_hashes must be SHA-256 values")
+        object.__setattr__(self, "calibration_hashes", tuple(value.lower() for value in calibration_hashes))
+        dependency_bindings = _normalize_dependency_bindings(self.dependency_bindings)
+        from .contracts import _freeze
+
+        object.__setattr__(self, "dependency_bindings", _freeze(dependency_bindings))
         object.__setattr__(self, "next_actions", _dedupe_actions(self.next_actions, "Capability plan next_actions"))
         if self.selected_data_block_id is not None:
             selected = str(self.selected_data_block_id).strip()
@@ -82,6 +340,19 @@ class CapabilityPlanItem:
                     "Capability plan selected_data_block_id must reference a data_block_id"
                 )
             object.__setattr__(self, "selected_data_block_id", selected)
+        if self.selected_provider_result_id is not None:
+            selected_provider = str(self.selected_provider_result_id).strip()
+            if not selected_provider:
+                raise ValueError(
+                    "Capability plan selected_provider_result_id must be nonempty"
+                )
+            if selected_provider not in provider_result_ids:
+                raise ValueError(
+                    "Capability plan selected_provider_result_id must reference a provider_result_id"
+                )
+            object.__setattr__(self, "selected_provider_result_id", selected_provider)
+        if self.selected_data_block_id is not None and self.selected_provider_result_id is not None:
+            raise ValueError("Capability plan must select exactly one input representation")
         if self.descriptor_hash is not None:
             if not isinstance(self.descriptor_hash, str) or not re.fullmatch(
                 r"[0-9a-fA-F]{64}", self.descriptor_hash
@@ -92,8 +363,6 @@ class CapabilityPlanItem:
             raise TypeError("Capability plan metadata must be a mapping")
         # Reuse the strict JSON contract; this rejects NaN, unsupported values,
         # and non-string keys instead of producing a non-serializable DTO.
-        from .contracts import _freeze
-
         object.__setattr__(self, "metadata", _freeze(self.metadata))
 
     @property
@@ -106,6 +375,40 @@ class CapabilityPlanItem:
     def computability(self) -> str:
         return self.state.computability
 
+    @property
+    def selected_input_id(self) -> str | None:
+        """Identity of the selected DataBlock or provider-result input."""
+
+        return self.selected_data_block_id or self.selected_provider_result_id
+
+    @property
+    def is_trusted_admission(self) -> bool:
+        """Whether this item was issued by the in-process planner.
+
+        The public fields remain useful as a serializable discovery result, but
+        only planner-issued instances can authorize a graph node.  This keeps a
+        caller from constructing a ``computed`` item by hand and skipping the
+        descriptor gates that produced a real plan.
+        """
+
+        if type(self) is not CapabilityPlanItem or self._admission_token is not _ADMISSION_TOKEN:
+            return False
+        fingerprint = self._admission_fingerprint
+        return fingerprint is not None and fingerprint == canonical_json_hash(self.to_dict())
+
+    @property
+    def admission_hash(self) -> str:
+        """Content identity of the admission payload used by cache keys."""
+
+        return canonical_json_hash(self.to_dict())
+
+    def as_admission(self) -> "CapabilityPlanItem":
+        """Return this item when it is a trusted execution admission."""
+
+        if not self.is_trusted_admission:
+            raise ValueError("Capability plan item was not issued by CapabilityPlanner")
+        return self
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "capability_id": self.capability_id,
@@ -116,9 +419,43 @@ class CapabilityPlanItem:
             "state": self.state.to_dict(),
             "data_block_ids": list(self.data_block_ids),
             "selected_data_block_id": self.selected_data_block_id,
+            "provider_result_ids": list(self.provider_result_ids),
+            "selected_provider_result_id": self.selected_provider_result_id,
+            "calibration_hashes": list(self.calibration_hashes),
+            "dependency_bindings": [_public(value) for value in self.dependency_bindings],
             "next_actions": list(self.next_actions),
             "metadata": _public(self.metadata),
         }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "CapabilityPlanItem":
+        """Load a discovery item without granting execution authority."""
+
+        if not isinstance(value, Mapping):
+            raise TypeError("Capability plan item must be a mapping")
+        state = value.get("state")
+        if isinstance(state, ComputationState):
+            if type(state) is not ComputationState:
+                raise TypeError(
+                    "Capability plan state must use the exact ComputationState type"
+                )
+        else:
+            state = ComputationState.from_dict(state)
+        return cls(
+            capability_id=value["capability_id"],
+            descriptor_version=value.get("descriptor_version", "1"),
+            outcome=value.get("outcome", value.get("status")),
+            state=state,
+            data_block_ids=value.get("data_block_ids", ()),
+            selected_data_block_id=value.get("selected_data_block_id"),
+            provider_result_ids=value.get("provider_result_ids", ()),
+            selected_provider_result_id=value.get("selected_provider_result_id"),
+            calibration_hashes=value.get("calibration_hashes", ()),
+            dependency_bindings=value.get("dependency_bindings", ()),
+            next_actions=value.get("next_actions", ()),
+            descriptor_hash=value.get("descriptor_hash"),
+            metadata=value.get("metadata", {}),
+        )
 
 
 class CapabilityPlanner:
@@ -161,6 +498,8 @@ class CapabilityPlanner:
         available_inputs: Mapping[str, Any] | None = None,
         input_declarations: Mapping[str, Any] | None = None,
         context: Mapping[str, Any] | None = None,
+        provider_results: Sequence[ProviderResultInput | Mapping[str, Any]] = (),
+        available_capabilities: Mapping[str, Any] | None = None,
         executors: Mapping[str, Any] | None = None,
         executor_registry: Mapping[str, Any] | None = None,
         require_executor: bool = False,
@@ -171,6 +510,20 @@ class CapabilityPlanner:
             raise TypeError("require_executor must be a boolean")
 
         blocks = self._normalize_blocks(data_blocks)
+        normalized_provider_results = self._normalize_provider_results(provider_results)
+        available_capability_admissions: Mapping[str, Any] = {}
+        if available_capabilities is not None:
+            if not isinstance(available_capabilities, Mapping):
+                raise TypeError("available_capabilities must be a mapping")
+            # Snapshot once at the public boundary.  The same snapshot drives
+            # availability gates and dependency binding hashes, preventing a
+            # mutable caller mapping from changing between those decisions.
+            available_capability_admissions = dict(available_capabilities)
+        declared_capabilities = (
+            ()
+            if not available_capability_admissions
+            else self._available_capability_names(available_capability_admissions)
+        )
         declared_inputs = self._planner_available_inputs(
             available_inputs=available_inputs,
             input_declarations=input_declarations,
@@ -194,6 +547,9 @@ class CapabilityPlanner:
                 descriptor,
                 blocks,
                 declared_inputs,
+                normalized_provider_results,
+                declared_capabilities,
+                available_capability_admissions,
                 executors=selected_executors,
                 require_executor=require_executor,
             )
@@ -209,6 +565,8 @@ class CapabilityPlanner:
         available_inputs: Mapping[str, Any] | None = None,
         input_declarations: Mapping[str, Any] | None = None,
         context: Mapping[str, Any] | None = None,
+        provider_results: Sequence[ProviderResultInput | Mapping[str, Any]] = (),
+        available_capabilities: Mapping[str, Any] | None = None,
         executors: Mapping[str, Any] | None = None,
         executor_registry: Mapping[str, Any] | None = None,
         require_executor: bool = False,
@@ -222,6 +580,8 @@ class CapabilityPlanner:
             available_inputs=available_inputs,
             input_declarations=input_declarations,
             context=context,
+            provider_results=provider_results,
+            available_capabilities=available_capabilities,
             executors=executors,
             executor_registry=executor_registry,
             require_executor=require_executor,
@@ -248,6 +608,9 @@ class CapabilityPlanner:
         descriptor: CapabilityDescriptor,
         blocks: tuple[DataBlock, ...],
         declared_inputs: tuple[str, ...],
+        provider_results: tuple[ProviderResultInput, ...] = (),
+        available_capabilities: tuple[str, ...] = (),
+        available_capability_admissions: Mapping[str, Any] | None = None,
         *,
         executors: Mapping[str, Any] | None = None,
         require_executor: bool = False,
@@ -274,6 +637,16 @@ class CapabilityPlanner:
                 next_actions=descriptor.missing_input_actions,
             )
             return self._item(descriptor, "needs_input", state)
+
+        if descriptor.input_contract.get("input_type", "data_block") == "provider_result":
+            return self._inspect_provider_result_descriptor(
+                descriptor,
+                provider_results,
+                available_capabilities,
+                dependency_bindings=self._dependency_bindings(
+                    descriptor, available_capability_admissions
+                ),
+            )
 
         # An explicit executor registry is an opt-in stronger planning mode.
         # It is deliberately not implied by the descriptor's string
@@ -319,6 +692,7 @@ class CapabilityPlanner:
                 candidate,
                 descriptor,
                 declared_inputs,
+                available_capabilities,
             )
             priority = 0 if not blocked_reasons and not missing_inputs else (1 if missing_inputs else 2)
             evaluated.append((priority, candidate, blocked_reasons, missing_inputs, actions))
@@ -354,7 +728,48 @@ class CapabilityPlanner:
             promotion="diagnostic_only",
             next_actions=_dedupe_actions(descriptor.missing_input_actions, "Capability plan next_actions"),
         )
-        return self._item(descriptor, "executable", state, matching, selected)
+        return self._item(
+            descriptor,
+            "executable",
+            state,
+            matching,
+            selected,
+            dependency_bindings=self._dependency_bindings(
+                descriptor, available_capability_admissions
+            ),
+        )
+
+    def _dependency_bindings(
+        self,
+        descriptor: CapabilityDescriptor,
+        available_capabilities: Mapping[str, Any] | None,
+    ) -> tuple[Mapping[str, str], ...]:
+        """Bind each declared dependency to its descriptor and admission hash."""
+
+        if not descriptor.dependencies or not available_capabilities:
+            return ()
+        bindings: list[Mapping[str, str]] = []
+        for dependency in descriptor.dependencies:
+            admission = available_capabilities.get(dependency)
+            if not self._capability_declaration_is_available(
+                admission,
+                expected_capability_id=dependency,
+                registry=self.registry,
+            ):
+                continue
+            try:
+                dependency_descriptor = self.registry.get(dependency)
+            except Exception:  # noqa: BLE001 - unresolved dependencies remain gated
+                continue
+            bindings.append(
+                {
+                    "capability_id": dependency,
+                    "descriptor_version": dependency_descriptor.version,
+                    "descriptor_hash": dependency_descriptor.content_hash,
+                    "admission_hash": admission.admission_hash,
+                }
+            )
+        return tuple(bindings)
 
     @staticmethod
     def _item(
@@ -363,8 +778,11 @@ class CapabilityPlanner:
         state: ComputationState,
         matching: Sequence[DataBlock] = (),
         selected: DataBlock | None = None,
+        provider_results: Sequence[ProviderResultInput] = (),
+        selected_provider_result: ProviderResultInput | None = None,
+        dependency_bindings: Sequence[Mapping[str, Any]] = (),
     ) -> CapabilityPlanItem:
-        return CapabilityPlanItem(
+        item = CapabilityPlanItem(
             capability_id=descriptor.capability_id,
             descriptor_version=descriptor.version,
             descriptor_hash=descriptor.content_hash,
@@ -372,7 +790,150 @@ class CapabilityPlanner:
             state=state,
             data_block_ids=tuple(block.block_id for block in matching),
             selected_data_block_id=None if selected is None else selected.block_id,
+            provider_result_ids=tuple(item.input_id for item in provider_results),
+            selected_provider_result_id=(
+                None
+                if selected_provider_result is None
+                else selected_provider_result.input_id
+            ),
             next_actions=state.next_actions,
+            calibration_hashes=(
+                _calibration_hashes_for_block(selected, descriptor)
+                if selected is not None
+                else ()
+            ),
+            dependency_bindings=dependency_bindings,
+        )
+        # Keep issuance outside the public constructor.  This makes
+        # ``dataclasses.replace`` lose authority (the init=False marker is not
+        # copied) while the fingerprint also detects low-level mutation of a
+        # previously issued object.
+        object.__setattr__(item, "_admission_token", _ADMISSION_TOKEN)
+        object.__setattr__(item, "_admission_fingerprint", canonical_json_hash(item.to_dict()))
+        return item
+
+    @staticmethod
+    def _normalize_provider_results(
+        provider_results: Sequence[ProviderResultInput | Mapping[str, Any]],
+    ) -> tuple[ProviderResultInput, ...]:
+        if isinstance(provider_results, (ProviderResultInput, Mapping)):
+            provider_results = (provider_results,)
+        if isinstance(provider_results, (str, bytes, bytearray)) or not isinstance(
+            provider_results, Sequence
+        ):
+            raise TypeError("Capability planner provider_results must be a sequence")
+        normalized: list[ProviderResultInput] = []
+        for value in provider_results:
+            # Provider-result DTOs are an authorization/input boundary.  A
+            # subclass can override derived properties (for example
+            # ``available_metric_paths``) without changing its content hash,
+            # so only the exact validated DTO type is trusted here.  Mapping
+            # inputs are rehydrated through the exact base constructor below.
+            if type(value) is ProviderResultInput:
+                normalized.append(value)
+            elif isinstance(value, ProviderResultInput):
+                raise TypeError(
+                    "Capability planner provider_results must contain exact ProviderResultInput values"
+                )
+            elif isinstance(value, Mapping):
+                normalized.append(ProviderResultInput.from_dict(value))
+            else:
+                raise TypeError(
+                    "Capability planner provider_results must contain ProviderResultInput values"
+                )
+        return tuple(normalized)
+
+    @classmethod
+    def _inspect_provider_result_descriptor(
+        cls,
+        descriptor: CapabilityDescriptor,
+        provider_results: tuple[ProviderResultInput, ...],
+        available_capabilities: tuple[str, ...] = (),
+        *,
+        dependency_bindings: Sequence[Mapping[str, Any]] = (),
+    ) -> CapabilityPlanItem:
+        matching = tuple(
+            item for item in provider_results if item.technique in descriptor.techniques
+        )
+        if not matching:
+            state = ComputationState.create(
+                data_availability="missing" if not provider_results else "partial",
+                computability="needs_input",
+                validity="not_assessed",
+                promotion="diagnostic_only",
+                missing_inputs=("provider_result",),
+                reason_codes=("provider_result_missing",),
+                next_actions=("provide_provider_result",),
+            )
+            return cls._item(descriptor, "needs_input", state, provider_results=matching)
+
+        declared_paths = tuple(
+            str(path).strip()
+            for path in descriptor.input_contract.get("metric_paths", ())
+        )
+        eligible: list[ProviderResultInput] = []
+        for item in matching:
+            state = item.computation_state
+            if state is not None and state.computability != "computed":
+                continue
+            if set(declared_paths).intersection(item.available_metric_paths):
+                eligible.append(item)
+        if not eligible:
+            label = "provider_metric:" + "|".join(declared_paths or ("value",))
+            state = ComputationState.create(
+                data_availability="partial",
+                computability="needs_input",
+                validity="not_assessed",
+                promotion="diagnostic_only",
+                missing_inputs=(label,),
+                reason_codes=("provider_metric_unavailable",),
+                next_actions=("provide_provider_metric",),
+            )
+            return cls._item(descriptor, "needs_input", state, provider_results=matching)
+
+        missing_dependencies = tuple(
+            f"dependency:{dependency}"
+            for dependency in descriptor.dependencies
+            if dependency not in set(available_capabilities)
+        )
+        if missing_dependencies:
+            state = ComputationState.create(
+                data_availability="canonical",
+                computability="needs_input",
+                validity="not_assessed",
+                promotion="diagnostic_only",
+                missing_inputs=missing_dependencies,
+                reason_codes=("capability_dependency_missing",),
+                next_actions=tuple(
+                    f"compute_dependency:{dependency}"
+                    for dependency in descriptor.dependencies
+                    if dependency not in set(available_capabilities)
+                ),
+            )
+            return cls._item(
+                descriptor,
+                "needs_input",
+                state,
+                provider_results=matching,
+                selected_provider_result=eligible[0],
+                dependency_bindings=dependency_bindings,
+            )
+
+        selected = eligible[0]
+        state = ComputationState.create(
+            data_availability="canonical",
+            computability="computed",
+            validity="not_assessed",
+            promotion="diagnostic_only",
+            next_actions=descriptor.missing_input_actions,
+        )
+        return cls._item(
+            descriptor,
+            "executable",
+            state,
+            provider_results=matching,
+            selected_provider_result=selected,
+            dependency_bindings=dependency_bindings,
         )
 
     @staticmethod
@@ -461,6 +1022,67 @@ class CapabilityPlanner:
                 names.append(name.strip())
         return _dedupe(names)
 
+    def _available_capability_names(self, value: Any) -> tuple[str, ...]:
+        """Return only capabilities with an explicitly completed state.
+
+        Capability dependencies are execution inputs, not merely planned or
+        discoverable nodes.  A dependency declaration is therefore accepted
+        only when it is the exact, in-process ``CapabilityPlanItem`` issued by
+        this Core planner.  JSON status dictionaries and booleans are useful
+        for ordinary input hints, but they are not execution attestations.
+        """
+
+        if not isinstance(value, Mapping):
+            raise TypeError("available_capabilities must be a mapping")
+        names: list[str] = []
+        for name, declaration in value.items():
+            if not isinstance(name, str) or not name.strip():
+                raise TypeError("available_capabilities keys must be nonempty strings")
+            if self._capability_declaration_is_available(
+                declaration,
+                expected_capability_id=name.strip(),
+                registry=self.registry,
+            ):
+                names.append(name.strip())
+        return _dedupe(names)
+
+    @staticmethod
+    def _capability_declaration_is_available(
+        value: Any,
+        *,
+        expected_capability_id: str | None = None,
+        registry: CapabilityDescriptorRegistry | None = None,
+    ) -> bool:
+        """Validate a Core-issued dependency admission without polymorphism."""
+
+        # Keep this exact-type check aligned with ExecutionGraph's admission
+        # boundary.  A subclass can override derived properties or authority
+        # checks while retaining the same serialized fields.
+        if type(value) is not CapabilityPlanItem:
+            return False
+        try:
+            if not value.is_trusted_admission:
+                return False
+            if (
+                expected_capability_id is not None
+                and value.capability_id != expected_capability_id
+            ):
+                return False
+            if registry is not None:
+                try:
+                    descriptor = registry.get(value.capability_id)
+                except Exception:  # noqa: BLE001 - unknown/malformed registry fails closed
+                    return False
+                if (
+                    descriptor.capability_id != value.capability_id
+                    or descriptor.version != value.descriptor_version
+                    or descriptor.content_hash != value.descriptor_hash
+                ):
+                    return False
+            return value.outcome == "executable" and value.state.computability == "computed"
+        except Exception:  # noqa: BLE001 - malformed declarations fail closed
+            return False
+
     @staticmethod
     def _declaration_is_available(value: Any) -> bool:
         """Interpret only explicit declarations, never similarly named metadata."""
@@ -480,7 +1102,15 @@ class CapabilityPlanner:
                 if not isinstance(status, str):
                     raise TypeError("Input declaration status must be a string")
                 normalized = status.strip().lower()
-                if normalized in {"available", "provided", "ready", "observed", "calibrated"}:
+                if normalized in {
+                    "available",
+                    "provided",
+                    "ready",
+                    "observed",
+                    "calibrated",
+                    "computed",
+                    "completed",
+                }:
                     return True
                 if normalized in {"missing", "unavailable", "unknown", "blocked", "invalid"}:
                     return False
@@ -562,11 +1192,17 @@ class CapabilityPlanner:
         block: DataBlock,
         descriptor: CapabilityDescriptor,
         declared_inputs: Sequence[str] = (),
+        available_capabilities: Sequence[str] = (),
     ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
         blocked: list[str] = []
         missing: list[str] = []
         actions: list[str] = []
         contract = descriptor.input_contract
+        available_capability_set = set(available_capabilities)
+        for dependency in descriptor.dependencies:
+            if dependency not in available_capability_set:
+                missing.append(f"dependency:{dependency}")
+                actions.append(f"compute_dependency:{dependency}")
         available_inputs = set(_dedupe(tuple(declared_inputs) + cls._block_available_inputs(block)))
         for required_input in cls._required_inputs(contract):
             if required_input not in available_inputs:
@@ -607,15 +1243,103 @@ class CapabilityPlanner:
             quantitative = bool(requirement.get("quantitative", axis_name in quantitative_axes))
             if quantitative and not axis_allows_quantitative(axis):
                 blocked.append(f"axis_provenance_not_accepted:{axis_name}")
+            expected_units = requirement.get("unit", requirement.get("units"))
+            if expected_units is not None:
+                if isinstance(expected_units, str):
+                    expected_units = (expected_units,)
+                actual_units = {
+                    str(value).strip()
+                    for value in expected_units
+                    if isinstance(value, str) and value.strip()
+                }
+                coordinate_unit = block.coord_units.get(axis_name)
+                provenance_unit = axis.unit
+                if (
+                    not actual_units
+                    or coordinate_unit not in actual_units
+                    or provenance_unit not in actual_units
+                    or coordinate_unit != provenance_unit
+                ):
+                    blocked.append(f"axis_unit_mismatch:{axis_name}")
+            elif axis.unit is not None and block.coord_units.get(axis_name) is not None:
+                if axis.unit != block.coord_units.get(axis_name):
+                    blocked.append(f"axis_unit_provenance_mismatch:{axis_name}")
+            expected_quantities = requirement.get(
+                "quantity", requirement.get("quantities")
+            )
+            if expected_quantities is not None:
+                if isinstance(expected_quantities, str):
+                    expected_quantities = (expected_quantities,)
+                accepted_quantities = {
+                    str(value).strip()
+                    for value in expected_quantities
+                    if isinstance(value, str) and value.strip()
+                }
+                if axis.quantity not in accepted_quantities:
+                    blocked.append(f"axis_quantity_mismatch:{axis_name}")
+            coordinates = block.coords.get(axis_name)
+            if requirement.get("unique") is True and coordinates is not None:
+                if len({repr(value) for value in coordinates}) != len(coordinates):
+                    blocked.append(f"axis_not_unique:{axis_name}")
+            if requirement.get("monotonic") is True and coordinates is not None:
+                numeric = tuple(
+                    value
+                    for value in coordinates
+                    if isinstance(value, Real) and not isinstance(value, bool)
+                )
+                if len(numeric) != len(coordinates) or not _is_monotonic(numeric):
+                    blocked.append(f"axis_not_monotonic:{axis_name}")
 
-        for calibration in contract.get("required_calibrations", ()):
+        shape_requirements = contract.get("shape_requirements", {})
+        if isinstance(shape_requirements, Mapping):
+            rank = shape_requirements.get("rank")
+            if rank is not None and len(block.shape) != rank:
+                blocked.append("shape_rank_mismatch")
+            dimensions = shape_requirements.get("dimensions", {})
+            if isinstance(dimensions, Mapping):
+                for dimension, requirement in dimensions.items():
+                    if dimension not in block.dims or not isinstance(requirement, Mapping):
+                        blocked.append(f"shape_dimension_mismatch:{dimension}")
+                        continue
+                    size = block.shape[block.dims.index(dimension)]
+                    exact = requirement.get("exact_size")
+                    minimum = requirement.get("min_size")
+                    maximum = requirement.get("max_size")
+                    if exact is not None and size != exact:
+                        blocked.append(f"shape_dimension_mismatch:{dimension}")
+                    elif minimum is not None and size < minimum:
+                        blocked.append(f"shape_dimension_too_short:{dimension}")
+                    elif maximum is not None and size > maximum:
+                        blocked.append(f"shape_dimension_too_long:{dimension}")
+
+        policy = descriptor.evidence_policy
+        require_reviewed_calibration = (
+            isinstance(policy, Mapping)
+            and policy.get("requires_reviewed_calibration") is True
+        )
+        for calibration in _calibration_requirements(contract):
             calibration_name = cls._calibration_name(calibration)
-            if calibration_name and not cls._has_calibration(block, calibration_name):
+            gate = cls._calibration_gate(
+                block,
+                calibration_name,
+                require_reviewed=require_reviewed_calibration,
+            )
+            if gate == "unreviewed":
+                blocked.append(f"calibration_not_reviewed:{calibration_name}")
+                actions.append(f"review_calibration:{calibration_name}")
+            elif gate == "missing":
                 missing.append(f"calibration:{calibration_name}")
                 actions.append(f"provide_calibration:{calibration_name}")
 
         for precondition in descriptor.preconditions:
-            cls._evaluate_precondition(block, precondition, blocked, missing, actions)
+            cls._evaluate_precondition(
+                block,
+                precondition,
+                blocked,
+                missing,
+                actions,
+                require_reviewed_calibration=require_reviewed_calibration,
+            )
         return _dedupe(blocked), _dedupe(missing), _dedupe(actions)
 
     @staticmethod
@@ -634,8 +1358,18 @@ class CapabilityPlanner:
         return str(value).strip()
 
     @staticmethod
-    def _has_calibration(block: DataBlock, name: str) -> bool:
+    def _calibration_gate(
+        block: DataBlock,
+        name: str,
+        *,
+        require_reviewed: bool = False,
+    ) -> str:
+        """Return available, unreviewed, or missing for one calibration identity."""
+
+        if not name:
+            return "missing"
         wanted = name.casefold()
+        unreviewed_match = False
         metadata = block.metadata if isinstance(block.metadata, Mapping) else {}
         for key in ("calibrations", "calibration_refs", "calibration_ids"):
             values = metadata.get(key, ())
@@ -667,16 +1401,43 @@ class CapabilityPlanner:
                     # Bare IDs are declarations, not validated calibration
                     # records, and therefore cannot satisfy a quantitative gate.
                     continue
-                if any(str(candidate).casefold() == wanted for candidate in candidates if candidate is not None):
-                    return True
+                if any(
+                    str(candidate).casefold() == wanted
+                    for candidate in candidates
+                    if candidate is not None
+                ):
+                    if status == "reviewed" or not require_reviewed:
+                        return "available"
+                    unreviewed_match = True
         for axis in (block.axis_provenance or {}).values():
             calibration = axis.calibration_ref
             if calibration is None:
                 continue
             if any(str(candidate).casefold() == wanted for candidate in (calibration.calibration_id, calibration.scope)):
-                if calibration.status in {"reviewed", "applied_unreviewed"}:
-                    return True
-        return False
+                if calibration.status == "reviewed" or (
+                    calibration.status == "applied_unreviewed"
+                    and not require_reviewed
+                ):
+                    return "available"
+                if calibration.status == "applied_unreviewed":
+                    unreviewed_match = True
+        return "unreviewed" if unreviewed_match else "missing"
+
+    @staticmethod
+    def _has_calibration(
+        block: DataBlock,
+        name: str,
+        *,
+        require_reviewed: bool = False,
+    ) -> bool:
+        return (
+            CapabilityPlanner._calibration_gate(
+                block,
+                name,
+                require_reviewed=require_reviewed,
+            )
+            == "available"
+        )
 
     @staticmethod
     def _evaluate_precondition(
@@ -685,6 +1446,8 @@ class CapabilityPlanner:
         blocked: list[str],
         missing: list[str],
         actions: list[str],
+        *,
+        require_reviewed_calibration: bool = False,
     ) -> None:
         kind = str(precondition.get("kind", precondition.get("type", ""))).strip()
         if kind in {"axis_provenance", "axis"}:
@@ -701,9 +1464,30 @@ class CapabilityPlanner:
                 blocked.append(f"axis_provenance_not_accepted:{axis_name}")
         elif kind == "calibration":
             name = CapabilityPlanner._calibration_name(precondition)
-            if name and not CapabilityPlanner._has_calibration(block, name):
+            gate = CapabilityPlanner._calibration_gate(
+                block,
+                name,
+                require_reviewed=require_reviewed_calibration,
+            )
+            if gate == "unreviewed":
+                blocked.append(f"calibration_not_reviewed:{name}")
+                actions.append(f"review_calibration:{name}")
+            elif gate == "missing":
                 missing.append(f"calibration:{name}")
                 actions.append(f"provide_calibration:{name}")
 
 
-__all__ = ["PLAN_OUTCOMES", "CapabilityPlanItem", "CapabilityPlanner"]
+# ``CapabilityAdmission`` is a descriptive public alias.  Keeping one DTO for
+# discovery and execution prevents AI/GUI adapters from inventing a second
+# private authorization representation.
+CapabilityAdmission = CapabilityPlanItem
+PlannerAdmission = CapabilityPlanItem
+
+
+__all__ = [
+    "PLAN_OUTCOMES",
+    "CapabilityPlanItem",
+    "CapabilityAdmission",
+    "PlannerAdmission",
+    "CapabilityPlanner",
+]

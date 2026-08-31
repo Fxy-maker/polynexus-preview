@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import copy
+from dataclasses import replace
 import json
 import math
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Any, Callable
 
 from ..engine import get_engine
 from ..project_context import ProjectContext
+from ..ai_platform.contracts import ProviderResultInput
 from ..canonical_experiments import CapabilityExecutor, CanonicalExperiment, default_converter_registry
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 from .method_sensitivity import sensitivities_from_metrics
@@ -136,6 +138,7 @@ class ComputeRunService:
         cache: Mapping[str, Any] | None = None,
         descriptor_registry: Any | None = None,
         capability_registry: Any | None = None,
+        admissions: Mapping[str, Any] | None = None,
     ) -> Any:
         """Execute a shared AI-platform graph through the compute façade.
 
@@ -162,6 +165,7 @@ class ComputeRunService:
             cache=cache,
             descriptor_registry=descriptor_registry,
             capability_registry=capability_registry,
+            admissions=admissions,
         )
 
     def run_direct(
@@ -175,6 +179,7 @@ class ComputeRunService:
         engine: Any = None,
         pipeline_options: object = None,
         canonical_template: CanonicalExperiment | None = None,
+        source_artifact_id: str | None = None,
         project_context: object = None,
     ) -> ComputeRun:
         normalized_technique = _safe_technique(technique)
@@ -198,6 +203,20 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(path, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
+        # A project inventory may use a logical, project-scoped artifact ID
+        # while the physical ``RawArtifact`` identity includes the absolute
+        # path.  A source-bound canonical template can explicitly carry that
+        # project identity through this boundary.  The caller must provide a
+        # non-empty ID; template validation below still requires the template
+        # and artifact identities to agree.
+        if source_artifact_id is not None:
+            if not isinstance(source_artifact_id, str) or not source_artifact_id.strip():
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("source_artifact_id_invalid",),
+                )
+            artifact = replace(artifact, artifact_id=source_artifact_id.strip())
         source = Path(artifact.path)
         try:
             source_exists = source.exists()
@@ -410,10 +429,18 @@ class ComputeRunService:
                     },
                     request=method_sensitivity,
                 )
-            provider_capability_items = CapabilityExecutor().execute_provider_result(
+            provider_input = ProviderResultInput.create(
                 source_artifact_id=artifact.artifact_id,
                 technique=normalized_technique,
                 metrics=result.metrics,
+                metric_manifest=result.metric_manifest(source=artifact.path),
+                descriptor_id=result.descriptor_id,
+                computation_state=result.computation_state,
+                provenance=result.provenance,
+                uncertainty=result.uncertainty,
+            )
+            provider_capability_items = CapabilityExecutor().execute_provider_result(
+                provider_input=provider_input,
             )
             return ComputeRun.completed(
                 artifact=artifact,

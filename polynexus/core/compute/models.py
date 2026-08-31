@@ -98,8 +98,16 @@ def _coerce_computation_state(value: Any):
     # callers during application startup).
     from ..ai_platform.contracts import ComputationState
 
-    if isinstance(value, ComputationState):
+    if type(value) is ComputationState:
         return value
+    if isinstance(value, ComputationState):
+        # The public state DTO is a trust-boundary value.  A subclass may
+        # override ``to_dict`` or axis accessors after construction, so
+        # accepting it here would let polymorphic state bypass the canonical
+        # status checks performed by ComputeResult/ComputeRun.
+        raise TypeError(
+            "computation_state must use the exact ComputationState type or mapping"
+        )
     if isinstance(value, Mapping):
         return ComputationState.from_dict(value)
     raise TypeError("computation_state must be a ComputationState or mapping")
@@ -943,8 +951,15 @@ def _coerce_legacy_computation_state(value: Any):
 
     from ..ai_platform.contracts import ComputationState
 
-    if isinstance(value, ComputationState):
+    if type(value) is ComputationState:
         return value
+    if isinstance(value, ComputationState):
+        # Explicit legacy state values are still authoritative.  Do not
+        # silently discard a polymorphic value and derive a permissive default
+        # state from the provider's status.
+        raise TypeError(
+            "legacy computation_state must use the exact ComputationState type"
+        )
     if not isinstance(value, Mapping):
         return None
     # A provider ``state`` mapping with a status/error field is not the shared

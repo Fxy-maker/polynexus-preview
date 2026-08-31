@@ -8,6 +8,12 @@ import math
 from numbers import Real
 from typing import Any
 
+from polynexus.core.compute.projection import (
+    merge_compute_run_projections,
+    parse_compute_run_projection,
+    read_compute_run_projection,
+)
+
 
 def _number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, Real):
@@ -322,13 +328,21 @@ def build_result_tables_from_runs(runs: Iterable[Any]) -> tuple[dict[str, Any], 
         if analysis_run is None:
             continue
         for step in getattr(analysis_run, "steps", ()):
-            compute_run = getattr(step, "compute_run", None)
-            if not isinstance(compute_run, Mapping):
+            projections = []
+            direct_compute_run = getattr(step, "compute_run", None)
+            if bool(getattr(step, "compute_run_present", False)) or direct_compute_run is not None:
+                projections.append(parse_compute_run_projection(direct_compute_run))
+            summary = getattr(step, "result_summary", None)
+            if isinstance(summary, Mapping) and "compute_run" in summary:
+                projections.append(read_compute_run_projection(summary))
+            if not projections:
                 continue
-            result = compute_run.get("result")
-            if not isinstance(result, Mapping):
+            projection = merge_compute_run_projections(*projections)
+            if not projection.valid or not projection.computed:
                 continue
-            if not _projection_is_computed(compute_run, expected_status="completed"):
+            compute_run = projection.payload
+            result = projection.result
+            if not isinstance(compute_run, Mapping) or not isinstance(result, Mapping):
                 continue
             manifest = result.get("metric_manifest")
             if not isinstance(manifest, (list, tuple)):
@@ -392,8 +406,10 @@ def _projection_is_computed(
 
     normalized = []
     for candidate in state_values:
-        if isinstance(candidate, ComputationState):
+        if type(candidate) is ComputationState:
             state = candidate
+        elif isinstance(candidate, ComputationState):
+            return False
         elif isinstance(candidate, Mapping):
             try:
                 state = ComputationState.from_dict(candidate)

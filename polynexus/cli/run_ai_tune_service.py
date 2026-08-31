@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from polynexus.cli.batch_run_service import analysis_evidence_from_ai_report
+from polynexus.core.compute.projection import read_compute_run_projection
 from polynexus.core.project_workflow import AnalysisPlan, AnalysisPlanEvaluation, CandidateEvaluation, project_analysis_plan_evaluation
 from polynexus.utils import detect_polymer_type, load_defaults
 
@@ -62,7 +63,12 @@ def run_ai_tune(
         print(f"AI tune engine error: {exc}", file=sys.stderr)
         return 1
 
-    _attach_compatibility_plan(args, report)
+    try:
+        _attach_compatibility_plan(args, report)
+    except (TypeError, ValueError) as exc:
+        logger.warning("AI tune report contract validation failed.", exc_info=True)
+        print(f"AI tune report error: {exc}", file=sys.stderr)
+        return 1
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,25 +141,40 @@ def _canonical_template_for_plan(report: Mapping[str, Any], technique: str) -> d
 
     The adaptive plan has its own candidate/configuration fields, but its input
     template must describe the same source-bound conversion as the shared run.
-    Missing or malformed projections retain the historical compatibility plan.
+    A completely absent projection retains the historical compatibility plan;
+    a present malformed projection is rejected before persistence.
     """
-    compute_run = report.get("compute_run")
-    if not isinstance(compute_run, Mapping):
+    projection = read_compute_run_projection(report)
+    if projection.present and not projection.valid:
+        raise ValueError(
+            "AI tune compute_run projection is invalid: "
+            + ",".join(projection.reason_codes)
+        )
+    if not projection.present:
         return None
+    compute_run = projection.payload
+    if not isinstance(compute_run, Mapping):
+        raise ValueError("AI tune compute_run projection is invalid: payload missing")
     template = compute_run.get("canonical_template")
     if not isinstance(template, Mapping):
-        return None
+        raise ValueError(
+            "AI tune compute_run projection is invalid: canonical_template missing"
+        )
     template_id = str(template.get("template_id") or "").strip()
     record = template.get("conversion_record")
     if not isinstance(record, Mapping):
-        return None
+        raise ValueError(
+            "AI tune compute_run projection is invalid: canonical_template conversion_record missing"
+        )
     conversion_version = str(
         template.get("conversion_version")
         or record.get("conversion_id")
         or ""
     ).strip()
     if not template_id or not conversion_version:
-        return None
+        raise ValueError(
+            "AI tune compute_run projection is invalid: canonical_template identity missing"
+        )
     projected: dict[str, Any] = {
         "template_id": template_id,
         "conversion_version": conversion_version,
@@ -177,6 +198,14 @@ def _finite_float(value: Any) -> float | None:
 
 
 def _persist_ai_tune_run(args, report: dict, output_path: Path) -> str:
+    shared_projection = read_compute_run_projection(report)
+    if shared_projection.present and not shared_projection.valid:
+        raise ValueError(
+            "AI tune compute_run projection is invalid: "
+            + ",".join(shared_projection.reason_codes)
+        )
+    shared_compute_run = shared_projection.payload if shared_projection.present else None
+
     from polynexus.data.sample_db import SampleDB
 
     data_file = Path(args.file)
@@ -224,25 +253,30 @@ def _persist_ai_tune_run(args, report: dict, output_path: Path) -> str:
             file_type=data_file.suffix.lower().lstrip("."),
             import_order=0,
         )
+        results_summary = {
+            "ai_tuned": True,
+            "polymer_name": args.polymer,
+            "polymer_type": polymer_type,
+            "data_file": str(data_file.resolve()),
+            "report_path": str(output_path.resolve()),
+            "baseline_r_squared": report.get("baseline_r_squared"),
+            "best_r_squared": report.get("best_r_squared"),
+            "improvement": report.get("improvement", {}),
+            "converged": report.get("converged"),
+            "convergence_reason": report.get("convergence_reason"),
+            "rounds": report.get("rounds"),
+        }
+        # Preserve the strict absence-versus-present distinction.  Writing a
+        # ``compute_run: null`` key would turn a legacy report into an
+        # explicitly malformed shared projection for every downstream reader.
+        if shared_projection.present:
+            results_summary["compute_run"] = shared_compute_run
         return db.create_analysis_run(
             batch_id,
             args.technique,
             submodule=submodule,
             parameters=best_config,
-            results_summary={
-                "ai_tuned": True,
-                "polymer_name": args.polymer,
-                "polymer_type": polymer_type,
-                "data_file": str(data_file.resolve()),
-                "report_path": str(output_path.resolve()),
-                "baseline_r_squared": report.get("baseline_r_squared"),
-                "best_r_squared": report.get("best_r_squared"),
-                "improvement": report.get("improvement", {}),
-                "converged": report.get("converged"),
-                "convergence_reason": report.get("convergence_reason"),
-                "rounds": report.get("rounds"),
-                "compute_run": report.get("compute_run"),
-            },
+            results_summary=results_summary,
             analysis_evidence=analysis_evidence_from_ai_report(report),
             output_dir=str(output_path.resolve().parent),
             ai_tuned=True,

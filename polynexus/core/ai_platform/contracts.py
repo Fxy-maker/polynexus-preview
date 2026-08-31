@@ -195,8 +195,10 @@ class CalibrationRef:
                 raise ValueError("Calibration record_locator must be a nonempty string")
         if self.record_sha256 is not None:
             _sha256(self.record_sha256, "Calibration record_sha256")
-        if self.status == "reviewed" and self.record_locator is None:
-            raise ValueError("Reviewed calibration requires a record locator and hash")
+        if self.status in {"reviewed", "applied_unreviewed"} and self.record_locator is None:
+            raise ValueError(
+                f"{self.status.capitalize()} calibration requires a record locator and hash"
+            )
 
     @classmethod
     def create(cls, calibration_id: str, scope: str, method: str, source: str, status: str, parameters: Mapping[str, Any] | None = None, record_locator: str | None = None, record_sha256: str | None = None) -> "CalibrationRef":
@@ -588,4 +590,329 @@ class ComputationState:
         return cls.create(value["data_availability"], value["computability"], value["validity"], value["promotion"], value.get("missing_inputs", ()), value.get("reason_codes", ()), value.get("preconditions", ()), value.get("next_actions", ()))
 
 
-__all__ = ["DataBlock", "AxisProvenance", "CalibrationRef", "UncertaintyRef", "MissingnessPolicy", "ComputationState", "CapabilityResultStatus", "canonical_json_hash", "axis_allows_quantitative"]
+_PROVIDER_METRIC_STATUSES = frozenset(
+    {"computed", "unavailable", "needs_input", "failed"}
+)
+
+
+def _provider_metric_value(metrics: Mapping[str, Any], path: str) -> tuple[bool, Any]:
+    """Resolve one declared provider metric path without guessing aliases."""
+
+    if path in metrics:
+        return True, metrics[path]
+    parts = path.split(".")
+    current: Any = metrics
+    index = 0
+    while index < len(parts):
+        if not isinstance(current, Mapping):
+            return False, None
+        # Result field names are provider-owned and may themselves contain a
+        # period (for example ``segment_01_180.1C``).  Prefer the longest
+        # matching key at each level so the manifest path remains the exact
+        # inventory path without imposing a second escaping convention.
+        matched = False
+        for end in range(len(parts), index, -1):
+            candidate = ".".join(parts[index:end])
+            if candidate in current:
+                current = current[candidate]
+                index = end
+                matched = True
+                break
+        if not matched:
+            return False, None
+    return True, current
+
+
+def _provider_technique(value: Any) -> str:
+    technique = str(value).strip().lower()
+    if not technique:
+        raise ValueError("Provider result technique must be nonempty")
+    return {
+        "ftir": "ir",
+        "infrared": "ir",
+        "fourier_transform_infrared": "ir",
+        "saxs2d": "saxs",
+        "waxs2d": "waxs",
+        "gpc": "sec",
+        "sec/gpc": "sec",
+    }.get(technique, technique)
+
+
+@dataclass(frozen=True)
+class ProviderResultInput:
+    """Content-addressed input for legacy provider metrics.
+
+    Provider outputs are not array-like canonical data blocks.  This DTO keeps
+    their metric manifest, state and scientific lineage on an explicit shared
+    boundary so planner and executor adapters never need to invent a
+    ``DataBlock(kind="provider_result")``.
+    """
+
+    input_id: str
+    source_artifact_id: str
+    technique: str
+    metrics: Mapping[str, Any]
+    metric_manifest: tuple[Mapping[str, Any], ...]
+    descriptor_id: str | None = None
+    computation_state: ComputationState | Mapping[str, Any] | None = None
+    provenance: Mapping[str, Any] = field(default_factory=dict)
+    uncertainty: Mapping[str, Any] = field(default_factory=dict)
+    schema_version: str = "1"
+
+    SCHEMA_VERSION = "1"
+
+    def __post_init__(self) -> None:
+        if self.schema_version != self.SCHEMA_VERSION:
+            raise ValueError(
+                f"Unsupported provider result schema_version: {self.schema_version}"
+            )
+        _sha256(self.input_id, "Provider result input_id")
+        source_artifact_id = str(self.source_artifact_id).strip()
+        if not source_artifact_id:
+            raise ValueError("Provider result source_artifact_id must be nonempty")
+        object.__setattr__(self, "source_artifact_id", source_artifact_id)
+        object.__setattr__(self, "technique", _provider_technique(self.technique))
+
+        if not isinstance(self.metrics, Mapping):
+            raise TypeError("Provider result metrics must be a mapping")
+        metrics = _freeze(self.metrics)
+        object.__setattr__(self, "metrics", metrics)
+
+        if isinstance(self.metric_manifest, (str, bytes, bytearray)) or not isinstance(
+            self.metric_manifest, Sequence
+        ):
+            raise TypeError("Provider result metric_manifest must be a sequence")
+        rows: list[Mapping[str, Any]] = []
+        paths: set[str] = set()
+        for index, value in enumerate(self.metric_manifest):
+            if not isinstance(value, Mapping):
+                raise TypeError("Provider result metric_manifest entries must be mappings")
+            row = _freeze(value)
+            path = row.get("path")
+            if not isinstance(path, str) or not path.strip():
+                raise ValueError("Provider result metric path must be a nonempty string")
+            path = path.strip()
+            if any(not part or part != part.strip() for part in path.split(".")):
+                raise ValueError("Provider result metric path must use nonempty dotted parts")
+            if path in paths:
+                raise ValueError(
+                    f"Provider result metric_manifest has duplicate metric path: {path}"
+                )
+            paths.add(path)
+            status = row.get("status")
+            if not isinstance(status, str) or status.strip().lower() not in _PROVIDER_METRIC_STATUSES:
+                raise ValueError(
+                    f"Provider result metric_manifest[{index}] has unsupported status"
+                )
+            status = status.strip().lower()
+            normalized = dict(_public(row))
+            normalized["path"] = path
+            normalized["status"] = status
+            present, metric_value = _provider_metric_value(metrics, path)
+            if status == "computed":
+                if not present or metric_value is None:
+                    raise ValueError(
+                        "Provider result metric_manifest computed path must exist in metrics"
+                    )
+                if "value" in normalized and normalized["value"] != _public(metric_value):
+                    raise ValueError(
+                        "Provider result metric_manifest value does not match metrics"
+                    )
+            elif normalized.get("value") is not None:
+                raise ValueError(
+                    "Provider result metric_manifest noncomputed rows cannot carry a value"
+                )
+            rows.append(_freeze(normalized))
+        object.__setattr__(self, "metric_manifest", tuple(rows))
+
+        if self.descriptor_id is not None:
+            if not isinstance(self.descriptor_id, str) or not self.descriptor_id.strip():
+                raise ValueError("Provider result descriptor_id must be nonempty or null")
+            object.__setattr__(self, "descriptor_id", self.descriptor_id.strip())
+        state = self.computation_state
+        if type(state) is ComputationState:
+            pass
+        elif isinstance(state, ComputationState):
+            raise TypeError(
+                "Provider result computation_state must use the exact ComputationState type, mapping, or null"
+            )
+        elif isinstance(state, Mapping):
+            state = ComputationState.from_dict(state)
+        elif state is not None:
+            raise TypeError(
+                "Provider result computation_state must use the exact ComputationState type, mapping, or null"
+            )
+        if state is not None and state.computability != "computed":
+            if any(row["status"] == "computed" for row in rows):
+                raise ValueError(
+                    "Provider result computed metric_manifest rows require computed state"
+                )
+        object.__setattr__(self, "computation_state", state)
+        if not isinstance(self.provenance, Mapping):
+            raise TypeError("Provider result provenance must be a mapping")
+        if not isinstance(self.uncertainty, Mapping):
+            raise TypeError("Provider result uncertainty must be a mapping")
+        object.__setattr__(self, "provenance", _freeze(self.provenance))
+        object.__setattr__(self, "uncertainty", _freeze(self.uncertainty))
+
+        expected = canonical_json_hash(self._identity_payload())
+        if self.input_id.lower() != expected:
+            raise ValueError("Provider result input_id does not match its content")
+        object.__setattr__(self, "input_id", expected)
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        source_artifact_id: str,
+        technique: str,
+        metrics: Mapping[str, Any],
+        metric_manifest: Sequence[Mapping[str, Any]],
+        descriptor_id: str | None = None,
+        computation_state: ComputationState | Mapping[str, Any] | None = None,
+        provenance: Mapping[str, Any] | None = None,
+        uncertainty: Mapping[str, Any] | None = None,
+    ) -> "ProviderResultInput":
+        normalized_technique = _provider_technique(technique)
+        if type(computation_state) is ComputationState:
+            normalized_state = computation_state
+        elif isinstance(computation_state, ComputationState):
+            raise TypeError(
+                "Provider result computation_state must use the exact ComputationState type"
+            )
+        elif isinstance(computation_state, Mapping):
+            normalized_state = ComputationState.from_dict(computation_state)
+        else:
+            normalized_state = computation_state
+        normalized_manifest: list[Mapping[str, Any]] = []
+        for row in metric_manifest:
+            if isinstance(row, Mapping):
+                candidate = dict(row)
+                if isinstance(candidate.get("path"), str):
+                    candidate["path"] = candidate["path"].strip()
+                if isinstance(candidate.get("status"), str):
+                    candidate["status"] = candidate["status"].strip().lower()
+                normalized_manifest.append(candidate)
+            else:
+                normalized_manifest.append(row)
+        normalized_descriptor_id = (
+            None
+            if descriptor_id is None
+            else descriptor_id.strip()
+            if isinstance(descriptor_id, str)
+            else descriptor_id
+        )
+        payload = cls._identity_payload_static(
+            source_artifact_id=str(source_artifact_id).strip(),
+            technique=normalized_technique,
+            metrics=metrics,
+            metric_manifest=normalized_manifest,
+            descriptor_id=normalized_descriptor_id,
+            computation_state=normalized_state,
+            provenance={} if provenance is None else provenance,
+            uncertainty={} if uncertainty is None else uncertainty,
+        )
+        return cls(
+            input_id=canonical_json_hash(payload),
+            source_artifact_id=source_artifact_id,
+            technique=normalized_technique,
+            metrics=metrics,
+            metric_manifest=tuple(normalized_manifest),
+            descriptor_id=normalized_descriptor_id,
+            computation_state=normalized_state,
+            provenance={} if provenance is None else provenance,
+            uncertainty={} if uncertainty is None else uncertainty,
+        )
+
+    @staticmethod
+    def _identity_payload_static(
+        *,
+        source_artifact_id: str,
+        technique: str,
+        metrics: Mapping[str, Any],
+        metric_manifest: Sequence[Mapping[str, Any]],
+        descriptor_id: str | None,
+        computation_state: ComputationState | Mapping[str, Any] | None,
+        provenance: Mapping[str, Any],
+        uncertainty: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        if type(computation_state) is ComputationState:
+            state_payload: Any = computation_state.to_dict()
+        elif isinstance(computation_state, ComputationState):
+            # State subclasses can override ``to_dict``/axis accessors and are
+            # not canonical attestations.  Reject before invoking polymorphic
+            # behavior so a forged state cannot affect the input hash.
+            raise TypeError(
+                "Provider result computation_state must use the exact ComputationState type"
+            )
+        else:
+            state_payload = computation_state
+        return {
+            "schema_version": ProviderResultInput.SCHEMA_VERSION,
+            "source_artifact_id": source_artifact_id,
+            "technique": technique,
+            "metrics": _public(metrics),
+            "metric_manifest": _public(metric_manifest),
+            "descriptor_id": descriptor_id,
+            "computation_state": _public(state_payload),
+            "provenance": _public(provenance),
+            "uncertainty": _public(uncertainty),
+        }
+
+    def _identity_payload(self) -> dict[str, Any]:
+        return self._identity_payload_static(
+            source_artifact_id=self.source_artifact_id,
+            technique=self.technique,
+            metrics=self.metrics,
+            metric_manifest=self.metric_manifest,
+            descriptor_id=self.descriptor_id,
+            computation_state=self.computation_state,
+            provenance=self.provenance,
+            uncertainty=self.uncertainty,
+        )
+
+    @property
+    def content_hash(self) -> str:
+        return self.input_id
+
+    @property
+    def available_metric_paths(self) -> tuple[str, ...]:
+        return tuple(
+            str(row["path"])
+            for row in self.metric_manifest
+            if row.get("status") == "computed"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"input_id": self.input_id, **self._identity_payload()}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ProviderResultInput":
+        if not isinstance(value, Mapping):
+            raise TypeError("Provider result input must be a mapping")
+        return cls(
+            input_id=value["input_id"],
+            schema_version=value.get("schema_version", ""),
+            source_artifact_id=value["source_artifact_id"],
+            technique=value["technique"],
+            metrics=value.get("metrics", {}),
+            metric_manifest=tuple(value.get("metric_manifest", ())),
+            descriptor_id=value.get("descriptor_id"),
+            computation_state=value.get("computation_state"),
+            provenance=value.get("provenance", {}),
+            uncertainty=value.get("uncertainty", {}),
+        )
+
+
+__all__ = [
+    "DataBlock",
+    "AxisProvenance",
+    "CalibrationRef",
+    "UncertaintyRef",
+    "MissingnessPolicy",
+    "ComputationState",
+    "ProviderResultInput",
+    "CapabilityResultStatus",
+    "canonical_json_hash",
+    "axis_allows_quantitative",
+]

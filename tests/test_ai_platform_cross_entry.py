@@ -18,6 +18,7 @@ from polynexus.core.compute.models import AnalysisPlan, CanonicalDataset, Comput
 from polynexus.core.joint.dataset import JointRunRecord
 from polynexus.core.project_workflow.evidence import ProjectWorkflowRun
 from polynexus.core.project_workflow.result_table import build_result_tables_from_runs
+from polynexus.core.project_workflow.writing_metrics import extract_writing_metrics
 from polynexus.core.agent_workflow.models import AnalysisRecipe, AnalysisRun
 from polynexus.data.sample_db import SampleDB
 from polynexus.gui.analysis_run_service import (
@@ -283,6 +284,7 @@ def test_joint_prefers_shared_metric_manifest_and_labels_legacy_fallback() -> No
             "Xc_pct": 10.0,
             "compute_run": {
                 "status": "completed",
+                "computation_state": _state().to_dict(),
                 "result": {
                     "metric_manifest": [
                         {
@@ -316,6 +318,7 @@ def test_joint_accepts_mapping_shared_projection_and_metrics_fallback() -> None:
     shared_projection = MappingProxyType(
         {
             "status": "completed",
+            "computation_state": MappingProxyType(_state().to_dict()),
             "result": MappingProxyType(
                 {
                     "metrics": MappingProxyType({"Xc_pct": 42.0}),
@@ -323,7 +326,7 @@ def test_joint_accepts_mapping_shared_projection_and_metrics_fallback() -> None:
                         MappingProxyType(
                             {
                                 "path": "Xc_pct",
-                                "value": 43.0,
+                                "value": 42.0,
                                 "status": "computed",
                             }
                         ),
@@ -340,7 +343,7 @@ def test_joint_accepts_mapping_shared_projection_and_metrics_fallback() -> None:
 
     assert shared.metric_source == "shared_compute_run"
     assert shared.compatibility_only is False
-    assert shared.get_first_number(("Xc_pct",)) == 43.0
+    assert shared.get_first_number(("Xc_pct",)) == 42.0
 
     # If a minimal shared projection has metrics but no manifest, its values
     # are still canonical shared output; legacy summaries must not shadow it.
@@ -351,6 +354,7 @@ def test_joint_accepts_mapping_shared_projection_and_metrics_fallback() -> None:
             "Xc_pct": 10.0,
             "compute_run": {
                 "status": "completed",
+                "computation_state": _state().to_dict(),
                 "result": {"metrics": {"Xc_pct": 42.0}},
             },
         },
@@ -382,6 +386,64 @@ def test_joint_does_not_read_needs_input_manifest_values() -> None:
     )
 
     assert math.isnan(run.get_first_number(("Xc_pct",)))
+
+
+def test_malformed_shared_manifest_row_is_not_promoted_to_joint_or_agent_evidence() -> None:
+    compute_run = {
+        "status": "completed",
+        "computation_state": _state().to_dict(),
+        "result": {
+            "metric_manifest": [
+                {"path": "forged", "kind": "scalar", "value": 999.0}
+            ]
+        },
+    }
+    joint = JointRunRecord(
+        run_id="run-forged",
+        technique="dsc",
+        results_summary={"compute_run": compute_run},
+    )
+    step = WorkflowStepResult(
+        step_id="forged-step",
+        technique="dsc",
+        status="completed",
+        result_summary={"compute_run": compute_run},
+    )
+
+    assert joint.values == {}
+    assert build_evidence((step,)).observed == ()
+
+
+def test_manifest_metrics_mismatch_is_not_consumed_by_joint_or_writing() -> None:
+    compute_run = {
+        "status": "completed",
+        "computation_state": _state().to_dict(),
+        "result": {
+            "metrics": {"forged": 1.0},
+            "metric_manifest": [
+                {
+                    "path": "forged",
+                    "kind": "scalar",
+                    "status": "computed",
+                    "value": 999.0,
+                }
+            ],
+        },
+    }
+    joint = JointRunRecord(
+        run_id="run-mismatch",
+        technique="dsc",
+        results_summary={"compute_run": compute_run},
+    )
+    writing = extract_writing_metrics(
+        {
+            "technique": "dsc",
+            "result_summary": {"compute_run": compute_run},
+        }
+    )
+
+    assert joint.values == {}
+    assert writing == ()
 
 
 def test_joint_does_not_fallback_to_legacy_values_when_shared_run_is_blocked() -> None:

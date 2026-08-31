@@ -548,6 +548,12 @@ def adapt_nmr_fid(
     digest = _file_sha256(source)
     if digest is None:
         return _local_failure("blocked", source_artifact_id, "nmr_fid_unreadable")
+    is_ser = source.name.casefold() == "ser" or source.suffix.casefold() == ".ser"
+    if is_ser and shape is None:
+        # Bruker ``ser`` stores an indirect acquisition dimension.  Byte
+        # length alone cannot recover its shape, so never collapse it to a
+        # synthetic one-dimensional FID.
+        return _local_failure("needs_input", source_artifact_id, "nmr_ser_shape_required")
     try:
         np_dtype = np.dtype(dtype)
     except (TypeError, ValueError) as exc:
@@ -571,6 +577,12 @@ def adapt_nmr_fid(
         return _local_failure("needs_input", source_artifact_id, "nmr_fid_empty")
 
     normalized_shape = _normalize_shape(shape, complex_count)
+    if is_ser and len(normalized_shape) < 2:
+        return _local_failure(
+            "needs_input",
+            source_artifact_id,
+            "nmr_ser_shape_rank_invalid",
+        )
     normalized_dims = _normalize_dims(dims, len(normalized_shape))
     if int(np.prod(normalized_shape, dtype=np.int64)) != complex_count:
         return _local_failure("needs_input", source_artifact_id, "nmr_fid_shape_mismatch")
@@ -627,7 +639,13 @@ def adapt_nmr_fid(
         "technique": "nmr",
         "measurement_family": "fid",
         "representation": "complex_fid",
-        "source_format": "bruker_fid" if source.name.casefold() == "fid" else source.suffix.casefold().lstrip("."),
+        "source_format": (
+            "bruker_fid"
+            if source.name.casefold() == "fid"
+            else "bruker_ser"
+            if is_ser
+            else source.suffix.casefold().lstrip(".")
+        ),
         "raw_values_included": False,
         "imaginary_channel_preserved": True,
         "components": ["real", "imaginary"],

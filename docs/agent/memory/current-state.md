@@ -1779,3 +1779,38 @@ controls, common thermodynamic supercooling, independent replicates, and
 quantitative scattering remain open; this is `completed_review_required`, not
 publication acceptance. Acceptance:
 `docs/acceptance/2026-08-31-elastomer-all-data-paper.md`.
+
+## AI platform trust-boundary repair - 2026-08-31
+
+The Core AI computation boundary now requires a content-addressed planner
+admission for known descriptors, derives execution completion state internally,
+and invalidates failed/non-computed/promoted-only cache entries. Descriptor
+calibration, axis provenance, units/quantities, shape, and dependencies are
+included in planner gates and cache identity. Known-descriptor cache entries
+also require the exact Core `NodeResult` DTO (not a subclass), complete Core
+provenance, and a matching output fingerprint; `cache_hit` is a strict,
+reinsertable boolean observation. Built-in descriptor catalogs are authoritative:
+custom registries are additive and catalog failure fails closed. A strict
+shared `ComputeRun` projection parser rejects malformed, contradictory,
+incomplete, or explicit null envelopes whenever the key is present; legacy
+extraction is retained only when the key is absent. Agent, project, Joint, GUI,
+CLI, evidence, result-table, package, and ARS writing consumers use the same
+parser. Legacy provider metrics now use `ProviderResultInput` with a validated
+metric manifest. Planner-issued target admissions also carry each dependency's
+descriptor/version/hash and admission hash; execution requires the same
+runtime descriptor registry and a trusted admission for every declared
+dependency. The binding is checked against the target's unique direct graph
+node, so a disconnected duplicate capability node cannot substitute for the
+actual dependency and duplicate direct nodes fail closed as ambiguous.
+Sequence-valued calibration identities are rejected at descriptor
+construction. The refreshed trust-boundary matrix passed 329 tests;
+task-scoped Ruff/compile/Pyright, quality 313, preprocessing 157, boundary
+audit, and whitespace checks are green. The current task-scoped
+`verify.py --changed --types` run passed all selected checks. The strict
+projection parser also validates flattened top-level metrics/manifest aliases,
+and merge re-parses and compares every present DTO field. Implementation
+remains
+`implementation_complete_review_required` pending architecture and scientific
+review; the local allowlisted checkpoint is complete, and provider numerical
+algorithms and user artifacts were untouched.
+Acceptance: `docs/acceptance/2026-08-31-ai-platform-trust-boundaries.md`.

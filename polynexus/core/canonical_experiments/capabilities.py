@@ -168,16 +168,48 @@ class CapabilityExecutor:
     def execute_provider_result(
         self,
         *,
-        source_artifact_id: str,
-        technique: str,
-        metrics: Mapping[str, Any],
+        provider_input: Any = None,
+        source_artifact_id: str | None = None,
+        technique: str | None = None,
+        metrics: Mapping[str, Any] | None = None,
     ) -> tuple[CapabilityItemResult, ...]:
         """Project existing provider metrics without recalculating or guessing."""
+        available_paths: frozenset[str] | None = None
+        if provider_input is not None:
+            from ..ai_platform.contracts import ProviderResultInput
+
+            if any(value is not None for value in (source_artifact_id, technique, metrics)):
+                raise ValueError(
+                    "Provider capability input cannot be combined with legacy metric arguments"
+                )
+            if isinstance(provider_input, ProviderResultInput):
+                if type(provider_input) is not ProviderResultInput:
+                    raise TypeError(
+                        "provider_input must be the exact ProviderResultInput type or mapping"
+                    )
+            elif isinstance(provider_input, Mapping):
+                provider_input = ProviderResultInput.from_dict(provider_input)
+            if type(provider_input) is not ProviderResultInput:
+                raise TypeError(
+                    "provider_input must be the exact ProviderResultInput type or mapping"
+                )
+            source_artifact_id = provider_input.source_artifact_id
+            technique = provider_input.technique
+            metrics = provider_input.metrics
+            available_paths = frozenset(provider_input.available_metric_paths)
+        if source_artifact_id is None or not str(source_artifact_id).strip():
+            raise ValueError("Provider capability source_artifact_id must be nonempty")
+        if technique is None or not str(technique).strip():
+            raise ValueError("Provider capability technique must be nonempty")
         if not isinstance(metrics, Mapping):
             raise TypeError("Provider capability metrics must be a mapping")
         results: list[CapabilityItemResult] = []
         for spec in self._provider_registry.for_technique(technique):
-            found = _find_metric(metrics, spec.metric_paths)
+            found = _find_metric(
+                metrics,
+                spec.metric_paths,
+                available_paths=available_paths,
+            )
             item_id = _provider_item_id(source_artifact_id, technique, spec.capability_id)
             if found is None:
                 results.append(
@@ -326,8 +358,15 @@ def _provider_item_id(source_artifact_id: str, technique: str, capability_id: st
     return f"provider-item-{sha256(encoded).hexdigest()}"
 
 
-def _find_metric(metrics: Mapping[str, Any], paths: Sequence[str]) -> tuple[str, Any] | None:
+def _find_metric(
+    metrics: Mapping[str, Any],
+    paths: Sequence[str],
+    *,
+    available_paths: frozenset[str] | None = None,
+) -> tuple[str, Any] | None:
     for path in paths:
+        if available_paths is not None and path not in available_paths:
+            continue
         if path in metrics:
             if metrics[path] is not None:
                 return path, metrics[path]
@@ -344,6 +383,8 @@ def _find_metric(metrics: Mapping[str, Any], paths: Sequence[str]) -> tuple[str,
     # Search terminal keys deterministically, without interpreting values.
     wanted = {path.casefold() for path in paths}
     for candidate_path, value in _walk_mapping(metrics):
+        if available_paths is not None and candidate_path not in available_paths:
+            continue
         if value is None:
             continue
         terminal = candidate_path.rsplit(".", 1)[-1].casefold()

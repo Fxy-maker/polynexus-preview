@@ -7,6 +7,7 @@ from .contracts import (
     ComputationState,
     DataBlock,
     MissingnessPolicy,
+    ProviderResultInput,
     UncertaintyRef,
     axis_allows_quantitative,
     canonical_json_hash,
@@ -19,7 +20,13 @@ from .capabilities import (
     descriptor_from_provider_spec,
     normalize_technique,
 )
-from .planner import CapabilityPlanItem, CapabilityPlanner, PLAN_OUTCOMES
+from .planner import (
+    CapabilityAdmission,
+    CapabilityPlanItem,
+    CapabilityPlanner,
+    PLAN_OUTCOMES,
+    PlannerAdmission,
+)
 from .execution import (
     ExecutionContext,
     ExecutionGraph,
@@ -36,6 +43,7 @@ __all__ = [
     "UncertaintyRef",
     "MissingnessPolicy",
     "ComputationState",
+    "ProviderResultInput",
     "CapabilityResultStatus",
     "canonical_json_hash",
     "axis_allows_quantitative",
@@ -46,6 +54,8 @@ __all__ = [
     "descriptor_from_provider_spec",
     "normalize_technique",
     "CapabilityPlanItem",
+    "CapabilityAdmission",
+    "PlannerAdmission",
     "CapabilityPlanner",
     "PLAN_OUTCOMES",
     "ExecutionContext",
