@@ -35,6 +35,12 @@ class EvidenceMetricView:
     reason_codes: tuple[str, ...]
     figures: tuple[str, ...]
     tables: tuple[str, ...]
+    # Optional shared ComputeRun projection fields.  They are deliberately
+    # appended so historical positional consumers remain source-compatible.
+    descriptor_id: str | None = None
+    computation_state: Mapping[str, Any] | None = None
+    provenance: Mapping[str, Any] | None = None
+    uncertainty: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +57,10 @@ class EvidenceItemView:
     supported_interpretations: tuple[str, ...]
     prohibited_conclusions: tuple[str, ...]
     limitations: tuple[str, ...]
+    descriptor_id: str | None = None
+    computation_state: Mapping[str, Any] | None = None
+    provenance: Mapping[str, Any] | None = None
+    uncertainty: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +86,7 @@ class EvidencePackageView:
     human_review: tuple[HumanReviewView, ...]
     figure_views: tuple[FigureIndexEntry, ...] = ()
     package_root: str = ""
+    result_tables: tuple[Mapping[str, Any], ...] = ()
 
 
 def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
@@ -87,6 +98,7 @@ def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
     metrics_payload = _read(root, metric_file)
     ars_file = str(manifest.get("ars_writing_input", "ars-writing-input.json"))
     ars = _read(root, ars_file)
+    result_tables = _load_result_tables(root, manifest)
     limitations = _read(root, "limitations.json").get("limitations", manifest.get("limitations", ()))
     if not isinstance(techniques_payload, Mapping) or not isinstance(writing, Mapping):
         raise ValueError("evidence package techniques are invalid")
@@ -99,6 +111,8 @@ def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
         if not isinstance(record, Mapping):
             raise ValueError("metric record is invalid")
         try:
+            computation_state = _optional_state(record.get("computation_state"))
+            _reject_uncomputable_metric(record, computation_state)
             view = EvidenceMetricView(
                 metric_id=str(record["metric_id"]), technique=str(record["technique"]),
                 metric_key=str(record["metric_key"]), value=record["value"], unit=str(record["unit"]),
@@ -109,6 +123,10 @@ def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
                 reason_codes=tuple(str(value) for value in record.get("reason_codes", ())),
                 figures=tuple(str(value) for value in record.get("figures", ())),
                 tables=tuple(str(value) for value in record.get("tables", ())),
+                descriptor_id=_optional_string(record.get("descriptor_id")),
+                computation_state=computation_state,
+                provenance=_optional_mapping(record.get("provenance")),
+                uncertainty=_optional_mapping(record.get("uncertainty")),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError("metric record is invalid") from exc
@@ -140,6 +158,10 @@ def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
             for metric_id in discussion_ids:
                 if metric_by_id[metric_id].writing_eligibility == "results_candidate":
                     raise ValueError("Results metric projected as diagnostic")
+            computation_state = _optional_state(item.get("computation_state"))
+            descriptor_id = _optional_string(item.get("descriptor_id"))
+            provenance = _optional_mapping(item.get("provenance"))
+            uncertainty = _optional_mapping(item.get("uncertainty"))
             evidence_views.append(EvidenceItemView(
                 evidence_id=str(item.get("evidence_id", "")), technique=str(technique).lower(),
                 status=str(item.get("status", "unknown")),
@@ -151,6 +173,10 @@ def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
                 supported_interpretations=tuple(str(value) for value in item.get("supported_interpretations", ())),
                 prohibited_conclusions=tuple(str(value) for value in item.get("prohibited_conclusions", item.get("disallowed_conclusions", ()))),
                 limitations=tuple(str(value) for value in item.get("limitations", ())),
+                descriptor_id=descriptor_id,
+                computation_state=computation_state,
+                provenance=provenance,
+                uncertainty=uncertainty,
             ))
     human_review_values = ars.get("human_review", ())
     if not isinstance(human_review_values, list):
@@ -174,6 +200,7 @@ def load_evidence_package_view(package_path: str | Path) -> EvidencePackageView:
         limitations=tuple(str(value) for value in limitations), human_review=human_review,
         figure_views=load_figure_index(root),
         package_root=str(root),
+        result_tables=result_tables,
     )
 
 
@@ -198,6 +225,71 @@ def _ars_evidence_item(ars: Mapping[str, Any], technique: str, evidence_id: str)
         if isinstance(item, Mapping) and str(item.get("evidence_id", "")) == evidence_id:
             return item
     raise ValueError("ARS evidence reference is invalid")
+
+
+def _optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("evidence projection string is invalid")
+    return value.strip()
+
+
+def _optional_mapping(value: Any) -> Mapping[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError("evidence projection mapping is invalid")
+    return dict(value)
+
+
+def _optional_state(value: Any) -> Mapping[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError("evidence computation state is invalid")
+    # Validate against the canonical four-axis contract while retaining a
+    # plain JSON mapping for the read-only view DTO.
+    try:
+        from polynexus.core.ai_platform.contracts import ComputationState
+
+        state = ComputationState.from_dict(value)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("evidence computation state is invalid") from exc
+    return state.to_dict()
+
+
+def _reject_uncomputable_metric(
+    record: Mapping[str, Any], state: Mapping[str, Any] | None
+) -> None:
+    """Do not let a malformed package expose a value from a blocked node."""
+
+    status = str(record.get("status", "computed")).strip().lower()
+    computability = str((state or {}).get("computability", "computed")).strip().lower()
+    noncomputable_statuses = {"needs_input", "blocked", "failed", "not_applicable", "unavailable"}
+    if status in noncomputable_statuses or computability != "computed":
+        if "value" in record:
+            raise ValueError("metric record is not computable")
+
+
+def _load_result_tables(
+    root: Path, manifest: Mapping[str, Any]
+) -> tuple[Mapping[str, Any], ...]:
+    relative = manifest.get("result_tables")
+    if relative in (None, ""):
+        return ()
+    if not isinstance(relative, str) or not relative.strip():
+        raise ValueError("evidence package result tables reference is invalid")
+    payload = _read(root, relative)
+    values = payload.get("tables", ())
+    if not isinstance(values, list):
+        raise ValueError("evidence package result tables are invalid")
+    tables: list[Mapping[str, Any]] = []
+    for value in values:
+        if not isinstance(value, Mapping):
+            raise ValueError("evidence package result table is invalid")
+        tables.append(dict(value))
+    return tuple(tables)
 
 
 __all__ = ["EvidenceItemView", "EvidenceMetricView", "EvidencePackageView", "EvidencePackageView", "EvidenceTechniqueView", "HumanReviewView", "load_evidence_package_view"]

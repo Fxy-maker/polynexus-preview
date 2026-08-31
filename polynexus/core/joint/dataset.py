@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import math
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from .validation import run_all_cross_validations
 from .conclusion import classify_joint_conclusion
@@ -46,6 +46,16 @@ KEY_PARAMETER_LABELS: dict[str, list[tuple[str, tuple[str, ...], str]]] = {
 
 def _normalise_technique(value: Any) -> str:
     text = str(value or "").strip().lower()
+    aliases = {
+        "ftir": "ir",
+        "infrared": "ir",
+        "saxs2d": "saxs",
+        "waxs2d": "waxs",
+        "gpc": "sec",
+        "sec/gpc": "sec",
+    }
+    if text in aliases:
+        text = aliases[text]
     for tech in TECHNIQUES:
         if text.startswith(tech):
             return tech
@@ -70,11 +80,36 @@ def _coerce_float(value: Any) -> float:
 
 def _iter_dicts(value: Any) -> Iterable[dict[str, Any]]:
     """Yield dictionaries from nested parameter payloads, shallow-first."""
-    if isinstance(value, dict):
-        yield value
+    if isinstance(value, Mapping):
+        yield dict(value)
         for nested in value.values():
-            if isinstance(nested, dict):
-                yield nested
+            if isinstance(nested, Mapping):
+                yield dict(nested)
+
+
+def _metric_key_normalize(value: Any) -> str:
+    """Normalize manifest paths and legacy aliases for deterministic matching."""
+
+    text = str(value or "").strip().casefold()
+    if not text:
+        return ""
+    # A nested manifest path (``thermal.Tm_C``) matches its leaf key while
+    # preserving the original path in provenance.
+    text = text.rsplit(".", 1)[-1]
+    return "".join(char for char in text if char.isalnum())
+
+
+def _shared_metric_is_readable(metric: Mapping[str, Any]) -> bool:
+    """Fail closed for rows that are unavailable or not computable."""
+
+    status = str(metric.get("status", "computed")).strip().casefold()
+    if status in {"needs_input", "blocked", "failed", "not_applicable", "unavailable"}:
+        return False
+    state = metric.get("computation_state")
+    if isinstance(state, Mapping):
+        if str(state.get("computability", "computed")).strip().casefold() != "computed":
+            return False
+    return True
 
 
 def _condition_label(condition_values: Any) -> str:
@@ -113,20 +148,163 @@ class JointRunRecord:
     @property
     def values(self) -> dict[str, Any]:
         merged: dict[str, Any] = {}
-        if isinstance(self.parameters, dict):
+        if isinstance(self.parameters, Mapping):
             merged.update(self.parameters)
-        if isinstance(self.results_summary, dict):
+        if isinstance(self.results_summary, Mapping):
             merged.update(self.results_summary)
+        # Shared metric rows are canonical.  Overlay only scalar values from
+        # a valid manifest so legacy summaries remain available as a fallback
+        # without shadowing newer provenance-bearing values.
+        shared_run_ready = self._shared_run_allows_values
+        for metric in self.shared_metric_manifest:
+            if not shared_run_ready or not _shared_metric_is_readable(metric):
+                continue
+            path = str(metric.get("path") or metric.get("metric_key") or "").strip()
+            if not path or "value" not in metric:
+                continue
+            merged[path] = metric.get("value")
+            merged[path.rsplit(".", 1)[-1]] = metric.get("value")
         return merged
+
+    @property
+    def compute_run_projection(self) -> dict[str, Any] | None:
+        """Return the nested shared ComputeRun payload, if present."""
+
+        summary = self.results_summary if isinstance(self.results_summary, Mapping) else {}
+        value = summary.get("compute_run")
+        return value if isinstance(value, Mapping) else None
+
+    @property
+    def shared_metric_manifest(self) -> tuple[dict[str, Any], ...]:
+        """Read the canonical metric manifest without reparsing raw artifacts."""
+
+        compute_run = self.compute_run_projection
+        if compute_run is None:
+            return ()
+        result = compute_run.get("result")
+        if not isinstance(result, Mapping):
+            result = {}
+        candidates: Any = result.get("metric_manifest")
+        if candidates is None:
+            candidates = compute_run.get("metric_manifest")
+        if isinstance(candidates, (list, tuple)):
+            rows = tuple(dict(item) for item in candidates if isinstance(item, Mapping))
+            if rows:
+                return rows
+
+        # A lightweight shared projection may contain ``result.metrics`` but
+        # omit the derived manifest.  Materialize only its structural field
+        # inventory here; this is not a scientific recalculation and keeps
+        # the values on the same shared-compute path instead of silently
+        # falling back to legacy summaries.
+        metrics = result.get("metrics")
+        if not isinstance(metrics, Mapping) or not metrics:
+            return ()
+        try:
+            from ..compute.result_inventory import build_result_field_inventory
+
+            inventory = build_result_field_inventory(metrics)
+        except (TypeError, ValueError):
+            return ()
+        shared_fields = {}
+        for key in ("descriptor_id", "computation_state", "provenance", "uncertainty"):
+            value = result.get(key)
+            if value is None:
+                value = compute_run.get(key)
+            if value is not None:
+                shared_fields[key] = value
+        rows: list[dict[str, Any]] = []
+        for item in inventory:
+            row = item.to_dict()
+            row["status"] = "computed" if item.present else "unavailable"
+            row.update(shared_fields)
+            rows.append(row)
+        return tuple(rows)
+
+    # Short aliases keep adapters readable for callers that used the earlier
+    # ``manifest`` terminology.
+    @property
+    def metric_manifest(self) -> tuple[dict[str, Any], ...]:
+        return self.shared_metric_manifest
+
+    @property
+    def metric_source(self) -> str:
+        # The envelope itself is the source boundary.  A valid shared run may
+        # have no metric leaves (or may be blocked), but that must not be
+        # mislabeled as a legacy result and then accidentally promoted.
+        return "shared_compute_run" if self.compute_run_projection is not None else "legacy_results_summary"
+
+    @property
+    def metric_manifest_source(self) -> str:
+        return self.metric_source
+
+    @property
+    def compatibility_only(self) -> bool:
+        return self.metric_source != "shared_compute_run"
+
+    @property
+    def legacy_compatibility_only(self) -> bool:
+        return self.compatibility_only
+
+    @property
+    def shared_computation_state(self) -> dict[str, Any] | None:
+        compute_run = self.compute_run_projection
+        if not compute_run:
+            return None
+        state = compute_run.get("computation_state")
+        if state is None and isinstance(compute_run.get("result"), Mapping):
+            state = compute_run["result"].get("computation_state")
+        return dict(state) if isinstance(state, Mapping) else None
+
+    @property
+    def shared_descriptor_id(self) -> str | None:
+        compute_run = self.compute_run_projection
+        if not compute_run:
+            return None
+        descriptor = compute_run.get("descriptor_id")
+        if descriptor is None and isinstance(compute_run.get("result"), Mapping):
+            descriptor = compute_run["result"].get("descriptor_id")
+        return str(descriptor) if descriptor else None
+
+    @property
+    def _shared_run_allows_values(self) -> bool:
+        compute_run = self.compute_run_projection
+        if not compute_run:
+            return False
+        return str(compute_run.get("status", "completed")).strip().casefold() == "completed"
+
+    @property
+    def _legacy_values_allowed(self) -> bool:
+        """Only use legacy scalar summaries when no shared run was supplied."""
+
+        return self.compute_run_projection is None
 
     def get_first_number(self, keys: Iterable[str]) -> float:
         key_set = tuple(keys)
-        for payload in _iter_dicts(self.values):
-            for key in key_set:
-                if key in payload:
-                    value = _coerce_float(payload.get(key))
-                    if not math.isnan(value):
-                        return value
+        normalized_keys = {_metric_key_normalize(key) for key in key_set}
+        for metric in self.shared_metric_manifest:
+            if (
+                not self._shared_run_allows_values
+                or not _shared_metric_is_readable(metric)
+                or "value" not in metric
+            ):
+                continue
+            candidates = (
+                metric.get("path"),
+                metric.get("metric_key"),
+                metric.get("name"),
+            )
+            if any(_metric_key_normalize(candidate) in normalized_keys for candidate in candidates):
+                value = _coerce_float(metric.get("value"))
+                if not math.isnan(value):
+                    return value
+        if self._legacy_values_allowed:
+            for payload in _iter_dicts(self.values):
+                for key in key_set:
+                    if key in payload:
+                        value = _coerce_float(payload.get(key))
+                        if not math.isnan(value):
+                            return value
         return math.nan
 
     def format_key_parameters(self) -> str:
@@ -394,6 +572,8 @@ def build_joint_run_provenance(
                 "evidence_status": "missing",
                 "evidence_weight": 0.0,
                 "evidence_reasons": ["run_missing"],
+                "metric_source": "missing",
+                "compatibility_only": True,
             }
             continue
         evidence = _run_evidence_context(run)
@@ -408,6 +588,11 @@ def build_joint_run_provenance(
             "evidence_status": str(evidence["status"]),
             "evidence_weight": float(evidence["weight"]),
             "evidence_reasons": [str(item) for item in evidence["reasons"]],
+            "metric_source": run.metric_source,
+            "compatibility_only": run.compatibility_only,
+            "metric_manifest_count": len(run.shared_metric_manifest),
+            "descriptor_id": run.shared_descriptor_id,
+            "computation_state": run.shared_computation_state,
         }
     return {
         "sample_id": str(row.sample_id or ""),
@@ -452,6 +637,11 @@ def build_joint_source_preflight(row: JointBatchRow) -> list[dict[str, Any]]:
                 "evidence_reasons": [str(item) for item in evidence["reasons"]],
                 "comparison_status": comparison_status,
                 "comparison_value_available": contributes,
+                "metric_source": run.metric_source,
+                "compatibility_only": run.compatibility_only,
+                "metric_manifest_count": len(run.shared_metric_manifest),
+                "descriptor_id": run.shared_descriptor_id,
+                "computation_state": run.shared_computation_state,
             }
         )
     return entries

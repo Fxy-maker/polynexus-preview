@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 import sys
 import time
@@ -84,6 +85,50 @@ def analysis_evidence_from_ai_report(report: dict) -> dict:
     return dict(evidence) if isinstance(evidence, dict) else {}
 
 
+def _json_projection(value: Any) -> Any:
+    """Detach a shared public value into standard JSON containers."""
+
+    if isinstance(value, Mapping):
+        return {str(key): _json_projection(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_projection(item) for item in value]
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        return _json_projection(to_dict())
+    return value
+
+
+def _compute_run_projection(value: Any) -> dict[str, Any] | None:
+    """Accept a live or already-serialized shared ComputeRun envelope."""
+
+    if isinstance(value, ComputeRun):
+        candidate: Any = value.to_dict()
+    elif isinstance(value, Mapping):
+        nested = value.get("compute_run")
+        candidate = nested if isinstance(nested, Mapping) else value
+    else:
+        return None
+    if not isinstance(candidate, Mapping):
+        return None
+    status = str(candidate.get("status", "")).strip().lower()
+    if status not in {"ready", "needs_input", "failed", "completed"}:
+        return None
+    if not isinstance(candidate.get("artifact"), Mapping):
+        return None
+    projection = _json_projection(candidate)
+    return projection if isinstance(projection, dict) else None
+
+
+def _projection_metrics(projection: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    if not isinstance(projection, Mapping):
+        return {}
+    result = projection.get("result")
+    if not isinstance(result, Mapping):
+        return {}
+    metrics = result.get("metrics")
+    return metrics if isinstance(metrics, Mapping) else {}
+
+
 def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -> None:
     try:
         from polynexus.data.sample_db import SampleDB
@@ -93,20 +138,28 @@ def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -
         db = SampleDB()
         try:
             compute_run = result if isinstance(result, ComputeRun) else None
-            legacy_result = compute_run.legacy_result if compute_run is not None else result
+            shared_projection = _compute_run_projection(result)
+            legacy_result = compute_run.legacy_result if compute_run is not None else (
+                None if shared_projection is not None else result
+            )
             parameters = {}
             result_params = (
                 compute_run.result.metrics
                 if compute_run is not None and compute_run.result is not None
+                else _projection_metrics(shared_projection)
+                if shared_projection is not None
                 else getattr(legacy_result, "parameters", {}) or {}
             )
-            if isinstance(result_params, dict):
+            if isinstance(result_params, Mapping):
                 parameters = dict(result_params)
+            result_r2 = extract_result_r2(legacy_result)
+            if result_r2 is None and result_params:
+                result_r2 = extract_result_r2({"parameters": dict(result_params)})
             parameters.update(
                 {
                     "source": "batch_cli",
                     "technique": technique,
-                    "r_squared": extract_result_r2(legacy_result),
+                    "r_squared": result_r2,
                     "elapsed_s": round(elapsed, 3),
                     "polymer_type": polymer_name,
                 }
@@ -133,22 +186,48 @@ def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -
                 file_type=data_file.suffix.lower().lstrip("."),
                 import_order=0,
             )
-            db.create_analysis_run(
+            run_status = (
+                str(shared_projection.get("status", "")).strip().lower()
+                if isinstance(shared_projection, dict)
+                else ""
+            )
+            persisted_evidence = (
+                analysis_evidence_from_result(legacy_result)
+                if not run_status or run_status == "completed"
+                else {}
+            )
+            summary = {
+                "source": "batch_cli",
+                "technique": technique,
+                "data_file": str(data_file.resolve()),
+                "elapsed_s": round(elapsed, 3),
+                "r_squared": result_r2,
+                # Existing scalar keys remain for old GUI/history readers;
+                # the nested ComputeRun is the canonical shared projection.
+                "metric_source": "shared_compute_run" if shared_projection else "legacy_results_summary",
+                "compatibility_only": not bool(shared_projection),
+            }
+            if shared_projection is not None:
+                summary["compute_run"] = shared_projection
+            else:
+                summary["legacy_projection"] = {
+                    "source": "legacy_provider_result",
+                    "compatibility_only": True,
+                }
+            run_id = db.create_analysis_run(
                 batch_id,
                 technique,
                 submodule=f"{technique}.batch",
                 parameters=parameters,
-                results_summary={
-                    "source": "batch_cli",
-                    "technique": technique,
-                    "data_file": str(data_file.resolve()),
-                    "elapsed_s": round(elapsed, 3),
-                    "r_squared": extract_result_r2(result),
-                },
-                analysis_evidence=analysis_evidence_from_result(legacy_result),
+                results_summary=summary,
+                analysis_evidence=persisted_evidence,
                 output_dir=str(data_file.parent.resolve()),
                 ai_tuned=False,
             )
+            if run_status and run_status != "completed":
+                update_status = getattr(db, "update_analysis_status", None)
+                if callable(update_status):
+                    update_status(run_id, run_status, log_msg="shared_compute_run_not_completed")
         finally:
             db.close()
     except Exception:

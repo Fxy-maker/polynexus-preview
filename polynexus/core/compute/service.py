@@ -127,6 +127,43 @@ class ComputeRunService:
     def __init__(self, engine_factory: Callable[..., Any] = get_engine) -> None:
         self._engine_factory = engine_factory
 
+    def execute_graph(
+        self,
+        graph: Any,
+        context: Any,
+        executors: Mapping[str, Callable[[Mapping[str, Any]], Any]] | None = None,
+        *,
+        cache: Mapping[str, Any] | None = None,
+        descriptor_registry: Any | None = None,
+        capability_registry: Any | None = None,
+    ) -> Any:
+        """Execute a shared AI-platform graph through the compute façade.
+
+        This is intentionally a narrow adapter: it validates the public graph
+        and context types, then delegates synchronously to
+        :meth:`ExecutionGraph.execute`.  It does not turn graph nodes into a
+        second ``ComputeRun`` representation or route the established
+        ``run_direct`` path through a scheduler.
+        """
+
+        from ..ai_platform.execution import ExecutionContext, ExecutionGraph
+
+        if isinstance(graph, Mapping):
+            graph = ExecutionGraph.from_dict(graph)
+        if isinstance(context, Mapping):
+            context = ExecutionContext.from_dict(context)
+        if not isinstance(graph, ExecutionGraph):
+            raise TypeError("execute_graph expects an ExecutionGraph or mapping")
+        if not isinstance(context, ExecutionContext):
+            raise TypeError("execute_graph expects an ExecutionContext or mapping")
+        return graph.execute(
+            context,
+            executors,
+            cache=cache,
+            descriptor_registry=descriptor_registry,
+            capability_registry=capability_registry,
+        )
+
     def run_direct(
         self,
         *,
@@ -256,6 +293,25 @@ class ComputeRunService:
                     artifact=artifact,
                     reasons=conversion.reason_codes,
                 )
+            if (
+                conversion.status == "blocked"
+                and source.is_file()
+                and source.suffix.casefold()
+                in {".edf", ".cbf", ".tif", ".tiff", ".h5", ".hdf5", ".nxs"}
+                and any(str(reason).startswith("detector_image_") for reason in conversion.reason_codes)
+            ):
+                # Keep provider compatibility when a vendor reader can open
+                # an image that the canonical detector decoder cannot.  The
+                # fallback is a raw-file envelope only: it carries the byte
+                # hash and never asserts pixel geometry, calibration, or a
+                # derived physical axis.
+                fallback = default_converter_registry().compatibility_envelope(
+                    source,
+                    technique=normalized_technique,
+                    source_artifact_id=artifact.artifact_id,
+                )
+                if fallback.status == "ready":
+                    canonical_template = fallback.template
             if (
                 conversion.status == "ready"
                 and conversion.template is not None

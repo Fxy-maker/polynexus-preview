@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from ..utils import detect_polymer_type
+from ..core.compute import ComputeRun
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,20 @@ def result_payload(result) -> dict[str, Any]:
     else:
         payload = to_jsonable(getattr(result, "__dict__", {}))
     return payload if isinstance(payload, dict) else {}
+
+
+def compute_run_payload(value: Any) -> dict[str, Any] | None:
+    """Return the canonical JSON projection for a shared ComputeRun value."""
+
+    if isinstance(value, ComputeRun):
+        payload = to_jsonable(value.to_dict())
+    elif isinstance(value, Mapping) and "status" in value and (
+        "artifact" in value or "computation_state" in value
+    ):
+        payload = to_jsonable(dict(value))
+    else:
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def extract_result_r2(payload: dict[str, Any]) -> float:
@@ -196,12 +211,31 @@ def _ensure_data_file(db, batch_id: str, data_file: Path | None, resolved_data_f
 
 
 def persist_analysis_run(db, result, context: AnalysisRunPersistenceContext) -> str:
-    payload = result_payload(result)
+    shared_compute_run = compute_run_payload(context.compute_run)
+    if shared_compute_run is None:
+        shared_compute_run = compute_run_payload(result)
+    # Keep the historical provider result under ``result`` for display
+    # compatibility, while storing the complete ComputeRun beside it.  A
+    # needs-input run can legitimately have no legacy result at all.
+    if isinstance(context.compute_run, ComputeRun):
+        legacy_value = context.compute_run.legacy_result
+        payload = result_payload(legacy_value) if legacy_value is not None else {}
+    elif isinstance(result, ComputeRun):
+        legacy_value = result.legacy_result
+        payload = result_payload(legacy_value) if legacy_value is not None else {}
+    else:
+        payload = result_payload(result)
     analysis_evidence = (
         payload.get("analysis_evidence")
         if isinstance(payload.get("analysis_evidence"), dict)
         else {}
     )
+
+    shared_status = str(shared_compute_run.get("status", "")).strip().lower() if shared_compute_run else ""
+    if shared_status and shared_status != "completed":
+        # A blocked/needs-input/failed envelope is planning or diagnostic
+        # information, never publishable evidence.
+        analysis_evidence = {}
 
     technique = str(payload.get("technique") or context.technique or "unknown")
     submodule = str(context.submodule or "")
@@ -238,7 +272,7 @@ def persist_analysis_run(db, result, context: AnalysisRunPersistenceContext) -> 
         "sample_name": polymer_name,
         "batch_id": str(context.current_batch_id or ""),
         "batch_label": str(context.current_batch_label or ""),
-        "status": "completed",
+        "status": shared_status or "completed",
         "result": payload,
         "r2": extract_result_r2(payload),
         "polymer_type": polymer_type,
@@ -247,12 +281,19 @@ def persist_analysis_run(db, result, context: AnalysisRunPersistenceContext) -> 
         "confirmed": bool(context.confirmed),
         "history_context": to_jsonable(context.history_context),
     }
-    if context.compute_run is not None:
-        compute_run_payload = to_jsonable(context.compute_run)
-        if isinstance(compute_run_payload, dict):
-            summary["compute_run"] = compute_run_payload
+    if shared_compute_run is not None:
+        summary["compute_run"] = shared_compute_run
+        summary["metric_source"] = "shared_compute_run"
+        summary["compatibility_only"] = False
+    else:
+        summary["metric_source"] = "legacy_results_summary"
+        summary["compatibility_only"] = True
+        summary["legacy_projection"] = {
+            "source": "legacy_provider_result",
+            "compatibility_only": True,
+        }
 
-    return db.create_analysis_run(
+    run_id = db.create_analysis_run(
         batch_id,
         technique,
         submodule=submodule,
@@ -260,9 +301,17 @@ def persist_analysis_run(db, result, context: AnalysisRunPersistenceContext) -> 
         results_summary=to_jsonable(summary),
         analysis_evidence=to_jsonable(analysis_evidence),
         output_dir=context.output_dir,
-        ai_tuned=bool(context.ai_tuned),
-        confirmed=bool(context.confirmed),
+        ai_tuned=bool(context.ai_tuned) if not shared_status or shared_status == "completed" else False,
+        confirmed=bool(context.confirmed) if not shared_status or shared_status == "completed" else False,
     )
+    # SampleDB historically inserts completed rows unconditionally.  Update
+    # the status column after insertion when a shared run explicitly carries a
+    # non-completed state; old callers and schemas remain untouched.
+    if shared_status and shared_status != "completed":
+        update_status = getattr(db, "update_analysis_status", None)
+        if callable(update_status):
+            update_status(run_id, shared_status, log_msg="shared_compute_run_not_completed")
+    return run_id
 
 
 def persist_batch_analysis_runs(

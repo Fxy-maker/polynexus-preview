@@ -59,6 +59,38 @@ def test_load_package_view_exposes_technique_neutral_rows_and_review(tmp_path: P
     assert view.evidence[0].discussion_metric_ids == ("metric-diagnostic",)
 
 
+def test_load_package_view_preserves_shared_metric_metadata_and_result_tables(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    manifest = json.loads((package / "manifest.json").read_text(encoding="utf-8"))
+    manifest["result_tables"] = "result-tables.json"
+    (package / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    metrics = json.loads((package / "citation-metrics.json").read_text(encoding="utf-8"))
+    metrics["records"][0].update({
+        "descriptor_id": "dsc.Tm.v1",
+        "computation_state": {
+            "data_availability": "canonical",
+            "computability": "computed",
+            "validity": "diagnostic",
+            "promotion": "diagnostic_only",
+        },
+        "provenance": {"algorithm": "peak.v2"},
+        "uncertainty": {"kind": "std", "value": 1.5},
+    })
+    (package / "citation-metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
+    (package / "result-tables.json").write_text(json.dumps({
+        "tables": [{"group_id": "dsc:step", "technique": "dsc", "rows": []}],
+    }), encoding="utf-8")
+
+    view = load_evidence_package_view(package)
+
+    metric = view.metrics[0]
+    assert metric.descriptor_id == "dsc.Tm.v1"
+    assert metric.computation_state["computability"] == "computed"
+    assert metric.provenance == {"algorithm": "peak.v2"}
+    assert metric.uncertainty == {"kind": "std", "value": 1.5}
+    assert view.result_tables[0]["group_id"] == "dsc:step"
+
+
 def test_load_package_view_exposes_indexed_logical_figures(tmp_path: Path) -> None:
     package = _package(tmp_path)
     (package / "figures").mkdir()

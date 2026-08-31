@@ -29,9 +29,13 @@ class CitationMetric:
     reason_codes: tuple[str, ...] = ()
     figures: tuple[str, ...] = ()
     tables: tuple[str, ...] = ()
+    descriptor_id: str | None = None
+    computation_state: Mapping[str, Any] | None = None
+    provenance: Mapping[str, Any] | None = None
+    uncertainty: Mapping[str, Any] | None = None
 
     def public_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "technique": self.technique,
             "metric_key": self.metric_key,
             "value": self.value,
@@ -47,6 +51,18 @@ class CitationMetric:
             "figures": list(self.figures),
             "tables": list(self.tables),
         }
+        # Keep historical metric identities stable: optional shared-platform
+        # fields participate in the identity only when a producer supplied
+        # them explicitly.
+        if self.descriptor_id is not None:
+            payload["descriptor_id"] = self.descriptor_id
+        if self.computation_state is not None:
+            payload["computation_state"] = dict(self.computation_state)
+        if self.provenance is not None:
+            payload["provenance"] = dict(self.provenance)
+        if self.uncertainty is not None:
+            payload["uncertainty"] = dict(self.uncertainty)
+        return payload
 
     def to_dict(self) -> dict[str, Any]:
         return {"metric_id": self.metric_id, **self.public_dict()}
@@ -86,6 +102,8 @@ def _metric_manifest_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric
     for item in manifest:
         if not isinstance(item, Mapping) or item.get("kind") != "scalar":
             continue
+        if not _manifest_metric_is_computed(item, compute_run):
+            continue
         value = _finite(item.get("value"))
         path = str(item.get("path", "")).strip()
         if value is None or not path:
@@ -100,6 +118,10 @@ def _metric_manifest_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric
             locator=f"{item.get('source') or 'unknown'}::{path}",
             eligibility="diagnostic_only",
             reasons=reasons or ("compute_metric_manifest",),
+            descriptor_id=item.get("descriptor_id"),
+            computation_state=item.get("computation_state"),
+            provenance=item.get("provenance"),
+            uncertainty=item.get("uncertainty"),
         ))
     return tuple(records)
 
@@ -165,8 +187,13 @@ def with_package_assets(
 
 
 def _base(payload: Mapping[str, Any], *, key: str, value: float | int, unit: str, method: str, locator: str,
-          eligibility: str = "results_candidate", reasons: Iterable[str] = ()) -> CitationMetric:
+          eligibility: str = "results_candidate", reasons: Iterable[str] = (),
+          descriptor_id: Any = None, computation_state: Any = None,
+          provenance: Any = None, uncertainty: Any = None) -> CitationMetric:
     source_runs = tuple(str(value) for value in payload.get("source_runs", ()))
+    normalized_descriptor = str(descriptor_id).strip() if descriptor_id is not None else None
+    if normalized_descriptor == "":
+        normalized_descriptor = None
     return CitationMetric(
         metric_id="",
         technique=str(payload.get("technique", "")).lower(),
@@ -183,6 +210,10 @@ def _base(payload: Mapping[str, Any], *, key: str, value: float | int, unit: str
         reason_codes=tuple(dict.fromkeys(str(value) for value in reasons if value)),
         figures=tuple(str(value) for value in payload.get("figures", ())),
         tables=tuple(str(value) for value in payload.get("tables", ())),
+        descriptor_id=normalized_descriptor,
+        computation_state=dict(computation_state) if isinstance(computation_state, Mapping) else None,
+        provenance=dict(provenance) if isinstance(provenance, Mapping) else None,
+        uncertainty=dict(uncertainty) if isinstance(uncertainty, Mapping) else None,
     )
 
 
@@ -197,6 +228,35 @@ def _finite(value: Any) -> float | int | None:
     if isinstance(value, float) and not math.isfinite(value):
         return None
     return value
+
+
+def _manifest_metric_is_computed(
+    metric: Mapping[str, Any], compute_run: Mapping[str, Any]
+) -> bool:
+    """Fail closed when a manifest row or its run is not computable."""
+
+    if str(compute_run.get("status", "completed")).strip().lower() != "completed":
+        return False
+    status = str(metric.get("status", "computed")).strip().lower()
+    if status != "computed":
+        return False
+    for candidate in (
+        compute_run.get("computation_state", compute_run.get("state")),
+        metric.get("computation_state"),
+    ):
+        if candidate is None:
+            continue
+        if not isinstance(candidate, Mapping):
+            return False
+        try:
+            from polynexus.core.ai_platform.contracts import ComputationState
+
+            state = ComputationState.from_dict(candidate)
+        except (KeyError, TypeError, ValueError):
+            return False
+        if state.computability != "computed":
+            return False
+    return True
 
 
 def _summary(payload: Mapping[str, Any]) -> Mapping[str, Any]:

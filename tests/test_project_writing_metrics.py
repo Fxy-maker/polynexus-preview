@@ -151,6 +151,27 @@ def test_compute_metric_manifest_is_projected_to_citation_metrics_with_provenanc
     assert "baseline_review" in metric.reason_codes
 
 
+def test_needs_input_metric_manifest_value_is_not_projected_to_citation_metrics():
+    records = extract_writing_metrics(_item("dsc", {
+        "compute_run": {"result": {"metric_manifest": [{
+            "path": "Tm_C",
+            "kind": "scalar",
+            "value": 220.5,
+            "unit": "°C",
+            "method": "peak_maximum",
+            "status": "needs_input",
+            "computation_state": {
+                "data_availability": "canonical",
+                "computability": "needs_input",
+                "validity": "not_assessed",
+                "promotion": "diagnostic_only",
+            },
+        }]}}
+    }))
+
+    assert records == ()
+
+
 def test_provider_capability_projection_is_cited_as_diagnostic_only():
     records = extract_writing_metrics(_item("dsc", {
         "provider_capability_items": [{

@@ -96,7 +96,15 @@ def evidence_items_from_run(
     for step in run.steps:
         if step.status not in {"completed", "review_required"}:
             continue
+        # Lifecycle labels are intentionally kept compatible with historical
+        # Agent bundles, but the shared computation axis is authoritative for
+        # evidence promotion.  A legacy adapter must not be able to relabel a
+        # missing-input/blocked/failed node as reviewable evidence.
+        if not _step_is_computable(step):
+            continue
         summary = dict(step.result_summary)
+        if step.compute_run is not None and "compute_run" not in summary:
+            summary["compute_run"] = dict(step.compute_run)
         analysis_evidence = dict(step.analysis_evidence)
         supported: tuple[str, ...] = ()
         summary_text = analysis_evidence.get("summary")
@@ -133,6 +141,38 @@ def evidence_items_from_run(
         )
         items.append(item)
     return tuple(items)
+
+
+def _step_is_computable(step: Any) -> bool:
+    """Return whether a workflow step may produce an evidence item.
+
+    Historical steps have no shared state and remain packageable when their
+    lifecycle status is completed/review_required.  Once a shared state or
+    ComputeRun projection is present, non-computed computability is a hard
+    gate.  This helper deliberately does not inspect provider-specific values.
+    """
+
+    state = getattr(step, "computation_state", None)
+    if state is not None:
+        computability = getattr(state, "computability", None)
+        if computability is None and isinstance(state, Mapping):
+            computability = state.get("computability")
+        if str(computability or "").strip().lower() != "computed":
+            return False
+    compute_run = getattr(step, "compute_run", None)
+    if isinstance(compute_run, Mapping):
+        status = str(compute_run.get("status", "")).strip().lower()
+        if status and status != "completed":
+            return False
+        run_state = compute_run.get("computation_state", compute_run.get("state"))
+        if isinstance(run_state, Mapping):
+            if str(run_state.get("computability", "")).strip().lower() != "computed":
+                return False
+        elif run_state is not None:
+            computability = getattr(run_state, "computability", None)
+            if str(computability or "").strip().lower() != "computed":
+                return False
+    return True
 
 
 def _referenced_paths(value: Mapping[str, Any]) -> tuple[str, ...]:

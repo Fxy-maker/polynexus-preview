@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
+from polynexus.core.ai_platform.contracts import ComputationState
 from polynexus.core.project_workflow.result_table import (
     ResultTableRow,
     build_group_result_table,
+    build_result_tables_from_runs,
 )
 
 
@@ -99,3 +103,37 @@ def test_group_table_rejects_mixed_techniques_and_missing_conditions():
             "missing",
             [ResultTableRow("r1", "dsc", "a.txt", "", 180.0, {"DHm_Jg": 10.0})],
         )
+
+
+def test_shared_result_table_skips_values_with_noncomputed_state():
+    state = ComputationState.create(
+        data_availability="canonical",
+        computability="needs_input",
+        validity="not_assessed",
+        promotion="diagnostic_only",
+    )
+    run = SimpleNamespace(
+        run_id="run-blocked",
+        analysis_run=SimpleNamespace(steps=(SimpleNamespace(
+            step_id="tm",
+            technique="dsc",
+            reason_codes=(),
+            compute_run={
+                "status": "completed",
+                "computation_state": state.to_dict(),
+                "artifact": {"path": "sample.csv"},
+                "result": {
+                    "warnings": [],
+                    "metric_manifest": [{
+                        "path": "Tm_C",
+                        "kind": "scalar",
+                        "value": 220.0,
+                        "status": "computed",
+                        "computation_state": state.to_dict(),
+                    }],
+                },
+            },
+        ),)),
+    )
+
+    assert build_result_tables_from_runs((run,)) == ()

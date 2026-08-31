@@ -328,6 +328,8 @@ def build_result_tables_from_runs(runs: Iterable[Any]) -> tuple[dict[str, Any], 
             result = compute_run.get("result")
             if not isinstance(result, Mapping):
                 continue
+            if not _projection_is_computed(compute_run, expected_status="completed"):
+                continue
             manifest = result.get("metric_manifest")
             if not isinstance(manifest, (list, tuple)):
                 continue
@@ -336,6 +338,8 @@ def build_result_tables_from_runs(runs: Iterable[Any]) -> tuple[dict[str, Any], 
             warnings.extend(str(value) for value in result.get("warnings", ()) if value)
             for item in manifest:
                 if not isinstance(item, Mapping) or item.get("status") != "computed":
+                    continue
+                if not _projection_is_computed(item, expected_status="computed"):
                     continue
                 if item.get("kind") != "scalar" or "value" not in item:
                     continue
@@ -359,6 +363,49 @@ def build_result_tables_from_runs(runs: Iterable[Any]) -> tuple[dict[str, Any], 
             )
             tables.append(build_group_result_table(f"{technique}:{step_id}", (row,)).to_dict())
     return tuple(tables)
+
+
+def _projection_is_computed(
+    value: Mapping[str, Any],
+    *,
+    expected_status: str,
+) -> bool:
+    """Return whether one shared projection is eligible for table values.
+
+    A run envelope and a manifest row have different lifecycle vocabularies,
+    so both are checked explicitly.  State is optional only for the smallest
+    historical projections; whenever it is present it must be a complete,
+    canonical four-axis state and its aliases must agree.
+    """
+
+    if not isinstance(value, Mapping):
+        return False
+    status = value.get("status")
+    if not isinstance(status, str) or status.strip().casefold() != expected_status:
+        return False
+
+    state_values = [value[key] for key in ("computation_state", "state") if key in value]
+    if not state_values:
+        return True
+
+    from ..ai_platform.contracts import ComputationState
+
+    normalized = []
+    for candidate in state_values:
+        if isinstance(candidate, ComputationState):
+            state = candidate
+        elif isinstance(candidate, Mapping):
+            try:
+                state = ComputationState.from_dict(candidate)
+            except (KeyError, TypeError, ValueError):
+                return False
+        else:
+            return False
+        if state.computability != "computed":
+            return False
+        normalized.append(state)
+    first = normalized[0]
+    return all(state.to_dict() == first.to_dict() for state in normalized[1:])
 
 
 __all__ = [

@@ -15,6 +15,7 @@ from polynexus.core.project_workflow.workspace import ProjectWorkspace
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.agent_workflow.models import AnalysisRecipe, AnalysisRun, EvidenceRecord, InputArtifact, RecipeStep, WorkflowStepResult
+from polynexus.core.ai_platform.contracts import ComputationState
 from polynexus.core.project_workflow.evidence import evidence_items_from_run
 from polynexus.core.project_workflow.ir_group_figures import FigureCandidate, FigureCandidateSet
 from polynexus.core.project_workflow.writing_metrics import extract_writing_metrics
@@ -289,6 +290,42 @@ def test_step_evidence_does_not_inherit_run_wide_disallowed_conclusions() -> Non
 
     assert item.limitations == ("ir_xc_uncalibrated",)
     assert item.disallowed_conclusions == ("human_review_required",)
+
+
+def test_needs_input_step_is_not_projected_to_project_evidence_even_if_review_labelled() -> None:
+    """The shared computability axis gates evidence promotion, not lifecycle labels."""
+
+    artifact = InputArtifact.ready(path="source.csv", technique="dsc", sha256="source-sha256")
+    recipe = AnalysisRecipe.create(
+        workflow_id="test.workflow.v1",
+        artifacts=(artifact,),
+        steps=(RecipeStep(step_id="dsc_step", technique="dsc"),),
+    )
+    state = ComputationState.create(
+        data_availability="canonical",
+        computability="needs_input",
+        validity="not_assessed",
+        promotion="diagnostic_only",
+        missing_inputs=("calibration:q",),
+    )
+    run = AnalysisRun(
+        recipe=recipe,
+        status="review_required",
+        steps=(WorkflowStepResult(
+            step_id="dsc_step",
+            technique="dsc",
+            status="review_required",
+            result_summary={
+                "compute_run": {
+                    "status": "needs_input",
+                    "computation_state": state.to_dict(),
+                },
+            },
+            computation_state=state,
+        ),),
+    )
+
+    assert evidence_items_from_run(run, run_id="run-dsc", raw_sources=("source-sha256",)) == ()
 
 
 def test_package_keeps_run_wide_limitations_outside_technique_items(tmp_path: Path) -> None:

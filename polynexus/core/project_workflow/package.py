@@ -15,6 +15,7 @@ from typing import Any, Iterable, Mapping
 from polynexus.core.agent_workflow.models import AnalysisRun
 from polynexus.core.artifacts import directory_manifest_entries, directory_manifest_sha256
 from polynexus.core.canonical_experiments.models import CanonicalExperiment
+from polynexus.core.ai_platform.contracts import ComputationState
 
 from .evidence import ProjectWorkflowRun
 from .ir_group_figures import FigureCandidateSet
@@ -386,6 +387,7 @@ class ProjectEvidencePackager:
                 "limitations": list(item.get("limitations", ())),
                 "observed_results": item.get("observed_results", {}),
                 "observed_metrics": ProjectEvidencePackager._observed_metrics(item.get("observed_results", {})),
+                **ProjectEvidencePackager._shared_projection_metadata(item.get("observed_results", {})),
                 "citation_metric_ids": [metric.metric_id for metric in metrics],
                 "citation_metric_counts": eligibility_counts,
             })
@@ -407,6 +409,44 @@ class ProjectEvidencePackager:
             str(item["source"]): f"{item['kind']}/{item['name']}" for item in assets
         }
         return with_package_assets(metrics, asset_paths)
+
+    @staticmethod
+    def _shared_projection_metadata(value: Any) -> dict[str, Any]:
+        """Expose shared run state beside writing evidence without re-computing."""
+
+        if not isinstance(value, Mapping):
+            return {}
+        summary = value.get("result_summary", value)
+        if not isinstance(summary, Mapping):
+            return {}
+        compute_run = summary.get("compute_run")
+        if not isinstance(compute_run, Mapping):
+            return {}
+        result = compute_run.get("result")
+        result = result if isinstance(result, Mapping) else {}
+        metadata: dict[str, Any] = {}
+        descriptor = compute_run.get("descriptor_id", result.get("descriptor_id"))
+        if descriptor is not None and str(descriptor).strip():
+            metadata["descriptor_id"] = str(descriptor).strip()
+        state = compute_run.get("computation_state", compute_run.get("state"))
+        if state is None:
+            state = result.get("computation_state", result.get("state"))
+        if state is not None:
+            if not isinstance(state, Mapping):
+                raise ValueError("shared computation state is invalid")
+            try:
+                metadata["computation_state"] = ComputationState.from_dict(state).to_dict()
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("shared computation state is invalid") from exc
+        for key in ("provenance", "uncertainty"):
+            candidate = compute_run.get(key)
+            if candidate is None:
+                candidate = result.get(key)
+            if candidate is not None:
+                if not isinstance(candidate, Mapping):
+                    raise ValueError(f"shared {key} is invalid")
+                metadata[key] = dict(candidate)
+        return metadata
 
     @staticmethod
     def _observed_metrics(value: Any) -> dict[str, float | int]:
@@ -531,6 +571,7 @@ class ProjectEvidencePackager:
             result = compute_run.get("result")
             if not isinstance(dataset, Mapping) or not isinstance(plan, Mapping) or not isinstance(result, Mapping):
                 raise ValueError("run manifest compute_run execution context is invalid")
+            self._validate_shared_compute_projection(compute_run, result)
             if dataset.get("source_artifact_id") != recipe_artifact.artifact_id:
                 raise ValueError("run manifest compute_run dataset does not match artifact")
             if str(dataset.get("technique", "")).lower() != str(recipe_artifact.technique).lower():
@@ -558,6 +599,80 @@ class ProjectEvidencePackager:
             if current_hash != artifact.sha256:
                 raise ValueError("run manifest source hash no longer matches")
         return manifest
+
+    @staticmethod
+    def _validate_shared_compute_projection(
+        compute_run: Mapping[str, Any], result: Mapping[str, Any]
+    ) -> None:
+        """Validate optional AI-platform fields without changing legacy runs."""
+
+        states: list[ComputationState] = []
+        for value in (
+            compute_run.get("computation_state", compute_run.get("state")),
+            result.get("computation_state", result.get("state")),
+        ):
+            if value is None:
+                continue
+            if not isinstance(value, Mapping):
+                raise ValueError("run manifest computation_state is invalid")
+            try:
+                states.append(ComputationState.from_dict(value))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("run manifest computation_state is invalid") from exc
+        if states and any(state.to_dict() != states[0].to_dict() for state in states[1:]):
+            raise ValueError("run manifest computation_state does not match result")
+        if states and states[0].computability != "computed":
+            raise ValueError("run manifest compute_run is not computable")
+
+        descriptors: list[str] = []
+        for value in (compute_run.get("descriptor_id"), result.get("descriptor_id")):
+            if value is None:
+                continue
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("run manifest descriptor_id is invalid")
+            descriptors.append(value.strip())
+        if descriptors and any(value != descriptors[0] for value in descriptors[1:]):
+            raise ValueError("run manifest descriptor_id does not match result")
+
+        for key in ("provenance", "uncertainty"):
+            for value in (compute_run.get(key), result.get(key)):
+                if value is not None and not isinstance(value, Mapping):
+                    raise ValueError(f"run manifest {key} is invalid")
+
+        manifest = result.get("metric_manifest")
+        if manifest is None:
+            return
+        if not isinstance(manifest, (list, tuple)):
+            raise ValueError("run manifest metric manifest is invalid")
+        for item in manifest:
+            if not isinstance(item, Mapping):
+                raise ValueError("run manifest metric manifest is invalid")
+            item_state = item.get("computation_state")
+            if item_state is not None:
+                if not isinstance(item_state, Mapping):
+                    raise ValueError("run manifest metric computation_state is invalid")
+                try:
+                    parsed_state = ComputationState.from_dict(item_state)
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise ValueError("run manifest metric computation_state is invalid") from exc
+            else:
+                parsed_state = states[0] if states else None
+            status = str(item.get("status", "computed")).strip().lower()
+            if "value" in item and (
+                status != "computed"
+                or (parsed_state is not None and parsed_state.computability != "computed")
+            ):
+                raise ValueError("run manifest metric value is not computable")
+            item_descriptor = item.get("descriptor_id")
+            if item_descriptor is not None:
+                if not isinstance(item_descriptor, str) or not item_descriptor.strip():
+                    raise ValueError("run manifest metric descriptor_id is invalid")
+                if descriptors and item_descriptor.strip() != descriptors[0]:
+                    raise ValueError("run manifest metric descriptor_id does not match run")
+            for key in ("provenance", "uncertainty"):
+                value = item.get(key)
+                if value is not None and not isinstance(value, Mapping):
+                    raise ValueError(f"run manifest metric {key} is invalid")
 
     def _next_version(self, package_id: str) -> int:
         versions = []

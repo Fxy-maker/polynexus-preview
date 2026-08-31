@@ -127,11 +127,25 @@ class AgentWorkflowService:
                     ),
                 )
                 if isinstance(compute_run, ComputeRun) and compute_run.status != "completed":
-                    status = "blocked" if compute_run.status == "needs_input" else "failed"
+                    # Keep the lifecycle status compatible with the historical
+                    # Agent contract, but retain the exact ComputeRun state in
+                    # a step projection so ``needs_input`` is not conflated
+                    # with provider failure.
+                    step_status = "blocked" if compute_run.status == "needs_input" else "failed"
+                    results.append(
+                        self._public_step_result(
+                            step.step_id,
+                            step.technique,
+                            output,
+                            canonical_template=canonical_template if isinstance(canonical_template, CanonicalExperiment) else None,
+                            compute_run=compute_run,
+                        )
+                    )
                     return AnalysisRun(
                         recipe=recipe,
-                        status=status,
+                        status=step_status,
                         reason_codes=compute_run.reasons or (compute_run.status,),
+                        steps=tuple(results),
                     )
                 results.append(
                     self._public_step_result(
@@ -226,7 +240,10 @@ class AgentWorkflowService:
         effective_template = canonical_template
         if effective_template is None and isinstance(compute_run, ComputeRun):
             effective_template = compute_run.canonical_template
-        if hasattr(output, "to_dict") and hasattr(output, "analysis_evidence"):
+        if output is None:
+            summary = {}
+            evidence = {}
+        elif hasattr(output, "to_dict") and hasattr(output, "analysis_evidence"):
             summary = AgentWorkflowService._normalize_public_value(output.to_dict())
             evidence = getattr(output, "analysis_evidence", {})
         elif isinstance(output, Mapping):
@@ -252,17 +269,49 @@ class AgentWorkflowService:
         if isinstance(compute_run, ComputeRun):
             # Keep the complete shared result projection in the step summary
             # consumed by evidence/ARS, alongside the persisted run object.
-            summary["compute_run"] = compute_run.to_dict()
-        status = (
-            "failed"
-            if provider_error
-            else "completed"
-            if validation_passed and not warnings and effective_template is None
-            else "review_required"
-        )
+            compute_run_payload = compute_run.to_dict()
+            summary["compute_run"] = compute_run_payload
+            # Mirror the stable envelope fields at the step-summary level so
+            # lightweight Agent/Codex consumers need not traverse provider
+            # internals or reconstruct state from metric rows.
+            if compute_run.descriptor_id is not None:
+                summary["descriptor_id"] = compute_run.descriptor_id
+            if compute_run.computation_state is not None:
+                summary["computation_state"] = compute_run.computation_state.to_dict()
+            if compute_run.provenance:
+                summary["provenance"] = AgentWorkflowService._normalize_public_value(
+                    dict(compute_run.provenance)
+                )
+            if compute_run.uncertainty:
+                summary["uncertainty"] = AgentWorkflowService._normalize_public_value(
+                    dict(compute_run.uncertainty)
+                )
+        if isinstance(compute_run, ComputeRun) and compute_run.status == "needs_input":
+            status = "blocked"
+        elif isinstance(compute_run, ComputeRun) and compute_run.status == "failed":
+            status = "failed"
+        else:
+            status = (
+                "failed"
+                if provider_error
+                else "completed"
+                if validation_passed and not warnings and effective_template is None
+                else "review_required"
+            )
         figure_references = getattr(output, "figures", {})
         if not isinstance(figure_references, Mapping):
             figure_references = {}
+        # Preserve the shared run's actionable reasons on the step envelope
+        # when execution did not complete.  The historical lifecycle still
+        # maps ``needs_input`` to ``blocked``, but callers must not lose the
+        # distinction (or the concrete request) while crossing the Agent
+        # boundary.  Keep completed-step reason payloads unchanged for old
+        # consumers; provider-reported errors remain an explicit suffix.
+        step_reason_codes: tuple[str, ...] = ()
+        if isinstance(compute_run, ComputeRun) and compute_run.status != "completed":
+            step_reason_codes = tuple(str(code) for code in compute_run.reasons)
+        if provider_error and "provider_reported_error" not in step_reason_codes:
+            step_reason_codes = (*step_reason_codes, "provider_reported_error")
         return WorkflowStepResult(
             step_id=step_id,
             technique=technique,
@@ -271,7 +320,9 @@ class AgentWorkflowService:
             analysis_evidence=evidence if isinstance(evidence, Mapping) else {},
             figure_references=AgentWorkflowService._normalize_public_value(dict(figure_references)),
             compute_run=(compute_run.to_dict() if isinstance(compute_run, ComputeRun) else None),
-            reason_codes=("provider_reported_error",) if provider_error else (),
+            reason_codes=step_reason_codes,
+            computation_state=(compute_run.computation_state if isinstance(compute_run, ComputeRun) else None),
+            descriptor_id=(compute_run.descriptor_id if isinstance(compute_run, ComputeRun) else None),
         )
 
     def _run_shared_compute(

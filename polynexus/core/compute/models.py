@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from hashlib import sha256
 import json
 import math
@@ -86,6 +86,35 @@ def _freeze_mapping(value: Mapping[str, Any] | None) -> Mapping[str, Any]:
     if not isinstance(frozen, Mapping):
         raise TypeError("Expected a mapping")
     return frozen
+
+
+def _coerce_computation_state(value: Any):
+    """Normalize the shared four-axis state without importing the AI package eagerly."""
+
+    if value is None:
+        return None
+    # Importing the leaf module keeps the compute package independent from the
+    # AI-platform execution helpers (which may themselves be imported by
+    # callers during application startup).
+    from ..ai_platform.contracts import ComputationState
+
+    if isinstance(value, ComputationState):
+        return value
+    if isinstance(value, Mapping):
+        return ComputationState.from_dict(value)
+    raise TypeError("computation_state must be a ComputationState or mapping")
+
+
+def _coerce_projection_mapping(value: Any, field_name: str) -> Mapping[str, Any]:
+    """Freeze an optional JSON mapping used by cross-entry projections."""
+
+    if value is None:
+        return _freeze_mapping({})
+    if hasattr(value, "to_dict") and not isinstance(value, Mapping):
+        value = value.to_dict()
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{field_name} must be a mapping")
+    return _freeze_mapping(value)
 
 
 def _normalized_compute_key(value: str) -> str:
@@ -408,6 +437,12 @@ class ComputeResult:
     metadata: Mapping[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
     method_sensitivities: tuple[MethodSensitivity, ...] = ()
+    # Optional shared AI-platform projection fields.  They are appended after
+    # the historical fields so positional provider callers remain compatible.
+    descriptor_id: str | None = None
+    computation_state: Any = None
+    provenance: Mapping[str, Any] = field(default_factory=dict)
+    uncertainty: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         frozen_metrics = _freeze_mapping(_scrub_compute_result_projection(self.metrics))
@@ -425,10 +460,31 @@ class ComputeResult:
         object.__setattr__(self, "method_sensitivities", tuple(self.method_sensitivities))
         if not all(isinstance(item, MethodSensitivity) for item in self.method_sensitivities):
             raise TypeError("method_sensitivities must contain MethodSensitivity values")
+        if self.descriptor_id is not None:
+            if not isinstance(self.descriptor_id, str) or not self.descriptor_id.strip():
+                raise ValueError("descriptor_id must be a non-empty string or null")
+            object.__setattr__(self, "descriptor_id", self.descriptor_id.strip())
+        object.__setattr__(self, "computation_state", _coerce_computation_state(self.computation_state))
+        object.__setattr__(
+            self,
+            "provenance",
+            _coerce_projection_mapping(self.provenance, "provenance"),
+        )
+        object.__setattr__(
+            self,
+            "uncertainty",
+            _coerce_projection_mapping(self.uncertainty, "uncertainty"),
+        )
+
+    @property
+    def state(self):
+        """Short compatibility alias for callers using ``result.state``."""
+
+        return self.computation_state
 
     def to_public_dict(self, *, source: str | None = None) -> dict[str, Any]:
         """Return the complete JSON-safe result projection."""
-        return {
+        payload = {
             "metrics": _json_value(self.metrics),
             "figures": _json_value(self.figures),
             "metadata": _json_value(self.metadata),
@@ -437,6 +493,15 @@ class ComputeResult:
             "metric_manifest": list(self.metric_manifest(source=source)),
             "method_sensitivities": [item.to_dict() for item in self.method_sensitivities],
         }
+        if self.descriptor_id is not None:
+            payload["descriptor_id"] = self.descriptor_id
+        if self.computation_state is not None:
+            payload["computation_state"] = self.computation_state.to_dict()
+        if self.provenance:
+            payload["provenance"] = _json_value(self.provenance)
+        if self.uncertainty:
+            payload["uncertainty"] = _json_value(self.uncertainty)
+        return payload
 
     def field_inventory(self) -> tuple[dict[str, Any], ...]:
         """Return a JSON-safe inventory of every emitted metric field."""
@@ -456,9 +521,13 @@ class ComputeResult:
         if source_value is None:
             source_value = self.metadata.get("source", self.metadata.get("source_file"))
         warnings = list(self.warnings)
+        state = self.computation_state
+        state_payload = state.to_dict() if state is not None else None
         manifest: list[dict[str, Any]] = []
         for item in inventory:
             path = str(item["path"])
+            present = bool(item.get("present", True))
+            computability = state.computability if state is not None else None
             record = {
                 "path": path,
                 "kind": item["kind"],
@@ -467,11 +536,27 @@ class ComputeResult:
                 "parameters": _json_value(_metadata_for_path(parameters, path) or {}),
                 "source": source_value,
                 "warnings": warnings,
-                "status": "computed" if item.get("present", True) else "unavailable",
+                "status": (
+                    "computed"
+                    if present and computability in (None, "computed")
+                    else computability
+                    if computability is not None
+                    else "unavailable"
+                ),
             }
-            if item["kind"] == "scalar" and item.get("present", True):
+            if self.descriptor_id is not None:
+                record["descriptor_id"] = self.descriptor_id
+            if state_payload is not None:
+                record["computation_state"] = state_payload
+            provenance = _metric_projection(self.provenance, path)
+            if provenance is not None:
+                record["provenance"] = _json_value(provenance)
+            uncertainty = _metric_projection(self.uncertainty, path)
+            if uncertainty is not None:
+                record["uncertainty"] = _json_value(uncertainty)
+            if item["kind"] == "scalar" and present and computability in (None, "computed"):
                 record["value"] = item.get("value")
-            elif item["kind"] == "series" and item.get("present", True):
+            elif item["kind"] == "series" and present and computability in (None, "computed"):
                 record["item_count"] = item.get("item_count", 0)
             manifest.append(record)
         return tuple(manifest)
@@ -507,6 +592,35 @@ class ComputeResult:
         if validation_summary and str(validation_summary) != "All checks passed":
             warnings.append(str(validation_summary))
         normalized_metrics = metrics if isinstance(metrics, Mapping) else {}
+        # Providers may expose the shared fields directly, while older
+        # providers occasionally place them in metadata.  Read only these
+        # explicit keys; never infer a descriptor from a technique name.
+        descriptor_id = _safe_public_attr(value, "descriptor_id")
+        direct_computation_state = _safe_public_attr(value, "computation_state")
+        direct_state_alias = _safe_public_attr(value, "state")
+        metadata_computation_state = None
+        metadata_state_alias = None
+        provenance = _safe_public_attr(value, "provenance")
+        uncertainty = _safe_public_attr(value, "uncertainty")
+        if isinstance(metadata, Mapping):
+            if descriptor_id is None:
+                descriptor_id = metadata.get("descriptor_id")
+            metadata_computation_state = metadata.get("computation_state")
+            metadata_state_alias = metadata.get("state")
+            if provenance is None:
+                provenance = metadata.get("provenance")
+            if uncertainty is None:
+                uncertainty = metadata.get("uncertainty")
+        # Legacy providers often use a free-form metadata ``state`` string or
+        # a provider-private partial mapping.  Only an explicit shared
+        # four-axis state may cross this boundary; malformed values are
+        # ignored rather than allowed to make a legacy result unparsable.
+        computation_state = _first_legacy_computation_state(
+            direct_computation_state,
+            metadata_computation_state,
+            direct_state_alias,
+            metadata_state_alias,
+        )
         declared_items = getattr(value, "method_sensitivities", ())
         declared_sensitivities = tuple(
             item for item in declared_items if isinstance(item, MethodSensitivity)
@@ -547,6 +661,10 @@ class ComputeResult:
             metadata=metadata if isinstance(metadata, Mapping) else {},
             warnings=tuple(warnings),
             method_sensitivities=declared_sensitivities,
+            descriptor_id=descriptor_id,
+            computation_state=computation_state,
+            provenance=provenance if isinstance(provenance, Mapping) else {},
+            uncertainty=uncertainty if isinstance(uncertainty, Mapping) else {},
         )
 
 
@@ -564,6 +682,12 @@ class ComputeRun:
     provider_capability_items: tuple[CapabilityItemResult, ...] = ()
     reasons: tuple[str, ...] = ()
     legacy_result: Any = field(default=None, repr=False, compare=False)
+    # Shared AI-platform fields are optional and appended after the historical
+    # constructor arguments to preserve positional compatibility.
+    descriptor_id: str | None = None
+    computation_state: Any = None
+    provenance: Mapping[str, Any] = field(default_factory=dict)
+    uncertainty: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.status, str):
@@ -589,6 +713,82 @@ class ComputeRun:
         if not all(isinstance(item, CapabilityItemResult) for item in self.provider_capability_items):
             raise TypeError("provider_capability_items must contain CapabilityItemResult values")
         object.__setattr__(self, "reasons", _freeze_strings(self.reasons, "reasons"))
+        if self.descriptor_id is not None:
+            if not isinstance(self.descriptor_id, str) or not self.descriptor_id.strip():
+                raise ValueError("descriptor_id must be a non-empty string or null")
+            object.__setattr__(self, "descriptor_id", self.descriptor_id.strip())
+        state = _coerce_computation_state(self.computation_state)
+        descriptor_id = self.descriptor_id
+        provenance = _coerce_projection_mapping(self.provenance, "provenance")
+        uncertainty = _coerce_projection_mapping(self.uncertainty, "uncertainty")
+        # A run may receive the fields either at the run envelope or result
+        # level.  Normalize both to one shared projection and reject explicit
+        # disagreements rather than silently choosing one.
+        if self.result is not None:
+            result_state = self.result.computation_state
+            if state is not None and result_state is not None and state.to_dict() != result_state.to_dict():
+                raise ValueError("Compute run and result computation_state do not match")
+            state = state or result_state
+            result_descriptor = self.result.descriptor_id
+            if descriptor_id is not None and result_descriptor is not None and descriptor_id != result_descriptor:
+                raise ValueError("Compute run and result descriptor_id do not match")
+            descriptor_id = descriptor_id or result_descriptor
+            # Provenance and uncertainty are shared identity-bearing
+            # projections just like the state and descriptor.  When both the
+            # run envelope and nested result provide a non-empty mapping,
+            # silently choosing one would let two entry points publish
+            # contradictory scientific lineage.  Empty mappings remain the
+            # backwards-compatible "not supplied" sentinel and are filled
+            # from the other projection when available.
+            result_provenance = self.result.provenance
+            if provenance and result_provenance and provenance != result_provenance:
+                raise ValueError("Compute run and result provenance do not match")
+            result_uncertainty = self.result.uncertainty
+            if uncertainty and result_uncertainty and uncertainty != result_uncertainty:
+                raise ValueError("Compute run and result uncertainty do not match")
+            if not provenance and self.result.provenance:
+                provenance = self.result.provenance
+            if not uncertainty and self.result.uncertainty:
+                uncertainty = self.result.uncertainty
+
+        if state is None:
+            state = _default_computation_state(
+                self.status,
+                artifact=self.artifact,
+                dataset=self.dataset,
+                reasons=self.reasons,
+            )
+        expected_computability = {
+            "completed": "computed",
+            "needs_input": "needs_input",
+            "failed": "failed",
+            "ready": "blocked",
+        }[self.status]
+        if state.computability != expected_computability:
+            raise ValueError(
+                f"Compute run status {self.status!r} requires computation_state "
+                f"computability {expected_computability!r}"
+            )
+        if self.result is not None and (
+            self.result.computation_state is not state
+            or self.result.descriptor_id != descriptor_id
+            or self.result.provenance != provenance
+            or self.result.uncertainty != uncertainty
+        ):
+            # Ensure the result's metric manifest carries exactly the same
+            # fields as the enclosing run consumed by every entry point.
+            self_result = replace(
+                self.result,
+                descriptor_id=descriptor_id,
+                computation_state=state,
+                provenance=provenance,
+                uncertainty=uncertainty,
+            )
+            object.__setattr__(self, "result", self_result)
+        object.__setattr__(self, "descriptor_id", descriptor_id)
+        object.__setattr__(self, "computation_state", state)
+        object.__setattr__(self, "provenance", provenance)
+        object.__setattr__(self, "uncertainty", uncertainty)
         if self.dataset is not None and self.plan is not None:
             linkage_mismatches: list[str] = []
             if self.artifact.artifact_id != self.dataset.source_artifact_id:
@@ -644,6 +844,10 @@ class ComputeRun:
         provider_capability_items: tuple[CapabilityItemResult, ...] = (),
         reasons: tuple[str, ...] = (),
         legacy_result: Any = None,
+        descriptor_id: str | None = None,
+        computation_state: Any = None,
+        provenance: Mapping[str, Any] | None = None,
+        uncertainty: Mapping[str, Any] | None = None,
     ) -> ComputeRun:
         return cls(
             status="completed",
@@ -656,16 +860,23 @@ class ComputeRun:
             provider_capability_items=provider_capability_items,
             reasons=reasons,
             legacy_result=legacy_result,
+            descriptor_id=descriptor_id,
+            computation_state=computation_state,
+            provenance={} if provenance is None else provenance,
+            uncertainty={} if uncertainty is None else uncertainty,
         )
 
     def to_dict(self) -> dict[str, Any]:
-        payload = _json_value(
-            {
-                field_info.name: getattr(self, field_info.name)
-                for field_info in fields(self)
-                if field_info.name != "legacy_result"
-            }
-        )
+        optional_names = {"descriptor_id", "computation_state", "provenance", "uncertainty"}
+        raw_payload = {}
+        for field_info in fields(self):
+            if field_info.name == "legacy_result":
+                continue
+            value = getattr(self, field_info.name)
+            if field_info.name in optional_names and value in (None, {}):
+                continue
+            raw_payload[field_info.name] = value
+        payload = _json_value(raw_payload)
         if self.result is not None:
             payload["result"]["field_inventory"] = list(self.result.field_inventory())
             payload["result"]["metric_manifest"] = list(self.result.metric_manifest(source=self.artifact.path))
@@ -693,3 +904,101 @@ def _metadata_for_path(value: Any, path: str) -> Any:
             current = current[part]
         return current
     return value if value not in (None, "") else None
+
+
+def _metric_projection(value: Any, path: str) -> Any:
+    """Resolve a per-metric projection, falling back to global metadata."""
+
+    if value in (None, {}):
+        return None
+    exact = _metadata_for_path(value, path)
+    if exact is not None:
+        return exact
+    if isinstance(value, Mapping):
+        for key in ("*", "default", "global"):
+            if key in value and value[key] not in (None, ""):
+                return value[key]
+    # A provenance mapping normally describes the whole result (for example
+    # source_artifact_id/algorithm_id), so retain it when no path-specific
+    # entry exists.  This is intentionally not used for empty mappings.
+    return value
+
+
+def _safe_public_attr(value: Any, name: str) -> Any:
+    """Read an optional provider attribute without making it mandatory."""
+
+    try:
+        return getattr(value, name, None)
+    except Exception:
+        return None
+
+
+_COMPUTATION_STATE_AXES = frozenset(
+    {"data_availability", "computability", "validity", "promotion"}
+)
+
+
+def _coerce_legacy_computation_state(value: Any):
+    """Accept only a validated shared four-axis state from legacy objects."""
+
+    from ..ai_platform.contracts import ComputationState
+
+    if isinstance(value, ComputationState):
+        return value
+    if not isinstance(value, Mapping):
+        return None
+    # A provider ``state`` mapping with a status/error field is not the shared
+    # contract.  Require all four named axes before invoking its strict parser.
+    if not _COMPUTATION_STATE_AXES.issubset(value.keys()):
+        return None
+    try:
+        return ComputationState.from_dict(value)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _first_legacy_computation_state(*values: Any):
+    """Return the first valid state, preferring explicit contract names."""
+
+    for value in values:
+        normalized = _coerce_legacy_computation_state(value)
+        if normalized is not None:
+            return normalized
+    return None
+
+
+def _default_computation_state(
+    status: str,
+    *,
+    artifact: RawArtifact,
+    dataset: CanonicalDataset | None,
+    reasons: Sequence[str],
+):
+    """Build a conservative state for legacy runs that supplied no state."""
+
+    from ..ai_platform.contracts import ComputationState
+
+    availability = "canonical" if dataset is not None else "raw" if artifact.sha256 else "missing"
+    if status == "completed":
+        computability = "computed"
+        validity = "diagnostic"
+        promotion = "diagnostic_only"
+    elif status == "needs_input":
+        computability = "needs_input"
+        validity = "not_assessed"
+        promotion = "diagnostic_only"
+    elif status == "failed":
+        computability = "failed"
+        validity = "not_assessed"
+        promotion = "diagnostic_only"
+    else:  # ready is a planned, not-yet-executed run.
+        computability = "blocked"
+        validity = "not_assessed"
+        promotion = "diagnostic_only"
+    return ComputationState.create(
+        data_availability=availability,
+        computability=computability,
+        validity=validity,
+        promotion=promotion,
+        reason_codes=tuple(str(reason) for reason in reasons),
+    )

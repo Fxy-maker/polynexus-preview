@@ -1,7 +1,7 @@
 ---
 task_id: 2026-08-30-ai-polymer-capability-platform
 kind: architecture
-status: active
+status: completed_review_required
 date: 2026-08-30
 title: Build AI-first polymer capability platform foundation
 ---
@@ -52,23 +52,23 @@ title: Build AI-first polymer capability platform foundation
 
 ## Acceptance criteria
 
-- [ ] `DataBlock` supports scalar, series, matrix/cube and complex data references with dimensions, units, masks, missingness, uncertainty and content hashes.
-- [ ] Every physical axis carries `AxisProvenance`; synthetic or inferred axes cannot satisfy quantitative/kinetic/absolute capability gates.
-- [ ] A versioned `CapabilityDescriptor` declares input/output contracts, units, preconditions, dependencies, alternatives, uncertainty policy and missing-input actions.
-- [ ] A capability discovery/planning call distinguishes executable, blocked, needs-input and not-applicable cases without fabricating values.
-- [ ] A four-axis `ComputationState` separates data availability, computability, validity and publication promotion.
-- [ ] A minimal deterministic execution graph supports dependency ordering, cache keys and node-level provenance while remaining compatible with `ComputeRun`.
-- [ ] Existing `ir`/`ftir` aliases and provider capability projections resolve consistently across ComputeRun, CLI, Agent, GUI and evidence consumers.
-- [ ] Existing 1-D/2-D/NMR routes remain behavior-compatible; no diagnostic result is silently promoted.
-- [ ] The capability catalog contains the high-priority polymer families (DMA, rheology, TGA/DTG, SEC/GPC, mechanics) as explicit descriptors with honest unsupported/needs-input states; no placeholder scientific values are emitted.
-- [ ] Focused producer/consumer tests and the structured verifier pass; architecture and scientific semantics remain marked for human review.
+- [x] `DataBlock` supports scalar, series, matrix/cube and complex data references with dimensions, units, masks, missingness, uncertainty and content hashes.
+- [x] Every physical axis carries `AxisProvenance`; synthetic or inferred axes cannot satisfy quantitative/kinetic/absolute capability gates.
+- [x] A versioned `CapabilityDescriptor` declares input/output contracts, units, preconditions, dependencies, alternatives, uncertainty policy and missing-input actions.
+- [x] A capability discovery/planning call distinguishes executable, blocked, needs-input and not-applicable cases without fabricating values.
+- [x] A four-axis `ComputationState` separates data availability, computability, validity and publication promotion.
+- [x] A minimal deterministic execution graph supports dependency ordering, cache keys and node-level provenance while remaining compatible with `ComputeRun`.
+- [x] Existing `ir`/`ftir` aliases and provider capability projections resolve consistently across ComputeRun, CLI, Agent, GUI and evidence consumers.
+- [x] Existing 1-D/2-D/NMR routes remain behavior-compatible; no diagnostic result is silently promoted.
+- [x] The capability catalog contains the high-priority polymer families (DMA, rheology, TGA/DTG, SEC/GPC, mechanics) as explicit descriptors with honest unsupported/needs-input states; no placeholder scientific values are emitted.
+- [x] Focused producer/consumer tests and the structured verifier pass; architecture and scientific semantics remain marked for human review.
 
 ## Verification
 
 ```powershell
-python -m pytest -p no:cacheprovider -q tests/test_ai_platform_contracts.py tests/test_ai_capability_planner.py tests/test_execution_graph.py
-python -m pytest -p no:cacheprovider -q tests/test_canonical_converter_registry.py tests/test_capability_execution.py tests/test_agent_workflow_contracts.py tests/test_analysis_evidence.py
+python -m pytest -p no:cacheprovider -q tests/test_ai_platform_contracts.py tests/test_ai_platform_contract_hardening.py tests/test_ai_capability_planner.py tests/test_execution_graph.py tests/test_canonical_nd_adapters.py tests/test_ai_platform_cross_entry.py tests/test_capability_catalog.py tests/test_evidence_package_view.py tests/test_group_result_table.py tests/test_project_workflow_package.py tests/test_project_writing_metrics.py
 python scripts/verify.py --task docs/agent/tasks/2026-08-30-ai-polymer-capability-platform.md --changed --types
+python scripts/verify.py --changed --types --full --boundary
 git diff --check
 ```
 
@@ -90,6 +90,10 @@ python scripts/auto_commit.py `
 
 ## Completion evidence
 
-- Exact commands and outcomes: no implementation verification has run yet; the task is active.
-- Known limitations or follow-up: high-priority polymer descriptors initially expose honest `unsupported`/`needs_input` states; full provider algorithms are separate atomic tasks.
-- Pre-existing changes left untouched: untracked `active_run.json`, `runs/`, `tests/_tmp_phase3/`, existing task/plan files and any other paths reported by the initial `git status`.
+- Focused producer/consumer matrix: `207 passed in 10.78s`.
+- Task verifier: `python scripts/verify.py --task docs/agent/tasks/2026-08-30-ai-polymer-capability-platform.md --changed --types` passed Ruff, `py_compile`, quality gate `313 passed`, preprocessing `157 passed`, and whitespace checks (exit 0).
+- Broad boundary check: `python scripts/verify.py --changed --types --full --boundary` returned `4492 passed, 38 failed, 25 skipped, 27 warnings`. The failures are pre-existing GUI/figure/SAXS/TPAE baselines outside this goal; they are not treated as evidence of a green release boundary.
+- `python -m compileall -q polynexus` and `git diff --check` both passed. A repository-wide standalone `ruff check` still reports 644 legacy findings in untouched modules; the task-scoped verifier's changed-file checks passed.
+- Known limitations/follow-up: DMA/DMTA, rheology, TGA/DTG, SEC/GPC and mechanics descriptors intentionally report `unsupported`/`needs_input` until deterministic providers are implemented. N-D IR/SAXS/WAXS/NMR descriptors are contract-first and experimental; real provider binding, calibration-content validation, and broader replay fixtures remain separate atomic tasks.
+- Architecture, schema, promotion policy, and scientific semantics require human review before mainline merge or publication use.
+- Pre-existing changes left untouched: untracked `active_run.json`, `runs/`, `tests/_tmp_phase3/`, elastomer task/plan/spec/acceptance files, paper scripts/tests, memory edits, and any other paths reported by the initial `git status`.

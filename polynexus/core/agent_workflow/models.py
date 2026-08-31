@@ -44,6 +44,110 @@ def _freeze_json_value(value: Any) -> Any:
     return normalized
 
 
+def _normalize_computation_state(value: Any):
+    """Validate and freeze the shared four-axis computation state."""
+
+    if value is None:
+        return None
+    from polynexus.core.ai_platform.contracts import ComputationState
+
+    if isinstance(value, ComputationState):
+        value = value.to_dict()
+    elif not isinstance(value, Mapping):
+        raise TypeError("Workflow computation_state must be a ComputationState or mapping")
+    # Parsing through the canonical contract catches malformed or incomplete
+    # axes before an agent/evidence bundle can persist them.
+    state = ComputationState.from_dict(value)
+    return state
+
+
+def _projection_state_alias(value: Mapping[str, Any]) -> Any:
+    """Resolve ``computation_state``/``state`` without hiding conflicts."""
+
+    candidates: list[Any] = []
+    containers: list[Mapping[str, Any]] = [value]
+    nested_result = value.get("result")
+    if isinstance(nested_result, Mapping):
+        containers.append(nested_result)
+    for container in containers:
+        for key in ("computation_state", "state"):
+            if key not in container or container[key] is None:
+                continue
+            candidate = container[key]
+            # ``state`` is a historical provider alias and is often a free-
+            # form string/partial mapping.  Only a complete four-axis mapping
+            # is a shared state; otherwise leave the compatibility alias
+            # uninterpreted.  An explicitly named ``computation_state`` is
+            # always contract data and therefore fails closed when malformed.
+            if key == "state":
+                if not isinstance(candidate, Mapping):
+                    continue
+                if not {
+                    "data_availability",
+                    "computability",
+                    "validity",
+                    "promotion",
+                }.issubset(candidate):
+                    continue
+            candidates.append(_normalize_computation_state(candidate))
+    if not candidates:
+        return None
+    first = candidates[0]
+    if any(candidate.to_dict() != first.to_dict() for candidate in candidates[1:]):
+        raise ValueError("Workflow compute_run state aliases do not match")
+    return first
+
+
+def _projection_descriptor_alias(value: Mapping[str, Any]) -> str | None:
+    """Resolve descriptor IDs at run and nested-result levels."""
+
+    candidates: list[str] = []
+    containers: list[Mapping[str, Any]] = [value]
+    nested_result = value.get("result")
+    if isinstance(nested_result, Mapping):
+        containers.append(nested_result)
+    for container in containers:
+        if "descriptor_id" not in container or container["descriptor_id"] is None:
+            continue
+        descriptor = container["descriptor_id"]
+        if not isinstance(descriptor, str) or not descriptor.strip():
+            raise ValueError("Workflow descriptor_id must be a non-empty string or null")
+        candidates.append(descriptor.strip())
+    if not candidates:
+        return None
+    first = candidates[0]
+    if any(candidate != first for candidate in candidates[1:]):
+        raise ValueError("Workflow compute_run descriptor_id values do not match")
+    return first
+
+
+def _projection_mapping_alias(value: Mapping[str, Any], field_name: str) -> Mapping[str, Any]:
+    """Validate run/result provenance-like mappings and reject conflicts."""
+
+    candidates: list[Mapping[str, Any]] = []
+    containers: list[Mapping[str, Any]] = [value]
+    nested_result = value.get("result")
+    if isinstance(nested_result, Mapping):
+        containers.append(nested_result)
+    for container in containers:
+        if field_name not in container or container[field_name] is None:
+            continue
+        candidate = container[field_name]
+        if not isinstance(candidate, Mapping):
+            raise TypeError(f"Workflow compute_run {field_name} must be a mapping")
+        candidates.append(_freeze_json_value(dict(candidate)))
+    if not candidates:
+        return MappingProxyType({})
+    first = candidates[0]
+    # Empty mappings are the historical "not supplied" sentinel.  A single
+    # non-empty projection therefore fills an omitted/empty counterpart;
+    # two non-empty projections must agree exactly.
+    nonempty = [candidate for candidate in candidates if candidate]
+    if len(nonempty) > 1 and any(candidate != nonempty[0] for candidate in nonempty[1:]):
+        raise ValueError(f"Workflow compute_run {field_name} values do not match")
+    return nonempty[0] if nonempty else first
+
+
 def canonical_json(value: Any) -> str:
     """Return stable JSON used for persisted public contract identities."""
     return json.dumps(
@@ -314,6 +418,10 @@ class WorkflowStepResult:
     # historical workflow bundles remain byte-for-byte readable.
     compute_run: Mapping[str, Any] | None = None
     reason_codes: tuple[str, ...] = ()
+    # Optional shared four-axis state and descriptor identity.  Appended after
+    # historical fields so existing positional construction remains valid.
+    computation_state: Any = None
+    descriptor_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.status not in _VALID_RUN_STATUSES:
@@ -326,6 +434,56 @@ class WorkflowStepResult:
                 raise TypeError("Workflow compute_run must be a mapping or null")
             object.__setattr__(self, "compute_run", _freeze_json_value(dict(self.compute_run)))
         object.__setattr__(self, "reason_codes", tuple(str(code) for code in self.reason_codes))
+        state = self.computation_state
+        run_state = None
+        run_descriptor = None
+        if self.compute_run is not None:
+            run_state = _projection_state_alias(self.compute_run)
+            run_descriptor = _projection_descriptor_alias(self.compute_run)
+            run_status = self.compute_run.get("status")
+            expected_computability = {
+                "completed": "computed",
+                "needs_input": "needs_input",
+                "failed": "failed",
+                "ready": "blocked",
+            }.get(run_status)
+            if (
+                expected_computability is not None
+                and run_state is not None
+                and run_state.computability != expected_computability
+            ):
+                raise ValueError("Workflow compute_run status and computation_state do not match")
+            # Validate optional provenance/uncertainty at both run and nested
+            # result levels before persisting an agent step.  The normalized
+            # values are not duplicated onto the step; the nested ComputeRun
+            # remains the source of truth.
+            _projection_mapping_alias(self.compute_run, "provenance")
+            _projection_mapping_alias(self.compute_run, "uncertainty")
+        if state is None:
+            state = run_state
+        normalized_state = _normalize_computation_state(state)
+        if normalized_state is not None and run_state is not None:
+            if run_state.to_dict() != normalized_state.to_dict():
+                raise ValueError("Workflow step and compute_run computation_state do not match")
+        object.__setattr__(self, "computation_state", normalized_state)
+        descriptor = self.descriptor_id
+        if descriptor is not None:
+            if not isinstance(descriptor, str) or not descriptor.strip():
+                raise ValueError("Workflow descriptor_id must be a non-empty string or null")
+            descriptor = descriptor.strip()
+        if run_descriptor is not None:
+            if descriptor is not None and descriptor != run_descriptor:
+                raise ValueError("Workflow step and compute_run descriptor_id do not match")
+            descriptor = descriptor or run_descriptor
+        if descriptor is not None:
+            descriptor = descriptor.strip()
+        object.__setattr__(self, "descriptor_id", descriptor)
+
+    @property
+    def state(self):
+        """Compatibility alias exposing the canonical state projection."""
+
+        return self.computation_state
 
     def to_dict(self) -> dict[str, Any]:
         payload = {
@@ -339,6 +497,10 @@ class WorkflowStepResult:
         }
         if self.compute_run is not None:
             payload["compute_run"] = _json_safe(self.compute_run)
+        if self.computation_state is not None:
+            payload["computation_state"] = self.computation_state.to_dict()
+        if self.descriptor_id is not None:
+            payload["descriptor_id"] = self.descriptor_id
         return payload
 
     @classmethod
@@ -352,6 +514,8 @@ class WorkflowStepResult:
             figure_references=payload.get("figure_references", {}),
             compute_run=payload.get("compute_run"),
             reason_codes=tuple(payload.get("reason_codes", ())),
+            computation_state=payload.get("computation_state", payload.get("state")),
+            descriptor_id=payload.get("descriptor_id"),
         )
 
 
