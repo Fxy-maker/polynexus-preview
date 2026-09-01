@@ -7,6 +7,7 @@ execution remains in :mod:`polynexus.core.agent_workflow`.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 import json
 from pathlib import Path
 from typing import Any
@@ -77,6 +78,23 @@ class SingleInputTechniqueAdapter:
             mapping_proposal = self._mapping_proposal(payload)
         except (KeyError, TypeError, ValueError):
             return RecipeProposal(status="blocked", reason_codes=("mapping_proposal_invalid",))
+        # ProjectWorkflow inventory IDs are deliberately scoped to the
+        # project's logical relative path, while ``inspect_artifact`` uses the
+        # absolute source path.  When a user confirms a mapping from the
+        # project inventory, carry that already-validated identity into the
+        # recipe instead of silently rewriting the proposal or dropping its
+        # source binding.  The source hash is checked before accepting the
+        # alias, so a stale/tampered inventory record remains fail-closed.
+        inventory_id = payload.get("inventory_artifact_id")
+        inventory_hash = payload.get("inventory_artifact_sha256")
+        if (
+            mapping_proposal is not None
+            and inventory_id is not None
+            and str(mapping_proposal.source_artifact_id) == str(inventory_id)
+        ):
+            if not inventory_hash or str(inventory_hash) != str(artifact.sha256):
+                return RecipeProposal(status="blocked", reason_codes=("mapping_proposal_invalid",))
+            artifact = replace(artifact, artifact_id=str(inventory_id))
         outcome = _convert_artifact(
             artifact,
             technique=technique,

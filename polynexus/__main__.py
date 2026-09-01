@@ -28,6 +28,7 @@ from polynexus.cli.run_ai_tune_service import run_ai_tune as _run_ai_tune_impl
 from polynexus.cli.run_agent_workflow_service import run_agent_workflow as _run_agent_workflow_impl
 from polynexus.cli.run_project_workflow_service import run_project_workflow as _run_project_workflow_impl, run_analysis_plan_evaluation as _run_analysis_plan_evaluation_impl
 from polynexus.cli.run_suite_service import run_suite as _run_suite_impl
+from polynexus.cli.run_research_loop_service import run_research_loop as _run_research_loop_impl
 from polynexus.cli.run_single_service import run_single as _run_single_impl
 from polynexus.cli.parser import build_parser
 from polynexus.utils import (
@@ -60,6 +61,8 @@ def main():
         return _run_project_workflow(args)
     if args.cmd == 'suite':
         return _run_suite(args)
+    if args.cmd == 'research-loop':
+        return _run_research_loop(args)
     if args.cmd == 'evaluate-analysis-plans':
         return _run_analysis_plan_evaluation(args)
     if args.cmd == 'batch':
@@ -98,6 +101,10 @@ def _run_analysis_plan_evaluation(args) -> int:
 
 def _run_suite(args) -> int:
     return _run_suite_impl(args)
+
+
+def _run_research_loop(args) -> int:
+    return _run_research_loop_impl(args)
 
 
 def _persist_batch_run(file_path: str, technique: str, result, elapsed: float) -> None:

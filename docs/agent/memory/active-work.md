@@ -1,5 +1,25 @@
 # Active Work
 
+## Codex–PolyNexus–ARS recoverable research loop — implementation complete, review required (2026-09-01)
+
+- Added the task-local, append-only `ResearchTask`/`ResearchAction` protocol
+  on top of shared ProjectWorkflow runs, evidence packages and Suite DTOs.
+  Mapping approval is an exact boolean; requests validate before a task can
+  enter `running`; recompute routes, action resolutions and restart recovery
+  all fail closed.
+- ARS completion is an append-only local receipt bound to the task, handoff,
+  package and action hashes. It is intentionally not proof of an external ARS
+  identity or execution. Formal preflight requires this receipt plus
+  package-bound evidence/metric/figure IDs and rejects empty-data manuscripts.
+- Task-owned package run manifests, run/task identities and streamed artifact
+  hashes are checked before handoff. A formal handoff now rejects a missing or
+  hash-mismatched package manifest before persisting any ARS state. GUI Quick
+  Analysis remains outside formal research-task inventory. The focused matrix
+  and structured verifier are green before the allowlisted local checkpoint.
+- The real PA6-H replay remains `ars_in_progress` in
+  `D:\PolyNexus-real-project-replay-final-20260831-v3`; raw data, historical
+  packages and manuscript drafts are not modified.
+
 ## Mutable current evidence workspace — 2026-08-30
 
 - Added `WorkingEvidenceIndex` persisted at `.polynexus/evidence/working.json`.

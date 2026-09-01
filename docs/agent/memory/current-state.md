@@ -1814,3 +1814,18 @@ remains
 review; the local allowlisted checkpoint is complete, and provider numerical
 algorithms and user artifacts were untouched.
 Acceptance: `docs/acceptance/2026-08-31-ai-platform-trust-boundaries.md`.
+## Recoverable Codex–PolyNexus–ARS research loop - implementation complete, review required (2026-09-01)
+
+`ProjectWorkflowService.research_loop()` now exposes a small, durable
+orchestration facade without a second calculation or evidence model. A formal
+task has append-only revisions, explicit mapping confirmation, shared
+`AnalysisRequest` validation before execution, task-scoped evidence freezing,
+and persisted ARS `edit`/`recompute`/`ask_human` resolution. Completion is a
+local receipt bound to task/handoff/package/action hashes, not a claim that an
+external ARS runtime has run or authenticated. Submission preflight accepts
+only that receipt and package-bound scientific identifiers; task-owned run
+manifests and streamed artifact hashes are revalidated during handoff. The
+small fixture and a read-only PA6-H replay demonstrate persistence and
+boundaries, while actual ARS execution, scientific conclusions, citations and
+final approval remain human-review steps. Task:
+`docs/agent/tasks/2026-08-31-codex-ars-research-loop.md`.

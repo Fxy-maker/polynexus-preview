@@ -65,6 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
     psuite.add_argument("--output", default=None, help="Output manuscript-source JSON path")
     psuite.add_argument("--citations", default=None, help="CitationRequest JSON/list path for paper-draft")
     psuite.add_argument("--formulas", default=None, help="FormulaRecord JSON/list path for paper-draft")
+    psuite.add_argument("--gates", default=None, help="Explicit submission gate projections JSON path for paper-draft")
 
     pa = sub.add_parser("ai-tune", help="AI-assisted parameter tuning")
     pa.add_argument("--technique", default="waxs", choices=["waxs", "dsc", "saxs", "ir", "nmr"], help="Technique to tune")
@@ -148,6 +149,30 @@ def build_parser() -> argparse.ArgumentParser:
     ppw.add_argument("--package", default=None, help="Immutable evidence package directory for manuscript-plan")
     ppw.add_argument("--brief", default=None, help="PaperBrief JSON path for manuscript-plan")
     ppw.add_argument("--output", default=None, help="Destination JSON path for manuscript-plan")
+
+    pr = sub.add_parser("research-loop", help="Recoverable Codex/ARS research task workflow")
+    pr.add_argument(
+        "operation",
+        choices=["create", "list", "inspect", "propose-mapping", "confirm-mapping", "run", "recompute", "checkpoint", "handoff", "ars-actions", "resolve-action", "ars-completion", "preflight", "complete-export", "resume"],
+        help="Research-loop operation",
+    )
+    pr.add_argument("--project-root", required=True, help="Project directory for .polynexus research state")
+    pr.add_argument("--project-id", default=None, help="Stable project identifier for create")
+    pr.add_argument("--question", default=None, help="Research question for create")
+    pr.add_argument("--paths", nargs="+", default=(), help="Formal source paths for create")
+    pr.add_argument("--target-journal", default=None, help="Target journal for create")
+    pr.add_argument("--task-id", default=None, help="Research task identifier")
+    pr.add_argument("--mapping", default=None, help="Mapping JSON path")
+    pr.add_argument("--approve", action="store_true", help="Approve a mapping/action")
+    pr.add_argument("--approver", default="", help="Human approver identity")
+    pr.add_argument("--note", default="", help="Decision note")
+    pr.add_argument("--package", default=None, help="Evidence package path")
+    pr.add_argument("--actions", default=None, help="ARS actions JSON path")
+    pr.add_argument("--ars-completion", default=None, help="Completed ARS return JSON path")
+    pr.add_argument("--action-id", default=None, help="Action identifier")
+    pr.add_argument("--manuscript", default=None, help="Manuscript JSON path for submission preflight")
+    pr.add_argument("--requested-outputs", nargs="+", default=(), help="Requested deterministic output names")
+    pr.add_argument("--export-paths", nargs="+", default=(), help="Formal manuscript paths produced after passed preflight")
 
     pb = sub.add_parser("batch", help="Batch-analyze all supported files in a directory")
     pb.add_argument("input_dir", nargs="?", help="Input directory path")

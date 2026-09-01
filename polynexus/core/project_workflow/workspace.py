@@ -17,6 +17,7 @@ _DERIVED_DIRECTORIES = (
     "runs",
     "figures",
     "evidence",
+    "research",
 )
 _PRIMARY_DIRECTORIES = frozenset({"raw", "notes", "manuscript"})
 
@@ -33,6 +34,10 @@ class ProjectWorkspace:
         self.runs_dir = self.derived_root / "runs"
         self.figures_dir = self.derived_root / "figures"
         self.evidence_dir = self.derived_root / "evidence"
+        # Research-task state is created lazily by ResearchTaskStore so opening
+        # an existing project does not alter the legacy derived-directory
+        # listing until the user actually starts a formal task.
+        self.research_dir = self.derived_root / "research"
 
     @classmethod
     def open(cls, root: str | Path) -> "ProjectWorkspace":

@@ -20,7 +20,8 @@ from .figure_review import rank_figure_candidates, save_review_decisions
 from .paper_source import build_manuscript_source, build_paper_bundle
 from .citations import detect_zotero, export_bibliography, render_citations
 from .paper_pipeline import assemble_manuscript, export_manuscript
-from .preflight import preflight_manuscript
+from .preflight import preflight_manuscript, submission_preflight
+from .handoff import ARS_ACTION_KINDS, validate_ars_action, validate_ars_actions
 
 __all__ = [
     "SuiteComponent",
@@ -51,4 +52,8 @@ __all__ = [
     "assemble_manuscript",
     "export_manuscript",
     "preflight_manuscript",
+    "submission_preflight",
+    "ARS_ACTION_KINDS",
+    "validate_ars_action",
+    "validate_ars_actions",
 ]

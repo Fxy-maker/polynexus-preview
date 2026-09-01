@@ -10,7 +10,7 @@ from polynexus.suite.handoff import build_suite_handoff
 from polynexus.suite.paper_source import build_manuscript_source, build_paper_bundle
 from polynexus.suite.paper_contracts import ClaimRecord, CitationRequest, FigurePlan, FormulaRecord, ManuscriptSource
 from polynexus.suite.paper_pipeline import assemble_manuscript, export_manuscript
-from polynexus.suite.preflight import preflight_manuscript
+from polynexus.suite.preflight import submission_preflight
 from polynexus.suite.manager import SuiteManager
 
 
@@ -36,12 +36,19 @@ def run_suite(args: Any) -> int:
                 citations = _load_contracts(getattr(args, "citations", None), CitationRequest)
                 formulas = _load_contracts(getattr(args, "formulas", None), FormulaRecord)
                 manuscript = assemble_manuscript(source=ManuscriptSource.from_dict(source), claims=claims, figures=figures, citations=citations, formulas=formulas)
-                report = preflight_manuscript(manuscript)
+                # Structural preflight remains useful for internal drafts, but
+                # the formal paper-draft route is a hard gate: an incomplete
+                # ARS/method/citation/layout handoff may be previewed as JSON,
+                # never exported as an official manuscript bundle.
+                gate_projection = _load_gate_projection(getattr(args, "gates", None), bundle, source, manuscript)
+                report = submission_preflight(manuscript, **gate_projection)
                 out = Path(output).expanduser().resolve()
                 out.mkdir(parents=True, exist_ok=True)
                 (out / "manuscript.json").write_text(json.dumps(manuscript, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
-                export_paths = export_manuscript(manuscript, out)
                 (out / "preflight.json").write_text(json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+                export_paths: dict[str, str] = {}
+                if report.status == "passed":
+                    export_paths = export_manuscript(manuscript, out)
                 payload = {"status": report.status, "manuscript": manuscript, "preflight": report.to_dict(), "output": str(out), "exports": export_paths}
             except (OSError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
                 payload = {"status": "blocked", "reason_codes": ["paper_draft_invalid"], "error": str(exc)}
@@ -88,7 +95,7 @@ def run_suite(args: Any) -> int:
     else:
         payload = {"status": "failed", "reason_codes": ["operation_unknown"]}
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0 if payload.get("status") in {"ready", "installed", "rolled_back", "confirmation_required", "component_missing", "codex_not_found"} else 1
+    return 0 if payload.get("status") in {"passed", "ready", "installed", "rolled_back", "confirmation_required", "component_missing", "codex_not_found"} else 1
 
 
 __all__ = ["run_suite"]
@@ -102,3 +109,24 @@ def _load_contracts(path: str | None, contract: Any) -> tuple[Any, ...]:
     if not isinstance(values, list):
         raise ValueError("contract list is invalid")
     return tuple(contract.from_dict(value) for value in values)
+
+
+def _load_gate_projection(path: str | None, bundle: dict[str, Any], source: dict[str, Any], manuscript: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Resolve explicit formal gates from CLI or normal bundle projections."""
+    projection: Any = None
+    if path:
+        projection = json.loads(Path(path).read_text(encoding="utf-8"))
+    if projection is None:
+        projection = bundle.get("gate_projections", bundle.get("submission_gates"))
+    if projection is None:
+        source_projection = source.get("projection", {})
+        if isinstance(source_projection, dict):
+            projection = source_projection.get("gate_projections", source_projection.get("submission_gates"))
+    if projection is None and isinstance(manuscript, dict):
+        projection = manuscript.get("gate_projections", manuscript.get("submission_gates"))
+    if projection is None:
+        return {}
+    if not isinstance(projection, dict):
+        raise ValueError("gate projections are invalid")
+    allowed = {"ars_state", "methods", "citations", "zotero", "format_report", "human_review", "visible_text"}
+    return {key: value for key, value in projection.items() if key in allowed}

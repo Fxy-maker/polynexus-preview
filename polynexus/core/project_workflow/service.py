@@ -69,6 +69,17 @@ class ProjectWorkflowService:
     def open(cls, root: str | Path) -> "ProjectWorkflowService":
         return cls(ProjectWorkspace.open(root))
 
+    def research_loop(self):
+        """Return the Codex-facing orchestration facade over this workflow.
+
+        The import is lazy to keep the long-established project workflow
+        service free of an import cycle; both facades still share this service
+        instance and therefore the same runs, evidence, and persistence.
+        """
+        from .research_loop import ResearchLoopService, ResearchTaskStore
+
+        return ResearchLoopService(ResearchTaskStore(self.workspace), project_service=self)
+
     def inspect(self, paths: Iterable[str | Path]) -> ResearchGraph:
         resolved = tuple(
             (self.workspace.root / path if not Path(path).is_absolute() else Path(path))
@@ -319,6 +330,8 @@ class ProjectWorkflowService:
                     mapping_proposal = request.parameters.get("mapping_proposal")
                     if mapping_proposal is not None:
                         single_manifest["mapping_proposal"] = mapping_proposal
+                        single_manifest["inventory_artifact_id"] = selected[0].artifact_id
+                        single_manifest["inventory_artifact_sha256"] = selected[0].sha256
                 proposal = self.single_input_adapter.propose_recipe(single_manifest)
                 if proposal.recipe is None:
                     reason_codes.extend(proposal.reason_codes or ("adapter_blocked",))
@@ -754,6 +767,8 @@ class ProjectWorkflowService:
             mapping_proposal = request.parameters.get("mapping_proposal")
             if mapping_proposal is not None:
                 single_manifest["mapping_proposal"] = mapping_proposal
+                single_manifest["inventory_artifact_id"] = artifact.artifact_id
+                single_manifest["inventory_artifact_sha256"] = artifact.sha256
         proposal = self.single_input_adapter.propose_recipe(single_manifest)
         if proposal.recipe is None:
             return self._blocked_project_run(plan, *proposal.reason_codes)
@@ -990,13 +1005,42 @@ class ProjectWorkflowService:
         *,
         package_id: str = "research-evidence",
         relations: Iterable[Mapping[str, Any]] = (),
+        selected_run_ids: Iterable[str] | None = None,
     ) -> ResearchEvidencePackage:
-        """Freeze the current working set once into the next immutable package."""
+        """Freeze the current working set once into the next immutable package.
+
+        ``selected_run_ids`` is an optional task-scoped boundary.  The legacy
+        ``None`` value keeps the public project workflow behaviour of freezing
+        the complete working set, while an explicit selection is validated
+        against the current index and can never silently broaden to unrelated
+        runs.
+        """
         index = self._load_working_evidence()
-        if not index.entries:
+        entries = index.entries
+        if selected_run_ids is not None:
+            if isinstance(selected_run_ids, (str, bytes, bytearray)):
+                raise ValueError("selected working evidence run IDs must be an iterable")
+            try:
+                requested_ids = tuple(str(value) for value in selected_run_ids)
+            except TypeError as exc:
+                raise ValueError("selected working evidence run IDs must be an iterable") from exc
+            if not requested_ids:
+                raise ValueError("selected working evidence run IDs are empty")
+            if any(not value.strip() for value in requested_ids):
+                raise ValueError("selected working evidence run IDs contain an empty ID")
+            known_ids = {entry.run_id for entry in entries}
+            unknown_ids = tuple(sorted(set(requested_ids).difference(known_ids)))
+            if unknown_ids:
+                raise ValueError(
+                    "selected working evidence run IDs are unknown: "
+                    + ", ".join(unknown_ids)
+                )
+            selected = set(requested_ids)
+            entries = tuple(entry for entry in entries if entry.run_id in selected)
+        if not entries:
             raise ValueError("working evidence set is empty")
         runs: list[ProjectWorkflowRun] = []
-        for entry in index.entries:
+        for entry in entries:
             payload = self.workspace.read_json(self.workspace.derived_root / entry.manifest_path)
             if not isinstance(payload, Mapping) or payload.get("run_id") != entry.run_id:
                 raise ValueError("working evidence run manifest is invalid")
