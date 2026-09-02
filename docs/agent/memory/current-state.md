@@ -1844,3 +1844,12 @@ no longer cause provider-result construction to fail. The package and draft
 remain `review_required` pending human/ARS figure, method, citation, and
 scientific-claim review. Acceptance:
 `docs/acceptance/2026-09-01-first-ai-research-loop.md`.
+## Results-candidate promotion semantics (2026-09-02)
+
+The shared writing-metric projection now separates numerical computability from
+run-level scientific promotion. Numeric rows with a valid computed canonical
+manifest are exposed as provisional `results_candidate` records even while
+`ComputationState.promotion` remains `diagnostic_only`; explicit provider
+diagnostics, method-sensitivity observations, and unavailable/non-computed rows
+remain outside Results candidates. ARS keeps `review_status: pending` and the
+human review ledger. Acceptance: `docs/acceptance/2026-09-02-results-candidate-promotion-semantics.md`.

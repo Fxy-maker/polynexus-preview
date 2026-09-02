@@ -6359,3 +6359,13 @@ and structured gates (`303` / `157`).
   architecture/scientific semantics and the broad release boundary remain
   human-review items. No provider algorithms or pre-existing user runtime
   artifacts were changed.
+## Results-candidate promotion semantics — implementation complete, review required (2026-09-02)
+
+Separated computed numeric metric availability from run-level scientific
+promotion in `writing_metrics.py`. The shared run may remain
+`diagnostic_only`, while valid computed manifest scalars are provisional
+Results candidates; explicit diagnostic/provider observations remain excluded.
+Focused matrix passed 55; task verifier passed quality 313 and preprocessing
+157. Real PA6 v002 replay produced 380 candidates, 158 Discussion/Diagnostic
+rows, and 4 pending evidence reviews. Acceptance:
+`docs/acceptance/2026-09-02-results-candidate-promotion-semantics.md`.

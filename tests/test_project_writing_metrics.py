@@ -158,8 +158,37 @@ def test_compute_metric_manifest_is_projected_to_citation_metrics_with_provenanc
     assert metric.unit == "°C"
     assert metric.method == "peak_maximum"
     assert metric.source_locator == "sample.dsc::Tm_C"
-    assert metric.writing_eligibility == "diagnostic_only"
+    assert metric.writing_eligibility == "results_candidate"
     assert "baseline_review" in metric.reason_codes
+
+
+def test_computed_manifest_remains_results_candidate_when_run_promotion_is_pending():
+    pending_state = ComputationState.create(
+        data_availability="canonical",
+        computability="computed",
+        validity="diagnostic",
+        promotion="diagnostic_only",
+    ).to_dict()
+    records = extract_writing_metrics(_item("dsc", {
+        "compute_run": {
+            "status": "completed",
+            "computation_state": pending_state,
+            "result": {"metric_manifest": [{
+                "path": "Avrami_n",
+                "kind": "scalar",
+                "value": 2.1,
+                "unit": "dimensionless",
+                "method": "dsc.isothermal_avrami_fit",
+                "source": "sample.dsc",
+                "warnings": [],
+                "status": "computed",
+            }]},
+        }
+    }))
+
+    metric = next(record for record in records if record.metric_key == "Avrami_n")
+    assert metric.writing_eligibility == "results_candidate"
+    assert "compute_run_promotion_not_results_candidate" not in metric.reason_codes
 
 
 def test_needs_input_metric_manifest_value_is_not_projected_to_citation_metrics():

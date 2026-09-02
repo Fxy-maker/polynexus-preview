@@ -106,27 +106,12 @@ def extract_writing_metrics(item: EvidenceItem | Mapping[str, Any]) -> tuple[Cit
         records = generic + _waxs(payload)
     else:
         records = generic
-    if shared_projection.present and shared_projection.state is not None:
-        if shared_projection.state.promotion != "results_candidate":
-            # A computed diagnostic run may still be useful for inspection,
-            # but it cannot silently become a paper-ready result.  Preserve
-            # the observation while downgrading every candidate eligibility.
-            records = tuple(
-                replace(
-                    record,
-                    writing_eligibility="diagnostic_only"
-                    if record.writing_eligibility == "results_candidate"
-                    else record.writing_eligibility,
-                    reason_codes=tuple(
-                        dict.fromkeys(
-                            (*record.reason_codes, "compute_run_promotion_not_results_candidate")
-                        )
-                    )
-                    if record.writing_eligibility == "results_candidate"
-                    else record.reason_codes,
-                )
-                for record in records
-            )
+    # ``ComputationState.promotion`` is a run-level scientific review gate,
+    # not a statement that every computed scalar is merely diagnostic.  A
+    # valid computed manifest is therefore projected as provisional Results
+    # candidates; evidence/package review status and the review ledger still
+    # prevent publication-ready claims.  Explicit provider diagnostics and
+    # method-sensitivity observations retain their own diagnostic eligibility.
     return tuple(_with_id(record) for record in records)
 
 
@@ -159,7 +144,7 @@ def _metric_manifest_metrics(payload: Mapping[str, Any]) -> tuple[CitationMetric
             unit=str(item.get("unit") or "unknown"),
             method=str(item.get("method") or "unknown"),
             locator=f"{item.get('source') or 'unknown'}::{path}",
-            eligibility="diagnostic_only",
+            eligibility="results_candidate",
             reasons=reasons or ("compute_metric_manifest",),
             descriptor_id=item.get("descriptor_id"),
             computation_state=item.get("computation_state"),

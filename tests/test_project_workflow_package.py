@@ -154,8 +154,10 @@ def test_package_writes_citation_metrics_with_writing_evidence_links(tmp_path: P
     assert ars["citation_metrics"] == "citation-metrics.json"
     assert ars["result_tables"] == "result-tables.json"
     assert ars["writing_evidence"] == "writing-evidence.json"
-    assert not ars["techniques"]["dsc"]["evidence"][0]["results_metric_ids"]
+    assert ars["techniques"]["dsc"]["evidence"][0]["results_metric_ids"]
     assert ars["techniques"]["dsc"]["evidence"][0]["discussion_metric_ids"]
+    assert ars["review_status"] == "pending"
+    assert ars["human_review"]
     item = writing["techniques"]["dsc"]["evidence"][0]
     assert item["citation_metric_ids"]
     assert "diagnostic_only" in item["citation_metric_counts"]
