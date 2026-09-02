@@ -57,6 +57,17 @@ def test_index_reads_raw_file_through_project_local_directory_link(tmp_path: Pat
     assert graph.artifacts[0].sha256
 
 
+def test_index_ignores_project_root_name_when_infering_technique(tmp_path: Path) -> None:
+    project = tmp_path / "first-loop-real"
+    source = project / "raw" / "dsc" / "PA6-DWJJ.txt"
+    source.parent.mkdir(parents=True)
+    source.write_text("Sample Weight: 5.95 mg\n", encoding="utf-8")
+
+    graph = ProjectIndexer(ProjectWorkspace.open(project)).inspect([source])
+
+    assert graph.artifacts[0].technique == "dsc"
+
+
 def test_index_orders_paths_deterministically(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()

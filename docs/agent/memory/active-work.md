@@ -1,5 +1,21 @@
 # Active Work
 
+## First AI-native mixed-technique loop — implementation complete, review required (2026-09-02)
+
+- Fixed the shared `ComputeResult.metric_manifest()` projection so scalar
+  `None` leaves are `unavailable` and do not carry a value. This preserves the
+  strict `ProviderResultInput` contract while allowing SAXS optional metrics
+  to coexist with computed metrics.
+- Verified the public fixture matrix and a read-only PA6 replay through
+  `project-workflow close-loop`. The replay produced one shared run, four
+  technique evidence items, nine SVG figures, four result tables, ARS writing
+  input, and manuscript JSON/MD/PDF/DOCX exports. Source SHA-256 values were
+  unchanged.
+- Scientific promotion, figure eligibility, citations, and final manuscript
+  acceptance remain human/ARS review boundaries. Open-source preparation is a
+  separate follow-up task.
+- Acceptance: `docs/acceptance/2026-09-01-first-ai-research-loop.md`.
+
 ## Codex–PolyNexus–ARS recoverable research loop — implementation complete, review required (2026-09-01)
 
 - Added the task-local, append-only `ResearchTask`/`ResearchAction` protocol

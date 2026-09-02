@@ -92,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
     ppw = sub.add_parser("project-workflow", help="Codex project evidence workflow")
     ppw.add_argument(
         "operation",
-        choices=["inspect", "plan", "run", "package", "manuscript-plan", "analyze-project", "attach-quick-run"],
+        choices=["inspect", "plan", "run", "package", "manuscript-plan", "analyze-project", "close-loop", "attach-quick-run"],
         help="Project operation to execute",
     )
     ppw.add_argument(
@@ -146,6 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     ppw.add_argument("--technique", default=None, help="Technique for an attached quick run")
     ppw.add_argument("--source-file", default=None, help="Existing quick-run source file")
     ppw.add_argument("--output-dir", default=None, help="Existing quick-run output directory")
+    ppw.add_argument("--manuscript-output", default=None, help="Optional project-local manuscript export directory for close-loop")
     ppw.add_argument("--package", default=None, help="Immutable evidence package directory for manuscript-plan")
     ppw.add_argument("--brief", default=None, help="PaperBrief JSON path for manuscript-plan")
     ppw.add_argument("--output", default=None, help="Destination JSON path for manuscript-plan")

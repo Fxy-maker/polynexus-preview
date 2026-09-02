@@ -82,19 +82,28 @@ def run_project_workflow(args: Any, *, service: ProjectWorkflowService | None = 
             },
         )
 
-    if operation == "analyze-project":
+    if operation in {"analyze-project", "close-loop"}:
         selection_path = getattr(args, "figure_selection", None)
         figure_selection = _load_figure_selection(selection_path)
         if selection_path and figure_selection is None:
             return _emit(operation, "blocked", ["figure_selection_invalid"])
         try:
             with redirect_stdout(sys.stderr):
-                summary = workflow.analyze_project(
-                    question=str(getattr(args, "question", "Analyze this research project.")),
-                    data_scope=tuple(getattr(args, "paths", ()) or ()),
-                    package_id=str(getattr(args, "package_id", "research-evidence")),
-                    figure_selection=figure_selection,
-                )
+                if operation == "close-loop":
+                    summary = workflow.close_first_loop(
+                        question=str(getattr(args, "question", "Analyze this research project.")),
+                        data_scope=tuple(getattr(args, "paths", ()) or ()),
+                        package_id=str(getattr(args, "package_id", "research-evidence")),
+                        figure_selection=figure_selection,
+                        manuscript_output=getattr(args, "manuscript_output", None),
+                    )
+                else:
+                    summary = workflow.analyze_project(
+                        question=str(getattr(args, "question", "Analyze this research project.")),
+                        data_scope=tuple(getattr(args, "paths", ()) or ()),
+                        package_id=str(getattr(args, "package_id", "research-evidence")),
+                        figure_selection=figure_selection,
+                    )
         except (OSError, TypeError, ValueError, UnicodeError):
             return _emit(operation, "blocked", ["analysis_failed"])
         payload = summary.to_dict()

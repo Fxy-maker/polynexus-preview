@@ -536,6 +536,22 @@ class ComputeResult:
             path = str(item["path"])
             present = bool(item.get("present", True))
             computability = state.computability if state is not None else None
+            # A discovered scalar whose value is ``None`` is an explicit
+            # unavailable result, even when the enclosing provider completed.
+            # Keeping this distinction in the shared manifest prevents
+            # downstream contracts from treating missing optional metrics as
+            # computed values.
+            value_available = present and not (
+                item.get("kind") == "scalar" and item.get("value") is None
+            )
+            if not value_available:
+                status = "unavailable"
+            elif computability in (None, "computed"):
+                status = "computed"
+            elif computability is not None:
+                status = computability
+            else:
+                status = "unavailable"
             record = {
                 "path": path,
                 "kind": item["kind"],
@@ -544,13 +560,7 @@ class ComputeResult:
                 "parameters": _json_value(_metadata_for_path(parameters, path) or {}),
                 "source": source_value,
                 "warnings": warnings,
-                "status": (
-                    "computed"
-                    if present and computability in (None, "computed")
-                    else computability
-                    if computability is not None
-                    else "unavailable"
-                ),
+                "status": status,
             }
             if self.descriptor_id is not None:
                 record["descriptor_id"] = self.descriptor_id
@@ -562,9 +572,9 @@ class ComputeResult:
             uncertainty = _metric_projection(self.uncertainty, path)
             if uncertainty is not None:
                 record["uncertainty"] = _json_value(uncertainty)
-            if item["kind"] == "scalar" and present and computability in (None, "computed"):
+            if item["kind"] == "scalar" and status == "computed":
                 record["value"] = item.get("value")
-            elif item["kind"] == "series" and present and computability in (None, "computed"):
+            elif item["kind"] == "series" and status == "computed":
                 record["item_count"] = item.get("item_count", 0)
             manifest.append(record)
         return tuple(manifest)

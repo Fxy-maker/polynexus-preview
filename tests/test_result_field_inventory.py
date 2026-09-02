@@ -76,3 +76,19 @@ def test_compute_result_metric_manifest_accepts_run_source_fallback():
     manifest = result.metric_manifest(source="raw/sample.dsc")
 
     assert manifest[0]["source"] == "raw/sample.dsc"
+
+
+def test_compute_result_metric_manifest_marks_none_metrics_unavailable():
+    result = ComputeResult(
+        metrics={"long_period_nm": None, "porod_exponent": 3.2},
+        metadata={"units": {"long_period_nm": "nm", "porod_exponent": ""}},
+    )
+
+    manifest = result.metric_manifest(source="raw/sample.saxs")
+
+    missing = next(item for item in manifest if item["path"] == "long_period_nm")
+    available = next(item for item in manifest if item["path"] == "porod_exponent")
+    assert missing["status"] == "unavailable"
+    assert "value" not in missing
+    assert available["status"] == "computed"
+    assert available["value"] == 3.2

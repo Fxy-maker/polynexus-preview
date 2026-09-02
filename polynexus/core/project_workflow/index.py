@@ -125,7 +125,16 @@ class ProjectIndexer:
 
     @staticmethod
     def _infer_technique(source: Path) -> str:
-        label = " ".join(part.lower() for part in source.parts)
+        # Only project-local raw paths carry grouping semantics.  Matching the
+        # full absolute path lets an unrelated parent name (for example
+        # ``first-loop-real``) hijack the technique before the actual
+        # ``raw/dsc`` segment is considered.
+        parts = tuple(source.parts)
+        raw_index = next(
+            (index for index, part in enumerate(parts) if part.casefold() == "raw"),
+            max(0, len(parts) - 2),
+        )
+        label = " ".join(part.lower() for part in parts[raw_index:])
         for marker, technique in _TECHNIQUE_ALIASES:
             if marker in label:
                 return technique

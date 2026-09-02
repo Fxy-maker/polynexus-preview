@@ -11,6 +11,7 @@ from pathlib import Path
 import math
 import re
 from typing import Any, Iterable, Mapping
+from dataclasses import replace
 
 from polynexus.core.agent_workflow import AgentWorkflowService, inspect_artifact
 from polynexus.core.agent_workflow.models import AnalysisRecipe, AnalysisRun
@@ -123,6 +124,23 @@ class ProjectWorkflowService:
             graph = self.inspect(discovered)
         except (OSError, TypeError, ValueError, UnicodeError):
             return self._analysis_summary((), (*discovery_reasons, "inspection_invalid"))
+        if scope:
+            # ``ProjectIndexer`` intentionally retains prior inventory entries
+            # for partial-scope inspection.  An explicit analysis request is
+            # narrower: stale entries from an earlier request must not leak
+            # into this run or silently widen the AI-selected experiment set.
+            scoped_relative_paths = {
+                path.absolute().relative_to(self.workspace.root).as_posix()
+                for path in discovered
+            }
+            graph = ResearchGraph.create(
+                study_id=graph.study_id,
+                artifacts=tuple(
+                    artifact
+                    for artifact in graph.artifacts
+                    if artifact.relative_path in scoped_relative_paths
+                ),
+            )
         candidates = candidate_groups(graph.artifacts)
         resolved_selection = (
             resolve_figure_selection(figure_selection, candidates)
@@ -210,6 +228,100 @@ class ProjectWorkflowService:
             figure_candidates=figure_candidates.to_dict() if figure_candidates else None,
             result_tables=self._result_tables_from_runs(tuple(runs)),
         )
+
+    def close_first_loop(
+        self,
+        *,
+        question: str,
+        data_scope: Iterable[str | Path] = (),
+        requested_outputs: Iterable[str] = ("figures", "tables", "writing_input"),
+        package_id: str = "research-evidence",
+        figure_selection: FigureSelectionRequest | None = None,
+        nmr_submodule: str | None = None,
+        manuscript_output: str | Path | None = None,
+    ) -> ProjectAnalysisSummary:
+        """Compose one AI-facing project run through the writing projection.
+
+        The method deliberately delegates scientific work to ``analyze_project``
+        and projects the resulting immutable package into the existing Suite
+        paper contracts. It never reparses raw files or invokes a provider a
+        second time.
+        """
+        summary = self.analyze_project(
+            question=question,
+            data_scope=data_scope,
+            requested_outputs=requested_outputs,
+            package_id=package_id,
+            figure_selection=figure_selection,
+            nmr_submodule=nmr_submodule,
+        )
+        observed = {
+            artifact.technique
+            for run in summary.runs
+            if run.analysis_run is not None
+            for artifact in run.analysis_run.recipe.artifacts
+        }
+        observed.update(item.technique for run in summary.runs for item in run.evidence_items)
+        supported = {"dsc", "ir", "saxs", "waxs", "nmr"}
+        missing = tuple(sorted(supported.difference(observed)))
+        if summary.package is None:
+            return replace(summary, missing_techniques=missing)
+
+        package_path = Path(str(summary.package.get("path", ""))).expanduser().resolve()
+        try:
+            from polynexus.suite.paper_contracts import ClaimRecord, FigurePlan, ManuscriptSource
+            from polynexus.suite.paper_pipeline import assemble_manuscript, export_manuscript
+            from polynexus.suite.paper_source import build_manuscript_source
+            from polynexus.suite.preflight import preflight_manuscript
+
+            source = build_manuscript_source(package_path)
+            projection = source.projection
+            claims = tuple(
+                ClaimRecord.from_dict(value)
+                for value in projection.get("claims", ())
+                if isinstance(value, Mapping)
+            )
+            figures = tuple(
+                FigurePlan.from_dict(value)
+                for value in projection.get("figures", ())
+                if isinstance(value, Mapping)
+            )
+            manuscript = assemble_manuscript(
+                source=ManuscriptSource.from_dict(source.to_dict()),
+                claims=claims,
+                figures=figures,
+            )
+            report = preflight_manuscript(manuscript)
+            output_dir = (
+                Path(manuscript_output).expanduser().resolve()
+                if manuscript_output
+                else self.workspace.derived_root / "research" / "manuscripts" / package_id
+            )
+            try:
+                output_dir.relative_to(self.workspace.root.resolve())
+            except ValueError as exc:
+                raise ValueError("manuscript output must be inside the project root") from exc
+            output_dir.mkdir(parents=True, exist_ok=True)
+            exports = export_manuscript(manuscript, output_dir)
+            manuscript_projection = {
+                **manuscript,
+                "output_dir": str(output_dir),
+                "exports": exports,
+            }
+            return replace(
+                summary,
+                writing_input=source.to_dict(),
+                manuscript=manuscript_projection,
+                preflight=report.to_dict(),
+                missing_techniques=missing,
+            )
+        except (OSError, TypeError, ValueError, UnicodeError) as exc:
+            return replace(
+                summary,
+                reason_codes=tuple(dict.fromkeys((*summary.reason_codes, "manuscript_projection_failed"))),
+                messages=tuple(dict.fromkeys((*summary.messages, str(exc)))),
+                missing_techniques=missing,
+            )
 
     @staticmethod
     def _result_tables_from_runs(

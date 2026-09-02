@@ -53,7 +53,7 @@ def _one_envelope(capsys) -> dict:
 
 def test_project_workflow_parser_accepts_all_operations(tmp_path: Path) -> None:
     parser = build_parser()
-    for operation in ("inspect", "plan", "run", "package", "manuscript-plan", "attach-quick-run"):
+    for operation in ("inspect", "plan", "run", "package", "manuscript-plan", "analyze-project", "close-loop", "attach-quick-run"):
         args = parser.parse_args(["project-workflow", operation, "--project-root", str(tmp_path)])
         assert args.cmd == "project-workflow"
         assert args.operation == operation

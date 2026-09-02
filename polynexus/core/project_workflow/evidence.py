@@ -66,6 +66,10 @@ class ProjectAnalysisSummary:
     selected_groups: tuple[str, ...] = ()
     figure_candidates: Mapping[str, Any] | None = None
     result_tables: tuple[Mapping[str, Any], ...] = ()
+    writing_input: Mapping[str, Any] | None = None
+    manuscript: Mapping[str, Any] | None = None
+    preflight: Mapping[str, Any] | None = None
+    missing_techniques: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         evidence_items = tuple(item for run in self.runs for item in run.evidence_items)
@@ -85,6 +89,10 @@ class ProjectAnalysisSummary:
             "selected_groups": list(self.selected_groups),
             "figure_candidates": dict(self.figure_candidates) if self.figure_candidates else None,
             "result_tables": [dict(value) for value in self.result_tables],
+            "writing_input": dict(self.writing_input) if self.writing_input else None,
+            "manuscript": dict(self.manuscript) if self.manuscript else None,
+            "preflight": dict(self.preflight) if self.preflight else None,
+            "missing_techniques": list(self.missing_techniques),
         }
 
 

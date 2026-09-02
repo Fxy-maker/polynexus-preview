@@ -1814,7 +1814,7 @@ remains
 review; the local allowlisted checkpoint is complete, and provider numerical
 algorithms and user artifacts were untouched.
 Acceptance: `docs/acceptance/2026-08-31-ai-platform-trust-boundaries.md`.
-## Recoverable Codex–PolyNexus–ARS research loop - implementation complete, review required (2026-09-01)
+## Recoverable Codex–PolyNexus–ARS research loop — implementation complete, review required (2026-09-01)
 
 `ProjectWorkflowService.research_loop()` now exposes a small, durable
 orchestration facade without a second calculation or evidence model. A formal
@@ -1829,3 +1829,18 @@ small fixture and a read-only PA6-H replay demonstrate persistence and
 boundaries, while actual ARS execution, scientific conclusions, citations and
 final approval remain human-review steps. Task:
 `docs/agent/tasks/2026-08-31-codex-ars-research-loop.md`.
+
+## First AI-native mixed-technique loop — implementation complete, review required (2026-09-02)
+
+`ProjectWorkflowService.close_first_loop()` and the `project-workflow
+close-loop` CLI now compose one shared project run into an evidence package,
+ARS writing input, structural manuscript preflight, and reviewable manuscript
+exports without recalculating raw data. A read-only PA6 replay at
+`D:\PolyNexus-pa6-loop-20260902-clean` completed selected DSC, IR, SAXS, and
+WAXS inputs in one run. The package contains four evidence items, nine SVG
+figures, four result tables, and explicit NMR absence. SAXS optional null
+metrics are serialized as `unavailable` in the shared metric manifest, so they
+no longer cause provider-result construction to fail. The package and draft
+remain `review_required` pending human/ARS figure, method, citation, and
+scientific-claim review. Acceptance:
+`docs/acceptance/2026-09-01-first-ai-research-loop.md`.

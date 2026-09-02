@@ -141,6 +141,33 @@ def test_analyze_project_packages_explicit_cross_technique_evidence_index(tmp_pa
     )
 
 
+def test_analyze_project_explicit_scope_excludes_previous_inventory_artifacts(tmp_path: Path) -> None:
+    ir = _source(tmp_path, "ir", "sample.csv")
+    waxs = _source(tmp_path, "waxs", "sample.dat")
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, artifact, output: AnalysisResult(
+            technique=step.technique,
+            validation_passed=True,
+            parameters={"fixture_metric": 1.0},
+        )
+    )
+
+    service.analyze_project(
+        question="Analyze both techniques",
+        data_scope=(ir.relative_to(tmp_path).as_posix(), waxs.relative_to(tmp_path).as_posix()),
+        package_id="all-techniques",
+    )
+    scoped = service.analyze_project(
+        question="Analyze only IR",
+        data_scope=(ir.relative_to(tmp_path).as_posix(),),
+        package_id="ir-only",
+    )
+
+    assert len(scoped.runs) == 1
+    assert {step.technique for step in scoped.runs[0].analysis_run.steps} == {"ir"}
+
+
 def test_analyze_project_reports_actionable_blocker_without_fake_package(tmp_path: Path) -> None:
     service = ProjectWorkflowService.open(tmp_path)
     summary = service.analyze_project(question="Analyze the project")
