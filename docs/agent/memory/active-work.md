@@ -6369,3 +6369,15 @@ Focused matrix passed 55; task verifier passed quality 313 and preprocessing
 157. Real PA6 v002 replay produced 380 candidates, 158 Discussion/Diagnostic
 rows, and 4 pending evidence reviews. Acceptance:
 `docs/acceptance/2026-09-02-results-candidate-promotion-semantics.md`.
+## Research Preview open-source preparation — completed, review required (2026-09-03)
+
+- Added Apache-2.0 licensing metadata, contribution guidance, Research Preview
+  capability boundaries, and release/data-rights checklist.
+- README now describes the AI/Codex-to-Core boundary and labels available,
+  experimental, and unsupported technique routes honestly.
+- Common local runtime artifacts are ignored; no user datasets, evidence
+  packages, logs, or unrelated worktree changes were staged.
+- Focused contract tests, task-scoped verification, and `git diff --check`
+  passed. Human review remains required for scientific semantics, capability
+  maturity, redistribution rights, and the final public release branch.
+- Task: `docs/agent/tasks/2026-09-03-research-preview-open-source-preparation.md`.

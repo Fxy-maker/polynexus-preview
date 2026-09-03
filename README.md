@@ -1,21 +1,34 @@
 # PolyNexus
 
-PolyNexus is an AI-controllable polymer research workbench that users can also
+> Research Preview — Apache-2.0
+
+PolyNexus is an AI-oriented polymer research workbench that users can also
 operate independently. Codex/AI and the user interface work on the same
 projects, analysis runs, charts, evidence packages, and exports.
 
 It combines deterministic multi-technique polymer characterization with a
-PySide6 desktop GUI and CLI/project-workflow entry points. AI can organize and
-request work, while scientific values, provenance, and review boundaries remain
-in shared deterministic project objects.
+PySide6 desktop GUI and CLI/project-workflow entry points. AI can understand a
+research question, organize inputs, propose methods, and request work; the
+Core performs calculation, retains source/parameter provenance, and exposes
+shared scientific result objects. AI does not replace the Core as the source of
+numerical results.
 
-## Supported Techniques
+This repository is a research preview, not a claim that every workflow or
+technique is publication-validated. See [the open-source guide](docs/OPEN_SOURCE.md)
+for the capability maturity boundary, release checklist, and data-rights rules.
+
+## Core Technique Families
 
 - `DSC` - Differential Scanning Calorimetry
 - `IR` - Infrared Spectroscopy
 - `WAXS` - Wide-Angle X-ray Scattering
 - `SAXS` - Small-Angle X-ray Scattering
 - `NMR` - Nuclear Magnetic Resonance
+
+Coverage varies by input type and workflow. The runtime catalog distinguishes
+`available`, `experimental`, and `unsupported` capabilities. In particular,
+several N-D routes are experimental; DMA/DMTA, rheology, TGA/DTG, SEC/GPC, and
+mechanics are planned/unsupported rather than executable providers.
 
 ## Quick Start
 
@@ -246,7 +259,17 @@ volume that becomes nearly full does not have to wait for a later pytest
 finalization event. Use `report --json` first and inspect `emergency`,
 `emergency_eligible_bytes`, `reason`, and `failures` before applying.
 
-## Notes
+## Research-preview limitations
 
-- The repository currently contains real test data, generated outputs, and working drafts side by side with source code.
-- The GUI and localization layer are under active cleanup, so some pages may still contain inconsistent wording or unfinished flows.
+- Scientific results require appropriate calibration, method selection, and
+  expert interpretation for the actual material and experiment.
+- Some GUI wording and workflows remain under active refinement.
+- Use only data you have the right to process and redistribute. Do not include
+  personal measurement data, generated evidence packages, local databases,
+  logs, or credentials in a contribution or public release.
+
+## Contributing and license
+
+PolyNexus is licensed under [Apache-2.0](LICENSE). Read
+[CONTRIBUTING.md](CONTRIBUTING.md) before contributing code, templates, sample
+data, or adapters.

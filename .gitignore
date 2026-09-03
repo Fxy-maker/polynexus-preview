@@ -43,6 +43,9 @@ ai_tune_*.json
 *.db
 *.db-shm
 *.db-wal
+active_run.json
+runs/
+.polynexus/
 
 # Large local sample datasets
 测试数据/
