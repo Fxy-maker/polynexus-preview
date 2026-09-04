@@ -40,6 +40,7 @@ def _build_supported_formats() -> dict[str, list[str]]:
     ir_formats = sorted({".csv", ".txt", ".dat", ".asc", ".prn", ".spa", ".dpt"})
     nmr_formats = sorted(set(NMR_EXTS) | {"fid"})
     tga_formats = sorted({".csv", ".tsv", ".txt", ".dat", ".asc", ".xls", ".xlsx", ".xlsm"})
+    dma_formats = sorted({".csv", ".tsv", ".txt", ".dat", ".asc", ".xls", ".xlsx", ".xlsm"})
     return {
         "saxs": saxs_formats,
         "waxs": waxs_formats,
@@ -47,6 +48,7 @@ def _build_supported_formats() -> dict[str, list[str]]:
         "ir": ir_formats,
         "nmr": nmr_formats,
         "tga": tga_formats,
+        "dma": dma_formats,
     }
 
 

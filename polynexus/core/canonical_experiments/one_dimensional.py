@@ -38,6 +38,14 @@ _TGA_MASS_ALIASES = frozenset({
     "wtpercent", "wtpct", "residue", "residuemass", "remainingmass",
     "residuepercent", "remainingweight", "samplemass",
 })
+_DMA_FREQUENCY_ALIASES = frozenset({"frequency", "frequencyhz", "freq", "freqhz", "angularfrequency", "omega"})
+_DMA_TEMPERATURE_ALIASES = frozenset({"temperature", "temperaturec", "temp", "tempc", "sampletemperature"})
+_DMA_TIME_ALIASES = frozenset({"time", "times", "timesec", "timemin", "elapsedtime", "elapsedtimes"})
+_DMA_SIGNAL_ALIASES = frozenset({
+    "storagemodulus", "lossmodulus", "complexmodulus", "youngsmodulus", "modulus",
+    "eprime", "edoubleprime", "gprime", "gdoubleprime", "tandelta", "tangentdelta",
+    "damping", "stress", "strain", "displacement", "force",
+})
 
 
 @dataclass(frozen=True)
@@ -145,6 +153,7 @@ def convert_one_dimensional_table(
                 family=(
                     "spectrum_1d" if normalized_technique in {"IR", "NMR"}
                     else "thermal_1d" if normalized_technique == "TGA"
+                    else "viscoelastic_1d" if normalized_technique == "DMA"
                     else "scattering_1d"
                 ),
                 role="raw_curve",
@@ -154,6 +163,8 @@ def convert_one_dimensional_table(
                 acquisition_metadata=(
                     {"axis_kind": selection.x_kind, "signal_kind": "mass_or_weight"}
                     if normalized_technique == "TGA"
+                    else {"axis_kind": selection.x_kind, "signal_kind": "viscoelastic_signal"}
+                    if normalized_technique == "DMA"
                     else {} if normalized_technique == "IR"
                     else {"background_state": "unknown", "normalization_state": "unknown"}
                 ),
@@ -178,6 +189,7 @@ def convert_one_dimensional_table(
             "nmr.spectrum.v1" if normalized_technique == "NMR"
             else "spectrum_1d.v1" if normalized_technique == "IR"
             else "thermal_curve_1d.v1" if normalized_technique == "TGA"
+            else "dma_curve_1d.v1" if normalized_technique == "DMA"
             else "scattering_1d.v1"
         ),
         source_artifact_id=source_artifact_id,
@@ -185,6 +197,7 @@ def convert_one_dimensional_table(
             "technique": normalized_technique,
             "measurement_family": (
                 "thermal_1d" if normalized_technique == "TGA"
+                else "viscoelastic_1d" if normalized_technique == "DMA"
                 else "spectrum_1d" if normalized_technique in {"IR", "NMR"}
                 else "scattering_1d"
             ),
@@ -526,6 +539,22 @@ def _x_kind(header: str, technique: str) -> str | None:
             return "q"
         if {normalized, without_angle_unit}.intersection(_TWO_THETA_ALIASES):
             return "two_theta"
+    if technique == "DMA":
+        without_frequency_unit = _normalize_header(
+            re.sub(r"(?:hz|khz|mhz|rad\s*/\s*s|rad\s*s\^-?1)", "", header.casefold())
+        )
+        without_temperature_unit = _normalize_header(
+            re.sub(r"(?:°\s*[cfk]|degrees?\s*[cfk]|deg\s*[cfk]|\b[cfk]\b)", "", header.casefold())
+        )
+        without_time_unit = _normalize_header(
+            re.sub(r"(?:milliseconds?|ms|minutes?|min|seconds?|secs?|sec|s)\b", "", header.casefold())
+        )
+        if normalized in _DMA_FREQUENCY_ALIASES or without_frequency_unit in _DMA_FREQUENCY_ALIASES:
+            return "frequency"
+        if normalized in _DMA_TEMPERATURE_ALIASES or without_temperature_unit in _DMA_TEMPERATURE_ALIASES:
+            return "temperature"
+        if normalized in _DMA_TIME_ALIASES or without_time_unit in _DMA_TIME_ALIASES:
+            return "time"
     if technique == "TGA":
         without_temperature_unit = _normalize_header(
             re.sub(r"(?:°\s*[cfk]|degrees?\s*[cfk]|deg\s*[cfk]|\b[cfk]\b)", "", header.casefold())
@@ -541,6 +570,9 @@ def _x_kind(header: str, technique: str) -> str | None:
 
 
 def _is_intensity_header(header: str, technique: str | None = None) -> bool:
+    if str(technique or "").upper() == "DMA":
+        normalized = _normalize_header(header)
+        return normalized in _DMA_SIGNAL_ALIASES or _dma_signal_alias(header) in _DMA_SIGNAL_ALIASES
     if str(technique or "").upper() == "TGA":
         return _tga_mass_alias(header) in _TGA_MASS_ALIASES
     return _intensity_alias(header) in _INTENSITY_ALIASES
@@ -564,6 +596,20 @@ def _tga_mass_alias(header: str) -> str:
     return normalized.replace("weightweight", "weight")
 
 
+def _dma_signal_alias(header: str) -> str:
+    """Normalize common DMA signal labels without assigning a model."""
+    text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", header.casefold())
+    text = text.replace("′", "prime").replace("″", "doubleprime")
+    text = text.replace("'", "prime").replace('"', "doubleprime")
+    text = re.sub(r"\b(storage|loss)\s+modulus\b", lambda match: match.group(1) + "modulus", text)
+    text = re.sub(r"\btan\s*delta\b", "tandelta", text)
+    normalized = _normalize_header(text)
+    for alias in sorted(_DMA_SIGNAL_ALIASES, key=len, reverse=True):
+        if normalized == alias or normalized.startswith(alias):
+            return alias
+    return normalized
+
+
 def _kind_allowed(x_kind: str, technique: str) -> bool:
     return (technique == "IR" and x_kind == "wavenumber") or (
         technique == "NMR" and x_kind == "chemical_shift"
@@ -571,6 +617,8 @@ def _kind_allowed(x_kind: str, technique: str) -> bool:
         technique in {"SAXS", "WAXS"} and x_kind in {"q", "two_theta"}
     ) or (
         technique == "TGA" and x_kind in {"temperature", "time"}
+    ) or (
+        technique == "DMA" and x_kind in {"frequency", "temperature", "time"}
     )
 
 
@@ -600,6 +648,15 @@ def _x_unit(header: str, x_kind: str) -> str:
             return "min"
         if re.search(r"(?:seconds?|\bsecs?\b|\bs\b)", text):
             return "s"
+    if x_kind == "frequency":
+        if re.search(r"(?:rad\s*/\s*s|rad\s*s\^-?1)", text):
+            return "rad/s"
+        if re.search(r"(?:\bkhz\b)", text):
+            return "kHz"
+        if re.search(r"(?:\bmhz\b)", text):
+            return "MHz"
+        if re.search(r"(?:\bhz\b)", text):
+            return "Hz"
     return "unknown"
 
 
@@ -614,6 +671,22 @@ def _intensity_unit(header: str, technique: str | None = None) -> str:
             return "µg"
         if re.search(r"(?:\bg\b|grams?)", text):
             return "g"
+        return "unknown"
+    if str(technique or "").upper() == "DMA":
+        if re.search(r"(?:gpa)", text):
+            return "GPa"
+        if re.search(r"(?:mpa)", text):
+            return "MPa"
+        if re.search(r"(?:kpa)", text):
+            return "kPa"
+        if re.search(r"(?:\bpa\b|pascal)", text):
+            return "Pa"
+        if "%" in text or "percent" in text:
+            return "%"
+        if re.search(r"(?:\b(?:n|mn)\b|newton)", text):
+            return "N"
+        if re.search(r"(?:\bmm\b|millimeters?)", text):
+            return "mm"
         return "unknown"
     if re.search(r"a\s*\.\s*u\s*\.", text):
         return "a.u."

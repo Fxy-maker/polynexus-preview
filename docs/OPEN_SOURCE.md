@@ -24,11 +24,13 @@ following meaning:
 | `unsupported` | The catalog intentionally has no executable provider. The name records a planned extension; it is not a claim of analysis support. |
 
 Current core technique families are DSC, FTIR/IR, SAXS, WAXS, NMR, and the
-sample-neutral TGA table-curve foundation. Coverage varies by workflow and
+sample-neutral TGA and DMA table-curve foundations. Coverage varies by workflow and
 input form. TGA descriptive curve summaries are available for supported table
 exports; DTG, stage segmentation, residue interpretation, and kinetics remain
-unsupported. DMA/DMTA, rheology, SEC/GPC, and mechanics are currently
-cataloged as unsupported rather than implemented providers.
+unsupported. DMA descriptive curves require an explicit signal mapping;
+master curves, shift factors, and Tg interpretation remain unsupported.
+Rheology, SEC/GPC, and mechanics are currently cataloged as unsupported rather
+than implemented providers.
 
 ## Result and evidence boundary
 

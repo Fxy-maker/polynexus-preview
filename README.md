@@ -25,13 +25,16 @@ for the capability maturity boundary, release checklist, and data-rights rules.
 - `SAXS` - Small-Angle X-ray Scattering
 - `NMR` - Nuclear Magnetic Resonance
 - `TGA` - Thermogravimetric Analysis (sample-neutral table-curve foundation)
+- `DMA` - Dynamic Mechanical Analysis (sample-neutral table-curve foundation)
 
 Coverage varies by input type and workflow. The runtime catalog distinguishes
 `available`, `experimental`, and `unsupported` capabilities. TGA currently
 provides a sample-neutral table-curve route and descriptive summaries; DTG,
 stage segmentation, residue interpretation, and kinetics remain unsupported.
-DMA/DMTA, rheology, SEC/GPC, and mechanics remain planned/unsupported rather
-than executable providers.
+DMA currently provides the same shared descriptive route for an explicitly
+mapped modulus, damping, stress, or strain signal; master curves, shift
+factors, and Tg interpretation remain unsupported. Rheology, SEC/GPC, and
+mechanics remain planned/unsupported rather than executable providers.
 
 ## Quick Start
 
@@ -79,6 +82,8 @@ Examples:
 polynexus saxs data.edf
 polynexus waxs sample.raw -o output_dir
 polynexus dsc curve.csv
+polynexus tga thermogram.csv
+polynexus dma viscoelastic-curve.csv
 ```
 
 ### 4. Batch processing

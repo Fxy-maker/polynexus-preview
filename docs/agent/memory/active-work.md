@@ -15,6 +15,20 @@
   this change's new logic; targeted Ruff and `git diff --check` pass.
 - Task: `docs/agent/tasks/2026-09-04-tga-module-foundation.md`.
 
+## Sample-neutral DMA module foundation — 2026-09-04
+
+- Added a shared generic-table DMA/DMTA route for frequency, temperature, or
+  time versus an explicitly mapped modulus, damping, stress, or strain signal.
+  It emits `viscoelastic_1d` measurements and `dma_curve_1d.v1` while refusing
+  to silently choose among multiple candidate signals.
+- Registered the descriptive `DMAEngine` through the common BaseEngine,
+  ComputeRun, CLI, batch, and generic curve capability boundaries. Master
+  curves, shift factors, Tg interpretation, and publication validation remain
+  unsupported.
+- Focused DMA conversion/ambiguity/ComputeRun/CLI tests pass; checkpoint and
+  full structured verification are pending.
+- Task: `docs/agent/tasks/2026-09-04-dma-module-foundation.md`.
+
 ## PolyNexus AI/Core design baseline formalized (2026-09-04)
 
 - Formalized the product baseline: AI explores broadly, Core computes

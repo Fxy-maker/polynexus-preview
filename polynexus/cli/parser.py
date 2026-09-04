@@ -51,6 +51,12 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
     pt.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
+    p_dma = sub.add_parser("dma", help="DMA/DMTA")
+    p_dma.add_argument("input")
+    p_dma.add_argument("-o", "--output", default="")
+    p_dma.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_dma.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")
@@ -183,7 +189,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     pb = sub.add_parser("batch", help="Batch-analyze all supported files in a directory")
     pb.add_argument("input_dir", nargs="?", help="Input directory path")
-    pb.add_argument("--technique", choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga"], help="Technique to analyze")
+    pb.add_argument("--technique", choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma"], help="Technique to analyze")
     pb.add_argument("--pattern", default="*", metavar="GLOB", help="Filename glob filter, default *")
     pb.add_argument("--workers", type=int, default=1, metavar="N", help="Parallel worker count, default 1")
     pb.add_argument("--output-dir", metavar="DIR", help="Batch output directory, default same as input directory")
