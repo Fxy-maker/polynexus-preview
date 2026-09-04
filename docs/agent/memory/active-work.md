@@ -1,5 +1,16 @@
 # Active Work
 
+## PolyNexus AI/Core design baseline formalized (2026-09-04)
+
+- Formalized the product baseline: AI explores broadly, Core computes
+  deterministically, and the shared scientific pipeline ends in curated
+  evidence.
+- The spec names the shared pipeline, calculability policy, exploration-run
+  policy, immutable raw-data rule, and the first-wave technique boundary.
+- This is a documentation-only policy update; existing runtime data and
+  unrelated worktree changes remain untouched.
+- Task: `docs/agent/tasks/2026-09-04-polynexus-ai-core-design-baseline.md`.
+
 ## First AI-native mixed-technique loop — implementation complete, review required (2026-09-02)
 
 - Fixed the shared `ComputeResult.metric_manifest()` projection so scalar
