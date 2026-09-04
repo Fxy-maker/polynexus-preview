@@ -6392,3 +6392,24 @@ rows, and 4 pending evidence reviews. Acceptance:
   passed. Human review remains required for scientific semantics, capability
   maturity, redistribution rights, and the final public release branch.
 - Task: `docs/agent/tasks/2026-09-03-research-preview-open-source-preparation.md`.
+
+## ExplorationRun foundation — implementation complete, review required (2026-09-04)
+
+- Added immutable `ExplorationExecutorDescriptor`, `ExplorationRequest`, and
+  `ExplorationRun` contracts plus an explicit in-process registry/runner. A
+  request binds source artifact/content hashes, parameters, method intent, and
+  executor implementation hash; completed output must be a matching shared
+  `ProviderResultInput` with its metric manifest.
+- Unregistered, stale-implementation, malformed, source/technique/content
+  mismatched, and executor-failed attempts are retained as `needs_input` or
+  `failed` runs. Completed output is reprojected as `review_required`, and its
+  evidence adapter uses the existing `EvidenceItem` rather than an AI-private
+  result shape.
+- `ExplorationRunStore` writes immutable, hash-verified manifests under
+  `.polynexus/research/exploration/`. The scope explicitly excludes arbitrary
+  code execution, subprocesses, network execution, sandboxing, UI/CLI routing,
+  capability promotion, and direct evidence-package inclusion.
+- Focused coverage passed 11 tests; task-scoped verification passed Ruff,
+  compile, quality 313, preprocessing 157, and whitespace. Architecture,
+  security/sandbox design, and scientific semantics remain for human review.
+  Task: `docs/agent/tasks/2026-09-04-exploration-run-foundation.md`.
