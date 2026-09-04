@@ -6413,3 +6413,19 @@ rows, and 4 pending evidence reviews. Acceptance:
   compile, quality 313, preprocessing 157, and whitespace. Architecture,
   security/sandbox design, and scientific semantics remain for human review.
   Task: `docs/agent/tasks/2026-09-04-exploration-run-foundation.md`.
+
+## ExplorationRun expansion review — implementation complete, review required (2026-09-04)
+
+- Reviewed the bounded exploration foundation across security, architecture and
+  scientific semantics. Trusted in-process built-ins are conditionally usable;
+  exposing the registry to Codex/user code is not a sandbox and is not allowed.
+- P1 gates are canonical dataset admission, strict descriptor input/output
+  validation, real implementation/package hashing, and an isolated resource-
+  bounded worker before untrusted execution. P2 gates include environment/
+  dependency/seed identity, independent attempt IDs, invalid-manifest reporting,
+  package snapshot integration, evidence curation, and replay/standard-based
+  capability promotion criteria.
+- The detailed findings and staged recommendation are in
+  `docs/superpowers/specs/2026-09-04-exploration-run-review.md`; no runtime or
+  scientific results changed. Task:
+  `docs/agent/tasks/2026-09-04-exploration-run-review.md`.
