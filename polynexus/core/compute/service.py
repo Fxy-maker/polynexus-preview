@@ -371,7 +371,22 @@ class ComputeRunService:
                 waxs_config = getattr(selected_engine, "_waxs_config", None)
                 if waxs_config is not None and not getattr(waxs_config, "polymer_type", ""):
                     waxs_config.polymer_type = context.waxs_polymer_type
-            if (
+            canonical_runner = (
+                getattr(selected_engine, "run_canonical_template", None)
+                if canonical_template is not None
+                else None
+            )
+            if callable(canonical_runner):
+                provider_options = {
+                    key: value for key, value in options.items()
+                    if key != "method_sensitivity"
+                }
+                legacy_result = canonical_runner(
+                    canonical_template,
+                    provider_output_dir,
+                    **provider_options,
+                )
+            elif (
                 canonical_template is not None
                 and normalized_technique == "dsc"
                 and (

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from polynexus.core.canonical_experiments import convert_one_dimensional_table, default_converter_registry
-from polynexus.core.compute import ComputeRunService
+from polynexus.core.compute import ComputeRunService, RawArtifact
 from polynexus.core.engine import get_engine
 from polynexus.cli.parser import parse_args
 
@@ -58,6 +58,32 @@ def test_tga_engine_and_compute_run_are_shared_entry_points(tmp_path: Path) -> N
     assert run.result.metrics["point_count"] == 4
     assert run.result.warnings == ()
     assert any(item.capability_id == "curve.summary.v1" and item.status == "completed" for item in run.capability_items)
+
+
+def test_tga_compute_run_executes_prevalidated_template_without_reloading(tmp_path: Path) -> None:
+    source = _write_table(tmp_path / "sample-c.csv", x_header="Temperature C", y_header="Weight %")
+    artifact = RawArtifact.from_path(source, technique="tga")
+    outcome = default_converter_registry().convert_path(
+        source, technique="tga", source_artifact_id=artifact.artifact_id
+    )
+    assert outcome.template is not None
+    engine = get_engine("tga")
+    assert engine is not None
+
+    def fail_reload(_path: str) -> bool:
+        raise AssertionError("prevalidated TGA template must not reparse raw data")
+
+    engine.load = fail_reload
+    run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
+        technique="tga",
+        path=source,
+        output_dir="",
+        engine=engine,
+        canonical_template=outcome.template,
+    )
+    assert run.status == "completed"
+    assert run.canonical_template is not None
+    assert run.canonical_template.content_hash == outcome.template.content_hash
 
 
 def test_tga_is_available_in_single_cli_batch_and_tuning_parsers() -> None:

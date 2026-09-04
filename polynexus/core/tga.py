@@ -14,7 +14,7 @@ from typing import Any, Dict
 
 import numpy as np
 
-from .canonical_experiments import convert_one_dimensional_table
+from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
 from .engine import BaseEngine, EngineCategory, register_technique
 
 
@@ -57,10 +57,48 @@ class TGAEngine(BaseEngine):
             reason = ", ".join(outcome.reason_codes) or outcome.status
             self.log(f"TGA table conversion unavailable: {reason}")
             return False
-        self._template = outcome.template
-        self._measurements = tuple(outcome.template.measurements)
+        self._adopt_template(outcome.template)
         self.log(f"Loaded {len(self._measurements)} TGA curve(s)")
         return bool(self._measurements)
+
+    def run_canonical_template(
+        self,
+        template: CanonicalExperiment,
+        output_dir: str = "",
+        *,
+        skip_to: str | None = None,
+    ):
+        """Execute an already validated shared TGA template without reparsing.
+
+        ``ComputeRunService`` owns validation and source binding. This adapter
+        only consumes that public template, so its resulting numbers and the
+        generic capability items use the same canonical measurements.
+        """
+        self._adopt_template(template)
+        self.log(f"Loaded {len(self._measurements)} canonical TGA curve(s)")
+        if skip_to != "plot":
+            if not self.preprocess() or not self.analyze():
+                return self.result
+        if output_dir:
+            figures = self.plot(output_dir)
+            if figures:
+                self.result.figures = figures
+        self._validate_results()
+        return self.result
+
+    def _adopt_template(self, template: CanonicalExperiment) -> None:
+        if not isinstance(template, CanonicalExperiment):
+            raise TypeError("TGA canonical execution requires a CanonicalExperiment")
+        if template.template_id != "thermal_curve_1d.v1":
+            raise ValueError("TGA canonical template id is unsupported")
+        if str(template.payload.get("technique", "")).upper() != "TGA":
+            raise ValueError("TGA canonical template technique mismatch")
+        measurements = tuple(template.measurements)
+        if not measurements or any(item.family != "thermal_1d" for item in measurements):
+            raise ValueError("TGA canonical template measurements are unsupported")
+        self._template = template
+        self._measurements = measurements
+        self._source_path = str(measurements[0].source_locator["source_path"])
 
     def preprocess(self) -> bool:
         if not self._measurements:

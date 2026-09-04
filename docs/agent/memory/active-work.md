@@ -25,9 +25,20 @@
   ComputeRun, CLI, batch, and generic curve capability boundaries. Master
   curves, shift factors, Tg interpretation, and publication validation remain
   unsupported.
-- Focused DMA conversion/ambiguity/ComputeRun/CLI tests pass; checkpoint and
-  full structured verification are pending.
+- Focused DMA conversion/ambiguity/ComputeRun/CLI tests pass; the local
+  checkpoint is `aca03942`.
 - Task: `docs/agent/tasks/2026-09-04-dma-module-foundation.md`.
+
+## Generic curve canonical execution — 2026-09-04
+
+- TGA and DMA direct ComputeRuns now pass their validated
+  `CanonicalExperiment` directly to a narrow engine adapter. The adapter
+  consumes the canonical measurements and does not reparse raw tables; the
+  legacy direct `run_pipeline()` route remains available for compatibility.
+- Regression tests replace the engine `load()` method with a failure and prove
+  both prevalidated routes still complete. Structured verification passes
+  fully (quality `313`, preprocessing `157`).
+- Task: `docs/agent/tasks/2026-09-04-generic-curve-canonical-execution.md`.
 
 ## PolyNexus AI/Core design baseline formalized (2026-09-04)
 

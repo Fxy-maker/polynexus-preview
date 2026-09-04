@@ -13,7 +13,7 @@ from typing import Any, Dict
 
 import numpy as np
 
-from .canonical_experiments import convert_one_dimensional_table
+from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
 from .engine import BaseEngine, EngineCategory, register_technique
 
 
@@ -52,10 +52,43 @@ class DMAEngine(BaseEngine):
             reason = ", ".join(outcome.reason_codes) or outcome.status
             self.log(f"DMA table conversion unavailable: {reason}")
             return False
-        self._template = outcome.template
-        self._measurements = tuple(outcome.template.measurements)
+        self._adopt_template(outcome.template)
         self.log(f"Loaded {len(self._measurements)} DMA curve(s)")
         return bool(self._measurements)
+
+    def run_canonical_template(
+        self,
+        template: CanonicalExperiment,
+        output_dir: str = "",
+        *,
+        skip_to: str | None = None,
+    ):
+        """Execute an already validated shared DMA template without reparsing."""
+        self._adopt_template(template)
+        self.log(f"Loaded {len(self._measurements)} canonical DMA curve(s)")
+        if skip_to != "plot":
+            if not self.preprocess() or not self.analyze():
+                return self.result
+        if output_dir:
+            figures = self.plot(output_dir)
+            if figures:
+                self.result.figures = figures
+        self._validate_results()
+        return self.result
+
+    def _adopt_template(self, template: CanonicalExperiment) -> None:
+        if not isinstance(template, CanonicalExperiment):
+            raise TypeError("DMA canonical execution requires a CanonicalExperiment")
+        if template.template_id != "dma_curve_1d.v1":
+            raise ValueError("DMA canonical template id is unsupported")
+        if str(template.payload.get("technique", "")).upper() != "DMA":
+            raise ValueError("DMA canonical template technique mismatch")
+        measurements = tuple(template.measurements)
+        if not measurements or any(item.family != "viscoelastic_1d" for item in measurements):
+            raise ValueError("DMA canonical template measurements are unsupported")
+        self._template = template
+        self._measurements = measurements
+        self._source_path = str(measurements[0].source_locator["source_path"])
 
     def preprocess(self) -> bool:
         if not self._measurements:
