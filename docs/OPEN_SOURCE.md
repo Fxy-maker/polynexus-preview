@@ -23,10 +23,12 @@ following meaning:
 | `experimental` | A route is visible for evaluation, but its provider binding, validation range, calibration handling, or evidence semantics are not yet complete. Do not represent it as a settled scientific method. |
 | `unsupported` | The catalog intentionally has no executable provider. The name records a planned extension; it is not a claim of analysis support. |
 
-Current core technique families are DSC, FTIR/IR, SAXS, WAXS, and NMR. Coverage
-varies by workflow and input form. In particular, several N-D routes remain
-experimental, and DMA/DMTA, rheology, TGA/DTG, SEC/GPC, and mechanics are
-currently cataloged as unsupported rather than implemented providers.
+Current core technique families are DSC, FTIR/IR, SAXS, WAXS, NMR, and the
+sample-neutral TGA table-curve foundation. Coverage varies by workflow and
+input form. TGA descriptive curve summaries are available for supported table
+exports; DTG, stage segmentation, residue interpretation, and kinetics remain
+unsupported. DMA/DMTA, rheology, SEC/GPC, and mechanics are currently
+cataloged as unsupported rather than implemented providers.
 
 ## Result and evidence boundary
 

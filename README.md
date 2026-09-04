@@ -24,11 +24,14 @@ for the capability maturity boundary, release checklist, and data-rights rules.
 - `WAXS` - Wide-Angle X-ray Scattering
 - `SAXS` - Small-Angle X-ray Scattering
 - `NMR` - Nuclear Magnetic Resonance
+- `TGA` - Thermogravimetric Analysis (sample-neutral table-curve foundation)
 
 Coverage varies by input type and workflow. The runtime catalog distinguishes
-`available`, `experimental`, and `unsupported` capabilities. In particular,
-several N-D routes are experimental; DMA/DMTA, rheology, TGA/DTG, SEC/GPC, and
-mechanics are planned/unsupported rather than executable providers.
+`available`, `experimental`, and `unsupported` capabilities. TGA currently
+provides a sample-neutral table-curve route and descriptive summaries; DTG,
+stage segmentation, residue interpretation, and kinetics remain unsupported.
+DMA/DMTA, rheology, SEC/GPC, and mechanics remain planned/unsupported rather
+than executable providers.
 
 ## Quick Start
 

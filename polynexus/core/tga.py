@@ -1,0 +1,166 @@
+"""Sample-neutral thermogravimetric analysis (TGA) engine.
+
+The first TGA route deliberately stays at the shared curve boundary.  It
+loads common table exports with a temperature or time axis and a mass/weight
+signal, then publishes deterministic descriptive values.  Polymer identity is
+optional metadata and is never used to invent decomposition stages or kinetic
+claims.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict
+
+import numpy as np
+
+from .canonical_experiments import convert_one_dimensional_table
+from .engine import BaseEngine, EngineCategory, register_technique
+
+
+@register_technique("tga")
+class TGAEngine(BaseEngine):
+    """Deterministic descriptive TGA analysis for arbitrary sample tables."""
+
+    name = "tga"
+    label = "TGA"
+    icon = "⚖️"
+    category = EngineCategory.EXPERIMENTAL
+    description = (
+        "Thermogravimetric curves: source-preserving mass/weight summaries "
+        "with temperature or time axes"
+    )
+
+    def __init__(self, config: Any = None, log_fn=None):
+        super().__init__(config=config, log_fn=log_fn)
+        self._template = None
+        self._measurements = ()
+        self._source_path = ""
+        self._metrics: Dict[str, Any] = {}
+
+    def load(self, filepath: str) -> bool:
+        source = Path(filepath)
+        if not source.exists() or not source.is_file():
+            self.log(f"No TGA table found at: {filepath}")
+            return False
+        self._source_path = str(source.resolve())
+        # The engine is also usable outside ComputeRunService, so derive a
+        # deterministic local binding for the canonical converter.  When a
+        # ComputeRun already supplied a canonical template, this local
+        # conversion still yields the same source-bound measurement contract.
+        outcome = convert_one_dimensional_table(
+            source,
+            technique="tga",
+            source_artifact_id=f"tga-source:{self._source_path}",
+        )
+        if outcome.status != "ready" or outcome.template is None:
+            reason = ", ".join(outcome.reason_codes) or outcome.status
+            self.log(f"TGA table conversion unavailable: {reason}")
+            return False
+        self._template = outcome.template
+        self._measurements = tuple(outcome.template.measurements)
+        self.log(f"Loaded {len(self._measurements)} TGA curve(s)")
+        return bool(self._measurements)
+
+    def preprocess(self) -> bool:
+        if not self._measurements:
+            self.log("No TGA data loaded")
+            return False
+        # Keep the source ordering and values intact.  Any smoothing, baseline
+        # or derivative is an explicit future exploration/capability rather
+        # than an implicit transformation of the canonical curve.
+        return True
+
+    def analyze(self) -> bool:
+        if not self._measurements:
+            self.log("No TGA data available")
+            return False
+        curves: list[dict[str, Any]] = []
+        total_points = 0
+        warnings: list[str] = []
+        for measurement in self._measurements:
+            x = np.asarray(measurement.channels["x"], dtype=float)
+            signal = np.asarray(measurement.channels["intensity"], dtype=float)
+            if x.size < 2 or signal.size != x.size:
+                self.log(f"Invalid TGA curve: {measurement.measurement_id}")
+                return False
+            mapping = measurement.mapping
+            axis_kind = mapping.x_kind if mapping is not None else measurement.acquisition_metadata.get("axis_kind", "unknown")
+            warnings.extend(str(item) for item in measurement.warnings)
+            curves.append(
+                {
+                    "measurement_id": measurement.measurement_id,
+                    "axis_kind": str(axis_kind),
+                    "x_unit": measurement.units.get("x", "unknown"),
+                    "signal_unit": measurement.units.get("intensity", "unknown"),
+                    "point_count": int(x.size),
+                    "x_min": float(np.min(x)),
+                    "x_max": float(np.max(x)),
+                    "signal_min": float(np.min(signal)),
+                    "signal_max": float(np.max(signal)),
+                    "signal_range": float(np.max(signal) - np.min(signal)),
+                }
+            )
+            total_points += int(x.size)
+            self.result.raw_data[f"{measurement.measurement_id}:x"] = x
+            self.result.raw_data[f"{measurement.measurement_id}:signal"] = signal
+        first = curves[0]
+        self._metrics = {
+            "n_curves": len(curves),
+            "point_count": total_points,
+            "axis_kind": first["axis_kind"] if len(curves) == 1 else "mixed",
+            "x_unit": first["x_unit"] if len(curves) == 1 else "mixed",
+            "signal_unit": first["signal_unit"] if len(curves) == 1 else "mixed",
+            "x_min": min(item["x_min"] for item in curves),
+            "x_max": max(item["x_max"] for item in curves),
+            "signal_min": min(item["signal_min"] for item in curves),
+            "signal_max": max(item["signal_max"] for item in curves),
+            "curves": curves,
+        }
+        self.result.parameters = dict(self._metrics)
+        self.result.validation_warnings = sorted(set(warnings))
+        self.result.metadata.update(
+            {
+                "source_path": self._source_path,
+                "canonical_template_id": self._template.template_id if self._template is not None else "",
+                "analysis_scope": "descriptive_curve_summary",
+            }
+        )
+        return True
+
+    def build_figure_definitions(self):
+        # No publication FigureDefinition is claimed until a shared TGA
+        # figure provider has a reviewed semantic contract.
+        return ()
+
+    def plot(self, output_dir: str = "") -> Dict[str, str]:
+        if not self._measurements:
+            return {}
+        if not output_dir:
+            return {}
+        import matplotlib.pyplot as plt
+
+        destination = Path(output_dir)
+        destination.mkdir(parents=True, exist_ok=True)
+        figure, axes = plt.subplots(figsize=(7, 4.5), constrained_layout=True)
+        for measurement in self._measurements:
+            axes.plot(
+                measurement.channels["x"],
+                measurement.channels["intensity"],
+                label=measurement.measurement_id,
+            )
+        axes.set_xlabel("Temperature / time")
+        axes.set_ylabel("Mass / weight")
+        if len(self._measurements) > 1:
+            axes.legend()
+        axes.grid(alpha=0.2)
+        path = destination / "tga_curve.png"
+        figure.savefig(path, dpi=150)
+        plt.close(figure)
+        return {"curve": str(path)}
+
+    def get_parameters(self) -> Dict[str, Any]:
+        return dict(self._metrics)
+
+
+__all__ = ["TGAEngine"]

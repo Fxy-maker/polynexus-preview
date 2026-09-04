@@ -1,7 +1,7 @@
 """
 Base engine for all analysis techniques in PolyNexus.
 
-Each technique (DSC, IR, WAXS, SAXS, NMR) inherits from BaseEngine
+Each technique (DSC, IR, WAXS, SAXS, NMR, TGA) inherits from BaseEngine
 and implements: load(), preprocess(), analyze(), plot(), export().
 
 New techniques register via TECHNIQUE_REGISTRY for auto-discovery
@@ -39,12 +39,14 @@ def _build_supported_formats() -> dict[str, list[str]]:
     dsc_formats = sorted({".csv", ".txt", ".dat", ".001", ".asc", ".xls", ".xlsx"})
     ir_formats = sorted({".csv", ".txt", ".dat", ".asc", ".prn", ".spa", ".dpt"})
     nmr_formats = sorted(set(NMR_EXTS) | {"fid"})
+    tga_formats = sorted({".csv", ".tsv", ".txt", ".dat", ".asc", ".xls", ".xlsx", ".xlsm"})
     return {
         "saxs": saxs_formats,
         "waxs": waxs_formats,
         "dsc": dsc_formats,
         "ir": ir_formats,
         "nmr": nmr_formats,
+        "tga": tga_formats,
     }
 
 

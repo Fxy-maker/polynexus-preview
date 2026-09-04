@@ -1,5 +1,20 @@
 # Active Work
 
+## Sample-neutral TGA module foundation — 2026-09-04
+
+- Added a shared generic-table TGA route for temperature or time versus
+  mass/weight data. It emits `thermal_1d` measurements and the
+  `thermal_curve_1d.v1` template, preserving unknown units as warnings rather
+  than blocking calculation.
+- Registered a descriptive `TGAEngine` through the common BaseEngine,
+  ComputeRun, CLI, batch, and AI-tune entry points. Generic extrema/summary
+  capabilities are reused; DTG, stage segmentation, residue interpretation,
+  and kinetics remain unsupported.
+- Focused TGA/canonical/ComputeRun/CLI tests pass. Task-scoped structured
+  verification is blocked by pre-existing Ruff findings in `engine.py` outside
+  this change's new logic; targeted Ruff and `git diff --check` pass.
+- Task: `docs/agent/tasks/2026-09-04-tga-module-foundation.md`.
+
 ## PolyNexus AI/Core design baseline formalized (2026-09-04)
 
 - Formalized the product baseline: AI explores broadly, Core computes

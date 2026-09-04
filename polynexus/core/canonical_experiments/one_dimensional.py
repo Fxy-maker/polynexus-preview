@@ -29,6 +29,15 @@ _IR_X_ALIASES = frozenset({"wavenumber", "wavenumbercm1", "cm1"})
 _NMR_X_ALIASES = frozenset({"ppm", "chemicalshift", "chemicalshiftppm", "shiftppm"})
 _Q_ALIASES = frozenset({"q", "qnm1", "qangstrom1"})
 _TWO_THETA_ALIASES = frozenset({"2theta", "twotheta", "theta2"})
+_TGA_TEMPERATURE_ALIASES = frozenset({"temperature", "temperaturec", "temp", "tempc", "sampletemperature"})
+_TGA_TIME_ALIASES = frozenset({"time", "times", "timesec", "timemin", "elapsedtime", "elapsedtimes"})
+_TGA_MASS_ALIASES = frozenset({
+    "mass", "massmg", "massg", "massug", "masspercent", "masspct",
+    "massweightpercent", "massweightpct", "masswtpercent", "masswtpct",
+    "weight", "weightmg", "weightg", "weightpercent", "weightpct",
+    "wtpercent", "wtpct", "residue", "residuemass", "remainingmass",
+    "residuepercent", "remainingweight", "samplemass",
+})
 
 
 @dataclass(frozen=True)
@@ -133,13 +142,19 @@ def convert_one_dimensional_table(
         measurements.append(
             Measurement(
                 measurement_id=selection.measurement_id,
-                family="spectrum_1d" if normalized_technique in {"IR", "NMR"} else "scattering_1d",
+                family=(
+                    "spectrum_1d" if normalized_technique in {"IR", "NMR"}
+                    else "thermal_1d" if normalized_technique == "TGA"
+                    else "scattering_1d"
+                ),
                 role="raw_curve",
                 channels={"x": tuple(pair[0] for pair in pairs), "intensity": tuple(pair[1] for pair in pairs)},
                 units={"x": selection.x_unit, "intensity": selection.intensity_unit},
                 source_locator=locator,
                 acquisition_metadata=(
-                    {} if normalized_technique == "IR"
+                    {"axis_kind": selection.x_kind, "signal_kind": "mass_or_weight"}
+                    if normalized_technique == "TGA"
+                    else {} if normalized_technique == "IR"
                     else {"background_state": "unknown", "normalization_state": "unknown"}
                 ),
                 mapping=selection,
@@ -162,10 +177,18 @@ def convert_one_dimensional_table(
         template_id=(
             "nmr.spectrum.v1" if normalized_technique == "NMR"
             else "spectrum_1d.v1" if normalized_technique == "IR"
+            else "thermal_curve_1d.v1" if normalized_technique == "TGA"
             else "scattering_1d.v1"
         ),
         source_artifact_id=source_artifact_id,
-        payload={"technique": normalized_technique},
+        payload={
+            "technique": normalized_technique,
+            "measurement_family": (
+                "thermal_1d" if normalized_technique == "TGA"
+                else "spectrum_1d" if normalized_technique in {"IR", "NMR"}
+                else "scattering_1d"
+            ),
+        },
         conversion_record=record,
         measurements=measurements,
         mapping_proposal=mapping_proposal if proposal_used else None,
@@ -347,7 +370,7 @@ def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
     relevant = [
         _normalize_header(header)
         for header in headers
-        if _x_kind(header, technique) is not None or _is_intensity_header(header)
+        if _x_kind(header, technique) is not None or _is_intensity_header(header, technique)
     ]
     return len(relevant) != len(set(relevant))
 
@@ -383,7 +406,7 @@ def _valid_proposal(
             return False
         if selection.x_unit != _x_unit(selection.x_column, selection.x_kind):
             return False
-        if selection.intensity_unit != _intensity_unit(selection.intensity_column):
+        if selection.intensity_unit != _intensity_unit(selection.intensity_column, technique):
             return False
         observed = observed_by_table[(table.sheet_index, table.table_index)]
         if observed is not None and not _matches_observed_mapping(selection, observed):
@@ -418,7 +441,7 @@ def _observed_selection(table: _Table, technique: str) -> MappingSelection | Non
         if _x_kind(str(header), technique) is not None
     ]
     intensity_candidates = [
-        str(header) for header in table.frame.columns if _is_intensity_header(str(header))
+        str(header) for header in table.frame.columns if _is_intensity_header(str(header), technique)
     ]
     if len(x_candidates) != 1 or len(intensity_candidates) != 1:
         return None
@@ -439,7 +462,7 @@ def _observed_selection(table: _Table, technique: str) -> MappingSelection | Non
         intensity_column=intensity_column,
         x_kind=x_kind,
         x_unit=_x_unit(x_column, x_kind),
-        intensity_unit=_intensity_unit(intensity_column),
+        intensity_unit=_intensity_unit(intensity_column, technique),
         source="observed",
     )
 
@@ -503,10 +526,23 @@ def _x_kind(header: str, technique: str) -> str | None:
             return "q"
         if {normalized, without_angle_unit}.intersection(_TWO_THETA_ALIASES):
             return "two_theta"
+    if technique == "TGA":
+        without_temperature_unit = _normalize_header(
+            re.sub(r"(?:°\s*[cfk]|degrees?\s*[cfk]|deg\s*[cfk]|\b[cfk]\b)", "", header.casefold())
+        )
+        without_time_unit = _normalize_header(
+            re.sub(r"(?:milliseconds?|ms|minutes?|min|seconds?|secs?|sec|s)\b", "", header.casefold())
+        )
+        if normalized in _TGA_TEMPERATURE_ALIASES or without_temperature_unit in _TGA_TEMPERATURE_ALIASES:
+            return "temperature"
+        if normalized in _TGA_TIME_ALIASES or without_time_unit in _TGA_TIME_ALIASES:
+            return "time"
     return None
 
 
-def _is_intensity_header(header: str) -> bool:
+def _is_intensity_header(header: str, technique: str | None = None) -> bool:
+    if str(technique or "").upper() == "TGA":
+        return _tga_mass_alias(header) in _TGA_MASS_ALIASES
     return _intensity_alias(header) in _INTENSITY_ALIASES
 
 
@@ -520,11 +556,21 @@ def _intensity_alias(header: str) -> str:
     return _normalize_header(without_unit_suffix)
 
 
+def _tga_mass_alias(header: str) -> str:
+    """Normalize common mass/weight labels without interpreting chemistry."""
+    text = header.casefold().replace("%", " percent ")
+    text = re.sub(r"\bwt\.?\b", "weight", text)
+    normalized = _normalize_header(text)
+    return normalized.replace("weightweight", "weight")
+
+
 def _kind_allowed(x_kind: str, technique: str) -> bool:
     return (technique == "IR" and x_kind == "wavenumber") or (
         technique == "NMR" and x_kind == "chemical_shift"
     ) or (
         technique in {"SAXS", "WAXS"} and x_kind in {"q", "two_theta"}
+    ) or (
+        technique == "TGA" and x_kind in {"temperature", "time"}
     )
 
 
@@ -540,11 +586,35 @@ def _x_unit(header: str, x_kind: str) -> str:
         return "angstrom^-1"
     if x_kind == "two_theta" and re.search(r"(?:degrees?|deg|°)", text):
         return "deg"
+    if x_kind == "temperature":
+        if re.search(r"(?:°\s*c|degrees?\s*c|deg\s*c|\bc\b)", text):
+            return "°C"
+        if re.search(r"(?:°\s*k|degrees?\s*k|deg\s*k|\bk\b)", text):
+            return "K"
+        if re.search(r"(?:°\s*f|degrees?\s*f|deg\s*f|\bf\b)", text):
+            return "°F"
+    if x_kind == "time":
+        if re.search(r"(?:milliseconds?|\bms\b)", text):
+            return "ms"
+        if re.search(r"(?:minutes?|\bmin\b)", text):
+            return "min"
+        if re.search(r"(?:seconds?|\bsecs?\b|\bs\b)", text):
+            return "s"
     return "unknown"
 
 
-def _intensity_unit(header: str) -> str:
+def _intensity_unit(header: str, technique: str | None = None) -> str:
     text = header.casefold()
+    if str(technique or "").upper() == "TGA":
+        if "%" in text or re.search(r"(?:percent|pct|wt\.?\s*%)", text):
+            return "%"
+        if re.search(r"(?:\bmg\b|milligrams?)", text):
+            return "mg"
+        if re.search(r"(?:\b(?:μ|µ|u)g\b|micrograms?)", text):
+            return "µg"
+        if re.search(r"(?:\bg\b|grams?)", text):
+            return "g"
+        return "unknown"
     if re.search(r"a\s*\.\s*u\s*\.", text):
         return "a.u."
     for unit in ("absorbance", "transmittance", "counts", "cps"):

@@ -22,6 +22,7 @@ from . import waxs  # noqa: F401
 from . import dsc  # noqa: F401
 from . import ir  # noqa: F401
 from . import nmr  # noqa: F401
+from . import tga  # noqa: F401
 from . import joint  # noqa: F401
 
 __all__ = [
