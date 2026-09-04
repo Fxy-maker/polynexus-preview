@@ -61,13 +61,20 @@ class ExplorationRunStore:
         return run
 
     def list_runs(self) -> tuple[ExplorationRun, ...]:
-        values: list[ExplorationRun] = []
+        """List valid runs; use :meth:`list_records` to retain invalid diagnostics."""
+        return tuple(
+            record["run"] for record in self.list_records() if record["run"] is not None
+        )
+
+    def list_records(self) -> tuple[dict[str, Any], ...]:
+        """Return valid and invalid manifests without silently dropping corruption."""
+        records: list[dict[str, Any]] = []
         for path in sorted(self.root.glob("exploration-*.json"), key=lambda item: item.name):
             try:
-                values.append(self.load(path.stem))
-            except ValueError:
-                continue
-        return tuple(values)
+                records.append({"run_id": path.stem, "run": self.load(path.stem), "error": None})
+            except ValueError as exc:
+                records.append({"run_id": path.stem, "run": None, "error": str(exc)})
+        return tuple(records)
 
     def _path(self, run_id: str) -> Path:
         if not isinstance(run_id, str) or not _RUN_ID.fullmatch(run_id):

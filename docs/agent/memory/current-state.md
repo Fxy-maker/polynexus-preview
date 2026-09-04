@@ -1814,6 +1814,17 @@ remains
 review; the local allowlisted checkpoint is complete, and provider numerical
 algorithms and user artifacts were untouched.
 Acceptance: `docs/acceptance/2026-08-31-ai-platform-trust-boundaries.md`.
+
+The current ExplorationRun gate checkpoint (2026-09-04) closes canonical
+admission, strict descriptor contract, real implementation identity, spawned
+worker bounds, seeded automatic attempts, evidence curation, and replay/
+standard/negative-control/uncertainty/human-review capability-promotion gates.
+The worker is a bounded Python process with best-effort resource controls, not a
+hostile-kernel sandbox; deployment-level container/VM isolation and explicit
+CLI/GUI/Codex/package integration remain open. Focused ExplorationRun coverage
+passes 17 and the task verifier passes quality 313/preprocessing 157. The task
+remains `implementation_complete_review_required` for architecture, security,
+and scientific semantics.
 ## Recoverable Codex–PolyNexus–ARS research loop — implementation complete, review required (2026-09-01)
 
 `ProjectWorkflowService.research_loop()` now exposes a small, durable

@@ -18,6 +18,7 @@ from polynexus.core.ai_platform.contracts import (
     ProviderResultInput,
     canonical_json_hash,
 )
+from .canonical import CanonicalAdmission
 
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
@@ -235,7 +236,11 @@ class ExplorationRequest:
     executor_implementation_hash: str
     method_intent: str
     parameters: Mapping[str, Any]
+    executor_descriptor_hash: str | None = None
     parent_run_id: str | None = None
+    canonical_admission: CanonicalAdmission | None = None
+    seed: int | None = None
+    attempt_id: str | None = None
     schema_version: str = "1"
 
     SCHEMA_VERSION = "1"
@@ -258,12 +263,32 @@ class ExplorationRequest:
             "executor_implementation_hash",
             _sha256(self.executor_implementation_hash, "executor_implementation_hash"),
         )
+        if self.executor_descriptor_hash is not None:
+            object.__setattr__(
+                self,
+                "executor_descriptor_hash",
+                _sha256(self.executor_descriptor_hash, "executor_descriptor_hash"),
+            )
         object.__setattr__(self, "method_intent", _text(self.method_intent, "method_intent"))
         if not isinstance(self.parameters, Mapping):
             raise TypeError("exploration parameters must be a mapping")
         object.__setattr__(self, "parameters", _freeze_json(self.parameters))
         if self.parent_run_id is not None:
             object.__setattr__(self, "parent_run_id", _identifier(self.parent_run_id, "parent_run_id"))
+        if self.canonical_admission is not None and type(self.canonical_admission) is not CanonicalAdmission:
+            raise TypeError("canonical_admission must use the exact CanonicalAdmission type")
+        if self.canonical_admission is not None:
+            if self.canonical_admission.source_artifact_id != self.source_artifact_id:
+                raise ValueError("request source artifact does not match canonical admission")
+            if self.canonical_admission.source_content_hash != self.source_content_hash:
+                raise ValueError("request source content does not match canonical admission")
+            if self.canonical_admission.technique != technique:
+                raise ValueError("request technique does not match canonical admission")
+        if self.seed is not None:
+            if not isinstance(self.seed, int) or isinstance(self.seed, bool) or self.seed < 0:
+                raise ValueError("exploration seed must be a nonnegative integer or null")
+        if self.attempt_id is not None:
+            object.__setattr__(self, "attempt_id", _identifier(self.attempt_id, "attempt_id"))
         expected = canonical_json_hash(self._identity_payload())
         if _sha256(self.request_id, "request_id") != expected:
             raise ValueError("exploration request id does not match its content")
@@ -279,9 +304,13 @@ class ExplorationRequest:
         executor_id: str,
         executor_version: str,
         executor_implementation_hash: str,
+        executor_descriptor_hash: str | None = None,
         method_intent: str,
         parameters: Mapping[str, Any],
         parent_run_id: str | None = None,
+        canonical_admission: CanonicalAdmission | None = None,
+        seed: int | None = None,
+        attempt_id: str | None = None,
     ) -> "ExplorationRequest":
         payload = cls._identity_payload_static(
             source_artifact_id=source_artifact_id,
@@ -290,9 +319,13 @@ class ExplorationRequest:
             executor_id=executor_id,
             executor_version=executor_version,
             executor_implementation_hash=executor_implementation_hash,
+            executor_descriptor_hash=executor_descriptor_hash,
             method_intent=method_intent,
             parameters=parameters,
             parent_run_id=parent_run_id,
+            canonical_admission=canonical_admission,
+            seed=seed,
+            attempt_id=attempt_id,
         )
         return cls(
             request_id=canonical_json_hash(payload),
@@ -302,9 +335,13 @@ class ExplorationRequest:
             executor_id=executor_id,
             executor_version=executor_version,
             executor_implementation_hash=executor_implementation_hash,
+            executor_descriptor_hash=executor_descriptor_hash,
             method_intent=method_intent,
             parameters=parameters,
             parent_run_id=parent_run_id,
+            canonical_admission=canonical_admission,
+            seed=seed,
+            attempt_id=attempt_id,
         )
 
     @classmethod
@@ -319,9 +356,17 @@ class ExplorationRequest:
             executor_id=value["executor_id"],
             executor_version=value["executor_version"],
             executor_implementation_hash=value["executor_implementation_hash"],
+            executor_descriptor_hash=value.get("executor_descriptor_hash"),
             method_intent=value["method_intent"],
             parameters=value.get("parameters", {}),
             parent_run_id=value.get("parent_run_id"),
+            canonical_admission=(
+                None
+                if value.get("canonical_admission") is None
+                else CanonicalAdmission.from_dict(value["canonical_admission"])
+            ),
+            seed=value.get("seed"),
+            attempt_id=value.get("attempt_id"),
             schema_version=value.get("schema_version", ""),
         )
 
@@ -334,15 +379,25 @@ class ExplorationRequest:
         executor_id: object,
         executor_version: object,
         executor_implementation_hash: object,
+        executor_descriptor_hash: object | None,
         method_intent: object,
         parameters: Mapping[str, Any],
         parent_run_id: object | None,
+        canonical_admission: CanonicalAdmission | None,
+        seed: object | None,
+        attempt_id: object | None,
     ) -> dict[str, Any]:
         normalized_technique = normalize_technique(technique)
         if not normalized_technique:
             raise ValueError("exploration technique must be nonempty")
         if parent_run_id is not None:
             parent_run_id = _identifier(parent_run_id, "parent_run_id")
+        if canonical_admission is not None and type(canonical_admission) is not CanonicalAdmission:
+            raise TypeError("canonical_admission must use the exact CanonicalAdmission type")
+        if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool) or seed < 0):
+            raise ValueError("exploration seed must be a nonnegative integer or null")
+        if attempt_id is not None:
+            attempt_id = _identifier(attempt_id, "attempt_id")
         return {
             "schema_version": ExplorationRequest.SCHEMA_VERSION,
             "source_artifact_id": _sha256(source_artifact_id, "source_artifact_id"),
@@ -353,9 +408,17 @@ class ExplorationRequest:
             "executor_implementation_hash": _sha256(
                 executor_implementation_hash, "executor_implementation_hash"
             ),
+            "executor_descriptor_hash": (
+                None
+                if executor_descriptor_hash is None
+                else _sha256(executor_descriptor_hash, "executor_descriptor_hash")
+            ),
             "method_intent": _text(method_intent, "method_intent"),
             "parameters": _public(_freeze_json(parameters)),
             "parent_run_id": parent_run_id,
+            "canonical_admission": None if canonical_admission is None else canonical_admission.to_dict(),
+            "seed": seed,
+            "attempt_id": attempt_id,
         }
 
     def _identity_payload(self) -> dict[str, Any]:
@@ -366,9 +429,13 @@ class ExplorationRequest:
             executor_id=self.executor_id,
             executor_version=self.executor_version,
             executor_implementation_hash=self.executor_implementation_hash,
+            executor_descriptor_hash=self.executor_descriptor_hash,
             method_intent=self.method_intent,
             parameters=self.parameters,
             parent_run_id=self.parent_run_id,
+            canonical_admission=self.canonical_admission,
+            seed=self.seed,
+            attempt_id=self.attempt_id,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -593,37 +660,19 @@ class ExplorationRun:
     def to_dict(self) -> dict[str, Any]:
         return {"run_hash": self.run_hash, **self._content_payload()}
 
-    def to_evidence_item(self):
-        """Project a completed exploration into the existing evidence DTO."""
+    def to_full_snapshot(self) -> dict[str, Any]:
+        """Return the complete immutable exploration history for workspace use."""
 
-        if self.status != "completed" or self.provider_result is None:
-            raise ValueError("only completed exploration runs can become evidence")
-        from polynexus.core.project_workflow.models import EvidenceItem
+        return self.to_dict()
 
-        return EvidenceItem.create(
-            evidence_id=f"{self.run_id}:exploration",
-            kind="exploration_result",
-            technique=self.request.technique,
-            claim_scope=(
-                f"Exploration output from {self.request.executor_id} "
-                f"v{self.request.executor_version}"
-            ),
-            observed_results={
-                "exploration_run": {
-                    "run_id": self.run_id,
-                    "run_hash": self.run_hash,
-                    "request_id": self.request.request_id,
-                },
-                "provider_result": self.provider_result.to_dict(),
-                "metric_manifest": [dict(item) for item in self.provider_result.metric_manifest],
-            },
-            source_runs=(self.run_id,),
-            raw_sources=(self.request.source_artifact_id,),
-            status="review_required",
-            limitations=tuple(
-                dict.fromkeys(("exploration_method_requires_review", *self.reason_codes))
-            ),
-        )
+    def to_evidence_item(self, selection: Any):
+        """Project only an explicit metric selection into shared evidence."""
+
+        from .evidence import ExplorationEvidenceSelection
+
+        if type(selection) is not ExplorationEvidenceSelection:
+            raise TypeError("exploration evidence requires an explicit selection")
+        return selection.project(self)
 
 
 __all__ = [

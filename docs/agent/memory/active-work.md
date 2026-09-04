@@ -6429,3 +6429,23 @@ rows, and 4 pending evidence reviews. Acceptance:
   `docs/superpowers/specs/2026-09-04-exploration-run-review.md`; no runtime or
   scientific results changed. Task:
   `docs/agent/tasks/2026-09-04-exploration-run-review.md`.
+
+## ExplorationRun execution gates — implementation complete, review required (2026-09-04)
+
+The ExplorationRun path now requires a registered `CanonicalAdmission` derived
+from a `CanonicalDataset`/`CanonicalExperiment` and `RawArtifact`, validates
+descriptor input/output contracts before and after execution, and binds the
+request to the descriptor hash and implementation digest derived from loaded
+callable source/module bytes. `IsolatedExplorationRunner` uses a spawned worker
+with network denial, temporary-directory filesystem policy, output/wall-clock
+limits, and best-effort POSIX memory/CPU limits; it is explicitly not a hostile
+kernel container or VM sandbox. Automatic exploration records seed, attempt IDs,
+budget hash, duplicate suppression, and stop reason. Evidence requires explicit
+computed-metric selection, while promotion requires independent replay,
+standard, negative-control, uncertainty, and human scientific review evidence
+and creates a new capability version. Exploration storage now exposes invalid
+manifest diagnostics through `list_records()` rather than silently losing them.
+Focused coverage is 17 tests; task-scoped verifier passed quality 313 and
+preprocessing 157. CLI/GUI/Codex routing and formal package-member integration
+remain follow-up work; no provider algorithms or user data changed. Task:
+`docs/agent/tasks/2026-09-04-exploration-run-gates.md`.
