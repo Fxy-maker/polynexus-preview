@@ -7,7 +7,7 @@ from polynexus.cli.parser import parse_args
 from polynexus.core.ai_platform import default_descriptor_registry
 from polynexus.core.canonical_experiments import default_converter_registry
 from polynexus.core.compute import ComputeRunService, RawArtifact
-from polynexus.core.engine import get_engine
+from polynexus.core.engine import get_engine, list_techniques
 from polynexus.core.project_workflow.adapters import SingleInputTechniqueAdapter
 
 
@@ -167,6 +167,13 @@ def test_sec_gpc_entries_and_project_adapter_share_canonical_name(tmp_path: Path
     assert parse_args(["gpc", str(source)]).cmd == "gpc"
     assert parse_args(["batch", str(tmp_path), "--technique", "gpc"]).technique == "gpc"
     assert ".csv" in allowed_extensions("gpc")
+    assert [item["name"] for item in list_techniques()].count("sec") == 1
+    assert all(item["name"] != "gpc" for item in list_techniques())
+    alias_run = ComputeRunService().run_direct(
+        technique="gpc", path=source, output_dir=""
+    )
+    assert alias_run.status == "completed"
+    assert alias_run.artifact.technique == "sec"
     proposal = SingleInputTechniqueAdapter().propose_recipe(
         {
             "workflow_id": SingleInputTechniqueAdapter.workflow_id,

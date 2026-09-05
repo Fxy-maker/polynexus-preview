@@ -289,21 +289,22 @@ def run_batch_one(
     compute_run_service_factory: Callable[..., ComputeRunService] = ComputeRunService,
 ) -> dict:
     file_path_str, technique, output_dir_str = task
+    canonical_technique = "sec" if technique == "gpc" else technique
     file_path = Path(file_path_str)
     output_dir = Path(output_dir_str)
     started = time.time()
     status = "OK"
     result = None
     try:
-        engine = get_engine_fn(technique)
+        engine = get_engine_fn(canonical_technique)
         if engine is None:
-            raise RuntimeError(f"Unknown technique: {technique}")
+            raise RuntimeError(f"Unknown technique: {canonical_technique}")
         out_path = output_dir / file_path.stem
         service = compute_run_service_factory(
             lambda selected_technique, config=None, submodule_id=None: _BatchEngineAdapter(engine)
         )
         result = service.run_direct(
-            technique=technique,
+            technique=canonical_technique,
             path=file_path,
             output_dir=out_path,
             engine=_BatchEngineAdapter(engine),
@@ -311,13 +312,13 @@ def run_batch_one(
         if result.status != "completed":
             raise RuntimeError(", ".join(result.reasons) or result.status)
         elapsed = time.time() - started
-        persist_batch_run_fn(str(file_path), technique, result, elapsed)
+        persist_batch_run_fn(str(file_path), canonical_technique, result, elapsed)
     except Exception as exc:
         logger.warning("Batch analysis failed: %s %s", file_path.name, exc, exc_info=True)
         status = f"FAIL: {exc}"
     return {
         "file": file_path.name,
-        "technique": technique,
+        "technique": canonical_technique,
         "status": status,
         "r2": extract_result_r2_fn(
             result.legacy_result if isinstance(result, ComputeRun) else result

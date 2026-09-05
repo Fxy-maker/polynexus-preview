@@ -32,16 +32,19 @@ def run_single(
 
     del _dsc, _ir, _waxs, _saxs, _nmr, _tga, _dma, _rheology, _sec
 
-    engine = get_engine_fn(args.cmd)
+    canonical_technique = "sec" if args.cmd == "gpc" else args.cmd
+    engine = get_engine_fn(canonical_technique)
     if engine is not None and hasattr(args, "type") and hasattr(engine, "cfg"):
         engine.cfg.experiment_type = args.type
 
-    output = args.output or os.path.join(os.path.dirname(args.input) or ".", args.cmd + "_results")
+    output = args.output or os.path.join(
+        os.path.dirname(args.input) or ".", canonical_technique + "_results"
+    )
     service = compute_run_service_factory(
         lambda technique, config=None, submodule_id=None: engine
     )
     run = service.run_direct(
-        technique=args.cmd,
+        technique=canonical_technique,
         path=args.input,
         output_dir=output,
         engine=engine,
@@ -57,6 +60,8 @@ def run_single(
         return 0
 
     assert run.result is not None
-    for line in format_technique_result_lines_fn(args.cmd, output, run.result.metrics):
+    for line in format_technique_result_lines_fn(
+        canonical_technique, output, run.result.metrics
+    ):
         print(line)
     return 0

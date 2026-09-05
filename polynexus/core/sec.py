@@ -17,7 +17,6 @@ SEC_TABLE_EXTENSIONS = frozenset(
 )
 
 
-@register_technique("gpc")
 @register_technique("sec")
 class SECEngine(BaseEngine):
     """Describe SEC detector curves without inferring molecular-weight moments."""
