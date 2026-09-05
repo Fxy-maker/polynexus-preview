@@ -28,9 +28,10 @@ def run_single(
     import polynexus.core.tga as _tga
     import polynexus.core.dma as _dma
     import polynexus.core.rheology as _rheology
+    import polynexus.core.mechanics as _mechanics
     import polynexus.core.sec as _sec
 
-    del _dsc, _ir, _waxs, _saxs, _nmr, _tga, _dma, _rheology, _sec
+    del _dsc, _ir, _waxs, _saxs, _nmr, _tga, _dma, _rheology, _mechanics, _sec
 
     canonical_technique = "sec" if args.cmd == "gpc" else args.cmd
     engine = get_engine_fn(canonical_technique)

@@ -189,6 +189,7 @@ class ProjectWorkflowService:
                 "tga",
                 "dma",
                 "rheology",
+                "mechanics",
                 "sec",
             }:
                 grouped.setdefault(artifact.technique, []).append(artifact.relative_path)
@@ -1374,6 +1375,11 @@ class ProjectWorkflowService:
             ("gel permeation chromatography", "sec"),
             ("rheology", "rheology"),
             ("rheometer", "rheology"),
+            ("mechanical testing", "mechanics"),
+            ("mechanics", "mechanics"),
+            ("tensile test", "mechanics"),
+            ("compression test", "mechanics"),
+            ("flexural test", "mechanics"),
             ("waxs", "waxs"),
             ("saxs", "saxs"),
             ("ftir", "ir"),

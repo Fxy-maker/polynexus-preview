@@ -69,6 +69,49 @@ _SEC_TIME_ALIASES = frozenset(
 _SEC_VOLUME_ALIASES = frozenset(
     {"volume", "retentionvolume", "elutionvolume"}
 )
+_MECHANICS_TIME_ALIASES = _TGA_TIME_ALIASES
+_MECHANICS_DISPLACEMENT_ALIASES = frozenset(
+    {"displacement", "extension", "elongation", "crossheaddisplacement", "stroke"}
+)
+_MECHANICS_STRAIN_ALIASES = frozenset(
+    {"strain", "engineeringstrain", "elongationpercent", "strainpercent"}
+)
+_MECHANICS_DEFLECTION_ALIASES = frozenset(
+    {"deflection", "displacementdeflection", "flexuraldeflection"}
+)
+_MECHANICS_CYCLE_ALIASES = frozenset(
+    {"cycle", "cycles", "cyclenumber", "fatiguecycle", "fatiguecycles"}
+)
+_MECHANICS_SIGNAL_ALIASES = frozenset(
+    {
+        "stress",
+        "tensilestress",
+        "compressivestress",
+        "compressionstress",
+        "flexuralstress",
+        "bendingstress",
+        "shearstress",
+        "force",
+        "load",
+        "tensileforce",
+        "compressionforce",
+        "displacement",
+        "extension",
+        "elongation",
+        "strain",
+        "deflection",
+        "energy",
+        "work",
+        "impactenergy",
+        "modulus",
+        "youngsmodulus",
+        "elasticmodulus",
+        "tensilemodulus",
+        "flexuralmodulus",
+        "compressivemodulus",
+        "vendormodulus",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -128,6 +171,8 @@ def convert_one_dimensional_table(
             if normalized_technique == "RHEOLOGY"
             else _observed_sec_selections(table)
             if normalized_technique == "SEC"
+            else _observed_mechanics_selections(table)
+            if normalized_technique == "MECHANICS"
             else _as_selection_tuple(_observed_selection(table, normalized_technique))
         )
         for table in tables
@@ -201,6 +246,7 @@ def convert_one_dimensional_table(
                     else "viscoelastic_1d" if normalized_technique == "DMA"
                     else "rheological_1d" if normalized_technique == "RHEOLOGY"
                     else "chromatography_1d" if normalized_technique == "SEC"
+                    else "mechanical_1d" if normalized_technique == "MECHANICS"
                     else "scattering_1d"
                 ),
                 role="raw_curve",
@@ -216,6 +262,8 @@ def convert_one_dimensional_table(
                     if normalized_technique == "RHEOLOGY"
                     else _sec_acquisition_metadata(selection)
                     if normalized_technique == "SEC"
+                    else _mechanics_acquisition_metadata(selection)
+                    if normalized_technique == "MECHANICS"
                     else {} if normalized_technique == "IR"
                     else {"background_state": "unknown", "normalization_state": "unknown"}
                 ),
@@ -243,6 +291,7 @@ def convert_one_dimensional_table(
             else "dma_curve_1d.v1" if normalized_technique == "DMA"
             else "rheology_curve_1d.v1" if normalized_technique == "RHEOLOGY"
             else "sec_chromatogram_1d.v1" if normalized_technique == "SEC"
+            else "mechanics_curve_1d.v1" if normalized_technique == "MECHANICS"
             else "scattering_1d.v1"
         ),
         source_artifact_id=source_artifact_id,
@@ -253,6 +302,7 @@ def convert_one_dimensional_table(
                 else "viscoelastic_1d" if normalized_technique == "DMA"
                 else "rheological_1d" if normalized_technique == "RHEOLOGY"
                 else "chromatography_1d" if normalized_technique == "SEC"
+                else "mechanical_1d" if normalized_technique == "MECHANICS"
                 else "spectrum_1d" if normalized_technique in {"IR", "NMR"}
                 else "scattering_1d"
             ),
@@ -435,7 +485,7 @@ def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
         headers.pop()
     if any(not header.strip() for header in headers):
         return True
-    if technique in {"DMA", "RHEOLOGY", "SEC"}:
+    if technique in {"DMA", "RHEOLOGY", "SEC", "MECHANICS"}:
         relevant: list[tuple[str, ...]] = []
         for header in headers:
             x_kind = _x_kind(header, technique)
@@ -445,11 +495,21 @@ def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
                 else _rheology_signal_descriptor(header)
                 if technique == "RHEOLOGY"
                 else _sec_signal_descriptor(header)
+                if technique == "SEC"
+                else _mechanics_signal_descriptor(header)
             )
             if x_kind is not None:
                 relevant.append(("axis", x_kind))
             elif descriptor is not None:
                 relevant.append(("signal", *descriptor))
+        if technique == "MECHANICS":
+            signal_kinds = {
+                item[1] for item in relevant if item[0] == "signal"
+            }
+            if "stress" in signal_kinds and any(
+                kind.endswith("_stress") for kind in signal_kinds
+            ):
+                return True
         return len(relevant) != len(set(relevant))
     relevant = [
         (_normalize_header(header),)
@@ -710,6 +770,63 @@ def _observed_sec_selections(table: _Table) -> tuple[MappingSelection, ...] | No
     return tuple(selections)
 
 
+def _observed_mechanics_selections(
+    table: _Table,
+) -> tuple[MappingSelection, ...] | None:
+    x_candidates = [
+        (str(header), _x_kind(str(header), "MECHANICS"))
+        for header in table.frame.columns
+        if _x_kind(str(header), "MECHANICS") is not None
+    ]
+    if len(x_candidates) != 1:
+        return None
+    x_column, x_kind = x_candidates[0]
+    signal_candidates = [
+        (str(header), _mechanics_signal_descriptor(str(header)))
+        for header in table.frame.columns
+        if str(header) != x_column
+        and _mechanics_signal_descriptor(str(header)) is not None
+    ]
+    if not signal_candidates:
+        return None
+    descriptors = [descriptor for _, descriptor in signal_candidates]
+    if len(descriptors) != len(set(descriptors)):
+        return None
+    signal_kinds = {descriptor[0] for descriptor in descriptors if descriptor is not None}
+    if "stress" in signal_kinds and any(kind.endswith("_stress") for kind in signal_kinds):
+        return None
+    start, end = _table_row_range(table)
+    multi_signal = len(signal_candidates) > 1
+    selections: list[MappingSelection] = []
+    for intensity_column, descriptor in signal_candidates:
+        if descriptor is None:
+            continue
+        signal_kind, test_mode = descriptor
+        measurement_id = _measurement_id(table)
+        if multi_signal:
+            measurement_id += (
+                f"-signal-{signal_kind.replace('_', '-')}-{test_mode}"
+            )
+        selections.append(
+            MappingSelection(
+                measurement_id=measurement_id,
+                sheet_name=table.sheet_name,
+                sheet_index=table.sheet_index,
+                table_index=table.table_index,
+                header_row=table.header_row,
+                data_row_start=start,
+                data_row_end=end,
+                x_column=x_column,
+                intensity_column=intensity_column,
+                x_kind=str(x_kind),
+                x_unit=_x_unit(x_column, str(x_kind)),
+                intensity_unit=_intensity_unit(intensity_column, "MECHANICS"),
+                source="observed",
+            )
+        )
+    return tuple(selections)
+
+
 def _dma_acquisition_metadata(selection: MappingSelection) -> dict[str, str]:
     descriptor = _dma_signal_descriptor(selection.intensity_column)
     signal_kind, modulus_basis = descriptor or ("viscoelastic_signal", "unspecified")
@@ -745,6 +862,20 @@ def _sec_acquisition_metadata(selection: MappingSelection) -> dict[str, str]:
         "axis_kind": selection.x_kind,
         "signal_kind": signal_kind,
         "detector_kind": detector_kind,
+        "source_table_id": (
+            f"sheet-{selection.sheet_index if selection.sheet_index is not None else 0}"
+            f"-table-{selection.table_index}"
+        ),
+    }
+
+
+def _mechanics_acquisition_metadata(selection: MappingSelection) -> dict[str, str]:
+    descriptor = _mechanics_signal_descriptor(selection.intensity_column)
+    signal_kind, test_mode = descriptor or ("mechanics_signal", "unspecified")
+    return {
+        "axis_kind": selection.x_kind,
+        "signal_kind": signal_kind,
+        "test_mode": test_mode,
         "source_table_id": (
             f"sheet-{selection.sheet_index if selection.sheet_index is not None else 0}"
             f"-table-{selection.table_index}"
@@ -813,6 +944,34 @@ def _x_kind(header: str, technique: str) -> str | None:
             return "elution_volume"
         if normalized in _SEC_TIME_ALIASES or without_unit in _SEC_TIME_ALIASES:
             return "retention_time"
+    if technique == "MECHANICS":
+        without_time_unit = _normalize_header(
+            re.sub(
+                r"(?:milliseconds?|ms|minutes?|min|seconds?|secs?|sec|s)\b",
+                "",
+                header.casefold(),
+            )
+        )
+        without_length_unit = _normalize_header(
+            re.sub(
+                r"(?:micrometers?|[µμu]m|millimeters?|mm|centimeters?|cm|meters?|m)\b",
+                "",
+                header.casefold(),
+            )
+        )
+        without_strain_unit = _normalize_header(
+            re.sub(r"(?:%|percent)", "", header.casefold())
+        )
+        if normalized in _MECHANICS_TIME_ALIASES or without_time_unit in _MECHANICS_TIME_ALIASES:
+            return "time"
+        if normalized in _MECHANICS_DEFLECTION_ALIASES or without_length_unit in _MECHANICS_DEFLECTION_ALIASES:
+            return "deflection"
+        if normalized in _MECHANICS_DISPLACEMENT_ALIASES or without_length_unit in _MECHANICS_DISPLACEMENT_ALIASES:
+            return "displacement"
+        if normalized in _MECHANICS_STRAIN_ALIASES or without_strain_unit in _MECHANICS_STRAIN_ALIASES:
+            return "strain"
+        if normalized in _MECHANICS_CYCLE_ALIASES:
+            return "cycle"
     if technique in {"SAXS", "WAXS"}:
         without_q_unit = _normalize_header(
             re.sub(r"(?:nm|angstrom|å|a)\s*(?:\^?\s*-\s*1|⁻¹)", "", header.casefold())
@@ -924,6 +1083,8 @@ def _is_intensity_header(header: str, technique: str | None = None) -> bool:
         return _rheology_signal_descriptor(header) is not None
     if str(technique or "").upper() == "SEC":
         return _sec_signal_descriptor(header) is not None
+    if str(technique or "").upper() == "MECHANICS":
+        return _mechanics_signal_descriptor(header) is not None
     return _intensity_alias(header) in _INTENSITY_ALIASES
 
 
@@ -1082,6 +1243,71 @@ def _sec_signal_descriptor(header: str) -> tuple[str, str] | None:
     return None
 
 
+def _mechanics_signal_descriptor(header: str) -> tuple[str, str] | None:
+    """Return explicit mechanics response semantics without fitting a model."""
+    text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", header.casefold())
+    text = text.replace("young's", "youngs")
+    text = re.sub(r"\bcompression\b", "compressive", text)
+    text = re.sub(r"\bbending\b", "flexural", text)
+    normalized = _normalize_header(text)
+    alias = next(
+        (
+            candidate
+            for candidate in sorted(_MECHANICS_SIGNAL_ALIASES, key=len, reverse=True)
+            if normalized == candidate or normalized.startswith(candidate)
+        ),
+        None,
+    )
+    if alias is None:
+        return None
+
+    test_mode = "unspecified"
+    for marker, mode in (
+        ("tensile", "tensile"),
+        ("compressive", "compression"),
+        ("flexural", "flexural"),
+        ("impact", "impact"),
+        ("fatigue", "fatigue"),
+        ("cyclic", "fatigue"),
+        ("creep", "creep"),
+        ("shear", "shear"),
+    ):
+        if marker in normalized:
+            test_mode = mode
+            break
+
+    if alias in {"tensilestress", "compressivestress", "flexuralstress", "shearstress"}:
+        return {
+            "tensilestress": ("tensile_stress", "tensile"),
+            "compressivestress": ("compressive_stress", "compression"),
+            "flexuralstress": ("flexural_stress", "flexural"),
+            "shearstress": ("shear_stress", "shear"),
+        }[alias]
+    if alias in {"youngsmodulus", "tensilemodulus"}:
+        return "tensile_modulus", "tensile"
+    if alias == "flexuralmodulus":
+        return "flexural_modulus", "flexural"
+    if alias == "compressivemodulus":
+        return "compressive_modulus", "compression"
+    if alias in {"modulus", "elasticmodulus", "vendormodulus"}:
+        return "vendor_modulus", "vendor_derived"
+    if alias in {"force", "tensileforce", "compressionforce"}:
+        return "force", test_mode
+    if alias == "load":
+        return "load", test_mode
+    if alias in {"displacement", "extension", "elongation"}:
+        return alias, test_mode
+    if alias == "strain":
+        return "strain", test_mode
+    if alias == "deflection":
+        return "deflection", test_mode
+    if alias in {"energy", "impactenergy"}:
+        return "energy", "impact" if alias == "impactenergy" else test_mode
+    if alias == "work":
+        return "work", test_mode
+    return "stress", test_mode
+
+
 def _kind_allowed(x_kind: str, technique: str) -> bool:
     return (technique == "IR" and x_kind == "wavenumber") or (
         technique == "NMR" and x_kind == "chemical_shift"
@@ -1096,6 +1322,9 @@ def _kind_allowed(x_kind: str, technique: str) -> bool:
         and x_kind in {"shear_rate", "frequency", "angular_frequency", "temperature", "time", "strain"}
     ) or (
         technique == "SEC" and x_kind in {"retention_time", "elution_volume"}
+    ) or (
+        technique == "MECHANICS"
+        and x_kind in {"time", "displacement", "strain", "deflection", "cycle"}
     )
 
 
@@ -1157,6 +1386,17 @@ def _x_unit(header: str, x_kind: str) -> str:
         return "s^-1"
     if x_kind == "strain" and ("%" in text or "percent" in text):
         return "%"
+    if x_kind in {"displacement", "deflection"}:
+        if re.search(r"(?:micrometers?|[µμu]m)\b", text):
+            return "um"
+        if re.search(r"(?:millimeters?|\bmm\b)", text):
+            return "mm"
+        if re.search(r"(?:centimeters?|\bcm\b)", text):
+            return "cm"
+        if re.search(r"(?:meters?|\bm\b)", text):
+            return "m"
+    if x_kind == "cycle":
+        return "cycle"
     return "unknown"
 
 
@@ -1195,6 +1435,8 @@ def _intensity_unit(header: str, technique: str | None = None) -> str:
         return _rheology_intensity_unit(header)
     if str(technique or "").upper() == "SEC":
         return _sec_intensity_unit(header)
+    if str(technique or "").upper() == "MECHANICS":
+        return _mechanics_intensity_unit(header)
     if re.search(r"a\s*\.\s*u\s*\.", text):
         return "a.u."
     for unit in ("absorbance", "transmittance", "counts", "cps"):
@@ -1283,6 +1525,58 @@ def _sec_intensity_unit(header: str) -> str:
         return "kPa"
     if re.search(r"\bpa\b", text):
         return "Pa"
+    return "unknown"
+
+
+def _mechanics_intensity_unit(header: str) -> str:
+    descriptor = _mechanics_signal_descriptor(header)
+    signal_kind = descriptor[0] if descriptor is not None else "unknown"
+    text = header.casefold()
+    if signal_kind in {
+        "stress",
+        "tensile_stress",
+        "compressive_stress",
+        "flexural_stress",
+        "shear_stress",
+        "vendor_modulus",
+        "tensile_modulus",
+        "flexural_modulus",
+        "compressive_modulus",
+    }:
+        for pattern, unit in (
+            (r"\bgpa\b", "GPa"),
+            (r"\bmpa\b", "MPa"),
+            (r"\bkpa\b", "kPa"),
+            (r"\bpa\b|pascal", "Pa"),
+        ):
+            if re.search(pattern, text):
+                return unit
+    if signal_kind in {"force", "load"}:
+        for pattern, unit in (
+            (r"\bkn\b", "kN"),
+            (r"\bmn\b", "mN"),
+            (r"\bn\b|newton", "N"),
+        ):
+            if re.search(pattern, text):
+                return unit
+    if signal_kind == "strain" and ("%" in text or "percent" in text):
+        return "%"
+    if signal_kind in {"displacement", "extension", "elongation", "deflection"}:
+        for pattern, unit in (
+            (r"(?:micrometers?|[µμu]m)\b", "um"),
+            (r"(?:millimeters?|\bmm\b)", "mm"),
+            (r"(?:centimeters?|\bcm\b)", "cm"),
+            (r"(?:meters?|\bm\b)", "m"),
+        ):
+            if re.search(pattern, text):
+                return unit
+    if signal_kind in {"energy", "work"}:
+        if re.search(r"\bkj\b", text):
+            return "kJ"
+        if re.search(r"\bmj\b", text):
+            return "mJ"
+        if re.search(r"\bj\b|joule", text):
+            return "J"
     return "unknown"
 
 

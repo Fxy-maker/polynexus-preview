@@ -1956,3 +1956,18 @@ and AI-native evidence routing use the same public objects. Formal molecular
 weight/distribution capabilities, vendor binary readers, calibration/uncertainty,
 independent replay, and capability promotion remain open. Task:
 `docs/agent/tasks/2026-09-05-sec-gpc-foundation.md`.
+
+## Mechanics canonical curve checkpoint (2026-09-05)
+
+The shared canonical registry now recognizes `mechanics_curve_1d.v1` for
+sample-neutral tensile, compression, flexural, impact, fatigue, and related
+table curves. Conversion preserves explicit axes and labelled stress,
+force/load, strain, displacement/deflection, energy, and vendor modulus
+signals with source locators and test-mode provenance. `MechanicsEngine` and
+`mechanics.processing.v1` compute only recorded response peaks and raw
+trapezoid integrals; geometry-dependent yield/modulus/toughness/fatigue/creep
+results are explicitly unavailable. CLI, Batch, ComputeRun, generic
+capabilities, project adapters/index, and AI-native evidence use the same
+objects. Independent replay, uncertainty, vendor readers, and formal
+capability promotion remain open and require architecture/scientific review.
+Task: `docs/agent/tasks/2026-09-05-mechanics-foundation.md`.

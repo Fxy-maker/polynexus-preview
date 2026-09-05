@@ -63,6 +63,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_rheology.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
     p_rheology.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
+    p_mechanics = sub.add_parser("mechanics", help="Mechanical testing")
+    p_mechanics.add_argument("input")
+    p_mechanics.add_argument("-o", "--output", default="")
+    p_mechanics.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_mechanics.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
     p_sec = sub.add_parser("sec", help="SEC/GPC")
     p_sec.add_argument("input")
     p_sec.add_argument("-o", "--output", default="")
@@ -209,7 +215,7 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("input_dir", nargs="?", help="Input directory path")
     pb.add_argument(
         "--technique",
-        choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology", "sec", "gpc"],
+        choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology", "mechanics", "sec", "gpc"],
         help="Technique to analyze",
     )
     pb.add_argument("--pattern", default="*", metavar="GLOB", help="Filename glob filter, default *")

@@ -91,6 +91,7 @@ def test_index_orders_paths_deterministically(tmp_path: Path) -> None:
         ("TGA", "tga"),
         ("DMA", "dma"),
         ("RHEOLOGY", "rheology"),
+        ("MECHANICS", "mechanics"),
         ("GPC", "sec"),
         ("SEC", "sec"),
     ),

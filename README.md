@@ -28,6 +28,7 @@ for the capability maturity boundary, release checklist, and data-rights rules.
 - `DMA` - Dynamic Mechanical Analysis (sample-neutral table-curve foundation)
 - `Rheology` - sample-neutral rheometer table-curve foundation
 - `SEC/GPC` - Size-Exclusion / Gel-Permeation Chromatography (sample-neutral chromatogram foundation)
+- `Mechanics` - sample-neutral mechanical-test table-curve foundation
 
 Coverage varies by input type and workflow. The runtime catalog distinguishes
 `available`, `experimental`, and `unsupported` capabilities. TGA currently
@@ -54,7 +55,12 @@ distribution columns. It derives only a recorded-response peak coordinate and
 a baseline-uncorrected raw integral; molecular-weight moments remain explicitly
 unavailable until calibration and distribution semantics are supplied. These
 outputs are diagnostic and do not infer universal calibration or chemistry.
-Mechanics remains planned/unsupported rather than an executable provider.
+Mechanics now provides a sample-neutral table-curve foundation: it preserves
+explicit time, displacement, strain, deflection, cycle, stress, force/load,
+energy, and modulus channels and derives only recorded response peaks and raw
+trapezoid integrals. These outputs remain diagnostic; geometry-dependent
+yield/modulus/toughness, fatigue, and creep models are unavailable until test
+semantics and specimen geometry are supplied.
 
 ## Quick Start
 
@@ -108,6 +114,7 @@ polynexus rheology frequency-sweep.csv
 polynexus sec chromatogram.csv
 # GPC is accepted as an alias for SEC
 polynexus gpc chromatogram.csv
+polynexus mechanics tensile-curve.csv
 ```
 
 ### 4. Batch processing

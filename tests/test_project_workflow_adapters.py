@@ -67,6 +67,12 @@ def test_single_input_adapter_proposes_registered_static_recipe(tmp_path: Path) 
             "rheology.standard",
         ),
         (
+            "mechanics",
+            "Strain (%),Tensile Stress (MPa)\n0,0\n1,10\n2,7\n",
+            "mechanics_curve_1d.v1",
+            "mechanics.standard",
+        ),
+        (
             "gpc",
             "Elution Volume (mL),RI (mV)\n1,0\n2,2\n3,1\n",
             "sec_chromatogram_1d.v1",

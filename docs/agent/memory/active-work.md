@@ -6646,3 +6646,25 @@ remain follow-up work; no provider algorithms or user data changed. Task:
   the changed-file set. Vendor binary readers, calibration DTOs, uncertainty,
   independent replay, and capability promotion remain follow-up work.
 - Task: `docs/agent/tasks/2026-09-05-sec-gpc-foundation.md`.
+
+## Mechanics sample-neutral curve foundation — implementation complete, review required (2026-09-05)
+
+- Added `mechanics_curve_1d.v1` and a shared `MechanicsEngine` for common
+  mechanics table exports. Explicit time, displacement, strain, deflection,
+  cycle, stress, force/load, energy, and modulus channels retain source
+  values, units, test-mode provenance, and source locators.
+- `mechanics.processing.v1` derives only recorded global-response peak
+  coordinates and baseline/geometry-uncorrected trapezoid integrals. A
+  non-monotonic coordinate makes only the local integral unavailable; source
+  arrays remain unchanged. Yield, modulus, toughness, fatigue, and creep
+  summaries stay explicitly unavailable without test semantics and geometry.
+- Mechanics is registered across canonical conversion, generic capabilities,
+  direct/prevalidated ComputeRun, CLI, Batch, project index/adapters, and
+  AI-native evidence packaging. Formal `mechanics.*` descriptors remain
+  unsupported and no material model is inferred.
+- Focused mechanics/canonical/project coverage passes 100 with 1 skip; shared
+  ComputeRun/capability/AI boundary coverage passes 118 with 3 skips;
+  architecture and
+  scientific-semantics review, independent replay, uncertainty, and capability
+  promotion remain open. Task:
+  `docs/agent/tasks/2026-09-05-mechanics-foundation.md`.

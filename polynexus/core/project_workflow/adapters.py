@@ -50,6 +50,7 @@ class SingleInputTechniqueAdapter:
         "tga": ("tga.standard", "tga_curve", "supporting"),
         "dma": ("dma.standard", "dma_curve", "supporting"),
         "rheology": ("rheology.standard", "rheology_curve", "supporting"),
+        "mechanics": ("mechanics.standard", "mechanics_curve", "supporting"),
         "sec": ("sec.standard", "sec_chromatogram", "supporting"),
     }
     _NMR_SUBMODULES = frozenset({"nmr.liquid_h", "nmr.liquid_c", "nmr.solid_h", "nmr.solid_c"})

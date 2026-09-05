@@ -772,7 +772,7 @@ def descriptor_from_capability_spec(spec: Any) -> CapabilityDescriptor:
 
     return CapabilityDescriptor.create(
         capability_id=spec.capability_id,
-        techniques=("ir", "saxs", "waxs", "nmr", "tga", "dma", "rheology", "sec"),
+        techniques=("ir", "saxs", "waxs", "nmr", "tga", "dma", "rheology", "sec", "mechanics"),
         input_contract={
             # ``CapabilitySpec`` calculators accept the legacy
             # ``Measurement(x, intensity)`` view only.  Do not advertise
