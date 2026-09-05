@@ -275,6 +275,7 @@ _SUPPORTED_FAMILIES = (
     "thermal_1d",
     "viscoelastic_1d",
     "rheological_1d",
+    "chromatography_1d",
 )
 _DEFAULT_SPECS = (
     CapabilitySpec("curve.extrema.v1", _SUPPORTED_FAMILIES, _extrema),

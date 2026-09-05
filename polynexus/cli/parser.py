@@ -63,6 +63,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_rheology.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
     p_rheology.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
+    p_sec = sub.add_parser("sec", help="SEC/GPC")
+    p_sec.add_argument("input")
+    p_sec.add_argument("-o", "--output", default="")
+    p_sec.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_sec.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
+    p_gpc = sub.add_parser("gpc", help="GPC (alias for SEC)")
+    p_gpc.add_argument("input")
+    p_gpc.add_argument("-o", "--output", default="")
+    p_gpc.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_gpc.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")
@@ -197,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
     pb.add_argument("input_dir", nargs="?", help="Input directory path")
     pb.add_argument(
         "--technique",
-        choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology"],
+        choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology", "sec", "gpc"],
         help="Technique to analyze",
     )
     pb.add_argument("--pattern", default="*", metavar="GLOB", help="Filename glob filter, default *")

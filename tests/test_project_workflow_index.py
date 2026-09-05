@@ -87,7 +87,13 @@ def test_index_orders_paths_deterministically(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("directory", "expected"),
-    (("TGA", "tga"), ("DMA", "dma"), ("RHEOLOGY", "rheology")),
+    (
+        ("TGA", "tga"),
+        ("DMA", "dma"),
+        ("RHEOLOGY", "rheology"),
+        ("GPC", "sec"),
+        ("SEC", "sec"),
+    ),
 )
 def test_index_recognizes_explicit_generic_table_technique_directories(
     tmp_path: Path,
@@ -118,7 +124,7 @@ def test_index_does_not_guess_dma_or_rheology_from_moduli_alone(
     assert graph.artifacts[0].technique == "unknown"
 
 
-@pytest.mark.parametrize("filename", ("outgas.csv", "first-run.csv"))
+@pytest.mark.parametrize("filename", ("outgas.csv", "first-run.csv", "section.csv"))
 def test_index_short_technique_aliases_require_token_boundaries(
     tmp_path: Path,
     filename: str,

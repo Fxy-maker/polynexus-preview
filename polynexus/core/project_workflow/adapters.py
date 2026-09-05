@@ -34,6 +34,11 @@ def _convert_artifact(
     )
 
 
+def _canonical_technique(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    return "sec" if normalized in {"gpc", "sec/gpc"} else normalized
+
+
 class SingleInputTechniqueAdapter:
     """Build a deterministic recipe for one static technique input."""
 
@@ -45,6 +50,7 @@ class SingleInputTechniqueAdapter:
         "tga": ("tga.standard", "tga_curve", "supporting"),
         "dma": ("dma.standard", "dma_curve", "supporting"),
         "rheology": ("rheology.standard", "rheology_curve", "supporting"),
+        "sec": ("sec.standard", "sec_chromatogram", "supporting"),
     }
     _NMR_SUBMODULES = frozenset({"nmr.liquid_h", "nmr.liquid_c", "nmr.solid_h", "nmr.solid_c"})
 
@@ -54,7 +60,7 @@ class SingleInputTechniqueAdapter:
             return RecipeProposal(status="blocked", reason_codes=("manifest_invalid",))
         if payload.get("workflow_id") != self.workflow_id:
             return RecipeProposal(status="blocked", reason_codes=("workflow_id_mismatch",))
-        technique = str(payload.get("technique") or "").strip().lower()
+        technique = _canonical_technique(payload.get("technique"))
         if technique == "nmr":
             submodule_id = str(payload.get("submodule_id") or payload.get("submodule") or "").strip().lower()
             if submodule_id in {value.removeprefix("nmr.") for value in self._NMR_SUBMODULES}:
@@ -214,7 +220,7 @@ class TechniqueSeriesAdapter:
             return RecipeProposal(status="blocked", reason_codes=("manifest_invalid",))
         if payload.get("workflow_id") != self.workflow_id:
             return RecipeProposal(status="blocked", reason_codes=("workflow_id_mismatch",))
-        technique = str(payload.get("technique") or "").strip().lower()
+        technique = _canonical_technique(payload.get("technique"))
         spec = self._SPECS.get(technique)
         if spec is None:
             return RecipeProposal(status="blocked", reason_codes=("technique_unsupported",))
@@ -378,7 +384,7 @@ class MixedTechniqueAdapter:
         reasons: list[str] = []
         review_required = False
         for raw_technique, raw_paths in sorted(raw_components.items(), key=lambda item: str(item[0])):
-            technique = str(raw_technique).strip().lower()
+            technique = _canonical_technique(raw_technique)
             component_payload = raw_paths if isinstance(raw_paths, Mapping) else {"paths": raw_paths}
             paths = SingleInputTechniqueAdapter._paths(component_payload)
             if not paths:

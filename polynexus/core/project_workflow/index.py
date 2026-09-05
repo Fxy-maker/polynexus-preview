@@ -13,6 +13,8 @@ from .workspace import ProjectWorkspace
 
 
 _TECHNIQUE_ALIASES = (
+    ("size exclusion chromatography", "sec"),
+    ("gel permeation chromatography", "sec"),
     ("thermogravimetric analysis", "tga"),
     ("thermogravimetric", "tga"),
     ("dynamic mechanical analysis", "dma"),
@@ -28,6 +30,8 @@ _TECHNIQUE_ALIASES = (
     ("waxs", "waxs"),
     ("saxs", "saxs"),
     ("nmr", "nmr"),
+    ("gpc", "sec"),
+    ("sec", "sec"),
 )
 _RAW_TEMPERATURE_PATTERN = re.compile(
     r"(?:method_)?temperature(?:_c)?\s*[:=]\s*(-?\d+(?:\.\d+)?)",

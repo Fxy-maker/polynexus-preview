@@ -6622,3 +6622,27 @@ remain follow-up work; no provider algorithms or user data changed. Task:
   confirmation, group statistics/figures, and capability promotion remain
   open. Architecture review is required before merge.
 - Task: `docs/agent/tasks/2026-09-05-generic-project-table-techniques.md`.
+
+## SEC/GPC sample-neutral chromatogram foundation — implementation complete, review required (2026-09-05)
+
+- Added `sec_chromatogram_1d.v1` and a shared `SECEngine` for canonical table
+  inputs. Explicit retention time/elution volume, RI, UV, MALS/RALS/LALS,
+  viscometer/pressure, concentration, vendor molar-mass/log-molar-mass, and
+  differential/cumulative distribution columns remain separate measurements
+  with source values, units, detector kind, and source mapping preserved.
+- `sec.processing.v1` derives only a recorded global-response peak coordinate
+  and a baseline-uncorrected trapezoid integral. Non-monotonic coordinates make
+  only the integral unavailable; source arrays remain unchanged. `Mn`, `Mw`,
+  `Mz`, and dispersity are explicitly unavailable with
+  `calibration_and_distribution_semantics_required`.
+- `sec` is canonical and `gpc` is an input alias across canonical conversion,
+  ComputeRun, generic curve capabilities, CLI, Batch, project indexing,
+  single/series/mixed adapters, and AI-native project evidence packaging.
+  Formal `sec.molecular_weight.v1` and `sec.distribution.v1` remain unsupported.
+- Focused SEC/canonical coverage passes 34; shared ComputeRun/capability/project
+  coverage passes 134 with 4 skips. Changed-file Ruff, compile, and diff checks
+  pass. The task verifier reaches the repository baseline Ruff scan, which
+  still reports pre-existing style errors in `core/engine.py` when included by
+  the changed-file set. Vendor binary readers, calibration DTOs, uncertainty,
+  independent replay, and capability promotion remain follow-up work.
+- Task: `docs/agent/tasks/2026-09-05-sec-gpc-foundation.md`.

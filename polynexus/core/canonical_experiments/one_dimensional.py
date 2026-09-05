@@ -63,6 +63,12 @@ _RHEOLOGY_SIGNAL_ALIASES = frozenset({
     "gdoubleprime", "tandelta", "tangentdelta", "normalstress", "normalforce",
     "torque",
 })
+_SEC_TIME_ALIASES = frozenset(
+    {"time", "retentiontime", "elutiontime", "retention", "elution"}
+)
+_SEC_VOLUME_ALIASES = frozenset(
+    {"volume", "retentionvolume", "elutionvolume"}
+)
 
 
 @dataclass(frozen=True)
@@ -120,6 +126,8 @@ def convert_one_dimensional_table(
             if normalized_technique == "DMA"
             else _observed_rheology_selections(table)
             if normalized_technique == "RHEOLOGY"
+            else _observed_sec_selections(table)
+            if normalized_technique == "SEC"
             else _as_selection_tuple(_observed_selection(table, normalized_technique))
         )
         for table in tables
@@ -192,6 +200,7 @@ def convert_one_dimensional_table(
                     else "thermal_1d" if normalized_technique == "TGA"
                     else "viscoelastic_1d" if normalized_technique == "DMA"
                     else "rheological_1d" if normalized_technique == "RHEOLOGY"
+                    else "chromatography_1d" if normalized_technique == "SEC"
                     else "scattering_1d"
                 ),
                 role="raw_curve",
@@ -205,6 +214,8 @@ def convert_one_dimensional_table(
                     if normalized_technique == "DMA"
                     else _rheology_acquisition_metadata(selection)
                     if normalized_technique == "RHEOLOGY"
+                    else _sec_acquisition_metadata(selection)
+                    if normalized_technique == "SEC"
                     else {} if normalized_technique == "IR"
                     else {"background_state": "unknown", "normalization_state": "unknown"}
                 ),
@@ -231,6 +242,7 @@ def convert_one_dimensional_table(
             else "thermal_curve_1d.v1" if normalized_technique == "TGA"
             else "dma_curve_1d.v1" if normalized_technique == "DMA"
             else "rheology_curve_1d.v1" if normalized_technique == "RHEOLOGY"
+            else "sec_chromatogram_1d.v1" if normalized_technique == "SEC"
             else "scattering_1d.v1"
         ),
         source_artifact_id=source_artifact_id,
@@ -240,6 +252,7 @@ def convert_one_dimensional_table(
                 "thermal_1d" if normalized_technique == "TGA"
                 else "viscoelastic_1d" if normalized_technique == "DMA"
                 else "rheological_1d" if normalized_technique == "RHEOLOGY"
+                else "chromatography_1d" if normalized_technique == "SEC"
                 else "spectrum_1d" if normalized_technique in {"IR", "NMR"}
                 else "scattering_1d"
             ),
@@ -422,7 +435,7 @@ def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
         headers.pop()
     if any(not header.strip() for header in headers):
         return True
-    if technique in {"DMA", "RHEOLOGY"}:
+    if technique in {"DMA", "RHEOLOGY", "SEC"}:
         relevant: list[tuple[str, ...]] = []
         for header in headers:
             x_kind = _x_kind(header, technique)
@@ -430,6 +443,8 @@ def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
                 _dma_signal_descriptor(header)
                 if technique == "DMA"
                 else _rheology_signal_descriptor(header)
+                if technique == "RHEOLOGY"
+                else _sec_signal_descriptor(header)
             )
             if x_kind is not None:
                 relevant.append(("axis", x_kind))
@@ -644,6 +659,57 @@ def _observed_rheology_selections(table: _Table) -> tuple[MappingSelection, ...]
     return tuple(selections)
 
 
+def _observed_sec_selections(table: _Table) -> tuple[MappingSelection, ...] | None:
+    x_candidates = [
+        (str(header), _x_kind(str(header), "SEC"))
+        for header in table.frame.columns
+        if _x_kind(str(header), "SEC") is not None
+    ]
+    signal_candidates = [
+        (str(header), _sec_signal_descriptor(str(header)))
+        for header in table.frame.columns
+        if _sec_signal_descriptor(str(header)) is not None
+    ]
+    if len(x_candidates) != 1 or not signal_candidates:
+        return None
+    descriptors = [descriptor for _, descriptor in signal_candidates]
+    if len(descriptors) != len(set(descriptors)):
+        return None
+    x_column, x_kind = x_candidates[0]
+    if x_column in {header for header, _ in signal_candidates}:
+        return None
+    start, end = _table_row_range(table)
+    multi_signal = len(signal_candidates) > 1
+    selections: list[MappingSelection] = []
+    for intensity_column, descriptor in signal_candidates:
+        if descriptor is None:
+            continue
+        signal_kind, detector_kind = descriptor
+        measurement_id = _measurement_id(table)
+        if multi_signal:
+            measurement_id += (
+                f"-signal-{signal_kind.replace('_', '-')}-{detector_kind}"
+            )
+        selections.append(
+            MappingSelection(
+                measurement_id=measurement_id,
+                sheet_name=table.sheet_name,
+                sheet_index=table.sheet_index,
+                table_index=table.table_index,
+                header_row=table.header_row,
+                data_row_start=start,
+                data_row_end=end,
+                x_column=x_column,
+                intensity_column=intensity_column,
+                x_kind=str(x_kind),
+                x_unit=_x_unit(x_column, str(x_kind)),
+                intensity_unit=_intensity_unit(intensity_column, "SEC"),
+                source="observed",
+            )
+        )
+    return tuple(selections)
+
+
 def _dma_acquisition_metadata(selection: MappingSelection) -> dict[str, str]:
     descriptor = _dma_signal_descriptor(selection.intensity_column)
     signal_kind, modulus_basis = descriptor or ("viscoelastic_signal", "unspecified")
@@ -665,6 +731,20 @@ def _rheology_acquisition_metadata(selection: MappingSelection) -> dict[str, str
         "axis_kind": selection.x_kind,
         "signal_kind": signal_kind,
         "modulus_basis": modulus_basis,
+        "source_table_id": (
+            f"sheet-{selection.sheet_index if selection.sheet_index is not None else 0}"
+            f"-table-{selection.table_index}"
+        ),
+    }
+
+
+def _sec_acquisition_metadata(selection: MappingSelection) -> dict[str, str]:
+    descriptor = _sec_signal_descriptor(selection.intensity_column)
+    signal_kind, detector_kind = descriptor or ("chromatogram_signal", "unknown")
+    return {
+        "axis_kind": selection.x_kind,
+        "signal_kind": signal_kind,
+        "detector_kind": detector_kind,
         "source_table_id": (
             f"sheet-{selection.sheet_index if selection.sheet_index is not None else 0}"
             f"-table-{selection.table_index}"
@@ -720,6 +800,19 @@ def _x_kind(header: str, technique: str) -> str | None:
             re.sub(r"(?:ppm|chemical\s*shift)", "", header.casefold())
         )
         return "chemical_shift" if {normalized, without_ppm_unit}.intersection(_NMR_X_ALIASES) else None
+    if technique == "SEC":
+        without_unit = _normalize_header(
+            re.sub(
+                r"(?:milliseconds?|ms|minutes?|min|seconds?|secs?|sec|s|"
+                r"microliters?|milliliters?|liters?|[µμu]l|ml|l)\b",
+                "",
+                header.casefold(),
+            )
+        )
+        if normalized in _SEC_VOLUME_ALIASES or without_unit in _SEC_VOLUME_ALIASES:
+            return "elution_volume"
+        if normalized in _SEC_TIME_ALIASES or without_unit in _SEC_TIME_ALIASES:
+            return "retention_time"
     if technique in {"SAXS", "WAXS"}:
         without_q_unit = _normalize_header(
             re.sub(r"(?:nm|angstrom|å|a)\s*(?:\^?\s*-\s*1|⁻¹)", "", header.casefold())
@@ -829,6 +922,8 @@ def _is_intensity_header(header: str, technique: str | None = None) -> bool:
         return _tga_mass_alias(header) in _TGA_MASS_ALIASES
     if str(technique or "").upper() == "RHEOLOGY":
         return _rheology_signal_descriptor(header) is not None
+    if str(technique or "").upper() == "SEC":
+        return _sec_signal_descriptor(header) is not None
     return _intensity_alias(header) in _INTENSITY_ALIASES
 
 
@@ -932,6 +1027,61 @@ def _rheology_signal_descriptor(header: str) -> tuple[str, str] | None:
     return descriptors.get(alias)
 
 
+def _sec_signal_descriptor(header: str) -> tuple[str, str] | None:
+    """Return only explicit SEC detector or vendor-distribution semantics."""
+    text = header.casefold().replace("δ", "delta").replace("Δ", "delta")
+    without_units = re.sub(r"\([^)]*\)|\[[^]]*\]", "", text)
+    normalized = _normalize_header(without_units)
+
+    distribution_kind: str | None = None
+    if any(token in normalized for token in ("dwdlogm", "dwdm", "differentialweight")):
+        distribution_kind = "differential_weight_distribution"
+    elif any(token in normalized for token in ("dndlogm", "dndm", "differentialnumber")):
+        distribution_kind = "differential_number_distribution"
+    elif "differential" in normalized and "distribution" in normalized:
+        distribution_kind = "differential_distribution"
+    elif any(token in normalized for token in ("cumulativeweight", "cumweight")):
+        distribution_kind = "cumulative_weight_distribution"
+    elif any(token in normalized for token in ("cumulativenumber", "cumnumber")):
+        distribution_kind = "cumulative_number_distribution"
+    elif "cumulative" in normalized and "distribution" in normalized:
+        distribution_kind = "cumulative_distribution"
+    if distribution_kind is not None:
+        return distribution_kind, "vendor_derived"
+
+    if normalized in {"logm", "logmolarmass", "logmolecularweight", "logmw"}:
+        return "log_molar_mass", "vendor_derived"
+    if normalized in {
+        "m",
+        "mw",
+        "molarmass",
+        "molecularweight",
+        "molecularmass",
+    }:
+        return "molar_mass", "vendor_derived"
+    if normalized in {"ri", "dri", "ridetector", "refractiveindex", "refractiveindexresponse"}:
+        return "refractive_index_response", "ri"
+    if normalized in {"uv", "uvdetector", "uvresponse", "absorbance"}:
+        return "uv_response", "uv"
+    for detector in ("mals", "rals", "lals"):
+        if normalized == detector or normalized.startswith(detector):
+            return "light_scattering_response", detector
+    if normalized in {"lightscattering", "lightscatteringresponse", "ls"}:
+        return "light_scattering_response", "light_scattering"
+    if normalized in {
+        "viscometer",
+        "viscometerresponse",
+        "viscositydetector",
+        "differentialpressure",
+        "deltap",
+        "dp",
+    }:
+        return "viscometer_response", "viscometer"
+    if normalized in {"concentration", "concentrationresponse"}:
+        return "concentration_response", "concentration"
+    return None
+
+
 def _kind_allowed(x_kind: str, technique: str) -> bool:
     return (technique == "IR" and x_kind == "wavenumber") or (
         technique == "NMR" and x_kind == "chemical_shift"
@@ -944,6 +1094,8 @@ def _kind_allowed(x_kind: str, technique: str) -> bool:
     ) or (
         technique == "RHEOLOGY"
         and x_kind in {"shear_rate", "frequency", "angular_frequency", "temperature", "time", "strain"}
+    ) or (
+        technique == "SEC" and x_kind in {"retention_time", "elution_volume"}
     )
 
 
@@ -973,6 +1125,20 @@ def _x_unit(header: str, x_kind: str) -> str:
             return "min"
         if re.search(r"(?:seconds?|\bsecs?\b|\bs\b)", text):
             return "s"
+    if x_kind == "retention_time":
+        if re.search(r"(?:milliseconds?|\bms\b)", text):
+            return "ms"
+        if re.search(r"(?:minutes?|\bmin\b)", text):
+            return "min"
+        if re.search(r"(?:seconds?|\bsecs?\b|\bs\b)", text):
+            return "s"
+    if x_kind == "elution_volume":
+        if re.search(r"(?:microliters?|[µμu]l)\b", text):
+            return "uL"
+        if re.search(r"(?:milliliters?|\bml\b)", text):
+            return "mL"
+        if re.search(r"(?:liters?|\bl\b)", text):
+            return "L"
     if x_kind == "frequency":
         if re.search(r"(?:rad\s*/\s*s|rad\s*s\^-?1)", text):
             return "rad/s"
@@ -1027,6 +1193,8 @@ def _intensity_unit(header: str, technique: str | None = None) -> str:
         return "unknown"
     if str(technique or "").upper() == "RHEOLOGY":
         return _rheology_intensity_unit(header)
+    if str(technique or "").upper() == "SEC":
+        return _sec_intensity_unit(header)
     if re.search(r"a\s*\.\s*u\s*\.", text):
         return "a.u."
     for unit in ("absorbance", "transmittance", "counts", "cps"):
@@ -1073,6 +1241,48 @@ def _rheology_intensity_unit(header: str) -> str:
             return "mN*m"
         if re.search(r"\bn\s*(?:[·.*-]|\s)\s*m\b", text):
             return "N*m"
+    return "unknown"
+
+
+def _sec_intensity_unit(header: str) -> str:
+    descriptor = _sec_signal_descriptor(header)
+    signal_kind = descriptor[0] if descriptor is not None else "unknown"
+    text = header.casefold()
+    if signal_kind == "log_molar_mass":
+        return "log10(g/mol)"
+    if signal_kind == "molar_mass":
+        if re.search(r"\bkg\s*/\s*mol\b", text):
+            return "kg/mol"
+        if re.search(r"\b(?:kda|kilodaltons?)\b", text):
+            return "kDa"
+        if re.search(r"\b(?:da|daltons?)\b", text):
+            return "Da"
+        if re.search(r"\bg\s*/\s*mol\b", text):
+            return "g/mol"
+    if signal_kind == "concentration_response":
+        for pattern, unit in (
+            (r"\bmg\s*/\s*ml\b", "mg/mL"),
+            (r"\bg\s*/\s*l\b", "g/L"),
+            (r"\bmg\s*/\s*l\b", "mg/L"),
+        ):
+            if re.search(pattern, text):
+                return unit
+    if "%" in text or "percent" in text:
+        return "%"
+    if re.search(r"\bmau\b", text):
+        return "mAU"
+    if re.search(r"\bau\b", text):
+        return "AU"
+    if re.search(r"\bmv\b", text):
+        return "mV"
+    if re.search(r"(?:µ|μ|u)V\b", header):
+        return "uV"
+    if re.search(r"\bv\b", text):
+        return "V"
+    if re.search(r"\bkpa\b", text):
+        return "kPa"
+    if re.search(r"\bpa\b", text):
+        return "Pa"
     return "unknown"
 
 

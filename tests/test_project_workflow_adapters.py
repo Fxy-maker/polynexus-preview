@@ -66,6 +66,12 @@ def test_single_input_adapter_proposes_registered_static_recipe(tmp_path: Path) 
             "rheology_curve_1d.v1",
             "rheology.standard",
         ),
+        (
+            "gpc",
+            "Elution Volume (mL),RI (mV)\n1,0\n2,2\n3,1\n",
+            "sec_chromatogram_1d.v1",
+            "sec.standard",
+        ),
     ),
 )
 def test_single_input_adapter_reuses_generic_table_canonical_routes(

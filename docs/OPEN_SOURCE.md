@@ -40,8 +40,13 @@ dimensionally compatible steady-flow and oscillatory identities with explicit
 unit conversion and point-level unavailable masks. The formal viscosity,
 moduli, yield-stress, thixotropy, creep/relaxation, and TTS capabilities remain
 unsupported pending independent replay, uncertainty work, and scientific
-review. SEC/GPC and mechanics remain cataloged as unsupported rather than
-implemented providers.
+review. SEC/GPC has an executable, sample-neutral chromatogram foundation:
+retention/elution coordinates and explicitly labelled RI, UV, MALS/RALS/LALS,
+viscometer/pressure, concentration, vendor molar-mass, and distribution columns
+are preserved as separate measurements. Only a recorded-response peak and
+baseline-uncorrected raw integral are derived; `Mn`, `Mw`, `Mz`, and dispersity
+remain unavailable without a reviewed calibration/distribution contract.
+Mechanics remains cataloged as unsupported rather than an implemented provider.
 
 ## Result and evidence boundary
 

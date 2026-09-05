@@ -189,6 +189,7 @@ class ProjectWorkflowService:
                 "tga",
                 "dma",
                 "rheology",
+                "sec",
             }:
                 grouped.setdefault(artifact.technique, []).append(artifact.relative_path)
             else:
@@ -1369,6 +1370,8 @@ class ProjectWorkflowService:
     def _techniques_from_scope(scope: tuple[str, ...]) -> list[str]:
         text = " ".join(scope).lower()
         aliases = (
+            ("size exclusion chromatography", "sec"),
+            ("gel permeation chromatography", "sec"),
             ("rheology", "rheology"),
             ("rheometer", "rheology"),
             ("waxs", "waxs"),
@@ -1378,6 +1381,8 @@ class ProjectWorkflowService:
             ("dsc", "dsc"),
             ("tga", "tga"),
             ("dma", "dma"),
+            ("gpc", "sec"),
+            ("sec", "sec"),
         )
         return sorted(
             {

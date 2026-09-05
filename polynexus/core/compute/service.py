@@ -28,8 +28,8 @@ def _safe_technique(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     normalized = str.lower(str.strip(value))
-    if normalized == "ftir":
-        normalized = "ir"
+    aliases = {"ftir": "ir", "gpc": "sec", "sec/gpc": "sec"}
+    normalized = aliases.get(normalized, normalized)
     return normalized or None
 
 
@@ -299,7 +299,7 @@ class ComputeRunService:
         if (
             canonical_template is None
             and normalized_technique in {
-                "dsc", "ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology"
+                "dsc", "ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology", "sec"
             }
             and (source.is_file() or (source.is_dir() and normalized_technique != "dsc"))
         ):

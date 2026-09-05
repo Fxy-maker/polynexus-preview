@@ -27,6 +27,7 @@ for the capability maturity boundary, release checklist, and data-rights rules.
 - `TGA` - Thermogravimetric Analysis (sample-neutral table-curve foundation)
 - `DMA` - Dynamic Mechanical Analysis (sample-neutral table-curve foundation)
 - `Rheology` - sample-neutral rheometer table-curve foundation
+- `SEC/GPC` - Size-Exclusion / Gel-Permeation Chromatography (sample-neutral chromatogram foundation)
 
 Coverage varies by input type and workflow. The runtime catalog distinguishes
 `available`, `experimental`, and `unsupported` capabilities. TGA currently
@@ -47,7 +48,13 @@ shear stress/rate, tan delta, complex-modulus magnitude, and complex-viscosity
 magnitude. These outputs remain diagnostic; yield stress, LVE/gel/crossover
 interpretation, Cox-Merz, thixotropy, creep/relaxation models, TTS/master
 curves, and formal rheology capability promotion remain unsupported. SEC/GPC
-and mechanics remain planned/unsupported rather than executable providers.
+preserves unambiguous retention/elution coordinates, RI, UV, MALS/RALS/LALS,
+viscometer/pressure, concentration, vendor molar-mass, and explicit
+distribution columns. It derives only a recorded-response peak coordinate and
+a baseline-uncorrected raw integral; molecular-weight moments remain explicitly
+unavailable until calibration and distribution semantics are supplied. These
+outputs are diagnostic and do not infer universal calibration or chemistry.
+Mechanics remains planned/unsupported rather than an executable provider.
 
 ## Quick Start
 
@@ -98,6 +105,9 @@ polynexus dsc curve.csv
 polynexus tga thermogram.csv
 polynexus dma viscoelastic-curve.csv
 polynexus rheology frequency-sweep.csv
+polynexus sec chromatogram.csv
+# GPC is accepted as an alias for SEC
+polynexus gpc chromatogram.csv
 ```
 
 ### 4. Batch processing

@@ -1940,3 +1940,19 @@ passes quality 313 plus preprocessing 157. Technique confirmation for
 unlabelled sources and scientific experiment grouping remain separate human/AI
 decisions. Task:
 `docs/agent/tasks/2026-09-05-generic-project-table-techniques.md`.
+
+## SEC/GPC canonical chromatogram checkpoint (2026-09-05)
+
+The shared canonical registry now recognizes `sec_chromatogram_1d.v1` for SEC
+and the `gpc` alias. Generic table conversion preserves explicit elution or
+retention coordinates and distinct RI, UV, MALS/RALS/LALS, viscometer/pressure,
+concentration, vendor molar-mass/log-molar-mass, and differential/cumulative
+distribution signals. `SECEngine` and `sec.processing.v1` compute only a
+recorded-response peak coordinate and baseline-uncorrected raw integral;
+non-monotonic coordinates mask only the integral. Molecular-weight moments stay
+explicitly unavailable until calibration and distribution semantics are
+reviewed. CLI, Batch, ComputeRun, generic capabilities, project adapters/index,
+and AI-native evidence routing use the same public objects. Formal molecular
+weight/distribution capabilities, vendor binary readers, calibration/uncertainty,
+independent replay, and capability promotion remain open. Task:
+`docs/agent/tasks/2026-09-05-sec-gpc-foundation.md`.

@@ -151,6 +151,7 @@ def test_analyze_project_routes_generic_table_techniques_into_one_package(
         "tga": "Temperature (C),Mass (%)\n25,100\n100,98\n",
         "dma": "Frequency (Hz),G' (Pa),G'' (Pa)\n1,100,10\n10,200,20\n",
         "rheology": "Shear Rate (1/s),Shear Stress (Pa)\n1,10\n10,50\n",
+        "sec": "Elution Volume (mL),RI (mV)\n1,0\n2,2\n3,1\n",
     }
     for technique, content in sources.items():
         source = tmp_path / "raw" / technique.upper() / "sample.csv"
@@ -173,19 +174,24 @@ def test_analyze_project_routes_generic_table_techniques_into_one_package(
     summary = service.analyze_project(question="Prepare generic table evidence")
 
     assert summary.computation == "passed"
-    assert calls == ["dma", "rheology", "tga"]
+    assert calls == ["dma", "rheology", "sec", "tga"]
     assert len(summary.runs) == 1
     run = summary.runs[0]
     assert run.analysis_run is not None
     assert {
         step.compute_run["canonical_template"]["template_id"]
         for step in run.analysis_run.steps
-    } == {"thermal_curve_1d.v1", "dma_curve_1d.v1", "rheology_curve_1d.v1"}
+    } == {
+        "thermal_curve_1d.v1",
+        "dma_curve_1d.v1",
+        "rheology_curve_1d.v1",
+        "sec_chromatogram_1d.v1",
+    }
     package_path = Path(summary.to_dict()["package"]["path"])
     index = json.loads(
         (package_path / "techniques.json").read_text(encoding="utf-8")
     )
-    assert set(index["techniques"]) == {"tga", "dma", "rheology"}
+    assert set(index["techniques"]) == {"tga", "dma", "rheology", "sec"}
 
 
 @pytest.mark.parametrize(
@@ -208,6 +214,12 @@ def test_analyze_project_routes_generic_table_techniques_into_one_package(
             "Shear Rate (1/s),Shear Stress (Pa)\n1,10\n10,50\n",
             "rheology_curve_1d.v1",
             "rheology_groups",
+        ),
+        (
+            "sec",
+            "Elution Volume (mL),RI (mV)\n1,0\n2,2\n3,1\n",
+            "sec_chromatogram_1d.v1",
+            "sec_groups",
         ),
     ),
 )

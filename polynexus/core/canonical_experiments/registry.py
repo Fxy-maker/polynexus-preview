@@ -32,12 +32,15 @@ _STATIC_TEMPLATE_IDS = {
     "tga": "thermal_curve_1d.v1",
     "dma": "dma_curve_1d.v1",
     "rheology": "rheology_curve_1d.v1",
+    "sec": "sec_chromatogram_1d.v1",
 }
 _GENERIC_TABLE_EXTENSIONS = frozenset({
     ".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi",
     ".xls", ".xlsx", ".xlsm",
 })
-_GENERIC_TECHNIQUES = frozenset({"ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology"})
+_GENERIC_TECHNIQUES = frozenset(
+    {"ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology", "sec"}
+)
 _FID_EXTENSIONS = frozenset({".fid", ".ser"})
 _IMAGE_EXTENSIONS = frozenset({".edf", ".cbf", ".tif", ".tiff", ".h5", ".hdf5", ".nxs"})
 

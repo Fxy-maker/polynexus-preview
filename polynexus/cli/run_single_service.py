@@ -28,8 +28,9 @@ def run_single(
     import polynexus.core.tga as _tga
     import polynexus.core.dma as _dma
     import polynexus.core.rheology as _rheology
+    import polynexus.core.sec as _sec
 
-    del _dsc, _ir, _waxs, _saxs, _nmr, _tga, _dma, _rheology
+    del _dsc, _ir, _waxs, _saxs, _nmr, _tga, _dma, _rheology, _sec
 
     engine = get_engine_fn(args.cmd)
     if engine is not None and hasattr(args, "type") and hasattr(engine, "cfg"):
