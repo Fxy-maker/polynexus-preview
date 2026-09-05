@@ -63,7 +63,11 @@ analysis spec, the deterministic Core can additionally fit a declared
 stress-strain modulus, offset-yield candidate, and last-valid stress-strain
 toughness value with units and provenance. Those model outputs remain
 diagnostic and require independent replay, uncertainty work, and scientific
-review; fatigue, fracture, and creep remain unavailable.
+review. An explicit stress/strain standard deviation can also produce a
+first-order diagnostic uncertainty projection, and serialized mechanics replay
+cases can compare results against an external expected-value fixture. Neither
+artifact is a metrological claim or capability-promotion decision; fatigue,
+fracture, and creep remain unavailable.
 
 ## Quick Start
 

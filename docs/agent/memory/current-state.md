@@ -1986,3 +1986,18 @@ reinterpreted. Focused mechanics/canonical/ComputeRun coverage passes 143 with
 3 skips. Fatigue, fracture, creep, uncertainty, independent replay, and formal
 capability promotion remain open and review-required. Task:
 `docs/agent/tasks/2026-09-05-mechanics-advanced-models.md`.
+
+## Mechanics validation foundation checkpoint (2026-09-05)
+
+Optional explicit stress/strain standard deviations now produce first-order
+diagnostic uncertainty records for modulus, offset-yield, and toughness. The
+records flow from `MechanicsProcessingOutcome` through `MechanicsEngine` into
+the shared `ComputeResult.uncertainty` and metric manifest; omitted inputs keep
+the previous empty uncertainty projection. `MechanicsReplayCase` and
+`MechanicsReplayReport` provide hash-bound serialized replay against externally
+supplied expected metrics and tolerances. A mismatch never blocks other
+metrics, mutates a run, or promotes a capability. Formal metrology,
+instrument/lab repeatability, standard samples, and human capability promotion
+remain open. Mechanics/replay coverage passes 15; shared boundary coverage is
+118 passed with 3 skips. Task:
+`docs/agent/tasks/2026-09-05-mechanics-validation-foundation.md`.

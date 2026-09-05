@@ -194,3 +194,43 @@ def test_mechanics_yield_and_toughness_are_locally_unavailable() -> None:
         "offset_line_no_crossing"
     )
     assert summary["toughness"]["status"] == "computed"
+
+
+def test_mechanics_explicit_measurement_uncertainty_is_diagnostic() -> None:
+    outcome = analyze_mechanics_group(
+        (0.0, 0.001, 0.002, 0.003, 0.01),
+        axis_kind="strain",
+        axis_unit="1",
+        signals=(
+            MechanicsSignalSeries.create(
+                measurement_id="stress",
+                signal_kind="tensile_stress",
+                test_mode="tensile",
+                unit="MPa",
+                values=(0.0, 2.0, 4.0, 6.0, 5.0),
+            ),
+        ),
+        analysis_spec=MechanicsAnalysisSpec.create(
+            test_mode="tensile",
+            stress_measurement_id="stress",
+            geometry={"gauge_length_mm": 10.0},
+            stress_unit="MPa",
+            strain_unit="1",
+            modulus_window=(0.0, 0.002),
+            yield_offset=0.001,
+            toughness_endpoint="last_valid",
+            stress_std=0.1,
+            strain_std=0.00001,
+        ),
+    )
+
+    uncertainty = outcome.uncertainty
+    modulus_path = "mechanics_property_summary.tensile_modulus.value"
+    assert uncertainty[modulus_path]["status"] == "computed"
+    assert uncertainty[modulus_path]["kind"] == "standard_deviation"
+    assert uncertainty[modulus_path]["unit"] == "Pa"
+    assert uncertainty[modulus_path]["parameters"]["uncertainty_status"] == (
+        "diagnostic"
+    )
+    assert uncertainty["mechanics_property_summary.yield_stress.value"]["value"] > 0.0
+    assert uncertainty["mechanics_property_summary.toughness.value"]["value"] > 0.0

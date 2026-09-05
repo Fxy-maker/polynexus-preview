@@ -6687,3 +6687,22 @@ remain follow-up work; no provider algorithms or user data changed. Task:
 - Focused mechanics/canonical/ComputeRun coverage passes 143 with 3 skips;
   changed mechanics files pass Ruff and compile checks. Task:
   `docs/agent/tasks/2026-09-05-mechanics-advanced-models.md`.
+
+## Mechanics replay and uncertainty foundation — implementation complete, review required (2026-09-05)
+
+- `MechanicsAnalysisSpec` now accepts optional explicit stress/strain standard
+  deviations. The processor emits first-order linearized diagnostic standard
+  deviations for fitted modulus, offset-yield values, and last-valid toughness;
+  no uncertainty inputs leave the shared projection unchanged.
+- Added serialized `MechanicsReplayCase` and `MechanicsReplayReport`. A case
+  binds canonical-style axes/signals/spec, an external reference kind, expected
+  scalar values, tolerances, and a content hash. Replay round-trips are
+  deterministic and mismatches remain validation reports rather than run or
+  evidence mutations.
+- Uncertainty flows through `MechanicsEngine` metadata into shared
+  `ComputeResult.uncertainty` and metric manifests. Formal metrology,
+  instrument repeatability, standard-sample validation, independent lab replay,
+  and capability promotion remain open and human scientific-review required.
+- Mechanics/replay coverage passes 15; shared ComputeRun/capability/project/AI
+  coverage passes 118 with 3 skips. Task:
+  `docs/agent/tasks/2026-09-05-mechanics-validation-foundation.md`.

@@ -54,7 +54,11 @@ geometry, units, fit window, yield offset, and endpoint semantics; with that
 contract the Core can compute a diagnostic stress-strain modulus, offset-yield
 candidate, and last-valid stress-strain toughness value. These model outputs
 remain unpromoted pending independent replay, uncertainty work, and scientific
-review. Fatigue, fracture, and creep remain unavailable.
+review. Explicit measurement standard deviations now flow into a first-order
+diagnostic uncertainty projection, and serialized replay cases can compare
+outputs with an external expected-value fixture. These are validation aids, not
+metrological claims or automatic promotion gates. Fatigue, fracture, and creep
+remain unavailable.
 
 ## Result and evidence boundary
 

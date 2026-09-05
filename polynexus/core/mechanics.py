@@ -108,6 +108,7 @@ class MechanicsEngine(BaseEngine):
         units: dict[str, Any] = {}
         methods: dict[str, Any] = {}
         method_parameters: dict[str, Any] = {}
+        uncertainty: dict[str, Any] = {}
 
         for measurement in self._measurements:
             x = np.asarray(measurement.channels["x"], dtype=float)
@@ -197,6 +198,9 @@ class MechanicsEngine(BaseEngine):
             method_parameters.update(
                 {f"{prefix}.{path}": value for path, value in processed.parameters.items()}
             )
+            uncertainty.update(
+                {f"{prefix}.{path}": value for path, value in processed.uncertainty.items()}
+            )
 
         first = curves[0]
         axis_kinds = {item["axis_kind"] for item in curves}
@@ -228,6 +232,7 @@ class MechanicsEngine(BaseEngine):
                 "units": units,
                 "methods": methods,
                 "parameters": method_parameters,
+                "uncertainty": uncertainty,
             }
         )
         return True

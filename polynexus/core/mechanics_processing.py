@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 from types import MappingProxyType
 from typing import Any, Mapping, Sequence
@@ -89,6 +89,29 @@ class MechanicsSignalSeries:
             x_values=numeric_x,
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "measurement_id": self.measurement_id,
+            "signal_kind": self.signal_kind,
+            "test_mode": self.test_mode,
+            "unit": self.unit,
+            "values": list(self.values),
+            "x_values": None if self.x_values is None else list(self.x_values),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "MechanicsSignalSeries":
+        if not isinstance(value, Mapping):
+            raise TypeError("Mechanics signal must be a mapping")
+        return cls.create(
+            measurement_id=value.get("measurement_id", ""),
+            signal_kind=value.get("signal_kind", ""),
+            test_mode=value.get("test_mode", "unspecified"),
+            unit=value.get("unit", "unknown"),
+            values=value.get("values", ()),
+            x_values=value.get("x_values"),
+        )
+
 
 @dataclass(frozen=True)
 class MechanicsAnalysisSpec:
@@ -103,6 +126,8 @@ class MechanicsAnalysisSpec:
     modulus_window: tuple[float, float]
     yield_offset: float | None = None
     toughness_endpoint: str | None = None
+    stress_std: float | None = None
+    strain_std: float | None = None
 
     @classmethod
     def create(
@@ -117,6 +142,8 @@ class MechanicsAnalysisSpec:
         strain_measurement_id: str | None = None,
         yield_offset: float | None = None,
         toughness_endpoint: str | None = None,
+        stress_std: float | None = None,
+        strain_std: float | None = None,
     ) -> "MechanicsAnalysisSpec":
         mode = str(test_mode).strip().casefold()
         if mode == "compressive":
@@ -149,6 +176,16 @@ class MechanicsAnalysisSpec:
         endpoint = None if toughness_endpoint is None else str(toughness_endpoint).strip().casefold()
         if endpoint is not None and endpoint not in _SUPPORTED_TOUGHNESS_ENDPOINTS:
             raise ValueError(f"Unsupported mechanics toughness endpoint: {toughness_endpoint}")
+        stress_deviation = None if stress_std is None else float(stress_std)
+        strain_deviation = None if strain_std is None else float(strain_std)
+        if stress_deviation is not None and (
+            not math.isfinite(stress_deviation) or stress_deviation < 0.0
+        ):
+            raise ValueError("Mechanics stress standard deviation must be finite and nonnegative")
+        if strain_deviation is not None and (
+            not math.isfinite(strain_deviation) or strain_deviation < 0.0
+        ):
+            raise ValueError("Mechanics strain standard deviation must be finite and nonnegative")
         return cls(
             test_mode=mode,
             stress_measurement_id=stress_id,
@@ -161,6 +198,8 @@ class MechanicsAnalysisSpec:
             modulus_window=window,
             yield_offset=offset,
             toughness_endpoint=endpoint,
+            stress_std=stress_deviation,
+            strain_std=strain_deviation,
         )
 
     @classmethod
@@ -177,6 +216,8 @@ class MechanicsAnalysisSpec:
             modulus_window=value.get("modulus_window", ()),
             yield_offset=value.get("yield_offset"),
             toughness_endpoint=value.get("toughness_endpoint"),
+            stress_std=value.get("stress_std"),
+            strain_std=value.get("strain_std"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -190,6 +231,8 @@ class MechanicsAnalysisSpec:
             "modulus_window": list(self.modulus_window),
             "yield_offset": self.yield_offset,
             "toughness_endpoint": self.toughness_endpoint,
+            "stress_std": self.stress_std,
+            "strain_std": self.strain_std,
         }
 
 
@@ -201,6 +244,7 @@ class MechanicsProcessingOutcome:
     units: Mapping[str, str]
     methods: Mapping[str, str]
     parameters: Mapping[str, Mapping[str, Any]]
+    uncertainty: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
 
 def analyze_mechanics_group(
@@ -230,6 +274,7 @@ def analyze_mechanics_group(
     units: dict[str, str] = {}
     methods: dict[str, str] = {}
     parameters: dict[str, Mapping[str, Any]] = {}
+    uncertainty: dict[str, Mapping[str, Any]] = {}
     source_signals: dict[str, dict[str, Any]] = {}
     response_descriptors: dict[str, dict[str, Any]] = {}
 
@@ -336,6 +381,7 @@ def analyze_mechanics_group(
         units=units,
         methods=methods,
         parameters=parameters,
+        uncertainty=uncertainty,
     )
     return MechanicsProcessingOutcome(
         metrics={
@@ -349,6 +395,7 @@ def analyze_mechanics_group(
         units=units,
         methods=methods,
         parameters=parameters,
+        uncertainty=uncertainty,
     )
 
 
@@ -363,6 +410,7 @@ def _advanced_property_summary(
     units: dict[str, str],
     methods: dict[str, str],
     parameters: dict[str, Mapping[str, Any]],
+    uncertainty: dict[str, Mapping[str, Any]],
 ) -> dict[str, Any]:
     property_names = (
         "yield_stress",
@@ -535,6 +583,15 @@ def _advanced_property_summary(
         "fit_point_count": int(np.count_nonzero(fit_mask)),
         "intercept_pa": float(intercept),
     }
+    uncertainty_context = _build_uncertainty_context(
+        spec=spec,
+        stress_source_unit=stress_source_unit,
+        strain_source_unit=strain_source_unit,
+        strain=strain,
+        stress_pa=stress_pa,
+        fit_mask=fit_mask,
+        slope=float(slope),
+    )
     modulus = _property_computed(
         value=float(slope),
         unit="Pa",
@@ -550,6 +607,15 @@ def _advanced_property_summary(
         methods=methods,
         parameters=parameters,
     )
+    if uncertainty_context is not None:
+        _record_uncertainty(
+            metric_key=modulus_name,
+            value=uncertainty_context["modulus_std_pa"],
+            unit="Pa",
+            source_metric=modulus_name,
+            parameters=uncertainty_context["parameters"],
+            uncertainty=uncertainty,
+        )
 
     if spec.yield_offset is None:
         results["yield_stress"] = _property_unavailable("yield_offset_required")
@@ -572,6 +638,34 @@ def _advanced_property_summary(
         )
         results["yield_stress"] = yield_result[0]
         results["yield_strain"] = yield_result[1]
+        if uncertainty_context is not None and yield_result[0].get("status") in {
+            "computed",
+            "computed_with_warning",
+        }:
+            yield_stress_std = math.sqrt(
+                uncertainty_context["stress_std_pa"] ** 2
+                + (abs(float(yield_result[1]["value"])) * uncertainty_context["modulus_std_pa"]) ** 2
+            )
+            yield_strain_std = math.sqrt(
+                uncertainty_context["strain_std_dimless"] ** 2
+                + (yield_stress_std / max(abs(float(slope)), 1e-12)) ** 2
+            )
+            _record_uncertainty(
+                metric_key="yield_stress",
+                value=yield_stress_std,
+                unit="Pa",
+                source_metric="yield_stress",
+                parameters=uncertainty_context["parameters"],
+                uncertainty=uncertainty,
+            )
+            _record_uncertainty(
+                metric_key="yield_strain",
+                value=yield_strain_std,
+                unit="1",
+                source_metric="yield_strain",
+                parameters=uncertainty_context["parameters"],
+                uncertainty=uncertainty,
+            )
 
     if spec.toughness_endpoint == "last_valid":
         results["toughness"] = _toughness_result(
@@ -580,6 +674,25 @@ def _advanced_property_summary(
             methods=methods, units=units, metric_key="toughness",
             metric_parameters=parameters,
         )
+        if uncertainty_context is not None and results["toughness"].get("status") in {
+            "computed",
+            "computed_with_warning",
+        }:
+            toughness_std = _toughness_uncertainty(
+                strain=strain,
+                stress_pa=stress_pa,
+                stress_std_pa=uncertainty_context["stress_std_pa"],
+                strain_std_dimless=uncertainty_context["strain_std_dimless"],
+                value=float(results["toughness"]["value"]),
+            )
+            _record_uncertainty(
+                metric_key="toughness",
+                value=toughness_std,
+                unit="Pa",
+                source_metric="toughness",
+                parameters=uncertainty_context["parameters"],
+                uncertainty=uncertainty,
+            )
     else:
         results["toughness"] = _property_unavailable("toughness_endpoint_required")
     return _summary_with_status(results, "advanced_model_outputs_available")
@@ -640,6 +753,101 @@ def _property_computed(
     if warnings:
         result["warnings"] = list(warnings)
     return result
+
+
+def _build_uncertainty_context(
+    *,
+    spec: MechanicsAnalysisSpec,
+    stress_source_unit: str,
+    strain_source_unit: str,
+    strain: np.ndarray,
+    stress_pa: np.ndarray,
+    fit_mask: np.ndarray,
+    slope: float,
+) -> dict[str, Any] | None:
+    if spec.stress_std is None and spec.strain_std is None:
+        return None
+    stress_std_pa = (
+        0.0
+        if spec.stress_std is None
+        else float(spec.stress_std) * _stress_factor(stress_source_unit)
+    )
+    strain_std_dimless = (
+        0.0
+        if spec.strain_std is None
+        else float(spec.strain_std) * _strain_factor(strain_source_unit)
+    )
+    x = strain[fit_mask]
+    y = stress_pa[fit_mask]
+    centered = x - float(np.mean(x))
+    sxx = float(np.sum(centered * centered))
+    residual = y - (slope * x + float(np.mean(y - slope * x)))
+    residual_variance = (
+        float(np.sum(residual * residual) / max(x.size - 2, 1))
+        if x.size > 2
+        else 0.0
+    )
+    regression_std = math.sqrt(residual_variance / sxx) if sxx > 0.0 else 0.0
+    stress_std_component = stress_std_pa / math.sqrt(sxx) if sxx > 0.0 else 0.0
+    strain_span = max(float(np.ptp(x)), 1e-12)
+    strain_std_component = abs(slope) * strain_std_dimless / strain_span
+    modulus_std = math.sqrt(
+        regression_std**2 + stress_std_component**2 + strain_std_component**2
+    )
+    return {
+        "stress_std_pa": stress_std_pa,
+        "strain_std_dimless": strain_std_dimless,
+        "modulus_std_pa": modulus_std,
+        "parameters": {
+            "uncertainty_status": "diagnostic",
+            "uncertainty_method": "first_order_linearized",
+            "stress_std": spec.stress_std,
+            "stress_std_unit": stress_source_unit,
+            "strain_std": spec.strain_std,
+            "strain_std_unit": strain_source_unit,
+            "fit_point_count": int(x.size),
+        },
+    }
+
+
+def _record_uncertainty(
+    *,
+    metric_key: str,
+    value: float,
+    unit: str,
+    source_metric: str,
+    parameters: Mapping[str, Any],
+    uncertainty: dict[str, Mapping[str, Any]],
+) -> None:
+    path = f"mechanics_property_summary.{metric_key}.value"
+    uncertainty[path] = {
+        "status": "computed",
+        "kind": "standard_deviation",
+        "value": float(value),
+        "unit": str(unit),
+        "method": "first_order_linearized",
+        "source_metric": source_metric,
+        "parameters": dict(parameters),
+    }
+
+
+def _toughness_uncertainty(
+    *,
+    strain: np.ndarray,
+    stress_pa: np.ndarray,
+    stress_std_pa: float,
+    strain_std_dimless: float,
+    value: float,
+) -> float:
+    spacing = np.diff(strain)
+    weights = np.zeros_like(strain)
+    weights[0] = spacing[0] / 2.0
+    weights[-1] = spacing[-1] / 2.0
+    if len(strain) > 2:
+        weights[1:-1] = (spacing[:-1] + spacing[1:]) / 2.0
+    stress_component = stress_std_pa * float(np.sqrt(np.sum(weights * weights)))
+    strain_component = abs(value) * strain_std_dimless / max(float(np.ptp(strain)), 1e-12)
+    return float(math.sqrt(stress_component**2 + strain_component**2))
 
 
 def _record_property(

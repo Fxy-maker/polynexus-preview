@@ -141,6 +141,8 @@ def test_mechanics_compute_run_uses_canonical_analysis_spec(tmp_path: Path) -> N
         "modulus_window": [0.0, 0.002],
         "yield_offset": 0.001,
         "toughness_endpoint": "last_valid",
+        "stress_std": 0.1,
+        "strain_std": 0.00001,
     }
     configured = CanonicalExperiment.create(
         template_id=outcome.template.template_id,
@@ -174,6 +176,15 @@ def test_mechanics_compute_run_uses_canonical_analysis_spec(tmp_path: Path) -> N
         "mechanics_groups.sheet-0-table-0.mechanics_property_summary.toughness.value"
     ]
     assert toughness_metric["method"] == "stress_strain_trapezoid_to_last_valid"
+    assert run.result.uncertainty[
+        "mechanics_groups.sheet-0-table-0.mechanics_property_summary.tensile_modulus.value"
+    ]["unit"] == "Pa"
+    uncertainty_metric = next(
+        item
+        for item in run.result.metric_manifest(source=str(source))
+        if item["path"].endswith("mechanics_property_summary.tensile_modulus.value")
+    )
+    assert uncertainty_metric["uncertainty"]["kind"] == "standard_deviation"
 
 
 def test_mechanics_cli_batch_and_project_routes_share_canonical_name(
