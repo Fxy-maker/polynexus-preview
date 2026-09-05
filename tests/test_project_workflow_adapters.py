@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+import pytest
 
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.agent_workflow import inspect_artifact
@@ -42,6 +43,58 @@ def test_single_input_adapter_proposes_registered_static_recipe(tmp_path: Path) 
     assert proposal.recipe.steps[0].parameters["submodule_id"] == "waxs.static"
     assert proposal.recipe.steps[0].parameters["canonical_converter"] == "generic.one-dimensional.v1"
     assert proposal.recipe.steps[0].parameters["canonical_template"]["template_id"] == "scattering_1d.v1"
+
+
+@pytest.mark.parametrize(
+    ("technique", "content", "template_id", "submodule_id"),
+    (
+        (
+            "tga",
+            "Temperature (C),Mass (%)\n25,100\n100,98\n",
+            "thermal_curve_1d.v1",
+            "tga.standard",
+        ),
+        (
+            "dma",
+            "Frequency (Hz),G' (Pa),G'' (Pa)\n1,100,10\n10,200,20\n",
+            "dma_curve_1d.v1",
+            "dma.standard",
+        ),
+        (
+            "rheology",
+            "Shear Rate (1/s),Shear Stress (Pa)\n1,10\n10,50\n",
+            "rheology_curve_1d.v1",
+            "rheology.standard",
+        ),
+    ),
+)
+def test_single_input_adapter_reuses_generic_table_canonical_routes(
+    tmp_path: Path,
+    technique: str,
+    content: str,
+    template_id: str,
+    submodule_id: str,
+) -> None:
+    source = tmp_path / "raw" / technique.upper() / "sample.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text(content, encoding="utf-8")
+
+    proposal = SingleInputTechniqueAdapter().propose_recipe(
+        {
+            "workflow_id": SingleInputTechniqueAdapter.workflow_id,
+            "technique": technique,
+            "path": str(source),
+        }
+    )
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert proposal.recipe.steps[0].parameters["submodule_id"] == submodule_id
+    assert (
+        proposal.recipe.steps[0].parameters["canonical_template"]["template_id"]
+        == template_id
+    )
+    assert SingleInputTechniqueAdapter.is_valid_recipe(proposal.recipe)
 
 
 def test_single_input_adapter_binds_waxs_detector_image_template(tmp_path: Path) -> None:
@@ -320,6 +373,41 @@ def test_series_adapter_orders_paths_and_binds_each_step(tmp_path: Path) -> None
     assert [Path(item.path).name for item in proposal.recipe.artifacts] == ["a.dat", "b.dat"]
     assert all(step.parameters["canonical_converter"] == "generic.one-dimensional.v1" for step in proposal.recipe.steps)
     assert all(step.parameters["canonical_template"]["template_id"] == "scattering_1d.v1" for step in proposal.recipe.steps)
+    assert TechniqueSeriesAdapter.is_valid_recipe(proposal.recipe)
+
+
+def test_generic_table_series_adapter_binds_each_rheology_source(
+    tmp_path: Path,
+) -> None:
+    paths = []
+    for name, stress in (("b.csv", 20), ("a.csv", 10)):
+        source = tmp_path / "raw" / "RHEOLOGY" / name
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(
+            f"Shear Rate (1/s),Shear Stress (Pa)\n1,{stress}\n10,{stress * 2}\n",
+            encoding="utf-8",
+        )
+        paths.append(str(source))
+
+    proposal = TechniqueSeriesAdapter().propose_recipe(
+        {
+            "workflow_id": TechniqueSeriesAdapter.workflow_id,
+            "technique": "rheology",
+            "paths": paths,
+        }
+    )
+
+    assert proposal.status == "ready"
+    assert proposal.recipe is not None
+    assert [Path(item.path).name for item in proposal.recipe.artifacts] == [
+        "a.csv",
+        "b.csv",
+    ]
+    assert all(
+        step.parameters["canonical_template"]["template_id"]
+        == "rheology_curve_1d.v1"
+        for step in proposal.recipe.steps
+    )
     assert TechniqueSeriesAdapter.is_valid_recipe(proposal.recipe)
 
 

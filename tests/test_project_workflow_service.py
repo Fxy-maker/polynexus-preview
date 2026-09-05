@@ -55,6 +55,13 @@ def test_plan_reports_missing_converter_as_blocker_without_fabrication(tmp_path:
     assert all(step["technique"] != "waxs" or step["status"] == "blocked" for step in plan.steps)
 
 
+def test_scope_technique_hints_use_explicit_token_boundaries() -> None:
+    assert ProjectWorkflowService._techniques_from_scope(("raw/outgas.csv",)) == []
+    assert ProjectWorkflowService._techniques_from_scope(
+        ("raw/TGA/sample.csv", "raw/RHEOLOGY/sample.csv")
+    ) == ["rheology", "tga"]
+
+
 def test_run_dsc_request_writes_derived_outputs_only(tmp_path: Path) -> None:
     source = _write_mettler_fixture(tmp_path / "raw" / "PA6-DWJJ.txt")
     service = ProjectWorkflowService.open(tmp_path)

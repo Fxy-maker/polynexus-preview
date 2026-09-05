@@ -180,7 +180,16 @@ class ProjectWorkflowService:
         grouped: dict[str, list[str]] = {}
         reasons: list[str] = list(discovery_reasons)
         for artifact in graph.artifacts:
-            if artifact.technique in {"dsc", "ir", "waxs", "saxs", "nmr"}:
+            if artifact.technique in {
+                "dsc",
+                "ir",
+                "waxs",
+                "saxs",
+                "nmr",
+                "tga",
+                "dma",
+                "rheology",
+            }:
                 grouped.setdefault(artifact.technique, []).append(artifact.relative_path)
             else:
                 reasons.extend(artifact.reason_codes or ("technique_unrecognized",))
@@ -843,7 +852,7 @@ class ProjectWorkflowService:
         plan: ProjectPlan,
         steps: tuple[Mapping[str, object], ...],
     ) -> ProjectWorkflowRun:
-        """Execute exactly one registered IR/WAXS/SAXS input through the provider."""
+        """Execute one registered canonical input through the shared provider."""
         if len(steps) != 1:
             return self._blocked_project_run(plan, "mixed_technique_inputs")
         plan_step = steps[0]
@@ -1359,8 +1368,27 @@ class ProjectWorkflowService:
     @staticmethod
     def _techniques_from_scope(scope: tuple[str, ...]) -> list[str]:
         text = " ".join(scope).lower()
-        aliases = (("waxs", "waxs"), ("saxs", "saxs"), ("ftir", "ir"), ("ir", "ir"), ("dsc", "dsc"))
-        return sorted({technique for marker, technique in aliases if marker in text})
+        aliases = (
+            ("rheology", "rheology"),
+            ("rheometer", "rheology"),
+            ("waxs", "waxs"),
+            ("saxs", "saxs"),
+            ("ftir", "ir"),
+            ("ir", "ir"),
+            ("dsc", "dsc"),
+            ("tga", "tga"),
+            ("dma", "dma"),
+        )
+        return sorted(
+            {
+                technique
+                for marker, technique in aliases
+                if re.search(
+                    rf"(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])",
+                    text,
+                )
+            }
+        )
 
     @staticmethod
     def _request_mentions_dsc(request: AnalysisRequest) -> bool:

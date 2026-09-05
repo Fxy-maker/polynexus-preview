@@ -42,6 +42,9 @@ class SingleInputTechniqueAdapter:
         "ir": ("ir.standard", "ir_spectrum", "supporting"),
         "waxs": ("waxs.static", "waxs_profile", "supporting"),
         "saxs": ("saxs.static", "saxs_profile", "supporting"),
+        "tga": ("tga.standard", "tga_curve", "supporting"),
+        "dma": ("dma.standard", "dma_curve", "supporting"),
+        "rheology": ("rheology.standard", "rheology_curve", "supporting"),
     }
     _NMR_SUBMODULES = frozenset({"nmr.liquid_h", "nmr.liquid_c", "nmr.solid_h", "nmr.solid_c"})
 

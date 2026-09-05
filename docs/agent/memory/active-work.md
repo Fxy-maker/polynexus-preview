@@ -6603,3 +6603,22 @@ remain follow-up work; no provider algorithms or user data changed. Task:
   quality 313 and preprocessing 157. Architecture and scientific-semantics
   review are required before merge or promotion.
 - Task: `docs/agent/tasks/2026-09-05-rheology-foundation-derived-core.md`.
+
+## Generic project routes for table techniques — implementation complete, review required (2026-09-05)
+
+- TGA, DMA, and rheology now use the existing project single-input,
+  same-technique series, and mixed-technique adapters. Their registered
+  canonical templates execute through the shared Agent/ComputeRun boundary and
+  enter the existing result-table, evidence-package, and ARS-facing objects.
+- Project indexing recognizes explicit technique directory/name tokens and
+  full technique labels with alphanumeric boundaries. It does not infer DMA
+  versus rheology from an unlabelled `G'`/`G''` table, and short strings such as
+  `outgas` or `first` no longer accidentally match `tga` or `ir`.
+- Focused index/adapter/AI-entry coverage passes 59 with 1 platform skip;
+  project service/package/CLI coverage passes 55; unchanged TGA/DMA/rheology
+  Core coverage passes 25; structured verification passes quality 313 and
+  preprocessing 157.
+- Explicit technique confirmation for unlabelled inputs, scientific group
+  confirmation, group statistics/figures, and capability promotion remain
+  open. Architecture review is required before merge.
+- Task: `docs/agent/tasks/2026-09-05-generic-project-table-techniques.md`.

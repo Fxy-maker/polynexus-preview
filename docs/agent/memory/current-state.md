@@ -1924,3 +1924,19 @@ scientific promotion remain open. Task:
 rheology/canonical coverage passes 42; shared ComputeRun/CLI/AI coverage passes
 142 with 3 skips; structured verification passes quality 313 and preprocessing
 157.
+
+## Generic TGA/DMA/rheology project routing checkpoint (2026-09-05)
+
+The AI-native project workflow now admits TGA, DMA, and rheology through the
+same canonical single-input, same-technique series, and mixed-technique
+adapters used by existing project routes. Each step retains its canonical
+template and completed shared ComputeRun projection before result-table and
+evidence-package construction. Explicit technique path tokens are matched at
+alphanumeric boundaries; ambiguous unlabelled modulus tables remain `unknown`
+instead of being guessed as DMA or rheology. Focused project index/adapter/AI
+coverage passes 59 with 1 platform skip, service/package/CLI coverage passes
+55, the three underlying Core regressions pass 25, and structured verification
+passes quality 313 plus preprocessing 157. Technique confirmation for
+unlabelled sources and scientific experiment grouping remain separate human/AI
+decisions. Task:
+`docs/agent/tasks/2026-09-05-generic-project-table-techniques.md`.

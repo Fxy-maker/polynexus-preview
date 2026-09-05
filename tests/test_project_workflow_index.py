@@ -85,6 +85,53 @@ def test_index_orders_paths_deterministically(tmp_path: Path) -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("directory", "expected"),
+    (("TGA", "tga"), ("DMA", "dma"), ("RHEOLOGY", "rheology")),
+)
+def test_index_recognizes_explicit_generic_table_technique_directories(
+    tmp_path: Path,
+    directory: str,
+    expected: str,
+) -> None:
+    source = tmp_path / "raw" / directory / "sample.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text("coordinate,signal\n1,2\n2,3\n", encoding="utf-8")
+
+    graph = ProjectIndexer(ProjectWorkspace.open(tmp_path)).inspect((source,))
+
+    assert graph.artifacts[0].technique == expected
+
+
+def test_index_does_not_guess_dma_or_rheology_from_moduli_alone(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "raw" / "samples" / "frequency-sweep.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "Frequency (Hz),G' (Pa),G'' (Pa)\n1,100,10\n10,200,20\n",
+        encoding="utf-8",
+    )
+
+    graph = ProjectIndexer(ProjectWorkspace.open(tmp_path)).inspect((source,))
+
+    assert graph.artifacts[0].technique == "unknown"
+
+
+@pytest.mark.parametrize("filename", ("outgas.csv", "first-run.csv"))
+def test_index_short_technique_aliases_require_token_boundaries(
+    tmp_path: Path,
+    filename: str,
+) -> None:
+    source = tmp_path / "raw" / "samples" / filename
+    source.parent.mkdir(parents=True)
+    source.write_text("coordinate,signal\n1,2\n2,3\n", encoding="utf-8")
+
+    graph = ProjectIndexer(ProjectWorkspace.open(tmp_path)).inspect((source,))
+
+    assert graph.artifacts[0].technique == "unknown"
+
+
 def test_index_drops_deleted_artifacts_but_keeps_existing_partial_scope(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()

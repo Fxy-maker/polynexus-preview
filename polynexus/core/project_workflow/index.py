@@ -13,10 +13,18 @@ from .workspace import ProjectWorkspace
 
 
 _TECHNIQUE_ALIASES = (
+    ("thermogravimetric analysis", "tga"),
+    ("thermogravimetric", "tga"),
+    ("dynamic mechanical analysis", "dma"),
+    ("dynamic mechanical", "dma"),
+    ("rheometer", "rheology"),
+    ("rheology", "rheology"),
     ("ftir", "ir"),
     ("infrared", "ir"),
     ("ir", "ir"),
     ("dsc", "dsc"),
+    ("tga", "tga"),
+    ("dma", "dma"),
     ("waxs", "waxs"),
     ("saxs", "saxs"),
     ("nmr", "nmr"),
@@ -136,7 +144,10 @@ class ProjectIndexer:
         )
         label = " ".join(part.lower() for part in parts[raw_index:])
         for marker, technique in _TECHNIQUE_ALIASES:
-            if marker in label:
+            if re.search(
+                rf"(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])",
+                label,
+            ):
                 return technique
         if source.is_file() and source.suffix.lower() in {".txt", ".dat", ".asc"}:
             try:
