@@ -1,5 +1,31 @@
 # Active Work
 
+## Public validation-data pack — implementation complete, scientific review required (2026-09-05)
+
+- Added `docs/validation/public-validation-pack.json` and
+  `scripts/validation_pack.py`. The committed source manifest records source
+  URL/DOI/license/checksum, material context, rawness, expected Core route,
+  and limitations; downloads, reports, and SHA-256 lock manifest are external
+  at `D:\PolyNexus-validation-data`.
+- Complete, checksum-verified archive inspections cover TGA, three DMA
+  archives, two FTIR archives, polymer NMR, one SAXS detector sequence, one
+  WAXS/XRD set, and a PLA/chitosan supplement. The archive report lists 8 TGA
+  vendor files, 130 DMA vendor files, 877 FTIR members, 127 NMR members, 2,163
+  SAXS TIFF frames, 1,920 WAXS DAT files, and 190 PLA/chitosan members.
+- DSC and a second SAXS archive remain candidates after incomplete Zenodo
+  transfers; their source checksum mismatch/missing state is explicit. SAXS
+  CuPd and WAXS gypsum inputs are format-only, not polymer scientific
+  validation. The PLA/chitosan archive has two Origin GPC projects but lacks a
+  portable chromatogram export; rheology still lacks a confirmed public raw
+  source.
+- The helper rejects unsafe paths, unverified licenses, missing checksum/route
+  metadata, local source-MD5 drift, and non-readable archives. No downloaded
+  archive is committed to Git. Formal replay cases, expected metrics,
+  tolerances, independent samples, and capability promotion remain follow-up.
+- Focused manifest tests pass 5; task verification passes quality 313 and
+  preprocessing 157. Task:
+  `docs/agent/tasks/2026-09-05-public-validation-pack.md`.
+
 ## AI-readable capability validation readiness - 2026-09-05
 
 - The generic exploration promotion boundary now has an immutable,
