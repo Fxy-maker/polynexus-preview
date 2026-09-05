@@ -1,5 +1,27 @@
 # Active Work
 
+## TGA normalization, DTG, and event candidates - 2026-09-05
+
+- The canonical TGA route now preserves the source curve while adding separate
+  normalized-mass, locally polynomial-smoothed mass, and DTG series. Method
+  parameters, canonical axis units, sign convention, and boundary handling are
+  carried into the shared metric manifest.
+- Positive DTG peaks produce material-neutral event candidates with canonical
+  index bounds, candidate onset/peak/endset coordinates, interval mass loss,
+  prominence, and boundary warnings. Final recorded residue is automatic;
+  requested temperature-coordinate residue is interpolated without
+  extrapolation and requires a known temperature unit.
+- Nonpositive normalization references, short records, non-increasing axes,
+  time axes, unknown units, and out-of-range targets remain local unavailable
+  states. They do not block a valid descriptive `ComputeRun`.
+- Focused TGA coverage passes 11 tests; the shared ComputeRun/capability/
+  canonical matrix passes 88 with 3 skips. Structured verification passes
+  quality 313 and preprocessing 157.
+- Formal TGA capability promotion, uncertainty validation, independent
+  instrument/material replay, multi-rate kinetics, and a shared figure
+  provider remain review/follow-up work.
+- Task: `docs/agent/tasks/2026-09-05-tga-dtg-event-candidates.md`.
+
 ## Sample-neutral TGA module foundation — 2026-09-04
 
 - Added a shared generic-table TGA route for temperature or time versus

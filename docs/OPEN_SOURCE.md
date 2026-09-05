@@ -26,8 +26,11 @@ following meaning:
 Current core technique families are DSC, FTIR/IR, SAXS, WAXS, NMR, and the
 sample-neutral TGA and DMA table-curve foundations. Coverage varies by workflow and
 input form. TGA descriptive curve summaries are available for supported table
-exports; DTG, stage segmentation, residue interpretation, and kinetics remain
-unsupported. DMA descriptive curves require an explicit signal mapping;
+exports. Normalized mass, DTG, specified-coordinate residue, and material-
+neutral event candidates are emitted as diagnostic derived results; their
+formal capability promotion remains pending independent replay, uncertainty
+work, and scientific review, while kinetics is unsupported. DMA descriptive
+curves require an explicit signal mapping;
 master curves, shift factors, and Tg interpretation remain unsupported.
 Rheology, SEC/GPC, and mechanics are currently cataloged as unsupported rather
 than implemented providers.

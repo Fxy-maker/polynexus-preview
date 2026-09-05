@@ -1,0 +1,494 @@
+"""Deterministic, sample-neutral processing for canonical TGA curves."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+import math
+from typing import Any, Mapping, Sequence
+
+import numpy as np
+from scipy.signal import find_peaks
+
+
+_PROCESSING_VERSION = "tga.processing.v1"
+
+
+@dataclass(frozen=True)
+class TGAProcessingConfig:
+    """Explicit parameters for material-neutral TGA curve processing."""
+
+    normalization_reference_points: int = 5
+    dtg_window_points: int = 11
+    dtg_polynomial_order: int = 2
+    event_prominence_noise_factor: float = 3.0
+    event_minimum_mass_loss_percent: float = 0.5
+    residue_targets: tuple[float, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name in (
+            "normalization_reference_points",
+            "dtg_window_points",
+            "dtg_polynomial_order",
+        ):
+            value = getattr(self, name)
+            if type(value) is not int or value < 1:
+                raise ValueError(f"{name} must be a positive integer")
+        if self.dtg_polynomial_order >= self.dtg_window_points:
+            raise ValueError("dtg_polynomial_order must be smaller than dtg_window_points")
+        for name in (
+            "event_prominence_noise_factor",
+            "event_minimum_mass_loss_percent",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError(f"{name} must be numeric")
+            if not math.isfinite(float(value)) or float(value) < 0.0:
+                raise ValueError(f"{name} must be finite and nonnegative")
+            object.__setattr__(self, name, float(value))
+        if isinstance(self.residue_targets, (str, bytes, bytearray)):
+            raise TypeError("residue_targets must be a sequence of finite coordinates")
+        targets: list[float] = []
+        for value in self.residue_targets:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError("residue_targets must contain numeric coordinates")
+            target = float(value)
+            if not math.isfinite(target):
+                raise ValueError("residue_targets must contain finite coordinates")
+            if target not in targets:
+                targets.append(target)
+        object.__setattr__(self, "residue_targets", tuple(targets))
+
+    @classmethod
+    def coerce(cls, value: Any) -> "TGAProcessingConfig":
+        if value is None:
+            return cls()
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, Mapping):
+            raise TypeError("TGA config must be TGAProcessingConfig, a mapping, or None")
+        unknown = set(value).difference(cls.__dataclass_fields__)
+        if unknown:
+            raise ValueError(f"Unsupported TGA config field: {sorted(unknown)[0]}")
+        return cls(**dict(value))
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class TGAProcessingOutcome:
+    """One JSON-safe processed curve plus metric-manifest metadata."""
+
+    metrics: Mapping[str, Any]
+    units: Mapping[str, str]
+    methods: Mapping[str, str]
+    parameters: Mapping[str, Mapping[str, Any]]
+
+
+def analyze_tga_curve(
+    x_values: Sequence[float],
+    mass_values: Sequence[float],
+    *,
+    axis_kind: str,
+    axis_unit: str,
+    signal_unit: str,
+    config: TGAProcessingConfig,
+) -> TGAProcessingOutcome:
+    """Compute derived TGA quantities without interpreting sample chemistry."""
+
+    x = np.asarray(x_values, dtype=float)
+    mass = np.asarray(mass_values, dtype=float)
+    if x.ndim != 1 or mass.ndim != 1 or x.size != mass.size or x.size < 2:
+        raise ValueError("TGA processing requires equal one-dimensional arrays")
+    if not np.all(np.isfinite(x)) or not np.all(np.isfinite(mass)):
+        raise ValueError("TGA processing requires finite arrays")
+
+    units: dict[str, str] = {"derived.x": str(axis_unit)}
+    methods: dict[str, str] = {"derived.x": "canonical_source_values"}
+    parameters: dict[str, Mapping[str, Any]] = {}
+    metrics: dict[str, Any] = {
+        "processing_version": _PROCESSING_VERSION,
+        "axis_kind": str(axis_kind),
+        "axis_unit": str(axis_unit),
+        "source_signal_unit": str(signal_unit),
+    }
+
+    normalization, normalized = _normalize_mass(mass, signal_unit=signal_unit, config=config)
+    metrics["normalization"] = normalization
+    metrics["derived"] = {
+        "x": tuple(float(value) for value in x),
+        "normalized_mass_percent": (
+            None if normalized is None else tuple(float(value) for value in normalized)
+        ),
+        "smoothed_mass_percent": None,
+        "dtg": None,
+    }
+    normalization_parameters = {
+        "requested_reference_points": config.normalization_reference_points,
+        "used_reference_points": normalization.get("used_reference_points", 0),
+    }
+    if normalized is not None:
+        normalized_paths = (
+            "normalization.reference_mass",
+            "normalization.initial_mass_percent",
+            "normalization.final_mass_percent",
+            "derived.normalized_mass_percent",
+        )
+        for path in normalized_paths:
+            methods[path] = "initial_window_median"
+            parameters[path] = normalization_parameters
+        units["normalization.reference_mass"] = str(signal_unit)
+        for path in normalized_paths[1:]:
+            units[path] = "percent_initial_mass"
+
+    if normalized is None:
+        metrics["dtg"] = _unavailable("normalization_unavailable")
+        metrics["mass_loss_events"] = _unavailable("dtg_unavailable")
+        metrics["residue"] = _unavailable("normalization_unavailable")
+        return TGAProcessingOutcome(metrics, units, methods, parameters)
+
+    residue = _residue_metrics(
+        x,
+        normalized,
+        axis_kind=str(axis_kind),
+        axis_unit=str(axis_unit),
+        targets=config.residue_targets,
+    )
+    metrics["residue"] = residue
+    _add_residue_metadata(residue, units=units, methods=methods, parameters=parameters)
+
+    if not np.all(np.diff(x) > 0.0):
+        metrics["dtg"] = _unavailable("axis_not_strictly_increasing")
+        metrics["mass_loss_events"] = _unavailable("dtg_unavailable")
+        return TGAProcessingOutcome(metrics, units, methods, parameters)
+
+    window = _resolved_window(
+        point_count=int(x.size),
+        requested=config.dtg_window_points,
+        polynomial_order=config.dtg_polynomial_order,
+    )
+    if window is None:
+        metrics["dtg"] = _unavailable("insufficient_points_for_local_polynomial")
+        metrics["mass_loss_events"] = _unavailable("dtg_unavailable")
+        return TGAProcessingOutcome(metrics, units, methods, parameters)
+
+    smooth_mass, dtg = _local_polynomial_dtg(
+        x,
+        normalized,
+        window_points=window,
+        polynomial_order=config.dtg_polynomial_order,
+    )
+    metrics["derived"]["smoothed_mass_percent"] = tuple(
+        float(value) for value in smooth_mass
+    )
+    metrics["derived"]["dtg"] = tuple(float(value) for value in dtg)
+    rate_unit = _rate_unit(axis_unit)
+    dtg_parameters = {
+        "window_points": window,
+        "requested_window_points": config.dtg_window_points,
+        "polynomial_order": config.dtg_polynomial_order,
+        "sign_convention": "-d(normalized_mass)/d(x)",
+        "boundary_handling": "shifted_fixed_window",
+        "coordinate_handling": "local_fit_uses_canonical_x_values",
+    }
+    metrics["dtg"] = {
+        "status": "computed",
+        "method": "local_polynomial_derivative",
+        "parameters": dtg_parameters,
+        "axis_unit": str(axis_unit),
+        "rate_unit": rate_unit,
+        "minimum_mass_loss_rate": float(np.min(dtg)),
+        "maximum_mass_loss_rate": float(np.max(dtg)),
+    }
+    for path in (
+        "derived.smoothed_mass_percent",
+        "derived.dtg",
+        "dtg.minimum_mass_loss_rate",
+        "dtg.maximum_mass_loss_rate",
+    ):
+        units[path] = (
+            "percent_initial_mass"
+            if path == "derived.smoothed_mass_percent"
+            else rate_unit
+        )
+        methods[path] = "local_polynomial_derivative"
+        parameters[path] = dtg_parameters
+
+    events = _event_metrics(
+        x,
+        smooth_mass,
+        dtg,
+        axis_unit=str(axis_unit),
+        rate_unit=rate_unit,
+        config=config,
+    )
+    metrics["mass_loss_events"] = events
+    _add_event_metadata(events, units=units, methods=methods, parameters=parameters)
+    return TGAProcessingOutcome(metrics, units, methods, parameters)
+
+
+def _normalize_mass(
+    mass: np.ndarray,
+    *,
+    signal_unit: str,
+    config: TGAProcessingConfig,
+) -> tuple[dict[str, Any], np.ndarray | None]:
+    used = min(config.normalization_reference_points, int(mass.size))
+    reference = float(np.median(mass[:used]))
+    if reference <= 0.0:
+        return _unavailable("normalization_reference_nonpositive"), None
+    normalized = mass / reference * 100.0
+    return {
+        "status": "computed",
+        "method": "initial_window_median",
+        "requested_reference_points": config.normalization_reference_points,
+        "used_reference_points": used,
+        "canonical_reference_index_start": 0,
+        "canonical_reference_index_end": used - 1,
+        "reference_mass": reference,
+        "source_signal_unit": str(signal_unit),
+        "output_unit": "percent_initial_mass",
+        "initial_mass_percent": float(normalized[0]),
+        "final_mass_percent": float(normalized[-1]),
+    }, normalized
+
+
+def _resolved_window(
+    *,
+    point_count: int,
+    requested: int,
+    polynomial_order: int,
+) -> int | None:
+    window = min(requested, point_count)
+    if window % 2 == 0:
+        window -= 1
+    minimum = polynomial_order + 2
+    if minimum % 2 == 0:
+        minimum += 1
+    if window < minimum:
+        return None
+    return window
+
+
+def _local_polynomial_dtg(
+    x: np.ndarray,
+    mass_percent: np.ndarray,
+    *,
+    window_points: int,
+    polynomial_order: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    half = window_points // 2
+    smooth = np.empty_like(mass_percent, dtype=float)
+    derivative = np.empty_like(mass_percent, dtype=float)
+    last_start = int(x.size) - window_points
+    for index in range(int(x.size)):
+        start = min(max(index - half, 0), last_start)
+        stop = start + window_points
+        local_x = x[start:stop]
+        local_mass = mass_percent[start:stop]
+        scale = float(np.max(np.abs(local_x - x[index])))
+        if scale <= 0.0:
+            raise ValueError("Local polynomial coordinate window has zero span")
+        local_coordinate = (local_x - x[index]) / scale
+        coefficients = np.polynomial.polynomial.polyfit(
+            local_coordinate,
+            local_mass,
+            polynomial_order,
+        )
+        smooth[index] = float(coefficients[0])
+        derivative[index] = float(coefficients[1] / scale)
+    return smooth, -derivative
+
+
+def _event_metrics(
+    x: np.ndarray,
+    smooth_mass: np.ndarray,
+    dtg: np.ndarray,
+    *,
+    axis_unit: str,
+    rate_unit: str,
+    config: TGAProcessingConfig,
+) -> dict[str, Any]:
+    centered = dtg - float(np.median(dtg))
+    noise = float(1.4826 * np.median(np.abs(centered)))
+    numerical_floor = float(np.finfo(float).eps * max(1.0, np.max(np.abs(dtg))))
+    prominence_threshold = max(
+        config.event_prominence_noise_factor * noise,
+        numerical_floor,
+    )
+    peak_indices, properties = find_peaks(dtg, prominence=prominence_threshold)
+    method_parameters = {
+        "prominence_noise_factor": config.event_prominence_noise_factor,
+        "robust_noise_estimate": noise,
+        "prominence_threshold": prominence_threshold,
+        "minimum_interval_mass_loss_percent": config.event_minimum_mass_loss_percent,
+        "boundary_method": "scipy_peak_prominence_bases",
+    }
+    accepted: list[dict[str, Any]] = []
+    for peak_index, left_index, right_index, prominence in zip(
+        peak_indices,
+        properties.get("left_bases", ()),
+        properties.get("right_bases", ()),
+        properties.get("prominences", ()),
+        strict=True,
+    ):
+        interval_loss = float(smooth_mass[left_index] - smooth_mass[right_index])
+        if dtg[peak_index] <= 0.0 or interval_loss < config.event_minimum_mass_loss_percent:
+            continue
+        warnings: list[str] = []
+        if int(left_index) == 0:
+            warnings.append("event_onset_reaches_record_boundary")
+        if int(right_index) == int(x.size) - 1:
+            warnings.append("event_endset_reaches_record_boundary")
+        accepted.append(
+            {
+                "status": "computed_with_warning" if warnings else "computed",
+                "method": "dtg_peak_prominence_bases",
+                "axis_unit": axis_unit,
+                "rate_unit": rate_unit,
+                "parameters": method_parameters,
+                "canonical_index_start": int(left_index),
+                "peak_index": int(peak_index),
+                "canonical_index_end": int(right_index),
+                "onset_candidate_x": float(x[left_index]),
+                "peak_x": float(x[peak_index]),
+                "endset_candidate_x": float(x[right_index]),
+                "peak_mass_loss_rate": float(dtg[peak_index]),
+                "peak_prominence": float(prominence),
+                "interval_mass_loss_percent": interval_loss,
+                "warnings": warnings,
+            }
+        )
+    result: dict[str, Any] = {
+        "status": "computed",
+        "method": "dtg_peak_prominence_bases",
+        "parameters": method_parameters,
+        "event_count": len(accepted),
+    }
+    for index, event in enumerate(accepted, start=1):
+        result[f"event_{index:03d}"] = event
+    return result
+
+
+def _residue_metrics(
+    x: np.ndarray,
+    normalized_mass: np.ndarray,
+    *,
+    axis_kind: str,
+    axis_unit: str,
+    targets: Sequence[float],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "status": "computed",
+        "method": "normalized_mass_at_recorded_or_interpolated_coordinate",
+        "final_recorded_x": float(x[-1]),
+        "final_recorded_mass_percent": float(normalized_mass[-1]),
+        "axis_unit": axis_unit,
+        "mass_unit": "percent_initial_mass",
+    }
+    increasing = bool(np.all(np.diff(x) > 0.0))
+    for index, target in enumerate(targets, start=1):
+        key = f"target_{index:03d}"
+        base = {"requested_x": float(target), "axis_unit": axis_unit}
+        if axis_kind != "temperature":
+            result[key] = {
+                "status": "unavailable",
+                **base,
+                "unavailable_reason": "temperature_axis_required",
+            }
+        elif axis_unit == "unknown":
+            result[key] = {
+                "status": "unavailable",
+                **base,
+                "unavailable_reason": "temperature_unit_unknown",
+            }
+        elif not increasing:
+            result[key] = {
+                "status": "unavailable",
+                **base,
+                "unavailable_reason": "axis_not_strictly_increasing",
+            }
+        elif target < x[0] or target > x[-1]:
+            result[key] = {
+                "status": "unavailable",
+                **base,
+                "unavailable_reason": "target_outside_recorded_axis",
+            }
+        else:
+            result[key] = {
+                "status": "computed",
+                **base,
+                "mass_percent": float(np.interp(target, x, normalized_mass)),
+                "mass_unit": "percent_initial_mass",
+                "method": "linear_interpolation_no_extrapolation",
+            }
+    return result
+
+
+def _add_residue_metadata(
+    residue: Mapping[str, Any],
+    *,
+    units: dict[str, str],
+    methods: dict[str, str],
+    parameters: dict[str, Mapping[str, Any]],
+) -> None:
+    units["residue.final_recorded_x"] = str(residue["axis_unit"])
+    units["residue.final_recorded_mass_percent"] = "percent_initial_mass"
+    methods["residue.final_recorded_x"] = "canonical_final_recorded_coordinate"
+    methods["residue.final_recorded_mass_percent"] = "initial_window_median"
+    for key, item in residue.items():
+        if not key.startswith("target_") or not isinstance(item, Mapping):
+            continue
+        path = f"residue.{key}"
+        units[f"{path}.requested_x"] = str(item["axis_unit"])
+        if item.get("status") == "computed":
+            units[f"{path}.mass_percent"] = "percent_initial_mass"
+            methods[f"{path}.mass_percent"] = "linear_interpolation_no_extrapolation"
+            parameters[f"{path}.mass_percent"] = {
+                "requested_x": item["requested_x"],
+                "extrapolation": "forbidden",
+            }
+
+
+def _add_event_metadata(
+    events: Mapping[str, Any],
+    *,
+    units: dict[str, str],
+    methods: dict[str, str],
+    parameters: dict[str, Mapping[str, Any]],
+) -> None:
+    event_parameters = dict(events.get("parameters", {}))
+    for key, event in events.items():
+        if not key.startswith("event_") or not isinstance(event, Mapping):
+            continue
+        prefix = f"mass_loss_events.{key}"
+        for field in ("onset_candidate_x", "peak_x", "endset_candidate_x"):
+            path = f"{prefix}.{field}"
+            units[path] = str(event["axis_unit"])
+            methods[path] = "dtg_peak_prominence_bases"
+            parameters[path] = event_parameters
+        for field in ("peak_mass_loss_rate", "peak_prominence"):
+            path = f"{prefix}.{field}"
+            units[path] = str(event["rate_unit"])
+            methods[path] = "dtg_peak_prominence_bases"
+            parameters[path] = event_parameters
+        loss_path = f"{prefix}.interval_mass_loss_percent"
+        units[loss_path] = "percent_initial_mass"
+        methods[loss_path] = "endpoint_difference_on_local_polynomial_mass"
+        parameters[loss_path] = event_parameters
+
+
+def _rate_unit(axis_unit: str) -> str:
+    normalized = str(axis_unit).strip() or "unknown"
+    return f"percent_initial_mass_per_{normalized}"
+
+
+def _unavailable(reason: str) -> dict[str, str]:
+    return {"status": "unavailable", "unavailable_reason": str(reason)}
+
+
+__all__ = [
+    "TGAProcessingConfig",
+    "TGAProcessingOutcome",
+    "analyze_tga_curve",
+]

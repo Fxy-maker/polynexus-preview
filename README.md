@@ -29,8 +29,11 @@ for the capability maturity boundary, release checklist, and data-rights rules.
 
 Coverage varies by input type and workflow. The runtime catalog distinguishes
 `available`, `experimental`, and `unsupported` capabilities. TGA currently
-provides a sample-neutral table-curve route and descriptive summaries; DTG,
-stage segmentation, residue interpretation, and kinetics remain unsupported.
+provides a sample-neutral table-curve route, normalized mass, DTG, specified-
+coordinate residue, and material-neutral event candidates. These derived
+outputs remain diagnostic pending independent replay, uncertainty work, and
+scientific review; formal stage/residue capability promotion and kinetics are
+still unsupported.
 DMA currently provides the same shared descriptive route for an explicitly
 mapped modulus, damping, stress, or strain signal; master curves, shift
 factors, and Tg interpretation remain unsupported. Rheology, SEC/GPC, and

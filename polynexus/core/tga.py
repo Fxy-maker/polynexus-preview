@@ -1,10 +1,9 @@
 """Sample-neutral thermogravimetric analysis (TGA) engine.
 
-The first TGA route deliberately stays at the shared curve boundary.  It
-loads common table exports with a temperature or time axis and a mass/weight
-signal, then publishes deterministic descriptive values.  Polymer identity is
-optional metadata and is never used to invent decomposition stages or kinetic
-claims.
+The engine consumes a canonical temperature/time versus mass curve, preserves
+the source channels, and emits deterministic descriptive and derived values.
+Polymer identity remains optional metadata and is never used to name a
+decomposition stage or infer a mechanism.
 """
 
 from __future__ import annotations
@@ -16,6 +15,7 @@ import numpy as np
 
 from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
 from .engine import BaseEngine, EngineCategory, register_technique
+from .tga_processing import TGAProcessingConfig, analyze_tga_curve
 
 
 @register_technique("tga")
@@ -27,12 +27,14 @@ class TGAEngine(BaseEngine):
     icon = "⚖️"
     category = EngineCategory.EXPERIMENTAL
     description = (
-        "Thermogravimetric curves: source-preserving mass/weight summaries "
-        "with temperature or time axes"
+        "Thermogravimetric curves: source-preserving mass/weight summaries, "
+        "normalized mass, DTG, and material-neutral event candidates"
     )
 
     def __init__(self, config: Any = None, log_fn=None):
-        super().__init__(config=config, log_fn=log_fn)
+        processing_config = TGAProcessingConfig.coerce(config)
+        super().__init__(config=processing_config, log_fn=log_fn)
+        self.processing_config = processing_config
         self._template = None
         self._measurements = ()
         self._source_path = ""
@@ -114,8 +116,12 @@ class TGAEngine(BaseEngine):
             self.log("No TGA data available")
             return False
         curves: list[dict[str, Any]] = []
+        tga_curves: dict[str, dict[str, Any]] = {}
         total_points = 0
         warnings: list[str] = []
+        units: dict[str, Any] = {}
+        methods: dict[str, Any] = {}
+        method_parameters: dict[str, Any] = {}
         for measurement in self._measurements:
             x = np.asarray(measurement.channels["x"], dtype=float)
             signal = np.asarray(measurement.channels["intensity"], dtype=float)
@@ -125,6 +131,29 @@ class TGAEngine(BaseEngine):
             mapping = measurement.mapping
             axis_kind = mapping.x_kind if mapping is not None else measurement.acquisition_metadata.get("axis_kind", "unknown")
             warnings.extend(str(item) for item in measurement.warnings)
+            processed = analyze_tga_curve(
+                x,
+                signal,
+                axis_kind=str(axis_kind),
+                axis_unit=measurement.units.get("x", "unknown"),
+                signal_unit=measurement.units.get("intensity", "unknown"),
+                config=self.processing_config,
+            )
+            curve_metrics = dict(processed.metrics)
+            tga_curves[measurement.measurement_id] = curve_metrics
+            metric_prefix = f"tga_curves.{measurement.measurement_id}"
+            units.update(
+                {f"{metric_prefix}.{path}": value for path, value in processed.units.items()}
+            )
+            methods.update(
+                {f"{metric_prefix}.{path}": value for path, value in processed.methods.items()}
+            )
+            method_parameters.update(
+                {
+                    f"{metric_prefix}.{path}": value
+                    for path, value in processed.parameters.items()
+                }
+            )
             curves.append(
                 {
                     "measurement_id": measurement.measurement_id,
@@ -142,6 +171,23 @@ class TGAEngine(BaseEngine):
             total_points += int(x.size)
             self.result.raw_data[f"{measurement.measurement_id}:x"] = x
             self.result.raw_data[f"{measurement.measurement_id}:signal"] = signal
+            derived = curve_metrics["derived"]
+            normalized_mass = derived.get("normalized_mass_percent")
+            if normalized_mass is not None:
+                self.result.raw_data[
+                    f"{measurement.measurement_id}:normalized_mass_percent"
+                ] = np.asarray(normalized_mass, dtype=float)
+            smoothed_mass = derived.get("smoothed_mass_percent")
+            if smoothed_mass is not None:
+                self.result.raw_data[
+                    f"{measurement.measurement_id}:smoothed_mass_percent"
+                ] = np.asarray(smoothed_mass, dtype=float)
+            dtg = derived.get("dtg")
+            if dtg is not None:
+                self.result.raw_data[f"{measurement.measurement_id}:dtg"] = np.asarray(
+                    dtg,
+                    dtype=float,
+                )
         first = curves[0]
         self._metrics = {
             "n_curves": len(curves),
@@ -154,6 +200,7 @@ class TGAEngine(BaseEngine):
             "signal_min": min(item["signal_min"] for item in curves),
             "signal_max": max(item["signal_max"] for item in curves),
             "curves": curves,
+            "tga_curves": tga_curves,
         }
         self.result.parameters = dict(self._metrics)
         self.result.validation_warnings = sorted(set(warnings))
@@ -161,7 +208,12 @@ class TGAEngine(BaseEngine):
             {
                 "source_path": self._source_path,
                 "canonical_template_id": self._template.template_id if self._template is not None else "",
-                "analysis_scope": "descriptive_curve_summary",
+                "analysis_scope": "descriptive_curve_and_material_neutral_event_candidates",
+                "tga_processing_contract": "tga.processing.v1",
+                "tga_processing_config": self.processing_config.to_dict(),
+                "units": units,
+                "methods": methods,
+                "parameters": method_parameters,
             }
         )
         return True
@@ -201,4 +253,4 @@ class TGAEngine(BaseEngine):
         return dict(self._metrics)
 
 
-__all__ = ["TGAEngine"]
+__all__ = ["TGAEngine", "TGAProcessingConfig"]
