@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from polynexus.core.mechanics_processing import (
+    MechanicsAnalysisSpec,
     MechanicsSignalSeries,
     analyze_mechanics_group,
 )
@@ -84,3 +85,112 @@ def test_mechanics_vendor_modulus_is_preserved_but_not_reinterpreted() -> None:
     assert outcome.metrics["mechanics_property_summary"][
         "unavailable_reason"
     ] == "test_semantics_and_geometry_required"
+
+
+def test_mechanics_advanced_models_require_explicit_semantics() -> None:
+    outcome = analyze_mechanics_group(
+        (0.0, 0.001, 0.002),
+        axis_kind="strain",
+        axis_unit="1",
+        signals=(
+            MechanicsSignalSeries.create(
+                measurement_id="stress",
+                signal_kind="tensile_stress",
+                test_mode="tensile",
+                unit="MPa",
+                values=(0.0, 2.0, 4.0),
+            ),
+        ),
+    )
+
+    summary = outcome.metrics["mechanics_property_summary"]
+    assert summary["status"] == "unavailable"
+    assert summary["tensile_modulus"]["status"] == "unavailable"
+    assert summary["tensile_modulus"]["unavailable_reason"] == (
+        "analysis_spec_required"
+    )
+    assert summary["yield_stress"]["status"] == "unavailable"
+    assert summary["toughness"]["status"] == "unavailable"
+
+
+def test_mechanics_explicit_stress_strain_models_are_traceable() -> None:
+    stress = np.asarray((0.0, 2.0e6, 4.0e6, 6.0e6, 5.0e6))
+    before = stress.copy()
+    outcome = analyze_mechanics_group(
+        (0.0, 0.001, 0.002, 0.003, 0.01),
+        axis_kind="strain",
+        axis_unit="1",
+        signals=(
+            MechanicsSignalSeries.create(
+                measurement_id="stress",
+                signal_kind="tensile_stress",
+                test_mode="tensile",
+                unit="Pa",
+                values=stress,
+            ),
+        ),
+        analysis_spec=MechanicsAnalysisSpec.create(
+            test_mode="tensile",
+            stress_measurement_id="stress",
+            geometry={"gauge_length_mm": 10.0},
+            stress_unit="Pa",
+            strain_unit="1",
+            modulus_window=(0.0, 0.002),
+            yield_offset=0.001,
+            toughness_endpoint="last_valid",
+        ),
+    )
+
+    summary = outcome.metrics["mechanics_property_summary"]
+    modulus = summary["tensile_modulus"]
+    assert modulus["status"] == "computed"
+    assert modulus["value"] == 2.0e9
+    assert modulus["unit"] == "Pa"
+    assert modulus["source_measurements"] == ["stress"]
+    assert summary["yield_stress"]["status"] == "computed"
+    assert summary["yield_stress"]["unit"] == "Pa"
+    assert summary["yield_strain"]["unit"] == "1"
+    assert summary["toughness"]["status"] == "computed"
+    assert summary["toughness"]["unit"] == "Pa"
+    assert outcome.methods["mechanics_property_summary.tensile_modulus.value"] == (
+        "linear_least_squares_stress_strain"
+    )
+    assert outcome.parameters["mechanics_property_summary.tensile_modulus.value"][
+        "modulus_window"
+    ] == [0.0, 0.002]
+    np.testing.assert_array_equal(stress, before)
+
+
+def test_mechanics_yield_and_toughness_are_locally_unavailable() -> None:
+    outcome = analyze_mechanics_group(
+        (0.0, 0.001, 0.002),
+        axis_kind="strain",
+        axis_unit="1",
+        signals=(
+            MechanicsSignalSeries.create(
+                measurement_id="stress",
+                signal_kind="tensile_stress",
+                test_mode="tensile",
+                unit="MPa",
+                values=(0.0, 2.0, 4.0),
+            ),
+        ),
+        analysis_spec=MechanicsAnalysisSpec.create(
+            test_mode="tensile",
+            stress_measurement_id="stress",
+            geometry={"gauge_length_mm": 10.0},
+            stress_unit="MPa",
+            strain_unit="1",
+            modulus_window=(0.0, 0.001),
+            yield_offset=0.002,
+            toughness_endpoint="last_valid",
+        ),
+    )
+
+    summary = outcome.metrics["mechanics_property_summary"]
+    assert summary["tensile_modulus"]["status"] == "computed"
+    assert summary["yield_stress"]["status"] == "unavailable"
+    assert summary["yield_stress"]["unavailable_reason"] == (
+        "offset_line_no_crossing"
+    )
+    assert summary["toughness"]["status"] == "computed"

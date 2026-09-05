@@ -6668,3 +6668,22 @@ remain follow-up work; no provider algorithms or user data changed. Task:
   scientific-semantics review, independent replay, uncertainty, and capability
   promotion remain open. Task:
   `docs/agent/tasks/2026-09-05-mechanics-foundation.md`.
+
+## Mechanics contract-bound advanced models — implementation complete, review required (2026-09-05)
+
+- Added immutable `MechanicsAnalysisSpec` input semantics for explicit test
+  mode, source measurement IDs, geometry, stress/strain units, modulus window,
+  optional offset yield, and optional `last_valid` toughness endpoint.
+- `mechanics.processing.v1` now computes only when that spec is present and
+  valid: stress-strain linear modulus, offset-line yield candidate, and
+  stress-strain trapezoid toughness. Each value retains source measurement IDs,
+  method, units, parameters, and local unavailable reasons; vendor modulus is
+  not reused as a fitted result.
+- Canonical payloads carry the spec through `MechanicsEngine` and shared
+  ComputeRun. Absent or incomplete semantics leave the descriptive foundation
+  calculable and advanced properties locally unavailable. Fatigue, fracture,
+  creep, uncertainty, independent replay, and formal capability promotion stay
+  open and require scientific review.
+- Focused mechanics/canonical/ComputeRun coverage passes 143 with 3 skips;
+  changed mechanics files pass Ruff and compile checks. Task:
+  `docs/agent/tasks/2026-09-05-mechanics-advanced-models.md`.

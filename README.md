@@ -57,10 +57,13 @@ unavailable until calibration and distribution semantics are supplied. These
 outputs are diagnostic and do not infer universal calibration or chemistry.
 Mechanics now provides a sample-neutral table-curve foundation: it preserves
 explicit time, displacement, strain, deflection, cycle, stress, force/load,
-energy, and modulus channels and derives only recorded response peaks and raw
-trapezoid integrals. These outputs remain diagnostic; geometry-dependent
-yield/modulus/toughness, fatigue, and creep models are unavailable until test
-semantics and specimen geometry are supplied.
+energy, and modulus channels and derives recorded response peaks and raw
+trapezoid integrals. When a canonical payload contains an explicit mechanics
+analysis spec, the deterministic Core can additionally fit a declared
+stress-strain modulus, offset-yield candidate, and last-valid stress-strain
+toughness value with units and provenance. Those model outputs remain
+diagnostic and require independent replay, uncertainty work, and scientific
+review; fatigue, fracture, and creep remain unavailable.
 
 ## Quick Start
 

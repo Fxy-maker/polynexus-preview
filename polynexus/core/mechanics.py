@@ -184,6 +184,11 @@ class MechanicsEngine(BaseEngine):
                     )
                     for measurement, x, signal in group_items
                 ),
+                analysis_spec=(
+                    self._template.payload.get("mechanics_analysis")
+                    if self._template is not None
+                    else None
+                ),
             )
             mechanics_groups[group_id] = dict(processed.metrics)
             prefix = f"mechanics_groups.{group_id}"

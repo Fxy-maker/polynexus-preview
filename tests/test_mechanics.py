@@ -5,7 +5,7 @@ from pathlib import Path
 from polynexus.cli.batch_run_service import allowed_extensions
 from polynexus.cli.parser import parse_args
 from polynexus.core.ai_platform import default_descriptor_registry
-from polynexus.core.canonical_experiments import default_converter_registry
+from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
 from polynexus.core.compute import ComputeRunService, RawArtifact
 from polynexus.core.engine import get_engine
 from polynexus.core.project_workflow.adapters import SingleInputTechniqueAdapter
@@ -114,6 +114,66 @@ def test_mechanics_prevalidated_template_does_not_reparse_source(tmp_path: Path)
     assert run.status == "completed"
     assert run.canonical_template is not None
     assert run.canonical_template.content_hash == outcome.template.content_hash
+
+
+def test_mechanics_compute_run_uses_canonical_analysis_spec(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path / "advanced.csv",
+        "Strain,Stress (MPa)\n"
+        "0,0\n"
+        "0.001,2\n"
+        "0.002,4\n"
+        "0.003,6\n"
+        "0.01,5\n",
+    )
+    artifact = RawArtifact.from_path(source, technique="mechanics")
+    outcome = default_converter_registry().convert_path(
+        source, technique="mechanics", source_artifact_id=artifact.artifact_id
+    )
+    assert outcome.template is not None
+    payload = dict(outcome.template.payload)
+    payload["mechanics_analysis"] = {
+        "test_mode": "tensile",
+        "stress_measurement_id": outcome.template.measurements[0].measurement_id,
+        "geometry": {"gauge_length_mm": 10.0},
+        "stress_unit": "MPa",
+        "strain_unit": "1",
+        "modulus_window": [0.0, 0.002],
+        "yield_offset": 0.001,
+        "toughness_endpoint": "last_valid",
+    }
+    configured = CanonicalExperiment.create(
+        template_id=outcome.template.template_id,
+        source_artifact_id=outcome.template.source_artifact_id,
+        payload=payload,
+        conversion_record=outcome.template.conversion_record,
+        measurements=outcome.template.measurements,
+    )
+
+    run = ComputeRunService().run_direct(
+        technique="mechanics",
+        path=source,
+        output_dir="",
+        canonical_template=configured,
+    )
+
+    assert run.status == "completed"
+    summary = next(iter(run.result.metrics["mechanics_groups"].values()))[
+        "mechanics_property_summary"
+    ]
+    assert summary["tensile_modulus"]["status"] == "computed"
+    assert summary["toughness"]["status"] == "computed"
+    manifest = {
+        item["path"]: item
+        for item in run.result.metric_manifest(source=str(source))
+    }
+    yield_metric = manifest["mechanics_groups.sheet-0-table-0.mechanics_property_summary.yield_stress.value"]
+    assert yield_metric["method"] == "offset_line_intersection"
+    assert yield_metric["parameters"]["geometry"] == {"gauge_length_mm": 10.0}
+    toughness_metric = manifest[
+        "mechanics_groups.sheet-0-table-0.mechanics_property_summary.toughness.value"
+    ]
+    assert toughness_metric["method"] == "stress_strain_trapezoid_to_last_valid"
 
 
 def test_mechanics_cli_batch_and_project_routes_share_canonical_name(

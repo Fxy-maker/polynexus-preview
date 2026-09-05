@@ -1971,3 +1971,18 @@ capabilities, project adapters/index, and AI-native evidence use the same
 objects. Independent replay, uncertainty, vendor readers, and formal
 capability promotion remain open and require architecture/scientific review.
 Task: `docs/agent/tasks/2026-09-05-mechanics-foundation.md`.
+
+## Mechanics advanced model checkpoint (2026-09-05)
+
+`MechanicsAnalysisSpec` is the explicit canonical payload contract for
+geometry/test semantics, stress/strain units, modulus windows, offset-yield
+requests, and the `last_valid` toughness endpoint. The shared mechanics Core
+now computes diagnostic tensile/compressive/flexural stress-strain modulus,
+offset-yield candidates, and stress-strain toughness only from that contract;
+without it, existing response descriptors remain available while each advanced
+property is locally `unavailable`. Metric manifests retain source measurement
+IDs, methods, units, and parameters, and vendor-provided modulus is never
+reinterpreted. Focused mechanics/canonical/ComputeRun coverage passes 143 with
+3 skips. Fatigue, fracture, creep, uncertainty, independent replay, and formal
+capability promotion remain open and review-required. Task:
+`docs/agent/tasks/2026-09-05-mechanics-advanced-models.md`.

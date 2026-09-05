@@ -1386,6 +1386,8 @@ def _x_unit(header: str, x_kind: str) -> str:
         return "s^-1"
     if x_kind == "strain" and ("%" in text or "percent" in text):
         return "%"
+    if x_kind == "strain" and re.search(r"\bstrain\b|engineering\s*strain", text):
+        return "1"
     if x_kind in {"displacement", "deflection"}:
         if re.search(r"(?:micrometers?|[µμu]m)\b", text):
             return "um"

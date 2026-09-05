@@ -48,10 +48,13 @@ are preserved as separate measurements. Only a recorded-response peak and
 baseline-uncorrected raw integral are derived; `Mn`, `Mw`, `Mz`, and dispersity
 remain unavailable without a reviewed calibration/distribution contract.
 Mechanics provides a sample-neutral table-curve foundation that preserves
-explicit test axes and response channels and derives only recorded response
-peaks and raw trapezoid integrals. Geometry-dependent yield/modulus/toughness,
-fatigue, and creep models remain unavailable pending test semantics, geometry,
-independent replay, uncertainty work, and scientific review.
+explicit test axes and response channels and derives recorded response peaks
+and raw trapezoid integrals. A canonical payload may explicitly bind test mode,
+geometry, units, fit window, yield offset, and endpoint semantics; with that
+contract the Core can compute a diagnostic stress-strain modulus, offset-yield
+candidate, and last-valid stress-strain toughness value. These model outputs
+remain unpromoted pending independent replay, uncertainty work, and scientific
+review. Fatigue, fracture, and creep remain unavailable.
 
 ## Result and evidence boundary
 
