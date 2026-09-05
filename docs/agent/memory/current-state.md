@@ -1888,3 +1888,20 @@ ordinary analysis behavior. A complete set is only ready for human scientific
 review, with no account or electronic-signature requirement. This generic
 contract is covered with a TGA descriptor and is reusable by later techniques.
 Task: `docs/agent/tasks/2026-09-05-ai-validation-readiness.md`.
+
+## DMA multi-signal derived-core checkpoint (2026-09-05)
+
+The shared DMA canonical route now retains all unambiguous recognized signals
+from one table and records signal kind plus tensile/shear/unspecified modulus
+basis. The engine groups only source-table siblings, preserves source curves,
+derives tan delta from compatible storage/loss pairs with explicit unit-factor
+and point-validity provenance, and emits material-neutral temperature-response
+peak candidates that are explicitly not Tg. Frequency/time curves remain
+calculable without thermal labels. This is an implementation checkpoint, not
+independent instrument/material validation or capability promotion; formal
+uncertainty, TTS/master curves, Tg assignment, and human scientific review
+remain open. Task:
+`docs/agent/tasks/2026-09-05-dma-multisignal-derived-core.md`.
+Focused DMA/canonical coverage passes 38, shared ComputeRun/capability coverage
+passes 70 with 3 skips, and the task verifier passes quality 313 plus
+preprocessing 157.

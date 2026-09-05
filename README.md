@@ -34,10 +34,14 @@ coordinate residue, and material-neutral event candidates. These derived
 outputs remain diagnostic pending independent replay, uncertainty work, and
 scientific review; formal stage/residue capability promotion and kinetics are
 still unsupported.
-DMA currently provides the same shared descriptive route for an explicitly
-mapped modulus, damping, stress, or strain signal; master curves, shift
-factors, and Tg interpretation remain unsupported. Rheology, SEC/GPC, and
-mechanics remain planned/unsupported rather than executable providers.
+DMA currently preserves every unambiguously labelled signal in a supported
+table, derives tan delta only from unit-compatible storage/loss modulus pairs
+within the same tensile, shear, or unspecified basis, and reports temperature-
+response peaks as non-Tg candidates. These derived outputs remain diagnostic
+pending independent replay, uncertainty work, and scientific review; master
+curves, shift factors, and Tg interpretation remain unsupported. Rheology,
+SEC/GPC, and mechanics remain planned/unsupported rather than executable
+providers.
 
 ## Quick Start
 

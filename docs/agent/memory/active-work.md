@@ -6564,3 +6564,21 @@ Focused coverage is 17 tests; task-scoped verifier passed quality 313 and
 preprocessing 157. CLI/GUI/Codex routing and formal package-member integration
 remain follow-up work; no provider algorithms or user data changed. Task:
 `docs/agent/tasks/2026-09-04-exploration-run-gates.md`.
+
+## DMA multi-signal derived core — implementation complete, review required (2026-09-05)
+
+- Supported generic DMA tables now preserve each unambiguously labelled
+  storage/loss modulus, tan-delta, and other recognized viscoelastic signal as
+  a separate canonical measurement. `E′/E″` and `G′/G″` retain tensile/shear
+  basis metadata; duplicate semantic signals still require input.
+- One deterministic group processor derives tan delta only for matching bases
+  and convertible Pa/kPa/MPa/GPa units. Zero storage points remain local masked
+  values, and source arrays are not overwritten.
+- Temperature response peaks are explicitly
+  `response_peak_candidate_not_tg`; time/frequency inputs receive no thermal
+  label. Independent instrument/material replay, measurement uncertainty,
+  TTS/master curves, Tg interpretation, and capability promotion remain open.
+- Focused DMA/canonical coverage passes 38; shared ComputeRun/capability
+  coverage passes 70 with 3 skips; structured verification passes quality 313
+  and preprocessing 157.
+- Task: `docs/agent/tasks/2026-09-05-dma-multisignal-derived-core.md`.

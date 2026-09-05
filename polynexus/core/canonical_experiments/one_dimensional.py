@@ -97,14 +97,32 @@ def convert_one_dimensional_table(
         return _outcome(
             "needs_input", source_artifact_id, "conversion_mapping_ambiguous", observed_columns=observed_columns
         )
-    observed_by_table = {
-        (table.sheet_index, table.table_index): _observed_selection(table, normalized_technique)
+    observed_selections_by_table = {
+        (table.sheet_index, table.table_index): (
+            _observed_dma_selections(table)
+            if normalized_technique == "DMA"
+            else _as_selection_tuple(_observed_selection(table, normalized_technique))
+        )
         for table in tables
+    }
+    if mapping_proposal is not None and any(
+        selections is not None and len(selections) > 1
+        for selections in observed_selections_by_table.values()
+    ):
+        return _outcome(
+            "needs_input",
+            source_artifact_id,
+            "conversion_mapping_proposal_invalid",
+            observed_columns=observed_columns,
+        )
+    proposal_observed_by_table = {
+        key: selections[0] if selections is not None and len(selections) == 1 else None
+        for key, selections in observed_selections_by_table.items()
     }
     if mapping_proposal is not None and not _valid_proposal(
         mapping_proposal,
         tables=tables,
-        observed_by_table=observed_by_table,
+        observed_by_table=proposal_observed_by_table,
         technique=normalized_technique,
         source_artifact_id=source_artifact_id,
     ):
@@ -112,7 +130,7 @@ def convert_one_dimensional_table(
             "needs_input", source_artifact_id, "conversion_mapping_proposal_invalid", observed_columns=observed_columns
         )
 
-    selected: list[MappingSelection] = []
+    selected: list[tuple[_Table, MappingSelection]] = []
     proposal_by_table = (
         {(selection.sheet_index, selection.table_index): selection for selection in mapping_proposal.selections}
         if mapping_proposal is not None
@@ -120,20 +138,20 @@ def convert_one_dimensional_table(
     )
     proposal_used = False
     for table in tables:
-        observed = observed_by_table[(table.sheet_index, table.table_index)]
-        if observed is not None:
-            selected.append(observed)
+        observed = observed_selections_by_table[(table.sheet_index, table.table_index)]
+        if observed:
+            selected.extend((table, selection) for selection in observed)
             continue
         proposal_selection = proposal_by_table.get((table.sheet_index, table.table_index))
         if proposal_selection is None:
             return _outcome(
                 "needs_input", source_artifact_id, "conversion_mapping_ambiguous", observed_columns=observed_columns
             )
-        selected.append(proposal_selection)
+        selected.append((table, proposal_selection))
         proposal_used = True
 
     measurements: list[Measurement] = []
-    for table, selection in zip(tables, selected, strict=True):
+    for table, selection in selected:
         x_values = pd.to_numeric(table.frame[selection.x_column], errors="coerce")
         intensity_values = pd.to_numeric(table.frame[selection.intensity_column], errors="coerce")
         pairs = [
@@ -163,7 +181,7 @@ def convert_one_dimensional_table(
                 acquisition_metadata=(
                     {"axis_kind": selection.x_kind, "signal_kind": "mass_or_weight"}
                     if normalized_technique == "TGA"
-                    else {"axis_kind": selection.x_kind, "signal_kind": "viscoelastic_signal"}
+                    else _dma_acquisition_metadata(selection)
                     if normalized_technique == "DMA"
                     else {} if normalized_technique == "IR"
                     else {"background_state": "unknown", "normalization_state": "unknown"}
@@ -380,8 +398,18 @@ def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
         headers.pop()
     if any(not header.strip() for header in headers):
         return True
+    if technique == "DMA":
+        relevant: list[tuple[str, ...]] = []
+        for header in headers:
+            x_kind = _x_kind(header, technique)
+            descriptor = _dma_signal_descriptor(header)
+            if x_kind is not None:
+                relevant.append(("axis", x_kind))
+            elif descriptor is not None:
+                relevant.append(("signal", *descriptor))
+        return len(relevant) != len(set(relevant))
     relevant = [
-        _normalize_header(header)
+        (_normalize_header(header),)
         for header in headers
         if _x_kind(header, technique) is not None or _is_intensity_header(header, technique)
     ]
@@ -480,6 +508,77 @@ def _observed_selection(table: _Table, technique: str) -> MappingSelection | Non
     )
 
 
+def _as_selection_tuple(
+    selection: MappingSelection | None,
+) -> tuple[MappingSelection, ...] | None:
+    return None if selection is None else (selection,)
+
+
+def _observed_dma_selections(table: _Table) -> tuple[MappingSelection, ...] | None:
+    x_candidates = [
+        (str(header), _x_kind(str(header), "DMA"))
+        for header in table.frame.columns
+        if _x_kind(str(header), "DMA") is not None
+    ]
+    signal_candidates = [
+        (str(header), _dma_signal_descriptor(str(header)))
+        for header in table.frame.columns
+        if _dma_signal_descriptor(str(header)) is not None
+    ]
+    if len(x_candidates) != 1 or not signal_candidates:
+        return None
+    descriptors = [descriptor for _, descriptor in signal_candidates]
+    if len(descriptors) != len(set(descriptors)):
+        return None
+    x_column, x_kind = x_candidates[0]
+    if x_column in {header for header, _ in signal_candidates}:
+        return None
+    start, end = _table_row_range(table)
+    multi_signal = len(signal_candidates) > 1
+    selections: list[MappingSelection] = []
+    for intensity_column, descriptor in signal_candidates:
+        if descriptor is None:
+            continue
+        signal_kind, modulus_basis = descriptor
+        measurement_id = _measurement_id(table)
+        if multi_signal:
+            measurement_id += (
+                f"-signal-{signal_kind.replace('_', '-')}-{modulus_basis}"
+            )
+        selections.append(
+            MappingSelection(
+                measurement_id=measurement_id,
+                sheet_name=table.sheet_name,
+                sheet_index=table.sheet_index,
+                table_index=table.table_index,
+                header_row=table.header_row,
+                data_row_start=start,
+                data_row_end=end,
+                x_column=x_column,
+                intensity_column=intensity_column,
+                x_kind=str(x_kind),
+                x_unit=_x_unit(x_column, str(x_kind)),
+                intensity_unit=_intensity_unit(intensity_column, "DMA"),
+                source="observed",
+            )
+        )
+    return tuple(selections)
+
+
+def _dma_acquisition_metadata(selection: MappingSelection) -> dict[str, str]:
+    descriptor = _dma_signal_descriptor(selection.intensity_column)
+    signal_kind, modulus_basis = descriptor or ("viscoelastic_signal", "unspecified")
+    return {
+        "axis_kind": selection.x_kind,
+        "signal_kind": signal_kind,
+        "modulus_basis": modulus_basis,
+        "source_table_id": (
+            f"sheet-{selection.sheet_index if selection.sheet_index is not None else 0}"
+            f"-table-{selection.table_index}"
+        ),
+    }
+
+
 def _measurement_id(table: _Table) -> str:
     return f"sheet-{table.sheet_index if table.sheet_index is not None else 0}-table-{table.table_index}"
 
@@ -571,8 +670,7 @@ def _x_kind(header: str, technique: str) -> str | None:
 
 def _is_intensity_header(header: str, technique: str | None = None) -> bool:
     if str(technique or "").upper() == "DMA":
-        normalized = _normalize_header(header)
-        return normalized in _DMA_SIGNAL_ALIASES or _dma_signal_alias(header) in _DMA_SIGNAL_ALIASES
+        return _dma_signal_descriptor(header) is not None
     if str(technique or "").upper() == "TGA":
         return _tga_mass_alias(header) in _TGA_MASS_ALIASES
     return _intensity_alias(header) in _INTENSITY_ALIASES
@@ -599,8 +697,10 @@ def _tga_mass_alias(header: str) -> str:
 def _dma_signal_alias(header: str) -> str:
     """Normalize common DMA signal labels without assigning a model."""
     text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", header.casefold())
-    text = text.replace("′", "prime").replace("″", "doubleprime")
-    text = text.replace("'", "prime").replace('"', "doubleprime")
+    text = text.replace("δ", "delta")
+    text = text.replace("″", "doubleprime").replace("′", "prime")
+    text = text.replace("''", "doubleprime").replace('"', "doubleprime")
+    text = text.replace("'", "prime")
     text = re.sub(r"\b(storage|loss)\s+modulus\b", lambda match: match.group(1) + "modulus", text)
     text = re.sub(r"\btan\s*delta\b", "tandelta", text)
     normalized = _normalize_header(text)
@@ -608,6 +708,29 @@ def _dma_signal_alias(header: str) -> str:
         if normalized == alias or normalized.startswith(alias):
             return alias
     return normalized
+
+
+def _dma_signal_descriptor(header: str) -> tuple[str, str] | None:
+    alias = _dma_signal_alias(header)
+    descriptors = {
+        "eprime": ("storage_modulus", "tensile"),
+        "edoubleprime": ("loss_modulus", "tensile"),
+        "gprime": ("storage_modulus", "shear"),
+        "gdoubleprime": ("loss_modulus", "shear"),
+        "storagemodulus": ("storage_modulus", "unspecified"),
+        "lossmodulus": ("loss_modulus", "unspecified"),
+        "complexmodulus": ("complex_modulus", "unspecified"),
+        "youngsmodulus": ("youngs_modulus", "tensile"),
+        "modulus": ("modulus", "unspecified"),
+        "tandelta": ("tan_delta", "unspecified"),
+        "tangentdelta": ("tan_delta", "unspecified"),
+        "damping": ("damping", "unspecified"),
+        "stress": ("stress", "unspecified"),
+        "strain": ("strain", "unspecified"),
+        "displacement": ("displacement", "unspecified"),
+        "force": ("force", "unspecified"),
+    }
+    return descriptors.get(alias)
 
 
 def _kind_allowed(x_kind: str, technique: str) -> bool:
@@ -673,6 +796,9 @@ def _intensity_unit(header: str, technique: str | None = None) -> str:
             return "g"
         return "unknown"
     if str(technique or "").upper() == "DMA":
+        descriptor = _dma_signal_descriptor(header)
+        if descriptor is not None and descriptor[0] == "tan_delta":
+            return "%" if "%" in text or "percent" in text else "1"
         if re.search(r"(?:gpa)", text):
             return "GPa"
         if re.search(r"(?:mpa)", text):

@@ -29,9 +29,12 @@ input form. TGA descriptive curve summaries are available for supported table
 exports. Normalized mass, DTG, specified-coordinate residue, and material-
 neutral event candidates are emitted as diagnostic derived results; their
 formal capability promotion remains pending independent replay, uncertainty
-work, and scientific review, while kinetics is unsupported. DMA descriptive
-curves require an explicit signal mapping;
-master curves, shift factors, and Tg interpretation remain unsupported.
+work, and scientific review, while kinetics is unsupported. DMA preserves
+unambiguously labelled table signals and can derive unit-compatible loss
+tangent series plus material-neutral temperature-response peak candidates.
+Those derived outputs remain diagnostic pending independent replay,
+uncertainty work, and scientific review; master curves, shift factors, and Tg
+interpretation remain unsupported.
 Rheology, SEC/GPC, and mechanics are currently cataloged as unsupported rather
 than implemented providers.
 

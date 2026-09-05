@@ -1,9 +1,8 @@
 """Sample-neutral dynamic mechanical analysis (DMA/DMTA) engine.
 
-This foundation intentionally handles one explicitly mapped curve at a time.
-Instrument exports containing several candidate signals (E', E'', tan delta,
-etc.) remain ``needs_input`` in canonical conversion until the caller supplies
-an explicit mapping, avoiding a silent scientific choice.
+The engine preserves explicitly labelled source signals and derives only
+dimensionally valid relationships. Response peaks remain candidates rather
+than glass-transition assignments.
 """
 
 from __future__ import annotations
@@ -14,6 +13,7 @@ from typing import Any, Dict
 import numpy as np
 
 from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
+from .dma_processing import DMAProcessingConfig, DMASignalSeries, analyze_dma_group
 from .engine import BaseEngine, EngineCategory, register_technique
 
 
@@ -31,7 +31,9 @@ class DMAEngine(BaseEngine):
     )
 
     def __init__(self, config: Any = None, log_fn=None):
-        super().__init__(config=config, log_fn=log_fn)
+        processing_config = DMAProcessingConfig.coerce(config)
+        super().__init__(config=processing_config, log_fn=log_fn)
+        self.processing_config = processing_config
         self._template = None
         self._measurements = ()
         self._source_path = ""
@@ -101,8 +103,12 @@ class DMAEngine(BaseEngine):
             self.log("No DMA data available")
             return False
         curves: list[dict[str, Any]] = []
+        grouped_signals: dict[str, list[tuple[Any, np.ndarray, np.ndarray]]] = {}
         total_points = 0
         warnings: list[str] = []
+        units: dict[str, Any] = {}
+        methods: dict[str, Any] = {}
+        method_parameters: dict[str, Any] = {}
         for measurement in self._measurements:
             x = np.asarray(measurement.channels["x"], dtype=float)
             signal = np.asarray(measurement.channels["intensity"], dtype=float)
@@ -112,12 +118,24 @@ class DMAEngine(BaseEngine):
             mapping = measurement.mapping
             axis_kind = mapping.x_kind if mapping is not None else measurement.acquisition_metadata.get("axis_kind", "unknown")
             signal_kind = measurement.acquisition_metadata.get("signal_kind", "viscoelastic_signal")
+            modulus_basis = measurement.acquisition_metadata.get("modulus_basis", "unspecified")
             warnings.extend(str(item) for item in measurement.warnings)
+            group_id = str(
+                measurement.acquisition_metadata.get(
+                    "source_table_id",
+                    (
+                        f"sheet-{measurement.source_locator.get('sheet_index') or 0}"
+                        f"-table-{measurement.source_locator.get('table_index', 0)}"
+                    ),
+                )
+            )
+            grouped_signals.setdefault(group_id, []).append((measurement, x, signal))
             curves.append(
                 {
                     "measurement_id": measurement.measurement_id,
                     "axis_kind": str(axis_kind),
                     "signal_kind": str(signal_kind),
+                    "modulus_basis": str(modulus_basis),
                     "x_unit": measurement.units.get("x", "unknown"),
                     "signal_unit": measurement.units.get("intensity", "unknown"),
                     "point_count": int(x.size),
@@ -131,18 +149,82 @@ class DMAEngine(BaseEngine):
             total_points += int(x.size)
             self.result.raw_data[f"{measurement.measurement_id}:x"] = x
             self.result.raw_data[f"{measurement.measurement_id}:signal"] = signal
+        dma_groups: dict[str, dict[str, Any]] = {}
+        for group_id, group_items in grouped_signals.items():
+            first_measurement, group_x, _ = group_items[0]
+            first_mapping = first_measurement.mapping
+            axis_kind = (
+                first_mapping.x_kind
+                if first_mapping is not None
+                else first_measurement.acquisition_metadata.get("axis_kind", "unknown")
+            )
+            signal_series = tuple(
+                DMASignalSeries.create(
+                    measurement_id=measurement.measurement_id,
+                    signal_kind=str(
+                        measurement.acquisition_metadata.get(
+                            "signal_kind", "viscoelastic_signal"
+                        )
+                    ),
+                    modulus_basis=str(
+                        measurement.acquisition_metadata.get(
+                            "modulus_basis", "unspecified"
+                        )
+                    ),
+                    unit=measurement.units.get("intensity", "unknown"),
+                    values=signal,
+                    x_values=x,
+                )
+                for measurement, x, signal in group_items
+            )
+            processed = analyze_dma_group(
+                group_x,
+                axis_kind=str(axis_kind),
+                axis_unit=first_measurement.units.get("x", "unknown"),
+                signals=signal_series,
+                config=self.processing_config,
+            )
+            group_metrics = dict(processed.metrics)
+            dma_groups[group_id] = group_metrics
+            metric_prefix = f"dma_groups.{group_id}"
+            units.update(
+                {f"{metric_prefix}.{path}": value for path, value in processed.units.items()}
+            )
+            methods.update(
+                {f"{metric_prefix}.{path}": value for path, value in processed.methods.items()}
+            )
+            method_parameters.update(
+                {
+                    f"{metric_prefix}.{path}": value
+                    for path, value in processed.parameters.items()
+                }
+            )
+            for basis, record in group_metrics["derived_tan_delta"].items():
+                if record.get("values") is None:
+                    continue
+                derived_values = np.asarray(
+                    [np.nan if value is None else value for value in record["values"]],
+                    dtype=float,
+                )
+                self.result.raw_data[
+                    f"{group_id}:derived_tan_delta:{basis}"
+                ] = derived_values
         first = curves[0]
+        axis_kinds = {item["axis_kind"] for item in curves}
+        x_units = {item["x_unit"] for item in curves}
+        signal_units = {item["signal_unit"] for item in curves}
         self._metrics = {
             "n_curves": len(curves),
             "point_count": total_points,
-            "axis_kind": first["axis_kind"] if len(curves) == 1 else "mixed",
-            "x_unit": first["x_unit"] if len(curves) == 1 else "mixed",
-            "signal_unit": first["signal_unit"] if len(curves) == 1 else "mixed",
+            "axis_kind": first["axis_kind"] if len(axis_kinds) == 1 else "mixed",
+            "x_unit": first["x_unit"] if len(x_units) == 1 else "mixed",
+            "signal_unit": first["signal_unit"] if len(signal_units) == 1 else "mixed",
             "x_min": min(item["x_min"] for item in curves),
             "x_max": max(item["x_max"] for item in curves),
             "signal_min": min(item["signal_min"] for item in curves),
             "signal_max": max(item["signal_max"] for item in curves),
             "curves": curves,
+            "dma_groups": dma_groups,
         }
         self.result.parameters = dict(self._metrics)
         self.result.validation_warnings = sorted(set(warnings))
@@ -150,7 +232,12 @@ class DMAEngine(BaseEngine):
             {
                 "source_path": self._source_path,
                 "canonical_template_id": self._template.template_id if self._template is not None else "",
-                "analysis_scope": "descriptive_curve_summary",
+                "analysis_scope": "descriptive_curve_and_material_neutral_response_candidates",
+                "dma_processing_contract": "dma.processing.v1",
+                "dma_processing_config": self.processing_config.to_dict(),
+                "units": units,
+                "methods": methods,
+                "parameters": method_parameters,
             }
         )
         return True
@@ -186,4 +273,4 @@ class DMAEngine(BaseEngine):
         return dict(self._metrics)
 
 
-__all__ = ["DMAEngine"]
+__all__ = ["DMAEngine", "DMAProcessingConfig"]
