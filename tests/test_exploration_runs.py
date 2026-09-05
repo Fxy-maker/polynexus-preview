@@ -22,6 +22,7 @@ from polynexus.core.exploration import (
     ExplorationBudget,
     AutomaticExplorationRunner,
     CapabilityPromotionEvidence,
+    CapabilityPromotionReadiness,
     CapabilityPromotionService,
     ExplorationWorkerLimits,
     IsolatedExplorationRunner,
@@ -486,6 +487,87 @@ def test_capability_promotion_requires_all_independent_gates_and_returns_new_ver
     assert promoted.version == "1.promoted"
     assert promoted.content_hash != descriptor.content_hash
     assert descriptor.status == "experimental"
+
+
+def test_ai_readable_promotion_readiness_separates_missing_failed_and_human_review() -> None:
+    descriptor = CapabilityDescriptor.create(
+        capability_id="tga.residue.validation",
+        version="1",
+        techniques=("tga",),
+        input_contract={"input_type": "provider_result", "required_inputs": ("provider_result",)},
+        output_schema={"metric_paths": ("residue.final_recorded_mass_percent",)},
+        status="experimental",
+    )
+
+    empty = CapabilityPromotionService.readiness(descriptor, ())
+    assert isinstance(empty, CapabilityPromotionReadiness)
+    assert empty.missing_evidence_kinds == (
+        "independent_replay",
+        "standard_sample",
+        "negative_control",
+        "uncertainty",
+    )
+    assert empty.failed_evidence_kinds == ()
+    assert empty.ready_for_human_scientific_review is False
+    assert empty.automatically_promotable is False
+    assert empty.ai_preparation_actions == (
+        "prepare_independent_replay_from_admitted_inputs",
+        "prepare_standard_sample_comparison_from_admitted_inputs",
+        "prepare_negative_control_comparison_from_admitted_inputs",
+        "prepare_uncertainty_assessment_from_admitted_inputs",
+    )
+
+    partial = CapabilityPromotionService.readiness(
+        descriptor,
+        (
+            CapabilityPromotionEvidence(
+                kind="independent_replay", evidence_id="external-tga-001", passed=False
+            ),
+            CapabilityPromotionEvidence(
+                kind="standard_sample", evidence_id="reference-001", passed=True
+            ),
+        ),
+    )
+    assert partial.satisfied_evidence_kinds == ("standard_sample",)
+    assert partial.failed_evidence_kinds == ("independent_replay",)
+    assert partial.missing_evidence_kinds == ("negative_control", "uncertainty")
+    assert "prepare_independent_replay_from_admitted_inputs" in partial.ai_preparation_actions
+
+    complete = CapabilityPromotionService.readiness(
+        descriptor,
+        tuple(
+            CapabilityPromotionEvidence(kind=kind, evidence_id=f"{kind}-001", passed=True)
+            for kind in CapabilityPromotionReadiness.REQUIRED_KINDS
+        ),
+    )
+    assert complete.ready_for_human_scientific_review is True
+    assert complete.automatically_promotable is False
+    assert complete.ai_preparation_actions == ()
+    assert complete.human_actions == ("human_scientific_review_required",)
+    assert complete.readiness_hash
+    assert CapabilityPromotionReadiness.from_dict(complete.to_dict()) == complete
+
+    immutable = CapabilityPromotionEvidence(
+        kind="independent_replay",
+        evidence_id="immutable-001",
+        passed=True,
+        details={"source": {"run": "compute-001"}},
+    )
+    with pytest.raises(TypeError):
+        immutable.details["source"] = "changed"
+
+    with pytest.raises(ValueError, match="unique"):
+        CapabilityPromotionService.readiness(
+            descriptor,
+            (
+                CapabilityPromotionEvidence(
+                    kind="independent_replay", evidence_id="duplicate-a", passed=True
+                ),
+                CapabilityPromotionEvidence(
+                    kind="independent_replay", evidence_id="duplicate-b", passed=True
+                ),
+            ),
+        )
 
 
 def test_isolated_worker_reuses_core_validation_and_enforces_network_and_timeout() -> None:

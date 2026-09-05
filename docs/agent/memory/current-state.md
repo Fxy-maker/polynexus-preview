@@ -1877,3 +1877,14 @@ standard-sample evidence; it remains unavailable even when those evidence
 flags are present until a reviewed measurement model exists. Method sensitivity
 is never emitted as a measurement interval. Task:
 `docs/agent/tasks/2026-09-05-tga-replay-validation-boundary.md`.
+## AI-readable capability validation readiness checkpoint (2026-09-05)
+
+`CapabilityPromotionService.readiness()` now returns a shared immutable,
+content-addressed readiness projection over existing promotion evidence. It
+distinguishes missing from failed independent replay, standard sample, negative
+control, and uncertainty evidence, and tells AI which preparation work can run
+after real admitted inputs arrive. It never promotes a descriptor or changes
+ordinary analysis behavior. A complete set is only ready for human scientific
+review, with no account or electronic-signature requirement. This generic
+contract is covered with a TGA descriptor and is reusable by later techniques.
+Task: `docs/agent/tasks/2026-09-05-ai-validation-readiness.md`.

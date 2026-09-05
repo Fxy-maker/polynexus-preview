@@ -3,10 +3,43 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any, Mapping, Sequence
 
 from polynexus.core.ai_platform.capabilities import CapabilityDescriptor
 from polynexus.core.ai_platform.contracts import canonical_json_hash
+
+
+_REQUIRED_KINDS = (
+    "independent_replay",
+    "standard_sample",
+    "negative_control",
+    "uncertainty",
+)
+_AI_PREPARATION_ACTIONS = {
+    "independent_replay": "prepare_independent_replay_from_admitted_inputs",
+    "standard_sample": "prepare_standard_sample_comparison_from_admitted_inputs",
+    "negative_control": "prepare_negative_control_comparison_from_admitted_inputs",
+    "uncertainty": "prepare_uncertainty_assessment_from_admitted_inputs",
+}
+
+
+def _public(value: Any) -> Any:
+    canonical_json_hash(value)
+    if isinstance(value, Mapping):
+        return {str(key): _public(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_public(item) for item in value]
+    return value
+
+
+def _freeze(value: Any) -> Any:
+    public = _public(value)
+    if isinstance(public, Mapping):
+        return MappingProxyType({key: _freeze(item) for key, item in public.items()})
+    if isinstance(public, list):
+        return tuple(_freeze(item) for item in public)
+    return public
 
 
 @dataclass(frozen=True)
@@ -30,15 +63,174 @@ class CapabilityPromotionEvidence:
             raise TypeError("promotion evidence details must be a mapping")
         object.__setattr__(self, "kind", kind)
         object.__setattr__(self, "evidence_id", evidence_id)
-        object.__setattr__(self, "details", dict(details))
+        object.__setattr__(self, "details", _freeze(details))
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "evidence_id": self.evidence_id,
             "passed": self.passed,
-            "details": dict(self.details),
+            "details": _public(self.details),
         }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "CapabilityPromotionEvidence":
+        if not isinstance(value, Mapping):
+            raise TypeError("promotion evidence must be a mapping")
+        return cls(
+            kind=value["kind"],
+            evidence_id=value["evidence_id"],
+            passed=value["passed"],
+            details=value.get("details", {}),
+        )
+
+
+@dataclass(frozen=True)
+class CapabilityPromotionReadiness:
+    """Shared plan for AI evidence preparation before human review.
+
+    The object is intentionally not a promotion decision. AI can use its
+    preparation actions after real inputs have entered Core contracts, while a
+    complete evidence set remains explicitly pending scientific review.
+    """
+
+    descriptor: CapabilityDescriptor
+    evidence: tuple[CapabilityPromotionEvidence, ...]
+    satisfied_evidence_kinds: tuple[str, ...]
+    missing_evidence_kinds: tuple[str, ...]
+    failed_evidence_kinds: tuple[str, ...]
+    ai_preparation_actions: tuple[str, ...]
+    human_actions: tuple[str, ...]
+    ready_for_human_scientific_review: bool
+    automatically_promotable: bool = False
+    readiness_hash: str = ""
+    schema_version: str = "1"
+
+    SCHEMA_VERSION = "1"
+    REQUIRED_KINDS = _REQUIRED_KINDS
+
+    def __post_init__(self) -> None:
+        if self.schema_version != self.SCHEMA_VERSION:
+            raise ValueError("Unsupported capability promotion readiness schema_version")
+        if type(self.descriptor) is not CapabilityDescriptor:
+            raise TypeError("promotion readiness requires an exact CapabilityDescriptor")
+        if isinstance(self.evidence, (str, bytes, bytearray)) or not isinstance(
+            self.evidence, Sequence
+        ):
+            raise TypeError("promotion readiness evidence must be a sequence")
+        evidence = tuple(self.evidence)
+        if not all(type(item) is CapabilityPromotionEvidence for item in evidence):
+            raise TypeError("promotion readiness evidence must contain exact evidence values")
+        kinds = [item.kind for item in evidence]
+        if len(kinds) != len(set(kinds)):
+            raise ValueError("promotion readiness evidence kinds must be unique")
+        object.__setattr__(self, "evidence", evidence)
+
+        by_kind = {item.kind: item for item in evidence}
+        satisfied = tuple(
+            kind for kind in self.REQUIRED_KINDS if by_kind.get(kind) is not None and by_kind[kind].passed
+        )
+        failed = tuple(
+            kind for kind in self.REQUIRED_KINDS if by_kind.get(kind) is not None and not by_kind[kind].passed
+        )
+        missing = tuple(kind for kind in self.REQUIRED_KINDS if kind not in by_kind)
+        actions = tuple(_AI_PREPARATION_ACTIONS[kind] for kind in self.REQUIRED_KINDS if kind in failed or kind in missing)
+        ready = not missing and not failed
+
+        if self.satisfied_evidence_kinds != satisfied:
+            raise ValueError("promotion readiness satisfied evidence does not match records")
+        if self.missing_evidence_kinds != missing:
+            raise ValueError("promotion readiness missing evidence does not match records")
+        if self.failed_evidence_kinds != failed:
+            raise ValueError("promotion readiness failed evidence does not match records")
+        if self.ai_preparation_actions != actions:
+            raise ValueError("promotion readiness AI actions do not match evidence")
+        if self.human_actions != ("human_scientific_review_required",):
+            raise ValueError("promotion readiness must retain the human scientific review action")
+        if self.ready_for_human_scientific_review is not ready:
+            raise ValueError("promotion readiness review state does not match evidence")
+        if self.automatically_promotable is not False:
+            raise ValueError("AI readiness must never make a capability automatically promotable")
+
+        expected_hash = canonical_json_hash(self._identity_payload())
+        if self.readiness_hash and self.readiness_hash != expected_hash:
+            raise ValueError("promotion readiness hash does not match its content")
+        object.__setattr__(self, "readiness_hash", expected_hash)
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        descriptor: CapabilityDescriptor,
+        evidence: Sequence[CapabilityPromotionEvidence],
+    ) -> "CapabilityPromotionReadiness":
+        if type(descriptor) is not CapabilityDescriptor:
+            raise TypeError("promotion readiness requires an exact CapabilityDescriptor")
+        evidence_tuple = tuple(evidence)
+        if not all(type(item) is CapabilityPromotionEvidence for item in evidence_tuple):
+            raise TypeError("promotion readiness evidence must contain exact evidence values")
+        kinds = [item.kind for item in evidence_tuple]
+        if len(kinds) != len(set(kinds)):
+            raise ValueError("promotion readiness evidence kinds must be unique")
+        by_kind = {item.kind: item for item in evidence_tuple}
+        satisfied = tuple(
+            kind for kind in cls.REQUIRED_KINDS if by_kind.get(kind) is not None and by_kind[kind].passed
+        )
+        failed = tuple(
+            kind for kind in cls.REQUIRED_KINDS if by_kind.get(kind) is not None and not by_kind[kind].passed
+        )
+        missing = tuple(kind for kind in cls.REQUIRED_KINDS if kind not in by_kind)
+        return cls(
+            descriptor=descriptor,
+            evidence=evidence_tuple,
+            satisfied_evidence_kinds=satisfied,
+            missing_evidence_kinds=missing,
+            failed_evidence_kinds=failed,
+            ai_preparation_actions=tuple(
+                _AI_PREPARATION_ACTIONS[kind]
+                for kind in cls.REQUIRED_KINDS
+                if kind in failed or kind in missing
+            ),
+            human_actions=("human_scientific_review_required",),
+            ready_for_human_scientific_review=not missing and not failed,
+        )
+
+    def _identity_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.SCHEMA_VERSION,
+            "descriptor": self.descriptor.to_dict(),
+            "evidence": [item.to_dict() for item in self.evidence],
+            "satisfied_evidence_kinds": list(self.satisfied_evidence_kinds),
+            "missing_evidence_kinds": list(self.missing_evidence_kinds),
+            "failed_evidence_kinds": list(self.failed_evidence_kinds),
+            "ai_preparation_actions": list(self.ai_preparation_actions),
+            "human_actions": list(self.human_actions),
+            "ready_for_human_scientific_review": self.ready_for_human_scientific_review,
+            "automatically_promotable": False,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**self._identity_payload(), "readiness_hash": self.readiness_hash}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "CapabilityPromotionReadiness":
+        if not isinstance(value, Mapping):
+            raise TypeError("promotion readiness must be a mapping")
+        return cls(
+            descriptor=CapabilityDescriptor.from_dict(value["descriptor"]),
+            evidence=tuple(
+                CapabilityPromotionEvidence.from_dict(item) for item in value.get("evidence", ())
+            ),
+            satisfied_evidence_kinds=tuple(value.get("satisfied_evidence_kinds", ())),
+            missing_evidence_kinds=tuple(value.get("missing_evidence_kinds", ())),
+            failed_evidence_kinds=tuple(value.get("failed_evidence_kinds", ())),
+            ai_preparation_actions=tuple(value.get("ai_preparation_actions", ())),
+            human_actions=tuple(value.get("human_actions", ())),
+            ready_for_human_scientific_review=value.get("ready_for_human_scientific_review"),
+            automatically_promotable=value.get("automatically_promotable", False),
+            readiness_hash=value.get("readiness_hash", ""),
+            schema_version=value.get("schema_version", ""),
+        )
 
 
 @dataclass(frozen=True)
@@ -51,7 +243,7 @@ class CapabilityPromotionAssessment:
     human_scientific_review: bool = False
     assessment_hash: str = ""
 
-    REQUIRED_KINDS = frozenset({"independent_replay", "standard_sample", "negative_control", "uncertainty"})
+    REQUIRED_KINDS = frozenset(_REQUIRED_KINDS)
 
     def __post_init__(self) -> None:
         if type(self.proposed_descriptor) is not CapabilityDescriptor:
@@ -117,6 +309,18 @@ class CapabilityPromotionService:
         )
 
     @staticmethod
+    def readiness(
+        descriptor: CapabilityDescriptor,
+        evidence: Sequence[CapabilityPromotionEvidence],
+    ) -> CapabilityPromotionReadiness:
+        """Return AI-readable next actions without promoting any capability."""
+
+        return CapabilityPromotionReadiness.create(
+            descriptor=descriptor,
+            evidence=evidence,
+        )
+
+    @staticmethod
     def promote(assessment: CapabilityPromotionAssessment) -> CapabilityDescriptor:
         if type(assessment) is not CapabilityPromotionAssessment:
             raise TypeError("promotion requires a CapabilityPromotionAssessment")
@@ -152,5 +356,6 @@ class CapabilityPromotionService:
 __all__ = [
     "CapabilityPromotionAssessment",
     "CapabilityPromotionEvidence",
+    "CapabilityPromotionReadiness",
     "CapabilityPromotionService",
 ]

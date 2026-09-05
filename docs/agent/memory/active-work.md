@@ -1,5 +1,21 @@
 # Active Work
 
+## AI-readable capability validation readiness - 2026-09-05
+
+- The generic exploration promotion boundary now has an immutable,
+  content-addressed `CapabilityPromotionReadiness` projection. It classifies
+  the existing independent-replay, standard-sample, negative-control, and
+  uncertainty evidence as satisfied, missing, or failed, then returns only
+  deterministic AI preparation actions for unsatisfied gates.
+- Complete evidence means `ready_for_human_scientific_review`, never
+  automatic promotion. This remains generic across techniques; the regression
+  uses a TGA descriptor without adding a TGA-private promotion path.
+- AI may run work from admitted inputs and assemble the shared records. It
+  cannot invent real evidence, call capability promotion through readiness, or
+  bypass the final human scientific review.
+- Focused exploration/TGA coverage passes 22. Task:
+  `docs/agent/tasks/2026-09-05-ai-validation-readiness.md`.
+
 ## TGA replay, anomaly matrix, and uncertainty boundary - 2026-09-05
 
 - `tga_validation` adds content-addressed, JSON-safe Core DTOs for replay

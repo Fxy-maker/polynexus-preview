@@ -7,6 +7,7 @@ from .evidence import ExplorationEvidenceSelection
 from .promotion import (
     CapabilityPromotionAssessment,
     CapabilityPromotionEvidence,
+    CapabilityPromotionReadiness,
     CapabilityPromotionService,
 )
 from .runner import (
@@ -37,6 +38,7 @@ __all__ = [
     "ExplorationEvidenceSelection",
     "CapabilityPromotionAssessment",
     "CapabilityPromotionEvidence",
+    "CapabilityPromotionReadiness",
     "CapabilityPromotionService",
     "ExplorationWorkerLimits",
     "IsolatedExplorationRunner",
