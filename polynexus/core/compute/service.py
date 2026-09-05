@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import copy
-from dataclasses import replace
+from dataclasses import is_dataclass, replace
 import json
 import math
 from pathlib import Path
@@ -438,6 +438,7 @@ class ComputeRunService:
                     config=config,
                     submodule_id=submodule_id,
                     selected_engine=selected_engine,
+                    canonical_template=canonical_template,
                     provider_options={
                         key: value for key, value in options.items()
                         if key != "method_sensitivity"
@@ -488,6 +489,7 @@ class ComputeRunService:
         config: Any,
         submodule_id: str | None,
         selected_engine: Any,
+        canonical_template: CanonicalExperiment | None,
         provider_options: Mapping[str, Any],
         request: Mapping[str, Any],
     ) -> ComputeResult:
@@ -500,6 +502,12 @@ class ComputeRunService:
             base_config = _engine_config(selected_engine, technique)
         variants: dict[str, dict[str, Any]] = {}
         sensitivity_warnings: list[str] = []
+        primary_input = (
+            "canonical_template"
+            if canonical_template is not None
+            and callable(getattr(selected_engine, "run_canonical_template", None))
+            else "raw_pipeline_compatibility"
+        )
         primary_metrics = _scalar_metric_paths(result.metrics)
         for dimension, methods in dimensions.items():
             attribute = _sensitivity_attribute(technique, str(dimension))
@@ -515,16 +523,18 @@ class ComputeRunService:
             candidate_values: dict[str, dict[str, Any] | None] = {}
             candidate_errors: dict[str, str] = {}
             candidate_output_dirs: dict[str, str] = {}
+            candidate_inputs: dict[str, str] = {}
             for method in methods:
                 method_name = _method_label(method)
                 if method_name == primary_method:
                     continue
                 candidate_config = _clone_config(base_config)
                 try:
-                    _set_config_value(candidate_config, attribute, method)
+                    candidate_config = _set_config_value(candidate_config, attribute, method)
                 except (TypeError, ValueError) as exc:
                     candidate_values[method_name] = None
                     candidate_errors[method_name] = type(exc).__name__
+                    candidate_inputs[method_name] = "candidate_configuration_invalid"
                     continue
                 candidate_output_dir = _candidate_output_dir(output_dir, str(dimension), method_name)
                 candidate_output_dirs[method_name] = candidate_output_dir
@@ -534,11 +544,25 @@ class ComputeRunService:
                         config=candidate_config,
                         submodule_id=submodule_id,
                     )
-                    candidate_result = candidate_engine.run_pipeline(
-                        source_path,
-                        candidate_output_dir,
-                        **provider_options,
+                    candidate_runner = (
+                        getattr(candidate_engine, "run_canonical_template", None)
+                        if canonical_template is not None
+                        else None
                     )
+                    if callable(candidate_runner):
+                        candidate_inputs[method_name] = "canonical_template"
+                        candidate_result = candidate_runner(
+                            canonical_template,
+                            candidate_output_dir,
+                            **provider_options,
+                        )
+                    else:
+                        candidate_inputs[method_name] = "raw_pipeline_compatibility"
+                        candidate_result = candidate_engine.run_pipeline(
+                            source_path,
+                            candidate_output_dir,
+                            **provider_options,
+                        )
                     if not _has_legacy_result_shape(candidate_result):
                         raise RuntimeError("candidate_provider_result_invalid")
                     candidate_projection = ComputeResult.from_legacy_result(candidate_result)
@@ -576,6 +600,8 @@ class ComputeRunService:
                     "parameters": {
                         "dimension": str(dimension),
                         "config_attribute": attribute,
+                        "primary_input": primary_input,
+                        "candidate_inputs": dict(candidate_inputs),
                         "candidate_output_dirs": dict(candidate_output_dirs),
                     },
                     "warnings": warnings,
@@ -625,13 +651,25 @@ def _sensitivity_attribute(technique: str, dimension: str) -> str | tuple[str, .
         },
         "waxs": {"background": "background_method", "peak_decomposition": "peak_function", "crystallinity": "crystallinity_method"},
         "nmr": {"baseline": "baseline_method", "peak_fit": "deconvolution_method", "region_integration": "region_windows_ppm"},
+        "tga": {
+            "dtg_window": "dtg_window_points",
+            "dtg_polynomial_order": "dtg_polynomial_order",
+            "event_prominence": "event_prominence_noise_factor",
+            "event_minimum_mass_loss": "event_minimum_mass_loss_percent",
+        },
     }
     return mapping.get(str(technique).lower(), {}).get(str(dimension).lower())
 
 
 def _engine_config(engine: Any, technique: str) -> Any:
     normalized = "ir" if str(technique).lower() == "ftir" else str(technique).lower()
-    name = {"ir": "_ir_config", "saxs": "cfg", "waxs": "_waxs_config", "nmr": "_cfg"}.get(normalized)
+    name = {
+        "ir": "_ir_config",
+        "saxs": "cfg",
+        "waxs": "_waxs_config",
+        "nmr": "_cfg",
+        "tga": "processing_config",
+    }.get(normalized)
     if name is None:
         return None
     for name in (name,):
@@ -657,7 +695,7 @@ def _config_value(config: Any, attribute: str | tuple[str, ...], engine: Any) ->
     return value
 
 
-def _set_config_value(config: Any, attribute: str | tuple[str, ...], value: Any) -> None:
+def _set_config_value(config: Any, attribute: str | tuple[str, ...], value: Any) -> Any:
     if isinstance(attribute, tuple):
         if not isinstance(value, Mapping):
             raise TypeError("coupled method sensitivity override must be a mapping")
@@ -665,18 +703,22 @@ def _set_config_value(config: Any, attribute: str | tuple[str, ...], value: Any)
             "q_min": attribute[0],
             "q_max": attribute[1],
         }
+        updated = config
         for key, item in value.items():
             target = aliases.get(str(key), str(key))
             if target not in attribute:
                 raise ValueError(f"unsupported coupled override field: {key}")
-            _set_config_value(config, target, item)
-        if any(_config_value(config, name, None) is None for name in attribute):
+            updated = _set_config_value(updated, target, item)
+        if any(_config_value(updated, name, None) is None for name in attribute):
             raise ValueError("coupled method sensitivity override must set all fields")
-        return
+        return updated
     if isinstance(config, Mapping):
         config[attribute] = value
-    else:
-        setattr(config, attribute, value)
+        return config
+    if is_dataclass(config):
+        return replace(config, **{attribute: value})
+    setattr(config, attribute, value)
+    return config
 
 
 def _scalar_metric_paths(value: Mapping[str, Any], prefix: str = "") -> dict[str, float]:

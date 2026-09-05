@@ -1,5 +1,21 @@
 # Active Work
 
+## TGA canonical method-sensitivity replay - 2026-09-05
+
+- Shared `MethodSensitivity` now declares bounded TGA dimensions for DTG
+  window/order and event thresholds. Explicit candidates are replayed against
+  the same admitted canonical template when the engine supports it.
+- Immutable dataclass configs use replacement rather than mutation; existing
+  mutable technique configs retain their prior behavior. Primary and each
+  candidate input mode are recorded separately in the shared sensitivity
+  parameters.
+- Failed or invalid candidates remain explicit `None` values with warnings;
+  Core never selects a winning parameter and sensitivity is not measurement
+  uncertainty.
+- Focused TGA sensitivity/service coverage passes 69 with 3 skips; task
+  verification passes quality 313 and preprocessing 157.
+- Task: `docs/agent/tasks/2026-09-05-tga-method-sensitivity-replay.md`.
+
 ## TGA normalization, DTG, and event candidates - 2026-09-05
 
 - The canonical TGA route now preserves the source curve while adding separate

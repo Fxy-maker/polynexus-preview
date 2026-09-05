@@ -113,7 +113,8 @@ def test_sensitivities_from_metrics_extracts_dsc_baseline_variants():
 
 
 def test_method_sensitivity_dimensions_cover_supported_techniques_without_defaults():
-    assert set(METHOD_SENSITIVITY_DIMENSIONS) >= {"dsc", "ftir", "saxs", "waxs", "nmr"}
+    assert set(METHOD_SENSITIVITY_DIMENSIONS) >= {"dsc", "ftir", "saxs", "waxs", "nmr", "tga"}
     assert "normalization" in METHOD_SENSITIVITY_DIMENSIONS["ftir"]
     assert "fit_model" in METHOD_SENSITIVITY_DIMENSIONS["saxs"]
     assert "region_integration" in METHOD_SENSITIVITY_DIMENSIONS["nmr"]
+    assert "dtg_window" in METHOD_SENSITIVITY_DIMENSIONS["tga"]
