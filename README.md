@@ -26,6 +26,7 @@ for the capability maturity boundary, release checklist, and data-rights rules.
 - `NMR` - Nuclear Magnetic Resonance
 - `TGA` - Thermogravimetric Analysis (sample-neutral table-curve foundation)
 - `DMA` - Dynamic Mechanical Analysis (sample-neutral table-curve foundation)
+- `Rheology` - sample-neutral rheometer table-curve foundation
 
 Coverage varies by input type and workflow. The runtime catalog distinguishes
 `available`, `experimental`, and `unsupported` capabilities. TGA currently
@@ -39,9 +40,14 @@ table, derives tan delta only from unit-compatible storage/loss modulus pairs
 within the same tensile, shear, or unspecified basis, and reports temperature-
 response peaks as non-Tg candidates. These derived outputs remain diagnostic
 pending independent replay, uncertainty work, and scientific review; master
-curves, shift factors, and Tg interpretation remain unsupported. Rheology,
-SEC/GPC, and mechanics remain planned/unsupported rather than executable
-providers.
+curves, shift factors, and Tg interpretation remain unsupported. Rheology now
+preserves unambiguous steady-flow, oscillatory, strain, temperature, and time-
+sweep table signals. It derives only unit-safe identities: apparent viscosity,
+shear stress/rate, tan delta, complex-modulus magnitude, and complex-viscosity
+magnitude. These outputs remain diagnostic; yield stress, LVE/gel/crossover
+interpretation, Cox-Merz, thixotropy, creep/relaxation models, TTS/master
+curves, and formal rheology capability promotion remain unsupported. SEC/GPC
+and mechanics remain planned/unsupported rather than executable providers.
 
 ## Quick Start
 
@@ -91,6 +97,7 @@ polynexus waxs sample.raw -o output_dir
 polynexus dsc curve.csv
 polynexus tga thermogram.csv
 polynexus dma viscoelastic-curve.csv
+polynexus rheology frequency-sweep.csv
 ```
 
 ### 4. Batch processing

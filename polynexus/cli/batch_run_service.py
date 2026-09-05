@@ -49,6 +49,10 @@ FALLBACK_EXTS = {".dat", ".csv", ".txt", ".edf", ".raw", ".fio", ".nxs", ".h5"}
 def allowed_extensions(technique: str) -> set[str]:
     technique = str(technique or "").lower()
     allowed = set(SUPPORTED_FORMATS.get(technique, []))
+    if technique == "rheology":
+        from polynexus.core.rheology import RHEOLOGY_TABLE_EXTENSIONS
+
+        allowed.update(RHEOLOGY_TABLE_EXTENSIONS)
     return {ext.lower() for ext in (allowed or FALLBACK_EXTS)}
 
 

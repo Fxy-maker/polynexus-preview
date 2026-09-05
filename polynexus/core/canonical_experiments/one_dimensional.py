@@ -46,6 +46,23 @@ _DMA_SIGNAL_ALIASES = frozenset({
     "eprime", "edoubleprime", "gprime", "gdoubleprime", "tandelta", "tangentdelta",
     "damping", "stress", "strain", "displacement", "force",
 })
+_RHEOLOGY_SHEAR_RATE_ALIASES = frozenset({
+    "shearrate", "shearrates1", "shearrate1s", "gammadot", "rateofshear",
+})
+_RHEOLOGY_FREQUENCY_ALIASES = frozenset({"frequency", "frequencyhz", "freq", "freqhz"})
+_RHEOLOGY_ANGULAR_FREQUENCY_ALIASES = frozenset({"angularfrequency", "omega"})
+_RHEOLOGY_TEMPERATURE_ALIASES = _DMA_TEMPERATURE_ALIASES
+_RHEOLOGY_TIME_ALIASES = _DMA_TIME_ALIASES
+_RHEOLOGY_STRAIN_ALIASES = frozenset({
+    "strain", "shearstrain", "strainamplitude", "shearstrainamplitude",
+    "gamma", "gamma0",
+})
+_RHEOLOGY_SIGNAL_ALIASES = frozenset({
+    "shearstress", "stress", "viscosity", "dynamicviscosity", "apparentviscosity",
+    "complexviscosity", "etastar", "storagemodulus", "lossmodulus", "gprime",
+    "gdoubleprime", "tandelta", "tangentdelta", "normalstress", "normalforce",
+    "torque",
+})
 
 
 @dataclass(frozen=True)
@@ -101,6 +118,8 @@ def convert_one_dimensional_table(
         (table.sheet_index, table.table_index): (
             _observed_dma_selections(table)
             if normalized_technique == "DMA"
+            else _observed_rheology_selections(table)
+            if normalized_technique == "RHEOLOGY"
             else _as_selection_tuple(_observed_selection(table, normalized_technique))
         )
         for table in tables
@@ -172,6 +191,7 @@ def convert_one_dimensional_table(
                     "spectrum_1d" if normalized_technique in {"IR", "NMR"}
                     else "thermal_1d" if normalized_technique == "TGA"
                     else "viscoelastic_1d" if normalized_technique == "DMA"
+                    else "rheological_1d" if normalized_technique == "RHEOLOGY"
                     else "scattering_1d"
                 ),
                 role="raw_curve",
@@ -183,6 +203,8 @@ def convert_one_dimensional_table(
                     if normalized_technique == "TGA"
                     else _dma_acquisition_metadata(selection)
                     if normalized_technique == "DMA"
+                    else _rheology_acquisition_metadata(selection)
+                    if normalized_technique == "RHEOLOGY"
                     else {} if normalized_technique == "IR"
                     else {"background_state": "unknown", "normalization_state": "unknown"}
                 ),
@@ -208,6 +230,7 @@ def convert_one_dimensional_table(
             else "spectrum_1d.v1" if normalized_technique == "IR"
             else "thermal_curve_1d.v1" if normalized_technique == "TGA"
             else "dma_curve_1d.v1" if normalized_technique == "DMA"
+            else "rheology_curve_1d.v1" if normalized_technique == "RHEOLOGY"
             else "scattering_1d.v1"
         ),
         source_artifact_id=source_artifact_id,
@@ -216,6 +239,7 @@ def convert_one_dimensional_table(
             "measurement_family": (
                 "thermal_1d" if normalized_technique == "TGA"
                 else "viscoelastic_1d" if normalized_technique == "DMA"
+                else "rheological_1d" if normalized_technique == "RHEOLOGY"
                 else "spectrum_1d" if normalized_technique in {"IR", "NMR"}
                 else "scattering_1d"
             ),
@@ -398,11 +422,15 @@ def _raw_headers_ambiguous(table: _Table, technique: str) -> bool:
         headers.pop()
     if any(not header.strip() for header in headers):
         return True
-    if technique == "DMA":
+    if technique in {"DMA", "RHEOLOGY"}:
         relevant: list[tuple[str, ...]] = []
         for header in headers:
             x_kind = _x_kind(header, technique)
-            descriptor = _dma_signal_descriptor(header)
+            descriptor = (
+                _dma_signal_descriptor(header)
+                if technique == "DMA"
+                else _rheology_signal_descriptor(header)
+            )
             if x_kind is not None:
                 relevant.append(("axis", x_kind))
             elif descriptor is not None:
@@ -565,9 +593,74 @@ def _observed_dma_selections(table: _Table) -> tuple[MappingSelection, ...] | No
     return tuple(selections)
 
 
+def _observed_rheology_selections(table: _Table) -> tuple[MappingSelection, ...] | None:
+    x_candidates = [
+        (str(header), _x_kind(str(header), "RHEOLOGY"))
+        for header in table.frame.columns
+        if _x_kind(str(header), "RHEOLOGY") is not None
+    ]
+    signal_candidates = [
+        (str(header), _rheology_signal_descriptor(str(header)))
+        for header in table.frame.columns
+        if _rheology_signal_descriptor(str(header)) is not None
+    ]
+    if len(x_candidates) != 1 or not signal_candidates:
+        return None
+    descriptors = [descriptor for _, descriptor in signal_candidates]
+    if len(descriptors) != len(set(descriptors)):
+        return None
+    x_column, x_kind = x_candidates[0]
+    if x_column in {header for header, _ in signal_candidates}:
+        return None
+    start, end = _table_row_range(table)
+    multi_signal = len(signal_candidates) > 1
+    selections: list[MappingSelection] = []
+    for intensity_column, descriptor in signal_candidates:
+        if descriptor is None:
+            continue
+        signal_kind, signal_basis = descriptor
+        measurement_id = _measurement_id(table)
+        if multi_signal:
+            measurement_id += (
+                f"-signal-{signal_kind.replace('_', '-')}-{signal_basis}"
+            )
+        selections.append(
+            MappingSelection(
+                measurement_id=measurement_id,
+                sheet_name=table.sheet_name,
+                sheet_index=table.sheet_index,
+                table_index=table.table_index,
+                header_row=table.header_row,
+                data_row_start=start,
+                data_row_end=end,
+                x_column=x_column,
+                intensity_column=intensity_column,
+                x_kind=str(x_kind),
+                x_unit=_x_unit(x_column, str(x_kind)),
+                intensity_unit=_intensity_unit(intensity_column, "RHEOLOGY"),
+                source="observed",
+            )
+        )
+    return tuple(selections)
+
+
 def _dma_acquisition_metadata(selection: MappingSelection) -> dict[str, str]:
     descriptor = _dma_signal_descriptor(selection.intensity_column)
     signal_kind, modulus_basis = descriptor or ("viscoelastic_signal", "unspecified")
+    return {
+        "axis_kind": selection.x_kind,
+        "signal_kind": signal_kind,
+        "modulus_basis": modulus_basis,
+        "source_table_id": (
+            f"sheet-{selection.sheet_index if selection.sheet_index is not None else 0}"
+            f"-table-{selection.table_index}"
+        ),
+    }
+
+
+def _rheology_acquisition_metadata(selection: MappingSelection) -> dict[str, str]:
+    descriptor = _rheology_signal_descriptor(selection.intensity_column)
+    signal_kind, modulus_basis = descriptor or ("rheology_signal", "unspecified")
     return {
         "axis_kind": selection.x_kind,
         "signal_kind": signal_kind,
@@ -654,6 +747,67 @@ def _x_kind(header: str, technique: str) -> str | None:
             return "temperature"
         if normalized in _DMA_TIME_ALIASES or without_time_unit in _DMA_TIME_ALIASES:
             return "time"
+    if technique == "RHEOLOGY":
+        rheology_header = (
+            header.casefold()
+            .replace("γ", "gamma")
+            .replace("\u0307", "dot")
+            .replace("˙", "dot")
+            .replace("ω", "omega")
+        )
+        normalized = _normalize_header(rheology_header)
+        without_rate_unit = _normalize_header(
+            re.sub(
+                r"(?:1\s*/\s*s|/\s*s|s\s*(?:\^?\s*-\s*1|⁻¹))",
+                "",
+                rheology_header,
+            )
+        )
+        without_frequency_unit = _normalize_header(
+            re.sub(r"(?:hz|khz)", "", rheology_header)
+        )
+        without_angular_unit = _normalize_header(
+            re.sub(r"(?:rad\s*/\s*s|rad\s*s\^-?1)", "", rheology_header)
+        )
+        has_angular_frequency_unit = bool(
+            re.search(r"(?:rad\s*/\s*s|rad\s*s\^-?1)", rheology_header)
+        )
+        without_temperature_unit = _normalize_header(
+            re.sub(
+                r"(?:°\s*[cfk]|degrees?\s*[cfk]|deg\s*[cfk]|\b[cfk]\b)",
+                "",
+                rheology_header,
+            )
+        )
+        without_time_unit = _normalize_header(
+            re.sub(
+                r"(?:milliseconds?|ms|minutes?|min|seconds?|secs?|sec|s)\b",
+                "",
+                rheology_header,
+            )
+        )
+        without_strain_unit = _normalize_header(
+            re.sub(r"(?:%|percent)", "", rheology_header)
+        )
+        if normalized in _RHEOLOGY_SHEAR_RATE_ALIASES or without_rate_unit in _RHEOLOGY_SHEAR_RATE_ALIASES:
+            return "shear_rate"
+        if (
+            normalized in _RHEOLOGY_ANGULAR_FREQUENCY_ALIASES
+            or without_angular_unit in _RHEOLOGY_ANGULAR_FREQUENCY_ALIASES
+            or (
+                has_angular_frequency_unit
+                and without_angular_unit in _RHEOLOGY_FREQUENCY_ALIASES
+            )
+        ):
+            return "angular_frequency"
+        if normalized in _RHEOLOGY_FREQUENCY_ALIASES or without_frequency_unit in _RHEOLOGY_FREQUENCY_ALIASES:
+            return "frequency"
+        if normalized in _RHEOLOGY_TEMPERATURE_ALIASES or without_temperature_unit in _RHEOLOGY_TEMPERATURE_ALIASES:
+            return "temperature"
+        if normalized in _RHEOLOGY_TIME_ALIASES or without_time_unit in _RHEOLOGY_TIME_ALIASES:
+            return "time"
+        if normalized in _RHEOLOGY_STRAIN_ALIASES or without_strain_unit in _RHEOLOGY_STRAIN_ALIASES:
+            return "strain"
     if technique == "TGA":
         without_temperature_unit = _normalize_header(
             re.sub(r"(?:°\s*[cfk]|degrees?\s*[cfk]|deg\s*[cfk]|\b[cfk]\b)", "", header.casefold())
@@ -673,6 +827,8 @@ def _is_intensity_header(header: str, technique: str | None = None) -> bool:
         return _dma_signal_descriptor(header) is not None
     if str(technique or "").upper() == "TGA":
         return _tga_mass_alias(header) in _TGA_MASS_ALIASES
+    if str(technique or "").upper() == "RHEOLOGY":
+        return _rheology_signal_descriptor(header) is not None
     return _intensity_alias(header) in _INTENSITY_ALIASES
 
 
@@ -733,6 +889,49 @@ def _dma_signal_descriptor(header: str) -> tuple[str, str] | None:
     return descriptors.get(alias)
 
 
+def _rheology_signal_alias(header: str) -> str:
+    """Normalize common rheometer response labels without fitting semantics."""
+    text = re.sub(r"\([^)]*\)|\[[^]]*\]", "", header.casefold())
+    text = text.replace("δ", "delta").replace("τ", "shearstress")
+    text = text.replace("η*", "complexviscosity").replace("eta*", "complexviscosity")
+    text = text.replace("η", "viscosity")
+    text = text.replace("″", "doubleprime").replace("′", "prime")
+    text = text.replace("''", "doubleprime").replace('"', "doubleprime")
+    text = text.replace("'", "prime")
+    text = re.sub(r"\b(storage|loss)\s+modulus\b", lambda match: match.group(1) + "modulus", text)
+    text = re.sub(r"\b(complex|dynamic|apparent)\s+viscosity\b", lambda match: match.group(1) + "viscosity", text)
+    text = re.sub(r"\b(shear|normal)\s+(stress|force)\b", lambda match: match.group(1) + match.group(2), text)
+    text = re.sub(r"\btan\s*delta\b", "tandelta", text)
+    normalized = _normalize_header(text)
+    for alias in sorted(_RHEOLOGY_SIGNAL_ALIASES, key=len, reverse=True):
+        if normalized == alias or normalized.startswith(alias):
+            return alias
+    return normalized
+
+
+def _rheology_signal_descriptor(header: str) -> tuple[str, str] | None:
+    alias = _rheology_signal_alias(header)
+    descriptors = {
+        "shearstress": ("shear_stress", "unspecified"),
+        "stress": ("shear_stress", "unspecified"),
+        "viscosity": ("viscosity", "unspecified"),
+        "dynamicviscosity": ("viscosity", "unspecified"),
+        "apparentviscosity": ("viscosity", "unspecified"),
+        "complexviscosity": ("complex_viscosity", "unspecified"),
+        "etastar": ("complex_viscosity", "unspecified"),
+        "storagemodulus": ("storage_modulus", "shear"),
+        "lossmodulus": ("loss_modulus", "shear"),
+        "gprime": ("storage_modulus", "shear"),
+        "gdoubleprime": ("loss_modulus", "shear"),
+        "tandelta": ("tan_delta", "unspecified"),
+        "tangentdelta": ("tan_delta", "unspecified"),
+        "normalstress": ("normal_stress", "unspecified"),
+        "normalforce": ("normal_force", "unspecified"),
+        "torque": ("torque", "unspecified"),
+    }
+    return descriptors.get(alias)
+
+
 def _kind_allowed(x_kind: str, technique: str) -> bool:
     return (technique == "IR" and x_kind == "wavenumber") or (
         technique == "NMR" and x_kind == "chemical_shift"
@@ -742,6 +941,9 @@ def _kind_allowed(x_kind: str, technique: str) -> bool:
         technique == "TGA" and x_kind in {"temperature", "time"}
     ) or (
         technique == "DMA" and x_kind in {"frequency", "temperature", "time"}
+    ) or (
+        technique == "RHEOLOGY"
+        and x_kind in {"shear_rate", "frequency", "angular_frequency", "temperature", "time", "strain"}
     )
 
 
@@ -780,6 +982,15 @@ def _x_unit(header: str, x_kind: str) -> str:
             return "MHz"
         if re.search(r"(?:\bhz\b)", text):
             return "Hz"
+    if x_kind == "angular_frequency" and re.search(r"(?:rad\s*/\s*s|rad\s*s\^-?1)", text):
+        return "rad/s"
+    if x_kind == "shear_rate" and re.search(
+        r"(?:1\s*/\s*s|/\s*s|s\s*(?:\^?\s*-\s*1|⁻¹))",
+        text,
+    ):
+        return "s^-1"
+    if x_kind == "strain" and ("%" in text or "percent" in text):
+        return "%"
     return "unknown"
 
 
@@ -814,11 +1025,54 @@ def _intensity_unit(header: str, technique: str | None = None) -> str:
         if re.search(r"(?:\bmm\b|millimeters?)", text):
             return "mm"
         return "unknown"
+    if str(technique or "").upper() == "RHEOLOGY":
+        return _rheology_intensity_unit(header)
     if re.search(r"a\s*\.\s*u\s*\.", text):
         return "a.u."
     for unit in ("absorbance", "transmittance", "counts", "cps"):
         if re.search(rf"\b{re.escape(unit)}\b", text):
             return unit
+    return "unknown"
+
+
+def _rheology_intensity_unit(header: str) -> str:
+    descriptor = _rheology_signal_descriptor(header)
+    signal_kind = descriptor[0] if descriptor is not None else "unknown"
+    text = header.casefold()
+    if signal_kind == "tan_delta":
+        return "%" if "%" in text or "percent" in text else "1"
+    if signal_kind in {"viscosity", "complex_viscosity"}:
+        if re.search(r"\bcp\b|centipoise", text):
+            return "cP"
+        for token, unit in (
+            (r"\bmPa\s*(?:[·.*-]|\s)\s*s\b", "mPa*s"),
+            (r"\bkPa\s*(?:[·.*-]|\s)\s*s\b", "kPa*s"),
+            (r"\bMPa\s*(?:[·.*-]|\s)\s*s\b", "MPa*s"),
+            (r"\bPa\s*(?:[·.*-]|\s)\s*s\b", "Pa*s"),
+        ):
+            if re.search(token, header):
+                return unit
+        return "unknown"
+    if signal_kind in {"storage_modulus", "loss_modulus", "shear_stress", "normal_stress"}:
+        if re.search(r"(?:gpa)", text):
+            return "GPa"
+        if re.search(r"(?:mpa)", text):
+            return "MPa"
+        if re.search(r"(?:kpa)", text):
+            return "kPa"
+        if re.search(r"(?:\bpa\b|pascal)", text):
+            return "Pa"
+        return "unknown"
+    if signal_kind == "normal_force":
+        if re.search(r"\bmn\b", text):
+            return "mN"
+        if re.search(r"\bn\b|newton", text):
+            return "N"
+    if signal_kind == "torque":
+        if re.search(r"\bmn\s*(?:[·.*-]|\s)\s*m\b", text):
+            return "mN*m"
+        if re.search(r"\bn\s*(?:[·.*-]|\s)\s*m\b", text):
+            return "N*m"
     return "unknown"
 
 

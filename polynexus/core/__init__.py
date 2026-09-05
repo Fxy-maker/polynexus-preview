@@ -25,6 +25,7 @@ from . import nmr  # noqa: F401
 from . import tga  # noqa: F401
 from . import tga_validation  # noqa: F401
 from . import dma  # noqa: F401
+from . import rheology  # noqa: F401
 from . import joint  # noqa: F401
 
 __all__ = [

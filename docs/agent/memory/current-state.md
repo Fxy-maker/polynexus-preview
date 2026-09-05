@@ -1905,3 +1905,22 @@ remain open. Task:
 Focused DMA/canonical coverage passes 38, shared ComputeRun/capability coverage
 passes 70 with 3 skips, and the task verifier passes quality 313 plus
 preprocessing 157.
+
+## Rheology sample-neutral derived-core checkpoint (2026-09-05)
+
+The shared rheology canonical route now retains every unambiguous recognized
+signal from a supported rheometer table, including common symbolic labels, and
+groups only source-table siblings. The deterministic engine preserves source
+series and derives apparent viscosity, shear stress/rate, tan delta,
+complex-modulus magnitude, and complex-viscosity magnitude only when units and
+coordinates are compatible. Division-by-zero points remain local unavailable
+values with validity masks; no material model, yield point, LVE/gel/crossover,
+Cox-Merz, thixotropy, creep/relaxation, or TTS interpretation is inferred.
+Generic curve capabilities, direct/prevalidated ComputeRuns, CLI, Batch, and
+metric manifests share the same objects. Formal rheology capabilities,
+project-workflow indexing/adapters, independent replay, uncertainty, and human
+scientific promotion remain open. Task:
+`docs/agent/tasks/2026-09-05-rheology-foundation-derived-core.md`. Focused
+rheology/canonical coverage passes 42; shared ComputeRun/CLI/AI coverage passes
+142 with 3 skips; structured verification passes quality 313 and preprocessing
+157.

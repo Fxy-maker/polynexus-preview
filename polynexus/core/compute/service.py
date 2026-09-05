@@ -298,7 +298,9 @@ class ComputeRunService:
         )
         if (
             canonical_template is None
-            and normalized_technique in {"dsc", "ir", "nmr", "saxs", "waxs", "tga", "dma"}
+            and normalized_technique in {
+                "dsc", "ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology"
+            }
             and (source.is_file() or (source.is_dir() and normalized_technique != "dsc"))
         ):
             conversion = default_converter_registry().convert_path(

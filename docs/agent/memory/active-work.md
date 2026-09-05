@@ -6582,3 +6582,24 @@ remain follow-up work; no provider algorithms or user data changed. Task:
   coverage passes 70 with 3 skips; structured verification passes quality 313
   and preprocessing 157.
 - Task: `docs/agent/tasks/2026-09-05-dma-multisignal-derived-core.md`.
+
+## Rheology sample-neutral derived core — implementation complete, review required (2026-09-05)
+
+- `rheology_curve_1d.v1` preserves unambiguous steady-flow, oscillatory,
+  strain, temperature, and time-sweep table signals as separate canonical
+  measurements. English and common rheometer symbols (`γ`, `γ̇`, `ω`, `τ`,
+  `η`, `η*`, `G'`, and `G''`) are recognized without inferring material type.
+- One deterministic processor derives only dimensionally valid steady-flow
+  identities, tan delta, complex-modulus magnitude, and complex-viscosity
+  magnitude. Unit factors, methods, parameters, warnings, and point-validity
+  masks flow through the shared `AnalysisResult`, `ComputeRun`, and metric
+  manifest; source arrays remain distinct and unchanged.
+- Formal rheology descriptors remain unsupported. Real instrument/material
+  replay, uncertainty, yield/thixotropy/LVE/crossover interpretation,
+  creep/relaxation, TTS/master curves, group statistics, project-workflow
+  indexing/adapters, and scientific capability promotion remain open.
+- Focused rheology/canonical coverage passes 42; shared ComputeRun/CLI/AI
+  boundary coverage passes 142 with 3 skips; structured verification passes
+  quality 313 and preprocessing 157. Architecture and scientific-semantics
+  review are required before merge or promotion.
+- Task: `docs/agent/tasks/2026-09-05-rheology-foundation-derived-core.md`.

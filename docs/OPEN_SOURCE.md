@@ -24,8 +24,8 @@ following meaning:
 | `unsupported` | The catalog intentionally has no executable provider. The name records a planned extension; it is not a claim of analysis support. |
 
 Current core technique families are DSC, FTIR/IR, SAXS, WAXS, NMR, and the
-sample-neutral TGA and DMA table-curve foundations. Coverage varies by workflow and
-input form. TGA descriptive curve summaries are available for supported table
+sample-neutral TGA, DMA, and rheology table-curve foundations. Coverage varies
+by workflow and input form. TGA descriptive curve summaries are available for supported table
 exports. Normalized mass, DTG, specified-coordinate residue, and material-
 neutral event candidates are emitted as diagnostic derived results; their
 formal capability promotion remains pending independent replay, uncertainty
@@ -35,8 +35,13 @@ tangent series plus material-neutral temperature-response peak candidates.
 Those derived outputs remain diagnostic pending independent replay,
 uncertainty work, and scientific review; master curves, shift factors, and Tg
 interpretation remain unsupported.
-Rheology, SEC/GPC, and mechanics are currently cataloged as unsupported rather
-than implemented providers.
+Rheology preserves unambiguous rheometer table signals and derives only
+dimensionally compatible steady-flow and oscillatory identities with explicit
+unit conversion and point-level unavailable masks. The formal viscosity,
+moduli, yield-stress, thixotropy, creep/relaxation, and TTS capabilities remain
+unsupported pending independent replay, uncertainty work, and scientific
+review. SEC/GPC and mechanics remain cataloged as unsupported rather than
+implemented providers.
 
 ## Result and evidence boundary
 
