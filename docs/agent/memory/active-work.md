@@ -1,5 +1,26 @@
 # Active Work
 
+## TGA replay, anomaly matrix, and uncertainty boundary - 2026-09-05
+
+- `tga_validation` adds content-addressed, JSON-safe Core DTOs for replay
+  cases, observations, a synthetic algorithm-boundary report, and an explicit
+  unavailable measurement-uncertainty report. All cases replay the same
+  `analyze_tga_curve` function twice; source preservation, deterministic
+  outputs, axis semantics, expected local unavailable states, and event bounds
+  are retained per case.
+- The default matrix covers normal single/double-step and noisy curves plus
+  short, non-monotonic, nonpositive-mass, time-axis, unknown-unit, and
+  out-of-range-residue inputs. These are algorithm regression cases only, not
+  independent instrument/material validation.
+- Even evidence-ready input remains `unavailable` until a reviewed
+  measurement-uncertainty model exists; method sensitivity never becomes a
+  fabricated interval. Capability promotion still requires independent replay,
+  standards, negative controls, uncertainty evidence, and human scientific
+  review through the existing promotion gate.
+- Focused TGA/ComputeRun coverage passes 79 with 3 skips; structured
+  verification passes quality 313 and preprocessing 157.
+- Task: `docs/agent/tasks/2026-09-05-tga-replay-validation-boundary.md`.
+
 ## TGA canonical method-sensitivity replay - 2026-09-05
 
 - Shared `MethodSensitivity` now declares bounded TGA dimensions for DTG

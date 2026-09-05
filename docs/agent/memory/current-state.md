@@ -1864,3 +1864,16 @@ manifest are exposed as provisional `results_candidate` records even while
 diagnostics, method-sensitivity observations, and unavailable/non-computed rows
 remain outside Results candidates. ARS keeps `review_status: pending` and the
 human review ledger. Acceptance: `docs/acceptance/2026-09-02-results-candidate-promotion-semantics.md`.
+## TGA replay and uncertainty-boundary checkpoint (2026-09-05)
+
+The sample-neutral TGA route now has a content-addressed, synthetic replay
+matrix that exercises the actual processing function across normal and
+anomalous curves. Observations retain source-preservation, rerun-determinism,
+axis semantics, expected local unavailable states, and event bounds. This is
+strictly algorithm-boundary validation, not an independent instrument/material
+replay and not a capability-promotion result. Measurement uncertainty remains
+an explicit unavailable report without replicate, instrument, calibration, and
+standard-sample evidence; it remains unavailable even when those evidence
+flags are present until a reviewed measurement model exists. Method sensitivity
+is never emitted as a measurement interval. Task:
+`docs/agent/tasks/2026-09-05-tga-replay-validation-boundary.md`.
