@@ -2001,3 +2001,15 @@ instrument/lab repeatability, standard samples, and human capability promotion
 remain open. Mechanics/replay coverage passes 15; shared boundary coverage is
 118 passed with 3 skips. Task:
 `docs/agent/tasks/2026-09-05-mechanics-validation-foundation.md`.
+
+## Public validation pack acquisition checkpoint (2026-09-06)
+
+The external root `D:\PolyNexus-validation-data` now has all 12 planned
+archives: DSC, TGA, three DMA archives, two FTIR archives, NMR, two SAXS
+archives, WAXS, and the PLA/chitosan supplementary package. Every archive
+matches its recorded Zenodo MD5 and has been inspected; the external lock
+manifest contains 12 `inspected` entries and local validation passes. These
+are still acquisition/replay candidates, not certified standards or promoted
+capabilities. The next step is selective member extraction and canonical
+replay-case binding, while SEC/GPC and rheology still lack suitable public
+portable exports.

@@ -7,12 +7,13 @@ is committed; archives are intentionally stored outside the Git repository at
 
 ## Scope
 
-The first pass has complete, checksum-verified archives for TGA, DMA, FTIR,
-NMR, SAXS, WAXS, and a PLA/chitosan supplementary package. It also records a
-DSC archive and a second SAXS archive that are currently incomplete at the
-remote mirror and therefore remain `candidate`, not validation inputs. Zenodo
-record `14723415` is the most useful polymer-oriented source because it
-contains multiple thermal, viscoelastic, infrared, and polymer-NMR archives.
+The first pass now has 12/12 complete, checksum-verified archives covering
+DSC, TGA, DMA, FTIR, NMR, SAXS, WAXS, and a PLA/chitosan supplementary
+package. The source manifest still labels every entry `candidate`: that status
+means the archive is acquired and inspected, not that it has passed a formal
+replay or capability-promotion gate. Zenodo record `14723415` is the most
+useful polymer-oriented source because it contains multiple thermal,
+viscoelastic, infrared, and polymer-NMR archives.
 The SAXS and WAXS records are retained as format/sequence smoke tests because
 they are openly downloadable, but their materials are not polymers and they
 cannot support polymer scientific claims.

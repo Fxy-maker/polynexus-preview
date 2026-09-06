@@ -89,9 +89,12 @@ python scripts/auto_commit.py `
 
 - Exact commands and outcomes:
   - `python -m pytest -p no:cacheprovider -q tests/test_validation_pack_manifest.py` - 5 passed.
-  - `python scripts/validation_pack.py inspect` - wrote the external archive report; 10 inspected, 1 checksum mismatch, 1 missing.
-  - `python scripts/validation_pack.py lock` - wrote the external SHA-256 lock manifest.
+  - `python scripts/validation_pack.py --data-root D:/PolyNexus-validation-data download --technique dsc` - downloaded and verified the DSC archive against Zenodo MD5.
+  - `python scripts/validation_pack.py --data-root D:/PolyNexus-validation-data download --technique saxs` - verified the first SAXS archive and downloaded the second against Zenodo MD5.
+  - `python scripts/validation_pack.py --data-root D:/PolyNexus-validation-data inspect` - wrote the external archive report; 12 inspected, 0 checksum mismatches, 0 missing.
+  - `python scripts/validation_pack.py --data-root D:/PolyNexus-validation-data lock` - wrote the external SHA-256 lock manifest with 12 inspected entries.
+  - `python scripts/validation_pack.py --data-root D:/PolyNexus-validation-data validate --require-local` - valid: 12 manifest entries.
   - `python scripts/verify.py --task docs/agent/tasks/2026-09-05-public-validation-pack.md --changed --types` - passed Ruff, compile, quality 313, preprocessing 157, and whitespace.
   - `git diff --check` - passed.
-- Known limitations or follow-up: DSC and one SAXS archive remain candidates after Zenodo transfer failures. The non-polymer SAXS/WAXS data is format-only. SEC/GPC and rheology still need portable polymer instrument exports. No archive member is yet bound to a formal replay case or capability-promotion evidence.
+- Known limitations or follow-up: all 12 planned archives are now acquired and inspected, but they remain candidates until selected members are bound to canonical replay cases. The non-polymer SAXS/WAXS data is format-only. SEC/GPC and rheology still need portable polymer instrument exports. No archive member is yet bound to a formal replay case or capability-promotion evidence.
 - Pre-existing changes left untouched: `polynexus/core/agent_workflow/service.py`, manuscript plans/specs, `li2020.txt`, `lotz2021.txt`, and `tests/_tmp_phase3/`.

@@ -6732,3 +6732,14 @@ remain follow-up work; no provider algorithms or user data changed. Task:
 - Mechanics/replay coverage passes 15; shared ComputeRun/capability/project/AI
   coverage passes 118 with 3 skips. Task:
   `docs/agent/tasks/2026-09-05-mechanics-validation-foundation.md`.
+
+## Public validation archive acquisition completion — 2026-09-06
+
+The external public validation pack at `D:\PolyNexus-validation-data` now
+contains all 12 planned archives. The previously incomplete DSC archive and
+second SAXS archive were downloaded with resumable transfers, matched the
+Zenodo-published MD5 values, and passed ZIP member inspection. The external
+lock manifest reports 12 `inspected` entries and
+`validate --require-local` passes. The source manifest keeps `candidate`
+status because acquisition is not formal replay, uncertainty, or capability
+promotion evidence. No raw data was added to Git.
