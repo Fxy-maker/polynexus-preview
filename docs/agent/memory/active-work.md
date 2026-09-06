@@ -6743,3 +6743,23 @@ lock manifest reports 12 `inspected` entries and
 `validate --require-local` passes. The source manifest keeps `candidate`
 status because acquisition is not formal replay, uncertainty, or capability
 promotion evidence. No raw data was added to Git.
+
+## Public validation routes across all modules — completed, review required (2026-09-06)
+
+- Ran the selected public-pack inputs through the current CLI/Core routes and
+  corrected the external report at
+  `D:/PolyNexus-validation-data/public/runs/2026-09-06-all-modules/all-modules-report.json`.
+- IR, SAXS, WAXS, and NMR produced diagnostic output. WAXS uses a derived
+  header-normalized CSV and retains the original `.dat` mapping-ambiguity
+  attempt plus derivation provenance. SAXS/WAXS are non-polymer datasets and
+  cannot support polymer scientific claims; NMR has an implausible observed
+  ppm axis and quality/assignment warnings.
+- DSC, TGA, DMA, SEC/GPC, and Mechanics are recorded as unavailable for the
+  selected inputs. DSC loaded zero points; TGA/DMA are unsupported vendor
+  binaries; SEC/GPC has only an Origin `.opju`; Mechanics selection is
+  ellipsometry rather than a mechanics curve. Rheology had no suitable public
+  raw/instrument export and was not attempted.
+- Validation manifest check passed (`12` entries), and focused tests passed
+  (`6 passed`). This remains parser/Core smoke evidence only; independent
+  replay, standards, uncertainty, and capability promotion remain open.
+- Task: `docs/agent/tasks/2026-09-06-public-validation-all-modules.md`.

@@ -2013,3 +2013,19 @@ are still acquisition/replay candidates, not certified standards or promoted
 capabilities. The next step is selective member extraction and canonical
 replay-case binding, while SEC/GPC and rheology still lack suitable public
 portable exports.
+
+## Public validation all-module route checkpoint (2026-09-06)
+
+The selected members of the external public validation pack were exercised
+through the current CLI/Core routes. The report is
+`D:/PolyNexus-validation-data/public/runs/2026-09-06-all-modules/all-modules-report.json`.
+IR, SAXS, WAXS, and NMR completed with diagnostic output; DSC, TGA, DMA,
+SEC/GPC, and Mechanics are unavailable for the selected formats, and
+Rheology has no suitable public input. WAXS succeeds only after an explicit
+header-normalized derived CSV, while preserving the original mapping failure
+and derivation provenance. No route result is certified or capability-promoted;
+the report records non-polymer scattering, implausible NMR axis, vendor binary,
+Origin project, wrong-technique, and missing-input limitations explicitly.
+The WAXS loader regression fix (`waxs_engine/io.py`) and focused test are
+uncommitted pending the task checkpoint. Task:
+`docs/agent/tasks/2026-09-06-public-validation-all-modules.md`.
