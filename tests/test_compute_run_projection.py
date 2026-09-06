@@ -10,6 +10,7 @@ import pytest
 from polynexus.core.ai_platform.contracts import ComputationState
 from polynexus.core.agent_workflow.evidence import build_evidence
 from polynexus.core.agent_workflow.models import WorkflowStepResult
+from polynexus.core.input_formats import inspect_format
 from polynexus.core.compute.projection import (
     ComputeRunProjection,
     merge_compute_run_projections,
@@ -62,6 +63,25 @@ def test_completed_projection_exposes_one_canonical_four_axis_state() -> None:
     assert projection.computed is True
     assert projection.state is not None
     assert projection.state.to_dict() == state
+
+
+def test_projection_preserves_and_validates_input_inspection(tmp_path) -> None:
+    source = tmp_path / "sample.csv"
+    source.write_text("wavenumber,intensity\n1700,1\n1600,2\n", encoding="utf-8")
+    inspection = inspect_format(source, technique="ir")
+    state = _state()
+    payload = {
+        "status": "completed",
+        "artifact": {"sha256": inspection.source_sha256},
+        "computation_state": state,
+        "input_inspection": inspection.to_dict(),
+        "result": {"metrics": {}},
+    }
+
+    projection = read_compute_run_projection({"compute_run": payload})
+
+    assert projection.valid is True
+    assert projection.input_inspection == inspection
 
 
 def test_projection_rejects_manifest_value_without_explicit_row_status() -> None:

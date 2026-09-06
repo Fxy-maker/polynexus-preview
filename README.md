@@ -69,6 +69,24 @@ cases can compare results against an external expected-value fixture. Neither
 artifact is a metrological claim or capability-promotion decision; fatigue,
 fracture, and creep remain unavailable.
 
+### Layered format ingestion
+
+PolyNexus separates raw-format decoding from canonical scientific mapping:
+
+```text
+raw file → bounded format inspection → reader/plugin → canonical template → ComputeRun
+```
+
+The shared `FormatInspection` contract records the detected container, reader
+availability, canonical-conversion state, reason codes, and next actions. It
+is exposed through the Core and `polynexus inspect-format` CLI command, and is
+also attached to direct `ComputeRun` records. Portable tables and detector
+images use built-in routes; known opaque vendor/Origin formats are retained as
+actionable `needs_input` records until a declared reader or portable export is
+available. The registry does not dynamically import or execute untrusted code,
+and inspection never claims that columns, units, or polymer semantics have
+been scientifically mapped.
+
 ## Quick Start
 
 ### 1. Install

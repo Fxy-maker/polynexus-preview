@@ -30,6 +30,7 @@ from polynexus.cli.run_project_workflow_service import run_project_workflow as _
 from polynexus.cli.run_suite_service import run_suite as _run_suite_impl
 from polynexus.cli.run_research_loop_service import run_research_loop as _run_research_loop_impl
 from polynexus.cli.run_single_service import run_single as _run_single_impl
+from polynexus.cli.run_format_inspection import run_format_inspection as _run_format_inspection_impl
 from polynexus.cli.parser import build_parser
 from polynexus.utils import (
     delete_batch_preset,  # noqa: F401 - legacy CLI re-export
@@ -72,6 +73,8 @@ def main():
         from polynexus.app import main as gui_main
         gui_main()
         return 0
+    if args.cmd == 'inspect-format':
+        return _run_format_inspection(args)
     return _run_single(args)
 
 
@@ -81,6 +84,10 @@ def _run_single(args) -> int:
         get_engine_fn=get_engine,
         format_technique_result_lines_fn=format_technique_result_lines,
     )
+
+
+def _run_format_inspection(args) -> int:
+    return _run_format_inspection_impl(args)
 
 
 def _run_ai_tune(args) -> int:

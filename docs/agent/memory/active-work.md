@@ -1,5 +1,13 @@
 # Active Work
 
+## Layered format-inspection and reader-plugin foundation — implementation complete, review required (2026-09-06)
+
+- Added a shared immutable `FormatInspection` contract and a closed registry of declarative reader capabilities.  It separates bounded container detection, reader availability, canonical-conversion readiness, and unassessed scientific mapping; it never dynamically executes plug-in code.
+- Direct `ComputeRun` records now preserve the source-bound inspection and prevent recognized opaque Netzsch DSC/TGA, vendor DMA, and Origin inputs from reaching legacy providers without a declared reader.  Unknown inputs retain compatibility behavior.  A mismatch in declared technique adds a confirmation action but cannot weaken a missing-reader boundary; Rigaku `.raw` recognition also requires its `RAW1.01` signature.
+- `polynexus inspect-format <input> --technique <technique> --json` exposes the same JSON DTO as Core. Portable-table, image, Bruker, and existing Rigaku routes remain candidates only: inspection does not assert column, unit, calibration, or polymer semantics.
+- Public validation manifest passes with 12 local entries; focused/shared coverage passes `139 passed, 4 skipped`; structured verification passes Ruff, compile, quality `313`, preprocessing `157`, and whitespace checks. Vendor decoder implementation, isolated workers/licensing, GUI intake, instrument replay, uncertainty, and scientific capability review remain open.
+- Task: `docs/agent/tasks/2026-09-06-format-ingestion-plugin-foundation.md`.
+
 ## Public validation-data pack — implementation complete, scientific review required (2026-09-05)
 
 - Added `docs/validation/public-validation-pack.json` and

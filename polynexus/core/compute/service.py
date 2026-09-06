@@ -14,6 +14,7 @@ from typing import Any, Callable
 from ..engine import get_engine
 from ..project_context import ProjectContext
 from ..ai_platform.contracts import ProviderResultInput
+from ..input_formats import inspect_format
 from ..canonical_experiments import CapabilityExecutor, CanonicalExperiment, default_converter_registry
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 from .method_sensitivity import sensitivities_from_metrics
@@ -203,6 +204,11 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(path, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
+        input_inspection = inspect_format(
+            artifact.path,
+            technique=normalized_technique,
+            source_sha256=artifact.sha256,
+        )
         # A project inventory may use a logical, project-scoped artifact ID
         # while the physical ``RawArtifact`` identity includes the absolute
         # path.  A source-bound canonical template can explicitly carry that
@@ -215,6 +221,7 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=("source_artifact_id_invalid",),
+                    input_inspection=input_inspection,
                 )
             artifact = replace(artifact, artifact_id=source_artifact_id.strip())
         source = Path(artifact.path)
@@ -240,12 +247,20 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(source, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
+        if input_inspection.status == "needs_reader":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=input_inspection.reason_codes or ("format_reader_missing",),
+                input_inspection=input_inspection,
+            )
         resolved_output_path = _resolve_output_dir(output_dir)
         if resolved_output_path is None:
             return ComputeRun(
                 status="needs_input",
                 artifact=artifact,
                 reasons=("output_directory_invalid",),
+                input_inspection=input_inspection,
             )
         options, options_reason = _normalize_pipeline_options(pipeline_options)
         if options_reason is not None:
@@ -253,12 +268,18 @@ class ComputeRunService:
                 status="needs_input",
                 artifact=artifact,
                 reasons=(options_reason,),
+                input_inspection=input_inspection,
             )
         assert options is not None
         try:
             context = ProjectContext.load(project_context)
         except ValueError:
-            return ComputeRun(status="needs_input", artifact=artifact, reasons=("project_context_invalid",))
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("project_context_invalid",),
+                input_inspection=input_inspection,
+            )
         dataset = CanonicalDataset.direct_envelope(artifact)
         plan = AnalysisPlan.direct(
             dataset,
@@ -278,18 +299,21 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=("canonical_template_invalid",),
+                    input_inspection=input_inspection,
                 )
             if canonical_template.source_artifact_id != artifact.artifact_id:
                 return ComputeRun(
                     status="needs_input",
                     artifact=artifact,
                     reasons=("canonical_template_mismatch",),
+                    input_inspection=input_inspection,
                 )
             if str(canonical_template.payload.get("technique", normalized_technique)).lower() != normalized_technique:
                 return ComputeRun(
                     status="needs_input",
                     artifact=artifact,
                     reasons=("canonical_template_technique_mismatch",),
+                    input_inspection=input_inspection,
                 )
         capability_items = (
             CapabilityExecutor().execute(canonical_template)
@@ -313,6 +337,7 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=conversion.reason_codes,
+                    input_inspection=input_inspection,
                 )
             if (
                 conversion.status == "blocked"
@@ -353,6 +378,7 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=("technique_unknown",),
+                    input_inspection=input_inspection,
                 )
             if normalized_technique == "dsc" and context.dsc_reference_enthalpy is not None:
                 dsc_config = getattr(selected_engine, "_dsc_config", None)
@@ -428,6 +454,7 @@ class ComputeRunService:
                     canonical_template=canonical_template,
                     capability_items=capability_items,
                     reasons=("provider_execution_failed",),
+                    input_inspection=input_inspection,
                 )
             result = ComputeResult.from_legacy_result(legacy_result)
             method_sensitivity = options.get("method_sensitivity")
@@ -469,6 +496,7 @@ class ComputeRunService:
                 capability_items=capability_items,
                 provider_capability_items=provider_capability_items,
                 legacy_result=legacy_result,
+                input_inspection=input_inspection,
             )
         except Exception:
             return ComputeRun(
@@ -479,6 +507,7 @@ class ComputeRunService:
                 canonical_template=canonical_template,
                 capability_items=capability_items,
                 reasons=("provider_execution_failed",),
+                input_inspection=input_inspection,
             )
 
     def _attach_method_sensitivity(

@@ -2,7 +2,9 @@ import json
 from types import SimpleNamespace
 
 from polynexus.core.compute import ComputeRunService
+from polynexus.core.input_formats import inspect_format
 from polynexus.cli.run_single_service import run_single
+from polynexus.cli.run_format_inspection import run_format_inspection
 
 
 class _FakeComputeRunService:
@@ -135,3 +137,17 @@ def test_run_single_json_exposes_canonical_template_and_capabilities(tmp_path, c
     assert [item["capability_id"] for item in payload["capability_items"]] == [
         "curve.extrema.v1", "curve.summary.v1"
     ]
+
+
+def test_format_inspection_cli_emits_shared_contract(tmp_path, capsys):
+    source = tmp_path / "sample.ngb-ds1"
+    source.write_bytes(b"\x00\x00Netzsch TA file\x00_db_format_1\x00")
+    args = SimpleNamespace(input=str(source), technique="tga", json=True)
+
+    assert run_format_inspection(args) == 2
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["plugin_id"] == "netzsch.ta.v1"
+    assert payload["status"] == "needs_reader"
+    assert payload["reason_codes"] == ["format_reader_missing"]
+    assert payload["inspection_id"] == inspect_format(source, technique="tga").inspection_id

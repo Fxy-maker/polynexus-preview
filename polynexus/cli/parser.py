@@ -81,6 +81,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_gpc.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
     p_gpc.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
+    p_inspect = sub.add_parser("inspect-format", help="Inspect a raw input format and reader route")
+    p_inspect.add_argument("input")
+    p_inspect.add_argument(
+        "--technique",
+        default="unknown",
+        choices=["unknown", "saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology", "mechanics", "sec", "gpc"],
+    )
+    p_inspect.add_argument("--json", action="store_true", help="Print the inspection contract as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")

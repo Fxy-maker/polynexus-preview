@@ -26,6 +26,7 @@ from types import MappingProxyType
 from typing import Any
 
 from ..ai_platform.contracts import ComputationState
+from ..input_formats import FormatInspection
 
 
 _MISSING = object()
@@ -188,7 +189,9 @@ def _projection_fields_equal(
             return False
         if not _metric_values_equal(left.provenance, right.provenance):
             return False
-        return _metric_values_equal(left.uncertainty, right.uncertainty)
+        if not _metric_values_equal(left.uncertainty, right.uncertainty):
+            return False
+        return _metric_values_equal(left.input_inspection, right.input_inspection)
     except Exception:  # noqa: BLE001 - malformed manually supplied DTOs fail closed
         return False
 
@@ -210,6 +213,7 @@ class ComputeRunProjection:
     descriptor_id: str | None = None
     provenance: Mapping[str, Any] = field(default_factory=dict)
     uncertainty: Mapping[str, Any] = field(default_factory=dict)
+    input_inspection: FormatInspection | None = None
     payload: Mapping[str, Any] | None = None
     reason_codes: tuple[str, ...] = ()
 
@@ -237,6 +241,10 @@ class ComputeRunProjection:
             raise TypeError("ComputeRunProjection result must be a mapping or null")
         if self.payload is not None and not isinstance(self.payload, Mapping):
             raise TypeError("ComputeRunProjection payload must be a mapping or null")
+        if self.input_inspection is not None and not isinstance(
+            self.input_inspection, FormatInspection
+        ):
+            raise TypeError("ComputeRunProjection input_inspection must be a FormatInspection")
 
     @property
     def allows_legacy_fallback(self) -> bool:
@@ -413,6 +421,23 @@ def parse_compute_run_projection(value: Any = _MISSING) -> ComputeRunProjection:
             projections[name] = dict(values[0])
             if any(dict(item) != dict(values[0]) for item in values[1:]):
                 reasons.append(f"compute_run_{name}_mismatch")
+
+    input_inspection: FormatInspection | None = None
+    if "input_inspection" in payload and payload["input_inspection"] is not None:
+        candidate_inspection = payload["input_inspection"]
+        if not isinstance(candidate_inspection, Mapping):
+            reasons.append("compute_run_input_inspection_invalid")
+        else:
+            try:
+                input_inspection = FormatInspection.from_dict(candidate_inspection)
+            except (KeyError, TypeError, ValueError):
+                reasons.append("compute_run_input_inspection_invalid")
+            else:
+                artifact = payload.get("artifact")
+                if not isinstance(artifact, Mapping):
+                    reasons.append("compute_run_input_inspection_artifact_missing")
+                elif artifact.get("sha256") != input_inspection.source_sha256:
+                    reasons.append("compute_run_input_inspection_mismatch")
 
     # ``ComputeResult.metric_manifest`` repeats the shared aliases on each
     # metric row.  Treat rows as additional projections: one contradictory row
@@ -608,6 +633,7 @@ def parse_compute_run_projection(value: Any = _MISSING) -> ComputeRunProjection:
         descriptor_id=descriptor_id,
         provenance=projections["provenance"],
         uncertainty=projections["uncertainty"],
+        input_inspection=input_inspection,
         payload=payload,
         reason_codes=deduped_reasons,
     )
@@ -678,6 +704,7 @@ def merge_compute_run_projections(
                     item.state,
                     item.result,
                     item.descriptor_id,
+                    item.input_inspection,
                     item.payload,
                 )
             ) or (
@@ -730,6 +757,7 @@ def merge_compute_run_projections(
     descriptor_id = first.descriptor_id
     provenance = first.provenance
     uncertainty = first.uncertainty
+    input_inspection = first.input_inspection
     result = first.result
     payload = first.payload
     for item in present[1:]:
@@ -752,6 +780,14 @@ def merge_compute_run_projections(
             reasons.append("compute_run_uncertainty_mismatch")
         elif not uncertainty and item.uncertainty:
             uncertainty = item.uncertainty
+        if (
+            input_inspection is not None
+            and item.input_inspection is not None
+            and input_inspection != item.input_inspection
+        ):
+            reasons.append("compute_run_input_inspection_mismatch")
+        elif input_inspection is None and item.input_inspection is not None:
+            input_inspection = item.input_inspection
         if result is None and item.result is not None:
             result = item.result
             payload = item.payload
@@ -765,6 +801,7 @@ def merge_compute_run_projections(
         descriptor_id=descriptor_id,
         provenance=provenance,
         uncertainty=uncertainty,
+        input_inspection=input_inspection,
         payload=payload,
         reason_codes=deduped,
     )

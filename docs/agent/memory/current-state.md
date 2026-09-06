@@ -1,5 +1,19 @@
 ---
 
+## Layered format ingestion foundation — implementation complete, review required (2026-09-06)
+
+Raw-format decoding is now explicitly separated from canonical scientific
+mapping: `raw file → bounded FormatInspection → declared reader → canonical
+template → ComputeRun`. The new immutable, content-bound inspection DTO is
+shared by Core, direct `ComputeRun`, and `polynexus inspect-format`; it records
+container/reader/conversion readiness, unassessed mapping, reason codes, and
+next actions. Known opaque Netzsch DSC/TGA, vendor DMA, and Origin containers
+return actionable `needs_input` before provider execution. Unknown inputs stay
+compatible. This is not a vendor decoder or plug-in runtime: actual readers
+require isolation, license/security review, real-instrument replay, uncertainty
+work, and human scientific review before formal capability promotion. Task:
+`docs/agent/tasks/2026-09-06-format-ingestion-plugin-foundation.md`.
+
 ## Generic isothermal DSC event candidates checkpoint (2026-08-28)
 
 `dsc_kinetics` now uses shape-driven, material-neutral event candidates. Every
