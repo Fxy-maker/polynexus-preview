@@ -90,6 +90,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_inspect.add_argument("--json", action="store_true", help="Print the inspection contract as JSON")
 
+    p_portable = sub.add_parser(
+        "portable-export",
+        help="Convert a portable vendor export while retaining the opaque raw source binding",
+    )
+    p_portable.add_argument("raw_source", help="Opaque vendor/instrument source file or directory")
+    p_portable.add_argument("export", help="Portable CSV/XLSX/ODS export")
+    p_portable.add_argument(
+        "--technique",
+        required=True,
+        choices=["saxs", "waxs", "dsc", "ir", "nmr", "tga", "dma", "rheology", "mechanics", "sec", "gpc"],
+    )
+    p_portable.add_argument("--exporter", required=True, help="Instrument software/exporter name")
+    p_portable.add_argument("--output", default="", help="Optional ComputeRun output directory")
+    p_portable.add_argument("--mapping-proposal", default=None, help="Optional mapping proposal JSON")
+    p_portable.add_argument("--convert-only", action="store_true", help="Only emit canonical conversion; do not execute a provider")
+    p_portable.add_argument("--json", action="store_true", help="Print the shared conversion/run contract as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")

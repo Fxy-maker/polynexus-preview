@@ -13,10 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from polynexus.core.agent_workflow import inspect_artifact
-from polynexus.core.agent_workflow.models import AnalysisRecipe, RecipeProposal, RecipeStep
+from polynexus.core.agent_workflow.models import AnalysisRecipe, InputArtifact, RecipeProposal, RecipeStep
 from polynexus.core.agent_workflow.tpae import TpaeCharacterizationWorkflow
 from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
 from polynexus.core.canonical_experiments.models import MappingProposal
+from polynexus.core.compute import RawArtifact
 
 
 def _convert_artifact(
@@ -24,8 +25,26 @@ def _convert_artifact(
     *,
     technique: str,
     mapping_proposal: MappingProposal | None = None,
+    portable_export: Mapping[str, object] | None = None,
 ):
     """Convert an inspected artifact through the shared canonical registry."""
+    if portable_export is not None:
+        export_path = portable_export.get("export_path")
+        exporter = portable_export.get("exporter")
+        if not export_path or not exporter:
+            raise ValueError("portable_export requires export_path and exporter")
+        raw_source = portable_export.get("raw_source") or artifact.path
+        raw_identity = RawArtifact.from_path(raw_source, technique=technique)
+        if artifact.sha256 and raw_identity.sha256 != artifact.sha256:
+            raise ValueError("portable_export raw source hash does not match artifact")
+        return default_converter_registry().convert_portable_export(
+            raw_source,
+            export_path,
+            technique=technique,
+            source_artifact_id=artifact.artifact_id,
+            exporter=str(exporter),
+            mapping_proposal=mapping_proposal,
+        )
     return default_converter_registry().convert_path(
         artifact.path,
         technique=technique,
@@ -78,16 +97,20 @@ class SingleInputTechniqueAdapter:
             return RecipeProposal(status="blocked", reason_codes=("artifact_missing",))
         if len(paths) != 1:
             return RecipeProposal(status="blocked", reason_codes=("multiple_artifacts",))
-        artifact = inspect_artifact(paths[0], technique=technique)
+        try:
+            portable_export = self._portable_export(payload)
+        except (KeyError, TypeError, ValueError):
+            return RecipeProposal(status="blocked", reason_codes=("portable_export_invalid",))
+        try:
+            mapping_proposal = self._mapping_proposal(payload)
+        except (KeyError, TypeError, ValueError):
+            return RecipeProposal(status="blocked", reason_codes=("mapping_proposal_invalid",))
+        artifact = _inspect_project_artifact(paths[0], technique=technique, portable_export=portable_export)
         if artifact.inspection_status == "blocked":
             return RecipeProposal(
                 status="blocked",
                 reason_codes=tuple(dict.fromkeys(("artifact_blocked", *artifact.reason_codes))),
             )
-        try:
-            mapping_proposal = self._mapping_proposal(payload)
-        except (KeyError, TypeError, ValueError):
-            return RecipeProposal(status="blocked", reason_codes=("mapping_proposal_invalid",))
         # ProjectWorkflow inventory IDs are deliberately scoped to the
         # project's logical relative path, while ``inspect_artifact`` uses the
         # absolute source path.  When a user confirms a mapping from the
@@ -105,11 +128,15 @@ class SingleInputTechniqueAdapter:
             if not inventory_hash or str(inventory_hash) != str(artifact.sha256):
                 return RecipeProposal(status="blocked", reason_codes=("mapping_proposal_invalid",))
             artifact = replace(artifact, artifact_id=str(inventory_id))
-        outcome = _convert_artifact(
-            artifact,
-            technique=technique,
-            mapping_proposal=mapping_proposal,
-        )
+        try:
+            outcome = _convert_artifact(
+                artifact,
+                technique=technique,
+                mapping_proposal=mapping_proposal,
+                portable_export=portable_export,
+            )
+        except (OSError, TypeError, ValueError):
+            return RecipeProposal(status="blocked", reason_codes=("portable_export_invalid",))
         if outcome.status != "ready" or outcome.template is None:
             return RecipeProposal(status="blocked", reason_codes=outcome.reason_codes)
         submodule_id, step_id, role = spec
@@ -125,11 +152,13 @@ class SingleInputTechniqueAdapter:
                         "submodule_id": submodule_id,
                         "canonical_converter": outcome.record.conversion_id,
                         "canonical_template": outcome.template.to_dict(),
+                        **({"portable_export": dict(portable_export)} if portable_export is not None else {}),
                     },
                     parameter_sources={
                         "submodule_id": "registered_project_recipe",
                         "canonical_converter": "registered_canonical_converter",
                         "canonical_template": "registered_canonical_converter",
+                        **({"portable_export": "declared_portable_export"} if portable_export is not None else {}),
                     },
                 ),
             ),
@@ -207,6 +236,62 @@ class SingleInputTechniqueAdapter:
         if not isinstance(raw, Mapping):
             raise TypeError("mapping_proposal must be a mapping")
         return MappingProposal.from_dict(raw)
+
+    @staticmethod
+    def _portable_export(payload: Mapping[str, object]) -> Mapping[str, object] | None:
+        raw = payload.get("portable_export")
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            raise TypeError("portable_export must be a mapping")
+        export_path = raw.get("export_path")
+        exporter = raw.get("exporter")
+        if not isinstance(export_path, (str, Path)) or not str(export_path).strip():
+            raise ValueError("portable_export export_path is required")
+        if not isinstance(exporter, str) or not exporter.strip():
+            raise ValueError("portable_export exporter is required")
+        raw_source = raw.get("raw_source")
+        if raw_source is not None and not isinstance(raw_source, (str, Path)):
+            raise ValueError("portable_export raw_source must be a path")
+        return {
+            "raw_source": str(raw_source) if raw_source is not None else "",
+            "export_path": str(export_path),
+            "exporter": exporter.strip(),
+        }
+
+
+def _inspect_project_artifact(
+    path: str | Path,
+    *,
+    technique: str,
+    portable_export: Mapping[str, object] | None,
+) -> InputArtifact:
+    """Allow an opaque raw source only when a portable export is declared."""
+    artifact = inspect_artifact(path, technique=technique)
+    if artifact.inspection_status != "blocked" or portable_export is None:
+        return artifact
+    raw_source = portable_export.get("raw_source") or path
+    try:
+        if Path(raw_source).expanduser().resolve(strict=False) != Path(path).expanduser().resolve(strict=False):
+            return artifact
+    except (OSError, TypeError, ValueError):
+        return artifact
+    try:
+        raw = RawArtifact.from_path(raw_source, technique=technique)
+    except (OSError, TypeError, ValueError):
+        return artifact
+    if raw.sha256 != artifact.sha256 and artifact.sha256 is not None:
+        return artifact
+    return InputArtifact(
+        artifact_id=raw.artifact_id,
+        path=raw.path,
+        technique=technique,
+        format=raw.format,
+        sha256=raw.sha256,
+        header_facts={"portable_export": True},
+        inspection_status="review_required",
+        reason_codes=("portable_export_source_opaque", *artifact.reason_codes),
+    )
 
 
 class TechniqueSeriesAdapter:

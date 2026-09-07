@@ -1,5 +1,21 @@
 ---
 
+## Portable export entry points — 2026-09-07
+
+The existing source-bound portable export route is now exposed through the
+machine-readable `portable-export` CLI. It can convert only, or execute the
+canonical template through the shared `ComputeRunService`; JSON output retains
+raw/export hashes and is kept free of provider log noise. Project/Codex
+single-input manifests can declare the same `portable_export` request and
+persist its canonical template/converter metadata while keeping the opaque raw
+artifact as the provenance anchor. Private vendor bytes are not decoded.
+
+The pre-existing `polynexus/core/agent_workflow/service.py` worktree changes
+remain untouched. Agent recipe replay for opaque sources still needs a separate
+task because that service currently re-inspects raw files before execution.
+GUI intake has no new dialog in this slice, but it can call the same Core/CLI
+contract in a later task.
+
 ## Layered format ingestion foundation — implementation complete, review required (2026-09-06)
 
 Raw-format decoding is now explicitly separated from canonical scientific

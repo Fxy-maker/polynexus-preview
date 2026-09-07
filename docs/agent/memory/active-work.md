@@ -1,5 +1,24 @@
 # Active Work
 
+## Source-bound portable-export entry points — implementation complete, replay follow-up (2026-09-07)
+
+- Added `polynexus portable-export <raw> <export> --technique ... --exporter ...`
+  over the existing `PortableExportBinding` and canonical converter. JSON mode
+  emits independent raw/export hashes, the canonical template, and optionally
+  the shared `ComputeRun` projection; provider stdout is suppressed in JSON
+  mode so the output remains machine-readable.
+- Project/Codex single-input manifests may declare `portable_export` with an
+  exported table and exporter name. The proposal retains the opaque raw
+  artifact, marks it `review_required`, and persists the same canonical
+  converter/template metadata. Invalid declarations fail closed.
+- The protected pre-existing `agent_workflow/service.py` changes were left
+  untouched. Full recipe replay of opaque raw sources through portable exports
+  remains a follow-up because that service still performs raw inspection before
+  execution. Private Netzsch/Origin decoding is still unsupported.
+- Focused entry-point/project coverage passes `41`; structured verification
+  passes Ruff, compile, quality `313`, preprocessing `157`, and whitespace.
+- Task: `docs/agent/tasks/2026-09-07-portable-export-entrypoints.md`.
+
 ## Layered format-inspection and reader-plugin foundation — implementation complete, review required (2026-09-06)
 
 - Added a shared immutable `FormatInspection` contract and a closed registry of declarative reader capabilities.  It separates bounded container detection, reader availability, canonical-conversion readiness, and unassessed scientific mapping; it never dynamically executes plug-in code.
