@@ -2043,3 +2043,18 @@ Origin project, wrong-technique, and missing-input limitations explicitly.
 The WAXS loader regression fix (`waxs_engine/io.py`) and focused test are
 uncommitted pending the task checkpoint. Task:
 `docs/agent/tasks/2026-09-06-public-validation-all-modules.md`.
+
+## TA Q800 DMA binary route checkpoint (2026-09-07)
+
+The bounded TA Instruments Q800 reader now recognizes only the observed
+UTF-16 header plus `CLOSED`, `Instrument DMA`, `Nsig`, contiguous `SigN`, and
+little-endian float32 record layout. It excludes nonnegative-time sentinel
+records, preserves every mapped channel and vendor header in
+`dma_curve_1d.v1`, and routes through the existing CanonicalExperiment,
+ComputeRun, DMA engine, and input-inspection contracts. A public Q800 file
+decoded 17 channels and 1041 records, producing 9 canonical measurements and
+a completed ComputeRun. Other `.001` vendors, alternate undocumented TA
+layouts, Netzsch binaries, and Origin projects remain unsupported or require
+an explicit export bridge. This is parser/replay evidence only; DMA model
+validation, uncertainty, and capability promotion remain review-required.
+Task: `docs/agent/tasks/2026-09-07-ta-dma-reader-route.md`.

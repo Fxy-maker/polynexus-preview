@@ -11,7 +11,7 @@ from .capabilities import (
     default_capability_registry,
     default_provider_capability_registry,
 )
-from .one_dimensional import convert_one_dimensional_table
+from .one_dimensional import convert_one_dimensional_table, convert_ta_dma_export
 from .ir_temperature_series import build_ir_temperature_series_template
 from .nd_adapters import (
     DataBlockAdapterResult,
@@ -52,6 +52,7 @@ __all__ = [
     "convert_mettler_isothermal_text",
     "convert_detector_image",
     "convert_one_dimensional_table",
+    "convert_ta_dma_export",
     "build_ir_temperature_series_template",
     "DataBlockAdapterResult",
     "NDAdapterResult",

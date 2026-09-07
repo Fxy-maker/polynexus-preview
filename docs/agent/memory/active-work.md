@@ -6771,3 +6771,17 @@ promotion evidence. No raw data was added to Git.
   (`6 passed`). This remains parser/Core smoke evidence only; independent
   replay, standards, uncertainty, and capability promotion remain open.
 - Task: `docs/agent/tasks/2026-09-06-public-validation-all-modules.md`.
+
+## TA Q800 DMA reader route — implementation complete, review required (2026-09-07)
+
+- Added a bounded native reader for the verified TA Q800 binary signature and
+  routed it into the shared DMA canonical template and ComputeRun path.
+- Preserves all mapped `SigN` channels, units, source locators, header
+  metadata, reader offset, and excluded unknown signals; malformed or
+  incomplete files fail closed before provider execution.
+- Focused matrix passes 119 with 3 skips. Structured verification passes
+  quality 313 and preprocessing 157. One public Q800 file replayed with 17
+  decoded signals, 1041 valid rows, 9 canonical measurements, and a completed
+  ComputeRun. Formal DMA scientific validation, uncertainty, alternate vendor
+  formats, and capability promotion remain open.
+- Task: `docs/agent/tasks/2026-09-07-ta-dma-reader-route.md`.

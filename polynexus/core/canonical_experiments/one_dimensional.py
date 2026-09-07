@@ -7,10 +7,12 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import struct
 from typing import Any
 
 import pandas as pd
 
+from ...readers.ta_dma_reader import read_ta_dma
 from .models import (
     CanonicalExperiment,
     ConversionOutcome,
@@ -23,6 +25,7 @@ from .models import (
 
 _CONVERTER_ID = "generic.one-dimensional.v1"
 _SUPPORTED_EXTENSIONS = frozenset({".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi", ".xls", ".xlsx", ".xlsm"})
+_TA_DMA_EXTENSIONS = frozenset({".001", ".002", ".003", ".004", ".005"})
 _WORKBOOK_EXTENSIONS = frozenset({".xls", ".xlsx", ".xlsm"})
 _INTENSITY_ALIASES = frozenset({"absorbance", "transmittance", "intensity", "i", "counts", "count", "cps"})
 _IR_X_ALIASES = frozenset({"wavenumber", "wavenumbercm1", "cm1"})
@@ -44,7 +47,8 @@ _DMA_TIME_ALIASES = frozenset({"time", "times", "timesec", "timemin", "elapsedti
 _DMA_SIGNAL_ALIASES = frozenset({
     "storagemodulus", "lossmodulus", "complexmodulus", "youngsmodulus", "modulus",
     "eprime", "edoubleprime", "gprime", "gdoubleprime", "tandelta", "tangentdelta",
-    "damping", "stress", "strain", "displacement", "force",
+    "damping", "stress", "strain", "displacement", "force", "driveforce",
+    "staticforce", "amplitude", "position", "length", "stiffness", "pressure",
 })
 _RHEOLOGY_SHEAR_RATE_ALIASES = frozenset({
     "shearrate", "shearrates1", "shearrate1s", "gammadot", "rateofshear",
@@ -145,6 +149,8 @@ def convert_one_dimensional_table(
     """Convert supported generic two-column tables without scientific transformation."""
     source_path = Path(path)
     extension = source_path.suffix.casefold()
+    if technique.strip().upper() == "DMA" and extension in _TA_DMA_EXTENSIONS:
+        return convert_ta_dma_export(source_path, source_artifact_id=source_artifact_id)
     if extension not in _SUPPORTED_EXTENSIONS:
         return _outcome("blocked", source_artifact_id, "conversion_unsupported_format")
 
@@ -310,6 +316,131 @@ def convert_one_dimensional_table(
         conversion_record=record,
         measurements=measurements,
         mapping_proposal=mapping_proposal if proposal_used else None,
+    )
+    return ConversionOutcome(status="ready", record=record, template=template)
+
+
+def convert_ta_dma_export(
+    path: str | Path,
+    *,
+    source_artifact_id: str,
+) -> ConversionOutcome:
+    """Convert the verified TA Instruments Q800 binary layout to DMA canonical data."""
+
+    source_path = Path(path)
+    try:
+        decoded = read_ta_dma(source_path)
+    except (OSError, ValueError, struct.error) as exc:
+        reason = "ta_dma_reader_failed"
+        message = str(exc).strip()
+        if message:
+            reason = f"{reason}:{message.replace(' ', '_').lower()}"
+        return _outcome("needs_input", source_artifact_id, reason)
+
+    headers = decoded.headers
+    rows = decoded.rows
+    axis_candidates = [
+        (index, header, _x_kind(header, "DMA"))
+        for index, header in enumerate(headers)
+        if _x_kind(header, "DMA") == "time"
+    ]
+    if len(axis_candidates) != 1:
+        return _outcome("needs_input", source_artifact_id, "ta_dma_time_axis_ambiguous")
+    axis_index, axis_header, axis_kind = axis_candidates[0]
+    axis_values = tuple(float(row[axis_index]) for row in rows)
+    measurements: list[Measurement] = []
+    observed_columns = tuple(f"Sig{index + 1} {header}" for index, header in enumerate(headers))
+    excluded_segments: list[dict[str, Any]] = []
+    for index, header in enumerate(headers):
+        if index == axis_index:
+            continue
+        values = tuple(float(row[index]) for row in rows)
+        signal_descriptor = _dma_signal_descriptor(header)
+        signal_kind = signal_descriptor[0] if signal_descriptor is not None else _x_kind(header, "DMA")
+        basis = signal_descriptor[1] if signal_descriptor is not None else "unspecified"
+        if signal_kind is None:
+            excluded_segments.append({"header": header, "reason": "ta_dma_signal_unlabelled"})
+            continue
+        measurement_id = f"ta-dma-signal-{index + 1}"
+        selection = MappingSelection(
+            measurement_id=measurement_id,
+            sheet_name=None,
+            sheet_index=None,
+            table_index=0,
+            header_row=0,
+            data_row_start=0,
+            data_row_end=len(rows) - 1,
+            x_column=axis_header,
+            intensity_column=header,
+            x_kind=str(axis_kind),
+            x_unit=_x_unit(axis_header, str(axis_kind)),
+            intensity_unit=_intensity_unit(header, "DMA"),
+            source="observed",
+        )
+        measurements.append(
+            Measurement(
+                measurement_id=measurement_id,
+                family="viscoelastic_1d",
+                role="raw_curve",
+                channels={"x": axis_values, "intensity": values},
+                units={"x": selection.x_unit, "intensity": selection.intensity_unit},
+                source_locator={
+                    "source_path": str(source_path.resolve()),
+                    "sheet_name": None,
+                    "sheet_index": None,
+                    "table_index": 0,
+                    "header_row": 0,
+                    "data_row_start": 0,
+                    "data_row_end": len(rows) - 1,
+                    "point_start": 0,
+                    "point_end": len(rows) - 1,
+                },
+                acquisition_metadata={
+                    "axis_kind": str(axis_kind),
+                    "signal_kind": str(signal_kind),
+                    "modulus_basis": basis,
+                    "source_table_id": "ta-dma-binary",
+                    "vendor_signal_index": index + 1,
+                    "vendor_signal_header": header,
+                    "vendor_header_metadata": dict(decoded.metadata),
+                    "data_offset": decoded.data_offset,
+                },
+                mapping=selection,
+            )
+        )
+    if not measurements:
+        return _outcome("needs_input", source_artifact_id, "ta_dma_no_mapped_signals")
+    warnings = tuple(
+        "ta_dma_unmapped_signal:" + str(item["header"])
+        for item in excluded_segments
+    )
+    record = ConversionRecord.create(
+        conversion_id="ta-dma.q800-binary.v1",
+        source_artifact_id=source_artifact_id,
+        observed_columns=observed_columns,
+        extracted_segments=tuple(
+            {
+                "measurement_id": measurement.measurement_id,
+                "source_locator": measurement.source_locator,
+                "vendor_signal_header": measurement.acquisition_metadata["vendor_signal_header"],
+            }
+            for measurement in measurements
+        ),
+        excluded_segments=tuple(excluded_segments),
+        warnings=warnings,
+    )
+    template = CanonicalExperiment.create(
+        template_id="dma_curve_1d.v1",
+        source_artifact_id=source_artifact_id,
+        payload={
+            "technique": "DMA",
+            "measurement_family": "viscoelastic_1d",
+            "source_format": "ta_instruments_q800_binary",
+            "primary_axis": {"kind": str(axis_kind), "header": axis_header},
+            "vendor_header_metadata": dict(decoded.metadata),
+        },
+        conversion_record=record,
+        measurements=measurements,
     )
     return ConversionOutcome(status="ready", record=record, template=template)
 
@@ -1141,6 +1272,13 @@ def _dma_signal_descriptor(header: str) -> tuple[str, str] | None:
         "strain": ("strain", "unspecified"),
         "displacement": ("displacement", "unspecified"),
         "force": ("force", "unspecified"),
+        "driveforce": ("force", "unspecified"),
+        "staticforce": ("force", "unspecified"),
+        "amplitude": ("displacement", "unspecified"),
+        "position": ("displacement", "unspecified"),
+        "length": ("displacement", "unspecified"),
+        "stiffness": ("stiffness", "unspecified"),
+        "pressure": ("pressure", "unspecified"),
     }
     return descriptors.get(alias)
 

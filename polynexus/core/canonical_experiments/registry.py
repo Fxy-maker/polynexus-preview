@@ -39,6 +39,7 @@ _GENERIC_TABLE_EXTENSIONS = frozenset({
     ".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi",
     ".xls", ".xlsx", ".xlsm",
 })
+_TA_DMA_EXTENSIONS = frozenset({".001", ".002", ".003", ".004", ".005"})
 _GENERIC_TECHNIQUES = frozenset(
     {"ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology", "sec", "mechanics"}
 )
@@ -98,7 +99,13 @@ class CanonicalConverterRegistry:
         if (
             normalized_technique in _GENERIC_TECHNIQUES
             and source.is_file()
-            and source.suffix.casefold() in _GENERIC_TABLE_EXTENSIONS
+            and (
+                source.suffix.casefold() in _GENERIC_TABLE_EXTENSIONS
+                or (
+                    normalized_technique == "dma"
+                    and source.suffix.casefold() in _TA_DMA_EXTENSIONS
+                )
+            )
         ):
             return convert_one_dimensional_table(
                 source,

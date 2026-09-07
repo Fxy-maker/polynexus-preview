@@ -12,6 +12,7 @@ from pathlib import Path
 import zipfile
 
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256
+from ...readers.ta_dma_reader import looks_like_ta_dma
 from .models import FormatInspection, FormatPluginDescriptor
 
 
@@ -91,7 +92,11 @@ class FormatPluginRegistry:
             facts.update(probe_facts)
 
         if plugin is not None:
-            if plugin.reader_availability == "available":
+            if plugin.plugin_id == "vendor.dma.001.v1" and facts.get("ta_dma_probe") == "incomplete_signature":
+                status = "needs_reader"
+                reasons = ("format_signature_unrecognized",)
+                next_actions = ("provide_verified_ta_dma_export", "export_portable_table")
+            elif plugin.reader_availability == "available":
                 status = "ready"
                 next_actions = ()
             elif plugin.reader_availability == "external":
@@ -150,10 +155,10 @@ class FormatPluginRegistry:
                 facts["archive_probe"] = "not_zip_signature"
             if descriptor.plugin_id == "netzsch.ta.v1" and b"Netzsch TA file" not in prefix:
                 continue
-            if descriptor.plugin_id == "vendor.dma.001.v1" and not (
-                prefix.startswith(b"\xff\xfe") or prefix.startswith(b"\xfe\xff") or b"CLOSED" in prefix
-            ):
-                continue
+            if descriptor.plugin_id == "vendor.dma.001.v1" and not looks_like_ta_dma(prefix):
+                if b"CLOSED" not in prefix.upper() and not prefix.startswith((b"\xff\xfe", b"\xfe\xff")):
+                    continue
+                facts["ta_dma_probe"] = "incomplete_signature"
             if descriptor.plugin_id == "origin.project.v1" and not prefix.startswith(b"CPYUA"):
                 continue
             if descriptor.plugin_id == "rigaku.raw.v1" and not prefix.startswith(b"RAW1.01\x00"):
@@ -257,8 +262,8 @@ _DEFAULT_REGISTRY = FormatPluginRegistry(
         ),
         FormatPluginDescriptor(
             plugin_id="vendor.dma.001.v1", version="1", container_kind="vendor_dma_binary",
-            techniques=("dma",), extensions=(".001", ".002", ".003", ".004", ".005"), reader_availability="missing", canonical_conversion="unavailable",
-            next_actions=("install_or_enable_reader:vendor.dma.001.v1", "export_portable_table"),
+            techniques=("dma",), extensions=(".001", ".002", ".003", ".004", ".005"), reader_availability="available", canonical_conversion="candidate",
+            next_actions=(), description="Bounded TA Instruments DMA Q800 binary export reader for the verified CLOSED/Nsig/SigN layout.",
         ),
         FormatPluginDescriptor(
             plugin_id="origin.project.v1", version="1", container_kind="origin_project",
