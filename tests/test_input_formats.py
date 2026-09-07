@@ -211,6 +211,7 @@ def test_wrong_technique_spreadsheet_requires_semantic_confirmation(tmp_path: Pa
     inspection = inspect_format(source, technique="mechanics")
 
     assert inspection.plugin_id == "portable.ods.v1"
-    assert inspection.status == "needs_reader"
+    assert inspection.status == "needs_mapping"
+    assert inspection.reader_availability == "available"
     assert "technique_confirmation_required" in inspection.reason_codes
     assert inspection.scientific_mapping == "unassessed"

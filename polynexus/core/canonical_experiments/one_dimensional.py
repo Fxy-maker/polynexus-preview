@@ -13,6 +13,7 @@ from typing import Any
 import pandas as pd
 
 from ...readers.ta_dma_reader import read_ta_dma
+from ...readers.ods_reader import read_ods_tables
 from .models import (
     CanonicalExperiment,
     ConversionOutcome,
@@ -24,7 +25,7 @@ from .models import (
 
 
 _CONVERTER_ID = "generic.one-dimensional.v1"
-_SUPPORTED_EXTENSIONS = frozenset({".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi", ".xls", ".xlsx", ".xlsm"})
+_SUPPORTED_EXTENSIONS = frozenset({".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi", ".xls", ".xlsx", ".xlsm", ".ods"})
 _TA_DMA_EXTENSIONS = frozenset({".001", ".002", ".003", ".004", ".005"})
 _WORKBOOK_EXTENSIONS = frozenset({".xls", ".xlsx", ".xlsm"})
 _INTENSITY_ALIASES = frozenset({"absorbance", "transmittance", "intensity", "i", "counts", "count", "cps"})
@@ -446,6 +447,8 @@ def convert_ta_dma_export(
 
 
 def _load_tables(path: Path, extension: str) -> tuple[_Table, ...]:
+    if extension == ".ods":
+        return tuple(_ods_table(table, index) for index, table in enumerate(read_ods_tables(path)))
     if extension not in _WORKBOOK_EXTENSIONS:
         flat = _flat_source_records(path)
         if flat.metadata_preamble:
@@ -469,6 +472,20 @@ def _load_tables(path: Path, extension: str) -> tuple[_Table, ...]:
             _workbook_table(workbook, sheet_name=str(sheet_name), sheet_index=index)
             for index, sheet_name in enumerate(workbook.sheet_names)
         )
+
+
+def _ods_table(table: Any, sheet_index: int) -> _Table:
+    rows = tuple(tuple(row) for row in table.rows)
+    if not rows:
+        raise ValueError("ODS sheet has no rows")
+    width = max(len(row) for row in rows)
+    if width < 2:
+        raise ValueError("ODS sheet has fewer than two columns")
+    padded = tuple(row + (None,) * (width - len(row)) for row in rows)
+    raw_headers = tuple(_display_header(value) for value in padded[0])
+    frame = pd.DataFrame(padded[1:], columns=raw_headers)
+    data_rows = tuple((index + 1, index + 1) for index in range(len(frame)))
+    return _Table(frame, table.sheet_name, sheet_index, 0, 0, data_rows, raw_headers)
 
 
 def _workbook_table(workbook: pd.ExcelFile, *, sheet_name: str, sheet_index: int) -> _Table:

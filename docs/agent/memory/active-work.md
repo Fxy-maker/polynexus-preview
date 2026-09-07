@@ -6785,3 +6785,13 @@ promotion evidence. No raw data was added to Git.
   ComputeRun. Formal DMA scientific validation, uncertainty, alternate vendor
   formats, and capability promotion remain open.
 - Task: `docs/agent/tasks/2026-09-07-ta-dma-reader-route.md`.
+
+## ODS table reader route — implementation complete, review required (2026-09-07)
+
+- Added `ods_reader.py` with bounded ZIP/XML parsing, repeated-cell expansion,
+  unsafe-path checks, and no formula/macro execution.
+- ODS sheets now use the same generic one-dimensional conversion and shared
+  ComputeRun path; no alternate table or provenance store was introduced.
+- Focused matrix passes 122 with 3 skips; private Netzsch/Origin formats still
+  require official export bridges or independently validated readers.
+- Task: `docs/agent/tasks/2026-09-07-ods-reader-route.md`.

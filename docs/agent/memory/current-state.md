@@ -2058,3 +2058,13 @@ layouts, Netzsch binaries, and Origin projects remain unsupported or require
 an explicit export bridge. This is parser/replay evidence only; DMA model
 validation, uncertainty, and capability promotion remain review-required.
 Task: `docs/agent/tasks/2026-09-07-ta-dma-reader-route.md`.
+
+## ODS reader route checkpoint (2026-09-07)
+
+Added a bounded, dependency-free OpenDocument Spreadsheet ZIP/XML reader. It
+validates the mimetype, member paths, archive/member budgets, and XML; expands
+repeated rows/cells and routes sheets through the existing generic mapping,
+CanonicalExperiment, and ComputeRun objects. Formulas, macros, external links,
+and embedded code are not evaluated. Focused ODS and shared boundary tests
+pass; private Netzsch and Origin formats remain outside the built-in reader
+boundary. Task: `docs/agent/tasks/2026-09-07-ods-reader-route.md`.

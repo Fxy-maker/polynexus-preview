@@ -110,6 +110,7 @@ class FormatPluginRegistry:
             if plugin.plugin_id == "portable.ods.v1" and declared != "unknown":
                 reasons = tuple(dict.fromkeys((*reasons, "technique_confirmation_required")))
                 next_actions = ("confirm_technique",) + next_actions
+                status = "needs_mapping"
             if declared not in plugin.techniques and declared != "unknown":
                 # A technique mismatch is a scientific-mapping question, but
                 # it must not weaken a stricter missing-reader boundary.  In
@@ -235,8 +236,9 @@ _DEFAULT_REGISTRY = FormatPluginRegistry(
         FormatPluginDescriptor(
             plugin_id="portable.ods.v1", version="1", container_kind="open_document_spreadsheet",
             techniques=("dsc", "ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology", "sec", "mechanics", "unknown"),
-            extensions=(".ods",), reader_availability="external",
-            canonical_conversion="candidate", next_actions=("install_or_enable_reader:portable.ods.v1", "export_portable_table"),
+            extensions=(".ods",), reader_availability="available",
+            canonical_conversion="candidate", next_actions=(),
+            description="Bounded OpenDocument Spreadsheet ZIP/XML reader; formulas are not evaluated.",
         ),
         FormatPluginDescriptor(
             plugin_id="detector.image.v1", version="1", container_kind="detector_image",

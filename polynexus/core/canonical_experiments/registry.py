@@ -37,7 +37,7 @@ _STATIC_TEMPLATE_IDS = {
 }
 _GENERIC_TABLE_EXTENSIONS = frozenset({
     ".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi",
-    ".xls", ".xlsx", ".xlsm",
+    ".xls", ".xlsx", ".xlsm", ".ods",
 })
 _TA_DMA_EXTENSIONS = frozenset({".001", ".002", ".003", ".004", ".005"})
 _GENERIC_TECHNIQUES = frozenset(
