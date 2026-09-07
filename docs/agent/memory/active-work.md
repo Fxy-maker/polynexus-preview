@@ -6795,3 +6795,11 @@ promotion evidence. No raw data was added to Git.
 - Focused matrix passes 122 with 3 skips; private Netzsch/Origin formats still
   require official export bridges or independently validated readers.
 - Task: `docs/agent/tasks/2026-09-07-ods-reader-route.md`.
+## Portable vendor-export binding — implementation complete, review required (2026-09-07)
+
+- Added hash-bound raw/export provenance for explicit Proteus/Origin/vendor
+  portable table exports.
+- The binding route reuses CanonicalExperiment and ComputeRun; it never treats
+  an exported table as the original private binary or changes source identity.
+- Focused matrix passes 66 with 4 skips. Direct conversion remains unchanged.
+- Task: `docs/agent/tasks/2026-09-07-portable-export-binding.md`.

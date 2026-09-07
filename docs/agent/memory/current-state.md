@@ -2068,3 +2068,12 @@ CanonicalExperiment, and ComputeRun objects. Formulas, macros, external links,
 and embedded code are not evaluated. Focused ODS and shared boundary tests
 pass; private Netzsch and Origin formats remain outside the built-in reader
 boundary. Task: `docs/agent/tasks/2026-09-07-ods-reader-route.md`.
+## Portable vendor-export binding checkpoint (2026-09-07)
+
+Added an explicit `PortableExportBinding` contract and canonical-registry route
+for private vendor formats exported by Proteus/Origin into CSV, XLSX, or ODS.
+The route independently hashes raw source and export, retains exporter/format
+metadata, and decodes only the portable table while preserving the raw artifact
+identity. It supports ComputeRun with a prevalidated template and does not
+certify exporter calibration or scientific semantics.
+Task: `docs/agent/tasks/2026-09-07-portable-export-binding.md`.

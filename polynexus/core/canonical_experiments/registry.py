@@ -16,6 +16,7 @@ from .dsc_isothermal import convert_mettler_isothermal_text
 from .ir_temperature_series import build_ir_temperature_series_template
 from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord, MappingProposal
 from .one_dimensional import convert_one_dimensional_table
+from .portable_export import PortableExportBinding
 from .nd_adapters import (
     DataBlockAdapterResult,
     adapt_conversion_outcome,
@@ -183,6 +184,55 @@ class CanonicalConverterRegistry:
             source_artifact_id=source_artifact_id,
             mapping_proposal=mapping_proposal,
         )
+
+    def convert_portable_export(
+        self,
+        raw_source: str | Path,
+        export_path: str | Path,
+        *,
+        technique: str,
+        source_artifact_id: str,
+        exporter: str,
+        mapping_proposal: MappingProposal | None = None,
+    ) -> ConversionOutcome:
+        """Convert a portable table while binding it to opaque raw provenance.
+
+        The exported table is the only decoded input.  The raw source remains
+        the source artifact identity and is never silently replaced by the
+        export's hash.
+        """
+
+        binding = PortableExportBinding.create(raw_source, export_path, exporter=exporter)
+        outcome = self.convert_path(
+            export_path,
+            technique=technique,
+            source_artifact_id=source_artifact_id,
+            mapping_proposal=mapping_proposal,
+        )
+        if outcome.status != "ready" or outcome.template is None:
+            return outcome
+        original = outcome.template
+        record = ConversionRecord.create(
+            conversion_id=f"{original.conversion_record.conversion_id}+portable-export.v1",
+            source_artifact_id=source_artifact_id,
+            observed_columns=original.conversion_record.observed_columns,
+            extracted_segments=(*original.conversion_record.extracted_segments, {"portable_export_binding": binding.to_dict()}),
+            excluded_segments=original.conversion_record.excluded_segments,
+            warnings=original.conversion_record.warnings,
+            reason_codes=original.conversion_record.reason_codes,
+        )
+        payload = dict(original.payload)
+        payload["portable_export_binding"] = binding.to_dict()
+        template = CanonicalExperiment.create(
+            template_id=original.template_id,
+            source_artifact_id=source_artifact_id,
+            payload=payload,
+            conversion_record=record,
+            measurements=original.measurements,
+            mapping_proposal=original.mapping_proposal,
+            contract_version=original.contract_version,
+        )
+        return ConversionOutcome(status="ready", record=record, template=template)
 
     def convert_data_blocks(
         self,

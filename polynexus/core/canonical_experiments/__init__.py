@@ -37,6 +37,7 @@ from .models import (
     Measurement,
 )
 from .registry import CanonicalConverterRegistry, default_converter_registry
+from .portable_export import MAX_EXPORT_BYTES, PortableExportBinding
 
 __all__ = [
     "CanonicalExperiment",
@@ -65,6 +66,8 @@ __all__ = [
     "convert_ir_temperature_series_to_data_block",
     "convert_nmr_fid_to_data_block",
     "default_converter_registry",
+    "MAX_EXPORT_BYTES",
+    "PortableExportBinding",
     "CapabilityExecutor",
     "CapabilityRegistry",
     "CapabilitySpec",
