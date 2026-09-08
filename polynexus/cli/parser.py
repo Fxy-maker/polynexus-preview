@@ -168,6 +168,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="AnalysisRequest JSON path (required for plan, or run without --plan)",
     )
     ppw.add_argument(
+        "--portable-export-manifest",
+        default=None,
+        help="Content-hashed project portable-export batch manifest JSON",
+    )
+    ppw.add_argument(
         "--paths",
         nargs="+",
         default=(),

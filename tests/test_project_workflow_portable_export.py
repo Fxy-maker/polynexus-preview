@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 from polynexus.core.project_workflow.adapters import SingleInputTechniqueAdapter, TechniqueSeriesAdapter
+from polynexus.core.engine import AnalysisResult
+from polynexus.core.agent_workflow.service import AgentWorkflowService
+from polynexus.core.project_workflow.models import AnalysisRequest, PortableExportBatchManifest
+from polynexus.core.project_workflow.service import ProjectWorkflowService
 
 
 def _portable_manifest(tmp_path: Path) -> tuple[Path, Path, dict[str, object]]:
@@ -106,3 +111,96 @@ def test_series_adapter_rejects_unbound_or_reused_portable_exports(tmp_path: Pat
         ],
     })
     assert reused_export.reason_codes == ("portable_export_invalid",)
+
+
+def test_project_workflow_plan_and_run_consumes_batch_portable_manifest(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw" / "TGA"
+    export_dir = tmp_path / "exports"
+    raw_dir.mkdir(parents=True)
+    export_dir.mkdir()
+    entries = []
+    for name in ("run-b", "run-a"):
+        raw = raw_dir / f"{name}.ngb-ds1"
+        raw.write_bytes(f"opaque-{name}".encode("utf-8"))
+        exported = export_dir / f"{name}.csv"
+        exported.write_text(
+            "Temperature (C),Mass (%)\n25,100\n100,98\n",
+            encoding="utf-8",
+        )
+        entries.append({
+            "raw_source": str(raw.relative_to(tmp_path)),
+            "export_path": str(exported.relative_to(tmp_path)),
+            "exporter": "Proteus portable CSV",
+        })
+    portable_manifest = PortableExportBatchManifest.create(
+        technique="tga",
+        entries=entries,
+    )
+    request = AnalysisRequest.create(
+        question="Analyze this TGA batch",
+        data_scope=("raw/TGA",),
+        parameters={"portable_export_manifest": portable_manifest.to_dict()},
+    )
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, _artifact, _output_dir: AnalysisResult(
+            technique=step.technique,
+            validation_passed=True,
+        )
+    )
+
+    plan = service.plan(request)
+    assert plan.status == "review_required"
+    assert plan.steps[0]["portable_export_manifest"]["manifest_hash"] == portable_manifest.manifest_hash
+    assert len(plan.steps[0]["portable_exports"]) == 2
+
+    run = service.run(plan)
+    assert run.status == "review_required"
+    assert run.analysis_run is not None
+    assert [
+        step.compute_run["canonical_template"]["payload"]["portable_export_binding"]["raw_source_path"]
+        for step in run.analysis_run.steps
+    ] == [str((raw_dir / "run-a.ngb-ds1").resolve()), str((raw_dir / "run-b.ngb-ds1").resolve())]
+    persisted_request = json.loads(
+        (tmp_path / ".polynexus" / "requests" / f"{request.request_hash}.request.json").read_text(encoding="utf-8")
+    )
+    assert persisted_request["parameters"]["portable_export_manifest"]["manifest_hash"] == portable_manifest.manifest_hash
+
+
+def test_project_manifest_rejects_duplicate_resolved_raw_source_paths(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw" / "TGA"
+    export_dir = tmp_path / "exports"
+    raw_dir.mkdir(parents=True)
+    export_dir.mkdir()
+    raw = raw_dir / "sample.ngb-ds1"
+    raw.write_bytes(b"opaque")
+    for name in ("first", "second"):
+        (export_dir / f"{name}.csv").write_text(
+            "Temperature (C),Mass (%)\n25,100\n100,98\n",
+            encoding="utf-8",
+        )
+    manifest = PortableExportBatchManifest.create(
+        technique="tga",
+        entries=(
+            {
+                "raw_source": "raw/TGA/sample.ngb-ds1",
+                "export_path": "exports/first.csv",
+                "exporter": "Proteus portable CSV",
+            },
+            {
+                "raw_source": "raw/TGA/../TGA/sample.ngb-ds1",
+                "export_path": "exports/second.csv",
+                "exporter": "Proteus portable CSV",
+            },
+        ),
+    )
+    request = AnalysisRequest.create(
+        question="Analyze this TGA batch",
+        data_scope=("raw/TGA",),
+        parameters={"portable_export_manifest": manifest.to_dict()},
+    )
+
+    plan = ProjectWorkflowService.open(tmp_path).plan(request)
+
+    assert plan.status == "blocked"
+    assert plan.reason_codes == ("portable_export_manifest_invalid",)

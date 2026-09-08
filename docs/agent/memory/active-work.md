@@ -1,5 +1,26 @@
 # Active Work
 
+## Portable-export project closure — implementation complete, review required (2026-09-08)
+
+- Added immutable `PortableExportBatchManifest`/entry DTOs with content hashes,
+  unique raw/export bindings, optional raw SHA-256 checks, and JSON round-trip
+  validation. Project planning resolves each declaration against the indexed,
+  in-scope raw inventory and rejects duplicate resolved paths, incomplete
+  technique scope, foreign sources, and hash drift before adapters/providers.
+- The existing project plan/run persistence carries the manifest and each
+  per-file portable binding through the existing single/series adapters,
+  Agent recipe replay, `CanonicalExperiment`, and `ComputeRun` objects. The
+  project-workflow CLI accepts the same manifest JSON; no alternate result or
+  provenance store was introduced.
+- A shared fixture proves equivalent canonical template identity, raw/export
+  hashes, exporter, and per-file binding across GUI `BatchWorker`, project
+  CLI/resume, and Agent series replay. Focused cross-entry matrix passes 99;
+  task verifier passes quality 313, preprocessing 157, and whitespace.
+- Native grouped directory semantics, arbitrary-name GUI export maps, private
+  vendor decoding, and architecture/scientific review remain outside this
+  closure and require follow-up/human review.
+- Task: `docs/agent/tasks/2026-09-08-portable-export-project-closure.md`.
+
 ## Series and batch portable-export binding — implementation complete, review required (2026-09-08)
 
 - Same-technique project series now bind every raw input to exactly one

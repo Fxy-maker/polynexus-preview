@@ -1,5 +1,20 @@
 ---
 
+## Portable-export project closure — 2026-09-08
+
+The project-workbench portable-export chain is now closed for ordinary files
+and same-technique series. `PortableExportBatchManifest` binds every in-scope
+raw artifact to one unique export, is content-hash verified, and is persisted
+through project request/plan/run manifests. GUI BatchWorker, project CLI
+(including resume), and Agent series replay all use the existing canonical and
+`ComputeRun` contracts; a cross-entry fixture confirms matching template,
+provenance, and raw/export hashes. Native grouped directories, arbitrary-name
+GUI maps, private vendor decoding, and architecture/scientific review remain
+follow-up boundaries. Task:
+`docs/agent/tasks/2026-09-08-portable-export-project-closure.md`.
+
+---
+
 ## Series and batch portable-export binding — 2026-09-08
 
 Multi-file portable export now has a strict one-to-one provenance route. A

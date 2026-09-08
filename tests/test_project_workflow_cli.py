@@ -6,7 +6,10 @@ from pathlib import Path
 
 from polynexus.cli.parser import build_parser
 from polynexus.cli.run_project_workflow_service import run_project_workflow
-from polynexus.core.project_workflow.models import AnalysisRequest
+from polynexus.core.engine import AnalysisResult
+from polynexus.core.agent_workflow.service import AgentWorkflowService
+from polynexus.core.project_workflow.models import AnalysisRequest, PortableExportBatchManifest
+from polynexus.core.project_workflow.service import ProjectWorkflowService
 
 
 def _write_mettler_fixture(path: Path) -> Path:
@@ -28,6 +31,7 @@ def _args(operation: str, project_root: Path, **values: object) -> argparse.Name
         "operation": operation,
         "project_root": str(project_root),
         "request": None,
+        "portable_export_manifest": None,
         "paths": (),
         "plan": None,
         "runs": (),
@@ -111,6 +115,63 @@ def test_project_workflow_cli_blocks_invalid_root_and_missing_request(capsys, tm
     payload = _one_envelope(capsys)
     assert code == 2
     assert payload["reason_codes"] == ["request_invalid"]
+
+
+def test_project_workflow_cli_accepts_batch_portable_export_manifest(capsys, tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw" / "TGA"
+    export_dir = tmp_path / "exports"
+    raw_dir.mkdir(parents=True)
+    export_dir.mkdir()
+    entries = []
+    for name in ("a", "b"):
+        raw = raw_dir / f"{name}.ngb-ds1"
+        raw.write_bytes(f"opaque-{name}".encode("utf-8"))
+        exported = export_dir / f"{name}.csv"
+        exported.write_text("Temperature (C),Mass (%)\n25,100\n100,98\n", encoding="utf-8")
+        entries.append({
+            "raw_source": str(raw.relative_to(tmp_path)),
+            "export_path": str(exported.relative_to(tmp_path)),
+            "exporter": "Proteus portable CSV",
+        })
+    manifest = PortableExportBatchManifest.create(technique="tga", entries=entries)
+    manifest_path = tmp_path / "portable-export-batch.json"
+    manifest_path.write_text(json.dumps(manifest.to_dict()), encoding="utf-8")
+    request = AnalysisRequest.create(
+        question="Analyze TGA batch",
+        data_scope=("raw/TGA",),
+    )
+    request_path = tmp_path / "request.json"
+    request_path.write_text(json.dumps(request.to_dict()), encoding="utf-8")
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, _artifact, _output_dir: AnalysisResult(
+            technique=step.technique,
+            validation_passed=True,
+        )
+    )
+
+    args = _args(
+        "plan",
+        tmp_path,
+        request=str(request_path),
+        portable_export_manifest=str(manifest_path),
+    )
+    assert run_project_workflow(args, service=service) == 0
+    planned = _one_envelope(capsys)
+    assert planned["plan"]["status"] == "review_required"
+    assert planned["plan"]["steps"][0]["portable_export_manifest"]["manifest_hash"] == manifest.manifest_hash
+
+    assert run_project_workflow(
+        _args(
+            "run",
+            tmp_path,
+            request=str(request_path),
+            portable_export_manifest=str(manifest_path),
+        ),
+        service=service,
+    ) == 0
+    executed = _one_envelope(capsys)
+    assert executed["run"]["status"] == "review_required"
 
 
 def test_project_workflow_cli_attaches_existing_quick_run_by_reference(capsys, tmp_path: Path) -> None:
