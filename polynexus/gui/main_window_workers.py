@@ -5,6 +5,7 @@ import threading
 from PySide6.QtCore import QObject, QRunnable, QThread, Signal
 
 from polynexus.core.compute import ComputeRunService
+from polynexus.core.canonical_experiments import default_converter_registry
 
 from .i18n import tr
 
@@ -34,6 +35,7 @@ class AnalysisWorker(QThread):
         submodule_id=None,
         engine=None,
         mask_edit_candidate=None,
+        portable_export=None,
         compute_service_factory=ComputeRunService,
     ):
         super().__init__()
@@ -44,6 +46,7 @@ class AnalysisWorker(QThread):
         self.submodule_id = submodule_id
         self.engine = engine
         self.mask_edit_candidate = mask_edit_candidate
+        self.portable_export = dict(portable_export) if isinstance(portable_export, dict) else None
         self.compute_service_factory = compute_service_factory
         self.compute_run = None
         self.skip_to = None
@@ -89,14 +92,53 @@ class AnalysisWorker(QThread):
                     submodule_id=submodule_id,
                 )
             )
-            compute_run = service.run_direct(
+            run_path = self.filepath
+            canonical_template = None
+            source_artifact_id = None
+            if self.portable_export is not None:
+                export_path = self.portable_export.get("export_path")
+                exporter = self.portable_export.get("exporter")
+                if not isinstance(export_path, str) or not export_path.strip():
+                    raise ValueError("portable_export_missing")
+                if not isinstance(exporter, str) or not exporter.strip():
+                    raise ValueError("portable_export_invalid")
+                raw_source = self.portable_export.get("raw_source")
+                if raw_source:
+                    from pathlib import Path
+
+                    if Path(str(raw_source)).expanduser().resolve(strict=False) != Path(self.filepath).expanduser().resolve(strict=False):
+                        raise ValueError("portable_export_invalid")
+                from polynexus.core.compute import RawArtifact
+
+                raw_artifact = RawArtifact.from_path(self.filepath, technique=self.technique)
+                outcome = default_converter_registry().convert_portable_export(
+                    self.filepath,
+                    export_path,
+                    technique=self.technique,
+                    source_artifact_id=raw_artifact.artifact_id,
+                    exporter=exporter,
+                )
+                if outcome.status != "ready" or outcome.template is None:
+                    raise ValueError(", ".join(outcome.reason_codes) or "portable_export_invalid")
+                run_path = export_path
+                canonical_template = outcome.template
+                source_artifact_id = raw_artifact.artifact_id
+            run_kwargs = dict(
                 technique=self.technique,
-                path=self.filepath,
+                path=run_path,
                 output_dir=self.output_dir,
                 config=self.config,
                 submodule_id=self.submodule_id,
                 engine=engine,
                 pipeline_options=pipeline_kwargs,
+            )
+            if canonical_template is not None:
+                run_kwargs.update(
+                    canonical_template=canonical_template,
+                    source_artifact_id=source_artifact_id,
+                )
+            compute_run = service.run_direct(
+                **run_kwargs,
             )
             self.compute_run = compute_run
             if self._cancel_requested or self.isInterruptionRequested():

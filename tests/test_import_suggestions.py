@@ -197,6 +197,34 @@ def test_import_suggestion_dialog_allows_manual_mode_override(tmp_path):
     app.processEvents()
 
 
+def test_import_suggestion_dialog_returns_portable_export_binding(tmp_path):
+    app = QApplication.instance() or QApplication([])
+
+    raw = tmp_path / "sample.ngb-ds1"
+    raw.write_bytes(b"opaque vendor bytes")
+    exported = tmp_path / "sample.csv"
+    exported.write_text("Temperature (C),Mass (%)\n25,100\n", encoding="utf-8")
+    suggestion = ImportSuggestion(
+        path=str(raw),
+        is_dir=False,
+        technique="tga",
+        input_mode="single",
+        reason="manual",
+    )
+    dialog = ImportSuggestionDialog(str(raw), False, suggestion, {})
+    dialog._portable_export_path.setText(str(exported))
+    dialog._portable_exporter.setText("Proteus portable CSV")
+
+    assert dialog.selected_portable_export() == {
+        "raw_source": str(raw),
+        "export_path": str(exported.resolve()),
+        "exporter": "Proteus portable CSV",
+    }
+
+    dialog.deleteLater()
+    app.processEvents()
+
+
 def test_import_suggestion_dialog_shows_detection_reason(tmp_path):
     app = QApplication.instance() or QApplication([])
 

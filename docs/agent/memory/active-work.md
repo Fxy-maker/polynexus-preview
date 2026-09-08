@@ -1,5 +1,19 @@
 # Active Work
 
+## GUI portable-export import binding — implementation complete, review required (2026-09-08)
+
+- The GUI import dialog now offers an optional portable-export table and
+  exporter label for file inputs. The selection is carried by the existing
+  `ImportSuggestion`/import state rather than a GUI-only result object.
+- `AnalysisWorker` validates the declaration, binds the raw artifact through
+  `PortableExportBinding`/the shared canonical registry, and sends the export
+  table through `ComputeRunService` while retaining the raw source artifact
+  identity. Directory/batch imports and ordinary imports are unchanged.
+- Focused GUI/worker/Agent coverage passes `41`; Ruff, compile, and diff checks
+  pass. GUI visual review, architecture review, and scientific review remain
+  required; private vendor decoding is still unsupported.
+- Task: `docs/agent/tasks/2026-09-08-gui-portable-export-import.md`.
+
 ## Agent portable-export recipe replay — implementation complete, review required (2026-09-08)
 
 - AgentWorkflow now admits an opaque raw artifact only when a persisted

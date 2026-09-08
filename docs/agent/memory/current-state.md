@@ -1,5 +1,14 @@
 ---
 
+## GUI portable-export import binding — 2026-09-08
+
+The existing GUI import dialog can optionally bind a file input to a selected
+portable table export and exporter label. The worker reuses the shared
+canonical converter and ComputeRun, executes the exported table, and retains
+the raw source identity/provenance. Ordinary and directory imports remain
+unchanged. The GUI does not decode private vendor bytes or infer calibration.
+Task: `docs/agent/tasks/2026-09-08-gui-portable-export-import.md`.
+
 ## Agent portable-export replay — 2026-09-08
 
 Source-bound project/Codex recipes can now replay an opaque raw file through a

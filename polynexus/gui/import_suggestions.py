@@ -7,7 +7,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Mapping, Optional
 
 from ..core import detect_submodule, get_submodule_registry
 from ..core.nmr import _has_nmr_files, _nucleus_hint_from_file, _strong_state_hint
@@ -21,6 +21,7 @@ class ImportSuggestion:
     submodule: str = ""
     input_mode: str = ""
     reason: str = ""
+    portable_export: Mapping[str, str] | None = None
 
     @property
     def is_meaningful(self) -> bool:

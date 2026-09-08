@@ -45,6 +45,7 @@ class MainWindowImportMixin:
 
     def _set_input_path(self, path, is_dir=False, input_mode=None, *, clear_sample_context=True):
         self._current_filepath = path
+        self._current_portable_export = None
         mode = str(input_mode or "").strip().lower()
         self._current_input_mode = mode or ("directory" if is_dir else "")
 
@@ -69,12 +70,16 @@ class MainWindowImportMixin:
         input_mode="",
         technique="",
         submodule="",
+        portable_export=None,
         update_last_dir=True,
     ):
         if update_last_dir:
             self._save_last_dir(path)
 
         self._set_input_path(path, is_dir=is_dir, input_mode=input_mode, clear_sample_context=True)
+        self._current_portable_export = (
+            dict(portable_export) if isinstance(portable_export, dict) else None
+        )
 
         technique_key = str(technique or "").strip().lower()
         submodule_key = str(submodule or "").strip()
@@ -115,6 +120,7 @@ class MainWindowImportMixin:
             input_mode=suggestion.input_mode,
             technique=suggestion.technique,
             submodule=suggestion.submodule,
+            portable_export=getattr(suggestion, "portable_export", None),
         )
 
         summary = []
@@ -161,6 +167,7 @@ class MainWindowImportMixin:
         technique = dialog.selected_technique()
         submodule = dialog.selected_submodule()
         mode = dialog.selected_mode()
+        portable_export = dialog.selected_portable_export()
         return ImportSuggestion(
             path=suggestion.path,
             is_dir=suggestion.is_dir,
@@ -168,6 +175,7 @@ class MainWindowImportMixin:
             submodule=submodule,
             input_mode=mode,
             reason=suggestion.reason,
+            portable_export=portable_export,
         )
 
     def _choose_import_manually(self, path, *, is_dir=False):
