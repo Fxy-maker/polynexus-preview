@@ -1,5 +1,27 @@
 # Active Work
 
+## Rheology advanced models phase 1 — implementation complete, review required (2026-09-08)
+
+- Added explicit immutable `RheologyAnalysisSpec` branches for Bingham and
+  Herschel–Bulkley yield-stress fits plus strain-sweep LVE plateau and
+  log-strain modulus-crossover candidates. Units, windows, thresholds, source
+  measurement IDs, methods, and parameters are retained in the shared result
+  and metric manifest; source arrays are never overwritten.
+- Plateau and crossover calculations are locally independent: a failed
+  plateau does not suppress a valid crossover, continuous exact crossovers are
+  de-duplicated, and multiple candidates are marked as diagnostic warnings.
+  Unknown axis/modulus units can be completed only by an explicit spec.
+- Canonical templates and shared ComputeRun carry the request; Agent replay
+  reapplies the validated rheology branch after source reconversion, and CLI
+  `--analysis-spec` uses the same route. Focused Core/ComputeRun/Agent/CLI
+  coverage passes 78; task verification passes Ruff, compile, quality 313,
+  preprocessing 157, and whitespace.
+- These are diagnostic candidates only. Independent instrument replay,
+  standards/negative controls, formal uncertainty, and human scientific review
+  remain required before capability promotion. Thixotropy, Cox–Merz,
+  creep/relaxation, TTS/master curves, and vendor readers remain follow-up.
+- Task: `docs/agent/tasks/2026-09-08-rheology-advanced-models-phase1.md`.
+
 ## Portable-export project closure — implementation complete, review required (2026-09-08)
 
 - Added immutable `PortableExportBatchManifest`/entry DTOs with content hashes,

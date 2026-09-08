@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from polynexus.cli.parser import parse_args
 from polynexus.cli.batch_run_service import allowed_extensions
 from polynexus.core.ai_platform import default_descriptor_registry
-from polynexus.core.canonical_experiments import default_converter_registry
+from polynexus.core.agent_workflow import AgentWorkflowService, AnalysisRecipe, InputArtifact, RecipeStep
+from polynexus.core.agent_workflow.registry import WorkflowRegistry
+from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
 from polynexus.core.compute import ComputeRunService, RawArtifact
 from polynexus.core.engine import get_engine
+from polynexus.core.rheology_processing import RheologyAnalysisSpec, RheologyYieldStressSpec
 
 
 def _write(path: Path, text: str) -> Path:
@@ -221,6 +226,136 @@ def test_rheology_compute_run_exposes_oscillatory_metrics_and_manifest(
     )
 
 
+def test_rheology_compute_run_carries_explicit_advanced_spec_through_canonical_template(
+    tmp_path: Path,
+) -> None:
+    source = _write(
+        tmp_path / "steady-advanced.csv",
+        "Shear Rate (1/s),Shear Stress (Pa)\n"
+        "1,7\n2,9\n4,13\n8,21\n",
+    )
+    spec = RheologyAnalysisSpec.create(
+        yield_stress=RheologyYieldStressSpec.create(
+            model="bingham",
+            stress_measurement_id="sheet-0-table-0",
+        )
+    )
+
+    run = ComputeRunService().run_direct(
+        technique="rheology",
+        path=source,
+        output_dir="",
+        pipeline_options={"rheology_analysis": spec.to_dict()},
+    )
+
+    assert run.status == "completed"
+    assert run.canonical_template is not None
+    assert run.canonical_template.payload["rheology_analysis"] == spec.to_dict()
+    assert run.result is not None
+    group = next(iter(run.result.metrics["rheology_groups"].values()))
+    assert group["yield_stress_fit"]["yield_stress"]["value"] == pytest.approx(5.0)
+
+    replay = ComputeRunService().run_direct(
+        technique="rheology",
+        path=source,
+        output_dir="",
+        canonical_template=run.canonical_template,
+    )
+    assert replay.status == "completed"
+    assert replay.result is not None
+    replay_group = next(iter(replay.result.metrics["rheology_groups"].values()))
+    assert replay_group["yield_stress_fit"]["yield_stress"]["value"] == pytest.approx(5.0)
+    assert tuple(replay.result.metric_manifest()) == tuple(run.result.metric_manifest())
+
+
+def test_rheology_agent_replay_matches_direct_advanced_metric_contract(tmp_path: Path) -> None:
+    source = _write(
+        tmp_path / "steady-agent.csv",
+        "Shear Rate (1/s),Shear Stress (Pa)\n1,7\n2,9\n4,13\n8,21\n",
+    )
+    artifact = InputArtifact.ready(
+        path=str(source),
+        technique="rheology",
+        sha256=RawArtifact.from_path(source, technique="rheology").sha256,
+    )
+    converted = default_converter_registry().convert_path(
+        source,
+        technique="rheology",
+        source_artifact_id=artifact.artifact_id,
+    )
+    assert converted.template is not None
+    spec = RheologyAnalysisSpec.create(
+        yield_stress=RheologyYieldStressSpec.create(
+            model="bingham",
+            stress_measurement_id="sheet-0-table-0",
+        )
+    )
+    template = CanonicalExperiment.create(
+        template_id=converted.template.template_id,
+        source_artifact_id=converted.template.source_artifact_id,
+        payload={**converted.template.payload, "rheology_analysis": spec.to_dict()},
+        conversion_record=converted.template.conversion_record,
+        measurements=converted.template.measurements,
+        mapping_proposal=converted.template.mapping_proposal,
+        contract_version=converted.template.contract_version,
+    )
+
+    class Adapter:
+        workflow_id = "test.rheology.advanced"
+
+        @staticmethod
+        def is_valid_recipe(recipe):
+            return recipe.workflow_id == "test.rheology.advanced"
+
+    recipe = AnalysisRecipe.create(
+        workflow_id="test.rheology.advanced",
+        artifacts=(artifact,),
+        steps=(
+            RecipeStep(
+                step_id="rheology",
+                technique="rheology",
+                parameters={
+                    "canonical_converter": converted.template.conversion_record.conversion_id,
+                    "canonical_template": template.to_dict(),
+                },
+            ),
+        ),
+    )
+    registry = WorkflowRegistry()
+    registry.register(Adapter())
+
+    direct = ComputeRunService().run_direct(
+        technique="rheology",
+        path=source,
+        output_dir="",
+        canonical_template=template,
+    )
+    agent = AgentWorkflowService(registry=registry).run_recipe(recipe, tmp_path.parent / "rheology-agent-out")
+
+    assert direct.status == "completed"
+    assert agent.status == "review_required"
+    assert direct.result is not None
+    assert agent.steps[0].compute_run is not None
+    agent_metrics = agent.steps[0].compute_run["result"]["metrics"]
+    direct_group = next(iter(direct.result.metrics["rheology_groups"].values()))
+    agent_group = next(iter(agent_metrics["rheology_groups"].values()))
+    assert agent_group["yield_stress_fit"]["yield_stress"]["value"] == pytest.approx(
+        direct_group["yield_stress_fit"]["yield_stress"]["value"]
+    )
+    direct_manifest = {
+        item["path"]: item for item in direct.result.metric_manifest()
+    }
+    agent_manifest = {
+        item["path"]: item
+        for item in agent.steps[0].compute_run["result"]["metric_manifest"]
+    }
+    advanced_path = next(
+        path for path in direct_manifest if path.endswith("yield_stress_fit.yield_stress.value")
+    )
+    assert agent_manifest[advanced_path]["method"] == direct_manifest[advanced_path]["method"]
+    assert agent_manifest[advanced_path]["parameters"] == direct_manifest[advanced_path]["parameters"]
+
+
 def test_rheology_prevalidated_template_does_not_reparse_source(tmp_path: Path) -> None:
     source = _write(
         tmp_path / "steady-prevalidated.csv",
@@ -253,6 +388,9 @@ def test_rheology_prevalidated_template_does_not_reparse_source(tmp_path: Path) 
 
 def test_rheology_is_available_in_single_and_batch_cli_parsers() -> None:
     assert parse_args(["rheology", "curve.csv"]).cmd == "rheology"
+    assert parse_args(
+        ["rheology", "curve.csv", "--analysis-spec", "analysis.json"]
+    ).analysis_spec == "analysis.json"
     assert (
         parse_args(["batch", "data", "--technique", "rheology"]).technique
         == "rheology"

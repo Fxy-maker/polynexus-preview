@@ -1,5 +1,26 @@
 ---
 
+## Rheology advanced models phase 1 — 2026-09-08
+
+The sample-neutral rheology Core now accepts an explicit, hash-bound analysis
+spec in the canonical template. Bingham and Herschel–Bulkley steady-shear
+fits, plus strain-sweep LVE plateau and log-strain G′/G″ crossover candidates,
+run deterministically and preserve source measurement IDs, units, methods,
+parameters, warnings, and local unavailable states. Plateau failure does not
+hide a valid crossover; repeated exact crossover points are collapsed and
+multiple candidates remain diagnostic warnings. Explicit spec units can fill
+unknown canonical axis/modulus units but never infer a material model.
+
+Direct ComputeRun, canonical replay, Agent recipe replay, and CLI
+`--analysis-spec` use the same template/result/metric-manifest projection.
+Focused coverage passes 78; task-scoped verification passes quality 313,
+preprocessing 157, compile, Ruff, and whitespace checks. These candidates are
+not formal capabilities: independent instrument/material replay, standards and
+negative controls, metrology/uncertainty, and human scientific review remain
+required. Thixotropy, Cox–Merz, creep/relaxation, TTS/master curves, and vendor
+readers are outside this phase. Task:
+`docs/agent/tasks/2026-09-08-rheology-advanced-models-phase1.md`.
+
 ## Portable-export project closure — 2026-09-08
 
 The project-workbench portable-export chain is now closed for ordinary files

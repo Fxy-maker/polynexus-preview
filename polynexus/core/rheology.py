@@ -180,6 +180,11 @@ class RheologyEngine(BaseEngine):
                 axis_kind=str(axis_kind),
                 axis_unit=first_measurement.units.get("x", "unknown"),
                 signals=signal_series,
+                analysis_spec=(
+                    self._template.payload.get("rheology_analysis")
+                    if self._template is not None
+                    else None
+                ),
             )
             group_metrics = dict(processed.metrics)
             rheology_groups[group_id] = group_metrics
@@ -230,8 +235,13 @@ class RheologyEngine(BaseEngine):
                 "canonical_template_id": (
                     self._template.template_id if self._template is not None else ""
                 ),
-                "analysis_scope": "material_neutral_rheology_identities",
+                "analysis_scope": "material_neutral_rheology_with_explicit_candidates",
                 "rheology_processing_contract": "rheology.processing.v1",
+                "rheology_analysis_spec": (
+                    self._template.payload.get("rheology_analysis", {})
+                    if self._template is not None
+                    else {}
+                ),
                 "units": units,
                 "methods": methods,
                 "parameters": method_parameters,

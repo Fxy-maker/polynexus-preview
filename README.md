@@ -48,7 +48,11 @@ sweep table signals. It derives only unit-safe identities: apparent viscosity,
 shear stress/rate, tan delta, complex-modulus magnitude, and complex-viscosity
 magnitude. These outputs remain diagnostic; yield stress, LVE/gel/crossover
 interpretation, Cox-Merz, thixotropy, creep/relaxation models, TTS/master
-curves, and formal rheology capability promotion remain unsupported. SEC/GPC
+curves, and formal rheology capability promotion remain unsupported. An
+explicit rheology analysis spec can add deterministic Bingham or
+Herschel–Bulkley yield-stress fit candidates plus strain-sweep LVE and
+modulus-crossover candidates; these remain diagnostic and are never inferred
+from sample names or promoted automatically. SEC/GPC
 preserves unambiguous retention/elution coordinates, RI, UV, MALS/RALS/LALS,
 viscometer/pressure, concentration, vendor molar-mass, and explicit
 distribution columns. It derives only a recorded-response peak coordinate and

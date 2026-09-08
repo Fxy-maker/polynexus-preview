@@ -139,6 +139,56 @@ def test_run_single_json_exposes_canonical_template_and_capabilities(tmp_path, c
     ]
 
 
+def test_run_single_passes_explicit_rheology_analysis_spec_to_shared_compute_run(
+    tmp_path, capsys
+):
+    class FakeResult:
+        parameters = {"rheology_groups": {}}
+        figures = {}
+        metadata = {}
+
+    class FakeEngine:
+        def run_pipeline(self, _input_path, _output_path, **_kwargs):
+            return FakeResult()
+
+    input_file = tmp_path / "steady.csv"
+    input_file.write_text(
+        "Shear Rate (1/s),Shear Stress (Pa)\n1,7\n2,9\n4,13\n",
+        encoding="utf-8",
+    )
+    spec = {
+        "yield_stress": {
+            "model": "bingham",
+            "stress_measurement_id": "sheet-0-table-0",
+        }
+    }
+    spec_file = tmp_path / "analysis.json"
+    spec_file.write_text(json.dumps(spec), encoding="utf-8")
+    args = type(
+        "Args",
+        (),
+        {
+            "cmd": "rheology",
+            "input": str(input_file),
+            "output": str(tmp_path / "out"),
+            "skip_to": None,
+            "analysis_spec": str(spec_file),
+            "json": True,
+        },
+    )()
+    _FakeComputeRunService.instances.clear()
+
+    assert run_single(
+        args,
+        get_engine_fn=lambda technique: FakeEngine() if technique == "rheology" else None,
+        compute_run_service_factory=_FakeComputeRunService,
+    ) == 0
+
+    captured = _FakeComputeRunService.instances[0].run_direct_kwargs
+    assert captured["pipeline_options"]["rheology_analysis"] == spec
+    assert json.loads(capsys.readouterr().out)["status"] == "completed"
+
+
 def test_format_inspection_cli_emits_shared_contract(tmp_path, capsys):
     source = tmp_path / "sample.ngb-ds1"
     source.write_bytes(b"\x00\x00Netzsch TA file\x00_db_format_1\x00")

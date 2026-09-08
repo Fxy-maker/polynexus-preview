@@ -564,7 +564,35 @@ class AgentWorkflowService:
             return False
         if outcome.record.conversion_id != step.parameters.get("canonical_converter"):
             return False
-        return outcome.template if hmac.compare_digest(outcome.template.content_hash, registered.content_hash) else False
+        replayed = outcome.template
+        # Advanced rheology requests are part of the canonical template
+        # identity, but are not a source conversion concern.  Reapply the
+        # validated request after replaying measurements so the same template
+        # can execute through Agent, CLI, and direct ComputeRun routes.
+        if artifact.technique == "rheology":
+            registered_analysis = registered.payload.get("rheology_analysis")
+            if registered_analysis is not None:
+                try:
+                    from polynexus.core.rheology_processing import RheologyAnalysisSpec
+
+                    normalized_analysis = RheologyAnalysisSpec.from_mapping(
+                        registered_analysis
+                    ).to_dict()
+                except (TypeError, ValueError, OverflowError):
+                    return False
+                replayed = CanonicalExperiment.create(
+                    template_id=replayed.template_id,
+                    source_artifact_id=replayed.source_artifact_id,
+                    payload={
+                        **replayed.payload,
+                        "rheology_analysis": normalized_analysis,
+                    },
+                    conversion_record=replayed.conversion_record,
+                    measurements=replayed.measurements,
+                    mapping_proposal=replayed.mapping_proposal,
+                    contract_version=replayed.contract_version,
+                )
+        return replayed if hmac.compare_digest(replayed.content_hash, registered.content_hash) else False
 
     @staticmethod
     def _load_manifest(manifest: Mapping[str, object] | Path | str) -> Mapping[str, Any] | None:

@@ -20,7 +20,9 @@ from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, R
 from .method_sensitivity import sensitivities_from_metrics
 
 
-_SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to", "mask_edit_candidate", "method_sensitivity"})
+_SUPPORTED_PIPELINE_OPTIONS = frozenset(
+    {"skip_to", "mask_edit_candidate", "method_sensitivity", "rheology_analysis"}
+)
 _SUPPORTED_SKIP_TO_VALUES = frozenset({"preprocess", "analyze", "plot"})
 
 
@@ -70,6 +72,11 @@ def _normalize_pipeline_options(
         method_sensitivity = options.get("method_sensitivity")
         if "method_sensitivity" in options and not _valid_method_sensitivity_request(method_sensitivity):
             return None, "pipeline_option_invalid"
+        rheology_analysis = options.get("rheology_analysis")
+        if "rheology_analysis" in options and (
+            not isinstance(rheology_analysis, Mapping) or not _is_json_safe(rheology_analysis)
+        ):
+            return None, "pipeline_option_invalid"
         normalized: dict[str, Any] = {}
         if "skip_to" in options:
             normalized["skip_to"] = skip_to
@@ -77,6 +84,8 @@ def _normalize_pipeline_options(
             normalized["mask_edit_candidate"] = mask_edit_candidate
         if "method_sensitivity" in options:
             normalized["method_sensitivity"] = _normalize_method_sensitivity_request(method_sensitivity)
+        if "rheology_analysis" in options:
+            normalized["rheology_analysis"] = dict(rheology_analysis)
         return normalized, None
     except Exception:
         return None, "pipeline_option_invalid"
@@ -271,6 +280,13 @@ class ComputeRunService:
                 input_inspection=input_inspection,
             )
         assert options is not None
+        if "rheology_analysis" in options and normalized_technique != "rheology":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("rheology_analysis_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
         try:
             context = ProjectContext.load(project_context)
         except ValueError:
@@ -315,6 +331,19 @@ class ComputeRunService:
                     reasons=("canonical_template_technique_mismatch",),
                     input_inspection=input_inspection,
                 )
+            if "rheology_analysis" in options:
+                try:
+                    canonical_template = _attach_rheology_analysis_spec(
+                        canonical_template,
+                        options["rheology_analysis"],
+                    )
+                except (TypeError, ValueError):
+                    return ComputeRun(
+                        status="needs_input",
+                        artifact=artifact,
+                        reasons=("rheology_analysis_mismatch",),
+                        input_inspection=input_inspection,
+                    )
         capability_items = (
             CapabilityExecutor().execute(canonical_template)
             if canonical_template is not None and canonical_template.measurements
@@ -363,8 +392,32 @@ class ComputeRunService:
                 and conversion.template is not None
             ):
                 canonical_template = conversion.template
+                if "rheology_analysis" in options and normalized_technique == "rheology":
+                    try:
+                        canonical_template = _attach_rheology_analysis_spec(
+                            canonical_template,
+                            options["rheology_analysis"],
+                        )
+                    except (TypeError, ValueError):
+                        return ComputeRun(
+                            status="needs_input",
+                            artifact=artifact,
+                            reasons=("rheology_analysis_invalid",),
+                            input_inspection=input_inspection,
+                        )
                 if canonical_template.measurements:
                     capability_items = CapabilityExecutor().execute(canonical_template)
+            if (
+                "rheology_analysis" in options
+                and normalized_technique == "rheology"
+                and canonical_template is None
+            ):
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("rheology_analysis_requires_canonical_template",),
+                    input_inspection=input_inspection,
+                )
         try:
             selected_engine = engine
             if selected_engine is None:
@@ -407,7 +460,7 @@ class ComputeRunService:
             if callable(canonical_runner):
                 provider_options = {
                     key: value for key, value in options.items()
-                    if key != "method_sensitivity"
+                    if key not in {"method_sensitivity", "rheology_analysis"}
                 }
                 legacy_result = canonical_runner(
                     canonical_template,
@@ -438,7 +491,7 @@ class ComputeRunService:
             else:
                 provider_options = {
                     key: value for key, value in options.items()
-                    if key != "method_sensitivity"
+                    if key not in {"method_sensitivity", "rheology_analysis"}
                 }
                 legacy_result = selected_engine.run_pipeline(
                     artifact.path,
@@ -665,6 +718,38 @@ def _valid_method_sensitivity_request(value: Any) -> bool:
         if any(not _is_json_safe(method) for method in methods):
             return False
     return True
+
+
+def _attach_rheology_analysis_spec(
+    template: CanonicalExperiment,
+    value: Mapping[str, Any],
+) -> CanonicalExperiment:
+    """Return a rehashed canonical template carrying an explicit rheology spec."""
+    if not isinstance(value, Mapping):
+        raise TypeError("rheology_analysis must be a mapping")
+    if str(template.payload.get("technique", "")).casefold() != "rheology":
+        raise ValueError("rheology_analysis requires a rheology canonical template")
+    from ..rheology_processing import RheologyAnalysisSpec
+
+    normalized = RheologyAnalysisSpec.from_mapping(value).to_dict()
+    existing = template.payload.get("rheology_analysis")
+    if existing is not None:
+        if not isinstance(existing, Mapping):
+            raise ValueError("canonical rheology analysis spec is invalid")
+        if RheologyAnalysisSpec.from_mapping(existing).to_dict() != normalized:
+            raise ValueError("canonical rheology analysis spec does not match request")
+        return template
+    payload = dict(template.payload)
+    payload["rheology_analysis"] = normalized
+    return CanonicalExperiment.create(
+        template_id=template.template_id,
+        source_artifact_id=template.source_artifact_id,
+        payload=payload,
+        conversion_record=template.conversion_record,
+        measurements=template.measurements,
+        mapping_proposal=template.mapping_proposal,
+        contract_version=template.contract_version,
+    )
 
 
 def _normalize_method_sensitivity_request(value: Mapping[str, Any]) -> dict[str, Any]:

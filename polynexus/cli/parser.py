@@ -61,6 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_rheology.add_argument("input")
     p_rheology.add_argument("-o", "--output", default="")
     p_rheology.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_rheology.add_argument(
+        "--analysis-spec",
+        default=None,
+        help="JSON file containing an explicit rheology yield/LVE analysis spec",
+    )
     p_rheology.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     p_mechanics = sub.add_parser("mechanics", help="Mechanical testing")

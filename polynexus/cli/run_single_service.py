@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import sys
 from typing import Any, Callable
 
@@ -41,6 +42,20 @@ def run_single(
     output = args.output or os.path.join(
         os.path.dirname(args.input) or ".", canonical_technique + "_results"
     )
+    pipeline_options: dict[str, Any] = {"skip_to": args.skip_to}
+    analysis_spec_path = getattr(args, "analysis_spec", None)
+    if analysis_spec_path:
+        try:
+            analysis_spec = json.loads(
+                Path(str(analysis_spec_path)).expanduser().read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError, TypeError, ValueError, json.JSONDecodeError):
+            print("needs_input: rheology_analysis_spec_invalid", file=sys.stderr)
+            return 2
+        if not isinstance(analysis_spec, dict):
+            print("needs_input: rheology_analysis_spec_invalid", file=sys.stderr)
+            return 2
+        pipeline_options["rheology_analysis"] = analysis_spec
     service = compute_run_service_factory(
         lambda technique, config=None, submodule_id=None: engine
     )
@@ -49,7 +64,7 @@ def run_single(
         path=args.input,
         output_dir=output,
         engine=engine,
-        pipeline_options={"skip_to": args.skip_to},
+        pipeline_options=pipeline_options,
     )
     if run.status != "completed":
         reason = ", ".join(run.reasons) or run.status
