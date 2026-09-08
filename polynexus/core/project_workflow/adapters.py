@@ -187,7 +187,34 @@ class SingleInputTechniqueAdapter:
             and step.parameters.get("submodule_id") == submodule_id
         ):
             return False
+        if not cls._portable_export_declaration_is_valid(step, artifact):
+            return False
         return cls._has_matching_canonical_template(step, artifact)
+
+    @staticmethod
+    def _portable_export_declaration_is_valid(step: RecipeStep, artifact: Any) -> bool:
+        """Validate the persisted portable declaration before replay/provider use."""
+        raw = step.parameters.get("portable_export")
+        if raw is None:
+            return True
+        if not isinstance(raw, Mapping):
+            return False
+        export_path = raw.get("export_path")
+        exporter = raw.get("exporter")
+        if not isinstance(export_path, str) or not export_path.strip():
+            return False
+        if not isinstance(exporter, str) or not exporter.strip():
+            return False
+        raw_source = raw.get("raw_source")
+        if raw_source not in (None, "") and not isinstance(raw_source, str):
+            return False
+        if raw_source:
+            try:
+                if Path(raw_source).expanduser().resolve(strict=False) != Path(artifact.path).expanduser().resolve(strict=False):
+                    return False
+            except (OSError, TypeError, ValueError):
+                return False
+        return True
 
     @staticmethod
     def _has_matching_canonical_template(step: RecipeStep, artifact: Any) -> bool:

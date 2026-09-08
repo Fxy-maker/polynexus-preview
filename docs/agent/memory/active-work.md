@@ -1,5 +1,21 @@
 # Active Work
 
+## Agent portable-export recipe replay — implementation complete, review required (2026-09-08)
+
+- AgentWorkflow now admits an opaque raw artifact only when a persisted
+  `portable_export` declaration is structurally valid, the raw identity still
+  matches, and the export exists. Replay reconverts the export through the
+  shared converter, compares the complete canonical-template hash and
+  converter ID, then executes the exported table through the shared
+  ComputeRun while retaining the raw artifact provenance binding.
+- Raw/export mutation, missing export, invalid exporter, foreign raw source,
+  and canonical tampering fail closed before provider execution. Existing
+  non-portable replay remains on its prior path. GUI intake is still a later
+  task; private vendor bytes are not decoded.
+- Focused Agent/project replay coverage passes 50; structured verification
+  passes Ruff, compile, quality `313`, preprocessing `157`, and whitespace.
+- Task: `docs/agent/tasks/2026-09-08-agent-portable-export-replay.md`.
+
 ## Source-bound portable-export entry points — implementation complete, replay follow-up (2026-09-07)
 
 - Added `polynexus portable-export <raw> <export> --technique ... --exporter ...`

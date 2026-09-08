@@ -89,9 +89,50 @@ class AgentWorkflowService:
             return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("recipe_invalid",))
         for artifact in recipe.artifacts:
             current = inspect_artifact(artifact.path, technique=artifact.technique)
-            if current.sha256 != artifact.sha256:
+            portable_step = next(
+                (
+                    candidate
+                    for candidate in recipe.steps
+                    if candidate.technique == artifact.technique
+                    and isinstance(candidate.parameters.get("portable_export"), Mapping)
+                ),
+                None,
+            )
+            if portable_step is not None:
+                portable = portable_step.parameters.get("portable_export")
+                if not isinstance(portable, Mapping):
+                    return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("portable_export_invalid",))
+                export_path_value = portable.get("export_path")
+                exporter = portable.get("exporter")
+                raw_source = portable.get("raw_source")
+                if (
+                    not isinstance(export_path_value, str)
+                    or not export_path_value.strip()
+                    or not isinstance(exporter, str)
+                    or not exporter.strip()
+                    or (raw_source not in (None, "") and not isinstance(raw_source, str))
+                ):
+                    return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("portable_export_invalid",))
+                if raw_source:
+                    try:
+                        if Path(raw_source).expanduser().resolve(strict=False) != Path(artifact.path).expanduser().resolve(strict=False):
+                            return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("portable_export_invalid",))
+                    except (OSError, TypeError, ValueError):
+                        return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("portable_export_invalid",))
+                try:
+                    from polynexus.core.compute import RawArtifact
+
+                    raw_identity = RawArtifact.from_path(artifact.path, technique=artifact.technique)
+                except (OSError, TypeError, ValueError):
+                    return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("artifact_hash_mismatch",))
+                if raw_identity.sha256 != artifact.sha256:
+                    return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("artifact_hash_mismatch",))
+                export_path = Path(export_path_value).expanduser()
+                if not export_path.is_file():
+                    return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("portable_export_missing",))
+            elif current.sha256 != artifact.sha256:
                 return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("artifact_hash_mismatch",))
-            if current.inspection_status == "blocked":
+            if current.inspection_status == "blocked" and portable_step is None:
                 return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("artifact_blocked",))
         destination = Path(output_dir).resolve()
         raw_dirs = self._input_directories(recipe.artifacts)
@@ -391,13 +432,19 @@ class AgentWorkflowService:
             )
             return compute_run.legacy_result, compute_run
 
+        portable = step.parameters.get("portable_export")
+        input_path = (
+            str(portable.get("export_path", ""))
+            if isinstance(portable, Mapping)
+            else artifact.path
+        )
         if self._uses_default_provider_runner:
             engine = self._engine_for_step(step)
             if engine is None:
                 raise RuntimeError("engine unavailable")
             compute_run = ComputeRunService(lambda *args, **kwargs: engine).run_direct(
                 technique=step.technique,
-                path=artifact.path,
+                path=input_path,
                 output_dir=output_dir / step.step_id,
                 submodule_id=step.parameters.get("submodule_id"),
                 engine=engine,
@@ -405,9 +452,18 @@ class AgentWorkflowService:
             )
             return compute_run.legacy_result, compute_run
 
+        execution_artifact = artifact
+        if input_path != artifact.path:
+            execution_artifact = inspect_artifact(input_path, technique=step.technique)
+            if execution_artifact.inspection_status == "blocked":
+                raise ValueError("portable export inspection is blocked")
+
         class _WorkflowEngine:
             def run_pipeline(inner_self, path, step_output_dir, **options):
-                provider_output = self.provider_runner(step, artifact, output_dir)
+                # The provider consumes the decoded portable table.  The
+                # ComputeRun source_artifact_id remains bound to ``artifact``
+                # above, so this adapter does not replace raw provenance.
+                provider_output = self.provider_runner(step, execution_artifact, output_dir)
                 if isinstance(provider_output, Mapping):
                     class _MappingResult:
                         parameters = provider_output.get("parameters", provider_output)
@@ -424,7 +480,7 @@ class AgentWorkflowService:
 
         compute_run = ComputeRunService(lambda *args, **kwargs: _WorkflowEngine()).run_direct(
             technique=step.technique,
-            path=artifact.path,
+            path=input_path,
             output_dir=output_dir / step.step_id,
             submodule_id=step.parameters.get("submodule_id"),
             canonical_template=canonical_template,
@@ -482,12 +538,24 @@ class AgentWorkflowService:
             registered = CanonicalExperiment.from_dict(payload)
         except (KeyError, OSError, TypeError, ValueError):
             return False
-        outcome = default_converter_registry().replay_path(
-            artifact.path,
-            technique=artifact.technique,
-            source_artifact_id=artifact.artifact_id,
-            mapping_proposal=registered.mapping_proposal,
-        )
+        portable = step.parameters.get("portable_export")
+        if isinstance(portable, Mapping):
+            raw_source = str(portable.get("raw_source") or artifact.path)
+            outcome = default_converter_registry().convert_portable_export(
+                raw_source,
+                str(portable.get("export_path", "")),
+                technique=artifact.technique,
+                source_artifact_id=artifact.artifact_id,
+                exporter=str(portable.get("exporter", "")),
+                mapping_proposal=registered.mapping_proposal,
+            )
+        else:
+            outcome = default_converter_registry().replay_path(
+                artifact.path,
+                technique=artifact.technique,
+                source_artifact_id=artifact.artifact_id,
+                mapping_proposal=registered.mapping_proposal,
+            )
         if outcome.status != "ready" or outcome.template is None:
             return False
         if outcome.record.conversion_id != step.parameters.get("canonical_converter"):

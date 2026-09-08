@@ -1,5 +1,17 @@
 ---
 
+## Agent portable-export replay — 2026-09-08
+
+Source-bound project/Codex recipes can now replay an opaque raw file through a
+declared portable export. Agent admission validates the declaration and raw
+identity, canonical replay reconverts the export and compares its complete
+template hash/converter, and shared ComputeRun consumes the exported table
+while retaining raw provenance plus the export binding. Mutation, missing
+export, invalid exporter, foreign source, and canonical tampering fail closed
+before provider execution. GUI intake and private vendor decoding remain
+outside this task; architecture and scientific review are still required.
+Task: `docs/agent/tasks/2026-09-08-agent-portable-export-replay.md`.
+
 ## Portable export entry points — 2026-09-07
 
 The existing source-bound portable export route is now exposed through the
