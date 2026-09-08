@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -287,6 +288,98 @@ class SingleInputTechniqueAdapter:
         }
 
 
+def _portable_exports(
+    payload: Mapping[str, object], paths: Sequence[str]
+) -> tuple[Mapping[str, object] | None, ...]:
+    """Normalize a one-to-one raw-to-export declaration for a series.
+
+    A sequence must name each source explicitly.  This keeps a manifest safe
+    when the adapter normalizes its artifact order.  A mapping may instead use
+    an exact source path (or a unique file name) as the raw binding key.
+    """
+    raw = payload.get("portable_exports")
+    if raw is None:
+        return (None,) * len(paths)
+    source_keys = tuple(_portable_source_key(path) for path in paths)
+    if len(set(source_keys)) != len(source_keys):
+        raise ValueError("series artifact paths must be unique")
+    declarations: list[Mapping[str, object] | None]
+    if isinstance(raw, Mapping):
+        declarations = [None] * len(paths)
+        mapping_items = tuple((str(key), value) for key, value in raw.items())
+        used_keys: set[str] = set()
+        unique_names = {
+            Path(path).name.casefold()
+            for path in paths
+            if sum(Path(candidate).name.casefold() == Path(path).name.casefold() for candidate in paths) == 1
+        }
+        for index, path in enumerate(paths):
+            source_key = source_keys[index]
+            source_name = Path(path).name
+            matching_items = [
+                (key, value)
+                for key, value in mapping_items
+                if _portable_source_key(key) == source_key
+                or (
+                    key.casefold() == source_name.casefold()
+                    and source_name.casefold() in unique_names
+                )
+            ]
+            if len(matching_items) != 1:
+                raise ValueError("portable_exports must bind each series artifact exactly once")
+            key, value = matching_items[0]
+            used_keys.add(key)
+            declaration = SingleInputTechniqueAdapter._portable_export(
+                {"portable_export": value}
+            )
+            declared_source = declaration.get("raw_source")
+            if declared_source and _portable_source_key(declared_source) != source_key:
+                raise ValueError("portable_export raw_source does not match mapping key")
+            declarations[index] = {
+                **declaration,
+                "raw_source": str(Path(path).expanduser().resolve(strict=False)),
+            }
+        if len(used_keys) != len(mapping_items):
+            raise ValueError("portable_exports contains an unbound declaration")
+    elif isinstance(raw, Sequence) and not isinstance(raw, (str, bytes, bytearray)):
+        declarations = [None] * len(paths)
+        for item in raw:
+            declaration = SingleInputTechniqueAdapter._portable_export(
+                {"portable_export": item}
+            )
+            raw_source = declaration.get("raw_source")
+            if not raw_source:
+                raise ValueError("series portable_export raw_source is required")
+            try:
+                index = source_keys.index(_portable_source_key(raw_source))
+            except ValueError as exc:
+                raise ValueError("portable_export raw_source is not a series artifact") from exc
+            if declarations[index] is not None:
+                raise ValueError("portable_exports binds a series artifact more than once")
+            declarations[index] = declaration
+    else:
+        raise TypeError("portable_exports must be a sequence or mapping")
+    if len(declarations) != len(paths) or any(item is None for item in declarations):
+        raise ValueError("portable_exports must provide one declaration per series artifact")
+    export_keys = tuple(
+        _portable_source_key(str(declaration["export_path"]))
+        for declaration in declarations
+        if declaration is not None
+    )
+    if len(set(export_keys)) != len(export_keys):
+        raise ValueError("portable_exports cannot reuse one export for multiple artifacts")
+    return tuple(declaration for declaration in declarations if declaration is not None)
+
+
+def _portable_source_key(value: object) -> str:
+    """Return a platform-aware stable path key without requiring file access."""
+    if not isinstance(value, (str, Path)) or not str(value).strip():
+        raise ValueError("portable export source must be a path")
+    return os.path.normcase(
+        str(Path(value).expanduser().resolve(strict=False))
+    )
+
+
 def _inspect_project_artifact(
     path: str | Path,
     *,
@@ -340,15 +433,30 @@ class TechniqueSeriesAdapter:
         paths = tuple(sorted(SingleInputTechniqueAdapter._paths(payload), key=lambda value: Path(value).as_posix().lower()))
         if len(paths) < 2:
             return RecipeProposal(status="blocked", reason_codes=("series_requires_multiple_artifacts",))
-        artifacts = tuple(inspect_artifact(path, technique=technique) for path in paths)
+        try:
+            portable_exports = _portable_exports(payload, paths)
+        except (KeyError, TypeError, ValueError):
+            return RecipeProposal(status="blocked", reason_codes=("portable_export_invalid",))
+        artifacts = tuple(
+            _inspect_project_artifact(
+                path,
+                technique=technique,
+                portable_export=portable_exports[index],
+            )
+            for index, path in enumerate(paths)
+        )
         if any(artifact.technique != technique for artifact in artifacts):
             return RecipeProposal(status="blocked", reason_codes=("series_technique_mismatch",))
         blocked = tuple(code for artifact in artifacts if artifact.inspection_status == "blocked" for code in artifact.reason_codes)
         if blocked:
             return RecipeProposal(status="blocked", reason_codes=tuple(dict.fromkeys(("artifact_blocked", *blocked))))
         outcomes = tuple(
-            _convert_artifact(artifact, technique=technique)
-            for artifact in artifacts
+            _convert_artifact(
+                artifact,
+                technique=technique,
+                portable_export=portable_exports[index],
+            )
+            for index, artifact in enumerate(artifacts)
         )
         blocked_outcomes = tuple(
             reason
@@ -370,6 +478,11 @@ class TechniqueSeriesAdapter:
                     "source_order": index,
                     "canonical_converter": outcomes[index].record.conversion_id,
                     "canonical_template": outcomes[index].template.to_dict(),
+                    **(
+                        {"portable_export": dict(portable_exports[index])}
+                        if portable_exports[index] is not None
+                        else {}
+                    ),
                 },
                 parameter_sources={
                     "submodule_id": "registered_project_recipe",
@@ -377,6 +490,11 @@ class TechniqueSeriesAdapter:
                     "source_order": "series_path_order",
                     "canonical_converter": "registered_canonical_converter",
                     "canonical_template": "registered_canonical_converter",
+                    **(
+                        {"portable_export": "declared_portable_export"}
+                        if portable_exports[index] is not None
+                        else {}
+                    ),
                 },
             )
             for index in range(len(artifacts))
@@ -400,6 +518,9 @@ class TechniqueSeriesAdapter:
             and step.parameters.get("submodule_id") == submodule_id
             and step.parameters.get("artifact_index") == index
             and step.parameters.get("source_order") == index
+            and SingleInputTechniqueAdapter._portable_export_declaration_is_valid(
+                step, recipe.artifacts[index]
+            )
             and SingleInputTechniqueAdapter._has_matching_canonical_template(step, recipe.artifacts[index])
             for index, step in enumerate(recipe.steps)
         )

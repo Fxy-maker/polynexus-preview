@@ -433,6 +433,10 @@ class MainWindowRunMixin:
             or self._current_technique == "nmr"
             or submodule_id in ("dsc.isothermal", "dsc.nonisothermal", "ir.temperature_2d")
         )
+        portable_export = getattr(self, "_current_portable_export", None)
+        if native_directory_run and isinstance(portable_export, dict):
+            self.log(tr("LOG_PORTABLE_EXPORT_NATIVE_DIRECTORY_UNSUPPORTED"))
+            return
         if native_directory_run:
             self._start_run_lifecycle()
             self._hide_error_diagnostics()
@@ -513,6 +517,7 @@ class MainWindowRunMixin:
             self._output_dir,
             config=self._build_run_config(),
             submodule_id=submodule_id,
+            portable_export=(dict(portable_export) if isinstance(portable_export, dict) else None),
         )
         token = self._begin_run_request()
         self._batch_worker.log_msg.connect(

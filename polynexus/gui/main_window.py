@@ -1281,11 +1281,6 @@ class ImportSuggestionDialog(QDialog):
         self._portable_export_hint = QLabel(tr("IMPORT_PORTABLE_EXPORT_HINT"))
         self._portable_export_hint.setWordWrap(True)
         form.addRow("", self._portable_export_hint)
-        if self._is_dir:
-            self._portable_export_path.setVisible(False)
-            self._portable_export_browse.setVisible(False)
-            self._portable_exporter.setVisible(False)
-            self._portable_export_hint.setVisible(False)
 
         self._reason_label = QLabel(_format_import_suggestion_reason(getattr(suggestion, "reason", "")))
         self._reason_label.setWordWrap(True)
@@ -1391,9 +1386,9 @@ class ImportSuggestionDialog(QDialog):
         needs_technique = self._is_manual_choice
         technique_selected = bool(self.selected_technique())
         portable_path = self._portable_export_path.text().strip()
-        portable_valid = (
-            not portable_path
-            or (os.path.isfile(portable_path) and bool(self._portable_exporter.text().strip()))
+        portable_valid = not portable_path or (
+            (os.path.isdir(portable_path) if self._is_dir else os.path.isfile(portable_path))
+            and bool(self._portable_exporter.text().strip())
         )
         if self._ok_button is not None:
             self._ok_button.setEnabled(
@@ -1420,8 +1415,14 @@ class ImportSuggestionDialog(QDialog):
 
     def selected_portable_export(self):
         export_path = self._portable_export_path.text().strip()
-        if not export_path or self._is_dir:
+        if not export_path:
             return None
+        if self._is_dir:
+            return {
+                "raw_source": self._path,
+                "export_directory": os.path.abspath(export_path),
+                "exporter": self._portable_exporter.text().strip(),
+            }
         return {
             "raw_source": self._path,
             "export_path": os.path.abspath(export_path),
@@ -1430,12 +1431,19 @@ class ImportSuggestionDialog(QDialog):
 
 
     def _browse_portable_export(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            tr("IMPORT_PORTABLE_EXPORT_DIALOG"),
-            os.path.dirname(self._path),
-            tr("IMPORT_PORTABLE_EXPORT_FILTER"),
-        )
+        if self._is_dir:
+            path = QFileDialog.getExistingDirectory(
+                self,
+                tr("IMPORT_PORTABLE_EXPORT_DIALOG"),
+                self._path,
+            )
+        else:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                tr("IMPORT_PORTABLE_EXPORT_DIALOG"),
+                os.path.dirname(self._path),
+                tr("IMPORT_PORTABLE_EXPORT_FILTER"),
+            )
         if path:
             self._portable_export_path.setText(path)
             if not self._portable_exporter.text().strip():

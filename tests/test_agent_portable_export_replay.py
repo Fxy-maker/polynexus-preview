@@ -8,6 +8,7 @@ from polynexus.core.agent_workflow.models import AnalysisRecipe
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.project_workflow.service import ProjectWorkflowService
 from polynexus.core.project_workflow.adapters import SingleInputTechniqueAdapter
+from polynexus.core.project_workflow.adapters import TechniqueSeriesAdapter
 
 
 def _portable_recipe(tmp_path: Path):
@@ -69,6 +70,45 @@ def test_agent_custom_provider_receives_portable_export_path(tmp_path: Path) -> 
     assert run.status == "review_required"
     assert seen == [str(exported.resolve())]
     assert run.steps[0].compute_run["canonical_template"]["source_artifact_id"] == recipe.artifacts[0].artifact_id
+
+
+def test_agent_series_replay_uses_matching_export_for_each_artifact(tmp_path: Path) -> None:
+    raw_paths = []
+    portable_exports = []
+    for index in range(2):
+        raw = tmp_path / f"sample-{index}.ngb-ds1"
+        raw.write_bytes(f"opaque-{index}".encode("utf-8"))
+        exported = tmp_path / f"sample-{index}.csv"
+        exported.write_text(
+            "Temperature (C),Mass (%)\n25,100\n100,98\n",
+            encoding="utf-8",
+        )
+        raw_paths.append(str(raw))
+        portable_exports.append({
+            "raw_source": str(raw),
+            "export_path": str(exported),
+            "exporter": "Proteus portable CSV",
+        })
+    proposal = TechniqueSeriesAdapter().propose_recipe({
+        "workflow_id": TechniqueSeriesAdapter.workflow_id,
+        "technique": "tga",
+        "paths": raw_paths,
+        "portable_exports": portable_exports,
+    })
+    assert proposal.recipe is not None
+    seen: list[str] = []
+
+    def provider(_step, artifact, _output_dir):
+        seen.append(artifact.path)
+        return AnalysisResult(technique="tga", validation_passed=True)
+
+    run = AgentWorkflowService(
+        registry=ProjectWorkflowService.open(tmp_path).agent_service.registry,
+        provider_runner=provider,
+    ).run_recipe(proposal.recipe, tmp_path.parent / f"{tmp_path.name}-series-run")
+
+    assert run.status == "review_required"
+    assert seen == [str(Path(item["export_path"]).resolve()) for item in portable_exports]
 
 
 def test_agent_portable_replay_rejects_raw_mutation_before_provider(tmp_path: Path) -> None:

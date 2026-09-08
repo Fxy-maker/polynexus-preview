@@ -1,5 +1,22 @@
 ---
 
+## Series and batch portable-export binding — 2026-09-08
+
+Multi-file portable export now has a strict one-to-one provenance route. A
+project-series declaration must bind each raw artifact explicitly (or use a
+complete unique mapping); raw paths are normalized before the adapter orders
+the series, duplicate exports and unbound declarations fail closed, and every
+step retains its own portable binding and canonical template. Agent replay
+selects that step by artifact index. GUI batch intake maps a selected export
+directory by case-insensitive raw stem only after validating the raw directory;
+the worker preflights the complete map before any provider starts, then uses
+each raw artifact ID with its corresponding export's template in shared
+ComputeRun. Native grouped directory workflows reject the export directory
+instead of silently changing their semantics. This remains an import/provenance
+route—not private-format decoding, calibration validation, or a scientific
+capability promotion. Task:
+`docs/agent/tasks/2026-09-08-series-portable-export-binding.md`.
+
 ## GUI portable-export import binding — 2026-09-08
 
 The existing GUI import dialog can optionally bind a file input to a selected

@@ -1,5 +1,22 @@
 # Active Work
 
+## Series and batch portable-export binding — implementation complete, review required (2026-09-08)
+
+- Same-technique project series now bind every raw input to exactly one
+  portable table before conversion. List declarations name `raw_source`
+  explicitly, so user order cannot be silently mismatched after path sorting;
+  mapping declarations must be complete, unique, and source-consistent.
+- Agent replay selects the portable step for its artifact index; GUI batch
+  preflights a raw-stem-to-export directory map before it starts a provider,
+  and each pair reaches its own shared `CanonicalExperiment`/`ComputeRun`
+  projection while retaining the raw artifact identity.
+- Native grouped directory routes explicitly reject this batch export-directory
+  declaration. GUI visual review plus architecture/scientific review remain
+  required; arbitrary-name GUI export maps and native grouped portable
+  sequences are future work.
+- Focused cross-entry regression passes 79 tests. Task:
+  `docs/agent/tasks/2026-09-08-series-portable-export-binding.md`.
+
 ## GUI portable-export import binding — implementation complete, review required (2026-09-08)
 
 - The GUI import dialog now offers an optional portable-export table and

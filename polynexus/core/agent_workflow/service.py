@@ -87,13 +87,17 @@ class AgentWorkflowService:
     def run_recipe(self, recipe: AnalysisRecipe, output_dir: str | Path) -> AnalysisRun:
         if not self._recipe_is_valid(recipe):
             return AnalysisRun(recipe=recipe, status="blocked", reason_codes=("recipe_invalid",))
-        for artifact in recipe.artifacts:
+        for artifact_index, artifact in enumerate(recipe.artifacts):
             current = inspect_artifact(artifact.path, technique=artifact.technique)
             portable_step = next(
                 (
                     candidate
                     for candidate in recipe.steps
                     if candidate.technique == artifact.technique
+                    and (
+                        candidate.parameters.get("artifact_index") == artifact_index
+                        or "artifact_index" not in candidate.parameters
+                    )
                     and isinstance(candidate.parameters.get("portable_export"), Mapping)
                 ),
                 None,
