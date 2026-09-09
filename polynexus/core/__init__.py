@@ -15,6 +15,12 @@ from .scientific_review import (
     review_record_from_payload,
     validate_review_record,
 )
+from .validation_harness import (
+    ValidationCase,
+    ValidationExpectation,
+    ValidationReport,
+    run_validation,
+)
 
 # Import all technique modules to trigger @register_technique decorators
 from . import saxs  # noqa: F401
@@ -37,6 +43,7 @@ __all__ = [
     "REVIEW_SCOPES", "REVIEW_STATUSES", "ReviewPromotionDecision",
     "ScientificReviewRecord", "promotion_decision", "review_decision_snapshot",
     "review_record_from_payload", "validate_review_record",
+    "ValidationCase", "ValidationExpectation", "ValidationReport", "run_validation",
 ]
 
 from .report import generate_report, save_report  # noqa: F401

@@ -6912,3 +6912,19 @@ promotion evidence. No raw data was added to Git.
   an exported table as the original private binary or changes source identity.
 - Focused matrix passes 66 with 4 skips. Direct conversion remains unchanged.
 - Task: `docs/agent/tasks/2026-09-07-portable-export-binding.md`.
+## Cross-technique validation harness v1 — implementation complete, review required (2026-09-09)
+
+- Added technique-neutral `ValidationCase`, `ValidationExpectation`, and
+  `ValidationReport` contracts in `polynexus/core/validation_harness.py`.
+- The runner executes a public calculator twice, compares deterministic output
+  hashes, scalar/series expectations with absolute/relative tolerances, metric
+  status, units, methods, parameters, provenance, and optional raw-file hash
+  preservation. It accepts canonical dataset binding and optional standard or
+  negative-control metadata.
+- Failures remain immutable report observations and never mutate ComputeRun or
+  Evidence Package state. No capability promotion, uncertainty claim, or
+  scientific conclusion is produced.
+- Focused coverage passes 6 tests; task-level verifier passes quality 313 and
+  preprocessing 157, with Ruff, compile, and whitespace checks green. Existing TGA/mechanics replay DTOs remain intact and real instrument
+  replay, uncertainty, and human scientific review are still required.
+- Task: `docs/agent/tasks/2026-09-09-cross-technique-validation-harness-v1.md`.

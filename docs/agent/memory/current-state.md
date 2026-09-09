@@ -2167,3 +2167,12 @@ metadata, and decodes only the portable table while preserving the raw artifact
 identity. It supports ComputeRun with a prevalidated template and does not
 certify exporter calibration or scientific semantics.
 Task: `docs/agent/tasks/2026-09-07-portable-export-binding.md`.
+### Cross-technique validation harness (2026-09-09)
+
+`polynexus.core.validation_harness` now provides a shared, hash-bound
+`ValidationCase`/`ValidationReport` runner for deterministic replay of public
+canonical calculators. It compares repeated projection hashes, expected metric
+values/statuses, units, methods, parameters, provenance, and optional raw input
+hashes. Standard and negative-control labels are metadata only; reports cannot
+promote capabilities or mutate runs/evidence. Real instrument replay, formal
+uncertainty, and scientific review remain outside the harness.
