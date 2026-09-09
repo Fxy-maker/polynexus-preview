@@ -169,12 +169,13 @@ def build_parser() -> argparse.ArgumentParser:
     pe.add_argument("--evaluation", required=True, help="AnalysisPlanEvaluation JSON path")
 
     paw = sub.add_parser("agent-workflow", help="Machine-readable agent workflow operations")
-    paw.add_argument("operation", choices=["inspect", "propose", "run", "validate", "export"])
+    paw.add_argument("operation", choices=["inspect", "propose", "run", "validate", "validate-project", "export"])
     paw.add_argument("--manifest", help="External workflow manifest JSON")
     paw.add_argument("--recipe", help="Persisted recipe JSON for deterministic replay")
     paw.add_argument("--run", help="Persisted run JSON for validate or export")
     paw.add_argument("--output-dir", default=None, help="Output directory for run/export operations")
     paw.add_argument("--export-dir", default=None, help="Destination for an exported workflow bundle")
+    paw.add_argument("--project-root", default=None, help="Project root for validate-project")
 
     ppw = sub.add_parser("project-workflow", help="Codex project evidence workflow")
     ppw.add_argument(

@@ -6940,3 +6940,8 @@ Project-level aggregation is now available through `ProjectValidationEntry`,
 per-case, and the aggregate report is persisted only under
 `.polynexus/validation/latest.json`. Focused project validation coverage is 4
 tests; no Evidence Package or capability state is changed.
+
+Agent/Codex can now invoke `agent-workflow validate-project --project-root ...
+--manifest ...`; it uses the same project batch runner and persists the same
+`.polynexus/validation/latest.json` report. Existing Agent run/validate/export
+operations remain unchanged. Focused Agent integration coverage is 12 tests.

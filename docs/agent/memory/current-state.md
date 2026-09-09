@@ -2180,3 +2180,6 @@ Project workflows can aggregate persisted cases with `ProjectValidationBatch`;
 `ProjectWorkspace` stores the resulting diagnostic report under
 `.polynexus/validation/latest.json`, and the `project-validate` CLI exposes the
 same route. This is not an Evidence Package and cannot promote capabilities.
+The same project validation batch is available through the Agent/Codex
+`validate-project` operation, with JSON-only manifest input and identical
+derived report persistence.
