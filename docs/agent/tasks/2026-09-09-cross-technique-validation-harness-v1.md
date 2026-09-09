@@ -60,6 +60,8 @@ Evidence Package state.
 4. Add focused tests for round-trip/hash, deterministic replay, scalar/series
    comparisons, unavailable/failed outcomes, provenance, raw preservation, and
    cross-technique reuse.
+5. Expose a safe machine-readable CLI compare route for persisted public
+   projections without importing arbitrary calculator code.
 
 ## Acceptance criteria
 
@@ -73,6 +75,8 @@ Evidence Package state.
 - [x] The same validator is exercised by at least two techniques without
   technique-specific logic in the runner.
 - [x] Standard/negative-control metadata is optional case metadata only.
+- [x] CLI can compare two persisted public projections and return a JSON report
+  without bypassing the shared validator or executing arbitrary code.
 
 ## Verification
 
@@ -93,8 +97,10 @@ python scripts/auto_commit.py `
 ## Completion evidence
 
 - Exact commands and outcomes: `python -m pytest -p no:cacheprovider -q
-  tests/test_validation_harness.py` (7 passed); task verifier passed quality
-  gate 313, preprocessing 157, Ruff, compile, and `git diff --check`.
+  tests/test_validation_harness.py tests/test_cli_validation.py` (10 passed);
+  Ruff and compile checks pass. The original task verifier passed quality gate
+  313, preprocessing 157, Ruff, compile, and `git diff --check` before the CLI
+  slice; rerun the task verifier after this final change.
 - Known limitations or follow-up: adapters for real instrument replay,
   uncertainty, and human capability review remain separate work.
 - Pre-existing changes left untouched: `polynexus/core/agent_workflow/service.py`

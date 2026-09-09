@@ -112,6 +112,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_portable.add_argument("--convert-only", action="store_true", help="Only emit canonical conversion; do not execute a provider")
     p_portable.add_argument("--json", action="store_true", help="Print the shared conversion/run contract as JSON")
 
+    p_validate = sub.add_parser(
+        "validate",
+        help="Compare two persisted public validation projections through the shared harness",
+    )
+    p_validate.add_argument("operation", choices=["compare"], help="Validation operation")
+    p_validate.add_argument("--case", required=True, help="ValidationCase JSON path")
+    p_validate.add_argument("--first-output", required=True, help="First public result JSON path")
+    p_validate.add_argument("--second-output", required=True, help="Second public result JSON path")
+    p_validate.add_argument("--raw-hash-before", default=None, help="Raw SHA-256 before replay")
+    p_validate.add_argument("--raw-hash-after", default=None, help="Raw SHA-256 after replay")
+    p_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")

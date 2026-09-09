@@ -6929,3 +6929,8 @@ promotion evidence. No raw data was added to Git.
   preprocessing 157, with Ruff, compile, and whitespace checks green. Existing TGA/mechanics replay DTOs remain intact and real instrument
   replay, uncertainty, and human scientific review are still required.
 - Task: `docs/agent/tasks/2026-09-09-cross-technique-validation-harness-v1.md`.
+
+The CLI now exposes `polynexus validate compare --case ... --first-output ...
+--second-output ... --json`, which compares persisted public projections via
+the same runner without importing arbitrary Python code. Focused coverage is
+10 tests including parser/CLI behavior.
