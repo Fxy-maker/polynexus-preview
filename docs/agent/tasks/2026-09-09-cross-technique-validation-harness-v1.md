@@ -93,7 +93,7 @@ python scripts/auto_commit.py `
 ## Completion evidence
 
 - Exact commands and outcomes: `python -m pytest -p no:cacheprovider -q
-  tests/test_validation_harness.py` (6 passed); task verifier passed quality
+  tests/test_validation_harness.py` (7 passed); task verifier passed quality
   gate 313, preprocessing 157, Ruff, compile, and `git diff --check`.
 - Known limitations or follow-up: adapters for real instrument replay,
   uncertainty, and human capability review remain separate work.

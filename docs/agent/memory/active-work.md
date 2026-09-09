@@ -6924,7 +6924,8 @@ promotion evidence. No raw data was added to Git.
 - Failures remain immutable report observations and never mutate ComputeRun or
   Evidence Package state. No capability promotion, uncertainty claim, or
   scientific conclusion is produced.
-- Focused coverage passes 6 tests; task-level verifier passes quality 313 and
+- Focused coverage passes 7 tests (including actual TGA and rheology adapter
+  smoke replays); task-level verifier passes quality 313 and
   preprocessing 157, with Ruff, compile, and whitespace checks green. Existing TGA/mechanics replay DTOs remain intact and real instrument
   replay, uncertainty, and human scientific review are still required.
 - Task: `docs/agent/tasks/2026-09-09-cross-technique-validation-harness-v1.md`.

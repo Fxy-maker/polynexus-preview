@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from polynexus.core.rheology_processing import RheologySignalSeries, analyze_rheology_group
+from polynexus.core.tga_processing import TGAProcessingConfig, analyze_tga_curve
 from polynexus.core.validation_harness import (
     ValidationCase,
     ValidationExpectation,
@@ -168,3 +170,73 @@ def test_case_requires_canonical_binding_and_optional_standard_metadata() -> Non
     case = _case(case_kind="negative_control", metadata={"negative_control": "blank"})
     assert case.case_kind == "negative_control"
     assert case.metadata["negative_control"] == "blank"
+
+
+def test_same_runner_accepts_actual_tga_and_rheology_processing_outcomes() -> None:
+    # Construct empty cases explicitly to keep the adapter shape visible in
+    # this integration check.
+    tga_case = ValidationCase.create(
+        case_id="actual_tga",
+        technique="tga",
+        canonical_dataset_id="dataset-1",
+        input_payload={"dataset_id": "dataset-1", "x": [25.0, 100.0, 200.0, 300.0]},
+    )
+    tga_report = run_validation(
+        tga_case,
+        lambda payload: (
+            lambda outcome: {
+                "metrics": outcome.metrics,
+                "metadata": {
+                    "units": outcome.units,
+                    "methods": outcome.methods,
+                    "parameters": outcome.parameters,
+                },
+            }
+        )(
+            analyze_tga_curve(
+                payload["x"],
+                [100.0, 98.0, 92.0, 90.0],
+                axis_kind="temperature",
+                axis_unit="°C",
+                signal_unit="%",
+                config=TGAProcessingConfig(),
+            )
+        ),
+    )
+
+    rheology_case = ValidationCase.create(
+        case_id="actual_rheology",
+        technique="rheology",
+        canonical_dataset_id="dataset-1",
+        input_payload={"dataset_id": "dataset-1", "rate": [1.0, 2.0, 4.0]},
+    )
+    rheology_report = run_validation(
+        rheology_case,
+        lambda payload: (
+            lambda outcome: {
+                "metrics": outcome.metrics,
+                "metadata": {
+                    "units": outcome.units,
+                    "methods": outcome.methods,
+                    "parameters": outcome.parameters,
+                },
+            }
+        )(
+            analyze_rheology_group(
+                payload["rate"],
+                axis_kind="shear_rate",
+                axis_unit="s^-1",
+                signals=(
+                    RheologySignalSeries.create(
+                        measurement_id="stress",
+                        signal_kind="shear_stress",
+                        unit="Pa",
+                        values=[2.0, 4.0, 8.0],
+                    ),
+                ),
+            )
+        ),
+    )
+
+    assert tga_report.status == "passed"
+    assert rheology_report.status == "passed"
