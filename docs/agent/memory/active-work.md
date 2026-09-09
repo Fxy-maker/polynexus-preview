@@ -6934,3 +6934,9 @@ The CLI now exposes `polynexus validate compare --case ... --first-output ...
 --second-output ... --json`, which compares persisted public projections via
 the same runner without importing arbitrary Python code. Focused coverage is
 10 tests including parser/CLI behavior.
+Project-level aggregation is now available through `ProjectValidationEntry`,
+`ProjectValidationBatch`, and `polynexus project-validate --project-root ...
+--manifest ...`. Entries are replayed in stable case-ID order, failures remain
+per-case, and the aggregate report is persisted only under
+`.polynexus/validation/latest.json`. Focused project validation coverage is 4
+tests; no Evidence Package or capability state is changed.

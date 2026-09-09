@@ -2176,3 +2176,7 @@ values/statuses, units, methods, parameters, provenance, and optional raw input
 hashes. Standard and negative-control labels are metadata only; reports cannot
 promote capabilities or mutate runs/evidence. Real instrument replay, formal
 uncertainty, and scientific review remain outside the harness.
+Project workflows can aggregate persisted cases with `ProjectValidationBatch`;
+`ProjectWorkspace` stores the resulting diagnostic report under
+`.polynexus/validation/latest.json`, and the `project-validate` CLI exposes the
+same route. This is not an Evidence Package and cannot promote capabilities.

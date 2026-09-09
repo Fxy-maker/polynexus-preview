@@ -35,6 +35,7 @@ from .figure_index import FigureIndexEntry, load_figure_index
 from .manuscript_plan import ManuscriptPlan, PaperBrief, build_manuscript_plan
 from .working_evidence import WorkingEvidenceEntry, WorkingEvidenceIndex, WorkingEvidenceStatus
 from .research_loop import ResearchAction, ResearchLoopService, ResearchTask, ResearchTaskStore
+from .validation import ProjectValidationBatch, ProjectValidationEntry, run_project_validation_batch
 
 __all__ = [
     "AnalysisSymptom",
@@ -92,4 +93,7 @@ __all__ = [
     "ResearchLoopService",
     "ResearchTask",
     "ResearchTaskStore",
+    "ProjectValidationEntry",
+    "ProjectValidationBatch",
+    "run_project_validation_batch",
 ]

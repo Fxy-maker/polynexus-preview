@@ -33,6 +33,7 @@ from polynexus.cli.run_single_service import run_single as _run_single_impl
 from polynexus.cli.run_format_inspection import run_format_inspection as _run_format_inspection_impl
 from polynexus.cli.run_portable_export_service import run_portable_export as _run_portable_export_impl
 from polynexus.cli.run_validation_service import run_validation_cli as _run_validation_impl
+from polynexus.cli.run_project_validation_service import run_project_validation_cli as _run_project_validation_impl
 from polynexus.cli.parser import build_parser
 from polynexus.utils import (
     delete_batch_preset,  # noqa: F401 - legacy CLI re-export
@@ -81,6 +82,8 @@ def main():
         return _run_portable_export_impl(args)
     if args.cmd == 'validate':
         return _run_validation_impl(args)
+    if args.cmd == 'project-validate':
+        return _run_project_validation_impl(args)
     return _run_single(args)
 
 

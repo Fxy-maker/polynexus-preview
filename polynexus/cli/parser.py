@@ -124,6 +124,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate.add_argument("--raw-hash-after", default=None, help="Raw SHA-256 after replay")
     p_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
 
+    p_project_validate = sub.add_parser(
+        "project-validate",
+        help="Run a project validation manifest and persist its report under .polynexus/validation",
+    )
+    p_project_validate.add_argument("--project-root", required=True, help="Project workspace root")
+    p_project_validate.add_argument("--manifest", required=True, help="Project validation manifest JSON path")
+    p_project_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")

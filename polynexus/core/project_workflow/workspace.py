@@ -18,6 +18,7 @@ _DERIVED_DIRECTORIES = (
     "figures",
     "evidence",
     "research",
+    "validation",
 )
 _PRIMARY_DIRECTORIES = frozenset({"raw", "notes", "manuscript"})
 
@@ -38,6 +39,7 @@ class ProjectWorkspace:
         # an existing project does not alter the legacy derived-directory
         # listing until the user actually starts a formal task.
         self.research_dir = self.derived_root / "research"
+        self.validation_dir = self.derived_root / "validation"
 
     @classmethod
     def open(cls, root: str | Path) -> "ProjectWorkspace":
@@ -65,7 +67,25 @@ class ProjectWorkspace:
             self.runs_dir,
             self.figures_dir,
             self.evidence_dir,
+            self.validation_dir,
         )
+
+    def write_validation_batch(self, batch: Any) -> Path:
+        """Persist a validation-only report beneath the derived validation area."""
+        from .validation import ProjectValidationBatch
+
+        if type(batch) is not ProjectValidationBatch:
+            raise TypeError("write_validation_batch requires ProjectValidationBatch")
+        return self.write_json(self.validation_dir / "latest.json", batch.to_dict())
+
+    def read_validation_batch(self) -> Any | None:
+        """Read the latest validation report without projecting it as evidence."""
+        payload = self.read_json(self.validation_dir / "latest.json")
+        if payload is None:
+            return None
+        from .validation import ProjectValidationBatch
+
+        return ProjectValidationBatch.from_dict(payload)
 
     def require_derived_path(self, path: str | Path) -> Path:
         """Return a resolved output path or reject paths outside approved storage."""
