@@ -106,9 +106,18 @@ python scripts/auto_commit.py `
 
 ## Completion evidence
 
-- Exact commands and outcomes: Pending final structured verification. The
-  external `public-validate` replay passed all five cases; DSC/TGA each ran
-  twice with matching output hashes and preserved raw hashes.
+- Exact commands and outcomes:
+  `python -m pytest -p no:cacheprovider -q tests/test_netzsch_ngb_reader.py
+  tests/test_input_formats.py tests/test_compute_service.py
+  tests/test_public_validation.py tests/test_cli_public_validation.py` →
+  `82 passed, 3 skipped`.
+  `python scripts/verify.py --task
+  docs/agent/tasks/2026-09-11-netzsch-ngb-reader-route.md --changed --types` →
+  selected checks passed (Ruff, compile, type baseline, quality 313,
+  preprocessing 157, whitespace).
+  `git diff --check` → passed. The external `public-validate` replay passed
+  all five cases; DSC/TGA each ran twice with matching output hashes and
+  preserved raw hashes.
 - Known limitations or follow-up: Observed layouts only; non-observed NGB
   layouts, calibration, absolute TGA mass semantics, uncertainty, independent
   replay, standards/negative controls, and capability promotion remain open.
