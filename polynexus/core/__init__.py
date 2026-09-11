@@ -21,6 +21,14 @@ from .validation_harness import (
     ValidationReport,
     run_validation,
 )
+from .public_validation import (
+    PublicReplayCase,
+    load_public_validation_manifest,
+    public_canonical_dataset_id,
+    public_source_artifact_id,
+    run_public_validation_case,
+    run_public_validation_manifest,
+)
 
 # Import all technique modules to trigger @register_technique decorators
 from . import saxs  # noqa: F401
@@ -44,6 +52,9 @@ __all__ = [
     "ScientificReviewRecord", "promotion_decision", "review_decision_snapshot",
     "review_record_from_payload", "validate_review_record",
     "ValidationCase", "ValidationExpectation", "ValidationReport", "run_validation",
+    "PublicReplayCase", "load_public_validation_manifest",
+    "public_canonical_dataset_id", "public_source_artifact_id",
+    "run_public_validation_case", "run_public_validation_manifest",
 ]
 
 from .report import generate_report, save_report  # noqa: F401

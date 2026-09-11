@@ -359,7 +359,15 @@ class CanonicalDataset:
                 "source_artifact_id": artifact.artifact_id,
                 "technique": artifact.technique,
                 "template_id": template_id,
-                "payload": payload,
+                # ``payload.path`` is retained as provenance, but must not
+                # make the canonical dataset identity depend on a temporary
+                # extraction directory (for example public validation
+                # replay).  The source artifact ID and content hash already
+                # provide the identity-bearing binding.
+                "payload": {
+                    **payload,
+                    "path": "<path-bound-provenance>",
+                },
                 "warnings": (),
             }
         )

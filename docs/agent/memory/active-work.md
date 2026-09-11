@@ -6945,3 +6945,22 @@ Agent/Codex can now invoke `agent-workflow validate-project --project-root ...
 --manifest ...`; it uses the same project batch runner and persists the same
 `.polynexus/validation/latest.json` report. Existing Agent run/validate/export
 operations remain unchanged. Focused Agent integration coverage is 12 tests.
+
+## Public validation replay integration — implementation complete, review required (2026-09-11)
+
+- Added `PublicReplayCase` and a safe external archive/member replay adapter.
+  Archive/member/extracted content hashes, explicit source format, canonical
+  dataset admission, and expected run status are validated before outputs are
+  accepted. ZIP traversal, symlink, size, missing member, and path-boundary
+  failures close before provider execution.
+- `polynexus public-validate` replays cases twice through the existing
+  `ComputeRunService`, projects results into `ProjectValidationEntry`, and
+  optionally writes the shared batch report under project `.polynexus`.
+- External `public-replay-v1.json` covers IR, SAXS, NMR successful diagnostic
+  routes and DSC/TGA `needs_input` routes. Real five-case mixed replay passed;
+  no raw archive was added to Git.
+- Focused coverage: 20 tests across public replay, CLI, project validation,
+  and shared harness; Ruff and compile checks pass. Formal standards,
+  independent instrument/material replay, uncertainty, capability promotion,
+  and human scientific review remain open.
+- Task: `docs/agent/tasks/2026-09-09-public-validation-replay-integration-v1.md`.

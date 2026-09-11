@@ -132,6 +132,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_project_validate.add_argument("--manifest", required=True, help="Project validation manifest JSON path")
     p_project_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
 
+    p_public_validate = sub.add_parser(
+        "public-validate",
+        help="Replay a hash-bound external public validation manifest",
+    )
+    p_public_validate.add_argument("--manifest", required=True, help="Public replay manifest JSON path")
+    p_public_validate.add_argument(
+        "--data-root",
+        required=True,
+        help="External validation data root; archive paths must stay below it",
+    )
+    p_public_validate.add_argument(
+        "--project-root",
+        default=None,
+        help="Optional project root for .polynexus/validation/latest.json",
+    )
+    p_public_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")

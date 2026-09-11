@@ -2183,3 +2183,23 @@ same route. This is not an Evidence Package and cannot promote capabilities.
 The same project validation batch is available through the Agent/Codex
 `validate-project` operation, with JSON-only manifest input and identical
 derived report persistence.
+
+### Hash-bound public validation replay (2026-09-11)
+
+`polynexus.core.public_validation` adds a controlled adapter for replaying
+selected members of the external public validation pack. `PublicReplayCase`
+binds archive/member/file hashes, explicit file-or-directory format, a stable
+path-independent artifact identity, and the expected ComputeRun status. The
+adapter validates archive paths below an external data root, rejects ZIP
+traversal/symlink/size violations, extracts only to a temporary directory,
+reuses `ComputeRunService` twice, and emits ordinary `ProjectValidationEntry`
+objects. `polynexus public-validate` optionally persists the shared batch under
+`.polynexus/validation/latest.json`.
+
+The external pack now has an untracked
+`public/manifests/public-replay-v1.json` with five representative cases:
+IR, SAXS, NMR (completed diagnostic routes), and DSC/TGA (explicit
+`needs_input` routes). A real mixed replay passed all five cases on 2026-09-11;
+SAXS/NMR remain non-polymer or quality-limited smoke evidence. This is not a
+certified standard, calibration validation, uncertainty model, independent
+lab replay, or capability-promotion decision.
