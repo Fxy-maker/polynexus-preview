@@ -16,6 +16,7 @@ from .dsc_isothermal import convert_mettler_isothermal_text
 from .ir_temperature_series import build_ir_temperature_series_template
 from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord, MappingProposal
 from .one_dimensional import convert_one_dimensional_table
+from .netzsch import convert_netzsch_dsc, convert_netzsch_tga
 from .portable_export import PortableExportBinding
 from .nd_adapters import (
     DataBlockAdapterResult,
@@ -62,6 +63,8 @@ class CanonicalConverterRegistry:
         source = Path(path)
         normalized_technique = _normalize_technique(technique)
         if normalized_technique == "dsc":
+            if source.suffix.casefold() == ".ngb-sd7":
+                return convert_netzsch_dsc(source, source_artifact_id=source_artifact_id)
             try:
                 text = source.read_text(encoding="utf-8", errors="replace")
             except OSError:
@@ -114,6 +117,8 @@ class CanonicalConverterRegistry:
                 source_artifact_id=source_artifact_id,
                 mapping_proposal=mapping_proposal,
             )
+        if normalized_technique == "tga" and source.is_file() and source.suffix.casefold() == ".ngb-ds1":
+            return convert_netzsch_tga(source, source_artifact_id=source_artifact_id)
         template_id = _STATIC_TEMPLATE_IDS.get(normalized_technique)
         if normalized_technique == "nmr":
             template_id = "nmr.spectrum.v1"

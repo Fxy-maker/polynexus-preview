@@ -56,7 +56,7 @@ def test_registry_extension_is_explicit_and_never_loads_code() -> None:
     assert extended.descriptor("acme.reader.v1") == extension
 
 
-def test_netzsch_vendor_inputs_report_missing_decoder_without_execution(
+def test_netzsch_vendor_inputs_fail_closed_without_complete_layout(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "sample.ngb-ds1"
@@ -67,12 +67,9 @@ def test_netzsch_vendor_inputs_report_missing_decoder_without_execution(
     assert inspection.status == "needs_reader"
     assert inspection.plugin_id == "netzsch.ta.v1"
     assert inspection.container_kind == "netzsch_ta_binary"
-    assert inspection.reader_availability == "missing"
-    assert inspection.reason_codes == ("format_reader_missing",)
-    assert inspection.next_actions == (
-        "install_or_enable_reader:netzsch.ta.v1",
-        "export_portable_table",
-    )
+    assert inspection.reader_availability == "available"
+    assert inspection.reason_codes == ("format_signature_unrecognized",)
+    assert inspection.next_actions == ("provide_verified_netzsch_source", "export_portable_table")
 
     class ExplodingEngine:
         def run_pipeline(self, *args, **kwargs):  # pragma: no cover - must not run
@@ -86,7 +83,7 @@ def test_netzsch_vendor_inputs_report_missing_decoder_without_execution(
     )
 
     assert run.status == "needs_input"
-    assert run.reasons == ("format_reader_missing",)
+    assert run.reasons == ("format_signature_unrecognized",)
     assert run.input_inspection == inspection
 
 

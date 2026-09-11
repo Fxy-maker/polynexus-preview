@@ -2197,9 +2197,26 @@ objects. `polynexus public-validate` optionally persists the shared batch under
 `.polynexus/validation/latest.json`.
 
 The external pack now has an untracked
-`public/manifests/public-replay-v1.json` with five representative cases:
-IR, SAXS, NMR (completed diagnostic routes), and DSC/TGA (explicit
-`needs_input` routes). A real mixed replay passed all five cases on 2026-09-11;
-SAXS/NMR remain non-polymer or quality-limited smoke evidence. This is not a
-certified standard, calibration validation, uncertainty model, independent
-lab replay, or capability-promotion decision.
+`public/manifests/public-replay-v1.json` with five representative completed,
+diagnostic routes: IR, SAXS, NMR, plus the observed Netzsch DSC and TGA NGB
+layouts. Each case replays twice with matching output hashes; DSC/TGA retain
+the raw hash, canonical dataset/template provenance, and reader version. The
+TGA `TG /mg` channel is explicitly retained as an instrument-reported signal,
+not an absolute sample-mass claim. SAXS/NMR remain non-polymer or
+quality-limited smoke evidence. This is not a certified standard, calibration
+validation, uncertainty model, independent lab replay, or capability-promotion
+decision.
+
+### Observed Netzsch NGB reader routes (2026-09-11)
+
+The bounded `netzsch.ngb.observed.v1` reader recognizes only the public
+Proteus DSC ZIP/stream layout (`.ngb-sd7`) and TGA `CDbTable` layout
+(`.ngb-ds1`). It preserves labels, units, segment/block offsets, unassigned
+channels, source format, and reader version while using the existing
+CanonicalExperiment/ComputeRun route. DSC source heat flow is already
+normalized to `mW/mg`, so it executes without inventing a sample mass. TGA
+requires an explicit `TG /mg` label, supports multiple observed acquisition
+groups, and records `tg_reported_mass` plus a signed/zero-reference warning;
+unrecognized or incomplete layouts fail closed. This is a narrow parser/replay
+route, not general NGB support or scientific capability promotion. Task:
+`docs/agent/tasks/2026-09-11-netzsch-ngb-reader-route.md`.

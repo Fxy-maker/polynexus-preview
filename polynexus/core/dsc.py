@@ -637,9 +637,11 @@ class DSCEngine(BaseEngine):
             raise ValueError("DSC canonical template has no thermal-program segments")
         sample = payload.get("sample", {})
         mass_value = sample.get("mass_mg")
-        if mass_value is None:
+        heat_flow_unit = str(payload.get("heat_flow_unit", "mW"))
+        direct_normalized_heat_flow = heat_flow_unit.casefold() in {"mw/mg", "mW/mg".casefold()}
+        if mass_value is None and not direct_normalized_heat_flow:
             raise ValueError("DSC canonical template has no sample mass")
-        mass_mg = float(mass_value)
+        mass_mg = float(mass_value) if mass_value is not None else 1.0
         if not np.isfinite(mass_mg) or mass_mg <= 0:
             raise ValueError("DSC canonical template has an invalid sample mass")
 
@@ -652,7 +654,8 @@ class DSCEngine(BaseEngine):
                 raise ValueError("DSC canonical template contains an unsupported segment role")
             time_s = np.asarray(segment.get("time_s", ()), dtype=float)
             temperature = np.asarray(segment.get("sample_temperature_C", ()), dtype=float)
-            heat_flow_mw = np.asarray(segment.get("heat_flow_mW", ()), dtype=float)
+            heat_flow_key = "heat_flow_mW_per_mg" if direct_normalized_heat_flow else "heat_flow_mW"
+            heat_flow_mw = np.asarray(segment.get(heat_flow_key, ()), dtype=float)
             if len(time_s) < 2 or len(time_s) != len(temperature) or len(time_s) != len(heat_flow_mw):
                 raise ValueError("DSC canonical segment has inconsistent arrays")
             if not (
@@ -681,12 +684,13 @@ class DSCEngine(BaseEngine):
                     label=str(segment.get("segment_id", "isothermal")),
                     T_C=temperature,
                     HF_mW=heat_flow_mw,
-                    HF_Wg=heat_flow_mw / mass_mg,
+                    HF_Wg=(heat_flow_mw if direct_normalized_heat_flow else heat_flow_mw / mass_mg),
                     t_min=time_s / 60.0,
                     mass_mg=mass_mg,
                     rate_K_per_min=float(segment.get("rate_K_per_min", 0.0)),
                     metadata={
                         "canonical_template_id": validated_template.template_id,
+                        "heat_flow_unit": heat_flow_unit,
                         "source_range": dict(segment.get("source_range", {})),
                         "quality_warnings": quality_warnings,
                     },

@@ -6956,11 +6956,31 @@ operations remain unchanged. Focused Agent integration coverage is 12 tests.
 - `polynexus public-validate` replays cases twice through the existing
   `ComputeRunService`, projects results into `ProjectValidationEntry`, and
   optionally writes the shared batch report under project `.polynexus`.
-- External `public-replay-v1.json` covers IR, SAXS, NMR successful diagnostic
-  routes and DSC/TGA `needs_input` routes. Real five-case mixed replay passed;
-  no raw archive was added to Git.
+- External `public-replay-v1.json` covers IR, SAXS, NMR, and observed Netzsch
+  DSC/TGA completed diagnostic routes. Real five-case mixed replay passed twice
+  per case; no raw archive was added to Git.
 - Focused coverage: 20 tests across public replay, CLI, project validation,
   and shared harness; Ruff and compile checks pass. Formal standards,
   independent instrument/material replay, uncertainty, capability promotion,
   and human scientific review remain open.
 - Task: `docs/agent/tasks/2026-09-09-public-validation-replay-integration-v1.md`.
+
+## Observed Netzsch NGB reader routes — implementation complete, review required (2026-09-11)
+
+- Added a bounded native reader for the verified public Proteus DSC
+  `.ngb-sd7` ZIP/stream layout and TGA `.ngb-ds1` `CDbTable` layout. Both
+  route through the existing `FormatInspection`, `CanonicalExperiment`, and
+  shared `ComputeRun` contracts; GUI consumers inherit the same result shape.
+- Reader/converter provenance retains source labels, units, block offsets,
+  reader version, segment identifiers, and unassigned channels. DSC source
+  heat flow is already `mW/mg`, so no sample mass is invented. TGA requires a
+  declared `TG /mg` label and retains its channel as
+  `instrument_reported_TG_channel`, explicitly not an absolute-mass result.
+- The external five-case replay manifest now records both DSC and TGA as
+  `completed`: each passed two hash-identical replays, preserved raw hashes,
+  and retained their canonical dataset/template identities. No raw archive was
+  added to Git.
+- This supports only observed layouts. Other NGB layouts, calibration and
+  sample-mass validation, uncertainty, standards/negative controls, and
+  capability promotion remain review-required. Task:
+  `docs/agent/tasks/2026-09-11-netzsch-ngb-reader-route.md`.

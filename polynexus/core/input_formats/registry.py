@@ -13,6 +13,7 @@ import zipfile
 
 from ..artifacts import directory_manifest_entries, directory_manifest_sha256
 from ...readers.ta_dma_reader import looks_like_ta_dma
+from ...readers.netzsch_ngb_reader import looks_like_netzsch_dsc, looks_like_netzsch_tga
 from .models import FormatInspection, FormatPluginDescriptor
 
 
@@ -92,7 +93,11 @@ class FormatPluginRegistry:
             facts.update(probe_facts)
 
         if plugin is not None:
-            if plugin.plugin_id == "vendor.dma.001.v1" and facts.get("ta_dma_probe") == "incomplete_signature":
+            if plugin.plugin_id in {"netzsch.dsc.container.v1", "netzsch.ta.v1"} and facts.get("netzsch_probe") == "incomplete_signature":
+                status = "needs_reader"
+                reasons = ("format_signature_unrecognized",)
+                next_actions = ("provide_verified_netzsch_source", "export_portable_table")
+            elif plugin.plugin_id == "vendor.dma.001.v1" and facts.get("ta_dma_probe") == "incomplete_signature":
                 status = "needs_reader"
                 reasons = ("format_signature_unrecognized",)
                 next_actions = ("provide_verified_ta_dma_export", "export_portable_table")
@@ -149,13 +154,17 @@ class FormatPluginRegistry:
         for descriptor in self._descriptors:
             if extension not in descriptor.extensions:
                 continue
-            if descriptor.plugin_id == "netzsch.dsc.container.v1" and not prefix.startswith(b"PK"):
-                # The extension is vendor-specific.  Preserve the declared
-                # missing-reader route even for a truncated/corrupt container
-                # instead of falling through to an executable legacy path.
-                facts["archive_probe"] = "not_zip_signature"
-            if descriptor.plugin_id == "netzsch.ta.v1" and b"Netzsch TA file" not in prefix:
-                continue
+            if descriptor.plugin_id == "netzsch.dsc.container.v1":
+                if not prefix.startswith(b"PK"):
+                    facts["archive_probe"] = "not_zip_signature"
+                    facts["netzsch_probe"] = "incomplete_signature"
+                elif not looks_like_netzsch_dsc(source):
+                    facts["netzsch_probe"] = "incomplete_signature"
+            if descriptor.plugin_id == "netzsch.ta.v1":
+                if b"Netzsch TA file" not in prefix:
+                    continue
+                if not looks_like_netzsch_tga(source):
+                    facts["netzsch_probe"] = "incomplete_signature"
             if descriptor.plugin_id == "vendor.dma.001.v1" and not looks_like_ta_dma(prefix):
                 if b"CLOSED" not in prefix.upper() and not prefix.startswith((b"\xff\xfe", b"\xfe\xff")):
                     continue
@@ -254,13 +263,13 @@ _DEFAULT_REGISTRY = FormatPluginRegistry(
         ),
         FormatPluginDescriptor(
             plugin_id="netzsch.dsc.container.v1", version="1", container_kind="netzsch_dsc_container",
-            techniques=("dsc",), extensions=(".ngb-sd7",), reader_availability="missing", canonical_conversion="unavailable",
-            next_actions=("install_or_enable_reader:netzsch.dsc.container.v1", "export_portable_table"),
+            techniques=("dsc",), extensions=(".ngb-sd7",), reader_availability="available", canonical_conversion="candidate",
+            next_actions=("confirm_native_reader_layout", "export_portable_table"),
         ),
         FormatPluginDescriptor(
             plugin_id="netzsch.ta.v1", version="1", container_kind="netzsch_ta_binary",
-            techniques=("tga",), extensions=(".ngb-ds1",), reader_availability="missing", canonical_conversion="unavailable",
-            next_actions=("install_or_enable_reader:netzsch.ta.v1", "export_portable_table"),
+            techniques=("tga",), extensions=(".ngb-ds1",), reader_availability="available", canonical_conversion="candidate",
+            next_actions=("confirm_native_reader_layout", "export_portable_table"),
         ),
         FormatPluginDescriptor(
             plugin_id="vendor.dma.001.v1", version="1", container_kind="vendor_dma_binary",
