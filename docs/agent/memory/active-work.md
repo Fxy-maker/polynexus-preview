@@ -1,5 +1,26 @@
 # Active Work
 
+## Diagnostic measurement-uncertainty contract — implementation complete, review required (2026-09-12)
+
+- Added shared immutable `UncertaintyComponent` and `UncertaintySummary` DTOs
+  for repeatability, resolution, baseline, calibration, fit, and other
+  explicitly supplied contributions. Components preserve units, methods,
+  source metadata, input metric bindings, and optional degrees of freedom.
+- Summaries deterministically combine standard-deviation/standard-uncertainty
+  components by RSS and optionally derive expanded uncertainty from an explicit
+  coverage factor. Missing evidence is represented as `unavailable` and never
+  blocks or changes a metric. Schema/value-model/hash tampering fails closed.
+- ComputeResult and ProviderResultInput now serialize nested DTOs through the
+  existing shared uncertainty projection, so metric manifests and evidence
+  packaging retain the same object. Legacy free-form uncertainty mappings stay
+  compatible.
+- Focused contract/cross-entry coverage passes 63; task verification passes
+  Ruff, compile, type baseline, quality 313, preprocessing 157, and
+  whitespace. Provider-specific adapters, standards/negative controls,
+  metrology validation, capability promotion, and human scientific review
+  remain open.
+- Task: `docs/agent/tasks/2026-09-12-uncertainty-contract-foundation.md`.
+
 ## Rheology advanced models phase 1 — implementation complete, review required (2026-09-08)
 
 - Added explicit immutable `RheologyAnalysisSpec` branches for Bingham and

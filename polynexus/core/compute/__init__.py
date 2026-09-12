@@ -11,6 +11,7 @@ from .projection import (
     read_compute_run_projection,
 )
 from .service import ComputeRunService
+from ..ai_platform.contracts import UncertaintyComponent, UncertaintySummary
 from ..project_context import ProjectContext
 
 __all__ = [
@@ -31,4 +32,6 @@ __all__ = [
     "merge_compute_run_projections",
     "parse_compute_run_projection",
     "read_compute_run_projection",
+    "UncertaintyComponent",
+    "UncertaintySummary",
 ]

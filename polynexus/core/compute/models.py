@@ -61,6 +61,11 @@ def _freeze_strings(value: Sequence[str] | None, field_name: str) -> tuple[str, 
 
 def _freeze_json(value: Any) -> Any:
     """Validate and recursively freeze values accepted by the public contracts."""
+    if (
+        type(value).__module__ == "polynexus.core.ai_platform.contracts"
+        and type(value).__name__ in {"UncertaintyComponent", "UncertaintySummary"}
+    ):
+        return _freeze_json(value.to_dict())
     if value is None or isinstance(value, (str, bool, int)):
         return value
     if isinstance(value, Path):
