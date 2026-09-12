@@ -19,7 +19,7 @@ SEC_TABLE_EXTENSIONS = frozenset(
 
 @register_technique("sec")
 class SECEngine(BaseEngine):
-    """Describe SEC detector curves without inferring molecular-weight moments."""
+    """Analyze SEC/GPC curves with optional explicit calibration semantics."""
 
     name = "sec"
     label = "SEC/GPC"
@@ -27,7 +27,7 @@ class SECEngine(BaseEngine):
     category = EngineCategory.EXPERIMENTAL
     description = (
         "SEC/GPC tables: source-preserving detector and vendor-distribution "
-        "signals with calibration-independent response descriptors"
+        "signals with calibration-independent descriptors and explicit calibration support"
     )
 
     def __init__(self, config: Any = None, log_fn=None):
@@ -184,6 +184,11 @@ class SECEngine(BaseEngine):
                     )
                     for measurement, x, signal in group_items
                 ),
+                analysis_spec=(
+                    self._template.payload.get("sec_analysis")
+                    if self._template is not None
+                    else None
+                ),
             )
             sec_groups[group_id] = dict(processed.metrics)
             prefix = f"sec_groups.{group_id}"
@@ -225,8 +230,13 @@ class SECEngine(BaseEngine):
                 "canonical_template_id": (
                     self._template.template_id if self._template is not None else ""
                 ),
-                "analysis_scope": "calibration_independent_sec_descriptors",
+                "analysis_scope": "material_neutral_sec_descriptors_with_explicit_calibration",
                 "sec_processing_contract": "sec.processing.v1",
+                "sec_analysis_spec": (
+                    self._template.payload.get("sec_analysis", {})
+                    if self._template is not None
+                    else {}
+                ),
                 "units": units,
                 "methods": methods,
                 "parameters": method_parameters,

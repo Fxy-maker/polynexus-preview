@@ -189,6 +189,52 @@ def test_run_single_passes_explicit_rheology_analysis_spec_to_shared_compute_run
     assert json.loads(capsys.readouterr().out)["status"] == "completed"
 
 
+def test_run_single_passes_explicit_sec_analysis_spec_to_shared_compute_run(
+    tmp_path, capsys
+):
+    class FakeResult:
+        parameters = {"sec_groups": {}}
+        figures = {}
+        metadata = {}
+
+    class FakeEngine:
+        def run_pipeline(self, _input_path, _output_path, **_kwargs):
+            return FakeResult()
+
+    input_file = tmp_path / "chromatogram.csv"
+    input_file.write_text("Elution Volume (mL),RI (mV)\n1,1\n2,2\n3,1\n", encoding="utf-8")
+    spec = {
+        "response_measurement_id": "sheet-0-table-0",
+        "calibration_coordinates": [1.0, 2.0, 3.0],
+        "calibration_molar_masses": [1000.0, 100.0, 10.0],
+        "calibration_id": "polystyrene-kit-v1",
+        "standard_source": "lab-record://sec-standards/2026-09",
+        "standard_ids": ["PS-1000", "PS-100", "PS-10"],
+        "distribution_mode": "mass",
+    }
+    spec_file = tmp_path / "calibration.json"
+    spec_file.write_text(json.dumps(spec), encoding="utf-8")
+    args = SimpleNamespace(
+        cmd="sec",
+        input=str(input_file),
+        output=str(tmp_path / "out"),
+        skip_to=None,
+        analysis_spec=str(spec_file),
+        json=True,
+    )
+    _FakeComputeRunService.instances.clear()
+
+    assert run_single(
+        args,
+        get_engine_fn=lambda technique: FakeEngine() if technique == "sec" else None,
+        compute_run_service_factory=_FakeComputeRunService,
+    ) == 0
+
+    captured = _FakeComputeRunService.instances[0].run_direct_kwargs
+    assert captured["pipeline_options"]["sec_analysis"] == spec
+    assert json.loads(capsys.readouterr().out)["status"] == "completed"
+
+
 def test_format_inspection_cli_emits_shared_contract(tmp_path, capsys):
     source = tmp_path / "sample.ngb-ds1"
     source.write_bytes(b"\x00\x00Netzsch TA file\x00_db_format_1\x00")

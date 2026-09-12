@@ -2220,3 +2220,14 @@ groups, and records `tg_reported_mass` plus a signed/zero-reference warning;
 unrecognized or incomplete layouts fail closed. This is a narrow parser/replay
 route, not general NGB support or scientific capability promotion. Task:
 `docs/agent/tasks/2026-09-11-netzsch-ngb-reader-route.md`.
+## SEC/GPC explicit calibration and distribution — 2026-09-13
+
+SEC/GPC now has an explicit `SECCalibrationSpec` route for declared standard
+coordinates/molar masses and mass/number response semantics. The deterministic
+Core computes calibrated `Mn`, `Mw`, `Mz`, and dispersity only within the
+calibration range, retains the calibrated distribution arrays and standard
+provenance, and leaves moments unavailable when no valid spec is provided.
+The route is shared by canonical `ComputeRun`, SEC/GPC CLI, and metric
+manifest. Detector response factors, vendor readers, independent standards /
+negative controls, formal uncertainty, and capability promotion remain open.
+Task: `docs/agent/tasks/2026-09-13-sec-gpc-calibration-distribution.md`.

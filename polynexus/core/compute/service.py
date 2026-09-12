@@ -21,7 +21,13 @@ from .method_sensitivity import sensitivities_from_metrics
 
 
 _SUPPORTED_PIPELINE_OPTIONS = frozenset(
-    {"skip_to", "mask_edit_candidate", "method_sensitivity", "rheology_analysis"}
+    {
+        "skip_to",
+        "mask_edit_candidate",
+        "method_sensitivity",
+        "rheology_analysis",
+        "sec_analysis",
+    }
 )
 _SUPPORTED_SKIP_TO_VALUES = frozenset({"preprocess", "analyze", "plot"})
 
@@ -77,6 +83,11 @@ def _normalize_pipeline_options(
             not isinstance(rheology_analysis, Mapping) or not _is_json_safe(rheology_analysis)
         ):
             return None, "pipeline_option_invalid"
+        sec_analysis = options.get("sec_analysis")
+        if "sec_analysis" in options and (
+            not isinstance(sec_analysis, Mapping) or not _is_json_safe(sec_analysis)
+        ):
+            return None, "pipeline_option_invalid"
         normalized: dict[str, Any] = {}
         if "skip_to" in options:
             normalized["skip_to"] = skip_to
@@ -86,6 +97,8 @@ def _normalize_pipeline_options(
             normalized["method_sensitivity"] = _normalize_method_sensitivity_request(method_sensitivity)
         if "rheology_analysis" in options:
             normalized["rheology_analysis"] = dict(rheology_analysis)
+        if "sec_analysis" in options:
+            normalized["sec_analysis"] = dict(sec_analysis)
         return normalized, None
     except Exception:
         return None, "pipeline_option_invalid"
@@ -287,6 +300,13 @@ class ComputeRunService:
                 reasons=("rheology_analysis_technique_mismatch",),
                 input_inspection=input_inspection,
             )
+        if "sec_analysis" in options and normalized_technique != "sec":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("sec_analysis_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
         try:
             context = ProjectContext.load(project_context)
         except ValueError:
@@ -342,6 +362,19 @@ class ComputeRunService:
                         status="needs_input",
                         artifact=artifact,
                         reasons=("rheology_analysis_mismatch",),
+                        input_inspection=input_inspection,
+                    )
+            if "sec_analysis" in options:
+                try:
+                    canonical_template = _attach_sec_analysis_spec(
+                        canonical_template,
+                        options["sec_analysis"],
+                    )
+                except (TypeError, ValueError):
+                    return ComputeRun(
+                        status="needs_input",
+                        artifact=artifact,
+                        reasons=("sec_analysis_mismatch",),
                         input_inspection=input_inspection,
                     )
         capability_items = (
@@ -405,6 +438,19 @@ class ComputeRunService:
                             reasons=("rheology_analysis_invalid",),
                             input_inspection=input_inspection,
                         )
+                if "sec_analysis" in options and normalized_technique == "sec":
+                    try:
+                        canonical_template = _attach_sec_analysis_spec(
+                            canonical_template,
+                            options["sec_analysis"],
+                        )
+                    except (TypeError, ValueError):
+                        return ComputeRun(
+                            status="needs_input",
+                            artifact=artifact,
+                            reasons=("sec_analysis_invalid",),
+                            input_inspection=input_inspection,
+                        )
                 if canonical_template.measurements:
                     capability_items = CapabilityExecutor().execute(canonical_template)
             if (
@@ -416,6 +462,17 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=("rheology_analysis_requires_canonical_template",),
+                    input_inspection=input_inspection,
+                )
+            if (
+                "sec_analysis" in options
+                and normalized_technique == "sec"
+                and canonical_template is None
+            ):
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("sec_analysis_requires_canonical_template",),
                     input_inspection=input_inspection,
                 )
         try:
@@ -460,7 +517,7 @@ class ComputeRunService:
             if callable(canonical_runner):
                 provider_options = {
                     key: value for key, value in options.items()
-                    if key not in {"method_sensitivity", "rheology_analysis"}
+                    if key not in {"method_sensitivity", "rheology_analysis", "sec_analysis"}
                 }
                 legacy_result = canonical_runner(
                     canonical_template,
@@ -491,7 +548,7 @@ class ComputeRunService:
             else:
                 provider_options = {
                     key: value for key, value in options.items()
-                    if key not in {"method_sensitivity", "rheology_analysis"}
+                    if key not in {"method_sensitivity", "rheology_analysis", "sec_analysis"}
                 }
                 legacy_result = selected_engine.run_pipeline(
                     artifact.path,
@@ -741,6 +798,38 @@ def _attach_rheology_analysis_spec(
         return template
     payload = dict(template.payload)
     payload["rheology_analysis"] = normalized
+    return CanonicalExperiment.create(
+        template_id=template.template_id,
+        source_artifact_id=template.source_artifact_id,
+        payload=payload,
+        conversion_record=template.conversion_record,
+        measurements=template.measurements,
+        mapping_proposal=template.mapping_proposal,
+        contract_version=template.contract_version,
+    )
+
+
+def _attach_sec_analysis_spec(
+    template: CanonicalExperiment,
+    value: Mapping[str, Any],
+) -> CanonicalExperiment:
+    """Return a rehashed SEC template carrying explicit calibration semantics."""
+    if not isinstance(value, Mapping):
+        raise TypeError("sec_analysis must be a mapping")
+    if str(template.payload.get("technique", "")).casefold() != "sec":
+        raise ValueError("sec_analysis requires a SEC canonical template")
+    from ..sec_processing import SECCalibrationSpec
+
+    normalized = SECCalibrationSpec.from_mapping(value).to_dict()
+    existing = template.payload.get("sec_analysis")
+    if existing is not None:
+        if not isinstance(existing, Mapping):
+            raise ValueError("canonical SEC analysis spec is invalid")
+        if SECCalibrationSpec.from_mapping(existing).to_dict() != normalized:
+            raise ValueError("canonical SEC analysis spec does not match request")
+        return template
+    payload = dict(template.payload)
+    payload["sec_analysis"] = normalized
     return CanonicalExperiment.create(
         template_id=template.template_id,
         source_artifact_id=template.source_artifact_id,

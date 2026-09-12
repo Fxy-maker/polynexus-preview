@@ -127,6 +127,60 @@ def test_sec_compute_run_and_manifest_use_shared_contract(tmp_path: Path) -> Non
     assert manifest[integral_path]["unit"] == "mV*mL"
 
 
+def test_sec_explicit_analysis_spec_flows_through_compute_run_and_manifest(
+    tmp_path: Path,
+) -> None:
+    source = _write(
+        tmp_path / "calibrated.csv",
+        "Elution Volume (mL),RI (mV)\n1,1\n2,2\n3,1\n",
+    )
+    run = ComputeRunService().run_direct(
+        technique="sec",
+        path=source,
+        output_dir="",
+        pipeline_options={
+            "sec_analysis": {
+                "response_measurement_id": "sheet-0-table-0",
+                "calibration_coordinates": [1.0, 2.0, 3.0],
+                "calibration_molar_masses": [1000.0, 100.0, 10.0],
+                "calibration_id": "polystyrene-kit-v1",
+                "standard_source": "lab-record://sec-standards/2026-09",
+                "standard_ids": ["PS-1000", "PS-100", "PS-10"],
+                "distribution_mode": "mass",
+                "coordinate_kind": "elution_volume",
+                "calibration_unit": "mL",
+            }
+        },
+    )
+
+    assert run.status == "completed"
+    assert run.canonical_template is not None
+    assert "sec_analysis" in run.canonical_template.payload
+    assert run.result is not None
+    group = next(iter(run.result.metrics["sec_groups"].values()))
+    assert group["molecular_weight_summary"]["status"] == "computed"
+    manifest = {item["path"]: item for item in run.result.metric_manifest()}
+    summary_path = next(
+        path for path in manifest if path.endswith("molecular_weight_summary.Mw")
+    )
+    assert manifest[summary_path]["status"] == "computed"
+    assert manifest[summary_path]["method"] == (
+        "calibrated_log_molar_mass_weighted_moment"
+    )
+
+
+def test_sec_analysis_spec_rejects_non_sec_technique(tmp_path: Path) -> None:
+    source = _write(tmp_path / "ir.csv", "Wavenumber (cm-1),Absorbance\n1,2\n2,3\n")
+    run = ComputeRunService().run_direct(
+        technique="ir",
+        path=source,
+        output_dir="",
+        pipeline_options={"sec_analysis": {}},
+    )
+    assert run.status == "needs_input"
+    assert run.reasons == ("sec_analysis_technique_mismatch",)
+
+
 def test_sec_prevalidated_template_does_not_reparse_source(tmp_path: Path) -> None:
     source = _write(
         tmp_path / "prevalidated.csv",
@@ -189,3 +243,12 @@ def test_sec_gpc_entries_and_project_adapter_share_canonical_name(tmp_path: Path
     registry = default_descriptor_registry()
     assert "sec" in registry.get("curve.summary.v1").techniques
     assert registry.get("sec.molecular_weight.v1").status == "unsupported"
+
+
+def test_sec_and_gpc_cli_accept_explicit_analysis_spec() -> None:
+    assert parse_args(
+        ["sec", "curve.csv", "--analysis-spec", "calibration.json"]
+    ).analysis_spec == "calibration.json"
+    assert parse_args(
+        ["gpc", "curve.csv", "--analysis-spec", "calibration.json"]
+    ).analysis_spec == "calibration.json"

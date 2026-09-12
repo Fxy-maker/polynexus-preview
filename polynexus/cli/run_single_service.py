@@ -50,12 +50,14 @@ def run_single(
                 Path(str(analysis_spec_path)).expanduser().read_text(encoding="utf-8")
             )
         except (OSError, UnicodeError, TypeError, ValueError, json.JSONDecodeError):
-            print("needs_input: rheology_analysis_spec_invalid", file=sys.stderr)
+            print("needs_input: analysis_spec_invalid", file=sys.stderr)
             return 2
         if not isinstance(analysis_spec, dict):
-            print("needs_input: rheology_analysis_spec_invalid", file=sys.stderr)
+            print("needs_input: analysis_spec_invalid", file=sys.stderr)
             return 2
-        pipeline_options["rheology_analysis"] = analysis_spec
+        pipeline_options[
+            "sec_analysis" if canonical_technique == "sec" else "rheology_analysis"
+        ] = analysis_spec
     service = compute_run_service_factory(
         lambda technique, config=None, submodule_id=None: engine
     )

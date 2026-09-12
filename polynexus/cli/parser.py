@@ -78,12 +78,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_sec.add_argument("input")
     p_sec.add_argument("-o", "--output", default="")
     p_sec.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_sec.add_argument(
+        "--analysis-spec",
+        default=None,
+        help="JSON file containing explicit SEC/GPC calibration and distribution semantics",
+    )
     p_sec.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     p_gpc = sub.add_parser("gpc", help="GPC (alias for SEC)")
     p_gpc.add_argument("input")
     p_gpc.add_argument("-o", "--output", default="")
     p_gpc.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_gpc.add_argument(
+        "--analysis-spec",
+        default=None,
+        help="JSON file containing explicit SEC/GPC calibration and distribution semantics",
+    )
     p_gpc.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     p_inspect = sub.add_parser("inspect-format", help="Inspect a raw input format and reader route")

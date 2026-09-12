@@ -1,5 +1,29 @@
 # Active Work
 
+## SEC/GPC explicit calibration and distribution — implementation complete, review required (2026-09-13)
+
+- Added immutable `SECCalibrationSpec` requiring an explicit response channel,
+  calibration coordinates, positive molar masses, calibration ID, standard
+  source, standard IDs, distribution mode, and optional coordinate/unit
+  semantics. Duplicate, non-monotonic, insufficient, or invalid standards
+  fail closed.
+- `sec.processing.v1` now fits declared `log10(M)` calibration without
+  extrapolation and computes `Mn`, `Mw`, `Mz`, and `dispersity` for explicit
+  mass- or number-response semantics. It also retains calibrated coordinate,
+  molar-mass, response, and normalized distribution arrays plus calibration
+  coefficients/residuals. Existing peak/integral/source metrics are unchanged.
+- `ComputeRunService`, canonical templates, SEC/GPC CLI, and metric manifests
+  share the same `sec_analysis` payload. Without that payload, molecular-weight
+  moments remain `unavailable`; missing/invalid semantics affect only those
+  moments and do not block descriptive SEC calculation.
+- Focused SEC/CLI coverage passes 22 tests (one unrelated pre-existing format
+  inspection expectation was deselected); structured verification passes Ruff,
+  compile, type baseline, quality 313, preprocessing 157, and whitespace.
+  Detector response-factor models, vendor calibration readers, standards and
+  negative-control replay, formal uncertainty, capability promotion, and human
+  scientific review remain open.
+- Task: `docs/agent/tasks/2026-09-13-sec-gpc-calibration-distribution.md`.
+
 ## Diagnostic measurement-uncertainty contract — implementation complete, review required (2026-09-12)
 
 - Added shared immutable `UncertaintyComponent` and `UncertaintySummary` DTOs
