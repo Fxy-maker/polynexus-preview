@@ -267,6 +267,7 @@ def test_advanced_specs_share_cli_compute_projection(
         output_dir=tmp_path / "direct",
         pipeline_options={option_name: option},
     )
+    capsys.readouterr()
     spec_path = tmp_path / f"{technique}-analysis.json"
     spec_path.write_text(json.dumps(cli_spec), encoding="utf-8")
 
@@ -281,7 +282,7 @@ def test_advanced_specs_share_cli_compute_projection(
         )
     ) == 0
 
-    cli = json.loads(capsys.readouterr().out.splitlines()[-1])
+    cli = json.loads(capsys.readouterr().out)
     assert cli["canonical_template"]["content_hash"] == direct.canonical_template.content_hash
     direct_manifest = json.loads(
         json.dumps(direct.result.metric_manifest(source=str(source)))

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stdout
+import io
 import json
 import os
 from pathlib import Path
@@ -79,13 +81,18 @@ def run_single(
     service = compute_run_service_factory(
         lambda technique, config=None, submodule_id=None: engine
     )
-    run = service.run_direct(
-        technique=canonical_technique,
-        path=args.input,
-        output_dir=output,
-        engine=engine,
-        pipeline_options=pipeline_options,
-    )
+    run_arguments = {
+        "technique": canonical_technique,
+        "path": args.input,
+        "output_dir": output,
+        "engine": engine,
+        "pipeline_options": pipeline_options,
+    }
+    if bool(getattr(args, "json", False)):
+        with redirect_stdout(io.StringIO()):
+            run = service.run_direct(**run_arguments)
+    else:
+        run = service.run_direct(**run_arguments)
     if run.status != "completed":
         reason = ", ".join(run.reasons) or run.status
         print(f"{run.status}: {reason}", file=sys.stderr)
