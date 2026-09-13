@@ -7055,3 +7055,11 @@ fracture force-displacement candidates. Focused tests pass (DMA/rheology 8,
 mechanics 2). These primitives still need canonical engine wiring, shared
 metric-manifest projection, and CLI/Agent exposure under the umbrella task:
 `docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.
+## Advanced model shared ComputeRun bindings — 2026-09-13
+
+`ComputeRunService` now accepts and hash-binds `tga_kinetics`, `dma_tts`, and
+`mechanics_analysis` mappings alongside existing rheology/SEC specs. Technique
+mismatches and invalid specs fail as `needs_input` before provider execution;
+canonical templates are rehashed with the explicit mapping. Focused advanced
+model tests remain green (10 passed). Provider metric projection and full
+cross-entry model execution are still pending under the umbrella task.
