@@ -37,6 +37,7 @@ def build_v2_definition_artifact(definition: FigureDefinition) -> V2DefinitionAr
         "ir",
         "saxs_strain",
         "saxs_static",
+        "sec",
     }:
         return V2DefinitionArtifact(
             capability={

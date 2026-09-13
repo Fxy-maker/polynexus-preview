@@ -7029,3 +7029,12 @@ operations remain unchanged. Focused Agent integration coverage is 12 tests.
   sample-mass validation, uncertainty, standards/negative controls, and
   capability promotion remain review-required. Task:
   `docs/agent/tasks/2026-09-11-netzsch-ngb-reader-route.md`.
+## SEC/GPC figure/export closure — implementation complete, review required (2026-09-13)
+
+Added `polynexus/core/sec_figures.py` and wired `SECEngine` to the shared
+FigureDefinition contract. Uncalibrated runs publish a chromatogram;
+calibrated runs publish diagnostic MWD, calibration curve, and Mn/Mw/Mz/Đ
+summary sources. Existing snapshots and V2 sidecars provide reusable
+CSV/SVG/PNG/PDF and Origin-compatible semantic data. Focused tests and
+structured verification pass. Scientific calibration validity, standards,
+uncertainty, and capability promotion remain outside this task.

@@ -10,6 +10,7 @@ import numpy as np
 from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
 from .engine import BaseEngine, EngineCategory, register_technique
 from .sec_processing import SECSignalSeries, analyze_sec_group
+from .sec_figures import build_sec_figure_definitions
 
 
 SEC_TABLE_EXTENSIONS = frozenset(
@@ -245,7 +246,7 @@ class SECEngine(BaseEngine):
         return True
 
     def build_figure_definitions(self):
-        return ()
+        return build_sec_figure_definitions(self)
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         if not self._measurements or not output_dir:

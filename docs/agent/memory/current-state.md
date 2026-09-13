@@ -2231,3 +2231,14 @@ The route is shared by canonical `ComputeRun`, SEC/GPC CLI, and metric
 manifest. Detector response factors, vendor readers, independent standards /
 negative controls, formal uncertainty, and capability promotion remain open.
 Task: `docs/agent/tasks/2026-09-13-sec-gpc-calibration-distribution.md`.
+## SEC/GPC shared figure and export closure — 2026-09-13
+
+`SECEngine` now emits shared FigureDefinitions for recorded chromatograms and,
+when explicit calibration computes moments, diagnostic molecular-weight
+distribution, calibration curve, and Mn/Mw/Mz/Đ summary sources. The existing
+FigurePipeline provides portable CSV snapshots, SVG/PNG/PDF assets, and a
+Reactive Figure V2 sidecar for GUI/CLI/Codex consumers. Calibration-dependent
+figures are omitted when unavailable; calibration remains explicit and
+diagnostic. Focused SEC coverage passes 11 and structured verification passes
+quality 313 plus preprocessing 157. Task:
+`docs/agent/tasks/2026-09-13-sec-gpc-figure-export-closure.md`.
