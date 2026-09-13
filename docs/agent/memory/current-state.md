@@ -2259,7 +2259,10 @@ when explicit calibration computes moments, diagnostic molecular-weight
 distribution, calibration curve, and Mn/Mw/Mz/Đ summary sources. The existing
 FigurePipeline provides portable CSV snapshots, SVG/PNG/PDF assets, and a
 Reactive Figure V2 sidecar for GUI/CLI/Codex consumers. Calibration-dependent
-figures are omitted when unavailable; calibration remains explicit and
-diagnostic. Focused SEC coverage passes 11 and structured verification passes
-quality 313 plus preprocessing 157. Task:
+figures are omitted when unavailable. Metric-summary rows now preserve their
+exact shared manifest paths, per-metric units (including dimensionless Đ),
+methods, parameters, and SEC group; figure recipes bind the same manifest paths
+and calibration provenance without recomputing values. Calibration remains
+explicit and diagnostic. Focused SEC coverage passes 11; structured verification
+passes quality 313 plus preprocessing 157. Task:
 `docs/agent/tasks/2026-09-13-sec-gpc-figure-export-closure.md`.

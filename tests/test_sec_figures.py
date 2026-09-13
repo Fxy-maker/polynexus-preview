@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from polynexus.core.compute import ComputeRunService
+from polynexus.core.compute.models import ComputeResult
 from polynexus.core.figures.validation import validate_figure_definition
 from polynexus.core.figures.v2_capabilities import build_v2_definition_artifact
 from polynexus.core.sec import SECEngine
@@ -116,6 +117,36 @@ def test_calibrated_sec_emits_mwd_calibration_and_metric_summary_exports(
     )
     assert summary.role == "metric_summary"
     assert tuple(summary.values["metric"]) == ("Mn", "Mw", "Mz", "dispersity")
+    group_id = "sheet-0-table-0"
+    expected_paths = tuple(
+        f"sec_groups.{group_id}.molecular_weight_summary.{name}"
+        for name in ("Mn", "Mw", "Mz", "dispersity")
+    )
+    assert tuple(summary.values["metric_path"]) == expected_paths
+    assert tuple(summary.values["unit"]) == ("g/mol", "g/mol", "g/mol", "1")
+    assert tuple(summary.values["method"]) == (
+        "calibrated_log_molar_mass_weighted_moment",
+        "calibrated_log_molar_mass_weighted_moment",
+        "calibrated_log_molar_mass_weighted_moment",
+        "molecular_weight_ratio_Mw_over_Mn",
+    )
+    manifest = {
+        row["path"]: row
+        for row in ComputeResult.from_legacy_result(engine.result).metric_manifest()
+    }
+    assert tuple(summary.values["value"]) == pytest.approx(
+        tuple(manifest[path]["value"] for path in expected_paths)
+    )
+    assert distribution.recipe["group_id"] == group_id
+    assert tuple(distribution.recipe["metric_manifest_paths"]) == expected_paths
+    assert distribution.recipe["metric_manifest_binding"] == {
+        path: {
+            "unit": manifest[path]["unit"],
+            "method": manifest[path]["method"],
+            "parameters": manifest[path]["parameters"],
+        }
+        for path in expected_paths
+    }
 
     calibration = definitions[2]
     standards = next(

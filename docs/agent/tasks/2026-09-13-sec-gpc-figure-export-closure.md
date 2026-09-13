@@ -1,7 +1,7 @@
 ---
 task_id: 2026-09-13-sec-gpc-figure-export-closure
 kind: scientific
-status: active
+status: implementation_complete_review_required
 date: 2026-09-13
 title: Close shared SEC/GPC figure and export loop
 ---
@@ -62,16 +62,16 @@ shared FigureDefinition and export pipeline.
 
 ## Acceptance criteria
 
-- [ ] A completed SEC run with valid chromatogram data emits a valid shared
+- [x] A completed SEC run with valid chromatogram data emits a valid shared
   chromatogram definition with source IDs, axes, units, and data snapshots.
-- [ ] A run with a computed explicit calibration additionally emits valid MWD
+- [x] A run with a computed explicit calibration additionally emits valid MWD
   and calibration definitions, including declared calibration provenance and
   mass/number distribution semantics.
-- [ ] A run with unavailable molecular moments emits no calibration-dependent
+- [x] A run with unavailable molecular moments emits no calibration-dependent
   figures while retaining its chromatogram.
-- [ ] Shared figure publication produces editable SVG, PNG/PDF, CSV snapshots,
+- [x] Shared figure publication produces editable SVG, PNG/PDF, CSV snapshots,
   and an Origin-compatible V2 worksheet/curve sidecar from those definitions.
-- [ ] Mn/Mw/Mz/dispersity remain in the existing metric manifest; their figure
+- [x] Mn/Mw/Mz/dispersity remain in the existing metric manifest; their figure
   recipe references the same method/provenance instead of duplicating values.
 
 ## Verification
@@ -86,13 +86,18 @@ git diff --check
 
 ```powershell
 python scripts/auto_commit.py `
-  --message "feat(sec): add shared figure exports" `
-  --files polynexus/core/sec.py polynexus/core/sec_figures.py tests/test_sec_figures.py docs/agent/tasks/2026-09-13-sec-gpc-figure-export-closure.md docs/agent/memory/current-state.md docs/agent/memory/active-work.md
+  --message "fix(sec): bind figure summaries to metric manifest" `
+  --files polynexus/core/sec_figures.py tests/test_sec_figures.py docs/agent/tasks/2026-09-13-sec-gpc-figure-export-closure.md docs/agent/memory/current-state.md docs/agent/memory/active-work.md
 ```
 
 ## Completion evidence
 
-- Exact commands and outcomes: pending implementation.
-- Known limitations or follow-up: explicit calibration remains diagnostic only.
+- Exact commands and outcomes: focused SEC coverage passes `11`; targeted Ruff
+  and `git diff --check` pass. Structured task verification passes task-card and
+  memory checks, Ruff, compile, quality `313`, preprocessing `157`, and
+  whitespace.
+- Known limitations or follow-up: explicit calibration remains diagnostic only;
+  scientific calibration validity, standards/negative controls, uncertainty,
+  vendor calibration readers, and capability promotion remain outside scope.
 - Pre-existing changes left untouched: agent workflow service, superpowers
   documents, local literature text, and temporary phase-3 test files.

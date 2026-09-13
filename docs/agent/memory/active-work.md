@@ -7054,9 +7054,13 @@ Added `polynexus/core/sec_figures.py` and wired `SECEngine` to the shared
 FigureDefinition contract. Uncalibrated runs publish a chromatogram;
 calibrated runs publish diagnostic MWD, calibration curve, and Mn/Mw/Mz/Đ
 summary sources. Existing snapshots and V2 sidecars provide reusable
-CSV/SVG/PNG/PDF and Origin-compatible semantic data. Focused tests and
-structured verification pass. Scientific calibration validity, standards,
-uncertainty, and capability promotion remain outside this task.
+CSV/SVG/PNG/PDF and Origin-compatible semantic data. The summary export uses
+long-form metric path/name/value/unit/method columns, so dimensionless Đ is not
+mislabelled as molar mass; recipes retain the exact Metric Manifest bindings,
+method parameters, group identity, and calibration provenance. Focused SEC
+coverage passes 11; structured verification passes quality 313 plus
+preprocessing 157. Scientific calibration validity, standards, uncertainty,
+vendor calibration readers, and capability promotion remain outside this task.
 ## Advanced model suite — TGA kinetics phase 1 active (2026-09-13)
 
 Added `TGAKineticsSpec` and a deterministic diagnostic Kissinger multi-rate
