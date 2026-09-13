@@ -485,6 +485,11 @@ class ProjectWorkflowService:
                         else {}
                     ),
                 }
+                analysis_options = self._analysis_options_for_technique(
+                    request, technique
+                )
+                if analysis_options is not None:
+                    single_manifest["analysis_options"] = analysis_options
                 if technique == "nmr":
                     requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
                     if requested_submodule:
@@ -507,6 +512,11 @@ class ProjectWorkflowService:
                     step_status = "review_required" if proposal.status == "review_required" else "ready"
                     provider_id = _SINGLE_WORKFLOW
                     template_id = str(recipe_step.parameters.get("submodule_id", ""))
+                step_analysis_options = (
+                    recipe_step.parameters.get("analysis_options")
+                    if proposal.recipe is not None
+                    else None
+                )
                 steps.append({
                     "step_id": step_id,
                     "technique": technique,
@@ -516,6 +526,11 @@ class ProjectWorkflowService:
                     "artifact_paths": [artifact.relative_path for artifact in selected],
                     "artifact_sha256": selected[0].sha256 if len(selected) == 1 else None,
                     "requested_outputs": list(request.requested_outputs),
+                    **(
+                        {"analysis_options": step_analysis_options}
+                        if isinstance(step_analysis_options, Mapping)
+                        else {}
+                    ),
                     **(
                         {
                             "portable_export": technique_portable[selected[0].relative_path],
@@ -935,6 +950,8 @@ class ProjectWorkflowService:
                 else {}
             ),
         }
+        if isinstance(plan_step.get("analysis_options"), Mapping):
+            single_manifest["analysis_options"] = plan_step["analysis_options"]
         if technique == "nmr":
             requested_submodule = request.parameters.get("submodule_id") or request.parameters.get("nmr_submodule")
             if requested_submodule:
@@ -988,6 +1005,24 @@ class ProjectWorkflowService:
             analysis_run=analysis_run,
             reason_codes=analysis_run.reason_codes,
         )
+
+    @staticmethod
+    def _analysis_options_for_technique(
+        request: AnalysisRequest, technique: str
+    ) -> Mapping[str, Any] | None:
+        raw = request.parameters.get("analysis_options")
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            return {"__invalid__": raw}
+        scoped = raw.get(str(technique).lower())
+        if scoped is not None:
+            return (
+                scoped
+                if isinstance(scoped, Mapping)
+                else {"__invalid__": scoped}
+            )
+        return raw
 
     def _run_series_technique(self, request: AnalysisRequest, plan: ProjectPlan, steps: tuple[Mapping[str, object], ...]) -> ProjectWorkflowRun:
         if len(steps) != 1:

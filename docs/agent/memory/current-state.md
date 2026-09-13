@@ -1,5 +1,26 @@
 ---
 
+## Advanced diagnostic model suite — 2026-09-13
+
+TGA multi-rate Kissinger/OFW kinetics, DMA horizontal shifting and master
+curves, rheology thixotropy/Cox–Merz/creep/relaxation/TTS, and mechanics
+cycle/fatigue/creep/fracture models now use explicit sample-neutral specs.
+Specs bind canonical measurement IDs and condition ordering; incompatible or
+missing inputs remain local `unavailable` records and do not hide independent
+source descriptors.
+
+Direct Core, standalone CLI, Agent replay, and single-input project requests
+now retain the same canonical content hash and metric manifest for a given
+source/spec. Project requests persist strict `analysis_options`; FigureDefinition
+providers preserve method, source IDs, parameters, diagnostic role, edit-ready
+data, SVG/PNG/PDF assets, and Reactive Figure V2 sidecars. Focused coverage
+passes 45 tests; structured verification passes quality 313, preprocessing
+157, Ruff, compile, and whitespace. All models remain diagnostic candidates;
+cross-file project series need a grouped canonical experiment, and capability
+promotion still requires independent replay, standards/negative controls,
+uncertainty evidence, and human scientific review. Task:
+`docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.
+
 ## Rheology advanced models phase 1 — 2026-09-08
 
 The sample-neutral rheology Core now accepts an explicit, hash-bound analysis

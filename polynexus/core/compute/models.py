@@ -558,6 +558,8 @@ class ComputeResult:
             value_available = present and not (
                 item.get("kind") == "scalar" and item.get("value") is None
             )
+            if item.get("kind") == "diagnostic":
+                value_available = False
             if not value_available:
                 status = "unavailable"
             elif computability in (None, "computed"):
@@ -590,6 +592,8 @@ class ComputeResult:
                 record["value"] = item.get("value")
             elif item["kind"] == "series" and status == "computed":
                 record["item_count"] = item.get("item_count", 0)
+            elif item["kind"] == "diagnostic":
+                record["unavailable_reason"] = item.get("unavailable_reason")
             manifest.append(record)
         return tuple(manifest)
 

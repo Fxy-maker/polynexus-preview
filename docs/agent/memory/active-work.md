@@ -1,5 +1,24 @@
 # Active Work
 
+## Advanced diagnostic model suite — implementation complete, review required (2026-09-13)
+
+- Added explicit sample-neutral TGA multi-rate kinetics, DMA TTS/master-curve,
+  rheology thixotropy/Cox–Merz/creep/relaxation/TTS, and mechanics
+  cycle/fatigue/creep/fracture routes. Local unavailable states do not block
+  independent calculations.
+- Canonical measurement/condition bindings, method/parameter/unit provenance,
+  manifest projection, diagnostic FigureDefinitions, edit-ready data,
+  SVG/PNG/PDF export, and V2 sidecars are retained through the shared chain.
+- Direct, CLI, Agent replay, and single-input project requests now produce the
+  same canonical hash and metric manifest for the same source/spec. Focused
+  coverage passes 45; structured verification passes quality 313,
+  preprocessing 157, Ruff, compile, and whitespace.
+- Independent instrument/material replay, standards/negative controls, formal
+  uncertainty evidence, capability promotion, cross-file grouped-canonical
+  assembly, and human scientific review remain open. One unrelated existing
+  Netzsch short-signature fixture fails in a broader compatibility selection.
+- Task: `docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.
+
 ## SEC/GPC explicit calibration and distribution — implementation complete, review required (2026-09-13)
 
 - Added immutable `SECCalibrationSpec` requiring an explicit response channel,

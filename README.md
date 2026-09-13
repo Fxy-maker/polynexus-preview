@@ -35,24 +35,27 @@ Coverage varies by input type and workflow. The runtime catalog distinguishes
 provides a sample-neutral table-curve route, normalized mass, DTG, specified-
 coordinate residue, and material-neutral event candidates. These derived
 outputs remain diagnostic pending independent replay, uncertainty work, and
-scientific review; formal stage/residue capability promotion and kinetics are
-still unsupported.
+scientific review. An explicit, canonical-bound analysis spec can additionally
+produce multi-rate Kissinger and Ozawa-Flynn-Wall isoconversional candidates;
+formal stage/residue/kinetics capability promotion remains unsupported.
 DMA currently preserves every unambiguously labelled signal in a supported
 table, derives tan delta only from unit-compatible storage/loss modulus pairs
 within the same tensile, shear, or unspecified basis, and reports temperature-
 response peaks as non-Tg candidates. These derived outputs remain diagnostic
-pending independent replay, uncertainty work, and scientific review; master
-curves, shift factors, and Tg interpretation remain unsupported. Rheology now
+pending independent replay, uncertainty work, and scientific review. An
+explicit analysis spec can additionally apply declared horizontal shift
+factors or deterministic overlap fitting and retain a master-curve candidate;
+formal TTS/shift-factor capability promotion and Tg interpretation remain
+unsupported. Rheology now
 preserves unambiguous steady-flow, oscillatory, strain, temperature, and time-
 sweep table signals. It derives only unit-safe identities: apparent viscosity,
 shear stress/rate, tan delta, complex-modulus magnitude, and complex-viscosity
-magnitude. These outputs remain diagnostic; yield stress, LVE/gel/crossover
-interpretation, Cox-Merz, thixotropy, creep/relaxation models, TTS/master
-curves, and formal rheology capability promotion remain unsupported. An
-explicit rheology analysis spec can add deterministic Bingham or
-Herschel–Bulkley yield-stress fit candidates plus strain-sweep LVE and
-modulus-crossover candidates; these remain diagnostic and are never inferred
-from sample names or promoted automatically. SEC/GPC
+magnitude. An explicit rheology analysis spec can add deterministic Bingham or
+Herschel–Bulkley yield-stress fits, strain-sweep LVE/crossover candidates,
+thixotropy integrals, Cox–Merz comparisons, creep/relaxation fits, and declared
+TTS/master-curve candidates. These remain diagnostic, are never inferred from
+sample names, and are not promoted automatically. Formal rheology capability
+promotion remains unsupported. SEC/GPC
 preserves unambiguous retention/elution coordinates, RI, UV, MALS/RALS/LALS,
 viscometer/pressure, concentration, vendor molar-mass, and explicit
 distribution columns. It derives only a recorded-response peak coordinate and
@@ -65,13 +68,14 @@ energy, and modulus channels and derives recorded response peaks and raw
 trapezoid integrals. When a canonical payload contains an explicit mechanics
 analysis spec, the deterministic Core can additionally fit a declared
 stress-strain modulus, offset-yield candidate, and last-valid stress-strain
-toughness value with units and provenance. Those model outputs remain
-diagnostic and require independent replay, uncertainty work, and scientific
-review. An explicit stress/strain standard deviation can also produce a
-first-order diagnostic uncertainty projection, and serialized mechanics replay
-cases can compare results against an external expected-value fixture. Neither
-artifact is a metrological claim or capability-promotion decision; fatigue,
-fracture, and creep remain unavailable.
+toughness value, plus explicit cycle envelopes, fatigue histories, creep
+integrals, and fracture-work candidates with units and provenance. Those model
+outputs remain diagnostic and require independent replay, uncertainty work,
+and scientific review. An explicit stress/strain standard deviation can also
+produce a first-order diagnostic uncertainty projection, and serialized
+mechanics replay cases can compare results against an external expected-value
+fixture. None of these artifacts is a metrological claim or capability-
+promotion decision.
 
 ### Layered format ingestion
 

@@ -8,8 +8,13 @@ from typing import Any, Dict
 import numpy as np
 
 from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
+from .advanced_figures import build_advanced_figure_definitions
 from .engine import BaseEngine, EngineCategory, register_technique
-from .mechanics_processing import MechanicsSignalSeries, analyze_mechanics_group
+from .mechanics_processing import (
+    MechanicsSignalSeries,
+    analyze_mechanics_advanced,
+    analyze_mechanics_group,
+)
 
 
 MECHANICS_TABLE_EXTENSIONS = frozenset(
@@ -109,6 +114,7 @@ class MechanicsEngine(BaseEngine):
         methods: dict[str, Any] = {}
         method_parameters: dict[str, Any] = {}
         uncertainty: dict[str, Any] = {}
+        all_signal_series: list[MechanicsSignalSeries] = []
 
         for measurement in self._measurements:
             x = np.asarray(measurement.channels["x"], dtype=float)
@@ -162,29 +168,32 @@ class MechanicsEngine(BaseEngine):
                 if first_measurement.mapping is not None
                 else first_measurement.acquisition_metadata.get("axis_kind", "unknown")
             )
+            signal_series = tuple(
+                MechanicsSignalSeries.create(
+                    measurement_id=measurement.measurement_id,
+                    signal_kind=str(
+                        measurement.acquisition_metadata.get(
+                            "signal_kind", "mechanics_signal"
+                        )
+                    ),
+                    test_mode=str(
+                        measurement.acquisition_metadata.get(
+                            "test_mode", "unspecified"
+                        )
+                    ),
+                    unit=measurement.units.get("intensity", "unknown"),
+                    values=signal,
+                    x_values=x,
+                    x_unit=measurement.units.get("x", "unknown"),
+                )
+                for measurement, x, signal in group_items
+            )
+            all_signal_series.extend(signal_series)
             processed = analyze_mechanics_group(
                 group_x,
                 axis_kind=str(axis_kind),
                 axis_unit=first_measurement.units.get("x", "unknown"),
-                signals=tuple(
-                    MechanicsSignalSeries.create(
-                        measurement_id=measurement.measurement_id,
-                        signal_kind=str(
-                            measurement.acquisition_metadata.get(
-                                "signal_kind", "mechanics_signal"
-                            )
-                        ),
-                        test_mode=str(
-                            measurement.acquisition_metadata.get(
-                                "test_mode", "unspecified"
-                            )
-                        ),
-                        unit=measurement.units.get("intensity", "unknown"),
-                        values=signal,
-                        x_values=x,
-                    )
-                    for measurement, x, signal in group_items
-                ),
+                signals=signal_series,
                 analysis_spec=(
                     self._template.payload.get("mechanics_analysis")
                     if self._template is not None
@@ -219,6 +228,35 @@ class MechanicsEngine(BaseEngine):
             "curves": curves,
             "mechanics_groups": mechanics_groups,
         }
+        advanced_payload = (
+            self._template.payload.get("mechanics_advanced")
+            if self._template is not None
+            else None
+        )
+        if advanced_payload is None and self._template is not None:
+            analysis_payload = self._template.payload.get("mechanics_analysis")
+            if isinstance(analysis_payload, dict) and any(
+                analysis_payload.get(name)
+                for name in (
+                    "cycle_measurement_id",
+                    "fatigue_measurement_id",
+                    "creep_measurement_id",
+                    "fracture_measurement_id",
+                )
+            ):
+                advanced_payload = analysis_payload
+        if advanced_payload is not None:
+            try:
+                advanced = analyze_mechanics_advanced(all_signal_series, advanced_payload)
+                self._metrics["mechanics_advanced"] = dict(advanced.metrics)
+                units.update({f"mechanics_advanced.{path}": value for path, value in advanced.units.items()})
+                methods.update({f"mechanics_advanced.{path}": value for path, value in advanced.methods.items()})
+                method_parameters.update({f"mechanics_advanced.{path}": value for path, value in advanced.parameters.items()})
+            except (TypeError, ValueError):
+                self._metrics["mechanics_advanced"] = {
+                    "status": "unavailable",
+                    "unavailable_reason": "advanced_analysis_spec_invalid",
+                }
         self.result.parameters = dict(self._metrics)
         self.result.validation_warnings = sorted(set(warnings))
         self.result.metadata.update(
@@ -233,16 +271,20 @@ class MechanicsEngine(BaseEngine):
                 "methods": methods,
                 "parameters": method_parameters,
                 "uncertainty": uncertainty,
+                "mechanics_advanced_spec": advanced_payload or {},
             }
         )
         return True
 
     def build_figure_definitions(self):
-        return ()
+        return build_advanced_figure_definitions(self)
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         if not self._measurements or not output_dir:
             return {}
+        definitions = tuple(self.build_figure_definitions())
+        if definitions:
+            return self.publish_figure_definitions(output_dir, definitions)
         import matplotlib.pyplot as plt
 
         destination = Path(output_dir)

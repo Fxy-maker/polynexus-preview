@@ -433,6 +433,9 @@ class AgentWorkflowService:
                 output_dir=output_dir / step.step_id,
                 submodule_id=step.parameters.get("submodule_id"),
                 canonical_template=canonical_template,
+                source_artifact_id=(
+                    artifact.artifact_id if canonical_template is not None else None
+                ),
             )
             return compute_run.legacy_result, compute_run
 
@@ -453,6 +456,9 @@ class AgentWorkflowService:
                 submodule_id=step.parameters.get("submodule_id"),
                 engine=engine,
                 canonical_template=canonical_template,
+                source_artifact_id=(
+                    artifact.artifact_id if canonical_template is not None else None
+                ),
             )
             return compute_run.legacy_result, compute_run
 
@@ -488,6 +494,9 @@ class AgentWorkflowService:
             output_dir=output_dir / step.step_id,
             submodule_id=step.parameters.get("submodule_id"),
             canonical_template=canonical_template,
+            source_artifact_id=(
+                artifact.artifact_id if canonical_template is not None else None
+            ),
         )
         return compute_run.legacy_result, compute_run
 
@@ -565,33 +574,62 @@ class AgentWorkflowService:
         if outcome.record.conversion_id != step.parameters.get("canonical_converter"):
             return False
         replayed = outcome.template
-        # Advanced rheology requests are part of the canonical template
-        # identity, but are not a source conversion concern.  Reapply the
-        # validated request after replaying measurements so the same template
-        # can execute through Agent, CLI, and direct ComputeRun routes.
-        if artifact.technique == "rheology":
-            registered_analysis = registered.payload.get("rheology_analysis")
-            if registered_analysis is not None:
-                try:
-                    from polynexus.core.rheology_processing import RheologyAnalysisSpec
+        # Analysis specs are request semantics rather than source-conversion
+        # output.  Reapply every supported spec after replaying measurements
+        # so Agent/Codex replay has exactly the same canonical identity as a
+        # direct ComputeRun.  Normalize through the public DTOs instead of
+        # copying caller-provided mappings verbatim.
+        spec_normalizers: dict[str, Any] = {}
+        if artifact.technique == "tga":
+            from polynexus.core.tga_processing import TGAKineticsSpec
 
-                    normalized_analysis = RheologyAnalysisSpec.from_mapping(
-                        registered_analysis
-                    ).to_dict()
-                except (TypeError, ValueError, OverflowError):
-                    return False
-                replayed = CanonicalExperiment.create(
-                    template_id=replayed.template_id,
-                    source_artifact_id=replayed.source_artifact_id,
-                    payload={
-                        **replayed.payload,
-                        "rheology_analysis": normalized_analysis,
-                    },
-                    conversion_record=replayed.conversion_record,
-                    measurements=replayed.measurements,
-                    mapping_proposal=replayed.mapping_proposal,
-                    contract_version=replayed.contract_version,
-                )
+            spec_normalizers["tga_kinetics"] = TGAKineticsSpec
+        elif artifact.technique == "dma":
+            from polynexus.core.dma_processing import DMATTSSpec
+
+            spec_normalizers["dma_tts"] = DMATTSSpec
+        elif artifact.technique == "rheology":
+            from polynexus.core.rheology_processing import (
+                RheologyAdvancedSpec,
+                RheologyAnalysisSpec,
+            )
+
+            spec_normalizers.update(
+                {
+                    "rheology_analysis": RheologyAnalysisSpec,
+                    "rheology_advanced": RheologyAdvancedSpec,
+                }
+            )
+        elif artifact.technique == "mechanics":
+            from polynexus.core.mechanics_processing import (
+                MechanicsAdvancedSpec,
+                MechanicsAnalysisSpec,
+            )
+
+            spec_normalizers.update(
+                {
+                    "mechanics_analysis": MechanicsAnalysisSpec,
+                    "mechanics_advanced": MechanicsAdvancedSpec,
+                }
+            )
+        payload_updates: dict[str, Any] = {}
+        try:
+            for key, normalizer in spec_normalizers.items():
+                requested = registered.payload.get(key)
+                if requested is not None:
+                    payload_updates[key] = normalizer.from_mapping(requested).to_dict()
+        except (TypeError, ValueError, OverflowError):
+            return False
+        if payload_updates:
+            replayed = CanonicalExperiment.create(
+                template_id=replayed.template_id,
+                source_artifact_id=replayed.source_artifact_id,
+                payload={**replayed.payload, **payload_updates},
+                conversion_record=replayed.conversion_record,
+                measurements=replayed.measurements,
+                mapping_proposal=replayed.mapping_proposal,
+                contract_version=replayed.contract_version,
+            )
         return replayed if hmac.compare_digest(replayed.content_hash, registered.content_hash) else False
 
     @staticmethod

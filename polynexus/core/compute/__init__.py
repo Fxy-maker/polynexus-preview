@@ -10,7 +10,7 @@ from .projection import (
     parse_compute_run_projection,
     read_compute_run_projection,
 )
-from .service import ComputeRunService
+from .service import ComputeRunService, attach_analysis_options
 from ..ai_platform.contracts import UncertaintyComponent, UncertaintySummary
 from ..project_context import ProjectContext
 
@@ -20,6 +20,7 @@ __all__ = [
     "ComputeResult",
     "ComputeRun",
     "ComputeRunService",
+    "attach_analysis_options",
     "RawArtifact",
     "MethodSensitivity",
     "CapabilityCatalog",

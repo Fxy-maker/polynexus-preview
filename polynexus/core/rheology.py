@@ -8,8 +8,13 @@ from typing import Any, Dict
 import numpy as np
 
 from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
+from .advanced_figures import build_advanced_figure_definitions
 from .engine import BaseEngine, EngineCategory, register_technique
-from .rheology_processing import RheologySignalSeries, analyze_rheology_group
+from .rheology_processing import (
+    RheologySignalSeries,
+    analyze_rheology_advanced,
+    analyze_rheology_group,
+)
 
 
 RHEOLOGY_TABLE_EXTENSIONS = frozenset(
@@ -107,6 +112,7 @@ class RheologyEngine(BaseEngine):
         units: dict[str, Any] = {}
         methods: dict[str, Any] = {}
         method_parameters: dict[str, Any] = {}
+        all_signal_series: list[RheologySignalSeries] = []
         for measurement in self._measurements:
             x = np.asarray(measurement.channels["x"], dtype=float)
             signal = np.asarray(measurement.channels["intensity"], dtype=float)
@@ -172,19 +178,29 @@ class RheologyEngine(BaseEngine):
                     unit=measurement.units.get("intensity", "unknown"),
                     values=signal,
                     x_values=x,
+                    temperature=measurement.acquisition_metadata.get("temperature"),
                 )
                 for measurement, x, signal in group_items
             )
+            all_signal_series.extend(signal_series)
+            analysis_payload = (
+                self._template.payload.get("rheology_analysis")
+                if self._template is not None
+                else None
+            )
+            group_analysis_payload = analysis_payload
+            if isinstance(analysis_payload, dict) and "advanced" in analysis_payload:
+                group_analysis_payload = {
+                    key: value
+                    for key, value in analysis_payload.items()
+                    if key != "advanced" and value is not None
+                } or None
             processed = analyze_rheology_group(
                 group_x,
                 axis_kind=str(axis_kind),
                 axis_unit=first_measurement.units.get("x", "unknown"),
                 signals=signal_series,
-                analysis_spec=(
-                    self._template.payload.get("rheology_analysis")
-                    if self._template is not None
-                    else None
-                ),
+                analysis_spec=group_analysis_payload,
             )
             group_metrics = dict(processed.metrics)
             rheology_groups[group_id] = group_metrics
@@ -227,6 +243,34 @@ class RheologyEngine(BaseEngine):
             "curves": curves,
             "rheology_groups": rheology_groups,
         }
+        analysis_payload = (
+            self._template.payload.get("rheology_analysis", {})
+            if self._template is not None
+            else {}
+        )
+        advanced_payload = (
+            self._template.payload.get("rheology_advanced")
+            if self._template is not None
+            else None
+        )
+        if advanced_payload is None and isinstance(analysis_payload, dict):
+            advanced_payload = analysis_payload.get("advanced")
+        if advanced_payload is not None:
+            try:
+                advanced = analyze_rheology_advanced(
+                    all_signal_series,
+                    advanced_payload,
+                    axis_unit=first["x_unit"],
+                )
+                self._metrics["rheology_advanced"] = dict(advanced.metrics)
+                units.update({f"rheology_advanced.{path}": value for path, value in advanced.units.items()})
+                methods.update({f"rheology_advanced.{path}": value for path, value in advanced.methods.items()})
+                method_parameters.update({f"rheology_advanced.{path}": value for path, value in advanced.parameters.items()})
+            except (TypeError, ValueError):
+                self._metrics["rheology_advanced"] = {
+                    "status": "unavailable",
+                    "unavailable_reason": "advanced_analysis_spec_invalid",
+                }
         self.result.parameters = dict(self._metrics)
         self.result.validation_warnings = sorted(set(warnings))
         self.result.metadata.update(
@@ -238,10 +282,11 @@ class RheologyEngine(BaseEngine):
                 "analysis_scope": "material_neutral_rheology_with_explicit_candidates",
                 "rheology_processing_contract": "rheology.processing.v1",
                 "rheology_analysis_spec": (
-                    self._template.payload.get("rheology_analysis", {})
+                    analysis_payload
                     if self._template is not None
                     else {}
                 ),
+                "rheology_advanced_spec": advanced_payload or {},
                 "units": units,
                 "methods": methods,
                 "parameters": method_parameters,
@@ -250,11 +295,14 @@ class RheologyEngine(BaseEngine):
         return True
 
     def build_figure_definitions(self):
-        return ()
+        return build_advanced_figure_definitions(self)
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         if not self._measurements or not output_dir:
             return {}
+        definitions = tuple(self.build_figure_definitions())
+        if definitions:
+            return self.publish_figure_definitions(output_dir, definitions)
         import matplotlib.pyplot as plt
 
         destination = Path(output_dir)

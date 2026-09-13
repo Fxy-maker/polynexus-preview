@@ -13,7 +13,14 @@ from typing import Any, Dict
 import numpy as np
 
 from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
-from .dma_processing import DMAProcessingConfig, DMASignalSeries, analyze_dma_group
+from .advanced_figures import build_advanced_figure_definitions
+from .dma_processing import (
+    DMAProcessingConfig,
+    DMASignalSeries,
+    DMATTSSpec,
+    analyze_dma_group,
+    build_dma_master_curve,
+)
 from .engine import BaseEngine, EngineCategory, register_technique
 
 
@@ -226,6 +233,18 @@ class DMAEngine(BaseEngine):
             "curves": curves,
             "dma_groups": dma_groups,
         }
+        tts_payload = self._template.payload.get("dma_tts") if self._template is not None else None
+        if tts_payload is not None:
+            self._metrics["dma_tts"] = self._compute_tts(tts_payload)
+            tts = self._metrics["dma_tts"]
+            if isinstance(tts, dict) and tts.get("status") in {"computed", "computed_with_warning"}:
+                units["dma_tts.reference_temperature"] = "degC"
+                units["dma_tts.points.frequency"] = str(tts.get("frequency_unit", "unknown"))
+                units["dma_tts.points.modulus"] = str(tts.get("modulus_unit", "unknown"))
+                units["dma_tts.shift_factors"] = "1"
+                for path in ("dma_tts.points", "dma_tts.shift_factors"):
+                    methods[path] = str(tts.get("method", "horizontal_frequency_shift"))
+                    method_parameters[path] = dict(tts.get("parameters", {}))
         self.result.parameters = dict(self._metrics)
         self.result.validation_warnings = sorted(set(warnings))
         self.result.metadata.update(
@@ -238,16 +257,39 @@ class DMAEngine(BaseEngine):
                 "units": units,
                 "methods": methods,
                 "parameters": method_parameters,
+                "dma_tts_spec": tts_payload or {},
             }
         )
         return True
 
+    def _compute_tts(self, payload: Any) -> dict[str, Any]:
+        try:
+            spec = DMATTSSpec.from_mapping(payload)
+        except (TypeError, ValueError):
+            return {"status": "unavailable", "unavailable_reason": "tts_spec_invalid"}
+        by_id = {measurement.measurement_id: measurement for measurement in self._measurements}
+        ids = spec.curve_measurement_ids
+        if not ids:
+            return {"status": "unavailable", "unavailable_reason": "tts_curve_measurement_ids_required"}
+        curves = []
+        for temperature, measurement_id in zip(spec.temperatures, ids, strict=True):
+            measurement = by_id.get(measurement_id)
+            if measurement is None:
+                return {"status": "unavailable", "unavailable_reason": "tts_measurement_not_found"}
+            curves.append({"temperature": temperature, "frequency": tuple(float(value) for value in measurement.channels["x"]), "modulus": tuple(float(value) for value in measurement.channels["intensity"]), "modulus_unit": measurement.units.get("intensity", "unknown"), "measurement_id": measurement_id})
+        result = build_dma_master_curve(curves, spec)
+        result["source_measurement_ids"] = list(ids)
+        return result
+
     def build_figure_definitions(self):
-        return ()
+        return build_advanced_figure_definitions(self)
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         if not self._measurements or not output_dir:
             return {}
+        definitions = tuple(self.build_figure_definitions())
+        if definitions:
+            return self.publish_figure_definitions(output_dir, definitions)
         import matplotlib.pyplot as plt
 
         destination = Path(output_dir)

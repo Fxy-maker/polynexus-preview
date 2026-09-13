@@ -18,7 +18,7 @@ from polynexus.core.agent_workflow.models import AnalysisRecipe, InputArtifact, 
 from polynexus.core.agent_workflow.tpae import TpaeCharacterizationWorkflow
 from polynexus.core.canonical_experiments import CanonicalExperiment, default_converter_registry
 from polynexus.core.canonical_experiments.models import MappingProposal
-from polynexus.core.compute import RawArtifact
+from polynexus.core.compute import RawArtifact, attach_analysis_options
 
 
 def _convert_artifact(
@@ -140,6 +140,16 @@ class SingleInputTechniqueAdapter:
             return RecipeProposal(status="blocked", reason_codes=("portable_export_invalid",))
         if outcome.status != "ready" or outcome.template is None:
             return RecipeProposal(status="blocked", reason_codes=outcome.reason_codes)
+        try:
+            canonical_template, analysis_options = attach_analysis_options(
+                outcome.template,
+                technique=technique,
+                options=self._analysis_options(payload),
+            )
+        except (KeyError, TypeError, ValueError):
+            return RecipeProposal(
+                status="blocked", reason_codes=("analysis_options_invalid",)
+            )
         submodule_id, step_id, role = spec
         recipe = AnalysisRecipe.create(
             workflow_id=self.workflow_id,
@@ -152,13 +162,23 @@ class SingleInputTechniqueAdapter:
                     parameters={
                         "submodule_id": submodule_id,
                         "canonical_converter": outcome.record.conversion_id,
-                        "canonical_template": outcome.template.to_dict(),
+                        "canonical_template": canonical_template.to_dict(),
+                        **(
+                            {"analysis_options": analysis_options}
+                            if analysis_options
+                            else {}
+                        ),
                         **({"portable_export": dict(portable_export)} if portable_export is not None else {}),
                     },
                     parameter_sources={
                         "submodule_id": "registered_project_recipe",
                         "canonical_converter": "registered_canonical_converter",
                         "canonical_template": "registered_canonical_converter",
+                        **(
+                            {"analysis_options": "explicit_project_request"}
+                            if analysis_options
+                            else {}
+                        ),
                         **({"portable_export": "declared_portable_export"} if portable_export is not None else {}),
                     },
                 ),
@@ -226,10 +246,26 @@ class SingleInputTechniqueAdapter:
             template = CanonicalExperiment.from_dict(payload)
         except (KeyError, TypeError, ValueError):
             return False
-        return (
+        if not (
             template.source_artifact_id == artifact.artifact_id
-            and step.parameters.get("canonical_converter") == template.conversion_record.conversion_id
-        )
+            and step.parameters.get("canonical_converter")
+            == template.conversion_record.conversion_id
+        ):
+            return False
+        analysis_options = step.parameters.get("analysis_options")
+        if analysis_options is None:
+            return True
+        if not isinstance(analysis_options, Mapping):
+            return False
+        try:
+            attached, normalized = attach_analysis_options(
+                template,
+                technique=artifact.technique,
+                options=analysis_options,
+            )
+        except (KeyError, TypeError, ValueError):
+            return False
+        return bool(normalized) and attached.content_hash == template.content_hash
 
     @staticmethod
     def _load_manifest(manifest: Mapping[str, object] | Path | str) -> Mapping[str, Any] | None:
@@ -264,6 +300,15 @@ class SingleInputTechniqueAdapter:
         if not isinstance(raw, Mapping):
             raise TypeError("mapping_proposal must be a mapping")
         return MappingProposal.from_dict(raw)
+
+    @staticmethod
+    def _analysis_options(payload: Mapping[str, object]) -> Mapping[str, Any]:
+        raw = payload.get("analysis_options")
+        if raw is None:
+            return {}
+        if not isinstance(raw, Mapping):
+            raise TypeError("analysis_options must be a mapping")
+        return dict(raw)
 
     @staticmethod
     def _portable_export(payload: Mapping[str, object]) -> Mapping[str, object] | None:

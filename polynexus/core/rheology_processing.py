@@ -36,30 +36,104 @@ class RheologyAdvancedSpec:
     temperatures: tuple[float, ...] = ()
     shift_factors: tuple[float, ...] = ()
     model: str = ""
+    complex_viscosity_measurement_id: str | None = None
+    steady_viscosity_measurement_id: str | None = None
+    thixotropy_measurement_id: str | None = None
+    creep_measurement_id: str | None = None
+    relaxation_measurement_id: str | None = None
+    time_measurement_id: str | None = None
+    tts_curve_measurement_ids: tuple[str, ...] = ()
 
     @classmethod
-    def create(cls, *, reference_temperature: float | None = None, temperatures: Sequence[float] = (), shift_factors: Sequence[float] = (), model: str = "") -> "RheologyAdvancedSpec":
+    def create(cls, *, reference_temperature: float | None = None, temperatures: Sequence[float] = (), shift_factors: Sequence[float] = (), model: str = "", complex_viscosity_measurement_id: str | None = None, steady_viscosity_measurement_id: str | None = None, thixotropy_measurement_id: str | None = None, creep_measurement_id: str | None = None, relaxation_measurement_id: str | None = None, time_measurement_id: str | None = None, tts_curve_measurement_ids: Sequence[str] = ()) -> "RheologyAdvancedSpec":
         temps, shifts = tuple(float(v) for v in temperatures), tuple(float(v) for v in shift_factors)
         if len(temps) != len(shifts):
             raise ValueError("rheology temperatures and shift factors must align")
         if any(not math.isfinite(v) for v in (*temps, *shifts)) or any(v <= 0 for v in shifts):
             raise ValueError("rheology shift factors must be finite and positive")
-        return cls(None if reference_temperature is None else float(reference_temperature), temps, shifts, str(model).strip())
+        if len(set(temps)) != len(temps):
+            raise ValueError("rheology TTS temperatures must be unique")
+        ref = None if reference_temperature is None else float(reference_temperature)
+        if ref is not None and not math.isfinite(ref):
+            raise ValueError("rheology reference temperature must be finite")
+        curve_ids = tuple(str(value).strip() for value in tts_curve_measurement_ids)
+        if curve_ids and (len(curve_ids) != len(temps) or any(not value for value in curve_ids)):
+            raise ValueError("rheology TTS curve measurement ids must align with temperatures")
+        identifiers = (
+            _optional_id(complex_viscosity_measurement_id),
+            _optional_id(steady_viscosity_measurement_id),
+            _optional_id(thixotropy_measurement_id),
+            _optional_id(creep_measurement_id),
+            _optional_id(relaxation_measurement_id),
+            _optional_id(time_measurement_id),
+        )
+        if not any(identifiers) and not curve_ids and not temps:
+            raise ValueError("rheology advanced spec must request at least one model")
+        return cls(ref, temps, shifts, str(model).strip(), *identifiers[:3], *identifiers[3:], curve_ids)
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "RheologyAdvancedSpec":
-        return cls.create(reference_temperature=value.get("reference_temperature"), temperatures=value.get("temperatures", ()), shift_factors=value.get("shift_factors", ()), model=value.get("model", ""))
+        if not isinstance(value, Mapping):
+            raise TypeError("Rheology advanced spec must be a mapping")
+        return cls.create(reference_temperature=value.get("reference_temperature"), temperatures=value.get("temperatures", ()), shift_factors=value.get("shift_factors", ()), model=value.get("model", ""), complex_viscosity_measurement_id=value.get("complex_viscosity_measurement_id"), steady_viscosity_measurement_id=value.get("steady_viscosity_measurement_id"), thixotropy_measurement_id=value.get("thixotropy_measurement_id"), creep_measurement_id=value.get("creep_measurement_id"), relaxation_measurement_id=value.get("relaxation_measurement_id"), time_measurement_id=value.get("time_measurement_id"), tts_curve_measurement_ids=value.get("tts_curve_measurement_ids", value.get("curve_measurement_ids", ())))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"reference_temperature": self.reference_temperature, "temperatures": list(self.temperatures), "shift_factors": list(self.shift_factors), "model": self.model}
+        return {"reference_temperature": self.reference_temperature, "temperatures": list(self.temperatures), "shift_factors": list(self.shift_factors), "model": self.model, "complex_viscosity_measurement_id": self.complex_viscosity_measurement_id, "steady_viscosity_measurement_id": self.steady_viscosity_measurement_id, "thixotropy_measurement_id": self.thixotropy_measurement_id, "creep_measurement_id": self.creep_measurement_id, "relaxation_measurement_id": self.relaxation_measurement_id, "time_measurement_id": self.time_measurement_id, "tts_curve_measurement_ids": list(self.tts_curve_measurement_ids)}
+
+
+def _optional_id(value: Any) -> str | None:
+    text = str(value).strip() if value is not None else ""
+    return text or None
+
+
+def fit_time_response(time: Sequence[float], response: Sequence[float], *, kind: str) -> dict[str, Any]:
+    """Return a protocol-neutral creep/relaxation slope and area candidate."""
+    if len(time) != len(response) or len(time) < 2:
+        return {"status": "unavailable", "unavailable_reason": "time_response_series_invalid"}
+    t, y = np.asarray(time, dtype=float), np.asarray(response, dtype=float)
+    if np.any(np.diff(t) <= 0) or not np.all(np.isfinite(y)):
+        return {"status": "unavailable", "unavailable_reason": "time_axis_invalid"}
+    slope = float(np.polyfit(t, y, 1)[0])
+    return {"status": "computed_with_warning", "method": f"{kind}_linear_time_fit", "slope": slope, "area": float(np.trapezoid(y, t)), "warnings": ("diagnostic_candidate_requires_protocol_metadata",)}
+
+
+def build_rheology_tts(points: Sequence[Mapping[str, Any]], spec: RheologyAdvancedSpec | Mapping[str, Any]) -> dict[str, Any]:
+    advanced = spec if isinstance(spec, RheologyAdvancedSpec) else RheologyAdvancedSpec.from_mapping(spec)
+    by_temp = {float(item.get("temperature")): item for item in points}
+    if not advanced.temperatures or any(temp not in by_temp for temp in advanced.temperatures):
+        return {"status": "unavailable", "unavailable_reason": "tts_temperature_curve_missing"}
+    shifted = []
+    for temp, factor in zip(advanced.temperatures, advanced.shift_factors, strict=True):
+        item = by_temp[temp]
+        rates, values = item.get("frequency", ()), item.get("viscosity", item.get("modulus", ()))
+        if len(rates) != len(values) or len(rates) < 2:
+            return {"status": "unavailable", "unavailable_reason": "tts_curve_invalid"}
+        numeric_rates = tuple(float(value) for value in rates)
+        numeric_values = tuple(float(value) for value in values)
+        if any(not math.isfinite(value) or value <= 0.0 for value in numeric_rates) or any(not math.isfinite(value) for value in numeric_values):
+            return {"status": "unavailable", "unavailable_reason": "tts_curve_invalid"}
+        shifted.extend({"temperature": temp, "frequency": x * factor, "value": y} for x, y in zip(numeric_rates, numeric_values, strict=True))
+    shifted.sort(key=lambda item: item["frequency"])
+    return {"status": "computed_with_warning", "method": "horizontal_frequency_shift", "reference_temperature": advanced.reference_temperature, "points": tuple(shifted), "parameters": advanced.to_dict(), "warnings": ("diagnostic_candidate_requires_independent_replay",)}
 
 
 def compare_cox_merz(frequency: Sequence[float], complex_viscosity: Sequence[float], shear_rate: Sequence[float], steady_viscosity: Sequence[float]) -> dict[str, Any]:
     """Return pointwise Cox–Merz diagnostic differences on matching axes."""
     if not (len(frequency) == len(complex_viscosity) == len(shear_rate) == len(steady_viscosity)):
         return {"status": "unavailable", "unavailable_reason": "cox_merz_series_length_mismatch"}
-    residuals = tuple(float(a - b) for a, b in zip(complex_viscosity, steady_viscosity, strict=True))
-    return {"status": "computed_with_warning", "method": "cox_merz_pointwise_comparison", "frequency": tuple(float(v) for v in frequency), "shear_rate": tuple(float(v) for v in shear_rate), "residuals": residuals, "warnings": ("diagnostic_candidate_requires_matching_protocols",)}
+    if len(frequency) < 2:
+        return {"status": "unavailable", "unavailable_reason": "cox_merz_series_too_short"}
+    omega = np.asarray(frequency, dtype=float)
+    rate = np.asarray(shear_rate, dtype=float)
+    complex_eta = np.asarray(complex_viscosity, dtype=float)
+    steady_eta = np.asarray(steady_viscosity, dtype=float)
+    if not all(np.all(np.isfinite(item)) for item in (omega, rate, complex_eta, steady_eta)):
+        return {"status": "unavailable", "unavailable_reason": "cox_merz_series_nonfinite"}
+    if np.any(omega <= 0.0) or np.any(rate <= 0.0):
+        return {"status": "unavailable", "unavailable_reason": "cox_merz_axes_nonpositive"}
+    residuals = tuple(float(a - b) for a, b in zip(complex_eta, steady_eta, strict=True))
+    relative = tuple(float((a - b) / b) if b != 0.0 else None for a, b in zip(complex_eta, steady_eta, strict=True))
+    return {"status": "computed_with_warning", "method": "cox_merz_pointwise_comparison", "frequency": tuple(float(v) for v in omega), "shear_rate": tuple(float(v) for v in rate), "complex_viscosity_Pa_s": tuple(float(v) for v in complex_eta), "steady_viscosity_Pa_s": tuple(float(v) for v in steady_eta), "residuals": residuals, "relative_residuals": relative, "parameters": {"comparison": "pointwise_declared_axes", "interpolation": False}, "warnings": ("diagnostic_candidate_requires_matching_protocols",)}
 
 
 def integrate_thixotropy(time: Sequence[float], viscosity: Sequence[float]) -> dict[str, Any]:
@@ -251,6 +325,7 @@ class RheologyAnalysisSpec:
 
     yield_stress: RheologyYieldStressSpec | None = None
     lve: RheologyLVESpec | None = None
+    advanced: RheologyAdvancedSpec | None = None
 
     @classmethod
     def create(
@@ -258,6 +333,7 @@ class RheologyAnalysisSpec:
         *,
         yield_stress: RheologyYieldStressSpec | Mapping[str, Any] | None = None,
         lve: RheologyLVESpec | Mapping[str, Any] | None = None,
+        advanced: RheologyAdvancedSpec | Mapping[str, Any] | None = None,
     ) -> "RheologyAnalysisSpec":
         yield_spec = (
             None
@@ -273,20 +349,22 @@ class RheologyAnalysisSpec:
             if isinstance(lve, RheologyLVESpec)
             else RheologyLVESpec.from_mapping(lve)
         )
-        if yield_spec is None and lve_spec is None:
+        advanced_spec = None if advanced is None else advanced if isinstance(advanced, RheologyAdvancedSpec) else RheologyAdvancedSpec.from_mapping(advanced)
+        if yield_spec is None and lve_spec is None and advanced_spec is None:
             raise ValueError("Rheology analysis spec must request at least one model")
-        return cls(yield_stress=yield_spec, lve=lve_spec)
+        return cls(yield_stress=yield_spec, lve=lve_spec, advanced=advanced_spec)
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "RheologyAnalysisSpec":
         if not isinstance(value, Mapping):
             raise TypeError("Rheology analysis spec must be a mapping")
-        return cls.create(yield_stress=value.get("yield_stress"), lve=value.get("lve"))
+        return cls.create(yield_stress=value.get("yield_stress"), lve=value.get("lve"), advanced=value.get("advanced"))
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "yield_stress": None if self.yield_stress is None else self.yield_stress.to_dict(),
             "lve": None if self.lve is None else self.lve.to_dict(),
+            "advanced": None if self.advanced is None else self.advanced.to_dict(),
         }
 
 
@@ -299,6 +377,7 @@ class RheologySignalSeries:
     unit: str
     values: tuple[float, ...]
     x_values: tuple[float, ...] | None = None
+    temperature: float | None = None
 
     def __post_init__(self) -> None:
         for name in ("measurement_id", "signal_kind", "unit"):
@@ -312,6 +391,8 @@ class RheologySignalSeries:
                 raise ValueError("rheology signal coordinates and values must have equal lengths")
             if not all(math.isfinite(value) for value in self.x_values):
                 raise ValueError("rheology signal coordinates must be finite")
+        if self.temperature is not None and not math.isfinite(self.temperature):
+            raise ValueError("rheology signal temperature must be finite")
 
     @classmethod
     def create(
@@ -322,6 +403,7 @@ class RheologySignalSeries:
         unit: str,
         values: Sequence[float],
         x_values: Sequence[float] | None = None,
+        temperature: float | None = None,
     ) -> "RheologySignalSeries":
         return cls(
             measurement_id=str(measurement_id),
@@ -331,6 +413,7 @@ class RheologySignalSeries:
             x_values=(
                 None if x_values is None else tuple(float(value) for value in x_values)
             ),
+            temperature=None if temperature is None else float(temperature),
         )
 
 
@@ -342,6 +425,31 @@ class RheologyProcessingOutcome:
     units: Mapping[str, str]
     methods: Mapping[str, str]
     parameters: Mapping[str, Mapping[str, Any]]
+
+
+def analyze_rheology_advanced(
+    signals: Sequence[RheologySignalSeries],
+    spec: RheologyAdvancedSpec | Mapping[str, Any],
+    *,
+    axis_unit: str = "unknown",
+) -> RheologyProcessingOutcome:
+    """Execute explicit cross-curve rheology candidates without regrouping data."""
+    signal_items = tuple(signals)
+    if not signal_items or not all(isinstance(item, RheologySignalSeries) for item in signal_items):
+        raise TypeError("signals must contain RheologySignalSeries values")
+    advanced = spec if isinstance(spec, RheologyAdvancedSpec) else RheologyAdvancedSpec.from_mapping(spec)
+    units: dict[str, str] = {}
+    methods: dict[str, str] = {}
+    parameters: dict[str, Mapping[str, Any]] = {}
+    metrics = _advanced_time_metrics(
+        signal_items,
+        RheologyAnalysisSpec(advanced=advanced),
+        axis_unit=str(axis_unit),
+        units=units,
+        methods=methods,
+        parameters=parameters,
+    )
+    return RheologyProcessingOutcome(metrics, units, methods, parameters)
 
 
 def analyze_rheology_group(
@@ -382,6 +490,7 @@ def analyze_rheology_group(
         source_signals[signal.measurement_id] = {
             "signal_kind": signal.signal_kind,
             "unit": signal.unit,
+            "temperature": signal.temperature,
             "axis_values": tuple(float(value) for value in signal_x),
             "values": signal.values,
         }
@@ -447,6 +556,15 @@ def analyze_rheology_group(
         parameters=parameters,
     )
 
+    advanced_metrics = _advanced_time_metrics(
+        signal_items,
+        spec,
+        axis_unit=str(axis_unit),
+        units=units,
+        methods=methods,
+        parameters=parameters,
+        advanced_error=spec_errors.get("advanced"),
+    )
     metrics = {
         "processing_version": _PROCESSING_VERSION,
         "axis_kind": str(axis_kind),
@@ -458,8 +576,132 @@ def analyze_rheology_group(
         "oscillatory": oscillatory,
         "yield_stress_fit": yield_stress_fit,
         "lve_analysis": lve_analysis,
+        **advanced_metrics,
     }
     return RheologyProcessingOutcome(metrics, units, methods, parameters)
+
+
+def _advanced_time_metrics(
+    signals: Sequence[RheologySignalSeries],
+    spec: RheologyAnalysisSpec | None,
+    *,
+    axis_unit: str,
+    units: dict[str, str],
+    methods: dict[str, str],
+    parameters: dict[str, Mapping[str, Any]],
+    advanced_error: str | None = None,
+) -> dict[str, Any]:
+    if advanced_error is not None:
+        return {name: _unavailable(advanced_error) for name in ("cox_merz", "thixotropy", "creep", "relaxation", "tts")}
+    advanced = None if spec is None else spec.advanced
+    if advanced is None:
+        return {
+            name: _unavailable("not_requested" if spec is not None else "analysis_spec_required")
+            for name in ("cox_merz", "thixotropy", "creep", "relaxation", "tts")
+        }
+    by_id = {item.measurement_id: item for item in signals}
+
+    complex_signal = by_id.get(advanced.complex_viscosity_measurement_id or "")
+    steady_signal = by_id.get(advanced.steady_viscosity_measurement_id or "")
+    if complex_signal is None or steady_signal is None:
+        cox_merz = _unavailable("cox_merz_measurement_missing")
+    elif complex_signal.x_values is None or steady_signal.x_values is None:
+        cox_merz = _unavailable("cox_merz_axes_required")
+    else:
+        complex_scale = _scale_for(complex_signal.unit, _VISCOSITY_SCALE_PA_S)
+        steady_scale = _scale_for(steady_signal.unit, _VISCOSITY_SCALE_PA_S)
+        if complex_scale is None or steady_scale is None:
+            cox_merz = _unavailable("cox_merz_viscosity_unit_incompatible")
+        else:
+            cox_merz = compare_cox_merz(
+                complex_signal.x_values,
+                tuple(value * complex_scale for value in complex_signal.values),
+                steady_signal.x_values,
+                tuple(value * steady_scale for value in steady_signal.values),
+            )
+            cox_merz["source_measurement_ids"] = [
+                complex_signal.measurement_id,
+                steady_signal.measurement_id,
+            ]
+            _record_advanced_metadata(
+                cox_merz,
+                path="cox_merz.residuals",
+                unit="Pa*s",
+                units=units,
+                methods=methods,
+                parameters=parameters,
+            )
+
+    thix_signal = by_id.get(advanced.thixotropy_measurement_id or "")
+    thixotropy = _integrate_signal(thix_signal, integrate_thixotropy)
+    if thix_signal is not None and thixotropy.get("status") in {"computed", "computed_with_warning"}:
+        thixotropy["source_measurement_ids"] = [thix_signal.measurement_id]
+        _record_advanced_metadata(thixotropy, path="thixotropy.area", unit=_product_unit(thix_signal.unit, axis_unit), units=units, methods=methods, parameters=parameters)
+
+    creep_signal = by_id.get(advanced.creep_measurement_id or "")
+    creep = _fit_signal(creep_signal, kind="creep")
+    relaxation_signal = by_id.get(advanced.relaxation_measurement_id or "")
+    relaxation = _fit_signal(relaxation_signal, kind="relaxation")
+    for name, signal, record in (("creep", creep_signal, creep), ("relaxation", relaxation_signal, relaxation)):
+        if signal is None or record.get("status") not in {"computed", "computed_with_warning"}:
+            continue
+        record["source_measurement_ids"] = [signal.measurement_id]
+        _record_advanced_metadata(record, path=f"{name}.slope", unit=_ratio_unit(signal.unit, axis_unit), units=units, methods=methods, parameters=parameters)
+        _record_advanced_metadata(record, path=f"{name}.area", unit=_product_unit(signal.unit, axis_unit), units=units, methods=methods, parameters=parameters)
+
+    tts_signals = tuple(by_id.get(identifier) for identifier in advanced.tts_curve_measurement_ids)
+    if not tts_signals or any(item is None for item in tts_signals):
+        tts = _unavailable("tts_curve_measurement_missing")
+    else:
+        tts = build_rheology_tts(
+            tuple(
+                {
+                    "temperature": temperature,
+                    "frequency": item.x_values or (),
+                    "viscosity": item.values,
+                }
+                for temperature, item in zip(advanced.temperatures, tts_signals, strict=True)
+                if item is not None
+            ),
+            advanced,
+        )
+        if tts.get("status") in {"computed", "computed_with_warning"}:
+            tts["source_measurement_ids"] = list(advanced.tts_curve_measurement_ids)
+            methods["tts.points"] = str(tts["method"])
+            parameters["tts.points"] = dict(tts.get("parameters", {}))
+    return {"cox_merz": cox_merz, "thixotropy": thixotropy, "creep": creep, "relaxation": relaxation, "tts": tts}
+
+
+def _integrate_signal(signal: RheologySignalSeries | None, operation: Any) -> dict[str, Any]:
+    if signal is None:
+        return _unavailable("measurement_not_found")
+    if signal.x_values is None:
+        return _unavailable("time_axis_required")
+    return operation(signal.x_values, signal.values)
+
+
+def _fit_signal(signal: RheologySignalSeries | None, *, kind: str) -> dict[str, Any]:
+    if signal is None:
+        return _unavailable("measurement_not_found")
+    if signal.x_values is None:
+        return _unavailable("time_axis_required")
+    return fit_time_response(signal.x_values, signal.values, kind=kind)
+
+
+def _record_advanced_metadata(record: Mapping[str, Any], *, path: str, unit: str, units: dict[str, str], methods: dict[str, str], parameters: dict[str, Mapping[str, Any]]) -> None:
+    if record.get("status") not in {"computed", "computed_with_warning"}:
+        return
+    units[path] = unit
+    methods[path] = str(record.get("method", "diagnostic_candidate"))
+    parameters[path] = dict(record.get("parameters", {}))
+
+
+def _product_unit(left: str, right: str) -> str:
+    return "unknown" if "unknown" in {left, right} else f"{left}*{right}"
+
+
+def _ratio_unit(left: str, right: str) -> str:
+    return "unknown" if "unknown" in {left, right} else f"{left}/{right}"
 
 
 def _advanced_metrics(
@@ -540,10 +782,17 @@ def _parse_analysis_spec_mapping(
             )
         except (TypeError, ValueError, OverflowError):
             errors["lve"] = "lve_analysis_spec_invalid"
-    if yield_spec is None and lve_spec is None:
+    advanced_spec = None
+    raw_advanced = value.get("advanced")
+    if raw_advanced is not None:
+        try:
+            advanced_spec = raw_advanced if isinstance(raw_advanced, RheologyAdvancedSpec) else RheologyAdvancedSpec.from_mapping(raw_advanced)
+        except (TypeError, ValueError, OverflowError):
+            errors["advanced"] = "advanced_analysis_spec_invalid"
+    if yield_spec is None and lve_spec is None and advanced_spec is None:
         errors["_all"] = "analysis_spec_invalid"
         return None, errors
-    return RheologyAnalysisSpec(yield_stress=yield_spec, lve=lve_spec), errors
+    return RheologyAnalysisSpec(yield_stress=yield_spec, lve=lve_spec, advanced=advanced_spec), errors
 
 
 def _yield_stress_fit(
@@ -1472,6 +1721,9 @@ __all__ = [
     "RheologySignalSeries",
     "RheologyYieldStressSpec",
     "analyze_rheology_group",
+    "analyze_rheology_advanced",
+    "build_rheology_tts",
+    "fit_time_response",
     "compare_cox_merz",
     "integrate_thixotropy",
 ]

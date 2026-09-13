@@ -55,9 +55,27 @@ def run_single(
         if not isinstance(analysis_spec, dict):
             print("needs_input: analysis_spec_invalid", file=sys.stderr)
             return 2
-        pipeline_options[
-            "sec_analysis" if canonical_technique == "sec" else "rheology_analysis"
-        ] = analysis_spec
+        option_key = {
+            "sec": "sec_analysis",
+            "rheology": "rheology_analysis",
+            "tga": "tga_kinetics",
+            "dma": "dma_tts",
+            "mechanics": "mechanics_analysis",
+        }.get(canonical_technique)
+        if option_key is None:
+            print("needs_input: analysis_spec_unsupported", file=sys.stderr)
+            return 2
+        if canonical_technique == "mechanics" and "advanced" in analysis_spec and not any(
+            key in analysis_spec
+            for key in ("test_mode", "stress_measurement_id", "geometry")
+        ):
+            pipeline_options["mechanics_advanced"] = analysis_spec["advanced"]
+        elif canonical_technique == "rheology" and "advanced" in analysis_spec and not any(
+            key in analysis_spec for key in ("yield_stress", "lve")
+        ):
+            pipeline_options["rheology_advanced"] = analysis_spec["advanced"]
+        else:
+            pipeline_options[option_key] = analysis_spec
     service = compute_run_service_factory(
         lambda technique, config=None, submodule_id=None: engine
     )

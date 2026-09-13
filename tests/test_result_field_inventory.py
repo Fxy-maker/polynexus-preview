@@ -92,3 +92,32 @@ def test_compute_result_metric_manifest_marks_none_metrics_unavailable():
     assert "value" not in missing
     assert available["status"] == "computed"
     assert available["value"] == 3.2
+
+
+def test_unavailable_diagnostic_envelope_remains_one_parent_field():
+    result = ComputeResult(
+        metrics={
+            "mechanics_advanced": {
+                "fracture": {
+                    "status": "unavailable",
+                    "unavailable_reason": "fracture_series_invalid",
+                }
+            },
+            "independent_metric": 4.0,
+        }
+    )
+
+    fields = result.field_inventory()
+    paths = {item["path"] for item in fields}
+    assert "mechanics_advanced.fracture" in paths
+    assert "mechanics_advanced.fracture.status" not in paths
+    assert "mechanics_advanced.fracture.unavailable_reason" not in paths
+    diagnostic = next(item for item in fields if item["path"] == "mechanics_advanced.fracture")
+    assert diagnostic["kind"] == "diagnostic"
+    assert diagnostic["status"] == "unavailable"
+    assert diagnostic["unavailable_reason"] == "fracture_series_invalid"
+
+    manifest = {item["path"]: item for item in result.metric_manifest()}
+    assert manifest["mechanics_advanced.fracture"]["status"] == "unavailable"
+    assert manifest["mechanics_advanced.fracture"]["unavailable_reason"] == "fracture_series_invalid"
+    assert manifest["independent_metric"]["status"] == "computed"

@@ -20,9 +20,11 @@ class TGAKineticsSpec:
     heating_rates: tuple[float, ...]
     conversion_levels: tuple[float, ...] = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
     gas_constant: float = 8.31446261815324
+    curve_measurement_ids: tuple[str, ...] = ()
+    heating_rate_unit: str = "K/min"
 
     @classmethod
-    def create(cls, *, heating_rates: Sequence[float], conversion_levels: Sequence[float] | None = None, gas_constant: float = 8.31446261815324) -> "TGAKineticsSpec":
+    def create(cls, *, heating_rates: Sequence[float], conversion_levels: Sequence[float] | None = None, gas_constant: float = 8.31446261815324, curve_measurement_ids: Sequence[str] = (), heating_rate_unit: str = "K/min") -> "TGAKineticsSpec":
         rates = tuple(float(value) for value in heating_rates)
         levels = tuple(float(value) for value in (conversion_levels if conversion_levels is not None else cls.conversion_levels))
         if len(rates) < 2 or any(not math.isfinite(value) or value <= 0 for value in rates):
@@ -36,14 +38,20 @@ class TGAKineticsSpec:
         gas = float(gas_constant)
         if not math.isfinite(gas) or gas <= 0:
             raise ValueError("TGA gas constant must be positive")
-        return cls(rates, levels, gas)
+        ids = tuple(str(value).strip() for value in curve_measurement_ids)
+        if ids and (len(ids) != len(rates) or any(not value for value in ids)):
+            raise ValueError("TGA curve measurement ids must align with heating rates")
+        rate_unit = str(heating_rate_unit).strip()
+        if not rate_unit:
+            raise ValueError("TGA heating rate unit must not be empty")
+        return cls(rates, levels, gas, ids, rate_unit)
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "TGAKineticsSpec":
-        return cls.create(heating_rates=value.get("heating_rates", ()), conversion_levels=value.get("conversion_levels"), gas_constant=value.get("gas_constant", cls.gas_constant))
+        return cls.create(heating_rates=value.get("heating_rates", ()), conversion_levels=value.get("conversion_levels"), gas_constant=value.get("gas_constant", cls.gas_constant), curve_measurement_ids=value.get("curve_measurement_ids", value.get("measurement_ids", ())), heating_rate_unit=value.get("heating_rate_unit", "K/min"))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"heating_rates": list(self.heating_rates), "conversion_levels": list(self.conversion_levels), "gas_constant": self.gas_constant}
+        return {"heating_rates": list(self.heating_rates), "conversion_levels": list(self.conversion_levels), "gas_constant": self.gas_constant, "curve_measurement_ids": list(self.curve_measurement_ids), "heating_rate_unit": self.heating_rate_unit}
 
 
 def analyze_tga_multirate_kinetics(
@@ -83,6 +91,85 @@ def analyze_tga_multirate_kinetics(
         "residuals": tuple(float(value) for value in residuals),
         "warnings": ("diagnostic_candidate_requires_independent_replay",),
         "parameters": kinetics.to_dict(),
+    }
+
+
+def analyze_tga_isoconversional_kinetics(
+    curves: Sequence[Mapping[str, Any]],
+    spec: TGAKineticsSpec | Mapping[str, Any],
+) -> dict[str, Any]:
+    """Fit diagnostic Ozawa–Flynn–Wall candidates at declared conversions."""
+    kinetics = spec if isinstance(spec, TGAKineticsSpec) else TGAKineticsSpec.from_mapping(spec)
+    if len(curves) != len(kinetics.heating_rates):
+        return {"status": "unavailable", "unavailable_reason": "kinetics_curve_count_mismatch"}
+    temperatures_at_conversion: dict[float, list[float]] = {
+        level: [] for level in kinetics.conversion_levels
+    }
+    source_ids: list[str] = []
+    for curve in curves:
+        temperature = np.asarray(curve.get("temperature_K", ()), dtype=float)
+        mass = np.asarray(curve.get("mass", ()), dtype=float)
+        if temperature.ndim != 1 or mass.ndim != 1 or temperature.size != mass.size or temperature.size < 3:
+            return {"status": "unavailable", "unavailable_reason": "kinetics_curve_invalid"}
+        if not np.all(np.isfinite(temperature)) or not np.all(np.isfinite(mass)) or not np.all(np.diff(temperature) > 0.0):
+            return {"status": "unavailable", "unavailable_reason": "kinetics_temperature_axis_invalid"}
+        mass_span = float(mass[0] - mass[-1])
+        if not math.isfinite(mass_span) or mass_span <= 0.0:
+            return {"status": "unavailable", "unavailable_reason": "kinetics_mass_loss_required"}
+        conversion = np.maximum.accumulate((mass[0] - mass) / mass_span)
+        if float(conversion[-1]) <= 0.0:
+            return {"status": "unavailable", "unavailable_reason": "kinetics_conversion_unavailable"}
+        unique_conversion, unique_indices = np.unique(conversion, return_index=True)
+        for level in kinetics.conversion_levels:
+            if level < float(unique_conversion[0]) or level > float(unique_conversion[-1]):
+                temperatures_at_conversion[level].append(float("nan"))
+            else:
+                temperatures_at_conversion[level].append(
+                    float(np.interp(level, unique_conversion, temperature[unique_indices]))
+                )
+        source_ids.append(str(curve.get("measurement_id", "")))
+    levels: dict[str, Any] = {}
+    computed = 0
+    rates = np.asarray(kinetics.heating_rates, dtype=float)
+    for level in kinetics.conversion_levels:
+        temperatures = np.asarray(temperatures_at_conversion[level], dtype=float)
+        if not np.all(np.isfinite(temperatures)) or np.any(temperatures <= 0.0):
+            levels[f"conversion_{level:.6g}"] = {
+                "status": "unavailable",
+                "unavailable_reason": "conversion_temperature_unavailable",
+                "conversion": level,
+            }
+            continue
+        x = 1.0 / temperatures
+        y = np.log10(rates)
+        slope, intercept = np.polyfit(x, y, 1)
+        predicted = slope * x + intercept
+        residuals = y - predicted
+        total = float(np.sum((y - np.mean(y)) ** 2))
+        residual_sum = float(np.sum(residuals**2))
+        activation_energy = float(-slope * kinetics.gas_constant / 0.4567)
+        record = {
+            "status": "computed_with_warning",
+            "conversion": level,
+            "activation_energy_J_mol": activation_energy,
+            "intercept": float(intercept),
+            "r_squared": None if total == 0.0 else float(1.0 - residual_sum / total),
+            "temperatures_K": tuple(float(value) for value in temperatures),
+            "residuals": tuple(float(value) for value in residuals),
+            "method": "ozawa_flynn_wall_linear_fit",
+            "warnings": ("diagnostic_candidate_requires_independent_replay",),
+        }
+        levels[f"conversion_{level:.6g}"] = record
+        computed += 1
+    return {
+        "status": "computed_with_warning" if computed else "unavailable",
+        "unavailable_reason": None if computed else "no_conversion_level_computable",
+        "method": "ozawa_flynn_wall_isoconversional",
+        "computed_conversion_count": computed,
+        "conversion_levels": levels,
+        "source_measurement_ids": source_ids,
+        "parameters": kinetics.to_dict(),
+        "warnings": ("diagnostic_candidate_requires_independent_replay",) if computed else (),
     }
 
 
@@ -563,6 +650,7 @@ def _unavailable(reason: str) -> dict[str, str]:
 __all__ = [
     "TGAKineticsSpec",
     "analyze_tga_multirate_kinetics",
+    "analyze_tga_isoconversional_kinetics",
     "TGAProcessingConfig",
     "TGAProcessingOutcome",
     "analyze_tga_curve",

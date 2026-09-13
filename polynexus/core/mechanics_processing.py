@@ -84,6 +84,11 @@ _RESPONSE_SIGNAL_KINDS = frozenset(
 )
 
 
+def _optional_id(value: Any) -> str | None:
+    text = str(value).strip() if value is not None else ""
+    return text or None
+
+
 @dataclass(frozen=True)
 class MechanicsSignalSeries:
     """One explicitly labelled mechanics response and its source coordinates."""
@@ -94,6 +99,7 @@ class MechanicsSignalSeries:
     unit: str
     values: tuple[float, ...]
     x_values: tuple[float, ...] | None = None
+    x_unit: str = "unknown"
 
     @classmethod
     def create(
@@ -105,6 +111,7 @@ class MechanicsSignalSeries:
         unit: str,
         values: Sequence[float],
         x_values: Sequence[float] | None = None,
+        x_unit: str = "unknown",
     ) -> "MechanicsSignalSeries":
         identity = str(measurement_id).strip()
         kind = str(signal_kind).strip()
@@ -126,6 +133,7 @@ class MechanicsSignalSeries:
             unit=str(unit).strip() or "unknown",
             values=numeric_values,
             x_values=numeric_x,
+            x_unit=str(x_unit).strip() or "unknown",
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -136,6 +144,7 @@ class MechanicsSignalSeries:
             "unit": self.unit,
             "values": list(self.values),
             "x_values": None if self.x_values is None else list(self.x_values),
+            "x_unit": self.x_unit,
         }
 
     @classmethod
@@ -149,6 +158,7 @@ class MechanicsSignalSeries:
             unit=value.get("unit", "unknown"),
             values=value.get("values", ()),
             x_values=value.get("x_values"),
+            x_unit=value.get("x_unit", "unknown"),
         )
 
 
@@ -167,6 +177,10 @@ class MechanicsAnalysisSpec:
     toughness_endpoint: str | None = None
     stress_std: float | None = None
     strain_std: float | None = None
+    cycle_measurement_id: str | None = None
+    fatigue_measurement_id: str | None = None
+    creep_measurement_id: str | None = None
+    fracture_measurement_id: str | None = None
 
     @classmethod
     def create(
@@ -183,6 +197,10 @@ class MechanicsAnalysisSpec:
         toughness_endpoint: str | None = None,
         stress_std: float | None = None,
         strain_std: float | None = None,
+        cycle_measurement_id: str | None = None,
+        fatigue_measurement_id: str | None = None,
+        creep_measurement_id: str | None = None,
+        fracture_measurement_id: str | None = None,
     ) -> "MechanicsAnalysisSpec":
         mode = str(test_mode).strip().casefold()
         if mode == "compressive":
@@ -239,6 +257,10 @@ class MechanicsAnalysisSpec:
             toughness_endpoint=endpoint,
             stress_std=stress_deviation,
             strain_std=strain_deviation,
+            cycle_measurement_id=_optional_id(cycle_measurement_id),
+            fatigue_measurement_id=_optional_id(fatigue_measurement_id),
+            creep_measurement_id=_optional_id(creep_measurement_id),
+            fracture_measurement_id=_optional_id(fracture_measurement_id),
         )
 
     @classmethod
@@ -257,6 +279,10 @@ class MechanicsAnalysisSpec:
             toughness_endpoint=value.get("toughness_endpoint"),
             stress_std=value.get("stress_std"),
             strain_std=value.get("strain_std"),
+            cycle_measurement_id=value.get("cycle_measurement_id"),
+            fatigue_measurement_id=value.get("fatigue_measurement_id"),
+            creep_measurement_id=value.get("creep_measurement_id"),
+            fracture_measurement_id=value.get("fracture_measurement_id"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -272,6 +298,61 @@ class MechanicsAnalysisSpec:
             "toughness_endpoint": self.toughness_endpoint,
             "stress_std": self.stress_std,
             "strain_std": self.strain_std,
+            "cycle_measurement_id": self.cycle_measurement_id,
+            "fatigue_measurement_id": self.fatigue_measurement_id,
+            "creep_measurement_id": self.creep_measurement_id,
+            "fracture_measurement_id": self.fracture_measurement_id,
+        }
+
+
+@dataclass(frozen=True)
+class MechanicsAdvancedSpec:
+    """Explicit measurement bindings for cross-curve mechanics candidates."""
+
+    cycle_measurement_id: str | None = None
+    fatigue_measurement_id: str | None = None
+    creep_measurement_id: str | None = None
+    fracture_measurement_id: str | None = None
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        cycle_measurement_id: str | None = None,
+        fatigue_measurement_id: str | None = None,
+        creep_measurement_id: str | None = None,
+        fracture_measurement_id: str | None = None,
+    ) -> "MechanicsAdvancedSpec":
+        values = tuple(
+            _optional_id(value)
+            for value in (
+                cycle_measurement_id,
+                fatigue_measurement_id,
+                creep_measurement_id,
+                fracture_measurement_id,
+            )
+        )
+        if not any(values):
+            raise ValueError("Mechanics advanced spec must request at least one model")
+        return cls(*values)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "MechanicsAdvancedSpec":
+        if not isinstance(value, Mapping):
+            raise TypeError("Mechanics advanced spec must be a mapping")
+        return cls.create(
+            cycle_measurement_id=value.get("cycle_measurement_id"),
+            fatigue_measurement_id=value.get("fatigue_measurement_id"),
+            creep_measurement_id=value.get("creep_measurement_id"),
+            fracture_measurement_id=value.get("fracture_measurement_id"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cycle_measurement_id": self.cycle_measurement_id,
+            "fatigue_measurement_id": self.fatigue_measurement_id,
+            "creep_measurement_id": self.creep_measurement_id,
+            "fracture_measurement_id": self.fracture_measurement_id,
         }
 
 
@@ -422,6 +503,19 @@ def analyze_mechanics_group(
         parameters=parameters,
         uncertainty=uncertainty,
     )
+    signal_by_id = {signal.measurement_id: signal for signal in selected_signals}
+    advanced = _advanced_curve_metrics(
+        signal_by_id,
+        spec,
+        coordinates,
+        axis_kind,
+        axis_unit,
+        units=units,
+        methods=methods,
+        parameters=parameters,
+        path_prefix="mechanics_property_summary.advanced_models",
+    )
+    mechanics_property_summary["advanced_models"] = advanced
     return MechanicsProcessingOutcome(
         metrics={
             "processing_version": _PROCESSING_VERSION,
@@ -436,6 +530,96 @@ def analyze_mechanics_group(
         parameters=parameters,
         uncertainty=uncertainty,
     )
+
+
+def analyze_mechanics_advanced(
+    signals: Sequence[MechanicsSignalSeries],
+    spec: MechanicsAdvancedSpec | Mapping[str, Any],
+) -> MechanicsProcessingOutcome:
+    """Execute explicitly bound cross-curve mechanics diagnostic models."""
+    selected = tuple(signals)
+    if not selected or not all(isinstance(item, MechanicsSignalSeries) for item in selected):
+        raise TypeError("signals must contain MechanicsSignalSeries values")
+    advanced = spec if isinstance(spec, MechanicsAdvancedSpec) else MechanicsAdvancedSpec.from_mapping(spec)
+    units: dict[str, str] = {}
+    methods: dict[str, str] = {}
+    parameters: dict[str, Mapping[str, Any]] = {}
+    metrics = _advanced_curve_metrics(
+        {item.measurement_id: item for item in selected},
+        advanced,
+        np.asarray(selected[0].x_values or (), dtype=float),
+        "mixed",
+        selected[0].x_unit,
+        units=units,
+        methods=methods,
+        parameters=parameters,
+        path_prefix="",
+    )
+    return MechanicsProcessingOutcome(metrics, units, methods, parameters)
+
+
+def _advanced_curve_metrics(
+    signal_by_id: Mapping[str, MechanicsSignalSeries],
+    spec: MechanicsAnalysisSpec | MechanicsAdvancedSpec | None,
+    coordinates: np.ndarray,
+    axis_kind: str,
+    axis_unit: str,
+    *,
+    units: dict[str, str],
+    methods: dict[str, str],
+    parameters: dict[str, Mapping[str, Any]],
+    path_prefix: str,
+) -> dict[str, Any]:
+    if spec is None:
+        reason = "analysis_spec_required"
+        return {name: _property_unavailable(reason) for name in ("cycles", "fatigue", "creep", "fracture")}
+    def values(identifier: str | None) -> tuple[tuple[float, ...], tuple[float, ...], MechanicsSignalSeries] | None:
+        signal = signal_by_id.get(identifier) if identifier else None
+        if signal is None:
+            return None
+        x = signal.x_values if signal.x_values is not None else tuple(float(v) for v in coordinates)
+        return tuple(float(v) for v in x), signal.values, signal
+    cycle = values(spec.cycle_measurement_id)
+    fatigue = values(spec.fatigue_measurement_id)
+    creep = values(spec.creep_measurement_id)
+    fracture = values(spec.fracture_measurement_id)
+    operations = {
+        "cycles": (cycle, analyze_mechanics_cycles),
+        "fatigue": (fatigue, analyze_mechanics_fatigue),
+        "creep": (creep, integrate_mechanics_creep),
+        "fracture": (fracture, integrate_fracture_energy),
+    }
+    results: dict[str, Any] = {}
+    for name, (bound, operation) in operations.items():
+        if bound is None:
+            results[name] = _property_unavailable("not_requested" if getattr(spec, f"{'cycle' if name == 'cycles' else name}_measurement_id", None) is None else "measurement_not_found")
+            continue
+        x_values, y_values, signal = bound
+        record = operation(x_values, y_values)
+        record["source_measurement_ids"] = [signal.measurement_id]
+        record["parameters"] = {
+            "axis_kind": axis_kind,
+            "axis_unit": signal.x_unit or axis_unit,
+            "signal_kind": signal.signal_kind,
+            "signal_unit": signal.unit,
+        }
+        results[name] = record
+        if record.get("status") not in {"computed", "computed_with_warning"}:
+            continue
+        base = f"{path_prefix}.{name}" if path_prefix else name
+        methods[base] = str(record.get("method", "diagnostic_candidate"))
+        parameters[base] = dict(record["parameters"])
+        if name == "cycles":
+            units[f"{base}.cycle_ids"] = signal.x_unit or axis_unit
+            units[f"{base}.peak_response"] = signal.unit
+        elif name == "fatigue":
+            units[f"{base}.cycle_count"] = signal.x_unit or axis_unit
+            units[f"{base}.response"] = signal.unit
+        elif name == "creep":
+            units[f"{base}.area"] = _product_unit(signal.unit, signal.x_unit or axis_unit)
+        else:
+            units[f"{base}.energy"] = _product_unit(signal.unit, signal.x_unit or axis_unit)
+    return results
 
 
 def _advanced_property_summary(
@@ -1024,8 +1208,10 @@ __all__ = [
     "analyze_mechanics_fatigue",
     "integrate_mechanics_creep",
     "integrate_fracture_energy",
+    "MechanicsAdvancedSpec",
     "MechanicsAnalysisSpec",
     "MechanicsProcessingOutcome",
     "MechanicsSignalSeries",
     "analyze_mechanics_group",
+    "analyze_mechanics_advanced",
 ]

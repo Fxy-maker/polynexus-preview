@@ -14,10 +14,12 @@ from typing import Any, Dict
 import numpy as np
 
 from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
+from .advanced_figures import build_advanced_figure_definitions
 from .engine import BaseEngine, EngineCategory, register_technique
 from .tga_processing import (
     TGAProcessingConfig,
     TGAKineticsSpec,
+    analyze_tga_isoconversional_kinetics,
     analyze_tga_curve,
     analyze_tga_multirate_kinetics,
 )
@@ -215,19 +217,62 @@ class TGAEngine(BaseEngine):
         if kinetics_spec is not None:
             try:
                 spec = TGAKineticsSpec.from_mapping(kinetics_spec)
+                measurements_by_id = {item.measurement_id: item for item in self._measurements}
+                ordered_measurements = (
+                    tuple(measurements_by_id[item] for item in spec.curve_measurement_ids)
+                    if spec.curve_measurement_ids
+                    else tuple(self._measurements)
+                )
+                if len(ordered_measurements) != len(spec.heating_rates):
+                    raise ValueError("kinetics curve measurement ids do not match heating rates")
                 peaks = []
-                for measurement in self._measurements:
+                missing_peak = False
+                isoconversional_curves = []
+                for measurement in ordered_measurements:
                     events = tga_curves[measurement.measurement_id].get("mass_loss_events", {})
-                    candidates = events.get("candidates", ()) if isinstance(events, dict) else ()
-                    peak = next((item.get("peak_coordinate") for item in candidates if isinstance(item, dict) and item.get("peak_coordinate") is not None), None)
+                    candidates = (
+                        tuple(
+                            value
+                            for key, value in events.items()
+                            if str(key).startswith("event_") and isinstance(value, dict)
+                        )
+                        if isinstance(events, dict)
+                        else ()
+                    )
+                    peak = next(
+                        (
+                            item.get("peak_x")
+                            for item in candidates
+                            if item.get("peak_x") is not None
+                        ),
+                        None,
+                    )
                     if peak is None:
-                        peaks = []
-                        break
+                        missing_peak = True
                     unit = str(measurement.units.get("x", ""))
-                    peak_value = float(peak)
-                    peaks.append(peak_value + 273.15 if "c" in unit.casefold() else peak_value)
-                self._metrics["kinetics"] = analyze_tga_multirate_kinetics(peaks, spec)
-            except (TypeError, ValueError):
+                    temperature_values = tuple(float(value) for value in measurement.channels["x"])
+                    temperatures_K = tuple(value + 273.15 for value in temperature_values) if "c" in unit.casefold() else temperature_values
+                    if peak is not None:
+                        peak_value = float(peak)
+                        peaks.append(peak_value + 273.15 if "c" in unit.casefold() else peak_value)
+                    normalized = tga_curves[measurement.measurement_id].get("derived", {}).get("normalized_mass_percent")
+                    mass_values = tuple(float(value) for value in (normalized if normalized is not None else measurement.channels["intensity"]))
+                    isoconversional_curves.append({"measurement_id": measurement.measurement_id, "temperature_K": temperatures_K, "mass": mass_values})
+                kinetics = analyze_tga_multirate_kinetics(() if missing_peak else peaks, spec)
+                kinetics["source_measurement_ids"] = [item.measurement_id for item in ordered_measurements]
+                kinetics["kissinger"] = dict(kinetics)
+                kinetics["isoconversional_ofw"] = analyze_tga_isoconversional_kinetics(isoconversional_curves, spec)
+                if kinetics["isoconversional_ofw"].get("status") in {"computed", "computed_with_warning"}:
+                    kinetics["status"] = "computed_with_warning"
+                    kinetics.pop("unavailable_reason", None)
+                self._metrics["kinetics"] = kinetics
+                if kinetics.get("activation_energy_J_mol") is not None:
+                    units["kinetics.activation_energy_J_mol"] = "J/mol"
+                    methods["kinetics.activation_energy_J_mol"] = "kissinger_linear_fit"
+                    method_parameters["kinetics.activation_energy_J_mol"] = spec.to_dict()
+                methods["kinetics.isoconversional_ofw"] = "ozawa_flynn_wall_isoconversional"
+                method_parameters["kinetics.isoconversional_ofw"] = spec.to_dict()
+            except (KeyError, TypeError, ValueError):
                 self._metrics["kinetics"] = {"status": "unavailable", "unavailable_reason": "kinetics_spec_invalid"}
         self.result.parameters = dict(self._metrics)
         self.result.validation_warnings = sorted(set(warnings))
@@ -238,6 +283,11 @@ class TGAEngine(BaseEngine):
                 "analysis_scope": "descriptive_curve_and_material_neutral_event_candidates",
                 "tga_processing_contract": "tga.processing.v1",
                 "tga_processing_config": self.processing_config.to_dict(),
+                "tga_kinetics_spec": (
+                    self._template.payload.get("tga_kinetics", {})
+                    if self._template is not None
+                    else {}
+                ),
                 "units": units,
                 "methods": methods,
                 "parameters": method_parameters,
@@ -246,15 +296,16 @@ class TGAEngine(BaseEngine):
         return True
 
     def build_figure_definitions(self):
-        # No publication FigureDefinition is claimed until a shared TGA
-        # figure provider has a reviewed semantic contract.
-        return ()
+        return build_advanced_figure_definitions(self)
 
     def plot(self, output_dir: str = "") -> Dict[str, str]:
         if not self._measurements:
             return {}
         if not output_dir:
             return {}
+        definitions = tuple(self.build_figure_definitions())
+        if definitions:
+            return self.publish_figure_definitions(output_dir, definitions)
         import matplotlib.pyplot as plt
 
         destination = Path(output_dir)

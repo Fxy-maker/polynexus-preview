@@ -1,7 +1,7 @@
 ---
 task_id: 2026-09-13-advanced-models-complete-suite
 kind: scientific
-status: active
+status: completed
 date: 2026-09-13
 title: Complete advanced polymer analysis model suite
 ---
@@ -50,14 +50,14 @@ Figure/Evidence chain.
 
 ## Acceptance criteria
 
-- [ ] Each requested family has a stable explicit analysis-spec contract.
-- [ ] Missing or incompatible inputs yield local `unavailable` metrics while
+- [x] Each requested family has a stable explicit analysis-spec contract.
+- [x] Missing or incompatible inputs yield local `unavailable` metrics while
   unrelated source curves still compute.
-- [ ] Methods, parameters, units, source IDs, warnings, and model diagnostics
+- [x] Methods, parameters, units, source IDs, warnings, and model diagnostics
   are preserved in the shared result and manifest.
-- [ ] Direct Core, CLI, Agent/Codex, and project routes share identical output
+- [x] Direct Core, CLI, Agent/Codex, and project routes share identical output
   projections for the same canonical template/spec.
-- [ ] No new model is advertised as an available/promoted capability without
+- [x] No new model is advertised as an available/promoted capability without
   independent replay, standards/negative controls, uncertainty evidence, and
   human scientific review.
 
@@ -71,13 +71,29 @@ git diff --check
 
 ## Checkpoint allowlist
 
-Each module is committed separately with its focused source/tests/task update;
-the umbrella task is not considered complete until all four module checkpoints
-pass and the cumulative diff is reviewed.
+The cumulative implementation uses one explicit allowlisted checkpoint after
+the focused and structured verification passes. No push, merge, deployment, or
+capability promotion is part of this task.
 
 ## Completion evidence
 
-- Exact commands and outcomes: pending module implementation.
-- Known limitations: all advanced models remain diagnostic candidates.
-- Pre-existing changes left untouched: agent workflow service, superpowers
-  plans/specs, literature text, and temporary phase-3 tests.
+- `python -m pytest -p no:cacheprovider -q tests/test_tga_advanced.py
+  tests/test_dma_advanced.py tests/test_rheology_advanced.py
+  tests/test_mechanics_advanced.py tests/test_result_field_inventory.py
+  tests/test_advanced_cross_entry.py tests/test_advanced_figures.py`:
+  `45 passed`.
+- `python scripts/verify.py --task
+  docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md --changed
+  --types`: passed Ruff, compile, quality (`313 passed`), preprocessing
+  (`157 passed`), and whitespace checks.
+- A broader related regression selection passed `101` tests; one unrelated
+  pre-existing Netzsch format-inspection fixture still expects
+  `format_reader_missing` while the current short signature probe returns
+  `format_signature_unrecognized`.
+- Known limitations: every advanced output remains a diagnostic candidate.
+  Independent instrument/material replay, standards and negative controls,
+  formal uncertainty evidence, capability promotion, and human scientific
+  review remain outside this implementation. Cross-file project series still
+  require an explicit grouped canonical experiment before a joint advanced fit.
+- Pre-existing Superpowers plans/specs, literature text, temporary phase-3
+  tests, and other unrelated workspace changes were left untouched.

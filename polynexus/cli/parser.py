@@ -49,12 +49,14 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("input")
     pt.add_argument("-o", "--output", default="")
     pt.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    pt.add_argument("--analysis-spec", default=None, help="JSON file containing explicit TGA kinetics semantics")
     pt.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     p_dma = sub.add_parser("dma", help="DMA/DMTA")
     p_dma.add_argument("input")
     p_dma.add_argument("-o", "--output", default="")
     p_dma.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_dma.add_argument("--analysis-spec", default=None, help="JSON file containing explicit DMA TTS/master-curve semantics")
     p_dma.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     p_rheology = sub.add_parser("rheology", help="Rheology")
@@ -64,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_rheology.add_argument(
         "--analysis-spec",
         default=None,
-        help="JSON file containing an explicit rheology yield/LVE analysis spec",
+        help="JSON file containing explicit rheology yield/LVE/advanced model semantics",
     )
     p_rheology.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
@@ -72,6 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_mechanics.add_argument("input")
     p_mechanics.add_argument("-o", "--output", default="")
     p_mechanics.add_argument("--skip-to", default=None, choices=["preprocess", "analyze", "plot"])
+    p_mechanics.add_argument("--analysis-spec", default=None, help="JSON file containing explicit mechanics geometry or advanced-model semantics")
     p_mechanics.add_argument("--json", action="store_true", help="Print the shared compute run as JSON")
 
     p_sec = sub.add_parser("sec", help="SEC/GPC")

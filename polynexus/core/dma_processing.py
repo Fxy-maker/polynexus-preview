@@ -28,26 +28,41 @@ class DMATTSSpec:
     temperatures: tuple[float, ...]
     shift_factors: tuple[float, ...]
     frequency_unit: str = "Hz"
+    curve_measurement_ids: tuple[str, ...] = ()
+    shift_mode: str = "explicit"
+    modulus_unit: str = "unknown"
 
     @classmethod
-    def create(cls, *, reference_temperature: float, temperatures: Sequence[float], shift_factors: Sequence[float], frequency_unit: str = "Hz") -> "DMATTSSpec":
+    def create(cls, *, reference_temperature: float, temperatures: Sequence[float], shift_factors: Sequence[float] = (), frequency_unit: str = "Hz", curve_measurement_ids: Sequence[str] = (), shift_mode: str | None = None, modulus_unit: str = "unknown") -> "DMATTSSpec":
         ref = float(reference_temperature)
         temps = tuple(float(value) for value in temperatures)
         shifts = tuple(float(value) for value in shift_factors)
-        if not math.isfinite(ref) or len(temps) != len(shifts) or not temps:
-            raise ValueError("DMA TTS reference and temperature/shift vectors are required")
+        if not math.isfinite(ref) or not temps:
+            raise ValueError("DMA TTS reference and temperature vector are required")
+        mode = str(shift_mode or ("explicit" if shifts else "overlap_least_squares")).strip().casefold()
+        if mode not in {"explicit", "overlap_least_squares"}:
+            raise ValueError("DMA TTS shift mode is unsupported")
+        if mode == "explicit" and len(temps) != len(shifts):
+            raise ValueError("DMA TTS temperature and shift vectors are required")
+        if mode == "overlap_least_squares" and shifts and len(temps) != len(shifts):
+            raise ValueError("DMA TTS initial shift factors must align with temperatures")
         if any(not math.isfinite(value) for value in (*temps, *shifts)) or any(value <= 0 for value in shifts):
             raise ValueError("DMA TTS temperatures must be finite and shift factors positive")
         if len(set(temps)) != len(temps):
             raise ValueError("DMA TTS temperatures must be unique")
-        return cls(ref, temps, shifts, str(frequency_unit).strip() or "Hz")
+        if ref not in temps:
+            raise ValueError("DMA TTS reference temperature must be present in temperatures")
+        ids = tuple(str(value).strip() for value in curve_measurement_ids)
+        if ids and (len(ids) != len(temps) or any(not value for value in ids)):
+            raise ValueError("DMA TTS curve measurement ids must align with temperatures")
+        return cls(ref, temps, shifts, str(frequency_unit).strip() or "Hz", ids, mode, str(modulus_unit).strip() or "unknown")
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "DMATTSSpec":
-        return cls.create(reference_temperature=value.get("reference_temperature"), temperatures=value.get("temperatures", ()), shift_factors=value.get("shift_factors", ()), frequency_unit=value.get("frequency_unit", "Hz"))
+        return cls.create(reference_temperature=value.get("reference_temperature"), temperatures=value.get("temperatures", ()), shift_factors=value.get("shift_factors", ()), frequency_unit=value.get("frequency_unit", "Hz"), curve_measurement_ids=value.get("curve_measurement_ids", value.get("measurement_ids", ())), shift_mode=value.get("shift_mode"), modulus_unit=value.get("modulus_unit", "unknown"))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"reference_temperature": self.reference_temperature, "temperatures": list(self.temperatures), "shift_factors": list(self.shift_factors), "frequency_unit": self.frequency_unit}
+        return {"reference_temperature": self.reference_temperature, "temperatures": list(self.temperatures), "shift_factors": list(self.shift_factors), "frequency_unit": self.frequency_unit, "curve_measurement_ids": list(self.curve_measurement_ids), "shift_mode": self.shift_mode, "modulus_unit": self.modulus_unit}
 
 
 def build_dma_master_curve(curves: Sequence[Mapping[str, Any]], spec: DMATTSSpec | Mapping[str, Any]) -> dict[str, Any]:
@@ -56,16 +71,74 @@ def build_dma_master_curve(curves: Sequence[Mapping[str, Any]], spec: DMATTSSpec
     by_temperature = {float(curve.get("temperature")): curve for curve in curves}
     if any(temp not in by_temperature for temp in tts.temperatures):
         return {"status": "unavailable", "unavailable_reason": "tts_temperature_curve_missing"}
+    shifts = tts.shift_factors
+    shift_diagnostics: tuple[dict[str, Any], ...] = ()
+    if tts.shift_mode == "overlap_least_squares":
+        fitted = _fit_dma_shift_factors(by_temperature, tts)
+        if fitted.get("status") == "unavailable":
+            return fitted
+        shifts = tuple(float(value) for value in fitted["shift_factors"])
+        shift_diagnostics = tuple(fitted["diagnostics"])
     points: list[dict[str, float]] = []
-    for temperature, shift in zip(tts.temperatures, tts.shift_factors, strict=True):
+    for temperature, shift in zip(tts.temperatures, shifts, strict=True):
         curve = by_temperature[temperature]
         frequencies = tuple(float(value) for value in curve.get("frequency", ()))
         values = tuple(float(value) for value in curve.get("modulus", ()))
-        if len(frequencies) != len(values) or len(frequencies) < 2 or any(value <= 0 for value in frequencies):
+        if len(frequencies) != len(values) or len(frequencies) < 2 or any(not math.isfinite(value) or value <= 0 for value in frequencies) or any(not math.isfinite(value) for value in values):
             return {"status": "unavailable", "unavailable_reason": "tts_curve_invalid"}
         points.extend({"temperature": temperature, "frequency": frequency * shift, "modulus": modulus} for frequency, modulus in zip(frequencies, values, strict=True))
     points.sort(key=lambda item: item["frequency"])
-    return {"status": "computed_with_warning", "method": "horizontal_frequency_shift", "reference_temperature": tts.reference_temperature, "frequency_unit": tts.frequency_unit, "shift_factors": tts.shift_factors, "points": tuple(points), "parameters": tts.to_dict(), "warnings": ("diagnostic_candidate_requires_independent_replay",)}
+    curve_units = {str(item.get("modulus_unit", "unknown")) for item in by_temperature.values()}
+    resolved_modulus_unit = tts.modulus_unit
+    if resolved_modulus_unit == "unknown" and len(curve_units) == 1:
+        resolved_modulus_unit = next(iter(curve_units))
+    parameters = tts.to_dict()
+    parameters["resolved_shift_factors"] = list(shifts)
+    return {"status": "computed_with_warning", "method": "horizontal_frequency_shift", "reference_temperature": tts.reference_temperature, "frequency_unit": tts.frequency_unit, "modulus_unit": resolved_modulus_unit, "shift_mode": tts.shift_mode, "shift_factors": shifts, "shift_diagnostics": shift_diagnostics, "points": tuple(points), "parameters": parameters, "warnings": ("diagnostic_candidate_requires_independent_replay",)}
+
+
+def _fit_dma_shift_factors(by_temperature: Mapping[float, Mapping[str, Any]], spec: DMATTSSpec) -> dict[str, Any]:
+    reference = by_temperature.get(spec.reference_temperature)
+    if reference is None:
+        return {"status": "unavailable", "unavailable_reason": "tts_reference_temperature_curve_missing"}
+    reference_frequency = np.asarray(reference.get("frequency", ()), dtype=float)
+    reference_modulus = np.asarray(reference.get("modulus", ()), dtype=float)
+    if reference_frequency.size < 3 or reference_frequency.size != reference_modulus.size or np.any(reference_frequency <= 0.0) or np.any(reference_modulus <= 0.0):
+        return {"status": "unavailable", "unavailable_reason": "tts_reference_curve_invalid"}
+    ref_order = np.argsort(reference_frequency, kind="mergesort")
+    ref_x = np.log10(reference_frequency[ref_order])
+    ref_y = np.log10(reference_modulus[ref_order])
+    shifts: list[float] = []
+    diagnostics: list[dict[str, Any]] = []
+    for temperature in spec.temperatures:
+        if temperature == spec.reference_temperature:
+            shifts.append(1.0)
+            diagnostics.append({"temperature": temperature, "log10_shift": 0.0, "overlap_points": int(ref_x.size), "rmse": 0.0})
+            continue
+        curve = by_temperature[temperature]
+        frequency = np.asarray(curve.get("frequency", ()), dtype=float)
+        modulus = np.asarray(curve.get("modulus", ()), dtype=float)
+        if frequency.size < 3 or frequency.size != modulus.size or np.any(frequency <= 0.0) or np.any(modulus <= 0.0):
+            return {"status": "unavailable", "unavailable_reason": "tts_curve_invalid"}
+        order = np.argsort(frequency, kind="mergesort")
+        curve_x = np.log10(frequency[order])
+        curve_y = np.log10(modulus[order])
+        candidates: list[tuple[float, int, float]] = []
+        for log_shift in np.linspace(-12.0, 12.0, 481):
+            shifted_x = curve_x + float(log_shift)
+            mask = (shifted_x >= ref_x[0]) & (shifted_x <= ref_x[-1])
+            overlap = int(np.count_nonzero(mask))
+            if overlap < 2:
+                continue
+            expected = np.interp(shifted_x[mask], ref_x, ref_y)
+            rmse = float(np.sqrt(np.mean((curve_y[mask] - expected) ** 2)))
+            candidates.append((rmse, -overlap, float(log_shift)))
+        if not candidates:
+            return {"status": "unavailable", "unavailable_reason": "tts_curve_overlap_missing"}
+        rmse, negative_overlap, log_shift = min(candidates)
+        shifts.append(float(10.0**log_shift))
+        diagnostics.append({"temperature": temperature, "log10_shift": log_shift, "overlap_points": -negative_overlap, "rmse_log10_modulus": rmse})
+    return {"status": "computed_with_warning", "shift_factors": tuple(shifts), "diagnostics": tuple(diagnostics)}
 
 
 @dataclass(frozen=True)
