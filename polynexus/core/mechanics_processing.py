@@ -12,6 +12,45 @@ import numpy as np
 
 _PROCESSING_VERSION = "mechanics.processing.v1"
 _SUPPORTED_TEST_MODES = frozenset({"tensile", "compression", "flexural"})
+
+
+def analyze_mechanics_cycles(cycles: Sequence[float], response: Sequence[float]) -> dict[str, Any]:
+    """Summarize explicitly segmented cyclic response as a diagnostic candidate."""
+    if len(cycles) != len(response) or len(cycles) < 2:
+        return {"status": "unavailable", "unavailable_reason": "cycle_series_invalid"}
+    x, y = np.asarray(cycles, dtype=float), np.asarray(response, dtype=float)
+    if not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)):
+        return {"status": "unavailable", "unavailable_reason": "cycle_series_nonfinite"}
+    unique = tuple(dict.fromkeys(float(v) for v in x))
+    peaks = tuple(float(np.max(y[x == value])) for value in unique)
+    return {"status": "computed_with_warning", "method": "cycle_peak_envelope", "cycle_ids": unique, "peak_response": peaks, "warnings": ("diagnostic_candidate_requires_cycle_definition",)}
+
+
+def analyze_mechanics_fatigue(cycle_count: Sequence[float], response: Sequence[float]) -> dict[str, Any]:
+    if len(cycle_count) != len(response) or len(cycle_count) < 2:
+        return {"status": "unavailable", "unavailable_reason": "fatigue_series_invalid"}
+    n, y = np.asarray(cycle_count, dtype=float), np.asarray(response, dtype=float)
+    if np.any(np.diff(n) <= 0) or not np.all(np.isfinite(y)):
+        return {"status": "unavailable", "unavailable_reason": "fatigue_axis_invalid"}
+    return {"status": "computed_with_warning", "method": "fatigue_response_history", "cycle_count": tuple(float(v) for v in n), "response": tuple(float(v) for v in y), "warnings": ("diagnostic_candidate_requires_failure_definition",)}
+
+
+def integrate_mechanics_creep(time: Sequence[float], strain: Sequence[float]) -> dict[str, Any]:
+    if len(time) != len(strain) or len(time) < 2:
+        return {"status": "unavailable", "unavailable_reason": "creep_series_invalid"}
+    t, e = np.asarray(time, dtype=float), np.asarray(strain, dtype=float)
+    if np.any(np.diff(t) <= 0) or not np.all(np.isfinite(e)):
+        return {"status": "unavailable", "unavailable_reason": "creep_time_axis_invalid"}
+    return {"status": "computed_with_warning", "method": "strain_time_area", "area": float(np.trapezoid(e, t)), "warnings": ("diagnostic_candidate_requires_load_protocol",)}
+
+
+def integrate_fracture_energy(displacement: Sequence[float], force: Sequence[float]) -> dict[str, Any]:
+    if len(displacement) != len(force) or len(displacement) < 2:
+        return {"status": "unavailable", "unavailable_reason": "fracture_series_invalid"}
+    x, y = np.asarray(displacement, dtype=float), np.asarray(force, dtype=float)
+    if np.any(np.diff(x) <= 0) or not np.all(np.isfinite(y)):
+        return {"status": "unavailable", "unavailable_reason": "fracture_axis_invalid"}
+    return {"status": "computed_with_warning", "method": "force_displacement_work", "energy": float(np.trapezoid(y, x)), "warnings": ("diagnostic_candidate_requires_geometry_and_crack_definition",)}
 _SUPPORTED_TOUGHNESS_ENDPOINTS = frozenset({"last_valid"})
 _STRESS_UNIT_FACTORS = {
     "pa": 1.0,
@@ -981,6 +1020,10 @@ def _unavailable(reason: str) -> dict[str, str]:
 
 
 __all__ = [
+    "analyze_mechanics_cycles",
+    "analyze_mechanics_fatigue",
+    "integrate_mechanics_creep",
+    "integrate_fracture_energy",
     "MechanicsAnalysisSpec",
     "MechanicsProcessingOutcome",
     "MechanicsSignalSeries",

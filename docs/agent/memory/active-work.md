@@ -7046,3 +7046,12 @@ local unavailable results, and ComputeRun `tga_kinetics` template binding.
 Focused tests and syntax/Ruff checks pass. DMA, rheology, and mechanics advanced
 models remain pending under the umbrella task:
 `docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.
+## Advanced model suite — DMA/rheology/mechanics diagnostic primitives (2026-09-13)
+
+Added explicit DMA `DMATTSSpec` and horizontal shift master-curve candidate;
+rheology `RheologyAdvancedSpec`, Cox–Merz pointwise comparison, and thixotropy
+area candidate; mechanics cycle envelope, fatigue history, creep work, and
+fracture force-displacement candidates. Focused tests pass (DMA/rheology 8,
+mechanics 2). These primitives still need canonical engine wiring, shared
+metric-manifest projection, and CLI/Agent exposure under the umbrella task:
+`docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.

@@ -21,6 +21,54 @@ _MODULUS_BASES = frozenset({"tensile", "shear", "unspecified"})
 
 
 @dataclass(frozen=True)
+class DMATTSSpec:
+    """Explicit temperature/frequency shifting semantics for a diagnostic TTS."""
+
+    reference_temperature: float
+    temperatures: tuple[float, ...]
+    shift_factors: tuple[float, ...]
+    frequency_unit: str = "Hz"
+
+    @classmethod
+    def create(cls, *, reference_temperature: float, temperatures: Sequence[float], shift_factors: Sequence[float], frequency_unit: str = "Hz") -> "DMATTSSpec":
+        ref = float(reference_temperature)
+        temps = tuple(float(value) for value in temperatures)
+        shifts = tuple(float(value) for value in shift_factors)
+        if not math.isfinite(ref) or len(temps) != len(shifts) or not temps:
+            raise ValueError("DMA TTS reference and temperature/shift vectors are required")
+        if any(not math.isfinite(value) for value in (*temps, *shifts)) or any(value <= 0 for value in shifts):
+            raise ValueError("DMA TTS temperatures must be finite and shift factors positive")
+        if len(set(temps)) != len(temps):
+            raise ValueError("DMA TTS temperatures must be unique")
+        return cls(ref, temps, shifts, str(frequency_unit).strip() or "Hz")
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "DMATTSSpec":
+        return cls.create(reference_temperature=value.get("reference_temperature"), temperatures=value.get("temperatures", ()), shift_factors=value.get("shift_factors", ()), frequency_unit=value.get("frequency_unit", "Hz"))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"reference_temperature": self.reference_temperature, "temperatures": list(self.temperatures), "shift_factors": list(self.shift_factors), "frequency_unit": self.frequency_unit}
+
+
+def build_dma_master_curve(curves: Sequence[Mapping[str, Any]], spec: DMATTSSpec | Mapping[str, Any]) -> dict[str, Any]:
+    """Build a diagnostic horizontally shifted DMA master-curve candidate."""
+    tts = spec if isinstance(spec, DMATTSSpec) else DMATTSSpec.from_mapping(spec)
+    by_temperature = {float(curve.get("temperature")): curve for curve in curves}
+    if any(temp not in by_temperature for temp in tts.temperatures):
+        return {"status": "unavailable", "unavailable_reason": "tts_temperature_curve_missing"}
+    points: list[dict[str, float]] = []
+    for temperature, shift in zip(tts.temperatures, tts.shift_factors, strict=True):
+        curve = by_temperature[temperature]
+        frequencies = tuple(float(value) for value in curve.get("frequency", ()))
+        values = tuple(float(value) for value in curve.get("modulus", ()))
+        if len(frequencies) != len(values) or len(frequencies) < 2 or any(value <= 0 for value in frequencies):
+            return {"status": "unavailable", "unavailable_reason": "tts_curve_invalid"}
+        points.extend({"temperature": temperature, "frequency": frequency * shift, "modulus": modulus} for frequency, modulus in zip(frequencies, values, strict=True))
+    points.sort(key=lambda item: item["frequency"])
+    return {"status": "computed_with_warning", "method": "horizontal_frequency_shift", "reference_temperature": tts.reference_temperature, "frequency_unit": tts.frequency_unit, "shift_factors": tts.shift_factors, "points": tuple(points), "parameters": tts.to_dict(), "warnings": ("diagnostic_candidate_requires_independent_replay",)}
+
+
+@dataclass(frozen=True)
 class DMAProcessingConfig:
     """Explicit parameters for material-neutral DMA response candidates."""
 
@@ -435,6 +483,8 @@ def _unavailable(reason: str) -> dict[str, str]:
 
 
 __all__ = [
+    "DMATTSSpec",
+    "build_dma_master_curve",
     "DMAProcessingConfig",
     "DMAProcessingOutcome",
     "DMASignalSeries",

@@ -29,6 +29,49 @@ _YIELD_MODELS = frozenset({"bingham", "herschel_bulkley"})
 
 
 @dataclass(frozen=True)
+class RheologyAdvancedSpec:
+    """Explicit requests for sample-neutral time/frequency comparisons."""
+
+    reference_temperature: float | None = None
+    temperatures: tuple[float, ...] = ()
+    shift_factors: tuple[float, ...] = ()
+    model: str = ""
+
+    @classmethod
+    def create(cls, *, reference_temperature: float | None = None, temperatures: Sequence[float] = (), shift_factors: Sequence[float] = (), model: str = "") -> "RheologyAdvancedSpec":
+        temps, shifts = tuple(float(v) for v in temperatures), tuple(float(v) for v in shift_factors)
+        if len(temps) != len(shifts):
+            raise ValueError("rheology temperatures and shift factors must align")
+        if any(not math.isfinite(v) for v in (*temps, *shifts)) or any(v <= 0 for v in shifts):
+            raise ValueError("rheology shift factors must be finite and positive")
+        return cls(None if reference_temperature is None else float(reference_temperature), temps, shifts, str(model).strip())
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "RheologyAdvancedSpec":
+        return cls.create(reference_temperature=value.get("reference_temperature"), temperatures=value.get("temperatures", ()), shift_factors=value.get("shift_factors", ()), model=value.get("model", ""))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"reference_temperature": self.reference_temperature, "temperatures": list(self.temperatures), "shift_factors": list(self.shift_factors), "model": self.model}
+
+
+def compare_cox_merz(frequency: Sequence[float], complex_viscosity: Sequence[float], shear_rate: Sequence[float], steady_viscosity: Sequence[float]) -> dict[str, Any]:
+    """Return pointwise Cox–Merz diagnostic differences on matching axes."""
+    if not (len(frequency) == len(complex_viscosity) == len(shear_rate) == len(steady_viscosity)):
+        return {"status": "unavailable", "unavailable_reason": "cox_merz_series_length_mismatch"}
+    residuals = tuple(float(a - b) for a, b in zip(complex_viscosity, steady_viscosity, strict=True))
+    return {"status": "computed_with_warning", "method": "cox_merz_pointwise_comparison", "frequency": tuple(float(v) for v in frequency), "shear_rate": tuple(float(v) for v in shear_rate), "residuals": residuals, "warnings": ("diagnostic_candidate_requires_matching_protocols",)}
+
+
+def integrate_thixotropy(time: Sequence[float], viscosity: Sequence[float]) -> dict[str, Any]:
+    if len(time) != len(viscosity) or len(time) < 2:
+        return {"status": "unavailable", "unavailable_reason": "thixotropy_series_invalid"}
+    x, y = np.asarray(time, dtype=float), np.asarray(viscosity, dtype=float)
+    if np.any(np.diff(x) <= 0) or not np.all(np.isfinite(y)):
+        return {"status": "unavailable", "unavailable_reason": "thixotropy_time_axis_invalid"}
+    return {"status": "computed_with_warning", "method": "viscosity_time_area", "area": float(np.trapezoid(y, x)), "warnings": ("diagnostic_candidate_requires_protocol_metadata",)}
+
+
+@dataclass(frozen=True)
 class RheologyYieldStressSpec:
     """Explicit semantics for a steady-shear yield-stress fit."""
 
@@ -1422,10 +1465,13 @@ def _unavailable(reason: str) -> dict[str, Any]:
 
 
 __all__ = [
+    "RheologyAdvancedSpec",
     "RheologyAnalysisSpec",
     "RheologyLVESpec",
     "RheologyProcessingOutcome",
     "RheologySignalSeries",
     "RheologyYieldStressSpec",
     "analyze_rheology_group",
+    "compare_cox_merz",
+    "integrate_thixotropy",
 ]
