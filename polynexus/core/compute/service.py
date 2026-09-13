@@ -27,6 +27,7 @@ _SUPPORTED_PIPELINE_OPTIONS = frozenset(
         "method_sensitivity",
         "rheology_analysis",
         "sec_analysis",
+        "tga_kinetics",
     }
 )
 _SUPPORTED_SKIP_TO_VALUES = frozenset({"preprocess", "analyze", "plot"})
@@ -88,6 +89,11 @@ def _normalize_pipeline_options(
             not isinstance(sec_analysis, Mapping) or not _is_json_safe(sec_analysis)
         ):
             return None, "pipeline_option_invalid"
+        tga_kinetics = options.get("tga_kinetics")
+        if "tga_kinetics" in options and (
+            not isinstance(tga_kinetics, Mapping) or not _is_json_safe(tga_kinetics)
+        ):
+            return None, "pipeline_option_invalid"
         normalized: dict[str, Any] = {}
         if "skip_to" in options:
             normalized["skip_to"] = skip_to
@@ -99,6 +105,8 @@ def _normalize_pipeline_options(
             normalized["rheology_analysis"] = dict(rheology_analysis)
         if "sec_analysis" in options:
             normalized["sec_analysis"] = dict(sec_analysis)
+        if "tga_kinetics" in options:
+            normalized["tga_kinetics"] = dict(tga_kinetics)
         return normalized, None
     except Exception:
         return None, "pipeline_option_invalid"
@@ -377,6 +385,18 @@ class ComputeRunService:
                         reasons=("sec_analysis_mismatch",),
                         input_inspection=input_inspection,
                     )
+            if "tga_kinetics" in options:
+                try:
+                    canonical_template = _attach_tga_kinetics_spec(
+                        canonical_template, options["tga_kinetics"]
+                    )
+                except (TypeError, ValueError):
+                    return ComputeRun(
+                        status="needs_input",
+                        artifact=artifact,
+                        reasons=("tga_kinetics_mismatch",),
+                        input_inspection=input_inspection,
+                    )
         capability_items = (
             CapabilityExecutor().execute(canonical_template)
             if canonical_template is not None and canonical_template.measurements
@@ -449,6 +469,18 @@ class ComputeRunService:
                             status="needs_input",
                             artifact=artifact,
                             reasons=("sec_analysis_invalid",),
+                            input_inspection=input_inspection,
+                        )
+                if "tga_kinetics" in options and normalized_technique == "tga":
+                    try:
+                        canonical_template = _attach_tga_kinetics_spec(
+                            canonical_template, options["tga_kinetics"]
+                        )
+                    except (TypeError, ValueError):
+                        return ComputeRun(
+                            status="needs_input",
+                            artifact=artifact,
+                            reasons=("tga_kinetics_invalid",),
                             input_inspection=input_inspection,
                         )
                 if canonical_template.measurements:
@@ -830,6 +862,32 @@ def _attach_sec_analysis_spec(
         return template
     payload = dict(template.payload)
     payload["sec_analysis"] = normalized
+    return CanonicalExperiment.create(
+        template_id=template.template_id,
+        source_artifact_id=template.source_artifact_id,
+        payload=payload,
+        conversion_record=template.conversion_record,
+        measurements=template.measurements,
+        mapping_proposal=template.mapping_proposal,
+        contract_version=template.contract_version,
+    )
+
+
+def _attach_tga_kinetics_spec(template: CanonicalExperiment, value: Mapping[str, Any]) -> CanonicalExperiment:
+    if not isinstance(value, Mapping):
+        raise TypeError("tga_kinetics must be a mapping")
+    if str(template.payload.get("technique", "")).casefold() != "tga":
+        raise ValueError("tga_kinetics requires a TGA canonical template")
+    from ..tga_processing import TGAKineticsSpec
+
+    normalized = TGAKineticsSpec.from_mapping(value).to_dict()
+    existing = template.payload.get("tga_kinetics")
+    if existing is not None and TGAKineticsSpec.from_mapping(existing).to_dict() != normalized:
+        raise ValueError("canonical TGA kinetics spec does not match request")
+    if existing is not None:
+        return template
+    payload = dict(template.payload)
+    payload["tga_kinetics"] = normalized
     return CanonicalExperiment.create(
         template_id=template.template_id,
         source_artifact_id=template.source_artifact_id,

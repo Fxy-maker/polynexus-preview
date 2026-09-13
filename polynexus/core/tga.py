@@ -15,7 +15,12 @@ import numpy as np
 
 from .canonical_experiments import CanonicalExperiment, convert_one_dimensional_table
 from .engine import BaseEngine, EngineCategory, register_technique
-from .tga_processing import TGAProcessingConfig, analyze_tga_curve
+from .tga_processing import (
+    TGAProcessingConfig,
+    TGAKineticsSpec,
+    analyze_tga_curve,
+    analyze_tga_multirate_kinetics,
+)
 
 
 @register_technique("tga")
@@ -202,6 +207,28 @@ class TGAEngine(BaseEngine):
             "curves": curves,
             "tga_curves": tga_curves,
         }
+        kinetics_spec = (
+            self._template.payload.get("tga_kinetics")
+            if self._template is not None
+            else None
+        )
+        if kinetics_spec is not None:
+            try:
+                spec = TGAKineticsSpec.from_mapping(kinetics_spec)
+                peaks = []
+                for measurement in self._measurements:
+                    events = tga_curves[measurement.measurement_id].get("mass_loss_events", {})
+                    candidates = events.get("candidates", ()) if isinstance(events, dict) else ()
+                    peak = next((item.get("peak_coordinate") for item in candidates if isinstance(item, dict) and item.get("peak_coordinate") is not None), None)
+                    if peak is None:
+                        peaks = []
+                        break
+                    unit = str(measurement.units.get("x", ""))
+                    peak_value = float(peak)
+                    peaks.append(peak_value + 273.15 if "c" in unit.casefold() else peak_value)
+                self._metrics["kinetics"] = analyze_tga_multirate_kinetics(peaks, spec)
+            except (TypeError, ValueError):
+                self._metrics["kinetics"] = {"status": "unavailable", "unavailable_reason": "kinetics_spec_invalid"}
         self.result.parameters = dict(self._metrics)
         self.result.validation_warnings = sorted(set(warnings))
         self.result.metadata.update(

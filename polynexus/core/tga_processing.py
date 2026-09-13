@@ -14,6 +14,79 @@ _PROCESSING_VERSION = "tga.processing.v1"
 
 
 @dataclass(frozen=True)
+class TGAKineticsSpec:
+    """Explicit semantics for multi-heating-rate diagnostic kinetics."""
+
+    heating_rates: tuple[float, ...]
+    conversion_levels: tuple[float, ...] = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+    gas_constant: float = 8.31446261815324
+
+    @classmethod
+    def create(cls, *, heating_rates: Sequence[float], conversion_levels: Sequence[float] | None = None, gas_constant: float = 8.31446261815324) -> "TGAKineticsSpec":
+        rates = tuple(float(value) for value in heating_rates)
+        levels = tuple(float(value) for value in (conversion_levels if conversion_levels is not None else cls.conversion_levels))
+        if len(rates) < 2 or any(not math.isfinite(value) or value <= 0 for value in rates):
+            raise ValueError("TGA kinetics requires at least two positive heating rates")
+        if len(set(rates)) != len(rates):
+            raise ValueError("TGA heating rates must be unique")
+        if not levels or any(not math.isfinite(value) or not 0 < value < 1 for value in levels):
+            raise ValueError("TGA conversion levels must be between zero and one")
+        if any(a >= b for a, b in zip(levels, levels[1:])):
+            raise ValueError("TGA conversion levels must be strictly increasing")
+        gas = float(gas_constant)
+        if not math.isfinite(gas) or gas <= 0:
+            raise ValueError("TGA gas constant must be positive")
+        return cls(rates, levels, gas)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "TGAKineticsSpec":
+        return cls.create(heating_rates=value.get("heating_rates", ()), conversion_levels=value.get("conversion_levels"), gas_constant=value.get("gas_constant", cls.gas_constant))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"heating_rates": list(self.heating_rates), "conversion_levels": list(self.conversion_levels), "gas_constant": self.gas_constant}
+
+
+def analyze_tga_multirate_kinetics(
+    peak_temperatures: Sequence[float],
+    spec: TGAKineticsSpec | Mapping[str, Any],
+) -> dict[str, Any]:
+    """Fit a diagnostic Kissinger activation-energy candidate.
+
+    The caller supplies one peak temperature per declared heating rate. No
+    interpolation or material interpretation is inferred here.
+    """
+    kinetics = spec if isinstance(spec, TGAKineticsSpec) else TGAKineticsSpec.from_mapping(spec)
+    temperatures = tuple(float(value) for value in peak_temperatures)
+    if len(temperatures) != len(kinetics.heating_rates):
+        return {"status": "unavailable", "unavailable_reason": "peak_temperature_count_mismatch"}
+    if any(not math.isfinite(value) or value <= 0 for value in temperatures):
+        return {"status": "unavailable", "unavailable_reason": "peak_temperature_invalid"}
+    rates = np.asarray(kinetics.heating_rates, dtype=float)
+    temp = np.asarray(temperatures, dtype=float)
+    x = 1.0 / temp
+    y = np.log(rates / temp**2)
+    slope, intercept = np.polyfit(x, y, 1)
+    activation_energy = float(-slope * kinetics.gas_constant)
+    predicted = slope * x + intercept
+    residuals = y - predicted
+    ss_res = float(np.sum(residuals**2))
+    ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+    r_squared = None if ss_tot == 0.0 else float(1.0 - ss_res / ss_tot)
+    return {
+        "status": "computed_with_warning",
+        "method": "kissinger_linear_fit",
+        "activation_energy_J_mol": activation_energy,
+        "intercept": float(intercept),
+        "r_squared": r_squared,
+        "heating_rates": kinetics.heating_rates,
+        "peak_temperatures_K": temperatures,
+        "residuals": tuple(float(value) for value in residuals),
+        "warnings": ("diagnostic_candidate_requires_independent_replay",),
+        "parameters": kinetics.to_dict(),
+    }
+
+
+@dataclass(frozen=True)
 class TGAProcessingConfig:
     """Explicit parameters for material-neutral TGA curve processing."""
 
@@ -488,6 +561,8 @@ def _unavailable(reason: str) -> dict[str, str]:
 
 
 __all__ = [
+    "TGAKineticsSpec",
+    "analyze_tga_multirate_kinetics",
     "TGAProcessingConfig",
     "TGAProcessingOutcome",
     "analyze_tga_curve",

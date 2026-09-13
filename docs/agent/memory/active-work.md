@@ -7038,3 +7038,11 @@ summary sources. Existing snapshots and V2 sidecars provide reusable
 CSV/SVG/PNG/PDF and Origin-compatible semantic data. Focused tests and
 structured verification pass. Scientific calibration validity, standards,
 uncertainty, and capability promotion remain outside this task.
+## Advanced model suite — TGA kinetics phase 1 active (2026-09-13)
+
+Added `TGAKineticsSpec` and a deterministic diagnostic Kissinger multi-rate
+candidate in `tga_processing.py`, including explicit rates/conversion levels,
+local unavailable results, and ComputeRun `tga_kinetics` template binding.
+Focused tests and syntax/Ruff checks pass. DMA, rheology, and mechanics advanced
+models remain pending under the umbrella task:
+`docs/agent/tasks/2026-09-13-advanced-models-complete-suite.md`.
