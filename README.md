@@ -150,6 +150,20 @@ polynexus gpc chromatogram.csv
 polynexus mechanics tensile-curve.csv
 ```
 
+To aggregate existing public replay and all-module smoke evidence into one
+machine-readable report (without copying raw archives into the project):
+
+```bash
+polynexus validation-suite \
+  --public-replay-manifest D:/PolyNexus-validation-data/public/manifests/public-replay-v1.json \
+  --data-root D:/PolyNexus-validation-data \
+  --smoke-report D:/PolyNexus-validation-data/public/runs/2026-09-06-all-modules/all-modules-report.json \
+  --project-root D:/PolyNexus-validation-data/public/replay-project
+```
+
+The resulting report distinguishes deterministic replay, smoke-only output, and
+unavailable input. It remains diagnostic and requires scientific review.
+
 ### 4. Batch processing
 
 ```bash

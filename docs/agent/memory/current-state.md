@@ -2266,3 +2266,18 @@ and calibration provenance without recomputing values. Calibration remains
 explicit and diagnostic. Focused SEC coverage passes 11; structured verification
 passes quality 313 plus preprocessing 157. Task:
 `docs/agent/tasks/2026-09-13-sec-gpc-figure-export-closure.md`.
+
+## Cross-module validation suite aggregation — 2026-09-14
+
+The existing public deterministic replay batch and external all-module smoke
+report can now be collected by `polynexus validation-suite` into one immutable
+`ValidationSuiteReport`. Entries retain source/report hashes, technique,
+replay count, deterministic state, route/status, and limitations while using
+three explicit kinds: `deterministic_replay`, `smoke_only`, and `unavailable`.
+The aggregate is persisted only under project `.polynexus/validation/suite.json`
+when requested; it never copies raw archives or mutates ComputeRun, Evidence,
+or capability state. A real run over the existing external assets produced 5
+deterministic replay, 4 smoke-only, and 6 unavailable entries across 10
+techniques, with status `complete_with_review`. This is an evidence index, not
+scientific validation or capability promotion. Task:
+`docs/agent/tasks/2026-09-14-validation-suite-aggregation-v1.md`.

@@ -1,5 +1,23 @@
 # Active Work
 
+## Cross-module validation suite aggregation — implementation complete, review required (2026-09-14)
+
+- Added `ValidationSuiteEntry`/`ValidationSuiteReport` and a safe
+  `validation-suite` CLI that aggregate the existing public replay batch and
+  all-module smoke report without executing manifest-provided code or copying
+  raw data.
+- The report distinguishes deterministic replay from smoke-only and
+  unavailable input, preserves source/report hashes and limitations, and can be
+  persisted under `.polynexus/validation/suite.json`.
+- Focused coverage passes 5. A real external run produced 5 deterministic
+  replay, 4 smoke-only, and 6 unavailable entries across 10 techniques with
+  `complete_with_review`; structured verification passes quality 313,
+  preprocessing 157, Ruff, compile, and whitespace.
+- This layer does not turn parser smoke output into scientific validation or
+  capability promotion. Standards/negative controls, uncertainty, and human
+  scientific review remain required.
+- Task: `docs/agent/tasks/2026-09-14-validation-suite-aggregation-v1.md`.
+
 ## Advanced diagnostic model suite — implementation complete, review required (2026-09-13)
 
 - Added explicit sample-neutral TGA multi-rate kinetics, DMA TTS/master-curve,

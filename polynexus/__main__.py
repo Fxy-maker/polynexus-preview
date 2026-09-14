@@ -35,6 +35,7 @@ from polynexus.cli.run_portable_export_service import run_portable_export as _ru
 from polynexus.cli.run_validation_service import run_validation_cli as _run_validation_impl
 from polynexus.cli.run_project_validation_service import run_project_validation_cli as _run_project_validation_impl
 from polynexus.cli.run_public_validation_service import run_public_validation_cli as _run_public_validation_impl
+from polynexus.cli.run_validation_suite_service import run_validation_suite_cli as _run_validation_suite_impl
 from polynexus.cli.parser import build_parser
 from polynexus.utils import (
     delete_batch_preset,  # noqa: F401 - legacy CLI re-export
@@ -87,6 +88,8 @@ def main():
         return _run_project_validation_impl(args)
     if args.cmd == 'public-validate':
         return _run_public_validation_impl(args)
+    if args.cmd == 'validation-suite':
+        return _run_validation_suite_impl(args)
     return _run_single(args)
 
 

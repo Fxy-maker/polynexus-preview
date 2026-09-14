@@ -162,6 +162,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_public_validate.add_argument("--json", action="store_true", help="Print the report as JSON")
 
+    p_validation_suite = sub.add_parser(
+        "validation-suite",
+        help="Aggregate existing public replay and all-module smoke evidence",
+    )
+    p_validation_suite.add_argument(
+        "--public-replay-manifest",
+        default=None,
+        help="Optional hash-bound public replay manifest JSON path",
+    )
+    p_validation_suite.add_argument(
+        "--data-root",
+        default=None,
+        help="External validation data root for the public replay manifest",
+    )
+    p_validation_suite.add_argument(
+        "--smoke-report",
+        default=None,
+        help="Optional existing all-module smoke report JSON path",
+    )
+    p_validation_suite.add_argument(
+        "--suite-id",
+        default="polynexus-validation-suite-v1",
+        help="Stable aggregate report identifier",
+    )
+    p_validation_suite.add_argument(
+        "--project-root",
+        default=None,
+        help="Optional project root; persists under .polynexus/validation/suite.json",
+    )
+    p_validation_suite.add_argument(
+        "--output",
+        default=None,
+        help="Optional explicit JSON output path when no project root is supplied",
+    )
+    p_validation_suite.add_argument("--json", action="store_true", help="Print the report as JSON")
+
     pg = sub.add_parser("gui", help="AI tuning convergence viewer")
     pg.add_argument("--dry-run", action="store_true", help="Print AI tuning counts without opening a window")
     pg.add_argument("--db", default=None, help="Path to polynexus_samples.db")

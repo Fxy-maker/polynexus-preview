@@ -29,6 +29,11 @@ from .public_validation import (
     run_public_validation_case,
     run_public_validation_manifest,
 )
+from .validation_suite import (
+    ValidationSuiteEntry,
+    ValidationSuiteReport,
+    build_validation_suite_report,
+)
 
 # Import all technique modules to trigger @register_technique decorators
 from . import saxs  # noqa: F401
@@ -55,6 +60,8 @@ __all__ = [
     "PublicReplayCase", "load_public_validation_manifest",
     "public_canonical_dataset_id", "public_source_artifact_id",
     "run_public_validation_case", "run_public_validation_manifest",
+    "ValidationSuiteEntry", "ValidationSuiteReport",
+    "build_validation_suite_report",
 ]
 
 from .report import generate_report, save_report  # noqa: F401

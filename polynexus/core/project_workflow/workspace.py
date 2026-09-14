@@ -78,6 +78,14 @@ class ProjectWorkspace:
             raise TypeError("write_validation_batch requires ProjectValidationBatch")
         return self.write_json(self.validation_dir / "latest.json", batch.to_dict())
 
+    def write_validation_suite(self, report: Any) -> Path:
+        """Persist an aggregate validation evidence index beneath validation storage."""
+        from ..validation_suite import ValidationSuiteReport
+
+        if type(report) is not ValidationSuiteReport:
+            raise TypeError("write_validation_suite requires ValidationSuiteReport")
+        return self.write_json(self.validation_dir / "suite.json", report.to_dict())
+
     def read_validation_batch(self) -> Any | None:
         """Read the latest validation report without projecting it as evidence."""
         payload = self.read_json(self.validation_dir / "latest.json")
