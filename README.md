@@ -24,11 +24,79 @@ for the capability maturity boundary, release checklist, and data-rights rules.
 - `WAXS` - Wide-Angle X-ray Scattering
 - `SAXS` - Small-Angle X-ray Scattering
 - `NMR` - Nuclear Magnetic Resonance
+- `TGA` - Thermogravimetric Analysis (sample-neutral table-curve foundation)
+- `DMA` - Dynamic Mechanical Analysis (sample-neutral table-curve foundation)
+- `Rheology` - sample-neutral rheometer table-curve foundation
+- `SEC/GPC` - Size-Exclusion / Gel-Permeation Chromatography (sample-neutral chromatogram foundation)
+- `Mechanics` - sample-neutral mechanical-test table-curve foundation
 
 Coverage varies by input type and workflow. The runtime catalog distinguishes
-`available`, `experimental`, and `unsupported` capabilities. In particular,
-several N-D routes are experimental; DMA/DMTA, rheology, TGA/DTG, SEC/GPC, and
-mechanics are planned/unsupported rather than executable providers.
+`available`, `experimental`, and `unsupported` capabilities. TGA currently
+provides a sample-neutral table-curve route, normalized mass, DTG, specified-
+coordinate residue, and material-neutral event candidates. These derived
+outputs remain diagnostic pending independent replay, uncertainty work, and
+scientific review. An explicit, canonical-bound analysis spec can additionally
+produce multi-rate Kissinger and Ozawa-Flynn-Wall isoconversional candidates;
+formal stage/residue/kinetics capability promotion remains unsupported.
+DMA currently preserves every unambiguously labelled signal in a supported
+table, derives tan delta only from unit-compatible storage/loss modulus pairs
+within the same tensile, shear, or unspecified basis, and reports temperature-
+response peaks as non-Tg candidates. These derived outputs remain diagnostic
+pending independent replay, uncertainty work, and scientific review. An
+explicit analysis spec can additionally apply declared horizontal shift
+factors or deterministic overlap fitting and retain a master-curve candidate;
+formal TTS/shift-factor capability promotion and Tg interpretation remain
+unsupported. Rheology now
+preserves unambiguous steady-flow, oscillatory, strain, temperature, and time-
+sweep table signals. It derives only unit-safe identities: apparent viscosity,
+shear stress/rate, tan delta, complex-modulus magnitude, and complex-viscosity
+magnitude. An explicit rheology analysis spec can add deterministic Bingham or
+Herschel–Bulkley yield-stress fits, strain-sweep LVE/crossover candidates,
+thixotropy integrals, Cox–Merz comparisons, creep/relaxation fits, and declared
+TTS/master-curve candidates. These remain diagnostic, are never inferred from
+sample names, and are not promoted automatically. Formal rheology capability
+promotion remains unsupported. SEC/GPC
+preserves unambiguous retention/elution coordinates, RI, UV, MALS/RALS/LALS,
+viscometer/pressure, concentration, vendor molar-mass, and explicit
+distribution columns. It derives only a recorded-response peak coordinate and
+a baseline-uncorrected raw integral; molecular-weight moments remain explicitly
+unavailable until calibration and distribution semantics are supplied. An
+explicit calibration spec can then derive diagnostic Mn/Mw/Mz/dispersity and
+distribution arrays within the calibration range, with shared chromatogram,
+distribution, calibration, and metric-summary figures. These outputs retain
+standard provenance and do not infer universal calibration or chemistry.
+Mechanics now provides a sample-neutral table-curve foundation: it preserves
+explicit time, displacement, strain, deflection, cycle, stress, force/load,
+energy, and modulus channels and derives recorded response peaks and raw
+trapezoid integrals. When a canonical payload contains an explicit mechanics
+analysis spec, the deterministic Core can additionally fit a declared
+stress-strain modulus, offset-yield candidate, and last-valid stress-strain
+toughness value, plus explicit cycle envelopes, fatigue histories, creep
+integrals, and fracture-work candidates with units and provenance. Those model
+outputs remain diagnostic and require independent replay, uncertainty work,
+and scientific review. An explicit stress/strain standard deviation can also
+produce a first-order diagnostic uncertainty projection, and serialized
+mechanics replay cases can compare results against an external expected-value
+fixture. None of these artifacts is a metrological claim or capability-
+promotion decision.
+
+### Layered format ingestion
+
+PolyNexus separates raw-format decoding from canonical scientific mapping:
+
+```text
+raw file → bounded format inspection → reader/plugin → canonical template → ComputeRun
+```
+
+The shared `FormatInspection` contract records the detected container, reader
+availability, canonical-conversion state, reason codes, and next actions. It
+is exposed through the Core and `polynexus inspect-format` CLI command, and is
+also attached to direct `ComputeRun` records. Portable tables and detector
+images use built-in routes; known opaque vendor/Origin formats are retained as
+actionable `needs_input` records until a declared reader or portable export is
+available. The registry does not dynamically import or execute untrusted code,
+and inspection never claims that columns, units, or polymer semantics have
+been scientifically mapped.
 
 ## Quick Start
 
@@ -76,7 +144,28 @@ Examples:
 polynexus saxs data.edf
 polynexus waxs sample.raw -o output_dir
 polynexus dsc curve.csv
+polynexus tga thermogram.csv
+polynexus dma viscoelastic-curve.csv
+polynexus rheology frequency-sweep.csv
+polynexus sec chromatogram.csv
+# GPC is accepted as an alias for SEC
+polynexus gpc chromatogram.csv
+polynexus mechanics tensile-curve.csv
 ```
+
+To aggregate existing public replay and all-module smoke evidence into one
+machine-readable report (without copying raw archives into the project):
+
+```bash
+polynexus validation-suite \
+  --public-replay-manifest D:/PolyNexus-validation-data/public/manifests/public-replay-v1.json \
+  --data-root D:/PolyNexus-validation-data \
+  --smoke-report D:/PolyNexus-validation-data/public/runs/2026-09-06-all-modules/all-modules-report.json \
+  --project-root D:/PolyNexus-validation-data/public/replay-project
+```
+
+The resulting report distinguishes deterministic replay, smoke-only output, and
+unavailable input. It remains diagnostic and requires scientific review.
 
 ### 4. Batch processing
 
@@ -232,10 +321,10 @@ the output needs inspection:
 
 ```powershell
 $env:POLYNEXUS_TEST_RETENTION="review"
-pytest tests/test_gui_route.py
+pytest tests/test_main_window_workers.py
 
 $env:POLYNEXUS_TEST_RETENTION="evidence"
-pytest tests/test_release_acceptance.py
+pytest tests/test_public_validation.py
 ```
 
 `review` retains output for 7 days; `evidence` retains it permanently. Existing

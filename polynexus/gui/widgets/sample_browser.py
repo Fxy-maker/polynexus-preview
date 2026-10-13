@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QSettings, Qt, Signal
-from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -759,6 +759,7 @@ class SampleBrowser(QWidget):
     def select_sample(self, sample_id):
         if not sample_id:
             self._table.clearSelection()
+            self._table.setCurrentCell(-1, -1)
             self._selected_sample_id = None
             self._clear_batches()
             return False
@@ -773,6 +774,7 @@ class SampleBrowser(QWidget):
                 return True
 
         self._table.clearSelection()
+        self._table.setCurrentCell(-1, -1)
         self._selected_sample_id = None
         self._clear_batches()
         return False

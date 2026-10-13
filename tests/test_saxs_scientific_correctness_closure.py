@@ -242,7 +242,7 @@ def test_strain_scalar_metrics_use_total_channel_not_sector_data(monkeypatch) ->
     import polynexus.core.saxs_engine.saxs_strain as strain_module
 
     q = np.linspace(0.1, 1.4, 48)
-    intensity = np.exp(-q**2) + 0.1
+    intensity = np.exp(-q**2) + 0.1 + 12 * np.exp(-0.5 * ((q - 0.72) / 0.04) ** 2)
     monkeypatch.setattr(
         strain_module,
         "herman_from_sector_data",
@@ -259,10 +259,12 @@ def test_strain_scalar_metrics_use_total_channel_not_sector_data(monkeypatch) ->
         [q, q],
         [intensity, intensity],
         sector_data_list=[{"marker": 0.1}, {"marker": 0.8}],
-        cfg=SAXSConfig(q_min=0.1),
+        cfg=SAXSConfig(q_min=0.1, q_bragg_max=1.2, smooth_method="none"),
     )
 
-    np.testing.assert_allclose(result.Q_star_array[0], result.Q_star_array[1])
-    np.testing.assert_allclose(result.Q_star_rel_array, [1.0, 1.0])
+    np.testing.assert_allclose(result.invariant_Q_array[0], result.invariant_Q_array[1])
+    np.testing.assert_allclose(result.invariant_Q_rel_array, [1.0, 1.0])
+    assert result.Q_star_array is None
+    assert result.Q_star_rel_array is None
     np.testing.assert_allclose(result.f_herman_array, [0.1, 0.8])
     assert all(point.metric_source_channel == "total" for point in result.strain_points)

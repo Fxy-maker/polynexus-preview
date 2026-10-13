@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from polynexus.core.agent_workflow import AgentWorkflowService
 from polynexus.core.engine import AnalysisResult
 from polynexus.core.project_workflow import ProjectWorkflowService
 from polynexus.core.project_workflow.evidence import ProjectAnalysisSummary
+from polynexus.core.project_workflow.models import AnalysisRequest
 from polynexus.core.project_workflow.result_table import ResultTableRow, build_group_result_table
 from polynexus.cli.parser import build_parser
 from polynexus.cli.run_project_workflow_service import run_project_workflow
@@ -139,6 +142,122 @@ def test_analyze_project_packages_explicit_cross_technique_evidence_index(tmp_pa
         for item in group["evidence"]
         for path in item["figures"] + item["tables"]
     )
+
+
+def test_analyze_project_routes_generic_table_techniques_into_one_package(
+    tmp_path: Path,
+) -> None:
+    sources = {
+        "tga": "Temperature (C),Mass (%)\n25,100\n100,98\n",
+        "dma": "Frequency (Hz),G' (Pa),G'' (Pa)\n1,100,10\n10,200,20\n",
+        "rheology": "Shear Rate (1/s),Shear Stress (Pa)\n1,10\n10,50\n",
+        "mechanics": "Strain (%),Tensile Stress (MPa)\n0,0\n1,10\n2,7\n",
+        "sec": "Elution Volume (mL),RI (mV)\n1,0\n2,2\n3,1\n",
+    }
+    for technique, content in sources.items():
+        source = tmp_path / "raw" / technique.upper() / "sample.csv"
+        source.parent.mkdir(parents=True)
+        source.write_text(content, encoding="utf-8")
+
+    calls: list[str] = []
+    service = ProjectWorkflowService.open(tmp_path)
+    service.agent_service = AgentWorkflowService(
+        provider_runner=lambda step, artifact, output: (
+            calls.append(step.technique)
+            or AnalysisResult(
+                technique=step.technique,
+                validation_passed=True,
+                parameters={"fixture_metric": 1.0},
+            )
+        )
+    )
+
+    summary = service.analyze_project(question="Prepare generic table evidence")
+
+    assert summary.computation == "passed"
+    assert calls == ["dma", "mechanics", "rheology", "sec", "tga"]
+    assert len(summary.runs) == 1
+    run = summary.runs[0]
+    assert run.analysis_run is not None
+    assert {
+        step.compute_run["canonical_template"]["template_id"]
+        for step in run.analysis_run.steps
+    } == {
+        "thermal_curve_1d.v1",
+        "dma_curve_1d.v1",
+        "rheology_curve_1d.v1",
+        "mechanics_curve_1d.v1",
+        "sec_chromatogram_1d.v1",
+    }
+    package_path = Path(summary.to_dict()["package"]["path"])
+    index = json.loads(
+        (package_path / "techniques.json").read_text(encoding="utf-8")
+    )
+    assert set(index["techniques"]) == {"tga", "dma", "rheology", "mechanics", "sec"}
+
+
+@pytest.mark.parametrize(
+    ("technique", "content", "template_id", "metric_key"),
+    (
+        (
+            "tga",
+            "Temperature (C),Mass (%)\n25,100\n100,98\n200,90\n",
+            "thermal_curve_1d.v1",
+            "tga_curves",
+        ),
+        (
+            "dma",
+            "Frequency (Hz),G' (Pa),G'' (Pa)\n1,100,10\n10,200,20\n",
+            "dma_curve_1d.v1",
+            "dma_groups",
+        ),
+        (
+            "rheology",
+            "Shear Rate (1/s),Shear Stress (Pa)\n1,10\n10,50\n",
+            "rheology_curve_1d.v1",
+            "rheology_groups",
+        ),
+        (
+            "mechanics",
+            "Strain (%),Tensile Stress (MPa)\n0,0\n1,10\n2,7\n",
+            "mechanics_curve_1d.v1",
+            "mechanics_groups",
+        ),
+        (
+            "sec",
+            "Elution Volume (mL),RI (mV)\n1,0\n2,2\n3,1\n",
+            "sec_chromatogram_1d.v1",
+            "sec_groups",
+        ),
+    ),
+)
+def test_project_run_uses_default_generic_table_core(
+    tmp_path: Path,
+    technique: str,
+    content: str,
+    template_id: str,
+    metric_key: str,
+) -> None:
+    source = tmp_path / "raw" / technique.upper() / "sample.csv"
+    source.parent.mkdir(parents=True)
+    source.write_text(content, encoding="utf-8")
+    service = ProjectWorkflowService.open(tmp_path)
+    service.inspect((source,))
+
+    run = service.run(
+        AnalysisRequest.create(
+            question=f"Analyze {technique}",
+            data_scope=(source.relative_to(tmp_path).as_posix(),),
+            requested_outputs=("tables",),
+        )
+    )
+
+    assert run.status in {"completed", "review_required"}
+    assert run.analysis_run is not None
+    compute_run = run.analysis_run.steps[0].compute_run
+    assert compute_run["status"] == "completed"
+    assert compute_run["canonical_template"]["template_id"] == template_id
+    assert metric_key in compute_run["result"]["metrics"]
 
 
 def test_analyze_project_explicit_scope_excludes_previous_inventory_artifacts(tmp_path: Path) -> None:

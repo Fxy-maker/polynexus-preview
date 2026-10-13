@@ -168,7 +168,10 @@ def test_tpae_single_dsc_run_signs_canonical_conversion_provenance(tmp_path: Pat
     assert run.status == "review_required"
     assert run.steps[0].status == "review_required"
     assert run.steps[0].result_summary["canonical_template_hash"]
-    assert run.steps[0].result_summary["canonical_conversion"]["extracted_segments"][0]["setpoint_C"] == 180.0
+    # A generic thermal program retains both observed holds; temperature alone
+    # cannot identify preparation versus crystallization for an unknown sample.
+    segments = run.steps[0].result_summary["canonical_conversion"]["extracted_segments"]
+    assert [segment["setpoint_C"] for segment in segments] == [255.0, 180.0]
     assert run.steps[0].compute_run["canonical_template"]["template_id"] == "thermal_program.v1"
     assert "metrics" in run.steps[0].compute_run["result"]
 

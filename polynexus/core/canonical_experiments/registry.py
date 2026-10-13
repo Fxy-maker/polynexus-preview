@@ -16,6 +16,8 @@ from .dsc_isothermal import convert_mettler_isothermal_text
 from .ir_temperature_series import build_ir_temperature_series_template
 from .models import CanonicalExperiment, ConversionOutcome, ConversionRecord, MappingProposal
 from .one_dimensional import convert_one_dimensional_table
+from .netzsch import convert_netzsch_dsc, convert_netzsch_tga
+from .portable_export import PortableExportBinding
 from .nd_adapters import (
     DataBlockAdapterResult,
     adapt_conversion_outcome,
@@ -29,12 +31,20 @@ _STATIC_TEMPLATE_IDS = {
     "ir": "ir.spectrum.v1",
     "saxs": "saxs.profile.v1",
     "waxs": "waxs.profile.v1",
+    "tga": "thermal_curve_1d.v1",
+    "dma": "dma_curve_1d.v1",
+    "rheology": "rheology_curve_1d.v1",
+    "sec": "sec_chromatogram_1d.v1",
+    "mechanics": "mechanics_curve_1d.v1",
 }
 _GENERIC_TABLE_EXTENSIONS = frozenset({
     ".csv", ".tsv", ".txt", ".dat", ".asc", ".xy", ".chi",
-    ".xls", ".xlsx", ".xlsm",
+    ".xls", ".xlsx", ".xlsm", ".ods",
 })
-_GENERIC_TECHNIQUES = frozenset({"ir", "nmr", "saxs", "waxs"})
+_TA_DMA_EXTENSIONS = frozenset({".001", ".002", ".003", ".004", ".005"})
+_GENERIC_TECHNIQUES = frozenset(
+    {"ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology", "sec", "mechanics"}
+)
 _FID_EXTENSIONS = frozenset({".fid", ".ser"})
 _IMAGE_EXTENSIONS = frozenset({".edf", ".cbf", ".tif", ".tiff", ".h5", ".hdf5", ".nxs"})
 
@@ -53,6 +63,8 @@ class CanonicalConverterRegistry:
         source = Path(path)
         normalized_technique = _normalize_technique(technique)
         if normalized_technique == "dsc":
+            if source.suffix.casefold() == ".ngb-sd7":
+                return convert_netzsch_dsc(source, source_artifact_id=source_artifact_id)
             try:
                 text = source.read_text(encoding="utf-8", errors="replace")
             except OSError:
@@ -91,7 +103,13 @@ class CanonicalConverterRegistry:
         if (
             normalized_technique in _GENERIC_TECHNIQUES
             and source.is_file()
-            and source.suffix.casefold() in _GENERIC_TABLE_EXTENSIONS
+            and (
+                source.suffix.casefold() in _GENERIC_TABLE_EXTENSIONS
+                or (
+                    normalized_technique == "dma"
+                    and source.suffix.casefold() in _TA_DMA_EXTENSIONS
+                )
+            )
         ):
             return convert_one_dimensional_table(
                 source,
@@ -99,6 +117,8 @@ class CanonicalConverterRegistry:
                 source_artifact_id=source_artifact_id,
                 mapping_proposal=mapping_proposal,
             )
+        if normalized_technique == "tga" and source.is_file() and source.suffix.casefold() == ".ngb-ds1":
+            return convert_netzsch_tga(source, source_artifact_id=source_artifact_id)
         template_id = _STATIC_TEMPLATE_IDS.get(normalized_technique)
         if normalized_technique == "nmr":
             template_id = "nmr.spectrum.v1"
@@ -169,6 +189,55 @@ class CanonicalConverterRegistry:
             source_artifact_id=source_artifact_id,
             mapping_proposal=mapping_proposal,
         )
+
+    def convert_portable_export(
+        self,
+        raw_source: str | Path,
+        export_path: str | Path,
+        *,
+        technique: str,
+        source_artifact_id: str,
+        exporter: str,
+        mapping_proposal: MappingProposal | None = None,
+    ) -> ConversionOutcome:
+        """Convert a portable table while binding it to opaque raw provenance.
+
+        The exported table is the only decoded input.  The raw source remains
+        the source artifact identity and is never silently replaced by the
+        export's hash.
+        """
+
+        binding = PortableExportBinding.create(raw_source, export_path, exporter=exporter)
+        outcome = self.convert_path(
+            export_path,
+            technique=technique,
+            source_artifact_id=source_artifact_id,
+            mapping_proposal=mapping_proposal,
+        )
+        if outcome.status != "ready" or outcome.template is None:
+            return outcome
+        original = outcome.template
+        record = ConversionRecord.create(
+            conversion_id=f"{original.conversion_record.conversion_id}+portable-export.v1",
+            source_artifact_id=source_artifact_id,
+            observed_columns=original.conversion_record.observed_columns,
+            extracted_segments=(*original.conversion_record.extracted_segments, {"portable_export_binding": binding.to_dict()}),
+            excluded_segments=original.conversion_record.excluded_segments,
+            warnings=original.conversion_record.warnings,
+            reason_codes=original.conversion_record.reason_codes,
+        )
+        payload = dict(original.payload)
+        payload["portable_export_binding"] = binding.to_dict()
+        template = CanonicalExperiment.create(
+            template_id=original.template_id,
+            source_artifact_id=source_artifact_id,
+            payload=payload,
+            conversion_record=record,
+            measurements=original.measurements,
+            mapping_proposal=original.mapping_proposal,
+            contract_version=original.contract_version,
+        )
+        return ConversionOutcome(status="ready", record=record, template=template)
 
     def convert_data_blocks(
         self,

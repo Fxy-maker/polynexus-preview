@@ -63,7 +63,7 @@ def test_strain_postprocessing_uses_sanitized_profile_and_keeps_quality_actions(
         assert np.all(np.isfinite(q_values))
         assert np.all(q_values > 0)
         assert np.all(np.isfinite(intensity_values))
-        assert np.all(intensity_values > 0)
+        np.testing.assert_array_equal(intensity_values, [-1.0, 3.0, 4.0])
         assert np.all(np.diff(q_values) >= 0)
         invariant_seen.append((q_values.copy(), intensity_values.copy()))
         return 2.0
@@ -80,7 +80,7 @@ def test_strain_postprocessing_uses_sanitized_profile_and_keeps_quality_actions(
         assert np.all(np.isfinite(q_values))
         assert np.all(q_values > 0)
         assert np.all(np.isfinite(intensity_values))
-        assert np.all(intensity_values > 0)
+        np.testing.assert_array_equal(intensity_values, [-1.0, 3.0, 4.0])
         assert np.all(np.diff(q_values) >= 0)
         phase_seen.append((q_values.copy(), intensity_values.copy()))
         return StrainPhase.ELASTIC
@@ -94,7 +94,7 @@ def test_strain_postprocessing_uses_sanitized_profile_and_keeps_quality_actions(
         assert np.all(np.isfinite(q_values))
         assert np.all(q_values > 0)
         assert np.all(np.isfinite(intensity_values))
-        assert np.all(intensity_values > 0)
+        np.testing.assert_array_equal(intensity_values, [-1.0, 3.0, 4.0])
         assert np.all(np.diff(q_values) >= 0)
         void_seen.append((q_values.copy(), intensity_values.copy()))
         return {"has_voids": False, "phi_void": np.nan, "void_ar": np.nan}
@@ -117,10 +117,10 @@ def test_strain_postprocessing_uses_sanitized_profile_and_keeps_quality_actions(
         [0.0, 5.0],
         [q, q.copy()],
         [intensity, intensity.copy()],
-        cfg=SAXSConfig(),
+        cfg=SAXSConfig(q_min=0.01),
     )
 
-    assert result.Q_star_array.tolist() == [2.0, 2.0]
+    assert result.invariant_Q_array.tolist() == [2.0, 2.0]
     assert len(invariant_seen) == 3  # reference plus one call per frame
     assert len(phase_seen) == 2
     assert len(void_seen) == 2
@@ -180,7 +180,7 @@ def test_empty_sanitized_strain_frame_remains_unavailable(monkeypatch) -> None:
     result = analyze_strain_series([0.0], [q], [intensity], cfg=SAXSConfig())
 
     assert len(seen) == 2  # reference and frame invariant
-    assert np.isnan(result.Q_star_array[0])
+    assert np.isnan(result.invariant_Q_array[0])
     assert np.isnan(result.strain_points[0].phi_void)
     assert "invalid_pairs_dropped" in result.strain_points[0].data_quality_report[
         "actions"

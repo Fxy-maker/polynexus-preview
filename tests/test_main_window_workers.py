@@ -4,8 +4,9 @@ from dataclasses import replace
 import importlib
 import importlib.util
 from unittest.mock import patch
+import pytest
 
-from polynexus.core.compute import ComputeRunService
+from polynexus.core.compute import ComputeRunService, RawArtifact
 from polynexus.gui.main_window_run_mixin import MainWindowRunMixin
 
 from polynexus.gui.main_window import (
@@ -145,6 +146,60 @@ def test_analysis_worker_exposes_canonical_template_and_capabilities(tmp_path) -
     assert len(received[0].capability_items) == 2
 
 
+def test_analysis_worker_routes_portable_export_through_shared_compute(tmp_path) -> None:
+    class FakeResult:
+        parameters = {"mass_loss": 2.0}
+        figures = {}
+        metadata = {}
+
+    class FakeEngine:
+        def run_pipeline(self, input_path, output_path, **kwargs):
+            assert input_path.endswith("sample.csv")
+            return FakeResult()
+
+    class FakeComputeRunService:
+        instances = []
+
+        def __init__(self, engine_factory):
+            self.engine_factory = engine_factory
+            self.run_direct_kwargs = None
+            self.__class__.instances.append(self)
+
+        def run_direct(self, **kwargs):
+            self.run_direct_kwargs = kwargs
+            return ComputeRunService(self.engine_factory).run_direct(**kwargs)
+
+    raw = tmp_path / "sample.ngb-ds1"
+    raw.write_bytes(b"opaque vendor bytes")
+    exported = tmp_path / "sample.csv"
+    exported.write_text("Temperature (C),Mass (%)\n25,100\n100,98\n", encoding="utf-8")
+    worker = AnalysisWorker(
+        "tga",
+        str(raw),
+        str(tmp_path / "out"),
+        engine=FakeEngine(),
+        portable_export={
+            "raw_source": str(raw),
+            "export_path": str(exported),
+            "exporter": "Proteus portable CSV",
+        },
+        compute_service_factory=FakeComputeRunService,
+    )
+    received = []
+    errors = []
+    worker.finished.connect(received.append)
+    worker.error_msg.connect(errors.append)
+
+    worker.run()
+
+    assert errors == []
+    assert received[0].status == "completed"
+    kwargs = FakeComputeRunService.instances[0].run_direct_kwargs
+    assert kwargs["path"] == str(exported)
+    assert kwargs["source_artifact_id"] == received[0].artifact.artifact_id
+    assert kwargs["canonical_template"].payload["portable_export_binding"]["raw_source_sha256"]
+
+
 def test_batch_worker_runs_each_file_through_shared_compute_run_service(tmp_path) -> None:
     class FakeResult:
         parameters = {"peak": 1.2}
@@ -248,6 +303,105 @@ def test_analysis_worker_accepts_a_directory_through_the_shared_service(tmp_path
         (str(directory.resolve()), str((tmp_path / "out").resolve()), {"skip_to": None})
     ]
     assert worker.compute_run is received[0]
+
+
+def test_batch_worker_maps_portable_exports_by_raw_stem(tmp_path) -> None:
+    export_dir = tmp_path / "exports"
+    export_dir.mkdir()
+    raw_files = []
+    for name in ("run-a", "run-b"):
+        raw = tmp_path / f"{name}.ngb-ds1"
+        raw.write_bytes(name.encode("utf-8"))
+        (export_dir / f"{name}.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+        raw_files.append(str(raw))
+
+    worker = BatchWorker(
+        "tga",
+        raw_files,
+        str(tmp_path / "out"),
+        portable_export={
+            "raw_source": str(tmp_path),
+            "export_directory": str(export_dir),
+            "exporter": "Proteus portable CSV",
+        },
+    )
+
+    pairs = worker._portable_export_pairs()
+    assert pairs is not None
+    assert pairs[raw_files[0]].endswith("run-a.csv")
+    assert pairs[raw_files[1]].endswith("run-b.csv")
+
+    (export_dir / "run-b.csv").unlink()
+    with pytest.raises(ValueError, match="ambiguous"):
+        worker._portable_export_pairs()
+
+
+def test_batch_worker_executes_each_portable_pair_as_its_own_compute_run(tmp_path) -> None:
+    class FakeEngine:
+        def run_pipeline(self, input_path, output_path, **kwargs):
+            raise AssertionError("portable batch should execute the canonical export path")
+
+    class FakeResult:
+        metrics = {"ok": 1}
+
+    class FakeRun:
+        status = "completed"
+        result = FakeResult()
+
+    class FakeComputeRunService:
+        calls = []
+
+        def __init__(self, _engine_factory):
+            pass
+
+        def run_direct(self, **kwargs):
+            self.__class__.calls.append(kwargs)
+            return FakeRun()
+
+    export_dir = tmp_path / "exports"
+    export_dir.mkdir()
+    raw_files = []
+    exports = {}
+    for name in ("run-a", "run-b"):
+        raw = tmp_path / f"{name}.ngb-ds1"
+        raw.write_bytes(name.encode("utf-8"))
+        exported = export_dir / f"{name}.csv"
+        exported.write_text(
+            "Temperature (C),Mass (%)\n25,100\n100,98\n",
+            encoding="utf-8",
+        )
+        raw_files.append(str(raw))
+        exports[name] = exported
+
+    worker = BatchWorker(
+        "tga",
+        raw_files,
+        str(tmp_path / "out"),
+        portable_export={
+            "raw_source": str(tmp_path),
+            "export_directory": str(export_dir),
+            "exporter": "Proteus portable CSV",
+        },
+        compute_service_factory=FakeComputeRunService,
+    )
+    completed = []
+    errors = []
+    worker.batch_finished.connect(completed.append)
+    worker.error_msg.connect(errors.append)
+
+    with patch("polynexus.gui.main_window.get_engine", return_value=FakeEngine()):
+        worker.run()
+
+    assert errors == []
+    assert len(completed) == 1
+    assert [call["path"] for call in FakeComputeRunService.calls] == [
+        str(exports["run-a"].resolve()),
+        str(exports["run-b"].resolve()),
+    ]
+    assert [call["source_artifact_id"] for call in FakeComputeRunService.calls] == [
+        RawArtifact.from_path(path, technique="tga").artifact_id for path in raw_files
+    ]
+    assert all(call["canonical_template"].payload["portable_export_binding"] for call in FakeComputeRunService.calls)
 
 
 def test_run_mixin_unwraps_completed_compute_run_and_rejects_missing_legacy_result(

@@ -61,7 +61,7 @@ def test_temperature_postprocessing_uses_surviving_profile_and_keeps_quality_act
         assert np.all(np.isfinite(q_values))
         assert np.all(q_values > 0)
         assert np.all(np.isfinite(intensity_values))
-        assert np.all(intensity_values > 0)
+        np.testing.assert_array_equal(intensity_values, [-1.0, 3.0, 4.0])
         assert np.all(np.diff(q_values) >= 0)
         seen.append((q_values.copy(), intensity_values.copy()))
         return 2.0
@@ -82,7 +82,7 @@ def test_temperature_postprocessing_uses_surviving_profile_and_keeps_quality_act
         assert np.all(np.isfinite(q_values))
         assert np.all(q_values > 0)
         assert np.all(np.isfinite(intensity_values))
-        assert np.all(intensity_values > 0)
+        np.testing.assert_array_equal(intensity_values, [-1.0, 3.0, 4.0])
         bragg_seen.append((q_values.copy(), intensity_values.copy()))
         return 10.0, 0.6, {}
 

@@ -269,7 +269,15 @@ def _extrema(measurement: Measurement) -> Mapping[str, Any]:
     }
 
 
-_SUPPORTED_FAMILIES = ("spectrum_1d", "scattering_1d")
+_SUPPORTED_FAMILIES = (
+    "spectrum_1d",
+    "scattering_1d",
+    "thermal_1d",
+    "viscoelastic_1d",
+    "rheological_1d",
+    "chromatography_1d",
+    "mechanical_1d",
+)
 _DEFAULT_SPECS = (
     CapabilitySpec("curve.extrema.v1", _SUPPORTED_FAMILIES, _extrema),
     CapabilitySpec("curve.summary.v1", _SUPPORTED_FAMILIES, _summary),

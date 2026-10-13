@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import copy
-from dataclasses import replace
+from dataclasses import is_dataclass, replace
 import json
 import math
 from pathlib import Path
@@ -14,13 +14,36 @@ from typing import Any, Callable
 from ..engine import get_engine
 from ..project_context import ProjectContext
 from ..ai_platform.contracts import ProviderResultInput
+from ..input_formats import inspect_format
 from ..canonical_experiments import CapabilityExecutor, CanonicalExperiment, default_converter_registry
 from .models import AnalysisPlan, CanonicalDataset, ComputeResult, ComputeRun, RawArtifact
 from .method_sensitivity import sensitivities_from_metrics
 
 
-_SUPPORTED_PIPELINE_OPTIONS = frozenset({"skip_to", "mask_edit_candidate", "method_sensitivity"})
+_SUPPORTED_PIPELINE_OPTIONS = frozenset(
+    {
+        "skip_to",
+        "mask_edit_candidate",
+        "method_sensitivity",
+        "rheology_analysis",
+        "rheology_advanced",
+        "sec_analysis",
+        "tga_kinetics",
+        "dma_tts",
+        "mechanics_analysis",
+        "mechanics_advanced",
+    }
+)
 _SUPPORTED_SKIP_TO_VALUES = frozenset({"preprocess", "analyze", "plot"})
+_ANALYSIS_OPTION_TECHNIQUES = {
+    "tga_kinetics": "tga",
+    "dma_tts": "dma",
+    "rheology_analysis": "rheology",
+    "rheology_advanced": "rheology",
+    "mechanics_analysis": "mechanics",
+    "mechanics_advanced": "mechanics",
+    "sec_analysis": "sec",
+}
 
 
 def _safe_technique(value: object) -> str | None:
@@ -28,8 +51,8 @@ def _safe_technique(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     normalized = str.lower(str.strip(value))
-    if normalized == "ftir":
-        normalized = "ir"
+    aliases = {"ftir": "ir", "gpc": "sec", "sec/gpc": "sec"}
+    normalized = aliases.get(normalized, normalized)
     return normalized or None
 
 
@@ -69,6 +92,25 @@ def _normalize_pipeline_options(
         method_sensitivity = options.get("method_sensitivity")
         if "method_sensitivity" in options and not _valid_method_sensitivity_request(method_sensitivity):
             return None, "pipeline_option_invalid"
+        rheology_analysis = options.get("rheology_analysis")
+        if "rheology_analysis" in options and (
+            not isinstance(rheology_analysis, Mapping) or not _is_json_safe(rheology_analysis)
+        ):
+            return None, "pipeline_option_invalid"
+        sec_analysis = options.get("sec_analysis")
+        if "sec_analysis" in options and (
+            not isinstance(sec_analysis, Mapping) or not _is_json_safe(sec_analysis)
+        ):
+            return None, "pipeline_option_invalid"
+        tga_kinetics = options.get("tga_kinetics")
+        if "tga_kinetics" in options and (
+            not isinstance(tga_kinetics, Mapping) or not _is_json_safe(tga_kinetics)
+        ):
+            return None, "pipeline_option_invalid"
+        for key in ("dma_tts", "mechanics_analysis", "rheology_advanced", "mechanics_advanced"):
+            value = options.get(key)
+            if key in options and (not isinstance(value, Mapping) or not _is_json_safe(value)):
+                return None, "pipeline_option_invalid"
         normalized: dict[str, Any] = {}
         if "skip_to" in options:
             normalized["skip_to"] = skip_to
@@ -76,17 +118,62 @@ def _normalize_pipeline_options(
             normalized["mask_edit_candidate"] = mask_edit_candidate
         if "method_sensitivity" in options:
             normalized["method_sensitivity"] = _normalize_method_sensitivity_request(method_sensitivity)
+        if "rheology_analysis" in options:
+            normalized["rheology_analysis"] = dict(rheology_analysis)
+        if "sec_analysis" in options:
+            normalized["sec_analysis"] = dict(sec_analysis)
+        if "tga_kinetics" in options:
+            normalized["tga_kinetics"] = dict(tga_kinetics)
+        for key in ("dma_tts", "mechanics_analysis", "rheology_advanced", "mechanics_advanced"):
+            if key in options:
+                normalized[key] = dict(options[key])
         return normalized, None
     except Exception:
         return None, "pipeline_option_invalid"
 
 
+def attach_analysis_options(
+    template: CanonicalExperiment,
+    *,
+    technique: str,
+    options: Mapping[str, Any] | None,
+) -> tuple[CanonicalExperiment, dict[str, Any]]:
+    """Validate explicit analysis options and bind them to one canonical input.
+
+    This is the shared project/Agent admission helper for request semantics
+    that must become part of the canonical content hash. Runtime-only pipeline
+    controls such as ``skip_to`` are intentionally rejected here.
+    """
+
+    normalized_technique = _safe_technique(technique)
+    if normalized_technique is None:
+        raise ValueError("analysis option technique is invalid")
+    normalized, reason = _normalize_pipeline_options(options)
+    if reason is not None or normalized is None:
+        raise ValueError(reason or "analysis_options_invalid")
+    for key in normalized:
+        if _ANALYSIS_OPTION_TECHNIQUES.get(key) != normalized_technique:
+            raise ValueError(
+                f"analysis option does not apply to {normalized_technique}: {key}"
+            )
+
+    attached = template
+    attachers = {
+        "rheology_analysis": _attach_rheology_analysis_spec,
+        "rheology_advanced": _attach_rheology_advanced_spec,
+        "sec_analysis": _attach_sec_analysis_spec,
+        "tga_kinetics": _attach_tga_kinetics_spec,
+        "dma_tts": _attach_dma_tts_spec,
+        "mechanics_analysis": _attach_mechanics_analysis_spec,
+        "mechanics_advanced": _attach_mechanics_advanced_spec,
+    }
+    for key, value in normalized.items():
+        attached = attachers[key](attached, value)
+    return attached, normalized
+
+
 def _is_json_safe(value: object) -> bool:
     """Return whether a pipeline option can be stored in an AnalysisPlan."""
-    try:
-        json.dumps(value, allow_nan=False)
-    except (TypeError, ValueError, OverflowError, RecursionError):
-        return False
     if isinstance(value, Mapping):
         try:
             return all(
@@ -95,8 +182,12 @@ def _is_json_safe(value: object) -> bool:
             )
         except Exception:
             return False
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return all(_is_json_safe(item) for item in value)
+    try:
+        json.dumps(value, allow_nan=False)
+    except (TypeError, ValueError, OverflowError, RecursionError):
+        return False
     return value is None or isinstance(value, (str, bool, int, float))
 
 
@@ -203,6 +294,11 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(path, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
+        input_inspection = inspect_format(
+            artifact.path,
+            technique=normalized_technique,
+            source_sha256=artifact.sha256,
+        )
         # A project inventory may use a logical, project-scoped artifact ID
         # while the physical ``RawArtifact`` identity includes the absolute
         # path.  A source-bound canonical template can explicitly carry that
@@ -215,6 +311,7 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=("source_artifact_id_invalid",),
+                    input_inspection=input_inspection,
                 )
             artifact = replace(artifact, artifact_id=source_artifact_id.strip())
         source = Path(artifact.path)
@@ -240,12 +337,20 @@ class ComputeRunService:
                 artifact=RawArtifact.missing(source, technique=normalized_technique),
                 reasons=("raw_artifact_unreadable",),
             )
+        if input_inspection.status == "needs_reader":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=input_inspection.reason_codes or ("format_reader_missing",),
+                input_inspection=input_inspection,
+            )
         resolved_output_path = _resolve_output_dir(output_dir)
         if resolved_output_path is None:
             return ComputeRun(
                 status="needs_input",
                 artifact=artifact,
                 reasons=("output_directory_invalid",),
+                input_inspection=input_inspection,
             )
         options, options_reason = _normalize_pipeline_options(pipeline_options)
         if options_reason is not None:
@@ -253,12 +358,67 @@ class ComputeRunService:
                 status="needs_input",
                 artifact=artifact,
                 reasons=(options_reason,),
+                input_inspection=input_inspection,
             )
         assert options is not None
+        if "rheology_analysis" in options and normalized_technique != "rheology":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("rheology_analysis_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
+        if "rheology_advanced" in options and normalized_technique != "rheology":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("rheology_advanced_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
+        if "tga_kinetics" in options and normalized_technique != "tga":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("tga_kinetics_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
+        if "dma_tts" in options and normalized_technique != "dma":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("dma_tts_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
+        if "mechanics_analysis" in options and normalized_technique != "mechanics":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("mechanics_analysis_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
+        if "mechanics_advanced" in options and normalized_technique != "mechanics":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("mechanics_advanced_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
+        if "sec_analysis" in options and normalized_technique != "sec":
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("sec_analysis_technique_mismatch",),
+                input_inspection=input_inspection,
+            )
         try:
             context = ProjectContext.load(project_context)
         except ValueError:
-            return ComputeRun(status="needs_input", artifact=artifact, reasons=("project_context_invalid",))
+            return ComputeRun(
+                status="needs_input",
+                artifact=artifact,
+                reasons=("project_context_invalid",),
+                input_inspection=input_inspection,
+            )
         dataset = CanonicalDataset.direct_envelope(artifact)
         plan = AnalysisPlan.direct(
             dataset,
@@ -278,19 +438,88 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=("canonical_template_invalid",),
+                    input_inspection=input_inspection,
                 )
             if canonical_template.source_artifact_id != artifact.artifact_id:
                 return ComputeRun(
                     status="needs_input",
                     artifact=artifact,
                     reasons=("canonical_template_mismatch",),
+                    input_inspection=input_inspection,
                 )
             if str(canonical_template.payload.get("technique", normalized_technique)).lower() != normalized_technique:
                 return ComputeRun(
                     status="needs_input",
                     artifact=artifact,
                     reasons=("canonical_template_technique_mismatch",),
+                    input_inspection=input_inspection,
                 )
+            if "rheology_analysis" in options:
+                try:
+                    canonical_template = _attach_rheology_analysis_spec(
+                        canonical_template,
+                        options["rheology_analysis"],
+                    )
+                except (TypeError, ValueError):
+                    return ComputeRun(
+                        status="needs_input",
+                        artifact=artifact,
+                        reasons=("rheology_analysis_mismatch",),
+                        input_inspection=input_inspection,
+                    )
+            if "rheology_advanced" in options:
+                try:
+                    canonical_template = _attach_rheology_advanced_spec(
+                        canonical_template,
+                        options["rheology_advanced"],
+                    )
+                except (TypeError, ValueError):
+                    return ComputeRun(
+                        status="needs_input",
+                        artifact=artifact,
+                        reasons=("rheology_advanced_mismatch",),
+                        input_inspection=input_inspection,
+                    )
+            if "sec_analysis" in options:
+                try:
+                    canonical_template = _attach_sec_analysis_spec(
+                        canonical_template,
+                        options["sec_analysis"],
+                    )
+                except (TypeError, ValueError):
+                    return ComputeRun(
+                        status="needs_input",
+                        artifact=artifact,
+                        reasons=("sec_analysis_mismatch",),
+                        input_inspection=input_inspection,
+                    )
+            if "tga_kinetics" in options:
+                try:
+                    canonical_template = _attach_tga_kinetics_spec(
+                        canonical_template, options["tga_kinetics"]
+                    )
+                except (TypeError, ValueError):
+                    return ComputeRun(
+                        status="needs_input",
+                        artifact=artifact,
+                        reasons=("tga_kinetics_mismatch",),
+                        input_inspection=input_inspection,
+                    )
+            if "dma_tts" in options:
+                try:
+                    canonical_template = _attach_dma_tts_spec(canonical_template, options["dma_tts"])
+                except (TypeError, ValueError):
+                    return ComputeRun(status="needs_input", artifact=artifact, reasons=("dma_tts_mismatch",), input_inspection=input_inspection)
+            if "mechanics_analysis" in options:
+                try:
+                    canonical_template = _attach_mechanics_analysis_spec(canonical_template, options["mechanics_analysis"])
+                except (TypeError, ValueError):
+                    return ComputeRun(status="needs_input", artifact=artifact, reasons=("mechanics_analysis_mismatch",), input_inspection=input_inspection)
+            if "mechanics_advanced" in options:
+                try:
+                    canonical_template = _attach_mechanics_advanced_spec(canonical_template, options["mechanics_advanced"])
+                except (TypeError, ValueError):
+                    return ComputeRun(status="needs_input", artifact=artifact, reasons=("mechanics_advanced_mismatch",), input_inspection=input_inspection)
         capability_items = (
             CapabilityExecutor().execute(canonical_template)
             if canonical_template is not None and canonical_template.measurements
@@ -298,7 +527,9 @@ class ComputeRunService:
         )
         if (
             canonical_template is None
-            and normalized_technique in {"dsc", "ir", "nmr", "saxs", "waxs"}
+            and normalized_technique in {
+                "dsc", "ir", "nmr", "saxs", "waxs", "tga", "dma", "rheology", "sec", "mechanics"
+            }
             and (source.is_file() or (source.is_dir() and normalized_technique != "dsc"))
         ):
             conversion = default_converter_registry().convert_path(
@@ -311,6 +542,7 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=conversion.reason_codes,
+                    input_inspection=input_inspection,
                 )
             if (
                 conversion.status == "blocked"
@@ -336,8 +568,120 @@ class ComputeRunService:
                 and conversion.template is not None
             ):
                 canonical_template = conversion.template
+                if "rheology_analysis" in options and normalized_technique == "rheology":
+                    try:
+                        canonical_template = _attach_rheology_analysis_spec(
+                            canonical_template,
+                            options["rheology_analysis"],
+                        )
+                    except (TypeError, ValueError):
+                        return ComputeRun(
+                            status="needs_input",
+                            artifact=artifact,
+                            reasons=("rheology_analysis_invalid",),
+                            input_inspection=input_inspection,
+                        )
+                if "rheology_advanced" in options and normalized_technique == "rheology":
+                    try:
+                        canonical_template = _attach_rheology_advanced_spec(
+                            canonical_template,
+                            options["rheology_advanced"],
+                        )
+                    except (TypeError, ValueError):
+                        return ComputeRun(
+                            status="needs_input",
+                            artifact=artifact,
+                            reasons=("rheology_advanced_invalid",),
+                            input_inspection=input_inspection,
+                        )
+                if "sec_analysis" in options and normalized_technique == "sec":
+                    try:
+                        canonical_template = _attach_sec_analysis_spec(
+                            canonical_template,
+                            options["sec_analysis"],
+                        )
+                    except (TypeError, ValueError):
+                        return ComputeRun(
+                            status="needs_input",
+                            artifact=artifact,
+                            reasons=("sec_analysis_invalid",),
+                            input_inspection=input_inspection,
+                        )
+                if "tga_kinetics" in options and normalized_technique == "tga":
+                    try:
+                        canonical_template = _attach_tga_kinetics_spec(
+                            canonical_template, options["tga_kinetics"]
+                        )
+                    except (TypeError, ValueError):
+                        return ComputeRun(
+                            status="needs_input",
+                            artifact=artifact,
+                            reasons=("tga_kinetics_invalid",),
+                            input_inspection=input_inspection,
+                        )
+                if "dma_tts" in options and normalized_technique == "dma":
+                    try:
+                        canonical_template = _attach_dma_tts_spec(canonical_template, options["dma_tts"])
+                    except (TypeError, ValueError):
+                        return ComputeRun(status="needs_input", artifact=artifact, reasons=("dma_tts_invalid",), input_inspection=input_inspection)
+                if "mechanics_analysis" in options and normalized_technique == "mechanics":
+                    try:
+                        canonical_template = _attach_mechanics_analysis_spec(canonical_template, options["mechanics_analysis"])
+                    except (TypeError, ValueError):
+                        return ComputeRun(status="needs_input", artifact=artifact, reasons=("mechanics_analysis_invalid",), input_inspection=input_inspection)
+                if "mechanics_advanced" in options and normalized_technique == "mechanics":
+                    try:
+                        canonical_template = _attach_mechanics_advanced_spec(canonical_template, options["mechanics_advanced"])
+                    except (TypeError, ValueError):
+                        return ComputeRun(status="needs_input", artifact=artifact, reasons=("mechanics_advanced_invalid",), input_inspection=input_inspection)
                 if canonical_template.measurements:
                     capability_items = CapabilityExecutor().execute(canonical_template)
+            if (
+                "rheology_analysis" in options
+                and normalized_technique == "rheology"
+                and canonical_template is None
+            ):
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("rheology_analysis_requires_canonical_template",),
+                    input_inspection=input_inspection,
+                )
+            if (
+                "rheology_advanced" in options
+                and normalized_technique == "rheology"
+                and canonical_template is None
+            ):
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("rheology_advanced_requires_canonical_template",),
+                    input_inspection=input_inspection,
+                )
+            if (
+                "sec_analysis" in options
+                and normalized_technique == "sec"
+                and canonical_template is None
+            ):
+                return ComputeRun(
+                    status="needs_input",
+                    artifact=artifact,
+                    reasons=("sec_analysis_requires_canonical_template",),
+                    input_inspection=input_inspection,
+                )
+            for option_name, option_technique in (
+                ("tga_kinetics", "tga"),
+                ("dma_tts", "dma"),
+                ("mechanics_analysis", "mechanics"),
+                ("mechanics_advanced", "mechanics"),
+            ):
+                if option_name in options and normalized_technique == option_technique and canonical_template is None:
+                    return ComputeRun(
+                        status="needs_input",
+                        artifact=artifact,
+                        reasons=(f"{option_name}_requires_canonical_template",),
+                        input_inspection=input_inspection,
+                    )
         try:
             selected_engine = engine
             if selected_engine is None:
@@ -351,6 +695,7 @@ class ComputeRunService:
                     status="needs_input",
                     artifact=artifact,
                     reasons=("technique_unknown",),
+                    input_inspection=input_inspection,
                 )
             if normalized_technique == "dsc" and context.dsc_reference_enthalpy is not None:
                 dsc_config = getattr(selected_engine, "_dsc_config", None)
@@ -371,7 +716,31 @@ class ComputeRunService:
                 waxs_config = getattr(selected_engine, "_waxs_config", None)
                 if waxs_config is not None and not getattr(waxs_config, "polymer_type", ""):
                     waxs_config.polymer_type = context.waxs_polymer_type
-            if (
+            canonical_runner = (
+                getattr(selected_engine, "run_canonical_template", None)
+                if canonical_template is not None
+                else None
+            )
+            if callable(canonical_runner):
+                provider_options = {
+                    key: value for key, value in options.items()
+                    if key not in {
+                        "method_sensitivity",
+                        "rheology_analysis",
+                        "rheology_advanced",
+                        "sec_analysis",
+                        "tga_kinetics",
+                        "dma_tts",
+                        "mechanics_analysis",
+                        "mechanics_advanced",
+                    }
+                }
+                legacy_result = canonical_runner(
+                    canonical_template,
+                    provider_output_dir,
+                    **provider_options,
+                )
+            elif (
                 canonical_template is not None
                 and normalized_technique == "dsc"
                 and (
@@ -395,7 +764,16 @@ class ComputeRunService:
             else:
                 provider_options = {
                     key: value for key, value in options.items()
-                    if key != "method_sensitivity"
+                    if key not in {
+                        "method_sensitivity",
+                        "rheology_analysis",
+                        "rheology_advanced",
+                        "sec_analysis",
+                        "tga_kinetics",
+                        "dma_tts",
+                        "mechanics_analysis",
+                        "mechanics_advanced",
+                    }
                 }
                 legacy_result = selected_engine.run_pipeline(
                     artifact.path,
@@ -411,6 +789,7 @@ class ComputeRunService:
                     canonical_template=canonical_template,
                     capability_items=capability_items,
                     reasons=("provider_execution_failed",),
+                    input_inspection=input_inspection,
                 )
             result = ComputeResult.from_legacy_result(legacy_result)
             method_sensitivity = options.get("method_sensitivity")
@@ -423,6 +802,7 @@ class ComputeRunService:
                     config=config,
                     submodule_id=submodule_id,
                     selected_engine=selected_engine,
+                    canonical_template=canonical_template,
                     provider_options={
                         key: value for key, value in options.items()
                         if key != "method_sensitivity"
@@ -451,6 +831,7 @@ class ComputeRunService:
                 capability_items=capability_items,
                 provider_capability_items=provider_capability_items,
                 legacy_result=legacy_result,
+                input_inspection=input_inspection,
             )
         except Exception:
             return ComputeRun(
@@ -461,6 +842,7 @@ class ComputeRunService:
                 canonical_template=canonical_template,
                 capability_items=capability_items,
                 reasons=("provider_execution_failed",),
+                input_inspection=input_inspection,
             )
 
     def _attach_method_sensitivity(
@@ -473,6 +855,7 @@ class ComputeRunService:
         config: Any,
         submodule_id: str | None,
         selected_engine: Any,
+        canonical_template: CanonicalExperiment | None,
         provider_options: Mapping[str, Any],
         request: Mapping[str, Any],
     ) -> ComputeResult:
@@ -485,6 +868,12 @@ class ComputeRunService:
             base_config = _engine_config(selected_engine, technique)
         variants: dict[str, dict[str, Any]] = {}
         sensitivity_warnings: list[str] = []
+        primary_input = (
+            "canonical_template"
+            if canonical_template is not None
+            and callable(getattr(selected_engine, "run_canonical_template", None))
+            else "raw_pipeline_compatibility"
+        )
         primary_metrics = _scalar_metric_paths(result.metrics)
         for dimension, methods in dimensions.items():
             attribute = _sensitivity_attribute(technique, str(dimension))
@@ -500,16 +889,18 @@ class ComputeRunService:
             candidate_values: dict[str, dict[str, Any] | None] = {}
             candidate_errors: dict[str, str] = {}
             candidate_output_dirs: dict[str, str] = {}
+            candidate_inputs: dict[str, str] = {}
             for method in methods:
                 method_name = _method_label(method)
                 if method_name == primary_method:
                     continue
                 candidate_config = _clone_config(base_config)
                 try:
-                    _set_config_value(candidate_config, attribute, method)
+                    candidate_config = _set_config_value(candidate_config, attribute, method)
                 except (TypeError, ValueError) as exc:
                     candidate_values[method_name] = None
                     candidate_errors[method_name] = type(exc).__name__
+                    candidate_inputs[method_name] = "candidate_configuration_invalid"
                     continue
                 candidate_output_dir = _candidate_output_dir(output_dir, str(dimension), method_name)
                 candidate_output_dirs[method_name] = candidate_output_dir
@@ -519,11 +910,25 @@ class ComputeRunService:
                         config=candidate_config,
                         submodule_id=submodule_id,
                     )
-                    candidate_result = candidate_engine.run_pipeline(
-                        source_path,
-                        candidate_output_dir,
-                        **provider_options,
+                    candidate_runner = (
+                        getattr(candidate_engine, "run_canonical_template", None)
+                        if canonical_template is not None
+                        else None
                     )
+                    if callable(candidate_runner):
+                        candidate_inputs[method_name] = "canonical_template"
+                        candidate_result = candidate_runner(
+                            canonical_template,
+                            candidate_output_dir,
+                            **provider_options,
+                        )
+                    else:
+                        candidate_inputs[method_name] = "raw_pipeline_compatibility"
+                        candidate_result = candidate_engine.run_pipeline(
+                            source_path,
+                            candidate_output_dir,
+                            **provider_options,
+                        )
                     if not _has_legacy_result_shape(candidate_result):
                         raise RuntimeError("candidate_provider_result_invalid")
                     candidate_projection = ComputeResult.from_legacy_result(candidate_result)
@@ -561,6 +966,8 @@ class ComputeRunService:
                     "parameters": {
                         "dimension": str(dimension),
                         "config_attribute": attribute,
+                        "primary_input": primary_input,
+                        "candidate_inputs": dict(candidate_inputs),
                         "candidate_output_dirs": dict(candidate_output_dirs),
                     },
                     "warnings": warnings,
@@ -595,6 +1002,347 @@ def _valid_method_sensitivity_request(value: Any) -> bool:
     return True
 
 
+def _attach_rheology_analysis_spec(
+    template: CanonicalExperiment,
+    value: Mapping[str, Any],
+) -> CanonicalExperiment:
+    """Return a rehashed canonical template carrying an explicit rheology spec."""
+    if not isinstance(value, Mapping):
+        raise TypeError("rheology_analysis must be a mapping")
+    if str(template.payload.get("technique", "")).casefold() != "rheology":
+        raise ValueError("rheology_analysis requires a rheology canonical template")
+    from ..rheology_processing import RheologyAnalysisSpec
+
+    normalized = RheologyAnalysisSpec.from_mapping(value).to_dict()
+    # The DTO normalizes scientific options; the canonical template remains
+    # the authority for which source measurements may be referenced.
+    advanced = normalized.get("advanced")
+    if isinstance(advanced, Mapping):
+        _validate_measurement_bindings(
+            template,
+            advanced,
+            scalar_keys=(
+                "complex_viscosity_measurement_id",
+                "steady_viscosity_measurement_id",
+                "thixotropy_measurement_id",
+                "creep_measurement_id",
+                "relaxation_measurement_id",
+                "time_measurement_id",
+            ),
+            sequence_keys=("tts_curve_measurement_ids",),
+            sequence_length_keys={"tts_curve_measurement_ids": "temperatures"},
+            temperature_key="temperatures",
+        )
+    existing = template.payload.get("rheology_analysis")
+    if existing is not None:
+        if not isinstance(existing, Mapping):
+            raise ValueError("canonical rheology analysis spec is invalid")
+        if RheologyAnalysisSpec.from_mapping(existing).to_dict() != normalized:
+            raise ValueError("canonical rheology analysis spec does not match request")
+        return template
+    payload = dict(template.payload)
+    payload["rheology_analysis"] = normalized
+    return CanonicalExperiment.create(
+        template_id=template.template_id,
+        source_artifact_id=template.source_artifact_id,
+        payload=payload,
+        conversion_record=template.conversion_record,
+        measurements=template.measurements,
+        mapping_proposal=template.mapping_proposal,
+        contract_version=template.contract_version,
+    )
+
+
+def _attach_rheology_advanced_spec(
+    template: CanonicalExperiment,
+    value: Mapping[str, Any],
+) -> CanonicalExperiment:
+    if not isinstance(value, Mapping):
+        raise TypeError("rheology_advanced must be a mapping")
+    if str(template.payload.get("technique", "")).casefold() != "rheology":
+        raise ValueError("rheology_advanced requires a rheology canonical template")
+    from ..rheology_processing import RheologyAdvancedSpec
+
+    normalized = RheologyAdvancedSpec.from_mapping(value).to_dict()
+    _validate_measurement_bindings(
+        template,
+        normalized,
+        scalar_keys=(
+            "complex_viscosity_measurement_id",
+            "steady_viscosity_measurement_id",
+            "thixotropy_measurement_id",
+            "creep_measurement_id",
+            "relaxation_measurement_id",
+            "time_measurement_id",
+        ),
+        sequence_keys=("tts_curve_measurement_ids",),
+        sequence_length_keys={"tts_curve_measurement_ids": "temperatures"},
+        temperature_key="temperatures",
+    )
+    existing = template.payload.get("rheology_advanced")
+    if existing is not None and RheologyAdvancedSpec.from_mapping(existing).to_dict() != normalized:
+        raise ValueError("canonical rheology advanced spec does not match request")
+    if existing is not None:
+        return template
+    payload = dict(template.payload)
+    payload["rheology_advanced"] = normalized
+    return CanonicalExperiment.create(
+        template_id=template.template_id,
+        source_artifact_id=template.source_artifact_id,
+        payload=payload,
+        conversion_record=template.conversion_record,
+        measurements=template.measurements,
+        mapping_proposal=template.mapping_proposal,
+        contract_version=template.contract_version,
+    )
+
+
+def _attach_sec_analysis_spec(
+    template: CanonicalExperiment,
+    value: Mapping[str, Any],
+) -> CanonicalExperiment:
+    """Return a rehashed SEC template carrying explicit calibration semantics."""
+    if not isinstance(value, Mapping):
+        raise TypeError("sec_analysis must be a mapping")
+    if str(template.payload.get("technique", "")).casefold() != "sec":
+        raise ValueError("sec_analysis requires a SEC canonical template")
+    from ..sec_processing import SECCalibrationSpec
+
+    normalized = SECCalibrationSpec.from_mapping(value).to_dict()
+    existing = template.payload.get("sec_analysis")
+    if existing is not None:
+        if not isinstance(existing, Mapping):
+            raise ValueError("canonical SEC analysis spec is invalid")
+        if SECCalibrationSpec.from_mapping(existing).to_dict() != normalized:
+            raise ValueError("canonical SEC analysis spec does not match request")
+        return template
+    payload = dict(template.payload)
+    payload["sec_analysis"] = normalized
+    return CanonicalExperiment.create(
+        template_id=template.template_id,
+        source_artifact_id=template.source_artifact_id,
+        payload=payload,
+        conversion_record=template.conversion_record,
+        measurements=template.measurements,
+        mapping_proposal=template.mapping_proposal,
+        contract_version=template.contract_version,
+    )
+
+
+def _attach_tga_kinetics_spec(template: CanonicalExperiment, value: Mapping[str, Any]) -> CanonicalExperiment:
+    if not isinstance(value, Mapping):
+        raise TypeError("tga_kinetics must be a mapping")
+    if str(template.payload.get("technique", "")).casefold() != "tga":
+        raise ValueError("tga_kinetics requires a TGA canonical template")
+    from ..tga_processing import TGAKineticsSpec
+
+    normalized = TGAKineticsSpec.from_mapping(value).to_dict()
+    _validate_measurement_bindings(
+        template,
+        normalized,
+        sequence_keys=("curve_measurement_ids",),
+        sequence_length_keys={"curve_measurement_ids": "heating_rates"},
+        value_key="heating_rates",
+    )
+    existing = template.payload.get("tga_kinetics")
+    if existing is not None and TGAKineticsSpec.from_mapping(existing).to_dict() != normalized:
+        raise ValueError("canonical TGA kinetics spec does not match request")
+    if existing is not None:
+        return template
+    payload = dict(template.payload)
+    payload["tga_kinetics"] = normalized
+    return CanonicalExperiment.create(
+        template_id=template.template_id,
+        source_artifact_id=template.source_artifact_id,
+        payload=payload,
+        conversion_record=template.conversion_record,
+        measurements=template.measurements,
+        mapping_proposal=template.mapping_proposal,
+        contract_version=template.contract_version,
+    )
+
+
+def _attach_dma_tts_spec(template: CanonicalExperiment, value: Mapping[str, Any]) -> CanonicalExperiment:
+    if not isinstance(value, Mapping):
+        raise TypeError("dma_tts must be a mapping")
+    if str(template.payload.get("technique", "")).casefold() != "dma":
+        raise ValueError("dma_tts requires a DMA canonical template")
+    from ..dma_processing import DMATTSSpec
+
+    normalized = DMATTSSpec.from_mapping(value).to_dict()
+    _validate_measurement_bindings(
+        template,
+        normalized,
+        sequence_keys=("curve_measurement_ids",),
+        sequence_length_keys={"curve_measurement_ids": "temperatures"},
+        temperature_key="temperatures",
+    )
+    existing = template.payload.get("dma_tts")
+    if existing is not None and DMATTSSpec.from_mapping(existing).to_dict() != normalized:
+        raise ValueError("canonical DMA TTS spec does not match request")
+    if existing is not None:
+        return template
+    payload = dict(template.payload)
+    payload["dma_tts"] = normalized
+    return CanonicalExperiment.create(
+        template_id=template.template_id,
+        source_artifact_id=template.source_artifact_id,
+        payload=payload,
+        conversion_record=template.conversion_record,
+        measurements=template.measurements,
+        mapping_proposal=template.mapping_proposal,
+        contract_version=template.contract_version,
+    )
+
+
+def _attach_analysis_mapping(template: CanonicalExperiment, value: Mapping[str, Any], technique: str, key: str) -> CanonicalExperiment:
+    if not isinstance(value, Mapping) or str(template.payload.get("technique", "")).casefold() != technique:
+        raise ValueError(f"{key} requires a {technique} canonical template")
+    _validate_measurement_bindings(
+        template,
+        value,
+        scalar_keys=(
+            "stress_measurement_id",
+            "strain_measurement_id",
+            "cycle_measurement_id",
+            "fatigue_measurement_id",
+            "creep_measurement_id",
+            "fracture_measurement_id",
+        ),
+    )
+    existing = template.payload.get(key)
+    normalized = dict(value)
+    if existing is not None and existing != normalized:
+        raise ValueError(f"canonical {key} does not match request")
+    if existing is not None:
+        return template
+    payload = dict(template.payload)
+    payload[key] = normalized
+    return CanonicalExperiment.create(template_id=template.template_id, source_artifact_id=template.source_artifact_id, payload=payload, conversion_record=template.conversion_record, measurements=template.measurements, mapping_proposal=template.mapping_proposal, contract_version=template.contract_version)
+
+
+def _attach_mechanics_analysis_spec(template: CanonicalExperiment, value: Mapping[str, Any]) -> CanonicalExperiment:
+    from ..mechanics_processing import MechanicsAnalysisSpec
+    normalized = MechanicsAnalysisSpec.from_mapping(value).to_dict()
+    return _attach_analysis_mapping(template, normalized, "mechanics", "mechanics_analysis")
+
+
+def _attach_mechanics_advanced_spec(template: CanonicalExperiment, value: Mapping[str, Any]) -> CanonicalExperiment:
+    from ..mechanics_processing import MechanicsAdvancedSpec
+
+    normalized = MechanicsAdvancedSpec.from_mapping(value).to_dict()
+    return _attach_analysis_mapping(template, normalized, "mechanics", "mechanics_advanced")
+
+
+def _validate_measurement_bindings(
+    template: CanonicalExperiment,
+    spec: Mapping[str, Any],
+    *,
+    scalar_keys: Sequence[str] = (),
+    sequence_keys: Sequence[str] = (),
+    sequence_length_keys: Mapping[str, str] | None = None,
+    temperature_key: str | None = None,
+    value_key: str | None = None,
+) -> None:
+    """Validate explicit analysis-spec references against canonical data.
+
+    Analysis DTOs describe intent, while a ``CanonicalExperiment`` owns the
+    source identity.  Keeping this check at the attach boundary prevents a
+    caller from referring to a raw/vendor identifier that is not actually
+    present in the canonical template.  Empty optional ID vectors preserve the
+    legacy single-curve/provider fallback; once IDs are supplied, every ID is
+    strict and ordered.
+    """
+    if not isinstance(spec, Mapping):
+        raise TypeError("analysis spec must be a mapping")
+    available = {
+        str(measurement.measurement_id).strip()
+        for measurement in template.measurements
+        if str(measurement.measurement_id).strip()
+    }
+    if not available:
+        raise ValueError("canonical template has no measurements")
+
+    for key in scalar_keys:
+        identifier = spec.get(key)
+        if identifier is None or (isinstance(identifier, str) and not identifier.strip()):
+            continue
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise ValueError(f"{key} must be a canonical measurement id")
+        if identifier.strip() not in available:
+            raise ValueError(f"{key} is not present in canonical measurements")
+
+    length_keys = sequence_length_keys or {}
+    for key in sequence_keys:
+        raw_ids = spec.get(key, ())
+        # DTOs normalize omitted vectors to either ``()`` or ``[]``.  An
+        # empty vector means that the provider may use its established
+        # single-curve/legacy fallback; only a non-empty vector is an
+        # explicit canonical binding that must be validated.
+        if raw_ids is None or (
+            isinstance(raw_ids, Sequence)
+            and not isinstance(raw_ids, (str, bytes, bytearray))
+            and len(raw_ids) == 0
+        ):
+            continue
+        if isinstance(raw_ids, (str, bytes, bytearray)) or not isinstance(raw_ids, Sequence):
+            raise ValueError(f"{key} must be a sequence of canonical measurement ids")
+        identifiers = tuple(str(item).strip() for item in raw_ids)
+        if any(not identifier for identifier in identifiers):
+            raise ValueError(f"{key} must not contain empty measurement ids")
+        missing = tuple(identifier for identifier in identifiers if identifier not in available)
+        if missing:
+            raise ValueError(f"{key} references measurement(s) not present in canonical data")
+        expected_key = length_keys.get(key)
+        if expected_key is not None:
+            expected = spec.get(expected_key, ())
+            if isinstance(expected, Sequence) and not isinstance(expected, (str, bytes, bytearray)) and len(identifiers) != len(expected):
+                raise ValueError(f"{key} must align with {expected_key}")
+        if temperature_key is not None and key == "curve_measurement_ids":
+            temperatures = spec.get(temperature_key, ())
+            if isinstance(temperatures, Sequence) and not isinstance(temperatures, (str, bytes, bytearray)) and len(temperatures) == len(identifiers):
+                by_id = {str(item.measurement_id).strip(): item for item in template.measurements}
+                for identifier, declared in zip(identifiers, temperatures, strict=True):
+                    metadata = by_id[identifier].acquisition_metadata
+                    observed = next(
+                        (metadata[name] for name in ("temperature", "temperature_C", "temperature_c") if name in metadata),
+                        None,
+                    )
+                    if observed is None:
+                        continue
+                    try:
+                        observed_value = float(observed)
+                        declared_value = float(declared)
+                    except (TypeError, ValueError):
+                        raise ValueError("curve measurement temperature is invalid") from None
+                    if not math.isclose(observed_value, declared_value, rel_tol=0.0, abs_tol=1e-9):
+                        raise ValueError("curve measurement temperature does not match analysis spec")
+
+    if value_key is not None:
+        values = spec.get(value_key, ())
+        if isinstance(values, Sequence) and not isinstance(values, (str, bytes, bytearray)):
+            # TGA rate metadata is optional in existing converters.  If a
+            # converter has recorded it, verify the explicit ordering.
+            ids = tuple(str(item).strip() for item in spec.get("curve_measurement_ids", ()))
+            if ids and len(ids) == len(values):
+                by_id = {str(item.measurement_id).strip(): item for item in template.measurements}
+                for identifier, declared in zip(ids, values, strict=True):
+                    metadata = by_id[identifier].acquisition_metadata
+                    observed = next(
+                        (metadata[name] for name in ("heating_rate", "heating_rate_K_min", "heating_rate_k_min") if name in metadata),
+                        None,
+                    )
+                    if observed is None:
+                        continue
+                    try:
+                        observed_value = float(observed)
+                        declared_value = float(declared)
+                    except (TypeError, ValueError):
+                        raise ValueError("curve measurement heating rate is invalid") from None
+                    if not math.isclose(observed_value, declared_value, rel_tol=0.0, abs_tol=1e-9):
+                        raise ValueError("curve measurement heating rate does not match analysis spec")
+
+
 def _normalize_method_sensitivity_request(value: Mapping[str, Any]) -> dict[str, Any]:
     dimensions = value.get("dimensions", value)
     return {"dimensions": {str(key): list(methods) for key, methods in dimensions.items()}}
@@ -610,13 +1358,25 @@ def _sensitivity_attribute(technique: str, dimension: str) -> str | tuple[str, .
         },
         "waxs": {"background": "background_method", "peak_decomposition": "peak_function", "crystallinity": "crystallinity_method"},
         "nmr": {"baseline": "baseline_method", "peak_fit": "deconvolution_method", "region_integration": "region_windows_ppm"},
+        "tga": {
+            "dtg_window": "dtg_window_points",
+            "dtg_polynomial_order": "dtg_polynomial_order",
+            "event_prominence": "event_prominence_noise_factor",
+            "event_minimum_mass_loss": "event_minimum_mass_loss_percent",
+        },
     }
     return mapping.get(str(technique).lower(), {}).get(str(dimension).lower())
 
 
 def _engine_config(engine: Any, technique: str) -> Any:
     normalized = "ir" if str(technique).lower() == "ftir" else str(technique).lower()
-    name = {"ir": "_ir_config", "saxs": "cfg", "waxs": "_waxs_config", "nmr": "_cfg"}.get(normalized)
+    name = {
+        "ir": "_ir_config",
+        "saxs": "cfg",
+        "waxs": "_waxs_config",
+        "nmr": "_cfg",
+        "tga": "processing_config",
+    }.get(normalized)
     if name is None:
         return None
     for name in (name,):
@@ -642,7 +1402,7 @@ def _config_value(config: Any, attribute: str | tuple[str, ...], engine: Any) ->
     return value
 
 
-def _set_config_value(config: Any, attribute: str | tuple[str, ...], value: Any) -> None:
+def _set_config_value(config: Any, attribute: str | tuple[str, ...], value: Any) -> Any:
     if isinstance(attribute, tuple):
         if not isinstance(value, Mapping):
             raise TypeError("coupled method sensitivity override must be a mapping")
@@ -650,18 +1410,22 @@ def _set_config_value(config: Any, attribute: str | tuple[str, ...], value: Any)
             "q_min": attribute[0],
             "q_max": attribute[1],
         }
+        updated = config
         for key, item in value.items():
             target = aliases.get(str(key), str(key))
             if target not in attribute:
                 raise ValueError(f"unsupported coupled override field: {key}")
-            _set_config_value(config, target, item)
-        if any(_config_value(config, name, None) is None for name in attribute):
+            updated = _set_config_value(updated, target, item)
+        if any(_config_value(updated, name, None) is None for name in attribute):
             raise ValueError("coupled method sensitivity override must set all fields")
-        return
+        return updated
     if isinstance(config, Mapping):
         config[attribute] = value
-    else:
-        setattr(config, attribute, value)
+        return config
+    if is_dataclass(config):
+        return replace(config, **{attribute: value})
+    setattr(config, attribute, value)
+    return config
 
 
 def _scalar_metric_paths(value: Mapping[str, Any], prefix: str = "") -> dict[str, float]:

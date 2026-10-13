@@ -564,6 +564,144 @@ class AnalysisRequest:
 
 
 @dataclass(frozen=True)
+class PortableExportBatchEntry:
+    """One explicit raw-source to portable-table binding in a project manifest."""
+
+    raw_source: str
+    export_path: str
+    exporter: str
+    raw_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("raw_source", "export_path", "exporter"):
+            value = str(getattr(self, name)).strip()
+            if not value:
+                raise ValueError(f"portable export {name} is required")
+            object.__setattr__(self, name, value)
+        if self.raw_sha256 not in (None, ""):
+            digest = str(self.raw_sha256).strip().lower()
+            if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+                raise ValueError("portable export raw_sha256 must be a SHA-256 digest")
+            object.__setattr__(self, "raw_sha256", digest)
+        else:
+            object.__setattr__(self, "raw_sha256", None)
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = {
+            "raw_source": self.raw_source,
+            "export_path": self.export_path,
+            "exporter": self.exporter,
+        }
+        if self.raw_sha256 is not None:
+            payload["raw_sha256"] = self.raw_sha256
+        return payload
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "PortableExportBatchEntry":
+        if not isinstance(value, Mapping):
+            raise TypeError("portable export batch entry must be a mapping")
+        return cls(
+            raw_source=str(value.get("raw_source", "")),
+            export_path=str(value.get("export_path", "")),
+            exporter=str(value.get("exporter", "")),
+            raw_sha256=value.get("raw_sha256"),
+        )
+
+
+@dataclass(frozen=True)
+class PortableExportBatchManifest:
+    """Content-addressed, complete raw/export bindings for one technique."""
+
+    technique: str
+    entries: tuple[PortableExportBatchEntry, ...]
+    manifest_version: str = CONTRACT_VERSION
+    manifest_id: str = ""
+    manifest_hash: str = ""
+
+    def __post_init__(self) -> None:
+        technique = str(self.technique).strip().lower()
+        if not technique:
+            raise ValueError("portable export batch technique is required")
+        object.__setattr__(self, "technique", technique)
+        entries = tuple(
+            item if isinstance(item, PortableExportBatchEntry) else PortableExportBatchEntry.from_dict(item)
+            for item in self.entries
+        )
+        if not entries:
+            raise ValueError("portable export batch manifest requires entries")
+        source_keys = {_portable_manifest_key(item.raw_source) for item in entries}
+        export_keys = {_portable_manifest_key(item.export_path) for item in entries}
+        if len(source_keys) != len(entries):
+            raise ValueError("portable export batch raw sources must be unique")
+        if len(export_keys) != len(entries):
+            raise ValueError("portable export batch exports must be unique")
+        object.__setattr__(self, "entries", entries)
+        object.__setattr__(self, "manifest_version", str(self.manifest_version))
+        object.__setattr__(self, "manifest_id", str(self.manifest_id))
+        object.__setattr__(self, "manifest_hash", str(self.manifest_hash))
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        technique: str,
+        entries: Sequence[PortableExportBatchEntry | Mapping[str, Any]],
+        manifest_version: str = CONTRACT_VERSION,
+        manifest_id: str | None = None,
+    ) -> "PortableExportBatchManifest":
+        normalized_entries = tuple(
+            item if isinstance(item, PortableExportBatchEntry) else PortableExportBatchEntry.from_dict(item)
+            for item in entries
+        )
+        payload = {
+            "technique": str(technique).strip().lower(),
+            "entries": [item.to_dict() for item in normalized_entries],
+            "manifest_version": str(manifest_version),
+        }
+        digest = _hash_payload(payload)
+        return cls(
+            technique=payload["technique"],
+            entries=normalized_entries,
+            manifest_version=str(manifest_version),
+            manifest_id=manifest_id or f"portable-export-batch-{digest[:16]}",
+            manifest_hash=digest,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "technique": self.technique,
+            "entries": [item.to_dict() for item in self.entries],
+            "manifest_version": self.manifest_version,
+            "manifest_id": self.manifest_id,
+            "manifest_hash": self.manifest_hash,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "PortableExportBatchManifest":
+        if not isinstance(value, Mapping):
+            raise TypeError("portable export batch manifest must be a mapping")
+        supplied_hash = str(value.get("manifest_hash", ""))
+        if not supplied_hash:
+            raise ValueError("portable export batch manifest hash is missing")
+        manifest = cls.create(
+            technique=str(value.get("technique", "")),
+            entries=value.get("entries", ()),
+            manifest_version=str(value.get("manifest_version", CONTRACT_VERSION)),
+            manifest_id=str(value.get("manifest_id", "")) or None,
+        )
+        if manifest.manifest_hash != supplied_hash:
+            raise ValueError("portable export batch manifest hash does not match its content")
+        if value.get("manifest_id") and str(value["manifest_id"]) != manifest.manifest_id:
+            raise ValueError("portable export batch manifest ID does not match its content")
+        return manifest
+
+
+def _portable_manifest_key(value: str) -> str:
+    """Normalize manifest paths for duplicate detection without filesystem access."""
+    return str(value).replace("\\", "/").strip().casefold()
+
+
+@dataclass(frozen=True)
 class AnalysisPlan:
     """Frozen, replayable description of one deterministic analysis request."""
 
@@ -867,6 +1005,8 @@ __all__ = [
     "EvidenceItem",
     "Formulation",
     "Measurement",
+    "PortableExportBatchEntry",
+    "PortableExportBatchManifest",
     "PreparationBatch",
     "ProjectArtifact",
     "ProjectFact",

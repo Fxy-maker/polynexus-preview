@@ -56,7 +56,8 @@ def _write_ir_file(path: Path) -> None:
         + 0.004 * np.sin(wn / 13.0)
         + rng.normal(0.0, 0.008, size=wn.shape)
     )
-    np.savetxt(path, np.column_stack([wn, absorbance]), fmt="%.8f", delimiter=",")
+    np.savetxt(path, np.column_stack([wn, absorbance]), fmt="%.8f", delimiter=",",
+               header="wavenumber_cm1,absorbance", comments="")
 
 
 def test_ir_param_map_and_apply_changes_update_config() -> None:

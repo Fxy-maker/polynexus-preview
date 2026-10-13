@@ -12,6 +12,8 @@ from polynexus.core.project_workflow.models import (
     Condition,
     Formulation,
     Measurement,
+    PortableExportBatchEntry,
+    PortableExportBatchManifest,
     PreparationBatch,
     ProjectArtifact,
     ProjectFact,
@@ -174,6 +176,30 @@ def test_analysis_request_round_trips_and_has_content_hash():
     missing_hash.pop("request_hash")
     with pytest.raises(ValueError, match="request hash"):
         AnalysisRequest.from_dict(missing_hash)
+
+
+def test_portable_export_batch_manifest_hashes_complete_unique_bindings() -> None:
+    manifest = PortableExportBatchManifest.create(
+        technique="tga",
+        entries=(
+            PortableExportBatchEntry("raw/a.ngb", "exports/a.csv", "Proteus CSV", "a" * 64),
+            PortableExportBatchEntry("raw/b.ngb", "exports/b.csv", "Proteus CSV", "b" * 64),
+        ),
+    )
+
+    assert PortableExportBatchManifest.from_dict(manifest.to_dict()) == manifest
+    tampered = manifest.to_dict()
+    tampered["entries"][0]["export_path"] = "exports/other.csv"
+    with pytest.raises(ValueError, match="manifest hash"):
+        PortableExportBatchManifest.from_dict(tampered)
+    with pytest.raises(ValueError, match="exports must be unique"):
+        PortableExportBatchManifest.create(
+            technique="tga",
+            entries=(
+                {"raw_source": "raw/a.ngb", "export_path": "exports/same.csv", "exporter": "vendor"},
+                {"raw_source": "raw/b.ngb", "export_path": "exports/same.csv", "exporter": "vendor"},
+            ),
+        )
 
 
 def test_plan_and_evidence_hashes_are_required_and_verified():

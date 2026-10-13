@@ -1301,7 +1301,7 @@ def analyze_strain_series(
                 lp.method_used = "tracking_lost"
                 lp.peak_selection_reason = "tracking_already_lost"
             sp.q_peak_total_nm1 = float(getattr(lp, "q_peak_nm1", np.nan))
-            if not np.isfinite(sp.q_peak_total_nm1):
+            if not np.isfinite(sp.q_peak_total_nm1) and not peak_selection_reason:
                 l_best = float(getattr(lp, "L_best", np.nan))
                 if np.isfinite(l_best) and l_best > 0:
                     sp.q_peak_total_nm1 = 2 * np.pi / l_best

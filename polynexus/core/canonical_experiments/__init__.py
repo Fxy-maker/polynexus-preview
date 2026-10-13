@@ -11,7 +11,7 @@ from .capabilities import (
     default_capability_registry,
     default_provider_capability_registry,
 )
-from .one_dimensional import convert_one_dimensional_table
+from .one_dimensional import convert_one_dimensional_table, convert_ta_dma_export
 from .ir_temperature_series import build_ir_temperature_series_template
 from .nd_adapters import (
     DataBlockAdapterResult,
@@ -37,6 +37,7 @@ from .models import (
     Measurement,
 )
 from .registry import CanonicalConverterRegistry, default_converter_registry
+from .portable_export import MAX_EXPORT_BYTES, PortableExportBinding
 
 __all__ = [
     "CanonicalExperiment",
@@ -52,6 +53,7 @@ __all__ = [
     "convert_mettler_isothermal_text",
     "convert_detector_image",
     "convert_one_dimensional_table",
+    "convert_ta_dma_export",
     "build_ir_temperature_series_template",
     "DataBlockAdapterResult",
     "NDAdapterResult",
@@ -64,6 +66,8 @@ __all__ = [
     "convert_ir_temperature_series_to_data_block",
     "convert_nmr_fid_to_data_block",
     "default_converter_registry",
+    "MAX_EXPORT_BYTES",
+    "PortableExportBinding",
     "CapabilityExecutor",
     "CapabilityRegistry",
     "CapabilitySpec",
